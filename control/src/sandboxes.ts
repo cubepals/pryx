@@ -12,7 +12,7 @@ import { sql } from 'drizzle-orm'
 import type pg from 'pg'
 import nodeSchema from '../../openapi/node-reads.openapi.json'
 import type { Db } from './database.ts'
-import { SECOND_MS } from './durations.ts'
+import { MINUTE_S, SECOND_MS } from './durations.ts'
 import { decodeHandle, decodeSnapshot } from './handle.ts'
 import type { NodeClient } from './node-client.ts'
 import { getNode } from './registry.ts'
@@ -28,6 +28,7 @@ import { event, jsonb, one, rows } from './sql.ts'
 import type { WorkloadReport, WorkloadSpec } from './wire.ts'
 import { TRANSFER_MS } from './workload-api.ts'
 
+export const SESSION_LIVE_SECONDS = 2 * MINUTE_S
 export type SandboxSpec = WorkloadSpec & { ttl?: number; idle?: number }
 export type SandboxState =
   | 'creating'
@@ -188,14 +189,14 @@ export class Sandboxes {
       },
       handle: async (handle) => {
         await this.db.execute(
-          sql`UPDATE sandboxes SET handle = ${handle}, updated_at = now() WHERE id = ${id}`,
+          sql`UPDATE sandboxes SET route_listed_version = CASE WHEN handle IS DISTINCT FROM ${handle} THEN NULL ELSE route_listed_version END, handle = ${handle}, updated_at = now() WHERE id = ${id}`,
         )
       },
     }
   }
   private async state(id: string, state: SandboxState, activity = false): Promise<void> {
     await this.db.execute(
-      sql`UPDATE sandboxes SET state = ${state}, updated_at = now(), activity_at = CASE WHEN ${activity} THEN now() ELSE activity_at END WHERE id = ${id}`,
+      sql`UPDATE sandboxes SET route_listed_version = CASE WHEN state <> ${state} THEN NULL ELSE route_listed_version END, state = ${state}, updated_at = now(), activity_at = CASE WHEN ${activity} THEN now() ELSE activity_at END WHERE id = ${id}`,
     )
     await event(this.db, `sandbox.${state}`, { workload: id })
   }
@@ -416,6 +417,9 @@ export class Sandboxes {
       await this.db.execute(
         sql`UPDATE sandbox_snapshots SET deleted_at = now(), spec = spec - 'secrets' WHERE sandbox = ${id}`,
       )
+      await this.db.execute(
+        sql`UPDATE edge_addresses SET retired_at=COALESCE(retired_at,now()) WHERE sandbox=${id}`,
+      )
       await event(this.db, expired ? 'sandbox.expired' : 'sandbox.deleted', {
         workload: id,
       })
@@ -448,7 +452,21 @@ export class Sandboxes {
       if (row.state === 'running') await this.sink(id).handle(await this.engine.start(handle))
     })
   }
+  async sleepIfIdle(id: string): Promise<void> {
+    await this.exclusive(id, async () => {
+      const idle = await one<SandboxRow>(
+        this.db,
+        sql`SELECT b.* FROM sandboxes b WHERE b.id=${id} AND b.deleted_at IS NULL AND b.state='running' AND (b.expires_at IS NULL OR b.expires_at>now()) AND b.spec->>'idle' IS NOT NULL AND b.activity_at + ((b.spec->>'idle')::double precision * interval '1 second') < now() AND NOT EXISTS(SELECT 1 FROM sandbox_sessions s WHERE s.sandbox=b.id AND s.seen_at>now()-(${SESSION_LIVE_SECONDS}*interval '1 second'))`,
+      )
+      if (!idle) return
+      if (idle.handle) await this.engine.sleep(idle.handle)
+      await this.state(id, 'sleeping')
+    })
+  }
   async upkeep(): Promise<void> {
+    await this.db.execute(
+      sql`DELETE FROM sandbox_sessions WHERE seen_at < now()-(${SESSION_LIVE_SECONDS}*interval '1 second')`,
+    )
     await this.engine.upkeep()
     const pending = await rows<SandboxRow>(
       this.db,
@@ -499,10 +517,10 @@ export class Sandboxes {
       )
     const idle = await rows<{ id: string }>(
       this.db,
-      sql`SELECT b.id FROM sandboxes b WHERE b.deleted_at IS NULL AND b.state = 'running' AND b.spec->>'idle' IS NOT NULL AND b.activity_at + ((b.spec->>'idle')::double precision * interval '1 second') < now() AND NOT EXISTS (SELECT 1 FROM sandbox_sessions s WHERE s.sandbox = b.id AND s.seen_at > now() - interval '2 minutes')`,
+      sql`SELECT b.id FROM sandboxes b WHERE b.deleted_at IS NULL AND b.state = 'running' AND b.spec->>'idle' IS NOT NULL AND b.activity_at + ((b.spec->>'idle')::double precision * interval '1 second') < now() AND NOT EXISTS (SELECT 1 FROM sandbox_sessions s WHERE s.sandbox = b.id AND s.seen_at > now() - (${SESSION_LIVE_SECONDS}*interval '1 second'))`,
     )
     for (const row of idle)
-      await this.sleep(row.id).catch((error) =>
+      await this.sleepIfIdle(row.id).catch((error) =>
         console.error('Idle sleep failed', row.id, error instanceof Error ? error.name : 'error'),
       )
   }

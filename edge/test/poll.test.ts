@@ -2,10 +2,11 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-/** What a running edge says of its routes, as the control plane answers its polls or doesn't. */
 import { expect, test } from 'bun:test'
-import { ROUTES_VERSION_HEADER } from '../../packages/contracts/src/edge-poll.ts'
-import { RoutesPoll } from './poll.ts'
+/** What a running edge says of its routes, as the control plane answers its polls or doesn't. */
+import { StatusCodes } from 'http-status-codes'
+import { ROUTES_VERSION_HEADER } from '../../control/src/edge-headers.ts'
+import { RoutesPoll } from '../src/poll.ts'
 
 const list = () =>
   new Response(JSON.stringify({ routes: [] }), {
@@ -29,8 +30,8 @@ test('holds routes once a list is applied, and keeps doing so while the control 
     throw new Error('connect ECONNREFUSED')
   }
   await expect(poll.sync()).rejects.toThrow('ECONNREFUSED')
-  answer = async () => new Response(null, { status: 503 })
-  await expect(poll.sync()).rejects.toThrow('503')
+  answer = async () => new Response(null, { status: StatusCodes.SERVICE_UNAVAILABLE })
+  await expect(poll.sync()).rejects.toThrow(String(StatusCodes.SERVICE_UNAVAILABLE))
   expect(poll.heldOnce()).toBe(true)
 })
 

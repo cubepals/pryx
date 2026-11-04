@@ -11,6 +11,8 @@ import { controlPlaneName, FleetCa } from './ca.ts'
 import { type ControlConfig, loadConfig } from './config.ts'
 import { createDb, createPool, migrationsFolder } from './database.ts'
 import { DAY_MS, MINUTE_MS } from './durations.ts'
+import { edgeApi } from './edge-api.ts'
+import { EdgeService } from './edge-service.ts'
 import { withKeys } from './keys.ts'
 import { NodeClient, splitAddress } from './node-client.ts'
 import { startNodeEndpoint } from './node-endpoint.ts'
@@ -76,7 +78,15 @@ export async function startControl(config: ControlConfig = loadConfig()) {
   })
   withUpgrades(operator, { db, release: endpoint.release })
   withKeys(operator, db, config.project)
-  const api = createPublicApi({ db, boxes: sandboxes, nodes, domain: config.publicDomain })
+  const api = createPublicApi({
+    db,
+    boxes: sandboxes,
+    nodes,
+    domain: config.publicDomain,
+    edgePortRange: config.edgePortRange,
+  })
+  const edge = new EdgeService(db, sandboxes, config.publicDomain, config.edgePortRange)
+  api.app.route('/edge/v1', edgeApi(edge, config.edgeToken))
   const publicListen = splitAddress(config.apiListen)
   const publicServer = Bun.serve({
     hostname: publicListen.host,
@@ -113,6 +123,7 @@ export async function startControl(config: ControlConfig = loadConfig()) {
   return {
     db,
     runtime,
+    edge,
     sandboxes,
     nodes,
     ca,

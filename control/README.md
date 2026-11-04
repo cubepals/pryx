@@ -97,3 +97,18 @@ tar and base64 inside the container, only under its persistent mount; writes are
 `pryx run --image alpine:3.22 -- echo hello` creates a temporary shell image, executes and deletes
 it, preserving the command's exit status. `--snapshot` first forks a stopped copy and rests it;
 the snapshot and retaining sandbox ids are written to stderr. Remove that sandbox when finished.
+
+## Edge protocol
+
+Set `PRYX_EDGE_TOKEN` to the same secret on control and each edge. If absent, all /edge/v1
+requests are refused. This token is independent of public keys and the operator token.
+`PRYX_EDGE_PORT_RANGE` is `20000-20100` by default. Keep this API listener on a private network.
+Every request names an edge in x-edge-id. GET /edge/v1/routes returns routes and the database's
+monotonic x-routes-version; the edge sends x-routes-held only after applying all of a version.
+ETags avoid unchanged bodies. POST /wake, /ping-wake, /idle, /sessions and /visits handle wake and
+activity. The contract is control/openapi/edge.openapi.json; generated edge types are checked
+for drift. See edge/README.md and docs/edge.md for fronts, network policy and measurements.
+
+Public port views now include publicPort. Container-only private UDP still works; the public
+edge accepts TCP. An unready or sleeping route names 0.0.0.0:0. A running public sandbox is
+shown as starting while counted edges catch up. This display barrier never declares a node lost.

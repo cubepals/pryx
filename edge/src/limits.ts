@@ -4,7 +4,7 @@
 
 /**
  * How much the edge lets in, counted per server and per address, so a flood on one server is
- * refused there and every other server keeps taking players. Pure counting: it never touches a
+ * refused there and every other server keeps taking connections. Pure counting: it never touches a
  * socket, and decides nothing about what a refused client is told (that is `front.ts`'s).
  *
  * - An address (an IPv6 one by its /64, which one machine usually holds whole) may hold only a
@@ -13,7 +13,7 @@
  * - A server may take only so many new connections a second, and hold only so many open.
  */
 
-import { SECOND_MS } from '../../packages/contracts/src/durations.ts'
+import { SECOND_MS } from '../../control/src/durations.ts'
 
 /** A token bucket's shape: `burst` at once, then `perSecond` more each second. */
 export interface Rate {

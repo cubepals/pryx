@@ -41,6 +41,7 @@ export async function deployment() {
     PRYX_CA_CERT: pems.certPem,
     PRYX_CA_KEY: pems.keyPem,
     PRYX_OPERATOR_TOKEN: operatorToken,
+    PRYX_EDGE_TOKEN: randomBytes(32).toString('hex'),
     PRYX_NODE_LISTEN: `127.0.0.1:${endpointPort}`,
     S3_ENDPOINT: s3.endpoint,
     S3_BUCKET: s3.bucket,
@@ -93,6 +94,7 @@ export async function deployment() {
       PRYX_API_KEY: credential.key,
       PRYX_OPERATOR_API: control.operatorUrl.replace(/\/$/, ''),
       PRYX_OPERATOR_TOKEN: operatorToken,
+      PRYX_EDGE_TOKEN: control.config.edgeToken,
     },
     close: async () => {
       const kill = ['pkill', '-TERM', '-f', '--', `serve --config ${path}`]

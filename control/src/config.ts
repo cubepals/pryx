@@ -5,6 +5,7 @@
 /** Environment configuration for one control deployment; values are validated before listeners open. */
 
 import { z } from 'zod'
+import { DEFAULT_EDGE_PORT_RANGE } from './edge-addresses.ts'
 import { THRESHOLDS } from './health.ts'
 import { splitAddress } from './node-client.ts'
 import { DEFAULTS } from './placement.ts'
@@ -35,6 +36,10 @@ const schema = z.object({
   operatorListen: z.string(),
   apiListen: z.string(),
   project: z.string().min(1),
+  edgeToken: z.string().min(32).optional(),
+  edgePortRange: z
+    .tuple([z.number().int().min(1024).max(65535), z.number().int().min(1024).max(65535)])
+    .refine(([a, b]) => b >= a),
   publicDomain: z.string().regex(/^[a-zA-Z0-9.-]+$/),
   endpointHosts: z.array(z.string().min(1)).min(1),
   joinUrl: z.url().startsWith('https://'),
@@ -81,6 +86,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     apiListen: env.PRYX_API_LISTEN ?? '127.0.0.1:8082',
     project: env.PRYX_PROJECT ?? 'default',
     publicDomain: env.PRYX_PUBLIC_DOMAIN ?? 'localhost',
+    edgeToken: env.PRYX_EDGE_TOKEN,
+    edgePortRange: env.PRYX_EDGE_PORT_RANGE?.split('-').map(Number) ?? [...DEFAULT_EDGE_PORT_RANGE],
     endpointHosts: hosts,
     joinUrl: env.PRYX_JOIN_URL ?? `https://${hosts[0]}:${splitAddress(nodeListen).port}`,
     pryxdBin: env.PRYX_PRYXD_BIN ?? '/usr/local/bin/pryxd',

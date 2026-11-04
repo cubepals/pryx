@@ -5,15 +5,27 @@
 /** Injected transport, decode and application failures must never acknowledge routes the edge does not hold. */
 
 import { expect, spyOn, test } from 'bun:test'
-import { SECOND_MS } from '../../packages/contracts/src/durations.ts'
-import type { EdgeRoutes } from '../../packages/contracts/src/edge.ts'
-import { ROUTES_HELD_HEADER, ROUTES_VERSION_HEADER } from '../../packages/contracts/src/edge-poll.ts'
-import { RoutesPoll } from './poll.ts'
+import { StatusCodes } from 'http-status-codes'
+import { SECOND_MS } from '../../control/src/durations.ts'
+import { HTTP_FRONT_PORT, ROUTES_HELD_HEADER, ROUTES_VERSION_HEADER } from '../../control/src/edge-headers.ts'
+import type { EdgeRoutes } from '../../control/src/edge-schemas.ts'
+import { RoutesPoll } from '../src/poll.ts'
 
 async function fixture() {
-  const { EdgeRoutes } = await import('../../packages/contracts/src/edge.ts')
+  const { EdgeRoutes } = await import('../../control/src/edge-schemas.ts')
   const routes = EdgeRoutes.parse({
-    routes: [{ hostname: 'maple.play.test', destination: '127.0.0.1:25565' }],
+    routes: [
+      {
+        id: 'sandbox:http',
+        sandbox: 'sandbox',
+        hostname: 'maple.play.test',
+        port: 'http',
+        front: 'http',
+        publicPort: HTTP_FRONT_PORT,
+        destination: '127.0.0.1:8080',
+        epoch: 1,
+      },
+    ],
   })
   const response = (version: string) =>
     Response.json(routes, { headers: { etag: `"${version}"`, [ROUTES_VERSION_HEADER]: version } })
@@ -116,7 +128,7 @@ test('an unchanged response refreshes only an already held version and freshness
     let unchanged = true
     let applications = 0
     const poll = new RoutesPoll(
-      async () => (unchanged ? new Response(null, { status: 304 }) : response('1')),
+      async () => (unchanged ? new Response(null, { status: StatusCodes.NOT_MODIFIED }) : response('1')),
       async () => {
         applications++
         return true

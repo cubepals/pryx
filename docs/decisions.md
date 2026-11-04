@@ -43,3 +43,13 @@
 - K4: Add a real daemon public API/compiled CLI suite to the existing CI e2e job; do not run Docker-backed e2e locally per the plan.
 - K4: Correct the remaining release image environment value to ghcr.io/cubepals/pryxd while adding the CLI and SDK assets; K1's earlier audit missed this value.
 - K4: Final local checks passed with 186 tests and 785 assertions against Postgres, frozen install, schema/SDK drift, structure, actionlint, CLI compilation and SDK packing; real daemon e2e and release publication remain CI work, with no remote result claimed.
+
+- K5: Copy limits, poll acknowledgment mechanics and routed source in a Move commit; replace game-aware greetings, hold packets, mappings, visits and metrics with TLS/HTTP/raw-byte equivalents, keeping no application protocol or PROXY headers.
+- K5: Allocate stable raw TCP public ports under a database advisory lock, reject hostname/listener collisions, and quarantine deleted assignments for ten minutes; public UDP is refused because these fronts are TCP, while private UDP stays available.
+- K5: Use database-generated monotonic route versions rather than host clocks; adapt Cubepals' counted-edge and bounded display-wait rules, independently enforcing sandbox epochs on live connections.
+- K5: Buffer at most 64 KiB through greeting/hold, share wakes per sandbox independently of client cancellation, preserve backpressure after splice, and remove connect cancellation when a connection succeeds.
+- K5: Persist session connect/disconnect, refresh long-lived sessions every 30 seconds, expire them after two minutes, and evaluate idle hints with the same serialized policy as upkeep; connection reports never authorize a caller.
+- K5: Install Go 1.27.3 from the official archive after checking published SHA256 65efbc80fdc1fa2cd2631cad5b481777a68e8725f34e89f50fc6ac714e379b40; the preinstalled go command was a different program.
+- K5: Install requests 2.32.5 in a dedicated virtual environment and rerun after the diagnostic samples showed missing requests; keep diagnostic records separate from final measurements.
+- K5: Measure three silent-listener samples per available client/protocol, cap observations at 15 seconds and mark censoring; choose a five-second default below Go TLS's measured approximately ten-second timeout. Safari has no Linux runtime, so its n is zero and no Safari bound is claimed.
+- K5: Use a test CA and an Alpine OpenSSL fixture in the CI-only real daemon edge suite, covering HTTP and HTTPS sleep/wake plus epoch-close behavior; do not claim a local Docker/e2e result.

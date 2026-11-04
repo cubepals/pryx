@@ -1,0 +1,314 @@
+{
+  "capSeconds": 15,
+  "n": 3,
+  "versions": {
+    "curl": "curl 8.14.1 (x86_64-pc-linux-gnu) libcurl/8.14.1 OpenSSL/3.5.7 zlib/1.3.1 brotli/1.1.0 zstd/1.5.7 libidn2/2.3.8 libpsl/0.21.2 libssh2/1.11.1 nghttp2/1.64.0 nghttp3/1.8.0 librtmp/2.3 OpenLDAP/2.6.10",
+    "Node fetch": "v24.22.1",
+    "Python requests": "Traceback (most recent call last):",
+    "Go net/http": "go version go1.27.3 linux/amd64",
+    "Chrome": "Chromium 155.0.8059.79 built on Debian GNU/Linux 13 (trixie)",
+    "OpenSSH": "OpenSSH_10.0p2 Debian-7+deb13u4, OpenSSL 3.5.7 9 Jun 2026"
+  },
+  "results": [
+    {
+      "client": "curl",
+      "kind": "TLS",
+      "sample": 0,
+      "seconds": 15.0611,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "curl",
+      "kind": "TLS",
+      "sample": 1,
+      "seconds": 15.0578,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "curl",
+      "kind": "TLS",
+      "sample": 2,
+      "seconds": 15.0558,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "curl",
+      "kind": "HTTP",
+      "sample": 0,
+      "seconds": 15.0516,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "curl",
+      "kind": "HTTP",
+      "sample": 1,
+      "seconds": 15.054,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "curl",
+      "kind": "HTTP",
+      "sample": 2,
+      "seconds": 15.053,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Node fetch",
+      "kind": "TLS",
+      "sample": 0,
+      "seconds": 10.6764,
+      "censored": false,
+      "exit": 1,
+      "stderr": ""
+    },
+    {
+      "client": "Node fetch",
+      "kind": "TLS",
+      "sample": 1,
+      "seconds": 10.8757,
+      "censored": false,
+      "exit": 1,
+      "stderr": ""
+    },
+    {
+      "client": "Node fetch",
+      "kind": "TLS",
+      "sample": 2,
+      "seconds": 10.8676,
+      "censored": false,
+      "exit": 1,
+      "stderr": ""
+    },
+    {
+      "client": "Node fetch",
+      "kind": "HTTP",
+      "sample": 0,
+      "seconds": 15.0364,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Node fetch",
+      "kind": "HTTP",
+      "sample": 1,
+      "seconds": 15.023,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Node fetch",
+      "kind": "HTTP",
+      "sample": 2,
+      "seconds": 15.0337,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Python requests",
+      "kind": "TLS",
+      "sample": 0,
+      "seconds": 0.0276,
+      "censored": false,
+      "exit": 1,
+      "stderr": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'requests'\n"
+    },
+    {
+      "client": "Python requests",
+      "kind": "TLS",
+      "sample": 1,
+      "seconds": 0.0245,
+      "censored": false,
+      "exit": 1,
+      "stderr": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'requests'\n"
+    },
+    {
+      "client": "Python requests",
+      "kind": "TLS",
+      "sample": 2,
+      "seconds": 0.0236,
+      "censored": false,
+      "exit": 1,
+      "stderr": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'requests'\n"
+    },
+    {
+      "client": "Python requests",
+      "kind": "HTTP",
+      "sample": 0,
+      "seconds": 0.019,
+      "censored": false,
+      "exit": 1,
+      "stderr": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'requests'\n"
+    },
+    {
+      "client": "Python requests",
+      "kind": "HTTP",
+      "sample": 1,
+      "seconds": 0.0231,
+      "censored": false,
+      "exit": 1,
+      "stderr": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'requests'\n"
+    },
+    {
+      "client": "Python requests",
+      "kind": "HTTP",
+      "sample": 2,
+      "seconds": 0.0208,
+      "censored": false,
+      "exit": 1,
+      "stderr": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'requests'\n"
+    },
+    {
+      "client": "Go net/http",
+      "kind": "TLS",
+      "sample": 0,
+      "seconds": 10.012,
+      "censored": false,
+      "exit": 1,
+      "stderr": ""
+    },
+    {
+      "client": "Go net/http",
+      "kind": "TLS",
+      "sample": 1,
+      "seconds": 10.0151,
+      "censored": false,
+      "exit": 1,
+      "stderr": ""
+    },
+    {
+      "client": "Go net/http",
+      "kind": "TLS",
+      "sample": 2,
+      "seconds": 10.0105,
+      "censored": false,
+      "exit": 1,
+      "stderr": ""
+    },
+    {
+      "client": "Go net/http",
+      "kind": "HTTP",
+      "sample": 0,
+      "seconds": 15.0254,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Go net/http",
+      "kind": "HTTP",
+      "sample": 1,
+      "seconds": 15.0244,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Go net/http",
+      "kind": "HTTP",
+      "sample": 2,
+      "seconds": 15.0228,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Chrome",
+      "kind": "TLS",
+      "sample": 0,
+      "seconds": 15.0487,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Chrome",
+      "kind": "TLS",
+      "sample": 1,
+      "seconds": 15.0485,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Chrome",
+      "kind": "TLS",
+      "sample": 2,
+      "seconds": 15.0333,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Chrome",
+      "kind": "HTTP",
+      "sample": 0,
+      "seconds": 15.1947,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Chrome",
+      "kind": "HTTP",
+      "sample": 1,
+      "seconds": 15.293,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Chrome",
+      "kind": "HTTP",
+      "sample": 2,
+      "seconds": 15.7964,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "OpenSSH",
+      "kind": "banner",
+      "sample": 0,
+      "seconds": 15.5831,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "OpenSSH",
+      "kind": "banner",
+      "sample": 1,
+      "seconds": 15.0315,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "OpenSSH",
+      "kind": "banner",
+      "sample": 2,
+      "seconds": 15.028,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    }
+  ],
+  "missing": {
+    "Safari": "Unavailable on this Linux host; no Safari measurement was run."
+  }
+}

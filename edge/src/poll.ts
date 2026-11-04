@@ -9,12 +9,14 @@
  *
  * Not for applying a list, which the caller does (`router.ts`).
  */
-import type { EdgeRoutes } from '@blockly/contracts/edge'
+import { StatusCodes } from 'http-status-codes'
+import { SECOND_MS } from '../../control/src/durations.ts'
 import {
   EDGE_STARTED_HEADER,
   ROUTES_HELD_HEADER,
   ROUTES_VERSION_HEADER,
-} from '../../packages/contracts/src/edge-poll.ts'
+} from '../../control/src/edge-headers.ts'
+import type { EdgeRoutes } from './wire.ts'
 
 /** When this agent started: the control plane gives a restarted edge time to catch up. */
 const STARTED_AT = Date.now()
@@ -46,7 +48,7 @@ export class RoutesPoll {
       ...(this.#etag === null ? {} : { 'if-none-match': this.#etag }),
       ...(this.#version === null ? {} : { [ROUTES_HELD_HEADER]: this.#version }),
     })
-    if (response.status === 304) {
+    if (response.status === StatusCodes.NOT_MODIFIED) {
       if (this.#version !== null) this.#currentAt = Date.now()
       return false
     }
@@ -67,12 +69,16 @@ export class RoutesPoll {
   }
 
   /** Whether a list has been held whole since this agent started. */
+  get version(): number {
+    return Number(this.#version ?? 0)
+  }
+
   heldOnce(): boolean {
     return this.#version !== null
   }
 
   /** Whether the list held was the control plane's newest when it was last asked, within `withinMs`. */
-  current(withinMs = 5_000): boolean {
+  current(withinMs = 5 * SECOND_MS): boolean {
     return this.#currentAt !== null && Date.now() - this.#currentAt <= withinMs
   }
 

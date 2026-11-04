@@ -16,9 +16,15 @@ import { PublicModel } from './public-model.ts'
 import { SandboxIO } from './sandbox-io.ts'
 import { SandboxError, type Sandboxes } from './sandboxes.ts'
 
-export function createPublicApi(options: { db: Db; boxes: Sandboxes; nodes: NodeClient; domain: string }) {
+export function createPublicApi(options: {
+  db: Db
+  boxes: Sandboxes
+  nodes: NodeClient
+  domain: string
+  edgePortRange?: readonly [number, number]
+}) {
   const { db, boxes, nodes, domain } = options
-  const model = new PublicModel(db, boxes, domain)
+  const model = new PublicModel(db, boxes, domain, options.edgePortRange)
   const io = new SandboxIO(db, boxes, nodes)
   const app = new Hono<{ Variables: { project: string } }>()
   app.use('/v1/*', async (c, next) => {

@@ -211,6 +211,10 @@ jobs:
             done
           done
           docker tag mirror.gcr.io/library/alpine:3.22 alpine:3.22
+      - name: Build the TLS sandbox fixture
+        run: |
+          printf 'FROM mirror.gcr.io/library/alpine:3.22\nRUN apk add --no-cache openssl\n' > "$RUNNER_TEMP/tls.Dockerfile"
+          docker build -t alpine:pryx-tls -f "$RUNNER_TEMP/tls.Dockerfile" "$RUNNER_TEMP"
       - name: Start an S3 store
         run: >-
           docker run -d --name s3 -p 9000:9000 -e RUSTFS_ACCESS_KEY=blockly-test
@@ -311,6 +315,10 @@ jobs:
           done
           docker tag mirror.gcr.io/library/alpine:3.22 alpine:3.22
           docker tag mirror.gcr.io/library/docker:29-dind docker:29-dind
+      - name: Build the TLS sandbox fixture
+        run: |
+          printf 'FROM mirror.gcr.io/library/alpine:3.22\nRUN apk add --no-cache openssl\n' > "$RUNNER_TEMP/tls.Dockerfile"
+          docker build -t alpine:pryx-tls -f "$RUNNER_TEMP/tls.Dockerfile" "$RUNNER_TEMP"
       - name: Start an S3 store
         run: >-
           docker run -d --name pryx-s3 -p 9000:9000 -e RUSTFS_ACCESS_KEY=blockly-test

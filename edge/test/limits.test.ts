@@ -5,8 +5,8 @@
 /** The gate: what it lets through per server and per address, and what it forgets. */
 
 import { expect, test } from 'bun:test'
-import { SECOND_MS } from '../../packages/contracts/src/durations.ts'
-import { addressKey, Gate, type Limits } from './limits.ts'
+import { SECOND_MS } from '../../control/src/durations.ts'
+import { addressKey, Gate, type Limits } from '../src/limits.ts'
 
 const LIMITS: Limits = {
   address: { connections: { perSecond: 1, burst: 3 }, greeting: 2, open: 3 },

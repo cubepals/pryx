@@ -17,7 +17,8 @@
   "include": [
     "control/**/*.ts",
     "cli/**/*.ts",
-    "sdk/typescript/**/*.ts"
+    "sdk/typescript/**/*.ts",
+    "edge/**/*.ts"
   ],
   "exclude": [
     "node_modules"

@@ -7,6 +7,8 @@ import { sql } from 'drizzle-orm'
 import type { Make, PublicPort } from './api-schemas.ts'
 import { makeSchema } from './api-schemas.ts'
 import type { Db } from './database.ts'
+import { addresses, DEFAULT_EDGE_PORT_RANGE } from './edge-addresses.ts'
+import { shownState } from './edge-routed.ts'
 import { complete, fingerprint, operation } from './operations.ts'
 import { SandboxError, type Sandboxes, type SandboxSpec } from './sandboxes.ts'
 import { jsonb, one, rows } from './sql.ts'
@@ -16,6 +18,7 @@ export class PublicModel {
     readonly db: Db,
     readonly boxes: Sandboxes,
     readonly domain: string,
+    readonly portRange: readonly [number, number] = DEFAULT_EDGE_PORT_RANGE,
   ) {}
   async view(id: string, project: string) {
     const sandbox = await this.boxes.get(id, project)
@@ -23,14 +26,22 @@ export class PublicModel {
       this.db,
       sql`SELECT public_ports FROM sandboxes WHERE id = ${id}`,
     )
+    const assigned = await addresses(this.db, id, metadata?.public_ports ?? [], this.domain, this.portRange)
     return {
       ...sandbox,
+      state: await shownState(this.db, id, sandbox.state),
       endpoints: sandbox.endpoints.map((e) => {
         const p = metadata?.public_ports.find((p) => p.name === e.name)
         return {
           ...e,
           protocol: p?.protocol,
-          ...(p?.audience === 'public' ? { hostname: `${p.alias ?? id}.${this.domain}` } : {}),
+          ...(p?.audience === 'public'
+            ? {
+                hostname:
+                  assigned.find((a) => a.name === p.name)?.hostname ?? `${p.alias ?? id}.${this.domain}`,
+                publicPort: assigned.find((a) => a.name === p.name)?.public_port,
+              }
+            : {}),
         }
       }),
     }
@@ -74,8 +85,10 @@ export class PublicModel {
       ...(body.ttl ? { ttl: body.ttl } : {}),
       ...(body.idle ? { idle: body.idle } : {}),
     }
+    const id = options.id ?? op.id
+    if (!options.internal) await addresses(this.db, id, body.ports, this.domain, this.portRange)
     const result = await this.boxes.make(project, spec, {
-      id: options.id ?? op.id,
+      id,
       region: body.region,
       start: body.start,
       snapshot,

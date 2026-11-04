@@ -6,8 +6,8 @@
 
 import { expect, test } from 'bun:test'
 import fc from 'fast-check'
-import { SECOND_MS } from '../../packages/contracts/src/durations.ts'
-import { addressKey, Bucket, Gate } from './limits.ts'
+import { SECOND_MS } from '../../control/src/durations.ts'
+import { addressKey, Bucket, Gate } from '../src/limits.ts'
 
 const properties = { seed: 0xc011ec7, numRuns: 150, includeErrorInReport: true }
 

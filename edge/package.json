@@ -1,0 +1,17 @@
+{
+  "name": "@pryx/edge",
+  "private": true,
+  "type": "module",
+  "license": "FSL-1.1-ALv2",
+  "scripts": {
+    "start": "bun src/agent.ts",
+    "build": "bun build --compile src/agent.ts --outfile ../dist/pryx-edge"
+  },
+  "dependencies": {
+    "http-status-codes": "2.3.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "fast-check": "4.10.2"
+  }
+}

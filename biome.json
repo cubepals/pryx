@@ -7,7 +7,9 @@
       "!control/src/generated/**",
       "sdk/typescript/**",
       "!sdk/typescript/src/generated/**",
-      "!control/openapi/**"
+      "!control/openapi/**",
+      "edge/**",
+      "!edge/src/generated/**"
     ]
   },
   "formatter": {
