@@ -104,6 +104,7 @@ export async function startControl(config: ControlConfig = loadConfig()) {
     nodes,
     ca,
     config,
+    operatorUrl: server.url.toString(),
     stop: async () => {
       clearInterval(upkeep)
       clearInterval(rotation)

@@ -26,3 +26,4 @@
 - K3: Import HTTP statuses from http-status-codes and timer units from durations.ts; copied transport and test code retains behavior without repeating protocol numbers.
 - K3: Reserve an explicit cpuMillis request in placement as well as forwarding it to the node; otherwise control's ledger could promise less CPU than the sandbox requests.
 - K3: Persist creation power intent and snapshot source for interrupted makes, reject new operations past TTL using database time, and release the sandbox lock before waiting on exec so TTL cleanup can proceed.
+- K3: Disable the node adapter's global web-object override; its lightweight Response objects are incompatible with the direct Bun listener. The composed-service smoke returned HTTP 200 after using the adapter's documented overrideGlobalObjects=false option.

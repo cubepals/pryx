@@ -162,6 +162,7 @@ export async function startNodeEndpoint(options: NodeEndpointOptions): Promise<{
     })
   const first = await identity()
   const server = serve({
+    overrideGlobalObjects: false,
     fetch: app.fetch,
     hostname: options.listen.host,
     port: options.listen.port,
