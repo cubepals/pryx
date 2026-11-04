@@ -1,6 +1,6 @@
-// Generated from infra/fleet/node-writes.openapi.json (sha256 2f9dcc71221800e017b9be1eb891c23473f5d7d2235867e37663423ad68f5d24) by tools/openapi.
-// Do not edit. Regenerate with `bun run openapi:generate`; update the spec with `bun scripts/blocklyd.ts bump <version>`.
-
+// SPDX-FileCopyrightText: 2026 The Cubepals Authors
+// SPDX-License-Identifier: FSL-1.1-ALv2
+// Generated from openapi/node-writes.openapi.json; sha256 76e568f2247c39d17e73cdbc18540c114608582ddb695776b300010b816d1a9a.
 export type paths = Record<string, never>;
 export type webhooks = Record<string, never>;
 export interface components {
@@ -26,7 +26,7 @@ export interface components {
              */
             runningMemoryMb: number;
         };
-        /** @description The blocklyd process itself, as distinct from the node it runs on. */
+        /** @description The pryxd process itself, as distinct from the node it runs on. */
         DaemonView: {
             /** Format: double */
             cpuSeconds: number | null;
@@ -88,7 +88,7 @@ export interface components {
              */
             exitCode: number | null;
             /**
-             * @description blocklyd killed the process (by its host pid) after the timeout. Docker alone can't:
+             * @description pryxd killed the process (by its host pid) after the timeout. Docker alone can't:
              *     its API has no way to stop an exec (moby/moby#35703).
              */
             killed: boolean;
@@ -177,7 +177,7 @@ export interface components {
              */
             seq: number;
             /**
-             * @description New each time blocklyd starts. Two sessions beating for one node id at once are two
+             * @description New each time pryxd starts. Two sessions beating for one node id at once are two
              *     hosts with one identity.
              */
             sessionId: string;
@@ -212,11 +212,11 @@ export interface components {
         Method: "reflink" | "copy";
         /** @description Where the node is reached, as its configuration says now. */
         NodeAddresses: {
-            /** @description blocklyd's API, `host:port`. */
+            /** @description pryxd's API, `host:port`. */
             api: string;
             /** @description Where the control plane reaches console and status ports. */
             control: string;
-            /** @description Where the edge reaches game ports. */
+            /** @description Where the edge reaches public ports. */
             edge: string;
         };
         /**
@@ -292,7 +292,7 @@ export interface components {
             capacity: components["schemas"]["NodeCapacity"];
             controlIps: string[];
             daemonVersion: string;
-            /** @description Where the edge reaches game ports, and the control plane console and status ports. */
+            /** @description Where the edge reaches public ports, and the control plane console and status ports. */
             edgeIps: string[];
             features: string[];
             hostname: string;
@@ -304,7 +304,7 @@ export interface components {
             protocol: components["schemas"]["ProtocolVersions"];
         };
         NodeHealth: {
-            /** @description blocklyd's version: what a control plane reads before relying on a feature. */
+            /** @description pryxd's version: what a control plane reads before relying on a feature. */
             daemonVersion: string;
             deploymentId: string;
             docker: boolean;
@@ -349,7 +349,7 @@ export interface components {
             containerPort: number;
             /**
              * @description `host:port` per audience, `[v6]:port` for IPv6: where the edge and the control plane
-             *     reach this port. Blockly's `endpoint(handle, port, audience)`.
+             *     reach this port. the control plane's `endpoint(handle, port, audience)`.
              */
             endpoints: components["schemas"]["Endpoints"];
             /** Format: uint16 */
@@ -424,7 +424,7 @@ export interface components {
             cpuWeight: number | null;
             /**
              * Format: uint32
-             * @description Hard memory limit (no swap). Blockly's size: 3072 for a 3 GB server.
+             * @description Hard memory limit (no swap). Expressed in MiB.
              */
             memoryMb: number;
             /**
@@ -541,7 +541,7 @@ export interface components {
             version: string;
         };
         /**
-         * @description What the control plane calls a workload: Blockly's server id (a UUID) in practice, but any
+         * @description What the control plane calls a workload: the control plane's sandbox id (a UUID) in practice, but any
          *     lowercase DNS label will do. The character set is the whole defence against path traversal
          *     and injection: a valid id is always one safe path component, one safe container-name suffix
          *     and one safe label value, so nothing downstream needs to escape it.
@@ -575,7 +575,7 @@ export interface components {
             supersededBy: number | null;
         };
         /**
-         * @description What a workload is doing, normalized. How it maps onto Blockly's `ObservedState`:
+         * @description What a workload is doing, normalized. How it maps onto the control plane's `ObservedState`:
          *     created/stopped → stopped · running → running · stopping → stopping · crashed → crashed ·
          *     restarting → starting (with `lastFailureAt`) · missing/retained → absent · creating → stopped
          *     · unknown → unknown · fenced → stopped (this copy lost its placement; the current one is
@@ -583,7 +583,7 @@ export interface components {
          */
         WorkloadState: "running" | "creating" | "created" | "stopping" | "stopped" | "crashed" | "restarting" | "missing" | "retained" | "unknown" | "fenced" | "suspended";
         WorkloadView: {
-            /** @description When the state last changed, as the runtime recorded it (survives blocklyd restarts). */
+            /** @description When the state last changed, as the runtime recorded it (survives pryxd restarts). */
             changedAt: string;
             createdAt: string;
             /**
@@ -605,7 +605,7 @@ export interface components {
             labels: {
                 [key: string]: string;
             };
-            /** @description When it last failed and the host started it again (Blockly's `failedAt`). */
+            /** @description When it last failed and the host started it again (the control plane's `failedAt`). */
             lastFailureAt: string | null;
             locate: components["schemas"]["Locate"];
             /**
@@ -618,7 +618,7 @@ export interface components {
             /**
              * Format: uint32
              * @description Restarts the host made after failures since the last requested start or new spec. Kept
-             *     across restarts of blocklyd.
+             *     across restarts of pryxd.
              */
             restartCount: number;
             secretNames: string[];

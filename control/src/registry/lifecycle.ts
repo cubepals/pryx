@@ -7,8 +7,10 @@
  * quarantine, set its labels.
  * What the node itself reports is applied in `heartbeat.ts`, never here.
  */
-import type { Db } from '@blockly/db'
+
 import { sql } from 'drizzle-orm'
+
+import type { Db } from '../database.ts'
 import type { Thresholds } from '../health.ts'
 import type { Lifecycle } from '../placement.ts'
 import { event, exec, jsonb, rows } from '../sql.ts'
@@ -36,7 +38,7 @@ async function transition(
   })
 }
 
-/** No new servers; what is there stays, and moves when the application's relocation sweep moves it. */
+/** No new sandboxes; what is there stays, and moves when the application's relocation sweep moves it. */
 export const drain = (db: Db, id: string, by: string) =>
   transition(db, id, ['active'], 'draining', 'node.draining', { by })
 export const undrain = (db: Db, id: string, by: string) =>
@@ -82,7 +84,11 @@ export async function confirmLost(
           WHERE node_id = ${id} AND state IN ('placing', 'placed') RETURNING workload, epoch`,
     )
     for (const row of displaced)
-      await event(t, 'placement.displaced', { node: id, workload: row.workload, epoch: Number(row.epoch) })
+      await event(t, 'placement.displaced', {
+        node: id,
+        workload: row.workload,
+        epoch: Number(row.epoch),
+      })
     // Its reports describe a host that is gone; a returning node reports afresh.
     await t.execute(sql`DELETE FROM fleet_observations WHERE node_id = ${id}`)
     await event(t, 'node.lost', {
@@ -100,7 +106,7 @@ export async function confirmLost(
 }
 
 /**
- * A lost node came back and its data is wanted: its servers that weren't rebuilt elsewhere are
+ * A lost node came back and its data is wanted: its sandboxes that weren't rebuilt elsewhere are
  * placed there again. One rebuilt meanwhile has a newer epoch, and its copy here is fenced. One
  * whose restore, move or rebuild here hadn't finished (`completing`) is `placing` again, so the next
  * start or retry finishes filling it rather than running it empty.
@@ -119,7 +125,10 @@ export async function reinstate(db: Db, id: string, by: string): Promise<{ resto
           SET state = (CASE WHEN completing IS NULL THEN 'placed' ELSE 'placing' END)::fleet_placement_state, updated_at = now()
           WHERE node_id = ${id} AND state = 'displaced' RETURNING workload`,
     )
-    await event(t, 'node.reinstated', { node: id, data: { placements: restored.map((r) => r.workload), by } })
+    await event(t, 'node.reinstated', {
+      node: id,
+      data: { placements: restored.map((r) => r.workload), by },
+    })
     return { restored: restored.map((r) => r.workload) }
   })
 }
@@ -142,7 +151,10 @@ export async function retire(db: Db, id: string, by: string): Promise<void> {
     await t.execute(sql`
       UPDATE fleet_nodes SET lifecycle = 'retired', cert_sha256 = NULL, next_cert_sha256 = NULL,
         updated_at = now() WHERE id = ${id}`)
-    await event(t, 'node.retired', { node: id, data: { from: node.lifecycle, by } })
+    await event(t, 'node.retired', {
+      node: id,
+      data: { from: node.lifecycle, by },
+    })
   })
 }
 
@@ -155,12 +167,16 @@ export async function clearQuarantine(db: Db, id: string, by: string): Promise<v
 /**
  * An operator's labels on a node, set or removed. A node gets its first ones at enrollment, from
  * its configuration and its token; neither heartbeats nor re-enrollment change them, so this is how
- * its price (`monthly_cost_cents`, which its servers' prices are a share of) is corrected.
+ * its price (`monthly_cost_cents`, which its sandboxes' prices are a share of) is corrected.
  */
 export async function setLabels(
   db: Db,
   id: string,
-  change: { set: Record<string, string>; remove: readonly string[]; by: string },
+  change: {
+    set: Record<string, string>
+    remove: readonly string[]
+    by: string
+  },
 ): Promise<NodeRow> {
   if (Object.keys(change.set).length === 0 && change.remove.length === 0)
     throw new Refused(400, 'invalid_request', 'say which labels to set or remove')

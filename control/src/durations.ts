@@ -7,7 +7,7 @@
  * counts seconds (signed links, tokens, Postgres intervals). A length that is a setting, such as how
  * long a server idles before it sleeps, stays a named constant where it is used, written in these.
  *
- * It imports nothing, so domain/ and minecraft/, which import no packages, may use it, and so may
+ * It imports nothing, so domain/ and application/, which import no packages, may use it, and so may
  * anything compiled without installing.
  */
 

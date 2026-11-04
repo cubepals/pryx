@@ -233,6 +233,99 @@ jobs:
 
   # The image a release publishes builds, and its binary is static. Not on main's own push, where
   # release.yml builds it.
+  control:
+    name: Control workspaces
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: mirror.gcr.io/library/postgres:17-alpine
+        env:
+          POSTGRES_USER: pryx
+          POSTGRES_PASSWORD: pryx-test
+          POSTGRES_DB: pryx
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U pryx"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://pryx:pryx-test@127.0.0.1:5432/pryx
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.23.2
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+      - run: bun scripts/check-control-structure.ts
+
+  e2e:
+    name: Control end to end
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: mirror.gcr.io/library/postgres:17-alpine
+        env:
+          POSTGRES_USER: pryx
+          POSTGRES_PASSWORD: pryx-test
+          POSTGRES_DB: pryx
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U pryx"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://pryx:pryx-test@127.0.0.1:5432/pryx
+      S3_TEST_ENDPOINT: http://127.0.0.1:9000
+      S3_TEST_CONTAINER: pryx-s3
+      PRYXD_SUDO: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.23.2
+      - run: rustup toolchain install
+      - run: cargo build --locked
+      - run: bun install --frozen-lockfile
+      - name: Pull the test images
+        run: |
+          for image in ghcr.io/rustfs/rustfs:1.0.0 mirror.gcr.io/library/alpine:3.22 mirror.gcr.io/library/docker:29-dind; do
+            for wait in 2 5 10 20 40 0; do
+              docker pull -q "$image" && break
+              [ "$wait" = 0 ] && exit 1
+              sleep "$wait"
+            done
+          done
+          docker tag mirror.gcr.io/library/alpine:3.22 alpine:3.22
+          docker tag mirror.gcr.io/library/docker:29-dind docker:29-dind
+      - name: Start an S3 store
+        run: >-
+          docker run -d --name pryx-s3 -p 9000:9000 -e RUSTFS_ACCESS_KEY=blockly-test
+          -e RUSTFS_SECRET_KEY=blockly-test-secret ghcr.io/rustfs/rustfs:1.0.0 /data
+      - name: Build a static daemon for isolated nodes
+        run: |
+          docker build -t pryx-static-test .
+          id=$(docker create pryx-static-test)
+          docker cp "$id:/pryxd" "$RUNNER_TEMP/pryxd"
+          docker rm "$id"
+      - run: bun run e2e
+        env:
+          PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
+          PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
+
   image:
     name: Release image builds
     needs: changes
@@ -271,7 +364,7 @@ jobs:
         run: scripts/check-mentions.sh --pr
 
   check:
-    needs: [changes, test, supply-chain, contract, subject, image]
+    needs: [changes, test, supply-chain, contract, subject, image, control, e2e]
     if: always()
     runs-on: ubuntu-24.04
     steps:

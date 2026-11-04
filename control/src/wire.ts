@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
 /**
- * blocklyd's wire types, as the control plane writes and reads them. They are generated from the
- * node's own Rust types (each cubepals/blocklyd release carries them as *.openapi.json, which
+ * pryxd's wire types, as the control plane writes and reads them. They are generated from the
+ * node's own Rust types (each cubepals/pryx release carries them as *.openapi.json, which
  * `bun scripts/blocklyd.ts bump` pins here and `bun run openapi:generate` makes generated/ from), so a field the node renames, retypes or
  * makes nullable fails to compile here instead of on the wire. `Reads` is what the node reads: its
  * API's requests and the answers to its own; `Writes` is what it writes.
@@ -13,6 +13,7 @@
  * the control plane produces a type the node reads more loosely than it is sent, a narrowing here
  * holds the control plane to what it means to send.
  */
+
 import type { components as NodeReads } from './generated/node-reads.ts'
 import type { components as NodeWrites } from './generated/node-writes.ts'
 

@@ -13,3 +13,13 @@
 - K2: Empty image policy is valid configuration and denies every image at spec validation; join preserves an existing configuration rather than silently broadening host policy.
 - K2: Read original records from the unchanged format fixtures for digest regression checks; generic example inputs necessarily have different digests.
 - K2: Regenerate OpenAPI documentation after genericizing schema doc comments; descriptions change, but schema shapes and all format bytes stay unchanged. Literal no-document-diff conflicts with changing comments emitted as schema descriptions.
+- K3: Copy from the read-only Cubepals checkout at 7c689ceff327330c89063614ff476807c018eff3; keep the initial copy and structural splits in separate Move commits, with only SPDX license headers changed in the initial copy.
+- K3: Include upstream migrations 0046_fleet_upgrades and 0083_sent_digest, renumbered 0005 and 0006; current registry and power code require columns absent from the plan's older migration list.
+- K3: Retain fleet_* table names and node protocol v1; use a standalone sandbox-intent table, a separate Postgres advisory-lock pool, and a plain serialized minute interval instead of application jobs or pg-boss.
+- K3: Stop application writes for generic snapshots and upload before rest; application-specific quiescing cannot be assumed.
+- K3: Preserve source configuration defaults, including PRYX_SUSPEND=off, and expose sleep/wake tiers; hosts still announce the suspend feature before it is used.
+- K3: Keep the copied runtime port internal as runtime-model.ts; public SandboxSpec uses the node's generated WorkloadSpec plus ttl and idle, which are stripped before node requests.
+- K3: Replace Terraform-only CLI commands with the standalone operator API commands; provider acquisition is implemented in K7, with no Cubepals build-time imports.
+- K3: Expand the existing pinned Cubepals structure checker's source scope through a wrapper, without adding baseline entries; the original Rust checker alone ignores control/.
+- K3: Local Postgres runs in an isolated Docker container; full Docker-backed lifecycle and two-node end-to-end suites remain for CI. New control/e2e jobs are authorized explicitly by PLAN.md, and their CI duration is not yet measured.
+- K3: A direct Bun 1.4.4 TLS check returned HTTP 200 for unauthenticated CA bootstrap; retain Bun in the composition root and the copied Node subprocess checks for compatibility.

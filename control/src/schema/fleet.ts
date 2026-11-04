@@ -6,6 +6,7 @@
  * The fleet runtime's own state (docs/fleet.md): its nodes and their tokens, archives on them,
  * placements and their history, what the nodes observe, their endpoints and events.
  */
+
 import {
   bigint,
   boolean,
@@ -26,16 +27,16 @@ import { createdAt, ts, updatedAt } from './columns.ts'
 // machines. A node is never identified by its address.
 
 /**
- * What an operator decided about a node. `draining` takes no new servers; `lost` is an
- * operator's statement that the host is gone, which lets its servers be rebuilt elsewhere;
+ * What an operator decided about a node. `draining` takes no new sandboxes; `lost` is an
+ * operator's statement that the host is gone, which lets its sandboxes be rebuilt elsewhere;
  * `retired` is gone for good and its certificate no longer works. Health (healthy, suspect,
  * unavailable…) is derived from heartbeats, never stored as a decision.
  */
 export const fleetNodeLifecycle = pgEnum('fleet_node_lifecycle', ['active', 'draining', 'lost', 'retired'])
 
 /**
- * Where a server's world lives. `placing`: a node is chosen and the copy may be under way;
- * `placed`: the copy exists there; `released`: compute and storage were let go and the world
+ * Where a server's data lives. `placing`: a node is chosen and the copy may be under way;
+ * `placed`: the copy exists there; `released`: compute and storage were let go and the data
  * rests in the archive store; `displaced`: its node was declared lost and it waits to be rebuilt.
  */
 export const fleetPlacementState = pgEnum('fleet_placement_state', [
@@ -57,11 +58,11 @@ export const fleetNodes = pgTable(
      * token said so, not the node).
      */
     regionKey: text('region_key').notNull(),
-    /** Where the control plane dials blocklyd's API, host:port; reported by the node, may change. */
+    /** Where the control plane dials pryxd's API, host:port; reported by the node, may change. */
     apiAddress: text('api_address').notNull(),
-    /** Where the edge reaches its servers' game ports. */
+    /** Where the edge reaches its sandboxes' public ports. */
     edgeHost: text('edge_host').notNull(),
-    /** Where the control plane reaches their RCON and status ports. */
+    /** Where the control plane reaches their private ports. */
     controlHost: text('control_host').notNull(),
     lifecycle: fleetNodeLifecycle('lifecycle').notNull().default('active'),
     lostAt: ts('lost_at'),
@@ -89,7 +90,7 @@ export const fleetNodes = pgTable(
     sessionId: text('session_id'),
     sessionStartedAt: ts('session_started_at'),
     previousSessionId: text('previous_session_id'),
-    /** Set when two hosts beat with one identity: no new servers until an operator clears it. */
+    /** Set when two hosts beat with one identity: no new sandboxes until an operator clears it. */
     duplicateSeenAt: ts('duplicate_seen_at'),
     /** The current session's last sequence number: an older or repeated beat changes nothing. */
     heartbeatSeq: bigint('heartbeat_seq', { mode: 'number' }).notNull().default(0),
@@ -111,7 +112,7 @@ export const fleetNodes = pgTable(
     /** What the last probe of a silent node found: refused, timed out, or answering. */
     lastProbe: jsonb('last_probe').$type<Record<string, unknown>>(),
     /**
-     * The blocklyd version the upgrade rollout last offered this node (docs/fleet.md, "Upgrades"):
+     * The pryxd version the upgrade rollout last offered this node (docs/fleet.md, "Upgrades"):
      * the version the control plane's own binary is, at the time.
      */
     upgradeVersion: text('upgrade_version'),
@@ -146,7 +147,7 @@ export const fleetNodeTokens = pgTable('fleet_node_tokens', {
   usedKeySha256: text('used_key_sha256'),
   /**
    * A re-enrollment: the node this token gives new certificates to, keeping its id, so the host
-   * keeps its servers. For a node whose certificates ended, or whose identity directory was lost.
+   * keeps its sandboxes. For a node whose certificates ended, or whose identity directory was lost.
    */
   nodeId: uuid('node_id').references(() => fleetNodes.id),
   /** Who made it: `operator:<name>`, the name the operators' API was given (`unnamed` without one). */
@@ -155,7 +156,7 @@ export const fleetNodeTokens = pgTable('fleet_node_tokens', {
 })
 
 /**
- * Copies of a world the fleet keeps for itself. A snapshot is first a copy on its node
+ * Copies of a data the fleet keeps for itself. A snapshot is first a copy on its node
  * (`localId`), made while saving is paused, then uploaded to the archive store (`objectKey`),
  * so it outlives its node. A move's copy goes straight to the store.
  */
@@ -200,7 +201,7 @@ export const fleetArchives = pgTable(
   (t) => [index('fleet_archives_workload').on(t.workload, t.createdAt)],
 )
 
-/** Where each server's world is meant to live: one row per server, the desired placement. */
+/** Where each server's data is meant to live: one row per server, the desired placement. */
 export const fleetPlacements = pgTable(
   'fleet_placements',
   {
@@ -208,7 +209,7 @@ export const fleetPlacements = pgTable(
     workload: text('workload').primaryKey(),
     nodeId: uuid('node_id').references(() => fleetNodes.id),
     /**
-     * The placement epoch: raised, in the transaction that changes the node, every time the world
+     * The placement epoch: raised, in the transaction that changes the node, every time the data
      * gets a new home. Never reused and never lowered. Every command to a node carries it, and a
      * node refuses older ones, so a copy left behind can't be started.
      */
@@ -243,7 +244,7 @@ export const fleetPlacements = pgTable(
      */
     desiredPower: text('desired_power').notNull().default('stopped'),
     /**
-     * When `desiredPower` was last written. Memory is held only for servers that run: a start
+     * When `desiredPower` was last written. Memory is held only for sandboxes that run: a start
      * claims it, and the node reporting the copy stopped after this time gives it back
      * (docs/fleet.md, "Admission").
      */

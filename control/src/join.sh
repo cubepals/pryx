@@ -9,15 +9,15 @@
 # `bun scripts/fleet.ts token` prints fetches it only once the fleet CA matches the token's hash,
 # and runs it as root:
 #
-#   sh join.sh <bk1. token> <the fleet CA it checked> [blocklyd join's options, such as --address <ip>]
+#   sh join.sh <bk1. token> <the fleet CA it checked> [pryxd join's options, such as --address <ip>]
 #
 # It installs Docker from Docker's own apt repository if it is missing, and nftables, which
-# blocklyd's unit needs before every start to keep servers off the host and off each other's ports
-# (`blocklyd isolate`), gives Docker blocklyd's
-# daemon.json if it has none, installs the blocklyd the control plane serves once its sha256
-# matches (at /var/lib/blocklyd/bin/blocklyd, linked from /usr/local/bin), and runs `blocklyd join`,
+# pryxd's unit needs before every start to keep sandboxs off the host and off each other's ports
+# (`pryxd isolate`), gives Docker pryxd's
+# daemon.json if it has none, installs the pryxd the control plane serves once its sha256
+# matches (at /var/lib/pryxd/bin/pryxd, linked from /usr/local/bin), and runs `pryxd join`,
 # which writes the configuration and starts the service. On a host that is already the node a
-# `--node` token names, `blocklyd join` enrolls it again (docs/fleet-operations.md §8).
+# `--node` token names, `pryxd join` enrolls it again (docs/fleet-operations.md §8).
 set -eu
 
 token=${1:?usage: join.sh <token> <fleet CA file> [--address <ip>]}
@@ -65,7 +65,7 @@ if ! command -v nft >/dev/null 2>&1; then
 fi
 
 if [ ! -e /etc/docker/daemon.json ]; then
-  say "giving Docker blocklyd's daemon.json"
+  say "giving Docker pryxd's daemon.json"
   mkdir -p /etc/docker
   cat >/etc/docker/daemon.json <<'DAEMON_JSON'
 @DAEMON_JSON@
@@ -81,13 +81,13 @@ fi
 
 dir=$(mktemp -d)
 trap 'rm -rf "$dir"' EXIT
-curl -sS --fail-with-body --cacert "$ca" "$url/fleet/v1/blocklyd" -o "$dir/blocklyd" ||
-  fail "blocklyd couldn't be downloaded: $(head -c 300 "$dir/blocklyd" 2>/dev/null)"
-curl -fsS --cacert "$ca" "$url/fleet/v1/blocklyd.sha256" -o "$dir/blocklyd.sha256"
-(cd "$dir" && sha256sum -c --quiet blocklyd.sha256) || fail "the blocklyd downloaded doesn't match its sha256, so it wasn't installed"
-# Under the state directory, which is all the service may write, so blocklyd can upgrade itself.
-install -d -m 0700 /var/lib/blocklyd
-install -D -m 0755 "$dir/blocklyd" /var/lib/blocklyd/bin/blocklyd
-ln -sfn /var/lib/blocklyd/bin/blocklyd /usr/local/bin/blocklyd
-say "installed $(/usr/local/bin/blocklyd --version)"
-/usr/local/bin/blocklyd join "$token" "$@"
+curl -sS --fail-with-body --cacert "$ca" "$url/fleet/v1/blocklyd" -o "$dir/pryxd" ||
+  fail "pryxd couldn't be downloaded: $(head -c 300 "$dir/pryxd" 2>/dev/null)"
+curl -fsS --cacert "$ca" "$url/fleet/v1/blocklyd.sha256" -o "$dir/pryxd.sha256"
+(cd "$dir" && sha256sum -c --quiet pryxd.sha256) || fail "the pryxd downloaded doesn't match its sha256, so it wasn't installed"
+# Under the state directory, which is all the service may write, so pryxd can upgrade itself.
+install -d -m 0700 /var/lib/pryxd
+install -D -m 0755 "$dir/pryxd" /var/lib/pryxd/bin/pryxd
+ln -sfn /var/lib/pryxd/bin/pryxd /usr/local/bin/pryxd
+say "installed $(/usr/local/bin/pryxd --version)"
+/usr/local/bin/pryxd join "$token" "$@"

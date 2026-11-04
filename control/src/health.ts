@@ -12,13 +12,16 @@
 export type Health = 'healthy' | 'degraded' | 'suspect' | 'unavailable'
 
 export interface Thresholds {
-  /** Silence past this is suspect: no new servers go there; observations are kept. */
+  /** Silence past this is suspect: no new sandboxes go there; observations are kept. */
   suspectSeconds: number
-  /** Silence past this is unavailable: its servers read `unknown`. */
+  /** Silence past this is unavailable: its sandboxes read `unknown`. */
   unavailableSeconds: number
 }
 
-export const THRESHOLDS: Thresholds = { suspectSeconds: 15, unavailableSeconds: 45 }
+export const THRESHOLDS: Thresholds = {
+  suspectSeconds: 15,
+  unavailableSeconds: 45,
+}
 
 export interface HealthInput {
   /** Seconds since the last heartbeat, in database time; null if the node never beat. */

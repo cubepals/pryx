@@ -2,12 +2,19 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
+/**
+ * What an operator can ask of the fleet (docs/fleet-operations.md), on the internal listener, with
+ * the operator token: which nodes there are and how they are, enrollment tokens, a node's labels,
+ * draining, a lost host confirmed, a node retired, a server moved, and what happened.
+ * `scripts/fleet.ts` is its command line. Nothing here starts or stops a server: a move goes through
+ * the application's own relocation, which stops, snapshots and restarts around it.
+ */
+
 import { timingSafeEqual } from 'node:crypto'
-import { DAY_S, HOUR_S } from '@blockly/contracts/durations'
-import type { Db } from '@blockly/db'
 import { sql } from 'drizzle-orm'
 import { Hono } from 'hono'
-import type { FleetRuntime } from './fleet-runtime.ts'
+import type { Db } from './database.ts'
+import { DAY_S, HOUR_S } from './durations.ts'
 import type { Thresholds } from './health.ts'
 import { type JoinPoint, joinCommand, joinToken } from './join-token.ts'
 import {
@@ -23,15 +30,8 @@ import {
   setLabels,
   undrain,
 } from './registry.ts'
+import type { FleetRuntime } from './runtime-engine.ts'
 import { rows } from './sql.ts'
-
-/**
- * What an operator can ask of the fleet (docs/fleet-operations.md), on the internal listener, with
- * the operator token: which nodes there are and how they are, enrollment tokens, a node's labels,
- * draining, a lost host confirmed, a node retired, a server moved, and what happened.
- * `scripts/fleet.ts` is its command line. Nothing here starts or stops a server: a move goes through
- * the application's own relocation, which stops, snapshots and restarts around it.
- */
 
 export interface OperatorApiOptions {
   db: Db
@@ -39,12 +39,12 @@ export interface OperatorApiOptions {
   thresholds: Thresholds
   token: string
   /** Asks the application to relocate a server, as its relocation sweep would. */
-  relocate: (serverId: string) => Promise<void>
+  relocate: (sandboxId: string) => Promise<void>
   /** The node endpoint's numbers, where this process serves it. */
   endpointStats?: () => object
   /** Where new hosts join, for the tokens and the line an operator pastes; main.node.ts gives it. */
   join?: JoinPoint
-  /** The fleet regions there are, what FLEET_REGION_MAP maps to; a token is for one of them. */
+  /** The fleet regions there are, what PRYX_REGION_MAP maps to; a token is for one of them. */
   regions?: readonly string[]
 }
 
@@ -79,7 +79,9 @@ export function createOperatorApi(options: OperatorApiOptions): Hono {
 
   /** Every node, as an operator reads it: health, lifecycle, capacity and what is placed there. */
   app.get(`${OPERATOR_BASE}/nodes`, async (c) => {
-    const nodes = await nodeSummaries(db, thresholds, { includeRetired: c.req.query('all') === 'true' })
+    const nodes = await nodeSummaries(db, thresholds, {
+      includeRetired: c.req.query('all') === 'true',
+    })
     return c.json({ nodes: nodes.map(nodeView) })
   })
 
@@ -105,7 +107,12 @@ export function createOperatorApi(options: OperatorApiOptions): Hono {
       db,
       sql`SELECT at, kind, workload, epoch, data FROM fleet_events WHERE node_id = ${id} ORDER BY at DESC LIMIT 50`,
     )
-    return c.json({ node: nodeView(node), placements, copiesNotPlacedHere: strays, events })
+    return c.json({
+      node: nodeView(node),
+      placements,
+      copiesNotPlacedHere: strays,
+      events,
+    })
   })
 
   app.post(`${OPERATOR_BASE}/tokens`, async (c) => c.json(await mintToken(options, await json(c), by(c))))
@@ -126,7 +133,7 @@ export function createOperatorApi(options: OperatorApiOptions): Hono {
   }
 
   /**
-   * The operator's statement that a host is gone, and how it was stopped. Its servers are rebuilt
+   * The operator's statement that a host is gone, and how it was stopped. Its sandboxes are rebuilt
    * from their newest backups where there is room, after the application's grace.
    */
   app.post(`${OPERATOR_BASE}/nodes/:id/lost`, async (c) => {
@@ -215,7 +222,12 @@ export function createOperatorApi(options: OperatorApiOptions): Hono {
     const observations = await rows(db, sql`SELECT * FROM fleet_observations WHERE workload = ${server}`)
     if (placement === undefined && observations.length === 0)
       throw new Refused(404, 'unknown_server', 'the fleet holds nothing for that server')
-    return c.json({ placement: placement ?? null, history, archives, observations })
+    return c.json({
+      placement: placement ?? null,
+      history,
+      archives,
+      observations,
+    })
   })
 
   /** Moves one server off its node, to `to` if named, through the application's relocation. */
@@ -248,7 +260,7 @@ export function createOperatorApi(options: OperatorApiOptions): Hono {
   app.get(`${OPERATOR_BASE}/summary`, async (c) => {
     const nodes = await nodeSummaries(db, thresholds)
     const [backups] = await rows<{
-      servers: string
+      sandboxes: string
       without_stored_copy: string
       oldest_newest_copy: Date | null
     }>(
@@ -257,7 +269,7 @@ export function createOperatorApi(options: OperatorApiOptions): Hono {
             SELECT p.workload, max(a.captured_at) AS at FROM fleet_placements p
             LEFT JOIN fleet_archives a ON a.workload = p.workload AND a.purpose = 'snapshot' AND a.status = 'ready'
             WHERE p.state IN ('placed', 'displaced') GROUP BY p.workload)
-          SELECT count(*) AS servers, count(*) FILTER (WHERE at IS NULL) AS without_stored_copy, min(at) AS oldest_newest_copy
+          SELECT count(*) AS sandboxes, count(*) FILTER (WHERE at IS NULL) AS without_stored_copy, min(at) AS oldest_newest_copy
           FROM newest`,
     )
     const pendingUploads = await rows(
@@ -281,9 +293,12 @@ export function createOperatorApi(options: OperatorApiOptions): Hono {
         allocated: sum((n) => n.allocated.memoryMb),
         running: sum((n) => n.running.memoryMb),
       },
-      servers: { placed: sum((n) => n.allocated.workloads), running: sum((n) => n.running.workloads) },
+      sandboxes: {
+        placed: sum((n) => n.allocated.workloads),
+        running: sum((n) => n.running.workloads),
+      },
       backups: {
-        servers: Number(backups?.servers ?? 0),
+        sandboxes: Number(backups?.sandboxes ?? 0),
         withoutStoredCopy: Number(backups?.without_stored_copy ?? 0),
         oldestNewestCopy: backups?.oldest_newest_copy ?? null,
         notYetStored: pendingUploads,
@@ -322,7 +337,11 @@ async function mintToken(options: OperatorApiOptions, body: Record<string, unkno
   })
   if (options.join === undefined) return made
   const pasted = joinToken(options.join, made.token, node)
-  return { ...made, joinToken: pasted, joinCommand: joinCommand(options.join, pasted) }
+  return {
+    ...made,
+    joinToken: pasted,
+    joinCommand: joinCommand(options.join, pasted),
+  }
 }
 
 /**
@@ -341,7 +360,11 @@ function nodeView(node: Awaited<ReturnType<typeof nodeSummaries>>[number]) {
     quarantined: node.duplicate_seen_at !== null,
     lastHeartbeatSecondsAgo: node.age === null ? null : Math.round(node.age),
     version: node.daemon_version,
-    addresses: { api: node.api_address, edge: node.edge_host, control: node.control_host },
+    addresses: {
+      api: node.api_address,
+      edge: node.edge_host,
+      control: node.control_host,
+    },
     runtimeUp: node.runtime_up,
     certificateExpiresAt: node.cert_expires_at,
     memoryMb: {
@@ -369,7 +392,7 @@ function nodeView(node: Awaited<ReturnType<typeof nodeSummaries>>[number]) {
       reflink: c.reflink ?? null,
     },
     ports: { total: c.portsTotal ?? null, allocated: c.portsAllocated ?? null },
-    servers: node.allocated.workloads,
+    sandboxes: node.allocated.workloads,
     serversRunning: node.running.workloads,
     issues: node.issues,
     lastProbe: node.last_probe,

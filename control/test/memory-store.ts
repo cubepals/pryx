@@ -2,21 +2,22 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
+/** An upload in parts this store began: its parts by number, until it completes or is dropped. */
+
 import { createHash, randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { type ArchiveStore, ArtifactMismatch } from '../app/ports/optional.ts'
+import { type ArchiveStore, ArtifactMismatch } from '../src/archive-store.ts'
+import { MAX_PUT_BYTES, partPlan } from '../src/multipart.ts'
 import type {
   ArchiveTarget,
   DownloadTarget,
   PartsUpload,
   PutPart,
   UploadTarget,
-} from '../app/ports/runtime.ts'
-import { MAX_PUT_BYTES, partPlan } from '../infra/s3/parts.ts'
+} from '../src/runtime-model.ts'
 
-/** An upload in parts this store began: its parts by number, until it completes or is dropped. */
 interface Upload {
   key: string
   parts: Map<number, Buffer>
@@ -95,8 +96,8 @@ export class MemoryStore implements ArchiveStore {
     this.#server?.close()
   }
 
-  newKey(kind: string, scope: { serverId: string; id: string }): string {
-    return `${kind}/${scope.serverId || 'none'}/${scope.id || randomUUID()}`
+  newKey(kind: string, scope: { sandboxId: string; id: string }): string {
+    return `${kind}/${scope.sandboxId || 'none'}/${scope.id || randomUUID()}`
   }
 
   async presignPut(key: string): Promise<UploadTarget> {

@@ -1,0 +1,18 @@
+{
+  "name": "@pryx/control",
+  "private": true,
+  "type": "module",
+  "license": "FSL-1.1-ALv2",
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.1156.0",
+    "@aws-sdk/s3-request-presigner": "3.1156.0",
+    "@hono/node-server": "2.1.5",
+    "@peculiar/x509": "2.2.0",
+    "content-disposition": "3.0.0",
+    "drizzle-orm": "0.45.4",
+    "hono": "4.13.14",
+    "pg": "8.23.1",
+    "reflect-metadata": "0.2.2",
+    "zod": "4.6.7"
+  }
+}

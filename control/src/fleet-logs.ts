@@ -2,17 +2,18 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-import type { LogLine, LogSource } from '../../app/ports/platform.ts'
-import type { RuntimeHandle } from '../../app/ports/runtime.ts'
-import type { FleetRuntime } from './fleet-runtime.ts'
+/**
+ * A fleet server's output, from pryxd on its node: NDJSON, one `LogRecord` per line, and a
+ * follow that continues across the workload's restarts (pryxd's docs/protocol.md, logs).
+ */
+
 import { decodeHandle } from './handle.ts'
+import type { LogLine, LogSource } from './log-source.ts'
 import type { NodeClient } from './node-client.ts'
+import type { FleetRuntime } from './runtime-engine.ts'
+import type { RuntimeHandle } from './runtime-model.ts'
 import type { LogRecord } from './wire.ts'
 
-/**
- * A fleet server's output, from blocklyd on its node: NDJSON, one `LogRecord` per line, and a
- * follow that continues across the workload's restarts (blocklyd's docs/protocol.md, logs).
- */
 export class FleetLogSource implements LogSource {
   readonly #runtime: FleetRuntime
   readonly #nodes: NodeClient

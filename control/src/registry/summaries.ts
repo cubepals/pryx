@@ -8,8 +8,10 @@
  * counts as soon as it comes rather than at the node's next heartbeat.
  * It changes no node's lifecycle (`lifecycle.ts`) and takes no heartbeat (`heartbeat.ts`).
  */
-import type { Db, Queryable } from '@blockly/db'
+
 import { sql } from 'drizzle-orm'
+
+import type { Db, Queryable } from '../database.ts'
 import type { Health, Thresholds } from '../health.ts'
 import type { NodeView } from '../placement.ts'
 import { event, exec, one, rows } from '../sql.ts'
@@ -20,7 +22,12 @@ import { listeningSeconds } from './presence.ts'
 // ─── the registry as placement and operators see it ─────────────────────────────────────────
 
 export interface NodeSummary extends NodeRow {
-  allocated: { memoryMb: number; cpuMillis: number; diskGb: number; workloads: number }
+  allocated: {
+    memoryMb: number
+    cpuMillis: number
+    diskGb: number
+    workloads: number
+  }
   running: { memoryMb: number; cpuMillis: number; workloads: number }
   derivedHealth: Health
 }
@@ -165,7 +172,11 @@ export async function recordHealth(
     await db.execute(sql`UPDATE fleet_nodes SET health = ${to}, health_since = now() WHERE id = ${node.id}`)
     await event(db, 'node.health', {
       node: node.id,
-      data: { from: node.health, to, ageSeconds: node.age === null ? null : Math.round(node.age * 10) / 10 },
+      data: {
+        from: node.health,
+        to,
+        ageSeconds: node.age === null ? null : Math.round(node.age * 10) / 10,
+      },
     })
     changed.push({ node, from: node.health, to })
   }

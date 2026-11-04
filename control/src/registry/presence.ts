@@ -2,13 +2,13 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
+import { sql } from 'drizzle-orm'
 /**
  * Whether the node endpoint itself is up: each endpoint process records that it serves, and the
  * registry reads how long nodes have had somewhere to send heartbeats.
  * It judges no node's health; `node.ts` does, from what this file reports.
  */
-import type { Db, Queryable } from '@blockly/db'
-import { sql } from 'drizzle-orm'
+import type { Db, Queryable } from '../database.ts'
 import { one } from '../sql.ts'
 
 // ─── the node endpoint's own presence ───────────────────────────────────────────────────────

@@ -3,14 +3,14 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
 /**
- * The blocklyd rollout (docs/fleet.md, "Upgrades"): the control plane offers its own blocklyd to
+ * The pryxd rollout (docs/fleet.md, "Upgrades"): the control plane offers its own pryxd to
  * nodes running an older one, one node per region at a time, in the answer to a heartbeat.
  *
  * - A node is offered the release only while it is active, not quarantined, beats healthy and
  *   lists `self-upgrade`, and only while no other node in its region holds an offer of it or
  *   failed it.
  * - It is `upgraded` once it beats healthy on the release, which frees its region for the next.
- * - It `failed` when it reports giving up (blocklyd rolled itself back), or when it isn't healthy
+ * - It `failed` when it reports giving up (pryxd rolled itself back), or when it isn't healthy
  *   on the release within UPGRADE_TIMEOUT_SECONDS of the offer. A failure stops its region's
  *   rollout of that release until an operator retries the node (`retryUpgrade`).
  *
@@ -20,9 +20,11 @@
  * state: it is the binary this process serves, so a new control-plane image starts a new rollout.
  * Which nodes are offered what is read back by `upgradeSummaries`, for `fleet.ts upgrades`.
  */
-import { MINUTE_S } from '@blockly/contracts/durations'
-import type { Queryable } from '@blockly/db'
+
 import { sql } from 'drizzle-orm'
+import type { Queryable } from '../database.ts'
+
+import { MINUTE_S } from '../durations.ts'
 import { event, exec, lock, one, rows } from '../sql.ts'
 import type { HeartbeatRequest, UpgradeOffer } from '../wire.ts'
 import { type NodeRow, Refused } from './node.ts'
@@ -48,8 +50,8 @@ export function isOlder(version: string | null | undefined, than: string): boole
 /** The feature a node lists when it upgrades itself on an offer; one without is upgraded by hand. */
 const SELF_UPGRADE = 'self-upgrade'
 /**
- * The feature a node lists when it installs only a blocklyd whose release signed it: an offer to it
- * carries the release's signature, and without one it isn't made (blocklyd's src/upgrade/trust.rs).
+ * The feature a node lists when it installs only a pryxd whose release signed it: an offer to it
+ * carries the release's signature, and without one it isn't made (pryxd's src/upgrade/trust.rs).
  */
 const SIGNED_UPGRADE = 'signed-upgrade'
 
@@ -62,7 +64,7 @@ function skipped(
   if (node.lifecycle !== 'active') return node.lifecycle
   if (!node.features.includes(SELF_UPGRADE)) return 'it upgrades by hand: too old to upgrade itself'
   if (node.features.includes(SIGNED_UPGRADE) && !release.signature)
-    return 'it takes only a signed blocklyd, and this one has no blocklyd.sig beside it'
+    return 'it takes only a signed pryxd, and this one has no pryxd.sig beside it'
   return null
 }
 
@@ -81,7 +83,10 @@ async function mark(
   await t.execute(sql`
     UPDATE fleet_nodes SET upgrade_state = ${state}, upgrade_at = now(), upgrade_error = ${data.reason ?? null}
     WHERE id = ${node.id}`)
-  await event(t, state === 'upgraded' ? 'node.upgraded' : 'node.upgrade_failed', { node: node.id, data })
+  await event(t, state === 'upgraded' ? 'node.upgraded' : 'node.upgrade_failed', {
+    node: node.id,
+    data,
+  })
 }
 
 /**
@@ -97,7 +102,10 @@ export async function rollout(
   const offered = node.upgrade_state === 'offered'
   const failure = request.upgradeFailed
   if (offered && failure && failure.version === node.upgrade_version) {
-    await mark(t, node, 'failed', { version: failure.version, reason: String(failure.reason).slice(0, 500) })
+    await mark(t, node, 'failed', {
+      version: failure.version,
+      reason: String(failure.reason).slice(0, 500),
+    })
     return undefined
   }
   if (!release) return undefined
@@ -190,7 +198,7 @@ export interface UpgradeView {
    * `current`: it runs the release or newer (`upgraded` if the rollout got it there). `offered`
    * and `failed`, as above. `waiting`: older, and its turn hasn't come. `skipped`: older, and
    * not offered while it is draining, lost, quarantined, too old to upgrade itself, or takes only
-   * a signed blocklyd and this one has no signature (`reason`).
+   * a signed pryxd and this one has no signature (`reason`).
    */
   state: 'current' | 'upgraded' | 'offered' | 'failed' | 'waiting' | 'skipped'
   since: string | null
@@ -219,11 +227,17 @@ export async function upgradeSummaries(q: Queryable, release: UpgradeOffer | nul
 function placeOf(n: NodeRow, release: UpgradeOffer | null): Pick<UpgradeView, 'state' | 'reason'> {
   const ours = release !== null && n.upgrade_version === release.version
   if (release === null || !isOlder(n.daemon_version, release.version))
-    return { state: ours && n.upgrade_state === 'upgraded' ? 'upgraded' : 'current', reason: null }
+    return {
+      state: ours && n.upgrade_state === 'upgraded' ? 'upgraded' : 'current',
+      reason: null,
+    }
   if (ours && n.upgrade_state === 'failed') return { state: 'failed', reason: n.upgrade_error }
   if (ours && n.upgrade_state === 'offered') {
     const late = (n.upgrade_age ?? 0) > UPGRADE_TIMEOUT_SECONDS
-    return { state: 'offered', reason: late ? 'past its time: it fails at its next beat' : null }
+    return {
+      state: 'offered',
+      reason: late ? 'past its time: it fails at its next beat' : null,
+    }
   }
   const skip = skipped(n, release)
   return { state: skip === null ? 'waiting' : 'skipped', reason: skip }

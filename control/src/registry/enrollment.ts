@@ -8,10 +8,11 @@
  * Renewing an enrolled node's certificates lives in `renewal.ts`, and its heartbeats in
  * `heartbeat.ts`.
  */
+
 import { randomBytes, randomUUID } from 'node:crypto'
-import type { Db, Queryable } from '@blockly/db'
 import { sql } from 'drizzle-orm'
 import { controlPlaneName, csrKeySha256, type FleetCa, type Issued } from '../ca.ts'
+import type { Db, Queryable } from '../database.ts'
 import { secretOf } from '../join-token.ts'
 import { splitAddress } from '../node-client.ts'
 import { event, jsonb, one, rows, toDate } from '../sql.ts'
@@ -23,7 +24,7 @@ import { getNode, Refused, type RegistryOptions, sha256 } from './node.ts'
 /**
  * A one-time token. The token itself is returned once and never stored. With `node`, it
  * re-enrolls that node: new certificates for a new key, under the same id, in the node's region.
- * Without, `regions`, when given, are the fleet regions there are (FLEET_REGION_MAP): a token
+ * Without, `regions`, when given, are the fleet regions there are (PRYX_REGION_MAP): a token
  * for another would enroll a node nothing is ever placed on.
  */
 export async function createToken(
@@ -42,7 +43,7 @@ export async function createToken(
     throw new Refused(
       400,
       'unknown_region',
-      `${regionKey} is not a fleet region; FLEET_REGION_MAP maps to ${options.regions.join(', ') || 'none'}`,
+      `${regionKey} is not a fleet region; PRYX_REGION_MAP maps to ${options.regions.join(', ') || 'none'}`,
     )
   if (options.node !== undefined) {
     const node = await getNode(db, options.node)
@@ -61,7 +62,12 @@ export async function createToken(
   )
   await event(db, 'token.created', {
     ...(options.node ? { node: options.node } : {}),
-    data: { id, region: regionKey, by: options.createdBy, reenroll: options.node !== undefined },
+    data: {
+      id,
+      region: regionKey,
+      by: options.createdBy,
+      reenroll: options.node !== undefined,
+    },
   })
   return { id, token, expiresAt: toDate(row?.expires_at) ?? new Date() }
 }
@@ -108,7 +114,7 @@ export async function enroll(
     throw new Refused(
       400,
       'invalid_request',
-      'apiAddress is host:port, where the control plane reaches blocklyd',
+      'apiAddress is host:port, where the control plane reaches pryxd',
     )
   return db.transaction(async (t) => {
     const token = await one<{
@@ -163,7 +169,10 @@ export async function enroll(
       )
       // An image that kept its machine-id: the hosts are distinct, but the image wasn't prepared.
       if (twins.length > 0)
-        await event(t, 'node.machine_id_reused', { node: id, data: { with: twins.map((r) => r.id) } })
+        await event(t, 'node.machine_id_reused', {
+          node: id,
+          data: { with: twins.map((r) => r.id) },
+        })
     }
     return enrolled(ca, options, id, issued)
   })
@@ -203,7 +212,11 @@ async function enrollAgain(
     WHERE id = ${node.id}`)
   await event(t, 'node.enrollment_repeated', {
     node: node.id,
-    data: { token: token.id, apiAddress: request.facts.apiAddress, version: request.facts.daemonVersion },
+    data: {
+      token: token.id,
+      apiAddress: request.facts.apiAddress,
+      version: request.facts.daemonVersion,
+    },
   })
   return enrolled(ca, options, node.id, issued)
 }
@@ -211,7 +224,7 @@ async function enrollAgain(
 /**
  * A node enrolled again under its own id, with a token an operator bound to it: new certificates
  * pinned in place of the old, its addresses and facts refreshed, its session started afresh. Its
- * placements, lifecycle and history stay, so the host adopts its own servers again. The old
+ * placements, lifecycle and history stay, so the host adopts its own sandboxes again. The old
  * certificates stop working at once, which also ends any copy of the host that held them.
  */
 async function reenroll(

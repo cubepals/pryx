@@ -7,6 +7,7 @@
  * reads a snapshot of the nodes and of the reservation ledger and returns a decision with every
  * node's reason, so a refusal can say why and a decision can be replayed from its inputs.
  */
+
 import type { Health } from './health.ts'
 
 type Policy = 'balanced' | 'binpack' | 'spread'
@@ -49,10 +50,15 @@ export interface NodeView {
   }
   /**
    * What the ledger has promised on the node, never the node's report. `allocated` is every
-   * placement on it, running or not: its disk keeps their worlds. `running` is the placements that
+   * placement on it, running or not: its disk keeps their data sets. `running` is the placements that
    * run, or are being started or made: only they use memory and CPU (docs/fleet.md, "Admission").
    */
-  allocated: { memoryMb: number; cpuMillis: number; diskGb: number; workloads: number }
+  allocated: {
+    memoryMb: number
+    cpuMillis: number
+    diskGb: number
+    workloads: number
+  }
   running: { memoryMb: number; cpuMillis: number; workloads: number }
 }
 
@@ -61,7 +67,7 @@ export interface PlacementOptions {
   /** Memory kept free on every node for a restore or a move to land. */
   headroomMb: number
   /**
-   * How many times its memory the servers placed on a node may add up to. Only the running ones
+   * How many times its memory the sandboxes placed on a node may add up to. Only the running ones
    * must fit in it, so a sleeping server holds none; 1 holds memory for every placed server.
    */
   memoryOvercommit: number
@@ -69,14 +75,14 @@ export interface PlacementOptions {
   cpuOvercommit: number
   /** Share of a node's CPU above which `balanced` prefers other nodes. */
   cpuPressure: number
-  /** How much more disk than a node has may be promised to the worlds on it. */
+  /** How much more disk than a node has may be promised to the data sets on it. */
   diskOvercommit: number
 }
 
 export const DEFAULTS: PlacementOptions = {
   policy: 'balanced',
   headroomMb: 0,
-  // A server is asleep most of the time, so few of a node's servers run at once.
+  // A server is asleep most of the time, so few of a node's sandboxes run at once.
   memoryOvercommit: 4,
   cpuOvercommit: 1,
   cpuPressure: 0.8,
@@ -117,7 +123,7 @@ function refusal(node: NodeView, request: PlacementRequest, options: PlacementOp
     return `memory: ${memoryFree} MB free after headroom, needs ${request.memoryMb}`
   const placeable = placeableMemoryMb(node, options) - node.allocated.memoryMb
   if (placeable < request.memoryMb)
-    return `memory: ${placeable} MB left to place servers in, needs ${request.memoryMb}`
+    return `memory: ${placeable} MB left to place sandboxes in, needs ${request.memoryMb}`
   const cpuFree = cpuAllocatable(node, options.cpuOvercommit) - node.running.cpuMillis
   if (cpuFree < request.cpuMillis) return `cpu: ${Math.floor(cpuFree)}m free, needs ${request.cpuMillis}m`
   if (node.capacity.diskAvailableBytes !== null) {
@@ -125,7 +131,7 @@ function refusal(node: NodeView, request: PlacementRequest, options: PlacementOp
     if (diskFreeMb < request.diskGb * 1024)
       return `disk: ${Math.floor(diskFreeMb)} MB free above the floor, needs ${request.diskGb * 1024}`
   }
-  // What worlds may grow into, not what they hold today: the sum of what was promised fits the disk.
+  // What data sets may grow into, not what they hold today: the sum of what was promised fits the disk.
   if (node.capacity.diskTotalBytes !== null) {
     const promisableGb =
       ((node.capacity.diskTotalBytes / MIB - node.capacity.minFreeDiskMb) / 1024) * options.diskOvercommit
@@ -138,15 +144,15 @@ function refusal(node: NodeView, request: PlacementRequest, options: PlacementOp
   return null
 }
 
-/** The memory the servers placed on a node may add up to, running or not. */
+/** The memory the sandboxes placed on a node may add up to, running or not. */
 function placeableMemoryMb(node: NodeView, options: Pick<PlacementOptions, 'memoryOvercommit'>): number {
   return node.capacity.allocatableMemoryMb * options.memoryOvercommit
 }
 
 /**
- * Why a server placed on `node` can't start there now, or null when it can: the servers running
+ * Why a server placed on `node` can't start there now, or null when it can: the sandboxes running
  * there leave too little memory or CPU for it. Nothing lands, so no headroom is kept for it, and
- * its world is there already. `held`: it holds its share already, as a retried start does.
+ * its data is there already. `held`: it holds its share already, as a retried start does.
  */
 export function startRefusal(
   node: NodeView,
@@ -157,7 +163,7 @@ export function startRefusal(
   if (held) return null
   const memoryFree = node.capacity.allocatableMemoryMb - node.running.memoryMb
   if (memoryFree < request.memoryMb)
-    return `memory: ${memoryFree} MB free beside the servers running there, needs ${request.memoryMb}`
+    return `memory: ${memoryFree} MB free beside the sandboxes running there, needs ${request.memoryMb}`
   const cpuFree = cpuAllocatable(node, options.cpuOvercommit) - node.running.cpuMillis
   if (cpuFree < request.cpuMillis) return `cpu: ${Math.floor(cpuFree)}m free, needs ${request.cpuMillis}m`
   return null
@@ -166,15 +172,15 @@ export function startRefusal(
 /** How a node that can take a placement would be left by it: what it scores on. */
 interface Fit {
   node: NodeView
-  /** Memory left to place servers in after placing this one, before headroom. */
+  /** Memory left to place sandboxes in after placing this one, before headroom. */
   leftoverMb: number
-  /** Share of the CPU the servers placed there may be counted for, after placing this one. */
+  /** Share of the CPU the sandboxes placed there may be counted for, after placing this one. */
   cpuShare: number
 }
 
 /**
  * Scored on what is placed, running or not, against what may be placed: a placement lasts as long
- * as its world stays, while what runs changes by the hour. With a memory overcommit of 1 that is
+ * as its data stays, while what runs changes by the hour. With a memory overcommit of 1 that is
  * the node's own memory and CPU.
  */
 function fit(node: NodeView, request: PlacementRequest, options: PlacementOptions): Fit {

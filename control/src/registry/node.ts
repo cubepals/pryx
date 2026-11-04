@@ -8,9 +8,10 @@
  * It writes no row: enrollment, heartbeats, renewal and lifecycle changes each do that in their own
  * file beside this one.
  */
+
 import { createHash } from 'node:crypto'
-import type { Queryable } from '@blockly/db'
 import { sql } from 'drizzle-orm'
+import type { Queryable } from '../database.ts'
 import { deriveHealth, type Health, type Thresholds } from '../health.ts'
 import type { Lifecycle } from '../placement.ts'
 import { lock, one } from '../sql.ts'
@@ -40,8 +41,8 @@ export interface RegistryOptions {
   certDays: number
   renewDays: number
   /**
-   * The blocklyd this control plane rolls out to its nodes (upgrades.ts): its own binary's
-   * version and sha256. Absent with FLEET_UPGRADES=off, or without a binary to hand out.
+   * The pryxd this control plane rolls out to its nodes (upgrades.ts): its own binary's
+   * version and sha256. Absent with PRYX_UPGRADES=off, or without a binary to hand out.
    */
   release?: UpgradeOffer | null
 }
@@ -109,7 +110,12 @@ export async function getNode(q: Queryable, id: string, forUpdate = false): Prom
 
 export function healthOf(node: NodeRow, thresholds: Thresholds, listeningSeconds: number): Health {
   return deriveHealth(
-    { ageSeconds: node.age, runtimeUp: node.runtime_up, reconciled: node.reconciled, listeningSeconds },
+    {
+      ageSeconds: node.age,
+      runtimeUp: node.runtime_up,
+      reconciled: node.reconciled,
+      listeningSeconds,
+    },
     thresholds,
   )
 }

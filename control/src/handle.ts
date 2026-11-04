@@ -2,19 +2,19 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-import { z } from 'zod'
-import type { RuntimeHandle, SnapshotHandle } from '../../app/ports/runtime.ts'
-
 /**
  * What the fleet's handles hold. Only this adapter reads them; the application stores the string
- * and hands it back. Every new home for a world (a first placement, a move, a restore, a rebuild)
+ * and hands it back. Every new home for a data (a first placement, a move, a restore, a rebuild)
  * issues a new handle with a new epoch.
  */
+
+import { z } from 'zod'
+import type { RuntimeHandle, SnapshotHandle } from './runtime-model.ts'
 
 const Ref = z.object({
   deployment: z.string(),
   key: z.string(),
-  /** Null once released: the world rests in the archive store and the handle names no node. */
+  /** Null once released: the data rests in the archive store and the handle names no node. */
   node: z.string().nullable(),
   nodeName: z.string().nullable(),
   epoch: z.number().int().nonnegative(),

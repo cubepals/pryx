@@ -2,33 +2,33 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-import { createHash, randomBytes } from 'node:crypto'
-import { once } from 'node:events'
-import { createServer, type Server } from 'node:https'
-import { hostname } from 'node:os'
-import type { TLSSocket } from 'node:tls'
-import { DAY_MS } from '@blockly/contracts/durations'
-import type { Db } from '@blockly/db'
-import { type HttpBindings, serve } from '@hono/node-server'
-import { Hono } from 'hono'
-import { bodyLimit } from 'hono/body-limit'
-import { endpointName, type FleetCa, isClientCertFor, nodeName } from './ca.ts'
-import { blocklydRelease, joinRoutes } from './join-routes.ts'
-import { endpointSeen, enroll, heartbeat, Refused, type RegistryOptions, renew } from './registry.ts'
-import type { EnrollRequest, HeartbeatRequest, RenewRequest, UpgradeOffer } from './wire.ts'
-
 /**
- * Where nodes reach the control plane (blocklyd's docs/protocol.md, "The control plane's
+ * Where nodes reach the control plane (pryxd's docs/protocol.md, "The control plane's
  * endpoint"): HTTPS with the fleet CA's certificate, on the deployment's private network.
  *
  * - `POST /fleet/v1/enroll`: a one-time token and a CSR, with no client certificate yet.
  * - `POST /fleet/v1/nodes/:id/heartbeat` and `…/renew`: the node's current client certificate,
  *   verified against the fleet CA, for exactly that node's name, and pinned in the registry.
- * - `GET /fleet/v1/ca.pem`, `…/join.sh`, `…/blocklyd` and `…/blocklyd.sha256`: what a host
+ * - `GET /fleet/v1/ca.pem`, `…/join.sh`, `…/pryxd` and `…/blocklyd.sha256`: what a host
  *   fetches to join, before it has anything (join-routes.ts). An enrolled node upgrades from the
- *   same `…/blocklyd` when a heartbeat's answer offers it (registry/upgrades.ts), or when its
- *   `blocklyd upgrade` asks for `…/blocklyd.json`.
+ *   same `…/pryxd` when a heartbeat's answer offers it (registry/upgrades.ts), or when its
+ *   `pryxd upgrade` asks for `…/blocklyd.json`.
  */
+
+import { createHash, randomBytes } from 'node:crypto'
+import { once } from 'node:events'
+import { createServer, type Server } from 'node:https'
+import { hostname } from 'node:os'
+import type { TLSSocket } from 'node:tls'
+import { type HttpBindings, serve } from '@hono/node-server'
+import { Hono } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
+import { endpointName, type FleetCa, isClientCertFor, nodeName } from './ca.ts'
+import type { Db } from './database.ts'
+import { DAY_MS } from './durations.ts'
+import { joinRoutes, pryxdRelease } from './join-routes.ts'
+import { endpointSeen, enroll, heartbeat, Refused, type RegistryOptions, renew } from './registry.ts'
+import type { EnrollRequest, HeartbeatRequest, RenewRequest, UpgradeOffer } from './wire.ts'
 
 export interface NodeEndpointOptions {
   db: Db
@@ -37,9 +37,9 @@ export interface NodeEndpointOptions {
   listen: { host: string; port: number }
   /** The names and addresses nodes dial the endpoint by, for its certificate. */
   names: { dns: readonly string[]; ips: readonly string[] }
-  /** The static blocklyd hosts download as they join (FLEET_BLOCKLYD_BIN). */
-  blocklydBin: string
-  /** Offer that blocklyd to nodes running an older one (FLEET_UPGRADES). */
+  /** The static pryxd hosts download as they join (PRYX_PRYXD_BIN). */
+  pryxdBin: string
+  /** Offer that pryxd to nodes running an older one (PRYX_UPGRADES). */
   upgrades: boolean
 }
 
@@ -70,13 +70,15 @@ function peerOf(incoming: HttpBindings['incoming'], nodeId: string, deployment: 
   return createHash('sha256').update(peer.raw).digest('hex')
 }
 
-export async function startNodeEndpoint(
-  options: NodeEndpointOptions,
-): Promise<{ stop: () => Promise<void>; stats: () => EndpointStats; release: UpgradeOffer | null }> {
+export async function startNodeEndpoint(options: NodeEndpointOptions): Promise<{
+  stop: () => Promise<void>
+  stats: () => EndpointStats
+  release: UpgradeOffer | null
+}> {
   const { db, ca } = options
-  // `blocklyd upgrade` asks for it whether or not the rollout offers it.
-  const blocklyd = await blocklydRelease(options.blocklydBin)
-  const release = options.upgrades ? blocklyd : null
+  // `pryxd upgrade` asks for it whether or not the rollout offers it.
+  const pryxd = await pryxdRelease(options.pryxdBin)
+  const release = options.upgrades ? pryxd : null
   const registry = { ...options.registry, release }
   const stats = { heartbeats: 0, refused: 0, maxMs: 0, totalMs: 0 }
   const app = new Hono<Env>()
@@ -93,7 +95,15 @@ export async function startNodeEndpoint(
       return c.json({ error: { code: error.code, message: error.message } }, error.status as 400)
     }
     console.error('fleet: node endpoint failed', error)
-    return c.json({ error: { code: 'internal', message: 'the control plane failed; try again' } }, 500)
+    return c.json(
+      {
+        error: {
+          code: 'internal',
+          message: 'the control plane failed; try again',
+        },
+      },
+      500,
+    )
   })
   const body = async <T>(c: { req: { json: () => Promise<unknown> } }): Promise<T> => {
     try {
@@ -103,7 +113,7 @@ export async function startNodeEndpoint(
     }
   }
 
-  app.route('/', joinRoutes({ caPem: ca.pem, blocklydBin: options.blocklydBin, release: blocklyd }))
+  app.route('/', joinRoutes({ caPem: ca.pem, pryxdBin: options.pryxdBin, release: pryxd }))
 
   app.post('/fleet/v1/enroll', async (c) =>
     c.json(await enroll(db, ca, registry, await body<EnrollRequest>(c))),
@@ -153,7 +163,13 @@ export async function startNodeEndpoint(
   if (!server.listening) await once(server, 'listening')
   const renewal = setInterval(() => {
     identity()
-      .then((next) => server.setSecureContext({ key: next.keyPem, cert: next.certPem, ca: [ca.pem] }))
+      .then((next) =>
+        server.setSecureContext({
+          key: next.keyPem,
+          cert: next.certPem,
+          ca: [ca.pem],
+        }),
+      )
       .catch((error) => console.error('fleet: the node endpoint kept its certificate', error))
   }, DAY_MS)
   renewal.unref()

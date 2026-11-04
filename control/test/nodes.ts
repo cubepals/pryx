@@ -2,21 +2,26 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
+/** Fleet tests need Postgres, as the operation tests do: they run where DATABASE_URL is set. */
+
 import 'reflect-metadata'
 import { randomBytes, webcrypto } from 'node:crypto'
-import { createDb, createPool, type Db, migrationsFolder } from '@blockly/db'
 import * as x509 from '@peculiar/x509'
 import { migrate } from 'drizzle-orm/node-postgres/migrator'
 import pg from 'pg'
-import { FleetCa, pemSha256 } from '../infra/fleet/ca.ts'
-import { createToken, enroll, type RegistryOptions } from '../infra/fleet/registry.ts'
-import type { HeartbeatRequest, NodeCapacity, NodeFacts, WorkloadReport } from '../infra/fleet/wire.ts'
+import { FleetCa, pemSha256 } from '../src/ca.ts'
+import { createDb, createPool, type Db, migrationsFolder } from '../src/database.ts'
+import { createToken, enroll, type RegistryOptions } from '../src/registry.ts'
+import type { HeartbeatRequest, NodeCapacity, NodeFacts, WorkloadReport } from '../src/wire.ts'
 
-/** Fleet tests need Postgres, as the operation tests do: they run where DATABASE_URL is set. */
 export const hasDatabase = Boolean(process.env.DATABASE_URL)
 
 /** A database of its own, migrated, for one test file; `drop` removes it. */
-export async function freshDatabase(): Promise<{ db: Db; url: string; drop: () => Promise<void> }> {
+export async function freshDatabase(): Promise<{
+  db: Db
+  url: string
+  drop: () => Promise<void>
+}> {
   const base = process.env.DATABASE_URL
   if (!base) throw new Error('DATABASE_URL is not set')
   const name = `blockly_fleet_${randomBytes(5).toString('hex')}`
@@ -49,7 +54,7 @@ export async function testCa(deployment = 'test'): Promise<FleetCa> {
 
 const ALG = { name: 'ECDSA', namedCurve: 'P-256', hash: 'SHA-256' }
 
-/** A node's key and a CSR for it, as blocklyd makes them. */
+/** A node's key and a CSR for it, as pryxd makes them. */
 export async function nodeKey(): Promise<{ csrPem: string; keyPem: string }> {
   const keys = (await webcrypto.subtle.generateKey(ALG, true, ['sign', 'verify'])) as CryptoKeyPair
   const csr = await x509.Pkcs10CertificateRequestGenerator.create({
@@ -116,7 +121,7 @@ export interface EnrolledNode {
   keyPem: string
 }
 
-/** A node enrolled the way blocklyd enrolls: a token, a CSR for its own key, its facts. */
+/** A node enrolled the way pryxd enrolls: a token, a CSR for its own key, its facts. */
 export async function enrollNode(
   db: Db,
   ca: FleetCa,

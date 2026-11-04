@@ -2,18 +2,19 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-import type { ArchiveTarget, DownloadTarget, UploadTarget } from './runtime.ts'
-
 /**
- * Who will use a presigned link: a game runtime, from inside the provider's network, or a person's
+ * Who will use a presigned link: a sandbox runtime, from inside the provider's network, or a person's
  * browser. One address serves both in production; locally, containers and the host reach the store
  * by different names, and a link is signed for the name its user will call.
  */
+
+import type { ArchiveTarget, DownloadTarget, UploadTarget } from './runtime-model.ts'
+
 export type LinkAudience = 'runtime' | 'browser'
 
 /**
  * Object storage, when a deployment has it. Generic primitives only: it knows nothing about
- * servers, revisions or policy. Absent from a deployment means the archives capability is off.
+ * sandboxes, revisions or policy. Absent from a deployment means the archives capability is off.
  */
 export interface ArchiveStore {
   /**
@@ -22,7 +23,7 @@ export interface ArchiveStore {
    */
   newKey(
     kind: 'archive' | 'world_upload' | 'world_download' | 'mod_upload' | 'pack_upload',
-    scope: { serverId: string; id: string },
+    scope: { sandboxId: string; id: string },
   ): string
   /**
    * A link that stores one object. With `sizeBytes`, the length is part of the signature and the
@@ -67,4 +68,3 @@ export class ArtifactMismatch extends Error {
     this.name = 'ArtifactMismatch'
   }
 }
-

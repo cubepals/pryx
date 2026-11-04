@@ -8,11 +8,12 @@
  * sha256 of the fleet CA as that endpoint serves it (`h`), the deployment (`d`), the one-time
  * secret (`s`) and, for a token that re-enrolls a node, that node's id (`n`). Only the secret is
  * stored, hashed, and looked up at enrollment, as a bare token always was; the region, labels and
- * the node to re-enroll stay on the token's row, and decide. `n` only lets `blocklyd join` tell
+ * the node to re-enroll stay on the token's row, and decide. `n` only lets `pryxd join` tell
  * the host it is pasted on apart from another node's.
  *
- * blocklyd reads the same form in src/fleet/token.rs in cubepals/blocklyd.
+ * pryxd reads the same form in src/fleet/token.rs in cubepals/pryx.
  */
+
 import { createHash } from 'node:crypto'
 
 const JOIN_TOKEN_PREFIX = 'bk1.'

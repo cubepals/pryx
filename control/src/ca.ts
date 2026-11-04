@@ -2,12 +2,6 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-// @peculiar/x509 needs a Reflect polyfill loaded before it, and since 2.0 leaves the choice to us.
-import 'reflect-metadata'
-import { createHash, X509Certificate as NodeX509, webcrypto } from 'node:crypto'
-import { DAY_MS, MINUTE_MS } from '@blockly/contracts/durations'
-import * as x509 from '@peculiar/x509'
-
 /**
  * The fleet's certificate authority (docs/fleet.md, "Trust"). It issues:
  * - each node a serverAuth certificate (for its API) and a clientAuth one (for its heartbeats),
@@ -18,6 +12,12 @@ import * as x509 from '@peculiar/x509'
  * written to the database or to disk by the control plane. @peculiar/x509 does the X.509 work, as
  * it already does for the realtime certificate: no openssl binary, nothing shelled out.
  */
+
+// @peculiar/x509 needs a Reflect polyfill loaded before it, and since 2.0 leaves the choice to us.
+import 'reflect-metadata'
+import { createHash, X509Certificate as NodeX509, webcrypto } from 'node:crypto'
+import * as x509 from '@peculiar/x509'
+import { DAY_MS, MINUTE_MS } from './durations.ts'
 
 x509.cryptoProvider.set(webcrypto as unknown as Crypto)
 
@@ -88,11 +88,15 @@ export class FleetCa {
   static async fromPem(certPem: string, keyPem: string): Promise<FleetCa> {
     const cert = new x509.X509Certificate(certPem)
     const key = await webcrypto.subtle.importKey('pkcs8', der(keyPem), ALG, false, ['sign'])
-    const ca = new FleetCa(cert, key)
+    const ca = new FleetCa(cert, key as unknown as CryptoKey)
     // A key that doesn't match the certificate would issue certificates nothing trusts.
     const probe = await ca.identity('probe', 'client', 1)
-    if (!(await new x509.X509Certificate(probe.certPem).verify({ publicKey: cert.publicKey })))
-      throw new Error("FLEET_CA_KEY is not the key of FLEET_CA_CERT's certificate")
+    if (
+      !(await new x509.X509Certificate(probe.certPem).verify({
+        publicKey: cert.publicKey,
+      }))
+    )
+      throw new Error("PRYX_CA_KEY is not the key of PRYX_CA_CERT's certificate")
     return ca
   }
 
@@ -147,7 +151,10 @@ export class FleetCa {
         ),
         new x509.SubjectAlternativeNameExtension([
           { type: 'dns', value: name },
-          ...(extra.dns ?? []).map((value) => ({ type: 'dns' as const, value })),
+          ...(extra.dns ?? []).map((value) => ({
+            type: 'dns' as const,
+            value,
+          })),
           ...(extra.ips ?? []).map((value) => ({ type: 'ip' as const, value })),
         ]),
         await x509.AuthorityKeyIdentifierExtension.create(this.cert),

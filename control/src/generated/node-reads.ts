@@ -1,6 +1,6 @@
-// Generated from infra/fleet/node-reads.openapi.json (sha256 dac99c0205b8efe94f23fb26f7b51f1d33c3a5271ffbe2ceafad046dbeb2cc93) by tools/openapi.
-// Do not edit. Regenerate with `bun run openapi:generate`; update the spec with `bun scripts/blocklyd.ts bump <version>`.
-
+// SPDX-FileCopyrightText: 2026 The Cubepals Authors
+// SPDX-License-Identifier: FSL-1.1-ALv2
+// Generated from openapi/node-reads.openapi.json; sha256 80f0660c2b77134c788b6873a12a80052e0d8c5e69e899546671e04f0e1b622e.
 export type paths = Record<string, never>;
 export type webhooks = Record<string, never>;
 export interface components {
@@ -27,7 +27,7 @@ export interface components {
         };
         ExecRequest: {
             /**
-             * @description argv, never a shell string: blocklyd adds no shell. It runs inside the workload, as
+             * @description argv, never a shell string: pryxd adds no shell. It runs inside the workload, as
              *     the workload's user, with its limits; never on the host.
              */
             command: string[];
@@ -44,7 +44,7 @@ export interface components {
         ExportRequest: {
             /**
              * @description Names at the top of the data the archive leaves out: what the image makes again when it
-             *     is missing (a server jar, the libraries it unpacks), so a move carries only the world.
+             *     is missing (an application bundle, its unpacked dependencies), so a move carries only the data.
              * @default []
              */
             exclude?: string[];
@@ -61,8 +61,8 @@ export interface components {
              */
             parts?: components["schemas"]["PartsTarget"] | null;
             /**
-             * @description The caller paused the workload's own saving (for Minecraft: `save-off`, `save-all
-             *     flush`), so its files are consistent while it runs. Without it only a stopped workload
+             * @description The caller paused the workload's own writes (for example, flushed and paused an
+             *     application's data writer), so its files are consistent while it runs. Without it only a stopped workload
              *     exports.
              * @default false
              */
@@ -112,7 +112,7 @@ export interface components {
              */
             renew?: boolean;
             /**
-             * @description A newer blocklyd to upgrade to: offered to one node of a region at a time.
+             * @description A newer pryxd to upgrade to: offered to one node of a region at a time.
              * @default null
              */
             upgrade?: components["schemas"]["UpgradeOffer"] | null;
@@ -166,7 +166,7 @@ export interface components {
             cpuWeight?: number | null;
             /**
              * Format: uint32
-             * @description Hard memory limit (no swap). Blockly's size: 3072 for a 3 GB server.
+             * @description Hard memory limit (no swap). Expressed in MiB.
              */
             memoryMb: number;
             /**
@@ -205,7 +205,7 @@ export interface components {
             /** @default null */
             url?: string | null;
         };
-        /** @description A secret value: never logged, never persisted by blocklyd, never returned. */
+        /** @description A secret value: never logged, never persisted by pryxd, never returned. */
         Secret: string;
         /**
          * @description A local snapshot's id: the control plane's archive id (a UUID). It names a directory, so it is
@@ -239,7 +239,7 @@ export interface components {
         /** @description A field left out takes its value from `Default`, whether `stop` is absent or partial. */
         StopSpec: {
             /**
-             * @description Sent first; the workload saves and exits on it (Blockly's image: `stop` on the console).
+             * @description Sent first; the workload saves and exits on it.
              * @default SIGTERM
              */
             signal?: components["schemas"]["StopSignal"];
@@ -251,7 +251,7 @@ export interface components {
             timeoutSeconds?: number;
         };
         Storage: {
-            /** @description Where the workload's persistent data appears inside it (Blockly: `/data`). */
+            /** @description Where the workload's persistent data appears inside it. */
             mountPath: string;
             /**
              * Format: uint32
@@ -260,11 +260,11 @@ export interface components {
              */
             sizeGb: number;
         };
-        /** @description The blocklyd the control plane wants the node to run, at `GET /fleet/v1/blocklyd`. */
+        /** @description The pryxd the control plane wants the node to run, at `GET /fleet/v1/blocklyd`. */
         UpgradeOffer: {
             sha256: string;
             /**
-             * @description The release's Ed25519 signature of `version` and `sha256`, in hex: its `blocklyd.sig`,
+             * @description The release's Ed25519 signature of `version` and `sha256`, in hex: its `pryxd.sig`,
              *     which the control plane passes on (upgrade/trust.rs). A node that lists `signed-upgrade`
              *     installs nothing without it.
              */
@@ -320,7 +320,7 @@ export interface components {
              * @default null
              */
             resumesOn?: string | null;
-            /** @description Environment the workload needs but nobody else may see (Blockly: `RCON_PASSWORD`). */
+            /** @description Environment the workload needs but nobody else may see. */
             secrets?: {
                 [key: string]: components["schemas"]["Secret"];
             };

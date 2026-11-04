@@ -2,9 +2,9 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-import type { RuntimeHandle } from './runtime.ts'
+import type { RuntimeHandle } from './runtime-model.ts'
 
-/** A raw line of workload output. What it means is Minecraft knowledge, decided elsewhere. */
+/** A raw line of workload output. What it means is application knowledge, decided elsewhere. */
 export interface LogLine {
   at: Date
   text: string
@@ -18,4 +18,3 @@ export interface LogSource {
   recent(handle: RuntimeHandle, limit: number): Promise<LogLine[]>
   tail(handle: RuntimeHandle, signal: AbortSignal): AsyncIterable<LogLine>
 }
-

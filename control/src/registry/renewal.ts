@@ -7,9 +7,11 @@
  * The new certificate takes over when a heartbeat presents it, in `heartbeat.ts`; a machine's first
  * certificates come from `enrollment.ts`.
  */
-import type { Db } from '@blockly/db'
+
 import { sql } from 'drizzle-orm'
 import type { FleetCa } from '../ca.ts'
+
+import type { Db } from '../database.ts'
 import { event } from '../sql.ts'
 import type { RenewRequest, RenewResponse } from '../wire.ts'
 import { certificateOf } from './heartbeat.ts'
@@ -49,7 +51,14 @@ export async function renew(
     await t.execute(sql`
       UPDATE fleet_nodes SET next_cert_sha256 = ${issued.client.sha256},
         next_cert_expires_at = ${issued.client.expiresAt}, updated_at = now() WHERE id = ${nodeId}`)
-    await event(t, 'node.certificate_issued', { node: nodeId, data: { expiresAt: issued.client.expiresAt } })
-    return { serverCertPem: issued.server.certPem, clientCertPem: issued.client.certPem, caPem: ca.pem }
+    await event(t, 'node.certificate_issued', {
+      node: nodeId,
+      data: { expiresAt: issued.client.expiresAt },
+    })
+    return {
+      serverCertPem: issued.server.certPem,
+      clientCertPem: issued.client.certPem,
+      caPem: ca.pem,
+    }
   })
 }

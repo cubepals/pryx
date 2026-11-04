@@ -2,14 +2,8 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-import https from 'node:https'
-import { connect as tcpConnect } from 'node:net'
-import type { Readable } from 'node:stream'
-import { setTimeout as sleep } from 'node:timers/promises'
-import { nodeName } from './ca.ts'
-
 /**
- * The control plane's client for blocklyd's API (blocklyd's docs/protocol.md): mutual TLS with
+ * The control plane's client for pryxd's API (pryxd's docs/protocol.md): mutual TLS with
  * the control plane's own client certificate, the fleet CA as the only root, and the node's name,
  * which the control plane chose at enrollment, as what the node's certificate must say. An address
  * is only where to dial; it never identifies a node.
@@ -18,16 +12,22 @@ import { nodeName } from './ca.ts'
  * timeout; any other is sent once.
  */
 
+import https from 'node:https'
+import { connect as tcpConnect } from 'node:net'
+import type { Readable } from 'node:stream'
+import { setTimeout as sleep } from 'node:timers/promises'
+import { nodeName } from './ca.ts'
+
 const EPOCH_HEADER = 'blocklyd-epoch'
 export const CONFIRM_DELETE_HEADER = 'x-blockly-confirm-delete-data'
 
-/** Where to dial a node: its id and blocklyd's API address. */
+/** Where to dial a node: its id and pryxd's API address. */
 export interface NodeAddress {
   id: string
   apiAddress: string
 }
 
-/** The node answered, and refused: `code` is blocklyd's stable error code. */
+/** The node answered, and refused: `code` is pryxd's stable error code. */
 export class NodeRefused extends Error {
   readonly status: number
   readonly code: string
@@ -75,13 +75,13 @@ export function splitAddress(address: string): { host: string; port: number } {
 
 /**
  * The waits between attempts at a call that is safe to repeat, after no answer: a keep-alive
- * connection the node had closed, or blocklyd restarting. The call's timeout bounds them all.
+ * connection the node had closed, or pryxd restarting. The call's timeout bounds them all.
  */
 const RETRY_DELAYS_MS = [250, 1000, 2500]
 
 /**
  * Whether a call may be sent again when nothing is known of the first: a read, a PUT of a spec,
- * and a start or stop, which blocklyd answers the same however often it is asked. Not a kill, a
+ * and a start or stop, which pryxd answers the same however often it is asked. Not a kill, a
  * delete, a fence, an exec or a transfer.
  */
 export function repeatable(method: string, path: string): boolean {
@@ -162,7 +162,10 @@ export class NodeClient {
   ): Promise<T> {
     const { host, port } = splitAddress(node.apiAddress)
     const body = options.body === undefined ? null : Buffer.from(JSON.stringify(options.body))
-    const headers: Record<string, string> = { accept: 'application/json', ...options.headers }
+    const headers: Record<string, string> = {
+      accept: 'application/json',
+      ...options.headers,
+    }
     if (body !== null) headers['content-type'] = 'application/json'
     if (options.epoch !== undefined && options.epoch !== null) headers[EPOCH_HEADER] = String(options.epoch)
     return new Promise<T>((resolve, reject) => {
@@ -193,7 +196,9 @@ export class NodeClient {
             }
             if (status >= 200 && status < 300) return resolve(parsed as T)
             const error = (
-              parsed as { error?: { code?: string; message?: string; details?: unknown } } | null
+              parsed as {
+                error?: { code?: string; message?: string; details?: unknown }
+              } | null
             )?.error
             reject(
               new NodeRefused(
@@ -208,7 +213,9 @@ export class NodeClient {
       )
       const timer = setTimeout(() => {
         request.destroy(
-          Object.assign(new Error(`no answer within ${Math.round(timeoutMs)} ms`), { code: 'TIMEOUT' }),
+          Object.assign(new Error(`no answer within ${Math.round(timeoutMs)} ms`), {
+            code: 'TIMEOUT',
+          }),
         )
       }, timeoutMs)
       request.on('error', (error: NodeJS.ErrnoException) => {
@@ -221,7 +228,7 @@ export class NodeClient {
   }
 
   /**
-   * The lines of a streamed answer (blocklyd's NDJSON logs), as they arrive. Ends when the node
+   * The lines of a streamed answer (pryxd's NDJSON logs), as they arrive. Ends when the node
    * ends the stream or `signal` aborts.
    */
   async *lines(node: NodeAddress, path: string, signal: AbortSignal): AsyncIterable<string> {
@@ -265,7 +272,7 @@ export class NodeClient {
 
   /**
    * What can be learned about a quiet node from outside it: does its API port take a connection,
-   * and does blocklyd answer on it? A refusal means the host is up and blocklyd is not; a timeout,
+   * and does pryxd answer on it? A refusal means the host is up and pryxd is not; a timeout,
    * that the host or the path to it is down.
    */
   async probe(node: NodeAddress, timeoutMs = 3000): Promise<Probe> {
@@ -276,7 +283,11 @@ export class NodeClient {
       await this.call(node, 'GET', '/v1/health', { timeoutMs })
       return { tcp, api: 'ok', ms: Math.round(performance.now() - started) }
     } catch (error) {
-      return { tcp, api: `error: ${(error as Error).message}`, ms: Math.round(performance.now() - started) }
+      return {
+        tcp,
+        api: `error: ${(error as Error).message}`,
+        ms: Math.round(performance.now() - started),
+      }
     }
   }
 
@@ -288,7 +299,7 @@ export class NodeClient {
 /**
  * The non-blank lines of a streamed NDJSON body, as they arrive, the last one even without its
  * newline. The body is decoded as one UTF-8 stream, not chunk by chunk: a character whose bytes
- * two chunks split (a Minecraft colour code's '§', a player's name) arrives whole. Ends quietly
+ * two chunks split (a application colour code's '§', a player's name) arrives whole. Ends quietly
  * once `signal` aborts; any other error ends it with that error.
  */
 export async function* ndjsonLines(body: Readable, signal: AbortSignal): AsyncIterable<string> {

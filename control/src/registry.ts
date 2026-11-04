@@ -15,7 +15,7 @@
  * - `renewal.ts`: new certificates for an enrolled node.
  * - `summaries.ts`: nodes with their reservations, for placement and operators.
  * - `lifecycle.ts`: an operator's changes to a node, from draining to retiring.
- * - `upgrades.ts`: the blocklyd rollout, one node per region at a time, answered in heartbeats.
+ * - `upgrades.ts`: the pryxd rollout, one node per region at a time, answered in heartbeats.
  */
 
 export { createToken, enroll } from './registry/enrollment.ts'
@@ -34,7 +34,13 @@ export { getNode, lockRegion, Refused } from './registry/node.ts'
 export { endpointSeen, listeningSeconds } from './registry/presence.ts'
 export { renew } from './registry/renewal.ts'
 
-export { answered, holdsMemory, nodeSummaries, recordHealth, toNodeView } from './registry/summaries.ts'
+export {
+  answered,
+  holdsMemory,
+  nodeSummaries,
+  recordHealth,
+  toNodeView,
+} from './registry/summaries.ts'
 
 export {
   isOlder,

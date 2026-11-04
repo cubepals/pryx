@@ -6,11 +6,13 @@
  * What one heartbeat does to the registry: the certificate the node must present, its report
  * applied in one transaction, and the fences sent back for copies it must not run.
  * New certificates are issued in `renewal.ts`; how a node's health is judged lives in `node.ts`;
- * which blocklyd the answer offers is `upgrades.ts`.
+ * which pryxd the answer offers is `upgrades.ts`.
  */
-import { DAY_S } from '@blockly/contracts/durations'
-import type { Db, Queryable } from '@blockly/db'
+
 import { sql } from 'drizzle-orm'
+import type { Db, Queryable } from '../database.ts'
+
+import { DAY_S } from '../durations.ts'
 import { event, exec, jsonb, one, rows, textArray, toDate } from '../sql.ts'
 import type {
   Fence,
@@ -81,7 +83,11 @@ export async function heartbeat(
           await t.execute(sql`UPDATE fleet_nodes SET duplicate_seen_at = now() WHERE id = ${node.id}`)
           await event(t, 'node.duplicate_identity', {
             node: node.id,
-            data: { current: node.session_id, other: request.sessionId, otherSeq: request.seq },
+            data: {
+              current: node.session_id,
+              other: request.sessionId,
+              otherSeq: request.seq,
+            },
           })
         }
         return {
@@ -218,12 +224,19 @@ async function apply(
     await event(t, 'node.addresses_changed', {
       node: node.id,
       data: {
-        from: { api: node.api_address, edge: node.edge_host, control: node.control_host },
+        from: {
+          api: node.api_address,
+          edge: node.edge_host,
+          control: node.control_host,
+        },
         to: addresses,
       },
     })
   if (switched && node.session_id !== null)
-    await event(t, 'node.daemon_restarted', { node: node.id, data: { seq: request.seq } })
+    await event(t, 'node.daemon_restarted', {
+      node: node.id,
+      data: { seq: request.seq },
+    })
   if (node.boot_id !== null && request.bootId !== null && node.boot_id !== request.bootId)
     await event(t, 'node.rebooted', { node: node.id })
   if (
@@ -231,7 +244,10 @@ async function apply(
     (node.last_heartbeat_at === null ||
       (node.lost_at !== null && toDate(node.last_heartbeat_at) < toDate(node.lost_at)))
   )
-    await event(t, 'node.returned_while_lost', { node: node.id, data: { fencedBy: node.fenced_by } })
+    await event(t, 'node.returned_while_lost', {
+      node: node.id,
+      data: { fencedBy: node.fenced_by },
+    })
 
   await recordCopies(t, node, request.workloads, held)
   return rollout(t, node, request, release)
@@ -249,7 +265,7 @@ async function recordCopies(t: Queryable, node: NodeRow, reported: WorkloadRepor
 
 /**
  * Every copy a node reports, in one statement that writes only the reports that changed: most
- * beats write nothing here, so the cost grows with what happens, not with how many servers there
+ * beats write nothing here, so the cost grows with what happens, not with how many sandboxes there
  * are. How fresh an unchanged report is, the node's `last_heartbeat_at` says.
  */
 async function observe(t: Queryable, node: NodeRow, reported: WorkloadReport[]): Promise<void> {
@@ -275,7 +291,11 @@ async function observe(t: Queryable, node: NodeRow, reported: WorkloadReport[]):
   const changed = new Set(written.map((w) => w.workload))
   const withEpochs = reported.filter((r) => r.epoch !== null)
   if (withEpochs.length === 0) return
-  const placements = await rows<{ workload: string; epoch: string; node_id: string | null }>(
+  const placements = await rows<{
+    workload: string
+    epoch: string
+    node_id: string | null
+  }>(
     t,
     sql`SELECT workload, epoch, node_id FROM fleet_placements
         WHERE workload = ANY(${textArray(withEpochs.map((r) => r.id))})`,
@@ -293,13 +313,21 @@ async function observe(t: Queryable, node: NodeRow, reported: WorkloadReport[]):
         sql`UPDATE fleet_placements SET epoch = ${epoch}, updated_at = now()
             WHERE workload = ${report.id} AND epoch < ${epoch}`,
       )
-      if (adopted > 0) await event(t, 'epoch.adopted', { node: node.id, workload: report.id, epoch })
+      if (adopted > 0)
+        await event(t, 'epoch.adopted', {
+          node: node.id,
+          workload: report.id,
+          epoch,
+        })
     } else if (changed.has(report.id))
       await event(t, 'epoch.conflict', {
         node: node.id,
         workload: report.id,
         epoch,
-        data: { placementEpoch: Number(current.epoch), placementNode: current.node_id },
+        data: {
+          placementEpoch: Number(current.epoch),
+          placementNode: current.node_id,
+        },
       })
   }
   for (const { workload } of written.filter((w) => w.inserted)) {
@@ -326,7 +354,10 @@ async function observe(t: Queryable, node: NodeRow, reported: WorkloadReport[]):
         node: node.id,
         workload,
         epoch: report.epoch,
-        data: { state: report.state, currentEpoch: current ? Number(current.epoch) : null },
+        data: {
+          state: report.state,
+          currentEpoch: current ? Number(current.epoch) : null,
+        },
       })
     }
   }
@@ -353,5 +384,8 @@ async function fencesFor(q: Queryable, nodeId: string): Promise<Fence[]> {
         WHERE o.node_id = ${nodeId} AND o.epoch IS NOT NULL AND o.superseded_by IS NULL
           AND NOT EXISTS (SELECT 1 FROM fleet_placements p WHERE p.workload = o.workload)`,
   )
-  return found.map((r) => ({ workload: r.workload, currentEpoch: Number(r.epoch) }))
+  return found.map((r) => ({
+    workload: r.workload,
+    currentEpoch: Number(r.epoch),
+  }))
 }

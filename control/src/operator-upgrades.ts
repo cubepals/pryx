@@ -2,14 +2,14 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-import type { Db } from '@blockly/db'
 import type { Hono } from 'hono'
+import type { Db } from './database.ts'
 import { OPERATOR_BASE } from './operator-api.ts'
 import { Refused, retryUpgrade, UPGRADE_TIMEOUT_SECONDS, upgradeSummaries } from './registry.ts'
 import type { UpgradeOffer } from './wire.ts'
 
 /**
- * The operators' view of the blocklyd rollout (registry/upgrades.ts), added to the operator API
+ * The operators' view of the pryxd rollout (registry/upgrades.ts), added to the operator API
  * `createOperatorApi` made, behind its token: `fleet.ts upgrades` and `fleet.ts retry-upgrade`.
  *
  * - `GET /fleet/v1/upgrades`: the release this process rolls out, and each node's version and

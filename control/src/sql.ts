@@ -2,14 +2,14 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-import type { Queryable } from '@blockly/db'
-import { type SQL, sql } from 'drizzle-orm'
-
 /**
  * The fleet's queries are SQL, as written, through the application's database handle: the
  * statements that matter here (compare-and-set on an epoch, a heartbeat's batched upsert, a
  * region's lock) read more plainly as SQL than as a query builder.
  */
+
+import { type SQL, sql } from 'drizzle-orm'
+import type { Queryable } from './database.ts'
 
 export async function rows<T>(q: Queryable, query: SQL): Promise<T[]> {
   const result = await q.execute(query)
