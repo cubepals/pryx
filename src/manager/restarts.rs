@@ -161,7 +161,7 @@ impl Manager {
 
     /// Starts a workload the host went down under. In fleet mode only under a lease, which the
     /// control plane grants in the same answer that fences any copy placed elsewhere meanwhile:
-    /// a node that comes back after its servers moved never starts them here.
+    /// a node that comes back after its sandboxes moved never starts them here.
     async fn resume(&self, id: &WorkloadId) -> Restart {
         let lock = self.lock_for(id);
         let Ok(_guard) = lock.try_lock() else { return Restart::Waiting };

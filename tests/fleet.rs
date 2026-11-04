@@ -81,7 +81,7 @@ enum Answer {
     OtherCa,
     /// Names the fleet CA, its PEM written with CRLF line ends.
     Crlf,
-    /// A server certificate for another key than the one asked for.
+    /// A sandbox certificate for another key than the one asked for.
     WrongKey,
 }
 
@@ -97,7 +97,7 @@ enum Renewal {
     Refuse,
     /// Names a CA the node wasn't provisioned with.
     OtherCa,
-    /// A server certificate for another key than the one asked for.
+    /// A sandbox certificate for another key than the one asked for.
     WrongKey,
 }
 
@@ -520,7 +520,7 @@ async fn an_answer_lost_on_the_way_is_asked_for_again_with_the_same_key() {
 async fn an_answer_the_node_cant_serve_with_leaves_it_unenrolled_to_ask_again() {
     let cp = ControlPlane::start().await;
     let node = Node::new(&cp);
-    // A server certificate for another key: it loads like any other, and the API can't use it.
+    // A sandbox certificate for another key: it loads like any other, and the API can't use it.
     cp.answer_next(Answer::WrongKey);
     node.enroll().await.expect_err("enrolled with a server certificate for another key");
     assert!(Identity::load(&node.config.state_dir).unwrap().is_none(), "not enrolled, so the next start asks again");
@@ -604,7 +604,7 @@ async fn asked_to_renew_a_node_makes_a_new_key_and_switches_to_it_whole() {
     for file in replaced {
         assert!(!file.exists(), "{} is still there", file.display());
     }
-    // Heartbeats carry the new client certificate, and the API presents the new server one.
+    // Heartbeats carry the new client certificate, and the API presents the new sandbox one.
     assert_eq!(cp.beats().last(), Some(&certificate(&renewed.client_cert_path())));
     assert_eq!(serving.presents(&cp, &name).await, certificate(&renewed.server_cert_path()));
 }
@@ -629,7 +629,7 @@ async fn a_renewal_that_fails_leaves_the_node_on_its_current_identity() {
     assert!(cp.beats().iter().all(|c| *c == client), "every beat came with the current certificate");
     assert_eq!(on_disk(), before);
 
-    // Answers the node can't use: another CA, or a server certificate for another key.
+    // Answers the node can't use: another CA, or a sandbox certificate for another key.
     for answer in [Renewal::OtherCa, Renewal::WrongKey] {
         cp.ask_to_renew(answer);
         serving.credentials.renew(&cp.url).await.expect_err("renewed with an answer it can't use");
@@ -699,6 +699,7 @@ fn host(root: &Path, addresses: &[(&str, [u8; 4])]) {
 
 async fn join(root: &Path, token: String, address: Option<std::net::IpAddr>) -> anyhow::Result<String> {
     let options = pryxd::cli::join::Join {
+        allow_images: vec!["ghcr.io/example/".into(), "alpine:".into()],
         token,
         address,
         config: pryxd::config::PATH.into(),
@@ -721,6 +722,7 @@ async fn a_pasted_token_is_all_a_host_needs_to_join() {
     let text = std::fs::read_to_string(root.join("etc/pryxd/pryxd.toml")).unwrap();
     let config = Config::parse(&text, Path::new("/etc/pryxd/pryxd.toml"), root).unwrap();
     assert_eq!(config.deployment_id, "production");
+    assert!(text.contains("allowed_images = [\"ghcr.io/example/\", \"alpine:\"]"), "{text}");
     assert_eq!(config.api.listen.to_string(), "10.0.0.5:7443", "worked out at each start, not written down");
     assert!(!text.contains("10.0.0.5"), "{text}");
     let fleet = config.fleet.unwrap();

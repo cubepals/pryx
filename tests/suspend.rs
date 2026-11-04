@@ -32,7 +32,7 @@ fn sleepy() -> WorkloadSpec {
     spec_with(|v| v["resumesOn"] = "1.21.8".into())
 }
 
-/// The same server on another version, which the same `resumesOn` says it may wake into.
+/// The same sandbox on another version, which the same `resumesOn` says it may wake into.
 fn upgraded() -> WorkloadSpec {
     spec_with(|v| {
         v["resumesOn"] = "1.21.8".into();
@@ -127,7 +127,7 @@ async fn a_spec_sent_while_it_sleeps_waits_for_its_next_boot() {
     assert_eq!(r.workload.generation, 2);
     let env = &f.fake.container(NAME).unwrap().spec.env;
     assert!(env.contains(&("VERSION".into(), "1.21.9".into())));
-    assert!(env.contains(&("RCON_PASSWORD".into(), "first-secret".into())));
+    assert!(env.contains(&("APP_TOKEN".into(), "first-secret".into())));
 }
 
 #[tokio::test]
@@ -243,7 +243,7 @@ async fn a_restart_of_the_host_ends_the_sleep_and_resumes_nothing() {
     assert!(r.resumed.is_none(), "a start of a stopped workload");
     assert_eq!(r.workload.state, WorkloadState::Running);
     assert_eq!(r.workload.spec_digest, digest(&upgraded()));
-    assert!(fake.container(NAME).unwrap().spec.env.contains(&("RCON_PASSWORD".into(), "first-secret".into())));
+    assert!(fake.container(NAME).unwrap().spec.env.contains(&("APP_TOKEN".into(), "first-secret".into())));
 }
 
 #[tokio::test]
@@ -251,7 +251,7 @@ async fn a_deferred_spec_the_hosts_policy_no_longer_admits_never_boots() {
     let f = suspended("").await;
     let other_image = spec_with(|v| {
         v["resumesOn"] = "1.21.8".into();
-        v["image"] = "itzg/minecraft-server:java21".into();
+        v["image"] = "ghcr.io/example/http-app:1.0".into();
     });
     let r = f.manager.ensure(id("w"), other_image.clone(), Precondition::None, None).await.unwrap();
     assert_eq!(r.outcome, EnsureOutcome::Deferred);

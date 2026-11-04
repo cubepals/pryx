@@ -119,6 +119,8 @@ impl WorkloadSpec {
     fn check_image(&self, policy: &SpecPolicy, problems: &mut Problems) {
         if !image_ok(&self.image) {
             problems.add("image", "must be an image reference of letters, digits and ._-/:@");
+        } else if policy.allowed_images.is_empty() {
+            problems.add("image", "no image prefix is allowed on this host");
         } else if !policy.allowed_images.iter().any(|prefix| self.image.starts_with(prefix.as_str())) {
             problems
                 .add("image", format!("is not allowed on this host (allowed: {})", policy.allowed_images.join(", ")));
@@ -259,13 +261,13 @@ impl WorkloadSpec {
 
 #[cfg(test)]
 mod tests {
-    use super::super::tests::{blockly_like, spec};
+    use super::super::tests::{example_spec, spec};
     use super::*;
     use crate::protocol::{Proto, RestartSpec};
 
     pub(crate) fn policy() -> SpecPolicy {
         SpecPolicy {
-            allowed_images: vec!["itzg/minecraft-server:".into(), "alpine:".into()],
+            allowed_images: vec!["ghcr.io/example/http-app:".into(), "alpine:".into()],
             min_memory_mb: 128,
             max_memory_mb: 16_384,
             max_cpu_millis: 8000,
@@ -273,8 +275,8 @@ mod tests {
     }
 
     #[test]
-    fn a_blockly_runtime_spec_is_valid() {
-        let s = spec(blockly_like());
+    fn an_example_runtime_spec_is_valid() {
+        let s = spec(example_spec());
         assert!(s.validate(&policy()).is_ok());
         assert_eq!(s.ports[0].protocol, Proto::Tcp, "tcp is the default");
         assert_eq!(s.restart, RestartSpec::default());
@@ -282,7 +284,7 @@ mod tests {
 
     #[test]
     fn every_problem_is_reported_at_once() {
-        let mut v = blockly_like();
+        let mut v = example_spec();
         v["image"] = "evil/image:latest".into();
         v["storage"]["mountPath"] = "/data/../etc".into();
         v["resources"]["memoryMb"] = 64.into();
@@ -308,9 +310,9 @@ mod tests {
 
     #[test]
     fn secrets_are_held_to_the_env_rules_and_limits() {
-        let mut v = blockly_like();
+        let mut v = example_spec();
         v["secrets"]["bad-name"] = "x".into();
-        v["secrets"]["EULA"] = "TRUE".into();
+        v["secrets"]["APP_MODE"] = "TRUE".into();
         v["secrets"]["BIG"] = "x".repeat(MAX_ENV_VALUE).into();
         v["env"]["ALSO_BIG"] = "x".repeat(MAX_ENV_TOTAL - MAX_ENV_VALUE).into();
         let errors = spec(v).validate(&policy()).unwrap_err();
@@ -319,7 +321,7 @@ mod tests {
             problems,
             [
                 ("env.ALSO_BIG", "values are at most 65536 bytes, without NUL"),
-                ("secrets.EULA", "is also in env; a name is one or the other"),
+                ("secrets.APP_MODE", "is also in env; a name is one or the other"),
                 ("secrets.bad-name", "names are letters, digits and _, not starting with a digit"),
                 ("env", "all variables together must stay under 524288 bytes"),
             ]
@@ -328,10 +330,10 @@ mod tests {
 
     #[test]
     fn ports_must_be_distinct_and_audienced() {
-        let mut v = blockly_like();
+        let mut v = example_spec();
         v["ports"] = serde_json::json!([
-            { "name": "game", "containerPort": crate::minecraft::GAME_PORT, "audience": ["edge"] },
-            { "name": "game", "containerPort": crate::minecraft::GAME_PORT, "audience": [] }
+            { "name": "http", "containerPort": crate::examples::HTTP_PORT, "audience": ["edge"] },
+            { "name": "http", "containerPort": crate::examples::HTTP_PORT, "audience": [] }
         ]);
         let errors = spec(v).validate(&policy()).unwrap_err();
         assert!(errors.iter().any(|e| e.problem.contains("used twice")));

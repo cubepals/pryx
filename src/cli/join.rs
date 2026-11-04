@@ -60,6 +60,8 @@ const FIRST_BEAT: Duration = Duration::from_secs(120);
 const CA_WAIT: Duration = Duration::from_secs(30);
 
 pub struct Join {
+    /// Image reference prefixes the host permits; an empty list denies every image.
+    pub allow_images: Vec<String>,
     /// The token as pasted.
     pub token: String,
     /// The address to serve the fleet on, where the host's own can't be told (infer.rs).
@@ -85,7 +87,7 @@ pub async fn join(options: Join) -> anyhow::Result<String> {
     let config_file = options.config.as_path();
     let shown = config_file.display();
     let existing = std::fs::read_to_string(under(root, config_file)).ok();
-    let text = existing.clone().unwrap_or_else(|| configuration(&token, options.address));
+    let text = existing.clone().unwrap_or_else(|| configuration(&token, options.address, &options.allow_images));
     let config = Config::parse(&text, config_file, root)?;
     let state_dir = under(root, &config.state_dir);
     let enrolled = Identity::load(&state_dir)?;
@@ -195,7 +197,7 @@ fn under(root: &Path, path: &Path) -> PathBuf {
 
 /// The configuration `join` writes: the deployment and where its control plane is, and the
 /// address only when the operator named it. Everything else is a default or worked out.
-fn configuration(token: &JoinToken, address: Option<IpAddr>) -> String {
+fn configuration(token: &JoinToken, address: Option<IpAddr>, allow_images: &[String]) -> String {
     let quoted = |text: &str| toml::Value::String(text.to_owned()).to_string();
     let mut text = format!(
         "# Written by `pryxd join`. Every key left out has a default or is worked out from this host\n\
@@ -210,6 +212,10 @@ fn configuration(token: &JoinToken, address: Option<IpAddr>) -> String {
             SocketAddr::new(ip, API_PORT)
         );
     }
+    text += &format!(
+        "\n[workloads]\nallowed_images = {}\n",
+        toml::Value::Array(allow_images.iter().cloned().map(toml::Value::String).collect())
+    );
     text + &format!("\n[fleet]\nurl = {}\nca = \"{CA}\"\nenrollment_token_file = \"{TOKEN}\"\n", quoted(&token.url))
 }
 

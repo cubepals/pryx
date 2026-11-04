@@ -115,7 +115,7 @@ impl Manager {
         }
     }
 
-    /// Every workload, or those whose state changed at or after `since` (Blockly's
+    /// Every workload, or those whose state changed at or after `since` (the control plane's
     /// `observeChanged`: level-triggered, answered from one local listing).
     pub(crate) fn list(&self, since: Option<OffsetDateTime>) -> Vec<WorkloadView> {
         let state = self.state.lock().unwrap();

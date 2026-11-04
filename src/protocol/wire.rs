@@ -47,7 +47,7 @@ pub struct NodeFacts {
     pub features: Vec<String>,
     /// Where the control plane dials this node's API.
     pub api_address: SocketAddr,
-    /// Where the edge reaches game ports, and the control plane console and status ports.
+    /// Where the edge reaches public ports, and the control plane console and status ports.
     pub edge_ips: Vec<IpAddr>,
     pub control_ips: Vec<IpAddr>,
     pub capacity: NodeCapacity,
@@ -114,7 +114,7 @@ pub struct NodeCapacity {
 pub(crate) struct NodeAddresses {
     /// pryxd's API, `host:port`.
     pub(crate) api: String,
-    /// Where the edge reaches game ports.
+    /// Where the edge reaches public ports.
     pub(crate) edge: String,
     /// Where the control plane reaches console and status ports.
     pub(crate) control: String,

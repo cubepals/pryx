@@ -109,7 +109,7 @@ impl Store {
 /// Left at the top of a restore's new data, `data.restoring/`, once it is complete. It moves with
 /// the directory when the two are swapped, so after a crash it says which side of the swap
 /// pryxd stopped on (`Store::recover_restore`); it is removed once the new data is in place.
-/// The name is pryxd's: a world that holds it at its top loses that entry.
+/// The name is pryxd's: a data that holds it at its top loses that entry.
 pub const RESTORE_COMPLETE: &str = ".pryxd-restore-complete";
 
 /// What `Store::recover_restore` found and did.
@@ -128,7 +128,7 @@ fn exchange(a: &Path, b: &Path) -> rustix::io::Result<()> {
     rustix::fs::renameat_with(rustix::fs::CWD, a, rustix::fs::CWD, b, rustix::fs::RenameFlags::EXCHANGE)
 }
 
-/// Marks a restore's new data complete, durably, before it is swapped in. Whatever a world brought
+/// Marks a restore's new data complete, durably, before it is swapped in. Whatever a data brought
 /// under the marker's name goes first; the marker is made new, never through a link.
 fn mark_complete(restoring: &Path) -> Result<(), StoreError> {
     let marker = restoring.join(RESTORE_COMPLETE);

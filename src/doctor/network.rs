@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! Whether the game port range is free on the addresses pryxd publishes on, and whether its
+//! Whether the public port range is free on the addresses pryxd publishes on, and whether its
 //! listeners stay off public addresses.
 
 use std::collections::HashSet;

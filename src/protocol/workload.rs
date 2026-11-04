@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use super::{Proto, Resources};
 use crate::ids::WorkloadId;
 
-/// What a workload is doing, normalized. How it maps onto Blockly's `ObservedState`:
+/// What a workload is doing, normalized. How it maps onto the control plane's `ObservedState`:
 /// created/stopped → stopped · running → running · stopping → stopping · crashed → crashed ·
 /// restarting → starting (with `lastFailureAt`) · missing/retained → absent · creating → stopped
 /// · unknown → unknown · fenced → stopped (this copy lost its placement; the current one is
@@ -46,7 +46,7 @@ pub enum WorkloadState {
     /// node). This copy is stopped, never started again, and its data kept until deleted.
     Fenced,
     /// Frozen on request with its memory kept (`POST …/suspend`); a start resumes it. Only a
-    /// workload asked to suspend is ever in this state. In Blockly's terms: asleep, its memory
+    /// workload asked to suspend is ever in this state. In the control plane's terms: asleep, its memory
     /// kept.
     Suspended,
 }
@@ -111,7 +111,7 @@ pub struct PortView {
     pub(crate) container_port: u16,
     pub host_port: u16,
     /// `host:port` per audience, `[v6]:port` for IPv6: where the edge and the control plane
-    /// reach this port. Blockly's `endpoint(handle, port, audience)`.
+    /// reach this port. the control plane's `endpoint(handle, port, audience)`.
     pub(crate) endpoints: Endpoints,
 }
 
@@ -206,7 +206,7 @@ pub struct WorkloadView {
     /// Restarts the host made after failures since the last requested start or new spec. Kept
     /// across restarts of pryxd.
     pub restart_count: u32,
-    /// When it last failed and the host started it again (Blockly's `failedAt`).
+    /// When it last failed and the host started it again (the control plane's `failedAt`).
     pub last_failure_at: Option<String>,
     pub started_at: Option<String>,
     pub(crate) finished_at: Option<String>,

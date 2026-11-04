@@ -2,22 +2,20 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! World archives: a gzip tarball of a workload's data directory. It is the format Blockly's
-//! backups, downloads and uploads already use: paths relative to the data root, with
-//! `server.properties` at the top. So an archive pryxd writes is one Blockly can already read,
-//! and the other way round.
+//! Data archives: a gzip tarball with paths relative to the workload data root. No application
+//! layout is required. This module packs and safely unpacks data; it does not choose snapshots.
 //!
 //! Export writes the archive to a spool file first, hashing as it goes: a presigned PUT needs its
 //! length up front, and the sha256 is what a later restore checks against. It reads the data
 //! through `tree::walk`, so a workload rearranging its files meanwhile can't make it read
-//! anything else. Compression is gzip's fastest level: region files are compressed already, so
+//! anything else. Compression is gzip's fastest level: application files may already be compressed, so
 //! a slower level costs CPU for little.
 //!
-//! Restore is the dangerous direction. The archive may be a player's upload, and pryxd unpacks
+//! Restore is the dangerous direction. The archive may be an untrusted upload, and pryxd unpacks
 //! it as root. So it keeps only regular files and directories. It refuses the whole archive if
 //! any path is absolute or climbs out with `..`. It never follows a link. It strips setuid,
 //! setgid and sticky bits and group/other write, and gives every file to the workload's user. It
-//! unpacks beside the data and swaps by rename, so a bad archive never costs the current world.
+//! unpacks beside the data and swaps by rename, so a bad archive never costs the current data.
 
 use std::cell::Cell;
 use std::fs::{self, File, OpenOptions};
@@ -35,9 +33,9 @@ use sha2::{Digest, Sha256};
 use crate::priority::Idle;
 use crate::tree::{Kind, Progress};
 
-/// Unpacked bytes an archive may expand to. A world is a few GB; this stops a gzip bomb.
+/// Unpacked bytes an archive may expand to. A data set may be several GB; this stops a gzip bomb.
 pub(crate) const MAX_UNPACKED_BYTES: u64 = crate::tree::MAX_BYTES;
-/// Entries an archive may hold. Worlds hold thousands; this bounds the work a bad one causes.
+/// Entries an archive may hold. data sets hold thousands; this bounds the work a bad one causes.
 pub(crate) const MAX_ENTRIES: u64 = crate::tree::MAX_ENTRIES;
 /// What a restore lets tar read of a member besides the data it unpacks: its long name, long link
 /// and PAX records, or the data of an entry it skips. Go's archive/tar and libarchive stop there

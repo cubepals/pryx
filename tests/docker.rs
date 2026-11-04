@@ -82,10 +82,10 @@ fn shell(script: &str, memory_mb: u32) -> WorkloadSpec {
     serde_json::from_value(serde_json::json!({
         "image": "alpine:3.22",
         "entrypoint": ["/bin/sh", "-c", script],
-        "secrets": { "RCON_PASSWORD": "docker-test-secret" },
+        "secrets": { "APP_TOKEN": "docker-test-secret" },
         "resources": { "memoryMb": memory_mb, "cpuMillis": 500 },
         "storage": { "mountPath": "/data", "sizeGb": 1 },
-        "ports": [{ "name": "game", "containerPort": pryxd::minecraft::GAME_PORT, "audience": ["edge", "control"] }],
+        "ports": [{ "name": "http", "containerPort": pryxd::examples::HTTP_PORT, "audience": ["edge", "control"] }],
         "stop": { "timeoutSeconds": 10 },
         "restart": { "policy": "on-failure", "maxRetries": 2 }
     }))
@@ -298,14 +298,14 @@ async fn a_short_exec_timeout_kills_the_exec_and_leaves_the_workload_running() {
     cleanup(&m, &["s"]).await;
 }
 
-/// Like a Minecraft server: it holds its world in memory (64 MB in its tmpfs, counted against its
+/// Like a Minecraft sandbox: it holds its data in memory (64 MB in its tmpfs, counted against its
 /// limit), and answers on the game port with a token it drew when it booted.
 fn memory_server() -> String {
     format!(
         "head -c {WORLD_BYTES} /dev/zero > /tmp/heap; \
          head -c 8 /dev/urandom | od -An -tx1 | tr -d ' \\n' > /tmp/token; \
          nc -lk -p {} -e cat /tmp/token & trap 'exit 0' TERM; while true; do sleep 0.2; done",
-        pryxd::minecraft::GAME_PORT
+        pryxd::examples::HTTP_PORT
     )
 }
 
@@ -517,7 +517,7 @@ async fn with_docker_gone_the_daemon_answers_and_says_why() {
     assert!(started.elapsed() < Duration::from_secs(2), "fails fast, doesn't hang");
 }
 
-/// The host's address on its default route: where a node publishes its servers, and an address the
+/// The host's address on its default route: where a node publishes its sandboxes, and an address the
 /// workloads' bridge reaches, as it doesn't loopback.
 fn host_address() -> std::net::IpAddr {
     let socket = std::net::UdpSocket::bind("0.0.0.0:0").unwrap();
@@ -551,7 +551,7 @@ async fn isolation_keeps_a_workload_off_another_s_published_port() {
     );
     let m = manager_probed(dir.path(), docker(), &text, pryxd::ports::bind_probe(vec![host]));
     assert!(m.reconcile(Records::FromDisk).await.error.is_none());
-    let game = pryxd::minecraft::GAME_PORT;
+    let game = pryxd::examples::HTTP_PORT;
     let listener = format!("nc -lk -p {game} -e echo server-answered & while true; do sleep 1; done");
     m.ensure(id("server"), shell(&listener, 128), Precondition::None, None).await.unwrap();
     m.ensure(id("neighbour"), shell(SERVER, 128), Precondition::None, None).await.unwrap();

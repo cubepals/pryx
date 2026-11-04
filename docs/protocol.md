@@ -22,7 +22,7 @@ protocol names Docker.
   after it. There is no 0-RTT. A handshake must finish within 5 s, and handshakes in progress are
   capped per peer address and overall: a connection past either cap is closed at once. A
   connection whose handshake finished is not counted.
-  - **In fleet mode** (a `[fleet]` section, no `[api.tls]`), the node's server certificate, the CA
+  - **In fleet mode** (a `[fleet]` section, no `[api.tls]`), the node's sandbox certificate, the CA
     and `allowed_clients` all come from enrollment (below), and its certificate names the node
     (`<nodeId>.nodes.<deployment>.fleet`), not an address. A client dials the node's address and
     verifies that name.
@@ -135,7 +135,7 @@ Host facts and capacity:
 
 `200 { "workloads": [WorkloadView…], "observedAt": "…" }`. With `changedSince`, it lists only
 workloads whose state changed, or whose record was updated, at or after that time. This is the
-level-triggered listing Blockly's `observeChanged` needs: one call per host, answered from
+level-triggered listing the control plane's `observeChanged` needs: one call per host, answered from
 pryxd's own observations.
 
 ### `PUT /v1/workloads/{id}` — ensure
@@ -144,19 +144,19 @@ Body: `WorkloadSpec`.
 
 ```json
 {
-  "image": "itzg/minecraft-server:2026.9.1-java21",
+  "image": "ghcr.io/example/http-app:1.0",
   "entrypoint": null,
-  "env": { "EULA": "TRUE", "TYPE": "VANILLA", "VERSION": "1.21.8", "MEMORY": "2304M" },
-  "secrets": { "RCON_PASSWORD": "…" },
+  "env": { "APP_MODE": "TRUE", "TYPE": "VANILLA", "VERSION": "1.21.8", "MEMORY": "2304M" },
+  "secrets": { "APP_TOKEN": "…" },
   "resources": { "memoryMb": 3072, "cpuMillis": 2000, "cpuWeight": null, "pidsLimit": null },
   "storage": { "mountPath": "/data", "sizeGb": 5 },
   "ports": [
-    { "name": "game", "containerPort": 25565, "protocol": "tcp", "audience": ["edge", "control"] },
-    { "name": "rcon", "containerPort": 25575, "protocol": "tcp", "audience": ["control"] }
+    { "name": "http", "containerPort": 8080, "protocol": "tcp", "audience": ["edge", "control"] },
+    { "name": "admin", "containerPort": 9090, "protocol": "tcp", "audience": ["control"] }
   ],
   "stop": { "signal": "SIGTERM", "timeoutSeconds": 90 },
   "restart": { "policy": "on-failure", "maxRetries": 3 },
-  "labels": { "blockly.server": "0b6f1f2e-…" }
+  "labels": { "blockly.sandbox": "0b6f1f2e-…" }
 }
 ```
 
@@ -244,13 +244,13 @@ Refusals:
   "finishedAt": null,
   "changedAt": "…",
   "ports": [{
-    "name": "game", "protocol": "tcp", "containerPort": 25565, "hostPort": 42000,
+    "name": "http", "protocol": "tcp", "containerPort": 8080, "hostPort": 42000,
     "endpoints": { "edge": ["10.0.0.5:42000"], "control": ["10.0.0.5:42000"] }
   }],
   "resources": { "memoryMb": 3072, "cpuMillis": 2000, "cpuWeight": null, "pidsLimit": null },
   "storage": { "mountPath": "/data", "sizeGb": 5, "usedBytes": 745123840, "measuredAt": "…" },
-  "labels": { "blockly.server": "…" },
-  "secretNames": ["RCON_PASSWORD"],
+  "labels": { "blockly.sandbox": "…" },
+  "secretNames": ["APP_TOKEN"],
   "issues": [],
   "locate": { "containerName": "blockly-staging-mc-1", "containerId": "…", "dataDir": "/var/lib/pryxd/workloads/mc-1/data" },
   "createdAt": "…",
@@ -258,9 +258,9 @@ Refusals:
 }
 ```
 
-`state`, and how it maps onto Blockly's `ObservedState`:
+`state`, and how it maps onto the control plane's `ObservedState`:
 
-| `state` | Meaning | Blockly |
+| `state` | Meaning | Control plane |
 |---|---|---|
 | `creating` | Accepted; its container isn't made yet (an interrupted create). | `stopped` |
 | `created` | Made and not running since. | `stopped` |
@@ -272,11 +272,11 @@ Refusals:
 | `missing` | pryxd has a record but the runtime lost the container. | `absent` |
 | `retained` | Compute removed on request, data kept. | `absent` |
 | `unknown` | The runtime can't be asked right now. | `unknown` |
-| `fenced` | Superseded by a newer placement: stopped, kept, never started again. | `stopped` (the fleet adapter never reports a stale copy as the server) |
+| `fenced` | Superseded by a newer placement: stopped, kept, never started again. | `stopped` (the fleet adapter never reports a stale copy as the sandbox) |
 | `suspended` | Frozen on request (`…/suspend`), its memory kept; a start resumes it. Only a workload asked to suspend is ever in it. | asleep, its memory kept |
 
 A few fields need a word:
-- **`endpoints`** is Blockly's `endpoint(handle, port, audience)`: per audience, the host
+- **`endpoints`** is the control plane's `endpoint(handle, port, audience)`: per audience, the host
   addresses and port where the edge or the control plane reaches it. IPv6 is `[addr]:port`.
 - **`restartCount`** counts pryxd's restarts after failures since the last requested start or
   new spec. It survives restarts of pryxd.
@@ -305,7 +305,7 @@ workload puts a deferred spec in place first.
 | `409 no_compute` | The workload is retained. |
 | `409 not_created` | An interrupted create; PUT again. |
 | `409 container_missing` | The runtime lost the container; PUT again. |
-| `409 insufficient_capacity` | Running memory would exceed the allocatable memory. This is Blockly's `RuntimeFull`. |
+| `409 insufficient_capacity` | Running memory would exceed the allocatable memory. This is the control plane's `RuntimeFull`. |
 | `409 port_conflict` | Something else holds its host port. |
 
 ### `POST /v1/workloads/{id}/suspend`
@@ -332,7 +332,7 @@ The body is optional: `{ "timeoutSeconds": 1–600 }` overrides the spec's grace
 
 ### `POST /v1/workloads/{id}/kill`
 
-SIGKILL now, with no grace: Blockly's `forceStop`. `200 PowerResponse`. Like a stop, it keeps a
+SIGKILL now, with no grace: the control plane's `forceStop`. `200 PowerResponse`. Like a stop, it keeps a
 workload that isn't running from being restarted or resumed.
 
 ### `DELETE /v1/workloads/{id}[?data=keep|delete]`
@@ -340,11 +340,11 @@ workload that isn't running from being restarted or resumed.
 - **`keep`** (the default): pryxd removes the container (stopping it gracefully first if it
   runs) and releases its ports.
   - The data stays. The workload becomes `retained`, and a later PUT brings its compute back.
-  - This is Blockly's `decommission`.
+  - This is the control plane's `decommission`.
 - **`delete`**: the same, and the whole workload directory (record and data) is **moved to the
   host's trash** in one rename.
   - It is purged after `trash_retention_hours`.
-  - This is Blockly's `destroy` or `release`.
+  - This is the control plane's `destroy` or `release`.
   - It requires `x-blockly-confirm-delete-data: {id}`, echoing the id; otherwise
     `428 confirmation_required`. Data is never deleted on a single mistake.
 
@@ -356,7 +356,7 @@ The body is `{ "command": ["argv", …], "timeoutSeconds": 1–600 }`, with a 30
 ≤ 256 arguments of ≤ 128 KiB each (Linux's own limit), ≤ 1 MiB in all.
 - It runs **inside the workload**, as the workload's user, with its limits. It never runs on the
   host.
-- pryxd adds no shell. Send `["sh", "-c", script, name, args…]` for one: Blockly already
+- pryxd adds no shell. Send `["sh", "-c", script, name, args…]` for one: a control plane
   does.
 - Output is capped at 1 MiB per stream (`stdoutTruncated`, `stderrTruncated`).
 - **On timeout pryxd kills the command, and every process it started, by host pid.** Docker
@@ -376,7 +376,7 @@ The body is `{ "command": ["argv", …], "timeoutSeconds": 1–600 }`, with a 30
 `application/x-ndjson`, one JSON object per line:
 
 ```
-{"ts":"2026-09-28T02:16:32.123Z","stream":"stdout","line":"[Server thread/INFO]: Done (9.983s)! For help, type \"help\""}
+{"ts":"2026-09-28T02:16:32.123Z","stream":"stdout","line":"application ready"}
 {"event":"end","reason":"complete"}
 ```
 
@@ -421,13 +421,13 @@ Body: `{ "currentEpoch": N }`: the control plane says which epoch is current.
 Body: `{ "url": "…", "headers": { … }, "quiesced": false, "exclude": ["libraries"] }`, with the
 epoch header (exact).
 - pryxd writes the workload's data directory as a **gzip tarball of `./`-relative paths**,
-  Blockly's archive format, to a spool file under its state directory while hashing it, then
+  the control plane's archive format, to a spool file under its state directory while hashing it, then
   `PUT`s it to the presigned `url` with a known length. Gzip's fastest level: region files are
   compressed already.
 - `exclude` names entries at the top of the data to leave out (at most 64 plain names): what the
-  image makes again when it is missing, so a move carries the world and not the server jar.
+  image makes again when it is missing, so a move carries the data and not application bundles.
 - Only a stopped workload exports, unless `quiesced: true` says the caller paused its saving
-  (Minecraft: `save-off`, `save-all flush`). A superseded copy never exports.
+  (for example, flushing and pausing an application writer). A superseded copy never exports.
 - The data belongs to the workload, which can rearrange it while it is read. pryxd reads it
   relative to directories it already holds open, with `O_NOFOLLOW` at every step: a symlink is
   archived as a symlink and never followed, an entry swapped mid-read is skipped, and a file that
@@ -456,7 +456,7 @@ packs first, then decides:
 
 `partSize` is 5 MiB to 5 GiB less 5 MiB, and `urls` 1 to 10,000 of them, or the request is `422
 invalid_request` (`parts.partSize`, `parts.urls`) before anything is packed. The body still has
-to fit `max_body_bytes` (2 MiB by default, about 2,000 presigned URLs); Blockly's control plane
+to fit `max_body_bytes` (2 MiB by default, about 2,000 presigned URLs); the control plane's control plane
 offers about 64, larger parts for a larger archive. A node that lists the `multipart-upload`
 feature takes `parts`; an older one refuses the field as unknown.
 
@@ -498,13 +498,13 @@ Body: `{ "url": "…", "sha256": "…" }` or `{ "snapshot": "<snapshot id>" }`, 
 ### `POST /v1/workloads/{id}/snapshots`
 
 Body: `{ "id": "<snapshot id>", "quiesced": false }`, with the epoch header (exact). The id is the
-caller's (Blockly's archive id, a UUID; the workload-id rules apply).
+caller's (the control plane's archive id, a UUID; the workload-id rules apply).
 - A copy of the data directory into `workloads/<id>/snapshots/<snapshot>/`, beside the data and
   never mounted into the workload. On a filesystem that shares blocks (XFS with reflink, btrfs)
   every file is a `FICLONE`: the snapshot takes moments and no space until the data changes. On
   one that can't (ext4), it is a full copy. Either way it needs the data's full size free above
   the floor (`507 insufficient_disk`): a copy that shares blocks takes as much as a plain one once
-  the world moves on. It is stopped with the same answer, and removed, if free disk falls under the
+  the data moves on. It is stopped with the same answer, and removed, if free disk falls under the
   floor while it copies, or if the data's files state more than 256 GiB, as an export is.
 - The same rules as an export: a running workload only with `quiesced: true`, only the current
   copy, and the same walk that never leaves the data directory.
@@ -647,7 +647,7 @@ With the node's clientAuth certificate, every `heartbeat_seconds` (5).
   "runtimeUp": true, "reconciled": true, "capacity": NodeCapacity,
   "workloads": [{ "id": "…", "epoch": 3, "supersededBy": null, "state": "running", "specDigest": "…",
                   "generation": 2, "memoryMb": 3072, "restartCount": 0, "exit": null,
-                  "lastFailureAt": null, "changedAt": "…", "ports": { "game": 42001 } }],
+                  "lastFailureAt": null, "changedAt": "…", "ports": { "http": 42001 } }],
   "issues": [],
   "addresses": { "api": "10.0.0.5:7443", "edge": "10.0.0.5", "control": "10.0.0.5" },
   "upgradeFailed": { "version": "0.3.0", "reason": "pryxd 0.3.0 exited with status 1 before it came up" }
@@ -746,12 +746,9 @@ A `suspended` workload's frozen process is gone with the host: after the restart
 `stopped`, is never resumed, and a start boots it afresh on its data, with a deferred spec put in
 place first. A restart of pryxd alone leaves it suspended.
 
-## How Blockly's `MinecraftRuntime` maps onto it
+## How a control plane maps onto it
 
-[`fleet-runtime.ts`](https://github.com/cubepals/cubepals/blob/main/apps/control/src/infra/fleet/fleet-runtime.ts) implements the port
-(`apps/control/src/app/ports/runtime.ts`) over this protocol, with the placement, epochs and
-fencing described in [docs/fleet.md](https://github.com/cubepals/cubepals/blob/main/docs/fleet.md). Its handle is `fleet:v1:` and
-base64url JSON of `{deployment, key, node, nodeName, epoch, region, edgeHost, controlHost, ports}`.
+A control plane keeps the node, epoch and host ports in whatever handle it issues.
 
 | Port method | Protocol |
 |---|---|
@@ -760,14 +757,14 @@ base64url JSON of `{deployment, key, node, nodeName, epoch, region, edgeHost, co
 | `start` / `stop` / `forceStop` | `POST start` / `stop` / `kill`, with the epoch. |
 | `waitRunning` | Poll `GET` until `running`. |
 | `exec` | `POST exec`, with the epoch. |
-| `snapshot` | `POST snapshots` on the server's node, then `…/upload` to the archive store in the background. |
+| `snapshot` | `POST snapshots` on the sandbox's node, then `…/upload` to the archive store in the background. |
 | `exportSnapshot` | `…/upload` from the node while it holds the copy, else a copy within the store. |
 | `restore` | In place from the node's own snapshot (`{snapshot}`); elsewhere `PUT` with a new epoch on the chosen node, then `POST restore` from the archive, checked against its sha256. |
 | `relocate` | `POST export` from the stopped source with `exclude` (what the image remakes), then as a restore elsewhere; the old copy gets `POST fence` and `DELETE ?data=delete`. |
 | `goneSnapshots`, `deleteSnapshot` | The archive store and `DELETE …/snapshots/{snapshot}` on the node. |
 | `decommission` | `DELETE ?data=keep`. |
 | `destroy`, `release` | `DELETE ?data=delete`, confirmed, on every node that holds a copy. |
-| `observe`, `observeChanged`, `inventory` | Heartbeats, stored per node and copy: no call per server. |
+| `observe`, `observeChanged`, `inventory` | Heartbeats, stored per node and copy: no call per sandbox. |
 | `endpoint(handle, port, audience)` | From the handle, which carries the node's addresses and the host ports. |
 | `locate` | Node, region, epoch and container name, from the handle. |
 | `tag` | A no-op; labels are fixed at creation. |

@@ -211,7 +211,7 @@ async fn two_records_claiming_one_port_are_both_flagged() {
     assert!(b.issues.iter().any(|i| i.code == IssueCode::PortMismatch), "the record no longer matches b's container");
 }
 
-/// A world in `dir` that says `what`.
+/// A data in `dir` that says `what`.
 fn world_saying(dir: &Path, what: &str) {
     std::fs::create_dir_all(dir).unwrap();
     std::fs::write(dir.join("level.dat"), what).unwrap();

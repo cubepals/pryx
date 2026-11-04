@@ -6,7 +6,7 @@
 //! inter-container switch (`enable_icc=false`, runtime/docker.rs) stops a workload reaching another
 //! by its own address, but not by its published port: on this host Docker's proxy takes the
 //! connection on the host's address and hands it on, and on another node it arrives as the edge's
-//! does. A server's own code could then join another server past the edge, which is the one place
+//! does. A sandbox's own code could then join another sandbox past the edge, which is the one place
 //! that takes out what only the edge may send: a forwarded identity (Floodgate's, BungeeCord's) and
 //! a PROXY header naming the player.
 //!
@@ -15,10 +15,10 @@
 //! - any to this host (the input hook): every port it publishes, its API, anything else it serves;
 //! - any to the link-local range, where clouds serve instance metadata;
 //! - one to a private address on the ports pryxd hands out or on its API's port: another node's
-//!   servers and its pryxd.
+//!   sandboxes and its pryxd.
 //!
 //! Replies, and what the edge and the control plane dial, never come from the bridge, so they pass.
-//! What a server is documented to dial (the artifact endpoint, the archive store, Mojang, the mod
+//! What a sandbox is documented to dial (the artifact endpoint, the archive store, application dependencies, package
 //! hosts) passes too, unless it sits on one of those ports of a private address.
 //!
 //! `pryxd isolate` applies it as root, before every start of the unit (`ExecStartPre=+`): the

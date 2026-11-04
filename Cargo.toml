@@ -6,7 +6,7 @@ rust-version = "1.99"
 license = "FSL-1.1-ALv2"
 publish = false
 repository = "https://github.com/cubepals/pryx"
-description = "pryx node daemon: runs Minecraft servers on a Linux host through Docker, for a control plane that places them."
+description = "pryx node daemon: runs sandboxes on a Linux host through Docker, for a control plane that places them."
 
 [[bin]]
 name = "pryxd"

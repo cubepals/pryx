@@ -116,7 +116,7 @@ async fn a_valid_certificate_for_another_name_is_forbidden_and_its_connection_cl
 /// A request for `/v1/health` that asks to keep its connection open.
 const KEEP_ALIVE: &str = "GET /v1/health HTTP/1.1\r\nhost: localhost\r\n\r\n";
 
-/// Sends `head` and reads what comes back until the server closes the connection, for up to
+/// Sends `head` and reads what comes back until the sandbox closes the connection, for up to
 /// `within`: Err with what it read if the connection is still open then.
 async fn until_closed(
     mut io: impl AsyncRead + AsyncWrite + Unpin,
@@ -137,7 +137,7 @@ async fn connect_from(source: &str, addr: SocketAddr) -> TcpStream {
     socket.connect(addr).await.unwrap()
 }
 
-/// How many of `streams` the server closes within `within`, though none sent a byte.
+/// How many of `streams` the sandbox closes within `within`, though none sent a byte.
 async fn closed_within(streams: &mut [TcpStream], within: Duration) -> usize {
     let reads =
         streams.iter_mut().map(|s| async move { tokio::time::timeout(within, s.read(&mut [0u8; 1])).await.is_ok() });
@@ -316,7 +316,7 @@ async fn a_whole_lifecycle_over_http() {
     assert_eq!(etag, format!("\"{}\"", created.json()["workload"]["specDigest"].as_str().unwrap()));
     let body = created.json();
     assert!(!String::from_utf8_lossy(&created.body).contains("first-secret"), "secrets never come back");
-    assert_eq!(body["workload"]["secretNames"][0], "RCON_PASSWORD");
+    assert_eq!(body["workload"]["secretNames"][0], "APP_TOKEN");
     assert_eq!(
         body["workload"]["ports"][0]["endpoints"]["edge"][0],
         format!("127.0.0.1:{}", body["workload"]["ports"][0]["hostPort"])
@@ -381,4 +381,23 @@ async fn a_whole_lifecycle_over_http() {
     assert_eq!(host.json()["nodeId"], "test-node");
     e.server.cancel.cancel();
     e.server.task.await.unwrap();
+}
+
+#[tokio::test]
+async fn an_empty_image_policy_refuses_every_spec() {
+    let f = fixture("[workloads]\nallowed_images = []\n").await;
+    let pki = pki(f.dir.path());
+    let server = serve(f.manager.clone()).await;
+    let me = client(&pki.ca, CLIENT);
+    let e = Env { _f: f, pki, server, me };
+    let r = e.call("PUT", "/v1/workloads/denied", Some(spec_json())).await;
+    assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(r.code(), "invalid_request");
+    assert_eq!(
+        r.json()["error"]["details"]["fields"],
+        serde_json::json!([
+            { "field": "image", "problem": "no image prefix is allowed on this host" }
+        ])
+    );
+    assert_eq!(e._f.fake.count_calls("create "), 0);
 }

@@ -30,11 +30,7 @@ use pryxd::upgrade::backstop::Backstop;
 use pryxd::{certs, doctor, ports, reconcile};
 
 #[derive(Parser)]
-#[command(
-    name = "pryxd",
-    version,
-    about = "pryx's node daemon: runs Minecraft servers on this host for a pryx control plane."
-)]
+#[command(name = "pryxd", version, about = "pryx's node daemon: runs sandboxes on this host for a pryx control plane.")]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -72,6 +68,9 @@ enum Command {
         /// Write everything, but leave the service stopped.
         #[arg(long)]
         no_start: bool,
+        /// Image reference prefix allowed on this host, repeated for each prefix.
+        #[arg(long = "allow-image")]
+        allow_images: Vec<String>,
         /// Where `/` is, for tests.
         #[arg(long, hide = true, default_value = "/")]
         root: PathBuf,
@@ -92,7 +91,7 @@ enum Command {
         /// Fail only on what keeps pryxd from starting, and report the rest as warnings.
         #[arg(long)]
         preflight: bool,
-        /// First apply the safe fixes (daemon.json, the state directory) on a host with no servers.
+        /// First apply the safe fixes (daemon.json, the state directory) on a host with no sandboxes.
         #[arg(long)]
         fix: bool,
     },
@@ -176,8 +175,9 @@ fn main() -> ExitCode {
                 Err(e) => Err(e.into()),
             }
         }
-        Command::Join { token, address, no_start, root, config, systemctl } => {
-            let join = pryxd::cli::join::Join { token, address, config, root, start: !no_start, systemctl };
+        Command::Join { token, address, no_start, allow_images, root, config, systemctl } => {
+            let join =
+                pryxd::cli::join::Join { token, address, config, root, start: !no_start, systemctl, allow_images };
             tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
@@ -434,4 +434,26 @@ fn start_fleet(
         cancel.clone(),
     ));
     Ok(FleetTasks { heartbeat, trial, upgrader })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn join_takes_each_allowed_image_prefix() {
+        let cli = Cli::try_parse_from([
+            "pryxd",
+            "join",
+            "token",
+            "--allow-image",
+            "alpine:",
+            "--allow-image",
+            "ghcr.io/example/",
+            "--no-start",
+        ])
+        .unwrap();
+        let Command::Join { allow_images, .. } = cli.command else { panic!("join") };
+        assert_eq!(allow_images, ["alpine:", "ghcr.io/example/"]);
+    }
 }

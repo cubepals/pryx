@@ -26,7 +26,7 @@
 //! - `restarts.rs`: brings a workload back without being asked, after a crash or a host restart.
 //! - `fence.rs`: fences a copy a newer placement has superseded.
 //! - `delete.rs`: removes a workload, and its data when told to.
-//! - `archive.rs`: carries a world's data between this node and an object store.
+//! - `archive.rs`: carries a data's data between this node and an object store.
 //! - `snapshots.rs`: local snapshots of a workload's data.
 //! - `exec.rs`: runs a command inside a running workload.
 //! - `logs.rs`: reads a workload's log.

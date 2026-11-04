@@ -5,9 +5,9 @@
 //! The protocol over HTTP/1.1 + JSON, under `/v1`, behind mutual TLS; and a plain ops listener
 //! for `/healthz`, `/readyz` and `/metrics`.
 //!
-//! HTTP/JSON rather than gRPC: Blockly's control plane is TypeScript with no protobuf toolchain,
+//! HTTP/JSON rather than gRPC: the control plane's control plane is TypeScript with no protobuf toolchain,
 //! its other internal protocol (the edge's) is versioned HTTP/JSON, and nothing here needs a
-//! bidirectional stream: exec is request/response (the console is RCON), logs are one-way. JSON is
+//! bidirectional stream: exec is request/response (application protocols stay outside the daemon), logs are one-way. JSON is
 //! also what an operator can read with curl at 3 a.m.
 //!
 //! Parts (`api/`):

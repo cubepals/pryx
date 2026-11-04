@@ -2,16 +2,16 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! What a world's data costs to snapshot, archive and restore on this host's disk: the work a
+//! What a data's data costs to snapshot, archive and restore on this host's disk: the work a
 //! backup, a move and a restore do, without Docker or the network. Ignored by default:
 //!
 //!     cargo test --release --test storage_bench -- --ignored --nocapture
 //!
 //! BENCH_DIR (default: the system temp dir) picks the filesystem; BENCH_WORLD_MB (default 1024)
-//! the world's size. The world is shaped like a Minecraft one: region files of about 1 MB of
+//! the data's size. The data is shaped like a Minecraft one: region files of about 1 MB of
 //! incompressible bytes (chunks are compressed already), and a few thousand small files.
 //!
-//! Last, a server's boot beside exports that keep every CPU busy: once at the exports' own
+//! Last, a sandbox's boot beside exports that keep every CPU busy: once at the exports' own
 //! priority, as a transfer ran before it yielded, and once with the exports at idle priority
 //! (`priority::Idle`), as they run now. Where the process may not raise a thread's nice value
 //! back (no `CAP_SYS_NICE`), the exports keep their CPU priority and the two come out alike.
@@ -57,7 +57,7 @@ fn world(root: &Path, megabytes: usize) {
     fs::write(root.join("libraries/server.jar"), noise(50 * 1024 * 1024)).unwrap();
 }
 
-/// What a server's boot asks of the node, without Docker: it reads its jar and its players'
+/// What a sandbox's boot asks of the node, without Docker: it reads its jar and its players'
 /// files and works through every byte. The seconds it took.
 fn boot(root: &Path) -> f64 {
     let mut files = vec![root.join("libraries/server.jar")];

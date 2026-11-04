@@ -749,7 +749,7 @@
             "type": "string"
           },
           "edge": {
-            "description": "Where the edge reaches game ports.",
+            "description": "Where the edge reaches public ports.",
             "type": "string"
           }
         },
@@ -928,7 +928,7 @@
             "type": "string"
           },
           "edgeIps": {
-            "description": "Where the edge reaches game ports, and the control plane console and status ports.",
+            "description": "Where the edge reaches public ports, and the control plane console and status ports.",
             "items": {
               "format": "ip",
               "type": "string"
@@ -1171,7 +1171,7 @@
           },
           "endpoints": {
             "$ref": "#/components/schemas/Endpoints",
-            "description": "`host:port` per audience, `[v6]:port` for IPv6: where the edge and the control plane\nreach this port. Blockly's `endpoint(handle, port, audience)`."
+            "description": "`host:port` per audience, `[v6]:port` for IPv6: where the edge and the control plane\nreach this port. the control plane's `endpoint(handle, port, audience)`."
           },
           "hostPort": {
             "format": "uint16",
@@ -1353,7 +1353,7 @@
             ]
           },
           "memoryMb": {
-            "description": "Hard memory limit (no swap). Blockly's size: 3072 for a 3 GB server.",
+            "description": "Hard memory limit (no swap). Expressed in MiB.",
             "format": "uint32",
             "minimum": 0,
             "type": "integer"
@@ -1718,7 +1718,7 @@
         "type": "object"
       },
       "WorkloadId": {
-        "description": "What the control plane calls a workload: Blockly's server id (a UUID) in practice, but any\nlowercase DNS label will do. The character set is the whole defence against path traversal\nand injection: a valid id is always one safe path component, one safe container-name suffix\nand one safe label value, so nothing downstream needs to escape it.",
+        "description": "What the control plane calls a workload: the control plane's sandbox id (a UUID) in practice, but any\nlowercase DNS label will do. The character set is the whole defence against path traversal\nand injection: a valid id is always one safe path component, one safe container-name suffix\nand one safe label value, so nothing downstream needs to escape it.",
         "type": "string"
       },
       "WorkloadReport": {
@@ -1817,7 +1817,7 @@
         "type": "object"
       },
       "WorkloadState": {
-        "description": "What a workload is doing, normalized. How it maps onto Blockly's `ObservedState`:\ncreated/stopped → stopped · running → running · stopping → stopping · crashed → crashed ·\nrestarting → starting (with `lastFailureAt`) · missing/retained → absent · creating → stopped\n· unknown → unknown · fenced → stopped (this copy lost its placement; the current one is\nelsewhere).",
+        "description": "What a workload is doing, normalized. How it maps onto the control plane's `ObservedState`:\ncreated/stopped → stopped · running → running · stopping → stopping · crashed → crashed ·\nrestarting → starting (with `lastFailureAt`) · missing/retained → absent · creating → stopped\n· unknown → unknown · fenced → stopped (this copy lost its placement; the current one is\nelsewhere).",
         "oneOf": [
           {
             "enum": [
@@ -1877,7 +1877,7 @@
           },
           {
             "const": "suspended",
-            "description": "Frozen on request with its memory kept (`POST …/suspend`); a start resumes it. Only a\nworkload asked to suspend is ever in this state. In Blockly's terms: asleep, its memory\nkept.",
+            "description": "Frozen on request with its memory kept (`POST …/suspend`); a start resumes it. Only a\nworkload asked to suspend is ever in this state. In the control plane's terms: asleep, its memory\nkept.",
             "type": "string"
           }
         ]
@@ -1951,7 +1951,7 @@
             "type": "object"
           },
           "lastFailureAt": {
-            "description": "When it last failed and the host started it again (Blockly's `failedAt`).",
+            "description": "When it last failed and the host started it again (the control plane's `failedAt`).",
             "type": [
               "string",
               "null"

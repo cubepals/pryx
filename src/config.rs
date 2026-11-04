@@ -187,7 +187,7 @@ impl Default for DockerConfig {
 pub struct NetworkConfig {
     /// Host ports handed to workloads, inclusive. Nothing else on the host should use them.
     pub port_range: [u16; 2],
-    /// Addresses the edge reaches game ports on. Loopback by default: exposing a port is a
+    /// Addresses the edge reaches public ports on. Loopback by default: exposing a port is a
     /// decision, not an accident. In fleet mode joining is that decision, and left out, both
     /// lists are the address `api.listen` gives, or else the host's private address (infer.rs).
     pub edge_ips: Vec<IpAddr>,
@@ -240,7 +240,7 @@ pub(crate) struct WorkloadPolicy {
 impl Default for WorkloadPolicy {
     fn default() -> Self {
         Self {
-            allowed_images: vec!["itzg/minecraft-server:".into(), "docker.io/itzg/minecraft-server:".into()],
+            allowed_images: vec![],
             user: Ids { uid: 1000, gid: 1000 },
             data_owner: None,
             read_only_rootfs: true,
@@ -578,7 +578,8 @@ mod tests {
             let text = format!("{MINIMAL}\n[workloads]\nallowed_images = {prefixes}\n");
             toml::from_str::<Config>(&text).unwrap().validate()
         };
-        for fine in [r#"["ghcr.io/cubepals/"]"#, r#"["itzg/minecraft-server:"]"#, r#"["itzg/minecraft-server@"]"#] {
+        for fine in [r#"["ghcr.io/cubepals/"]"#, r#"["ghcr.io/example/http-app:"]"#, r#"["ghcr.io/example/http-app@"]"#]
+        {
             with(fine).unwrap();
         }
         for open in [r#"["ghcr.io/cubepals"]"#, r#"["registry.example.com"]"#, r#"["alpine:", ""]"#] {

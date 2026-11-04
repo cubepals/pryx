@@ -4,7 +4,7 @@
 
 //! Host ports for workloads.
 //!
-//! pryxd is the only allocator on its host, which is the point: Blockly's local
+//! pryxd is the only allocator on its host, which is the point: the control plane's local
 //! DockerRuntime chooses ports by listing containers and serializes choices inside one process,
 //! so two control-plane workers provisioning onto the same remote Docker host could both pick
 //! the same port, and Docker would only notice at start ("port is already allocated"). Here the
@@ -12,7 +12,7 @@
 //! workload records (and container labels) before any container exists, so a restart never hands
 //! a port out twice.
 //!
-//! A port is held for as long as its workload has compute, running or not: a stopped server keeps
+//! A port is held for as long as its workload has compute, running or not: a stopped sandbox keeps
 //! its address. Released ports rest in quarantine before reuse, so a route still cached somewhere
 //! (the edge polls every second) can't reach the next workload.
 

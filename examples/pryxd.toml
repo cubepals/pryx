@@ -39,7 +39,9 @@ control_ips = ["10.0.0.5"]                     # default as edge_ips
 port_quarantine_seconds = 600
 
 [workloads]
-allowed_images = ["itzg/minecraft-server:", "docker.io/itzg/minecraft-server:"]
+# Empty by default: refuses every image. pryxd join --allow-image <prefix> writes this policy.
+# Allow only prefixes you trust; for example ["ghcr.io/example/"].
+allowed_images = []
 user = "1000:1000"                             # never root: uid 0 or gid 0 is refused
 # data_owner = "101000:101000"                 # set when Docker remaps user namespaces; never root
 read_only_rootfs = true

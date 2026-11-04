@@ -55,6 +55,9 @@ fn docker_down_is_a_warning_and_pryxd_still_starts() {
     let report: serde_json::Value = serde_json::from_str(&out).unwrap();
     let docker = report["checks"].as_array().unwrap().iter().find(|c| c["name"] == "docker").unwrap();
     assert_eq!(docker["status"], "warn");
+    let images = report["checks"].as_array().unwrap().iter().find(|c| c["name"] == "workloads.allowed_images").unwrap();
+    assert_eq!(images["status"], "warn");
+    assert_eq!(images["detail"], "no image prefix is allowed on this host");
     assert!(docker["fix"].as_str().unwrap().starts_with("Start Docker"));
 }
 

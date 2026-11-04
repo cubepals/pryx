@@ -7,7 +7,7 @@
 //! The vocabulary is workloads, not containers. A workload is a spec (image, environment,
 //! resources, storage, ports, stop) pryxd keeps running or stopped on this host. Nothing
 //! here names Docker, so pryxd could move to containerd or microVMs under the same
-//! protocol. It mirrors Blockly's `RuntimeSpec` (apps/control/src/app/ports/runtime.ts) closely
+//! protocol. It mirrors the control plane's `RuntimeSpec` (apps/control/src/app/ports/runtime.ts) closely
 //! on purpose: an `infra/fleet` adapter would translate field for field.
 //!
 //! Requests are strict (`deny_unknown_fields`): a node daemon that silently ignored a field a newer

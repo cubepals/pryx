@@ -9,3 +9,7 @@
 - K1: The unchanged Cubepals main upgrade contract signs the old release statement and supervises state/bin/blocklyd; it conflicts with the required new release statement and install paths. Do not weaken release verification or modify Cubepals to hide it.
 - K1: Keep PLAN.md and AGENTS.md authoritative text unchanged; their historical names, test-only crate aliases, schema-writer compatibility alias and existing format fixtures remain in the recorded rename audit.
 - K1: Keep Docker-backed and full contract suites for CI as the plan specifies; a working local Docker daemon is available for later real-Postgres unit tests.
+- K2: Use HTTP 8080, administration TCP 9090 and UDP 9091 as generic example ports; all are caller-specified test examples, never protocol defaults.
+- K2: Empty image policy is valid configuration and denies every image at spec validation; join preserves an existing configuration rather than silently broadening host policy.
+- K2: Read original records from the unchanged format fixtures for digest regression checks; generic example inputs necessarily have different digests.
+- K2: Regenerate OpenAPI documentation after genericizing schema doc comments; descriptions change, but schema shapes and all format bytes stay unchanged. Literal no-document-diff conflicts with changing comments emitted as schema descriptions.

@@ -109,7 +109,7 @@ pub(crate) fn fill(table: &mut Table, root: &Path) -> Result<Vec<Inferred>, Infe
 }
 
 /// Memory kept for the host: a sixteenth of it, and never less than 2048 MB, today's fixed
-/// default. The kernel, the page cache worlds are read through, Docker and pryxd need more on a
+/// default. The kernel, the page cache data sets are read through, Docker and pryxd need more on a
 /// bigger host: 2048 MB up to 32 GB, 4096 on 64 GB, 8192 on 128 GB.
 pub(crate) fn reserved_memory_mb(total_mb: u64) -> u64 {
     (total_mb / 16).max(2048)

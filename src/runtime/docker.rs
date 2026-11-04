@@ -230,7 +230,7 @@ fn body_of(spec: &ContainerSpec) -> ContainerCreateBody {
     });
     let host_config = HostConfig {
         memory: Some(spec.memory_bytes),
-        // Equal to memory: no swap. A JVM that swaps is a server that lags.
+        // Equal to memory: no swap. Swapping would stall a workload.
         memory_swap: Some(spec.memory_bytes),
         nano_cpus: spec.nano_cpus,
         cpu_shares: Some(spec.cpu_shares),
@@ -255,7 +255,7 @@ fn body_of(spec: &ContainerSpec) -> ContainerCreateBody {
         }]),
         port_bindings: Some(bindings),
         network_mode: Some(spec.network.clone()),
-        // Rotated and bounded: a chatty server can't fill the disk with logs.
+        // Rotated and bounded: a chatty sandbox can't fill the disk with logs.
         log_config: Some(HostConfigLogConfig {
             typ: Some("local".into()),
             config: Some(HashMap::from([
@@ -308,7 +308,7 @@ impl ContainerRuntime for DockerRuntime {
         let request = NetworkCreateRequest {
             name: name.to_owned(),
             driver: Some("bridge".into()),
-            // Workloads can't reach each other directly; each reaches the world and is reached
+            // Workloads can't reach each other directly; each reaches the outside network and is reached
             // through its published ports only, which the host's rules keep the others off.
             options: Some(HashMap::from([
                 (ICC_OPTION.to_owned(), "false".to_owned()),

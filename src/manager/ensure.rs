@@ -175,7 +175,7 @@ impl Manager {
             user: self.config.workloads.user.to_string(),
             memory_bytes: i64::from(r.memory_mb) * 1024 * 1024,
             nano_cpus: r.cpu_millis.map(|m| i64::from(m) * 1_000_000),
-            // Weight follows size unless asked otherwise: a 4 GB server gets Docker's default
+            // Weight follows size unless asked otherwise: a 4 GB sandbox gets Docker's default
             // 1024, a 3 GB one 768, an 8 GB one 2048. Contention is shared as the price is.
             cpu_shares: r
                 .cpu_weight

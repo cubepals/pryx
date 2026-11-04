@@ -49,7 +49,7 @@ pub struct WorkloadSpec {
     pub(crate) entrypoint: Option<Vec<String>>,
     #[serde(default)]
     pub(crate) env: BTreeMap<String, String>,
-    /// Environment the workload needs but nobody else may see (Blockly: `RCON_PASSWORD`).
+    /// Environment the workload needs but nobody else may see.
     #[serde(default)]
     pub(crate) secrets: BTreeMap<String, Secret>,
     pub(crate) resources: Resources,
@@ -73,7 +73,7 @@ pub struct WorkloadSpec {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct Resources {
-    /// Hard memory limit (no swap). Blockly's size: 3072 for a 3 GB server.
+    /// Hard memory limit (no swap). Expressed in MiB.
     pub(crate) memory_mb: u32,
     /// CPU ceiling in thousandths of a core (CFS quota). Also what the JVM counts as its
     /// processors. Absent: no ceiling, weight only.
@@ -91,7 +91,7 @@ pub(crate) struct Resources {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct Storage {
-    /// Where the workload's persistent data appears inside it (Blockly: `/data`).
+    /// Where the workload's persistent data appears inside it.
     pub(crate) mount_path: String,
     /// The size the control plane promised. Reported against measured usage; not enforced in v1
     /// (no per-directory quota on a plain filesystem).
@@ -159,7 +159,7 @@ impl StopSignal {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct StopSpec {
-    /// Sent first; the workload saves and exits on it (Blockly's image: `stop` on the console).
+    /// Sent first; the workload saves and exits on it.
     pub(crate) signal: StopSignal,
     /// How long the workload gets after the signal before it is killed.
     pub(crate) timeout_seconds: u32,
@@ -180,8 +180,7 @@ pub(crate) const MAX_STOP_TIMEOUT: u32 = 600;
 pub(crate) enum RestartPolicy {
     /// Never started again by the host: a crash stays a crash until the control plane acts.
     No,
-    /// Started again after a failing exit, up to `maxRetries` times (Blockly's Fly and Docker
-    /// runtimes both use 3; 0 means never, not Docker's "no limit"). Never after a requested stop.
+    /// Started again after a failing exit, up to `maxRetries` times (0 means never, not an unlimited retry count). Never after a requested stop.
     /// After a restart of the host, a workload that was running when the host went down is
     /// resumed; after a restart of pryxd alone, in the same boot, nothing is. In fleet mode
     /// either needs the execution lease, which the node takes only after applying the fences of
@@ -288,38 +287,19 @@ impl SpecRecord {
 mod tests {
     use super::*;
 
-    pub(crate) fn blockly_like() -> serde_json::Value {
+    pub(crate) fn example_spec() -> serde_json::Value {
         serde_json::json!({
-            "image": "itzg/minecraft-server:2026.9.1-java21",
-            "env": { "EULA": "TRUE", "TYPE": "VANILLA", "VERSION": "1.21.8", "MEMORY": "2304M" },
-            "secrets": { "RCON_PASSWORD": "hunter2hunter2" },
+            "image": "ghcr.io/example/http-app:1.0",
+            "env": { "APP_MODE": "TRUE", "TYPE": "VANILLA", "VERSION": "1.21.8", "MEMORY": "2304M" },
+            "secrets": { "APP_TOKEN": "hunter2hunter2" },
             "resources": { "memoryMb": 3072, "cpuMillis": 2000 },
             "storage": { "mountPath": "/data", "sizeGb": 5 },
             "ports": [
-                { "name": "game", "containerPort": crate::minecraft::GAME_PORT, "audience": ["edge", "control"] },
-                { "name": "rcon", "containerPort": crate::minecraft::RCON_PORT, "audience": ["control"] }
+                { "name": "http", "containerPort": crate::examples::HTTP_PORT, "audience": ["edge", "control"] },
+                { "name": "admin", "containerPort": crate::examples::ADMIN_PORT, "audience": ["control"] }
             ],
             "stop": { "signal": "SIGTERM", "timeoutSeconds": 90 },
-            "labels": { "blockly.server": "0b6f1f2e-6a47-4c9a-9a39-2f4ac7e51f10" }
-        })
-    }
-
-    /// A spec that sets every field a request may leave out, none of them to its default.
-    fn every_field_set() -> serde_json::Value {
-        serde_json::json!({
-            "image": "itzg/minecraft-server:2026.9.1-java21",
-            "entrypoint": ["/start", "--nogui"],
-            "env": { "EULA": "TRUE", "TYPE": "PAPER", "VERSION": "1.21.8", "MEMORY": "4608M" },
-            "secrets": { "RCON_PASSWORD": "hunter2hunter2" },
-            "resources": { "memoryMb": 6144, "cpuMillis": 3000, "cpuWeight": 200, "pidsLimit": 2048 },
-            "storage": { "mountPath": "/data", "sizeGb": 20 },
-            "ports": [
-                { "name": "game", "containerPort": crate::minecraft::GAME_PORT, "protocol": "tcp", "audience": ["edge", "control"] },
-                { "name": "voice", "containerPort": crate::minecraft::VOICE_PORT, "protocol": "udp", "audience": ["edge"] }
-            ],
-            "stop": { "signal": "SIGINT", "timeoutSeconds": 30 },
-            "restart": { "policy": "no", "maxRetries": 0 },
-            "labels": { "blockly.server": "0b6f1f2e-6a47-4c9a-9a39-2f4ac7e51f10" }
+            "labels": { "example.sandbox": "0b6f1f2e-6a47-4c9a-9a39-2f4ac7e51f10" }
         })
     }
 
@@ -329,10 +309,10 @@ mod tests {
 
     #[test]
     fn unknown_fields_are_refused_not_ignored() {
-        let mut v = blockly_like();
+        let mut v = example_spec();
         v["privileged"] = serde_json::json!(true);
         assert!(serde_json::from_value::<WorkloadSpec>(v).is_err());
-        let mut v = blockly_like();
+        let mut v = example_spec();
         v["resources"]["swapMb"] = serde_json::json!(1024);
         assert!(serde_json::from_value::<WorkloadSpec>(v).is_err());
     }
@@ -343,7 +323,7 @@ mod tests {
     fn what_a_spec_leaves_out_takes_the_one_default() {
         use serde_json::json;
         let with = |key: &str, value: Option<serde_json::Value>| {
-            let mut v = blockly_like();
+            let mut v = example_spec();
             match value {
                 Some(value) => v[key] = value,
                 None => _ = v.as_object_mut().unwrap().remove(key),
@@ -368,7 +348,7 @@ mod tests {
         ] {
             assert_eq!(with("restart", value.clone()).expect("parses").restart, expected, "restart: {value:?}");
         }
-        let port = json!([{ "name": "game", "containerPort": crate::minecraft::GAME_PORT, "audience": ["edge"] }]);
+        let port = json!([{ "name": "http", "containerPort": crate::examples::HTTP_PORT, "audience": ["edge"] }]);
         assert_eq!(with("ports", Some(port)).expect("parses").ports[0].protocol, Proto::Tcp);
         assert!(with("stop", Some(json!({ "signal": "SIGTERM", "graceSeconds": 5 }))).is_err());
         assert!(with("restart", Some(json!({ "backoffSeconds": 5 }))).is_err());
@@ -376,35 +356,35 @@ mod tests {
 
     #[test]
     fn a_secret_never_shows_in_debug_output_or_the_record() {
-        let s = spec(blockly_like());
+        let s = spec(example_spec());
         assert!(!format!("{s:?}").contains("hunter2"));
         let record = serde_json::to_string(&s.record()).unwrap();
         assert!(!record.contains("hunter2"));
-        assert!(record.contains("RCON_PASSWORD"), "the name is kept");
+        assert!(record.contains("APP_TOKEN"), "the name is kept");
     }
 
     #[test]
     fn the_digest_is_stable_and_ignores_secret_values() {
-        let a = spec(blockly_like()).record().digest();
-        let mut v = blockly_like();
-        v["secrets"]["RCON_PASSWORD"] = "another".into();
+        let a = spec(example_spec()).record().digest();
+        let mut v = example_spec();
+        v["secrets"]["APP_TOKEN"] = "another".into();
         assert_eq!(a, spec(v).record().digest(), "secret values are compared on the container, not here");
-        let mut v = blockly_like();
+        let mut v = example_spec();
         v["env"]["VERSION"] = "1.21.9".into();
         assert_ne!(a, spec(v).record().digest());
         assert!(a.starts_with("sha256:") && a.len() == 7 + 64);
-        let mut v = blockly_like();
+        let mut v = example_spec();
         v["resumesOn"] = "1.21.8".into();
         assert_eq!(a, spec(v).record().digest(), "resumesOn is not part of what the spec is");
     }
 
     #[test]
     fn a_kept_spec_is_whole_again_only_with_every_secret_it_names() {
-        let s = spec(blockly_like());
-        let secrets = BTreeMap::from([("RCON_PASSWORD".to_owned(), "hunter2hunter2".to_owned())]);
+        let s = spec(example_spec());
+        let secrets = BTreeMap::from([("APP_TOKEN".to_owned(), "hunter2hunter2".to_owned())]);
         let again = s.record().with_secrets(&secrets, Some("1.21.8".into())).expect("every secret is there");
         assert_eq!(again.record(), s.record());
-        assert_eq!(again.secrets["RCON_PASSWORD"].expose(), "hunter2hunter2");
+        assert_eq!(again.secrets["APP_TOKEN"].expose(), "hunter2hunter2");
         assert_eq!(again.resumes_on.as_deref(), Some("1.21.8"));
         assert!(s.record().with_secrets(&BTreeMap::new(), None).is_none());
     }
@@ -413,13 +393,19 @@ mod tests {
     /// A build that hashes the same spec differently recreates every container on the next PUT.
     #[test]
     fn the_digest_of_a_spec_is_the_same_in_every_build() {
-        assert_eq!(
-            spec(blockly_like()).record().digest(),
-            "sha256:3a7ab56d0ef268a59c68af0cda0891eb65a7fb4e7e859ebf083be5421fc7104f"
-        );
-        assert_eq!(
-            spec(every_field_set()).record().digest(),
-            "sha256:254b6f6c3ff0511614e5d07d04385cfb70f94dd5f05864f59b18f7c3228136a2"
-        );
+        for (fixture, expected) in [
+            (
+                include_str!("../../tests/fixtures/workload-full.json"),
+                "sha256:254b6f6c3ff0511614e5d07d04385cfb70f94dd5f05864f59b18f7c3228136a2",
+            ),
+            (
+                include_str!("../../tests/fixtures/workload-minimal.json"),
+                "sha256:431a570aeec3f8f524675d78c950fe9d389976be51319d54a8b131aad0a1415b",
+            ),
+        ] {
+            let record: serde_json::Value = serde_json::from_str(fixture).unwrap();
+            let spec: SpecRecord = serde_json::from_value(record["spec"].clone()).unwrap();
+            assert_eq!(spec.digest(), expected);
+        }
     }
 }

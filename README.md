@@ -1,11 +1,7 @@
 # pryxd
 
-The node daemon of [Cubepals](https://cubepals.com). One per Linux host: it runs Minecraft
-servers there in hardened Docker containers, for a control plane that decides what runs where. The
-control plane is [cubepals/cubepals](https://github.com/cubepals/cubepals): its side is the `fleet`
-runtime ([docs/fleet.md](https://github.com/cubepals/cubepals/blob/main/docs/fleet.md)), and operating a fleet is
-[docs/fleet-operations.md](https://github.com/cubepals/cubepals/blob/main/docs/fleet-operations.md). pryxd's API is
-[docs/protocol.md](docs/protocol.md).
+pryxd is a sandbox node daemon for Linux hosts. It runs hardened containers for a control plane
+that chooses where each sandbox belongs, and exposes the workload API in [docs/protocol.md](docs/protocol.md).
 
 **What it does:** enrolls with the control plane and proves who it is with its own key; runs,
 stops, updates and deletes workloads idempotently, refusing anything a newer placement superseded;
@@ -15,7 +11,7 @@ running when its host went down; reports everything it holds every few seconds.
 
 **What it isn't:** a scheduler (it never chooses where anything runs), a database of record, a
 provisioning tool (it never buys, powers or deletes machines), or a distributed system (nodes never
-talk to each other). If the control plane goes away, servers keep running.
+talk to each other). If the control plane goes away, sandboxes keep running.
 
 ## Build and test
 
@@ -45,19 +41,19 @@ as root: Docker, pryxd, its configuration and its service ([fleet-operations.md
 §2](https://github.com/cubepals/cubepals/blob/main/docs/fleet-operations.md#2-adding-a-node)). That line ends in `pryxd join`:
 
 ```sh
-pryxd join <bk1. token>               # the fleet CA, checked against the token; the configuration,
+pryxd join <bk1. token> --allow-image ghcr.io/example/               # the fleet CA, checked against the token; the configuration,
                                          # the token and the unit; doctor --preflight, then starts it. Prints what it
                                          # worked out (the address, the memory kept) and how to
                                          # override it. --address <ip> when the host has several.
                                          # A token for the node this host is enrolls it again,
                                          # under a new CA if the token names one
 pryxd doctor                                              # is this host ready? says what to fix
-pryxd doctor --fix                                        # on a host with no servers yet: daemon.json,
+pryxd doctor --fix                                        # on a host with no sandboxes yet: daemon.json,
                                                              # the state directory; prints how to undo each
 pryxd doctor --json                                       # {checks: [{name, status, detail, fix}]}
 pryxd check-config --config /etc/pryxd/pryxd.toml   # the config check alone
 pryxd isolate                                             # as root: the host's rules that keep workloads
-                                                             # off it and off other servers' ports (the unit
+                                                             # off it and off other sandboxes' ports (the unit
                                                              # runs it before every start)
 pryxd upgrade                                             # the control plane's pryxd now, and a restart
                                                              # into it; puts this one back if it doesn't come up
@@ -94,8 +90,8 @@ development uses.
   each other's own addresses, but not each other's published ports. So before every start, the
   unit runs `pryxd isolate`, as root, which puts one nftables table in place
   (`src/isolation.rs`). It drops every new connection a workload opens to the host itself, and to
-  pryxd's port range and API port on private addresses (other nodes' servers and pryxd), and
-  to the link-local metadata address. Without that, a server's own code could join another server
+  pryxd's port range and API port on private addresses (other nodes' sandboxes and pryxd), and
+  to the link-local metadata address. Without that, a sandbox's own code could join another sandbox
   without passing the edge, which is what takes out identities and addresses only the edge may
   forward. The unit doesn't start without the rules.
 - **A workload's data is untrusted.** Snapshots, exports and the measure of its disk use walk it
@@ -103,7 +99,7 @@ development uses.
   from an archive accept regular files and directories only, with bounded size and entry count.
   Restores from a local snapshot copy it with the same walk, so a symlink comes back as a symlink,
   never followed. Either way the new data is put together beside the old, within the disk's floor,
-  and swapped in with one atomic exchange: a crash leaves the old world or the new, and what it cut
+  and swapped in with one atomic exchange: a crash leaves the old data or the new, and what it cut
   short is settled at startup.
 - **Only a release upgrades it.** It installs a pryxd the control plane offers only with that
   release's signature: Ed25519, by a key only `release.yml` holds, of the version and the binary's
@@ -129,7 +125,7 @@ development uses.
 | `fleet.rs` | enrollment, heartbeats, identity and renewal |
 | `upgrade.rs` | upgrading itself to the control plane's pryxd, and going back if it fails |
 | `runtime.rs` | the container runtime (Docker, and a fake for tests) |
-| `isolation.rs` | the host's rules that keep workloads off it and off other servers' ports |
+| `isolation.rs` | the host's rules that keep workloads off it and off other sandboxes' ports |
 | `store.rs` | the state directory: records, snapshots, trash |
 | `tree.rs`, `tarball.rs` | the safe walk, copies (reflink), archives |
 | `reconcile.rs` | the Docker event stream and periodic passes |

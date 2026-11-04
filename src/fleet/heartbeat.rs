@@ -15,7 +15,7 @@
 //! A beat that failed waits out the interval as before.
 //!
 //! The node never stops a workload because it lost contact: self-fencing on a lease would make a
-//! control-plane outage stop every server in the fleet (docs/fleet.md, "Epochs and fencing"). The
+//! control-plane outage stop every sandbox in the fleet (docs/fleet.md, "Epochs and fencing"). The
 //! lease only governs what the node does unasked, restarting a failed workload or resuming one the
 //! host went down under, so a node cut off from the control plane, which may have been replaced,
 //! brings nothing back on its own.

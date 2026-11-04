@@ -24,7 +24,7 @@
 //!    here, saying it is the version offered.
 //! 2. The current binary is kept as `pryxd.prev`, the trial is written down, and
 //!    `pryxd.next` is renamed over `pryxd`: one rename, so a crash leaves one or the other.
-//! 3. pryxd exits cleanly and systemd (`Restart=always`) starts the new one. Servers keep
+//! 3. pryxd exits cleanly and systemd (`Restart=always`) starts the new one. Sandboxes keep
 //!    running: they are Docker's, not pryxd's children.
 //! 4. The new one is on trial while `trial.json` names its version: it must reconcile and have a
 //!    heartbeat accepted within TRIAL_SECONDS, which ends the trial. Otherwise it puts
@@ -506,7 +506,7 @@ impl Upgrader {
                 install(layout, &this.control_plane, Some(tls), &offer, keys, &this.version, running.as_deref());
             match installed.await {
                 Ok(to) => {
-                    info!(from = %this.version, to = %to, "installed; restarting into it, servers keep running");
+                    info!(from = %this.version, to = %to, "installed; restarting into it, sandboxes keep running");
                     this.cancel.cancel();
                     return;
                 }

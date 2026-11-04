@@ -98,11 +98,11 @@ async fn apply_keeps_ports_and_data_and_restarts_a_running_workload() {
 async fn a_changed_secret_is_a_new_spec_though_the_digest_ignores_it() {
     let f = fixture("").await;
     f.manager.ensure(id("w"), spec(), Precondition::None, None).await.unwrap();
-    let rotated = spec_with(|v| v["secrets"]["RCON_PASSWORD"] = "second-secret".into());
+    let rotated = spec_with(|v| v["secrets"]["APP_TOKEN"] = "second-secret".into());
     let result = f.manager.ensure(id("w"), rotated, Precondition::None, None).await.unwrap();
     assert_eq!(result.outcome, EnsureOutcome::Replaced);
     let env = f.fake.container("blockly-test-w").unwrap().spec.env;
-    assert!(env.contains(&("RCON_PASSWORD".into(), "second-secret".into())));
+    assert!(env.contains(&("APP_TOKEN".into(), "second-secret".into())));
 }
 
 #[tokio::test]

@@ -5,7 +5,7 @@
 //! pryxd's background work. Events from the runtime are hints that make observation quick;
 //! the periodic resync is what makes it correct, since an event stream can drop (a daemon
 //! restart ends it) and nothing may depend on having seen every event. It's the same rule as
-//! Blockly's realtime layer: an event says something may have changed; the reader asks for the
+//! the control plane's realtime layer: an event says something may have changed; the reader asks for the
 //! truth.
 
 use std::sync::Arc;

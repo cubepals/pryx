@@ -54,7 +54,7 @@ key = "{tls}/node.key"
 client_ca = "{tls}/ca.pem"
 allowed_clients = ["{CLIENT}"]
 [workloads]
-allowed_images = ["alpine:", "itzg/minecraft-server:"]
+allowed_images = ["alpine:", "ghcr.io/example/http-app:"]
 min_memory_mb = 64
 {owner}
 [capacity]
@@ -121,16 +121,16 @@ pub(crate) fn manager_probed(
 pub(crate) fn spec_json() -> serde_json::Value {
     serde_json::json!({
         "image": "alpine:3.22",
-        "env": { "EULA": "TRUE" },
-        "secrets": { "RCON_PASSWORD": "first-secret" },
+        "env": { "APP_MODE": "TRUE" },
+        "secrets": { "APP_TOKEN": "first-secret" },
         "resources": { "memoryMb": 1024 },
         "storage": { "mountPath": "/data", "sizeGb": 1 },
         "ports": [
-            { "name": "game", "containerPort": pryxd::minecraft::GAME_PORT, "audience": ["edge", "control"] },
-            { "name": "rcon", "containerPort": pryxd::minecraft::RCON_PORT, "audience": ["control"] }
+            { "name": "http", "containerPort": pryxd::examples::HTTP_PORT, "audience": ["edge", "control"] },
+            { "name": "admin", "containerPort": pryxd::examples::ADMIN_PORT, "audience": ["control"] }
         ],
         "stop": { "timeoutSeconds": 5 },
-        "labels": { "blockly.server": "s1" }
+        "labels": { "example.sandbox": "s1" }
     })
 }
 

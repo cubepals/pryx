@@ -81,7 +81,7 @@
         "properties": {
           "exclude": {
             "default": [],
-            "description": "Names at the top of the data the archive leaves out: what the image makes again when it\nis missing (a server jar, the libraries it unpacks), so a move carries only the world.",
+            "description": "Names at the top of the data the archive leaves out: what the image makes again when it\nis missing (an application bundle, its unpacked dependencies), so a move carries only the data.",
             "items": {
               "type": "string"
             },
@@ -109,7 +109,7 @@
           },
           "quiesced": {
             "default": false,
-            "description": "The caller paused the workload's own saving (for Minecraft: `save-off`, `save-all\nflush`), so its files are consistent while it runs. Without it only a stopped workload\nexports.",
+            "description": "The caller paused the workload's own writes (for example, flushed and paused an\napplication's data writer), so its files are consistent while it runs. Without it only a stopped workload\nexports.",
             "type": "boolean"
           },
           "url": {
@@ -320,7 +320,7 @@
             ]
           },
           "memoryMb": {
-            "description": "Hard memory limit (no swap). Blockly's size: 3072 for a 3 GB server.",
+            "description": "Hard memory limit (no swap). Expressed in MiB.",
             "format": "uint32",
             "minimum": 0,
             "type": "integer"
@@ -350,7 +350,7 @@
           },
           {
             "const": "on-failure",
-            "description": "Started again after a failing exit, up to `maxRetries` times (Blockly's Fly and Docker\nruntimes both use 3; 0 means never, not Docker's \"no limit\"). Never after a requested stop.\nAfter a restart of the host, a workload that was running when the host went down is\nresumed; after a restart of pryxd alone, in the same boot, nothing is. In fleet mode\neither needs the execution lease, which the node takes only after applying the fences of\nthe heartbeat answer that grants it.",
+            "description": "Started again after a failing exit, up to `maxRetries` times (0 means never, not an unlimited retry count). Never after a requested stop.\nAfter a restart of the host, a workload that was running when the host went down is\nresumed; after a restart of pryxd alone, in the same boot, nothing is. In fleet mode\neither needs the execution lease, which the node takes only after applying the fences of\nthe heartbeat answer that grants it.",
             "type": "string"
           }
         ]
@@ -462,7 +462,7 @@
           "signal": {
             "$ref": "#/components/schemas/StopSignal",
             "default": "SIGTERM",
-            "description": "Sent first; the workload saves and exits on it (Blockly's image: `stop` on the console)."
+            "description": "Sent first; the workload saves and exits on it."
           },
           "timeoutSeconds": {
             "default": 90,
@@ -478,7 +478,7 @@
         "additionalProperties": false,
         "properties": {
           "mountPath": {
-            "description": "Where the workload's persistent data appears inside it (Blockly: `/data`).",
+            "description": "Where the workload's persistent data appears inside it.",
             "type": "string"
           },
           "sizeGb": {
@@ -610,7 +610,7 @@
             "additionalProperties": {
               "$ref": "#/components/schemas/Secret"
             },
-            "description": "Environment the workload needs but nobody else may see (Blockly: `RCON_PASSWORD`).",
+            "description": "Environment the workload needs but nobody else may see.",
             "type": "object"
           },
           "stop": {

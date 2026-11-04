@@ -150,7 +150,7 @@ async fn a_fence_the_heartbeat_hands_off_wins_over_the_resume_too() {
 async fn a_stop_while_the_resume_waits_for_the_lease_keeps_the_workload_stopped() {
     let (dir, fake) = running_then_host_down(true).await;
     let second = after_restart(dir.path(), &fake, true).await;
-    // The control plane moves the server away before this node is heard from, and stops this copy.
+    // The control plane moves the sandbox away before this node is heard from, and stops this copy.
     second.stop(id("w"), None, Some(1)).await.unwrap();
     second.fleet_contact(Ok(Lifecycle::Active), Duration::from_millis(3));
     second.grant_lease(Some(120), Instant::now());

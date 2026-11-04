@@ -17,7 +17,7 @@
 //! - `config.rs`: whether the configuration file (and its certificates) is valid.
 //! - `docker.rs`: whether Docker is reachable and configured the way pryxd expects.
 //! - `state.rs`: whether the state directory can be owned, locked, cloned into and has room.
-//! - `network.rs`: whether the game ports are free and the listeners stay off public addresses.
+//! - `network.rs`: whether the public ports are free and the listeners stay off public addresses.
 //! - `host.rs`: whether the host has a machine id and a synchronised clock.
 //! - `fix.rs`: the safe fixes `--fix` applies on a host with no workloads yet.
 //!
@@ -143,6 +143,13 @@ pub async fn run(options: &Options) -> Report {
                 crate::config::DockerConfig::default().socket.display()
             ),
         )),
+    }
+    if config.workloads.allowed_images.is_empty() {
+        checks.push(Check::warn(
+            "workloads.allowed_images",
+            "no image prefix is allowed on this host",
+            "Set workloads.allowed_images in the configuration, or join with --allow-image <prefix>",
+        ));
     }
     checks.extend(state::checks(&config, &options.config));
     checks.push(network::ports(&config, &state::held_ports(&config.state_dir)));

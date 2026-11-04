@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
 //! Whether Docker is reachable and set up the way pryxd expects: cgroup v2, live-restore on,
-//! workloads' network isolated, logs bounded, and `/etc/docker/daemon.json` matching Blockly's
+//! workloads' network isolated, logs bounded, and `/etc/docker/daemon.json` matching the control plane's
 //! (`deploy/daemon.json`). All warnings: pryxd starts without Docker, outlives its restarts and
 //! reports it as down.
 
@@ -18,7 +18,7 @@ use crate::runtime::{ContainerRuntime, RuntimeError, RuntimeInfo};
 /// How long doctor waits on Docker. Short: a hung daemon shouldn't hold up pryxd's start.
 const DOCKER_WAIT: Duration = Duration::from_secs(5);
 
-/// Blockly's Docker daemon settings, as `deploy/` ships them.
+/// the control plane's Docker daemon settings, as `deploy/` ships them.
 pub(crate) const DEPLOY_DAEMON_JSON: &str = include_str!("../../deploy/daemon.json");
 
 pub(crate) fn deploy_daemon_json() -> Map<String, Value> {
@@ -140,7 +140,7 @@ fn log_driver(info: &RuntimeInfo, on_disk: Option<&Map<String, Value>>) -> Check
     }
 }
 
-/// Settings in Blockly's daemon.json that the host's lacks or sets otherwise.
+/// Settings in the control plane's daemon.json that the host's lacks or sets otherwise.
 pub(crate) fn differences(on_disk: &Map<String, Value>) -> Vec<String> {
     deploy_daemon_json().into_iter().filter(|(k, v)| on_disk.get(k) != Some(v)).map(|(k, _)| k).collect()
 }

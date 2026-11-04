@@ -61,7 +61,7 @@ pub async fn upgrade(config: &Path, restart: bool) -> anyhow::Result<String> {
         let status = std::process::Command::new("systemctl").args(["restart", super::service::UNIT_NAME]).status();
         anyhow::ensure!(status.is_ok_and(|s| s.success()), "{said}systemctl restart pryxd failed: restart it yourself");
         said += &format!(
-            "Restarted pryxd; servers keep running. If {to} doesn't reconcile and reach the control plane \
+            "Restarted pryxd; sandboxes keep running. If {to} doesn't reconcile and reach the control plane \
              within {TRIAL_SECONDS} s, pryxd puts {current} back by itself.\n"
         );
     } else {

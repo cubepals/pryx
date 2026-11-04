@@ -105,9 +105,6 @@ impl Config {
                 ));
             }
         }
-        if self.workloads.allowed_images.is_empty() {
-            return bad("workloads.allowed_images needs at least one prefix".into());
-        }
         // A prefix is matched as text, so one that stops inside a name admits more than it says:
         // `ghcr.io/cubepals` admits `ghcr.io/cubepalsx/…`, and a registry's host admits a longer
         // host that starts with it.

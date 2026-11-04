@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! pryxd: pryx's node daemon. It runs Blockly's Minecraft servers on a Linux host through
+//! pryxd: pryx's node daemon. It runs sandboxes on a Linux host through
 //! Docker, for a control plane that places them: alone on one host, or as one node of many. See
 //! README.md, and docs/protocol.md for the API.
 //!
@@ -16,6 +16,8 @@ pub(crate) mod clock;
 pub mod config;
 pub mod doctor;
 pub mod durable;
+#[cfg(any(test, feature = "fake"))]
+pub mod examples;
 pub mod fleet;
 pub mod host;
 pub(crate) mod http_client;
@@ -25,8 +27,6 @@ pub mod isolation;
 pub mod labels;
 pub mod manager;
 pub mod metrics;
-#[cfg(any(test, feature = "fake"))]
-pub mod minecraft;
 pub mod ports;
 pub mod priority;
 pub mod protocol;

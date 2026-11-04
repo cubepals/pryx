@@ -16,7 +16,7 @@
 //! attempt left as `identity.failed-<unix seconds>`, puts the old identity and CA back, and starts
 //! the unit on them. Once the new identity is enrolled (its `node.json`, written last, exists) the
 //! old certificates no longer work, so a slow first heartbeat leaves the new identity in place, the
-//! old one aside, and says so: putting the old one back would only cut the node off. The node's id, its placements and its servers are the control
+//! old one aside, and says so: putting the old one back would only cut the node off. The node's id, its placements and its sandboxes are the control
 //! plane's to keep, and it does (registry/enrollment.ts, `reenroll`).
 //!
 //! Not here: deciding that this host is that node, or checking the CA against the token. join.rs

@@ -40,7 +40,7 @@ impl Manager {
                 let mut stream = this.runtime.logs(&name, options.clone());
                 loop {
                     // A client gone while the workload prints nothing is noticed now, not at its
-                    // next line, which on an idle server may be hours away.
+                    // next line, which on an idle sandbox may be hours away.
                     let item = tokio::select! {
                         item = stream.next() => item,
                         () = tx.closed() => return,

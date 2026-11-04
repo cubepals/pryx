@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! Carries a world's data between this node and an object store: export out, restore in, over
+//! Carries a data's data between this node and an object store: export out, restore in, over
 //! presigned URLs. Local snapshots are `snapshots.rs`, which uploads through `pack_and_put`
 //! here; whether the disk has room is asked of `room.rs`.
 
@@ -324,7 +324,7 @@ impl Manager {
         use http_body_util::BodyExt;
         use std::io::Write;
         // The network is read here; the spool is written on a blocking thread at idle priority, as
-        // the unpack after it is, so a download's disk writes wait behind a booting server's.
+        // the unpack after it is, so a download's disk writes wait behind a booting sandbox's.
         let (frames, mut landed) = tokio::sync::mpsc::channel::<bytes::Bytes>(SPOOL_FRAMES);
         let spooling = {
             let (spool, mut watch) = (spool.to_owned(), self.floor_watch());

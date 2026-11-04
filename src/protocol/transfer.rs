@@ -40,13 +40,13 @@ pub struct ExportRequest {
     /// Sent with the PUT, as the store's presigning asked for (a content type, say).
     #[serde(default)]
     pub(crate) headers: BTreeMap<String, String>,
-    /// The caller paused the workload's own saving (for Minecraft: `save-off`, `save-all
-    /// flush`), so its files are consistent while it runs. Without it only a stopped workload
+    /// The caller paused the workload's own writes (for example, flushed and paused an
+    /// application's data writer), so its files are consistent while it runs. Without it only a stopped workload
     /// exports.
     #[serde(default)]
     pub quiesced: bool,
     /// Names at the top of the data the archive leaves out: what the image makes again when it
-    /// is missing (a server jar, the libraries it unpacks), so a move carries only the world.
+    /// is missing (an application bundle, its unpacked dependencies), so a move carries only the data.
     #[serde(default)]
     pub(crate) exclude: Vec<String>,
     /// Where the archive goes instead when it is larger than one PUT carries.

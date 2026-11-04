@@ -318,7 +318,7 @@ async fn a_snapshot_is_taken_once_restored_in_place_and_uploaded() {
     assert_eq!(again.snapshot, taken.snapshot);
     assert_eq!(f.manager.snapshots(&id("w")).unwrap().snapshots.len(), 1);
 
-    // The world moves on, then goes back to the snapshot.
+    // The data moves on, then goes back to the snapshot.
     std::fs::write(data.join("world/level.dat"), b"day two, griefed").unwrap();
     let restored = f
         .manager
@@ -398,7 +398,7 @@ async fn a_snapshot_is_restored_only_with_room_for_all_of_it() {
     world(&data);
     let taken = f.manager.snapshot(id("w"), snapshot_request(SNAP, false), Some(1)).await.unwrap();
     // A snapshot of more than this disk holds. A copy sharing its blocks would take nothing at
-    // first, and all of it once the world moves on: it is admitted at all of it, either way.
+    // first, and all of it once the data moves on: it is admitted at all of it, either way.
     let mut view = taken.snapshot.clone();
     view.size_bytes = 1 << 50;
     let snapshot = pryxd::ids::SnapshotId::parse(SNAP).unwrap();
@@ -487,7 +487,7 @@ const MIB: usize = 1024 * 1024;
 /// The smallest part S3 takes, and so the parts these tests cut.
 const PART: usize = pryxd::protocol::MIN_PART_BYTES as usize;
 
-/// A world of about `mib` MiB, most of it incompressible.
+/// A data of about `mib` MiB, most of it incompressible.
 fn big_world(data: &std::path::Path, mib: usize) {
     std::fs::write(data.join("server.properties"), "level-name=world\n").unwrap();
     std::fs::create_dir_all(data.join("world/region")).unwrap();
@@ -511,7 +511,7 @@ fn joined(objects: &Objects, count: usize) -> Vec<u8> {
 
 #[tokio::test]
 async fn an_archive_larger_than_one_put_goes_in_parts_and_restores_whole() {
-    // One PUT carries at most 1 MiB here, so an 11 MiB world goes in parts of 5 MiB: three.
+    // One PUT carries at most 1 MiB here, so an 11 MiB data goes in parts of 5 MiB: three.
     let f = fixture("[transfer]\nmax_put_mb = 1\n").await;
     let (base, objects) = store().await;
     let made = f.manager.ensure(id("big"), spec(), Precondition::None, Some(1)).await.unwrap();
@@ -644,7 +644,7 @@ async fn parts_the_store_cant_take_are_refused_and_a_small_archive_still_goes_wh
         let err = f.manager.export(id("w"), request, Some(1)).await.unwrap_err();
         assert!(matches!(err, NodeError::Invalid(_)), "{err:?}");
     }
-    // A world one PUT carries goes in one PUT, whatever parts are offered.
+    // A data one PUT carries goes in one PUT, whatever parts are offered.
     let request: ExportRequest = serde_json::from_value(serde_json::json!({
         "url": format!("{base}/w.tar.gz"),
         "parts": in_parts(&base, PART, 2),

@@ -447,9 +447,9 @@ pub(crate) mod tests {
             },
             spec_digest: "sha256:x".into(),
             ports: vec![AllocatedPort {
-                name: "game".into(),
+                name: "http".into(),
                 protocol: Proto::Tcp,
-                container_port: crate::minecraft::GAME_PORT,
+                container_port: crate::examples::HTTP_PORT,
                 host_port: 42000,
             }],
             container_name: format!("bly-{id}"),
