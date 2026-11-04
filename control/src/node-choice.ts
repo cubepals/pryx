@@ -54,7 +54,7 @@ export class NodeChoice {
   ): PlacementRequest {
     return {
       memoryMb: spec.resources.memoryMb,
-      cpuMillis: cpuRequest(spec.resources.memoryMb, this.#o.cpuMillisPerGb),
+      cpuMillis: spec.resources.cpuMillis ?? cpuRequest(spec.resources.memoryMb, this.#o.cpuMillisPerGb),
       diskGb: spec.storage.sizeGb,
       ports: spec.ports.length,
       regionKey: region,

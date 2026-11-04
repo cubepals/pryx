@@ -31,7 +31,7 @@ import { sql } from 'drizzle-orm'
 import { FleetStore } from '../src/archive-transport.ts'
 import { controlPlaneName, FleetCa } from '../src/ca.ts'
 import type { Db } from '../src/database.ts'
-import { MINUTE_MS } from '../src/durations.ts'
+import { MINUTE_MS, SECOND_MS } from '../src/durations.ts'
 import { decodeHandle } from '../src/handle.ts'
 import { type JoinPoint, joinCommand, joinToken } from '../src/join-token.ts'
 import { NodeClient, NodeUnreachable, splitAddress } from '../src/node-client.ts'
@@ -102,7 +102,7 @@ async function until<T>(
     const value = await check().catch(() => null)
     if (value) return value
     if (Date.now() > deadline) throw new Error(`Timed out waiting for ${what}`)
-    await sleep(250)
+    await sleep(0.25 * SECOND_MS)
   }
 }
 
@@ -460,151 +460,175 @@ describe.skipIf(!ready)('FleetRuntime across two nodes', () => {
     expect(stopped.stdout.toString() + stopped.stderr.toString()).toContain('FAILED')
   })
 
-  test('a server is placed on one of them, and a snapshot of it reaches the store', async () => {
-    h1 = await runtime.ensureProvisioned(s1, { regionKey: 'eu' }, SPEC, progress)
-    await runtime.waitRunning(h1, AbortSignal.timeout(MINUTE_MS))
-    expect([node.a.id, node.b.id]).toContain(nodeOf(h1) ?? '')
-    await exec(h1, 'echo before-move > /data/data/level.dat')
-    lastSnapshot = (await runtime.snapshot(h1)).snapshot
-    await uploaded()
-  }, 120_000)
+  test(
+    'a server is placed on one of them, and a snapshot of it reaches the store',
+    async () => {
+      h1 = await runtime.ensureProvisioned(s1, { regionKey: 'eu' }, SPEC, progress)
+      await runtime.waitRunning(h1, AbortSignal.timeout(MINUTE_MS))
+      expect([node.a.id, node.b.id]).toContain(nodeOf(h1) ?? '')
+      await exec(h1, 'echo before-move > /data/data/level.dat')
+      lastSnapshot = (await runtime.snapshot(h1)).snapshot
+      await uploaded()
+    },
+    2 * MINUTE_MS,
+  )
 
-  test('an operator moves it to the other node, and its data goes along without its jar', async () => {
-    const from = nodeOf(h1)
-    const to = other(from)
-    await runtime.requestMove(s1, to.id, 'e2e')
-    // What the application does around a move: stop, relocate, start where it landed.
-    await runtime.stop(h1)
-    const moved = await runtime.relocate(h1, { regionKey: 'eu' }, SPEC, progress)
-    expect(nodeOf(moved)).toBe(to.id)
-    expect(decodeHandle(moved).epoch).toBeGreaterThan(decodeHandle(h1).epoch)
-    expect(runtime.endpoint(moved, 'game', 'edge').host).toBe(to.ip)
-    h1 = moved
-    await runtime.start(h1)
-    await runtime.waitRunning(h1, AbortSignal.timeout(MINUTE_MS))
-    expect(await exec(h1, 'cat /data/data/level.dat')).toBe('before-move')
-    // The source's copy is fenced and gone; the move's archive with it.
-    const source = from === node.a.id ? node.a : node.b
-    await until('the source copy to go', async () => {
-      await runtime.tidy()
-      return !inner(source, 'ps', '-a', '--format', '{{.Names}}').includes(s1)
-    })
-    const moves = await rows<{ status: string }>(
-      db,
-      sql`SELECT status FROM fleet_archives WHERE purpose = 'move'`,
-    )
-    expect(moves.map((m) => m.status)).toEqual(['deleted'])
-  }, 180_000)
+  test(
+    'an operator moves it to the other node, and its data goes along without its jar',
+    async () => {
+      const from = nodeOf(h1)
+      const to = other(from)
+      await runtime.requestMove(s1, to.id, 'e2e')
+      // What the application does around a move: stop, relocate, start where it landed.
+      await runtime.stop(h1)
+      const moved = await runtime.relocate(h1, { regionKey: 'eu' }, SPEC, progress)
+      expect(nodeOf(moved)).toBe(to.id)
+      expect(decodeHandle(moved).epoch).toBeGreaterThan(decodeHandle(h1).epoch)
+      expect(runtime.endpoint(moved, 'game', 'edge').host).toBe(to.ip)
+      h1 = moved
+      await runtime.start(h1)
+      await runtime.waitRunning(h1, AbortSignal.timeout(MINUTE_MS))
+      expect(await exec(h1, 'cat /data/data/level.dat')).toBe('before-move')
+      // The source's copy is fenced and gone; the move's archive with it.
+      const source = from === node.a.id ? node.a : node.b
+      await until('the source copy to go', async () => {
+        await runtime.tidy()
+        return !inner(source, 'ps', '-a', '--format', '{{.Names}}').includes(s1)
+      })
+      const moves = await rows<{ status: string }>(
+        db,
+        sql`SELECT status FROM fleet_archives WHERE purpose = 'move'`,
+      )
+      expect(moves.map((m) => m.status)).toEqual(['deleted'])
+    },
+    3 * MINUTE_MS,
+  )
 
-  test('a drained node takes nothing new', async () => {
-    const busy = nodeOf(h1) ?? ''
-    await drain(db, busy, 'e2e')
-    const h2 = await runtime.ensureProvisioned(s2, { regionKey: 'eu' }, SPEC, progress)
-    expect(nodeOf(h2)).toBe(other(busy).id)
-    await undrain(db, busy, 'e2e')
-    await runtime.destroy(h2)
-  }, 120_000)
+  test(
+    'a drained node takes nothing new',
+    async () => {
+      const busy = nodeOf(h1) ?? ''
+      await drain(db, busy, 'e2e')
+      const h2 = await runtime.ensureProvisioned(s2, { regionKey: 'eu' }, SPEC, progress)
+      expect(nodeOf(h2)).toBe(other(busy).id)
+      await undrain(db, busy, 'e2e')
+      await runtime.destroy(h2)
+    },
+    2 * MINUTE_MS,
+  )
 
-  test('a sleeping server whose node is full moves to one with room, and starts there', async () => {
-    const home = nodeOf(h1) === node.a.id ? node.a : node.b
-    const away = other(home.id)
-    const ledger = async () => new Map((await nodeSummaries(db, THRESHOLDS)).map((n) => [n.id, n]))
-    await exec(h1, 'echo slept > /data/data/level.dat')
-    // Asleep, its data stays on its node and its memory doesn't, as soon as the stop is answered.
-    await runtime.stop(h1)
-    expect((await ledger()).get(home.id)?.running.memoryMb).toBe(0)
-    // Another server, there, takes all but 64 MB of the node's 2048 to run.
-    await drain(db, away.id, 'e2e')
-    const h3 = await runtime.ensureProvisioned(
-      s3,
-      { regionKey: 'eu' },
-      { ...SPEC, resources: { memoryMb: 1984 } },
-      progress,
-    )
-    await undrain(db, away.id, 'e2e')
-    expect(nodeOf(h3)).toBe(home.id)
-    await runtime.waitRunning(h3, AbortSignal.timeout(MINUTE_MS))
-    // A start without its spec can't move it: refused, and nothing claimed for it.
-    await expect(runtime.start(h1)).rejects.toBeInstanceOf(RuntimeFull)
-    expect((await ledger()).get(home.id)?.running.memoryMb).toBe(1984)
-    // A start with the server's spec, as the application's is, moves it first.
-    const woken = await runtime.ensureProvisioned(s1, { regionKey: 'eu' }, SPEC, progress)
-    expect(nodeOf(woken)).toBe(away.id)
-    expect(decodeHandle(woken).epoch).toBeGreaterThan(decodeHandle(h1).epoch)
-    h1 = woken
-    await runtime.waitRunning(h1, AbortSignal.timeout(MINUTE_MS))
-    expect(await exec(h1, 'cat /data/data/level.dat')).toBe('slept')
-    const moved = await rows<{
-      node_id: string
-      data: { fromNode: string; why: string }
-    }>(db, sql`SELECT node_id, data FROM fleet_events WHERE kind = 'placement.moved_for_room'`)
-    expect(moved.map((e) => [e.data.fromNode, e.node_id])).toEqual([[home.id, away.id]])
-    expect(moved[0]?.data.why).toBe('memory: 64 MB free beside the sandboxes running there, needs 128')
-    const held = await ledger()
-    expect(held.get(home.id)?.running.memoryMb).toBe(1984)
-    expect(held.get(home.id)?.allocated.memoryMb).toBe(1984)
-    expect(held.get(away.id)?.running.memoryMb).toBe(128)
-    // A server that stops on its own gives its memory back once its node reports it stopped.
-    await runtime.exec(h3, ['sh', '-c', 'kill 1'], 10).catch(() => undefined)
-    await until('the stopped server to hold no memory', async () => {
-      return (await ledger()).get(home.id)?.running.memoryMb === 0
-    })
-    await runtime.destroy(h3)
-  }, 240_000)
+  test(
+    'a sleeping server whose node is full moves to one with room, and starts there',
+    async () => {
+      const home = nodeOf(h1) === node.a.id ? node.a : node.b
+      const away = other(home.id)
+      const ledger = async () => new Map((await nodeSummaries(db, THRESHOLDS)).map((n) => [n.id, n]))
+      await exec(h1, 'echo slept > /data/data/level.dat')
+      // Asleep, its data stays on its node and its memory doesn't, as soon as the stop is answered.
+      await runtime.stop(h1)
+      expect((await ledger()).get(home.id)?.running.memoryMb).toBe(0)
+      // Another server, there, takes all but 64 MB of the node's 2048 to run.
+      await drain(db, away.id, 'e2e')
+      const h3 = await runtime.ensureProvisioned(
+        s3,
+        { regionKey: 'eu' },
+        { ...SPEC, resources: { memoryMb: 1984 } },
+        progress,
+      )
+      await undrain(db, away.id, 'e2e')
+      expect(nodeOf(h3)).toBe(home.id)
+      await runtime.waitRunning(h3, AbortSignal.timeout(MINUTE_MS))
+      // A start without its spec can't move it: refused, and nothing claimed for it.
+      await expect(runtime.start(h1)).rejects.toBeInstanceOf(RuntimeFull)
+      expect((await ledger()).get(home.id)?.running.memoryMb).toBe(1984)
+      // A start with the server's spec, as the application's is, moves it first.
+      const woken = await runtime.ensureProvisioned(s1, { regionKey: 'eu' }, SPEC, progress)
+      expect(nodeOf(woken)).toBe(away.id)
+      expect(decodeHandle(woken).epoch).toBeGreaterThan(decodeHandle(h1).epoch)
+      h1 = woken
+      await runtime.waitRunning(h1, AbortSignal.timeout(MINUTE_MS))
+      expect(await exec(h1, 'cat /data/data/level.dat')).toBe('slept')
+      const moved = await rows<{
+        node_id: string
+        data: { fromNode: string; why: string }
+      }>(db, sql`SELECT node_id, data FROM fleet_events WHERE kind = 'placement.moved_for_room'`)
+      expect(moved.map((e) => [e.data.fromNode, e.node_id])).toEqual([[home.id, away.id]])
+      expect(moved[0]?.data.why).toBe('memory: 64 MB free beside the sandboxes running there, needs 128')
+      const held = await ledger()
+      expect(held.get(home.id)?.running.memoryMb).toBe(1984)
+      expect(held.get(home.id)?.allocated.memoryMb).toBe(1984)
+      expect(held.get(away.id)?.running.memoryMb).toBe(128)
+      // A server that stops on its own gives its memory back once its node reports it stopped.
+      await runtime.exec(h3, ['sh', '-c', 'kill 1'], 10).catch(() => undefined)
+      await until('the stopped server to hold no memory', async () => {
+        return (await ledger()).get(home.id)?.running.memoryMb === 0
+      })
+      await runtime.destroy(h3)
+    },
+    4 * MINUTE_MS,
+  )
 
   for (const scenario of ANSWERS)
     test(scenario.name, () => scenario.run({ db, runtime, node, h1 }), scenario.ms)
 
-  test('a host lost is rebuilt elsewhere from its last snapshot, never from what it said later', async () => {
-    await exec(h1, 'echo snapshotted > /data/data/level.dat')
-    lastSnapshot = (await runtime.snapshot(h1)).snapshot
-    await uploaded()
-    await exec(h1, 'echo after-the-snapshot > /data/data/level.dat')
-    const lost = nodeOf(h1) === node.a.id ? node.a : node.b
-    docker('kill', lost.container)
-    await until(
-      'the node to read unavailable',
-      async () => (await runtime.observe(h1)).state === 'unknown',
-      30_000,
-    )
-    // Unavailable isn't lost: only an operator who knows the host is down says so.
-    expect((await runtime.observe(h1)).hostLost).toBeUndefined()
-    await confirmLost(db, THRESHOLDS, lost.id, {
-      fencedBy: 'docker kill',
-      reason: 'e2e',
-      by: 'e2e',
-    })
-    expect((await runtime.observe(h1)).hostLost).toBe(true)
-    const rebuilt = await runtime.relocate(h1, { regionKey: 'eu' }, SPEC, progress, lastSnapshot)
-    expect(nodeOf(rebuilt)).toBe(other(lost.id).id)
-    h1 = rebuilt
-    await runtime.start(h1)
-    await runtime.waitRunning(h1, AbortSignal.timeout(MINUTE_MS))
-    expect(await exec(h1, 'cat /data/data/level.dat')).toBe('snapshotted')
-  }, 180_000)
+  test(
+    'a host lost is rebuilt elsewhere from its last snapshot, never from what it said later',
+    async () => {
+      await exec(h1, 'echo snapshotted > /data/data/level.dat')
+      lastSnapshot = (await runtime.snapshot(h1)).snapshot
+      await uploaded()
+      await exec(h1, 'echo after-the-snapshot > /data/data/level.dat')
+      const lost = nodeOf(h1) === node.a.id ? node.a : node.b
+      docker('kill', lost.container)
+      await until(
+        'the node to read unavailable',
+        async () => (await runtime.observe(h1)).state === 'unknown',
+        30_000,
+      )
+      // Unavailable isn't lost: only an operator who knows the host is down says so.
+      expect((await runtime.observe(h1)).hostLost).toBeUndefined()
+      await confirmLost(db, THRESHOLDS, lost.id, {
+        fencedBy: 'docker kill',
+        reason: 'e2e',
+        by: 'e2e',
+      })
+      expect((await runtime.observe(h1)).hostLost).toBe(true)
+      const rebuilt = await runtime.relocate(h1, { regionKey: 'eu' }, SPEC, progress, lastSnapshot)
+      expect(nodeOf(rebuilt)).toBe(other(lost.id).id)
+      h1 = rebuilt
+      await runtime.start(h1)
+      await runtime.waitRunning(h1, AbortSignal.timeout(MINUTE_MS))
+      expect(await exec(h1, 'cat /data/data/level.dat')).toBe('snapshotted')
+    },
+    3 * MINUTE_MS,
+  )
 
-  test('the lost node comes back, its old copy is fenced and never runs, and the fork is reported', async () => {
-    const lost = nodeOf(h1) === node.a.id ? node.b : node.a
-    docker('start', lost.container)
-    await until(
-      `${lost.name}'s Docker`,
-      async () => spawnSync('docker', ['exec', lost.container, 'docker', 'info']).status === 0,
-    )
-    lost.boot()
-    await until('the fork to be reported', async () => {
-      const found = await rows(db, sql`SELECT 1 FROM fleet_events WHERE kind = 'fork.detected'`)
-      return found.length > 0
-    })
-    const events = await rows<{ kind: string }>(
-      db,
-      sql`SELECT kind FROM fleet_events WHERE node_id = ${lost.id} ORDER BY id`,
-    )
-    expect(events.map((e) => e.kind)).toContain('node.returned_while_lost')
-    await sleep(3000)
-    const states = inner(lost, 'ps', '-a', '--format', '{{.Names}} {{.State}}')
-    expect(states).toContain(s1)
-    expect(states).not.toMatch(new RegExp(`${s1} running`))
-    // The rebuilt server is the one that runs.
-    expect((await runtime.observe(h1)).state).toBe('running')
-  }, 180_000)
+  test(
+    'the lost node comes back, its old copy is fenced and never runs, and the fork is reported',
+    async () => {
+      const lost = nodeOf(h1) === node.a.id ? node.b : node.a
+      docker('start', lost.container)
+      await until(
+        `${lost.name}'s Docker`,
+        async () => spawnSync('docker', ['exec', lost.container, 'docker', 'info']).status === 0,
+      )
+      lost.boot()
+      await until('the fork to be reported', async () => {
+        const found = await rows(db, sql`SELECT 1 FROM fleet_events WHERE kind = 'fork.detected'`)
+        return found.length > 0
+      })
+      const events = await rows<{ kind: string }>(
+        db,
+        sql`SELECT kind FROM fleet_events WHERE node_id = ${lost.id} ORDER BY id`,
+      )
+      expect(events.map((e) => e.kind)).toContain('node.returned_while_lost')
+      await sleep(3 * SECOND_MS)
+      const states = inner(lost, 'ps', '-a', '--format', '{{.Names}} {{.State}}')
+      expect(states).toContain(s1)
+      expect(states).not.toMatch(new RegExp(`${s1} running`))
+      // The rebuilt server is the one that runs.
+      expect((await runtime.observe(h1)).state).toBe('running')
+    },
+    3 * MINUTE_MS,
+  )
 })

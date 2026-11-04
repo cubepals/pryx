@@ -16,7 +16,9 @@ import https from 'node:https'
 import { connect as tcpConnect } from 'node:net'
 import type { Readable } from 'node:stream'
 import { setTimeout as sleep } from 'node:timers/promises'
+import { StatusCodes } from 'http-status-codes'
 import { nodeName } from './ca.ts'
+import { MINUTE_MS, SECOND_MS } from './durations.ts'
 
 const EPOCH_HEADER = 'blocklyd-epoch'
 export const CONFIRM_DELETE_HEADER = 'x-blockly-confirm-delete-data'
@@ -77,7 +79,7 @@ export function splitAddress(address: string): { host: string; port: number } {
  * The waits between attempts at a call that is safe to repeat, after no answer: a keep-alive
  * connection the node had closed, or pryxd restarting. The call's timeout bounds them all.
  */
-const RETRY_DELAYS_MS = [250, 1000, 2500]
+const RETRY_DELAYS_MS = [0.25 * SECOND_MS, SECOND_MS, 2.5 * SECOND_MS]
 
 /**
  * Whether a call may be sent again when nothing is known of the first: a read, a PUT of a spec,
@@ -125,7 +127,7 @@ export class NodeClient {
   rotate(identity: ClientIdentity): void {
     const old = this.#agent
     this.#agent = NodeClient.#agentFor(identity)
-    setTimeout(() => old.destroy(), 120_000).unref()
+    setTimeout(() => old.destroy(), 2 * MINUTE_MS).unref()
   }
 
   /**
@@ -194,7 +196,7 @@ export class NodeClient {
             } catch {
               parsed = null
             }
-            if (status >= 200 && status < 300) return resolve(parsed as T)
+            if (status >= StatusCodes.OK && status < StatusCodes.MULTIPLE_CHOICES) return resolve(parsed as T)
             const error = (
               parsed as {
                 error?: { code?: string; message?: string; details?: unknown }
@@ -250,7 +252,7 @@ export class NodeClient {
       request.on('error', (error: NodeJS.ErrnoException) => reject(unreachable(error)))
       request.end()
     })
-    if ((response.statusCode ?? 0) >= 300) {
+    if ((response.statusCode ?? 0) >= StatusCodes.MULTIPLE_CHOICES) {
       const chunks: Buffer[] = []
       for await (const chunk of response) chunks.push(chunk as Buffer)
       const text = Buffer.concat(chunks).toString('utf8')

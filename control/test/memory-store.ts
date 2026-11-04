@@ -8,6 +8,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
+import { StatusCodes } from 'http-status-codes'
 import { type ArchiveStore, ArtifactMismatch } from '../src/archive-store.ts'
 import { MAX_PUT_BYTES, partPlan } from '../src/multipart.ts'
 import type {
@@ -68,7 +69,7 @@ export class MemoryStore implements ArchiveStore {
             if (part === null) this.objects.set(decodeURIComponent(path), bytes)
             else this.putPart(part[1] ?? '', Number(part[2]), bytes)
           } catch {
-            response.statusCode = 404
+            response.statusCode = StatusCodes.NOT_FOUND
             return response.end()
           }
           response.setHeader('ETag', etagOf(bytes))
@@ -78,13 +79,13 @@ export class MemoryStore implements ArchiveStore {
       }
       const bytes = this.objects.get(decodeURIComponent(path))
       if (bytes === undefined) {
-        response.statusCode = 404
+        response.statusCode = StatusCodes.NOT_FOUND
         return response.end()
       }
       if (request.method === 'GET') this.downloads++
       const range = /^bytes=(\d+)-(\d+)$/.exec(request.headers.range ?? '')
       const served = range === null ? bytes : bytes.subarray(Number(range[1]), Number(range[2]) + 1)
-      if (range !== null) response.statusCode = 206
+      if (range !== null) response.statusCode = StatusCodes.PARTIAL_CONTENT
       response.setHeader('Content-Length', served.length)
       response.end(request.method === 'HEAD' ? undefined : served)
     })

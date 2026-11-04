@@ -11,6 +11,7 @@
 
 import { randomBytes, randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
+import { StatusCodes } from 'http-status-codes'
 import { controlPlaneName, csrKeySha256, type FleetCa, type Issued } from '../ca.ts'
 import type { Db, Queryable } from '../database.ts'
 import { secretOf } from '../join-token.ts'
@@ -41,14 +42,14 @@ export async function createToken(
   let regionKey = options.regionKey
   if (options.node === undefined && options.regions !== undefined && !options.regions.includes(regionKey))
     throw new Refused(
-      400,
+      StatusCodes.BAD_REQUEST,
       'unknown_region',
       `${regionKey} is not a fleet region; PRYX_REGION_MAP maps to ${options.regions.join(', ') || 'none'}`,
     )
   if (options.node !== undefined) {
     const node = await getNode(db, options.node)
     if (node === null || node.lifecycle === 'retired')
-      throw new Refused(404, 'unknown_node', 'no such node, or it is retired')
+      throw new Refused(StatusCodes.NOT_FOUND, 'unknown_node', 'no such node, or it is retired')
     regionKey = node.region_key
   }
   const token = randomBytes(32).toString('base64url')
@@ -77,7 +78,8 @@ export const ADDRESS = /^(\[[0-9a-fA-F:.]+\]|[a-zA-Z0-9.-]+):\d{1,5}$/
 export const HOST = /^(\[[0-9a-fA-F:.]+\]|[0-9a-fA-F:.]+|[a-zA-Z0-9.-]+)$/
 
 /** One answer for unknown, spent and expired tokens: no oracle for guessing. */
-const invalidToken = () => new Refused(403, 'invalid_token', 'the enrollment token is not valid')
+const invalidToken = () =>
+  new Refused(StatusCodes.FORBIDDEN, 'invalid_token', 'the enrollment token is not valid')
 
 /** What an enrolled node is told: who it is, its two certificates, and whom to trust. */
 function enrolled(
@@ -108,11 +110,11 @@ export async function enroll(
     typeof request.csrPem !== 'string' ||
     typeof request.facts !== 'object'
   )
-    throw new Refused(400, 'invalid_request', 'an enrollment is { token, csrPem, facts }')
+    throw new Refused(StatusCodes.BAD_REQUEST, 'invalid_request', 'an enrollment is { token, csrPem, facts }')
   const facts = request.facts
   if (!ADDRESS.test(facts.apiAddress ?? ''))
     throw new Refused(
-      400,
+      StatusCodes.BAD_REQUEST,
       'invalid_request',
       'apiAddress is host:port, where the control plane reaches pryxd',
     )
@@ -137,7 +139,7 @@ export async function enroll(
     const issued = await ca
       .issueForNode(request.csrPem, id, options.deployment, options.certDays)
       .catch((error) => {
-        throw new Refused(400, 'invalid_csr', (error as Error).message)
+        throw new Refused(StatusCodes.BAD_REQUEST, 'invalid_csr', (error as Error).message)
       })
     const apiHost = splitAddress(facts.apiAddress).host
     const edgeHost = facts.edgeIps.find((ip) => HOST.test(ip)) ?? apiHost
@@ -240,7 +242,7 @@ async function reenroll(
   const issued = await ca
     .issueForNode(request.csrPem, node.id, options.deployment, options.certDays)
     .catch((error) => {
-      throw new Refused(400, 'invalid_csr', (error as Error).message)
+      throw new Refused(StatusCodes.BAD_REQUEST, 'invalid_csr', (error as Error).message)
     })
   const apiHost = splitAddress(facts.apiAddress).host
   const edgeHost = facts.edgeIps.find((ip) => HOST.test(ip)) ?? apiHost

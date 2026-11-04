@@ -22,8 +22,8 @@
  */
 
 import { sql } from 'drizzle-orm'
+import { StatusCodes } from 'http-status-codes'
 import type { Queryable } from '../database.ts'
-
 import { MINUTE_S } from '../durations.ts'
 import { event, exec, lock, one, rows } from '../sql.ts'
 import type { HeartbeatRequest, UpgradeOffer } from '../wire.ts'
@@ -184,7 +184,8 @@ export async function retryUpgrade(q: Queryable, nodeId: string, by: string): Pr
     sql`UPDATE fleet_nodes SET upgrade_state = NULL, upgrade_at = now(), upgrade_error = NULL
         WHERE id = ${nodeId} AND upgrade_state = 'failed'`,
   )
-  if (cleared === 0) throw new Refused(409, 'not_failed', 'this node has no failed upgrade to retry')
+  if (cleared === 0)
+    throw new Refused(StatusCodes.CONFLICT, 'not_failed', 'this node has no failed upgrade to retry')
   await event(q, 'node.upgrade_retried', { node: nodeId, data: { by } })
 }
 

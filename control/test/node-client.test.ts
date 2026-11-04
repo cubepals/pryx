@@ -11,7 +11,9 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { createServer, type Server } from 'node:net'
 import { Readable } from 'node:stream'
 import { createServer as createTlsServer } from 'node:tls'
+import { StatusCodes } from 'http-status-codes'
 import { controlPlaneName, nodeName } from '../src/ca.ts'
+import { SECOND_MS } from '../src/durations.ts'
 import { NodeClient, NodeRefused, NodeUnreachable, ndjsonLines, repeatable } from '../src/node-client.ts'
 import { testCa } from './nodes.ts'
 
@@ -49,7 +51,7 @@ describe('ndjsonLines', () => {
     const failing = () => {
       const stream = new Readable({ read() {} })
       stream.push(Buffer.from('{"a":1}\n'))
-      setTimeout(() => stream.destroy(new Error('connection reset')), 10)
+      setTimeout(() => stream.destroy(new Error('connection reset')), 0.01 * SECOND_MS)
       return stream
     }
     await expect(read(ndjsonLines(failing(), going()))).rejects.toThrow('connection reset')
@@ -84,7 +86,7 @@ async function flakyNode(status: number): Promise<{
   })
   tls.on('secureConnection', (socket) => {
     socket.once('data', () => {
-      const body = status < 300 ? '{"ok":true}' : ''
+      const body = status < StatusCodes.MULTIPLE_CHOICES ? '{"ok":true}' : ''
       socket.end(
         `HTTP/1.1 ${status} X\r\ncontent-type: application/json\r\ncontent-length: ${body.length}\r\nconnection: close\r\n\r\n${body}`,
       )
@@ -156,17 +158,21 @@ describe('a node that does not answer', () => {
     expect(node.connections()).toBe(1)
   })
 
-  test('a node that never answers fails the call after its last attempt, as unreachable', async () => {
-    node.drop(100)
-    const error = await node.client.call(node.address, 'GET', '/v1/workloads/w').catch((e: unknown) => e)
-    expect(error).toBeInstanceOf(NodeUnreachable)
-    expect(node.connections()).toBe(4)
-  }, 10_000)
+  test(
+    'a node that never answers fails the call after its last attempt, as unreachable',
+    async () => {
+      node.drop(100)
+      const error = await node.client.call(node.address, 'GET', '/v1/workloads/w').catch((e: unknown) => e)
+      expect(error).toBeInstanceOf(NodeUnreachable)
+      expect(node.connections()).toBe(4)
+    },
+    10 * SECOND_MS,
+  )
 
   test("the call's timeout bounds its attempts", async () => {
     node.drop(100)
     const error = await node.client
-      .call(node.address, 'GET', '/v1/workloads/w', { timeoutMs: 1000 })
+      .call(node.address, 'GET', '/v1/workloads/w', { timeoutMs: SECOND_MS })
       .catch((e: unknown) => e)
     expect(error).toBeInstanceOf(NodeUnreachable)
     expect(node.connections()).toBe(2)
@@ -179,7 +185,7 @@ describe('a node that does not answer', () => {
         .call(refusing.address, 'GET', '/v1/workloads/w')
         .catch((e: unknown) => e)
       expect(error).toBeInstanceOf(NodeRefused)
-      expect((error as NodeRefused).status).toBe(404)
+      expect((error as NodeRefused).status).toBe(StatusCodes.NOT_FOUND)
       expect(refusing.connections()).toBe(1)
     } finally {
       refusing.close()

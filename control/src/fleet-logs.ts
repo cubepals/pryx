@@ -7,6 +7,7 @@
  * follow that continues across the workload's restarts (pryxd's docs/protocol.md, logs).
  */
 
+import { SECOND_MS } from './durations.ts'
 import { decodeHandle } from './handle.ts'
 import type { LogLine, LogSource } from './log-source.ts'
 import type { NodeClient } from './node-client.ts'
@@ -28,7 +29,7 @@ export class FleetLogSource implements LogSource {
     if (node === null) return []
     const lines: LogLine[] = []
     const path = `/v1/workloads/${decodeHandle(handle).key}/logs?tail=${Math.min(Math.max(limit, 1), 10_000)}`
-    for await (const line of this.#nodes.lines(node, path, AbortSignal.timeout(30_000))) {
+    for await (const line of this.#nodes.lines(node, path, AbortSignal.timeout(30 * SECOND_MS))) {
       const entry = parse(line)
       if (entry !== null) lines.push(entry)
     }

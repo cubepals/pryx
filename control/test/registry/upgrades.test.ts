@@ -10,6 +10,7 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { sql } from 'drizzle-orm'
+import { StatusCodes } from 'http-status-codes'
 import type { FleetCa } from '../../src/ca.ts'
 import type { Db } from '../../src/database.ts'
 import { THRESHOLDS } from '../../src/health.ts'
@@ -233,7 +234,7 @@ describe.skipIf(!hasDatabase)('the operators’ view', () => {
       relocate: async () => {},
     })
     const api = withUpgrades(operators, { db, release: RELEASE })
-    expect((await api.request('/fleet/v1/upgrades')).status).toBe(401)
+    expect((await api.request('/fleet/v1/upgrades')).status).toBe(StatusCodes.UNAUTHORIZED)
     const headers = {
       authorization: 'Bearer operator-token',
       'x-operator': 'test',
@@ -251,7 +252,7 @@ describe.skipIf(!hasDatabase)('the operators’ view', () => {
       method: 'POST',
       headers,
     })
-    expect(retried.status).toBe(200)
+    expect(retried.status).toBe(StatusCodes.OK)
     expect(await send(node, '0.2.0')).toEqual(RELEASE)
   })
 })

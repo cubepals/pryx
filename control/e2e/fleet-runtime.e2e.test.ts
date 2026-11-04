@@ -33,10 +33,11 @@ import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { sql } from 'drizzle-orm'
+import { StatusCodes } from 'http-status-codes'
 import { FleetStore } from '../src/archive-transport.ts'
 import { controlPlaneName, FleetCa } from '../src/ca.ts'
 import type { Db } from '../src/database.ts'
-import { MINUTE_MS } from '../src/durations.ts'
+import { MINUTE_MS, SECOND_MS } from '../src/durations.ts'
 import { decodeHandle } from '../src/handle.ts'
 import { joinToken } from '../src/join-token.ts'
 import { NodeClient } from '../src/node-client.ts'
@@ -81,14 +82,14 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 async function until<T>(
   what: string,
   check: () => Promise<T | null | undefined | false>,
-  ms = 30_000,
+  ms = 30 * SECOND_MS,
 ): Promise<T> {
   const deadline = Date.now() + ms
   for (;;) {
     const value = await check().catch(() => null)
     if (value) return value
     if (Date.now() > deadline) throw new Error(`Timed out waiting for ${what}`)
-    await sleep(200)
+    await sleep(0.2 * SECOND_MS)
   }
 }
 
@@ -171,7 +172,7 @@ function daemon(home: string, config: string, opsPort: number): Daemon {
       const command = [BIN ?? '', 'join', token, '--config', config, '--systemctl', systemctl]
       return spawnSync(SUDO ? 'sudo' : (command[0] ?? ''), SUDO ? ['-n', ...command] : command.slice(1), {
         encoding: 'utf8',
-        timeout: 180_000,
+        timeout: 3 * MINUTE_MS,
       })
     },
   }
@@ -338,247 +339,283 @@ describe.skipIf(!ready)('FleetRuntime against a real pryxd', () => {
     expect(existsSync(join(dir, 'node', 'token'))).toBe(false)
   })
 
-  test('a server is placed, runs, and answers', async () => {
-    handle = await runtime.ensureProvisioned(key, { regionKey: 'eu' }, SPEC, progress)
-    await runtime.waitRunning(handle, AbortSignal.timeout(MINUTE_MS))
-    expect(await exec('cat /data/data/level.dat')).toBe('fresh')
-    const ref = decodeHandle(handle)
-    expect(ref.epoch).toBe(1)
-    const endpoint = runtime.endpoint(handle, 'game', 'edge')
-    expect(endpoint.host).toBe('127.0.0.1')
-    expect(endpoint.port).toBeGreaterThan(44_999)
-    await until('a running observation', async () => (await runtime.observe(handle)).state === 'running')
-    // Calling it again converges on what is there.
-    const again = await runtime.ensureProvisioned(key, { regionKey: 'eu' }, SPEC, progress)
-    expect(runtime.sameCompute(again, handle)).toBe(true)
-    expect(runtime.prices(handle, { memoryMb: 128, storageGb: 1 })?.storageMonthCents).toBeGreaterThan(0)
-  }, 120_000)
+  test(
+    'a server is placed, runs, and answers',
+    async () => {
+      handle = await runtime.ensureProvisioned(key, { regionKey: 'eu' }, SPEC, progress)
+      await runtime.waitRunning(handle, AbortSignal.timeout(MINUTE_MS))
+      expect(await exec('cat /data/data/level.dat')).toBe('fresh')
+      const ref = decodeHandle(handle)
+      expect(ref.epoch).toBe(1)
+      const endpoint = runtime.endpoint(handle, 'game', 'edge')
+      expect(endpoint.host).toBe('127.0.0.1')
+      expect(endpoint.port).toBeGreaterThan(44_999)
+      await until('a running observation', async () => (await runtime.observe(handle)).state === 'running')
+      // Calling it again converges on what is there.
+      const again = await runtime.ensureProvisioned(key, { regionKey: 'eu' }, SPEC, progress)
+      expect(runtime.sameCompute(again, handle)).toBe(true)
+      expect(runtime.prices(handle, { memoryMb: 128, storageGb: 1 })?.storageMonthCents).toBeGreaterThan(0)
+    },
+    2 * MINUTE_MS,
+  )
 
-  test('asleep, it is suspended and wakes where it was; a change made meanwhile lands at its next boot', async () => {
-    const asleep = { ...SPEC, resumesOn: 'e2e' }
-    handle = await runtime.apply(handle, asleep)
-    const started = containerStarted()
-    expect(await runtime.sleep(handle)).toBe('suspended')
-    const reported = async () =>
-      (
-        await rows<{ state: string }>(db, sql`SELECT state FROM fleet_observations WHERE workload = ${key}`)
-      )[0]
-    await until('a suspended report', async () => (await reported())?.state === 'suspended')
-    const changed = { ...asleep, env: { ...SPEC.env, MOTD: 'Back soon' } }
-    const steps: string[] = []
-    const sink: ProgressSink = {
-      step: async (step) => void steps.push(step),
-      handle: async () => {},
-    }
-    expect(await runtime.ensureProvisioned(key, { regionKey: 'eu' }, changed, sink)).toBe(handle)
-    await runtime.waitRunning(handle, AbortSignal.timeout(MINUTE_MS))
-    expect(steps).toEqual(['allocating', 'compute', 'resuming'])
-    expect(containerStarted()).toBe(started)
-    expect(await exec('echo "[$MOTD]"')).toBe('[]')
-    await runtime.stop(handle)
-    await runtime.ensureProvisioned(key, { regionKey: 'eu' }, changed, progress)
-    await runtime.waitRunning(handle, AbortSignal.timeout(MINUTE_MS))
-    expect(containerStarted()).not.toBe(started)
-    expect(await exec('echo "[$MOTD]"')).toBe('[Back soon]')
-  }, 120_000)
+  test(
+    'asleep, it is suspended and wakes where it was; a change made meanwhile lands at its next boot',
+    async () => {
+      const asleep = { ...SPEC, resumesOn: 'e2e' }
+      handle = await runtime.apply(handle, asleep)
+      const started = containerStarted()
+      expect(await runtime.sleep(handle)).toBe('suspended')
+      const reported = async () =>
+        (
+          await rows<{ state: string }>(db, sql`SELECT state FROM fleet_observations WHERE workload = ${key}`)
+        )[0]
+      await until('a suspended report', async () => (await reported())?.state === 'suspended')
+      const changed = { ...asleep, env: { ...SPEC.env, MOTD: 'Back soon' } }
+      const steps: string[] = []
+      const sink: ProgressSink = {
+        step: async (step) => void steps.push(step),
+        handle: async () => {},
+      }
+      expect(await runtime.ensureProvisioned(key, { regionKey: 'eu' }, changed, sink)).toBe(handle)
+      await runtime.waitRunning(handle, AbortSignal.timeout(MINUTE_MS))
+      expect(steps).toEqual(['allocating', 'compute', 'resuming'])
+      expect(containerStarted()).toBe(started)
+      expect(await exec('echo "[$MOTD]"')).toBe('[]')
+      await runtime.stop(handle)
+      await runtime.ensureProvisioned(key, { regionKey: 'eu' }, changed, progress)
+      await runtime.waitRunning(handle, AbortSignal.timeout(MINUTE_MS))
+      expect(containerStarted()).not.toBe(started)
+      expect(await exec('echo "[$MOTD]"')).toBe('[Back soon]')
+    },
+    2 * MINUTE_MS,
+  )
 
-  test('a snapshot restores in place, from the node, and reaches the store', async () => {
-    await exec('echo day-one > /data/data/level.dat')
-    const taken = await runtime.snapshot(handle)
-    expect(taken.sizeBytes).toBeGreaterThan(0)
-    await until('the upload', async () => {
-      await runtime.uploadPending()
-      const [row] = await rows<{ status: string }>(db, sql`SELECT status FROM fleet_archives`)
-      return row?.status === 'ready'
-    })
-    await exec('echo griefed > /data/data/level.dat')
-    await runtime.stop(handle)
-    handle = await runtime.restore(handle, { kind: 'snapshot', snapshot: taken.snapshot }, SPEC, progress)
-    expect(decodeHandle(handle).epoch).toBe(2)
-    await runtime.start(handle)
-    await runtime.waitRunning(handle, AbortSignal.timeout(MINUTE_MS))
-    expect(await exec('cat /data/data/level.dat')).toBe('day-one')
-    expect(await runtime.goneSnapshots([taken.snapshot])).toEqual(new Set())
-  }, 120_000)
+  test(
+    'a snapshot restores in place, from the node, and reaches the store',
+    async () => {
+      await exec('echo day-one > /data/data/level.dat')
+      const taken = await runtime.snapshot(handle)
+      expect(taken.sizeBytes).toBeGreaterThan(0)
+      await until('the upload', async () => {
+        await runtime.uploadPending()
+        const [row] = await rows<{ status: string }>(db, sql`SELECT status FROM fleet_archives`)
+        return row?.status === 'ready'
+      })
+      await exec('echo griefed > /data/data/level.dat')
+      await runtime.stop(handle)
+      handle = await runtime.restore(handle, { kind: 'snapshot', snapshot: taken.snapshot }, SPEC, progress)
+      expect(decodeHandle(handle).epoch).toBe(2)
+      await runtime.start(handle)
+      await runtime.waitRunning(handle, AbortSignal.timeout(MINUTE_MS))
+      expect(await exec('cat /data/data/level.dat')).toBe('day-one')
+      expect(await runtime.goneSnapshots([taken.snapshot])).toEqual(new Set())
+    },
+    2 * MINUTE_MS,
+  )
 
-  test('released, the data rests in the store and comes back from it', async () => {
-    await exec('echo resting > /data/data/level.dat')
-    await runtime.stop(handle)
-    const taken = await runtime.snapshot(handle)
-    await until('the upload', async () => {
-      await runtime.uploadPending()
-      const [row] = await rows<{ status: string }>(
-        db,
-        sql`SELECT status FROM fleet_archives ORDER BY captured_at DESC LIMIT 1`,
+  test(
+    'released, the data rests in the store and comes back from it',
+    async () => {
+      await exec('echo resting > /data/data/level.dat')
+      await runtime.stop(handle)
+      const taken = await runtime.snapshot(handle)
+      await until('the upload', async () => {
+        await runtime.uploadPending()
+        const [row] = await rows<{ status: string }>(
+          db,
+          sql`SELECT status FROM fleet_archives ORDER BY captured_at DESC LIMIT 1`,
+        )
+        return row?.status === 'ready'
+      })
+      // The archive the application keeps, as it would export one for a stored data.
+      const archives = archiveStore()
+      const keyName = `stored/${DEPLOYMENT}.tar.gz`
+      const put = await archives.archiveTarget(keyName, 600, 'runtime')
+      const exported = await runtime.exportSnapshot(taken.snapshot, put)
+      expect(exported.sha256).toMatch(/^[0-9a-f]{64}$/)
+      const released = await runtime.release(handle)
+      expect(decodeHandle(released).node).toBeNull()
+      expect(spawnSync('docker', ['inspect', `blockly-${DEPLOYMENT}-${key}`]).status).not.toBe(0)
+      const download = await archives.presignGet(keyName, 600, 'runtime')
+      handle = await runtime.restore(released, { kind: 'archive', download }, SPEC, progress)
+      await runtime.start(handle)
+      await runtime.waitRunning(handle, AbortSignal.timeout(MINUTE_MS))
+      expect(await exec('cat /data/data/level.dat')).toBe('resting')
+    },
+    3 * MINUTE_MS,
+  )
+
+  test(
+    'a data larger than one PUT the node makes goes in parts, and comes back whole',
+    async () => {
+      // 12 MiB that doesn't compress, from a node that puts no more than 1 MiB in one PUT: the
+      // store's limit, as R2's is 5 GiB, made small.
+      const written = await exec(
+        'head -c 12582912 /dev/urandom > /data/data/region.mca && sha256sum /data/data/region.mca',
       )
-      return row?.status === 'ready'
-    })
-    // The archive the application keeps, as it would export one for a stored data.
-    const archives = archiveStore()
-    const keyName = `stored/${DEPLOYMENT}.tar.gz`
-    const put = await archives.archiveTarget(keyName, 600, 'runtime')
-    const exported = await runtime.exportSnapshot(taken.snapshot, put)
-    expect(exported.sha256).toMatch(/^[0-9a-f]{64}$/)
-    const released = await runtime.release(handle)
-    expect(decodeHandle(released).node).toBeNull()
-    expect(spawnSync('docker', ['inspect', `blockly-${DEPLOYMENT}-${key}`]).status).not.toBe(0)
-    const download = await archives.presignGet(keyName, 600, 'runtime')
-    handle = await runtime.restore(released, { kind: 'archive', download }, SPEC, progress)
-    await runtime.start(handle)
-    await runtime.waitRunning(handle, AbortSignal.timeout(MINUTE_MS))
-    expect(await exec('cat /data/data/level.dat')).toBe('resting')
-  }, 180_000)
-
-  test('a data larger than one PUT the node makes goes in parts, and comes back whole', async () => {
-    // 12 MiB that doesn't compress, from a node that puts no more than 1 MiB in one PUT: the
-    // store's limit, as R2's is 5 GiB, made small.
-    const written = await exec(
-      'head -c 12582912 /dev/urandom > /data/data/region.mca && sha256sum /data/data/region.mca',
-    )
-    const taken = await runtime.snapshot(handle)
-    await until('the upload', async () => {
-      await runtime.uploadPending()
-      const [row] = await rows<{ status: string }>(
-        db,
-        sql`SELECT status FROM fleet_archives ORDER BY captured_at DESC LIMIT 1`,
+      const taken = await runtime.snapshot(handle)
+      await until('the upload', async () => {
+        await runtime.uploadPending()
+        const [row] = await rows<{ status: string }>(
+          db,
+          sql`SELECT status FROM fleet_archives ORDER BY captured_at DESC LIMIT 1`,
+        )
+        return row?.status === 'ready'
+      })
+      const [copy] = await rows<{
+        object_key: string
+        size_bytes: string
+        sha256: string
+      }>(db, sql`SELECT object_key, size_bytes, sha256 FROM fleet_archives ORDER BY captured_at DESC LIMIT 1`)
+      const archives = archiveStore()
+      const sha256 = async (key: string) => {
+        const read = await fetch((await archives.presignGet(key, 600, 'browser')).url)
+        return createHash('sha256')
+          .update(Buffer.from(await read.arrayBuffer()))
+          .digest('hex')
+      }
+      // The fleet's own copy went in parts: whole, and the bytes the node hashed.
+      expect(Number(copy?.size_bytes)).toBeGreaterThan(12 * 1024 ** 2)
+      expect(await archives.head(copy?.object_key ?? '')).toEqual({
+        sizeBytes: Number(copy?.size_bytes),
+      })
+      expect(await sha256(copy?.object_key ?? '')).toBe(copy?.sha256 ?? '')
+      // So does an export to the application's archive, and the data comes back from it.
+      const keyName = `large/${DEPLOYMENT}.tar.gz`
+      const exported = await runtime.exportSnapshot(
+        taken.snapshot,
+        await archives.archiveTarget(keyName, 600, 'runtime'),
       )
-      return row?.status === 'ready'
-    })
-    const [copy] = await rows<{
-      object_key: string
-      size_bytes: string
-      sha256: string
-    }>(db, sql`SELECT object_key, size_bytes, sha256 FROM fleet_archives ORDER BY captured_at DESC LIMIT 1`)
-    const archives = archiveStore()
-    const sha256 = async (key: string) => {
-      const read = await fetch((await archives.presignGet(key, 600, 'browser')).url)
-      return createHash('sha256')
-        .update(Buffer.from(await read.arrayBuffer()))
-        .digest('hex')
-    }
-    // The fleet's own copy went in parts: whole, and the bytes the node hashed.
-    expect(Number(copy?.size_bytes)).toBeGreaterThan(12 * 1024 ** 2)
-    expect(await archives.head(copy?.object_key ?? '')).toEqual({
-      sizeBytes: Number(copy?.size_bytes),
-    })
-    expect(await sha256(copy?.object_key ?? '')).toBe(copy?.sha256 ?? '')
-    // So does an export to the application's archive, and the data comes back from it.
-    const keyName = `large/${DEPLOYMENT}.tar.gz`
-    const exported = await runtime.exportSnapshot(
-      taken.snapshot,
-      await archives.archiveTarget(keyName, 600, 'runtime'),
-    )
-    expect(await sha256(keyName)).toBe(exported.sha256)
-    await exec('echo griefed > /data/data/region.mca')
-    await runtime.stop(handle)
-    const download = await archives.presignGet(keyName, 600, 'runtime')
-    handle = await runtime.restore(handle, { kind: 'archive', download }, SPEC, progress)
-    await runtime.start(handle)
-    await runtime.waitRunning(handle, AbortSignal.timeout(MINUTE_MS))
-    expect(await exec('sha256sum /data/data/region.mca')).toBe(written)
-    await exec('rm /data/data/region.mca')
-  }, 180_000)
+      expect(await sha256(keyName)).toBe(exported.sha256)
+      await exec('echo griefed > /data/data/region.mca')
+      await runtime.stop(handle)
+      const download = await archives.presignGet(keyName, 600, 'runtime')
+      handle = await runtime.restore(handle, { kind: 'archive', download }, SPEC, progress)
+      await runtime.start(handle)
+      await runtime.waitRunning(handle, AbortSignal.timeout(MINUTE_MS))
+      expect(await exec('sha256sum /data/data/region.mca')).toBe(written)
+      await exec('rm /data/data/region.mca')
+    },
+    3 * MINUTE_MS,
+  )
 
-  test('a data from another runtime is adopted, and comes from its archive onto a node', async () => {
-    // What a move between runtimes asks of the fleet (docs/runtimes.md): a server it never held,
-    // its data only in the archive store.
-    expect(await runtime.hasRoom({ regionKey: 'eu' }, { memoryMb: 512, storageGb: 1 })).toBe(true)
-    expect(await runtime.hasRoom({ regionKey: 'eu' }, { memoryMb: 10_000_000, storageGb: 1 })).toBe(false)
-    const held = await runtime.capacity()
-    expect(held.machines).toHaveLength(1)
-    expect(held.machines[0]?.sandboxes).toBe(1)
-    await exec('echo elsewhere > /data/data/moved.txt')
-    await runtime.stop(handle)
-    const taken = await runtime.snapshot(handle)
-    const archives = archiveStore()
-    const keyName = `moved/${DEPLOYMENT}.tar.gz`
-    await runtime.exportSnapshot(taken.snapshot, await archives.archiveTarget(keyName, 600, 'runtime'))
-    const other = runtimeKey(randomUUID())
-    const adopted = await runtime.adopt(other, { regionKey: 'eu' }, SPEC)
-    expect(runtime.owns(adopted)).toBe(true)
-    expect(decodeHandle(adopted).node).toBeNull()
-    expect(await runtime.adopt(other, { regionKey: 'eu' }, SPEC)).toBe(adopted)
-    const download = await archives.presignGet(keyName, 600, 'runtime')
-    const restored = await runtime.restore(adopted, { kind: 'archive', download }, SPEC, progress)
-    expect(decodeHandle(restored).node).not.toBeNull()
-    await runtime.start(restored)
-    await runtime.waitRunning(restored, AbortSignal.timeout(MINUTE_MS))
-    const read = await runtime.exec(restored, ['cat', '/data/data/moved.txt', '/data/data/level.dat'], 30)
-    expect(read.stdout.trim().split('\n')).toEqual(['elsewhere', 'resting'])
-    await runtime.destroy(restored)
-    await runtime.start(handle)
-    await runtime.waitRunning(handle, AbortSignal.timeout(MINUTE_MS))
-  }, 180_000)
+  test(
+    'a data from another runtime is adopted, and comes from its archive onto a node',
+    async () => {
+      // What a move between runtimes asks of the fleet (docs/runtimes.md): a server it never held,
+      // its data only in the archive store.
+      expect(await runtime.hasRoom({ regionKey: 'eu' }, { memoryMb: 512, storageGb: 1 })).toBe(true)
+      expect(await runtime.hasRoom({ regionKey: 'eu' }, { memoryMb: 10_000_000, storageGb: 1 })).toBe(false)
+      const held = await runtime.capacity()
+      expect(held.machines).toHaveLength(1)
+      expect(held.machines[0]?.sandboxes).toBe(1)
+      await exec('echo elsewhere > /data/data/moved.txt')
+      await runtime.stop(handle)
+      const taken = await runtime.snapshot(handle)
+      const archives = archiveStore()
+      const keyName = `moved/${DEPLOYMENT}.tar.gz`
+      await runtime.exportSnapshot(taken.snapshot, await archives.archiveTarget(keyName, 600, 'runtime'))
+      const other = runtimeKey(randomUUID())
+      const adopted = await runtime.adopt(other, { regionKey: 'eu' }, SPEC)
+      expect(runtime.owns(adopted)).toBe(true)
+      expect(decodeHandle(adopted).node).toBeNull()
+      expect(await runtime.adopt(other, { regionKey: 'eu' }, SPEC)).toBe(adopted)
+      const download = await archives.presignGet(keyName, 600, 'runtime')
+      const restored = await runtime.restore(adopted, { kind: 'archive', download }, SPEC, progress)
+      expect(decodeHandle(restored).node).not.toBeNull()
+      await runtime.start(restored)
+      await runtime.waitRunning(restored, AbortSignal.timeout(MINUTE_MS))
+      const read = await runtime.exec(restored, ['cat', '/data/data/moved.txt', '/data/data/level.dat'], 30)
+      expect(read.stdout.trim().split('\n')).toEqual(['elsewhere', 'resting'])
+      await runtime.destroy(restored)
+      await runtime.start(handle)
+      await runtime.waitRunning(handle, AbortSignal.timeout(MINUTE_MS))
+    },
+    3 * MINUTE_MS,
+  )
 
-  test('pryxd dying leaves the server running, and coming back adopts it untouched', async () => {
-    const started = containerStarted()
-    node.kill('KILL')
-    await until(
-      'the node to read unavailable',
-      async () => (await runtime.observe(handle)).state === 'unknown',
-      20_000,
-    )
-    expect(containerStarted()).toBe(started)
-    node.start()
-    await until(
-      'a running observation again',
-      async () => (await runtime.observe(handle)).state === 'running',
-    )
-    expect(containerStarted()).toBe(started)
-    expect(await exec('cat /data/data/level.dat')).toBe('resting')
-  }, 120_000)
+  test(
+    'pryxd dying leaves the server running, and coming back adopts it untouched',
+    async () => {
+      const started = containerStarted()
+      node.kill('KILL')
+      await until(
+        'the node to read unavailable',
+        async () => (await runtime.observe(handle)).state === 'unknown',
+        20_000,
+      )
+      expect(containerStarted()).toBe(started)
+      node.start()
+      await until(
+        'a running observation again',
+        async () => (await runtime.observe(handle)).state === 'running',
+      )
+      expect(containerStarted()).toBe(started)
+      expect(await exec('cat /data/data/level.dat')).toBe('resting')
+    },
+    2 * MINUTE_MS,
+  )
 
-  test('a node re-enrolled with the line, through pryxd join, keeps its id and its sandboxes', async () => {
-    const [before] = await nodeSummaries(db, THRESHOLDS)
-    const started = containerStarted()
-    const { token } = await createToken(db, {
-      regionKey: '',
-      ttlSeconds: 600,
-      createdBy: 'e2e',
-      node: before?.id ?? '',
-    })
-    const caPem = readFileSync(join(dir, 'ca.pem'), 'utf8')
-    const joined = node.join(
-      joinToken({ url: endpointUrl, caPem, deployment: DEPLOYMENT }, token, before?.id),
-    )
-    expect(`${joined.stdout}${joined.stderr}`).toContain(`Re-enrolled this host as node ${before?.id}`)
-    expect(joined.status).toBe(0)
-    expect(joined.stdout).not.toContain('Replaced')
-    const [after] = await nodeSummaries(db, THRESHOLDS)
-    expect(after?.id).toBe(before?.id ?? '')
-    expect(after?.cert_sha256).not.toBe(before?.cert_sha256)
-    await until(
-      'the node to read healthy',
-      async () => (await nodeSummaries(db, THRESHOLDS))[0]?.derivedHealth === 'healthy',
-    )
-    expect(await nodeSummaries(db, THRESHOLDS)).toHaveLength(1)
-    await until('a running observation', async () => (await runtime.observe(handle)).state === 'running')
-    expect(containerStarted()).toBe(started)
-    expect(await exec('cat /data/data/level.dat')).toBe('resting')
-  }, 240_000)
+  test(
+    'a node re-enrolled with the line, through pryxd join, keeps its id and its sandboxes',
+    async () => {
+      const [before] = await nodeSummaries(db, THRESHOLDS)
+      const started = containerStarted()
+      const { token } = await createToken(db, {
+        regionKey: '',
+        ttlSeconds: 600,
+        createdBy: 'e2e',
+        node: before?.id ?? '',
+      })
+      const caPem = readFileSync(join(dir, 'ca.pem'), 'utf8')
+      const joined = node.join(
+        joinToken({ url: endpointUrl, caPem, deployment: DEPLOYMENT }, token, before?.id),
+      )
+      expect(`${joined.stdout}${joined.stderr}`).toContain(`Re-enrolled this host as node ${before?.id}`)
+      expect(joined.status).toBe(0)
+      expect(joined.stdout).not.toContain('Replaced')
+      const [after] = await nodeSummaries(db, THRESHOLDS)
+      expect(after?.id).toBe(before?.id ?? '')
+      expect(after?.cert_sha256).not.toBe(before?.cert_sha256)
+      await until(
+        'the node to read healthy',
+        async () => (await nodeSummaries(db, THRESHOLDS))[0]?.derivedHealth === 'healthy',
+      )
+      expect(await nodeSummaries(db, THRESHOLDS)).toHaveLength(1)
+      await until('a running observation', async () => (await runtime.observe(handle)).state === 'running')
+      expect(containerStarted()).toBe(started)
+      expect(await exec('cat /data/data/level.dat')).toBe('resting')
+    },
+    4 * MINUTE_MS,
+  )
 
-  test('a node held lost stops answering for its sandboxes, and is fenced off them', async () => {
-    const [summary] = await nodeSummaries(db, THRESHOLDS)
-    const id = summary?.id ?? ''
-    await confirmLost(db, THRESHOLDS, id, {
-      fencedBy: 'e2e',
-      reason: 'e2e',
-      by: 'e2e',
-      force: true,
-    })
-    const seen = await runtime.observe(handle)
-    expect(seen.hostLost).toBe(true)
-    // Its lease is gone at the next beat: nothing restarts there on its own.
-    await until('the lease to lapse', async () => {
-      const text = await (await fetch(`http://127.0.0.1:${node.opsPort}/metrics`)).text()
-      return /pryxd_fleet_lease_remaining_seconds 0(\.0)?\n/.test(text)
-    })
-    await reinstate(db, id, 'e2e')
-    await until(
-      'a running observation once reinstated',
-      async () => (await runtime.observe(handle)).state === 'running',
-    )
-  }, 60_000)
+  test(
+    'a node held lost stops answering for its sandboxes, and is fenced off them',
+    async () => {
+      const [summary] = await nodeSummaries(db, THRESHOLDS)
+      const id = summary?.id ?? ''
+      await confirmLost(db, THRESHOLDS, id, {
+        fencedBy: 'e2e',
+        reason: 'e2e',
+        by: 'e2e',
+        force: true,
+      })
+      const seen = await runtime.observe(handle)
+      expect(seen.hostLost).toBe(true)
+      // Its lease is gone at the next beat: nothing restarts there on its own.
+      await until('the lease to lapse', async () => {
+        const text = await (await fetch(`http://127.0.0.1:${node.opsPort}/metrics`)).text()
+        return /pryxd_fleet_lease_remaining_seconds 0(\.0)?\n/.test(text)
+      })
+      await reinstate(db, id, 'e2e')
+      await until(
+        'a running observation once reinstated',
+        async () => (await runtime.observe(handle)).state === 'running',
+      )
+    },
+    MINUTE_MS,
+  )
 
   test('the operator API sees the node and the server', async () => {
     const api = createOperatorApi({
@@ -593,7 +630,7 @@ describe.skipIf(!ready)('FleetRuntime against a real pryxd', () => {
       'x-operator': 'e2e',
     }
     const listed = await api.fetch(new Request('http://x/fleet/v1/nodes', { headers }))
-    expect(listed.status).toBe(200)
+    expect(listed.status).toBe(StatusCodes.OK)
     const body = (await listed.json()) as {
       nodes: Array<{
         sandboxes: number
@@ -605,48 +642,56 @@ describe.skipIf(!ready)('FleetRuntime against a real pryxd', () => {
     expect(body.nodes[0]?.memoryMb.runningServers).toBe(128)
     expect(typeof body.nodes[0]?.disk.reflink).toBe('boolean')
     const refused = await api.fetch(new Request('http://x/fleet/v1/nodes'))
-    expect(refused.status).toBe(401)
+    expect(refused.status).toBe(StatusCodes.UNAUTHORIZED)
   })
 
-  test('destroyed, nothing is left', async () => {
-    await runtime.destroy(handle)
-    expect(spawnSync('docker', ['inspect', `blockly-${DEPLOYMENT}-${key}`]).status).not.toBe(0)
-    const left = await rows<{ workload: string }>(db, sql`SELECT workload FROM fleet_placements`)
-    expect(left).toEqual([])
-  }, 60_000)
+  test(
+    'destroyed, nothing is left',
+    async () => {
+      await runtime.destroy(handle)
+      expect(spawnSync('docker', ['inspect', `blockly-${DEPLOYMENT}-${key}`]).status).not.toBe(0)
+      const left = await rows<{ workload: string }>(db, sql`SELECT workload FROM fleet_placements`)
+      expect(left).toEqual([])
+    },
+    MINUTE_MS,
+  )
 
   // Last: the runtime here still holds a client certificate from the old CA.
-  test('moved to a new fleet CA by its line, the node comes back healthy under its own id', async () => {
-    const [before] = await nodeSummaries(db, THRESHOLDS)
-    // Steps 1-2 of docs/fleet-operations.md §8: the control plane runs a new CA.
-    const pems = await FleetCa.generate(DEPLOYMENT)
-    writeFileSync(join(dir, 'ca-new.pem'), pems.certPem)
-    writeFileSync(join(dir, 'ca-new.key'), pems.keyPem, { mode: 0o600 })
-    endpoint?.kill('SIGTERM')
-    await endpoint?.exited
-    endpoint = await startEndpoint(join(dir, 'ca-new.pem'), join(dir, 'ca-new.key'), endpointUrl, database)
-    // What `fleet.ts rotate-ca` prints for this node.
-    const { token } = await createToken(db, {
-      regionKey: '',
-      ttlSeconds: 600,
-      createdBy: 'e2e',
-      node: before?.id ?? '',
-    })
-    const point = {
-      url: endpointUrl,
-      caPem: pems.certPem,
-      deployment: DEPLOYMENT,
-    }
-    const joined = node.join(joinToken(point, token, before?.id))
-    expect(`${joined.stdout}${joined.stderr}`).toContain(`Re-enrolled this host as node ${before?.id}`)
-    expect(joined.status).toBe(0)
-    expect(joined.stdout).toContain('Replaced')
-    expect(readFileSync(join(dir, 'ca.pem'), 'utf8')).toBe(pems.certPem)
-    await until('the node to read healthy', async () => {
-      const [after] = await nodeSummaries(db, THRESHOLDS)
-      return after?.id === before?.id && after?.derivedHealth === 'healthy'
-    })
-  }, 240_000)
+  test(
+    'moved to a new fleet CA by its line, the node comes back healthy under its own id',
+    async () => {
+      const [before] = await nodeSummaries(db, THRESHOLDS)
+      // Steps 1-2 of docs/fleet-operations.md §8: the control plane runs a new CA.
+      const pems = await FleetCa.generate(DEPLOYMENT)
+      writeFileSync(join(dir, 'ca-new.pem'), pems.certPem)
+      writeFileSync(join(dir, 'ca-new.key'), pems.keyPem, { mode: 0o600 })
+      endpoint?.kill('SIGTERM')
+      await endpoint?.exited
+      endpoint = await startEndpoint(join(dir, 'ca-new.pem'), join(dir, 'ca-new.key'), endpointUrl, database)
+      // What `fleet.ts rotate-ca` prints for this node.
+      const { token } = await createToken(db, {
+        regionKey: '',
+        ttlSeconds: 600,
+        createdBy: 'e2e',
+        node: before?.id ?? '',
+      })
+      const point = {
+        url: endpointUrl,
+        caPem: pems.certPem,
+        deployment: DEPLOYMENT,
+      }
+      const joined = node.join(joinToken(point, token, before?.id))
+      expect(`${joined.stdout}${joined.stderr}`).toContain(`Re-enrolled this host as node ${before?.id}`)
+      expect(joined.status).toBe(0)
+      expect(joined.stdout).toContain('Replaced')
+      expect(readFileSync(join(dir, 'ca.pem'), 'utf8')).toBe(pems.certPem)
+      await until('the node to read healthy', async () => {
+        const [after] = await nodeSummaries(db, THRESHOLDS)
+        return after?.id === before?.id && after?.derivedHealth === 'healthy'
+      })
+    },
+    4 * MINUTE_MS,
+  )
 })
 
 /** A command as root: through `sudo -n` where the tests don't run as root. */
@@ -766,33 +811,41 @@ describe.skipIf(!ready)('pryxd upgrading itself to the pryxd the node endpoint s
     else asRoot(['rm', '-rf', dir])
   })
 
-  test('a node on an older pryxd is offered the endpoint’s, upgrades, and beats healthy on it', async () => {
-    const offered = await firstEvent(db, 'node.upgrade_offered')
-    expect(offered.data).toMatchObject({ from: '0.0.1', version })
-    expect((await firstEvent(db, 'node.upgraded')).data.version).toBe(version)
-    await healthyOn(version)
-    expect(sha(bin)).toBe(sha(BIN ?? ''))
-    expect(readFileSync(join(dir, 'pryxd.log'), 'utf8')).toContain('the upgrade came up')
-  }, 120_000)
+  test(
+    'a node on an older pryxd is offered the endpoint’s, upgrades, and beats healthy on it',
+    async () => {
+      const offered = await firstEvent(db, 'node.upgrade_offered')
+      expect(offered.data).toMatchObject({ from: '0.0.1', version })
+      expect((await firstEvent(db, 'node.upgraded')).data.version).toBe(version)
+      await healthyOn(version)
+      expect(sha(bin)).toBe(sha(BIN ?? ''))
+      expect(readFileSync(join(dir, 'pryxd.log'), 'utf8')).toContain('the upgrade came up')
+    },
+    2 * MINUTE_MS,
+  )
 
-  test('a pryxd that says it is newer and can’t start is put back, and the node says why', async () => {
-    const [before] = await nodeSummaries(db, THRESHOLDS)
-    const broken = join(dir, 'broken-pryxd')
-    writeFileSync(broken, '#!/bin/sh\n[ "$1" = --version ] && { echo "pryxd 99.0.0"; exit 0; }\nexit 1\n')
-    chmodSync(broken, 0o755)
-    // The endpoint reads its release once, as it starts.
-    endpoint?.kill('SIGTERM')
-    await endpoint?.exited
-    endpoint = await startServingEndpoint(args, url, signed(broken))
-    const failed = await firstEvent(db, 'node.upgrade_failed')
-    expect(failed.data).toMatchObject({ version: '99.0.0' })
-    // It fails its ExecStartPre (doctor --preflight), so it never runs.
-    expect(failed.data.reason).toContain("pryxd 99.0.0 didn't start (exit-code) before it came up")
-    await healthyOn(version)
-    expect(sha(bin)).toBe(sha(BIN ?? ''))
-    expect(readFileSync(join(dir, 'pryxd.log'), 'utf8')).toContain(`put pryxd ${version} back`)
-    const [after] = await nodeSummaries(db, THRESHOLDS)
-    expect(after?.id).toBe(before?.id ?? '')
-    expect(after?.upgrade_state).toBe('failed')
-  }, 120_000)
+  test(
+    'a pryxd that says it is newer and can’t start is put back, and the node says why',
+    async () => {
+      const [before] = await nodeSummaries(db, THRESHOLDS)
+      const broken = join(dir, 'broken-pryxd')
+      writeFileSync(broken, '#!/bin/sh\n[ "$1" = --version ] && { echo "pryxd 99.0.0"; exit 0; }\nexit 1\n')
+      chmodSync(broken, 0o755)
+      // The endpoint reads its release once, as it starts.
+      endpoint?.kill('SIGTERM')
+      await endpoint?.exited
+      endpoint = await startServingEndpoint(args, url, signed(broken))
+      const failed = await firstEvent(db, 'node.upgrade_failed')
+      expect(failed.data).toMatchObject({ version: '99.0.0' })
+      // It fails its ExecStartPre (doctor --preflight), so it never runs.
+      expect(failed.data.reason).toContain("pryxd 99.0.0 didn't start (exit-code) before it came up")
+      await healthyOn(version)
+      expect(sha(bin)).toBe(sha(BIN ?? ''))
+      expect(readFileSync(join(dir, 'pryxd.log'), 'utf8')).toContain(`put pryxd ${version} back`)
+      const [after] = await nodeSummaries(db, THRESHOLDS)
+      expect(after?.id).toBe(before?.id ?? '')
+      expect(after?.upgrade_state).toBe('failed')
+    },
+    2 * MINUTE_MS,
+  )
 })

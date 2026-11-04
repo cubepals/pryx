@@ -11,9 +11,11 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
+import { StatusCodes } from 'http-status-codes'
 import { FleetStore } from '../src/archive-transport.ts'
 import type { FleetCa } from '../src/ca.ts'
 import type { Db } from '../src/database.ts'
+import { SECOND_MS } from '../src/durations.ts'
 import { decodeHandle, encodeSnapshot } from '../src/handle.ts'
 import { THRESHOLDS } from '../src/health.ts'
 import { type NodeClient, NodeRefused, NodeUnreachable } from '../src/node-client.ts'
@@ -72,10 +74,15 @@ const FEATURES = [
 const ONE_PUT_ONLY = FEATURES.filter((feature) => feature !== 'multipart-upload')
 const progress: ProgressSink = { step: async () => {}, handle: async () => {} }
 const TOO_LARGE = () =>
-  new NodeRefused(422, 'archive_too_large', 'the archive is too large for one upload', {
-    sizeBytes: 6 * 1024 ** 3,
-    limitBytes: 5 * 1024 ** 3,
-  })
+  new NodeRefused(
+    StatusCodes.UNPROCESSABLE_ENTITY,
+    'archive_too_large',
+    'the archive is too large for one upload',
+    {
+      sizeBytes: 6 * 1024 ** 3,
+      limitBytes: 5 * 1024 ** 3,
+    },
+  )
 
 describe.skipIf(!hasDatabase)('FleetRuntime, with pryxd in memory', () => {
   let db: Db
@@ -424,29 +431,33 @@ describe.skipIf(!hasDatabase)('FleetRuntime, with pryxd in memory', () => {
     }
   })
 
-  test('a copy larger than one PUT carries is exported from the store in parts, read by its ranges', async () => {
-    const [n] = (await region('parts-copy', 1)) as [EnrolledNode]
-    const key = server()
-    const objectKey = `fleet/test/${key}/copy.tar.gz`
-    const snap = await snapshotOn(n.id, key, objectKey)
-    const data = randomBytes(20 * 1024 ** 2)
-    const sha256 = createHash('sha256').update(data).digest('hex')
-    store.objects.set(objectKey, data)
-    // Its node no longer holds it: the export comes from the store.
-    await db.execute(
-      sql`UPDATE fleet_archives SET local_deleted_at = now(), sha256 = ${sha256} WHERE id = ${snap.id}`,
-    )
-    const before = store.maxPutBytes
-    store.maxPutBytes = 1024 ** 2
-    try {
-      const sent = await runtime.exportSnapshot(snap.handle, await store.archiveTarget('elsewhere/copy'))
-      expect(sent).toEqual({ sizeBytes: data.length, sha256 })
-      expect(store.objects.get('elsewhere/copy')).toEqual(data)
-      expect(uploadsOf(snap.id)).toEqual([])
-    } finally {
-      store.maxPutBytes = before
-    }
-  }, 30_000)
+  test(
+    'a copy larger than one PUT carries is exported from the store in parts, read by its ranges',
+    async () => {
+      const [n] = (await region('parts-copy', 1)) as [EnrolledNode]
+      const key = server()
+      const objectKey = `fleet/test/${key}/copy.tar.gz`
+      const snap = await snapshotOn(n.id, key, objectKey)
+      const data = randomBytes(20 * 1024 ** 2)
+      const sha256 = createHash('sha256').update(data).digest('hex')
+      store.objects.set(objectKey, data)
+      // Its node no longer holds it: the export comes from the store.
+      await db.execute(
+        sql`UPDATE fleet_archives SET local_deleted_at = now(), sha256 = ${sha256} WHERE id = ${snap.id}`,
+      )
+      const before = store.maxPutBytes
+      store.maxPutBytes = 1024 ** 2
+      try {
+        const sent = await runtime.exportSnapshot(snap.handle, await store.archiveTarget('elsewhere/copy'))
+        expect(sent).toEqual({ sizeBytes: data.length, sha256 })
+        expect(store.objects.get('elsewhere/copy')).toEqual(data)
+        expect(uploadsOf(snap.id)).toEqual([])
+      } finally {
+        store.maxPutBytes = before
+      }
+    },
+    30 * SECOND_MS,
+  )
 
   test('a move of a data larger than one PUT carries goes through the store in parts', async () => {
     const { key, handle, to } = await moving('parts-move')
@@ -493,45 +504,63 @@ describe.skipIf(!hasDatabase)('FleetRuntime, with pryxd in memory', () => {
     await expect(packed).rejects.toThrow('one upload to the archive store carries at most 5.0 GB')
   })
 
-  test('an export waits out the snapshot’s own upload off its node, then asks the node', async () => {
-    const [n] = (await region('busy-export', 1)) as [EnrolledNode]
-    const snap = await snapshotOn(n.id, server(), null)
-    // Its upload to the store, begun when it was taken, is still under way, for a second more.
-    await db.execute(
-      sql`UPDATE fleet_archives SET status = 'uploading', upload_started_at = now() WHERE id = ${snap.id}`,
-    )
-    const began = Date.now()
-    // A query runs when it is awaited, so this one is.
-    const finished = setTimeout(async () => {
-      await db.execute(sql`UPDATE fleet_archives SET status = 'local' WHERE id = ${snap.id}`)
-    }, 1_000)
-    try {
-      await runtime.exportSnapshot(snap.handle, await store.archiveTarget('busy/waited'))
-    } finally {
-      clearTimeout(finished)
-    }
-    expect(Date.now() - began).toBeGreaterThanOrEqual(1_000)
-    expect(uploadsOf(snap.id)).toHaveLength(1)
-    expect(store.objects.get('busy/waited')?.toString()).toBe('data!')
-  }, 15_000)
+  test(
+    'an export waits out the snapshot’s own upload off its node, then asks the node',
+    async () => {
+      const [n] = (await region('busy-export', 1)) as [EnrolledNode]
+      const snap = await snapshotOn(n.id, server(), null)
+      // Its upload to the store, begun when it was taken, is still under way, for a second more.
+      await db.execute(
+        sql`UPDATE fleet_archives SET status = 'uploading', upload_started_at = now() WHERE id = ${snap.id}`,
+      )
+      const began = Date.now()
+      // A query runs when it is awaited, so this one is.
+      const finished = setTimeout(async () => {
+        await db.execute(sql`UPDATE fleet_archives SET status = 'local' WHERE id = ${snap.id}`)
+      }, SECOND_MS)
+      try {
+        await runtime.exportSnapshot(snap.handle, await store.archiveTarget('busy/waited'))
+      } finally {
+        clearTimeout(finished)
+      }
+      expect(Date.now() - began).toBeGreaterThanOrEqual(1_000)
+      expect(uploadsOf(snap.id)).toHaveLength(1)
+      expect(store.objects.get('busy/waited')?.toString()).toBe('data!')
+    },
+    15 * SECOND_MS,
+  )
 
-  test('an export a node refuses as busy with that snapshot asks again, once it is free', async () => {
-    const [n] = (await region('busy-node', 1)) as [EnrolledNode]
-    const snap = await snapshotOn(n.id, server(), null)
-    nodes.once(/\/upload$/, async () => {
-      throw new NodeRefused(409, 'snapshot_busy', 'this snapshot is being uploaded already', undefined)
-    })
-    await runtime.exportSnapshot(snap.handle, await store.archiveTarget('busy/again'))
-    expect(uploadsOf(snap.id)).toHaveLength(2)
-    expect(store.objects.get('busy/again')?.toString()).toBe('data!')
-  }, 15_000)
+  test(
+    'an export a node refuses as busy with that snapshot asks again, once it is free',
+    async () => {
+      const [n] = (await region('busy-node', 1)) as [EnrolledNode]
+      const snap = await snapshotOn(n.id, server(), null)
+      nodes.once(/\/upload$/, async () => {
+        throw new NodeRefused(
+          StatusCodes.CONFLICT,
+          'snapshot_busy',
+          'this snapshot is being uploaded already',
+          undefined,
+        )
+      })
+      await runtime.exportSnapshot(snap.handle, await store.archiveTarget('busy/again'))
+      expect(uploadsOf(snap.id)).toHaveLength(2)
+      expect(store.objects.get('busy/again')?.toString()).toBe('data!')
+    },
+    15 * SECOND_MS,
+  )
 
   test('an upload off a node busy sending that snapshot elsewhere is not a failed try', async () => {
     const [n] = (await region('busy-upload', 1)) as [EnrolledNode]
     const key = server()
     const snap = await snapshotOn(n.id, key, null)
     nodes.once(/\/upload$/, async () => {
-      throw new NodeRefused(409, 'snapshot_busy', 'this snapshot is being uploaded already', undefined)
+      throw new NodeRefused(
+        StatusCodes.CONFLICT,
+        'snapshot_busy',
+        'this snapshot is being uploaded already',
+        undefined,
+      )
     })
     expect(await runtime.upload(snap.id)).toBe('skipped')
     const attempts = await rows<{ status: string; attempts: number }>(

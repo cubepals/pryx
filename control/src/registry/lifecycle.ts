@@ -9,7 +9,7 @@
  */
 
 import { sql } from 'drizzle-orm'
-
+import { StatusCodes } from 'http-status-codes'
 import type { Db } from '../database.ts'
 import type { Thresholds } from '../health.ts'
 import type { Lifecycle } from '../placement.ts'
@@ -29,9 +29,9 @@ async function transition(
 ): Promise<NodeRow> {
   return db.transaction(async (t) => {
     const node = await getNode(t, id, true)
-    if (node === null) throw new Refused(404, 'unknown_node', 'no such node')
+    if (node === null) throw new Refused(StatusCodes.NOT_FOUND, 'unknown_node', 'no such node')
     if (!from.includes(node.lifecycle))
-      throw new Refused(409, 'wrong_lifecycle', `the node is ${node.lifecycle}`)
+      throw new Refused(StatusCodes.CONFLICT, 'wrong_lifecycle', `the node is ${node.lifecycle}`)
     await t.execute(sql`UPDATE fleet_nodes SET lifecycle = ${to}, updated_at = now() WHERE id = ${id}`)
     await event(t, kind, { node: id, data: { from: node.lifecycle, ...data } })
     return { ...node, lifecycle: to }
@@ -59,19 +59,19 @@ export async function confirmLost(
 ): Promise<{ displaced: string[] }> {
   if (!options.fencedBy || !options.reason)
     throw new Refused(
-      400,
+      StatusCodes.BAD_REQUEST,
       'invalid_request',
       'say how the node was stopped (fencedBy) and why it is lost (reason)',
     )
   return db.transaction(async (t) => {
     const node = await getNode(t, id, true)
-    if (node === null) throw new Refused(404, 'unknown_node', 'no such node')
+    if (node === null) throw new Refused(StatusCodes.NOT_FOUND, 'unknown_node', 'no such node')
     if (node.lifecycle !== 'active' && node.lifecycle !== 'draining')
-      throw new Refused(409, 'wrong_lifecycle', `the node is ${node.lifecycle}`)
+      throw new Refused(StatusCodes.CONFLICT, 'wrong_lifecycle', `the node is ${node.lifecycle}`)
     const health = healthOf(node, thresholds, await listeningSeconds(t))
     if ((health === 'healthy' || health === 'degraded') && !options.force)
       throw new Refused(
-        409,
+        StatusCodes.CONFLICT,
         'node_is_beating',
         `the node beat ${Math.round(node.age ?? 0)} s ago; drain it instead`,
       )
@@ -114,8 +114,9 @@ export async function confirmLost(
 export async function reinstate(db: Db, id: string, by: string): Promise<{ restored: string[] }> {
   return db.transaction(async (t) => {
     const node = await getNode(t, id, true)
-    if (node === null) throw new Refused(404, 'unknown_node', 'no such node')
-    if (node.lifecycle !== 'lost') throw new Refused(409, 'wrong_lifecycle', `the node is ${node.lifecycle}`)
+    if (node === null) throw new Refused(StatusCodes.NOT_FOUND, 'unknown_node', 'no such node')
+    if (node.lifecycle !== 'lost')
+      throw new Refused(StatusCodes.CONFLICT, 'wrong_lifecycle', `the node is ${node.lifecycle}`)
     await t.execute(sql`
       UPDATE fleet_nodes SET lifecycle = 'active', lost_at = NULL, lost_reason = NULL, fenced_by = NULL,
         updated_at = now() WHERE id = ${id}`)
@@ -140,14 +141,18 @@ export async function reinstate(db: Db, id: string, by: string): Promise<{ resto
 export async function retire(db: Db, id: string, by: string): Promise<void> {
   await db.transaction(async (t) => {
     const node = await getNode(t, id, true)
-    if (node === null) throw new Refused(404, 'unknown_node', 'no such node')
+    if (node === null) throw new Refused(StatusCodes.NOT_FOUND, 'unknown_node', 'no such node')
     if (node.lifecycle === 'retired') return
     const held = await rows<{ workload: string }>(
       t,
       sql`SELECT workload FROM fleet_placements WHERE node_id = ${id} AND state <> 'released'`,
     )
     if (held.length > 0)
-      throw new Refused(409, 'not_empty', `the node still holds ${held.map((r) => r.workload).join(', ')}`)
+      throw new Refused(
+        StatusCodes.CONFLICT,
+        'not_empty',
+        `the node still holds ${held.map((r) => r.workload).join(', ')}`,
+      )
     await t.execute(sql`
       UPDATE fleet_nodes SET lifecycle = 'retired', cert_sha256 = NULL, next_cert_sha256 = NULL,
         updated_at = now() WHERE id = ${id}`)
@@ -160,7 +165,7 @@ export async function retire(db: Db, id: string, by: string): Promise<void> {
 
 export async function clearQuarantine(db: Db, id: string, by: string): Promise<void> {
   const cleared = await exec(db, sql`UPDATE fleet_nodes SET duplicate_seen_at = NULL WHERE id = ${id}`)
-  if (cleared === 0) throw new Refused(404, 'unknown_node', 'no such node')
+  if (cleared === 0) throw new Refused(StatusCodes.NOT_FOUND, 'unknown_node', 'no such node')
   await event(db, 'node.quarantine_cleared', { node: id, data: { by } })
 }
 
@@ -179,15 +184,19 @@ export async function setLabels(
   },
 ): Promise<NodeRow> {
   if (Object.keys(change.set).length === 0 && change.remove.length === 0)
-    throw new Refused(400, 'invalid_request', 'say which labels to set or remove')
+    throw new Refused(StatusCodes.BAD_REQUEST, 'invalid_request', 'say which labels to set or remove')
   if (change.remove.some((key) => Object.hasOwn(change.set, key)))
-    throw new Refused(400, 'invalid_request', 'a label is either set or removed')
+    throw new Refused(StatusCodes.BAD_REQUEST, 'invalid_request', 'a label is either set or removed')
   const cents = change.set.monthly_cost_cents
   if (cents !== undefined && !/^\d+$/.test(cents))
-    throw new Refused(400, 'invalid_request', 'monthly_cost_cents is a whole number of US cents')
+    throw new Refused(
+      StatusCodes.BAD_REQUEST,
+      'invalid_request',
+      'monthly_cost_cents is a whole number of US cents',
+    )
   return db.transaction(async (t) => {
     const node = await getNode(t, id, true)
-    if (node === null) throw new Refused(404, 'unknown_node', 'no such node')
+    if (node === null) throw new Refused(StatusCodes.NOT_FOUND, 'unknown_node', 'no such node')
     const labels = { ...node.labels, ...change.set }
     for (const key of change.remove) delete labels[key]
     await t.execute(

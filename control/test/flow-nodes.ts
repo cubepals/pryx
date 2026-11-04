@@ -4,6 +4,7 @@
 
 /** A store whose deletes fail while `failing` is set, as one that is down does. */
 
+import { StatusCodes } from 'http-status-codes'
 import { type CallOptions, type NodeAddress, NodeRefused } from '../src/node-client.ts'
 import type { WorkloadReport, WorkloadState, WorkloadView } from '../src/wire.ts'
 import { MemoryStore } from './memory-store.ts'
@@ -172,7 +173,8 @@ export class Nodes {
   }
 
   #view(workload: string, copy: Copy | undefined): WorkloadView {
-    if (copy === undefined) throw new NodeRefused(404, 'not_found', 'no such workload', null)
+    if (copy === undefined)
+      throw new NodeRefused(StatusCodes.NOT_FOUND, 'not_found', 'no such workload', null)
     return {
       id: workload,
       generation: 1,

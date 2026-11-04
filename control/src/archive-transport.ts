@@ -11,6 +11,7 @@
 import { createHash, type Hash } from 'node:crypto'
 import http from 'node:http'
 import https from 'node:https'
+import { StatusCodes } from 'http-status-codes'
 import type { ArchiveStore } from './archive-store.ts'
 import { HOUR_S, MINUTE_MS, MINUTE_S } from './durations.ts'
 import type { ArchiveTarget, DownloadTarget, PutPart, UploadTarget } from './runtime-model.ts'
@@ -119,7 +120,12 @@ class TransferFailed extends Error {
 /** Worth sending again: the network, or the store busy; not a link it refuses. */
 function passing(error: unknown): boolean {
   if (!(error instanceof TransferFailed)) return true
-  return error.status === 0 || error.status === 408 || error.status === 429 || error.status >= 500
+  return (
+    error.status === 0 ||
+    error.status === StatusCodes.REQUEST_TIMEOUT ||
+    error.status === StatusCodes.TOO_MANY_REQUESTS ||
+    error.status >= StatusCodes.INTERNAL_SERVER_ERROR
+  )
 }
 
 /**
@@ -141,7 +147,10 @@ async function send(
     throw new TransferFailed(`The store answered ${response.status}`, response.status)
   const length = Number(response.headers.get('content-length') ?? Number.NaN)
   if (!Number.isFinite(length)) throw new Error('The store gave no length')
-  if (range !== null && (response.status !== 206 || length !== range[1] - range[0] + 1))
+  if (
+    range !== null &&
+    (response.status !== StatusCodes.PARTIAL_CONTENT || length !== range[1] - range[0] + 1)
+  )
     throw new Error(`The store gave ${length} bytes for a ${range[1] - range[0] + 1}-byte range`)
   const body = response.body
   const url = new URL(to.url)
@@ -156,7 +165,7 @@ async function send(
       (answer) => {
         const status = answer.statusCode ?? 0
         answer.resume()
-        if (status >= 300) {
+        if (status >= StatusCodes.MULTIPLE_CHOICES) {
           // Refused, perhaps before the bytes are all sent: what is left of them stays unsent.
           const refused = new TransferFailed(`The upload got HTTP ${status}`, status)
           reject(refused)

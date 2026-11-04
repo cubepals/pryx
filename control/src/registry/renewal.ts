@@ -9,8 +9,8 @@
  */
 
 import { sql } from 'drizzle-orm'
+import { StatusCodes } from 'http-status-codes'
 import type { FleetCa } from '../ca.ts'
-
 import type { Db } from '../database.ts'
 import { event } from '../sql.ts'
 import type { RenewRequest, RenewResponse } from '../wire.ts'
@@ -33,20 +33,32 @@ export async function renew(
   request: RenewRequest,
 ): Promise<RenewResponse> {
   if (request?.nodeId !== nodeId || typeof request.csrPem !== 'string')
-    throw new Refused(400, 'invalid_request', 'a renewal is { nodeId, csrPem }, for the node that asks')
+    throw new Refused(
+      StatusCodes.BAD_REQUEST,
+      'invalid_request',
+      'a renewal is { nodeId, csrPem }, for the node that asks',
+    )
   return db.transaction(async (t) => {
     const node = await getNode(t, nodeId, true)
-    if (node === null) throw new Refused(404, 'unknown_node', 'no such node')
+    if (node === null) throw new Refused(StatusCodes.NOT_FOUND, 'unknown_node', 'no such node')
     if (node.lifecycle === 'retired' || node.lifecycle === 'lost')
-      throw new Refused(403, node.lifecycle, `a ${node.lifecycle} node's certificates are not renewed`)
+      throw new Refused(
+        StatusCodes.FORBIDDEN,
+        node.lifecycle,
+        `a ${node.lifecycle} node's certificates are not renewed`,
+      )
     if (node.duplicate_seen_at !== null)
-      throw new Refused(403, 'quarantined', 'two hosts beat with this identity')
+      throw new Refused(StatusCodes.FORBIDDEN, 'quarantined', 'two hosts beat with this identity')
     if (certificateOf(node, peerCertSha256) !== 'current')
-      throw new Refused(403, 'certificate_not_current', "only the node's current certificate may renew")
+      throw new Refused(
+        StatusCodes.FORBIDDEN,
+        'certificate_not_current',
+        "only the node's current certificate may renew",
+      )
     const issued = await ca
       .issueForNode(request.csrPem, nodeId, options.deployment, options.certDays)
       .catch((error) => {
-        throw new Refused(400, 'invalid_csr', (error as Error).message)
+        throw new Refused(StatusCodes.BAD_REQUEST, 'invalid_csr', (error as Error).message)
       })
     await t.execute(sql`
       UPDATE fleet_nodes SET next_cert_sha256 = ${issued.client.sha256},

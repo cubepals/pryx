@@ -23,9 +23,11 @@ import type { TLSSocket } from 'node:tls'
 import { type HttpBindings, serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
+import type { ContentfulStatusCode } from 'hono/utils/http-status'
+import { StatusCodes } from 'http-status-codes'
 import { endpointName, type FleetCa, isClientCertFor, nodeName } from './ca.ts'
 import type { Db } from './database.ts'
-import { DAY_MS } from './durations.ts'
+import { DAY_MS, SECOND_MS } from './durations.ts'
 import { joinRoutes, pryxdRelease } from './join-routes.ts'
 import { endpointSeen, enroll, heartbeat, Refused, type RegistryOptions, renew } from './registry.ts'
 import type { EnrollRequest, HeartbeatRequest, RenewRequest, UpgradeOffer } from './wire.ts'
@@ -45,7 +47,7 @@ export interface NodeEndpointOptions {
 
 /** How long the endpoint's own certificate lasts; a fresh one replaces it every day. */
 const ENDPOINT_CERT_DAYS = 7
-const PRESENCE_MS = 5_000
+const PRESENCE_MS = 5 * SECOND_MS
 const MAX_BODY = 4 * 1024 * 1024
 
 export interface EndpointStats {
@@ -62,11 +64,20 @@ type Env = { Bindings: HttpBindings }
 function peerOf(incoming: HttpBindings['incoming'], nodeId: string, deployment: string): string {
   const socket = incoming.socket as TLSSocket
   if (!socket.authorized)
-    throw new Refused(401, 'certificate_required', 'a client certificate from the fleet CA is required')
+    throw new Refused(
+      StatusCodes.UNAUTHORIZED,
+      'certificate_required',
+      'a client certificate from the fleet CA is required',
+    )
   const peer = socket.getPeerCertificate(true)
-  if (!peer?.raw) throw new Refused(401, 'certificate_required', 'a client certificate is required')
+  if (!peer?.raw)
+    throw new Refused(StatusCodes.UNAUTHORIZED, 'certificate_required', 'a client certificate is required')
   if (!isClientCertFor(peer.raw, nodeName(nodeId, deployment)))
-    throw new Refused(403, 'wrong_identity', 'the certificate is not this node’s client certificate')
+    throw new Refused(
+      StatusCodes.FORBIDDEN,
+      'wrong_identity',
+      'the certificate is not this node’s client certificate',
+    )
   return createHash('sha256').update(peer.raw).digest('hex')
 }
 
@@ -86,13 +97,20 @@ export async function startNodeEndpoint(options: NodeEndpointOptions): Promise<{
     '*',
     bodyLimit({
       maxSize: MAX_BODY,
-      onError: (c) => c.json({ error: { code: 'too_large', message: 'the body is too large' } }, 413),
+      onError: (c) =>
+        c.json(
+          { error: { code: 'too_large', message: 'the body is too large' } },
+          StatusCodes.REQUEST_TOO_LONG,
+        ),
     }),
   )
   app.onError((error, c) => {
     if (error instanceof Refused) {
       stats.refused++
-      return c.json({ error: { code: error.code, message: error.message } }, error.status as 400)
+      return c.json(
+        { error: { code: error.code, message: error.message } },
+        error.status as ContentfulStatusCode,
+      )
     }
     console.error('fleet: node endpoint failed', error)
     return c.json(
@@ -102,14 +120,14 @@ export async function startNodeEndpoint(options: NodeEndpointOptions): Promise<{
           message: 'the control plane failed; try again',
         },
       },
-      500,
+      StatusCodes.INTERNAL_SERVER_ERROR,
     )
   })
   const body = async <T>(c: { req: { json: () => Promise<unknown> } }): Promise<T> => {
     try {
       return (await c.req.json()) as T
     } catch {
-      throw new Refused(400, 'invalid_json', 'the body is not JSON')
+      throw new Refused(StatusCodes.BAD_REQUEST, 'invalid_json', 'the body is not JSON')
     }
   }
 

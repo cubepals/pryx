@@ -13,6 +13,7 @@ import { createHash } from 'node:crypto'
 import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { StatusCodes } from 'http-status-codes'
 import { joinRoutes, pryxdRelease } from '../src/join-routes.ts'
 import { caSha256 } from '../src/join-token.ts'
 import type { UpgradeOffer } from '../src/wire.ts'
@@ -49,7 +50,7 @@ describe('the join routes', () => {
   test('without a pryxd, each answers 404 and says why', async () => {
     for (const path of ['blocklyd', 'blocklyd.sha256', 'blocklyd.json']) {
       const answer = await get(join(dir, 'missing'), path)
-      expect(answer.status).toBe(404)
+      expect(answer.status).toBe(StatusCodes.NOT_FOUND)
       expect(await answer.text()).toContain('PRYX_PRYXD_BIN')
     }
   })

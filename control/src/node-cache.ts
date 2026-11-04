@@ -13,11 +13,12 @@
 import { sql } from 'drizzle-orm'
 
 import type { Queryable } from './database.ts'
+import { SECOND_MS } from './durations.ts'
 import type { Lifecycle } from './placement.ts'
 import { rows } from './sql.ts'
 
 /** How often each process rereads node addresses and lifecycles, which pure methods read. */
-const REGISTRY_REFRESH_MS = 5_000
+const REGISTRY_REFRESH_MS = 5 * SECOND_MS
 
 /** What pure methods know of a node, refreshed every few seconds. */
 export interface CachedNode {

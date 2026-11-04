@@ -3,6 +3,8 @@ CREATE TABLE sandboxes (
   project text NOT NULL,
   spec jsonb NOT NULL,
   region text NOT NULL,
+  start_requested boolean NOT NULL DEFAULT true,
+  source_snapshot uuid,
   handle text,
   usage jsonb,
   state text NOT NULL DEFAULT 'creating',

@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
 import type { Hono } from 'hono'
+import { StatusCodes } from 'http-status-codes'
 import type { Db } from './database.ts'
 import { OPERATOR_BASE } from './operator-api.ts'
 import { Refused, retryUpgrade, UPGRADE_TIMEOUT_SECONDS, upgradeSummaries } from './registry.ts'
@@ -27,7 +28,8 @@ export function withUpgrades(app: Hono, options: { db: Db; release: UpgradeOffer
   )
   app.post(`${OPERATOR_BASE}/nodes/:id/retry-upgrade`, async (c) => {
     const id = c.req.param('id')
-    if (!/^[0-9a-f-]{36}$/.test(id)) throw new Refused(400, 'invalid_node', 'a node is named by its id')
+    if (!/^[0-9a-f-]{36}$/.test(id))
+      throw new Refused(StatusCodes.BAD_REQUEST, 'invalid_node', 'a node is named by its id')
     await retryUpgrade(options.db, id, `operator:${(c.req.header('x-operator') ?? 'unnamed').slice(0, 64)}`)
     return c.json({ retried: true })
   })

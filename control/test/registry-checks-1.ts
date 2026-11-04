@@ -8,6 +8,7 @@ import 'reflect-metadata'
 import { expect, test } from 'bun:test'
 import { sql } from 'drizzle-orm'
 import { pemSha256 } from '../src/ca.ts'
+import { SECOND_MS } from '../src/durations.ts'
 import { THRESHOLDS } from '../src/health.ts'
 import { createToken, enroll, nodeSummaries, retire } from '../src/registry.ts'
 import { rows } from '../src/sql.ts'
@@ -240,7 +241,7 @@ export function registerRegistry1(ctx: typeof registryContext) {
       ctx.db,
       sql`SELECT observed_at FROM fleet_observations WHERE workload = 'w-quiet'`,
     )
-    await Bun.sleep(20)
+    await Bun.sleep(0.02 * SECOND_MS)
     await ctx.send(a, beat(a, 's', 2, [steady]))
     const [after] = await rows<{ observed_at: Date }>(
       ctx.db,

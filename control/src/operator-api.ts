@@ -13,6 +13,8 @@
 import { timingSafeEqual } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import { Hono } from 'hono'
+import type { ContentfulStatusCode } from 'hono/utils/http-status'
+import { StatusCodes } from 'http-status-codes'
 import type { Db } from './database.ts'
 import { DAY_S, HOUR_S } from './durations.ts'
 import type { Thresholds } from './health.ts'
@@ -62,16 +64,23 @@ export function createOperatorApi(options: OperatorApiOptions): Hono {
   app.use(`${OPERATOR_BASE}/*`, async (c, next) => {
     const given = Buffer.from(c.req.header('authorization') ?? '')
     if (given.length !== expected.length || !timingSafeEqual(given, expected))
-      return c.json({ error: 'unauthorized' }, 401)
+      return c.json({ error: 'unauthorized' }, StatusCodes.UNAUTHORIZED)
     await next()
   })
   app.onError((error, c) => {
     if (error instanceof Refused)
-      return c.json({ error: { code: error.code, message: error.message } }, error.status as 400)
-    return c.json({ error: { code: 'failed', message: (error as Error).message } }, 500)
+      return c.json(
+        { error: { code: error.code, message: error.message } },
+        error.status as ContentfulStatusCode,
+      )
+    return c.json(
+      { error: { code: 'failed', message: (error as Error).message } },
+      StatusCodes.INTERNAL_SERVER_ERROR,
+    )
   })
   const nodeId = (value: string) => {
-    if (!NODE_ID.test(value)) throw new Refused(400, 'invalid_node', 'a node is named by its id')
+    if (!NODE_ID.test(value))
+      throw new Refused(StatusCodes.BAD_REQUEST, 'invalid_node', 'a node is named by its id')
     return value
   }
   const json = async (c: { req: { json: () => Promise<unknown> } }) =>
@@ -88,7 +97,7 @@ export function createOperatorApi(options: OperatorApiOptions): Hono {
   app.get(`${OPERATOR_BASE}/nodes/:id`, async (c) => {
     const id = nodeId(c.req.param('id'))
     const node = (await nodeSummaries(db, thresholds, { includeRetired: true })).find((n) => n.id === id)
-    if (node === undefined) throw new Refused(404, 'unknown_node', 'no such node')
+    if (node === undefined) throw new Refused(StatusCodes.NOT_FOUND, 'unknown_node', 'no such node')
     const placements = await rows(
       db,
       sql`SELECT p.workload, p.epoch, p.state, p.memory_mb, p.desired_power, p.completing, p.move_requested_at,
@@ -127,7 +136,7 @@ export function createOperatorApi(options: OperatorApiOptions): Hono {
   async function drainView(id: string, what: 'drain' | 'undrain', who: string) {
     await (what === 'drain' ? drain : undrain)(db, nodeId(id), who)
     const node = (await nodeSummaries(db, thresholds)).find((n) => n.id === id)
-    if (node === undefined) throw new Refused(404, 'unknown_node', 'no such node')
+    if (node === undefined) throw new Refused(StatusCodes.NOT_FOUND, 'unknown_node', 'no such node')
     await options.runtime.refreshRegistry()
     return node
   }
@@ -178,12 +187,12 @@ export function createOperatorApi(options: OperatorApiOptions): Hono {
       !Array.isArray(remove) ||
       remove.some((k) => typeof k !== 'string' || k === '')
     )
-      throw new Refused(400, 'invalid_request', 'labels are names and text')
+      throw new Refused(StatusCodes.BAD_REQUEST, 'invalid_request', 'labels are names and text')
     await setLabels(db, id, { set, remove, by: by(c) })
     // Prices are read from the registry this process keeps; the others reread it within seconds.
     await options.runtime.refreshRegistry()
     const node = (await nodeSummaries(db, thresholds, { includeRetired: true })).find((n) => n.id === id)
-    if (node === undefined) throw new Refused(404, 'unknown_node', 'no such node')
+    if (node === undefined) throw new Refused(StatusCodes.NOT_FOUND, 'unknown_node', 'no such node')
     return c.json(nodeView(node))
   })
 
@@ -221,7 +230,7 @@ export function createOperatorApi(options: OperatorApiOptions): Hono {
     )
     const observations = await rows(db, sql`SELECT * FROM fleet_observations WHERE workload = ${server}`)
     if (placement === undefined && observations.length === 0)
-      throw new Refused(404, 'unknown_server', 'the fleet holds nothing for that server')
+      throw new Refused(StatusCodes.NOT_FOUND, 'unknown_server', 'the fleet holds nothing for that server')
     return c.json({
       placement: placement ?? null,
       history,
@@ -236,7 +245,7 @@ export function createOperatorApi(options: OperatorApiOptions): Hono {
     const body = await json(c)
     const to = body.to === undefined || body.to === null ? null : nodeId(String(body.to))
     if (to !== null && (await getNode(db, to)) === null)
-      throw new Refused(404, 'unknown_node', 'no such node')
+      throw new Refused(StatusCodes.NOT_FOUND, 'unknown_node', 'no such node')
     await options.runtime.requestMove(server, to, by(c))
     await options.relocate(server)
     return c.json({ requested: true, to })
@@ -319,14 +328,14 @@ export function createOperatorApi(options: OperatorApiOptions): Hono {
 async function mintToken(options: OperatorApiOptions, body: Record<string, unknown>, createdBy: string) {
   const regionKey = String(body.region ?? '')
   if (!regionKey && body.node === undefined)
-    throw new Refused(400, 'invalid_request', 'say which region the node joins')
+    throw new Refused(StatusCodes.BAD_REQUEST, 'invalid_request', 'say which region the node joins')
   const labels = (body.labels ?? {}) as Record<string, string>
   if (typeof labels !== 'object' || Object.values(labels).some((v) => typeof v !== 'string'))
-    throw new Refused(400, 'invalid_request', 'labels are names and text')
+    throw new Refused(StatusCodes.BAD_REQUEST, 'invalid_request', 'labels are names and text')
   const ttlSeconds = Math.min(Math.max(Number(body.ttlSeconds ?? HOUR_S), 60), 7 * DAY_S)
   const node = body.node === undefined || body.node === null ? undefined : String(body.node)
   if (node !== undefined && !NODE_ID.test(node))
-    throw new Refused(400, 'invalid_node', 'a node is named by its id')
+    throw new Refused(StatusCodes.BAD_REQUEST, 'invalid_node', 'a node is named by its id')
   const made = await createToken(options.db, {
     regionKey,
     labels,

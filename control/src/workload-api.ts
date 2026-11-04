@@ -197,7 +197,7 @@ export class WorkloadApi {
     return this.#nodes.call<ExecResponse>(address(node), 'POST', `/v1/workloads/${key}/exec`, {
       body: { command: [...command], timeoutSeconds },
       epoch,
-      timeoutMs: (timeoutSeconds + 15) * 1000,
+      timeoutMs: (timeoutSeconds + 15) * SECOND_MS,
     })
   }
 

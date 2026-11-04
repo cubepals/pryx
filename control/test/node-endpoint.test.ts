@@ -15,6 +15,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { FleetCa } from '../src/ca.ts'
 import type { Db } from '../src/database.ts'
+import { MINUTE_MS } from '../src/durations.ts'
 import { type NodeEndpointOptions, startNodeEndpoint } from '../src/node-endpoint.ts'
 import { freshDatabase, hasDatabase } from './nodes.ts'
 
@@ -109,26 +110,34 @@ describe.skipIf(!hasDatabase)('the node endpoint listens once it is bound', () =
     await again.stop()
   })
 
-  test('restarted in a process of its own, it is there to dial the moment it says it listens', async () => {
-    const port = await freePort()
-    for (let round = 0; round < 5; round++) {
-      const { child, said } = await spawnEndpoint(port)
-      expect(said).toContain('listening')
-      expect(await accepts(port)).toBe(true)
-      child.kill('SIGTERM')
-      expect(await child.exited).toBe(0)
-    }
-  }, 60_000)
+  test(
+    'restarted in a process of its own, it is there to dial the moment it says it listens',
+    async () => {
+      const port = await freePort()
+      for (let round = 0; round < 5; round++) {
+        const { child, said } = await spawnEndpoint(port)
+        expect(said).toContain('listening')
+        expect(await accepts(port)).toBe(true)
+        child.kill('SIGTERM')
+        expect(await child.exited).toBe(0)
+      }
+    },
+    MINUTE_MS,
+  )
 
-  test('in a process of its own, a port another holds ends it before it says it listens', async () => {
-    const port = await freePort()
-    const first = await spawnEndpoint(port)
-    expect(first.said).toContain('listening')
-    const second = await spawnEndpoint(port)
-    expect(second.said).not.toContain('listening')
-    expect(await second.child.exited).not.toBe(0)
-    expect(await new Response(second.child.stderr as ReadableStream).text()).toContain('EADDRINUSE')
-    first.child.kill('SIGTERM')
-    await first.child.exited
-  }, 60_000)
+  test(
+    'in a process of its own, a port another holds ends it before it says it listens',
+    async () => {
+      const port = await freePort()
+      const first = await spawnEndpoint(port)
+      expect(first.said).toContain('listening')
+      const second = await spawnEndpoint(port)
+      expect(second.said).not.toContain('listening')
+      expect(await second.child.exited).not.toBe(0)
+      expect(await new Response(second.child.stderr as ReadableStream).text()).toContain('EADDRINUSE')
+      first.child.kill('SIGTERM')
+      await first.child.exited
+    },
+    MINUTE_MS,
+  )
 })

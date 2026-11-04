@@ -17,6 +17,7 @@ import { setTimeout as pause } from 'node:timers/promises'
 import { sql } from 'drizzle-orm'
 import { type Admission, NO_ROOM } from './admission.ts'
 import type { Db } from './database.ts'
+import { SECOND_MS } from './durations.ts'
 import { decodeHandle, type FleetRef } from './handle.ts'
 import { type Ledger, type PlacementRow, StaleHandle } from './ledger.ts'
 import { NodeRefused, NodeUnreachable } from './node-client.ts'
@@ -35,7 +36,7 @@ const PUT_AGAIN = new Set(['not_found', 'not_created', 'container_missing', 'no_
 /** The node's feature for `POST …/suspend`, `resumesOn` and a start's `resumed` (pryxd's docs/protocol.md). */
 const SUSPEND_FEATURE = 'suspend'
 
-const POLL_PAUSE_MS = 500
+const POLL_PAUSE_MS = 0.5 * SECOND_MS
 
 /** Blockly's digest of a spec as sent, secrets included, which the node's own leaves out. */
 const sentDigest = (spec: RuntimeSpec) => createHash('sha256').update(JSON.stringify(spec)).digest('hex')

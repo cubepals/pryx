@@ -6,6 +6,8 @@
 
 import { expect, test } from 'bun:test'
 import { sql } from 'drizzle-orm'
+import { StatusCodes } from 'http-status-codes'
+import { SECOND_MS } from '../src/durations.ts'
 import { decodeHandle } from '../src/handle.ts'
 import { NodeRefused } from '../src/node-client.ts'
 import { RuntimeFull } from '../src/runtime-model.ts'
@@ -48,7 +50,7 @@ export function registerFlows1(ctx: ReturnType<typeof flowContext>) {
       { epoch: '1', node_id: n.id, reason: 'placed', end_reason: null },
     ])
     // Its start answered running, so the wait asks nothing; the same spec again starts with no PUT.
-    await ctx.runtime.waitRunning(handle, AbortSignal.timeout(1_000))
+    await ctx.runtime.waitRunning(handle, AbortSignal.timeout(SECOND_MS))
     const again = await ctx.runtime.ensureProvisioned(key, { regionKey: 'first' }, ctx.SPEC, ctx.quiet)
     expect(decodeHandle(again).epoch).toBe(1)
     expect(await ctx.callsSince(since + 2)).toEqual([`first-0 POST /v1/workloads/${key}/start e1 t30000`])
@@ -57,7 +59,12 @@ export function registerFlows1(ctx: ReturnType<typeof flowContext>) {
     const [n] = (await ctx.region('refused-put', 1)) as [EnrolledNode]
     const key = ctx.server()
     ctx.nodes.once(/^PUT /, async () => {
-      throw new NodeRefused(507, 'insufficient_capacity', 'not enough memory', null)
+      throw new NodeRefused(
+        StatusCodes.INSUFFICIENT_STORAGE,
+        'insufficient_capacity',
+        'not enough memory',
+        null,
+      )
     })
     const since = ctx.nodes.calls.length
     const made = ctx.runtime.ensureProvisioned(key, { regionKey: 'refused-put' }, ctx.SPEC, ctx.quiet)
@@ -94,7 +101,12 @@ export function registerFlows1(ctx: ReturnType<typeof flowContext>) {
     const awayName = await ctx.nameOf(away.id)
     await ctx.runtime.stop(first)
     ctx.nodes.once(/^POST .*\/start$/, async () => {
-      throw new NodeRefused(507, 'insufficient_capacity', 'a copy runs here', null)
+      throw new NodeRefused(
+        StatusCodes.INSUFFICIENT_STORAGE,
+        'insufficient_capacity',
+        'a copy runs here',
+        null,
+      )
     })
     const since = ctx.nodes.calls.length
     const after = await ctx.lastEvent()

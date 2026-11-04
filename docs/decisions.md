@@ -23,3 +23,6 @@
 - K3: Expand the existing pinned Cubepals structure checker's source scope through a wrapper, without adding baseline entries; the original Rust checker alone ignores control/.
 - K3: Local Postgres runs in an isolated Docker container; full Docker-backed lifecycle and two-node end-to-end suites remain for CI. New control/e2e jobs are authorized explicitly by PLAN.md, and their CI duration is not yet measured.
 - K3: A direct Bun 1.4.4 TLS check returned HTTP 200 for unauthenticated CA bootstrap; retain Bun in the composition root and the copied Node subprocess checks for compatibility.
+- K3: Import HTTP statuses from http-status-codes and timer units from durations.ts; copied transport and test code retains behavior without repeating protocol numbers.
+- K3: Reserve an explicit cpuMillis request in placement as well as forwarding it to the node; otherwise control's ledger could promise less CPU than the sandbox requests.
+- K3: Persist creation power intent and snapshot source for interrupted makes, reject new operations past TTL using database time, and release the sandbox lock before waiting on exec so TTL cleanup can proceed.

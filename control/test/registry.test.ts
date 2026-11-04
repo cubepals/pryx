@@ -7,6 +7,7 @@
 import 'reflect-metadata'
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { sql } from 'drizzle-orm'
+import { StatusCodes } from 'http-status-codes'
 import { THRESHOLDS } from '../src/health.ts'
 import { caSha256, joinToken } from '../src/join-token.ts'
 import { answered, createToken, enroll, holdsMemory, nodeSummaries } from '../src/registry.ts'
@@ -45,7 +46,7 @@ describe.skipIf(!hasDatabase)('join tokens, against Postgres', () => {
     })
     await expect(refused).rejects.toMatchObject({
       code: 'unknown_region',
-      status: 400,
+      status: StatusCodes.BAD_REQUEST,
     })
     await expect(refused).rejects.toThrow('PRYX_REGION_MAP maps to fsn1, ash')
     await createToken(ctx.db, {

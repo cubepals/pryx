@@ -6,6 +6,7 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { sql } from 'drizzle-orm'
+import { StatusCodes } from 'http-status-codes'
 import { FleetStore } from '../src/archive-transport.ts'
 import type { Db } from '../src/database.ts'
 import { encodeHandle } from '../src/handle.ts'
@@ -89,7 +90,7 @@ describe.skipIf(!hasDatabase)('the operator API', () => {
       set: { monthly_cost_cents: '8000', owner: 'infra' },
       remove: ['provider'],
     })
-    expect(changed.status).toBe(200)
+    expect(changed.status).toBe(StatusCodes.OK)
     expect(((await changed.json()) as { labels: Record<string, string> }).labels).toEqual({
       monthly_cost_cents: '8000',
       owner: 'infra',
@@ -128,7 +129,7 @@ describe.skipIf(!hasDatabase)('the operator API', () => {
     const unknown = await call('POST', '/nodes/00000000-0000-4000-8000-000000000000/labels', {
       set: { a: 'b' },
     })
-    expect(unknown.status).toBe(404)
+    expect(unknown.status).toBe(StatusCodes.NOT_FOUND)
   })
 })
 
@@ -179,7 +180,7 @@ describe.skipIf(!hasDatabase)('tokens from the operator API', () => {
       region: 'fsn1',
       labels: { provider: 'hetzner' },
     })
-    expect(status).toBe(200)
+    expect(status).toBe(StatusCodes.OK)
     expect(body.joinToken).toBe(joinToken(join, body.token))
     const hash = caSha256(join.caPem)
     expect(body.joinCommand).toBe(
@@ -191,10 +192,10 @@ describe.skipIf(!hasDatabase)('tokens from the operator API', () => {
 
   test('a region the region map doesn’t name is refused; a node re-enrolled gets its own line', async () => {
     const refused = await mint({ region: 'eu' })
-    expect([refused.status, refused.body.error.code]).toEqual([400, 'unknown_region'])
+    expect([refused.status, refused.body.error.code]).toEqual([StatusCodes.BAD_REQUEST, 'unknown_region'])
     const n = await enrollNode(db, await testCa(), 'reenrolled')
     const again = await mint({ node: n.id })
-    expect(again.status).toBe(200)
+    expect(again.status).toBe(StatusCodes.OK)
     expect(again.body.joinToken).toBe(joinToken(join, again.body.token, n.id))
     const payload = JSON.parse(Buffer.from(again.body.joinToken.slice(4), 'base64url').toString())
     expect(payload.n).toBe(n.id)

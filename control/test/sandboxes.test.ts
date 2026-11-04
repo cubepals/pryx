@@ -141,11 +141,29 @@ describe.skipIf(!hasDatabase)('sandbox intent on Postgres', () => {
     await service.db.execute(
       sql`UPDATE sandboxes SET activity_at = now() - interval '5 minutes' WHERE id = ${idle.id}`,
     )
+    await expect(service.get(ttl.id, 'project')).rejects.toMatchObject({ code: 'gone' })
     await service.upkeep()
     await expect(service.get(ttl.id, 'project')).rejects.toMatchObject({
       code: 'gone',
     })
     expect((await service.get(idle.id, 'project')).state).toBe('sleeping')
     await service.delete(idle.id, 'project')
+  })
+  test('upkeep finishes a stopped creation after its final state write was interrupted', async () => {
+    const made = await service.make('project', spec, { start: false })
+    await service.db.execute(sql`UPDATE sandboxes SET state = 'creating' WHERE id = ${made.id}`)
+    const since = nodes.calls.length
+    await service.upkeep()
+    expect((await service.get(made.id, 'project')).state).toBe('stopped')
+    expect(nodes.calls.slice(since).some((call) => call.path.endsWith('/start'))).toBe(false)
+    await service.delete(made.id, 'project')
+  })
+  test('placement reserves the CPU request sent to the node', async () => {
+    const made = await service.make('project', { ...spec, resources: { memoryMb: 1024, cpuMillis: 1750 } })
+    const result = await service.db.execute(
+      sql`SELECT cpu_millis FROM fleet_placements WHERE workload = ${made.id}`,
+    )
+    expect(result.rows[0]).toMatchObject({ cpu_millis: 1750 })
+    await service.delete(made.id, 'project')
   })
 })

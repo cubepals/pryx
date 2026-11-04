@@ -12,9 +12,11 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { createHash, randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
+import { StatusCodes } from 'http-status-codes'
 import { FleetStore } from '../src/archive-transport.ts'
 import type { FleetCa } from '../src/ca.ts'
 import type { Db } from '../src/database.ts'
+import { SECOND_MS } from '../src/durations.ts'
 import { decodeHandle } from '../src/handle.ts'
 import { THRESHOLDS } from '../src/health.ts'
 import {
@@ -106,7 +108,8 @@ class Nodes {
     const copy = this.copies.get(where)
     if (line === 'GET ') return this.#view(workload, copy)
     if (line === 'PUT ') return this.#put(where, workload, copy, options)
-    if (copy === undefined) throw new NodeRefused(404, 'not_found', 'no such workload', null)
+    if (copy === undefined)
+      throw new NodeRefused(StatusCodes.NOT_FOUND, 'not_found', 'no such workload', null)
     const power = (state: WorkloadState, more: { resumed?: boolean } = {}) => {
       const changed = copy.state !== state
       copy.state = state
@@ -119,7 +122,7 @@ class Nodes {
     }
     if (line === 'POST /suspend') {
       if (copy.state !== 'running' && copy.state !== 'suspended')
-        throw new NodeRefused(409, 'not_running', 'not running', null)
+        throw new NodeRefused(StatusCodes.CONFLICT, 'not_running', 'not running', null)
       return power('suspended')
     }
     if (line === 'POST /start') return this.#start(copy, power)
@@ -144,7 +147,7 @@ class Nodes {
     const resumesOn = body.resumesOn ?? null
     const ifMatch = options.headers?.['if-match']
     if (ifMatch !== undefined && ifMatch !== `"${copy?.digest}"`)
-      throw new NodeRefused(412, 'precondition_failed', 'the spec changed', {
+      throw new NodeRefused(StatusCodes.PRECONDITION_FAILED, 'precondition_failed', 'the spec changed', {
         currentSpecDigest: copy?.digest,
       })
     if (copy === undefined) {
@@ -181,7 +184,8 @@ class Nodes {
   }
 
   #view(workload: string, copy: Copy | undefined): WorkloadView {
-    if (copy === undefined) throw new NodeRefused(404, 'not_found', 'no such workload', null)
+    if (copy === undefined)
+      throw new NodeRefused(StatusCodes.NOT_FOUND, 'not_found', 'no such workload', null)
     return {
       id: workload,
       generation: 1,
@@ -356,7 +360,7 @@ describe.skipIf(!hasDatabase)('FleetRuntime asleep, with pryxd in memory', () =>
     expect((await suspending.observe(handle)).state).toBe('stopped')
     const { sink, seen } = recorder()
     const woken = await suspending.ensureProvisioned(key, { regionKey: 'resume' }, SPEC, sink)
-    await suspending.waitRunning(woken, AbortSignal.timeout(1_000))
+    await suspending.waitRunning(woken, AbortSignal.timeout(SECOND_MS))
     expect(woken).toBe(handle)
     expect(callsSince(since)).toEqual(['POST /suspend t60000', 'POST /suspend t60000', 'POST /start t30000'])
     expect(seen).toEqual(['allocating', 'handle e1', 'resuming'])
@@ -434,12 +438,12 @@ describe.skipIf(!hasDatabase)('FleetRuntime applying and waiting, with pryxd in 
     await suspending.start(handle)
     nodes.unreachable.push('GET ')
     const since = nodes.calls.length
-    await suspending.waitRunning(handle, AbortSignal.timeout(5_000))
+    await suspending.waitRunning(handle, AbortSignal.timeout(5 * SECOND_MS))
     expect(callsSince(since)).toEqual(['GET  t5000', 'GET  t5000'])
 
     nodes.hang.push('GET ')
     const started = Date.now()
-    const wait = suspending.waitRunning(handle, AbortSignal.timeout(200))
+    const wait = suspending.waitRunning(handle, AbortSignal.timeout(0.2 * SECOND_MS))
     await expect(wait).rejects.toThrow('The workload did not start in time')
     expect(Date.now() - started).toBeLessThan(2_000)
   })

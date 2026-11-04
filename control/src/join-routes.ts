@@ -28,6 +28,8 @@ import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { promisify } from 'node:util'
 import { Hono } from 'hono'
+import { StatusCodes } from 'http-status-codes'
+import { SECOND_MS } from './durations.ts'
 import type { UpgradeOffer } from './wire.ts'
 
 /** An Ed25519 signature's length: `pryxd.sig` is one, raw, as `openssl pkeyutl -sign` writes it. */
@@ -53,7 +55,7 @@ export async function pryxdRelease(bin: string): Promise<UpgradeOffer | null> {
   const binary = await readFile(bin).catch(() => null)
   if (binary === null) return null
   const printed = await promisify(execFile)(bin, ['--version'], {
-    timeout: 10_000,
+    timeout: 10 * SECOND_MS,
   }).catch((error: Error) => {
     console.error(`fleet: ${bin} --version failed, so no node is offered it: ${error.message}`)
     return null
@@ -84,11 +86,11 @@ export function joinRoutes(options: {
     '@DAEMON_JSON@',
     daemonJson.trimEnd(),
   )
-  const missing = (c: { text: (text: string, status: 404) => Response }) =>
+  const missing = (c: { text: (text: string, status: typeof StatusCodes.NOT_FOUND) => Response }) =>
     c.text(
       `This control plane has no pryxd to hand out: ${options.pryxdBin} is missing. Its image carries ` +
         'one (apps/control/Dockerfile); elsewhere, set PRYX_PRYXD_BIN to a static pryxd.\n',
-      404,
+      StatusCodes.NOT_FOUND,
     )
 
   app.get('/fleet/v1/ca.pem', (c) => c.body(options.caPem, 200, { 'content-type': 'application/x-pem-file' }))

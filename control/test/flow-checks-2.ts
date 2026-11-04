@@ -6,6 +6,8 @@
 
 import { expect, test } from 'bun:test'
 import { sql } from 'drizzle-orm'
+import { StatusCodes } from 'http-status-codes'
+import { SECOND_MS } from '../src/durations.ts'
 import { decodeHandle } from '../src/handle.ts'
 import { NodeRefused, NodeUnreachable } from '../src/node-client.ts'
 import { drain } from '../src/registry.ts'
@@ -24,7 +26,7 @@ export function registerFlows2(ctx: ReturnType<typeof flowContext>) {
     const taken = await ctx.runtime.snapshot(handle)
     // Its upload runs on its own once the snapshot is taken.
     for (let i = 0; i < 100 && (await ctx.archives(key))[0]?.status !== 'ready'; i++)
-      await new Promise((resolve) => setTimeout(resolve, 20))
+      await new Promise((resolve) => setTimeout(resolve, 0.02 * SECOND_MS))
     const [row] = await ctx.archives(key)
     if (row === undefined) throw new Error('no archive')
     expect(taken.sizeBytes).toBe(5)
@@ -204,7 +206,7 @@ export function registerFlows2(ctx: ReturnType<typeof flowContext>) {
   test('10. a move whose old copy its node refuses to fence is finished, and the copy left for upkeep', async () => {
     const refused = await ctx.moving('fence-refused')
     ctx.nodes.once(/^POST .*\/fence$/, async () => {
-      throw new NodeRefused(409, 'busy', 'not now', null)
+      throw new NodeRefused(StatusCodes.CONFLICT, 'busy', 'not now', null)
     })
     const fromName = await ctx.nameOf(refused.from.id)
     const since = ctx.nodes.calls.length

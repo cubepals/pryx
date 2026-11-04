@@ -18,6 +18,7 @@ import { sql } from 'drizzle-orm'
 import type { FleetStore } from './archive-transport.ts'
 import type { ArchiveRow, Archives } from './archives.ts'
 import type { Db } from './database.ts'
+import { SECOND_MS } from './durations.ts'
 import { decodeSnapshot } from './handle.ts'
 import { type Ledger, placementOf, StaleHandle } from './ledger.ts'
 import { NodeRefused } from './node-client.ts'
@@ -40,7 +41,7 @@ const UPLOAD_STALE_MINUTES = 3 * 60
  * A node packs a snapshot for one upload at a time and refuses another meanwhile (`snapshot_busy`):
  * one that must go too asks again this often until the first ends.
  */
-const BUSY_PAUSE_MS = 2_000
+const BUSY_PAUSE_MS = 2 * SECOND_MS
 
 const gb = (bytes: number) => `${(bytes / 1024 ** 3).toFixed(1)} GB`
 

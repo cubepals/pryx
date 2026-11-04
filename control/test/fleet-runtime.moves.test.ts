@@ -12,6 +12,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
+import { StatusCodes } from 'http-status-codes'
 import { FleetStore } from '../src/archive-transport.ts'
 import type { FleetCa } from '../src/ca.ts'
 import type { Db } from '../src/database.ts'
@@ -180,7 +181,7 @@ class Nodes {
 
   #put(node: string, where: string, workload: string, copy: Copy | undefined, epoch: number) {
     if (this.full.has(node))
-      throw new NodeRefused(409, 'insufficient_capacity', 'not enough memory', undefined)
+      throw new NodeRefused(StatusCodes.CONFLICT, 'insufficient_capacity', 'not enough memory', undefined)
     const made = {
       epoch,
       state: copy?.state ?? 'created',
@@ -195,7 +196,8 @@ class Nodes {
   }
 
   #view(workload: string, copy: Copy | undefined): WorkloadView {
-    if (copy === undefined) throw new NodeRefused(404, 'not_found', 'no such workload', null)
+    if (copy === undefined)
+      throw new NodeRefused(StatusCodes.NOT_FOUND, 'not_found', 'no such workload', null)
     return {
       id: workload,
       generation: 1,
@@ -376,7 +378,7 @@ describe.skipIf(!hasDatabase)('FleetRuntime, the copies a failed or finished mov
     const snap = await snapshotOn(from.id, key)
     // Too big for any upload, and not saying how big: it never reaches the store.
     nodes.once(/\/upload$/, async () => {
-      throw new NodeRefused(422, 'archive_too_large', 'too large', undefined)
+      throw new NodeRefused(StatusCodes.UNPROCESSABLE_ENTITY, 'archive_too_large', 'too large', undefined)
     })
     await runtime.relocate(handle, { regionKey: 'pre-move-lost' }, SPEC, progress)
     expect(nodes.copies.has(`${from.id}/${key}`)).toBe(false)

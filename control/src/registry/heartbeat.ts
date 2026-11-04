@@ -10,8 +10,8 @@
  */
 
 import { sql } from 'drizzle-orm'
+import { StatusCodes } from 'http-status-codes'
 import type { Db, Queryable } from '../database.ts'
-
 import { DAY_S } from '../durations.ts'
 import { event, exec, jsonb, one, rows, textArray, toDate } from '../sql.ts'
 import type {
@@ -64,17 +64,26 @@ export async function heartbeat(
   request: HeartbeatRequest,
 ): Promise<HeartbeatResponse> {
   if (request?.nodeId !== nodeId)
-    throw new Refused(400, 'invalid_request', 'the heartbeat is for another node')
+    throw new Refused(StatusCodes.BAD_REQUEST, 'invalid_request', 'the heartbeat is for another node')
   if (!request.workloads.every((r) => exact(r.epoch) && exact(r.supersededBy)))
-    throw new Refused(400, 'invalid_request', `an epoch is not a whole number from 0 to ${EPOCH_CEILING}`)
+    throw new Refused(
+      StatusCodes.BAD_REQUEST,
+      'invalid_request',
+      `an epoch is not a whole number from 0 to ${EPOCH_CEILING}`,
+    )
   const outcome = await db.transaction(
     async (t): Promise<{ response: HeartbeatResponse } | { refused: Refused }> => {
       const node = await getNode(t, nodeId, true)
-      if (node === null) throw new Refused(404, 'unknown_node', 'no such node')
-      if (node.lifecycle === 'retired') throw new Refused(403, 'retired', 'this node is retired')
+      if (node === null) throw new Refused(StatusCodes.NOT_FOUND, 'unknown_node', 'no such node')
+      if (node.lifecycle === 'retired')
+        throw new Refused(StatusCodes.FORBIDDEN, 'retired', 'this node is retired')
       const certificate = certificateOf(node, peerCertSha256)
       if (certificate === null)
-        throw new Refused(403, 'certificate_not_current', "this certificate is not the node's current one")
+        throw new Refused(
+          StatusCodes.FORBIDDEN,
+          'certificate_not_current',
+          "this certificate is not the node's current one",
+        )
 
       const session = sessionOf(node, request)
       if (session === 'duplicate') {
@@ -91,12 +100,20 @@ export async function heartbeat(
           })
         }
         return {
-          refused: new Refused(409, 'duplicate_identity', 'another host is beating with this identity'),
+          refused: new Refused(
+            StatusCodes.CONFLICT,
+            'duplicate_identity',
+            'another host is beating with this identity',
+          ),
         }
       }
       if (session === 'replaced')
         return {
-          refused: new Refused(409, 'session_replaced', 'a newer daemon session reports for this node'),
+          refused: new Refused(
+            StatusCodes.CONFLICT,
+            'session_replaced',
+            'a newer daemon session reports for this node',
+          ),
         }
       if (certificate === 'next') {
         await t.execute(sql`

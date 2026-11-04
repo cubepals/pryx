@@ -56,6 +56,9 @@ export interface SandboxRow {
   project: string
   spec: SandboxSpec
   region: string
+  start_requested: boolean
+  source_snapshot: string | null
+  past_ttl?: boolean
   handle: RuntimeHandle | null
   state: SandboxState
   created_at: string
@@ -123,9 +126,13 @@ export class Sandboxes {
   }
 
   async record(id: string, project?: string): Promise<SandboxRow> {
-    const row = await one<SandboxRow>(this.db, sql`SELECT * FROM sandboxes WHERE id = ${id}`)
+    const row = await one<SandboxRow>(
+      this.db,
+      sql`SELECT *, expires_at <= now() AS past_ttl FROM sandboxes WHERE id = ${id}`,
+    )
     if (!row || (project !== undefined && row.project !== project))
       throw new SandboxError('not_found', 'No such sandbox')
+    if (row.past_ttl && !row.deleted_at) throw new SandboxError('gone', 'Sandbox TTL elapsed')
     if (row.deleted_at)
       throw new SandboxError(
         row.expired ? 'gone' : 'not_found',
@@ -141,7 +148,7 @@ export class Sandboxes {
       (
         await rows<SandboxRow>(
           this.db,
-          sql`SELECT * FROM sandboxes WHERE project = ${project} AND deleted_at IS NULL ORDER BY created_at`,
+          sql`SELECT * FROM sandboxes WHERE project = ${project} AND deleted_at IS NULL AND (expires_at IS NULL OR expires_at > now()) ORDER BY created_at`,
         )
       ).map((row) => this.view(row)),
     )
@@ -202,16 +209,16 @@ export class Sandboxes {
     } = {},
   ): Promise<Sandbox> {
     const id = options.id ?? randomUUID()
-    await this.db.execute(sql`INSERT INTO sandboxes (id, project, spec, region, expires_at)
-      VALUES (${id}, ${project}, ${jsonb(spec)}, ${options.region ?? 'default'}, CASE WHEN ${spec.ttl ?? null}::double precision IS NULL THEN NULL ELSE now() + (${spec.ttl ?? null} * interval '1 second') END) ON CONFLICT (id) DO NOTHING`)
+    await this.db.execute(sql`INSERT INTO sandboxes (id, project, spec, region, expires_at, start_requested, source_snapshot)
+      VALUES (${id}, ${project}, ${jsonb(spec)}, ${options.region ?? 'default'}, CASE WHEN ${spec.ttl ?? null}::double precision IS NULL THEN NULL ELSE now() + (${spec.ttl ?? null} * interval '1 second') END, ${options.start !== false}, ${options.snapshot ?? null}) ON CONFLICT (id) DO NOTHING`)
     return this.exclusive(id, async () => {
       const row = await this.record(id, project)
       if (!isDeepStrictEqual(row.spec, spec))
         throw new SandboxError('idempotency_key_reused', 'Sandbox id has another spec')
       if (row.state !== 'creating' && row.state !== 'failed') return this.view(row)
       try {
-        if (options.snapshot) {
-          const snap = await this.snapshotRecord(options.snapshot, project)
+        if (row.source_snapshot) {
+          const snap = await this.snapshotRecord(row.source_snapshot, project)
           const handle =
             row.handle ??
             (await this.engine.adopt(runtimeKey(id), { regionKey: row.region }, runtimeSpec(spec)))
@@ -301,13 +308,14 @@ export class Sandboxes {
     })
   }
   async exec(id: string, command: string[], timeout: number, project?: string) {
-    return this.exclusive(id, async () => {
+    const row = await this.exclusive(id, async () => {
       const row = await this.record(id, project)
       if (row.state !== 'running' || !row.handle)
         throw new SandboxError('not_running', 'Sandbox is not running')
       await this.touch(id)
-      return this.engine.exec(row.handle, command, timeout)
+      return row
     })
+    return this.engine.exec(row.handle as RuntimeHandle, command, timeout)
   }
   async touch(id: string): Promise<void> {
     await this.db.execute(
@@ -393,14 +401,9 @@ export class Sandboxes {
   }
   async delete(id: string, project?: string, expired = false): Promise<{ existed: boolean }> {
     return this.exclusive(id, async () => {
-      let row: SandboxRow
-      try {
-        row = await this.record(id, project)
-      } catch (error) {
-        if (error instanceof SandboxError && (error.code === 'not_found' || error.code === 'gone'))
-          return { existed: false }
-        throw error
-      }
+      const row = await one<SandboxRow>(this.db, sql`SELECT * FROM sandboxes WHERE id = ${id}`)
+      if (!row || row.deleted_at || (project !== undefined && row.project !== project))
+        return { existed: false }
       await this.engine.destroy(row.handle ?? runtimeKey(id))
       await this.db.execute(
         sql`UPDATE sandboxes SET deleted_at = now(), expired = ${expired}, updated_at = now(), spec = spec - 'secrets' WHERE id = ${id}`,
@@ -442,6 +445,16 @@ export class Sandboxes {
   }
   async upkeep(): Promise<void> {
     await this.engine.upkeep()
+    const pending = await rows<SandboxRow>(
+      this.db,
+      sql`SELECT * FROM sandboxes WHERE deleted_at IS NULL AND state IN ('creating','failed') AND (expires_at IS NULL OR expires_at > now())`,
+    )
+    for (const row of pending)
+      await this.make(row.project, row.spec, {
+        id: row.id,
+        region: row.region,
+        start: row.start_requested,
+      }).catch(() => undefined)
     const placed = await rows<SandboxRow>(
       this.db,
       sql`SELECT * FROM sandboxes WHERE deleted_at IS NULL AND handle IS NOT NULL AND state NOT IN ('resting', 'creating')`,

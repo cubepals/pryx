@@ -4,6 +4,7 @@
 
 /** Node and object-store doubles used by fleet runtime regression tests. */
 
+import { StatusCodes } from 'http-status-codes'
 import { type CallOptions, type NodeAddress, NodeRefused } from '../src/node-client.ts'
 import type { WorkloadReport, WorkloadState, WorkloadView } from '../src/wire.ts'
 import { MemoryStore } from './memory-store.ts'
@@ -117,7 +118,7 @@ export class Nodes {
         durationMs: 1,
       }
       const refuse = (limitBytes: number) =>
-        new NodeRefused(422, 'archive_too_large', 'too large', {
+        new NodeRefused(StatusCodes.UNPROCESSABLE_ENTITY, 'archive_too_large', 'too large', {
           sizeBytes: bytes.length,
           limitBytes,
         })
@@ -166,7 +167,8 @@ export class Nodes {
   }
 
   #view(workload: string, copy: Copy | undefined): WorkloadView {
-    if (copy === undefined) throw new NodeRefused(404, 'not_found', 'no such workload', null)
+    if (copy === undefined)
+      throw new NodeRefused(StatusCodes.NOT_FOUND, 'not_found', 'no such workload', null)
     return {
       id: workload,
       generation: 1,
