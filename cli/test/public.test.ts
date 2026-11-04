@@ -23,7 +23,7 @@ describe.skipIf(!hasDatabase)('public CLI', () => {
         durationMs: 1,
       }))
       const child = Bun.spawn(
-        ['bun', 'cli/src/main.ts', 'run', '--image', 'alpine:3.22', '--', 'echo', 'hello'],
+        ['bun', 'cli/src/main.ts', 'run', '--image', 'alpine:3.22', '--', 'echo', '--version'],
         {
           env: { ...process.env, PRYX_API_URL: server.url.toString(), PRYX_API_KEY: ctx.credential.key },
           stdout: 'pipe',

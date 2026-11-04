@@ -13,7 +13,8 @@ import { createDb, createPool, migrationsFolder } from './database.ts'
 import { DAY_MS, MINUTE_MS } from './durations.ts'
 import { edgeApi } from './edge-api.ts'
 import { EdgeService } from './edge-service.ts'
-import { withKeys } from './keys.ts'
+import { PRYX_VERSION } from './generated/release.ts'
+import { bootstrapKey, withKeys } from './keys.ts'
 import { NodeClient, splitAddress } from './node-client.ts'
 import { startNodeEndpoint } from './node-endpoint.ts'
 import { createOperatorApi } from './operator-api.ts'
@@ -28,6 +29,7 @@ export async function startControl(config: ControlConfig = loadConfig()) {
   const lockPool = createPool(config.database)
   const db = createDb(pool)
   await migrate(db, { migrationsFolder })
+  if (config.bootstrapKey) await bootstrapKey(db, config.project, config.bootstrapKey)
   const ca = await FleetCa.fromPem(config.caCert, config.caKey)
   const clientIdentity = await ca.identity(controlPlaneName(config.deployment), 'client', 2)
   const nodes = new NodeClient({ ...clientIdentity, caPem: ca.pem }, config.deployment)
@@ -142,6 +144,10 @@ export async function startControl(config: ControlConfig = loadConfig()) {
       await pool.end()
     },
   }
+}
+if (import.meta.main && process.argv[2] === '--version') {
+  console.log(`pryx-control ${PRYX_VERSION}`)
+  process.exit(0)
 }
 if (import.meta.main) {
   const control = await startControl()

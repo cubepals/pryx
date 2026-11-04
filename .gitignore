@@ -3,3 +3,10 @@
 node_modules/
 /dist
 *.tsbuildinfo
+
+__pycache__/
+*.pyc
+*.egg-info/
+.venv-python/
+sdk/python/build/
+sdk/typescript/dist/

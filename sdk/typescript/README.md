@@ -25,3 +25,7 @@ pass an AbortSignal for follow mode. Per-command env requires `env` inside the i
 File paths are relative to persistent storage. `putFile` takes base64 (at most 48 KiB decoded);
 `getFile` returns a base64 tar archive. The image needs sh, realpath, base64 and tar. Oversized
 or failed reads are refused. Errors throw PryxError with status, code and details.
+
+Release archives include a bundled ESM JavaScript entry for Node and the generated TypeScript
+source/types. Bun workspace imports use source. `bun run release:build` builds the Node entry
+before `bun pm pack`; the SDK version is checked against Cargo.toml.

@@ -26,6 +26,7 @@ import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { Hono } from 'hono'
 import { StatusCodes } from 'http-status-codes'
@@ -81,11 +82,18 @@ export function joinRoutes(options: {
   const app = new Hono()
   // Read once, from beside this file: join.sh is the control plane's, and daemon.json is the pinned
   // pryxd release's (scripts/blocklyd.ts).
-  const daemonJson = readFileSync(new URL('./daemon.json', import.meta.url), 'utf8')
-  const script = readFileSync(new URL('./join.sh', import.meta.url), 'utf8').replace(
-    '@DAEMON_JSON@',
-    daemonJson.trimEnd(),
+  const daemonJson = readFileSync(
+    process.env.PRYX_ASSET_DIR
+      ? join(process.env.PRYX_ASSET_DIR, 'daemon.json')
+      : new URL('./daemon.json', import.meta.url),
+    'utf8',
   )
+  const script = readFileSync(
+    process.env.PRYX_ASSET_DIR
+      ? join(process.env.PRYX_ASSET_DIR, 'join.sh')
+      : new URL('./join.sh', import.meta.url),
+    'utf8',
+  ).replace('@DAEMON_JSON@', daemonJson.trimEnd())
   const missing = (c: { text: (text: string, status: typeof StatusCodes.NOT_FOUND) => Response }) =>
     c.text(
       `This control plane has no pryxd to hand out: ${options.pryxdBin} is missing. Its image carries ` +
@@ -93,8 +101,12 @@ export function joinRoutes(options: {
       StatusCodes.NOT_FOUND,
     )
 
-  app.get('/fleet/v1/ca.pem', (c) => c.body(options.caPem, 200, { 'content-type': 'application/x-pem-file' }))
-  app.get('/fleet/v1/join.sh', (c) => c.body(script, 200, { 'content-type': 'text/x-shellscript' }))
+  app.get('/fleet/v1/ca.pem', (c) =>
+    c.body(options.caPem, StatusCodes.OK, { 'content-type': 'application/x-pem-file' }),
+  )
+  app.get('/fleet/v1/join.sh', (c) =>
+    c.body(script, StatusCodes.OK, { 'content-type': 'text/x-shellscript' }),
+  )
   app.get('/fleet/v1/blocklyd', async (c) => {
     const binary = await readFile(options.pryxdBin).catch(() => null)
     if (binary === null) return missing(c)

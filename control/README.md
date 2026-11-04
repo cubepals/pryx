@@ -112,3 +112,17 @@ for drift. See edge/README.md and docs/edge.md for fronts, network policy and me
 Public port views now include publicPort. Container-only private UDP still works; the public
 edge accepts TCP. An unready or sleeping route names 0.0.0.0:0. A running public sandbox is
 shown as starting while counted edges catch up. This display barrier never declares a node lost.
+
+## Release binaries and bootstrap
+
+`bun run release:build` compiles pryx, pryx-control and pryx-edge and packs
+`pryx-control-assets.tar.gz`. Set `PRYX_ASSET_DIR` to the extracted control directory for a
+compiled control process; without it, source runs use files beside the modules. The directory
+contains migrations, join.sh and daemon.json. The release workflow also packs both SDKs and the
+public/edge contracts before checksumming and attesting the assets. SDK versions match Cargo.toml.
+
+`PRYX_BOOTSTRAP_API_KEY` is optional and has no default. Up generates it in control.env (0600);
+control inserts only its hash once with name initial. Revocation survives control restarts. The
+bootstrap key is never logged by control. Up records its one-time display before printing, so a
+crash there may require a new operator-created key. Node enrollment retains its existing private
+identity files; see docs/operations.md for that environment-file-only exception.

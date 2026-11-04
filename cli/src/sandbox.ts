@@ -3,7 +3,7 @@
 
 /** Sandbox and one-shot run commands use only the public SDK and caller-provided credentials. */
 
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 
 import { type MakeRequest, Pryx } from '@cubepals/pryx'
 
@@ -22,6 +22,8 @@ export function option(args: string[], name: string) {
 function makeRequest(args: string[]): MakeRequest {
   const spec = option(args, '--spec')
   if (spec) return JSON.parse(readFileSync(spec, 'utf8')) as MakeRequest
+  const snapshot = option(args, '--from-snapshot')
+  if (snapshot) return { snapshot }
   const image = option(args, '--image')
   if (!image) throw new Error('create needs --image <image> or --spec <json file>')
   const ttl = option(args, '--ttl'),
@@ -91,6 +93,8 @@ export async function run(args: string[]) {
       await client.action(retained.id, 'rest')
       const kept = (await client.snapshots(retained.id)).snapshots[0]
       console.error(JSON.stringify({ snapshot: kept?.id, sandbox: retained.id }))
+      const output = option(args.slice(0, split), '--snapshot-output')
+      if (output && kept) writeFileSync(output, kept.id + '\n', { mode: 0o600 })
     }
     process.exitCode = code
   } finally {

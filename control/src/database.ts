@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
 /** Postgres handles and migration location; queries belong to the module owning each table. */
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres'
 import pg from 'pg'
@@ -12,7 +13,9 @@ import * as schema from './schema/fleet.ts'
 export type Db = NodePgDatabase<typeof schema>
 export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
 export type Queryable = Db | Tx
-export const migrationsFolder = fileURLToPath(new URL('./schema/migrations', import.meta.url))
+export const migrationsFolder = process.env.PRYX_ASSET_DIR
+  ? join(process.env.PRYX_ASSET_DIR, 'migrations')
+  : fileURLToPath(new URL('./schema/migrations', import.meta.url))
 // PostgreSQL SQLSTATE, lock_not_available: https://www.postgresql.org/docs/current/errcodes-appendix.html
 export const LOCK_NOT_AVAILABLE = '55P03'
 export const createPool = (connectionString: string, max = 10) => {

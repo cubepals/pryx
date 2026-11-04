@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: ['**']
   pull_request:
   # A merge queue tests the pull request merged onto main's head, with the same jobs and names.
   merge_group:
@@ -266,7 +266,15 @@ jobs:
         with:
           node-version: 22.23.2
       - run: bun install --frozen-lockfile
+      - run: bun run release:build
       - run: bun run check
+      - name: Python generation and unit tests
+        run: |
+          python3 -m venv .venv-python
+          .venv-python/bin/pip install -r sdk/python/generator-requirements.lock
+          .venv-python/bin/pip install -e sdk/python
+          PATH="$PWD/.venv-python/bin:$PATH" python3 sdk/python/generate.py check
+          .venv-python/bin/python -m unittest discover -s sdk/python/test -v
       - run: bun scripts/check-control-structure.ts
 
   e2e:
@@ -334,6 +342,69 @@ jobs:
           PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
           PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
 
+  one-box:
+    name: One box and Action
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - run: rustup toolchain install
+      - run: cargo build --locked
+      - run: bun install --frozen-lockfile
+      - run: bun run release:build
+      - name: Prepare the unreleased build artifacts
+        run: |
+          cp target/debug/pryxd dist/pryxd
+          head -c 64 /dev/zero > dist/pryxd.sig
+          (cd dist && sha256sum pryxd pryxd.sig pryx pryx-control pryx-edge pryx-control-assets.tar.gz > SHA256SUMS)
+          docker pull -q mirror.gcr.io/library/alpine:3.22
+          docker tag mirror.gcr.io/library/alpine:3.22 alpine:3.22
+      - name: Install one box twice
+        id: up
+        run: |
+          started=$(date +%s)
+          output=$(sudo dist/pryx up --domain pryx.test --from-dir "$PWD/dist")
+          key=$(printf '%s\n' "$output" | sed -n 's/^PRYX_API_KEY=//p')
+          [ -n "$key" ]
+          printf '::add-mask::%s\n' "$key"
+          printf 'key=%s\n' "$key" >> "$GITHUB_OUTPUT"
+          second=$(sudo dist/pryx up --domain pryx.test --from-dir "$PWD/dist")
+          if printf '%s\n' "$second" | grep -q '^PRYX_API_KEY='; then echo 'Repeated the initial key'; exit 1; fi
+          echo "One-box elapsed: $(($(date +%s)-started)) seconds" >> "$GITHUB_STEP_SUMMARY"
+      - name: Run hello through the compiled CLI
+        env:
+          PRYX_API_URL: http://127.0.0.1:8082
+          PRYX_API_KEY: ${{ steps.up.outputs.key }}
+        run: |
+          [ "$(dist/pryx run --image alpine:3.22 -- echo hello)" = hello ]
+      - uses: ./action
+        with:
+          url: http://127.0.0.1:8082
+          key: ${{ steps.up.outputs.key }}
+          image: alpine:3.22
+          run: echo hello
+          snapshot: 'true'
+        env:
+          PRYX_ACTION_CLI: ${{ github.workspace }}/dist/pryx
+      - name: Python against the one-box control
+        env:
+          PRYX_API_URL: http://127.0.0.1:8082
+          PRYX_API_KEY: ${{ steps.up.outputs.key }}
+        run: |
+          python3 -m venv .venv-python
+          .venv-python/bin/pip install -e sdk/python
+          .venv-python/bin/python -m unittest discover -s sdk/python/test -v
+      - name: Service journals on failure
+        if: failure()
+        run: sudo journalctl -u pryx-control -u pryx-edge -u pryx-postgres -u pryx-store -u pryxd --no-pager -n 150
+
   image:
     name: Release image builds
     needs: changes
@@ -372,7 +443,7 @@ jobs:
         run: scripts/check-mentions.sh --pr
 
   check:
-    needs: [changes, test, supply-chain, contract, subject, image, control, e2e]
+    needs: [changes, test, supply-chain, contract, subject, image, control, e2e, one-box]
     if: always()
     runs-on: ubuntu-24.04
     steps:

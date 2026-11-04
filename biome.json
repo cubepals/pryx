@@ -9,7 +9,9 @@
       "!sdk/typescript/src/generated/**",
       "!control/openapi/**",
       "edge/**",
-      "!edge/src/generated/**"
+      "!edge/src/generated/**",
+      "!cli/src/generated/**",
+      "!sdk/typescript/dist/**"
     ]
   },
   "formatter": {

@@ -5,8 +5,8 @@
 
 import { StatusCodes } from 'http-status-codes'
 import { MINUTE_MS, SECOND_MS } from '../../control/src/durations.ts'
-
 import { EDGE_ID_HEADER, HTTP_FRONT_PORT, TLS_FRONT_PORT } from '../../control/src/edge-headers.ts'
+import { PRYX_VERSION } from '../../control/src/generated/release.ts'
 import { type EdgeConfig, edgeConfig } from './config.ts'
 import { front } from './front.ts'
 import { Hold } from './hold.ts'
@@ -150,6 +150,10 @@ export async function startEdge(config: EdgeConfig = edgeConfig()) {
       )
     },
   }
+}
+if (import.meta.main && process.argv[2] === '--version') {
+  console.log(`pryx-edge ${PRYX_VERSION}`)
+  process.exit(0)
 }
 if (import.meta.main) {
   const edge = await startEdge()

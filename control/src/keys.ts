@@ -50,3 +50,9 @@ export function withKeys(app: Hono, db: Db, project: string) {
     return c.json({ existed: Boolean(revoked) })
   })
 }
+
+export async function bootstrapKey(db: Db, project: string, key: string) {
+  await db.execute(
+    sql`INSERT INTO keys(id,hash,project,name) VALUES(${randomUUID()},${hashKey(key)},${project},'initial') ON CONFLICT(hash) DO NOTHING`,
+  )
+}

@@ -1,5 +1,45 @@
 # pryxd
 
+## One host quickstart
+
+On a Linux systemd host, use the CLI from the same [pryx release](https://github.com/cubepals/pryx/releases).
+Verify its SHA256SUMS/attestation as below, then:
+
+```sh
+sudo ./pryx up --check --domain pryx.test
+sudo ./pryx up --domain pryx.test
+export PRYX_API_URL=http://127.0.0.1:8082
+export PRYX_API_KEY=...                 # the initial key printed once by up
+./pryx run --image alpine:3.22 -- echo hello
+```
+
+Up installs missing Docker/nftables on Debian/Ubuntu, private Postgres/S3 storage, control, edge
+and the local daemon. A repeated run preserves existing state and credentials. Its bootstrap
+image policy explicitly allows alpine prefixes; pass repeatable --allow-image for another policy.
+The public API stays on loopback until a trusted TLS reverse proxy is configured. Set DNS for
+sandbox hostnames to edge; the sandbox supplies its TLS certificate. Up prints undo instructions.
+See [operations](docs/operations.md), [architecture](docs/architecture.md), [API](docs/api.md),
+[edge](docs/edge.md), [TypeScript SDK](sdk/typescript/README.md) and [Python SDK](sdk/python/README.md).
+
+From GitHub Actions, point at a reachable TLS API and save its key as a repository secret:
+
+```yaml
+steps:
+  - uses: cubepals/pryx/action@v0.1.0
+    with:
+      url: ${{ vars.PRYX_API_URL }}
+      key: ${{ secrets.PRYX_API_KEY }}
+      image: alpine:3.22
+      run: echo hello
+      snapshot: 'true'
+```
+
+The Action verifies the exact tagged release's CLI checksum, runs the command inside the
+sandbox and deletes the temporary sandbox. Its snapshot output retains a separate resting
+sandbox; remove that retaining sandbox when the snapshot is no longer needed. Use from-snapshot
+for a later job. Linux x86_64 is the binary release target.
+
+
 pryxd is a sandbox node daemon for Linux hosts. It runs hardened containers for a control plane
 that chooses where each sandbox belongs, and exposes the workload API in [docs/protocol.md](docs/protocol.md).
 
