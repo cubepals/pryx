@@ -16,6 +16,8 @@
  *   and its server status stays the only power intent.
  *
  * Parts (`fleet-runtime/`):
+ * - `upkeep.ts`: observations and archive housekeeping.
+ * - `observation.ts`: persisted reports mapped to runtime states.
  * - `admission.ts`: room to run on a node, claimed before a start and given back after a stop.
  * - `archives.ts`: a world's copies in `fleet_archives`, kept while held and deleted once not.
  * - `ledger.ts`: where each server's world lives, under which epoch, and the history of its homes.
@@ -26,6 +28,8 @@
  * - `transfers.ts`: a copy of a world sent off its node, to the store or a target, whole or in parts.
  * - `workload-api.ts`: the calls made to a node's workload API, each with its path, epoch and timeout.
  */
+import { FleetUpkeep } from './fleet-runtime/upkeep.ts'
+import { observation } from './fleet-runtime/observation.ts'
 import type { Db } from '@blockly/db'
 import { sql } from 'drizzle-orm'
 import {
@@ -124,6 +128,7 @@ export class FleetRuntime implements MinecraftRuntime {
   readonly #archives: Archives
   readonly #transfers: Transfers
   readonly #rehoming: Rehoming
+  readonly #maintenance: FleetUpkeep
   readonly #power: Power
 
   constructor(options: FleetRuntimeOptions) {
@@ -180,6 +185,7 @@ export class FleetRuntime implements MinecraftRuntime {
       provider: this.provider,
       log: this.#log,
     })
+    this.#maintenance = new FleetUpkeep(options, this.#ledger, this.#archives, this.#rehoming, this.#transfers, this.#log)
   }
 
   /** Reads the registry now and every few seconds after, for the methods that must stay pure. */
@@ -563,7 +569,7 @@ export class FleetRuntime implements MinecraftRuntime {
   async observe(handle: RuntimeHandle): Promise<RuntimeObservation> {
     const ref = decodeHandle(handle)
     const row = await one<ObservedRow>(this.#o.db, sql`${OBSERVE_SQL} WHERE p.workload = ${ref.key}`)
-    return this.#observation(row, ref, await listeningSeconds(this.#o.db))
+    return observation(row, ref, await listeningSeconds(this.#o.db), this.#o.thresholds)
   }
 
   async *observeChanged(
@@ -574,7 +580,7 @@ export class FleetRuntime implements MinecraftRuntime {
     const listening = await listeningSeconds(this.#o.db)
     const found = await rows<ObservedRow>(this.#o.db, sql`${OBSERVE_SQL} WHERE p.state <> 'released'`)
     for (const row of found) {
-      const observation = this.#observation(row, null, listening)
+      const observation = observation(row, null, listening, this.#o.thresholds)
       if (observation.at.getTime() < after) continue
       yield { key: row.workload as RuntimeKey, handle: this.#ledger.handleOf(row), observation }
     }
@@ -697,180 +703,38 @@ export class FleetRuntime implements MinecraftRuntime {
     return this.#ledger.requestMove(serverId, to, by)
   }
 
-  // ─── upkeep: once a minute, one process at a time ──────────────────────────────────────────
-
-  /**
-   * What keeps the fleet tidy, none of which moves or starts a server: health changes recorded,
-   * placements a crash left half-made finished from their node's report, or undone when their
-   * node never got them, copies nobody needs removed, snapshots uploaded off their nodes, and old
-   * events dropped.
-   */
-  async upkeep(): Promise<void> {
-    const tasks: Array<[string, () => Promise<unknown>]> = [
-      ['health', () => recordHealth(this.#o.db, this.#o.thresholds)],
-      ['probe', () => this.probeSilent()],
-      ['finish', () => this.finishReported()],
-      ['abandon', () => this.abandonUnmade()],
-      ['tidy', () => this.tidy()],
-      ['uploads', () => this.uploadPending()],
-      ['dropped copies', () => this.dropDeletedCopies()],
-      ['local copies', () => this.trimLocalCopies()],
-      ['events', () => exec(this.#o.db, sql`DELETE FROM fleet_events WHERE at < now() - interval '90 days'`)],
-    ]
-    for (const [name, task] of tasks)
-      await task().catch((error) => this.#log(`upkeep: ${name} failed`, { error: (error as Error).message }))
+  upkeep(): Promise<void> {
+    return this.#maintenance.upkeep()
   }
 
-  /** Silent nodes, probed from outside: refused (host up, blocklyd down) or timed out (host or path down). */
-  async probeSilent(): Promise<void> {
-    const silent = (await nodeSummaries(this.#o.db, this.#o.thresholds)).filter(
-      (n) => (n.derivedHealth === 'suspect' || n.derivedHealth === 'unavailable') && n.lifecycle !== 'lost',
-    )
-    for (const node of silent) {
-      const probe = await this.#o.nodes.probe(address(node))
-      await this.#o.db.execute(sql`
-        UPDATE fleet_nodes SET last_probe = ${jsonb({ ...probe, at: new Date().toISOString() })} WHERE id = ${node.id}`)
-    }
+  probeSilent(): Promise<void> {
+    return this.#maintenance.probeSilent()
   }
 
-  /**
-   * New placements a crash left `placing` after their node made the copy: the node's report of
-   * that epoch is proof enough, so they are placed with the ports it reports. Never one a restore,
-   * move or recovery must fill first (`completing`): its copy exists before its data.
-   */
   finishReported(): Promise<number> {
-    return this.#ledger.finishReported()
+    return this.#maintenance.finishReported()
   }
 
-  /** New placements whose copy was never made, undone once nothing can still be making them. */
   abandonUnmade(): Promise<number> {
-    return this.#ledger.abandonUnmade()
+    return this.#maintenance.abandonUnmade()
   }
 
-  /**
-   * Copies nobody needs: those a finished move left behind, those of resting servers, and those of
-   * servers destroyed while their node couldn't be reached. They are fenced, then deleted into
-   * their node's trash, once the snapshots only they hold are in the store. Never an unfinished
-   * move's, nor one whose host was declared lost: it may hold play the rebuild didn't, and its owner
-   * decides. Nor is one with no placement and no record of its server's end: the heartbeat fences
-   * it, and an operator looks.
-   */
-  async tidy(): Promise<number> {
-    const found = await rows<{
-      node_id: string
-      workload: string
-      epoch: string
-      current_epoch: string
-      end_reason: string | null
-    }>(
-      this.#o.db,
-      sql`SELECT o.node_id, o.workload, o.epoch, p.epoch AS current_epoch, h.end_reason
-          FROM fleet_observations o
-          JOIN fleet_nodes n ON n.id = o.node_id
-          JOIN fleet_placements p ON p.workload = o.workload
-          LEFT JOIN fleet_placement_history h ON h.workload = o.workload AND h.epoch = o.epoch
-          WHERE n.lifecycle IN ('active', 'draining') AND o.epoch IS NOT NULL
-            AND o.node_id IS DISTINCT FROM p.node_id
-            AND ((p.state = 'placed' AND p.completing IS NULL AND o.epoch < p.epoch AND h.end_reason = 'moved')
-              OR (p.state = 'released' AND o.epoch <= p.epoch))
-          UNION ALL
-          SELECT o.node_id, o.workload, o.epoch, o.epoch + 1, 'destroyed'
-          FROM fleet_observations o
-          JOIN fleet_nodes n ON n.id = o.node_id
-          WHERE n.lifecycle IN ('active', 'draining') AND o.epoch IS NOT NULL
-            AND NOT EXISTS (SELECT 1 FROM fleet_placements p WHERE p.workload = o.workload)
-            AND EXISTS (SELECT 1 FROM fleet_placement_history h
-                        WHERE h.workload = o.workload AND h.end_reason = 'destroyed')`,
-    )
-    let tidied = 0
-    for (const row of found) {
-      const node = await getNode(this.#o.db, row.node_id)
-      if (node === null) continue
-      try {
-        if (!(await this.#rehoming.deleteLeftCopy(node, row.workload, Number(row.current_epoch)))) continue
-        await event(this.#o.db, 'copy.tidied', {
-          node: row.node_id,
-          workload: row.workload,
-          epoch: Number(row.epoch),
-          data: { currentEpoch: Number(row.current_epoch), why: row.end_reason ?? 'released' },
-        })
-        tidied++
-      } catch (error) {
-        this.#log('tidy failed', {
-          node: row.node_id,
-          workload: row.workload,
-          error: (error as Error).message,
-        })
-      }
-    }
-    return tidied
+  tidy(): Promise<number> {
+    return this.#maintenance.tidy()
   }
 
-  /** Snapshots still only on their nodes, oldest first: a few each pass, so one slow node holds up nothing. */
   uploadPending(limit = 4): Promise<number> {
-    return this.#transfers.uploadPending(limit)
+    return this.#maintenance.uploadPending(limit)
   }
 
-  /** Copies that couldn't go when their archive was deleted, and moves' copies no move will use. */
-  async dropDeletedCopies(limit = 20): Promise<void> {
-    await this.#transfers.dropUnusedMoveExports(limit)
-    await this.#archives.dropDeletedCopies(limit)
+  dropDeletedCopies(limit = 20): Promise<void> {
+    return this.#maintenance.dropDeletedCopies(limit)
   }
 
-  /** Node copies of snapshots the store holds too, but the newest per server. */
   trimLocalCopies(limit = 20): Promise<number> {
-    return this.#archives.trimLocalCopies(limit)
+    return this.#maintenance.trimLocalCopies(limit)
   }
 
   // ─── internals ─────────────────────────────────────────────────────────────────────────────
 
-  #observation(row: ObservedRow | null, ref: FleetRef | null, listening: number): RuntimeObservation {
-    const now = new Date()
-    if (row === null) return { state: 'absent', at: now }
-    // The compute this handle names is not the server's any more.
-    if (ref !== null && (Number(row.epoch) !== ref.epoch || row.node_id !== ref.node))
-      return { state: 'absent', at: toDate(row.updated_at) }
-    if (row.state === 'released') return { state: 'absent', at: toDate(row.updated_at) }
-    if (row.state === 'displaced' || row.lifecycle === 'lost')
-      return { state: 'unknown', at: toDate(row.lost_at ?? row.updated_at), hostLost: true }
-    const health = deriveHealth(
-      {
-        ageSeconds: row.age,
-        runtimeUp: row.runtime_up ?? false,
-        reconciled: row.reconciled ?? false,
-        listeningSeconds: listening,
-      },
-      this.#o.thresholds,
-    )
-    // Suspect keeps the last report, so a missed beat or two doesn't flap the application.
-    if (health === 'unavailable' || health === 'degraded')
-      return { state: 'unknown', at: toDate(row.health_since) ?? now }
-    const report = row.report
-    if (report === null || Number(row.observed_epoch) !== Number(row.epoch))
-      return { state: 'absent', at: toDate(row.updated_at) }
-    const at = toDate(row.state_changed_at) ?? now
-    const failedAt = report.lastFailureAt ? { failedAt: new Date(report.lastFailureAt) } : {}
-    const exit = report.exit ? { exit: { code: report.exit.code, oom: report.exit.oomKilled } } : {}
-    switch (report.state) {
-      case 'running':
-        return { state: 'running', at, ...failedAt }
-      case 'restarting':
-        return { state: 'starting', at, ...failedAt }
-      case 'stopping':
-        return { state: 'stopping', at }
-      case 'crashed':
-        return { state: 'crashed', at, ...exit }
-      case 'creating':
-      case 'created':
-      case 'stopped':
-      case 'suspended':
-      case 'fenced':
-        return { state: 'stopped', at, ...exit }
-      case 'missing':
-      case 'retained':
-        return { state: 'absent', at }
-      default:
-        return { state: 'unknown', at }
-    }
-  }
 }
