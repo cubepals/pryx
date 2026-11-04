@@ -15,10 +15,12 @@ import { sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { StatusCodes } from 'http-status-codes'
+import { z } from 'zod'
 import type { Db } from './database.ts'
 import { DAY_S, HOUR_S } from './durations.ts'
 import type { Thresholds } from './health.ts'
 import { type JoinPoint, joinCommand, joinToken } from './join-token.ts'
+import { ProviderError } from './providers/provider.ts'
 import {
   clearQuarantine,
   confirmLost,
@@ -33,6 +35,7 @@ import {
   undrain,
 } from './registry.ts'
 import type { FleetRuntime } from './runtime-engine.ts'
+import { SandboxError } from './sandboxes.ts'
 import { rows } from './sql.ts'
 
 export interface OperatorApiOptions {
@@ -68,6 +71,22 @@ export function createOperatorApi(options: OperatorApiOptions): Hono {
     await next()
   })
   app.onError((error, c) => {
+    if (error instanceof z.ZodError)
+      return c.json(
+        { error: { code: 'invalid_request', message: 'Invalid fields', details: error.issues } },
+        StatusCodes.UNPROCESSABLE_ENTITY,
+      )
+    if (error instanceof ProviderError || error instanceof SandboxError) {
+      const status =
+        error.code === 'not_found'
+          ? StatusCodes.NOT_FOUND
+          : error.code === 'invalid_request' || error.code === 'idempotency_key_reused'
+            ? StatusCodes.UNPROCESSABLE_ENTITY
+            : error.code === 'refused'
+              ? StatusCodes.CONFLICT
+              : StatusCodes.SERVICE_UNAVAILABLE
+      return c.json({ error: { code: error.code, message: error.message } }, status)
+    }
     if (error instanceof Refused)
       return c.json(
         { error: { code: error.code, message: error.message } },

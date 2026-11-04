@@ -342,6 +342,23 @@ jobs:
           PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
           PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
 
+
+      - name: Check live provider credentials
+        env:
+          HETZNER_TOKEN: ${{ secrets.PRYX_HETZNER_TOKEN }}
+        run: |
+          if [ -n "$HETZNER_TOKEN" ]; then
+            echo 'HAS_HETZNER=true' >> "$GITHUB_ENV"
+          else
+            echo '::notice::Skipping Hetzner live provisioning because PRYX_HETZNER_TOKEN is absent'
+          fi
+      - name: Hetzner acquire, sandbox and release
+        if: env.HAS_HETZNER == 'true'
+        env:
+          PRYX_HETZNER_TOKEN: ${{ secrets.PRYX_HETZNER_TOKEN }}
+          PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
+        run: bun test control/e2e/hetzner.e2e.test.ts
+
   one-box:
     name: One box and Action
     needs: changes

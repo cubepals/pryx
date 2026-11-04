@@ -7,6 +7,7 @@
 import { isIP } from 'node:net'
 import { migrate } from 'drizzle-orm/node-postgres/migrator'
 import { FleetStore } from './archive-transport.ts'
+import { Autoscale } from './autoscale.ts'
 import { controlPlaneName, FleetCa } from './ca.ts'
 import { type ControlConfig, loadConfig } from './config.ts'
 import { createDb, createPool, migrationsFolder } from './database.ts'
@@ -19,12 +20,19 @@ import { NodeClient, splitAddress } from './node-client.ts'
 import { startNodeEndpoint } from './node-endpoint.ts'
 import { createOperatorApi } from './operator-api.ts'
 import { withUpgrades } from './operator-upgrades.ts'
+import { withProviders } from './provider-api.ts'
+import { ProviderLedger } from './provider-ledger.ts'
+import type { Provider } from './providers/provider.ts'
+import { createProviders } from './providers.ts'
 import { createPublicApi } from './public-api.ts'
 import { FleetRuntime } from './runtime-engine.ts'
 import { Sandboxes } from './sandboxes.ts'
 import { S3ArchiveStore } from './store.ts'
 
-export async function startControl(config: ControlConfig = loadConfig()) {
+export async function startControl(
+  config: ControlConfig = loadConfig(),
+  options: { providers?: ReadonlyMap<string, Provider> } = {},
+) {
   const pool = createPool(config.database)
   const lockPool = createPool(config.database)
   const db = createDb(pool)
@@ -80,6 +88,27 @@ export async function startControl(config: ControlConfig = loadConfig()) {
   })
   withUpgrades(operator, { db, release: endpoint.release })
   withKeys(operator, db, config.project)
+  const providers = options.providers ?? createProviders(config.providerEnv, config.deployment)
+  const hosts = new ProviderLedger(
+    db,
+    sandboxes,
+    providers,
+    { url: config.joinUrl, caPem: ca.pem, deployment: config.deployment },
+    config.providerSealKey,
+    config.providerImages,
+  )
+  const scaling = new Autoscale(
+    db,
+    sandboxes,
+    hosts,
+    { ...config.autoscale, cpuMillisPerGb: config.cpuMillisPerGb },
+    thresholds,
+  )
+  sandboxes.placement = {
+    refused: (region, spec) => scaling.refused(region, spec),
+    succeeded: (region) => scaling.succeeded(region),
+  }
+  withProviders(operator, hosts, scaling)
   const api = createPublicApi({
     db,
     boxes: sandboxes,
@@ -107,6 +136,7 @@ export async function startControl(config: ControlConfig = loadConfig()) {
     maintaining = true
     sandboxes
       .exclusive('__upkeep__', async () => {
+        await scaling.tick()
         await sandboxes.upkeep()
         await api.model.warmTemplates()
       })
@@ -127,6 +157,8 @@ export async function startControl(config: ControlConfig = loadConfig()) {
     runtime,
     edge,
     sandboxes,
+    hosts,
+    scaling,
     nodes,
     ca,
     config,
@@ -135,6 +167,7 @@ export async function startControl(config: ControlConfig = loadConfig()) {
     stop: async () => {
       clearInterval(upkeep)
       clearInterval(rotation)
+      await hosts.settle()
       unwatch()
       server.stop(true)
       publicServer.stop(true)

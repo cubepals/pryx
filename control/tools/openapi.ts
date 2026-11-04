@@ -65,3 +65,15 @@ for (const [path, value] of [
   else if (readFileSync(path, 'utf8') !== value) throw new Error(`Edge API drift: ${path.pathname}`)
 }
 console.log(`Edge API types: ${mode}`)
+
+for (const name of ['hetzner', 'boat']) {
+  const source = new URL(`../src/providers/openapi/${name}.openapi.json`, import.meta.url)
+  const target = new URL(`../src/providers/generated/${name}.ts`, import.meta.url)
+  mkdirSync(new URL('../src/providers/generated/', import.meta.url), { recursive: true })
+  const generated =
+    '// SPDX-License-Identifier: FSL-1.1-ALv2\n// Generated from the pinned provider contract.\n' +
+    astToString(await openapiTS(JSON.parse(readFileSync(source, 'utf8')), { defaultNonNullable: false }))
+  if (mode === 'generate') writeFileSync(target, generated)
+  else if (readFileSync(target, 'utf8') !== generated) throw new Error(`Provider type drift: ${name}`)
+}
+console.log(`Provider API types: ${mode}`)

@@ -72,3 +72,20 @@
 - K6: Use AWS-shaped S3 credentials, root-owned managed directories and private random temporary download paths; keep dependency build output outside lint/structure inputs and include the FSL license in both SDK archives.
 - K6: Keep the original test timeouts after the parallel-build run timed out, and accept only the isolated rerun's 218 passing tests; the Action smoke uses a live fixture pulse rather than treating an expired fake heartbeat as a product failure.
 - K6: Record Python's real-control test as skipped locally, with three unit tests and generation/packaging checks actually run; leave root systemd, Docker Action/e2e and job duration to the configured CI job.
+
+- K7: Use direct Hetzner API contracts and a narrow committed Boat contract, with upstream URLs/hashes and generated types; read dynamic server quotes rather than copying prices into code.
+- K7: Attach operator-created Hetzner private networks/firewalls/SSH keys, keep Ubuntu 24.04 as the bootstrap image, and retry cloud-init's idempotent join while private connectivity becomes available.
+- K7: Give every acquisition a persisted UUID before renting; uncertain create replies reconcile labels and never blindly create again, accepting delayed progress to prevent duplicate paid hosts.
+- K7: Derive one-time enrollment secrets with HMAC-SHA256 under a stable environment key and acquisition UUID, persist only token hashes, and bind hosts only through the consumed enrollment token; provider tokens stay in the environment.
+- K7: Serialize bootstrap work, provide explicit unused-acquisition cancellation with token revocation, and retain/report unknown provider hosts instead of deleting them.
+- K7: Require strict SSH host verification and a root-owned acquisition marker for manual hosts; reject public control addresses and never release manually owned hosts.
+- K7: Require an explicit Boat catalog/private-network bootstrap, use native create idempotency and secret file upload, and prove Docker/systemd before enrollment; Boat has no documented live price or geographic region selector.
+- K7: Leave Fly out because no credentials were available to measure Docker inside a Machine; documentation/API support alone does not establish this runtime works, and no impossibility claim is made.
+- K7: Keep automatic scaling off by default, with zero memory floor, one-hour idle time and one regional node minimum; grow one fitting managed host after two room refusals, accounting for the daemon's host reservations.
+- K7: Serialize releases per region, require healthy minimum survivors, preserve every live local snapshot in the store, refuse lost/quarantined/manual/unknown-copy hosts, retire before vendor deletion and retry uncertain deletion by host id.
+- K7: Poll advisory locks without holding a database connection while waiting so nested region/sandbox operations cannot exhaust the pool; add a concurrent nested-lock regression check.
+- K7: Roll back a failed wake's transitional state and count only actual capacity refusals toward growth; successful placements clear the refusal streak.
+- K7: Add a token-only Hetzner CI test using temporary network/firewall/SSH resources and strict tunnels to the runner; it invokes CLI acquire/release, places a real sandbox, cleans test resources, and visibly skips without the repository secret.
+- K7: Record all shipped providers' join measurements as n=0 here because no vendor token or manual SSH host/key is configured; fake-provider timing is not a provider measurement and live Docker/e2e remains CI-only.
+- K7: Set the workspace test command's default budget to 30 seconds after archive-copy retries and a Postgres public-create test exceeded Bun's five-second default; explicit per-test deadlines and production retry/timeout policy stay unchanged. Record the failed runs and require a clean full check.
+- K7: Close the milestone only after the clean 235-test full check, compiled release build, frozen install, structure and actionlint checks; the credential-enabled Hetzner CI test may add up to 20 minutes and has no local/remote success claim.

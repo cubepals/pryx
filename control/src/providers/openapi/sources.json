@@ -1,0 +1,11 @@
+{
+  "hetzner": {
+    "url": "https://docs.hetzner.cloud/cloud.spec.json",
+    "sha256": "a01f19e86d04c57dfbae1c5eef739883b580d9031fd138690779349de426653b"
+  },
+  "boat": {
+    "url": "https://docs.boat.dev/openapi/boat-v1.yaml",
+    "sha256": "9f2abcf0735ba6230fba1b40ac9a11fe9022348997152821f3b99a1f7c2421fc"
+  },
+  "selection": "Only provider operations; descriptions/examples and unrelated Sandbox fields omitted. Shapes remain published wire shapes."
+}

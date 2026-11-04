@@ -131,14 +131,19 @@ export async function enrollNode(
     apiAddress?: string
     deployment?: string
     labels?: Record<string, string>
+    token?: string
   } = {},
 ): Promise<EnrolledNode> {
-  const { token } = await createToken(db, {
-    regionKey: options.region ?? 'eu',
-    ttlSeconds: 60,
-    createdBy: 'test',
-    ...(options.labels ? { labels: options.labels } : {}),
-  })
+  const token =
+    options.token ??
+    (
+      await createToken(db, {
+        regionKey: options.region ?? 'eu',
+        ttlSeconds: 60,
+        createdBy: 'test',
+        ...(options.labels ? { labels: options.labels } : {}),
+      })
+    ).token
   const key = await nodeKey()
   const enrolled = await enroll(db, ca, registryOptions(options.deployment), {
     token,

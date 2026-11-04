@@ -37,6 +37,7 @@ export async function createToken(
     createdBy: string
     node?: string
     regions?: readonly string[]
+    identity?: { id: string; secret: string }
   },
 ): Promise<{ id: string; token: string; expiresAt: Date }> {
   let regionKey = options.regionKey
@@ -52,13 +53,14 @@ export async function createToken(
       throw new Refused(StatusCodes.NOT_FOUND, 'unknown_node', 'no such node, or it is retired')
     regionKey = node.region_key
   }
-  const token = randomBytes(32).toString('base64url')
-  const id = randomUUID()
+  const token = options.identity?.secret ?? randomBytes(32).toString('base64url')
+  const id = options.identity?.id ?? randomUUID()
   const row = await one<{ expires_at: string }>(
     db,
     sql`INSERT INTO fleet_node_tokens (id, token_sha256, region_key, labels, expires_at, created_by, node_id)
         VALUES (${id}, ${sha256(token)}, ${regionKey}, ${jsonb(options.labels ?? {})},
                 now() + make_interval(secs => ${options.ttlSeconds}), ${options.createdBy}, ${options.node ?? null})
+        ON CONFLICT(id) DO UPDATE SET id=excluded.id
         RETURNING expires_at`,
   )
   await event(db, 'token.created', {

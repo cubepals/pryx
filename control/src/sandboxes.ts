@@ -19,6 +19,7 @@ import { getNode } from './registry.ts'
 import type { FleetRuntime } from './runtime-engine.ts'
 import {
   type ProgressSink,
+  RuntimeFull,
   type RuntimeHandle,
   type RuntimeSpec,
   runtimeKey,
@@ -105,6 +106,10 @@ export function runtimeSpec(spec: SandboxSpec): RuntimeSpec {
 }
 
 export class Sandboxes {
+  placement?: {
+    refused: (region: string, spec: SandboxSpec) => Promise<void>
+    succeeded: (region: string) => Promise<void>
+  }
   constructor(
     readonly db: Db,
     readonly engine: FleetRuntime,
@@ -112,18 +117,27 @@ export class Sandboxes {
     private readonly nodes: NodeClient,
   ) {}
 
-  /** Separate lock connections prevent waiting callers from exhausting the engine's query pool. */
+  /** Waiters release their connection between lock attempts, leaving room for nested intent locks. */
   async exclusive<T>(id: string, work: () => Promise<T>): Promise<T> {
-    const client = await this.locks.connect()
-    try {
-      await client.query('SELECT pg_advisory_lock(hashtextextended($1, 0))', [`sandbox:${id}`])
-      return await work()
-    } finally {
+    for (;;) {
+      const client = await this.locks.connect()
+      let held = false
       try {
-        await client.query('SELECT pg_advisory_unlock(hashtextextended($1, 0))', [`sandbox:${id}`])
+        const answer = await client.query<{ held: boolean }>(
+          'SELECT pg_try_advisory_lock(hashtextextended($1, 0)) AS held',
+          [`sandbox:${id}`],
+        )
+        held = answer.rows[0]?.held === true
+        if (held) return await work()
       } finally {
-        client.release()
+        try {
+          if (held)
+            await client.query('SELECT pg_advisory_unlock(hashtextextended($1, 0))', [`sandbox:${id}`])
+        } finally {
+          client.release()
+        }
       }
+      await pause(SECOND_MS / 20)
     }
   }
 
@@ -248,8 +262,10 @@ export class Sandboxes {
           )
         }
         await this.state(id, options.start === false ? 'stopped' : 'running', true)
+        await this.placement?.succeeded(row.region)
         return this.get(id, project)
       } catch (error) {
+        if (error instanceof RuntimeFull) await this.placement?.refused(row.region, row.spec)
         await this.state(id, 'failed')
         throw error
       }
@@ -266,34 +282,41 @@ export class Sandboxes {
       const row = await this.record(id, project)
       const steps: string[] = []
       const restoring = row.state === 'resting'
-      if (restoring) {
-        const [snap] = await this.snapshots(id, row.project)
-        if (!snap || !row.handle) throw new SandboxError('not_found', 'No snapshot to restore')
-        await this.state(id, 'restoring')
-        const handle = await this.engine.restore(
-          row.handle,
-          { kind: 'snapshot', snapshot: snap.handle },
-          runtimeSpec(row.spec),
-          this.sink(id, steps),
-        )
-        await this.sink(id).handle(await this.engine.start(handle))
-      } else {
-        await this.state(id, 'starting')
-        await this.engine.ensureProvisioned(
-          runtimeKey(id),
-          { regionKey: row.region },
-          runtimeSpec(row.spec),
-          this.sink(id, steps),
-        )
-      }
-      await this.state(id, 'running', true)
-      return {
-        sandbox: await this.get(id, row.project),
-        tier: restoring
-          ? 'restored'
-          : steps.includes('resuming') && !steps.includes('booting')
-            ? 'resumed'
-            : 'booted',
+      try {
+        if (restoring) {
+          const [snap] = await this.snapshots(id, row.project)
+          if (!snap || !row.handle) throw new SandboxError('not_found', 'No snapshot to restore')
+          await this.state(id, 'restoring')
+          const handle = await this.engine.restore(
+            row.handle,
+            { kind: 'snapshot', snapshot: snap.handle },
+            runtimeSpec(row.spec),
+            this.sink(id, steps),
+          )
+          await this.sink(id).handle(await this.engine.start(handle))
+        } else {
+          await this.state(id, 'starting')
+          await this.engine.ensureProvisioned(
+            runtimeKey(id),
+            { regionKey: row.region },
+            runtimeSpec(row.spec),
+            this.sink(id, steps),
+          )
+        }
+        await this.placement?.succeeded(row.region)
+        await this.state(id, 'running', true)
+        return {
+          sandbox: await this.get(id, row.project),
+          tier: restoring
+            ? 'restored'
+            : steps.includes('resuming') && !steps.includes('booting')
+              ? 'resumed'
+              : 'booted',
+        }
+      } catch (error) {
+        await this.state(id, row.state)
+        if (error instanceof RuntimeFull) await this.placement?.refused(row.region, row.spec)
+        throw error
       }
     })
   }
@@ -386,18 +409,20 @@ export class Sandboxes {
     return this.exclusive(id, async () => {
       const row = await this.record(id, project)
       if (row.state === 'resting') return this.view(row)
-      const snap = await this.capture(row, false)
+      await this.capture(row, false)
       await this.engine.stop(row.handle as RuntimeHandle)
       const began = Date.now()
       while (true) {
-        const result = await this.engine.upload(snap.id)
-        const archive = await one<{ status: string }>(
+        const pending = await rows<{ id: string }>(
           this.db,
-          sql`SELECT status FROM fleet_archives WHERE id = ${snap.id}`,
+          sql`SELECT id FROM fleet_archives WHERE workload=${id} AND local_id IS NOT NULL AND local_deleted_at IS NULL AND status NOT IN ('ready','deleted')`,
         )
-        if (result === 'ready' || archive?.status === 'ready') break
-        if (result === 'failed' || Date.now() - began >= TRANSFER_MS)
-          throw new SandboxError('not_stopped', 'Snapshot upload did not complete; local data is retained')
+        if (pending.length === 0) break
+        for (const archive of pending) {
+          const result = await this.engine.upload(archive.id)
+          if (result === 'failed' || Date.now() - began >= TRANSFER_MS)
+            throw new SandboxError('not_stopped', 'Snapshot upload did not complete; local data is retained')
+        }
         await pause(SECOND_MS)
       }
       await this.sink(id).handle(await this.engine.release(row.handle as RuntimeHandle))

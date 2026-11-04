@@ -126,3 +126,30 @@ control inserts only its hash once with name initial. Revocation survives contro
 bootstrap key is never logged by control. Up records its one-time display before printing, so a
 crash there may require a new operator-created key. Node enrollment retains its existing private
 identity files; see docs/operations.md for that environment-file-only exception.
+
+## Machine providers
+
+Provider calls use only the operator listener; `pryx node shapes <region> --provider hetzner`,
+`pryx node acquire <region> --provider hetzner --shape <catalog-name> --idempotency-key <key>`,
+`pryx node acquisition <id>`, and `pryx node release <node>` expose their state.
+`pryx node cancel-acquisition <id>` cancels an unused enrollment and returns its known rental.
+Keep the same acquire key when retrying an uncertain answer.
+
+| Provider | Environment and preparation |
+| --- | --- |
+| Hetzner | `PRYX_HETZNER_TOKEN`, `PRYX_HETZNER_NETWORK_ID`, `PRYX_HETZNER_FIREWALL_ID`, `PRYX_HETZNER_SSH_KEYS` (JSON array of registered key ids/names); optional `PRYX_HETZNER_IMAGE` (Ubuntu 24.04 by default). Create the private network/subnet, firewall and SSH key once. Allow private control/node/S3 traffic and required outbound bootstrap traffic. |
+| Boat | `PRYX_BOAT_TOKEN`, `PRYX_BOAT_REGION` (logical grouping only), `PRYX_BOAT_SHAPES` (JSON shape/price catalog), `PRYX_BOAT_NETWORK_SETUP`, `PRYX_BOAT_PRIVATE_ADDRESS_COMMAND`. Supply your private-network bootstrap. Docker and systemd must prove usable before enrollment; an unproven VM is retained for inspection or explicit cancellation. |
+| Manual | `PRYX_MANUAL_ADDRESS` (private IP), `PRYX_MANUAL_SHAPE` (JSON shape), optional `PRYX_MANUAL_REGION`, `PRYX_MANUAL_SSH_ADDRESS`, `PRYX_MANUAL_SSH_KEY` (path), `PRYX_MANUAL_SSH_USER`, `PRYX_MANUAL_SSH_PORT`. Install the SSH host key in known_hosts beforehand. This host is never released. |
+
+Use a stable, backed-up `PRYX_PROVIDER_SEAL_KEY` (at least 32 characters) to derive pending
+one-time enrollment secrets. Its fallback is the operator token; rotating that token without
+retaining the seal key invalidates pending enrollments. Provider credentials remain in the
+process environment. Set `PRYX_PROVIDER_ALLOW_IMAGES` to explicit comma-separated host policy
+prefixes; it defaults to empty. Enrollment still requires the ordinary one-time token.
+
+Automatic growth/shrink is off until `PRYX_AUTOSCALE=on`. Set `PRYX_AUTOSCALE_REGIONS` to a JSON
+region-to-provider map. Defaults: `PRYX_REGION_MEMORY_FLOOR_MB=0`, `PRYX_NODE_IDLE_SECONDS=3600`,
+`PRYX_REGION_MIN_NODES=1`. Two consecutive actual room refusals trigger one fitting rental;
+a successful placement clears the streak. Pending acquisitions suppress additional growth.
+Shrink drains, stores every live snapshot, retires, then returns only tracked managed hosts.
+See [providers](../docs/providers.md) for safety, limitations and measurement status.

@@ -4,14 +4,15 @@
     "includes": [
       "control/**",
       "cli/**",
-      "!control/src/generated/**",
+      "!control/**/generated/**",
       "sdk/typescript/**",
       "!sdk/typescript/src/generated/**",
       "!control/openapi/**",
       "edge/**",
       "!edge/src/generated/**",
       "!cli/src/generated/**",
-      "!sdk/typescript/dist/**"
+      "!sdk/typescript/dist/**",
+      "!control/src/providers/openapi/**"
     ]
   },
   "formatter": {

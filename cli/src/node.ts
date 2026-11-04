@@ -4,6 +4,8 @@
 
 /** Operator commands over the control API; no database, provider credentials or host access. */
 
+import { option } from './sandbox.ts'
+
 export async function node(args: string[]): Promise<unknown> {
   const [verb = 'ls', id, ...rest] = args
   const base = process.env.PRYX_OPERATOR_API ?? 'http://127.0.0.1:8081'
@@ -12,6 +14,35 @@ export async function node(args: string[]): Promise<unknown> {
   let path: string
   let body: Record<string, unknown> | undefined
   switch (verb) {
+    case 'shapes': {
+      const provider = option(rest, '--provider')
+      if (!provider || !id) throw new Error('node shapes <region> --provider <name>')
+      path = `/providers/${encodeURIComponent(provider)}/shapes?region=${encodeURIComponent(id)}`
+      break
+    }
+    case 'acquire': {
+      const provider = option(rest, '--provider'),
+        shape = option(rest, '--shape')
+      if (!provider || !shape || !id)
+        throw new Error('node acquire <region> --provider <name> --shape <name>')
+      path = '/nodes/acquire'
+      body = { region: id, provider, shape }
+      break
+    }
+    case 'acquisition':
+      if (!id) throw new Error('node acquisition <id>')
+      path = `/acquisitions/${encodeURIComponent(id)}`
+      break
+    case 'cancel-acquisition':
+      if (!id) throw new Error('node cancel-acquisition <id>')
+      path = `/acquisitions/${encodeURIComponent(id)}/cancel`
+      body = {}
+      break
+    case 'release':
+      if (!id) throw new Error('node release <id>')
+      path = `/nodes/${encodeURIComponent(id)}/release`
+      body = {}
+      break
     case 'ls':
       path = '/nodes'
       break
@@ -21,7 +52,7 @@ export async function node(args: string[]): Promise<unknown> {
       break
     case 'token':
       path = '/tokens'
-      body = { region: id ?? 'default' }
+      body = { region: id ?? 'default', ...(option(rest, '--node') ? { node: option(rest, '--node') } : {}) }
       break
     case 'drain':
     case 'undrain':
@@ -59,6 +90,9 @@ export async function node(args: string[]): Promise<unknown> {
     headers: {
       authorization: `Bearer ${token}`,
       'content-type': 'application/json',
+      ...(verb === 'acquire'
+        ? { 'Idempotency-Key': option(rest, '--idempotency-key') ?? crypto.randomUUID() }
+        : {}),
       'x-operator': process.env.PRYX_OPERATOR ?? 'cli',
     },
     ...(body ? { body: JSON.stringify(body) } : {}),

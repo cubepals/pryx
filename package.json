@@ -14,7 +14,7 @@
     "check": "bun run lint && bun run typecheck && bun run openapi:check && bun run docs:check && bun run release:check && bun run test",
     "lint": "biome check control cli sdk/typescript edge",
     "typecheck": "tsc --noEmit",
-    "test": "bun test control/test cli/test sdk/typescript/test edge/test",
+    "test": "bun test --timeout 30000 control/test cli/test sdk/typescript/test edge/test",
     "e2e": "bun test control/e2e",
     "openapi:generate": "bun control/tools/openapi.ts generate",
     "openapi:check": "bun control/tools/openapi.ts check",

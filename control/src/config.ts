@@ -5,6 +5,7 @@
 /** Environment configuration for one control deployment; values are validated before listeners open. */
 
 import { z } from 'zod'
+import { AUTOSCALE_DEFAULTS } from './autoscale.ts'
 import { DEFAULT_EDGE_PORT_RANGE } from './edge-addresses.ts'
 import { THRESHOLDS } from './health.ts'
 import { splitAddress } from './node-client.ts'
@@ -32,6 +33,16 @@ const schema = z.object({
   caCert: z.string().includes('BEGIN CERTIFICATE'),
   caKey: z.string().includes('PRIVATE KEY'),
   operatorToken: z.string().min(32),
+  providerEnv: z.record(z.string(), z.string()),
+  providerSealKey: z.string().min(32),
+  providerImages: z.array(z.string()),
+  autoscale: z.object({
+    enabled: z.boolean(),
+    regions: z.record(z.string(), z.string()),
+    memoryFloorMb: z.number().nonnegative(),
+    idleSeconds: positive,
+    minNodes: z.number().int().nonnegative(),
+  }),
   bootstrapKey: z.string().min(32).optional(),
   nodeListen: z.string(),
   operatorListen: z.string(),
@@ -82,6 +93,18 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     caCert: env.PRYX_CA_CERT?.replaceAll('\\n', '\n'),
     caKey: env.PRYX_CA_KEY?.replaceAll('\\n', '\n'),
     operatorToken: env.PRYX_OPERATOR_TOKEN,
+    providerEnv: Object.fromEntries(
+      Object.entries(env).filter(([k, v]) => /^PRYX_(HETZNER|BOAT|MANUAL)_/.test(k) && v !== undefined),
+    ),
+    providerSealKey: env.PRYX_PROVIDER_SEAL_KEY ?? env.PRYX_OPERATOR_TOKEN,
+    providerImages: (env.PRYX_PROVIDER_ALLOW_IMAGES ?? '').split(',').filter(Boolean),
+    autoscale: {
+      enabled: env.PRYX_AUTOSCALE === 'on',
+      regions: JSON.parse(env.PRYX_AUTOSCALE_REGIONS ?? '{}'),
+      memoryFloorMb: number(env.PRYX_REGION_MEMORY_FLOOR_MB, AUTOSCALE_DEFAULTS.memoryFloorMb),
+      idleSeconds: number(env.PRYX_NODE_IDLE_SECONDS, AUTOSCALE_DEFAULTS.idleSeconds),
+      minNodes: number(env.PRYX_REGION_MIN_NODES, AUTOSCALE_DEFAULTS.minNodes),
+    },
     bootstrapKey: env.PRYX_BOOTSTRAP_API_KEY,
     nodeListen,
     operatorListen: env.PRYX_OPERATOR_LISTEN ?? '127.0.0.1:8081',

@@ -1,0 +1,1175 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Boat Public API v1",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://boat.dev/api/v1"
+    }
+  ],
+  "paths": {
+    "/sandboxes": {
+      "get": {
+        "operationId": "sandboxes",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrgId"
+          },
+          {
+            "$ref": "#/components/parameters/OrgHeader"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Cursor"
+          },
+          {
+            "$ref": "#/components/parameters/Sort"
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "namePrefix",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "stoppedBefore",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "dataExpired",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "label",
+            "in": "query",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "include",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "cost"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SandboxListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "operationId": "create",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/OrgId"
+          },
+          {
+            "$ref": "#/components/parameters/OrgHeader"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSandboxRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateSandboxResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "$ref": "#/components/responses/PaymentRequired"
+          },
+          "403": {
+            "$ref": "#/components/responses/EnvironmentForbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/NoReadyMachine"
+          }
+        }
+      }
+    },
+    "/sandboxes/{sandboxId}": {
+      "get": {
+        "operationId": "get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SandboxInfoResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteSandbox",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConfirmDelete"
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletionOperationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/sandboxes/{sandboxId}/commands": {
+      "post": {
+        "operationId": "command",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SandboxId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/CommandResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommandStartedResponse"
+                    }
+                  ]
+                }
+              },
+              "application/x-ndjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandStreamFrame"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/sandboxes/{sandboxId}/files": {
+      "put": {
+        "operationId": "writeFile",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SandboxId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileWriteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileWriteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Sandbox": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "state",
+          "desktopAvailable",
+          "snapshotAvailable"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^bx_[23456789abcdefghjkmnpqrstuvwxyz]{8}$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "init",
+              "provisioning",
+              "provisioned",
+              "cloning",
+              "ready",
+              "idle",
+              "running",
+              "archiving",
+              "archived",
+              "error",
+              "cancelled"
+            ]
+          },
+          "labels": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "small",
+              "default",
+              "large",
+              "xlarge"
+            ]
+          },
+          "vcpu": {
+            "type": "integer"
+          },
+          "memoryGB": {
+            "type": "integer"
+          },
+          "ip": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "desktopAvailable": {
+            "type": "boolean"
+          },
+          "snapshotAvailable": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CreateSandboxRequest": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "small",
+              "default",
+              "large",
+              "xlarge"
+            ],
+            "default": "default"
+          },
+          "ttlSeconds": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2592000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": 3600
+          },
+          "labels": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "noEnv": {
+            "type": "boolean",
+            "default": false
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120
+          }
+        }
+      },
+      "SandboxListResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "sandboxes"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "sandbox.list"
+              },
+              "sandboxes": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Sandbox"
+                }
+              },
+              "pageInfo": {
+                "$ref": "#/components/schemas/PageInfo"
+              },
+              "deletedCost": {
+                "type": "object",
+                "required": [
+                  "since",
+                  "seconds",
+                  "dollars"
+                ],
+                "properties": {
+                  "since": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "seconds": {
+                    "type": "integer"
+                  },
+                  "dollars": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "CreateSandboxResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "status",
+              "ttlSeconds",
+              "sandbox"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "sandbox.created"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "provisioning",
+                  "ready"
+                ]
+              },
+              "ttlSeconds": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "sandbox": {
+                "$ref": "#/components/schemas/Sandbox"
+              },
+              "sandboxes": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Sandbox"
+                }
+              },
+              "hostedPorts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "required": [
+                    "port"
+                  ],
+                  "properties": {
+                    "port": {
+                      "type": "integer"
+                    },
+                    "url": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "isProtected": {
+                      "type": "boolean"
+                    },
+                    "access": {
+                      "type": "string",
+                      "enum": [
+                        "private",
+                        "public"
+                      ]
+                    },
+                    "localhost": {
+                      "type": "boolean"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "giftLimitNotice": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "SandboxInfoResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "sandbox"
+            ],
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "sandbox": {
+                "$ref": "#/components/schemas/Sandbox"
+              },
+              "giftLimitNotice": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "DeletionOperationResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "operation"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "deletion.operation",
+                  "sandbox.deleting",
+                  "snapshot.deleting"
+                ]
+              },
+              "operation": {
+                "$ref": "#/components/schemas/DeletionOperation"
+              }
+            }
+          }
+        ]
+      },
+      "CommandRequest": {
+        "type": "object",
+        "required": [
+          "command"
+        ],
+        "properties": {
+          "command": {
+            "type": "string"
+          },
+          "cwd": {
+            "type": "string"
+          },
+          "timeoutSeconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 600,
+            "default": 30
+          },
+          "detached": {
+            "type": "boolean",
+            "default": false
+          },
+          "stream": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "CommandResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "success",
+              "exitCode",
+              "stdout",
+              "stderr",
+              "timedOut"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "command.finished"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "commandId": {
+                "type": "string"
+              },
+              "exitCode": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "signal": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "oomKilled": {
+                "type": "boolean"
+              },
+              "stdout": {
+                "type": "string"
+              },
+              "stderr": {
+                "type": "string"
+              },
+              "stdoutTruncated": {
+                "type": "boolean"
+              },
+              "stderrTruncated": {
+                "type": "boolean"
+              },
+              "timedOut": {
+                "type": "boolean"
+              },
+              "cwd": {
+                "type": "string"
+              },
+              "startedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "finishedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        ]
+      },
+      "CommandStartedResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "success",
+              "processId",
+              "pid",
+              "command",
+              "startedAt"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "command.started"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "commandId": {
+                "type": "string"
+              },
+              "processId": {
+                "type": "integer"
+              },
+              "pid": {
+                "type": "integer"
+              },
+              "command": {
+                "type": "string"
+              },
+              "cwd": {
+                "type": "string"
+              },
+              "startedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "logPath": {
+                "type": "string"
+              },
+              "errLogPath": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "CommandStreamFrame": {
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "started",
+              "stdout",
+              "stderr",
+              "exit",
+              "error"
+            ]
+          },
+          "commandId": {
+            "type": "string"
+          },
+          "data": {
+            "type": "string"
+          },
+          "exitCode": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timedOut": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          }
+        }
+      },
+      "FileWriteRequest": {
+        "type": "object",
+        "required": [
+          "path",
+          "content"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "encoding": {
+            "type": "string",
+            "enum": [
+              "utf8",
+              "base64"
+            ],
+            "default": "utf8"
+          }
+        }
+      },
+      "FileWriteResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "success",
+              "path",
+              "encoding",
+              "size"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "file.written"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "path": {
+                "type": "string"
+              },
+              "encoding": {
+                "type": "string",
+                "enum": [
+                  "utf8",
+                  "base64"
+                ]
+              },
+              "size": {
+                "type": "integer"
+              }
+            }
+          }
+        ]
+      },
+      "SuccessBase": {
+        "type": "object",
+        "required": [
+          "ok",
+          "type"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "type": {
+            "type": "string"
+          }
+        }
+      },
+      "PageInfo": {
+        "type": "object",
+        "required": [
+          "nextCursor",
+          "hasMore",
+          "limit"
+        ],
+        "properties": {
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "limit": {
+            "type": "integer"
+          }
+        }
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "required": [
+          "ok",
+          "type",
+          "status",
+          "code",
+          "message",
+          "error",
+          "requestId"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "type": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message",
+              "status"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "status": {
+                "type": "integer"
+              },
+              "details": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      },
+      "DeletionOperation": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "targetId",
+          "reason",
+          "status",
+          "attemptCount",
+          "requestedAt",
+          "completedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^bdop_[a-f0-9]{32}$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "sandbox",
+              "snapshot"
+            ]
+          },
+          "targetId": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "explicit",
+              "zdr",
+              "account"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "processing",
+              "blocked",
+              "completed"
+            ]
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "removing",
+              "waiting_for_uploads",
+              "retrying",
+              "completed"
+            ]
+          },
+          "expectedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "attemptCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      }
+    },
+    "parameters": {
+      "OrgId": {
+        "name": "org",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "OrgHeader": {
+        "name": "X-Boat-Org",
+        "in": "header",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "default": 100
+        }
+      },
+      "Cursor": {
+        "name": "cursor",
+        "in": "query",
+        "schema": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "Sort": {
+        "name": "sort",
+        "in": "query",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "asc",
+            "desc"
+          ],
+          "default": "desc"
+        }
+      },
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "maxLength": 255
+        }
+      },
+      "ConfirmDelete": {
+        "name": "X-Ascii-Confirm-Delete",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "SandboxId": {
+        "name": "sandboxId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "pattern": "^bx_[23456789abcdefghjkmnpqrstuvwxyz]{8}$"
+        }
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "PaymentRequired": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "EnvironmentForbidden": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "NoReadyMachine": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "BadRequest": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      }
+    }
+  }
+}
