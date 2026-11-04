@@ -1,107 +1,144 @@
-# blocklyd
+# pryx
 
 The guide for anyone changing this repository, agent or human. [CONTRIBUTING.md](CONTRIBUTING.md)
 covers setup and tests; the rules below apply to every change.
 
-blocklyd is the node daemon of Cubepals, whose control plane is
-[cubepals/cubepals](https://github.com/cubepals/cubepals). That repository's AGENTS.md holds the
-product's core rule (Blockly absorbs complexity so the player doesn't have to); this one holds
-what is particular to blocklyd.
+pryx runs sandboxes on Linux hosts you own, one or many: it makes them from images and snapshots,
+puts them to sleep and wakes them on a connection or an API call with their state kept, snapshots
+and forks them, moves and rebuilds them, and keeps them off the host and off each other. Three
+parts: `pryxd`, the daemon on each host (`src/`, Rust); the control service (`control/`,
+TypeScript on Bun, Postgres); and the edge (`edge/`, TypeScript on Bun). A node never decides what
+should run; control does. Control never touches a host but through `pryxd`'s API.
 
-## The name
+## The protocol only adds
 
-Players know the product as **Cubepals**; **Blockly** is its codename.
-
-- **What a person can see says Cubepals:** the README's opening, release notes, the image's
-  description.
-- **Everything else stays Blockly:** the crate and binary (`blocklyd`), code comments, config
-  keys, labels such as `blocklyd.record`, test names. Don't rename them to match the public name.
+- **The Rust types are the node protocol.** `openapi/` is generated from them
+  (`BLOCKLYD_WRITE_SCHEMA=1 cargo test --lib protocol::schema`) and committed with the change that
+  moves them.
+- **Within v1 a change only adds.** A new field is optional or defaulted, a new request field is
+  announced in `features` before a control plane may send it, nothing is renamed or removed. A
+  node and a control plane one release apart always understand each other. The `contract` job
+  runs Cubepals' main against this build and must pass.
+- **Format v1 keeps its names.** The `blocklyd-epoch` and `blocklyd-protocol` headers, the
+  `blocklyd.*` container labels, `blocklyd.record`, `workload.json`, the `bk1.` token prefix and
+  the fleet endpoint's paths are the wire and on-disk format this daemon was first published with.
+  They are a format, not a name, and stay until protocol v2. Everything else says pryx.
+- **The public API (`/v1`) and the edge protocol (`/edge/v1`) follow the same rule**: their
+  OpenAPI documents are committed, the generated clients are checked against them in CI, and
+  within a major version a change only adds.
+- **pryx never links Cubepals' code, and Cubepals never links pryx's.** The two talk over pryx's
+  APIs only. pryx is FSL-1.1-ALv2; Cubepals is AGPL-3.0.
 
 ## Business internals stay private
 
-Fraud and abuse tuning, costs and margins, competitors, pricing history, strategy and vendor trials
-never go in this repository, its commits, PRs or issues. A number like that reaches blocklyd from
-its environment or its deploy configuration, and the code's default is a harmless one.
-
-## The protocol and the control plane
-
-- **The Rust types are the protocol.** `openapi/` is generated from them (`BLOCKLYD_WRITE_SCHEMA=1
-  cargo test --lib protocol::schema`) and committed with the change that moves them.
-- **Within v1 a change only adds.** A new field is optional or defaulted, a new request field is
-  announced in `features` first, nothing is renamed or removed. A node and a control plane one
-  release apart always understand each other. The `contract` job runs Cubepals' main against this
-  build and must pass.
-- **Comments that name `docs/fleet.md`, `docs/fleet-operations.md` or `scripts/fleet.ts` mean
-  Cubepals'.** They stay as they are.
-- **blocklyd never links Cubepals' code.** The two talk over the API only; Cubepals is
-  AGPL-3.0, blocklyd is FSL-1.1-ALv2.
+Costs, margins, prices, other products, strategy and tuning never go in this repository, its
+commits, pull requests or issues. A number like that reaches pryx from its environment or its
+configuration, and the code's default is a harmless one.
 
 ## Values from elsewhere
 
 A value that belongs to another system is taken from that system, never typed out again: a
-library's error codes and messages, a protocol's numbers (HTTP statuses, Docker Engine API answers,
-Minecraft's ports), an API's shapes, another module's enum or limit.
+library's error codes and messages, a protocol's numbers (HTTP statuses, Docker Engine API answers),
+an API's shapes, another module's enum or limit.
 
-- **Import the owner's constant or type.** An HTTP status is `StatusCode` (`hyper`'s or `axum`'s
-  re-export of `http`), never a number. A signal is `libc::SIGKILL`, and the exit it causes
-  `runtime::exit_by(libc::SIGKILL)`, never 137. Another module's limit, label or enum is that
-  module's item, imported (`labels::LABEL_EPOCH`, `protocol::MAX_STOP_TIMEOUT`).
+- **Import the owner's constant or type.** An HTTP status is `StatusCode`, never a number. A signal
+  is `libc::SIGKILL`, and the exit it causes `runtime::exit_by(libc::SIGKILL)`, never 137. Another
+  module's limit, label or enum is that module's item, imported.
 - **When nothing exports it**, only its documentation gives it, it is one named constant in one
-  place, with a comment saying where it comes from: Minecraft's ports in `minecraft.rs`, the
-  kernel's cpu.shares bounds and R2's PUT limit in `protocol/`.
+  place, with a comment saying where it comes from (the kernel's cpu.shares bounds and R2's PUT
+  limit in `protocol/`).
 - **Docker's answers are read once, in `runtime/docker.rs`,** and turned into `RuntimeError`'s
   variants. The rest of the crate matches variants, never a status or a message's text.
-- **Tests take errors and answers from the real thing:** the real library, or a real Docker in
-  `tests/docker.rs` where they already can. A shape built by hand keeps passing after the real one
-  changes. The fake runtime answers with the same variants in its own words, not Docker's.
+- **Tests take errors and answers from the real thing:** the real library, a real Docker in
+  `tests/docker.rs`, a real Postgres in `control/`'s tests. The fake runtime answers with the same
+  variants in its own words, not Docker's.
 - `tests/formats.rs` and `tests/fixtures/` pin the wire and on-disk formats byte for byte, so they
   spell them out. CI's `Values from elsewhere` step greps for what a grep can see.
+- **Durations** in TypeScript come from `control/src/durations.ts`, never written out.
+
+## Structure
+
+A source file at most about 800 lines, an `impl` block, class or function at most about 600, split
+by concern before more is added, in its own `Move: …` change in which code moves and nothing else
+does. No file or module called `utils`, `helpers`, `misc`, `common` or `shared`. A file over 50
+lines opens with a doc comment (`//!` in Rust, `/** … */` in TypeScript) saying what it is for and
+what it is not for. The file named after a split's directory lists every file in it under
+``Parts (`dir/`):``. No cycle between modules. No comment saying who decided something or when.
+
+CI's `Structure` step runs Cubepals' `scripts/check-structure.ts` against
+`structure-baseline.json` (with `--rust` for the crate). It is a ratchet: the baseline only
+shrinks, and nobody adds an entry without saying why in it.
+
+## Build, test, lint
+
+```sh
+cargo build --locked                                   # pryxd, debug (only debug takes PRYXD_TEST_VERSION)
+cargo test --locked                                    # unit, API, lifecycle, epochs, reconcile, resume, transfer; no root
+cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings
+cargo deny --locked check                              # deny.toml
+sudo cargo test --locked --test docker -- --ignored    # a real Docker daemon, as root: CI runs it
+bun install --frozen-lockfile                          # control/, edge/, cli/, sdk/typescript/
+bun run check                                          # biome, typecheck, tests of every TypeScript workspace
+bun run e2e                                            # control and edge against a real pryxd: Docker, Postgres and an S3 store (CI runs it)
+```
+
+Run what you changed before you push: `cargo test --locked` for Rust, `bun run check` for
+TypeScript. The Docker-backed and end-to-end suites are CI's; say in the pull request that they
+ran there, never that they passed on a machine where they didn't run.
 
 ## Releases
 
 - A release is a pull request that raises `version` in `Cargo.toml`, and nothing else does.
   `release.yml` tags and publishes it once CI passes on that commit of `main`. Never push a tag by hand.
-- Cubepals takes a release with `bun scripts/blocklyd.ts bump <version>` in its own pull request.
-
-## Structure
-
-The same rules as Cubepals: a source file at most about 800 lines, an `impl` block or function at
-most about 600, split by concern before more is added, in its own `Move: …` change. No file or
-module called `utils`, `helpers`, `misc`, `common` or `shared`. A file over 50 lines opens with a
-`//!` doc comment saying what it is for. No cycle between modules.
-
-CI's `Structure` step runs Cubepals' `scripts/check-structure.ts` against
-`structure-baseline.json`. It is a ratchet: the baseline only shrinks, and nobody adds an entry
-without saying why in it.
+- The control service, the edge, the CLI and the SDKs release with the daemon, from the same tag.
 
 ## CI
 
-A change isn't done when its PR is green. It is done when the runs it starts on `main` are green too, the release included.
+A change isn't done when its PR is green. It is done when the runs it starts on `main` are green
+too, the release included.
 
-- **Workflows are code.** A change to `.github/workflows/` passes `actionlint` before it is pushed, and CI runs it again. A workflow GitHub can't parse never runs and shows only a red run named by its path.
-- **After a merge, look at the Actions page,** not only the PR's checks: `gh run list -R cubepals/blocklyd -L 30`. Scheduled runs fail without a PR to show it.
-- **A failure outside the code is still a failure.** A registry's rate limit or an outage gets a fix (a mirror, a retry), not a rerun until it passes.
+- **Workflows are code.** A change to `.github/workflows/` passes `actionlint` before it is
+  pushed, and CI runs it again.
+- **No new gate without asking.** A new required check, CI job or test system is a maintainer's
+  decision. A change that adds more than a minute to CI says so in the pull request.
+- **A failure outside the code is still a failure.** A registry's rate limit or an outage gets a
+  fix (a mirror, a retry), not a rerun until it passes.
 
 ## Commits
 
 Signed, as their author. No attribution lines in commits or pull requests.
 
 A commit's subject, and a pull request's title (the squash commit on `main`), says the change in
-50 characters or fewer, with no closing period; the detail goes in the body. A `Move: …` title
-fits too. `scripts/check-subject.sh` enforces it, in lefthook's `commit-msg` hook
-(CONTRIBUTING.md installs it) and in CI's `subject` job on the title.
+50 characters or fewer, with no closing period; the detail goes in the body. It says what changed,
+plainly, never the motive. `scripts/check-subject.sh` enforces it, in lefthook's `commit-msg` hook
+and in CI's `subject` job.
 
 ## No accidental mentions
 
-Never put `@` before a name in a commit message or a PR's title or body, not even inside
-backticks. Commits do not render markdown, and a squash merge copies the PR body into the commit,
-so `@s` becomes a mention of the GitHub user "s". Write "the s selector" or "the player" instead.
-`scripts/check-mentions.sh` holds commits and PRs to it, in the same hook and CI job as the
-subject. In issues and comments, selectors, crate names and emails go inside backticks closed on
-the same line.
+Never put `@` before a name in a commit message or a pull request's title or body, not even inside
+backticks: a squash merge copies the body into the commit, where `@s` mentions the GitHub user "s".
+Write "the s selector" or "the player" instead. `scripts/check-mentions.sh` holds commits and
+pull requests to it.
 
-## Titles and slips
+## Code Review Rules
 
-A PR or commit title says what changed, plainly, the way someone reading the history wants it. It
-doesn't state the motive. When something public goes wrong (a title, a mention, a post), stop, say
-what happened, and ask; don't close, reopen or force-push to cover it.
+Only what was checked against the code and is wrong:
+
+### Bugs
+- Wrong behaviour, broken edge cases, races, errors swallowed. A verb that stopped being
+  idempotent. A retry of a verb that isn't safe to repeat (kill, delete, fence, exec, transfers).
+
+### Security
+- Anything a spec can relax of the host's policy (the hardening is the host's, never the
+  request's). A walk that follows a link. A secret value in a record, a label, a log or a view.
+  A listener bound to a public address. A certificate check loosened.
+
+### Data
+- A copy of a sandbox that could run twice (an epoch check missing on a mutating verb). A restore
+  that touches the current data before it is whole. A snapshot's deletion that drops the only copy.
+
+### The rules above
+- A protocol change that renames or removes within v1, or a new request field sent before it is
+  announced in `features`. Cubepals' code linked. A business number in the code.
+
+Never: praise, a summary of the diff, style, or anything CI already reports.
