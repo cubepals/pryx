@@ -16,7 +16,8 @@
   },
   "include": [
     "control/**/*.ts",
-    "cli/**/*.ts"
+    "cli/**/*.ts",
+    "sdk/typescript/**/*.ts"
   ],
   "exclude": [
     "node_modules"

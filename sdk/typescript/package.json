@@ -1,0 +1,13 @@
+{
+  "name": "@cubepals/pryx",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "FSL-1.1-ALv2",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ]
+}

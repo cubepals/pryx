@@ -43,6 +43,13 @@
       "when": 6,
       "tag": "0006_sent_digest",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 7,
+      "tag": "0007_public_api",
+      "breakpoints": true
     }
   ]
 }

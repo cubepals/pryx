@@ -11,10 +11,12 @@ import { controlPlaneName, FleetCa } from './ca.ts'
 import { type ControlConfig, loadConfig } from './config.ts'
 import { createDb, createPool, migrationsFolder } from './database.ts'
 import { DAY_MS, MINUTE_MS } from './durations.ts'
+import { withKeys } from './keys.ts'
 import { NodeClient, splitAddress } from './node-client.ts'
 import { startNodeEndpoint } from './node-endpoint.ts'
 import { createOperatorApi } from './operator-api.ts'
 import { withUpgrades } from './operator-upgrades.ts'
+import { createPublicApi } from './public-api.ts'
 import { FleetRuntime } from './runtime-engine.ts'
 import { Sandboxes } from './sandboxes.ts'
 import { S3ArchiveStore } from './store.ts'
@@ -73,6 +75,14 @@ export async function startControl(config: ControlConfig = loadConfig()) {
     regions: [...new Set(['default', ...Object.values(config.regionMap)])],
   })
   withUpgrades(operator, { db, release: endpoint.release })
+  withKeys(operator, db, config.project)
+  const api = createPublicApi({ db, boxes: sandboxes, nodes, domain: config.publicDomain })
+  const publicListen = splitAddress(config.apiListen)
+  const publicServer = Bun.serve({
+    hostname: publicListen.host,
+    port: publicListen.port,
+    fetch: api.app.fetch,
+  })
   const listen = splitAddress(config.operatorListen)
   const server = Bun.serve({
     hostname: listen.host,
@@ -84,7 +94,10 @@ export async function startControl(config: ControlConfig = loadConfig()) {
     if (maintaining) return
     maintaining = true
     sandboxes
-      .exclusive('__upkeep__', () => sandboxes.upkeep())
+      .exclusive('__upkeep__', async () => {
+        await sandboxes.upkeep()
+        await api.model.warmTemplates()
+      })
       .catch((error) => console.error('upkeep failed', error instanceof Error ? error.name : 'error'))
       .finally(() => {
         maintaining = false
@@ -105,11 +118,13 @@ export async function startControl(config: ControlConfig = loadConfig()) {
     ca,
     config,
     operatorUrl: server.url.toString(),
+    apiUrl: publicServer.url.toString(),
     stop: async () => {
       clearInterval(upkeep)
       clearInterval(rotation)
       unwatch()
       server.stop(true)
+      publicServer.stop(true)
       await endpoint.stop()
       nodes.close()
       await lockPool.end()

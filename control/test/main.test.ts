@@ -31,6 +31,7 @@ describe.skipIf(!hasDatabase)('control composition', () => {
         ...config,
         nodeListen: '127.0.0.1:0',
         operatorListen: '127.0.0.1:0',
+        apiListen: '127.0.0.1:0',
       })
       try {
         const response = await fetch(`${control.operatorUrl}fleet/v1/nodes`, {

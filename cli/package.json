@@ -6,5 +6,8 @@
   "scripts": {
     "start": "bun src/main.ts",
     "build": "bun build --compile src/main.ts --outfile ../dist/pryx"
+  },
+  "dependencies": {
+    "@cubepals/pryx": "workspace:*"
   }
 }

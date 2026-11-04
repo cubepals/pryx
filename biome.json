@@ -4,7 +4,10 @@
     "includes": [
       "control/**",
       "cli/**",
-      "!control/src/generated/**"
+      "!control/src/generated/**",
+      "sdk/typescript/**",
+      "!sdk/typescript/src/generated/**",
+      "!control/openapi/**"
     ]
   },
   "formatter": {

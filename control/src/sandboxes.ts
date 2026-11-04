@@ -56,6 +56,7 @@ export interface SandboxRow {
   project: string
   spec: SandboxSpec
   region: string
+  only_node?: string | null
   start_requested: boolean
   source_snapshot: string | null
   past_ttl?: boolean
@@ -148,7 +149,7 @@ export class Sandboxes {
       (
         await rows<SandboxRow>(
           this.db,
-          sql`SELECT * FROM sandboxes WHERE project = ${project} AND deleted_at IS NULL AND (expires_at IS NULL OR expires_at > now()) ORDER BY created_at`,
+          sql`SELECT * FROM sandboxes WHERE project = ${project} AND NOT internal AND deleted_at IS NULL AND (expires_at IS NULL OR expires_at > now()) ORDER BY created_at`,
         )
       ).map((row) => this.view(row)),
     )
@@ -206,11 +207,14 @@ export class Sandboxes {
       region?: string
       start?: boolean
       snapshot?: string
+      onlyNode?: string
+      internal?: boolean
+      publicPorts?: unknown[]
     } = {},
   ): Promise<Sandbox> {
     const id = options.id ?? randomUUID()
-    await this.db.execute(sql`INSERT INTO sandboxes (id, project, spec, region, expires_at, start_requested, source_snapshot)
-      VALUES (${id}, ${project}, ${jsonb(spec)}, ${options.region ?? 'default'}, CASE WHEN ${spec.ttl ?? null}::double precision IS NULL THEN NULL ELSE now() + (${spec.ttl ?? null} * interval '1 second') END, ${options.start !== false}, ${options.snapshot ?? null}) ON CONFLICT (id) DO NOTHING`)
+    await this.db.execute(sql`INSERT INTO sandboxes (id, project, spec, region, expires_at, start_requested, source_snapshot, only_node, internal, public_ports)
+      VALUES (${id}, ${project}, ${jsonb(spec)}, ${options.region ?? 'default'}, CASE WHEN ${spec.ttl ?? null}::double precision IS NULL THEN NULL ELSE now() + (${spec.ttl ?? null} * interval '1 second') END, ${options.start !== false}, ${options.snapshot ?? null}, ${options.onlyNode ?? null}, ${options.internal ?? false}, ${jsonb(options.publicPorts ?? [])}) ON CONFLICT (id) DO NOTHING`)
     return this.exclusive(id, async () => {
       const row = await this.record(id, project)
       if (!isDeepStrictEqual(row.spec, spec))
@@ -239,6 +243,7 @@ export class Sandboxes {
             null,
             undefined,
             options.start !== false,
+            row.only_node ?? undefined,
           )
         }
         await this.state(id, options.start === false ? 'stopped' : 'running', true)
@@ -454,6 +459,7 @@ export class Sandboxes {
         id: row.id,
         region: row.region,
         start: row.start_requested,
+        onlyNode: row.only_node ?? undefined,
       }).catch(() => undefined)
     const placed = await rows<SandboxRow>(
       this.db,

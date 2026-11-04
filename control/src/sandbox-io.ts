@@ -1,0 +1,101 @@
+// SPDX-FileCopyrightText: 2026 The Cubepals Authors
+// SPDX-License-Identifier: FSL-1.1-ALv2
+
+/** Exec, log and file transport inside containers only; the daemon protocol stays unchanged. */
+import type { Exec } from './api-schemas.ts'
+import type { Db } from './database.ts'
+import { SECOND_MS } from './durations.ts'
+import { decodeHandle } from './handle.ts'
+import type { NodeClient } from './node-client.ts'
+import { claimExec, complete, operation } from './operations.ts'
+import { SandboxError, type Sandboxes } from './sandboxes.ts'
+import type { ExecResponse } from './wire.ts'
+
+// Rust's MAX_EXEC_ARG (src/protocol/exec.rs) is 128 KiB. Base64 and the shell script must fit one argument.
+export const FILE_LIMIT = 48 * 1024
+export class SandboxIO {
+  constructor(
+    readonly db: Db,
+    readonly boxes: Sandboxes,
+    readonly nodes: NodeClient,
+  ) {}
+  async exec(id: string, project: string, body: Exec, key?: string) {
+    const op = await operation(this.db, project, `exec:${id}`, key, body)
+    if (op.response) return op.response as ExecResponse
+    const row = await this.boxes.record(id, project)
+    if (row.state !== 'running' || !row.handle)
+      throw new SandboxError('not_running', 'Sandbox is not running')
+    const address = this.boxes.engine.nodeAddress(row.handle)
+    if (!address) throw new SandboxError('not_running', 'Sandbox has no running home')
+    if (key) await claimExec(this.db, op.id)
+    await this.boxes.touch(id)
+    // env(1) is executed inside the container. Values are argv entries, never shell interpolation.
+    const command = Object.keys(body.env).length
+      ? ['env', '--', ...Object.entries(body.env).map(([k, v]) => `${k}=${v}`), ...body.command]
+      : body.command
+    const result = await this.nodes.call<ExecResponse>(
+      address,
+      'POST',
+      `/v1/workloads/${encodeURIComponent(id)}/exec`,
+      {
+        epoch: decodeHandle(row.handle).epoch,
+        headers: key ? { 'Idempotency-Key': op.id } : {},
+        body: { command, timeoutSeconds: body.timeout },
+        timeoutMs: (body.timeout + 5) * SECOND_MS,
+      },
+    )
+    if (key) await complete(this.db, op.id, result)
+    return result
+  }
+  async *logs(id: string, project: string, query: URLSearchParams, signal: AbortSignal) {
+    const row = await this.boxes.record(id, project)
+    if (!row.handle) throw new SandboxError('not_running', 'Sandbox has no local logs')
+    const address = this.boxes.engine.nodeAddress(row.handle)
+    if (!address) throw new SandboxError('not_running', 'Sandbox has no local logs')
+    yield* this.nodes.lines(address, `/v1/workloads/${encodeURIComponent(id)}/logs?${query}`, signal)
+  }
+  async file(id: string, project: string, path: string, data?: string) {
+    const row = await this.boxes.record(id, project)
+    if (
+      !path ||
+      path.startsWith('/') ||
+      path.split('/').some((p) => p === '..' || p === '.' || !p) ||
+      path.includes('\0')
+    )
+      throw new SandboxError(
+        'invalid_request',
+        'File path is relative to persistent storage without dot segments',
+      )
+    if (
+      data !== undefined &&
+      (Buffer.from(data, 'base64').length > FILE_LIMIT || !/^[A-Za-z0-9+/]*={0,2}$/.test(data))
+    )
+      throw new SandboxError('invalid_request', `File is base64 with at most ${FILE_LIMIT} decoded bytes`)
+    // realpath follows existing parents; its result must stay under the persistent mount even through symlinks.
+    const guard =
+      'base=$(realpath "$1") || exit; parent=$(realpath "$base/$(dirname "$2")") || exit; case "$parent/" in "$base/"*) ;; *) exit 1;; esac; target="$parent/$(basename "$2")"; [ ! -L "$target" ] || exit 1; '
+    const script =
+      data === undefined
+        ? guard + 'tar -C "$base" -cf - -- "$2" | base64'
+        : guard + 'printf %s "$3" | base64 -d > "$target"'
+    const result = await this.exec(id, project, {
+      command: [
+        'sh',
+        '-c',
+        script,
+        'pryx-file',
+        row.spec.storage.mountPath,
+        path,
+        ...(data === undefined ? [] : [data]),
+      ],
+      timeout: 30,
+      env: {},
+    })
+    if (result.exitCode !== 0 || result.stdoutTruncated || result.stderrTruncated)
+      throw new SandboxError(
+        'invalid_request',
+        'File command failed or exceeded the node output bound; image needs sh, realpath, tar and base64',
+      )
+    return data === undefined ? { archiveBase64: result.stdout.replaceAll(/\s/g, '') } : { written: true }
+  }
+}

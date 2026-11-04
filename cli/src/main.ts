@@ -1,14 +1,26 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
-//
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
+/** The pryx binary: operator commands and public sandbox workflows. */
+import { key } from './key.ts'
 import { node } from './node.ts'
+import { run, sandbox } from './sandbox.ts'
 
 const [group, ...args] = process.argv.slice(2)
 try {
-  if (group !== 'node')
-    throw new Error('usage: pryx node ls|get|token|drain|undrain|lost|reinstate|retire|events|summary')
-  console.log(JSON.stringify(await node(args), null, 2))
+  const result =
+    group === 'node'
+      ? await node(args)
+      : group === 'key'
+        ? await key(args)
+        : group === 'sandbox'
+          ? await sandbox(args)
+          : group === 'run'
+            ? await run(args)
+            : (() => {
+                throw new Error('usage: pryx node|key|sandbox|run')
+              })()
+  if (result !== undefined) console.log(JSON.stringify(result, null, 2))
 } catch (error) {
   console.error(error instanceof Error ? error.message : 'Command failed')
   process.exitCode = 1

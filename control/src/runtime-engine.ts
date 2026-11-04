@@ -259,10 +259,11 @@ export class FleetRuntime implements SandboxRuntime {
     _install: InstallSeed | null = null,
     _storage?: unknown,
     started = true,
+    onlyNode?: string,
   ): Promise<RuntimeHandle> {
     await progress.step('allocating')
     const region = this.#region(placement.regionKey)
-    const request = this.#choice.request(spec, region)
+    const request = this.#choice.request(spec, region, [], onlyNode ?? null)
     const chosen = await this.#o.db.transaction(async (t) => {
       await lockRegion(t, region)
       const row = await placementOf(t, key, true)

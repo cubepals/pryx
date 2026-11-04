@@ -29,3 +29,17 @@
 - K3: Disable the node adapter's global web-object override; its lightweight Response objects are incompatible with the direct Bun listener. The composed-service smoke returned HTTP 200 after using the adapter's documented overrideGlobalObjects=false option.
 
 - K3: Close the milestone after 179 real-Postgres tests, full workspace checks, frozen install, expanded structure and actionlint passed; full e2e and remote CI remain unrun locally as required.
+
+- K4: Keep node v1 unchanged; translate public port audiences and run env(1) inside the container for per-command environment because ExecRequest has no env field.
+- K4: Use Zod's JSON Schema conversion for runtime validation and the public OpenAPI document, and pinned openapi-typescript for SDK types; keep the wrapper dependency-free.
+- K4: Persist hash-only keys and a project column with one configured project per deployment; manage keys on the existing operator-authenticated listener.
+- K4: Persist create identity and request fingerprints before placement; uncertain keyed execs refuse automatic replay so a lost reply cannot run a command twice.
+- K4: Emit NDJSON after the daemon's buffered exec completes, preserving truncation and timeout metadata; true live exec output would require an additive node feature later.
+- K4: Resolve file paths under the persistent mount inside the container, using argv for every user value; bound writes to 48 KiB to fit Rust's argument limit and refuse truncated reads.
+- K4: Warm each template on every active eligible node, keep a stopped backing sandbox and snapshot, retry pending copies on upkeep, and hide backing sandboxes from listings.
+- K4: Container is the only accepted isolation because every current protocol-v1 pryxd uses Docker containment; no unsupported backend is advertised or sent.
+- K4: Keep API/operator listeners on loopback by default and require a TLS reverse proxy for remote API clients; public hostnames default to localhost until a domain is configured.
+- K4: The CLI snapshot flag preserves a separate resting fork before deleting the temporary sandbox because sandbox deletion removes its data and snapshots; print the retained sandbox id for cleanup.
+- K4: Add a real daemon public API/compiled CLI suite to the existing CI e2e job; do not run Docker-backed e2e locally per the plan.
+- K4: Correct the remaining release image environment value to ghcr.io/cubepals/pryxd while adding the CLI and SDK assets; K1's earlier audit missed this value.
+- K4: Final local checks passed with 186 tests and 785 assertions against Postgres, frozen install, schema/SDK drift, structure, actionlint, CLI compilation and SDK packing; real daemon e2e and release publication remain CI work, with no remote result claimed.
