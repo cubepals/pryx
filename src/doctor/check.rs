@@ -23,7 +23,7 @@ pub struct Check {
     pub(crate) detail: String,
     /// What to do, when it isn't a pass.
     pub(crate) fix: Option<String>,
-    /// A failure here stops blocklyd from starting, as it did before doctor existed.
+    /// A failure here stops pryxd from starting, as it did before doctor existed.
     #[serde(skip)]
     pub(crate) gates_start: bool,
 }
@@ -41,7 +41,7 @@ impl Check {
         Self { name, status: Status::Fail, detail: detail.into(), fix: Some(fix.into()), gates_start: false }
     }
 
-    /// Marks a check whose failure keeps blocklyd from starting.
+    /// Marks a check whose failure keeps pryxd from starting.
     pub(crate) fn gating(self) -> Self {
         Self { gates_start: true, ..self }
     }

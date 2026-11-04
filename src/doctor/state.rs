@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! Whether the state directory can be used: blocklyd can hand directories in it to the workloads'
-//! user (the one state check that stops it from starting), no other blocklyd holds it, files in
+//! Whether the state directory can be used: pryxd can hand directories in it to the workloads'
+//! user (the one state check that stops it from starting), no other pryxd holds it, files in
 //! it can share blocks, and its disk has room above the floor.
 
 use std::collections::HashSet;
@@ -22,8 +22,8 @@ pub(crate) fn checks(config: &Config, config_path: &Path) -> Vec<Check> {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             return vec![Check::warn(
                 "state_dir",
-                format!("{} doesn't exist yet; blocklyd makes it when it starts", dir.display()),
-                "Nothing needed, or run blocklyd doctor --fix to make it now",
+                format!("{} doesn't exist yet; pryxd makes it when it starts", dir.display()),
+                "Nothing needed, or run pryxd doctor --fix to make it now",
             )];
         }
         Err(e) => {
@@ -56,22 +56,22 @@ pub(crate) fn checks(config: &Config, config_path: &Path) -> Vec<Check> {
 fn ownable(store: &Store, owner: (u32, u32)) -> Check {
     match store.check_ownable(owner) {
         Ok(()) => {
-            Check::pass("state_dir.ownable", format!("blocklyd can give data directories to {}:{}", owner.0, owner.1))
+            Check::pass("state_dir.ownable", format!("pryxd can give data directories to {}:{}", owner.0, owner.1))
         }
         Err(e) => Check::fail(
             "state_dir.ownable",
             e.to_string(),
-            "Run blocklyd as root (it needs CAP_CHOWN), or set workloads.data_owner to its own uid:gid",
+            "Run pryxd as root (it needs CAP_CHOWN), or set workloads.data_owner to its own uid:gid",
         )
         .gating(),
     }
 }
 
-/// A lock held by the blocklyd this configuration runs is how it should be; any other holder
-/// keeps blocklyd from starting.
+/// A lock held by the pryxd this configuration runs is how it should be; any other holder
+/// keeps pryxd from starting.
 fn lock(store: &Store, config_path: &Path) -> Check {
     let path = match store.lock() {
-        Ok(_held) => return Check::pass("state_dir.lock", "no other blocklyd holds it"),
+        Ok(_held) => return Check::pass("state_dir.lock", "no other pryxd holds it"),
         Err(StoreError::Locked(path)) => path,
         Err(e) => return Check::warn("state_dir.lock", e.to_string(), "Check the state directory's permissions"),
     };
@@ -79,13 +79,13 @@ fn lock(store: &Store, config_path: &Path) -> Check {
     if let Some((pid, args)) = &holder
         && serves(args, config_path)
     {
-        return Check::pass("state_dir.lock", format!("held by the running blocklyd (pid {pid})"));
+        return Check::pass("state_dir.lock", format!("held by the running pryxd (pid {pid})"));
     }
     let who = holder.map_or("another process".to_owned(), |(pid, args)| format!("pid {pid} ({})", args.join(" ")));
     Check::fail(
         "state_dir.lock",
-        format!("{who} holds {}; one blocklyd per state directory", path.display()),
-        "Stop the other blocklyd, or give this one its own state_dir",
+        format!("{who} holds {}; one pryxd per state directory", path.display()),
+        "Stop the other pryxd, or give this one its own state_dir",
     )
 }
 
@@ -107,10 +107,10 @@ fn lock_holder(path: &Path) -> Option<(u32, Vec<String>)> {
     Some((pid, args.collect()))
 }
 
-/// Whether a command line is `blocklyd serve` with this configuration.
+/// Whether a command line is `pryxd serve` with this configuration.
 fn serves(args: &[String], config_path: &Path) -> bool {
-    let is_blocklyd = args.first().is_some_and(|a| Path::new(a).file_name().is_some_and(|n| n == "blocklyd"));
-    if !is_blocklyd || !args.iter().any(|a| a == "serve") {
+    let is_pryxd = args.first().is_some_and(|a| Path::new(a).file_name().is_some_and(|n| n == "pryxd"));
+    if !is_pryxd || !args.iter().any(|a| a == "serve") {
         return false;
     }
     let configured = args
@@ -144,12 +144,12 @@ fn disk(dir: &Path, min_free_mb: u64) -> Check {
     }
     Check::warn(
         "state_dir.disk",
-        format!("{free_mb} MB free, below the {min_free_mb} MB floor: blocklyd refuses new servers"),
+        format!("{free_mb} MB free, below the {min_free_mb} MB floor: pryxd refuses new servers"),
         "Free space on that disk, or lower capacity.min_free_disk_mb",
     )
 }
 
-/// Ports this host's workloads hold, from their records: in use by blocklyd itself, not taken.
+/// Ports this host's workloads hold, from their records: in use by pryxd itself, not taken.
 pub(crate) fn held_ports(state_dir: &Path) -> HashSet<(Proto, u16)> {
     let Ok((records, _)) = Store::existing(state_dir).load_all() else { return HashSet::new() };
     records.iter().flat_map(|r| r.ports.iter().map(|p| (p.protocol, p.host_port))).collect()
@@ -184,7 +184,7 @@ mod tests {
     }
 
     #[test]
-    fn a_missing_state_dir_is_a_warning_blocklyd_fixes_itself() {
+    fn a_missing_state_dir_is_a_warning_pryxd_fixes_itself() {
         let dir = tempfile::tempdir().unwrap();
         let checks = checks(&config(&dir.path().join("state")), Path::new(config::PATH));
         assert_eq!(checks.len(), 1);
@@ -203,7 +203,7 @@ mod tests {
     }
 
     #[test]
-    fn a_file_where_the_state_dir_goes_stops_blocklyd() {
+    fn a_file_where_the_state_dir_goes_stops_pryxd() {
         let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join("state");
         std::fs::write(&file, "").unwrap();
@@ -212,7 +212,7 @@ mod tests {
     }
 
     #[test]
-    fn a_data_owner_blocklyd_cant_give_to_fails_and_stops_blocklyd() {
+    fn a_data_owner_pryxd_cant_give_to_fails_and_stops_pryxd() {
         if rustix::process::getuid().is_root() {
             return; // root can give anything to anyone
         }
@@ -222,7 +222,7 @@ mod tests {
     }
 
     #[test]
-    fn a_lock_held_by_something_other_than_this_blocklyd_fails() {
+    fn a_lock_held_by_something_other_than_this_pryxd_fails() {
         let dir = tempfile::tempdir().unwrap();
         let store = Store::open(dir.path()).unwrap();
         let _held = store.lock().unwrap();
@@ -232,13 +232,13 @@ mod tests {
     }
 
     #[test]
-    fn serving_this_config_is_this_blocklyd() {
+    fn serving_this_config_is_this_pryxd() {
         let args = |a: &str| a.split(' ').map(str::to_owned).collect::<Vec<_>>();
         let config = Path::new(config::PATH);
-        assert!(serves(&args(&format!("/usr/local/bin/blocklyd serve --config {}", config::PATH)), config));
-        assert!(serves(&args("blocklyd serve"), config));
-        assert!(!serves(&args("/usr/local/bin/blocklyd serve --config /srv/other.toml"), config));
-        assert!(!serves(&args("/usr/bin/flock blocklyd serve"), config));
+        assert!(serves(&args(&format!("/usr/local/bin/pryxd serve --config {}", config::PATH)), config));
+        assert!(serves(&args("pryxd serve"), config));
+        assert!(!serves(&args("/usr/local/bin/pryxd serve --config /srv/other.toml"), config));
+        assert!(!serves(&args("/usr/bin/flock pryxd serve"), config));
     }
 
     #[test]

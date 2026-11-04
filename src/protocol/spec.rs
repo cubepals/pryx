@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
 //! What a workload is: the spec the control plane sends (`WorkloadSpec`), and the same spec as
-//! blocklyd keeps it (`SpecRecord`, secret values dropped), with the defaults a request may leave out.
-//! Whether this host will run a spec is not decided here but in `spec/validate.rs`. What blocklyd
+//! pryxd keeps it (`SpecRecord`, secret values dropped), with the defaults a request may leave out.
+//! Whether this host will run a spec is not decided here but in `spec/validate.rs`. What pryxd
 //! reports about a workload once it exists is in `workload.rs`.
 //!
 //! Parts (`spec/`):
@@ -20,7 +20,7 @@ mod validate;
 
 pub(crate) use validate::*;
 
-/// A secret value: never logged, never persisted by blocklyd, never returned.
+/// A secret value: never logged, never persisted by pryxd, never returned.
 #[derive(Clone, Deserialize, PartialEq, Eq)]
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(transparent)]
@@ -183,7 +183,7 @@ pub(crate) enum RestartPolicy {
     /// Started again after a failing exit, up to `maxRetries` times (Blockly's Fly and Docker
     /// runtimes both use 3; 0 means never, not Docker's "no limit"). Never after a requested stop.
     /// After a restart of the host, a workload that was running when the host went down is
-    /// resumed; after a restart of blocklyd alone, in the same boot, nothing is. In fleet mode
+    /// resumed; after a restart of pryxd alone, in the same boot, nothing is. In fleet mode
     /// either needs the execution lease, which the node takes only after applying the fences of
     /// the heartbeat answer that grants it.
     OnFailure,
@@ -205,7 +205,7 @@ impl Default for RestartSpec {
 }
 
 impl WorkloadSpec {
-    /// The spec as blocklyd keeps it: secret values dropped, names kept.
+    /// The spec as pryxd keeps it: secret values dropped, names kept.
     pub fn record(&self) -> SpecRecord {
         SpecRecord {
             image: self.image.clone(),
@@ -222,7 +222,7 @@ impl WorkloadSpec {
     }
 }
 
-/// A spec without its secret values: what blocklyd persists and puts in labels. Enough to
+/// A spec without its secret values: what pryxd persists and puts in labels. Enough to
 /// describe and rediscover a workload; not enough to recreate it, which only the control plane
 /// can ask for, since only it holds the secrets.
 ///
@@ -248,7 +248,7 @@ pub struct SpecRecord {
 }
 
 impl SpecRecord {
-    /// The spec again, with these secret values, and `resumes_on`: for a spec blocklyd kept
+    /// The spec again, with these secret values, and `resumes_on`: for a spec pryxd kept
     /// whose secrets it can take from the container they were given to. None if `secrets` lacks
     /// one of the names the spec holds.
     pub(crate) fn with_secrets(

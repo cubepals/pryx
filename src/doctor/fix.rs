@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! `doctor --fix`: the fixes that are safe to make without asking, on a host with no blocklyd
+//! `doctor --fix`: the fixes that are safe to make without asking, on a host with no pryxd
 //! servers yet. It writes Docker's daemon.json from `deploy/daemon.json` (merged over the one there,
 //! which it keeps as a `.bak`) and makes the state directory. Each change says how to undo it.
 //!
@@ -41,8 +41,7 @@ pub(crate) async fn apply(config: &Config, runtime: &dyn ContainerRuntime, daemo
     let servers = runtime.list(&[format!("{LABEL_MANAGED}=true")]).await;
     if has_workloads(&config.state_dir) || servers.as_ref().is_ok_and(|servers| !servers.is_empty()) {
         fixed.next.push(
-            "Nothing changed: this host already runs blocklyd servers, and --fix changes only a host without any"
-                .into(),
+            "Nothing changed: this host already runs pryxd servers, and --fix changes only a host without any".into(),
         );
         return fixed;
     }

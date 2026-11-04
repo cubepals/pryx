@@ -2,14 +2,14 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! What blocklyd keeps on disk, and the host's filesystem layout.
+//! What pryxd keeps on disk, and the host's filesystem layout.
 //!
 //! ```text
-//! <state_dir>/                       0700 root   (default /var/lib/blocklyd, FHS: /var/lib/<pkg>)
-//!   blocklyd.lock                                    flock: one blocklyd per state dir
+//! <state_dir>/                       0700 root   (default /var/lib/pryxd, FHS: /var/lib/<pkg>)
+//!   pryxd.lock                                    flock: one pryxd per state dir
 //!   ports.json                       0600 root    released host ports still in quarantine
 //!   workloads/<id>/                  0700 root
-//!     workload.json                  0600 root    blocklyd's record (no secret values)
+//!     workload.json                  0600 root    pryxd's record (no secret values)
 //!     suspend.json                   0600 root    its suspension and deferred spec, if any
 //!     data/                          0750 uid:gid the workload's persistent data, bind-mounted
 //!     snapshots/<snapshot>/                       local snapshots (tree.rs), never mounted
@@ -31,7 +31,7 @@
 //!
 //! Parts (`store/`):
 //! - `leftovers.rs`: what a crash leaves (spool files, unfinished snapshots, temp files), cleared
-//!   when blocklyd starts.
+//!   when pryxd starts.
 //! - `restore.rs`: putting a restore's new data in place of the old, and finishing one a crash
 //!   interrupted.
 //! - `snapshots.rs`: local snapshots, beside the data they copy.
@@ -96,15 +96,15 @@ pub struct WorkloadRecord {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub superseded_by: Option<u64>,
     /// Set when the control plane asks for a stop or kill and cleared by a start: an exit after
-    /// it is a stop, not a crash, even if blocklyd restarted in between.
+    /// it is a stop, not a crash, even if pryxd restarted in between.
     pub stop_requested_at: Option<String>,
-    /// The host's boot (kernel boot id) in which blocklyd last saw this workload running, cleared
+    /// The host's boot (kernel boot id) in which pryxd last saw this workload running, cleared
     /// once it saw it stop in that same boot. Still set for an earlier boot after a restart of
     /// the host means the host went down under it: it is resumed (see `Manager::resume`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub running_boot: Option<String>,
-    /// Restarts blocklyd made after failures in the current run; a requested start or a new spec
-    /// begins a new one. Kept here, not in memory, so a restart of blocklyd doesn't give a crash
+    /// Restarts pryxd made after failures in the current run; a requested start or a new spec
+    /// begins a new one. Kept here, not in memory, so a restart of pryxd doesn't give a crash
     /// loop its retries again.
     #[serde(default)]
     pub restart_count: u32,
@@ -151,13 +151,13 @@ pub enum StoreError {
     /// The daemon can't hand a directory to the workloads' data owner: it isn't root, or runs
     /// without CAP_CHOWN.
     #[error(
-        "can't give {path} to {}:{}, the workloads' data owner: {source}. blocklyd runs as root (with \
+        "can't give {path} to {}:{}, the workloads' data owner: {source}. pryxd runs as root (with \
          CAP_CHOWN), or workloads.data_owner is its own uid:gid",
         owner.0,
         owner.1
     )]
     Ownership { path: PathBuf, owner: (u32, u32), source: io::Error },
-    #[error("another blocklyd holds {0}; one blocklyd per state directory")]
+    #[error("another pryxd holds {0}; one pryxd per state directory")]
     Locked(PathBuf),
 }
 
@@ -203,10 +203,10 @@ impl Store {
         &self.root
     }
 
-    /// Holds an exclusive lock on `blocklyd.lock` for as long as the file lives. A second blocklyd on
+    /// Holds an exclusive lock on `pryxd.lock` for as long as the file lives. A second pryxd on
     /// the same state directory would hand out the same ports twice; it refuses to start.
     pub fn lock(&self) -> Result<File, StoreError> {
-        let path = self.root.join("blocklyd.lock");
+        let path = self.root.join("pryxd.lock");
         let file = OpenOptions::new()
             .create(true)
             .truncate(false)
@@ -315,7 +315,7 @@ impl Store {
         Ok((records, bad))
     }
 
-    /// Workload directories that hold no record: data blocklyd doesn't know. Never deleted.
+    /// Workload directories that hold no record: data pryxd doesn't know. Never deleted.
     pub(crate) fn orphan_dirs(&self, known: &std::collections::BTreeSet<WorkloadId>) -> Vec<PathBuf> {
         let Ok(entries) = fs::read_dir(self.workloads_dir()) else { return Vec::new() };
         entries
@@ -359,7 +359,7 @@ impl Store {
     }
 
     /// Whether this daemon can hand a directory to `owner`, as every create does. Checked when
-    /// blocklyd starts, so a daemon without the privilege for it refuses to start rather than
+    /// pryxd starts, so a daemon without the privilege for it refuses to start rather than
     /// failing every create that follows.
     pub fn check_ownable(&self, owner: (u32, u32)) -> Result<(), StoreError> {
         let probe = self.root.join(format!(".ownership-check-{}", std::process::id()));

@@ -118,7 +118,7 @@ impl Default for Metrics {
 
 impl Metrics {
     pub fn new() -> Self {
-        let mut registry = Registry::with_prefix("blocklyd");
+        let mut registry = Registry::with_prefix("pryxd");
         let operations = Family::<OpLabels, Counter>::default();
         let operation_seconds = Family::<OpOnly, Histogram>::new_with_constructor(|| Histogram::new(op_buckets()));
         let http_requests = Family::<HttpLabels, Counter>::default();
@@ -151,8 +151,8 @@ impl Metrics {
         registry.register("reconciles", "Reconciliation passes by outcome", reconciles.clone());
         registry.register("reconcile_duration_seconds", "Time per reconciliation pass", reconcile_seconds.clone());
         registry.register("runtime_events", "Container runtime events seen, by action", runtime_events.clone());
-        registry.register("info", "blocklyd version, protocol and node identity", info.clone());
-        registry.register("uptime_seconds", "Seconds since blocklyd started", uptime.clone());
+        registry.register("info", "pryxd version, protocol and node identity", info.clone());
+        registry.register("uptime_seconds", "Seconds since pryxd started", uptime.clone());
         registry.register(
             "docker_up",
             "1 when the container runtime answered last time it was asked",
@@ -165,8 +165,8 @@ impl Metrics {
         registry.register("workload_memory_working_set_bytes", "Memory in use per workload", workload_memory.clone());
         registry.register("workload_cpu_cores", "Cores in use per workload over the last sample", workload_cpu.clone());
         registry.register("workload_data_bytes", "Data on disk per workload", workload_disk.clone());
-        registry.register("process_resident_memory_bytes", "blocklyd's own resident memory", daemon_rss.clone());
-        registry.register("process_cpu_seconds", "blocklyd's own CPU time", daemon_cpu.clone());
+        registry.register("process_resident_memory_bytes", "pryxd's own resident memory", daemon_rss.clone());
+        registry.register("process_cpu_seconds", "pryxd's own CPU time", daemon_cpu.clone());
         registry.register("heartbeats", "Heartbeats to the control plane, by outcome (fleet mode)", heartbeats.clone());
         registry.register(
             "fleet_contact_age_seconds",

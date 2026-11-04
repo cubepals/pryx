@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
 //! Makes the records agree with what Docker actually has, at startup and on a schedule. It fixes
-//! only blocklyd's own bookkeeping, and at startup clears what a crash left of its own files, and
+//! only pryxd's own bookkeeping, and at startup clears what a crash left of its own files, and
 //! reports the rest; resuming what the host went down under is `restarts.rs`, and the schedule
 //! itself runs in `crate::reconcile`.
 
@@ -12,7 +12,7 @@ use super::*;
 impl Manager {
     // ─── reconciliation ────────────────────────────────────────────────────────────────────
 
-    /// Rebuilds what blocklyd knows from disk (on startup) and the runtime (always), and
+    /// Rebuilds what pryxd knows from disk (on startup) and the runtime (always), and
     /// reports whatever doesn't add up. It fixes only its own bookkeeping: a record interrupted
     /// mid-create is completed from its container, a container whose record was lost gets its
     /// record back from its labels. It never starts, stops or deletes a workload.
@@ -280,7 +280,7 @@ impl Manager {
         self.remember(id, Some(c)).await;
         Ok(Ok(Issue::new(
             IssueCode::RecordRebuilt,
-            "blocklyd's record was missing and was rebuilt from the container's labels",
+            "pryxd's record was missing and was rebuilt from the container's labels",
         )))
     }
 

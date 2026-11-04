@@ -240,7 +240,7 @@ impl WorkloadSpec {
                 problems.add(format!("labels.{key}"), "keys are lowercase letters, digits and ._/-");
             }
             if key.starts_with(RESERVED_LABEL_PREFIX) {
-                problems.add(format!("labels.{key}"), format!("the {RESERVED_LABEL_PREFIX} prefix is blocklyd's own"));
+                problems.add(format!("labels.{key}"), format!("the {RESERVED_LABEL_PREFIX} prefix is pryxd's own"));
             }
             if value.len() > 256 || !no_nul(value) {
                 problems.add(format!("labels.{key}"), "values are at most 256 bytes, without NUL");

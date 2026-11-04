@@ -1,12 +1,12 @@
 # Contributing
 
-blocklyd is the node daemon of [Cubepals](https://github.com/cubepals/cubepals), developed under
+pryxd is the node daemon of [Cubepals](https://github.com/cubepals/cubepals), developed under
 the codename Blockly. [AGENTS.md](AGENTS.md) holds the rules every change follows, for people and
 agents alike; this page is how to work on it.
 
 ## Setup and tests
 
-The Rust `rust-toolchain.toml` names, which rustup installs, on Linux (blocklyd uses Linux-only
+The Rust `rust-toolchain.toml` names, which rustup installs, on Linux (pryxd uses Linux-only
 APIs; on macOS, work in a Linux container or VM).
 
 ```sh
@@ -38,14 +38,14 @@ npx lefthook@2.1.15 install
 
 A change to the protocol only adds within v1 (a new field, a new endpoint, announced in
 `features`), so a control plane one release behind keeps working. Regenerate the specs with
-`BLOCKLYD_WRITE_SCHEMA=1 cargo test --lib protocol::schema` and commit `openapi/`.
+`PRYXD_WRITE_SCHEMA=1 cargo test --lib protocol::schema` and commit `openapi/`.
 
 A release is a pull request that raises `version` in `Cargo.toml`; the README's "Releases" says
 what happens when it merges.
 
 ## Your contribution's licence
 
-blocklyd is published under [FSL-1.1-ALv2](LICENSE.md), and each version becomes Apache-2.0 two
+pryxd is published under [FSL-1.1-ALv2](LICENSE.md), and each version becomes Apache-2.0 two
 years later. So that a contribution can follow it there, by opening a pull request you license
 your change to The Cubepals Authors under the [Apache License, Version
 2.0](https://www.apache.org/licenses/LICENSE-2.0), and you confirm that it is yours to license.

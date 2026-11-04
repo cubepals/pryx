@@ -20,7 +20,7 @@
 //! host went down under, so a node cut off from the control plane, which may have been replaced,
 //! brings nothing back on its own.
 //!
-//! An answer may also offer a newer blocklyd, which the node installs and restarts into
+//! An answer may also offer a newer pryxd, which the node installs and restarts into
 //! (upgrade.rs); a beat accepted once reconciled ends the trial of one just installed.
 
 use std::collections::BTreeMap;
@@ -267,7 +267,7 @@ mod tests {
         assert!(took >= Duration::from_secs(2), "{took:?}");
     }
 
-    /// blocklyd over the in-memory runtime, with nothing on it yet.
+    /// pryxd over the in-memory runtime, with nothing on it yet.
     async fn daemon() -> (tempfile::TempDir, Arc<FakeRuntime>, Arc<Manager>) {
         let dir = tempfile::tempdir().unwrap();
         let (uid, gid) = (rustix::process::getuid().as_raw(), rustix::process::getgid().as_raw());

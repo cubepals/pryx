@@ -13,13 +13,13 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
-use blocklyd::manager::{ConflictCode, Manager, NodeError, Precondition, Records};
-use blocklyd::metrics::Metrics;
-use blocklyd::protocol::{DataDisposition, EnsureOutcome, WorkloadSpec, WorkloadState};
-use blocklyd::runtime::ContainerStatus;
-use blocklyd::runtime::fake::FakeRuntime;
-use blocklyd::store::Store;
 use hyper::StatusCode;
+use pryxd::manager::{ConflictCode, Manager, NodeError, Precondition, Records};
+use pryxd::metrics::Metrics;
+use pryxd::protocol::{DataDisposition, EnsureOutcome, WorkloadSpec, WorkloadState};
+use pryxd::runtime::ContainerStatus;
+use pryxd::runtime::fake::FakeRuntime;
+use pryxd::store::Store;
 use support::{CLIENT, client, fixture, id, pki, request, serve, spec_with};
 use tokio_util::sync::CancellationToken;
 
@@ -97,7 +97,7 @@ async fn a_resume_that_hangs_is_killed_and_started_afresh_on_its_data() {
     assert_eq!(r.resumed, Some(false), "it didn't come back from memory");
     assert_eq!(r.workload.state, WorkloadState::Running);
     assert_ne!(r.workload.started_at, frozen_since, "a new run");
-    assert_eq!(r.workload.restart_count, 0, "the kill was blocklyd's, not a failure");
+    assert_eq!(r.workload.restart_count, 0, "the kill was pryxd's, not a failure");
     assert_eq!(f.fake.count_calls("kill "), 1);
     assert_eq!(f.fake.count_calls("start "), 2);
 }
@@ -205,11 +205,11 @@ async fn stop_kill_fence_and_delete_each_reach_a_suspended_copy() {
     assert_eq!(r.workload.state, WorkloadState::Running);
 }
 
-/// blocklyd on `dir`, in one boot of the host.
+/// pryxd on `dir`, in one boot of the host.
 fn daemon(dir: &Path, fake: &Arc<FakeRuntime>, boot: &str) -> Arc<Manager> {
     let config = support::config(dir, "");
     let store = Store::open(&config.state_dir).unwrap();
-    let probe: blocklyd::ports::Probe = Arc::new(|_, _| true);
+    let probe: pryxd::ports::Probe = Arc::new(|_, _| true);
     Manager::with_boot(Arc::new(config), fake.clone(), store, Arc::new(Metrics::new()), probe, Some(boot.into()))
 }
 
@@ -223,14 +223,14 @@ async fn a_restart_of_the_host_ends_the_sleep_and_resumes_nothing() {
     first.start(id("w"), None).await.unwrap();
     first.suspend(id("w"), None).await.unwrap();
     first.ensure(id("w"), upgraded(), Precondition::None, None).await.unwrap();
-    // blocklyd alone restarts: it still knows the workload sleeps, and what waits for its boot.
+    // pryxd alone restarts: it still knows the workload sleeps, and what waits for its boot.
     let again = daemon(dir.path(), &fake, "boot-1");
     again.reconcile(Records::FromDisk).await;
     let view = again.view(&id("w")).unwrap();
     assert_eq!(view.state, WorkloadState::Suspended);
     assert_eq!(view.pending_spec_digest, Some(digest(&upgraded())));
     // The host goes down: the frozen process with it, killed as Docker kills it.
-    fake.crash(NAME, blocklyd::runtime::exit_by(libc::SIGKILL), false);
+    fake.crash(NAME, pryxd::runtime::exit_by(libc::SIGKILL), false);
     let second = daemon(dir.path(), &fake, "boot-2");
     assert!(second.reconcile(Records::FromDisk).await.error.is_none());
     tokio::spawn(second.clone().restart_supervisor(CancellationToken::new()));
@@ -255,7 +255,7 @@ async fn a_deferred_spec_the_hosts_policy_no_longer_admits_never_boots() {
     });
     let r = f.manager.ensure(id("w"), other_image.clone(), Precondition::None, None).await.unwrap();
     assert_eq!(r.outcome, EnsureOutcome::Deferred);
-    // blocklyd restarts with that image's prefix taken out of its allowed images.
+    // pryxd restarts with that image's prefix taken out of its allowed images.
     let again = support::manager_on(f.dir.path(), f.fake.clone(), "[workloads]\nallowed_images = [\"alpine:\"]\n");
     assert!(again.reconcile(Records::FromDisk).await.error.is_none());
     assert_eq!(again.view(&id("w")).unwrap().pending_spec_digest, Some(digest(&other_image)));

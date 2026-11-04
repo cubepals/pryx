@@ -65,7 +65,7 @@ pub(crate) struct ProcessFacts {
     pub(crate) cpu_seconds: Option<f64>,
 }
 
-/// This process's resident memory and CPU time: blocklyd's own footprint.
+/// This process's resident memory and CPU time: pryxd's own footprint.
 pub(crate) fn process() -> ProcessFacts {
     let page = rustix::param::page_size() as u64;
     let rss_bytes = read("/proc/self/statm")

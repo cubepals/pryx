@@ -1,4 +1,4 @@
-# blocklyd protocol v1
+# pryxd protocol v1
 
 > The Rust types in [`src/protocol.rs`](../src/protocol.rs) and
 > [`src/protocol/wire.rs`](../src/protocol/wire.rs) are the source of truth; this page describes them.
@@ -8,9 +8,9 @@
 > `features` before a control plane may send it. A node and a control plane one release apart
 > always understand each other.
 
-The control plane talks to one blocklyd per host over **HTTPS with mutual TLS**, JSON bodies,
+The control plane talks to one pryxd per host over **HTTPS with mutual TLS**, JSON bodies,
 under `/v1`. The vocabulary is *workloads*: a spec (image, environment, resources, storage,
-ports, stop behaviour) that blocklyd keeps on this host, running or stopped. Nothing in the
+ports, stop behaviour) that pryxd keeps on this host, running or stopped. Nothing in the
 protocol names Docker.
 
 ## Conventions
@@ -29,10 +29,10 @@ protocol names Docker.
 - **Versioning.** The major version is in the path (`/v1`). Every response carries
   `blocklyd-protocol: 1`. `GET /v1/health` lists `protocol.supported` and `features`.
   - A client must ignore response fields it doesn't know. Responses only grow.
-  - blocklyd refuses request fields it doesn't know (`422 invalid_request`) rather than
+  - pryxd refuses request fields it doesn't know (`422 invalid_request`) rather than
     silently ignoring them. A newer client checks `features` before sending a field an older
-    blocklyd lacks.
-- **Request ids.** Send `x-request-id` (1–64 of `[A-Za-z0-9_-]`) to correlate. blocklyd echoes
+    pryxd lacks.
+- **Request ids.** Send `x-request-id` (1–64 of `[A-Za-z0-9_-]`) to correlate. pryxd echoes
   it, or generates one, and logs it with every line about that request.
 - **Caching.** Every response is `cache-control: no-store`.
 - **Workload ids.** 1–63 of `a-z 0-9 -`, starting and ending with a letter or digit. A UUID is
@@ -54,9 +54,9 @@ protocol names Docker.
 | `POST …/suspend` | Already suspended → `200 {changed: false}`. |
 | `POST …/stop`, `POST …/kill` | Already stopped → `200 {changed: false}`. |
 | `DELETE …` | Already gone → `200 {existed: false}`. |
-| `POST …/exec` | Not idempotent by nature. Send `Idempotency-Key`: blocklyd runs the command once per key (10 minutes, in memory) and returns the first answer to repeats. The same key with a different request gets `422 idempotency_key_reused`. Failures aren't cached. |
+| `POST …/exec` | Not idempotent by nature. Send `Idempotency-Key`: pryxd runs the command once per key (10 minutes, in memory) and returns the first answer to repeats. The same key with a different request gets `422 idempotency_key_reused`. Failures aren't cached. |
 
-Operations on one workload are serialized on blocklyd: a concurrent duplicate waits for the
+Operations on one workload are serialized on pryxd: a concurrent duplicate waits for the
 first, then finds the work done. Operations run to completion even when the client disconnects
 mid-request, so a retry after a dropped connection finds a finished stop rather than half of
 one.
@@ -65,7 +65,7 @@ one.
 
 A fleet control plane gives every new home of a workload a **placement epoch**, a number that only
 rises: the first placement, each move, restore and recovery. It sends it with every mutating
-request in the `blocklyd-epoch` header, and blocklyd stores it with the copy (in its record and as
+request in the `blocklyd-epoch` header, and pryxd stores it with the copy (in its record and as
 the container label `blocklyd.epoch`). Each verb checks it against the copy's own:
 
 | Verb | Rule | Why |
@@ -80,7 +80,7 @@ the container label `blocklyd.epoch`). Each verb checks it against the copy's ow
 - **No header** for a copy that has one: `428 epoch_required`. A workload made without an epoch keeps
   the single-node protocol: none is asked for, and none is checked.
 - **A superseded copy** (fenced: see `…/fence`) refuses everything but teardown with
-  `409 superseded`, and is never started again, by anyone, including blocklyd's own restarts. Only a
+  `409 superseded`, and is never started again, by anyone, including pryxd's own restarts. Only a
   PUT for an epoch newer than the one that superseded it brings it back.
 
 ## Endpoints
@@ -105,14 +105,14 @@ the container label `blocklyd.epoch`). Each verb checks it against the copy's ow
 }
 ```
 
-`status` is `degraded` while the runtime is unreachable or blocklyd hasn't reconciled with it
+`status` is `degraded` while the runtime is unreachable or pryxd hasn't reconciled with it
 yet.
 
 ### `GET /v1/node`
 
 Host facts and capacity:
 - node and deployment
-- blocklyd version, uptime, resident memory and CPU time
+- pryxd version, uptime, resident memory and CPU time
 - kernel, CPUs, load, memory, disk under the state directory, trash size
 - `capacity`: `allocatableMemoryMb`, `runningMemoryMb`, `provisionedMemoryMb`, ports total and
   allocated
@@ -124,7 +124,7 @@ Host facts and capacity:
   (`unreadable_record`), a container with no valid workload id (`unlabelled_container`), one
   with no record and no readable record label (`unrecoverable_container`), or a snapshot whose
   `snapshot.json` can't be read, or a name under `snapshots/` that isn't a snapshot's
-  (`unreadable_snapshot`, found when blocklyd starts and left alone)
+  (`unreadable_snapshot`, found when pryxd starts and left alone)
 - `daemon`: version, start time, uptime, resident memory, CPU time
 - `fleet` (fleet mode): node id, control plane, the lifecycle it last said, the last contact and its
   age, the last error and latency, heartbeats answered and failed, the execution lease left
@@ -136,7 +136,7 @@ Host facts and capacity:
 `200 { "workloads": [WorkloadView…], "observedAt": "…" }`. With `changedSince`, it lists only
 workloads whose state changed, or whose record was updated, at or after that time. This is the
 level-triggered listing Blockly's `observeChanged` needs: one call per host, answered from
-blocklyd's own observations.
+pryxd's own observations.
 
 ### `PUT /v1/workloads/{id}` — ensure
 
@@ -173,7 +173,7 @@ Body: `WorkloadSpec`.
 | `storage.sizeGb` | 1–4096. Reported against measured use; **not enforced** in v1. |
 | `ports` | ≤ 8. Names `[a-z][a-z0-9-]{0,15}` are unique. `(protocol, containerPort)` pairs are unique. `audience` is a non-empty subset of `edge` and `control`. |
 | `stop.timeoutSeconds` | 1–600. The grace between the signal and the kill. |
-| `restart` | `no` or `on-failure`. `maxRetries` is 0–10, and 0 means never. blocklyd restarts a failed workload itself, after a short backoff: every container's Docker restart policy is `no`, because Docker's `on-failure` restarts containers after an unclean reboot. It never restarts one after a requested stop, once it is fenced, or, in fleet mode, without the execution lease: the last heartbeat answer's `leaseSeconds`, counted from when that beat was sent (`restart_requires_contact_seconds` if the answer names none). A restart is admitted against memory as a start is: one that doesn't fit isn't made, and the workload stays `crashed` with the issue `insufficient_capacity`. A restart it withholds is not tried later. The retries a run has used are kept in the workload's record, so a restart of blocklyd doesn't hand them out again; a requested start or a new spec begins a new run. After the host restarts, it resumes what was running when the host went down: in fleet mode only once it holds a lease, after applying the fences of the answer that granted it. After a restart of blocklyd alone, in the same boot, it resumes nothing (see "After the host restarts"). |
+| `restart` | `no` or `on-failure`. `maxRetries` is 0–10, and 0 means never. pryxd restarts a failed workload itself, after a short backoff: every container's Docker restart policy is `no`, because Docker's `on-failure` restarts containers after an unclean reboot. It never restarts one after a requested stop, once it is fenced, or, in fleet mode, without the execution lease: the last heartbeat answer's `leaseSeconds`, counted from when that beat was sent (`restart_requires_contact_seconds` if the answer names none). A restart is admitted against memory as a start is: one that doesn't fit isn't made, and the workload stays `crashed` with the issue `insufficient_capacity`. A restart it withholds is not tried later. The retries a run has used are kept in the workload's record, so a restart of pryxd doesn't hand them out again; a requested start or a new spec begins a new run. After the host restarts, it resumes what was running when the host went down: in fleet mode only once it holds a lease, after applying the fences of the answer that granted it. After a restart of pryxd alone, in the same boot, it resumes nothing (see "After the host restarts"). |
 | `labels` | ≤ 32. Keys `[a-z0-9._/-]`. The `blocklyd.` prefix is reserved. Values ≤ 256. |
 | `resumesOn` | Optional, ≤ 128 characters. What a suspended workload may wake into from memory: see "Semantics". Not part of the spec digest. Announced as the feature `suspend`. |
 
@@ -181,10 +181,10 @@ Every validation problem comes back at once: `422 invalid_request`, with `detail
 list of `{field, problem}`.
 
 **Semantics.** Ensure means "this workload exists with this spec", as HTTP `PUT` does.
-- **Absent:** blocklyd creates it, stopped. `201 Created`, `outcome: "created"`.
+- **Absent:** pryxd creates it, stopped. `201 Created`, `outcome: "created"`.
 - **Present with the same spec and secret values:** nothing happens. `200`,
   `outcome: "unchanged"`.
-- **Present with a different spec** (or a rotated secret): blocklyd makes a new generation.
+- **Present with a different spec** (or a rotated secret): pryxd makes a new generation.
   - It pulls the new image first; if that fails, nothing is touched.
   - It stops the old container gracefully and makes a new one on the **same data** and the
     **same host ports** for port names that remain.
@@ -209,7 +209,7 @@ Conditional headers, standard HTTP:
 
 Responses carry `ETag: "<specDigest>"`. The spec digest is `sha256:` over the canonical JSON of
 the spec without secret values. Changed secrets are detected by comparing the container's
-environment instead, since blocklyd keeps no copy of them.
+environment instead, since pryxd keeps no copy of them.
 
 Refusals:
 
@@ -252,7 +252,7 @@ Refusals:
   "labels": { "blockly.server": "…" },
   "secretNames": ["RCON_PASSWORD"],
   "issues": [],
-  "locate": { "containerName": "blockly-staging-mc-1", "containerId": "…", "dataDir": "/var/lib/blocklyd/workloads/mc-1/data" },
+  "locate": { "containerName": "blockly-staging-mc-1", "containerId": "…", "dataDir": "/var/lib/pryxd/workloads/mc-1/data" },
   "createdAt": "…",
   "updatedAt": "…"
 }
@@ -269,7 +269,7 @@ Refusals:
 | `stopped` | Exited after a requested stop, or with code 0, 130 or 143. | `stopped` |
 | `crashed` | Exited with a failure on its own, or `exit.oomKilled`. | `crashed` (with `exit`) |
 | `restarting` | The restart policy is bringing it back. | `starting`, plus `lastFailureAt` as `failedAt` |
-| `missing` | blocklyd has a record but the runtime lost the container. | `absent` |
+| `missing` | pryxd has a record but the runtime lost the container. | `absent` |
 | `retained` | Compute removed on request, data kept. | `absent` |
 | `unknown` | The runtime can't be asked right now. | `unknown` |
 | `fenced` | Superseded by a newer placement: stopped, kept, never started again. | `stopped` (the fleet adapter never reports a stale copy as the server) |
@@ -278,14 +278,14 @@ Refusals:
 A few fields need a word:
 - **`endpoints`** is Blockly's `endpoint(handle, port, audience)`: per audience, the host
   addresses and port where the edge or the control plane reaches it. IPv6 is `[addr]:port`.
-- **`restartCount`** counts blocklyd's restarts after failures since the last requested start or
-  new spec. It survives restarts of blocklyd.
+- **`restartCount`** counts pryxd's restarts after failures since the last requested start or
+  new spec. It survives restarts of pryxd.
 - **`issues`** lists what reconciliation or an operation found. The codes: `container_missing`,
   `create_incomplete`, `record_rebuilt`, `digest_mismatch`, `port_mismatch`, `port_conflict`,
   `port_out_of_range`, `duplicate_container`, `unexpected_container`, `over_storage`,
   `insufficient_capacity` (a restart after a failure didn't fit in memory; it stays until the
   workload is started or replaced), and `restore_finished` (a restore cut short by a crash after its
-  data was complete was finished when blocklyd started: whoever asked for it may not have heard).
+  data was complete was finished when pryxd started: whoever asked for it may not have heard).
 - **`pendingSpecDigest`**, present only while one waits: the digest of a spec a `PUT` deferred
   while the workload was suspended, put in place at its next boot.
 - **`locate`** is for operators. It is informational, never a contract.
@@ -323,7 +323,7 @@ gives out.
 ### `POST /v1/workloads/{id}/stop`
 
 The body is optional: `{ "timeoutSeconds": 1–600 }` overrides the spec's grace.
-- blocklyd sends `stop.signal`, waits the grace, then kills.
+- pryxd sends `stop.signal`, waits the grace, then kills.
 - `200 PowerResponse`. `forced: true` means the grace ran out and the workload was killed
   without saving.
 - The request returns once the workload has exited, so it can take up to grace + 30 s.
@@ -337,7 +337,7 @@ workload that isn't running from being restarted or resumed.
 
 ### `DELETE /v1/workloads/{id}[?data=keep|delete]`
 
-- **`keep`** (the default): blocklyd removes the container (stopping it gracefully first if it
+- **`keep`** (the default): pryxd removes the container (stopping it gracefully first if it
   runs) and releases its ports.
   - The data stays. The workload becomes `retained`, and a later PUT brings its compute back.
   - This is Blockly's `decommission`.
@@ -356,14 +356,14 @@ The body is `{ "command": ["argv", …], "timeoutSeconds": 1–600 }`, with a 30
 ≤ 256 arguments of ≤ 128 KiB each (Linux's own limit), ≤ 1 MiB in all.
 - It runs **inside the workload**, as the workload's user, with its limits. It never runs on the
   host.
-- blocklyd adds no shell. Send `["sh", "-c", script, name, args…]` for one: Blockly already
+- pryxd adds no shell. Send `["sh", "-c", script, name, args…]` for one: Blockly already
   does.
 - Output is capped at 1 MiB per stream (`stdoutTruncated`, `stderrTruncated`).
-- **On timeout blocklyd kills the command, and every process it started, by host pid.** Docker
+- **On timeout pryxd kills the command, and every process it started, by host pid.** Docker
   has no API to do that ([moby/moby#35703](https://github.com/moby/moby/issues/35703)).
   - Each pid is checked against the container's cgroup first, in case it was reused.
   - `timedOut: true`, `killed: true`.
-- The workload must be running (`409 not_running`). blocklyd checks that, and the epoch, under the
+- The workload must be running (`409 not_running`). pryxd checks that, and the epoch, under the
   workload's lock, then runs the command in the container it found, by id, without holding the
   lock: a stop or a fence never waits for an exec. If the workload stops or is replaced in between,
   the command runs nowhere else: `409 not_running`.
@@ -410,7 +410,7 @@ Body: `{ "currentEpoch": N }`: the control plane says which epoch is current.
   policy is set to `no` again, and it is stopped if it runs. The answer says `changed: false`, so a
   repeated fence is harmless too.
 - A fence the runtime couldn't carry out (it didn't answer) is an error, but the mark stands:
-  nothing starts the copy again, and blocklyd stops it itself once a resync finds it running.
+  nothing starts the copy again, and pryxd stops it itself once a resync finds it running.
 - Needs no epoch header: it is itself the statement of which epoch is current.
 - Heartbeat answers carry the same instruction (below); this endpoint is for fencing at once.
 
@@ -420,7 +420,7 @@ Body: `{ "currentEpoch": N }`: the control plane says which epoch is current.
 
 Body: `{ "url": "…", "headers": { … }, "quiesced": false, "exclude": ["libraries"] }`, with the
 epoch header (exact).
-- blocklyd writes the workload's data directory as a **gzip tarball of `./`-relative paths**,
+- pryxd writes the workload's data directory as a **gzip tarball of `./`-relative paths**,
   Blockly's archive format, to a spool file under its state directory while hashing it, then
   `PUT`s it to the presigned `url` with a known length. Gzip's fastest level: region files are
   compressed already.
@@ -428,7 +428,7 @@ epoch header (exact).
   image makes again when it is missing, so a move carries the world and not the server jar.
 - Only a stopped workload exports, unless `quiesced: true` says the caller paused its saving
   (Minecraft: `save-off`, `save-all flush`). A superseded copy never exports.
-- The data belongs to the workload, which can rearrange it while it is read. blocklyd reads it
+- The data belongs to the workload, which can rearrange it while it is read. pryxd reads it
   relative to directories it already holds open, with `O_NOFOLLOW` at every step: a symlink is
   archived as a symlink and never followed, an entry swapped mid-read is skipped, and a file that
   grows while it is read is cut at the size its header states. Nothing outside the data directory
@@ -438,7 +438,7 @@ epoch header (exact).
 **In parts.** One PUT carries at most `transfer.max_put_mb` (default 5115, 5 GiB less 5 MiB:
 Cloudflare R2's limit, the strictest of the S3-compatible stores). For a larger archive the body
 may also carry `"parts": { "partSize": 67108864, "urls": ["…", "…"], "headers": { … } }`: an S3
-multipart upload the control plane has begun, a presigned URL for each part, in order. blocklyd
+multipart upload the control plane has begun, a presigned URL for each part, in order. pryxd
 packs first, then decides:
 - An archive no larger than one PUT goes to `url`, whether parts were offered or not; their URLs
   are never called, and the control plane drops the upload.
@@ -447,7 +447,7 @@ packs first, then decides:
   length declared, one after another. A part whose PUT fails on the network or answers 5xx, 408
   or 429 is sent again, up to three times in all; any other answer, or a part with no `ETag`,
   fails the export (`502 transfer_failed`). The response then carries `parts: [{ number, etag
-  }]`, from 1, which the control plane completes the upload with. blocklyd holds no credentials
+  }]`, from 1, which the control plane completes the upload with. pryxd holds no credentials
   for the store, so it never completes or aborts an upload itself.
 - A larger one without parts, or with too few, is `422 archive_too_large` with
   `details.sizeBytes` (the archive's size) and `details.limitBytes` (one PUT's limit, or what
@@ -462,7 +462,7 @@ feature takes `parts`; an older one refuses the field as unknown.
 
 `200 ExportResponse { sizeBytes, sha256, format: "tar.gz", entries, durationMs, parts? }`. Upload
 failures are `502 transfer_failed`; too little disk for the spool is `507 insufficient_disk`, up
-front or once free disk falls under the floor while the spool is written (blocklyd looks every
+front or once free disk falls under the floor while the spool is written (pryxd looks every
 256 MiB, within a file too). Data whose files state more than 256 GiB in all, more than a restore
 unpacks, gets the same answer before the file that takes it past is read: a sparse file counts at
 the size it states.
@@ -471,7 +471,7 @@ the size it states.
 
 Body: `{ "url": "…", "sha256": "…" }` or `{ "snapshot": "<snapshot id>" }`, with the epoch header
 (exact). The workload must exist (PUT first) and be stopped.
-- **From a URL**, blocklyd downloads the archive to a spool file, and checks its sha256 when one is
+- **From a URL**, pryxd downloads the archive to a spool file, and checks its sha256 when one is
   given, before anything changes: `422 checksum_mismatch` leaves the data alone. It unpacks into a
   fresh directory beside the data: regular files and directories only (links, devices and the like
   are skipped and counted); no absolute paths or `..`; files opened with `O_NOFOLLOW`; modes masked
@@ -483,13 +483,13 @@ Body: `{ "url": "…", "sha256": "…" }` or `{ "snapshot": "<snapshot id>" }`, 
 - **Disk.** A restore from a URL is refused up front (`507 insufficient_disk`) when free disk is
   already under `min_free_disk_mb`, or when the archive's announced length (`Content-Length`)
   wouldn't fit above it, and stopped with the same answer if free disk falls under the floor while
-  it downloads or unpacks (blocklyd looks every 256 MiB). One from a snapshot needs the snapshot's
+  it downloads or unpacks (pryxd looks every 256 MiB). One from a snapshot needs the snapshot's
   full size free above the floor, shared blocks or not, and is stopped the same way while it
   copies. Either way the data is left as it was.
 - Then it swaps the directories in one atomic exchange (`renameat2`), so a crash leaves the old
   data in place or the new, never neither, and the data it replaced goes to the host's trash. On a
   filesystem that can't exchange it renames twice instead. A restore a crash cuts short is settled
-  when blocklyd starts: one whose new data was complete is finished (issue `restore_finished`),
+  when pryxd starts: one whose new data was complete is finished (issue `restore_finished`),
   any other is removed, and the data is as it was.
 
 `200 RestoreResponse { sizeBytes, sha256, entries, skipped, unpackedBytes, previousData, durationMs }`
@@ -510,7 +510,7 @@ caller's (Blockly's archive id, a UUID; the workload-id rules apply).
   copy, and the same walk that never leaves the data directory.
 - Asking again with the same id answers `200` with the snapshot already made (`created: false`).
   A snapshot interrupted by a crash has no `snapshot.json` and is redone; what it had copied is
-  removed when blocklyd starts, as are spool files a crash left.
+  removed when pryxd starts, as are spool files a crash left.
 
 `201 SnapshotResponse { created, snapshot: SnapshotView }`, where `SnapshotView` is `{ id,
 workload, epoch, createdAt, sizeBytes, files, method: "reflink" | "copy", quiesced, specDigest,
@@ -537,14 +537,14 @@ along) is not an error. During an upload of it: `409 snapshot_busy`.
 ### Ops listener (plain HTTP, loopback by default)
 
 It asks for no certificate, so `ops.listen` is loopback or a private address (10.0.0.0/8,
-172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, fc00::/7, fe80::/10): blocklyd refuses to start with
+172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, fc00::/7, fe80::/10): pryxd refuses to start with
 0.0.0.0, `::` or a public address.
 
 | Path | |
 |---|---|
 | `GET /healthz` | `200 ok` while the process runs. For systemd and liveness checks. |
-| `GET /readyz` | `200` once Docker answers and blocklyd has reconciled; `503` otherwise. |
-| `GET /metrics` | OpenMetrics text: operations, durations, HTTP, auth failures, reconciliations, runtime events, workloads by state, ports, issues, per-workload memory, CPU and disk, snapshot bytes, blocklyd's own RSS and CPU, and in fleet mode heartbeats, contact age, the execution lease left and certificate renewals. |
+| `GET /readyz` | `200` once Docker answers and pryxd has reconciled; `503` otherwise. |
+| `GET /metrics` | OpenMetrics text: operations, durations, HTTP, auth failures, reconciliations, runtime events, workloads by state, ports, issues, per-workload memory, CPU and disk, snapshot bytes, pryxd's own RSS and CPU, and in fleet mode heartbeats, contact age, the execution lease left and certificate renewals. |
 
 ## Error codes
 
@@ -587,17 +587,17 @@ checked before it is used:
 - `GET /fleet/v1/join.sh`: [`deploy/join.sh`](../deploy/join.sh), with
   [`deploy/daemon.json`](../deploy/daemon.json) written into it. Fetched over TLS checked against
   that CA.
-- `GET /fleet/v1/blocklyd` and `GET /fleet/v1/blocklyd.sha256`: the static blocklyd the control
-  plane's image carries, and `<sha256 hex>  blocklyd`, which `sha256sum -c` reads. Without the
+- `GET /fleet/v1/blocklyd` and `GET /fleet/v1/blocklyd.sha256`: the static pryxd the control
+  plane's image carries, and `<sha256 hex>  pryxd`, which `sha256sum -c` reads. Without the
   binary both are `404`, in plain text saying why.
 
-An enrolled node's `blocklyd upgrade` also asks for `GET /fleet/v1/blocklyd.json`: the offer a
+An enrolled node's `pryxd upgrade` also asks for `GET /fleet/v1/blocklyd.json`: the offer a
 heartbeat's answer makes (below), `{ "version": "…", "sha256": "…", "signature": "…" }`, which it
 checks the same way.
 
 **The join token.** `bk1.` and base64url (no padding) of
 `{"u": "<endpoint URL>", "h": "<sha256 hex of ca.pem as served>", "d": "<deployment>", "s": "<secret>"}`,
-and `"n": "<node id>"` in a token that re-enrolls a node. `blocklyd join` and enrollment read it
+and `"n": "<node id>"` in a token that re-enrolls a node. `pryxd join` and enrollment read it
 ([`src/fleet/token.rs`](../src/fleet/token.rs)); only `s` is sent to `enroll`, once `d` is the
 configuration's deployment and `h` matches `fleet.ca`. A bare token, the secret alone, is still
 accepted everywhere a token is. The region, labels and the node to re-enroll are kept with the
@@ -617,20 +617,20 @@ token's secret (the control plane takes a whole join token too, and looks up its
   features, the API address to dial, edge and control addresses, capacity, labels.
 - The key behind the CSR is made on the node and never leaves it. The CSR's subject and names are
   ignored: the control plane names the node.
-- **One key until answered.** blocklyd writes the key to `identity/enroll-key.pem` (0600) before
+- **One key until answered.** pryxd writes the key to `identity/enroll-key.pem` (0600) before
   its first attempt, and every attempt asks for it until one is answered, after a restart too. A
   spent token presented again with a CSR for the key that spent it gets a fresh answer for the
   same node, so an answer lost on the way (a timeout, a connection reset once the control plane
   had answered) is asked for again.
 - The answer: `{ nodeId, deploymentId, serverCertPem, clientCertPem, caPem, allowedClients,
   heartbeatSeconds }`. Two certificates for the node's one key: serverAuth for its API, clientAuth
-  for its heartbeats. blocklyd ignores this `heartbeatSeconds`: it beats every `heartbeat_seconds`
+  for its heartbeats. pryxd ignores this `heartbeatSeconds`: it beats every `heartbeat_seconds`
   of its own configuration until a heartbeat answer names another interval (1–60 seconds). Between beats it sends one
   as soon as a workload's state, epoch or ports change, at most once a second.
 - `caPem` must be the certificate in `fleet.ca`, compared as DER rather than as PEM text: from then
   on the node trusts that CA for the control plane and for who may call its API. An answer naming
   another is refused, and no identity is written.
-- blocklyd writes `identity/` (the enrollment key becomes `node.key`, 0600), then deletes the
+- pryxd writes `identity/` (the enrollment key becomes `node.key`, 0600), then deletes the
   enrollment key and the token file. `node.json`, which says "enrolled", goes last, once both
   certificates are known to be for the key: an answer the node can't use leaves it unenrolled, to
   ask again. An unknown or expired token, or a spent one presented with another key, is
@@ -650,7 +650,7 @@ With the node's clientAuth certificate, every `heartbeat_seconds` (5).
                   "lastFailureAt": null, "changedAt": "…", "ports": { "game": 42001 } }],
   "issues": [],
   "addresses": { "api": "10.0.0.5:7443", "edge": "10.0.0.5", "control": "10.0.0.5" },
-  "upgradeFailed": { "version": "0.3.0", "reason": "blocklyd 0.3.0 exited with status 1 before it came up" }
+  "upgradeFailed": { "version": "0.3.0", "reason": "pryxd 0.3.0 exited with status 1 before it came up" }
 }
 ```
 
@@ -676,11 +676,11 @@ With the node's clientAuth certificate, every `heartbeat_seconds` (5).
     "heartbeatSeconds": 5, "leaseSeconds": 120 }
   ```
 
-  blocklyd applies each fence as `POST …/fence` would, **then** takes the lease, so nothing the
+  pryxd applies each fence as `POST …/fence` would, **then** takes the lease, so nothing the
   lease allows can be a copy the same answer superseded. Each fence is marked at once and carried
   out in the background: the next beats go out on time while a fenced copy's grace runs out.
 - **The execution lease** (`leaseSeconds`, counted from when the node sent the beat): while it
-  lasts, blocklyd may act on its own: restart a workload that failed, per its spec's policy, and
+  lasts, pryxd may act on its own: restart a workload that failed, per its spec's policy, and
   resume one the host went down under (below). Without one (no answer yet in this run, or none for
   longer than the lease) it does neither. A node the control plane holds `lost` gets `0`. Requests
   carry their own authority (the epoch) and don't need the lease. A control plane that names no
@@ -689,21 +689,21 @@ With the node's clientAuth certificate, every `heartbeat_seconds` (5).
   only stops what the node would do unasked.
 - `renew: true` says the node's certificates end within the control plane's renewal window. The
   answer leaves `renew` out otherwise.
-- `upgrade: { "version": "0.3.0", "sha256": "…", "signature": "…" }` offers the node the blocklyd
+- `upgrade: { "version": "0.3.0", "sha256": "…", "signature": "…" }` offers the node the pryxd
   the endpoint serves at `GET /fleet/v1/blocklyd`, to a node that lists `self-upgrade`; the answer
   leaves it out otherwise, and a node without the feature ignores it. `signature` is the release's
-  `blocklyd.sig` in hex: release.yml's Ed25519 signature of the version and sha256, by a key only
+  `pryxd.sig` in hex: release.yml's Ed25519 signature of the version and sha256, by a key only
   that workflow holds ([`src/upgrade/trust.rs`](../src/upgrade/trust.rs) says what is signed). A
   node that lists `signed-upgrade` takes an offer only with a signature a key compiled into it
   made for that version and sha256, and only of a version no older than its own; it downloads
   nothing otherwise, and reports the offer failed. A control plane with no signature for its
-  blocklyd offers it to none of them. blocklyd downloads it over this same mutual TLS and installs
-  it only if its sha256 is the one offered and `--version` prints the version offered. It keeps the binary it ran as `blocklyd.prev`, renames the new one into place under the
-  state directory (`bin/blocklyd`, which `/usr/local/bin/blocklyd` links to), and exits cleanly
+  pryxd offers it to none of them. pryxd downloads it over this same mutual TLS and installs
+  it only if its sha256 is the one offered and `--version` prints the version offered. It keeps the binary it ran as `pryxd.prev`, renames the new one into place under the
+  state directory (`bin/pryxd`, which `/usr/local/bin/pryxd` links to), and exits cleanly
   so systemd starts it; workloads keep running. The new binary is on trial
   (`upgrade/trial.json`) until it has reconciled and a heartbeat is accepted, within 120 seconds;
-  otherwise it puts `blocklyd.prev` back and exits. One that can't start at all is put back by
-  the unit's `ExecStopPost` (`blocklyd.prev upgrade --exited`), and so is one still on trial 240
+  otherwise it puts `pryxd.prev` back and exits. One that can't start at all is put back by
+  the unit's `ExecStopPost` (`pryxd.prev upgrade --exited`), and so is one still on trial 240
   seconds after it started (a startup that hangs), which exits. The binary put back reports
   `upgradeFailed`. A download that fails for want of the control plane is tried again a minute
   later, while the offer stands; any other failure is reported. The control plane offers it to
@@ -719,7 +719,7 @@ With the node's clientAuth certificate, every `heartbeat_seconds` (5).
 
 With the node's current clientAuth certificate: `{ "nodeId": "…", "csrPem": "…" }` for a **new**
 key made on the node. The answer is `{ serverCertPem, clientCertPem, caPem }`.
-- blocklyd writes the new key and certificates as the next generation (`node-N.key`, `node-N.pem`,
+- pryxd writes the new key and certificates as the next generation (`node-N.key`, `node-N.pem`,
   `client-N.pem`), checks they load and that both certificates are for the new key, then rewrites
   `node.json` to name generation N. That rename is the switch: a crash anywhere leaves one whole
   generation in use.
@@ -734,17 +734,17 @@ key made on the node. The answer is `{ serverCertPem, clientCertPem, caPem }`.
 
 ## After the host restarts
 
-blocklyd records, per workload, the boot of the host (the kernel's boot id) in which it last saw
+pryxd records, per workload, the boot of the host (the kernel's boot id) in which it last saw
 it running, and clears it once it sees it stop in that same boot. After the host restarts, a
 workload still marked with an earlier boot, never asked to stop, not superseded, and with an
 `on-failure` restart policy was running when the host went down. It reads `restarting`, and is
-started again once blocklyd holds a lease (single-node: at once). A fence in the same answer wins;
-a node held `lost` gives the resume up, and forgets it. A restart of blocklyd alone, in the same
+started again once pryxd holds a lease (single-node: at once). A fence in the same answer wins;
+a node held `lost` gives the resume up, and forgets it. A restart of pryxd alone, in the same
 boot, resumes nothing: what died while it was down is reported, not restarted.
 
 A `suspended` workload's frozen process is gone with the host: after the restart it reads
 `stopped`, is never resumed, and a start boots it afresh on its data, with a deferred spec put in
-place first. A restart of blocklyd alone leaves it suspended.
+place first. A restart of pryxd alone leaves it suspended.
 
 ## How Blockly's `MinecraftRuntime` maps onto it
 
@@ -773,3 +773,11 @@ base64url JSON of `{deployment, key, node, nodeName, epoch, region, edgeHost, co
 | `tag` | A no-op; labels are fixed at creation. |
 | `prices` | A share of the node's monthly cost (its `monthly_cost_cents` label), by memory. |
 | `LogSource.recent` / `tail` | `GET logs?tail=N` / `?tail=0&follow=true`. |
+
+## Format names
+
+Format v1 was first published with the `blocklyd-epoch` and `blocklyd-protocol` headers,
+`blocklyd.*` container labels (including `blocklyd.record`), `workload.json`, the `bk1.` token
+prefix and the fleet paths `/fleet/v1/enroll`, `/heartbeat`, `/renew`, `/blocklyd`,
+`/blocklyd.sha256`, `/blocklyd.json` and `/join.sh`. Those names, the record fields, spec digest,
+features and Docker daemon configuration stay until protocol v2.

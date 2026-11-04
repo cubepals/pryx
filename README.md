@@ -1,10 +1,10 @@
-# blocklyd
+# pryxd
 
 The node daemon of [Cubepals](https://cubepals.com). One per Linux host: it runs Minecraft
 servers there in hardened Docker containers, for a control plane that decides what runs where. The
 control plane is [cubepals/cubepals](https://github.com/cubepals/cubepals): its side is the `fleet`
 runtime ([docs/fleet.md](https://github.com/cubepals/cubepals/blob/main/docs/fleet.md)), and operating a fleet is
-[docs/fleet-operations.md](https://github.com/cubepals/cubepals/blob/main/docs/fleet-operations.md). blocklyd's API is
+[docs/fleet-operations.md](https://github.com/cubepals/cubepals/blob/main/docs/fleet-operations.md). pryxd's API is
 [docs/protocol.md](docs/protocol.md).
 
 **What it does:** enrolls with the control plane and proves who it is with its own key; runs,
@@ -23,9 +23,9 @@ Rust 1.99.1, as `rust-toolchain.toml` names it for rustup, CI and the Dockerfile
 `Cargo.lock` committed and every build `--locked`.
 
 ```sh
-cargo build --locked --release                               # target/release/blocklyd
-docker build -t blocklyd .                                   # static (musl), as hosts run it, and as each
-                                                             # release builds it: the image holds /blocklyd,
+cargo build --locked --release                               # target/release/pryxd
+docker build -t pryxd .                                   # static (musl), as hosts run it, and as each
+                                                             # release builds it: the image holds /pryxd,
                                                              # /openapi, /deploy and /LICENSE.md
 cargo test --locked                                          # unit, API, lifecycle, epochs, reconcile, resume, transfer; no root needed
 sudo cargo test --locked --test docker -- --ignored          # against a real Docker daemon, as root
@@ -33,7 +33,7 @@ cargo test --release --test storage_bench -- --ignored --nocapture   # snapshot/
 cargo deny --locked check                                    # advisories, licenses, bans, sources (deny.toml)
 ```
 
-The control plane is tested against a real blocklyd too: CI's `contract` job builds this checkout
+The control plane is tested against a real pryxd too: CI's `contract` job builds this checkout
 and runs Cubepals' `apps/control/src/infra/fleet/fleet-runtime.e2e.test.ts` from its `main`
 against it, so a change here that would break the running control plane fails before it merges
 ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
@@ -41,40 +41,40 @@ against it, so a change here that would break the running control plane fails be
 ## Run
 
 On a fleet's host, the line Cubepals' `bun scripts/fleet.ts token <region>` prints does all of it,
-as root: Docker, blocklyd, its configuration and its service ([fleet-operations.md
-§2](https://github.com/cubepals/cubepals/blob/main/docs/fleet-operations.md#2-adding-a-node)). That line ends in `blocklyd join`:
+as root: Docker, pryxd, its configuration and its service ([fleet-operations.md
+§2](https://github.com/cubepals/cubepals/blob/main/docs/fleet-operations.md#2-adding-a-node)). That line ends in `pryxd join`:
 
 ```sh
-blocklyd join <bk1. token>               # the fleet CA, checked against the token; the configuration,
+pryxd join <bk1. token>               # the fleet CA, checked against the token; the configuration,
                                          # the token and the unit; doctor --preflight, then starts it. Prints what it
                                          # worked out (the address, the memory kept) and how to
                                          # override it. --address <ip> when the host has several.
                                          # A token for the node this host is enrolls it again,
                                          # under a new CA if the token names one
-blocklyd doctor                                              # is this host ready? says what to fix
-blocklyd doctor --fix                                        # on a host with no servers yet: daemon.json,
+pryxd doctor                                              # is this host ready? says what to fix
+pryxd doctor --fix                                        # on a host with no servers yet: daemon.json,
                                                              # the state directory; prints how to undo each
-blocklyd doctor --json                                       # {checks: [{name, status, detail, fix}]}
-blocklyd check-config --config /etc/blocklyd/blocklyd.toml   # the config check alone
-blocklyd isolate                                             # as root: the host's rules that keep workloads
+pryxd doctor --json                                       # {checks: [{name, status, detail, fix}]}
+pryxd check-config --config /etc/pryxd/pryxd.toml   # the config check alone
+pryxd isolate                                             # as root: the host's rules that keep workloads
                                                              # off it and off other servers' ports (the unit
                                                              # runs it before every start)
-blocklyd upgrade                                             # the control plane's blocklyd now, and a restart
+pryxd upgrade                                             # the control plane's pryxd now, and a restart
                                                              # into it; puts this one back if it doesn't come up
-blocklyd serve --config /etc/blocklyd/blocklyd.toml          # as root, beside Docker; refuses to start
+pryxd serve --config /etc/pryxd/pryxd.toml          # as root, beside Docker; refuses to start
                                                              # if it can't give data to the workloads' user
-blocklyd --version
+pryxd --version
 ```
 
-[`examples/blocklyd.toml`](examples/blocklyd.toml) lists every setting with its default;
+[`examples/pryxd.toml`](examples/pryxd.toml) lists every setting with its default;
 [`deploy/`](deploy/) has the systemd unit and Docker's `daemon.json`. The unit runs
 `doctor --preflight` before each start: it refuses only an invalid config or a state directory
-blocklyd can't own, and logs the rest (Docker down, live-restore off, no reflink) as warnings,
-since blocklyd runs through all of them. With a `[fleet]` section the
+pryxd can't own, and logs the rest (Docker down, live-restore off, no reflink) as warnings,
+since pryxd runs through all of them. With a `[fleet]` section the
 node enrolls and takes its identity from the control plane, and upgrades itself when a heartbeat's
-answer offers it a newer blocklyd release, signed as every release is ([fleet-operations.md
-§9](https://github.com/cubepals/cubepals/blob/main/docs/fleet-operations.md#9-upgrading-blocklyd)); without one it is a standalone daemon
-with certificates you give it (`blocklyd dev-certs` makes throwaway ones), which local
+answer offers it a newer pryxd release, signed as every release is ([fleet-operations.md
+§9](https://github.com/cubepals/cubepals/blob/main/docs/fleet-operations.md#9-upgrading-pryxd)); without one it is a standalone daemon
+with certificates you give it (`pryxd dev-certs` makes throwaway ones), which local
 development uses.
 
 ## Security model
@@ -92,9 +92,9 @@ development uses.
   `cpuMillis`, which the fleet control plane never sends.
 - **Only the edge and the control plane dial a workload.** Docker keeps workloads from reaching
   each other's own addresses, but not each other's published ports. So before every start, the
-  unit runs `blocklyd isolate`, as root, which puts one nftables table in place
+  unit runs `pryxd isolate`, as root, which puts one nftables table in place
   (`src/isolation.rs`). It drops every new connection a workload opens to the host itself, and to
-  blocklyd's port range and API port on private addresses (other nodes' servers and blocklyd), and
+  pryxd's port range and API port on private addresses (other nodes' servers and pryxd), and
   to the link-local metadata address. Without that, a server's own code could join another server
   without passing the edge, which is what takes out identities and addresses only the edge may
   forward. The unit doesn't start without the rules.
@@ -105,14 +105,14 @@ development uses.
   never followed. Either way the new data is put together beside the old, within the disk's floor,
   and swapped in with one atomic exchange: a crash leaves the old world or the new, and what it cut
   short is settled at startup.
-- **Only a release upgrades it.** It installs a blocklyd the control plane offers only with that
+- **Only a release upgrades it.** It installs a pryxd the control plane offers only with that
   release's signature: Ed25519, by a key only `release.yml` holds, of the version and the binary's
   sha256, checked against the keys compiled into it ([`deploy/release-keys.pem`](deploy/release-keys.pem))
   before anything is downloaded. It never goes back to an older version. Neither the control plane
-  nor its fleet CA can sign, so neither can have hosts run a blocklyd of its own
+  nor its fleet CA can sign, so neither can have hosts run a pryxd of its own
   ([`src/upgrade/trust.rs`](src/upgrade/trust.rs)).
 - **Its key never leaves the host.** Enrollment and renewal send certificate requests; the files
-  under `/var/lib/blocklyd/identity` are switched by one atomic rename. Until enrolled, every attempt
+  under `/var/lib/pryxd/identity` are switched by one atomic rename. Until enrolled, every attempt
   asks for one key, kept on disk, so an answer lost on the way can be asked for again.
 - **It trusts one CA**, the fleet CA it was provisioned with (`fleet.ca`): an enrollment or renewal
   answer naming another is refused.
@@ -127,7 +127,7 @@ development uses.
 | `manager.rs` | every operation, the per-workload lock, epochs, restarts and resumes, the lease, snapshots |
 | `api.rs` | the HTTP API, mutual TLS, errors |
 | `fleet.rs` | enrollment, heartbeats, identity and renewal |
-| `upgrade.rs` | upgrading itself to the control plane's blocklyd, and going back if it fails |
+| `upgrade.rs` | upgrading itself to the control plane's pryxd, and going back if it fails |
 | `runtime.rs` | the container runtime (Docker, and a fake for tests) |
 | `isolation.rs` | the host's rules that keep workloads off it and off other servers' ports |
 | `store.rs` | the state directory: records, snapshots, trash |
@@ -147,13 +147,13 @@ A pull request that raises `version` in `Cargo.toml` is a release. Once it has m
 passed on that commit of `main`, [`release.yml`](.github/workflows/release.yml) tags `v<version>`
 on it and publishes:
 
-- a GitHub Release, immutable, with the static `blocklyd` binary (x86_64, musl), `blocklyd.sig`,
+- a GitHub Release, immutable, with the static `pryxd` binary (x86_64, musl), `pryxd.sig`,
   `SHA256SUMS`, `node-reads.openapi.json` and `node-writes.openapi.json`, `deploy/daemon.json`,
-  `deploy/blocklyd.service` and `LICENSE.md`, each with a build-provenance attestation;
-- `ghcr.io/cubepals/blocklyd:<version>`, a `FROM scratch` image of the same files, attested.
+  `deploy/pryxd.service` and `LICENSE.md`, each with a build-provenance attestation;
+- `ghcr.io/cubepals/pryx:<version>`, a `FROM scratch` image of the same files, attested.
 
-`blocklyd.sig` is what nodes check before they upgrade: the release key's signature of the version
-and the binary's sha256. The key is the `release` environment's `BLOCKLYD_RELEASE_KEY`, which only
+`pryxd.sig` is what nodes check before they upgrade: the release key's signature of the version
+and the binary's sha256. The key is the `release` environment's `PRYXD_RELEASE_KEY`, which only
 `main` can use; its public half is in [`deploy/release-keys.pem`](deploy/release-keys.pem), and
 `release.yml` signs nothing with a key that isn't there. To change keys, a release adds the new
 public key to that file, the secret changes after nodes run it, and a later release drops the old
@@ -161,7 +161,7 @@ key. The file also holds a recovery key, which signs nothing day to day. Nodes t
 they already hold signed, so if the release key is lost or leaks, the recovery key, set as the
 secret for that one release, signs the release that brings a new release key and drops the old.
 
-Cubepals pins one release by digest (`bun scripts/blocklyd.ts bump <version>` there) and serves
+Cubepals pins one release by digest (`bun scripts/pryxd.ts bump <version>` there) and serves
 that binary to the hosts that join its fleet.
 
 ### Verify a release
@@ -171,12 +171,12 @@ repository and `release.yml` as the build that made them. With the [GitHub CLI](
 download a release's files and check one against it:
 
 ```sh
-gh release download v<version> -R cubepals/blocklyd
-gh attestation verify blocklyd -R cubepals/blocklyd
-gh attestation verify oci://ghcr.io/cubepals/blocklyd:<version> -R cubepals/blocklyd
+gh release download v<version> -R cubepals/pryx
+gh attestation verify pryxd -R cubepals/pryx
+gh attestation verify oci://ghcr.io/cubepals/pryx:<version> -R cubepals/pryx
 ```
 
-`--signer-workflow cubepals/blocklyd/.github/workflows/release.yml` pins the check to the release
+`--signer-workflow cubepals/pryx/.github/workflows/release.yml` pins the check to the release
 workflow, so a build from any other workflow of this repository fails it. The attestation is of the
 file's SHA-256: the check fails for a file that was changed after the build, and for one this
 workflow never built. `sha256sum -c SHA256SUMS` then checks the rest against the list the
@@ -186,8 +186,8 @@ The signature checks with OpenSSL against this repository's `deploy/release-keys
 key, the one OpenSSL takes, is the release key:
 
 ```sh
-printf 'blocklyd release\n%s\n%s\n' <version> "$(sha256sum blocklyd | cut -d' ' -f1)" > statement
-openssl pkeyutl -verify -pubin -inkey deploy/release-keys.pem -rawin -in statement -sigfile blocklyd.sig
+printf 'pryxd release\n%s\n%s\n' <version> "$(sha256sum pryxd | cut -d' ' -f1)" > statement
+openssl pkeyutl -verify -pubin -inkey deploy/release-keys.pem -rawin -in statement -sigfile pryxd.sig
 ```
 
 Within protocol v1 a release only adds (see [docs/protocol.md](docs/protocol.md)), so a node and
@@ -195,10 +195,12 @@ a control plane one release apart always understand each other.
 
 ## License
 
-blocklyd is under the [Functional Source License, Version 1.1, ALv2 Future
+pryxd 0.1.0 continues blocklyd 0.3.x, published as cubepals/blocklyd under the same licence; 0.2.2 and earlier were published under AGPL-3.0-only as part of cubepals/cubepals.
+
+pryxd is under the [Functional Source License, Version 1.1, ALv2 Future
 License](LICENSE.md) (FSL-1.1-ALv2), from 0.3.0 on. You may use, copy, change and redistribute it
 for any purpose except a Competing Use: offering it, or something built from it, in a commercial
-product or service that substitutes for blocklyd or for Cubepals' hosting. Running it for
+product or service that substitutes for pryxd or for Cubepals' hosting. Running it for
 yourself, for your organization, for research or teaching is fine. Two years after each version is
 published, that version is also available under the Apache License 2.0.
 

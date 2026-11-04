@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! The ports a Minecraft server listens on, for the tests' example specs. blocklyd itself never
+//! The ports a Minecraft server listens on, for the tests' example specs. pryxd itself never
 //! knows them: the control plane names a workload's ports, and these are what it names for one
 //! server. Nothing exports them, so they are written once, here.
 

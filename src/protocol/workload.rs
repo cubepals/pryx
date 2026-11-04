@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! What blocklyd reports about one workload: its view (state, health, ports, storage, issues),
+//! What pryxd reports about one workload: its view (state, health, ports, storage, issues),
 //! the list of every view, its resource stats, and the lines of its log stream.
 //! It holds no verb's request: those are in `lifecycle.rs`, `transfer.rs` and `exec.rs`. What the
 //! node reports about itself is in `node.rs`.
@@ -36,7 +36,7 @@ pub enum WorkloadState {
     Crashed,
     /// The host is starting it again after a failure (restart policy).
     Restarting,
-    /// blocklyd holds a record but the container is gone (the runtime lost it).
+    /// pryxd holds a record but the container is gone (the runtime lost it).
     Missing,
     /// Compute removed on request, data kept (`DELETE ?data=keep`).
     Retained,
@@ -204,13 +204,13 @@ pub struct WorkloadView {
     pub(crate) health: Option<Health>,
     pub exit: Option<ExitInfo>,
     /// Restarts the host made after failures since the last requested start or new spec. Kept
-    /// across restarts of blocklyd.
+    /// across restarts of pryxd.
     pub restart_count: u32,
     /// When it last failed and the host started it again (Blockly's `failedAt`).
     pub last_failure_at: Option<String>,
     pub started_at: Option<String>,
     pub(crate) finished_at: Option<String>,
-    /// When the state last changed, as the runtime recorded it (survives blocklyd restarts).
+    /// When the state last changed, as the runtime recorded it (survives pryxd restarts).
     pub(crate) changed_at: String,
     pub ports: Vec<PortView>,
     pub(crate) resources: Resources,

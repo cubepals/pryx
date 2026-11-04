@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! Re-enrolling a node under its own id: what `blocklyd join` does with a token that names the
+//! Re-enrolling a node under its own id: what `pryxd join` does with a token that names the
 //! node this host already is, as `bun scripts/fleet.ts token --node <id>` and `rotate-ca` mint
 //! (docs/fleet-operations.md §8). It
 //!
@@ -40,7 +40,7 @@ pub(crate) struct Reenroll<'a> {
     /// The fleet CA the token names, already checked against its hash, and the token as pasted.
     pub(crate) ca: &'a [u8],
     pub(crate) token: &'a str,
-    /// Where the restarted blocklyd answers for its metrics, and how long its first beat may take.
+    /// Where the restarted pryxd answers for its metrics, and how long its first beat may take.
     pub(crate) ops: SocketAddr,
     pub(crate) within: Duration,
 }
@@ -87,8 +87,8 @@ pub(crate) async fn reenroll(swap: Reenroll<'_>, service: &impl Service) -> anyh
     if old.exists() && identity.join("node.json").exists() {
         bail!(
             "node {} re-enrolled, but {why}. Its old certificates stopped working when it enrolled, so it keeps \
-             the new identity (the old one is in {}) and blocklyd keeps running and beating on its own. See why \
-             with `journalctl -u blocklyd`; `bun scripts/fleet.ts node {}` shows when it is healthy",
+             the new identity (the old one is in {}) and pryxd keeps running and beating on its own. See why \
+             with `journalctl -u pryxd`; `bun scripts/fleet.ts node {}` shows when it is healthy",
             swap.node,
             old.display(),
             swap.node
@@ -116,8 +116,8 @@ pub(crate) async fn reenroll(swap: Reenroll<'_>, service: &impl Service) -> anyh
     let kept =
         if failed.exists() { format!(" What the attempt enrolled is in {}.", failed.display()) } else { String::new() };
     bail!(
-        "re-enrolling node {} didn't finish: {why}. This host is back on its old identity{}, and blocklyd started \
-         with it.{kept} See why with `journalctl -u blocklyd`, then paste the line again, or a new one from \
+        "re-enrolling node {} didn't finish: {why}. This host is back on its old identity{}, and pryxd started \
+         with it.{kept} See why with `journalctl -u pryxd`, then paste the line again, or a new one from \
          `bun scripts/fleet.ts token --node {}` if this one was used",
         swap.node,
         if new_ca { " and fleet CA" } else { "" },
@@ -142,7 +142,7 @@ mod tests {
 
     use super::*;
 
-    /// The host as a re-enrollment sees it: what systemctl was asked, and a blocklyd that enrolls
+    /// The host as a re-enrollment sees it: what systemctl was asked, and a pryxd that enrolls
     /// as `enrolls` on start and has a beat accepted, or never does.
     struct Host {
         asked: RefCell<Vec<String>>,
@@ -174,20 +174,20 @@ mod tests {
 
     /// An enrolled host under `root`: node n1's identity, its CA and nothing else.
     fn enrolled(root: &Path, enrolls: Option<&'static str>) -> Host {
-        let identity = root.join("var/lib/blocklyd/identity");
+        let identity = root.join("var/lib/pryxd/identity");
         std::fs::create_dir_all(&identity).unwrap();
         std::fs::write(identity.join("node.json"), "n1, as first enrolled").unwrap();
-        std::fs::create_dir_all(root.join("etc/blocklyd")).unwrap();
-        std::fs::write(root.join("etc/blocklyd/fleet-ca.pem"), OLD_CA).unwrap();
+        std::fs::create_dir_all(root.join("etc/pryxd")).unwrap();
+        std::fs::write(root.join("etc/pryxd/fleet-ca.pem"), OLD_CA).unwrap();
         Host { asked: RefCell::default(), identity, enrolls, beats: true }
     }
 
     fn swap<'a>(root: &Path, ca: &'a [u8]) -> Reenroll<'a> {
         Reenroll {
             node: "n1",
-            state_dir: root.join("var/lib/blocklyd"),
-            ca_file: root.join("etc/blocklyd/fleet-ca.pem"),
-            token_file: root.join("var/lib/blocklyd/enrollment-token"),
+            state_dir: root.join("var/lib/pryxd"),
+            ca_file: root.join("etc/pryxd/fleet-ca.pem"),
+            token_file: root.join("var/lib/pryxd/enrollment-token"),
             ca,
             token: "bk1.token\n",
             ops: "127.0.0.1:7444".parse().unwrap(),
@@ -196,7 +196,7 @@ mod tests {
     }
 
     fn state(root: &Path) -> Vec<String> {
-        let mut names: Vec<String> = std::fs::read_dir(root.join("var/lib/blocklyd"))
+        let mut names: Vec<String> = std::fs::read_dir(root.join("var/lib/pryxd"))
             .unwrap()
             .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
             .collect();
@@ -212,9 +212,9 @@ mod tests {
         let said = reenroll(swap(root, OLD_CA), &host).await.unwrap();
         assert!(said.contains("Re-enrolled this host as node n1"), "{said}");
         assert!(!said.contains("Replaced"), "the same CA stays as it was: {said}");
-        assert_eq!(*host.asked.borrow(), ["stop blocklyd", "start blocklyd"]);
+        assert_eq!(*host.asked.borrow(), ["stop pryxd", "start pryxd"]);
         assert_eq!(state(root), ["enrollment-token", "identity"], "no identity.old-* left");
-        let token = root.join("var/lib/blocklyd/enrollment-token");
+        let token = root.join("var/lib/pryxd/enrollment-token");
         assert_eq!(std::fs::read_to_string(&token).unwrap(), "bk1.token");
         assert_eq!(std::fs::metadata(&token).unwrap().permissions().mode() & 0o777, 0o600);
         assert_eq!(std::fs::read_to_string(host.identity.join("node.json")).unwrap(), "n1, enrolled again");
@@ -227,7 +227,7 @@ mod tests {
         let host = enrolled(root, Some("n1, under the new CA"));
         let said = reenroll(swap(root, NEW_CA), &host).await.unwrap();
         assert!(said.contains("Replaced") && said.contains("fleet-ca.pem"), "{said}");
-        assert_eq!(std::fs::read(root.join("etc/blocklyd/fleet-ca.pem")).unwrap(), NEW_CA);
+        assert_eq!(std::fs::read(root.join("etc/pryxd/fleet-ca.pem")).unwrap(), NEW_CA);
     }
 
     #[tokio::test]
@@ -239,9 +239,9 @@ mod tests {
         assert!(refused.contains("no heartbeat was accepted within 120 s"), "{refused}");
         assert!(refused.contains("back on its old identity and fleet CA"), "{refused}");
         assert!(refused.contains("bun scripts/fleet.ts token --node n1"), "{refused}");
-        assert_eq!(*host.asked.borrow(), ["stop blocklyd", "start blocklyd", "stop blocklyd", "start blocklyd"]);
+        assert_eq!(*host.asked.borrow(), ["stop pryxd", "start pryxd", "stop pryxd", "start pryxd"]);
         assert_eq!(std::fs::read_to_string(host.identity.join("node.json")).unwrap(), "n1, as first enrolled");
-        assert_eq!(std::fs::read(root.join("etc/blocklyd/fleet-ca.pem")).unwrap(), OLD_CA);
+        assert_eq!(std::fs::read(root.join("etc/pryxd/fleet-ca.pem")).unwrap(), OLD_CA);
         let left = state(root);
         assert_eq!(left.len(), 2, "{left:?}");
         assert_eq!(left[0], "identity");
@@ -255,9 +255,9 @@ mod tests {
         let host = Host { beats: false, ..enrolled(root, Some("n1, enrolled again")) };
         let said = reenroll(swap(root, NEW_CA), &host).await.unwrap_err().to_string();
         assert!(said.contains("node n1 re-enrolled, but no heartbeat was accepted"), "{said}");
-        assert_eq!(*host.asked.borrow(), ["stop blocklyd", "start blocklyd"], "left running");
+        assert_eq!(*host.asked.borrow(), ["stop pryxd", "start pryxd"], "left running");
         assert_eq!(std::fs::read_to_string(host.identity.join("node.json")).unwrap(), "n1, enrolled again");
-        assert_eq!(std::fs::read(root.join("etc/blocklyd/fleet-ca.pem")).unwrap(), NEW_CA, "the CA it enrolled under");
+        assert_eq!(std::fs::read(root.join("etc/pryxd/fleet-ca.pem")).unwrap(), NEW_CA, "the CA it enrolled under");
         let left = state(root);
         assert!(left.iter().any(|n| n.starts_with("identity.old-") && said.contains(n.as_str())), "{left:?}");
     }

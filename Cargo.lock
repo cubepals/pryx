@@ -222,14 +222,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "blocklyd"
-version = "0.3.7"
+name = "pryxd"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
  "axum",
  "base64 0.23.1",
- "blocklyd",
+ "pryxd",
  "bollard",
  "bytes",
  "clap",

@@ -2,9 +2,9 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! Docker Engine API over the local unix socket (bollard). blocklyd is the only client that
+//! Docker Engine API over the local unix socket (bollard). pryxd is the only client that
 //! needs the socket, which is root-equivalent: whoever holds it can start a privileged container
-//! with the host's filesystem mounted. blocklyd never exposes it; it exposes the narrow
+//! with the host's filesystem mounted. pryxd never exposes it; it exposes the narrow
 //! workload protocol instead, and fills every container's isolation from host policy.
 
 use std::collections::{BTreeMap, HashMap};
@@ -55,7 +55,7 @@ const IFNAME_MAX: usize = 15;
 const EXEC_PID_WAIT: Duration = Duration::from_secs(2);
 const EXEC_PID_STEP: Duration = Duration::from_millis(50);
 
-/// The interface blocklyd names the bridge of the workloads' network `network`, named for the
+/// The interface pryxd names the bridge of the workloads' network `network`, named for the
 /// network so the host's rules (isolation.rs) can name it before it exists, and two networks on one
 /// host never share one.
 pub fn bridge_name(network: &str) -> String {
@@ -70,7 +70,7 @@ pub struct DockerRuntime {
 }
 
 impl DockerRuntime {
-    /// Doesn't connect yet: blocklyd starts even while Docker is down (bollard refuses to build a
+    /// Doesn't connect yet: pryxd starts even while Docker is down (bollard refuses to build a
     /// client for a socket that doesn't exist yet), and says so until it's back.
     pub fn new(socket: &Path) -> Result<Self, RuntimeError> {
         let socket = socket.to_str().ok_or_else(|| RuntimeError::Other("socket path is not UTF-8".into()))?.to_owned();
@@ -243,7 +243,7 @@ fn body_of(spec: &ContainerSpec) -> ContainerCreateBody {
         ipc_mode: Some("private".into()),
         init: Some(false),
         // Docker never restarts a workload by itself: its on-failure also fires after an unclean
-        // reboot, before blocklyd runs, which would bring back a fenced copy. blocklyd applies the
+        // reboot, before pryxd runs, which would bring back a fenced copy. pryxd applies the
         // spec's policy itself (`restart_supervisor`).
         restart_policy: Some(DockerRestartPolicy { name: Some(RestartPolicyNameEnum::NO), maximum_retry_count: None }),
         mounts: Some(vec![Mount {
@@ -496,7 +496,7 @@ impl ContainerRuntime for DockerRuntime {
             Ok(Err(e)) => return Err(e),
             Err(_) => {
                 result.timed_out = true;
-                // Docker has no API to stop an exec (moby/moby#35703). From the host, blocklyd
+                // Docker has no API to stop an exec (moby/moby#35703). From the host, pryxd
                 // can: find its pid, make sure it is still this container's, and kill its tree.
                 if let Some((pid, container)) = self.exec_pid(&exec_id).await {
                     result.killed = kill_exec_tree(pid, &container) > 0;
@@ -683,7 +683,7 @@ mod tests {
             pids_limit: 4096,
             read_only_rootfs: true,
             tmp_size_mb: 64,
-            data_dir: "/var/lib/blocklyd/workloads/w/data".into(),
+            data_dir: "/var/lib/pryxd/workloads/w/data".into(),
             mount_path: "/data".into(),
             ports: Vec::new(),
             stop_signal: "SIGTERM".into(),

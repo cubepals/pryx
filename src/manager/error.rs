@@ -44,7 +44,7 @@ pub enum NodeError {
     Runtime(#[source] RuntimeError),
     #[error("{0}")]
     Internal(String),
-    /// blocklyd's own failure, at `what`: answered as `Internal` is.
+    /// pryxd's own failure, at `what`: answered as `Internal` is.
     #[error("{what}: {source}")]
     Io { what: String, source: std::io::Error },
     /// The state directory's: answered as `Internal` is.

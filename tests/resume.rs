@@ -12,19 +12,19 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use blocklyd::config::FleetConfig;
-use blocklyd::manager::{Lifecycle, Manager, Precondition, Records};
-use blocklyd::metrics::Metrics;
-use blocklyd::protocol::WorkloadState;
-use blocklyd::runtime::exit_by;
-use blocklyd::runtime::fake::FakeRuntime;
-use blocklyd::store::Store;
+use pryxd::config::FleetConfig;
+use pryxd::manager::{Lifecycle, Manager, Precondition, Records};
+use pryxd::metrics::Metrics;
+use pryxd::protocol::WorkloadState;
+use pryxd::runtime::exit_by;
+use pryxd::runtime::fake::FakeRuntime;
+use pryxd::store::Store;
 use support::{id, spec};
 use tokio_util::sync::CancellationToken;
 
 const NAME: &str = "blockly-test-w";
 
-/// blocklyd on `dir`, in one boot of the host, single-node or fleet.
+/// pryxd on `dir`, in one boot of the host, single-node or fleet.
 fn daemon(dir: &Path, fake: &Arc<FakeRuntime>, boot: &str, fleet: bool) -> Arc<Manager> {
     let mut config = support::config(dir, "");
     if fleet {
@@ -39,7 +39,7 @@ fn daemon(dir: &Path, fake: &Arc<FakeRuntime>, boot: &str, fleet: bool) -> Arc<M
         });
     }
     let store = Store::open(&config.state_dir).unwrap();
-    let probe: blocklyd::ports::Probe = Arc::new(|_, _| true);
+    let probe: pryxd::ports::Probe = Arc::new(|_, _| true);
     Manager::with_boot(Arc::new(config), fake.clone(), store, Arc::new(Metrics::new()), probe, Some(boot.into()))
 }
 
@@ -95,14 +95,14 @@ async fn in_a_fleet_the_resume_waits_for_the_lease() {
 }
 
 #[tokio::test]
-async fn a_lease_too_long_to_count_is_held_rather_than_stopping_blocklyd() {
+async fn a_lease_too_long_to_count_is_held_rather_than_stopping_pryxd() {
     let (dir, fake) = running_then_host_down(true).await;
     let second = after_restart(dir.path(), &fake, true).await;
     second.fleet_contact(Ok(Lifecycle::Active), Duration::from_millis(3));
     second.grant_lease(Some(u64::MAX), Instant::now());
     until(&second, WorkloadState::Running).await;
     let metrics = second.metrics.render(&second);
-    assert!(metrics.contains("blocklyd_fleet_lease_remaining_seconds "), "{metrics}");
+    assert!(metrics.contains("pryxd_fleet_lease_remaining_seconds "), "{metrics}");
 }
 
 #[tokio::test]
@@ -183,7 +183,7 @@ async fn what_had_stopped_before_the_host_went_down_stays_stopped() {
     let fake = Arc::new(FakeRuntime::new());
     let first = daemon(dir.path(), &fake, "boot-1", false);
     first.reconcile(Records::FromDisk).await;
-    // One stopped on request; one that exited on its own, which blocklyd saw.
+    // One stopped on request; one that exited on its own, which pryxd saw.
     for w in ["asked", "quit"] {
         first.ensure(id(w), spec(), Precondition::None, None).await.unwrap();
         first.start(id(w), None).await.unwrap();
@@ -202,9 +202,9 @@ async fn what_had_stopped_before_the_host_went_down_stays_stopped() {
 }
 
 #[tokio::test]
-async fn a_restart_of_blocklyd_alone_is_not_a_restart_of_the_host() {
+async fn a_restart_of_pryxd_alone_is_not_a_restart_of_the_host() {
     let (dir, fake) = running_then_host_down(false).await;
-    // The same boot: blocklyd restarted, and found the workload dead with nobody watching.
+    // The same boot: pryxd restarted, and found the workload dead with nobody watching.
     let again = daemon(dir.path(), &fake, "boot-1", false);
     again.reconcile(Records::FromDisk).await;
     tokio::spawn(again.clone().restart_supervisor(CancellationToken::new()));

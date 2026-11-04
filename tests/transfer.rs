@@ -16,9 +16,9 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::put;
-use blocklyd::manager::{ConflictCode, NodeError, Precondition, Records};
-use blocklyd::protocol::{ExportRequest, RestoreRequest};
-use blocklyd::store::restore::RESTORE_COMPLETE;
+use pryxd::manager::{ConflictCode, NodeError, Precondition, Records};
+use pryxd::protocol::{ExportRequest, RestoreRequest};
+use pryxd::store::restore::RESTORE_COMPLETE;
 use sha2::Digest;
 use support::{fixture, id, spec};
 
@@ -100,7 +100,7 @@ async fn a_world_moves_through_the_store_and_its_hash_holds() {
 }
 
 /// Nothing a restore made is left beside the data: no spool file, no unpacked data.
-fn left_nothing(m: &blocklyd::manager::Manager, w: &str) {
+fn left_nothing(m: &pryxd::manager::Manager, w: &str) {
     let spooled: Vec<_> =
         std::fs::read_dir(m.store.spool_dir()).map(|d| d.filter_map(Result::ok).collect()).unwrap_or_default();
     assert!(spooled.is_empty(), "{spooled:?}");
@@ -224,7 +224,7 @@ async fn a_download_the_disk_has_no_room_for_is_refused_before_it_is_spooled() {
 #[tokio::test]
 async fn an_archive_too_large_for_one_upload_is_refused_with_its_sizes() {
     // What the control plane takes as final: a status, a code and both sizes.
-    let limit = blocklyd::protocol::MAX_SINGLE_PUT_BYTES;
+    let limit = pryxd::protocol::MAX_SINGLE_PUT_BYTES;
     let response = NodeError::ArchiveTooLarge { size_bytes: 6 << 30, limit_bytes: limit }.into_response();
     assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
     let body = axum::body::to_bytes(response.into_body(), 1 << 20).await.unwrap();
@@ -280,7 +280,7 @@ async fn a_superseded_copy_can_never_become_the_newest_backup() {
     assert!(objects.lock().unwrap().is_empty(), "nothing reached the store");
 }
 
-fn snapshot_request(id: &str, quiesced: bool) -> blocklyd::protocol::SnapshotRequest {
+fn snapshot_request(id: &str, quiesced: bool) -> pryxd::protocol::SnapshotRequest {
     serde_json::from_value(serde_json::json!({ "id": id, "quiesced": quiesced })).unwrap()
 }
 
@@ -337,7 +337,7 @@ async fn a_snapshot_is_taken_once_restored_in_place_and_uploaded() {
         .manager
         .upload_snapshot(
             id("w"),
-            blocklyd::ids::SnapshotId::parse(SNAP).unwrap(),
+            pryxd::ids::SnapshotId::parse(SNAP).unwrap(),
             serde_json::from_value(serde_json::json!({ "url": format!("{base}/snap.tar.gz") })).unwrap(),
         )
         .await
@@ -354,7 +354,7 @@ async fn a_snapshot_is_taken_once_restored_in_place_and_uploaded() {
     assert_eq!(std::fs::read(other_data.join("world/level.dat")).unwrap(), b"day one");
 
     // Deleting is idempotent, and a delete of the whole workload takes its snapshots along.
-    let snap = blocklyd::ids::SnapshotId::parse(SNAP).unwrap();
+    let snap = pryxd::ids::SnapshotId::parse(SNAP).unwrap();
     assert!(f.manager.delete_snapshot(id("w"), snap.clone()).await.unwrap().existed);
     assert!(!f.manager.delete_snapshot(id("w"), snap.clone()).await.unwrap().existed);
     assert!(!f.manager.delete_snapshot(id("never"), snap).await.unwrap().existed);
@@ -401,7 +401,7 @@ async fn a_snapshot_is_restored_only_with_room_for_all_of_it() {
     // first, and all of it once the world moves on: it is admitted at all of it, either way.
     let mut view = taken.snapshot.clone();
     view.size_bytes = 1 << 50;
-    let snapshot = blocklyd::ids::SnapshotId::parse(SNAP).unwrap();
+    let snapshot = pryxd::ids::SnapshotId::parse(SNAP).unwrap();
     let described = f.manager.store.snapshot_dir(&id("w"), &snapshot).join("snapshot.json");
     std::fs::write(described, serde_json::to_vec(&view).unwrap()).unwrap();
     std::fs::write(data.join("world/level.dat"), b"day two").unwrap();
@@ -466,7 +466,7 @@ async fn an_export_never_follows_a_link_out_of_the_data() {
     }
     // The same for a snapshot.
     f.manager.snapshot(id("w"), snapshot_request(SNAP, false), Some(1)).await.unwrap();
-    let snap = f.manager.store.snapshot_dir(&id("w"), &blocklyd::ids::SnapshotId::parse(SNAP).unwrap());
+    let snap = f.manager.store.snapshot_dir(&id("w"), &pryxd::ids::SnapshotId::parse(SNAP).unwrap());
     assert!(std::fs::symlink_metadata(snap.join("data/world")).unwrap().file_type().is_symlink());
 }
 
@@ -485,7 +485,7 @@ fn noise(len: usize, seed: u64) -> Vec<u8> {
 
 const MIB: usize = 1024 * 1024;
 /// The smallest part S3 takes, and so the parts these tests cut.
-const PART: usize = blocklyd::protocol::MIN_PART_BYTES as usize;
+const PART: usize = pryxd::protocol::MIN_PART_BYTES as usize;
 
 /// A world of about `mib` MiB, most of it incompressible.
 fn big_world(data: &std::path::Path, mib: usize) {
@@ -668,7 +668,7 @@ async fn a_snapshot_larger_than_one_put_uploads_in_parts() {
         .manager
         .upload_snapshot(
             id("w"),
-            blocklyd::ids::SnapshotId::parse(SNAP).unwrap(),
+            pryxd::ids::SnapshotId::parse(SNAP).unwrap(),
             serde_json::from_value(serde_json::json!({
                 "url": format!("{base}/snap.tar.gz"),
                 "parts": in_parts(&base, PART, 2),

@@ -112,7 +112,7 @@ pub struct NodeCapacity {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct NodeAddresses {
-    /// blocklyd's API, `host:port`.
+    /// pryxd's API, `host:port`.
     pub(crate) api: String,
     /// Where the edge reaches game ports.
     pub(crate) edge: String,
@@ -125,7 +125,7 @@ pub(crate) struct NodeAddresses {
 #[serde(rename_all = "camelCase")]
 pub struct HeartbeatRequest {
     pub(crate) node_id: String,
-    /// New each time blocklyd starts. Two sessions beating for one node id at once are two
+    /// New each time pryxd starts. Two sessions beating for one node id at once are two
     /// hosts with one identity.
     pub(crate) session_id: String,
     pub(crate) boot_id: Option<String>,
@@ -157,14 +157,14 @@ pub struct UpgradeFailure {
     pub reason: String,
 }
 
-/// The blocklyd the control plane wants the node to run, at `GET /fleet/v1/blocklyd`.
+/// The pryxd the control plane wants the node to run, at `GET /fleet/v1/blocklyd`.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct UpgradeOffer {
     pub(crate) version: String,
     pub(crate) sha256: String,
-    /// The release's Ed25519 signature of `version` and `sha256`, in hex: its `blocklyd.sig`,
+    /// The release's Ed25519 signature of `version` and `sha256`, in hex: its `pryxd.sig`,
     /// which the control plane passes on (upgrade/trust.rs). A node that lists `signed-upgrade`
     /// installs nothing without it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -215,7 +215,7 @@ pub struct HeartbeatResponse {
     /// The node's certificates end soon: it should renew them.
     #[serde(default)]
     pub renew: bool,
-    /// A newer blocklyd to upgrade to: offered to one node of a region at a time.
+    /// A newer pryxd to upgrade to: offered to one node of a region at a time.
     #[serde(default)]
     pub upgrade: Option<UpgradeOffer>,
 }

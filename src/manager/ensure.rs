@@ -378,7 +378,7 @@ impl Manager {
     }
 }
 
-/// Whether the container runs with exactly these secret values. blocklyd keeps no copy of
+/// Whether the container runs with exactly these secret values. pryxd keeps no copy of
 /// secrets, so the container's own environment is what a new spec is compared against.
 fn secrets_match(info: &ContainerInfo, spec: &WorkloadSpec) -> bool {
     spec.secrets.iter().all(|(k, v)| info.env.get(k).map(String::as_str) == Some(v.expose()))

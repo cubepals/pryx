@@ -9,7 +9,7 @@
 //! bk1.<base64url({"u": "https://10.0.0.2:8443", "h": "<sha256 hex of the CA PEM>", "d": "production", "s": "<secret>"})>
 //! ```
 //!
-//! A token that re-enrolls a node under its own id also names it, as `"n"`, so `blocklyd join`
+//! A token that re-enrolls a node under its own id also names it, as `"n"`, so `pryxd join`
 //! can tell a re-enrollment of this host from a token meant for another.
 //!
 //! Only the secret is sent to the control plane, which looks it up as it does a bare token. The

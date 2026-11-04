@@ -1,16 +1,20 @@
 [package]
-name = "blocklyd"
-version = "0.3.7"
+name = "pryxd"
+version = "0.1.0"
 edition = "2024"
 rust-version = "1.99"
 license = "FSL-1.1-ALv2"
 publish = false
-repository = "https://github.com/cubepals/blocklyd"
-description = "Cubepals' node daemon: runs Minecraft servers on a Linux host through Docker, for a control plane that places them."
+repository = "https://github.com/cubepals/pryx"
+description = "pryx node daemon: runs Minecraft servers on a Linux host through Docker, for a control plane that places them."
 
 [[bin]]
-name = "blocklyd"
+name = "pryxd"
 path = "src/main.rs"
+
+[[test]]
+name = "formats"
+path = "tests/compat/formats.rs"
 
 [dependencies]
 # Async runtime, HTTP server and middleware. axum is tokio's own router over hyper; the TLS accept
@@ -74,7 +78,7 @@ async-trait = "0.1"
 fake = []
 
 [dev-dependencies]
-blocklyd = { path = ".", features = ["fake"] }
+pryxd = { path = ".", features = ["fake"] }
 # The control plane tests/fleet.rs stands in for reads the node's certificate requests.
 rcgen = { version = "0.14", default-features = false, features = ["pem", "ring", "crypto", "x509-parser"] }
 # The wire types' JSON Schema, which only the protocol's schema test reads (src/protocol/schema.rs):

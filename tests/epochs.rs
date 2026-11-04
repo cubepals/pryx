@@ -7,14 +7,14 @@
 
 mod support;
 
-use blocklyd::labels::LABEL_EPOCH;
-use blocklyd::manager::{NodeError, Precondition, Records};
-use blocklyd::protocol::{EnsureOutcome, ExecRequest, WorkloadState};
-use blocklyd::runtime::ContainerStatus;
+use pryxd::labels::LABEL_EPOCH;
+use pryxd::manager::{NodeError, Precondition, Records};
+use pryxd::protocol::{EnsureOutcome, ExecRequest, WorkloadState};
+use pryxd::runtime::ContainerStatus;
 use support::{fixture, id, manager_on, spec};
 use tokio_util::sync::CancellationToken;
 
-fn container(f: &support::Fixture) -> blocklyd::runtime::fake::FakeContainer {
+fn container(f: &support::Fixture) -> pryxd::runtime::fake::FakeContainer {
     let name = f.manager.view(&id("w")).unwrap().locate.container_name;
     f.fake.container(&name).expect("container exists")
 }
@@ -49,7 +49,7 @@ async fn a_newer_epoch_may_always_tear_an_older_copy_down() {
     assert!(stopped.changed);
     let err = f.manager.stop(id("w"), None, Some(2)).await.unwrap_err();
     assert!(matches!(err, NodeError::StaleEpoch { .. }), "an older caller can't: {err:?}");
-    let deleted = f.manager.delete(id("w"), blocklyd::protocol::DataDisposition::Keep, None, Some(7)).await.unwrap();
+    let deleted = f.manager.delete(id("w"), pryxd::protocol::DataDisposition::Keep, None, Some(7)).await.unwrap();
     assert!(deleted.existed);
 }
 
@@ -94,7 +94,7 @@ async fn a_fence_the_disk_couldnt_record_still_stops_the_copy() {
     assert!(matches!(err, NodeError::Superseded { by: 4 }), "{err:?}");
 }
 
-/// Resyncs as often as blocklyd allows, so a test sees one within seconds.
+/// Resyncs as often as pryxd allows, so a test sees one within seconds.
 const QUICK_RESYNC: &str = "[intervals]\nresync_seconds = 5\n";
 
 /// Fences `w` at `by` while the runtime doesn't answer: recorded, but the copy keeps running.
@@ -114,7 +114,7 @@ async fn a_fence_the_runtime_couldnt_apply_is_applied_at_the_next_resync() {
     fence_unapplied(&f, "w", 4).await;
     // The control plane doesn't send it again (the node reports it recorded): the node applies it.
     let cancel = CancellationToken::new();
-    tokio::spawn(blocklyd::reconcile::periodic(f.manager.clone(), cancel.clone()));
+    tokio::spawn(pryxd::reconcile::periodic(f.manager.clone(), cancel.clone()));
     support::until(&f.manager, "w", "the copy fenced", |v| v.state == WorkloadState::Fenced).await;
     cancel.cancel();
     assert_eq!(f.fake.count_calls("stop "), 1);
@@ -132,7 +132,7 @@ async fn the_resync_never_stops_a_copy_that_isnt_superseded() {
     assert!(!f.manager.fence(id("current"), 4).await.unwrap().changed, "a late fence");
     fence_unapplied(&f, "old", 4).await;
     let cancel = CancellationToken::new();
-    tokio::spawn(blocklyd::reconcile::periodic(f.manager.clone(), cancel.clone()));
+    tokio::spawn(pryxd::reconcile::periodic(f.manager.clone(), cancel.clone()));
     // The resync ran, and fenced what it should.
     support::until(&f.manager, "old", "the old copy fenced", |v| v.state == WorkloadState::Fenced).await;
     cancel.cancel();
@@ -167,7 +167,7 @@ async fn a_fenced_copy_stops_and_never_starts_again() {
     assert!(!f.manager.fence(id("w"), 4).await.unwrap().changed);
     assert!(!f.manager.fence(id("w"), 2).await.unwrap().changed);
     // The data stays until the control plane deletes it, which a newer epoch may do.
-    let deleted = f.manager.delete(id("w"), blocklyd::protocol::DataDisposition::Keep, None, Some(4)).await.unwrap();
+    let deleted = f.manager.delete(id("w"), pryxd::protocol::DataDisposition::Keep, None, Some(4)).await.unwrap();
     assert!(deleted.existed);
 }
 

@@ -8,7 +8,7 @@
 //! the host enforces.
 //!
 //! Parts (`config/`):
-//! - `validate.rs`: what a configuration is held to before blocklyd runs on it.
+//! - `validate.rs`: what a configuration is held to before pryxd runs on it.
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -23,9 +23,9 @@ use crate::ids::NodeId;
 
 mod validate;
 
-/// Where a host keeps its configuration: what `blocklyd join` writes and every command reads
+/// Where a host keeps its configuration: what `pryxd join` writes and every command reads
 /// unless told otherwise.
-pub const PATH: &str = "/etc/blocklyd/blocklyd.toml";
+pub const PATH: &str = "/etc/pryxd/pryxd.toml";
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -55,7 +55,7 @@ pub struct Config {
     #[serde(default)]
     pub(crate) transfer: TransferConfig,
     /// Fleet mode: this node enrolls with a control plane, takes its identity and TLS material
-    /// from it, and reports to it. Without it, blocklyd is the single-node daemon it was.
+    /// from it, and reports to it. Without it, pryxd is the single-node daemon it was.
     #[serde(default)]
     pub fleet: Option<FleetConfig>,
     /// What `load` worked out from the host because the file left it out (infer.rs).
@@ -63,8 +63,8 @@ pub struct Config {
     pub inferred: Vec<crate::infer::Inferred>,
 }
 
-/// Where blocklyd keeps its state unless `state_dir` says otherwise.
-pub(crate) const STATE_DIR: &str = "/var/lib/blocklyd";
+/// Where pryxd keeps its state unless `state_dir` says otherwise.
+pub(crate) const STATE_DIR: &str = "/var/lib/pryxd";
 
 fn default_state_dir() -> PathBuf {
     PathBuf::from(STATE_DIR)
@@ -227,7 +227,7 @@ pub(crate) struct WorkloadPolicy {
     pub(crate) log_max_size_mb: u32,
     pub(crate) log_max_files: u32,
     /// The kernel kills the highest score first when the host runs out; workloads go before
-    /// blocklyd and Docker.
+    /// pryxd and Docker.
     pub(crate) oom_score_adj: i32,
     /// How long deleted data stays in the host's trash before it is purged.
     pub(crate) trash_retention_hours: u64,
@@ -269,7 +269,7 @@ impl WorkloadPolicy {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct CapacityConfig {
-    /// Memory kept for the host: kernel, page cache, Docker, blocklyd. Never given out. Left out,
+    /// Memory kept for the host: kernel, page cache, Docker, pryxd. Never given out. Left out,
     /// it grows with the host's memory, from 2048 (infer.rs).
     pub reserved_memory_mb: u64,
     /// A ceiling on what workloads may be given, below total minus reserved: for a host that
@@ -280,7 +280,7 @@ pub struct CapacityConfig {
     /// Running memory may reach allocatable × this. 1.0: no overcommit (the default, since a
     /// JVM with a pre-touched heap really uses what it is given).
     pub(crate) memory_overcommit: f64,
-    /// CPU kept for the host (kernel, Docker, blocklyd, network interrupts), in millicores.
+    /// CPU kept for the host (kernel, Docker, pryxd, network interrupts), in millicores.
     pub reserved_cpu_millis: u64,
 }
 
@@ -468,9 +468,9 @@ mod tests {
         [api]
         listen = "10.0.0.5:7443"
         [api.tls]
-        cert = "/etc/blocklyd/tls/node.pem"
-        key = "/etc/blocklyd/tls/node.key"
-        client_ca = "/etc/blocklyd/tls/ca.pem"
+        cert = "/etc/pryxd/tls/node.pem"
+        key = "/etc/pryxd/tls/node.key"
+        client_ca = "/etc/pryxd/tls/ca.pem"
         allowed_clients = ["control-plane.staging.blockly.internal"]
     "#;
 
@@ -499,7 +499,7 @@ mod tests {
         }
     }
 
-    const EXAMPLE: &str = include_str!("../examples/blocklyd.toml");
+    const EXAMPLE: &str = include_str!("../examples/pryxd.toml");
 
     #[test]
     fn the_example_config_is_valid() {
@@ -596,7 +596,7 @@ mod tests {
         let fleet = |listen: &str, api_address: &str| {
             format!(
                 "deployment_id = \"staging\"\n[api]\nlisten = \"{listen}\"\n[fleet]\n\
-                 url = \"https://control.internal:8443\"\nca = \"/etc/blocklyd/fleet-ca.pem\"\n{api_address}"
+                 url = \"https://control.internal:8443\"\nca = \"/etc/pryxd/fleet-ca.pem\"\n{api_address}"
             )
         };
         let anywhere: Config = toml::from_str(&fleet("0.0.0.0:7443", "")).unwrap();
@@ -612,7 +612,7 @@ mod tests {
         let fleet = |url: &str| {
             let config: Config = toml::from_str(&format!(
                 "deployment_id = \"staging\"\n[api]\nlisten = \"10.0.0.5:7443\"\n[fleet]\nurl = \"{url}\"\n\
-                 ca = \"/etc/blocklyd/fleet-ca.pem\"\n"
+                 ca = \"/etc/pryxd/fleet-ca.pem\"\n"
             ))
             .unwrap();
             config.validate()

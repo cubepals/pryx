@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
 //! Whether the configuration file is valid, with the certificates it names: what `check-config`
-//! has always checked, and the one check (besides owning the state directory) that stops blocklyd
+//! has always checked, and the one check (besides owning the state directory) that stops pryxd
 //! from starting.
 
 use std::path::Path;
@@ -21,9 +21,9 @@ pub(crate) fn check(path: &Path) -> (Check, Option<Config>) {
         Err(e) => {
             let fix = match &e {
                 ConfigError::Read { .. } => {
-                    format!("Write {} (examples/blocklyd.toml lists every setting), or pass --config", path.display())
+                    format!("Write {} (examples/pryxd.toml lists every setting), or pass --config", path.display())
                 }
-                _ => format!("Correct {}; examples/blocklyd.toml lists every setting", path.display()),
+                _ => format!("Correct {}; examples/pryxd.toml lists every setting", path.display()),
             };
             return (Check::fail("config", e.to_string(), fix).gating(), None);
         }
@@ -77,13 +77,13 @@ mod tests {
     use crate::doctor::Status;
 
     #[test]
-    fn a_missing_or_invalid_file_fails_and_stops_blocklyd() {
+    fn a_missing_or_invalid_file_fails_and_stops_pryxd() {
         let dir = tempfile::tempdir().unwrap();
         let (verdict, config) = check(&dir.path().join("absent.toml"));
         assert_eq!((verdict.status, verdict.gates_start, config.is_none()), (Status::Fail, true, true));
-        assert!(verdict.fix.unwrap().contains("examples/blocklyd.toml"));
+        assert!(verdict.fix.unwrap().contains("examples/pryxd.toml"));
 
-        let path = dir.path().join("blocklyd.toml");
+        let path = dir.path().join("pryxd.toml");
         std::fs::write(&path, "deployment_id = \"Staging\"\n[api]\nlisten = \"127.0.0.1:7443\"\n").unwrap();
         let (verdict, config) = check(&path);
         assert_eq!((verdict.status, verdict.gates_start, config.is_none()), (Status::Fail, true, true));
@@ -93,7 +93,7 @@ mod tests {
     fn fleet_mode_without_identity_or_token_fails_but_loads() {
         let dir = tempfile::tempdir().unwrap();
         let ca = crate::certs::generate(dir.path(), &["localhost".into()], &[], "control", &[]).unwrap().ca_cert;
-        let path = dir.path().join("blocklyd.toml");
+        let path = dir.path().join("pryxd.toml");
         let toml = format!(
             "deployment_id = \"staging\"\nstate_dir = \"{}\"\n[api]\nlisten = \"10.0.0.5:7443\"\n\
              [fleet]\nurl = \"https://control:8443\"\nca = \"{}\"\nenrollment_token_file = \"{}\"\n",

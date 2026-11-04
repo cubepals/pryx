@@ -11,11 +11,11 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use blocklyd::fleet::heartbeat::heartbeat_report;
-use blocklyd::manager::{ConflictCode, NodeError, Precondition, Records};
-use blocklyd::protocol::{DataDisposition, DataOutcome, EnsureOutcome, ExecRequest, IssueCode, WorkloadState};
-use blocklyd::runtime::{DIED, exit_by};
-use blocklyd::store::Phase;
+use pryxd::fleet::heartbeat::heartbeat_report;
+use pryxd::manager::{ConflictCode, NodeError, Precondition, Records};
+use pryxd::protocol::{DataDisposition, DataOutcome, EnsureOutcome, ExecRequest, IssueCode, WorkloadState};
+use pryxd::runtime::{DIED, exit_by};
+use pryxd::store::Phase;
 use support::{fixture, id, spec, spec_with};
 use tokio_util::sync::CancellationToken;
 
@@ -197,7 +197,7 @@ async fn a_record_written_from_two_sides_at_once_ends_as_the_newest() {
         f.manager.delete(id(&w), DataDisposition::Keep, None, None).await.unwrap();
         done.store(true, Ordering::SeqCst);
         events.await.unwrap();
-        // What a restarted blocklyd would read.
+        // What a restarted pryxd would read.
         let (records, unreadable) = f.manager.store.load_all().unwrap();
         assert!(unreadable.is_empty(), "{w}: {unreadable:?}");
         let record = records.iter().find(|r| r.id == id(&w)).unwrap();
@@ -314,7 +314,7 @@ async fn ports_workloads_let_go_of_at_once_all_rest() {
             d.await.unwrap().unwrap();
         }
         let file = std::fs::read(f.dir.path().join("state/ports.json")).unwrap();
-        let resting: Vec<blocklyd::store::RestingPort> = serde_json::from_slice(&file).expect("ports.json parses");
+        let resting: Vec<pryxd::store::RestingPort> = serde_json::from_slice(&file).expect("ports.json parses");
         let resting: std::collections::BTreeSet<u16> = resting.iter().map(|p| p.port).collect();
         assert_eq!(resting, released, "after round {n}, every released port is still resting");
     }
@@ -336,7 +336,7 @@ async fn a_port_a_failed_create_held_for_a_moment_is_free_at_once() {
 #[tokio::test]
 async fn invalid_ids_and_specs_are_refused_before_anything_happens() {
     let f = fixture("").await;
-    assert!(blocklyd::ids::WorkloadId::parse("../../etc").is_err());
+    assert!(pryxd::ids::WorkloadId::parse("../../etc").is_err());
     let bad = spec_with(|v| {
         v["image"] = "attacker/miner:latest".into();
         v["storage"]["mountPath"] = "/".into();
@@ -396,7 +396,7 @@ async fn logs_stream_what_the_workload_printed() {
     let f = fixture("").await;
     f.manager.ensure(id("w"), spec(), Precondition::None, None).await.unwrap();
     f.manager.start(id("w"), None).await.unwrap();
-    f.fake.log("blockly-test-w", blocklyd::runtime::LogStream::Stdout, "Done (9.9s)!");
+    f.fake.log("blockly-test-w", pryxd::runtime::LogStream::Stdout, "Done (9.9s)!");
     let records: Vec<_> = f.manager.logs(&id("w"), Some(10), None, false).unwrap().collect().await;
     let text = serde_json::to_string(&records).unwrap();
     assert!(text.contains("Done (9.9s)!"));
@@ -439,7 +439,7 @@ async fn while_the_runtime_is_down_nothing_stale_is_passed_off_as_the_state() {
 }
 
 #[tokio::test]
-async fn a_crash_blocklyd_sees_is_restarted_within_the_policy_and_nothing_else_is() {
+async fn a_crash_pryxd_sees_is_restarted_within_the_policy_and_nothing_else_is() {
     let f = fixture("").await;
     tokio::spawn(f.manager.clone().restart_supervisor(tokio_util::sync::CancellationToken::new()));
     let two_retries =
@@ -449,7 +449,7 @@ async fn a_crash_blocklyd_sees_is_restarted_within_the_policy_and_nothing_else_i
 
     for expected in 1..=2 {
         f.fake.crash("blockly-test-w", 3, false);
-        f.manager.stats(&id("w")).await.unwrap(); // blocklyd looks, and sees it go
+        f.manager.stats(&id("w")).await.unwrap(); // pryxd looks, and sees it go
         support::until(&f.manager, "w", "a restart", |v| {
             v.restart_count == expected && v.state == WorkloadState::Running
         })
@@ -501,7 +501,7 @@ async fn a_kill_during_a_restart_backoff_keeps_the_workload_stopped() {
 
 #[tokio::test]
 async fn a_workload_found_dead_at_startup_is_not_restarted() {
-    // As after blocklyd itself restarted, in the same boot of the host: Docker says the container
+    // As after pryxd itself restarted, in the same boot of the host: Docker says the container
     // exited with 255 while nobody watched. (A host that restarted is tests/resume.rs.)
     let f = fixture("").await;
     f.manager.ensure(id("w"), spec(), Precondition::None, None).await.unwrap();
@@ -518,7 +518,7 @@ async fn a_workload_found_dead_at_startup_is_not_restarted() {
 }
 
 #[tokio::test]
-async fn a_restart_of_blocklyd_doesnt_give_a_crash_loop_its_retries_again() {
+async fn a_restart_of_pryxd_doesnt_give_a_crash_loop_its_retries_again() {
     let f = fixture("").await;
     let two_retries =
         support::spec_with(|v| v["restart"] = serde_json::json!({ "policy": "on-failure", "maxRetries": 2 }));
@@ -531,7 +531,7 @@ async fn a_restart_of_blocklyd_doesnt_give_a_crash_loop_its_retries_again() {
         .await;
     first_run.cancel();
 
-    // blocklyd restarts, in the same boot, and finds the workload running again.
+    // pryxd restarts, in the same boot, and finds the workload running again.
     let again = support::manager_on(f.dir.path(), f.fake.clone(), "");
     again.reconcile(Records::FromDisk).await;
     tokio::spawn(again.clone().restart_supervisor(CancellationToken::new()));
@@ -611,7 +611,7 @@ async fn a_workload_busy_for_long_holds_up_no_other_workloads_restart() {
     }
     // An export of x holds x's lock for as long as its upload takes, and this one never ends.
     let (url, held, release) = stalling_store().await;
-    let request: blocklyd::protocol::ExportRequest =
+    let request: pryxd::protocol::ExportRequest =
         serde_json::from_value(serde_json::json!({ "url": url, "quiesced": true })).unwrap();
     let export = tokio::spawn({
         let m = f.manager.clone();

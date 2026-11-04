@@ -147,7 +147,7 @@ impl Manager {
     }
 }
 
-/// A failure blocklyd will restart reads as restarting, not crashed: the host is starting it again,
+/// A failure pryxd will restart reads as restarting, not crashed: the host is starting it again,
 /// as Docker's own policy would say.
 fn pending_restart(state: &State, id: &WorkloadId, derived: WorkloadState) -> WorkloadState {
     let waiting = match derived {

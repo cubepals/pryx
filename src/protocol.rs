@@ -2,11 +2,11 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! Protocol v1: what the control plane sends and what blocklyd answers.
+//! Protocol v1: what the control plane sends and what pryxd answers.
 //!
 //! The vocabulary is workloads, not containers. A workload is a spec (image, environment,
-//! resources, storage, ports, stop) blocklyd keeps running or stopped on this host. Nothing
-//! here names Docker, so blocklyd could move to containerd or microVMs under the same
+//! resources, storage, ports, stop) pryxd keeps running or stopped on this host. Nothing
+//! here names Docker, so pryxd could move to containerd or microVMs under the same
 //! protocol. It mirrors Blockly's `RuntimeSpec` (apps/control/src/app/ports/runtime.ts) closely
 //! on purpose: an `infra/fleet` adapter would translate field for field.
 //!
@@ -16,8 +16,8 @@
 //! `NodeHealth::features` before anyone sends them.
 //!
 //! Parts (`protocol/`):
-//! - `spec.rs`: what a workload is, as the control plane sends it and as blocklyd keeps it.
-//! - `workload.rs`: what blocklyd reports about one workload: its view, stats and log lines.
+//! - `spec.rs`: what a workload is, as the control plane sends it and as pryxd keeps it.
+//! - `workload.rs`: what pryxd reports about one workload: its view, stats and log lines.
 //! - `lifecycle.rs`: the verbs that create, start, suspend, stop, fence and delete a workload.
 //! - `transfer.rs`: moving a workload's data: export, restore, snapshots and their upload.
 //! - `exec.rs`: running one command inside a workload.
@@ -46,7 +46,7 @@ pub use transfer::*;
 pub use workload::*;
 
 pub(crate) const PROTOCOL_VERSION: u32 = 1;
-/// Every protocol version this blocklyd speaks, PROTOCOL_VERSION among them.
+/// Every protocol version this pryxd speaks, PROTOCOL_VERSION among them.
 pub(crate) const SUPPORTED_VERSIONS: &[u32] = &[1];
 /// Sent on every response so a client can tell which protocol answered.
 pub(crate) const PROTOCOL_HEADER: &str = "blocklyd-protocol";
@@ -91,7 +91,7 @@ pub fn features() -> Vec<String> {
 /// a request older than the copy it holds, so a delayed or stale caller can't act on it.
 pub(crate) const EPOCH_HEADER: &str = "blocklyd-epoch";
 
-/// Label keys blocklyd writes itself; a spec may not set anything under this prefix, so a
+/// Label keys pryxd writes itself; a spec may not set anything under this prefix, so a
 /// request can never forge ownership of a container.
 pub(crate) const RESERVED_LABEL_PREFIX: &str = "blocklyd.";
 

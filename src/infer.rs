@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! What blocklyd works out about its host when the configuration leaves it out, so that a node's
+//! What pryxd works out about its host when the configuration leaves it out, so that a node's
 //! configuration holds only what the host can't say about itself. `Config::load` fills these in
 //! before reading the file; a key the file sets is never touched, and every value filled in is
 //! listed in `Config::inferred`, for `serve` to log and `join` to print.
@@ -10,7 +10,7 @@
 //! - In fleet mode, `api.listen` (port 7443), `network.edge_ips` and `network.control_ips` are one
 //!   address: the one the file gives in `api.listen` or `fleet.api_address`, or else the host's one
 //!   private address (RFC 1918, 100.64.0.0/10, or any address on a WireGuard interface). Joining a
-//!   fleet is the decision to serve on it. Alone, blocklyd keeps loopback (config.rs).
+//!   fleet is the decision to serve on it. Alone, pryxd keeps loopback (config.rs).
 //! - `capacity.reserved_memory_mb` grows with the host's memory (`reserved_memory_mb` below).
 //!
 //! It reads under a root directory, `/` on a host and a fixture tree in tests: the kernel's local
@@ -66,7 +66,7 @@ pub(crate) enum InferError {
 }
 
 const CHOOSE: &str = "Name the one the control plane and the edge reach this host on: add `--address <ip>` to \
-                      `blocklyd join` (or to the end of the pasted line), or set api.listen, network.edge_ips and \
+                      `pryxd join` (or to the end of the pasted line), or set api.listen, network.edge_ips and \
                       network.control_ips in the configuration.";
 
 impl std::fmt::Display for InferError {
@@ -109,7 +109,7 @@ pub(crate) fn fill(table: &mut Table, root: &Path) -> Result<Vec<Inferred>, Infe
 }
 
 /// Memory kept for the host: a sixteenth of it, and never less than 2048 MB, today's fixed
-/// default. The kernel, the page cache worlds are read through, Docker and blocklyd need more on a
+/// default. The kernel, the page cache worlds are read through, Docker and pryxd need more on a
 /// bigger host: 2048 MB up to 32 GB, 4096 on 64 GB, 8192 on 128 GB.
 pub(crate) fn reserved_memory_mb(total_mb: u64) -> u64 {
     (total_mb / 16).max(2048)
@@ -278,7 +278,7 @@ mod tests {
     }
 
     const FLEET: &str =
-        "deployment_id = \"p\"\n[fleet]\nurl = \"https://10.0.0.2:8443\"\nca = \"/etc/blocklyd/fleet-ca.pem\"\n";
+        "deployment_id = \"p\"\n[fleet]\nurl = \"https://10.0.0.2:8443\"\nca = \"/etc/pryxd/fleet-ca.pem\"\n";
 
     fn filled(toml: &str, root: &Path) -> Result<(Table, Vec<Inferred>), InferError> {
         let mut table: Table = toml::from_str(toml).unwrap();

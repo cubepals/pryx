@@ -2,20 +2,20 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! Whether a node trusts an upgrade offer: only for a blocklyd release, and never an older one.
+//! Whether a node trusts an upgrade offer: only for a pryxd release, and never an older one.
 //!
 //! Every release is signed: release.yml signs its version and its binary's sha256 with an Ed25519
-//! key only that workflow holds, and publishes the signature as `blocklyd.sig`, among the
+//! key only that workflow holds, and publishes the signature as `pryxd.sig`, among the
 //! release's files and beside the binary in the image. A control plane passes it on in its offer
-//! but can't make one, so neither it nor its fleet CA can have hosts run a blocklyd of their own.
-//! A node also never goes back to an older blocklyd, so an old release, signed in its day, can't be
+//! but can't make one, so neither it nor its fleet CA can have hosts run a pryxd of their own.
+//! A node also never goes back to an older pryxd, so an old release, signed in its day, can't be
 //! offered to undo a fix. The checks run before anything is downloaded, so a binary that fails
 //! them is never run, not even for its `--version`.
 //!
 //! What is signed is three lines, as release.yml writes them:
 //!
 //! ```text
-//! blocklyd release
+//! pryxd release
 //! <version>
 //! <sha256, lowercase hex>
 //! ```
@@ -44,20 +44,23 @@ pub(crate) struct ReleaseKeys(Vec<[u8; KEY_BYTES]>);
 impl ReleaseKeys {
     /// The release keys compiled in; none, so that no upgrade is taken, if the file holds none
     /// (`the_release_keys_are_ed25519_keys` keeps that from being released). A debug build also
-    /// takes the PEM file BLOCKLYD_TEST_RELEASE_KEY names, so an end-to-end test can sign the
-    /// blocklyd it serves; a release build never does.
+    /// takes the PEM file PRYXD_TEST_RELEASE_KEY names, so an end-to-end test can sign the
+    /// pryxd it serves; a release build never does.
     pub(crate) fn ours() -> Self {
         let mut keys = Self::from_pem(RELEASE_KEYS.as_bytes()).unwrap_or_else(|e| {
             tracing::error!(error = %e, "deploy/release-keys.pem holds no release key, so no upgrade is taken");
             Self(Vec::new())
         });
         #[cfg(debug_assertions)]
-        if let Some(path) = std::env::var_os("BLOCKLYD_TEST_RELEASE_KEY").filter(|p| !p.is_empty()) {
+        if let Some(path) = std::env::var_os("PRYXD_TEST_RELEASE_KEY")
+            .or_else(|| std::env::var_os("BLOCKLYD_TEST_RELEASE_KEY"))
+            .filter(|p| !p.is_empty())
+        {
             let path = std::path::PathBuf::from(path);
             match std::fs::read(&path).map_err(|e| e.to_string()).and_then(|pem| Self::from_pem(&pem)) {
                 Ok(test) => keys.0.extend(test.0),
                 Err(e) => {
-                    tracing::warn!(error = %e, path = %path.display(), "BLOCKLYD_TEST_RELEASE_KEY taken as no key")
+                    tracing::warn!(error = %e, path = %path.display(), "PRYXD_TEST_RELEASE_KEY taken as no key")
                 }
             }
         }
@@ -93,10 +96,10 @@ impl ReleaseKeys {
 pub(crate) fn statement(version: &str, sha256: &str) -> Option<String> {
     let word = !version.is_empty() && !version.chars().any(|c| c.is_whitespace() || c.is_control());
     let digest = sha256.len() == 64 && sha256.bytes().all(|b| b.is_ascii_hexdigit());
-    (word && digest).then(|| format!("blocklyd release\n{version}\n{}\n", sha256.to_ascii_lowercase()))
+    (word && digest).then(|| format!("pryxd release\n{version}\n{}\n", sha256.to_ascii_lowercase()))
 }
 
-/// `MAJOR.MINOR.PATCH`, the only versions blocklyd releases, in the order they come.
+/// `MAJOR.MINOR.PATCH`, the only versions pryxd releases, in the order they come.
 fn ordered(version: &str) -> Option<(u64, u64, u64)> {
     let mut parts = version.split('.').map(|part| part.parse::<u64>().ok());
     let found = (parts.next()??, parts.next()??, parts.next()??);
@@ -109,20 +112,20 @@ pub(crate) fn check(offer: &UpgradeOffer, from: &str, keys: &ReleaseKeys) -> Res
     let to = &offer.version;
     match (ordered(to), ordered(from)) {
         (Some(offered), Some(running)) if offered < running => {
-            return Err(format!("blocklyd {to} is older than the {from} this node runs, and a node never goes back"));
+            return Err(format!("pryxd {to} is older than the {from} this node runs, and a node never goes back"));
         }
         (Some(_), Some(_)) => {}
-        _ => return Err(format!("blocklyd {to} can't be told apart from the {from} this node runs as newer or older")),
+        _ => return Err(format!("pryxd {to} can't be told apart from the {from} this node runs as newer or older")),
     }
     let Some(signature) = offer.signature.as_deref() else {
-        return Err(format!("the offer of blocklyd {to} carries no release signature, so it wasn't installed"));
+        return Err(format!("the offer of pryxd {to} carries no release signature, so it wasn't installed"));
     };
     let Some(statement) = statement(to, &offer.sha256) else {
-        return Err(format!("the offer of blocklyd {to} names no sha256, so it wasn't installed"));
+        return Err(format!("the offer of pryxd {to} names no sha256, so it wasn't installed"));
     };
     if !keys.signed(&statement, signature) {
         return Err(format!(
-            "the offer's signature isn't a blocklyd release key's for {to} with sha256 {}, so it wasn't installed",
+            "the offer's signature isn't a pryxd release key's for {to} with sha256 {}, so it wasn't installed",
             offer.sha256
         ));
     }
@@ -185,7 +188,7 @@ mod tests {
 
         let refused = |offered: UpgradeOffer| check(&offered, "0.2.0", &keys).unwrap_err();
         assert!(refused(offer("0.3.0", &sha, None)).contains("no release signature"));
-        assert!(refused(offer("0.3.1", &sha, Some(signed.clone()))).contains("isn't a blocklyd release key's"));
+        assert!(refused(offer("0.3.1", &sha, Some(signed.clone()))).contains("isn't a pryxd release key's"));
         assert!(refused(offer("0.3.0", &"cd".repeat(32), Some(signed.clone()))).contains("isn't"));
         assert!(refused(offer("0.3.0", &sha, Some("zz".into()))).contains("isn't"));
         let (stranger, _) = test_key();
@@ -196,18 +199,18 @@ mod tests {
     }
 
     #[test]
-    fn a_signature_openssl_makes_as_release_yml_does_is_taken() {
-        // `openssl pkeyutl -sign -rawin` of blocklyd 9.9.9's statement, by a key whose private
+    fn a_signature_for_the_previous_release_statement_is_refused() {
+        // `openssl pkeyutl -sign -rawin` of pryxd 9.9.9's statement, by a key whose private
         // half was thrown away (tests/fixtures/README.md).
         let keys = ReleaseKeys::from_pem(include_bytes!("../../tests/fixtures/release-signature/key.pub")).unwrap();
         let signature = hex::encode(include_bytes!("../../tests/fixtures/release-signature/blocklyd.sig"));
         let sha = "9b4b33bf5e345140064483ae6c85c2165a1746cbebf5987a3c802f36981e7e8b";
-        check(&offer("9.9.9", sha, Some(signature.clone())), "0.3.5", &keys).unwrap();
+        assert!(check(&offer("9.9.9", sha, Some(signature.clone())), "0.3.5", &keys).is_err());
         assert!(check(&offer("9.9.8", sha, Some(signature)), "0.3.5", &keys).is_err());
     }
 
     #[test]
-    fn a_node_never_goes_back_to_an_older_blocklyd() {
+    fn a_node_never_goes_back_to_an_older_pryxd() {
         let (key, keys) = test_key();
         let sha = "ab".repeat(32);
         let signed = |version: &str| offer(version, &sha, Some(test_signature(&key, version, &sha)));

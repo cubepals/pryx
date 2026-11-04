@@ -4,7 +4,7 @@
 
 //! Host ports for workloads.
 //!
-//! blocklyd is the only allocator on its host, which is the point: Blockly's local
+//! pryxd is the only allocator on its host, which is the point: Blockly's local
 //! DockerRuntime chooses ports by listing containers and serializes choices inside one process,
 //! so two control-plane workers provisioning onto the same remote Docker host could both pick
 //! the same port, and Docker would only notice at start ("port is already allocated"). Here the

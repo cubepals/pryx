@@ -2,13 +2,13 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! What a crash leaves in the state directory, cleared when blocklyd starts.
+//! What a crash leaves in the state directory, cleared when pryxd starts.
 //!
 //! An export's or a download's spool file, the copy of a snapshot that never got its
 //! `snapshot.json`, and the temp file of a record write (`durable::write_atomic`) are removed by
 //! what made them, however it ends. A crash, a kill or a power cut stops that, and they stay:
 //! nothing reads them again, and they count against the disk's floor. This removes them, only
-//! when blocklyd starts, under the state directory's lock and before anything is served, so none
+//! when pryxd starts, under the state directory's lock and before anything is served, so none
 //! of them can still be in use.
 //!
 //! Not for what a human should decide: a snapshot whose description can't be read, or a name
@@ -110,7 +110,7 @@ impl Leftovers {
 }
 
 /// A file `durable::write_atomic` was writing in place of `name` when it was cut short (or an older
-/// blocklyd, as `.<name>.tmp`).
+/// pryxd, as `.<name>.tmp`).
 fn is_temp_of(entry: &fs::DirEntry, name: &str) -> bool {
     let prefix = temp_prefix(name);
     entry.file_name().as_bytes().starts_with(OsStr::new(&prefix).as_bytes())

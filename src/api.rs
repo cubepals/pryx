@@ -620,7 +620,7 @@ pub(crate) fn ops_router(manager: Arc<Manager>) -> Router {
 
 /// Serves the ops endpoints until `cancel`, then stops at once. Each answers from memory, so there
 /// is nothing to drain, and a graceful shutdown would wait forever on a client that sent half a
-/// request: it would keep blocklyd from exiting, an upgrade's restart included. Connections still
+/// request: it would keep pryxd from exiting, an upgrade's restart included. Connections still
 /// open end with the runtime.
 pub async fn serve_ops(listener: TcpListener, manager: Arc<Manager>, cancel: CancellationToken) {
     let serving = axum::serve(listener, ops_router(manager)).into_future();

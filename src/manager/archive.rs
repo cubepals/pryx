@@ -231,7 +231,7 @@ impl Manager {
                 tracing::warn!(workload = %id, ?previous, "finished an interrupted restore: the restored data is in place");
                 Ok(Some(Issue::new(
                     IssueCode::RestoreFinished,
-                    "a restore was interrupted after its data was complete, and finished when blocklyd started",
+                    "a restore was interrupted after its data was complete, and finished when pryxd started",
                 )))
             }
             Recovery::Discarded => {
@@ -511,7 +511,7 @@ async fn put_part(
 }
 
 /// A write that failed for want of space reached the disk's floor the hard way; any other failure
-/// is blocklyd's own.
+/// is pryxd's own.
 fn write_failed(what: &str, e: std::io::Error) -> NodeError {
     if e.kind() == std::io::ErrorKind::StorageFull {
         NodeError::InsufficientDisk(format!("{what}: {e}"))
@@ -521,7 +521,7 @@ fn write_failed(what: &str, e: std::io::Error) -> NodeError {
 }
 
 /// A copy or a pack its floor watch stopped reached the disk's floor, as one a write failed for
-/// want of space did; any other failure is blocklyd's own.
+/// want of space did; any other failure is pryxd's own.
 pub(super) fn copy_failed(what: &str, e: std::io::Error) -> NodeError {
     match crate::tree::NoRoom::of(&e) {
         Some(refused) => NodeError::InsufficientDisk(refused.to_owned()),

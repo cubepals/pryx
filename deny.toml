@@ -1,4 +1,4 @@
-# What blocklyd may depend on (`cargo deny check`, run in CI). blocklyd runs as root next to
+# What pryxd may depend on (`cargo deny check`, run in CI). pryxd runs as root next to
 # Docker's socket on every node, so its dependencies are part of every node's attack surface.
 #
 # Lockfile policy: Cargo.lock is committed and every build and test runs with --locked. A
@@ -16,7 +16,7 @@ ignore = []
 
 [licenses]
 version = 2
-# Permissive licenses only, so shipping blocklyd's binary to hosts carries no obligations beyond
+# Permissive licenses only, so shipping pryxd's binary to hosts carries no obligations beyond
 # its own license and the notices.
 allow = [
     "Apache-2.0",
@@ -30,7 +30,7 @@ allow = [
 confidence-threshold = 0.9
 
 [licenses.private]
-# blocklyd itself (FSL-1.1-ALv2, LICENSE.md; publish = false) isn't checked against the list above.
+# pryxd itself (FSL-1.1-ALv2, LICENSE.md; publish = false) isn't checked against the list above.
 ignore = true
 
 [bans]

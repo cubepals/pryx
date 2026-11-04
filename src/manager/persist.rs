@@ -9,7 +9,7 @@
 //! observation, from a runtime event) or must not fail on the disk (a restart counted). Writes of
 //! records and of the port quarantine take turns (`Manager::disk_writes`), and the trash in
 //! `delete.rs` takes the same turn. Whichever write lands last is what a restarted
-//! blocklyd reads, so each writes the state as it is when its turn comes, never a copy taken
+//! pryxd reads, so each writes the state as it is when its turn comes, never a copy taken
 //! before: a verb's newer record is never overwritten by an older one, a record trashed meanwhile
 //! is not brought back, and two writers never share a half-written file.
 

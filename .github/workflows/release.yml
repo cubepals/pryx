@@ -3,7 +3,7 @@ name: Release
 # A commit on main whose CI passed, and whose Cargo.toml version has no tag yet, is a release:
 # v<version> is tagged on that commit, and the binary, its signature by the release key, its specs,
 # its deploy files and its licence are published, attested, as an immutable GitHub Release and as
-# ghcr.io/cubepals/blocklyd:<version>.
+# ghcr.io/cubepals/pryx:<version>.
 # Any other commit does nothing. Agents never push tags; this does.
 on:
   # Safe here: the job runs only for CI on a push to this repository's main, never a fork's run.
@@ -64,7 +64,7 @@ jobs:
       id-token: write
       attestations: write
     env:
-      IMAGE: ghcr.io/cubepals/blocklyd
+      IMAGE: ghcr.io/cubepals/pryx
       GH_TOKEN: ${{ github.token }}
       SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
       version: ${{ needs.version.outputs.version }}
@@ -77,11 +77,11 @@ jobs:
         run: docker build -t "$IMAGE:$version" .
       - name: The binary says its version, and the files
         run: |
-          [ "$(docker run --rm "$IMAGE:$version" --version)" = "blocklyd $version" ]
+          [ "$(docker run --rm "$IMAGE:$version" --version)" = "pryxd $version" ]
           mkdir -p dist
           id=$(docker create "$IMAGE:$version")
-          for f in blocklyd openapi/node-reads.openapi.json openapi/node-writes.openapi.json \
-                   deploy/daemon.json deploy/blocklyd.service LICENSE.md; do
+          for f in pryxd openapi/node-reads.openapi.json openapi/node-writes.openapi.json \
+                   deploy/daemon.json deploy/pryxd.service LICENSE.md; do
             docker cp "$id:/$f" "dist/$(basename "$f")"
           done
           docker rm "$id" > /dev/null
@@ -90,19 +90,19 @@ jobs:
       # take the release.
       - name: Sign the version and the binary's sha256
         env:
-          RELEASE_KEY: ${{ secrets.BLOCKLYD_RELEASE_KEY }}
+          RELEASE_KEY: ${{ secrets.PRYXD_RELEASE_KEY }}
         run: |
-          [ -n "$RELEASE_KEY" ] || { echo "The release environment has no BLOCKLYD_RELEASE_KEY."; exit 1; }
-          printf 'blocklyd release\n%s\n%s\n' "$version" "$(sha256sum dist/blocklyd | cut -d' ' -f1)" > statement
+          [ -n "$RELEASE_KEY" ] || { echo "The release environment has no PRYXD_RELEASE_KEY."; exit 1; }
+          printf 'pryxd release\n%s\n%s\n' "$version" "$(sha256sum dist/pryxd | cut -d' ' -f1)" > statement
           printf '%s\n' "$RELEASE_KEY" | openssl pkey -pubout -out release-key.pub
           grep -qxF "$(sed -n 2p release-key.pub)" deploy/release-keys.pem ||
-            { echo "BLOCKLYD_RELEASE_KEY's public half isn't in deploy/release-keys.pem."; exit 1; }
-          printf '%s\n' "$RELEASE_KEY" | openssl pkeyutl -sign -inkey /dev/stdin -rawin -in statement -out dist/blocklyd.sig
-          openssl pkeyutl -verify -pubin -inkey release-key.pub -rawin -in statement -sigfile dist/blocklyd.sig
+            { echo "PRYXD_RELEASE_KEY's public half isn't in deploy/release-keys.pem."; exit 1; }
+          printf '%s\n' "$RELEASE_KEY" | openssl pkeyutl -sign -inkey /dev/stdin -rawin -in statement -out dist/pryxd.sig
+          openssl pkeyutl -verify -pubin -inkey release-key.pub -rawin -in statement -sigfile dist/pryxd.sig
           (cd dist && sha256sum -- * > SHA256SUMS && cat SHA256SUMS)
       # Beside the binary in the image too, for the control plane that carries it to pass on.
       - name: Put the signature in the image
-        run: printf 'FROM %s\nCOPY blocklyd.sig /blocklyd.sig\n' "$IMAGE:$version" | docker build -q -t "$IMAGE:$version" -f - dist
+        run: printf 'FROM %s\nCOPY pryxd.sig /pryxd.sig\n' "$IMAGE:$version" | docker build -q -t "$IMAGE:$version" -f - dist
       - name: Push the image
         id: push
         run: |
@@ -125,19 +125,19 @@ jobs:
           digest: ${{ steps.push.outputs.digest }}
         run: |
           cat > notes.md <<NOTES
-          blocklyd $version, under FSL-1.1-ALv2 (LICENSE.md).
+          pryxd $version, under FSL-1.1-ALv2 (LICENSE.md).
 
           Image: \`$IMAGE:$version@$digest\`
 
           Check a file or the image:
           \`\`\`sh
-          gh attestation verify blocklyd -R $GITHUB_REPOSITORY
+          gh attestation verify pryxd -R $GITHUB_REPOSITORY
           gh attestation verify oci://$IMAGE:$version -R $GITHUB_REPOSITORY
           \`\`\`
 
-          \`blocklyd.sig\` is the release key's signature that nodes check before they upgrade
+          \`pryxd.sig\` is the release key's signature that nodes check before they upgrade
           (the README's "Verify a release").
           NOTES
           gh release create "v$version" dist/* --draft --target "$SHA" \
-            --title "blocklyd $version" --notes-file notes.md
+            --title "pryxd $version" --notes-file notes.md
           gh release edit "v$version" --draft=false --latest

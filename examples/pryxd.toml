@@ -1,4 +1,4 @@
-# blocklyd configuration. Unknown keys are refused, so a typo can't pass for a setting.
+# pryxd configuration. Unknown keys are refused, so a typo can't pass for a setting.
 # Every key but node_id, deployment_id and [api] has a default; the values below are those
 # defaults unless a comment says otherwise.
 
@@ -6,7 +6,7 @@
 node_id = "fra-box-1"
 # The Blockly deployment this host serves. Containers of another deployment are never adopted.
 deployment_id = "staging"
-state_dir = "/var/lib/blocklyd"
+state_dir = "/var/lib/pryxd"
 
 [api]
 # The mTLS workload API. Bind the private or WireGuard address, never a public one.
@@ -15,15 +15,15 @@ max_body_bytes = 2097152
 shutdown_grace_seconds = 30
 
 [api.tls]
-cert = "/etc/blocklyd/tls/node.pem"
-key = "/etc/blocklyd/tls/node.key"       # mode 0600, or blocklyd refuses to start
-client_ca = "/etc/blocklyd/tls/ca.pem"    # the CA's certificate only, never its key
+cert = "/etc/pryxd/tls/node.pem"
+key = "/etc/pryxd/tls/node.key"       # mode 0600, or pryxd refuses to start
+client_ca = "/etc/pryxd/tls/ca.pem"    # the CA's certificate only, never its key
 allowed_clients = ["control-plane.staging.blockly.internal"]
 
 [ops]
 # Plain HTTP /healthz, /readyz and /metrics, with no authentication: it names workloads. Loopback,
 # or a private address for a scraper on the private network (10/8, 172.16/12, 192.168/16,
-# 100.64/10, fc00::/7, fe80::/10). blocklyd refuses 0.0.0.0, :: and public addresses.
+# 100.64/10, fc00::/7, fe80::/10). pryxd refuses 0.0.0.0, :: and public addresses.
 listen = "127.0.0.1:7070"
 
 [docker]
@@ -71,14 +71,14 @@ idle_seconds = 120                             # a transfer that receives nothin
 
 # ─── Fleet mode ──────────────────────────────────────────────────────────────────────────────
 # A node that joins a fleet has no node_id and no [api.tls]: both come from enrollment. Delete
-# them above and add this section; `blocklyd join <token>` writes this form, with only
+# them above and add this section; `pryxd join <token>` writes this form, with only
 # deployment_id and [fleet]. The control plane names the node, issues its certificates for a key
 # the node makes itself, and allows only its own client name to call the API. See
 # Cubepals' docs/fleet.md §3 ("Trust") and this repository's docs/protocol.md, "The control
 # plane's endpoint".
 #
-# In fleet mode these may be left out: blocklyd works them out from the host at each start, and
-# `blocklyd check-config` lists what it worked out. Set above, they override it.
+# In fleet mode these may be left out: pryxd works them out from the host at each start, and
+# `pryxd check-config` lists what it worked out. Set above, they override it.
 #   api.listen                    the host's one private address (10/8, 172.16/12, 192.168/16,
 #                                 100.64/10, or a WireGuard interface's), port 7443
 #   network.edge_ips, control_ips the address api.listen or fleet.api_address gives, else that one
@@ -86,11 +86,11 @@ idle_seconds = 120                             # a transfer that receives nothin
 #
 # [fleet]
 # url = "https://fleet.internal.example:8443"     # the control plane's node endpoint
-# ca = "/etc/blocklyd/fleet-ca.pem"                  # the fleet CA's certificate, from provisioning:
+# ca = "/etc/pryxd/fleet-ca.pem"                  # the fleet CA's certificate, from provisioning:
 #                                                 # the only CA trusted, which enrollment must name
 # # One-time: the bk1. token `fleet.ts token` prints, or a bare one. Deleted once used, so it lives
-# # where blocklyd may write (systemd: ProtectSystem=strict).
-# enrollment_token_file = "/var/lib/blocklyd/enrollment-token"
+# # where pryxd may write (systemd: ProtectSystem=strict).
+# enrollment_token_file = "/var/lib/pryxd/enrollment-token"
 # heartbeat_seconds = 5
 # api_address = "10.0.0.5:7443"                    # where the control plane dials this node; default
 #                                                 # api.listen, and needed when that is 0.0.0.0

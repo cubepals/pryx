@@ -2,13 +2,13 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! The seam between blocklyd and whatever runs containers. The manager speaks only these types;
+//! The seam between pryxd and whatever runs containers. The manager speaks only these types;
 //! Docker is one implementation (docker.rs), an in-memory fake another (fake.rs). A containerd or
 //! microVM backend would be a third, and the protocol would not change.
 //!
 //! Parts (`runtime/`):
 //! - `docker.rs`: the Docker Engine API, over the local unix socket.
-//! - `fake.rs`: an in-memory runtime for tests, with the Docker behaviour blocklyd depends on.
+//! - `fake.rs`: an in-memory runtime for tests, with the Docker behaviour pryxd depends on.
 
 pub mod docker;
 #[cfg(any(test, feature = "fake"))]
@@ -174,14 +174,14 @@ pub struct RuntimeInfo {
     pub(crate) storage_driver: Option<String>,
     pub(crate) security_options: Vec<String>,
     pub(crate) live_restore: Option<bool>,
-    /// The daemon's default log driver, for containers that don't name one (blocklyd's always do).
+    /// The daemon's default log driver, for containers that don't name one (pryxd's always do).
     pub(crate) log_driver: Option<String>,
 }
 
 #[derive(Clone, Debug, Default)]
 pub struct NetworkReport {
     /// False when the network lets workloads talk to each other; reported, not fixed, since the
-    /// network may predate blocklyd.
+    /// network may predate pryxd.
     pub(crate) isolated: bool,
 }
 
@@ -241,14 +241,14 @@ pub trait ContainerRuntime: Send + Sync + 'static {
     /// Thaws a container `pause` froze. May not return if the freezer is stuck: callers bound it.
     async fn unpause(&self, name: &str) -> Result<(), RuntimeError>;
     /// Sets the container's restart policy to never, so the runtime can't bring back a copy
-    /// blocklyd has fenced.
+    /// pryxd has fenced.
     async fn disable_restart(&self, name: &str) -> Result<(), RuntimeError>;
     /// Removes the container (not its bind-mounted data). Missing counts as removed.
     async fn remove(&self, name: &str) -> Result<(), RuntimeError>;
     async fn inspect(&self, name: &str) -> Result<Option<ContainerInfo>, RuntimeError>;
     /// Every container matching all `key=value` label filters.
     async fn list(&self, label_filters: &[String]) -> Result<Vec<ContainerInfo>, RuntimeError>;
-    /// Runs `command` in the container with this id. blocklyd never names it here: a container
+    /// Runs `command` in the container with this id. pryxd never names it here: a container
     /// made under the same name meanwhile is another one, and must not be the one it runs in.
     async fn exec(
         &self,

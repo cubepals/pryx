@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! What a host's configuration is held to before blocklyd runs on it: the ranges, addresses and
+//! What a host's configuration is held to before pryxd runs on it: the ranges, addresses and
 //! ids it may name, and the floor of the policy every workload is held to. Not for what the
 //! configuration holds or leaves out (`config.rs`), or for working out what it leaves out
 //! (`crate::infer`).

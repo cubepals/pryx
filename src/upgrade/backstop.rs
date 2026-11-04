@@ -2,11 +2,11 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! The trial's backstop: a blocklyd that starts on trial and hasn't ended the trial DEADLINE
-//! after it started ends itself, with status 1, and the unit's `ExecStopPost` (`blocklyd.prev
+//! The trial's backstop: a pryxd that starts on trial and hasn't ended the trial DEADLINE
+//! after it started ends itself, with status 1, and the unit's `ExecStopPost` (`pryxd.prev
 //! upgrade --exited`) puts the binary before it back, as after any start that failed.
 //!
-//! `Upgrader::watch_trial` counts TRIAL_SECONDS only from the end of startup, and stops blocklyd by
+//! `Upgrader::watch_trial` counts TRIAL_SECONDS only from the end of startup, and stops pryxd by
 //! cancelling its tasks: a startup that hangs never starts that clock, and a task that never ends
 //! keeps the process up after it. So this is a plain thread, which a stalled runtime can't hold
 //! up, waiting on nothing but the clock and a flag the Upgrader sets when a heartbeat ends the
@@ -52,7 +52,7 @@ impl Backstop {
                     Due::Now => {
                         error!(
                             version,
-                            "still on trial {} s after starting: stopping, for the blocklyd before it to be put back",
+                            "still on trial {} s after starting: stopping, for the pryxd before it to be put back",
                             DEADLINE.as_secs()
                         );
                         std::process::exit(1);
@@ -67,7 +67,7 @@ impl Backstop {
         backstop
     }
 
-    /// Set once a heartbeat ended the trial (`Upgrader::accepted`): blocklyd then runs on.
+    /// Set once a heartbeat ended the trial (`Upgrader::accepted`): pryxd then runs on.
     pub fn ended(&self) -> Arc<AtomicBool> {
         self.ended.clone()
     }
@@ -114,7 +114,7 @@ mod tests {
     #[test]
     fn only_a_start_on_trial_is_armed() {
         let root = tempfile::tempdir().unwrap();
-        let state = root.path().join("var/lib/blocklyd");
+        let state = root.path().join("var/lib/pryxd");
         let layout = Layout::new(&state, root.path());
         assert!(!Backstop::arm(&state, Instant::now()).armed, "no trial");
         let trial = |to: String| Trial { from: "0.2.0".into(), to, sha256: "ab".repeat(32) };

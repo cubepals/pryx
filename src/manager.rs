@@ -2,12 +2,12 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! blocklyd's core: workloads on this host, their records, ports and observations, and every
+//! pryxd's core: workloads on this host, their records, ports and observations, and every
 //! operation the protocol offers.
 //!
 //! Authority is split deliberately (docs/fleet.md, "The parts"). The control plane owns what
 //! should exist and whether it should run. This host owns what does exist: containers, the ports
-//! it handed out, where data lives, what it observed. blocklyd never decides on its own to
+//! it handed out, where data lives, what it observed. pryxd never decides on its own to
 //! start, stop or delete a workload, with three exceptions it carries out itself (every
 //! container's Docker restart policy is `no`): the restart-on-failure policy the spec asked for
 //! and resuming what was running when the host went down, both under the execution lease in fleet
@@ -110,7 +110,7 @@ fn now_str() -> String {
 /// Where a reconciliation takes the records from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Records {
-    /// Read again from disk, and what a crash left settled: when blocklyd starts.
+    /// Read again from disk, and what a crash left settled: when pryxd starts.
     FromDisk,
     /// As memory holds them: every pass after the first.
     InMemory,
@@ -131,7 +131,7 @@ pub enum Precondition {
 struct Observed {
     info: Option<ContainerInfo>,
     /// The runtime era it was seen in (see `runtime_era`): a transition only counts as a crash
-    /// blocklyd saw happen if nothing interrupted its view in between.
+    /// pryxd saw happen if nothing interrupted its view in between.
     era: u64,
 }
 
@@ -203,7 +203,7 @@ struct State {
     /// What each workload keeps for suspending (`suspend.json`), for those that keep anything.
     suspend: HashMap<WorkloadId, SuspendRecord>,
     /// Deferred specs whole, secret values included, which only memory holds. One lost to a
-    /// restart of blocklyd takes its secrets from the container it replaces (`boot_spec`).
+    /// restart of pryxd takes its secrets from the container it replaces (`boot_spec`).
     pending: HashMap<WorkloadId, WorkloadSpec>,
 }
 
@@ -415,7 +415,7 @@ impl Manager {
         self.reconciled.load(Ordering::SeqCst)
     }
 
-    /// Whether what blocklyd remembers about workloads is current: the runtime answers, and a
+    /// Whether what pryxd remembers about workloads is current: the runtime answers, and a
     /// full pass has looked since it last didn't. Otherwise every state reads `unknown`: after an
     /// outage the last observation is history (a daemon stop kills workloads), and reporting it
     /// as the state would tell the control plane something false.
@@ -429,7 +429,7 @@ impl Manager {
     }
 
     /// Records whether the runtime answered; every runtime error funnels through here. An
-    /// outage also forgets that blocklyd was reconciled: whatever happened while it couldn't
+    /// outage also forgets that pryxd was reconciled: whatever happened while it couldn't
     /// look (a daemon stop kills workloads) is unknown until a full pass has looked again.
     fn note<T>(&self, result: Result<T, RuntimeError>) -> Result<T, RuntimeError> {
         match &result {
@@ -570,7 +570,7 @@ impl Manager {
     fn note_observed(&self, id: &WorkloadId, info: Option<ContainerInfo>) -> bool {
         let mut state = self.state.lock().unwrap();
         let era = self.runtime_era.load(Ordering::SeqCst);
-        // A failure blocklyd watched happen: it was running at the last look, in this same era,
+        // A failure pryxd watched happen: it was running at the last look, in this same era,
         // and has now exited badly. Anything else (found dead at startup, after a reboot or a
         // runtime outage) is reported and left alone.
         let was_running = state.observed.get(id).is_some_and(|o| {

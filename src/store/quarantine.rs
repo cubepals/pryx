@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
 //! Released host ports still in quarantine (`RestingPort`), kept in `ports.json` so a restarted
-//! blocklyd doesn't hand out a port a route may still point at. Which ports rest, and for how long,
+//! pryxd doesn't hand out a port a route may still point at. Which ports rest, and for how long,
 //! is `ports.rs`'s.
 
 use std::fs;

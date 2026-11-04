@@ -1,5 +1,5 @@
 name: Idea
-description: Something blocklyd could do.
+description: Something pryxd could do.
 labels: [enhancement]
 body:
   - type: textarea
@@ -13,4 +13,4 @@ body:
     id: idea
     attributes:
       label: The idea
-      description: blocklyd prefers what it can infer, default or repair itself over a new setting.
+      description: pryxd prefers what it can infer, default or repair itself over a new setting.

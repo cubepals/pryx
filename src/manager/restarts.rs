@@ -12,7 +12,7 @@ use super::*;
 impl Manager {
     // ─── restarts after failures ───────────────────────────────────────────────────────────
 
-    /// Applies each workload's restart policy: a failure blocklyd saw happen (see `remember`) is
+    /// Applies each workload's restart policy: a failure pryxd saw happen (see `remember`) is
     /// started again after a backoff, up to the spec's `maxRetries` in one run, and like any start
     /// only if it fits in memory. Never a copy that was asked to stop or was fenced. In fleet mode,
     /// only while the control plane was heard from recently: a node cut off from it doesn't bring
@@ -110,7 +110,7 @@ impl Manager {
     }
 
     /// Counts a restart after a failure: in memory first, so this run counts it even if the disk
-    /// can't take the record, then on disk, so a restart of blocklyd doesn't give a crash loop its
+    /// can't take the record, then on disk, so a restart of pryxd doesn't give a crash loop its
     /// retries again.
     async fn count_restart(&self, id: &WorkloadId, count: u32) {
         if let Some(record) = self.state.lock().unwrap().records.get_mut(id) {
@@ -246,7 +246,7 @@ mod tests {
         WorkloadId::parse("w").unwrap()
     }
 
-    /// blocklyd over the in-memory runtime, with `w` running under the default restart policy.
+    /// pryxd over the in-memory runtime, with `w` running under the default restart policy.
     async fn running() -> (tempfile::TempDir, Arc<FakeRuntime>, Arc<Manager>) {
         let dir = tempfile::tempdir().unwrap();
         let (uid, gid) = (rustix::process::getuid().as_raw(), rustix::process::getgid().as_raw());
@@ -291,6 +291,6 @@ mod tests {
         m.start(w(), None).await.unwrap();
         fake.crash("blockly-test-w", exit_by(libc::SIGKILL), false);
         m.stats(&w()).await.unwrap();
-        assert!(restart_due(&m), "a crash blocklyd watched happen");
+        assert!(restart_due(&m), "a crash pryxd watched happen");
     }
 }

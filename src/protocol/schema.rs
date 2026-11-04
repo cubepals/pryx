@@ -15,7 +15,7 @@
 //!   errors, and its own requests to the control plane.
 //!
 //! Only tests derive the schemas, so none of this reaches the binary. A test fails when a committed
-//! document is not what the types say; `BLOCKLYD_WRITE_SCHEMA=1 cargo test --lib protocol::schema`
+//! document is not what the types say; `PRYXD_WRITE_SCHEMA=1 cargo test --lib protocol::schema`
 //! writes them again. The documents don't describe the API's paths: those are in docs/protocol.md.
 
 use std::path::Path;
@@ -36,7 +36,7 @@ macro_rules! schemas {
 }
 
 fn node_reads() -> Value {
-    document("blocklyd: what a node reads", Contract::Deserialize, |g| {
+    document("pryxd: what a node reads", Contract::Deserialize, |g| {
         schemas!(g;
             WorkloadSpec, StopRequest, FenceRequest, ExecRequest, ExportRequest, RestoreRequest, SnapshotRequest,
             UploadRequest, EnrollResponse, HeartbeatResponse, RenewResponse,
@@ -45,7 +45,7 @@ fn node_reads() -> Value {
 }
 
 fn node_writes() -> Value {
-    document("blocklyd: what a node writes", Contract::Serialize, |g| {
+    document("pryxd: what a node writes", Contract::Serialize, |g| {
         schemas!(g;
             WorkloadView, ListResponse, StatsView, LogRecord, EnsureResponse, PowerResponse, FenceResponse,
             DeleteResponse, ExecResponse, ExportResponse, RestoreResponse, SnapshotResponse, SnapshotList,
@@ -90,14 +90,14 @@ fn the_committed_documents_are_what_the_wire_types_say() {
     for (name, document) in [("node-reads.openapi.json", node_reads()), ("node-writes.openapi.json", node_writes())] {
         let path = Path::new(OPENAPI).join(name);
         let generated = canonical(&document);
-        if std::env::var_os("BLOCKLYD_WRITE_SCHEMA").is_some() {
+        if std::env::var_os("PRYXD_WRITE_SCHEMA").or_else(|| std::env::var_os("BLOCKLYD_WRITE_SCHEMA")).is_some() {
             std::fs::write(&path, &generated).expect("writes the document");
             continue;
         }
         let committed = std::fs::read_to_string(&path).unwrap_or_default();
         assert!(
             committed == generated,
-            "{} is not what the wire types say: run `BLOCKLYD_WRITE_SCHEMA=1 cargo test --lib protocol::schema` \
+            "{} is not what the wire types say: run `PRYXD_WRITE_SCHEMA=1 cargo test --lib protocol::schema` \
              and commit openapi/",
             path.display()
         );

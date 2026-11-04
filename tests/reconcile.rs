@@ -10,14 +10,14 @@ mod support;
 use std::path::Path;
 use std::sync::Arc;
 
-use blocklyd::manager::{Precondition, Records};
-use blocklyd::protocol::{EnsureOutcome, IssueCode, WorkloadState};
-use blocklyd::runtime::ContainerRuntime;
-use blocklyd::store::restore::RESTORE_COMPLETE;
+use pryxd::manager::{Precondition, Records};
+use pryxd::protocol::{EnsureOutcome, IssueCode, WorkloadState};
+use pryxd::runtime::ContainerRuntime;
+use pryxd::store::restore::RESTORE_COMPLETE;
 use support::{fixture, id, manager_on, spec};
 use tokio_util::sync::CancellationToken;
 
-/// Events are how blocklyd hears of a crash between its own looks: this one reaches the
+/// Events are how pryxd hears of a crash between its own looks: this one reaches the
 /// workload's state with nothing else looking (no stats, no resync).
 #[tokio::test]
 async fn a_crash_reaches_the_workload_through_the_event_stream() {
@@ -27,7 +27,7 @@ async fn a_crash_reaches_the_workload_through_the_event_stream() {
     f.manager.ensure(id("w"), no_retries, Precondition::None, None).await.unwrap();
     f.manager.start(id("w"), None).await.unwrap();
     let cancel = CancellationToken::new();
-    let follower = tokio::spawn(blocklyd::reconcile::follow_events(f.manager.clone(), cancel.clone()));
+    let follower = tokio::spawn(pryxd::reconcile::follow_events(f.manager.clone(), cancel.clone()));
     // Lets it subscribe first: the stream, like Docker's, doesn't replay what came before.
     tokio::task::yield_now().await;
     f.fake.crash("blockly-test-w", 3, false);
@@ -56,7 +56,7 @@ async fn a_restarted_daemon_finds_everything_and_hands_out_no_port_twice() {
     assert!(report.error.is_none(), "{report:?}");
     assert_eq!(report.workloads, 2);
     let a_view = restarted.view(&id("a")).unwrap();
-    assert_eq!(a_view.state, WorkloadState::Running, "still running: blocklyd never owned the process");
+    assert_eq!(a_view.state, WorkloadState::Running, "still running: pryxd never owned the process");
     assert_eq!(a_view.ports.iter().map(|p| p.host_port).collect::<Vec<_>>(), a_ports);
     assert_eq!(restarted.view(&id("b")).unwrap().state, WorkloadState::Created);
 
@@ -97,7 +97,7 @@ async fn a_lost_state_directory_is_rebuilt_from_container_labels() {
 async fn a_create_interrupted_after_the_container_existed_is_completed() {
     let f = fixture("").await;
     f.manager.ensure(id("a"), spec(), Precondition::None, None).await.unwrap();
-    // As if blocklyd died between creating the container and recording it.
+    // As if pryxd died between creating the container and recording it.
     let path = f.manager.store.workload_dir(&id("a")).join("workload.json");
     let mut record: serde_json::Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
     record["phase"] = "creating".into();
@@ -144,7 +144,7 @@ async fn a_container_the_runtime_lost_is_reported_not_recreated() {
     let view = restarted.view(&id("a")).unwrap();
     assert_eq!(view.state, WorkloadState::Missing);
     assert!(view.issues.iter().any(|i| i.code == IssueCode::ContainerMissing));
-    assert_eq!(f.fake.count_calls("create "), 1, "blocklyd doesn't recreate on its own: it holds no secrets");
+    assert_eq!(f.fake.count_calls("create "), 1, "pryxd doesn't recreate on its own: it holds no secrets");
     assert!(!view.ports.is_empty(), "its ports stay held for when it's asked back");
 }
 
@@ -285,7 +285,7 @@ async fn what_a_crash_left_in_the_spool_and_of_snapshots_is_cleared_at_startup()
     let f = fixture("").await;
     f.manager.ensure(id("w"), spec(), Precondition::None, None).await.unwrap();
     let store = &f.manager.store;
-    let snapshot = |s: &str| blocklyd::ids::SnapshotId::parse(s).unwrap();
+    let snapshot = |s: &str| pryxd::ids::SnapshotId::parse(s).unwrap();
     let (unfinished, damaged) = ("0b6f1f2e-6a47-4c9a-9a39-2f4ac7e51f10", "1b6f1f2e-6a47-4c9a-9a39-2f4ac7e51f10");
     // A download and a snapshot's copy cut short, and a snapshot whose description was damaged.
     std::fs::create_dir_all(store.spool_dir()).unwrap();

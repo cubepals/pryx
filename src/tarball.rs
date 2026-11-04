@@ -4,7 +4,7 @@
 
 //! World archives: a gzip tarball of a workload's data directory. It is the format Blockly's
 //! backups, downloads and uploads already use: paths relative to the data root, with
-//! `server.properties` at the top. So an archive blocklyd writes is one Blockly can already read,
+//! `server.properties` at the top. So an archive pryxd writes is one Blockly can already read,
 //! and the other way round.
 //!
 //! Export writes the archive to a spool file first, hashing as it goes: a presigned PUT needs its
@@ -13,7 +13,7 @@
 //! anything else. Compression is gzip's fastest level: region files are compressed already, so
 //! a slower level costs CPU for little.
 //!
-//! Restore is the dangerous direction. The archive may be a player's upload, and blocklyd unpacks
+//! Restore is the dangerous direction. The archive may be a player's upload, and pryxd unpacks
 //! it as root. So it keeps only regular files and directories. It refuses the whole archive if
 //! any path is absolute or climbs out with `..`. It never follows a link. It strips setuid,
 //! setgid and sticky bits and group/other write, and gives every file to the workload's user. It
@@ -295,7 +295,7 @@ fn unpack_at_most(
 /// How far into a restore's archive tar may read, and how far it has. tar reads a member's long
 /// name, long link and PAX records whole into memory before it hands the member over (tar 0.4.46,
 /// `EntryFields::read_all`), and skips the data of one unpack doesn't take by reading it: without a
-/// bound, an archive whose metadata decompresses to gigabytes makes root blocklyd hold or read them
+/// bound, an archive whose metadata decompresses to gigabytes makes root pryxd hold or read them
 /// all. tar-rs PR #481 (<https://github.com/alexcrichton/tar-rs/pull/481>) adds
 /// `Archive::set_max_metadata_size`: once tar ships it, that takes the headers' part (at
 /// `MAX_METADATA_BYTES`), and this keeps bounding the data skipped.

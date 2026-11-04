@@ -57,7 +57,7 @@
         "additionalProperties": false,
         "properties": {
           "command": {
-            "description": "argv, never a shell string: blocklyd adds no shell. It runs inside the workload, as\nthe workload's user, with its limits; never on the host.",
+            "description": "argv, never a shell string: pryxd adds no shell. It runs inside the workload, as\nthe workload's user, with its limits; never on the host.",
             "items": {
               "type": "string"
             },
@@ -202,7 +202,7 @@
               }
             ],
             "default": null,
-            "description": "A newer blocklyd to upgrade to: offered to one node of a region at a time."
+            "description": "A newer pryxd to upgrade to: offered to one node of a region at a time."
           }
         },
         "required": [
@@ -350,7 +350,7 @@
           },
           {
             "const": "on-failure",
-            "description": "Started again after a failing exit, up to `maxRetries` times (Blockly's Fly and Docker\nruntimes both use 3; 0 means never, not Docker's \"no limit\"). Never after a requested stop.\nAfter a restart of the host, a workload that was running when the host went down is\nresumed; after a restart of blocklyd alone, in the same boot, nothing is. In fleet mode\neither needs the execution lease, which the node takes only after applying the fences of\nthe heartbeat answer that grants it.",
+            "description": "Started again after a failing exit, up to `maxRetries` times (Blockly's Fly and Docker\nruntimes both use 3; 0 means never, not Docker's \"no limit\"). Never after a requested stop.\nAfter a restart of the host, a workload that was running when the host went down is\nresumed; after a restart of pryxd alone, in the same boot, nothing is. In fleet mode\neither needs the execution lease, which the node takes only after applying the fences of\nthe heartbeat answer that grants it.",
             "type": "string"
           }
         ]
@@ -407,7 +407,7 @@
         "type": "object"
       },
       "Secret": {
-        "description": "A secret value: never logged, never persisted by blocklyd, never returned.",
+        "description": "A secret value: never logged, never persisted by pryxd, never returned.",
         "type": "string"
       },
       "SnapshotId": {
@@ -495,13 +495,13 @@
         "type": "object"
       },
       "UpgradeOffer": {
-        "description": "The blocklyd the control plane wants the node to run, at `GET /fleet/v1/blocklyd`.",
+        "description": "The pryxd the control plane wants the node to run, at `GET /fleet/v1/blocklyd`.",
         "properties": {
           "sha256": {
             "type": "string"
           },
           "signature": {
-            "description": "The release's Ed25519 signature of `version` and `sha256`, in hex: its `blocklyd.sig`,\nwhich the control plane passes on (upgrade/trust.rs). A node that lists `signed-upgrade`\ninstalls nothing without it.",
+            "description": "The release's Ed25519 signature of `version` and `sha256`, in hex: its `pryxd.sig`,\nwhich the control plane passes on (upgrade/trust.rs). A node that lists `signed-upgrade`\ninstalls nothing without it.",
             "type": [
               "string",
               "null"
@@ -634,7 +634,7 @@
     }
   },
   "info": {
-    "title": "blocklyd: what a node reads",
+    "title": "pryxd: what a node reads",
     "version": "1"
   },
   "openapi": "3.1.0",

@@ -11,9 +11,9 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use blocklyd::api::HandshakeLimits;
 use hyper::StatusCode;
 use hyper::header::{CONTENT_TYPE, ETAG, IF_MATCH, IF_NONE_MATCH};
+use pryxd::api::HandshakeLimits;
 use support::{CLIENT, client, fixture, pki, request, serve, serve_with, server_cert_as_client, spec_json, tls_over};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpSocket, TcpStream};
@@ -80,7 +80,7 @@ async fn no_client_certificate_no_connection() {
 #[tokio::test]
 async fn a_certificate_from_another_ca_is_refused() {
     let e = env().await;
-    let stranger_ca = blocklyd::certs::authority("someone else's CA").unwrap();
+    let stranger_ca = pryxd::certs::authority("someone else's CA").unwrap();
     let stranger = client(&stranger_ca, CLIENT);
     let r = request(e.server.addr, &e.pki.ca.pem, Some(&stranger), "GET", "/v1/health", &[], None).await;
     assert!(r.is_err(), "same name, wrong issuer");
@@ -167,7 +167,7 @@ async fn handshakes_in_progress_are_capped_per_address_and_overall() {
     }
     assert_eq!(closed_within(&mut third, Duration::from_secs(1)).await, 1);
     let metrics = f.manager.metrics.render(&f.manager);
-    assert!(metrics.contains(r#"blocklyd_auth_failures_total{reason="tls_handshakes_full"} 6"#), "{metrics}");
+    assert!(metrics.contains(r#"pryxd_auth_failures_total{reason="tls_handshakes_full"} 6"#), "{metrics}");
     // A handshake that ends, however it ends, gives its place back.
     drop((silent, third));
     let answer = support::eventually("a place for 127.0.0.2 again", async || {
@@ -224,7 +224,7 @@ async fn refused_handshakes_never_flood_the_log() {
     let debug = text.lines().filter(|l| l.contains("DEBUG") && l.contains("TLS handshake refused")).count();
     assert_eq!(debug, 100, "each one is still logged, at debug");
     let metrics = e._f.manager.metrics.render(&e._f.manager);
-    assert!(metrics.contains(r#"blocklyd_auth_failures_total{reason="tls_handshake"} 100"#), "and counted");
+    assert!(metrics.contains(r#"pryxd_auth_failures_total{reason="tls_handshake"} 100"#), "and counted");
 }
 
 #[tokio::test]
@@ -276,8 +276,8 @@ async fn methods_nobody_uses_are_counted_under_one_label() {
         assert_eq!(e.call(method, "/v1/health", None).await.status, StatusCode::METHOD_NOT_ALLOWED);
     }
     let metrics = e._f.manager.metrics.render(&e._f.manager);
-    let series: Vec<_> = metrics.lines().filter(|l| l.starts_with("blocklyd_http_requests_total{")).collect();
-    assert_eq!(series, [r#"blocklyd_http_requests_total{method="other",route="/v1/health",status="405"} 2"#]);
+    let series: Vec<_> = metrics.lines().filter(|l| l.starts_with("pryxd_http_requests_total{")).collect();
+    assert_eq!(series, [r#"pryxd_http_requests_total{method="other",route="/v1/health",status="405"} 2"#]);
 }
 
 #[tokio::test]
@@ -289,7 +289,7 @@ async fn the_ops_listener_stops_at_once_even_with_half_a_request_open() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let cancel = tokio_util::sync::CancellationToken::new();
-    let serving = tokio::spawn(blocklyd::api::serve_ops(listener, f.manager.clone(), cancel.clone()));
+    let serving = tokio::spawn(pryxd::api::serve_ops(listener, f.manager.clone(), cancel.clone()));
     // A whole request is answered as ever.
     let mut whole = TcpStream::connect(addr).await.unwrap();
     whole.write_all(b"GET /healthz HTTP/1.1\r\nhost: ops\r\nconnection: close\r\n\r\n").await.unwrap();

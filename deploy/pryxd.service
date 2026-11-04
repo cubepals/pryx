@@ -1,0 +1,78 @@
+# pryxd as a systemd service (Cubepals' docs/fleet-operations.md, "Adding a node").
+#
+# The hardening below narrows what pryxd's own process can touch. It cannot narrow what it
+# can do through the Docker socket, which is root-equivalent: that is limited only by pryxd's
+# code (it asks Docker for nothing but hardened workload containers) and by who can call
+# its API (mutual TLS). See README, "Security model".
+#
+# The binary is /var/lib/pryxd/bin/pryxd, which /usr/local/bin/pryxd links to: the state
+# directory is the one place this unit lets pryxd write, so it can upgrade itself there with
+# nothing more opened up (src/cli/upgrade.rs).
+#
+# Fleet mode: provisioning writes the fleet CA to /etc/pryxd/fleet-ca.pem and the one-time
+# enrollment token to /var/lib/pryxd/enrollment-token (pryxd deletes it once used, and /etc
+# is read-only to it here). The identity it enrolls with stays under /var/lib/pryxd/identity.
+
+[Unit]
+Description=pryx node daemon
+Documentation=https://github.com/cubepals/pryx
+# After, not Requires: pryxd outlives Docker restarts, reports Docker as down, and resyncs.
+After=network-online.target docker.service
+Wants=network-online.target docker.service
+
+[Service]
+Type=exec
+# Before anything else: workloads kept off this host, and off the ports pryxd serves on the
+# private network (src/isolation.rs). "+" runs it as root outside the sandbox below, which has no
+# netlink to set them with; it fails only where nftables can't take the rules, and then nothing starts.
+ExecStartPre=+/usr/local/bin/pryxd isolate --config /etc/pryxd/pryxd.toml
+# Refuses to start only on what it always refused (an invalid config, a state directory it can't
+# own); everything else doctor finds goes to the journal as a warning.
+ExecStartPre=/usr/local/bin/pryxd doctor --preflight --config /etc/pryxd/pryxd.toml
+ExecStart=/usr/local/bin/pryxd serve --config /etc/pryxd/pryxd.toml
+# After any stop: a pryxd just upgraded to that exited before it came up is swapped back for
+# the one before it, which this runs. "-": there is none until the first upgrade.
+ExecStopPost=-/var/lib/pryxd/bin/pryxd.prev upgrade --exited --config /etc/pryxd/pryxd.toml
+Restart=always
+RestartSec=2
+# SIGTERM drains requests for up to shutdown_grace_seconds; workloads are not pryxd's
+# children and keep running.
+KillSignal=SIGTERM
+TimeoutStopSec=45
+# Workloads (their workloads.oom_score_adj) go before pryxd when the host runs out of memory.
+OOMScoreAdjust=-500
+LimitNOFILE=65536
+# Snapshots, exports and restores work at nice 19 (src/priority.rs); this lets their threads come
+# back to nice 0 afterwards, and no higher.
+LimitNICE=+0
+
+StateDirectory=pryxd
+StateDirectoryMode=0700
+ConfigurationDirectory=pryxd
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/pryxd /run/docker.sock /var/run/docker.sock
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+# chown data directories to the workload user, remove trashed data it owns, kill a timed-out
+# exec by host pid.
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_KILL
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target

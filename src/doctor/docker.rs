@@ -2,9 +2,9 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! Whether Docker is reachable and set up the way blocklyd expects: cgroup v2, live-restore on,
+//! Whether Docker is reachable and set up the way pryxd expects: cgroup v2, live-restore on,
 //! workloads' network isolated, logs bounded, and `/etc/docker/daemon.json` matching Blockly's
-//! (`deploy/daemon.json`). All warnings: blocklyd starts without Docker, outlives its restarts and
+//! (`deploy/daemon.json`). All warnings: pryxd starts without Docker, outlives its restarts and
 //! reports it as down.
 
 use std::path::Path;
@@ -15,7 +15,7 @@ use serde_json::{Map, Value};
 use super::check::Check;
 use crate::runtime::{ContainerRuntime, RuntimeError, RuntimeInfo};
 
-/// How long doctor waits on Docker. Short: a hung daemon shouldn't hold up blocklyd's start.
+/// How long doctor waits on Docker. Short: a hung daemon shouldn't hold up pryxd's start.
 const DOCKER_WAIT: Duration = Duration::from_secs(5);
 
 /// Blockly's Docker daemon settings, as `deploy/` ships them.
@@ -48,7 +48,7 @@ pub(crate) async fn checks(runtime: &dyn ContainerRuntime, network: &str, daemon
     match waited(runtime.info()).await {
         Err(e) => checks.push(Check::warn(
             "docker",
-            format!("can't reach Docker ({e}); blocklyd starts anyway and reports Docker as down"),
+            format!("can't reach Docker ({e}); pryxd starts anyway and reports Docker as down"),
             "Start Docker (systemctl start docker), or install it from Docker's apt repository",
         )),
         Ok(info) => {
@@ -76,7 +76,7 @@ fn cgroup(info: &RuntimeInfo) -> Check {
         other => Check::warn(
             "docker.cgroup",
             format!(
-                "Docker reports cgroup {}: blocklyd's memory figures assume v2",
+                "Docker reports cgroup {}: pryxd's memory figures assume v2",
                 other.map_or("version unknown".to_owned(), |v| format!("v{v}"))
             ),
             "Boot with cgroup v2 (the default on current distributions; systemd.unified_cgroup_hierarchy=1)",
@@ -92,7 +92,7 @@ fn live_restore(info: &RuntimeInfo) -> Check {
         "docker.live_restore",
         "live-restore is off: every server stops when Docker restarts",
         format!(
-            "Run blocklyd doctor --fix on a host with no servers yet, or set \"live-restore\": true in {} and reload \
+            "Run pryxd doctor --fix on a host with no servers yet, or set \"live-restore\": true in {} and reload \
              Docker (systemctl reload docker)",
             super::DAEMON_JSON
         ),
@@ -107,14 +107,12 @@ fn isolation(network: &str, isolated: Result<Option<bool>, RuntimeError>) -> Che
         ),
         Ok(None) => Check::pass(
             "docker.network",
-            format!("{network} doesn't exist yet; blocklyd makes it with inter-container traffic off"),
+            format!("{network} doesn't exist yet; pryxd makes it with inter-container traffic off"),
         ),
         Ok(Some(false)) => Check::warn(
             "docker.network",
             format!("{network} lets servers reach each other (enable_icc is not false)"),
-            format!(
-                "Once no server is on it, remove it (docker network rm {network}); blocklyd makes it again, isolated"
-            ),
+            format!("Once no server is on it, remove it (docker network rm {network}); pryxd makes it again, isolated"),
         ),
         Err(e) => Check::warn(
             "docker.network",
@@ -124,7 +122,7 @@ fn isolation(network: &str, isolated: Result<Option<bool>, RuntimeError>) -> Che
     }
 }
 
-/// blocklyd's own containers always rotate their logs; this is for everything else on the host.
+/// pryxd's own containers always rotate their logs; this is for everything else on the host.
 fn log_driver(info: &RuntimeInfo, on_disk: Option<&Map<String, Value>>) -> Check {
     let driver = info.log_driver.as_deref().unwrap_or("unknown");
     // daemon.json's log-opts are Docker's only while the driver it names is the one running: a
@@ -136,8 +134,8 @@ fn log_driver(info: &RuntimeInfo, on_disk: Option<&Map<String, Value>>) -> Check
         "json-file" if max_size => Check::pass("docker.log_driver", "log driver json-file, with a max-size"),
         _ => Check::warn(
             "docker.log_driver",
-            format!("log driver {driver} may not be bounded: containers blocklyd didn't make can fill the disk"),
-            format!("Set \"log-driver\": \"local\" in {} (blocklyd doctor --fix does)", super::DAEMON_JSON),
+            format!("log driver {driver} may not be bounded: containers pryxd didn't make can fill the disk"),
+            format!("Set \"log-driver\": \"local\" in {} (pryxd doctor --fix does)", super::DAEMON_JSON),
         ),
     }
 }
@@ -149,7 +147,7 @@ pub(crate) fn differences(on_disk: &Map<String, Value>) -> Vec<String> {
 
 fn compare(path: &Path, on_disk: &Result<Option<Map<String, Value>>, String>) -> Check {
     let fix = format!(
-        "Run blocklyd doctor --fix on a host with no servers yet; it merges deploy/daemon.json into {}",
+        "Run pryxd doctor --fix on a host with no servers yet; it merges deploy/daemon.json into {}",
         path.display()
     );
     match on_disk {
@@ -243,7 +241,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_network_blocklyd_hasnt_made_yet_passes_and_json_file_with_max_size_is_bounded() {
+    async fn a_network_pryxd_hasnt_made_yet_passes_and_json_file_with_max_size_is_bounded() {
         let fake = healthy();
         *fake.network_isolated.lock().unwrap() = None;
         fake.runtime_info.lock().unwrap().log_driver = Some("json-file".into());

@@ -12,7 +12,7 @@
 //!
 //! What a node and its control plane send each other is `protocol::wire`.
 //!
-//! Upgrading blocklyd itself when a heartbeat's answer offers it is `crate::upgrade`, which also
+//! Upgrading pryxd itself when a heartbeat's answer offers it is `crate::upgrade`, which also
 //! says which version this one is.
 //!
 //! The control plane keeps the durable state (nodes, placements, epochs, backups). The node keeps

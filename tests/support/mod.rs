@@ -11,19 +11,19 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use blocklyd::api::{self, AppState};
-use blocklyd::certs;
-use blocklyd::config::Config;
-use blocklyd::ids::WorkloadId;
-use blocklyd::manager::{Manager, Records};
-use blocklyd::metrics::Metrics;
-use blocklyd::protocol::{WorkloadSpec, WorkloadView};
-use blocklyd::runtime::ContainerRuntime;
-use blocklyd::runtime::fake::FakeRuntime;
-use blocklyd::store::Store;
 use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;
 use hyper_util::rt::TokioIo;
+use pryxd::api::{self, AppState};
+use pryxd::certs;
+use pryxd::config::Config;
+use pryxd::ids::WorkloadId;
+use pryxd::manager::{Manager, Records};
+use pryxd::metrics::Metrics;
+use pryxd::protocol::{WorkloadSpec, WorkloadView};
+use pryxd::runtime::ContainerRuntime;
+use pryxd::runtime::fake::FakeRuntime;
+use pryxd::store::Store;
 use rustls_pki_types::pem::PemObject;
 use rustls_pki_types::{CertificateDer, PrivateKeyDer, ServerName};
 use tokio_util::sync::CancellationToken;
@@ -92,7 +92,7 @@ pub(crate) struct Fixture {
     pub manager: Arc<Manager>,
 }
 
-/// A manager that has reconciled once, as blocklyd does before it serves anyone.
+/// A manager that has reconciled once, as pryxd does before it serves anyone.
 pub(crate) async fn fixture(extra: &str) -> Fixture {
     let dir = tempfile::tempdir().unwrap();
     let fake = Arc::new(FakeRuntime::new());
@@ -111,7 +111,7 @@ pub(crate) fn manager_probed(
     dir: &Path,
     runtime: Arc<dyn ContainerRuntime>,
     extra: &str,
-    probe: blocklyd::ports::Probe,
+    probe: pryxd::ports::Probe,
 ) -> Arc<Manager> {
     let config = Arc::new(config(dir, extra));
     let store = Store::open(&config.state_dir).unwrap();
@@ -126,8 +126,8 @@ pub(crate) fn spec_json() -> serde_json::Value {
         "resources": { "memoryMb": 1024 },
         "storage": { "mountPath": "/data", "sizeGb": 1 },
         "ports": [
-            { "name": "game", "containerPort": blocklyd::minecraft::GAME_PORT, "audience": ["edge", "control"] },
-            { "name": "rcon", "containerPort": blocklyd::minecraft::RCON_PORT, "audience": ["control"] }
+            { "name": "game", "containerPort": pryxd::minecraft::GAME_PORT, "audience": ["edge", "control"] },
+            { "name": "rcon", "containerPort": pryxd::minecraft::RCON_PORT, "audience": ["control"] }
         ],
         "stop": { "timeoutSeconds": 5 },
         "labels": { "blockly.server": "s1" }
@@ -161,7 +161,7 @@ pub(crate) async fn eventually<T: std::fmt::Debug>(what: &str, mut look: impl As
     }
 }
 
-/// A workload's view once `ok` holds, looked at as blocklyd looks (`stats` observes the runtime).
+/// A workload's view once `ok` holds, looked at as pryxd looks (`stats` observes the runtime).
 pub(crate) async fn until(
     manager: &Arc<Manager>,
     workload: &str,

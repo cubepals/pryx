@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! blocklyd: Blockly's node daemon. It runs Blockly's Minecraft servers on a Linux host through
+//! pryxd: pryx's node daemon. It runs Blockly's Minecraft servers on a Linux host through
 //! Docker, for a control plane that places them: alone on one host, or as one node of many. See
 //! README.md, and docs/protocol.md for the API.
 //!

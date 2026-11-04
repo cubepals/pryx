@@ -42,7 +42,7 @@
         "type": "object"
       },
       "DaemonView": {
-        "description": "The blocklyd process itself, as distinct from the node it runs on.",
+        "description": "The pryxd process itself, as distinct from the node it runs on.",
         "properties": {
           "cpuSeconds": {
             "format": "double",
@@ -313,7 +313,7 @@
             ]
           },
           "killed": {
-            "description": "blocklyd killed the process (by its host pid) after the timeout. Docker alone can't:\nits API has no way to stop an exec (moby/moby#35703).",
+            "description": "pryxd killed the process (by its host pid) after the timeout. Docker alone can't:\nits API has no way to stop an exec (moby/moby#35703).",
             "type": "boolean"
           },
           "stderr": {
@@ -586,7 +586,7 @@
             "type": "integer"
           },
           "sessionId": {
-            "description": "New each time blocklyd starts. Two sessions beating for one node id at once are two\nhosts with one identity.",
+            "description": "New each time pryxd starts. Two sessions beating for one node id at once are two\nhosts with one identity.",
             "type": "string"
           },
           "upgradeFailed": {
@@ -741,7 +741,7 @@
         "description": "Where the node is reached, as its configuration says now.",
         "properties": {
           "api": {
-            "description": "blocklyd's API, `host:port`.",
+            "description": "pryxd's API, `host:port`.",
             "type": "string"
           },
           "control": {
@@ -979,7 +979,7 @@
       "NodeHealth": {
         "properties": {
           "daemonVersion": {
-            "description": "blocklyd's version: what a control plane reads before relying on a feature.",
+            "description": "pryxd's version: what a control plane reads before relying on a feature.",
             "type": "string"
           },
           "deploymentId": {
@@ -1857,7 +1857,7 @@
           },
           {
             "const": "missing",
-            "description": "blocklyd holds a record but the container is gone (the runtime lost it).",
+            "description": "pryxd holds a record but the container is gone (the runtime lost it).",
             "type": "string"
           },
           {
@@ -1885,7 +1885,7 @@
       "WorkloadView": {
         "properties": {
           "changedAt": {
-            "description": "When the state last changed, as the runtime recorded it (survives blocklyd restarts).",
+            "description": "When the state last changed, as the runtime recorded it (survives pryxd restarts).",
             "type": "string"
           },
           "createdAt": {
@@ -1977,7 +1977,7 @@
             "$ref": "#/components/schemas/Resources"
           },
           "restartCount": {
-            "description": "Restarts the host made after failures since the last requested start or new spec. Kept\nacross restarts of blocklyd.",
+            "description": "Restarts the host made after failures since the last requested start or new spec. Kept\nacross restarts of pryxd.",
             "format": "uint32",
             "minimum": 0,
             "type": "integer"
@@ -2046,7 +2046,7 @@
     }
   },
   "info": {
-    "title": "blocklyd: what a node writes",
+    "title": "pryxd: what a node writes",
     "version": "1"
   },
   "openapi": "3.1.0",

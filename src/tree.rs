@@ -5,7 +5,7 @@
 //! Walking a directory a workload can write to, without being led anywhere else.
 //!
 //! A server's data directory belongs to whatever runs in its container: plugins and mods can
-//! create, rename and replace anything in it, while blocklyd reads it as root. A walk by path
+//! create, rename and replace anything in it, while pryxd reads it as root. A walk by path
 //! follows a directory that was swapped for a symlink between looking and opening, and would read
 //! the host's files (this node's key, say) into a backup its owner can download. So every step
 //! here is taken relative to a directory already open, with `O_NOFOLLOW`:

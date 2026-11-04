@@ -34,7 +34,7 @@ impl Manager {
         let was_fenced = record.superseded_by.is_some();
         self.state.lock().unwrap().restart_due.remove(id);
         // Recorded before anything else: from here on nothing starts this copy, even if the stop
-        // below fails or blocklyd dies halfway. In memory first, so a record the disk can't take
+        // below fails or pryxd dies halfway. In memory first, so a record the disk can't take
         // (full, read-only) still keeps this run from restarting or resuming it; after a restart
         // the control plane fences it again before granting any lease.
         record.superseded_by = Some(record.superseded_by.map_or(current_epoch, |b| b.max(current_epoch)));
@@ -47,7 +47,7 @@ impl Manager {
         if record.phase == Phase::Active
             && let Some(info) = self.observe(&record).await?
         {
-            // Every container blocklyd makes has Docker's restart policy `no` already: this only
+            // Every container pryxd makes has Docker's restart policy `no` already: this only
             // makes sure, and failing at it mustn't leave the copy running.
             if let Err(e) = self.note(self.runtime.disable_restart(&record.container_name).await) {
                 tracing::warn!(workload = %id, error = %e, "couldn't switch the fenced copy's restarts off");

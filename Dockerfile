@@ -1,6 +1,6 @@
-# blocklyd as hosts run it, and as each release publishes it. Alpine's Rust targets musl, so the
+# pryxd as hosts run it, and as each release publishes it. Alpine's Rust targets musl, so the
 # binary is static and runs on any Linux host. The final image is nothing but the release's files:
-#   /blocklyd                 the binary (its entrypoint: docker run <image> --version)
+#   /pryxd                 the binary (its entrypoint: docker run <image> --version)
 #   /openapi/*.openapi.json   the wire types, which the control plane generates its types from
 #   /deploy/                  Docker's daemon.json and the systemd unit
 #   /LICENSE.md               FSL-1.1-ALv2
@@ -15,18 +15,18 @@ RUN apk add --no-cache musl-dev file
 WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 COPY src src
-# The unit `blocklyd join` installs, and the daemon.json `doctor` checks against, are compiled in.
+# The unit `pryxd join` installs, and the daemon.json `doctor` checks against, are compiled in.
 COPY deploy deploy
 RUN cargo build --locked --release \
- && ./target/release/blocklyd --version \
- && file target/release/blocklyd | grep -q 'static' || { file target/release/blocklyd; exit 1; }
+ && ./target/release/pryxd --version \
+ && file target/release/pryxd | grep -q 'static' || { file target/release/pryxd; exit 1; }
 
 FROM scratch
-COPY --from=build /src/target/release/blocklyd /blocklyd
+COPY --from=build /src/target/release/pryxd /pryxd
 COPY openapi /openapi
-COPY deploy/daemon.json deploy/blocklyd.service /deploy/
+COPY deploy/daemon.json deploy/pryxd.service /deploy/
 COPY LICENSE.md /LICENSE.md
-LABEL org.opencontainers.image.source=https://github.com/cubepals/blocklyd \
+LABEL org.opencontainers.image.source=https://github.com/cubepals/pryx \
       org.opencontainers.image.licenses=FSL-1.1-ALv2 \
-      org.opencontainers.image.description="Cubepals' node daemon"
-ENTRYPOINT ["/blocklyd"]
+      org.opencontainers.image.description="pryx node daemon"
+ENTRYPOINT ["/pryxd"]

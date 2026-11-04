@@ -146,10 +146,10 @@ jobs:
 
   contract:
     name: Contract with the control plane
-    # Cubepals' control plane, from its main, against this blocklyd, for real: enrollment over
+    # Cubepals' control plane, from its main, against this pryxd, for real: enrollment over
     # mutual TLS, placement, snapshots, restores, a daemon killed and back, a node held lost, a
     # self-upgrade (apps/control/src/infra/fleet/fleet-runtime.e2e.test.ts there). A debug build,
-    # since only debug builds take BLOCKLYD_TEST_VERSION, which the upgrade test sets.
+    # since only debug builds take PRYXD_TEST_VERSION, which the upgrade test sets.
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-24.04
@@ -169,12 +169,12 @@ jobs:
     env:
       DATABASE_URL: postgres://blockly:blockly@127.0.0.1:5432/blockly
       S3_TEST_ENDPOINT: http://127.0.0.1:9000
-      # blocklyd hands data directories to the workloads' user, so it runs as root.
+      # pryxd hands data directories to the workloads' user, so it runs as root.
       BLOCKLYD_SUDO: '1'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          path: blocklyd
+          path: pryxd
           persist-credentials: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -184,7 +184,7 @@ jobs:
           persist-credentials: false
       - name: Rust from rust-toolchain.toml
         id: rust
-        working-directory: blocklyd
+        working-directory: pryxd
         run: |
           rustup toolchain install
           echo "version=$(rustc --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
@@ -194,11 +194,11 @@ jobs:
           path: |
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
-            blocklyd/target
-          key: contract-${{ steps.rust.outputs.version }}-${{ hashFiles('blocklyd/Cargo.lock') }}
+            pryxd/target
+          key: contract-${{ steps.rust.outputs.version }}-${{ hashFiles('pryxd/Cargo.lock') }}
           restore-keys: contract-${{ steps.rust.outputs.version }}-
       - run: cargo build --locked
-        working-directory: blocklyd
+        working-directory: pryxd
       # Docker Hub caps anonymous pulls per IP and runners share IPs, so these come from mirrors.
       # Mirrors refuse bursts when parallel jobs pull at once, so each pull retries.
       - name: Pull the test images
@@ -229,7 +229,7 @@ jobs:
       - run: bun test apps/control/src/infra/fleet/fleet-runtime.e2e.test.ts
         working-directory: cubepals
         env:
-          BLOCKLYD_BIN: ${{ github.workspace }}/blocklyd/target/debug/blocklyd
+          BLOCKLYD_BIN: ${{ github.workspace }}/pryxd/target/debug/pryxd
 
   # The image a release publishes builds, and its binary is static. Not on main's own push, where
   # release.yml builds it.
@@ -242,8 +242,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: docker build -t blocklyd .
-      - run: docker run --rm blocklyd --version
+      - run: docker build -t pryxd .
+      - run: docker run --rm pryxd --version
 
   # The pull request's title becomes the squash commit's subject on main, and its body the commit's
   # body, so they follow the rules lefthook's commit-msg hook holds commits to:
