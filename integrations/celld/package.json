@@ -1,0 +1,14 @@
+{
+  "name": "@cubepals/pryx-celld",
+  "version": "0.1.0",
+  "private": true,
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@cubepals/pryx": "workspace:*",
+    "hono": "4.12.8"
+  }
+}

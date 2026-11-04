@@ -12,7 +12,9 @@
       "!edge/src/generated/**",
       "!cli/src/generated/**",
       "!sdk/typescript/dist/**",
-      "!control/src/providers/openapi/**"
+      "!control/src/providers/openapi/**",
+      "integrations/**",
+      "!integrations/**/dist/**"
     ]
   },
   "formatter": {

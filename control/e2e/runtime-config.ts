@@ -13,6 +13,7 @@ export const nodeConfigFor = (DEPLOYMENT: string) =>
     dir: string
     apiPort: number
     opsPort: number
+    allowedImages?: string[]
     low: number
   }): string {
     const { home, endpointUrl, dir, apiPort, opsPort, low } = at
@@ -26,7 +27,7 @@ listen = "127.0.0.1:${opsPort}"
 port_range = [${low}, ${low + 49}]
 port_quarantine_seconds = 0
 [workloads]
-allowed_images = ["alpine:"]
+allowed_images = ${JSON.stringify(at.allowedImages ?? ['alpine:'])}
 min_memory_mb = 64
 [capacity]
 reserved_memory_mb = 0

@@ -314,7 +314,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: Pull the test images
         run: |
-          for image in ghcr.io/rustfs/rustfs:1.0.0 mirror.gcr.io/library/alpine:3.22 mirror.gcr.io/library/docker:29-dind; do
+          for image in ghcr.io/rustfs/rustfs:1.0.0 mirror.gcr.io/library/alpine:3.22 mirror.gcr.io/library/docker:29-dind mirror.gcr.io/rivetdev/sandbox-agent:0.5.5-full; do
             for wait in 2 5 10 20 40 0; do
               docker pull -q "$image" && break
               [ "$wait" = 0 ] && exit 1
@@ -323,6 +323,7 @@ jobs:
           done
           docker tag mirror.gcr.io/library/alpine:3.22 alpine:3.22
           docker tag mirror.gcr.io/library/docker:29-dind docker:29-dind
+          docker tag mirror.gcr.io/rivetdev/sandbox-agent:0.5.5-full rivetdev/sandbox-agent:0.5.5-full
       - name: Build the TLS sandbox fixture
         run: |
           printf 'FROM mirror.gcr.io/library/alpine:3.22\nRUN apk add --no-cache openssl\n' > "$RUNNER_TEMP/tls.Dockerfile"
@@ -342,6 +343,19 @@ jobs:
           PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
           PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
 
+
+      - name: Install the pinned celld public release
+        run: |
+          curl -fsSL https://github.com/denoland/celld/releases/download/v0.6.3/celld-x86_64-unknown-linux-gnu.gz -o "$RUNNER_TEMP/celld.gz"
+          printf '%s  %s\n' 5084a083472cf036551a7eac63fa24d22bb9a56323c517f63205724c12783047 "$RUNNER_TEMP/celld.gz" | sha256sum -c -
+          gzip -dc "$RUNNER_TEMP/celld.gz" > "$RUNNER_TEMP/celld"
+          chmod +x "$RUNNER_TEMP/celld"
+          "$RUNNER_TEMP/celld" --version
+      - name: Rivet self-hosted actor and celld Worker
+        env:
+          CELLD_BIN: ${{ runner.temp }}/celld
+          PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
+        run: bun run integration:e2e
 
       - name: Check live provider credentials
         env:

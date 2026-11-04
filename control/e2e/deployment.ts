@@ -20,7 +20,7 @@ export const bin = process.env.PRYXD_BIN ?? new URL('../../target/debug/pryxd', 
 export const ready = Boolean(
   existsSync(bin) && hasDatabase && process.env.S3_TEST_ENDPOINT && existsSync('/var/run/docker.sock'),
 )
-export async function deployment() {
+export async function deployment(options: { allowedImages?: string[] } = {}) {
   const name = `public${randomBytes(4).toString('hex')}`,
     dir = join(tmpdir(), name)
   mkdirSync(dir, { recursive: true })
@@ -64,6 +64,7 @@ export async function deployment() {
   writeFileSync(
     path,
     nodeConfigFor(name)({
+      allowedImages: options.allowedImages,
       home: dir,
       endpointUrl: config.joinUrl,
       dir,

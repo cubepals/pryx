@@ -93,6 +93,8 @@ jobs:
         run: |
           bun run release:build
           bun pm pack --cwd sdk/typescript --destination ../../dist
+          bun run --cwd integrations/rivet build
+          bun pm pack --cwd integrations/rivet --destination ../../dist
           cp control/openapi/pryx.openapi.json control/openapi/edge.openapi.json dist/
           python3 -m venv .venv-python
           .venv-python/bin/pip install build==1.3.0
