@@ -29,7 +29,6 @@ import {
   readFileSync,
   writeFileSync,
 } from 'node:fs'
-import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { sql } from 'drizzle-orm'
@@ -37,7 +36,7 @@ import { StatusCodes } from 'http-status-codes'
 import { FleetStore } from '../src/archive-transport.ts'
 import { controlPlaneName, FleetCa } from '../src/ca.ts'
 import type { Db } from '../src/database.ts'
-import { MINUTE_MS, SECOND_MS } from '../src/durations.ts'
+import { MINUTE_MS } from '../src/durations.ts'
 import { decodeHandle } from '../src/handle.ts'
 import { joinToken } from '../src/join-token.ts'
 import { NodeClient } from '../src/node-client.ts'
@@ -50,8 +49,10 @@ import { runtimeKey } from '../src/runtime-model.ts'
 import { rows } from '../src/sql.ts'
 import { S3ArchiveStore } from '../src/store.ts'
 import { freshDatabase, hasDatabase } from '../test/nodes.ts'
+import { nodeConfigFor } from './runtime-config.ts'
 import { SUPERVISOR } from './supervisor.ts'
 import { createTestBucket } from './test-bucket.ts'
+import { freePort, until } from './waits.ts'
 
 const env = process.env
 const BIN = env.PRYXD_BIN ?? new URL('../../target/debug/pryxd', import.meta.url).pathname
@@ -64,33 +65,6 @@ const THRESHOLDS = { suspectSeconds: 3, unavailableSeconds: 6 }
 const credentials = {
   accessKeyId: env.S3_TEST_ACCESS_KEY_ID ?? 'blockly-test',
   secretAccessKey: env.S3_TEST_SECRET_ACCESS_KEY ?? 'blockly-test-secret',
-}
-
-async function freePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = createServer()
-    server.once('error', reject)
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address()
-      server.close(() => resolve(typeof address === 'object' && address ? address.port : 0))
-    })
-  })
-}
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
-async function until<T>(
-  what: string,
-  check: () => Promise<T | null | undefined | false>,
-  ms = 30 * SECOND_MS,
-): Promise<T> {
-  const deadline = Date.now() + ms
-  for (;;) {
-    const value = await check().catch(() => null)
-    if (value) return value
-    if (Date.now() > deadline) throw new Error(`Timed out waiting for ${what}`)
-    await sleep(0.2 * SECOND_MS)
-  }
 }
 
 const progress: ProgressSink = { step: async () => {}, handle: async () => {} }
@@ -202,42 +176,7 @@ const archiveStore = () =>
     region: 'auto',
     ...credentials,
   })
-
-/** A node's pryxd.toml: its own state, API and port range, enrolling with the token in `home`. */
-function nodeConfig(at: {
-  home: string
-  endpointUrl: string
-  dir: string
-  apiPort: number
-  opsPort: number
-  low: number
-}): string {
-  const { home, endpointUrl, dir, apiPort, opsPort, low } = at
-  return `deployment_id = "${DEPLOYMENT}"
-state_dir = "${join(home, 'state')}"
-[api]
-listen = "127.0.0.1:${apiPort}"
-[ops]
-listen = "127.0.0.1:${opsPort}"
-[network]
-port_range = [${low}, ${low + 49}]
-port_quarantine_seconds = 0
-[workloads]
-allowed_images = ["alpine:"]
-min_memory_mb = 64
-[capacity]
-reserved_memory_mb = 0
-allocatable_memory_mb = 4096
-min_free_disk_mb = 256
-[transfer]
-max_put_mb = 1
-[fleet]
-url = "${endpointUrl}"
-ca = "${join(dir, 'ca.pem')}"
-enrollment_token_file = "${join(home, 'token')}"
-heartbeat_seconds = 1
-`
-}
+const nodeConfig = nodeConfigFor(DEPLOYMENT)
 
 describe.skipIf(!ready)('FleetRuntime against a real pryxd', () => {
   const dir = join(tmpdir(), `blockly-${DEPLOYMENT}`)
