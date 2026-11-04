@@ -1,0 +1,1 @@
+ALTER TABLE "fleet_node_tokens" ADD COLUMN "used_key_sha256" text;
