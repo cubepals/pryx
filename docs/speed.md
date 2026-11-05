@@ -2,6 +2,30 @@
 
 # One-box speed
 
+## K11 initial agent cohort
+
+Run [42007702494](https://github.com/cubepals/pryx/actions/runs/42007702494) completed paired
+agent measurements, then failed sleep/wake and scratch-image acceptance. These are initial
+measurements, not a claim of completed acceptance. Both cohorts used the same two-vCPU AMD
+EPYC 9V45 host. Raw samples and daemon identities are retained in
+[before](checks/agent-speed-initial-before.json) and [after](checks/agent-speed-initial-after.json).
+The baseline is b91ee23 and the after product is 83c7e2d, using the static release agent.
+
+| Path | Before p50/p90 ms | After p50/p90 ms | Budget |
+| --- | --- | --- | --- |
+| Run through edge | 60.98 / 92.04 | 1.49 / 1.82 | < 20 ms: met |
+| First output byte | 57.70 / 89.36 | 1.45 / 2.11 | < 10 ms: met |
+| Start, expose, HTTP 200 | 61.98 / 96.50 | 3.34 / 4.41 | < 200 ms: met |
+| Agent from node loopback | unavailable | 41.64 / 42.07 | measured |
+| Terminal round trip | unavailable | 41.01 / 41.14 | measured |
+| Write 100 MB | unavailable | 965.87 / 995.25 | measured |
+| Read 100 MB | unavailable | 699.98 / 722.92 | measured |
+
+Every available cell has n=30. Missing agent-only baseline paths have n=0, since those
+transports did not exist. The baseline expose comparison uses a port declared at creation,
+so it excludes dynamic reservation. Both data directions validate 100,000,000 bytes. A later
+cohort must measure TCP_NODELAY and the acceptance corrections before final reporting.
+
 K9's collector runs real control, edge and pryxd together, with Postgres and S3 on the same
 CI host. No local Docker/e2e measurement is claimed. The paired comparison is from
 [run 41975259790](https://github.com/cubepals/pryx/actions/runs/41975259790): before product

@@ -30,6 +30,12 @@ async fn stopped_files_stream_with_exact_epochs_and_refuse_links() {
             .await
             .unwrap();
     assert_eq!(result.status, StatusCode::NO_CONTENT, "{}", String::from_utf8_lossy(&result.body));
+    use std::os::unix::fs::MetadataExt;
+    let owner = f.manager.config.data_owner_ids();
+    for path in ["src", "src/blob"] {
+        let metadata = std::fs::metadata(f.manager.store.data_dir(&key).join(path)).unwrap();
+        assert_eq!((metadata.uid(), metadata.gid()), owner);
+    }
     let result =
         request(server.addr, &pki.ca.pem, Some(&me), "GET", path, &[("blocklyd-epoch", "7")], None).await.unwrap();
     assert_eq!(result.status, StatusCode::OK);

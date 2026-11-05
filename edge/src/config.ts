@@ -17,6 +17,8 @@ export function edgeConfig(env: Record<string, string | undefined> = process.env
       id: z.string().min(1).max(128),
       host: z.string(),
       httpPort: z.number().int().nonnegative().max(65535),
+      agentTlsCert: z.string().optional(),
+      agentTlsKey: z.string().optional(),
       tlsPort: z.number().int().nonnegative().max(65535),
       metricsHost: z.string(),
       metricsPort: z.number().int().nonnegative().max(65535),
@@ -36,7 +38,12 @@ export function edgeConfig(env: Record<string, string | undefined> = process.env
         }),
       }),
     })
+    .refine((value) => Boolean(value.agentTlsCert) === Boolean(value.agentTlsKey), {
+      message: 'Agent TLS requires both a certificate and private key',
+    })
     .parse({
+      agentTlsCert: env.PRYX_EDGE_AGENT_TLS_CERT,
+      agentTlsKey: env.PRYX_EDGE_AGENT_TLS_KEY,
       control: env.PRYX_CONTROL_URL ?? 'http://127.0.0.1:8082',
       token: env.PRYX_EDGE_TOKEN,
       id: env.PRYX_EDGE_ID ?? hostname(),

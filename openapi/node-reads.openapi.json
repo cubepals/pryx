@@ -810,6 +810,7 @@
   "paths": {},
   "x-pryx-agent": {
     "captureBytes": 1048576,
+    "defaultBinary": "/usr/local/lib/pryx/pryx-agent",
     "fileTokenLifetimeSeconds": 60,
     "forwardHeader": "x-pryx-target-port",
     "maxRequestBytes": 1048576,

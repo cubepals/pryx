@@ -25,6 +25,7 @@ pub struct Agent {
     pub data: DataDir,
     pub ports: Arc<Ports>,
     pub telemetry: Arc<crate::telemetry::Telemetry>,
+    pub logs: Arc<crate::logbook::Logbook>,
 }
 
 pub struct Failure(pub StatusCode, pub &'static str, pub String);

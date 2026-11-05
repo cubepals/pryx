@@ -10,6 +10,7 @@ import { cpus, release, totalmem } from 'node:os'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { StatusCodes } from 'http-status-codes'
+import nodeSchema from '../../openapi/node-writes.openapi.json'
 import { SECOND_MS } from '../src/durations.ts'
 
 const phase = process.argv[2]
@@ -190,6 +191,11 @@ try {
   const result = {
     phase,
     source: spawnSync('git', ['rev-parse', 'HEAD'], { cwd: sourceRoot, encoding: 'utf8' }).stdout.trim(),
+    collector: spawnSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).stdout.trim(),
+    agentBinarySha256:
+      phase === 'after'
+        ? createHash('sha256').update(readFileSync(nodeSchema['x-pryx-agent'].defaultBinary)).digest('hex')
+        : null,
     binarySha256: createHash('sha256').update(readFileSync(bin)).digest('hex'),
     host: {
       cpu: cpus()[0]?.model,

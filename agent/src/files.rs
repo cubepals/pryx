@@ -175,6 +175,7 @@ async fn watch(
     upgrade: WebSocketUpgrade,
 ) -> Result<Response, Failure> {
     let directory = agent.data.directory_file(&path.path)?;
+    let root = agent.data.stat(&path.path)?.name == ".";
     let watched = std::path::PathBuf::from(format!("/proc/self/fd/{}", directory.as_raw_fd()));
     let (sender, mut events) = tokio::sync::mpsc::channel(64);
     let overflow = Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -200,7 +201,10 @@ async fn watch(
             tokio::select! {
                 event = events.recv() => {
                     let Some(event) = event else { break };
-                    let paths = event.paths.iter().filter_map(|p| p.strip_prefix(&watched).ok()).map(|p| p.to_string_lossy()).collect::<Vec<_>>();
+                    let paths = event.paths.iter().filter_map(|p| p.strip_prefix(&watched).ok())
+                        .filter(|p| !root || !p.starts_with(crate::contract::STATE_DIRECTORY))
+                        .map(|p| p.to_string_lossy()).collect::<Vec<_>>();
+                    if paths.is_empty() { continue; }
                     let message = serde_json::json!({"type":"change","kind":format!("{:?}",event.kind),"paths":paths,"overflow":overflow.swap(false,std::sync::atomic::Ordering::Relaxed)});
                     if socket.send(Message::Text(message.to_string().into())).await.is_err() { break; }
                 },

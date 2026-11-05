@@ -76,8 +76,8 @@ impl Manager {
         spec: &WorkloadSpec,
     ) -> Result<Option<(AgentBoot, String)>, NodeError> {
         let Some(binary) = self.agent_binary() else { return Ok(None) };
-        let (_, encoded) =
-            SigningKey::generate().map_err(|_| NodeError::Internal("Cannot generate agent signing material".into()))?;
+        let encoded = super::agent_keys::load(&self.config.state_dir, &record.id, record.epoch.unwrap_or_default())
+            .map_err(|source| NodeError::Io { what: "sandbox signing material".into(), source })?;
         let ports = self.requested_ports(spec);
         let agent_port = ports
             .iter()

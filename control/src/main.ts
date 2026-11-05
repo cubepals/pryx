@@ -99,6 +99,7 @@ export async function startControl(
       ips: config.endpointHosts.filter((host) => Boolean(isIP(host))),
     },
     pryxdBin: config.pryxdBin,
+    agentBin: config.agentBin,
     upgrades: config.upgrades,
   })
   const operator = createOperatorApi({

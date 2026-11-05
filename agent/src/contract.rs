@@ -14,3 +14,4 @@ pub const DEFAULT_BINARY: &str = "/usr/local/lib/pryx/pryx-agent";
 pub const FORWARD_HEADER: &str = "x-pryx-target-port";
 pub const CAPTURE_BYTES: usize = 1024 * 1024;
 pub const MAX_REQUEST_BYTES: usize = 1024 * 1024;
+pub const STATE_DIRECTORY: &str = ".pryx-agent";

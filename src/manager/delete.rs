@@ -96,6 +96,8 @@ impl Manager {
                     Ok::<_, crate::store::StoreError>(path)
                 })
                 .await??;
+                super::agent_keys::discard(&self.config.state_dir, id)
+                    .map_err(|source| NodeError::Io { what: "removing sandbox signing material".into(), source })?;
                 self.locks.lock().unwrap().remove(id);
                 Ok(DeleteResponse {
                     existed: true,

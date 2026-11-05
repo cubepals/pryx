@@ -3,7 +3,7 @@
 
 /** Interactive terminals and streamed recursive copies use the public SDK. Local symlinks are
  * refused, and remote directory entries must be single names before joining local paths. */
-import { createReadStream, createWriteStream } from 'node:fs'
+import { constants, createReadStream, createWriteStream, openSync } from 'node:fs'
 import { lstat, mkdir, readdir } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { Readable } from 'node:stream'
@@ -52,8 +52,17 @@ async function upload(box: Sandbox, source: string, destination: string): Promis
     await box.files.mkdir(destination)
     for (const entry of await readdir(source))
       await upload(box, join(source, entry), `${destination}/${entry}`)
-  } else if (info.isFile()) await box.write(destination, createReadStream(source))
-  else throw new Error('cp accepts regular files and directories')
+  } else if (info.isFile()) {
+    const input = createReadStream(source, {
+      fd: openSync(source, constants.O_RDONLY | constants.O_NOFOLLOW),
+      autoClose: true,
+    })
+    try {
+      await box.write(destination, input)
+    } finally {
+      input.destroy()
+    }
+  } else throw new Error('cp accepts regular files and directories')
 }
 
 async function download(box: Sandbox, source: string, destination: string): Promise<void> {
@@ -74,7 +83,14 @@ async function download(box: Sandbox, source: string, destination: string): Prom
     if (existing?.isSymbolicLink()) throw new Error('cp refuses local symlinks')
     await pipeline(
       Readable.from(await box.readStream(source)),
-      createWriteStream(destination, { flags: 'w' }),
+      createWriteStream(destination, {
+        fd: openSync(
+          destination,
+          constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW,
+          0o600,
+        ),
+        autoClose: true,
+      }),
     )
   } else throw new Error('cp accepts regular files and directories')
 }

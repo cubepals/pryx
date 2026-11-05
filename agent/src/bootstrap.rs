@@ -7,6 +7,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use axum::serve::ListenerExt;
 use base64::{Engine, engine::general_purpose::STANDARD};
 use clap::Parser;
 use tokio::io::AsyncWriteExt;
@@ -46,6 +47,7 @@ pub struct Bootstrap {
 pub async fn serve(args: Bootstrap) -> Result<i32, Box<dyn std::error::Error>> {
     let encoded = std::env::var(&args.secret_env).map_err(|_| "Agent signing material is missing")?;
     let key = SigningKey::from_encoded(&encoded)?;
+    let logbook = Arc::new(crate::logbook::Logbook::open(&args.data)?);
     let telemetry = Arc::new(crate::telemetry::Telemetry::default());
     let ports = Ports::bind_persistent(
         args.sandbox.clone(),
@@ -65,8 +67,12 @@ pub async fn serve(args: Bootstrap) -> Result<i32, Box<dyn std::error::Error>> {
         processes: Processes::new(args.data, args.secret_env),
         ports,
         telemetry,
+        logs: logbook.clone(),
     });
     let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::UNSPECIFIED, args.port)).await?;
+    let listener = listener.tap_io(|socket| {
+        let _ = socket.set_nodelay(true);
+    });
     let server = tokio::spawn(axum::serve(listener, router(agent.clone())).into_future());
     let mut term = signal(SignalKind::terminate())?;
     let mut interrupt = signal(SignalKind::interrupt())?;
@@ -92,10 +98,10 @@ pub async fn serve(args: Bootstrap) -> Result<i32, Box<dyn std::error::Error>> {
         let (replay, mut output) = process.subscribe().await;
         Some(tokio::spawn(async move {
             for event in replay {
-                log_output(event).await;
+                log_output(event, &logbook).await;
             }
             while let Some(event) = output.recv().await {
-                log_output(event).await;
+                log_output(event, &logbook).await;
             }
         }))
     } else {
@@ -133,14 +139,17 @@ pub async fn serve(args: Bootstrap) -> Result<i32, Box<dyn std::error::Error>> {
     Ok(code)
 }
 
-async fn log_output(event: Event) {
+async fn log_output(event: Event, logbook: &crate::logbook::Logbook) {
     if let Event::Output { stream, bytes } = event
-        && let Ok(bytes) = STANDARD.decode(bytes)
+        && let Ok(decoded) = STANDARD.decode(&bytes)
     {
+        if logbook.record(stream, &bytes).is_err() {
+            eprintln!("Entrypoint log persistence failed");
+        }
         if stream == "stdout" {
-            let _ = tokio::io::stdout().write_all(&bytes).await;
+            let _ = tokio::io::stdout().write_all(&decoded).await;
         } else {
-            let _ = tokio::io::stderr().write_all(&bytes).await;
+            let _ = tokio::io::stderr().write_all(&decoded).await;
         }
     }
 }

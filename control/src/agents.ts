@@ -86,13 +86,38 @@ export class Agents {
     )
     const host = new URL(requestUrl).hostname
     const local = ['127.0.0.1', 'localhost', '[::1]'].includes(host)
-    return {
+    const credential = {
       token: answer.token,
       expiresAt: answer.expiresAt,
       epoch: answer.epoch,
       publicKey: answer.agent.publicKey,
-      url: local ? `${this.localOrigin ?? `http://${host}`}/sandboxes/${id}` : `https://${id}.${this.domain}`,
+      url: this.localOrigin
+        ? `${this.localOrigin}/sandboxes/${id}`
+        : local
+          ? `http://${host}/sandboxes/${id}`
+          : `https://${id}.${this.domain}`,
     }
+    if (row.state === 'running') {
+      const deadline = Date.now() + 5 * SECOND_MS
+      let ready = false
+      while (Date.now() < deadline) {
+        try {
+          const response = await fetch(`${credential.url}/_pryx/health`, {
+            headers: { authorization: `Bearer ${credential.token}` },
+            signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
+            redirect: 'manual',
+          })
+          await response.body?.cancel()
+          if (response.ok) {
+            ready = true
+            break
+          }
+        } catch {}
+        await pause(SECOND_MS / 100)
+      }
+      if (!ready) throw new SandboxError('not_running', 'Agent route did not become ready')
+    }
+    return credential
   }
 
   async routeToken(ref: FleetRef): Promise<string | undefined> {

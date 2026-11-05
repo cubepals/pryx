@@ -34,6 +34,7 @@ describe('the join routes', () => {
     const daemonJson = readFileSync(new URL('../src/daemon.json', import.meta.url), 'utf8')
     expect(script).toContain(daemonJson.trimEnd())
     expect(script).not.toContain('@DAEMON_JSON@')
+    expect(script).not.toContain('@AGENT_INSTALL@')
     writeFileSync(join(dir, 'join.sh'), script)
     expect(spawnSync('sh', ['-n', join(dir, 'join.sh')]).status).toBe(0)
   })
@@ -45,6 +46,24 @@ describe('the join routes', () => {
     expect(binary.toString()).toBe('a static pryxd')
     const sum = await (await get(bin, 'blocklyd.sha256')).text()
     expect(sum).toBe(`${createHash('sha256').update(binary).digest('hex')}  pryxd\n`)
+  })
+
+  test('joining hosts receive the agent and its verified checksum before enrollment', async () => {
+    const agentBin = join(dir, 'pryx-agent')
+    writeFileSync(agentBin, 'static agent fixture')
+    const routes = joinRoutes({ caPem, pryxdBin: '', agentBin, release: null })
+    const binary = Buffer.from(
+      await (await routes.request('https://endpoint/fleet/v1/pryx-agent')).arrayBuffer(),
+    )
+    expect(binary.toString()).toBe('static agent fixture')
+    expect(await (await routes.request('https://endpoint/fleet/v1/pryx-agent.sha256')).text()).toBe(
+      `${createHash('sha256').update(binary).digest('hex')}  pryx-agent\n`,
+    )
+    const script = await (await routes.request('https://endpoint/fleet/v1/join.sh')).text()
+    expect(script.indexOf('pryx-agent.sha256')).toBeLessThan(script.indexOf('/usr/local/bin/pryxd join'))
+    expect(script).toContain('sha256sum -c --quiet pryx-agent.sha256')
+    writeFileSync(join(dir, 'agent-join.sh'), script)
+    expect(spawnSync('sh', ['-n', join(dir, 'agent-join.sh')]).status).toBe(0)
   })
 
   test('without a pryxd, each answers 404 and says why', async () => {

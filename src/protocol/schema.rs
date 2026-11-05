@@ -78,6 +78,7 @@ fn document(title: &str, contract: Contract, add: impl FnOnce(&mut SchemaGenerat
             "fileTokenLifetimeSeconds": pryx_agent::auth::FILE_TOKEN_LIFETIME_SECONDS,
             "captureBytes": pryx_agent::contract::CAPTURE_BYTES,
             "maxRequestBytes": pryx_agent::contract::MAX_REQUEST_BYTES,
+            "defaultBinary": pryx_agent::contract::DEFAULT_BINARY,
             "tokenPrefix": pryx_agent::auth::TOKEN_PREFIX,
             "tokenLifetimeSeconds": pryx_agent::auth::TOKEN_LIFETIME_SECONDS,
             "tokenClockSkewSeconds": pryx_agent::auth::TOKEN_CLOCK_SKEW_SECONDS,

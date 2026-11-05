@@ -22,6 +22,7 @@ test('run, start, terminal, files and expose issue zero control queries after to
     id: string
   }
   const peer = agentContext(made.id)
+  c.agents.localOrigin = peer.url.slice(0, peer.url.indexOf('/sandboxes/'))
   try {
     const row = await c.boxes.record(made.id)
     if (!row.handle || !peer.route.agent) throw new Error('Missing fixture placement')

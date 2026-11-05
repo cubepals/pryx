@@ -171,6 +171,7 @@ impl Ports {
 
 async fn serve(listener: TcpListener, target: watch::Receiver<Option<u16>>, telemetry: Arc<Telemetry>) {
     while let Ok((mut downstream, _)) = listener.accept().await {
+        let _ = downstream.set_nodelay(true);
         let mut assigned = target.clone();
         let port = *assigned.borrow_and_update();
         if let Some(port) = port {
@@ -188,6 +189,7 @@ async fn serve(listener: TcpListener, target: watch::Receiver<Option<u16>>, tele
                 )
                 .await;
                 let Ok(Ok(mut upstream)) = connected else { return };
+                let _ = upstream.set_nodelay(true);
                 if upstream.write_all(&header).await.is_err() {
                     return;
                 }

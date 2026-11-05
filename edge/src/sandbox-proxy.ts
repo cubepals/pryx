@@ -28,13 +28,22 @@ export class SandboxProxy {
   readonly ports = new Map<string, { key: string; revision: number; ports: Port[] }>()
   readonly pending = new Map<string, Promise<Port[]>>()
   readonly server: ReturnType<typeof Bun.serve<SocketState>>
+  private tlsServer?: ReturnType<typeof Bun.serve<SocketState>>
   constructor(
     readonly table: RouteTable,
     readonly hold: Hold,
     readonly holdMs: number,
     readonly activity: (route: EdgeRoute) => void = () => {},
   ) {
-    this.server = Bun.serve<SocketState>({
+    this.server = this.listen()
+  }
+  enableTls(tls: { cert: string; key: string }) {
+    if (this.tlsServer) throw new Error('Agent TLS listener already started')
+    this.tlsServer = this.listen(tls)
+  }
+  private listen(tls?: { cert: string; key: string }) {
+    return Bun.serve<SocketState>({
+      tls,
       hostname: '127.0.0.1',
       port: 0,
       idleTimeout: 0,
@@ -78,11 +87,13 @@ export class SandboxProxy {
       },
     })
   }
-  destination() {
-    return `127.0.0.1:${this.server.port}`
+  destination(tls = false) {
+    const server = tls ? this.tlsServer : this.server
+    return server ? `127.0.0.1:${server.port}` : undefined
   }
   close() {
     this.server.stop(true)
+    this.tlsServer?.stop(true)
   }
 
   match(host: string, path: string): EdgeRoute | undefined {
@@ -144,6 +155,24 @@ export class SandboxProxy {
     )
   }
 
+  private async ready(destination: string, token: string, signal: AbortSignal) {
+    while (!signal.aborted) {
+      try {
+        const response = await fetch(`http://${destination}/_pryx/health`, {
+          headers: { authorization: `Bearer ${token}` },
+          signal,
+          redirect: 'manual',
+        })
+        await response.body?.cancel()
+        if (response.ok) return
+      } catch {
+        if (signal.aborted) break
+      }
+      await Bun.sleep(SECOND_MS / 100)
+    }
+    throw new Error('Agent did not become ready after wake')
+  }
+
   async fetch(
     request: Request,
     server?: ReturnType<typeof Bun.serve<SocketState>>,
@@ -179,12 +208,17 @@ export class SandboxProxy {
       // A new placement needs a new token and spare map, rather than forwarding a stale capability.
       if (ready.epoch !== route.epoch)
         return new Response('Sandbox placement changed', { status: StatusCodes.CONFLICT })
+      const health = route.agent.routeToken ?? token
+      if (health) await this.ready(ready.destination, health, signal)
     }
     const headers = new Headers(request.headers)
     for (const name of ['host', 'connection', 'transfer-encoding', 'content-length']) headers.delete(name)
     if (exposedPort === undefined && token) headers.set('authorization', `Bearer ${token}`)
     if (exposedPort !== undefined) {
       headers.set(nodeSchema['x-pryx-agent'].forwardHeader, String(exposedPort))
+      // Each HTTP connection gets one verified target preface, removed by the agent.
+      // Disable pooling here so a later request cannot pass that private header to the app.
+      headers.set('connection', 'close')
       headers.set('host', request.headers.get('host') ?? url.host)
     }
     const target = `http://${destination}${path}${url.search}`

@@ -41,6 +41,7 @@ export interface NodeEndpointOptions {
   names: { dns: readonly string[]; ips: readonly string[] }
   /** The static pryxd hosts download as they join (PRYX_PRYXD_BIN). */
   pryxdBin: string
+  agentBin?: string
   /** Offer that pryxd to nodes running an older one (PRYX_UPGRADES). */
   upgrades: boolean
 }
@@ -131,7 +132,10 @@ export async function startNodeEndpoint(options: NodeEndpointOptions): Promise<{
     }
   }
 
-  app.route('/', joinRoutes({ caPem: ca.pem, pryxdBin: options.pryxdBin, release: pryxd }))
+  app.route(
+    '/',
+    joinRoutes({ caPem: ca.pem, pryxdBin: options.pryxdBin, agentBin: options.agentBin, release: pryxd }),
+  )
 
   app.post('/fleet/v1/enroll', async (c) =>
     c.json(await enroll(db, ca, registry, await body<EnrollRequest>(c))),

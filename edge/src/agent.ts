@@ -3,6 +3,7 @@
 
 /** Compose route polling, TCP fronts and activity reporting. Only TLS, HTTP headers and raw bytes reach this service. */
 
+import { readFile } from 'node:fs/promises'
 import { StatusCodes } from 'http-status-codes'
 import { MINUTE_MS, SECOND_MS } from '../../control/src/durations.ts'
 import {
@@ -67,6 +68,13 @@ export async function startEdge(config: EdgeConfig = edgeConfig()) {
     return result
   })
   const agents = new SandboxProxy(table, hold, config.holdMs)
+  if (config.agentTlsCert && config.agentTlsKey) {
+    const [cert, key] = await Promise.all([
+      readFile(config.agentTlsCert, 'utf8'),
+      readFile(config.agentTlsKey, 'utf8'),
+    ])
+    agents.enableTls({ cert, key })
+  }
   const ensure = async (kind: EdgeRoute['front'], logicalPort: number, listenPort: number) => {
     const key = `${kind}:${logicalPort}`
     if (listeners.has(key)) return

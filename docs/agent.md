@@ -98,6 +98,24 @@ sleeping sandbox. MCP is reserved for the following milestone.
 
 ## Validation and measurements
 
+Public exec and logs forward through the edge to the agent. Entrypoint output is replayed from
+a bounded persistent logbook; a slow live reader receives an explicit gap. Private activity,
+port and log checkpoints are hidden from normal listings and watch events. Stopped file writes
+use the sandbox's configured owner, so the agent can update them after start.
+
+The supervisor disables process dumps and same-user proc inspection before loading its private
+material. Signing keys live outside sandbox data under the node state directory, mode 0600,
+and survive compute replacement within the same epoch. A placement change uses a new key.
+The fleet join script installs the trusted agent before starting the node. Control serves its
+installed agent from the Rust-owned default path, or PRYX_AGENT_BIN when configured.
+
+For the HTTPS sandbox hostnames, configure PRYX_EDGE_AGENT_TLS_CERT and
+PRYX_EDGE_AGENT_TLS_KEY with paths to a trusted wildcard certificate and its private key.
+The edge terminates TLS only for agent and exposed-port hostnames; ordinary TLS routes remain
+pass-through. A platform TLS terminator can instead forward to the HTTP front. Localhost SDK
+URLs use the HTTP alias. TLS verification is never disabled. Health reads wait for the agent
+after wake before a user mutation is forwarded.
+
 Rust tests execute real local processes, PTYs, websocket streams, notifications, safe file walks,
 file capabilities and spare-slot reuse. The Docker acceptance suite exercises the TypeScript,
 synchronous Python and asynchronous Python handles through a real node and edge. Container

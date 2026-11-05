@@ -491,6 +491,36 @@ export interface components {
         } & {
             [key: string]: unknown;
         };
+        AgentLogFrame: ({
+            chunks: ({
+                at: number;
+                bytes: string;
+                stream: string;
+            } & {
+                [key: string]: unknown;
+            })[];
+            /** @constant */
+            type: "replay";
+        } & {
+            [key: string]: unknown;
+        }) | ({
+            chunk: {
+                at: number;
+                bytes: string;
+                stream: string;
+            } & {
+                [key: string]: unknown;
+            };
+            /** @constant */
+            type: "chunk";
+        } & {
+            [key: string]: unknown;
+        }) | ({
+            /** @constant */
+            type: "gap";
+        } & {
+            [key: string]: unknown;
+        });
         MakeRequest: {
             image?: string;
             snapshot?: string;

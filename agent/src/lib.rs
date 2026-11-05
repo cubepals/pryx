@@ -14,6 +14,7 @@
 //! - `pty.rs`: terminal ownership through the platform PTY library.
 //! - `server.rs`: the authenticated HTTP and websocket surface.
 //! - `files.rs`: streamed data and filesystem watches.
+//! - `logbook.rs`: bounded persistent entrypoint output.
 //! - `ports.rs`: preallocated forward slots.
 //! - `main.rs`: PID 1 bootstrap and embedded shell.
 //! - `bootstrap.rs`: entrypoint supervision and termination.
@@ -26,6 +27,8 @@ pub mod context;
 pub mod contract;
 #[cfg(feature = "server")]
 pub mod files;
+#[cfg(feature = "server")]
+pub mod logbook;
 #[cfg(any(feature = "server", feature = "fs"))]
 #[path = "../../src/tree/path.rs"]
 pub mod paths;

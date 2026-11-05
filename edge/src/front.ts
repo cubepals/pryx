@@ -103,8 +103,21 @@ async function arrival(client: Socket, o: FrontOptions) {
   const deadline = setTimeout(() => client.destroy(), o.holdMs + o.greetingMs)
   const collect = (chunk: Buffer) => {
     if (handed) return
-    bytes = Buffer.concat([bytes, chunk])
-    if (bytes.length > o.bufferBytes) client.destroy()
+    const room = Math.max(0, o.bufferBytes - bytes.length)
+    bytes = Buffer.concat([bytes, chunk.subarray(0, room)])
+    if (chunk.length > room) {
+      try {
+        const complete = o.kind === 'http' ? httpHost(bytes) : o.kind === 'tls' ? tlsSni(bytes) : true
+        if (!complete) {
+          client.destroy()
+          return
+        }
+        client.pause()
+        client.unshift(chunk.subarray(room))
+      } catch {
+        client.destroy()
+      }
+    }
   }
   client.on('data', collect)
   try {
@@ -120,6 +133,7 @@ async function arrival(client: Socket, o: FrontOptions) {
           try {
             const name = greeter(bytes)
             if (name) {
+              client.pause()
               cleanup()
               resolve(name)
             }
@@ -142,9 +156,15 @@ async function arrival(client: Socket, o: FrontOptions) {
         inspect()
       })
     }
+    client.pause()
     releaseGreeting()
     const path = bytes.toString('latin1').split(' ')[1] ?? ''
-    const agentRoute = o.kind === 'http' ? o.agents?.match(name, path) : undefined
+    const agentRoute =
+      o.kind === 'http'
+        ? o.agents?.match(name, path)
+        : o.kind === 'tls' && o.agents?.destination(true)
+          ? o.agents.match(name, '/_pryx/')
+          : undefined
     route = agentRoute ?? o.table.find(name, o.kind, o.routePort)
     releaseOpen = o.gate.admit(route?.sandbox ?? '__unknown__', client.remoteAddress ?? '') ?? undefined
     if (!route || !releaseOpen) throw new Error('Unknown or limited destination')
@@ -152,7 +172,7 @@ async function arrival(client: Socket, o: FrontOptions) {
     const until = AbortSignal.any([cancelled.signal, AbortSignal.timeout(o.holdMs)])
     try {
       let target = {
-        destination: agentRoute ? (o.agents?.destination() as string) : route.destination,
+        destination: agentRoute ? (o.agents?.destination(o.kind === 'tls') as string) : route.destination,
         epoch: route.epoch,
       }
       if (route.state && !agentRoute) target = await o.hold.ready(route, until)

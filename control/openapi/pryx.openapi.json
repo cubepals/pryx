@@ -3995,6 +3995,98 @@
         ],
         "additionalProperties": {}
       },
+      "AgentLogFrame": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "chunks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "at": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "bytes": {
+                      "type": "string"
+                    },
+                    "stream": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "at",
+                    "bytes",
+                    "stream"
+                  ],
+                  "additionalProperties": {}
+                }
+              },
+              "type": {
+                "type": "string",
+                "const": "replay"
+              }
+            },
+            "required": [
+              "chunks",
+              "type"
+            ],
+            "additionalProperties": {}
+          },
+          {
+            "type": "object",
+            "properties": {
+              "chunk": {
+                "type": "object",
+                "properties": {
+                  "at": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "bytes": {
+                    "type": "string"
+                  },
+                  "stream": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "at",
+                  "bytes",
+                  "stream"
+                ],
+                "additionalProperties": {}
+              },
+              "type": {
+                "type": "string",
+                "const": "chunk"
+              }
+            },
+            "required": [
+              "chunk",
+              "type"
+            ],
+            "additionalProperties": {}
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "gap"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": {}
+          }
+        ]
+      },
       "MakeRequest": {
         "type": "object",
         "properties": {

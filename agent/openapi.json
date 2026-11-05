@@ -1,6 +1,27 @@
 {
   "components": {
     "schemas": {
+      "Chunk": {
+        "properties": {
+          "at": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "bytes": {
+            "type": "string"
+          },
+          "stream": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "stream",
+          "bytes"
+        ],
+        "type": "object"
+      },
       "Command": {
         "anyOf": [
           {
@@ -116,6 +137,57 @@
           "modified"
         ],
         "type": "object"
+      },
+      "Frame": {
+        "oneOf": [
+          {
+            "properties": {
+              "chunks": {
+                "items": {
+                  "$ref": "#/components/schemas/Chunk"
+                },
+                "type": "array"
+              },
+              "type": {
+                "const": "replay",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "chunks"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "chunk": {
+                "$ref": "#/components/schemas/Chunk"
+              },
+              "type": {
+                "const": "chunk",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "chunk"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "type": {
+                "const": "gap",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          }
+        ]
       },
       "ResultView": {
         "properties": {

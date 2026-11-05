@@ -43,6 +43,7 @@ async fn fixture() -> (tempfile::TempDir, Arc<Agent>, String) {
         })
         .unwrap();
     let agent = Arc::new(Agent {
+        logs: Arc::new(pryx_agent::logbook::Logbook::open(dir.path()).unwrap()),
         telemetry: Arc::default(),
         sandbox: "one".into(),
         epoch: 1,

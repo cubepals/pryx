@@ -90,6 +90,8 @@ test.skipIf(!ready)(
       await box.write('stopped', bytes)
       expect(await box.readBytes('stopped')).toEqual(bytes)
       await box.start()
+      await box.write('stopped', 'updated by running agent')
+      expect(await box.read('stopped')).toBe('updated by running agent')
       await box.network('none')
       expect((await box.run('printf isolated')).stdout).toBe('isolated')
       await box.network('internet')

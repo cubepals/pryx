@@ -69,7 +69,7 @@ class Agent:
     def socket(self, path):
         token = self.token()
         url = token['url'].rstrip('/').replace('https:', 'wss:', 1).replace('http:', 'ws:', 1) + path
-        return connect(url, subprotocols=['pryx', f'pryx-token.{token["token"]}'], max_queue=16, max_size=SDK_DEFAULTS['captureBytes'], proxy=None)
+        return connect(url, subprotocols=['pryx', f'pryx-token.{token["token"]}'], max_queue=16, max_size=SDK_DEFAULTS['captureBytes'], proxy=None, legacy=True)
     def terminal(self, *, cols=80, rows=24):
         terminal = Terminal(self.socket('/_pryx/terminal'))
         terminal.resize(cols, rows)

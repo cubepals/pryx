@@ -24,6 +24,7 @@ pub fn document() -> serde_json::Value {
     generator.subschema_for::<crate::process::Event>();
     generator.subschema_for::<crate::ports::Exposed>();
     generator.subschema_for::<crate::paths::FileInfo>();
+    generator.subschema_for::<crate::logbook::Frame>();
     let mut definitions = generator.take_definitions(true);
     definitions.extend(requests.take_definitions(true));
     let mut document = serde_json::json!({

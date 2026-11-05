@@ -3,6 +3,7 @@
 
 /** Public exec, logs and file transport with feature-gated node attachment; sandbox lifecycle belongs to sandboxes.ts. */
 import type { z } from 'zod'
+import type { AgentCompat } from './agent-compat.ts'
 import { type Exec, execEvent } from './api-schemas.ts'
 import type { Db } from './database.ts'
 import { SECOND_MS } from './durations.ts'
@@ -21,6 +22,7 @@ export class SandboxIO {
     readonly db: Db,
     readonly boxes: Sandboxes,
     readonly nodes: NodeClient,
+    readonly agents?: AgentCompat,
   ) {}
   private async home(handle: RuntimeHandle) {
     return this.boxes.engine.home(handle)
@@ -31,9 +33,14 @@ export class SandboxIO {
     body: Exec,
     key?: string,
     signal = new AbortController().signal,
+    requestUrl = 'http://127.0.0.1',
   ): Promise<AsyncIterable<z.infer<typeof execEvent>>> {
     const row = await this.boxes.record(id, project)
     const address = row.handle ? await this.home(row.handle) : null
+    if (this.agents && row.handle && decodeHandle(row.handle).agent) {
+      if (row.state !== 'running') throw new SandboxError('not_running', 'Sandbox is not running')
+      return this.agents.exec(id, project, body, key, signal, requestUrl)
+    }
     // An older node keeps its exact request/response protocol and durable outcome handling.
     if (!address?.features?.includes('exec-stream'))
       return responseEvents(await this.exec(id, project, body, key))
@@ -124,9 +131,19 @@ export class SandboxIO {
     if (key) await complete(this.db, op.id, result)
     return result
   }
-  async *logs(id: string, project: string, query: URLSearchParams, signal: AbortSignal) {
+  async *logs(
+    id: string,
+    project: string,
+    query: URLSearchParams,
+    signal: AbortSignal,
+    requestUrl = 'http://127.0.0.1',
+  ) {
     const row = await this.boxes.record(id, project)
     if (!row.handle) throw new SandboxError('not_running', 'Sandbox has no local logs')
+    if (this.agents && row.state === 'running' && decodeHandle(row.handle).agent) {
+      yield* this.agents.logs(id, project, query, signal, requestUrl)
+      return
+    }
     const address = await this.home(row.handle)
     if (!address) throw new SandboxError('not_running', 'Sandbox has no local logs')
     yield* this.nodes.lines(address, `/v1/workloads/${encodeURIComponent(id)}/logs?${query}`, signal)

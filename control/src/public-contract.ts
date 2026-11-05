@@ -30,6 +30,7 @@ export function publicContract() {
     AgentResult: agentSchema('ResultView'),
     AgentEvent: agentSchema('Event'),
     AgentExposed: agentSchema('Exposed'),
+    AgentLogFrame: agentSchema('Frame'),
     MakeRequest: makeSchema,
     ExecRequest: execSchema,
     ExecEvent: execEvent,

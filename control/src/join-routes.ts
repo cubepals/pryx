@@ -24,12 +24,13 @@
 
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { Hono } from 'hono'
 import { StatusCodes } from 'http-status-codes'
+import nodeSchema from '../../openapi/node-writes.openapi.json' with { type: 'json' }
 import { SECOND_MS } from './durations.ts'
 import type { UpgradeOffer } from './wire.ts'
 
@@ -76,10 +77,20 @@ export async function pryxdRelease(bin: string): Promise<UpgradeOffer | null> {
 export function joinRoutes(options: {
   caPem: string
   pryxdBin: string
+  agentBin?: string
   /** `pryxdRelease(pryxdBin)`, read as the process started. */
   release: UpgradeOffer | null
 }): Hono {
   const app = new Hono()
+  const agentBin = options.agentBin ?? nodeSchema['x-pryx-agent'].defaultBinary
+  const agentInstall = existsSync(agentBin)
+    ? `
+curl -fsS --cacert "$ca" "$url/fleet/v1/pryx-agent" -o "$dir/pryx-agent" || fail "pryx-agent could not be downloaded"
+curl -fsS --cacert "$ca" "$url/fleet/v1/pryx-agent.sha256" -o "$dir/pryx-agent.sha256"
+(cd "$dir" && sha256sum -c --quiet pryx-agent.sha256) || fail "pryx-agent checksum verification failed"
+install -D -m 0755 "$dir/pryx-agent" '${nodeSchema['x-pryx-agent'].defaultBinary}'
+`
+    : ''
   // Read once, from beside this file: join.sh is the control plane's, and daemon.json is the pinned
   // pryxd release's (scripts/blocklyd.ts).
   const daemonJson = readFileSync(
@@ -93,7 +104,9 @@ export function joinRoutes(options: {
       ? join(process.env.PRYX_ASSET_DIR, 'join.sh')
       : new URL('./join.sh', import.meta.url),
     'utf8',
-  ).replace('@DAEMON_JSON@', daemonJson.trimEnd())
+  )
+    .replace('@DAEMON_JSON@', daemonJson.trimEnd())
+    .replace('@AGENT_INSTALL@', agentInstall)
   const missing = (c: { text: (text: string, status: typeof StatusCodes.NOT_FOUND) => Response }) =>
     c.text(
       `This control plane has no pryxd to hand out: ${options.pryxdBin} is missing. Its image carries ` +
@@ -120,5 +133,14 @@ export function joinRoutes(options: {
     return c.text(`${createHash('sha256').update(binary).digest('hex')}  pryxd\n`)
   })
   app.get('/fleet/v1/blocklyd.json', (c) => (options.release === null ? missing(c) : c.json(options.release)))
+  for (const checksum of [false, true])
+    app.get(`/fleet/v1/pryx-agent${checksum ? '.sha256' : ''}`, async (c) => {
+      const binary = await readFile(agentBin).catch(() => null)
+      if (binary === null)
+        return c.text('This control plane has no static agent; set PRYX_AGENT_BIN.\n', StatusCodes.NOT_FOUND)
+      return checksum
+        ? c.text(`${createHash('sha256').update(binary).digest('hex')}  pryx-agent\n`)
+        : c.body(new Uint8Array(binary), StatusCodes.OK, { 'content-type': 'application/octet-stream' })
+    })
   return app
 }

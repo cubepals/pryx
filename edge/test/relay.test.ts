@@ -42,6 +42,52 @@ test('HTTP greeting waits for complete headers and rejects ambiguity', () => {
   expect(() => httpHost(Buffer.from('GET / HTTP/1.1\r\nHost: s.test\r\nHost: other\r\n\r\n'))).toThrow()
   expect(tlsSni(Buffer.alloc(4))).toBeNull()
 })
+
+test('a large upload pauses at its greeting while a wake is outstanding', async () => {
+  const payload = new Uint8Array(4 * 1024 * 1024).fill(42)
+  const upstream = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    async fetch(request) {
+      const body = new Uint8Array(await request.arrayBuffer())
+      expect(body).toEqual(payload)
+      return new Response('received')
+    },
+  })
+  const table = new RouteTable()
+  const asleep = { ...route, state: 'asleep' as const, destination: `127.0.0.1:${upstream.port}` }
+  table.apply({ routes: [asleep] })
+  const hold = new Hold(async () => {
+    await Bun.sleep(SECOND_MS / 10)
+    return { outcome: 'ready', destination: asleep.destination, epoch: 1 }
+  })
+  const listener = await front({
+    host: '127.0.0.1',
+    port: 0,
+    kind: 'http',
+    routePort: HTTP_FRONT_PORT,
+    table,
+    hold,
+    gate: gate(),
+    holdMs: SECOND_MS,
+    greetingMs: SECOND_MS,
+    bufferBytes: 64 * 1024,
+    metrics: new Metrics(),
+    session: () => {},
+  })
+  try {
+    const response = await fetch(`http://127.0.0.1:${port(listener)}/`, {
+      method: 'PUT',
+      headers: { host: route.hostname },
+      body: payload,
+    })
+    expect(await response.text()).toBe('received')
+  } finally {
+    listener.closeClients()
+    await close(listener)
+    upstream.stop(true)
+  }
+})
 test('a later epoch closes old connections and a delayed route cannot restore them', () => {
   let closed = 0
   const table = new RouteTable()

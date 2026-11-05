@@ -5,6 +5,7 @@
 /** Environment configuration for one control deployment; values are validated before listeners open. */
 
 import { z } from 'zod'
+import nodeSchema from '../../openapi/node-writes.openapi.json'
 import { AUTOSCALE_DEFAULTS } from './autoscale.ts'
 import { DEFAULT_EDGE_PORT_RANGE } from './edge-addresses.ts'
 import { THRESHOLDS } from './health.ts'
@@ -61,6 +62,7 @@ const schema = z.object({
   endpointHosts: z.array(z.string().min(1)).min(1),
   joinUrl: z.url().startsWith('https://'),
   pryxdBin: z.string(),
+  agentBin: z.string().optional(),
   regionMap: z.record(z.string(), z.string()),
   placement: z.object({
     policy: z.enum(['balanced', 'binpack', 'spread']),
@@ -131,6 +133,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     endpointHosts: hosts,
     joinUrl: env.PRYX_JOIN_URL ?? `https://${hosts[0]}:${splitAddress(nodeListen).port}`,
     pryxdBin: env.PRYX_PRYXD_BIN ?? '/usr/local/bin/pryxd',
+    agentBin: env.PRYX_AGENT_BIN ?? nodeSchema['x-pryx-agent'].defaultBinary,
     regionMap: mapRegions(env.PRYX_REGION_MAP),
     placement: {
       policy: env.PRYX_PLACEMENT ?? DEFAULTS.policy,

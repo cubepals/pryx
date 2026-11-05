@@ -90,4 +90,5 @@ install -d -m 0700 /var/lib/pryxd
 install -D -m 0755 "$dir/pryxd" /var/lib/pryxd/bin/pryxd
 ln -sfn /var/lib/pryxd/bin/pryxd /usr/local/bin/pryxd
 say "installed $(/usr/local/bin/pryxd --version)"
+@AGENT_INSTALL@
 /usr/local/bin/pryxd join "$token" "$@"

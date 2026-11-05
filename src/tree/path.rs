@@ -17,7 +17,7 @@ const DIRECTORY: OFlags = OFlags::RDONLY.union(OFlags::DIRECTORY).union(OFlags::
 const MAX_COMPONENTS: usize = 128;
 const MAX_LIST: usize = 100_000;
 
-pub struct DataDir(OwnedFd);
+pub struct DataDir(OwnedFd, Option<(rustix::process::Uid, rustix::process::Gid)>);
 
 #[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -57,19 +57,37 @@ fn info(name: &str, stat: fs::Stat) -> FileInfo {
 
 impl DataDir {
     pub fn open(path: &Path) -> io::Result<Self> {
-        Ok(Self(fs::open(path, DIRECTORY, Mode::empty())?))
+        Ok(Self(fs::open(path, DIRECTORY, Mode::empty())?, None))
+    }
+
+    pub fn open_owned(path: &Path, owner: (u32, u32)) -> io::Result<Self> {
+        let mut directory = Self::open(path)?;
+        directory.1 = Some((rustix::process::Uid::from_raw(owner.0), rustix::process::Gid::from_raw(owner.1)));
+        Ok(directory)
+    }
+
+    fn own(&self, fd: &impl std::os::fd::AsFd) -> io::Result<()> {
+        if let Some((uid, gid)) = self.1 {
+            fs::fchown(fd, Some(uid), Some(gid))?;
+        }
+        Ok(())
     }
 
     fn directory(&self, parts: &[&str], create: bool) -> io::Result<OwnedFd> {
         let mut dir = rustix::io::dup(&self.0)?;
         for part in parts {
+            let mut created = false;
             if create {
                 match fs::mkdirat(&dir, *part, Mode::from_raw_mode(0o755)) {
-                    Ok(()) | Err(rustix::io::Errno::EXIST) => {}
+                    Ok(()) => created = true,
+                    Err(rustix::io::Errno::EXIST) => {}
                     Err(e) => return Err(e.into()),
                 }
             }
             dir = fs::openat(&dir, *part, DIRECTORY, Mode::empty())?;
+            if created {
+                self.own(&dir)?;
+            }
         }
         Ok(dir)
     }
@@ -85,6 +103,22 @@ impl DataDir {
 
     pub fn write(&self, path: &str) -> io::Result<File> {
         self.file(path, true)
+    }
+
+    pub fn append(&self, path: &str) -> io::Result<File> {
+        let parts = components(path)?;
+        let (dir, name) = self.parent(&parts, true)?;
+        let fd = fs::openat(
+            dir,
+            name,
+            OFlags::WRONLY | OFlags::CREATE | OFlags::APPEND | OFlags::NOFOLLOW | OFlags::CLOEXEC | OFlags::NONBLOCK,
+            Mode::from_raw_mode(0o600),
+        )?;
+        if FileType::from_raw_mode(fs::fstat(&fd)?.st_mode) != FileType::RegularFile {
+            return Err(io::ErrorKind::PermissionDenied.into());
+        }
+        self.own(&fd)?;
+        Ok(File::from(fd))
     }
 
     pub fn write_atomic(&self, path: &str, bytes: &[u8], durable: bool) -> io::Result<()> {
@@ -107,6 +141,7 @@ impl DataDir {
             }
         };
         let result = (|| {
+            self.own(&fd)?;
             let mut file = File::from(fd);
             file.write_all(bytes)?;
             if durable {
@@ -135,6 +170,7 @@ impl DataDir {
         }
         let file = File::from(fd);
         if write {
+            self.own(&file)?;
             file.set_len(0)?;
         }
         Ok(file)
@@ -150,12 +186,13 @@ impl DataDir {
     }
 
     pub fn list(&self, path: &str) -> io::Result<Vec<FileInfo>> {
-        let fd = self.directory(&components(path)?, false)?;
+        let parts = components(path)?;
+        let fd = self.directory(&parts, false)?;
         let mut entries = Vec::new();
         for entry in Dir::read_from(&fd)? {
             let entry = entry?;
             let name = entry.file_name().to_str().map_err(|_| io::ErrorKind::InvalidData)?;
-            if name == "." || name == ".." {
+            if name == "." || name == ".." || (parts.is_empty() && name == crate::contract::STATE_DIRECTORY) {
                 continue;
             }
             let stat = fs::statat(&fd, name, AtFlags::SYMLINK_NOFOLLOW)?;

@@ -6,6 +6,7 @@ import { StatusCodes } from 'http-status-codes'
 import { SECOND_MS } from '../../control/src/durations.ts'
 import { AGENT_ROUTE_PORT } from '../../control/src/edge-headers.ts'
 import node from '../../openapi/node-writes.openapi.json'
+import type { components } from '../../sdk/typescript/src/generated/api.ts'
 import { Hold } from '../src/hold.ts'
 import { RouteTable } from '../src/routes.ts'
 import { SandboxProxy } from '../src/sandbox-proxy.ts'
@@ -25,6 +26,8 @@ export function agentContext(sandbox = 'one') {
   }
   const calls: string[] = [],
     frames: unknown[] = []
+  const output: components['schemas']['AgentEvent'][] = [{ type: 'exit', result }]
+  const logFrames: components['schemas']['AgentLogFrame'][] = []
   let file = new Uint8Array(new ArrayBuffer(0)),
     processes = 0,
     wakes = 0
@@ -39,7 +42,11 @@ export function agentContext(sandbox = 'one') {
       if (
         !claim ||
         (claim.scope !== 'sandbox' &&
-          !(claim.scope === 'routes' && path === '/_pryx/ports' && request.method === 'GET'))
+          !(
+            claim.scope === 'routes' &&
+            ['/_pryx/ports', '/_pryx/health'].includes(path) &&
+            request.method === 'GET'
+          ))
       )
         return new Response(null, { status: StatusCodes.UNAUTHORIZED })
       calls.push(`${request.method} ${path}`)
@@ -48,11 +55,18 @@ export function agentContext(sandbox = 'one') {
         return new Response(null, { status: StatusCodes.BAD_REQUEST })
       }
       if (path === '/_pryx/processes' && request.method === 'POST')
-        return Response.json({ id: `process-${++processes}`, pid: processes, running: true, result: null })
+        return Response.json(
+          { id: `process-${++processes}`, pid: processes, running: true, result: null },
+          { status: StatusCodes.CREATED },
+        )
       if (path === '/_pryx/processes') return Response.json({ processes: [] })
       if (path.endsWith('/wait')) return Response.json(result)
       if (path.endsWith('/output'))
-        return new Response(`${JSON.stringify({ type: 'exit', result })}\n`, {
+        return new Response(output.map((event) => `${JSON.stringify(event)}\n`).join(''), {
+          headers: { 'content-type': 'application/x-ndjson' },
+        })
+      if (path === '/_pryx/logs')
+        return new Response(logFrames.map((frame) => `${JSON.stringify(frame)}\n`).join(''), {
           headers: { 'content-type': 'application/x-ndjson' },
         })
       if (path === '/_pryx/ports')
@@ -136,6 +150,8 @@ export function agentContext(sandbox = 'one') {
     result,
     calls,
     frames,
+    output,
+    logFrames,
     get wakes() {
       return wakes
     },

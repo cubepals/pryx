@@ -9,6 +9,9 @@ use clap::Parser;
 use std::io::{self, BufRead, Write};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Images run as the same sandbox user. Prevent their processes from reading the agent's
+    // bootstrap environment or memory through ptrace/procfs, without adding a privilege.
+    rustix::process::set_dumpable_behavior(rustix::process::DumpableBehavior::NotDumpable)?;
     let _ = rustls::crypto::ring::default_provider().install_default();
     let arguments = std::env::args().skip(1).collect::<Vec<_>>();
     if arguments.first().is_some_and(|a| a == "--version") {
@@ -25,7 +28,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn shell(command: Option<String>) -> Result<u8, Box<dyn std::error::Error>> {
-    let mut shell = brush_core::Shell::builder().default_builtins(BuiltinSet::ShMode).build().await?;
+    let mut shell = brush_core::Shell::builder().default_builtins(BuiltinSet::BashMode).build().await?;
     if let Some(command) = command {
         return Ok(shell.run_dash_c_command(command).await?.exit_code.into());
     }

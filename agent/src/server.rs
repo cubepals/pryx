@@ -53,7 +53,7 @@ async fn authenticate(State(agent): State<Arc<Agent>>, mut request: Request, nex
         && !claims.allows_file(request.uri().path(), request.method().as_str(), query.path.as_deref())
         && !(claims.scope == Scope::Routes
             && request.method() == axum::http::Method::GET
-            && request.uri().path() == "/_pryx/ports")
+            && matches!(request.uri().path(), "/_pryx/ports" | "/_pryx/health"))
     {
         return Failure(StatusCode::FORBIDDEN, "token_scope", "Sandbox token has another scope".into()).into_response();
     }
@@ -70,6 +70,7 @@ async fn authenticate(State(agent): State<Arc<Agent>>, mut request: Request, nex
 pub fn router(agent: Arc<Agent>) -> Router {
     Router::new()
         .route("/_pryx/health", get(|| async { Json(serde_json::json!({"status":"ok"})) }))
+        .route("/_pryx/logs", get(logs))
         .route("/_pryx/processes", get(list).post(start))
         .route("/_pryx/processes/{id}", get(view))
         .route("/_pryx/processes/{id}/wait", get(wait))
@@ -89,6 +90,32 @@ pub fn router(agent: Arc<Agent>) -> Router {
 
 async fn list(State(agent): State<Arc<Agent>>) -> Json<serde_json::Value> {
     Json(serde_json::json!({"processes": agent.processes.list()}))
+}
+
+#[derive(Deserialize, Default)]
+struct LogQuery {
+    #[serde(default)]
+    follow: bool,
+}
+async fn logs(
+    State(agent): State<Arc<Agent>>,
+    axum::extract::Query(query): axum::extract::Query<LogQuery>,
+) -> Response {
+    let (replay, live) = agent.logs.subscribe();
+    let stream = futures_util::stream::iter(replay)
+        .chain(futures_util::stream::unfold(query.follow.then_some(live), |live| async move {
+            let mut live = live?;
+            let frame = match live.recv().await {
+                Ok(frame) => frame,
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => crate::logbook::Frame::Gap,
+                Err(_) => return None,
+            };
+            Some((frame, Some(live)))
+        }))
+        .map(|frame| {
+            Ok::<_, Infallible>(format!("{}\n", serde_json::to_string(&frame).expect("Log frame serializes")))
+        });
+    ([(axum::http::header::CONTENT_TYPE, "application/x-ndjson")], Body::from_stream(stream)).into_response()
 }
 
 async fn start(

@@ -526,6 +526,8 @@ jobs:
           cp target/debug/pryxd dist/pryxd
           # The installed daemon is now in dist; placement still needs real disk above its host floor.
           rm -rf target/debug
+          docker builder prune --all --force
+          df -h .
           head -c 64 /dev/zero > dist/pryxd.sig
           (cd dist && sha256sum pryxd pryx-agent pryxd.sig pryx pryx-control pryx-edge pryx-control-assets.tar.gz install.sh > SHA256SUMS)
           docker pull -q mirror.gcr.io/library/alpine:3.22

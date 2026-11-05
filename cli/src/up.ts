@@ -9,6 +9,7 @@ import { PRYX_VERSION } from '../../control/src/generated/release.ts'
 import type { OperatorToken } from '../../control/src/operator-api.ts'
 import { ensureBucket } from '../../control/src/store-bootstrap.ts'
 import daemonJson from '../../deploy/daemon.json'
+import nodeSchema from '../../openapi/node-writes.openapi.json'
 import { callerHomeAndDropPrivileges, writeClientConfig } from './client-config.ts'
 import { option } from './sandbox.ts'
 import { installBinary, releaseFiles } from './up-assets.ts'
@@ -140,7 +141,8 @@ export async function up(args: string[]) {
   }
   mkdirSync('/opt/pryx', { recursive: true })
   const changed = new Set<string>()
-  if (installBinary(join(assets, 'pryx-agent'), '/usr/local/lib/pryx/pryx-agent')) changed.add('pryxd')
+  if (installBinary(join(assets, 'pryx-agent'), nodeSchema['x-pryx-agent'].defaultBinary))
+    changed.add('pryxd')
   for (const name of ['pryx-control', 'pryx-edge'])
     if (installBinary(join(assets, name), `/opt/pryx/${name}`)) changed.add(name)
   mkdirSync('/var/lib/pryxd', { recursive: true, mode: 0o700 })

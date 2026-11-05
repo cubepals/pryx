@@ -10,6 +10,7 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { StatusCodes } from 'http-status-codes'
 import { z } from 'zod'
 import nodeSchema from '../../openapi/node-writes.openapi.json'
+import { AgentCompat } from './agent-compat.ts'
 import { Agents } from './agents.ts'
 import { execSchema, makeSchema, networkSchema, templateSchema } from './api-schemas.ts'
 import type { Db } from './database.ts'
@@ -34,9 +35,9 @@ export function createPublicApi(options: {
   const { db, boxes, nodes, domain } = options
   boxes.projects ??= new ProjectAdmission(db)
   const model = new PublicModel(db, boxes, domain, options.edgePortRange)
-  const io = new SandboxIO(db, boxes, nodes)
-  const chunks = new FileChunks(io)
   const agents = new Agents(boxes, nodes, domain)
+  const io = new SandboxIO(db, boxes, nodes, new AgentCompat(agents))
+  const chunks = new FileChunks(io)
   const app = new Hono<{ Variables: { project: string }; Bindings: { beginStream?: () => void } }>()
   app.use('/v1/*', async (c, next) => {
     const auth = c.req.header('authorization') ?? ''
@@ -204,6 +205,7 @@ export function createPublicApi(options: {
       body,
       c.req.header('idempotency-key'),
       abort.signal,
+      c.req.url,
     )
     c.header('content-type', 'application/x-ndjson')
     return stream(c, async (s) => {
@@ -236,7 +238,7 @@ export function createPublicApi(options: {
       const abort = new AbortController()
       s.onAbort(() => abort.abort())
       try {
-        for await (const line of io.logs(c.req.param('id'), c.get('project'), query, abort.signal))
+        for await (const line of io.logs(c.req.param('id'), c.get('project'), query, abort.signal, c.req.url))
           await s.writeln(line)
       } catch {
         await s.writeln(JSON.stringify({ error: { code: 'not_running', message: 'Log stream ended' } }))

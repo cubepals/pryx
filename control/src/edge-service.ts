@@ -39,6 +39,9 @@ export class EdgeService {
       const observed = agentViewSchema.safeParse(b.observed_agent)
       if (ref?.agent && observed.success && observed.data.publicKey === ref.agent.publicKey)
         ref.agent = observed.data
+      // Lifecycle activity travels on the existing heartbeat, but must not create a new
+      // persisted route list every second. Zero is the protocol's unknown/default sentinel.
+      if (ref?.agent) ref.agent = { ...ref.agent, activityAt: 0, activeStreams: 0 }
       if (includeAgents && ref?.agent) {
         const running = b.state === 'running' && ref.node
         routes.push({

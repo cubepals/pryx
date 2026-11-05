@@ -31,6 +31,7 @@
 //! - `snapshots.rs`: local snapshots of a workload's data.
 //! - `exec.rs`: runs a command inside a running workload.
 //! - `agent.rs`: agent bootstrap, public manifest and capability issuance.
+//! - `agent_keys.rs`: epoch-scoped private signing material outside sandbox data.
 //! - `files.rs`: guarded access to persistent data without running compute.
 //! - `logs.rs`: reads a workload's log.
 //! - `stats.rs`: samples what workloads use.
@@ -81,6 +82,7 @@ use crate::store::restore::Recovery;
 use crate::store::{AllocatedPort, PendingSpec, Phase, RECORD_VERSION, Store, SuspendRecord, WorkloadRecord};
 
 mod agent;
+mod agent_keys;
 mod archive;
 mod delete;
 mod ensure;

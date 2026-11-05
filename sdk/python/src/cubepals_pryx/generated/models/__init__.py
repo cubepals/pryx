@@ -6,6 +6,9 @@ from .agent_event_type_0 import AgentEventType0
 from .agent_event_type_1 import AgentEventType1
 from .agent_event_type_2_result import AgentEventType2Result
 from .agent_exposed import AgentExposed
+from .agent_log_frame_type_0_chunks_item import AgentLogFrameType0ChunksItem
+from .agent_log_frame_type_1_chunk import AgentLogFrameType1Chunk
+from .agent_log_frame_type_2 import AgentLogFrameType2
 from .agent_process import AgentProcess
 from .agent_process_result_type_0 import AgentProcessResultType0
 from .agent_result import AgentResult
@@ -133,6 +136,9 @@ __all__ = (
     "AgentEventType1",
     "AgentEventType2Result",
     "AgentExposed",
+    "AgentLogFrameType0ChunksItem",
+    "AgentLogFrameType1Chunk",
+    "AgentLogFrameType2",
     "AgentProcess",
     "AgentProcessResultType0",
     "AgentResult",

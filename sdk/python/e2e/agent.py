@@ -62,6 +62,8 @@ class AgentSync(unittest.TestCase):
                 self.assertEqual(box.run('printf awake').stdout, 'awake')
                 box.stop(); box.write('stopped', data); self.assertEqual(box.read_bytes('stopped'), data)
                 box.start()
+                box.write('stopped','updated by running agent')
+                self.assertEqual(box.read('stopped'),'updated by running agent')
                 box.network('none'); self.assertEqual(box.run('printf isolated').stdout, 'isolated')
                 box.network('internet'); self.assertEqual(box.run('printf online').stdout, 'online')
             finally: box.delete()
@@ -120,8 +122,58 @@ class AgentAsync(unittest.IsolatedAsyncioTestCase):
                 await box.sleep(); self.assertEqual((await box.run('printf awake')).stdout,'awake')
                 await box.stop(); await box.write('stopped',data); self.assertEqual(await box.read_bytes('stopped'),data)
                 await box.start()
+                await box.write('stopped','updated by running agent')
+                self.assertEqual(await box.read('stopped'),'updated by running agent')
                 await box.network('none'); self.assertEqual((await box.run('printf isolated')).stdout,'isolated')
                 await box.network('internet'); self.assertEqual((await box.run('printf online')).stdout,'online')
             finally: await box.delete()
+
+class AgentCli(unittest.TestCase):
+    def test_terminal_expose_and_recursive_copy(self):
+        import fcntl, json, pathlib, pty, select, signal, struct, subprocess, tempfile, termios, time
+        command = ['bun','cli/src/main.ts','sandbox']
+        def invoke(*args): return subprocess.run([*command,*args],check=True,capture_output=True,text=True).stdout
+        with Pryx(os.environ['PRYX_API_URL'],os.environ['PRYX_API_KEY']) as sdk:
+            box = sdk.sandbox(image='alpine:pryx-tls',resources={'memoryMb':256})
+            try:
+                with tempfile.TemporaryDirectory() as temporary:
+                    root=pathlib.Path(temporary); source=root/'source'; source.mkdir()
+                    (source/'nested').mkdir(); (source/'empty').mkdir()
+                    (source/'nested'/'message').write_bytes(b'cli-file' * 100_000)
+                    invoke('cp',str(source),f'{box.id}:tree')
+                    invoke('cp',f'{box.id}:tree',str(root/'download'))
+                    self.assertEqual((root/'download'/'nested'/'message').read_bytes(),b'cli-file' * 100_000)
+                    self.assertTrue((root/'download'/'empty').is_dir())
+                box.write('index.html','cli-app')
+                web=box.start(['httpd','-f','-p','3000','-h','/data'])
+                url=json.loads(invoke('expose',box.id,'3000'))
+                self.assertEqual(httpx.get(os.environ['PRYX_TEST_EDGE_URL'],headers={'host':urlparse(url).hostname}).text,'cli-app')
+                invoke('unexpose',box.id,'3000');web.kill();web.wait()
+                pid,fd=pty.fork()
+                if pid==0:
+                    fcntl.ioctl(1,termios.TIOCSWINSZ,struct.pack('HHHH',40,120,0,0))
+                    os.execvp(command[0],[*command,'terminal',box.id])
+                exited=False; transcript=b''
+                try:
+                    os.write(fd,b"printf 'cli:%s\\n' ready\nexit\n")
+                    deadline=time.monotonic()+30
+                    while time.monotonic()<deadline:
+                        if select.select([fd],[],[],0.1)[0]:
+                            try: transcript+=os.read(fd,8192)
+                            except OSError: pass
+                        done,status=os.waitpid(pid,os.WNOHANG)
+                        if done:
+                            exited=True
+                            self.assertEqual(os.waitstatus_to_exitcode(status),0)
+                            break
+                    self.assertTrue(exited,'CLI terminal did not exit after its shell')
+                    self.assertIn(b'cli:ready',transcript)
+                finally:
+                    os.close(fd)
+                    if not exited:
+                        try: os.kill(pid,signal.SIGKILL)
+                        except ProcessLookupError: pass
+                        os.waitpid(pid,0)
+            finally: box.delete()
 
 if __name__ == '__main__': unittest.main()
