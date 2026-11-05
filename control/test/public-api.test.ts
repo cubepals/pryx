@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { sql } from 'drizzle-orm'
 import { StatusCodes } from 'http-status-codes'
+import { SECOND_MS } from '../src/durations.ts'
 import { one } from '../src/sql.ts'
 import { hasDatabase } from './nodes.ts'
 import { publicContext } from './public-context.ts'
@@ -23,6 +24,31 @@ describe.skipIf(!hasDatabase)('public API', () => {
     ports: [{ name: 'http', port: 8080, audience: 'public' }],
     secrets: { TOKEN: 'never-return-this' },
   }
+  test('a long lifecycle response outlives the HTTP idle timer', async () => {
+    const made = (await (await ctx.request('/sandboxes', 'POST', spec)).json()) as { id: string }
+    const original = ctx.boxes.delete.bind(ctx.boxes)
+    ctx.boxes.delete = async (...args) => {
+      await new Promise((resolve) => setTimeout(resolve, 1.2 * SECOND_MS))
+      return original(...args)
+    }
+    const server = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 0,
+      idleTimeout: 1,
+      fetch: (request, server) => ctx.app.fetch(request, { beginStream: () => server.timeout(request, 0) }),
+    })
+    try {
+      const result = await fetch(`${server.url}v1/sandboxes/${made.id}`, {
+        method: 'DELETE',
+        headers: { authorization: `Bearer ${ctx.credential.key}` },
+      })
+      expect(result.status).toBe(StatusCodes.OK)
+      expect(await result.json()).toEqual({ existed: true })
+    } finally {
+      ctx.boxes.delete = original
+      server.stop(true)
+    }
+  })
   test('keys are hashed, project-scoped and revocable', async () => {
     const raw = await one<{ hash: string }>(ctx.db, sql`SELECT hash FROM keys WHERE id=${ctx.credential.id}`)
     expect(raw?.hash).not.toBe(ctx.credential.key)

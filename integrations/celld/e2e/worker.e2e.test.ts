@@ -22,7 +22,7 @@ test.skipIf(!ready || !process.env.CELLD_BIN)(
       token = crypto.randomUUID()
     const bridge = containerBridge(client, {
       token,
-      image: 'alpine:3.22',
+      image: 'alpine:pryx-tls',
       port: 8080,
       idle: 60,
       spec: {

@@ -137,11 +137,13 @@ export function createPublicApi(options: {
     }),
   )
   app.get('/v1/sandboxes/:id', async (c) => c.json(await model.view(c.req.param('id'), c.get('project'))))
-  app.delete('/v1/sandboxes/:id', async (c) =>
-    c.json(await boxes.delete(c.req.param('id'), c.get('project'))),
-  )
+  app.delete('/v1/sandboxes/:id', async (c) => {
+    c.env?.beginStream?.()
+    return c.json(await boxes.delete(c.req.param('id'), c.get('project')))
+  })
   for (const verb of ['start', 'wake', 'stop', 'sleep', 'rest'] as const)
     app.post(`/v1/sandboxes/:id/${verb}`, async (c) => {
+      c.env?.beginStream?.()
       const answer = await boxes[verb](c.req.param('id'), c.get('project'))
       const sandbox = await model.view(c.req.param('id'), c.get('project'))
       return c.json('tier' in answer ? { sandbox, tier: answer.tier } : { sandbox })

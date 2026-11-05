@@ -372,6 +372,14 @@ jobs:
           id=$(docker create pryx-static-test)
           docker cp "$id:/pryxd" "$RUNNER_TEMP/pryxd"
           docker rm "$id"
+      - name: Release compilation space before runtime tests
+        run: |
+          cp target/debug/pryxd "$RUNNER_TEMP/pryxd-debug"
+          cargo clean
+          mkdir -p target/debug
+          cp "$RUNNER_TEMP/pryxd-debug" target/debug/pryxd
+          docker builder prune --all --force
+          df -h .
       - run: bun run e2e
         env:
           PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
