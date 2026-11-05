@@ -1,0 +1,63 @@
+{
+  "status": "completed",
+  "conclusion": "failure",
+  "url": "https://github.com/cubepals/pryx/actions/runs/42082995409",
+  "headSha": "66230f5fca228b6a675189d47e9f2c9d82bcb974",
+  "jobs": [
+    {
+      "id": 127440639404,
+      "name": "Commit subjects",
+      "conclusion": "success"
+    },
+    {
+      "id": 127440639810,
+      "name": "Find what changed",
+      "conclusion": "success"
+    },
+    {
+      "id": 127440732720,
+      "name": "One box and Action",
+      "conclusion": "success"
+    },
+    {
+      "id": 127440732806,
+      "name": "Contract with the control plane",
+      "conclusion": "success"
+    },
+    {
+      "id": 127440732850,
+      "name": "Control workspaces",
+      "conclusion": "success"
+    },
+    {
+      "id": 127440732939,
+      "name": "Dependency licences and advisories",
+      "conclusion": "success"
+    },
+    {
+      "id": 127440733076,
+      "name": "Format, lint, tests and structure",
+      "conclusion": "success"
+    },
+    {
+      "id": 127440733294,
+      "name": "Control end to end",
+      "conclusion": "success"
+    },
+    {
+      "id": 127440735482,
+      "name": "Release image builds",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 127468137972,
+      "name": "check",
+      "conclusion": "failure"
+    }
+  ],
+  "aggregate": {
+    "runnerAssigned": false,
+    "stepsExecuted": 0,
+    "reason": "Account-level Actions runner-allocation restriction"
+  }
+}

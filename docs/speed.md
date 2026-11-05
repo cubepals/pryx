@@ -24,7 +24,7 @@ the after product is 008a865. No sample, including the individual slower outlier
 
 This differs from the initial cohort's CPU and execution conditions, so its loopback and
 terminal rows do not isolate a causal TCP_NODELAY improvement. The read row is slower than
-the initial cohort and has no specified budget. Final acceptance and a final cohort remain open.
+the initial cohort and has no specified budget. At collection time final acceptance remained open; the completed final cohort is recorded below.
 
 ## K11 initial agent cohort
 
@@ -303,5 +303,106 @@ the image host installer including repeat installation. The
 50 validated command runs, four active at once and ten exact quota refusals. The kernel reports
 outgoing ephemeral range 32768–60999 and reserved workload range 42000–42999. Counts and partial
 failures are now retained by the collector. This remains an observed 8 GiB-class runner, not a
-physical 16 GiB measurement. The run's other assigned jobs are still in progress; its final
-aggregate may be blocked by the account-level Actions restriction described in decisions.md.
+physical 16 GiB measurement. Every assigned test job has now passed; the final aggregate did not start because of the
+account-level Actions runner-allocation restriction described in decisions.md. The workflow
+concluded with failure, not success.
+
+
+## Final K9–K13 measurement cohort
+
+[CI 42082995409](https://github.com/cubepals/pryx/actions/runs/42082995409) completes every
+assigned product/test/build job on 66230f5. Its required aggregate has no runner and executes
+no steps because of an account-level Actions restriction; the overall workflow fails. The
+[CI status report](checks/k9-k13-ci.json) preserves this distinction. The release-image job is
+skipped by its pre-existing pull-request-only condition, not by a change to acceptance.
+
+These paired samples use one two-vCPU AMD EPYC 9V45 runner, kernel 7.0.0-1017-azure and Bun
+1.4.4. Every available operation has n=30, with every sample and source identity retained.
+Comparisons below keep their own baseline definitions; they are not interchangeable.
+
+### Frozen K9 baseline and after source
+
+The common collector on 66230f5 measures fe77e67 before and 7cd80e9 after, with the agent
+disabled, preserving the historical Docker-exec path. Raw [before](checks/final-speed-before.json)
+and [after](checks/final-speed-after.json) reports include node-call timings and cold-image
+semantics: references are removed, while shared layers and OS caches can remain.
+
+| Operation | Before p50 / p90 ms | After p50 / p90 ms | Budget |
+| --- | --- | --- | --- |
+| Public API exec | 39.00 / 41.15 | 47.50 / 52.39 | p50 < 50 ms: met |
+| Control-to-node exec | 36.57 / 39.06 | 39.20 / 44.82 | measured |
+| Cached-image create | 175.92 / 212.72 | 165.84 / 177.60 | measured |
+| Cold-reference create | 189.76 / 215.61 | 180.23 / 199.40 | measured |
+| Warm-template create | 188.30 / 206.09 | 186.38 / 202.77 | p50 < 1,000 ms: met |
+| Suspended wake | 24.07 / 27.45 | 27.28 / 31.28 | p50 < 1,000 ms: met |
+| Stopped start | 124.61 / 132.50 | 138.87 / 166.48 | measured |
+| Snapshot 100 MB | 1044.69 / 1282.62 | 1080.91 / 1132.87 | measured |
+| Fork 100 MB snapshot | 1300.97 / 1359.17 | 1069.84 / 1201.65 | measured |
+
+K9 specifies median budgets: 47.50 ms public exec, 186.38 ms template create and 27.28 ms wake
+all meet them. Exec p90 is 52.39 ms; K9 does not specify a p90 threshold. The public median
+remains slower than the buffered baseline, so this does not show a K9 exec latency improvement.
+The earlier 57.36 ms median failure remains recorded above. The current product's agent path
+is measured separately below.
+
+A [local transport diagnostic](checks/legacy-node-tls-probe.json) retains 30 real loopback
+mTLS/Bun HTTPS requests per mode, including cold requests, over a fake exec backend. It does
+not reproduce a sustained 40 ms transport delay and is not a Docker/public-control budget
+measurement. Production transport behavior was left unchanged and the temporary probe removed.
+
+### K11 agent baseline and current product
+
+The pinned b91ee23 baseline and current 66230f5 use the same host. Raw
+[before](checks/final-agent-speed-before.json) and [after](checks/final-agent-speed-after.json)
+reports preserve unavailable agent-only baseline paths as n=0, rather than inventing samples.
+
+| Operation | Before p50 / p90 ms | After p50 / p90 ms | Budget |
+| --- | --- | --- | --- |
+| Run through edge | 62.91 / 94.32 | 1.57 / 2.04 | p90 < 20 ms: met |
+| First output byte | 85.67 / 91.01 | 1.47 / 2.06 | p90 < 10 ms: met |
+| Start, expose, HTTP 200 | 79.21 / 97.79 | 3.43 / 4.17 | p90 < 200 ms: met |
+| Node loopback run | unavailable, n=0 | 0.88 / 1.43 | measured |
+| Terminal round trip | unavailable, n=0 | 20.66 / 20.84 | measured |
+| Write 100 MB | unavailable, n=0 | 2420.89 / 2505.91 | measured |
+| Read 100 MB | unavailable, n=0 | 2792.86 / 2921.69 | measured |
+
+### K12 container and process tiers
+
+The [container](checks/final-process-speed-before.json) and
+[process](checks/final-process-speed-after.json) cohorts use the same 66230f5 source and host,
+including the supervisor guard and descriptor-copy refusal. Both complete every operation.
+The prior daemon-only image has no all-in-one API startup baseline, explicitly n=0.
+
+| Operation | Before p50 / p90 ms | After p50 / p90 ms | Budget |
+| --- | --- | --- | --- |
+| Image API startup | unavailable, n=0 | 6425.27 / 6507.19 | p90 < 10,000 ms: met |
+| Run through edge | 1.61 / 2.02 | 2.18 / 2.50 | p90 < 20 ms: met |
+| First output byte | 1.60 / 2.05 | 2.09 / 2.54 | p90 < 10 ms: met |
+| Start, expose, HTTP 200 | 3.34 / 6.79 | 44.28 / 47.74 | p90 < 200 ms: met |
+| Snapshot 100 MB | 1254.61 / 1344.53 | 802.42 / 866.96 | measured |
+| Fork 100 MB snapshot | 1785.43 / 1818.78 | 985.23 / 1964.65 | measured |
+| Sleep | 30.42 / 32.41 | 6.60 / 8.69 | measured |
+| Wake | 930.05 / 986.18 | 8.36 / 11.08 | measured |
+| CLI echo | 999.13 / 1039.28 | 994.40 / 1039.11 | measured |
+
+All four process/image thresholds pass. Process exposure is slower than the same-source
+container comparison and is retained without a speedup claim. Capability, mandatory filesystem
+and network enforcement facts, shared UID probes and image/agent digests remain in the raw data.
+
+### K13 native celld repeat
+
+The [complete native report](checks/final-celld-native-measurements.json) uses the same patched
+celld 0.6.3 binary/profile and unchanged Worker/container example for both engines, n=30 each.
+It repeats the earlier cohort without replacing it.
+
+| Operation | Docker p50 / p90 ms | Native pryx p50 / p90 ms |
+| --- | --- | --- |
+| Backend start | 157.00 / 172.00 | 236.00 / 259.00 |
+| Start through first HTTP response | 1569.30 / 1585.11 | 955.87 / 965.10 |
+| Warm HTTP response | 4.28 / 5.12 | 4.26 / 5.06 |
+
+Native backend start costs more; the lower start-through-first-response includes celld readiness
+and polling, and does not isolate a transport optimization. K13 sets no numeric speed threshold.
+The [unmodified-release socket experiment](checks/final-docker-api-spike.json) explicitly fails
+unsupported BuildKit operations and remains unshipped, without advertising a docker-api feature.
+See [docker-api.md](docker-api.md) for the native ownership limits and exact experiment scope.
