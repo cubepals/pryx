@@ -431,8 +431,10 @@ export class FleetRuntime implements SandboxRuntime {
    * Uploads one node copy to the archive store. One upload at a time per copy: the row is claimed
    * by compare-and-set, and a claim nobody finished is taken over once it is stale.
    */
-  upload(archiveId: string): Promise<'ready' | 'skipped' | 'failed'> {
-    return this.#transfers.upload(archiveId)
+  upload(archiveId: string, waitForStore = false) {
+    return waitForStore
+      ? this.#transfers.stored(archiveId).then(() => 'ready' as const)
+      : this.#transfers.upload(archiveId)
   }
 
   async goneSnapshots(snapshots: readonly SnapshotHandle[]): Promise<ReadonlySet<SnapshotHandle>> {

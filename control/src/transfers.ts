@@ -86,6 +86,7 @@ export class TooBigToMove extends Error {
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 export class Transfers {
+  readonly #uploads = new Map<string, Set<Promise<'ready' | 'skipped' | 'failed'>>>()
   readonly #db: Db
   readonly #api: Pick<WorkloadApi, 'send'>
   readonly #store: Pick<FleetStore, 'objectKey' | 'target' | 'head' | 'copyTo'>
@@ -117,7 +118,23 @@ export class Transfers {
    * by compare-and-set, and a claim nobody finished is taken over once it is stale.
    */
   upload(archiveId: string) {
-    return this.#upload(archiveId)
+    const pending = this.#uploads.get(archiveId) ?? new Set()
+    this.#uploads.set(archiveId, pending)
+    const job = this.#upload(archiveId).finally(() => {
+      pending.delete(job)
+      if (!pending.size) this.#uploads.delete(archiveId)
+    })
+    pending.add(job)
+    return job
+  }
+
+  /** A cross-workload fork needs a stored copy; a node-local snapshot belongs to its source. */
+  async stored(archiveId: string): Promise<void> {
+    await this.upload(archiveId)
+    await Promise.all(this.#uploads.get(archiveId) ?? [])
+    const row = await this.#archives.archiveOf(archiveId)
+    if (row?.status !== 'ready' || row.object_key === null)
+      throw new Error('The source snapshot has not reached the archive store')
   }
 
   async #upload(archiveId: string): Promise<'ready' | 'skipped' | 'failed'> {

@@ -124,6 +124,9 @@ describe.skipIf(!hasDatabase)('sandbox intent on Postgres', () => {
     const snap = await service.snapshot(made.id, 'project')
     const fork = await service.make('project', spec, { snapshot: snap.id })
     expect(fork.id).not.toBe(made.id)
+    expect(
+      nodes.calls.findLast((call) => call.path === `/v1/workloads/${fork.id}/restore`)?.body,
+    ).toHaveProperty('url')
     expect((await service.rest(made.id, 'project')).state).toBe('resting')
     expect(await service.wake(made.id, 'project')).toMatchObject({
       tier: 'restored',

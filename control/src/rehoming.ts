@@ -51,7 +51,7 @@ export class Rehoming {
     Archives,
     'archiveOf' | 'discardExport' | 'source' | 'fromStore' | 'forgetNodeCopies'
   >
-  readonly #transfers: Pick<Transfers, 'exportForMove' | 'tooBigToMove' | 'uploadBeforeDelete'>
+  readonly #transfers: Pick<Transfers, 'exportForMove' | 'tooBigToMove' | 'uploadBeforeDelete' | 'stored'>
   readonly #provider: string
   readonly #log: (message: string, fields?: object) => void
 
@@ -62,7 +62,7 @@ export class Rehoming {
     choice: Pick<NodeChoice, 'request' | 'choose'>
     admission: Pick<Admission, 'put' | 'power' | 'startOn' | 'claimMoved' | 'lookAgain' | 'claim' | 'unclaim'>
     archives: Pick<Archives, 'archiveOf' | 'discardExport' | 'source' | 'fromStore' | 'forgetNodeCopies'>
-    transfers: Pick<Transfers, 'exportForMove' | 'tooBigToMove' | 'uploadBeforeDelete'>
+    transfers: Pick<Transfers, 'exportForMove' | 'tooBigToMove' | 'uploadBeforeDelete' | 'stored'>
     provider: string
     log: (message: string, fields?: object) => void
   }) {
@@ -171,7 +171,16 @@ export class Rehoming {
         node = await this.#ledger.nodeOf(again.node_id)
       }
     }
-    const restored = await this.#api.restore(node, ref.key, epoch, await this.#archives.source(from, node.id))
+    if (from.kind === 'snapshot') {
+      const snapshot = decodeSnapshot(from.snapshot)
+      if (snapshot.key !== ref.key) await this.#transfers.stored(snapshot.archive)
+    }
+    const restored = await this.#api.restore(
+      node,
+      ref.key,
+      epoch,
+      await this.#archives.source(from, node.id, ref.key),
+    )
     const fresh = await this.#ledger.settle(ref.key, node, epoch, ensured.workload)
     await progress.handle(fresh)
     await event(this.#db, 'placement.restored', {

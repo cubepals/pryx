@@ -234,12 +234,18 @@ export class Archives {
   async source(
     from: RestoreSource,
     nodeId: string,
+    targetWorkload: string,
   ): Promise<{ snapshot: string } | { url: string; sha256: string | null }> {
     if (from.kind === 'archive') return { url: from.download.url, sha256: from.sha256 ?? null }
     const snap = decodeSnapshot(from.snapshot)
     const row = await this.archiveOf(snap.archive)
     if (row === null || row.status === 'deleted') throw new Error('That snapshot is gone')
-    if (row.node_id === nodeId && row.local_id !== null && row.local_deleted_at === null)
+    if (
+      row.workload === targetWorkload &&
+      row.node_id === nodeId &&
+      row.local_id !== null &&
+      row.local_deleted_at === null
+    )
       return { snapshot: row.local_id }
     if (row.status !== 'ready' || row.object_key === null)
       throw new Error("That snapshot is on another node and isn't in the archive store yet")

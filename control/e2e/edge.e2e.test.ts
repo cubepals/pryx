@@ -39,7 +39,7 @@ describe.skipIf(!ready)('edge through a real pryxd', () => {
     'HTTP requests replay after CLI sleep, and a higher route epoch closes the old connection',
     async () => {
       const made = await client.make({
-        image: 'alpine:3.22',
+        image: 'alpine:pryx-tls',
         entrypoint: ['sh', '-c', 'echo hello > /data/index.html; exec httpd -f -p 8080 -h /data'],
         resources: { memoryMb: 128 },
         ports: [{ name: 'http', port: 8080, audience: 'public' }],

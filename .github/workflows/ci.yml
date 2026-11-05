@@ -214,7 +214,7 @@ jobs:
           docker tag mirror.gcr.io/library/alpine:3.22 alpine:3.22
       - name: Build the TLS sandbox fixture
         run: |
-          printf 'FROM mirror.gcr.io/library/alpine:3.22\nRUN apk add --no-cache openssl\n' > "$RUNNER_TEMP/tls.Dockerfile"
+          printf 'FROM mirror.gcr.io/library/alpine:3.22\nRUN apk add --no-cache openssl busybox-extras\n' > "$RUNNER_TEMP/tls.Dockerfile"
           docker build -t alpine:pryx-tls -f "$RUNNER_TEMP/tls.Dockerfile" "$RUNNER_TEMP"
       - name: Start an S3 store
         run: >-
@@ -327,7 +327,7 @@ jobs:
           docker tag mirror.gcr.io/rivetdev/sandbox-agent:0.5.5-full rivetdev/sandbox-agent:0.5.5-full
       - name: Build the TLS sandbox fixture
         run: |
-          printf 'FROM mirror.gcr.io/library/alpine:3.22\nRUN apk add --no-cache openssl\n' > "$RUNNER_TEMP/tls.Dockerfile"
+          printf 'FROM mirror.gcr.io/library/alpine:3.22\nRUN apk add --no-cache openssl busybox-extras\n' > "$RUNNER_TEMP/tls.Dockerfile"
           docker build -t alpine:pryx-tls -f "$RUNNER_TEMP/tls.Dockerfile" "$RUNNER_TEMP"
       - name: Start an S3 store
         run: >-
