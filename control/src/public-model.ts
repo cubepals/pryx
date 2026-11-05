@@ -3,10 +3,12 @@
 
 /** Public creation and templates map to sandbox intents; private handles and secrets never escape. */
 import { randomUUID } from 'node:crypto'
+import { setTimeout as pause } from 'node:timers/promises'
 import { sql } from 'drizzle-orm'
 import type { Make, PublicPort } from './api-schemas.ts'
 import { makeSchema } from './api-schemas.ts'
 import type { Db } from './database.ts'
+import { SECOND_MS } from './durations.ts'
 import { addresses, DEFAULT_EDGE_PORT_RANGE } from './edge-addresses.ts'
 import { shownState } from './edge-routed.ts'
 import { complete, fingerprint, operation } from './operations.ts'
@@ -125,7 +127,13 @@ export class PublicModel {
       autoSpares: body.sparePorts === undefined,
       ...options,
     })
-    const view = await this.view(result.id, project)
+    let view = await this.view(result.id, project)
+    // Agent-only routes are new to otherwise synchronous create/fork calls. Wait for the
+    // counted edge to acknowledge them before caching a successful creation response.
+    while (spec.agent && view.state === 'starting') {
+      await pause(SECOND_MS / 20)
+      view = await this.view(result.id, project)
+    }
     if (key) await complete(this.db, op.id, view)
     return view
   }
