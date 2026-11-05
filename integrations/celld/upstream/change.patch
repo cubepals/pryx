@@ -1,11 +1,23 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 97b9cf5..b24ebbd 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -373,6 +373,7 @@ dependencies = [
+  "crc-fast",
+  "futures-util",
+  "http",
++ "libc",
+  "lz4_flex",
+  "object_store",
+  "percent-encoding",
 diff --git a/crates/celld/container.rs b/crates/celld/container.rs
-index 7058343..dcb2517 100644
+index 7058343..1b3b1b1 100644
 --- a/crates/celld/container.rs
 +++ b/crates/celld/container.rs
 @@ -23,9 +23,11 @@
  //! into its engine the first time a cell of that class starts, so a node
  //! never talks to a registry.
- 
+
 +mod backend;
  use crate::asyncrt;
  use crate::docker::{frame_header, Docker, Stream};
@@ -20,7 +32,7 @@ index 7058343..dcb2517 100644
      Published(HashMap<u16, u16>),
 +    Remote(HashMap<u16, String>),
  }
- 
+
  pub struct CellContainer {
 @@ -255,6 +258,10 @@ impl CellContainer {
                           must be declared with EXPOSE in the image"
@@ -35,7 +47,7 @@ index 7058343..dcb2517 100644
      }
 @@ -286,6 +293,7 @@ impl CellContainer {
  }
- 
+
  pub struct ContainerEngine {
 +    backend: Arc<dyn ContainerBackend>,
      /// See `Config::runtime`.
@@ -107,7 +119,7 @@ index 7058343..dcb2517 100644
 @@ -514,14 +540,24 @@ impl ContainerEngine {
          Ok(engine)
      }
- 
+
 -    pub fn socket(&self) -> &std::path::Path {
 -        self.docker.socket()
 +    pub fn socket(&self) -> Option<&std::path::Path> {
@@ -119,7 +131,7 @@ index 7058343..dcb2517 100644
 +            .as_ref()
 +            .context("this operation requires the local backend")
      }
- 
+
      async fn reap(&self) -> anyhow::Result<()> {
 +        self.backend.reap(self).await
 +    }
@@ -242,9 +254,20 @@ index 7058343..dcb2517 100644
              .expect(
                  "GET",
                  &format!("/containers/{id}/logs?stdout=true&stderr=true"),
-@@ -886,8 +926,12 @@ impl ContainerEngine {
+@@ -830,6 +870,10 @@ impl ContainerEngine {
+     /// nothing: a stopped container holds no memory, and an idle eviction
+     /// stops it before the sample would count it.
+     pub fn reserved_memory_bytes(&self) -> u64 {
++        // Remote limits belong to pryx's host ledger, not this worker node's RAM.
++        if self.backend.remote() {
++            return 0;
++        }
+         self.cells
+             .lock()
+             .unwrap()
+@@ -886,8 +930,12 @@ impl ContainerEngine {
      }
- 
+
      async fn inspect_running(&self, cell: &CellContainer) -> anyhow::Result<Option<Address>> {
 +        self.backend.inspect(self, cell).await
 +    }
@@ -256,17 +279,17 @@ index 7058343..dcb2517 100644
              .call("GET", &format!("/containers/{}/json", cell.name), None)
              .await?;
          if reply.status.as_u16() == 404 {
-@@ -920,7 +964,20 @@ impl ContainerEngine {
+@@ -920,7 +968,20 @@ impl ContainerEngine {
          run: u64,
          params: StartParams,
      ) -> anyhow::Result<()> {
 -        let started = self.create_and_start(cell, params).await;
-+        let started_at = std::time::Instant::now();
++        let started_at = asyncrt::mono_ms();
 +        let started = self.backend.start(self, cell, params).await;
 +        if started.is_ok() {
 +            tracing::info!(
 +                event = "container_backend_start_timing",
-+                elapsed_us = started_at.elapsed().as_micros() as u64,
++                elapsed_ms = asyncrt::mono_ms().saturating_sub(started_at),
 +                backend = if self.backend.remote() {
 +                    "pryx"
 +                } else {
@@ -278,7 +301,7 @@ index 7058343..dcb2517 100644
          let address = match started {
              Ok(address) => address,
              Err(error) => {
-@@ -954,26 +1011,12 @@ impl ContainerEngine {
+@@ -954,26 +1015,12 @@ impl ContainerEngine {
      /// Wait for the container's root process to end and publish the exit
      /// for `run`; a later run's start has already replaced the state.
      fn watch_exit(&self, cell: &Arc<CellContainer>, run: u64) {
@@ -308,7 +331,7 @@ index 7058343..dcb2517 100644
                  .map_err(|error| format!("{error:#}"));
              let mut state = cell_.state.lock().unwrap();
              if state.run == run {
-@@ -999,7 +1042,7 @@ impl ContainerEngine {
+@@ -999,7 +1046,7 @@ impl ContainerEngine {
          // observed its exit but nothing removed it, or a restart adopted a
          // stopped one. The name is the cell's, so it is ours to remove.
          let _ = self
@@ -317,7 +340,7 @@ index 7058343..dcb2517 100644
              .call(
                  "DELETE",
                  &format!("/containers/{}?force=true", cell.name),
-@@ -1100,7 +1143,7 @@ impl ContainerEngine {
+@@ -1100,7 +1147,7 @@ impl ContainerEngine {
          // still being removed, so a fresh start after `destroy()` retries
          // briefly, as workerd's engine does.
          let mut reply = self
@@ -326,7 +349,7 @@ index 7058343..dcb2517 100644
              .call(
                  "POST",
                  &format!("/containers/create?name={}", cell.name),
-@@ -1113,7 +1156,7 @@ impl ContainerEngine {
+@@ -1113,7 +1160,7 @@ impl ContainerEngine {
              }
              asyncrt::sleep(Duration::from_millis(100)).await;
              let _ = self
@@ -335,7 +358,7 @@ index 7058343..dcb2517 100644
                  .call(
                      "DELETE",
                      &format!("/containers/{}?force=true", cell.name),
-@@ -1121,7 +1164,7 @@ impl ContainerEngine {
+@@ -1121,7 +1168,7 @@ impl ContainerEngine {
                  )
                  .await;
              reply = self
@@ -344,7 +367,7 @@ index 7058343..dcb2517 100644
                  .call(
                      "POST",
                      &format!("/containers/create?name={}", cell.name),
-@@ -1139,7 +1182,7 @@ impl ContainerEngine {
+@@ -1139,7 +1186,7 @@ impl ContainerEngine {
                  reply.message()
              ));
          }
@@ -353,7 +376,7 @@ index 7058343..dcb2517 100644
              .expect(
                  "POST",
                  &format!("/containers/{}/start", cell.name),
-@@ -1148,7 +1191,7 @@ impl ContainerEngine {
+@@ -1148,7 +1195,7 @@ impl ContainerEngine {
              )
              .await?;
          let info = self
@@ -362,9 +385,9 @@ index 7058343..dcb2517 100644
              .expect(
                  "GET",
                  &format!("/containers/{}/json", cell.name),
-@@ -1177,10 +1220,18 @@ impl ContainerEngine {
+@@ -1177,10 +1224,18 @@ impl ContainerEngine {
      }
- 
+
      pub async fn destroy(&self, cell: &Arc<CellContainer>) -> anyhow::Result<()> {
 +        self.backend.destroy(self, cell).await?;
 +        let mut state = cell.state.lock().unwrap();
@@ -382,7 +405,7 @@ index 7058343..dcb2517 100644
              .call(
                  "POST",
                  &format!("/containers/{}/kill?signal=SIGKILL", cell.name),
-@@ -1188,7 +1239,7 @@ impl ContainerEngine {
+@@ -1188,7 +1243,7 @@ impl ContainerEngine {
              )
              .await;
          let _ = self
@@ -391,9 +414,9 @@ index 7058343..dcb2517 100644
              .call(
                  "DELETE",
                  &format!("/containers/{}?force=true", cell.name),
-@@ -1202,7 +1253,11 @@ impl ContainerEngine {
+@@ -1202,7 +1257,11 @@ impl ContainerEngine {
      }
- 
+
      pub async fn signal(&self, cell: &Arc<CellContainer>, signal: u32) -> anyhow::Result<()> {
 -        self.docker
 +        self.backend.signal(self, cell, signal).await
@@ -404,7 +427,7 @@ index 7058343..dcb2517 100644
              .expect(
                  "POST",
                  &format!("/containers/{}/kill?signal={signal}", cell.name),
-@@ -1264,6 +1319,7 @@ impl ContainerEngine {
+@@ -1264,6 +1323,7 @@ impl ContainerEngine {
          if !cell.running() {
              return Err(anyhow!("exec() requires a running container."));
          }
@@ -412,7 +435,7 @@ index 7058343..dcb2517 100644
          let mut body = json!({
              "AttachStdin": true,
              "AttachStdout": true,
-@@ -1285,7 +1341,7 @@ impl ContainerEngine {
+@@ -1285,7 +1345,7 @@ impl ContainerEngine {
              body["User"] = json!(user);
          }
          let created = self
@@ -421,7 +444,7 @@ index 7058343..dcb2517 100644
              .expect(
                  "POST",
                  &format!("/containers/{}/exec", cell.name),
-@@ -1300,7 +1356,7 @@ impl ContainerEngine {
+@@ -1300,7 +1360,7 @@ impl ContainerEngine {
              .ok_or_else(|| anyhow!("exec create answered without an id"))?
              .to_string();
          let stream = self
@@ -430,7 +453,7 @@ index 7058343..dcb2517 100644
              .hijack(
                  &format!("/exec/{exec_id}/start"),
                  json!({ "Detach": false, "Tty": false }),
-@@ -1314,7 +1370,7 @@ impl ContainerEngine {
+@@ -1314,7 +1374,7 @@ impl ContainerEngine {
          let mut pid = 0;
          for _ in 0..20 {
              let info = self
@@ -439,7 +462,7 @@ index 7058343..dcb2517 100644
                  .expect(
                      "GET",
                      &format!("/exec/{exec_id}/json"),
-@@ -1345,7 +1401,7 @@ impl ContainerEngine {
+@@ -1345,7 +1405,7 @@ impl ContainerEngine {
              exec_id,
              container: cell.name.clone(),
              pid,
@@ -450,10 +473,10 @@ index 7058343..dcb2517 100644
              stderr: tokio::sync::Mutex::new(stderr_rx),
 diff --git a/crates/celld/container/backend.rs b/crates/celld/container/backend.rs
 new file mode 100644
-index 0000000..c08bdd8
+index 0000000..1c61189
 --- /dev/null
 +++ b/crates/celld/container/backend.rs
-@@ -0,0 +1,422 @@
+@@ -0,0 +1,393 @@
 +// Copyright 2026 The Cubepals Authors. Apache-2.0 license.
 +
 +//! Container effects are selected at the node boundary. The local engine keeps its existing
@@ -463,8 +486,6 @@ index 0000000..c08bdd8
 +use super::*;
 +use async_trait::async_trait;
 +use reqwest::{Client, Method, StatusCode, Url};
-+use std::io::Write;
-+use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt};
 +
 +#[async_trait]
 +pub(super) trait ContainerBackend: Send + Sync {
@@ -561,7 +582,7 @@ index 0000000..c08bdd8
 +    key: String,
 +    ports: Vec<u16>,
 +    images: HashMap<String, String>,
-+    journal: PathBuf,
++    journal: Box<dyn celld_ltx::PrivateJournal>,
 +    sandboxes: tokio::sync::Mutex<HashMap<String, String>>,
 +}
 +impl PryxBackend {
@@ -599,31 +620,12 @@ index 0000000..c08bdd8
 +            .map(|v| serde_json::from_str(&v))
 +            .transpose()?
 +            .unwrap_or_default();
-+        let dir = dir.join("pryx-backend");
-+        if let Ok(meta) = std::fs::symlink_metadata(&dir) {
-+            anyhow::ensure!(
-+                meta.is_dir()
-+                    && !meta.file_type().is_symlink()
-+                    && meta.permissions().mode() & 0o077 == 0,
-+                "backend state directory must be private and regular"
-+            );
-+        } else {
-+            std::fs::DirBuilder::new().mode(0o700).create(&dir)?;
-+        }
-+        let journal = dir.join("sandboxes.json");
-+        let sandboxes = if journal.exists() {
-+            let meta = std::fs::symlink_metadata(&journal)?;
-+            anyhow::ensure!(
-+                meta.is_file()
-+                    && !meta.file_type().is_symlink()
-+                    && meta.permissions().mode() & 0o077 == 0
-+                    && meta.len() < 1024 * 1024,
-+                "backend journal is not a bounded private file"
-+            );
-+            serde_json::from_slice(&std::fs::read(&journal)?)?
-+        } else {
-+            HashMap::new()
-+        };
++        let journal = asyncrt::fs().private_journal(&dir.join("pryx-backend"))?;
++        let sandboxes = journal
++            .read()?
++            .map(|bytes| serde_json::from_slice(&bytes))
++            .transpose()?
++            .unwrap_or_default();
 +        Ok(Self {
 +            client: Client::builder()
 +                .redirect(reqwest::redirect::Policy::none())
@@ -679,16 +681,7 @@ index 0000000..c08bdd8
 +        }))
 +    }
 +    fn persist(&self, values: &HashMap<String, String>) -> anyhow::Result<()> {
-+        let temporary = self.journal.with_extension("new");
-+        let mut file = std::fs::OpenOptions::new()
-+            .write(true)
-+            .create_new(true)
-+            .mode(0o600)
-+            .open(&temporary)?;
-+        file.write_all(&serde_json::to_vec(values)?)?;
-+        file.sync_all()?;
-+        std::fs::rename(temporary, &self.journal)?;
-+        std::fs::File::open(self.journal.parent().unwrap())?.sync_all()?;
++        self.journal.replace(&serde_json::to_vec(values)?)?;
 +        Ok(())
 +    }
 +    async fn id(&self, name: &str) -> anyhow::Result<Option<String>> {
@@ -823,12 +816,13 @@ index 0000000..c08bdd8
 +        // Write a durable creation key before effects. A lost reply remains unresolved and blocks
 +        // future replacement until the operator reconciles that operation; never retry a mutation.
 +        let mut values = self.sandboxes.lock().await;
++        use rand::RngCore;
++        let mut rng = asyncrt::rng("pryx.create");
 +        let key = format!(
-+            "{}-{}",
++            "{}-{:016x}{:016x}",
 +            cell.name,
-+            std::time::SystemTime::now()
-+                .duration_since(std::time::UNIX_EPOCH)?
-+                .as_nanos()
++            rng.next_u64(),
++            rng.next_u64()
 +        );
 +        values.insert(cell.name.clone(), format!("pending:{key}"));
 +        self.persist(&values)?;
@@ -875,4 +869,240 @@ index 0000000..c08bdd8
 +        let _ = cell;
 +        anyhow::bail!("root-process signaling is not exposed by pryx's public lifecycle API; use destroy or an agent process handle")
 +    }
++}
+diff --git a/crates/ltx/Cargo.toml b/crates/ltx/Cargo.toml
+index 59c8683..5d463d4 100644
+--- a/crates/ltx/Cargo.toml
++++ b/crates/ltx/Cargo.toml
+@@ -32,6 +32,7 @@ gcs = ["object_store/gcp"]
+ azure = ["object_store/azure"]
+
+ [dependencies]
++libc.workspace = true
+ tokio = { workspace = true, features = ["rt-multi-thread", "macros", "fs", "io-util", "sync", "time"] }
+ # Aligned to celld's rusqlite (crates/celld pins 0.31); libsqlite3-sys carries
+ # links="sqlite3", so the workspace cannot hold two versions.
+diff --git a/crates/ltx/src/host.rs b/crates/ltx/src/host.rs
+index 7056da0..8c28cfd 100644
+--- a/crates/ltx/src/host.rs
++++ b/crates/ltx/src/host.rs
+@@ -74,7 +74,21 @@ impl HostFile {
+ }
+
+ /// The complete local-file surface used by celld and the LTX engine.
++/// A bounded private journal provided by the host filesystem. Custom execution-domain
++/// filesystems may refuse this capability; callers must fail closed when it is unavailable.
++pub trait PrivateJournal: Send + Sync {
++    fn read(&self) -> io::Result<Option<Vec<u8>>>;
++    fn replace(&self, bytes: &[u8]) -> io::Result<()>;
++}
++
+ pub trait FileSystem: Send + Sync {
++    fn private_journal(&self, _directory: &Path) -> io::Result<Box<dyn PrivateJournal>> {
++        Err(io::Error::new(
++            io::ErrorKind::Unsupported,
++            "private journals are unavailable on this filesystem",
++        ))
++    }
++
+     /// Opens an anonymous read/write scratch file. The handle owns its storage,
+     /// so cancellation and process exit cannot leave a compaction scratch file.
+     /// Custom filesystems must implement this to compact oversized sources.
+@@ -145,6 +159,21 @@ impl HostFileIo for DirectFile {
+
+ #[allow(clippy::disallowed_methods)]
+ impl FileSystem for DirectFileSystem {
++    fn private_journal(&self, directory: &Path) -> io::Result<Box<dyn PrivateJournal>> {
++        #[cfg(unix)]
++        {
++            return Ok(Box::new(DirectPrivateJournal::open(directory)?));
++        }
++        #[cfg(not(unix))]
++        {
++            let _ = directory;
++            Err(io::Error::new(
++                io::ErrorKind::Unsupported,
++                "private journals require Unix",
++            ))
++        }
++    }
++
+     fn temporary_file(&self, directory: Option<&Path>) -> io::Result<HostFile> {
+         let file = match directory {
+             Some(directory) => tempfile::tempfile_in(directory)?,
+@@ -401,3 +430,108 @@ impl Default for LtxHost {
+         )
+     }
+ }
++
++#[cfg(unix)]
++struct DirectPrivateJournal {
++    directory: PathBuf,
++    owner: u32,
++}
++
++// The direct host adapter owns POSIX permissions, no-follow opens and durable replacement;
++// execution-domain adapters access this only through their injected FileSystem capability.
++#[cfg(unix)]
++#[allow(clippy::disallowed_methods)]
++impl DirectPrivateJournal {
++    const MAX_BYTES: usize = 1024 * 1024;
++    fn open(directory: &Path) -> io::Result<Self> {
++        use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt};
++        match std::fs::DirBuilder::new().mode(0o700).create(directory) {
++            Ok(()) => {}
++            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
++            Err(error) => return Err(error),
++        }
++        let file = std::fs::OpenOptions::new()
++            .read(true)
++            .custom_flags(libc::O_NOFOLLOW | libc::O_DIRECTORY)
++            .open(directory)?;
++        let meta = file.metadata()?;
++        // SAFETY: geteuid has no arguments and no failure mode.
++        let owner = unsafe { libc::geteuid() };
++        if !meta.is_dir() || meta.uid() != owner || meta.permissions().mode() & 0o077 != 0 {
++            return Err(io::Error::new(
++                io::ErrorKind::PermissionDenied,
++                "journal directory must be private and owned",
++            ));
++        }
++        Ok(Self {
++            directory: directory.to_path_buf(),
++            owner,
++        })
++    }
++}
++
++#[cfg(unix)]
++#[allow(clippy::disallowed_methods)]
++impl PrivateJournal for DirectPrivateJournal {
++    fn read(&self) -> io::Result<Option<Vec<u8>>> {
++        use std::io::Read;
++        use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
++        let file = match std::fs::OpenOptions::new()
++            .read(true)
++            .custom_flags(libc::O_NOFOLLOW)
++            .open(self.directory.join("journal.json"))
++        {
++            Ok(file) => file,
++            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
++            Err(error) => return Err(error),
++        };
++        let meta = file.metadata()?;
++        if !meta.is_file()
++            || meta.uid() != self.owner
++            || meta.permissions().mode() & 0o077 != 0
++            || meta.len() > Self::MAX_BYTES as u64
++        {
++            return Err(io::Error::new(
++                io::ErrorKind::PermissionDenied,
++                "journal must be a bounded private regular file",
++            ));
++        }
++        let mut bytes = Vec::new();
++        file.take(Self::MAX_BYTES as u64 + 1)
++            .read_to_end(&mut bytes)?;
++        if bytes.len() > Self::MAX_BYTES {
++            return Err(io::Error::new(
++                io::ErrorKind::InvalidData,
++                "journal too large",
++            ));
++        }
++        Ok(Some(bytes))
++    }
++    fn replace(&self, bytes: &[u8]) -> io::Result<()> {
++        use std::io::Write;
++        use std::os::unix::fs::OpenOptionsExt;
++        if bytes.len() > Self::MAX_BYTES {
++            return Err(io::Error::new(
++                io::ErrorKind::InvalidInput,
++                "journal too large",
++            ));
++        }
++        // A stale temporary journal is unresolved state, never silently discarded.
++        let temporary = self.directory.join("journal.next");
++        let mut file = std::fs::OpenOptions::new()
++            .write(true)
++            .create_new(true)
++            .mode(0o600)
++            .custom_flags(libc::O_NOFOLLOW)
++            .open(&temporary)?;
++        file.write_all(bytes)?;
++        file.sync_all()?;
++        std::fs::rename(temporary, self.directory.join("journal.json"))?;
++        std::fs::OpenOptions::new()
++            .read(true)
++            .custom_flags(libc::O_NOFOLLOW | libc::O_DIRECTORY)
++            .open(&self.directory)?
++            .sync_all()?;
++        Ok(())
++    }
++}
+diff --git a/crates/ltx/src/lib.rs b/crates/ltx/src/lib.rs
+index edcac51..175e0a7 100644
+--- a/crates/ltx/src/lib.rs
++++ b/crates/ltx/src/lib.rs
+@@ -52,7 +52,7 @@ pub mod internal {
+ pub use error::{new_ltx_error, Error, LTXError, Result};
+ pub use host::{
+     DirectFileSystem, FileSystem, HostDirEntry, HostFile, HostFileIo, HostMetadata, HostTaskError,
+-    LtxHost,
++    LtxHost, PrivateJournal,
+ };
+
+ /// A SQLite database managed for replication (WAL-mode checkpoint takeover plus
+diff --git a/crates/ltx/tests/pryx_private_journal.rs b/crates/ltx/tests/pryx_private_journal.rs
+new file mode 100644
+index 0000000..dff1584
+--- /dev/null
++++ b/crates/ltx/tests/pryx_private_journal.rs
+@@ -0,0 +1,48 @@
++// Copyright 2026 The Cubepals Authors. Apache-2.0 license.
++//! Private host journal security and durability, without a container engine or network.
++use celld_ltx::{DirectFileSystem, FileSystem};
++use std::os::unix::fs::{symlink, PermissionsExt};
++#[test]
++fn journal_is_private_bounded_and_replaced() {
++    let home = tempfile::tempdir().unwrap();
++    let dir = home.path().join("state");
++    let journal = DirectFileSystem.private_journal(&dir).unwrap();
++    assert!(journal.read().unwrap().is_none());
++    journal.replace(b"first").unwrap();
++    journal.replace(b"second").unwrap();
++    assert_eq!(journal.read().unwrap().unwrap(), b"second");
++    assert_eq!(
++        std::fs::metadata(dir.join("journal.json"))
++            .unwrap()
++            .permissions()
++            .mode()
++            & 0o777,
++        0o600
++    );
++    assert!(journal.replace(&vec![0; 1024 * 1024 + 1]).is_err());
++}
++#[test]
++fn directory_symlinks_and_public_modes_are_refused() {
++    let home = tempfile::tempdir().unwrap();
++    let link = home.path().join("link");
++    symlink(home.path(), &link).unwrap();
++    assert!(DirectFileSystem.private_journal(&link).is_err());
++    let dir = home.path().join("public");
++    std::fs::create_dir(&dir).unwrap();
++    std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755)).unwrap();
++    assert!(DirectFileSystem.private_journal(&dir).is_err());
++}
++#[test]
++fn journal_symlinks_and_stale_temporary_files_are_refused() {
++    let home = tempfile::tempdir().unwrap();
++    let dir = home.path().join("state");
++    let journal = DirectFileSystem.private_journal(&dir).unwrap();
++    let target = home.path().join("target");
++    std::fs::write(&target, b"untouched").unwrap();
++    symlink(&target, dir.join("journal.json")).unwrap();
++    assert!(journal.read().is_err());
++    std::fs::remove_file(dir.join("journal.json")).unwrap();
++    std::fs::write(dir.join("journal.next"), b"unresolved").unwrap();
++    assert!(journal.replace(b"replacement").is_err());
++    assert_eq!(std::fs::read(target).unwrap(), b"untouched");
 +}

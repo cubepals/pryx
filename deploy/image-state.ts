@@ -61,13 +61,13 @@ export async function credentials(root: string) {
   mkdirSync(root, { recursive: true, mode: 0o711 })
   const rootInfo = lstatSync(root)
   if (!rootInfo.isDirectory() || rootInfo.uid !== process.getuid?.())
-    throw new Error('Unsafe state directory')
+    throw Object.assign(new Error('Unsafe state directory'), { code: 'UNSAFE_STATE' })
   chmodSync(root, 0o711)
   const privateDir = join(root, 'private')
   mkdirSync(privateDir, { recursive: true, mode: 0o700 })
   const privateInfo = lstatSync(privateDir)
   if (!privateInfo.isDirectory() || privateInfo.uid !== process.getuid?.() || privateInfo.mode & 0o077)
-    throw new Error('Unsafe private directory')
+    throw Object.assign(new Error('Unsafe private directory'), { code: 'UNSAFE_PRIVATE' })
   const path = join(privateDir, 'credentials.json')
   if (!existsSync(path)) {
     const ca = await FleetCa.generate('pryx')
@@ -90,7 +90,7 @@ export async function credentials(root: string) {
   try {
     const info = fstatSync(fd)
     if (!info.isFile() || info.uid !== process.getuid?.() || info.mode & 0o077)
-      throw new Error('Unsafe credential file')
+      throw Object.assign(new Error('Unsafe credential file'), { code: 'UNSAFE_CREDENTIALS' })
     encoded = readFileSync(fd, 'utf8')
   } finally {
     closeSync(fd)
@@ -120,7 +120,17 @@ export function serviceCommand(args: string[]) {
     : args
 }
 export function privateLog(root: string, name: string) {
-  return openSync(join(root, 'private', `${name}.log`), 'a', 0o600)
+  const fd = openSync(
+    join(root, 'private', `${name}.log`),
+    constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT | constants.O_NOFOLLOW,
+    0o600,
+  )
+  const info = fstatSync(fd)
+  if (!info.isFile() || info.uid !== process.getuid?.() || info.mode & 0o077) {
+    closeSync(fd)
+    throw Object.assign(new Error('Unsafe private log'), { code: 'UNSAFE_LOG' })
+  }
+  return fd
 }
 export async function embedded(
   root: string,

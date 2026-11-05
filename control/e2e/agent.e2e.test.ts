@@ -2,6 +2,7 @@
 /** Both SDKs exercise real container processes, streams, PTYs, data, runtime ports and wake.
  * A missing agent is an assertion failure after the existing container prerequisites hold. */
 import { expect, test } from 'bun:test'
+import { execPath, env as hostEnvironment } from 'node:process'
 import { StatusCodes } from 'http-status-codes'
 import { MINUTE_MS } from '../src/durations.ts'
 import { AGENT_ROUTE_PORT } from '../src/edge-headers.ts'
@@ -48,6 +49,26 @@ test.skipIf(!ready)(
       }
       terminal.close()
       expect(terminalOutput).toContain('terminal-ready')
+      const cli = Bun.spawn(
+        [
+          hostEnvironment.PRYX_MCP_CLI ?? execPath,
+          ...(hostEnvironment.PRYX_MCP_CLI ? [] : ['cli/src/main.ts']),
+          'sandbox',
+          'terminal',
+          box.id,
+        ],
+        { env: c.d.env, stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' },
+      )
+      cli.stdin.write("printf 'cli-%s\\n' terminal-ready; exit\n")
+      await cli.stdin.end()
+      const [cliOutput, cliError, cliCode] = await Promise.all([
+        new Response(cli.stdout).text(),
+        new Response(cli.stderr).text(),
+        cli.exited,
+      ])
+      expect(cliCode).toBe(0)
+      expect(cliError).toBe('')
+      expect(cliOutput).toContain('cli-terminal-ready')
       stage = 'files'
       await box.files.mkdir('src')
       const changes = box.files.watch('src')

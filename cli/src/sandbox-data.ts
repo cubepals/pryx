@@ -5,7 +5,7 @@
  * refused, and remote directory entries must be single names before joining local paths. */
 import { constants, createReadStream, createWriteStream, openSync } from 'node:fs'
 import { lstat, mkdir, readdir } from 'node:fs/promises'
-import { basename, dirname, join } from 'node:path'
+import { basename, dirname, join, parse, resolve, sep } from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { Pryx, Sandbox } from '@cubepals/pryx'
@@ -46,6 +46,7 @@ export async function copy(client: Pryx, source: string, destination: string) {
 }
 
 async function upload(box: Sandbox, source: string, destination: string): Promise<void> {
+  source = await localPath(source)
   const info = await lstat(source)
   if (info.isSymbolicLink()) throw new Error('cp refuses local symlinks')
   if (info.isDirectory()) {
@@ -66,6 +67,7 @@ async function upload(box: Sandbox, source: string, destination: string): Promis
 }
 
 async function download(box: Sandbox, source: string, destination: string): Promise<void> {
+  destination = await localPath(destination)
   const info = await box.files.stat(source)
   if (info.kind === 'directory') {
     await mkdir(destination, { recursive: true })
@@ -93,4 +95,20 @@ async function download(box: Sandbox, source: string, destination: string): Prom
       }),
     )
   } else throw new Error('cp accepts regular files and directories')
+}
+
+async function localPath(path: string) {
+  const absolute = resolve(path),
+    root = parse(absolute).root
+  let current = root
+  for (const component of absolute.slice(root.length).split(sep).filter(Boolean)) {
+    current = join(current, component)
+    const info = await lstat(current).catch((error: NodeJS.ErrnoException) => {
+      if (error.code !== 'ENOENT') throw error
+      return null
+    })
+    if (!info) break
+    if (info.isSymbolicLink()) throw new Error('cp refuses local symlinks')
+  }
+  return absolute
 }

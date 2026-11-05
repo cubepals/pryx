@@ -112,9 +112,9 @@ test(
           raw.startMs = logs
             .split('\n')
             .filter((line) => line.includes('container_backend_start_timing'))
-            .map((line) => /elapsed_us=(\d+)/.exec(line)?.[1])
+            .map((line) => /elapsed_ms=(\d+)/.exec(line)?.[1])
             .filter((value): value is string => value !== undefined)
-            .map((value) => Number(value) / 1000)
+            .map((value) => Number(value))
           expect(raw.startMs.length).toBe(30)
         } catch (error) {
           console.error(await log.text())

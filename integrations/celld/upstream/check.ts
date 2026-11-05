@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Apply the prepared native backend to the pinned public release and build its executable.
  * Reference checkouts stay read-only; the caller owns the new output directory. */
-import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
 const output = resolve(process.argv[2] ?? 'target/prepared-celld')
@@ -26,8 +26,21 @@ const patch = join(import.meta.dir, 'change.patch')
 await run(['git', '-C', source, 'apply', '--check', patch])
 await run(['git', '-C', source, 'apply', patch])
 const target = join(output, 'target')
+const rust = Bun.TOML.parse(
+  readFileSync(new URL('../../../rust-toolchain.toml', import.meta.url), 'utf8'),
+) as {
+  toolchain: { channel: string }
+}
+await run(['cargo', 'test', '--locked', '-p', 'celld-ltx', '--test', 'pryx_private_journal'], source, {
+  ...process.env,
+  RUSTUP_TOOLCHAIN: rust.toolchain.channel,
+  CARGO_TARGET_DIR: target,
+  CARGO_PROFILE_DEV_DEBUG: '0',
+  CARGO_INCREMENTAL: '0',
+})
 await run(['cargo', 'build', '--locked', '--bin', 'celld'], source, {
   ...process.env,
+  RUSTUP_TOOLCHAIN: rust.toolchain.channel,
   CARGO_TARGET_DIR: target,
   CARGO_PROFILE_DEV_DEBUG: '0',
   CARGO_INCREMENTAL: '0',

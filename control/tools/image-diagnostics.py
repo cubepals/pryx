@@ -14,10 +14,12 @@ import sys
 root = Path(sys.argv[1])
 private = root / "private"
 secrets = []
+private_safe = False
 try:
     info = private.lstat()
     if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
         raise ValueError("unsafe diagnostic directory")
+    private_safe = True
     fd = os.open(private / "credentials.json", os.O_RDONLY | os.O_NOFOLLOW)
     with os.fdopen(fd) as file:
         values = json.load(file)
@@ -42,6 +44,8 @@ journal = subprocess.run(
 )
 print("Image service journal:\n" + redacted(journal.stdout[-65536:]))
 try:
+    if not private_safe:
+        raise ValueError("unsafe diagnostic directory")
     for path in sorted(private.glob("*.log")):
         fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
         with os.fdopen(fd) as file:

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** One-image supervisor. Control remains the lifecycle owner, edge owns ingress and pryxd owns
  * workloads. Embedded services listen on loopback; the gateway is the only public listener. */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { closeSync, existsSync, ftruncateSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { availableParallelism, totalmem } from 'node:os'
 import { join } from 'node:path'
 import { loadConfig } from '../control/src/config.ts'
@@ -14,6 +14,8 @@ import { edgeConfig } from '../edge/src/config.ts'
 import { front } from '../edge/src/front.ts'
 import { createPrivateFile, credentials, embedded, privateLog, until } from './image-state.ts'
 
+let startupStage = 'configuration',
+  diagnosticRoot: string | undefined
 async function serve() {
   const base = process.env.PRYX_STATE_DIR ?? '/var/lib/pryx'
   const root = process.getuid?.() === 0 ? base : join(base, `uid-${process.getuid?.()}`)
@@ -30,8 +32,11 @@ async function serve() {
     parsedOrigin.password
   )
     throw new Error('PRYX_PUBLIC_URL must be an HTTP origin')
+  startupStage = 'credentials'
   const values = await credentials(root),
     children: Bun.Subprocess[] = []
+  diagnosticRoot = root
+  startupStage = 'runtime'
   const docker =
     existsSync('/var/run/docker.sock') &&
     Bun.spawnSync(['docker', 'version', '--format', '{{.Server.Version}}'], {
@@ -70,7 +75,9 @@ async function serve() {
   process.once('SIGINT', () => {
     void shutdown(0)
   })
+  startupStage = 'storage'
   const storage = await embedded(root, values, children)
+  startupStage = 'control'
   const config = loadConfig({
     ...process.env,
     DATABASE_URL: storage.database,
@@ -136,6 +143,7 @@ control_ips = ["127.0.0.1"]
 `,
     { mode: 0o600 },
   )
+  startupStage = 'enrollment'
   const log = privateLog(root, 'node')
   children.push(Bun.spawn(['/pryxd', 'serve', '--config', nodeConfig], { stdout: log, stderr: log }))
   await until('Local node', async () => {
@@ -162,6 +170,7 @@ control_ips = ["127.0.0.1"]
   })
   if (control.edge.agents) control.edge.agents.localOrigin = origin
   edge.agents.useControl(control.apiUrl)
+  startupStage = 'gateway'
   const gateway = await front({
     host: '0.0.0.0',
     port: publicPort,
@@ -206,7 +215,28 @@ if (process.argv.length > 2) {
   })
   process.exit(await child.exited)
 }
-await serve().catch(() => {
-  console.error('pryx image startup failed; inspect the private state diagnostics')
+await serve().catch((error: unknown) => {
+  if (diagnosticRoot) {
+    try {
+      const fd = privateLog(diagnosticRoot, 'startup')
+      try {
+        ftruncateSync(fd, 0)
+        writeFileSync(
+          fd,
+          String(error instanceof Error ? error.stack : 'Unknown startup failure').slice(0, 16 * 1024),
+        )
+      } finally {
+        closeSync(fd)
+      }
+    } catch {}
+  }
+  const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : ''
+  console.error(
+    JSON.stringify({
+      error: 'startup_failed',
+      stage: startupStage,
+      ...(/^[A-Z][A-Z0-9_]{0,47}$/.test(code) ? { code } : {}),
+    }),
+  )
   process.exit(1)
 })
