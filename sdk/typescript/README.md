@@ -70,3 +70,8 @@ Watch first yields `ready`, then changes. `files.url(path,'GET'|'PUT')` grants t
 for at most one minute. Processes outlive client disconnects; output replay, SDK collection and
 line buffers are bounded and report truncation or overflow. The thin direct client is
 `pryx.agent(id)`. See [agent.md](../../docs/agent.md) for scope, expiry and network details.
+
+Sandbox creation accepts `isolation` as `container`, `process` or `wasm`. On wasm, omit
+`image`; optional `packages` contains agentOS registry names. Processes, terminals and files
+use the same handles. Wasm sleep retains files and recreates compute, so processes and terminals
+end. See [tiers.md](../../docs/tiers.md) for the comparison and runtime limits.

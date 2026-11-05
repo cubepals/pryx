@@ -7,6 +7,8 @@ node_id = "fra-box-1"
 # The Blockly deployment this host serves. Containers of another deployment are never adopted.
 deployment_id = "staging"
 state_dir = "/var/lib/pryxd"
+# container, process or wasm; each node provides its configured runtime.
+runtime = "container"
 
 [api]
 # The mTLS workload API. Bind the private or WireGuard address, never a public one.
@@ -30,6 +32,15 @@ listen = "127.0.0.1:7070"
 socket = "/var/run/docker.sock"
 network = "blockly-workloads"                  # created with inter-container traffic off
 pull_timeout_seconds = 1200
+
+[wasm]
+# Used only with runtime = "wasm"; install the pinned release distribution here.
+distribution = "/usr/local/lib/pryx/agentos"
+# A root daemon drops its worker to these reserved IDs; keep them consistent across the fleet.
+worker_uid = 60000
+worker_gid = 60000
+max_ingress_requests = 8
+# launcher_executable = "/usr/local/bin/pryxd"   # defaults to the running daemon executable
 
 [network]
 port_range = [42000, 42999]

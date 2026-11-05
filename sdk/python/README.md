@@ -81,3 +81,8 @@ compute while retaining data. Mutations are sent once.
 Watches first yield `ready`. Data access selects the node automatically while compute is stopped.
 `pryx.agent(id)` exposes the direct transport. Tokens are cached and never send the project key
 to an agent. See [agent.md](../../docs/agent.md) for security and stream limits.
+
+Sandbox creation accepts `isolation` as `container`, `process` or `wasm`. On wasm, omit
+`image`; optional `packages` contains agentOS registry names. Processes, terminals and files
+use the same handles. Wasm sleep retains files and recreates compute, so processes and terminals
+end. See [tiers.md](../../docs/tiers.md) for the comparison and runtime limits.

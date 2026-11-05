@@ -1,6 +1,7 @@
 # Architecture
 
-pryxd runs hardened containers or restricted process trees and owns their local files. Control owns desired sandbox state,
+pryxd runs containers, restricted native process trees or agentOS WebAssembly VMs and owns
+their local files. Control owns desired sandbox state,
 placement epochs and the Postgres ledger, and reaches hosts only through pryxd's mutual-TLS API.
 Edge is the public entry point: it polls routes, reads TLS SNI or HTTP Host (or uses a dedicated
 TCP port), holds bytes while control wakes a sandbox, then relays them. Applications receive
@@ -37,7 +38,10 @@ requests. XFS reflink shares unchanged blocks; other filesystems may require a f
 The container tier fixes capabilities, filesystem mounts, network rules and allowed image prefixes
 through host policy. The process tier uses the bundled userland, Landlock, seccomp, rlimits and
 sampled resident memory without creating namespaces; its weaker boundary is described in
-[process-tier.md](process-tier.md). Placement enforces the requested isolation tier. A sandbox
+[process-tier.md](process-tier.md). The wasm tier uses a virtual kernel with WebAssembly and V8
+in a shared unprivileged sidecar; SQLite and the explicit data mount survive recreation, while
+processes and terminals end on sleep. Its limits and API mapping are in [agentos.md](agentos.md);
+[tiers.md](tiers.md) compares all three. Placement enforces the requested isolation tier. A sandbox
 request cannot loosen host policy. MicroVMs are not advertised. Workload ports are private; only
 configured control/edge sources may dial them.
 
@@ -49,7 +53,7 @@ for failover when the optional store lease is off.
 
 | Failure | pryx behavior | Caller sees |
 | --- | --- | --- |
-| Daemon crash | Existing containers continue; daemon reconciles on restart | Operations wait/fail; data stays |
+| Daemon crash | Containers continue; the owned wasm worker stops, retaining files for a fresh control ensure | Operations wait/fail; data stays |
 | Docker restart | live-restore keeps containers; otherwise report stopped/crashed | Unavailable operations until recovery |
 | Host reboot | Resume only after control authorizes | Temporary interruption |
 | Host loss / partition | No timer creates another running copy | Unknown/unavailable; operator fences before rebuild |

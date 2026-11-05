@@ -38,7 +38,8 @@ sandbox; remove that retaining sandbox when the snapshot is no longer needed. Us
 for a later job. Linux x86_64 is the binary release target.
 
 
-pryxd is a sandbox node daemon for Linux hosts. It runs hardened containers for a control plane
+pryxd is a sandbox node daemon for Linux hosts. It runs containers, restricted native processes
+and agentOS WebAssembly VMs for a control plane
 that chooses where each sandbox belongs, and exposes the workload API in [docs/protocol.md](docs/protocol.md).
 
 **What it does:** enrolls with the control plane and proves who it is with its own key; runs,
@@ -65,6 +66,14 @@ cargo test --locked                                          # unit, API, lifecy
 sudo cargo test --locked --test docker -- --ignored          # against a real Docker daemon, as root
 cargo test --release --test storage_bench -- --ignored --nocapture   # snapshot/archive costs on this disk
 cargo deny --locked check                                    # advisories, licenses, bans, sources (deny.toml)
+```
+
+The real wasm tests require the verified sidecar distribution. Before running `cargo test`,
+stage it into a new directory and export its path:
+
+```sh
+python3 scripts/fetch-agentos.py /tmp/pryx-agentos-test
+export PRYX_AGENTOS_DISTRIBUTION=/tmp/pryx-agentos-test
 ```
 
 The control plane is tested against a real pryxd too: CI's `contract` job builds this checkout
@@ -251,4 +260,6 @@ docker run -p 8080:8080 ghcr.io/cubepals/pryx:0.1.0
 ```
 
 Without a Docker socket it selects the lighter process tier. Read [deployment instructions](docs/deploy.md)
-and its [isolation limits](docs/process-tier.md) before choosing a tier.
+and the [three-tier comparison](docs/tiers.md) before choosing a tier. The same image includes
+agentOS: `PRYX_DEFAULT_TIER=wasm` selects it without a Docker socket or added privileges.
+Its [runtime and persistence limits](docs/agentos.md) differ from the native process tier.
