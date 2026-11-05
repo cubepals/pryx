@@ -49,14 +49,13 @@ import { runtimeKey } from '../src/runtime-model.ts'
 import { rows } from '../src/sql.ts'
 import { S3ArchiveStore } from '../src/store.ts'
 import { freshDatabase, hasDatabase } from '../test/nodes.ts'
+import { BIN, type Daemon, daemon, SUDO } from './fleet-daemon.ts'
 import { nodeConfigFor } from './runtime-config.ts'
 import { SUPERVISOR } from './supervisor.ts'
 import { createTestBucket } from './test-bucket.ts'
 import { freePort, until } from './waits.ts'
 
 const env = process.env
-const BIN = env.PRYXD_BIN ?? new URL('../../target/debug/pryxd', import.meta.url).pathname
-const SUDO = env.PRYXD_SUDO === '1'
 const S3 = env.S3_TEST_ENDPOINT
 const ready = Boolean(BIN && existsSync(BIN) && S3 && hasDatabase && existsSync('/var/run/docker.sock'))
 
@@ -96,60 +95,6 @@ const SPEC: RuntimeSpec = {
   ],
   stop: { signal: 'SIGTERM', timeoutSeconds: 5 },
   labels: { 'blockly.server': 'e2e' },
-}
-
-interface Daemon {
-  config: string
-  log: string
-  opsPort: number
-  start: () => void
-  kill: (signal: 'KILL' | 'TERM') => void
-  /** `pryxd join` on this node, with a stand-in for systemctl that stops and starts it. */
-  join: (token: string) => ReturnType<typeof spawnSync>
-}
-
-/** pryxd serving `config` as a process of its own, as root, with its log in `home`. */
-function daemon(home: string, config: string, opsPort: number): Daemon {
-  const log = join(home, 'pryxd.log')
-  return {
-    config,
-    log,
-    opsPort,
-    start: () => {
-      const out = openSync(log, 'a')
-      const command = [BIN ?? '', 'serve', '--config', config, '--log-format', 'pretty']
-      Bun.spawn(SUDO ? ['sudo', '-n', ...command] : command, {
-        stdout: out,
-        stderr: out,
-      })
-    },
-    kill: (signal) => {
-      const pkill = ['pkill', `-${signal}`, '-f', '--', `--config ${config}`]
-      spawnSync(SUDO ? 'sudo' : (pkill[0] ?? 'pkill'), SUDO ? ['-n', ...pkill] : pkill.slice(1))
-    },
-    join: (token) => {
-      // `serve --config`, so the pattern never matches the join that runs this.
-      const serving = `serve --config ${config}`
-      const systemctl = join(home, 'systemctl')
-      writeFileSync(
-        systemctl,
-        [
-          '#!/bin/sh',
-          'case "$1" in',
-          `stop) pkill -TERM -f -- '${serving}'; while pgrep -f -- '${serving}' >/dev/null; do sleep 0.2; done ;;`,
-          `start|restart) nohup '${BIN}' ${serving} --log-format pretty >>'${log}' 2>&1 & ;;`,
-          'esac',
-          '',
-        ].join('\n'),
-        { mode: 0o755 },
-      )
-      const command = [BIN ?? '', 'join', token, '--config', config, '--systemctl', systemctl]
-      return spawnSync(SUDO ? 'sudo' : (command[0] ?? ''), SUDO ? ['-n', ...command] : command.slice(1), {
-        encoding: 'utf8',
-        timeout: 3 * MINUTE_MS,
-      })
-    },
-  }
 }
 
 /** The node endpoint at `url`, on Node as production runs it (endpoint.e2e.ts says why), with this CA. */
