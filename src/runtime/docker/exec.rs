@@ -5,6 +5,10 @@
 
 use super::*;
 
+// Docker exposes exec inspection, but no exec wait endpoint. Avoid a 20 ms quantization after EOF.
+const EXIT_POLL: Duration = Duration::from_millis(4);
+const KILLED_EXIT_WAIT: Duration = Duration::from_secs(1);
+
 impl DockerRuntime {
     pub(super) async fn exec_command(
         &self,
@@ -58,6 +62,8 @@ impl DockerRuntime {
                     }
                 }
             }
+            // Output can close while the process still runs. The execution deadline covers both.
+            result.exit_code = self.exec_exit(&exec_id).await?;
             Ok::<(), RuntimeError>(())
         };
         match tokio::time::timeout(timeout, collect).await {
@@ -73,18 +79,30 @@ impl DockerRuntime {
             }
         }
         drop(output);
-        // The exit code lands a moment after the stream ends.
-        for _ in 0..50 {
-            let inspect = quick("inspect exec", self.docker()?.inspect_exec(&exec_id)).await?;
-            if inspect.running != Some(true) {
-                result.exit_code = inspect.exit_code;
-                break;
+        if result.timed_out {
+            if result.killed {
+                match tokio::time::timeout(KILLED_EXIT_WAIT, self.exec_exit(&exec_id)).await {
+                    Ok(Ok(code)) => result.exit_code = code,
+                    Ok(Err(error)) => return Err(error),
+                    Err(_) => {}
+                }
+            } else {
+                let inspect = quick("inspect exec", self.docker()?.inspect_exec(&exec_id)).await?;
+                if inspect.running != Some(true) {
+                    result.exit_code = inspect.exit_code;
+                }
             }
-            if result.timed_out && !result.killed {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(20)).await;
         }
         Ok(result)
+    }
+
+    async fn exec_exit(&self, exec_id: &str) -> Result<Option<i64>, RuntimeError> {
+        loop {
+            let inspect = quick("inspect exec", self.docker()?.inspect_exec(exec_id)).await?;
+            if inspect.running != Some(true) {
+                return Ok(inspect.exit_code);
+            }
+            tokio::time::sleep(EXIT_POLL).await;
+        }
     }
 }
