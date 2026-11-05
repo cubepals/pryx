@@ -20,7 +20,10 @@ Cold creation uses a new sandbox identity, no template and a locally available r
 It includes API admission and running acknowledgement. `true` and `echo hi` use the real agent
 through the edge. Cold and 50-way cohorts use an explicit common 64 MiB / 10 CPU-millis unit;
 package cohorts use 512 MiB / 250 CPU-millis. These are measurement configurations, not a
-capacity claim or replacement for the product's normal unit defaults.
+capacity claim or replacement for the product's normal unit defaults. Enforcement differs:
+container uses cgroups, process uses native limits and priority, and wasm uses virtual heap/process
+bounds in a shared worker without a per-VM CPU-rate quota. Equal requests do not imply identical
+host enforcement.
 
 Memory is proportional resident memory from Linux `smaps_rollup`, in bytes, including the
 node's process tree and container workload trees. Reports distinguish fixed node memory

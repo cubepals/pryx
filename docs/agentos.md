@@ -66,6 +66,8 @@ Host-owned `wasm.max_ingress_requests` (default eight) bounds simultaneous expos
 requests across VMs, in addition to each VM's connection and upstream frame bounds. Process
 counts and JavaScript, Python and WASM heap settings come from the declared resource envelope.
 These virtual runtime bounds are not per-VM Linux cgroups; the sidecar is a shared fault domain.
+Requested CPU-millis count toward control admission, but this shared worker does not enforce a
+per-VM CPU rate. Host service limits must bound the worker as a whole.
 
 ## API mapping
 
@@ -83,6 +85,10 @@ These virtual runtime bounds are not per-VM Linux cgroups; the sidecar is a shar
 Application ingress supports HTTP over TCP. UDP is rejected at admission; raw TCP, TLS
 passthrough and application WebSockets are unavailable through this pinned streaming HTTP API.
 The agent API itself retains its authenticated WebSocket terminal and streaming routes.
+All listeners use the host-selected audience addresses. Safe GET/HEAD requests may wait up to
+three seconds for a newly starting listener; mutations and started responses are never repeated.
+The default wasm terminal uses the bundled shell's minimal input backend to preserve pasted
+multi-line commands; its rich line editor drops subsequent pasted lines in the pinned release.
 
 Requests authenticate with the same scoped, expiring sandbox capabilities as the other tiers.
 Project credentials never enter the guest. Commands execute inside the VM. A virtual PID is

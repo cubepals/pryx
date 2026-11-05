@@ -94,6 +94,27 @@ impl Ports {
         if ports.len() > usize::from(MAX_SPARE_PORTS) || ports.contains(&agent_port) || ports.contains(&0) {
             return Err(std::io::ErrorKind::InvalidInput.into());
         }
+        let mut listeners = Vec::new();
+        for port in &ports {
+            listeners.push((*port, vec![TcpListener::bind((std::net::Ipv4Addr::UNSPECIFIED, *port)).await?]));
+        }
+        Self::bind_listeners(sandbox, domain, agent_port, listeners, checkpoint, telemetry, forward).await
+    }
+
+    /// Embedded runtimes bind the host policy's addresses before handing listeners to the agent.
+    pub async fn bind_listeners(
+        sandbox: String,
+        domain: String,
+        agent_port: u16,
+        listeners: Vec<(u16, Vec<TcpListener>)>,
+        checkpoint: Option<DataDir>,
+        telemetry: Arc<Telemetry>,
+        forward: Option<Arc<dyn crate::guest::Forward>>,
+    ) -> std::io::Result<Arc<Self>> {
+        let ports = listeners.iter().map(|(port, _)| *port).collect::<Vec<_>>();
+        if ports.len() > usize::from(MAX_SPARE_PORTS) || ports.contains(&agent_port) || ports.contains(&0) {
+            return Err(std::io::ErrorKind::InvalidInput.into());
+        }
         let restored: PortState = match &checkpoint {
             Some(data) => state::read(data, PORTS_PATH)?,
             None => PortState::default(),
@@ -111,10 +132,11 @@ impl Ports {
         }
         let mut slots = Vec::new();
         let mut tasks = Vec::new();
-        for (index, port) in ports.into_iter().enumerate() {
-            let listener = TcpListener::bind((std::net::Ipv4Addr::UNSPECIFIED, port)).await?;
+        for (index, (port, listeners)) in listeners.into_iter().enumerate() {
             let target = watch::channel(restored.targets.get(index).copied().flatten()).0;
-            tasks.push(tokio::spawn(serve(listener, target.subscribe(), telemetry.clone(), forward.clone())));
+            for listener in listeners {
+                tasks.push(tokio::spawn(serve(listener, target.subscribe(), telemetry.clone(), forward.clone())));
+            }
             slots.push(Slot { port, target });
         }
         Ok(Arc::new(Self {

@@ -38,19 +38,18 @@ pub(super) async fn start(
     let root = spec.data_dir.join(super::boot::CONTENT_DIRECTORY);
     let telemetry = Arc::new(pryx_agent::telemetry::Telemetry::default());
     let logs = Arc::new(pryx_agent::logbook::Logbook::open(&root).map_err(super::error)?);
-    let port = |logical| {
-        spec.ports
-            .iter()
-            .find(|p| p.container_port == logical)
-            .map(|p| p.host_port)
-            .ok_or_else(|| super::error("Missing wasm host port"))
-    };
     let network = Arc::new(super::network::Network::new(vm.clone(), ingress));
-    let ports = pryx_agent::ports::Ports::bind_with_forward(
+    let mut spares = Vec::new();
+    for logical in &boot.spare_ports {
+        let binding = binding(spec, *logical)?;
+        spares.push((binding.host_port, listeners(binding).await?));
+    }
+    let agent_binding = binding(spec, boot.agent_port)?;
+    let ports = pryx_agent::ports::Ports::bind_listeners(
         boot.sandbox.clone(),
         boot.domain.clone(),
-        port(boot.agent_port)?,
-        boot.spare_ports.iter().map(|p| port(*p)).collect::<Result<_, _>>()?,
+        agent_binding.host_port,
+        spares,
         Some(DataDir::open_owned(&root, owner).map_err(super::error)?),
         telemetry.clone(),
         Some(network.clone()),
@@ -72,19 +71,17 @@ pub(super) async fn start(
         telemetry,
         logs,
     });
-    let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::UNSPECIFIED, port(boot.agent_port)?))
-        .await
-        .map_err(super::error)?;
-    let server = super::frontend::Frontend::start(listener, pryx_agent::server::router(agent.clone()));
-    let mut servers = vec![server];
+    let mut servers = Vec::new();
+    for listener in listeners(agent_binding).await? {
+        servers.push(super::frontend::Frontend::start(listener, pryx_agent::server::router(agent.clone())));
+    }
     for binding in &spec.ports {
         if binding.container_port == boot.agent_port || boot.spare_ports.contains(&binding.container_port) {
             continue;
         }
-        let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::UNSPECIFIED, binding.host_port))
-            .await
-            .map_err(super::error)?;
-        servers.push(super::frontend::Frontend::forward(listener, network.clone(), binding.container_port));
+        for listener in listeners(binding).await? {
+            servers.push(super::frontend::Frontend::forward(listener, network.clone(), binding.container_port));
+        }
     }
     let mut live =
         Live { vm, agent, entrypoint: None, status, servers: Mutex::new(servers), tasks: Mutex::new(Vec::new()) };
@@ -112,6 +109,21 @@ pub(super) async fn start(
     }
     live.tasks.lock().unwrap().push(tokio::spawn(activity_task(live.agent.clone())));
     Ok(live)
+}
+
+fn binding(spec: &ContainerSpec, logical: u16) -> Result<&super::PortBinding, RuntimeError> {
+    spec.ports.iter().find(|p| p.container_port == logical).ok_or_else(|| super::error("Missing wasm host port"))
+}
+
+async fn listeners(binding: &super::PortBinding) -> Result<Vec<tokio::net::TcpListener>, RuntimeError> {
+    if binding.host_ips.is_empty() {
+        return Err(super::error("Missing wasm host binding address"));
+    }
+    let mut listeners = Vec::new();
+    for ip in &binding.host_ips {
+        listeners.push(tokio::net::TcpListener::bind((*ip, binding.host_port)).await.map_err(super::error)?);
+    }
+    Ok(listeners)
 }
 
 async fn logs_task(process: Arc<Process>, logs: Arc<pryx_agent::logbook::Logbook>) {
@@ -180,5 +192,29 @@ impl Drop for Live {
         for task in self.tasks.lock().unwrap().drain(..) {
             task.abort();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn listeners_use_only_the_host_selected_addresses() {
+        let ip = std::net::Ipv4Addr::new(127, 0, 0, 2);
+        let mut binding = super::super::PortBinding {
+            container_port: 3000,
+            host_port: 0,
+            host_ips: vec![ip.into()],
+            protocol: crate::protocol::Proto::Tcp,
+        };
+        let bound = listeners(&binding).await.unwrap();
+        assert_eq!(bound.len(), 1);
+        let address = bound[0].local_addr().unwrap();
+        assert_eq!(address.ip(), ip);
+        assert!(tokio::net::TcpStream::connect(address).await.is_ok());
+        assert!(tokio::net::TcpStream::connect((std::net::Ipv4Addr::LOCALHOST, address.port())).await.is_err());
+        binding.host_ips.clear();
+        assert!(listeners(&binding).await.is_err());
     }
 }

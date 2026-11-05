@@ -63,11 +63,16 @@ impl Backend for Guest {
         if self.status.load(Ordering::Acquire) != super::VM_RUNNING {
             return Err(ProcessError::Invalid("VM is closed"));
         }
-        let (command, args) = match request.command {
+        let (command, mut args) = match request.command {
             Command::Shell(script) => ("sh".into(), vec!["-c".into(), script]),
             Command::Argv(mut argv) if !argv.is_empty() && !argv[0].is_empty() => (argv.remove(0), argv),
             _ => return Err(ProcessError::Invalid("empty command")),
         };
+        // Bundled brush-shell's reedline input drops subsequent pasted lines on this PTY.
+        // Select brush's documented minimal input backend for ordered batched stdin.
+        if request.pty && command == "sh" && args.is_empty() {
+            args.extend(["--input-backend".into(), "minimal".into()]);
+        }
         let mut env = self.environment.clone();
         env.extend(request.env);
         let cwd = Some(request.cwd.unwrap_or_else(|| self.cwd.clone()));
@@ -270,3 +275,84 @@ impl Remote {
 }
 
 type Page = (Vec<(ProcessStream, Vec<u8>)>, Option<u64>, bool, bool, Option<i32>);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn real_terminal_exit_and_immediate_http_listener() {
+        let assets = std::env::var_os("PRYX_AGENTOS_DISTRIBUTION")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| crate::config::WasmConfig::default().distribution);
+        let options = super::super::boot::options(
+            None,
+            &assets,
+            &super::super::boot::binary(&assets),
+            &uuid::Uuid::new_v4().to_string(),
+            (rustix::process::geteuid().as_raw(), rustix::process::getegid().as_raw()),
+        )
+        .unwrap();
+        let vm = AgentOs::create(options).await.unwrap();
+        immediate_http(&vm).await;
+        let guest = Guest::new(
+            vm.clone(),
+            Default::default(),
+            "/".into(),
+            Arc::new(std::sync::atomic::AtomicU8::new(super::super::VM_RUNNING)),
+        );
+        let terminal = guest
+            .spawn(
+                Start {
+                    command: Command::Argv(vec!["sh".into()]),
+                    env: Default::default(),
+                    cwd: None,
+                    stdin: true,
+                    pty: true,
+                    cols: None,
+                    rows: None,
+                    timeout: None,
+                },
+                None,
+            )
+            .unwrap();
+        terminal.write(b"printf 'cli:%s\\n' ready\nexit\n").await.unwrap();
+        let result = tokio::time::timeout(Duration::from_secs(20), terminal.wait()).await;
+        if result.is_err() {
+            let (events, _) = terminal.subscribe().await;
+            eprintln!("terminal retained events: {events:?}");
+            eprintln!("shells: {:?}", vm.list_shells());
+        }
+        assert_eq!(result.unwrap().code, Some(0));
+        vm.shutdown().await.unwrap();
+    }
+
+    async fn immediate_http(vm: &AgentOs) {
+        let process = vm
+            .spawn_process(
+                "node",
+                vec![
+                    "-e".into(),
+                    "require('node:http').createServer((req,res)=>res.end('ready')).listen(3000,'0.0.0.0')".into(),
+                ],
+                SpawnOptions::default(),
+            )
+            .unwrap();
+        let head = super::super::network::start(
+            vm,
+            agentos_client::net::HttpRequest {
+                port: 3000,
+                path: "/".into(),
+                method: "GET".into(),
+                headers: Default::default(),
+                body: None,
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(head.status, hyper::StatusCode::OK.as_u16());
+        assert_eq!(vm.http_request_stream_read(&head.stream_id, 1024).await.unwrap().body, b"ready");
+        vm.signal_process_awaited(process.pid, "SIGTERM").await.unwrap();
+        vm.wait_process(process.pid).await.unwrap();
+    }
+}

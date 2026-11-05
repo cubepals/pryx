@@ -76,8 +76,9 @@ async fn forward(
 ) -> anyhow::Result<Response<Body>> {
     let (parts, body) = request.into_parts();
     let body = axum::body::to_bytes(Body::new(body), agentos_sidecar_client::wire::DEFAULT_MAX_FRAME_BYTES).await?;
-    let head = vm
-        .http_request_stream_start(HttpRequest {
+    let head = start(
+        &vm,
+        HttpRequest {
             port,
             path: parts.uri.path_and_query().map_or("/", |p| p.as_str()).into(),
             method: parts.method.as_str().into(),
@@ -87,8 +88,9 @@ async fn forward(
                 .filter_map(|(name, value)| value.to_str().ok().map(|value| (name.to_string(), value.to_owned())))
                 .collect(),
             body: (!body.is_empty()).then(|| FileContent::Bytes(body.to_vec())),
-        })
-        .await?;
+        },
+    )
+    .await?;
     let state = Ingress { vm, id: head.stream_id, done: false, _permit: permit };
     let stream = futures_util::stream::try_unfold(state, |mut state| async move {
         if state.done {
@@ -105,6 +107,26 @@ async fn forward(
         }
     }
     Ok(response.body(Body::from_stream(stream))?)
+}
+
+pub(super) async fn start(vm: &AgentOs, request: HttpRequest) -> anyhow::Result<agentos_client::net::HttpStreamHead> {
+    // RFC 9110 section 9.2.1 defines GET/HEAD as safe. A newly spawned Node listener can
+    // still be starting; retry only these safe requests after a kernel rejection before
+    // a response head. Never repeat a mutation, an HTTP response or a stream read.
+    let safe = matches!(request.method.as_str(), "GET" | "HEAD");
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(3);
+    loop {
+        match vm.http_request_stream_start(request.clone()).await {
+            Err(error)
+                if safe
+                    && tokio::time::Instant::now() < deadline
+                    && matches!(error.downcast_ref(), Some(agentos_client::ClientError::Kernel { .. })) =>
+            {
+                tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            }
+            result => return result,
+        }
+    }
 }
 
 struct Ingress {
