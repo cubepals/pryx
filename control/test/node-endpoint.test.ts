@@ -13,7 +13,8 @@ import { mkdtempSync, writeFileSync } from 'node:fs'
 import { connect, createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { FleetCa } from '../src/ca.ts'
+import { StatusCodes } from 'http-status-codes'
+import { FleetCa, nodeName } from '../src/ca.ts'
 import type { Db } from '../src/database.ts'
 import { MINUTE_MS } from '../src/durations.ts'
 import { type NodeEndpointOptions, startNodeEndpoint } from '../src/node-endpoint.ts'
@@ -76,6 +77,36 @@ describe.skipIf(!hasDatabase)('the node endpoint listens once it is bound', () =
     names: { dns: [], ips: ['127.0.0.1'] },
     pryxdBin: '/nonexistent/pryxd',
     upgrades: false,
+  })
+
+  test('Bun TLS requests verify the CA, client usage and node identity before registry access', async () => {
+    const port = await freePort()
+    const endpoint = await startNodeEndpoint(options(port))
+    const id = crypto.randomUUID()
+    const client = await ca.identity(nodeName(id, 'endpoint'), 'client', 1)
+    const wrongName = await ca.identity(nodeName(crypto.randomUUID(), 'endpoint'), 'client', 1)
+    const wrongUsage = await ca.identity(nodeName(id, 'endpoint'), 'server', 1)
+    const otherPems = await FleetCa.generate('other')
+    const otherCa = await FleetCa.fromPem(otherPems.certPem, otherPems.keyPem)
+    const untrusted = await otherCa.identity(nodeName(id, 'endpoint'), 'client', 1)
+    const request = (identity?: { certPem: string; keyPem: string }) =>
+      fetch(`https://127.0.0.1:${port}/fleet/v1/nodes/${id}/heartbeat`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', connection: 'close' },
+        body: JSON.stringify({ nodeId: id, workloads: [] }),
+        tls: { ca: ca.pem, ...(identity ? { cert: identity.certPem, key: identity.keyPem } : {}) },
+      })
+    try {
+      expect((await request()).status).toBe(StatusCodes.UNAUTHORIZED)
+      expect((await request(untrusted)).status).toBe(StatusCodes.UNAUTHORIZED)
+      expect((await request(wrongName)).status).toBe(StatusCodes.FORBIDDEN)
+      expect((await request(wrongUsage)).status).toBe(StatusCodes.UNAUTHORIZED)
+      const valid = await request(client)
+      expect(valid.status).toBe(StatusCodes.NOT_FOUND)
+      expect((await valid.json()).error.code).toBe('unknown_node')
+    } finally {
+      await endpoint.stop()
+    }
   })
 
   /** endpoint.e2e.ts on `port`, and what it writes to stdout until it says it listens or exits. */

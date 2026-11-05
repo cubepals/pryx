@@ -17,10 +17,10 @@
 
 import { createHash, randomBytes } from 'node:crypto'
 import { once } from 'node:events'
-import { createServer, type Server } from 'node:https'
+import { createServer as createHttpServer } from 'node:http'
 import { hostname } from 'node:os'
-import type { TLSSocket } from 'node:tls'
-import { type HttpBindings, serve } from '@hono/node-server'
+import { createServer as createTlsServer, type TLSSocket } from 'node:tls'
+import { getRequestListener, type HttpBindings } from '@hono/node-server'
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
@@ -161,13 +161,12 @@ export async function startNodeEndpoint(options: NodeEndpointOptions): Promise<{
       ips: options.names.ips,
     })
   const first = await identity()
-  const server = serve({
-    overrideGlobalObjects: false,
-    fetch: app.fetch,
-    hostname: options.listen.host,
-    port: options.listen.port,
-    createServer,
-    serverOptions: {
+  const connections = new Set<TLSSocket>()
+  const http = createHttpServer(getRequestListener(app.fetch, { overrideGlobalObjects: false }))
+  // Bun's HTTPS compatibility socket omits peer-certificate access. A real TLS socket
+  // handed to the HTTP parser preserves CA verification and the node's certificate identity.
+  const server = createTlsServer(
+    {
       key: first.keyPem,
       cert: first.certPem,
       ca: [ca.pem],
@@ -176,8 +175,14 @@ export async function startNodeEndpoint(options: NodeEndpointOptions): Promise<{
       rejectUnauthorized: false,
       minVersion: 'TLSv1.3',
     },
-  }) as unknown as Server
-  // serve() returns before the port is bound. Whoever is told the endpoint listens may dial it at
+    (socket) => {
+      connections.add(socket)
+      socket.once('close', () => connections.delete(socket))
+      http.emit('connection', socket)
+    },
+  )
+  server.listen(options.listen.port, options.listen.host)
+  // listen() returns before the port is bound. Whoever is told the endpoint listens may dial it at
   // once (a node joining right after a restart), and a port that can't be bound fails the start.
   if (!server.listening) await once(server, 'listening')
   const renewal = setInterval(() => {
@@ -215,7 +220,10 @@ export async function startNodeEndpoint(options: NodeEndpointOptions): Promise<{
     stop: async () => {
       clearInterval(renewal)
       clearInterval(presence)
-      await new Promise<void>((resolve) => server.close(() => resolve()))
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve())
+        for (const socket of connections) socket.destroy()
+      })
     },
   }
 }
