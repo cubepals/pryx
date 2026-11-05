@@ -283,3 +283,13 @@ launcher costs about 1 ms compared with the earlier unguarded process cohort on 
 that is an observation, not a controlled causal estimate. The same-host container comparison
 retains its 1,004.62 ms wake p90 rather than rounding it below a second. The process wake p90 is
 15.60 ms. Earlier failed cohorts remain above and in raw reports.
+
+## Native celld comparison
+
+[CI 42077009774](https://github.com/cubepals/pryx/actions/runs/42077009774) completes n=30 for
+both engines using the same patched celld 0.6.3 executable and host. Backend-start p50/p90 is
+142/154 ms locally and 215/233 ms through pryx; start through first HTTP response is
+1,881.78/1,889.72 ms locally and 1,274.87/1,284.34 ms through pryx. Warm HTTP is
+5.50/5.72 ms locally and 5.74/7.24 ms through pryx. These are observed costs, with no additional
+speed threshold in K13. [docker-api.md](docker-api.md) records the method, limits and complete
+raw samples, including the retained failed initial cohort and unshipped socket experiment.

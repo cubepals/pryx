@@ -12,9 +12,12 @@ creation blocks replacement until reconciled. Distributed deployment needs a rem
 handoff before this backend can be enabled there.
 
 Prepared against public release 0.6.3 at commit 8702f6d186c77698dbfb30cf29e3b1922a88f008.
-Locked cargo check and the three actual-filesystem journal tests pass locally. An executable
-build before the injected-journal refinement reports release 0.6.3; the refined build is assigned to CI. The unchanged upstream container example remains assigned to CI, with no local success claim. CI collects 30 start and
-HTTP samples for both engines on the same host. No upstream pull request, issue or message was sent.
+Locked cargo check and three actual-filesystem journal tests pass locally. CI 42077009774 builds
+the refined executable and passes the unchanged upstream container example through both engines,
+30 samples each on the same host/profile. Backend-start p90 is 154 ms locally and 233 ms through
+pryx; warm HTTP p90 is 5.72 and 7.24 ms. The Docker-backed example did not run locally. All test
+jobs succeed; GitHub blocks the final aggregate job on an account-level runner-allocation restriction, so the workflow is not
+green. No upstream pull request, issue or message was sent.
 
 Private journal operations use a default-refusing capability on celld's injected filesystem.
 The POSIX host implementation retains private modes, no-follow reads and fsynced atomic replacement;

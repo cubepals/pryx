@@ -26,13 +26,14 @@ is created. Neither credentials nor command environments enter the journal. Pare
 journal symlinks and public permissions are refused. These limits are deliberate fail-closed
 boundaries, not claims of full Docker compatibility.
 
-Local validation: locked `cargo check` against the public release passes. An executable build before the injected-journal refinement passes and reports
-`celld 0.6.3 (debug)`; it retains three existing
-upstream atomic-method deprecation warnings under Rust 1.99.1. Its patch applies cleanly to the
-unmodified reference checkout. The latest journal tests and locked source check pass; the refined executable and Docker-backed example remain for CI. No Docker-backed example has run locally. CI builds this patch
-and runs the release's own `examples/container` Worker, Python server and Dockerfile unchanged
-on both backends, retaining 30 samples per cohort on the same host and executable profile.
-See [docker-api.md](../../../docs/docker-api.md) for measured results and the separate drop-in spike.
+Local validation: locked cargo check and all three filesystem journal tests pass against the
+public release. The patch applies cleanly to the unmodified reference checkout. CI 42077009774
+builds the refined executable and passes the release's unchanged examples/container Worker,
+Python server and Dockerfile on both engines, n=30 each on the same host and executable profile.
+Backend-start p90 is 154 ms locally and 233 ms through pryx; warm HTTP p90 is 5.72 and 7.24 ms.
+No Docker-backed example has run locally. GitHub blocks the final aggregate job on an account-level runner-allocation restriction
+after every test job succeeds, so that whole workflow is not green. See
+[docker-api.md](../../../docs/docker-api.md) for all samples, costs and the separate unshipped spike.
 
 Private journal operations use a default-refusing capability on celld's injected filesystem.
 The POSIX host implementation retains private modes, no-follow reads and fsynced atomic replacement;

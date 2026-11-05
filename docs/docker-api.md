@@ -5,8 +5,10 @@
 The prepared native seam is in [integrations/celld/upstream](../integrations/celld/upstream/README.md),
 based on public celld 0.6.3 at `8702f6d186c77698dbfb30cf29e3b1922a88f008`. It keeps celld's
 coordinator and default Docker implementation and adds a pryx public-API implementation. Its own
-container example is assigned to CI from the patched source build. Validation remains pending;
-no native example success or cost is claimed before that run completes.
+container example passes in [CI 42077009774](https://github.com/cubepals/pryx/actions/runs/42077009774)
+from the patched public source build, through both its local engine and the native pryx backend.
+All 30 samples complete for both engines. GitHub blocks that run's final aggregate job on an account-level
+runner-allocation restriction after every test job succeeds; the overall workflow is not green.
 
 The native backend currently supports celld's single-node development store. Distributed ownership
 is refused until a remote fencing protocol is designed and proven. Host policy owns isolation;
@@ -41,4 +43,28 @@ The [first native experiment](checks/celld-native-initial.json) in the same run 
 prepared patch and passes its three filesystem journal tests, then fails during the local
 engine baseline before any accepted sample. The harness's log file was inside celld dev's
 watched directory, causing hot reload to interrupt its first request. Logs now live outside
-the unchanged example; both complete cohorts remain pending in final CI.
+the unchanged example. The later complete comparison below includes both cohorts.
+
+## Complete native comparison
+
+The [complete raw report](checks/celld-native-complete.json) is from CI 42077009774, source
+8128648, on one two-core Intel Xeon Platinum 8370C host running Linux 7.0.0-1017-azure.
+Both engines use the same patched celld 0.6.3 executable, development profile, debug information
+and incremental compilation disabled. The Worker, Python server, Dockerfile and class configuration
+are unchanged from the public release. Each cell's cleanup is outside its timer. Counts are n=30
+for every row and backend; p50 is the sorted upper median and p90 the nearest-rank observation.
+
+| operation | local engine p50 / p90 ms | native pryx p50 / p90 ms |
+| --- | --- | --- |
+| backend start | 142.00 / 154.00 | 215.00 / 233.00 |
+| start through first HTTP response | 1881.78 / 1889.72 | 1274.87 / 1284.34 |
+| warm HTTP response | 5.50 / 5.72 | 5.74 / 7.24 |
+
+The native backend adds 79 ms to backend-start p90 and 1.52 ms to warm-response p90 on this
+host. Its start-through-first-response sample is lower; that includes celld's readiness and
+polling sequence, and is not attributed to an isolated transport or kernel optimization.
+The seam is prepared and remains limited to the single-node development store as above.
+
+The [repeated unmodified-release socket report](checks/docker-api-spike-complete.json) from
+the same run again reaches discovery and explicitly unsupported image-build operations, exiting
+with failure. It has no start/request samples. The original failed report remains retained.
