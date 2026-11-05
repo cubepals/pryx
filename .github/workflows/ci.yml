@@ -409,6 +409,8 @@ jobs:
           docker cp "$id:/usr/local/lib/pryx/pryx-agent" "$RUNNER_TEMP/pryx-agent"
           docker rm "$id"
           sudo install -D -m 0755 "$RUNNER_TEMP/pryx-agent" /usr/local/lib/pryx/pryx-agent
+          docker builder prune --all --force
+          df -h .
       - name: Measure the K11 agent on this host
         run: |
           PRYXD_BIN="$GITHUB_WORKSPACE/target/debug/pryxd" bun control/bench/agent-speed.ts after "$RUNNER_TEMP/agent-speed-after.json"
@@ -543,6 +545,8 @@ jobs:
           id=$(docker create pryx-one-box-release)
           docker cp "$id:/usr/local/lib/pryx/pryx-agent" dist/pryx-agent
           docker rm -v "$id"
+          docker save pryx-one-box-release | gzip -1 > "$RUNNER_TEMP/pryx-one-box-image.tar.gz"
+          docker image rm pryx-one-box-release
       - name: Prepare the unreleased build artifacts
         run: |
           # The installed daemon is now in dist; placement still needs real disk above its host floor.
@@ -620,6 +624,10 @@ jobs:
       - name: Install and repeat the release image on the host
         run: |
           sudo systemctl stop pryx-edge pryx-control pryxd pryx-postgres pryx-store
+          docker image rm mirror.gcr.io/library/node:22
+          gzip -dc "$RUNNER_TEMP/pryx-one-box-image.tar.gz" | docker load
+          rm "$RUNNER_TEMP/pryx-one-box-image.tar.gz"
+          df -h .
           sudo dist/pryx up --image pryx-one-box-release --domain sandboxes.example.com
           curl -fsS http://127.0.0.1:8080/healthz | jq -e '.isolation == "container"'
           [ "$(PRYX_API_URL=http://127.0.0.1:8080 dist/pryx run --image alpine:3.22 -- echo hello)" = hello ]

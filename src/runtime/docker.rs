@@ -10,9 +10,11 @@
 //! Parts (`docker/`):
 //! - `container.rs`: container construction and observation types.
 //! - `exec.rs`: command attachment and timeout containment.
+//! - `relay.rs`: bounded private ingress to gateway-free internal networks.
 
 mod container;
 mod exec;
+mod relay;
 use container::{body_of, info_from};
 
 use std::collections::{BTreeMap, HashMap};
@@ -77,6 +79,7 @@ pub(crate) fn internal_network(network: &str) -> String {
 pub struct DockerRuntime {
     socket: String,
     client: std::sync::Mutex<Option<Docker>>,
+    relays: relay::Relays,
 }
 
 impl DockerRuntime {
@@ -84,7 +87,7 @@ impl DockerRuntime {
     /// client for a socket that doesn't exist yet), and says so until it's back.
     pub fn new(socket: &Path) -> Result<Self, RuntimeError> {
         let socket = socket.to_str().ok_or_else(|| RuntimeError::Other("socket path is not UTF-8".into()))?.to_owned();
-        Ok(Self { socket, client: std::sync::Mutex::new(None) })
+        Ok(Self { socket, client: std::sync::Mutex::new(None), relays: relay::Relays::default() })
     }
 
     /// Prove the independent cgroup watchdog before enabling the optional host feature.
@@ -327,6 +330,13 @@ impl ContainerRuntime for DockerRuntime {
             self.ensure_internal_network(&spec.network, &spec.labels).await?;
         }
         let mut spec = spec.clone();
+        if spec.internal_network {
+            spec.labels.insert(
+                crate::labels::LABEL_INTERNAL_BINDINGS.into(),
+                serde_json::to_string(&spec.ports)
+                    .map_err(|_| RuntimeError::Other("Cannot encode private bindings".into()))?,
+            );
+        }
         if let Some(agent) = &spec.agent {
             let image = quick("inspect image", self.docker()?.inspect_image(&spec.image)).await?;
             let config = image.config.unwrap_or_default();
@@ -378,7 +388,9 @@ impl ContainerRuntime for DockerRuntime {
     }
 
     async fn start(&self, name: &str) -> Result<(), RuntimeError> {
-        quick("start", self.docker()?.start_container(name, None)).await
+        quick("start", self.docker()?.start_container(name, None)).await?;
+        self.inspect(name).await?;
+        Ok(())
     }
 
     async fn stop(&self, name: &str, signal: &str, grace: Duration) -> Result<(), RuntimeError> {
@@ -421,6 +433,7 @@ impl ContainerRuntime for DockerRuntime {
     }
 
     async fn remove(&self, name: &str) -> Result<(), RuntimeError> {
+        self.relays.stop(name).await;
         // v: anonymous volumes an image declares go with the container instead of leaking; the
         // workload's data is a bind mount, which removal never touches.
         let options = RemoveContainerOptionsBuilder::new().force(true).v(true).build();
@@ -432,7 +445,10 @@ impl ContainerRuntime for DockerRuntime {
 
     async fn inspect(&self, name: &str) -> Result<Option<ContainerInfo>, RuntimeError> {
         match quick("inspect", self.docker()?.inspect_container(name, None)).await {
-            Ok(inspect) => Ok(Some(info_from(inspect))),
+            Ok(inspect) => {
+                self.relays.ensure(&inspect).await?;
+                Ok(Some(info_from(inspect)))
+            }
             Err(RuntimeError::NotFound(_)) => Ok(None),
             Err(e) => Err(e),
         }

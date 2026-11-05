@@ -15,3 +15,6 @@ pub const LABEL_EPOCH: &str = "blocklyd.epoch";
 /// The whole record (minus secrets) as JSON: enough to rebuild pryxd's state from the
 /// runtime alone if the state directory is lost.
 pub(crate) const LABEL_RECORD: &str = "blocklyd.record";
+
+/// Private ingress bindings for gateway-free internal networks; never user-provided.
+pub(crate) const LABEL_INTERNAL_BINDINGS: &str = "blocklyd.internal-bindings";

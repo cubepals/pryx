@@ -65,7 +65,9 @@ pub(super) fn body_of(spec: &ContainerSpec) -> ContainerCreateBody {
             .iter()
             .map(|ip| DockerPortBinding { host_ip: Some(ip.to_string()), host_port: Some(port.host_port.to_string()) })
             .collect();
-        bindings.insert(key, Some(host));
+        if !spec.internal_network {
+            bindings.insert(key, Some(host));
+        }
     }
     let tmpfs = spec.read_only_rootfs.then(|| {
         // exec: the JVM's native transports and some mods load libraries from /tmp, and the data
