@@ -4,6 +4,7 @@ from __future__ import annotations
 from http import HTTPStatus
 from typing import Any, Iterator
 import json
+from uuid import uuid4
 import httpx
 from .generated import AuthenticatedClient
 from .generated.api.default import (
@@ -11,7 +12,6 @@ from .generated.api.default import (
     post_v1_sandboxes_id_snapshots, post_v1_snapshots_snapshot_sandboxes,
 )
 from .generated.models import MakeRequest
-from .generated.types import UNSET
 
 class PryxError(Exception):
     def __init__(self, status: int, envelope: dict[str, Any]):
@@ -43,12 +43,12 @@ class Pryx:
     def __enter__(self): return self
     def __exit__(self, *_): self.close()
     def make(self, body: dict[str, Any] | MakeRequest, key: str | None=None):
-        return _must(post_v1_sandboxes.sync_detailed(client=self._client,body=MakeRequest.from_dict(body) if isinstance(body,dict) else body,idempotency_key=key if key is not None else UNSET))
+        return _must(post_v1_sandboxes.sync_detailed(client=self._client,body=MakeRequest.from_dict(body) if isinstance(body,dict) else body,idempotency_key=key if key is not None else str(uuid4())))
     def get(self, sandbox: str): return _must(get_v1_sandboxes_id.sync_detailed(sandbox,client=self._client))
     def delete(self, sandbox: str): return _must(delete_v1_sandboxes_id.sync_detailed(sandbox,client=self._client))
     def snapshot(self, sandbox: str): return _must(post_v1_sandboxes_id_snapshots.sync_detailed(sandbox,client=self._client))
     def fork(self, snapshot: str, body: dict[str, Any] | None=None, key: str | None=None):
-        return _must(post_v1_snapshots_snapshot_sandboxes.sync_detailed(snapshot,client=self._client,body=MakeRequest.from_dict(body or {}),idempotency_key=key if key is not None else UNSET))
+        return _must(post_v1_snapshots_snapshot_sandboxes.sync_detailed(snapshot,client=self._client,body=MakeRequest.from_dict(body or {}),idempotency_key=key if key is not None else str(uuid4())))
     def request(self, path: str, method="GET", body=None):
         return _checked(self._client.get_httpx_client().request(method,path,json=body)).json()
     def list(self): return self.request("/v1/sandboxes")
@@ -56,6 +56,7 @@ class Pryx:
         if verb not in ("start","stop","sleep","wake","rest"): raise ValueError("Invalid sandbox action")
         return self.request(f"/v1/sandboxes/{sandbox}/{verb}","POST")
     def exec(self, sandbox: str, command: list[str], *, timeout: int | None=None, env: dict[str,str] | None=None, key: str | None=None) -> Iterator[dict[str,Any]]:
+        key = key if key is not None else str(uuid4())
         body={"command":command,**({"timeout":timeout} if timeout is not None else {}),**({"env":env} if env is not None else {})}
         yield from self._lines(f"/v1/sandboxes/{sandbox}/exec","POST",body,{"Idempotency-Key":key} if key else {})
     def logs(self, sandbox: str, *, tail: int | None=None, since: str | None=None, follow=False):

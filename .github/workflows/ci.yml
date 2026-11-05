@@ -311,7 +311,6 @@ jobs:
         with:
           node-version: 22.23.2
       - run: rustup toolchain install
-      - run: cargo build --locked
       - run: bun install --frozen-lockfile
       - name: Pull the test images
         run: |
@@ -333,10 +332,26 @@ jobs:
         run: >-
           docker run -d --name pryx-s3 -p 9000:9000 -e RUSTFS_ACCESS_KEY=blockly-test
           -e RUSTFS_SECRET_KEY=blockly-test-secret ghcr.io/rustfs/rustfs:1.0.0 /data
-      - name: Measure the K9 baseline on one box
+      - name: Check out the pinned K9 baseline
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fe77e673364580efe372a4f685837f219ae7a0a5
+          path: .benchmark-before
+          persist-credentials: false
+      - name: Measure the baseline on the same host
+        run: |
+          cp -a .benchmark-before "$RUNNER_TEMP/pryx-before"
+          cd "$RUNNER_TEMP/pryx-before"
+          export CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target"
+          cargo build --locked
+          bun install --frozen-lockfile
+          PRYX_SPEED_SOURCE="$PWD" PRYXD_BIN="$CARGO_TARGET_DIR/debug/pryxd" bun "$GITHUB_WORKSPACE/control/bench/speed.ts" before "$RUNNER_TEMP/speed-before.json"
+      - name: Build the current daemon
+        run: cargo build --locked
+      - name: Measure K9 handles on one box
         env:
           PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
-        run: bun control/bench/speed.ts before "$RUNNER_TEMP/speed-before.json"
+        run: bun control/bench/speed.ts after "$RUNNER_TEMP/speed-after.json"
       - name: Build a static daemon for isolated nodes
         run: |
           docker build -t pryx-static-test .
@@ -436,20 +451,33 @@ jobs:
         run: |
           cp target/debug/pryxd dist/pryxd
           head -c 64 /dev/zero > dist/pryxd.sig
-          (cd dist && sha256sum pryxd pryxd.sig pryx pryx-control pryx-edge pryx-control-assets.tar.gz > SHA256SUMS)
+          (cd dist && sha256sum pryxd pryxd.sig pryx pryx-control pryx-edge pryx-control-assets.tar.gz install.sh > SHA256SUMS)
           docker pull -q mirror.gcr.io/library/alpine:3.22
           docker tag mirror.gcr.io/library/alpine:3.22 alpine:3.22
-      - name: Install one box twice
+          docker pull -q mirror.gcr.io/library/node:22
+          docker tag mirror.gcr.io/library/node:22 node:22
+          python3 -m http.server 9876 --bind 127.0.0.1 --directory dist > "$RUNNER_TEMP/artifact-server.log" 2>&1 &
+          printf 'Defaults env_keep += "PRYX_RELEASE_BASE_URL"\n' | sudo tee /etc/sudoers.d/pryx-ci-artifacts >/dev/null
+      - name: Four-command quickstart and repeat install
         id: up
         run: |
           started=$(date +%s)
-          output=$(sudo dist/pryx up --domain pryx.test --from-dir "$PWD/dist")
-          key=$(printf '%s\n' "$output" | sed -n 's/^PRYX_API_KEY=//p')
+          export PRYX_RELEASE_BASE_URL=http://127.0.0.1:9876
+          # Only the download origin is replaced for this unreleased build.
+          curl --retry 5 --retry-connrefused -fsSL "$PRYX_RELEASE_BASE_URL/install.sh" | sh
+          output=$(sudo pryx up --domain sandboxes.example.com)
+          key=$(printf '%s\n' "$output" | sed -n 's/^export PRYX_API_KEY=//p')
           [ -n "$key" ]
           printf '::add-mask::%s\n' "$key"
           printf 'key=%s\n' "$key" >> "$GITHUB_OUTPUT"
-          second=$(sudo dist/pryx up --domain pryx.test --from-dir "$PWD/dist")
-          if printf '%s\n' "$second" | grep -q '^PRYX_API_KEY='; then echo 'Repeated the initial key'; exit 1; fi
+          [ "$(pryx run --image alpine:3.22 -- echo hello)" = hello ]
+          made=$(pryx sandbox create --image alpine:3.22 --idle 5m)
+          id=$(printf '%s' "$made" | jq -r .id)
+          pryx sandbox rm "$id"
+          [ "$(printf '%s\n' "$output" | grep -c '^export PRYX_')" = 3 ]
+          second=$(sudo pryx up --domain sandboxes.example.com)
+          if printf '%s\n' "$second" | grep -Fq "$key"; then echo 'Repeated the initial key'; exit 1; fi
+          [ "$(printf '%s\n' "$second" | grep -c '^export PRYX_')" = 3 ]
           echo "One-box elapsed: $(($(date +%s)-started)) seconds" >> "$GITHUB_STEP_SUMMARY"
       - name: Run hello through the compiled CLI
         env:
@@ -474,6 +502,9 @@ jobs:
           python3 -m venv .venv-python
           .venv-python/bin/pip install -e sdk/python
           .venv-python/bin/python -m unittest discover -s sdk/python/test -v
+          .venv-python/bin/python sdk/python/e2e/handles.py
+          bun control/tools/readme-example.ts sdk/typescript/README.md ts bun -
+          bun control/tools/readme-example.ts sdk/python/README.md python .venv-python/bin/python -
       - name: Service journals on failure
         if: failure()
         run: sudo journalctl -u pryx-control -u pryx-edge -u pryx-postgres -u pryx-store -u pryxd --no-pager -n 150

@@ -27,10 +27,25 @@ export async function releaseFiles(source?: string) {
   const dir = source ?? mkdtempSync(join(tmpdir(), 'pryx-release-'))
   if (!source) {
     mkdirSync(dir, { recursive: true })
-    const base = `https://github.com/cubepals/pryx/releases/download/v${PRYX_VERSION}`
+    const base =
+      process.env.PRYX_RELEASE_BASE_URL ??
+      `https://github.com/cubepals/pryx/releases/download/v${PRYX_VERSION}`
+    const origin = new URL(base)
+    if (origin.protocol !== 'https:' && !(origin.protocol === 'http:' && origin.hostname === '127.0.0.1'))
+      throw new Error('Release downloads require HTTPS or loopback HTTP artifacts')
     for (const file of ['SHA256SUMS', ...RELEASE_FILES]) {
       const response = await fetch(`${base}/${file}`)
       if (!response.ok) throw new Error(`Release asset ${file} unavailable`)
+      const destination = new URL(response.url)
+      if (
+        destination.protocol !== 'https:' &&
+        !(
+          origin.protocol === 'http:' &&
+          destination.protocol === 'http:' &&
+          destination.hostname === '127.0.0.1'
+        )
+      )
+        throw new Error('Release redirect left its secure transport')
       writeFileSync(join(dir, file), new Uint8Array(await response.arrayBuffer()))
     }
   }

@@ -6,10 +6,9 @@
 import { spawnSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { cpus, release } from 'node:os'
-import { startEdge } from '../../edge/src/agent.ts'
-import { edgeConfig } from '../../edge/src/config.ts'
-import { Pryx } from '../../sdk/typescript/src/index.ts'
-import { deployment, ready } from '../e2e/deployment.ts'
+import { resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
+import type { Pryx } from '../../sdk/typescript/src/index.ts'
 import { MINUTE_MS } from '../src/durations.ts'
 import type { NodeClient } from '../src/node-client.ts'
 import type { PublicModel } from '../src/public-model.ts'
@@ -20,9 +19,24 @@ const IMAGE = 'alpine:3.22'
 const COLD_IMAGE = 'mirror.gcr.io/library/alpine:3.22'
 const phase = process.argv[2]
 if (phase !== 'before' && phase !== 'after') throw new Error('speed.ts before|after [output.json]')
+const collectorRoot = new URL('../../', import.meta.url).pathname
+const sourceRoot = resolve(process.env.PRYX_SPEED_SOURCE ?? collectorRoot)
+const source = pathToFileURL(`${sourceRoot}/`)
+const { deployment, ready } = (await import(
+  new URL('control/e2e/deployment.ts', source).href
+)) as typeof import('../e2e/deployment.ts')
+const { startEdge } = (await import(
+  new URL('edge/src/agent.ts', source).href
+)) as typeof import('../../edge/src/agent.ts')
+const { edgeConfig } = (await import(
+  new URL('edge/src/config.ts', source).href
+)) as typeof import('../../edge/src/config.ts')
+const { Pryx: MeasuredPryx } = (await import(new URL('sdk/typescript/src/index.ts', source).href)) as {
+  Pryx: typeof Pryx
+}
 if (!ready) throw new Error('Speed measurement requires the real daemon, Docker, Postgres and S3')
 const d = await deployment({ allowedImages: ['alpine:', 'mirror.gcr.io/library/alpine:'] })
-const client = new Pryx({ baseUrl: d.control.apiUrl, apiKey: d.credential.key })
+const client = new MeasuredPryx({ baseUrl: d.control.apiUrl, apiKey: d.credential.key })
 const edge = await startEdge({
   ...edgeConfig({
     PRYX_CONTROL_URL: d.control.apiUrl,
@@ -66,9 +80,15 @@ function summarize(samplesMs: number[]): Measurement {
     samplesMs,
   }
 }
-async function sample<T>(name: string, action: () => Promise<T>, cleanup?: (value: T) => Promise<unknown>) {
+async function sample<T>(
+  name: string,
+  action: () => Promise<T>,
+  cleanup?: (value: T) => Promise<unknown>,
+  setup?: () => Promise<void>,
+) {
   const samples: number[] = []
   for (let index = 0; index < N; index++) {
+    if (setup) await setup()
     const started = performance.now()
     const value = await action()
     samples.push(performance.now() - started)
@@ -97,7 +117,12 @@ try {
   const box = await running(await client.make(spec, crypto.randomUUID()))
   try {
     await exec(box.id, ['sh', '-c', 'true'])
-    await sample('api_exec', () => exec(box.id, ['sh', '-c', 'true']))
+    const handle = phase === 'after' ? await client.sandbox(box.id) : null
+    await sample('api_exec', async () => {
+      if (!handle) return exec(box.id, ['sh', '-c', 'true'])
+      const result = await handle.run('true')
+      if (result.code !== 0 || result.timedOut) throw new Error('Handle command failed')
+    })
     await sample('control_exec', async () => {
       const result = await d.control.sandboxes.exec(box.id, ['sh', '-c', 'true'], 30, 'default')
       if (result.exitCode !== 0) throw new Error('Control exec failed')
@@ -150,6 +175,8 @@ try {
   )
   await sample(
     'create_image_cold',
+    async () => running(await client.make({ ...spec, image: COLD_IMAGE }, crypto.randomUUID())),
+    (box) => client.delete(box.id),
     async () => {
       const references = [IMAGE, COLD_IMAGE].filter(
         (image) => spawnSync('docker', ['image', 'inspect', image], { stdio: 'ignore' }).status === 0,
@@ -162,9 +189,7 @@ try {
         )
       )
         throw new Error('Could not clear the measured image references')
-      return running(await client.make({ ...spec, image: COLD_IMAGE }, crypto.randomUUID()))
     },
-    (box) => client.delete(box.id),
   )
   const tagged = spawnSync('docker', ['tag', COLD_IMAGE, IMAGE])
   if (tagged.status !== 0) throw new Error('Could not restore the test image tag')
@@ -186,7 +211,10 @@ try {
     phase,
     n: N,
     at: new Date().toISOString(),
-    commit: spawnSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).stdout.trim(),
+    commit: spawnSync('git', ['-C', sourceRoot, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).stdout.trim(),
+    collectorCommit: spawnSync('git', ['-C', collectorRoot, 'rev-parse', 'HEAD'], {
+      encoding: 'utf8',
+    }).stdout.trim(),
     machine: {
       platform: process.platform,
       arch: process.arch,

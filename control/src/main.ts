@@ -140,7 +140,7 @@ export async function startControl(
   const publicServer = Bun.serve({
     hostname: publicListen.host,
     port: publicListen.port,
-    fetch: api.app.fetch,
+    fetch: (request, server) => api.app.fetch(request, { beginStream: () => server.timeout(request, 0) }),
   })
   const listen = splitAddress(config.operatorListen)
   const server = Bun.serve({

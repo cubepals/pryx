@@ -36,13 +36,33 @@ for (const [path, methods] of Object.entries(api.paths))
     )
 lines.push(
   '',
-  'Requests and responses are defined in [the OpenAPI document](../control/openapi/pryx.openapi.json). Exec and logs use application/x-ndjson; exec emits stdout/stderr chunks and a final exit event after the node completes its bounded command. File writes take JSON dataBase64; reads return a base64 tar archive. File paths are relative to persistent storage.',
+  'Requests and responses are defined in [the OpenAPI document](../control/openapi/pryx.openapi.json). Exec and logs use application/x-ndjson; exec forwards live stdout/stderr chunks on nodes advertising exec-stream, buffered output on older nodes, a final exit event, and an error event for a failure after headers. File writes take JSON dataBase64; reads return a base64 tar archive. File paths are relative to persistent storage.',
   '',
   'Use a stable Idempotency-Key for retried create or exec requests. Reusing one for different input is refused. An exec with an uncertain outcome is never replayed automatically. Lifecycle operations return the reached sandbox and, for sleep/wake, its tier.',
   '',
   'TTL expires access immediately and upkeep deletes data. Idle is evaluated from activity and live sessions. Templates warm each active node once and retain a stopped snapshot. Public endpoints include their edge hostname/port; private endpoints are reachable only on the private network.',
   '',
   'Errors have the node envelope `{error:{code,message,details}}`. Invalid fields answer 422, missing keys 401, forbidden operations 403, missing resources 404, state conflicts 409, expired TTL 410 and unavailable placement 503. API v1 evolves additively.',
+)
+lines.push(
+  ...[
+    '',
+    '## SDK handles and live commands',
+    '',
+    'The TypeScript and Python SDK READMEs contain executable handle examples. Run values collect',
+    'stdout/stderr and terminal status once, or expose live line/chunk iterators. Make/run generate',
+    'idempotency keys unless supplied and never retry automatically. A stream ending without its',
+    "exit is an unknown outcome. Public exec forwards a feature-capable node's NDJSON; older nodes",
+    'retain their buffered path. Errors after stream headers use an additive error event.',
+    '',
+    '`PUT /v1/sandboxes/{id}/file-chunks/{path}` accepts offset (a 32 KiB boundary) and dataBase64',
+    '(up to 32 KiB decoded); GET with offset returns a bounded base64 tar member named data.',
+    'The SDKs hide this framing, loop to EOF, and create parent directories for writes. Paths are',
+    "relative to persistent storage, without dot segments or symlinks in the write target's walk.",
+    'Chunks run only through container exec and tar; none are extracted on the client or host.',
+    'The existing files endpoints retain their original shapes and bound. Multi-chunk writes',
+    'are not atomic; serialize concurrent writers. Running images need the documented shell tools.',
+  ],
 )
 const output = lines.join('\n') + '\n',
   path = new URL('docs/api.md', root)

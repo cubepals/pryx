@@ -27,6 +27,33 @@ fn thirty() -> u32 {
     30
 }
 
+/// Maximum live frame payload and buffered queue item size.
+pub(crate) const EXEC_CHUNK_BYTES: usize = 16 * 1024;
+
+#[derive(Debug, Serialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub(crate) enum ExecEvent {
+    Stdout {
+        data: String,
+        truncated: bool,
+    },
+    Stderr {
+        data: String,
+        truncated: bool,
+    },
+    #[serde(rename_all = "camelCase")]
+    Exit {
+        code: Option<i64>,
+        timed_out: bool,
+        killed: bool,
+        duration_ms: u64,
+    },
+    Error {
+        error: super::ErrorDetail,
+    },
+}
+
 pub(crate) const MAX_EXEC_ARGS: usize = 256;
 /// Linux refuses a single argument over 128 KiB (MAX_ARG_STRLEN).
 pub(crate) const MAX_EXEC_ARG: usize = 128 * 1024;

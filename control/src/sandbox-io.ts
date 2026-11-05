@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-/** Exec, log and file transport inside containers only; the daemon protocol stays unchanged. */
-import type { Exec } from './api-schemas.ts'
+/** Public exec, logs and file transport with feature-gated node attachment; sandbox lifecycle belongs to sandboxes.ts. */
+import type { z } from 'zod'
+import { type Exec, execEvent } from './api-schemas.ts'
 import type { Db } from './database.ts'
 import { SECOND_MS } from './durations.ts'
 import { decodeHandle } from './handle.ts'
@@ -19,6 +20,77 @@ export class SandboxIO {
     readonly boxes: Sandboxes,
     readonly nodes: NodeClient,
   ) {}
+  async execEvents(
+    id: string,
+    project: string,
+    body: Exec,
+    key?: string,
+    signal = new AbortController().signal,
+  ): Promise<AsyncIterable<z.infer<typeof execEvent>>> {
+    const row = await this.boxes.record(id, project)
+    const address = row.handle ? this.boxes.engine.nodeAddress(row.handle) : null
+    // An older node keeps its exact request/response protocol and durable outcome handling.
+    if (!address?.features?.includes('exec-stream'))
+      return responseEvents(await this.exec(id, project, body, key))
+    const op = await operation(this.db, project, `exec:${id}`, key, body)
+    if (op.response) return responseEvents(op.response as ExecResponse)
+    if (row.state !== 'running' || !row.handle)
+      throw new SandboxError('not_running', 'Sandbox is not running')
+    if (key) await claimExec(this.db, op.id, id)
+    else await this.boxes.touch(id)
+    const command = Object.keys(body.env).length
+      ? ['env', '--', ...Object.entries(body.env).map(([k, v]) => `${k}=${v}`), ...body.command]
+      : body.command
+    const epoch = decodeHandle(row.handle).epoch
+    const { db, nodes } = this
+    return (async function* () {
+      const result: ExecResponse = {
+        stdout: '',
+        stderr: '',
+        stdoutTruncated: false,
+        stderrTruncated: false,
+        exitCode: null,
+        timedOut: false,
+        killed: false,
+        durationMs: 0,
+      }
+      let exited = false
+      for await (const line of nodes.lines(
+        address,
+        `/v1/workloads/${encodeURIComponent(id)}/exec-stream`,
+        signal,
+        {
+          method: 'POST',
+          body: { command, timeoutSeconds: body.timeout },
+          epoch,
+          headers: key ? { 'Idempotency-Key': op.id } : {},
+          timeoutMs: (body.timeout + 5) * SECOND_MS,
+        },
+      )) {
+        const event = execEvent.parse(JSON.parse(line))
+        if (event.type === 'error') {
+          yield event
+          return
+        }
+        if (event.type === 'stdout' || event.type === 'stderr') {
+          result[event.type] += event.data
+          if (event.type === 'stdout') result.stdoutTruncated ||= event.truncated
+          else result.stderrTruncated ||= event.truncated
+        } else {
+          exited = true
+          Object.assign(result, {
+            exitCode: event.code,
+            timedOut: event.timedOut,
+            killed: event.killed,
+            durationMs: event.durationMs,
+          })
+          if (key) await complete(db, op.id, result)
+        }
+        yield event
+      }
+      if (!exited) throw new SandboxError('operation_unknown', 'Exec stream ended without a result')
+    })()
+  }
   async exec(id: string, project: string, body: Exec, key?: string) {
     const op = await operation(this.db, project, `exec:${id}`, key, body)
     if (op.response) return op.response as ExecResponse
@@ -97,5 +169,16 @@ export class SandboxIO {
         'File command failed or exceeded the node output bound; image needs sh, realpath, tar and base64',
       )
     return data === undefined ? { archiveBase64: result.stdout.replaceAll(/\s/g, '') } : { written: true }
+  }
+}
+async function* responseEvents(result: ExecResponse): AsyncIterable<z.infer<typeof execEvent>> {
+  for (const type of ['stdout', 'stderr'] as const)
+    if (result[type]) yield { type, data: result[type], truncated: result[`${type}Truncated`] }
+  yield {
+    type: 'exit',
+    code: result.exitCode,
+    timedOut: result.timedOut,
+    killed: result.killed,
+    durationMs: result.durationMs,
   }
 }

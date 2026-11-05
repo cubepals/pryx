@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
-// Generated from openapi/node-writes.openapi.json; sha256 514e92cca557fc36858dc84e3f2cc26d321c9fb9d542188d0b380ca8adf4ee16.
+// Generated from openapi/node-writes.openapi.json; sha256 4bd829bec89531440d63de71ed49abca46bce17594dc66906bc1244cde809733.
 export type paths = Record<string, never>;
 export type webhooks = Record<string, never>;
 export interface components {
@@ -78,6 +78,30 @@ export interface components {
             code: string;
             details?: unknown;
             message: string;
+        };
+        ExecEvent: {
+            data: string;
+            truncated: boolean;
+            /** @constant */
+            type: "stdout";
+        } | {
+            data: string;
+            truncated: boolean;
+            /** @constant */
+            type: "stderr";
+        } | {
+            /** Format: int64 */
+            code: number | null;
+            /** Format: uint64 */
+            durationMs: number;
+            killed: boolean;
+            timedOut: boolean;
+            /** @constant */
+            type: "exit";
+        } | {
+            error: components["schemas"]["ErrorDetail"];
+            /** @constant */
+            type: "error";
         };
         ExecResponse: {
             /** Format: uint64 */

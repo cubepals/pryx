@@ -1,25 +1,23 @@
-# pryxd
-
-## One host quickstart
-
-On a Linux systemd host, use the CLI from the same [pryx release](https://github.com/cubepals/pryx/releases).
-Verify its SHA256SUMS/attestation as below, then:
+# pryx
 
 ```sh
-sudo ./pryx up --check --domain pryx.test
-sudo ./pryx up --domain pryx.test
-export PRYX_API_URL=http://127.0.0.1:8082
-export PRYX_API_KEY=...                 # the initial key printed once by up
-./pryx run --image alpine:3.22 -- echo hello
+curl -fsSL https://github.com/cubepals/pryx/releases/latest/download/install.sh | sh
+sudo pryx up --domain sandboxes.example.com
+pryx run --image alpine:3.22 -- echo hello
+pryx sandbox create --image alpine:3.22 --idle 5m
 ```
 
-Up installs missing Docker/nftables on Debian/Ubuntu, private Postgres/S3 storage, control, edge
-and the local daemon. A repeated run preserves existing state and credentials. Its bootstrap
-image policy explicitly allows alpine prefixes; pass repeatable --allow-image for another policy.
-The public API stays on loopback until a trusted TLS reverse proxy is configured. Set DNS for
-sandbox hostnames to edge; the sandbox supplies its TLS certificate. Up prints undo instructions.
-See [operations](docs/operations.md), [architecture](docs/architecture.md), [API](docs/api.md),
-[edge](docs/edge.md), [TypeScript SDK](sdk/typescript/README.md) and [Python SDK](sdk/python/README.md).
+On Linux x86_64 with systemd, the installer verifies the release CLI before installing it.
+`up` installs Docker/nftables on Debian/Ubuntu, private Postgres/S3 storage, control, edge and
+the local daemon. It saves the public API credential for the invoking user in an owner-only
+file, so the next commands need no environment setup. It prints the initial key once and ends
+with three environment lines and a next command. Repeated installation preserves state.
+
+The bootstrap host policy allows official Alpine and Node images; repeat `--allow-image` to choose a different
+policy. The public API stays on loopback until a trusted TLS reverse proxy is configured. Point
+sandbox DNS at the edge. See [operations](docs/operations.md), [architecture](docs/architecture.md),
+[API](docs/api.md), [edge](docs/edge.md), [speed measurements](docs/speed.md),
+[TypeScript SDK](sdk/typescript/README.md) and [Python SDK](sdk/python/README.md).
 
 From GitHub Actions, point at a reachable TLS API and save its key as a repository secret:
 

@@ -22,32 +22,25 @@ impl Manager {
         key: Option<String>,
         epoch: Option<u64>,
     ) -> Result<ExecResponse, NodeError> {
+        self.exec_live(id, request, key, epoch, None).await
+    }
+
+    pub(crate) async fn exec_live(
+        self: &Arc<Self>,
+        id: WorkloadId,
+        request: ExecRequest,
+        key: Option<String>,
+        epoch: Option<u64>,
+        output: Option<tokio::sync::mpsc::Sender<crate::runtime::LogChunk>>,
+    ) -> Result<ExecResponse, NodeError> {
         request.validate().map_err(NodeError::Invalid)?;
         check_epoch(&self.record(&id)?, epoch, EpochRule::Exact)?;
-        let Some(key) = key else { return self.exec_once(&id, &request, epoch).await };
+        let Some(key) = key else { return self.exec_once(&id, &request, epoch, output).await };
         let fingerprint = request.fingerprint(&id);
-        let cell = {
-            let mut cache = self.exec_keys.lock().unwrap();
-            let now = Instant::now();
-            cache.entries.retain(|_, (_, _, at)| now.duration_since(*at) < IDEMPOTENCY_TTL);
-            if cache.entries.len() >= IDEMPOTENCY_MAX
-                && let Some(oldest) = cache.entries.iter().min_by_key(|(_, (_, _, at))| *at).map(|(k, _)| k.clone())
-            {
-                cache.entries.remove(&oldest);
-            }
-            match cache.entries.get(&key) {
-                Some((fp, cell, _)) if *fp == fingerprint => cell.clone(),
-                Some(_) => return Err(NodeError::IdempotencyMismatch),
-                None => {
-                    let cell = Arc::new(OnceCell::new());
-                    cache.entries.insert(key.clone(), (fingerprint, cell.clone(), now));
-                    cell
-                }
-            }
-        };
+        let cell = reserve(&mut self.exec_keys.lock().unwrap(), &key, fingerprint)?;
         // One run per key; a duplicate waits for it and gets its answer. Failures aren't cached,
         // so a retry after one runs the command again.
-        let response = cell.get_or_try_init(|| self.exec_once(&id, &request, epoch)).await?;
+        let response = cell.get_or_try_init(|| self.exec_once(&id, &request, epoch, output)).await?;
         Ok(response.clone())
     }
 
@@ -56,6 +49,7 @@ impl Manager {
         id: &WorkloadId,
         request: &ExecRequest,
         epoch: Option<u64>,
+        output: Option<tokio::sync::mpsc::Sender<crate::runtime::LogChunk>>,
     ) -> Result<ExecResponse, NodeError> {
         let started = Instant::now();
         let result = async {
@@ -63,7 +57,13 @@ impl Manager {
             let timeout = Duration::from_secs(u64::from(request.timeout_seconds));
             // By the container's id, never its name: a workload replaced meanwhile has a new
             // container under the same name, and the command must not run there.
-            let out = match self.note(self.runtime.exec(&container, &request.command, timeout, MAX_EXEC_OUTPUT).await) {
+            let execution = match output {
+                Some(sender) => {
+                    self.runtime.exec_stream(&container, &request.command, timeout, MAX_EXEC_OUTPUT, sender).await
+                }
+                None => self.runtime.exec(&container, &request.command, timeout, MAX_EXEC_OUTPUT).await,
+            };
+            let out = match self.note(execution) {
                 Ok(out) => out,
                 Err(RuntimeError::NotFound(_) | RuntimeError::Conflict(_)) => {
                     return Err(NodeError::Conflict {
@@ -106,5 +106,66 @@ impl Manager {
                 message: "exec needs a running workload".into(),
             }),
         }
+    }
+}
+
+fn reserve(
+    cache: &mut IdempotencyCache,
+    key: &str,
+    fingerprint: String,
+) -> Result<Arc<OnceCell<ExecResponse>>, NodeError> {
+    let now = Instant::now();
+    cache.entries.retain(|_, (_, cell, at)| Arc::strong_count(cell) > 1 || now.duration_since(*at) < IDEMPOTENCY_TTL);
+    if !cache.entries.contains_key(key)
+        && cache.entries.len() >= IDEMPOTENCY_MAX
+        && let Some(oldest) = cache
+            .entries
+            .iter()
+            .filter(|(_, (_, cell, _))| Arc::strong_count(cell) == 1)
+            .min_by_key(|(_, (_, _, at))| *at)
+            .map(|(k, _)| k.clone())
+    {
+        cache.entries.remove(&oldest);
+    }
+    Ok(match cache.entries.get(key) {
+        Some((fp, cell, _)) if *fp == fingerprint => cell.clone(),
+        Some(_) => return Err(NodeError::IdempotencyMismatch),
+        None => {
+            if cache.entries.len() >= IDEMPOTENCY_MAX {
+                return Err(NodeError::Conflict {
+                    code: ConflictCode::ExecBusy,
+                    message: "exec idempotency cache is full; wait for running commands".into(),
+                });
+            }
+            let cell = Arc::new(OnceCell::new());
+            cache.entries.insert(key.to_owned(), (fingerprint, cell.clone(), now));
+            cell
+        }
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn active_keys_survive_capacity_and_expiry() {
+        let mut cache = IdempotencyCache::default();
+        let mut active = Vec::new();
+        for index in 0..IDEMPOTENCY_MAX {
+            active.push(reserve(&mut cache, &index.to_string(), "fingerprint".into()).unwrap());
+        }
+        for (_, _, at) in cache.entries.values_mut() {
+            *at -= IDEMPOTENCY_TTL;
+        }
+        let duplicate = reserve(&mut cache, "0", "fingerprint".into()).unwrap();
+        assert!(Arc::ptr_eq(&duplicate, &active[0]));
+        assert!(matches!(reserve(&mut cache, "0", "different".into()), Err(NodeError::IdempotencyMismatch)));
+        assert!(matches!(
+            reserve(&mut cache, "new", "fingerprint".into()),
+            Err(NodeError::Conflict { code: ConflictCode::ExecBusy, .. })
+        ));
+        active.pop();
+        assert!(reserve(&mut cache, "new", "fingerprint".into()).is_ok());
+        assert!(Arc::ptr_eq(&reserve(&mut cache, "0", "fingerprint".into()).unwrap(), &active[0]));
     }
 }

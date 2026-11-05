@@ -13,6 +13,8 @@ import {
   snapshotSchema,
   templateSchema,
 } from './api-schemas.ts'
+import { chunkWrite } from './file-chunks.ts'
+import { SDK_DEFAULTS } from './sdk-defaults.ts'
 
 export function publicContract() {
   const definitions = {
@@ -126,6 +128,20 @@ export function publicContract() {
     properties: { archiveBase64: { type: 'string', contentEncoding: 'base64' } },
   })
   operation('post', '/v1/sandboxes/{id}/snapshots', ref('Snapshot'), undefined, StatusCodes.CREATED)
+  operation('put', '/v1/sandboxes/{id}/file-chunks/{path}', object, json(chunkWrite))
+  operation(
+    'get',
+    '/v1/sandboxes/{id}/file-chunks/{path}',
+    {
+      type: 'object',
+      required: ['archiveBase64'],
+      properties: { archiveBase64: { type: 'string', contentEncoding: 'base64' } },
+    },
+    undefined,
+    StatusCodes.OK,
+    'application/json',
+    ['offset'],
+  )
   operation('get', '/v1/sandboxes/{id}/snapshots', array('snapshots', ref('Snapshot')))
   operation('delete', '/v1/sandboxes/{id}/snapshots/{snapshot}', existed)
   operation(
@@ -154,6 +170,7 @@ export function publicContract() {
   return {
     openapi: '3.1.0',
     info: { title: 'pryx public API', version: '1.0.0' },
+    'x-pryx-sdk': SDK_DEFAULTS,
     paths,
     components: { schemas: components, securitySchemes: { apiKey: { type: 'http', scheme: 'bearer' } } },
   }

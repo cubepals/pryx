@@ -75,6 +75,7 @@ pub(crate) const FEATURES: &[&str] = &[
     "self-upgrade",
     "suspend",
     "signed-upgrade",
+    "exec-stream",
 ];
 
 impl ProtocolVersions {

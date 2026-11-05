@@ -12,3 +12,6 @@ sdk/python/build/
 sdk/typescript/dist/
 
 integrations/*/dist/
+
+/.benchmark-before/
+sdk/python/dist/

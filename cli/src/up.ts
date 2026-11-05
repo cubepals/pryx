@@ -9,6 +9,7 @@ import { PRYX_VERSION } from '../../control/src/generated/release.ts'
 import type { OperatorToken } from '../../control/src/operator-api.ts'
 import { ensureBucket } from '../../control/src/store-bootstrap.ts'
 import daemonJson from '../../deploy/daemon.json'
+import { callerHomeAndDropPrivileges, writeClientConfig } from './client-config.ts'
 import { option } from './sandbox.ts'
 import { installBinary, releaseFiles } from './up-assets.ts'
 import { configurations } from './up-config.ts'
@@ -226,7 +227,7 @@ export async function up(args: string[]) {
         body.joinToken,
         '--address',
         '127.0.0.1',
-        ...(allow.length ? allow : ['alpine:']).flatMap((p) => ['--allow-image', p]),
+        ...(allow.length ? allow : ['alpine:', 'node:']).flatMap((p) => ['--allow-image', p]),
       ],
       true,
       [body.token, body.joinToken],
@@ -243,12 +244,12 @@ export async function up(args: string[]) {
     const b = (await r.json()) as { nodes: Array<{ health: string }> }
     return b.nodes.some((n) => n.health === 'healthy')
   }, 'the local node heartbeat')
-  if (!control.PRYX_BOOTSTRAP_PRINTED) {
+  const firstKey = !control.PRYX_BOOTSTRAP_PRINTED
+  if (firstKey) {
     control.PRYX_BOOTSTRAP_PRINTED = '1'
     writeEnvironment('/etc/pryx/control.env', control)
-    console.log(`PRYX_API_KEY=${control.PRYX_BOOTSTRAP_API_KEY}`)
   }
-  return {
+  const report = {
     version: PRYX_VERSION,
     domain,
     api: 'http://127.0.0.1:8082',
@@ -261,4 +262,18 @@ export async function up(args: string[]) {
       'Docker and nftables remain installed; Docker daemon.json remains configured',
     ],
   }
+  const home = callerHomeAndDropPrivileges()
+  const credentialPath = writeClientConfig(
+    { url: report.api, key: control.PRYX_BOOTSTRAP_API_KEY as string },
+    join(home, '.config/pryx/client.json'),
+  )
+  console.log(JSON.stringify({ ...report, credentialPath }, null, 2))
+  console.log(`export PRYX_API_URL=${report.api}`)
+  console.log(
+    firstKey
+      ? `export PRYX_API_KEY=${control.PRYX_BOOTSTRAP_API_KEY}`
+      : 'export PRYX_API_KEY=$(pryx config key)',
+  )
+  console.log(`export PRYX_PUBLIC_DOMAIN=${domain}`)
+  console.log('pryx run --image alpine:3.22 -- echo hello')
 }

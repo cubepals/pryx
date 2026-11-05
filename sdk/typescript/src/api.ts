@@ -23,6 +23,7 @@ export class Pryx {
   readonly baseUrl: string
   readonly fetch: typeof fetch
   constructor(readonly options: { baseUrl: string; apiKey: string; fetch?: typeof fetch }) {
+    Object.defineProperty(this, 'options', { enumerable: false })
     this.baseUrl = options.baseUrl.replace(/\/$/, '')
     this.fetch = options.fetch ?? globalThis.fetch
   }
@@ -53,7 +54,7 @@ export class Pryx {
   async request<T>(path: string, method = 'GET', body?: unknown, key?: string): Promise<T> {
     return (await (await this.raw(path, method, body, key)).json()) as T
   }
-  make(body: MakeRequest, key?: string) {
+  make(body: MakeRequest, key: string = crypto.randomUUID()) {
     return this.request<Sandbox>('/v1/sandboxes', 'POST', body, key)
   }
   list() {
@@ -71,7 +72,7 @@ export class Pryx {
       'POST',
     )
   }
-  async *exec(id: string, body: ExecRequest, key?: string): AsyncGenerator<ExecEvent> {
+  async *exec(id: string, body: ExecRequest, key: string = crypto.randomUUID()): AsyncGenerator<ExecEvent> {
     yield* ndjson<ExecEvent>(
       await this.raw(`/v1/sandboxes/${encodeURIComponent(id)}/exec`, 'POST', body, key),
     )
@@ -104,7 +105,11 @@ export class Pryx {
       'DELETE',
     )
   }
-  fork(snapshot: string, body: Omit<MakeRequest, 'image' | 'snapshot' | 'template'> = {}, key?: string) {
+  fork(
+    snapshot: string,
+    body: Omit<MakeRequest, 'image' | 'snapshot' | 'template'> = {},
+    key: string = crypto.randomUUID(),
+  ) {
     return this.request<Sandbox>(`/v1/snapshots/${encodeURIComponent(snapshot)}/sandboxes`, 'POST', body, key)
   }
   endpoints(id: string) {

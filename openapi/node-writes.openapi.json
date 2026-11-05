@@ -297,6 +297,100 @@
         ],
         "type": "object"
       },
+      "ExecEvent": {
+        "oneOf": [
+          {
+            "properties": {
+              "data": {
+                "type": "string"
+              },
+              "truncated": {
+                "type": "boolean"
+              },
+              "type": {
+                "const": "stdout",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "data",
+              "truncated"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "data": {
+                "type": "string"
+              },
+              "truncated": {
+                "type": "boolean"
+              },
+              "type": {
+                "const": "stderr",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "data",
+              "truncated"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "code": {
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "durationMs": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "killed": {
+                "type": "boolean"
+              },
+              "timedOut": {
+                "type": "boolean"
+              },
+              "type": {
+                "const": "exit",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "code",
+              "timedOut",
+              "killed",
+              "durationMs"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "error": {
+                "$ref": "#/components/schemas/ErrorDetail"
+              },
+              "type": {
+                "const": "error",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "error"
+            ],
+            "type": "object"
+          }
+        ]
+      },
       "ExecResponse": {
         "properties": {
           "durationMs": {

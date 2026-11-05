@@ -22,6 +22,7 @@ const REGISTRY_REFRESH_MS = 5 * SECOND_MS
 
 /** What pure methods know of a node, refreshed every few seconds. */
 export interface CachedNode {
+  features: string[]
   apiAddress: string
   lifecycle: Lifecycle
   region: string
@@ -67,6 +68,7 @@ export class NodeCache {
   async refresh(): Promise<void> {
     const found = await rows<{
       id: string
+      features: string[]
       api_address: string
       lifecycle: Lifecycle
       region_key: string
@@ -76,7 +78,7 @@ export class NodeCache {
       capacity: { allocatableMemoryMb?: number }
     }>(
       this.#db,
-      sql`SELECT id, api_address, lifecycle, region_key, edge_host, control_host, labels, capacity FROM fleet_nodes`,
+      sql`SELECT id, features, api_address, lifecycle, region_key, edge_host, control_host, labels, capacity FROM fleet_nodes`,
     )
     this.#nodes = new Map(
       found.map((r) => {
@@ -84,6 +86,7 @@ export class NodeCache {
         return [
           r.id,
           {
+            features: r.features,
             apiAddress: r.api_address,
             lifecycle: r.lifecycle,
             region: r.region_key,

@@ -69,9 +69,6 @@ const NETWORK = `blockly-${DEPLOYMENT}`
 const POLICY = `
 [network]
 port_quarantine_seconds = 0
-[workloads]
-allowed_images = ["alpine:"]
-min_memory_mb = 64
 [capacity]
 reserved_memory_mb = 0
 allocatable_memory_mb = 2048
@@ -108,7 +105,10 @@ async function until<T>(
 
 function docker(...args: string[]): string {
   const run = spawnSync('docker', args)
-  if (run.status !== 0) throw new Error(`docker ${args.join(' ')}: ${run.stderr.toString().trim()}`)
+  if (run.status !== 0)
+    throw new Error(
+      `docker ${args.map((value, i) => (args[i - 1] === 'join' ? '[redacted]' : value)).join(' ')}: ${run.stderr.toString().trim()}`,
+    )
   return run.stdout.toString().trim()
 }
 
@@ -415,8 +415,27 @@ describe.skipIf(!ready)('FleetRuntime across two nodes', () => {
       )
       spawnSync('sh', ['-c', `docker exec -i ${container} docker load < ${join(dir, 'image.tar')}`])
       // No systemd in the container: join writes everything, and the test starts serve itself.
-      console.warn(docker('exec', container, 'pryxd', 'join', joinToken(joinPoint, token), '--no-start'))
-      docker('exec', container, 'sh', '-c', `cat >> /etc/pryxd/pryxd.toml <<'EOF'${POLICY}EOF`)
+      console.warn(
+        docker(
+          'exec',
+          container,
+          'pryxd',
+          'join',
+          joinToken(joinPoint, token),
+          '--allow-image',
+          'alpine:',
+          '--no-start',
+        ),
+      )
+      const configured =
+        docker('exec', container, 'cat', '/etc/pryxd/pryxd.toml').replace(
+          '[workloads]',
+          '[workloads]\nmin_memory_mb = 64',
+        ) + POLICY
+      Bun.TOML.parse(configured)
+      const file = join(dir, `${name}.toml`)
+      writeFileSync(file, configured, { mode: 0o600 })
+      docker('cp', file, `${container}:/etc/pryxd/pryxd.toml`)
       boot()
       node[name] = { name, container, ip, id: '', boot }
     }
@@ -425,6 +444,10 @@ describe.skipIf(!ready)('FleetRuntime across two nodes', () => {
       return summaries.length === 2 && summaries.every((s) => s.derivedHealth === 'healthy')
         ? summaries
         : null
+    }).catch((error) => {
+      for (const item of Object.values(node))
+        console.error(docker('exec', item.container, 'cat', '/var/log/pryxd.log'))
+      throw error
     })
     for (const summary of enrolled) {
       const which = summary.edge_host === node.a.ip ? 'a' : 'b'

@@ -7,7 +7,8 @@
 //! with the host's filesystem mounted. pryxd never exposes it; it exposes the narrow
 //! workload protocol instead, and fills every container's isolation from host policy.
 //!
-//! Parts (`docker/`): exec.rs owns command attachment and timeout containment.
+//! Parts (`docker/`):
+//! - `exec.rs`: command attachment and timeout containment.
 
 mod exec;
 
@@ -481,7 +482,18 @@ impl ContainerRuntime for DockerRuntime {
         timeout: Duration,
         max_output: usize,
     ) -> Result<ExecOutput, RuntimeError> {
-        self.exec_command(container, command, timeout, max_output).await
+        self.exec_command(container, command, timeout, max_output, None).await
+    }
+
+    async fn exec_stream(
+        &self,
+        container: &str,
+        command: &[String],
+        timeout: Duration,
+        max_output: usize,
+        output: tokio::sync::mpsc::Sender<LogChunk>,
+    ) -> Result<ExecOutput, RuntimeError> {
+        self.exec_command(container, command, timeout, max_output, Some(output)).await
     }
 
     fn logs(&self, name: &str, options: LogOptions) -> BoxStream<'static, Result<LogChunk, RuntimeError>> {

@@ -1,31 +1,58 @@
 # TypeScript SDK
 
-`@cubepals/pryx` is the public v1 client. Types are generated with the pinned
-openapi-typescript from control/openapi/pryx.openapi.json. `bun run openapi:generate`
-updates them and `bun run openapi:check` checks drift.
-
 ```ts
 import { Pryx } from '@cubepals/pryx'
-const pryx = new Pryx({ baseUrl: process.env.PRYX_API_URL!, apiKey: process.env.PRYX_API_KEY! })
-const sandbox = await pryx.make({ image: 'alpine:3.22', entrypoint: ['sh', '-c', 'while :; do sleep 1; done'] }, crypto.randomUUID())
+const { PRYX_API_URL: url, PRYX_API_KEY: key } = process.env
+if (!url || !key) throw new Error('Set PRYX_API_URL and PRYX_API_KEY')
+const pryx = new Pryx({ url, key })
+const box = await pryx.sandbox({ image: 'node:22', idle: '10m', ttl: '2h' })
 try {
-  for await (const event of pryx.exec(sandbox.id, { command: ['sh', '-c', 'echo hello > /data/message; cat /data/message'] }, crypto.randomUUID())) console.log(event)
-  const snapshot = await pryx.snapshot(sandbox.id)
-  const fork = await pryx.fork(snapshot.id)
-  try { console.log(await pryx.get(fork.id)) } finally { await pryx.delete(fork.id) }
-} finally { await pryx.delete(sandbox.id) }
+  const source = 'console.log("hello")\n'
+  await box.write('src/app.js', source)
+  await box.write('package.json', JSON.stringify({ scripts: { test: 'node src/app.js' } }))
+  const r = await box.run('npm test --prefix /data', { env: { npm_config_cache: '/tmp/npm' } })
+  console.log(r.stdout, r.stderr, r.code, r.timedOut)
+  if (r.code !== 0) throw new Error('Example command failed')
+  await box.run(['node', '/data/src/app.js'], { timeout: '30s', env: { CI: '1' } })
+  for await (const line of box.run('echo first; sleep 1; echo last').lines()) console.log(line)
+  for await (const chunk of box.run('echo chunk').stream()) console.log(chunk.stream, chunk.data)
+  const text = await box.read('src/app.js')
+  const bytes = await box.readBytes('src/app.js')
+  if (text !== source || new TextDecoder().decode(bytes) !== source) throw new Error('File round trip failed')
+  const snap = await box.snapshot()
+  const twin = await snap.fork({ idle: '5m' })
+  try { console.log(twin.id, twin.state) } finally { await twin.delete() }
+  await box.sleep(); await box.wake(); await box.stop(); await box.start(); await box.rest(); await box.wake()
+  console.log((await box.refresh()).state, await box.endpoints(), (await pryx.sandboxes()).length)
+  for await (const entry of box.logs({ follow: false })) console.log(entry)
+  const existing = await pryx.sandbox(box.id)
+  console.log(existing.id)
+} finally { await box.delete() }
+console.log((await pryx.run('node:22', 'node -e "console.log(1)"')).stdout)
 ```
 
-Supply a stable Idempotency-Key when retrying create or exec. An uncertain exec returns
-`operation_unknown` on retry instead of risking a second command. The client sends no automatic
-mutation retries. Exec uses NDJSON stdout/stderr/exit events emitted after the node's buffered
-command completes, preserving truncation, timeout and killed fields. Logs stream as they arrive;
-pass an AbortSignal for follow mode. Per-command env requires `env` inside the image.
+Install `@cubepals/pryx`. Durations accept positive seconds or `s`, `m`, `h`, `d` strings.
+Strings passed to `run` use `sh -c` inside the sandbox; argv bypasses its shell. Commands use
+the image's working directory; file paths are relative to persistent storage (`/data` by default).
 
-File paths are relative to persistent storage. `putFile` takes base64 (at most 48 KiB decoded);
-`getFile` returns a base64 tar archive. The image needs sh, realpath, base64 and tar. Oversized
-or failed reads are refused. Errors throw PryxError with status, code and details.
+A run is lazy and executes once. Await it for `{stdout, stderr, code, timedOut, killed,
+durationMs, stdoutTruncated, stderrTruncated}` or consume its `lines()` / `stream()` once,
+then await the same run for its result. Lines preserve each output stream's boundaries. Output
+is live when the node advertises `exec-stream`, and buffered on older nodes. Queues apply
+backpressure; node output remains bounded. Ending a stream does not imply the command stopped.
+A missing terminal result throws `PryxError` with an unknown outcome.
 
-Release archives include a bundled ESM JavaScript entry for Node and the generated TypeScript
-source/types. Bun workspace imports use source. `bun run release:build` builds the Node entry
-before `bun pm pack`; the SDK version is checked against Cargo.toml.
+Make and run generate an idempotency key unless `idempotencyKey` is supplied. Nothing retries
+automatically. Keep the run value to await the same result; inspect an uncertain command before
+using a new key. Errors retain HTTP status, code and details as `PryxError`.
+
+`box.write` takes strings or bytes and `box.read` / `readBytes` return strings / bytes without
+a total 48 KiB limit. Transfers use bounded exec/tar chunks, create parent directories, and
+require sh, realpath, mkdir, mktemp, dd, tar and base64 in the image. Multi-chunk writes are not
+atomic and concurrent writers to one path must be serialized by the caller.
+
+The thin client is `pryx.api`; all previous top-level methods (`make`, `exec`, `putFile`, etc.)
+and the previous `{baseUrl, apiKey}` constructor still work. Raw file routes keep their existing
+base64/tar shapes and bound. `box.logs({follow: true}, signal)` follows until aborted.
+Types/defaults are generated by `bun run openapi:generate`; `bun run openapi:check` detects drift.
+Releases include a bundled ESM entry for Node and TypeScript types, all at the Cargo version.

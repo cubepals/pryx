@@ -1,46 +1,68 @@
 # Python SDK
 
-Install `cubepals-pryx` (Python 3.12+). Its generated models and HTTP methods come from the
-committed public OpenAPI with openapi-python-client 0.26.0; the small wrapper supplies NDJSON
-exec/log handling, error envelopes and the lifecycle conveniences. It performs no automatic
-mutation retries. Generated client reprs suppress credentials.
+```python
+import os
+from cubepals_pryx import Pryx
+with Pryx(url=os.environ["PRYX_API_URL"], key=os.environ["PRYX_API_KEY"]) as pryx:
+    box = pryx.sandbox(image="node:22", idle="10m", ttl="2h")
+    try:
+        source = 'console.log("hello")\n'
+        box.write("src/app.js", source)
+        box.write("package.json", '{"scripts":{"test":"node src/app.js"}}')
+        r = box.run("npm test --prefix /data", env={"npm_config_cache": "/tmp/npm"})
+        print(r.stdout, r.stderr, r.code, r.timed_out)
+        assert r.code == 0
+        box.run(["node", "/data/src/app.js"], timeout="30s", env={"CI":"1"}).wait()
+        for line in box.run("echo first; sleep 1; echo last").lines(): print(line)
+        for chunk in box.run("echo chunk").stream(): print(chunk["stream"], chunk["data"])
+        assert box.read("src/app.js") == source
+        assert box.read_bytes("src/app.js") == source.encode()
+        snap = box.snapshot()
+        twin = snap.fork(idle="5m")
+        try: print(twin.id, twin.state)
+        finally: twin.delete()
+        box.sleep(); box.wake(); box.stop(); box.start(); box.rest(); box.wake()
+        print(box.refresh().state, box.endpoints(), len(pryx.sandboxes()))
+        for entry in box.logs(follow=False): print(entry)
+        print(pryx.sandbox(box.id).id)
+    finally: box.delete()
+    print(pryx.run("node:22", 'node -e "console.log(1)"').stdout)
+```
+
+Install `cubepals-pryx` on Python 3.12+. Commands are lazy, execute once, and return a run value:
+reading its result fields or calling `wait()` collects it. `lines()` and `stream()` consume live
+output once, then `wait()` returns the collected result. A string runs through the sandbox's
+shell; argv does not. Commands use the image's working directory. File paths start at persistent
+storage (`/data` by default), with bounded exec/tar chunks and no total 48 KiB SDK limit.
+The image needs sh, realpath, mkdir, mktemp, dd, tar and base64. Multi-chunk writes are not atomic.
+
+The async client has the same operations; awaiting a run collects its value:
 
 ```python
-import os, uuid
-from cubepals_pryx import Pryx
-with Pryx(os.environ["PRYX_API_URL"], os.environ["PRYX_API_KEY"]) as pryx:
-    sandbox = pryx.make({"image": "alpine:3.22", "entrypoint": ["sh", "-c", "while :; do sleep 1; done"]}, str(uuid.uuid4()))
-    try:
-        for event in pryx.exec(sandbox.id, ["sh", "-c", "echo hello > /data/message; cat /data/message"], key=str(uuid.uuid4())):
-            print(event)
-        snapshot = pryx.snapshot(sandbox.id)
-        fork = pryx.fork(snapshot.id)
+import asyncio, os
+from cubepals_pryx import AsyncPryx
+async def main():
+    async with AsyncPryx(os.environ["PRYX_API_URL"], os.environ["PRYX_API_KEY"]) as pryx:
+        box = await pryx.sandbox(image="node:22", idle="5m")
         try:
-            print(pryx.get(fork.id).state)
-        finally:
-            pryx.delete(fork.id)
-    finally:
-        pryx.delete(sandbox.id)
+            r = await box.run('node -e "console.log(1)"')
+            assert r.code == 0
+            async for line in box.run("echo live; sleep 1; echo done").lines(): print(line)
+            await box.write("message", b"hello")
+            assert await box.read("message") == "hello"
+        finally: await box.delete()
+asyncio.run(main())
 ```
 
-Keep the same key for retries of one create or exec. A keyed exec whose result is uncertain
-answers operation_unknown, including after a control restart; inspect it before using a new key.
-Exec events arrive after the daemon's bounded command completes. Logs stream as they arrive.
-Client timeout defaults to none; callers can provide httpx.Timeout. File transport has the same
-48 KiB write bound and image-tool requirements as the TypeScript SDK.
+Durations accept positive seconds or `s`, `m`, `h`, `d` strings. Make/run generate idempotency
+keys unless `key=` is passed. No operation is retried automatically. `PryxError` preserves status,
+code and details. An incomplete stream has an unknown outcome; inspect it before starting another
+command. Disconnect does not imply termination. Output is live on nodes with `exec-stream` and
+buffered on older nodes. `pryx.api` and every existing sync raw method/constructor still work.
 
-Regenerate or check deterministically:
-
-```sh
-python3 -m venv .venv-python
-.venv-python/bin/pip install -r sdk/python/generator-requirements.lock
-.venv-python/bin/pip install -e sdk/python
-PATH="$PWD/.venv-python/bin:$PATH" python3 sdk/python/generate.py generate
-PATH="$PWD/.venv-python/bin:$PATH" python3 sdk/python/generate.py check
-.venv-python/bin/python -m unittest discover -s sdk/python/test -v
-```
-
-The generator does not understand application/x-ndjson and reports that omission for exec/logs;
-the wrapper implements those responses without changing the contract. The generate script
-applies a deterministic repr=False credential transformation. The e2e test skips visibly without
-PRYX_API_URL/PRYX_API_KEY and runs against the actual one-box daemon in CI.
+Models and defaults are generated from the committed OpenAPI with openapi-python-client 0.26.0.
+Install `sdk/python/generator-requirements.lock`, then run `python sdk/python/generate.py generate`
+or `check`. NDJSON is implemented by the wrapper because the generator does not support it.
+`python -m unittest discover -s sdk/python/test -v` runs units; the real one-box tests require
+PRYX_API_URL/PRYX_API_KEY and run in CI. Client reprs suppress credentials; configure httpx.Timeout
+if a caller needs a deadline independent of the node's command timeout.

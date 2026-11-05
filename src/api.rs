@@ -12,6 +12,7 @@
 //!
 //! Parts (`api/`):
 //! - `error.rs`: errors as the protocol states them: an HTTP status and a stable code.
+//! - `exec_stream.rs`: bounded live exec attachment, decoding and terminal results.
 //! - `handshake.rs`: the TLS handshake of each connection, bounded in number and time, and its
 //!   refusals reported without flooding the log.
 //! - `tls.rs`: the API's side of mutual TLS: its certificate, and who a client certificate proves.
@@ -20,6 +21,7 @@
 #![expect(clippy::result_large_err, reason = "axum handlers answer Result<Response, Response>")]
 
 pub mod error;
+mod exec_stream;
 mod handshake;
 pub mod tls;
 
@@ -412,7 +414,17 @@ async fn exec(
     headers: HeaderMap,
     ApiJson(request): ApiJson<ExecRequest>,
 ) -> Result<Response, Response> {
-    let key = match headers.get(IDEMPOTENCY_KEY_HEADER).map(|v| v.to_str()) {
+    let key = exec_key(&headers)?;
+    let epoch = epoch(&headers)?;
+    let manager = app.manager.clone();
+    let result = detached(async move { manager.exec(id, request, key, epoch).await })
+        .await
+        .map_err(IntoResponse::into_response)?;
+    Ok(Json(result).into_response())
+}
+
+fn exec_key(headers: &HeaderMap) -> Result<Option<String>, Response> {
+    Ok(match headers.get(IDEMPOTENCY_KEY_HEADER).map(|v| v.to_str()) {
         None => None,
         Some(Ok(k)) if !k.is_empty() && k.len() <= 128 && k.bytes().all(|b| b.is_ascii_graphic()) => Some(k.to_owned()),
         Some(_) => {
@@ -423,13 +435,7 @@ async fn exec(
                 None,
             ));
         }
-    };
-    let epoch = epoch(&headers)?;
-    let manager = app.manager.clone();
-    let result = detached(async move { manager.exec(id, request, key, epoch).await })
-        .await
-        .map_err(IntoResponse::into_response)?;
-    Ok(Json(result).into_response())
+    })
 }
 
 #[derive(Deserialize)]
@@ -527,6 +533,7 @@ pub fn router(state: AppState, max_body: usize) -> Router {
         .route("/v1/workloads/{id}/snapshots/{snapshot}", axum::routing::delete(delete_snapshot))
         .route("/v1/workloads/{id}/snapshots/{snapshot}/upload", post(upload_snapshot))
         .route("/v1/workloads/{id}/exec", post(exec))
+        .route("/v1/workloads/{id}/exec-stream", post(exec_stream::exec_stream))
         .route("/v1/workloads/{id}/logs", get(logs))
         .route("/v1/workloads/{id}/stats", get(stats))
         .fallback(not_found)

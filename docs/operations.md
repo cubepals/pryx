@@ -124,3 +124,19 @@ volumes until credentials/backups/data are saved. Removing pryx-postgres and pry
 and /var/lib/pryxd destroys data and is always a separate explicit operator action. Docker,
 nftables and Docker's daemon.json remain installed; existing Docker settings are merged, and
 running containers cause a reload rather than an automatic restart.
+
+## CLI installation and client credentials
+
+The release includes install.sh in SHA256SUMS and the release attestation. The script pins its
+release version, verifies the CLI digest before execution, and installs on Linux x86_64.
+The README's four commands need no manual exports: after installation, up writes only the public
+API URL/key to ~/.config/pryx/client.json (0600, private directory) for the invoking user.
+All root operations finish before up drops groups/gid/uid to write that file. PRYX_CONFIG may
+select another owned/private client file; an environment API URL never borrows a saved key for
+a different endpoint. PRYX_API_KEY explicitly overrides saved credentials.
+
+This public API credential file is the K9 exception to the original environment-file-only rule.
+CA, operator and store credentials remain root-only. Up prints the initial key once; repeated up
+prints a pryx config key command reference instead. That explicit command reads the user's key
+when shell setup is wanted. Up's final output is three export lines followed by the next command.
+The bootstrap policy allows official Alpine and Node images; repeat --allow-image to replace it.

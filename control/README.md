@@ -66,6 +66,7 @@ API access. Set `PRYX_PROJECT` (default `default`) and `PRYX_PUBLIC_DOMAIN` (def
 | POST | /sandboxes/{id}/exec | NDJSON stdout, stderr, exit; optional Idempotency-Key |
 | GET | /sandboxes/{id}/logs | NDJSON; tail, since, follow |
 | GET, PUT | /sandboxes/{id}/files/{path} | Base64 tar read; JSON dataBase64 write |
+| GET, PUT | /sandboxes/{id}/file-chunks/{path} | Bounded offset/base64 tar transport used by SDK handles |
 | POST, GET | /sandboxes/{id}/snapshots | Capture or list |
 | DELETE | /sandboxes/{id}/snapshots/{snapshot} | Delete snapshot |
 | POST | /snapshots/{snapshot}/sandboxes | Fork |
@@ -87,12 +88,16 @@ new nodes. Template names are immutable: use a new name for another spec. Backin
 excluded from ordinary listings. A template must have a ready copy before use. Snapshots preserve
 persistent data, not process memory; snapshot consistency requires a stopped application.
 
-Exec output is buffered by the node before its NDJSON events are emitted. An exec with an unknown
+Exec forwards live output on nodes advertising exec-stream and retains buffered output on older nodes. An exec with an unknown
 outcome remains fenced from automatic replay, including after a control restart. Inspect before
 using a new key. Per-command env runs env(1) inside the image. File transport uses sh, realpath,
-tar and base64 inside the container, only under its persistent mount; writes are limited to 48 KiB.
+tar and base64 inside the container, only under its persistent mount. Raw file writes retain their
+48 KiB bound; the SDK handle uses the additive file-chunks route with bounded 32 KiB transfers
+and no total SDK file bound. Chunk transport also needs mkdir, mktemp and dd.
 
-`PRYX_API_URL` and `PRYX_API_KEY` configure `pryx sandbox` and `pryx run`. Create accepts
+`PRYX_API_URL` and `PRYX_API_KEY` configure `pryx sandbox` and `pryx run`; after up, an
+owner-only ~/.config/pryx/client.json supplies them without exports. Durations accept numeric
+seconds or s/m/h/d strings, including sandbox exec --timeout 30s before its -- separator. Create accepts
 `--image`, `--ttl`, `--idle`, `--stopped` or `--spec <json file>` for the complete create body.
 `pryx run --image alpine:3.22 -- echo hello` creates a temporary shell image, executes and deletes
 it, preserving the command's exit status. `--snapshot` first forks a stopped copy and rests it;
@@ -125,7 +130,8 @@ public/edge contracts before checksumming and attesting the assets. SDK versions
 control inserts only its hash once with name initial. Revocation survives control restarts. The
 bootstrap key is never logged by control. Up records its one-time display before printing, so a
 crash there may require a new operator-created key. Node enrollment retains its existing private
-identity files; see docs/operations.md for that environment-file-only exception.
+identity files; the invoking user also gets only the public API credential in a private CLI
+file after up drops privileges. See docs/operations.md for both storage exceptions.
 
 ## Machine providers
 

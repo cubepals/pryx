@@ -269,6 +269,39 @@ async fn malformed_requests_get_the_protocols_errors() {
 }
 
 #[tokio::test]
+async fn live_and_buffered_exec_share_one_idempotency_key() {
+    let e = env().await;
+    let path = "/v1/workloads/w1";
+    assert_eq!(e.call("PUT", path, Some(spec_json())).await.status, StatusCode::CREATED);
+    assert_eq!(e.call("POST", &format!("{path}/start"), None).await.status, StatusCode::OK);
+    let headers = [("idempotency-key", "stream-once")];
+    let command = serde_json::json!({"command": ["echo", "héllo"]});
+    let stream = e.call_with("POST", &format!("{path}/exec-stream"), &headers, Some(command.clone())).await;
+    assert_eq!(stream.status, StatusCode::OK);
+    let frames: Vec<serde_json::Value> =
+        String::from_utf8(stream.body).unwrap().lines().map(|line| serde_json::from_str(line).unwrap()).collect();
+    assert_eq!(frames[0]["type"], "stdout");
+    assert_eq!(frames[0]["data"], "echo héllo");
+    assert_eq!(frames.last().unwrap()["type"], "exit");
+    assert_eq!(frames.last().unwrap()["code"], 0);
+    let buffered = e.call_with("POST", &format!("{path}/exec"), &headers, Some(command.clone())).await;
+    assert_eq!(buffered.json()["stdout"], "echo héllo");
+    let cached = e.call_with("POST", &format!("{path}/exec-stream"), &headers, Some(command)).await;
+    assert!(String::from_utf8(cached.body).unwrap().contains("echo héllo"));
+    assert_eq!(e._f.fake.count_calls("exec "), 1);
+    let mismatch = e
+        .call_with("POST", &format!("{path}/exec-stream"), &headers, Some(serde_json::json!({"command": ["other"]})))
+        .await;
+    let error: serde_json::Value = serde_json::from_slice(&mismatch.body).unwrap();
+    assert_eq!(error["type"], "error");
+    assert_eq!(error["error"]["code"], "idempotency_key_reused");
+    let invalid = e
+        .call("POST", &format!("{path}/exec-stream"), Some(serde_json::json!({"command": [], "timeoutSeconds": 0})))
+        .await;
+    assert_eq!(invalid.status, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[tokio::test]
 async fn methods_nobody_uses_are_counted_under_one_label() {
     // Any token is a method to HTTP: one label value each would be a series kept for good.
     let e = env().await;

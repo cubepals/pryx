@@ -52,7 +52,7 @@ fn node_writes() -> Value {
     document("pryxd: what a node writes", Contract::Serialize, |g| {
         schemas!(g;
             StoreLeaseIdentity, WorkloadView, ListResponse, StatsView, LogRecord, EnsureResponse, PowerResponse, FenceResponse,
-            DeleteResponse, ExecResponse, ExportResponse, RestoreResponse, SnapshotResponse, SnapshotList,
+            DeleteResponse, ExecResponse, ExecEvent, ExportResponse, RestoreResponse, SnapshotResponse, SnapshotList,
             SnapshotDeleteResponse, NodeHealth, NodeStatus, ErrorBody, EnrollRequest, HeartbeatRequest, RenewRequest,
         );
     })

@@ -791,3 +791,21 @@ with `409 store_lease_required`. Expiry freezes/kills the leased cgroup and repo
 See [store-lease.md](store-lease.md) for conditional takeover, host prerequisites, fault model,
 maintenance behavior and the unrun measurement table. The existing execution lease and all
 feature-off behavior remain as described above.
+
+## Live exec
+
+A node advertising `exec-stream` accepts `POST /v1/workloads/{id}/exec-stream` with the same
+ExecRequest, epoch header and Idempotency-Key as `/exec`. Its NDJSON ExecEvent variants are
+stdout/stderr (`data`, `truncated`), exit (`code`, `timedOut`, `killed`, `durationMs`), and an
+error envelope for failure after headers. Validation before attachment retains HTTP errors.
+The Rust schema owns these shapes. `/exec` still returns its existing buffered JSON response.
+Both endpoints share the same idempotency cache; a cached stream replays bounded output, and
+concurrent callers wait for the original command. Active keys are never evicted for capacity;
+new keys are refused with exec_busy until room is available. Existing failure/retry semantics
+are unchanged: callers must inspect uncertain outcomes and never retry a command blindly.
+
+Docker output uses 16 KiB payloads with two queues of eight frames, per-stream UTF-8 decoding,
+and backpressure. Output retains the existing per-stream bound and truncation flags. The
+command timeout includes waiting for a queue and still kills the verified container process
+tree. Disconnecting HTTP does not cancel command containment or authorize a second execution.
+Control uses this endpoint only after the node advertises it; older nodes keep buffered exec.

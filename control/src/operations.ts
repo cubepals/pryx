@@ -40,21 +40,28 @@ export async function operation(
   if (key.length > 256 || !key.trim())
     throw new SandboxError('invalid_request', 'Idempotency-Key is 1 to 256 characters')
   const digest = fingerprint(body)
-  await db.execute(
-    sql`INSERT INTO api_operations(project, scope, key, id, fingerprint) VALUES (${project}, ${scope}, ${key}, ${randomUUID()}, ${digest}) ON CONFLICT DO NOTHING`,
-  )
   const row = await one<Operation>(
     db,
-    sql`SELECT * FROM api_operations WHERE project = ${project} AND scope = ${scope} AND key = ${key}`,
+    sql`INSERT INTO api_operations(project, scope, key, id, fingerprint)
+      VALUES (${project}, ${scope}, ${key}, ${randomUUID()}, ${digest})
+      ON CONFLICT (project, scope, key) DO UPDATE SET key = api_operations.key
+      RETURNING id, fingerprint, response, state`,
   )
   if (!row || row.fingerprint !== digest)
     throw new SandboxError('idempotency_key_reused', 'Idempotency-Key has another request')
   return row
 }
-export async function claimExec(db: Db, id: string) {
+export async function claimExec(db: Db, id: string, sandbox?: string) {
   const row = await one(
     db,
-    sql`UPDATE api_operations SET state = 'executing' WHERE id = ${id} AND state = 'new' RETURNING id`,
+    sandbox === undefined
+      ? sql`UPDATE api_operations SET state = 'executing' WHERE id = ${id} AND state = 'new' RETURNING id`
+      : sql`WITH claimed AS (
+          UPDATE api_operations SET state = 'executing' WHERE id = ${id} AND state = 'new' RETURNING id
+        ), touched AS (
+          UPDATE sandboxes SET activity_at = now() WHERE id = ${sandbox} AND deleted_at IS NULL
+          AND EXISTS (SELECT 1 FROM claimed) RETURNING id
+        ) SELECT claimed.id FROM claimed JOIN touched ON true`,
   )
   if (!row)
     throw new SandboxError(

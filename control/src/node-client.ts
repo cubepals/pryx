@@ -233,24 +233,36 @@ export class NodeClient {
    * The lines of a streamed answer (pryxd's NDJSON logs), as they arrive. Ends when the node
    * ends the stream or `signal` aborts.
    */
-  async *lines(node: NodeAddress, path: string, signal: AbortSignal): AsyncIterable<string> {
+  async *lines(
+    node: NodeAddress,
+    path: string,
+    signal: AbortSignal,
+    options: CallOptions & { method?: string } = {},
+  ): AsyncIterable<string> {
+    if (options.timeoutMs !== undefined)
+      signal = AbortSignal.any([signal, AbortSignal.timeout(options.timeoutMs)])
     const { host, port } = splitAddress(node.apiAddress)
     const response = await new Promise<import('node:http').IncomingMessage>((resolve, reject) => {
       const request = https.request(
         {
           host,
           port,
-          method: 'GET',
+          method: options.method ?? 'GET',
           path,
           agent: this.#agent,
           servername: nodeName(node.id, this.#deployment),
-          headers: { accept: 'application/x-ndjson' },
+          headers: {
+            accept: 'application/x-ndjson',
+            ...(options.body ? { 'content-type': 'application/json' } : {}),
+            ...(options.epoch == null ? {} : { [EPOCH_HEADER]: String(options.epoch) }),
+            ...options.headers,
+          },
           signal,
         },
         resolve,
       )
       request.on('error', (error: NodeJS.ErrnoException) => reject(unreachable(error)))
-      request.end()
+      request.end(options.body ? JSON.stringify(options.body) : undefined)
     })
     if ((response.statusCode ?? 0) >= StatusCodes.MULTIPLE_CHOICES) {
       const chunks: Buffer[] = []

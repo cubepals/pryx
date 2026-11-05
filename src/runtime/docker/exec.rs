@@ -12,6 +12,7 @@ impl DockerRuntime {
         command: &[String],
         timeout: Duration,
         max_output: usize,
+        live: Option<tokio::sync::mpsc::Sender<LogChunk>>,
     ) -> Result<ExecOutput, RuntimeError> {
         let options = CreateExecOptions::<String> {
             cmd: Some(command.to_vec()),
@@ -37,14 +38,25 @@ impl DockerRuntime {
         let mut result = ExecOutput::default();
         let collect = async {
             while let Some(item) = output.next().await {
-                let (buffer, truncated, bytes) = match item.map_err(map_err)? {
-                    LogOutput::StdOut { message } => (&mut result.stdout, &mut result.stdout_truncated, message),
-                    LogOutput::StdErr { message } => (&mut result.stderr, &mut result.stderr_truncated, message),
+                let (buffer, truncated, stream, bytes) = match item.map_err(map_err)? {
+                    LogOutput::StdOut { message } => {
+                        (&mut result.stdout, &mut result.stdout_truncated, LogStream::Stdout, message)
+                    }
+                    LogOutput::StdErr { message } => {
+                        (&mut result.stderr, &mut result.stderr_truncated, LogStream::Stderr, message)
+                    }
                     _ => continue,
                 };
                 let room = max_output.saturating_sub(buffer.len());
                 buffer.extend_from_slice(&bytes[..bytes.len().min(room)]);
                 *truncated |= bytes.len() > room;
+                if let Some(live) = &live {
+                    for chunk in bytes[..bytes.len().min(room)].chunks(crate::protocol::EXEC_CHUNK_BYTES) {
+                        if live.send(LogChunk { stream, bytes: bytes::Bytes::copy_from_slice(chunk) }).await.is_err() {
+                            break;
+                        }
+                    }
+                }
             }
             Ok::<(), RuntimeError>(())
         };

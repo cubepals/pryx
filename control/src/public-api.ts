@@ -10,6 +10,7 @@ import { z } from 'zod'
 import { execSchema, makeSchema, templateSchema } from './api-schemas.ts'
 import type { Db } from './database.ts'
 import { events } from './events.ts'
+import { chunkOffset, chunkWrite, FileChunks } from './file-chunks.ts'
 import { authenticate } from './keys.ts'
 import { type NodeClient, NodeRefused } from './node-client.ts'
 import { PublicModel } from './public-model.ts'
@@ -26,7 +27,8 @@ export function createPublicApi(options: {
   const { db, boxes, nodes, domain } = options
   const model = new PublicModel(db, boxes, domain, options.edgePortRange)
   const io = new SandboxIO(db, boxes, nodes)
-  const app = new Hono<{ Variables: { project: string } }>()
+  const chunks = new FileChunks(io)
+  const app = new Hono<{ Variables: { project: string }; Bindings: { beginStream?: () => void } }>()
   app.use('/v1/*', async (c, next) => {
     const auth = c.req.header('authorization') ?? ''
     const identity = auth.startsWith('Bearer ') ? await authenticate(db, auth.slice('Bearer '.length)) : null
@@ -109,30 +111,37 @@ export function createPublicApi(options: {
       return c.json('tier' in answer ? { sandbox, tier: answer.tier } : { sandbox })
     })
   app.post('/v1/sandboxes/:id/exec', async (c) => {
-    const r = await io.exec(
+    const body = execSchema.parse(await c.req.json())
+    c.env?.beginStream?.()
+    const abort = new AbortController()
+    const events = await io.execEvents(
       c.req.param('id'),
       c.get('project'),
-      execSchema.parse(await c.req.json()),
+      body,
       c.req.header('idempotency-key'),
+      abort.signal,
     )
     c.header('content-type', 'application/x-ndjson')
     return stream(c, async (s) => {
-      for (const type of ['stdout', 'stderr'] as const)
-        if (r[type])
-          await s.writeln(JSON.stringify({ type, data: r[type], truncated: r[`${type}Truncated`] }))
-      await s.writeln(
-        JSON.stringify({
-          type: 'exit',
-          code: r.exitCode,
-          timedOut: r.timedOut,
-          killed: r.killed,
-          durationMs: r.durationMs,
-        }),
-      )
+      s.onAbort(() => abort.abort())
+      try {
+        for await (const event of events) await s.writeln(JSON.stringify(event))
+      } catch {
+        await s.writeln(
+          JSON.stringify({
+            type: 'error',
+            error: {
+              code: 'operation_unknown',
+              message: 'Exec stream ended; inspect before starting another command',
+            },
+          }),
+        )
+      }
     })
   })
   app.get('/v1/sandboxes/:id/logs', async (c) => {
     await boxes.record(c.req.param('id'), c.get('project'))
+    c.env?.beginStream?.()
     c.header('content-type', 'application/x-ndjson')
     const query = new URLSearchParams()
     for (const name of ['tail', 'since', 'follow']) {
@@ -169,6 +178,28 @@ export function createPublicApi(options: {
       ),
     ),
   )
+  app.get('/v1/sandboxes/:id/file-chunks/*', async (c) =>
+    c.json(
+      await chunks.transfer(
+        c.req.param('id'),
+        c.get('project'),
+        decodeURIComponent(new URL(c.req.url).pathname.split('/file-chunks/')[1] ?? ''),
+        chunkOffset.parse(c.req.query('offset') ?? 0),
+      ),
+    ),
+  )
+  app.put('/v1/sandboxes/:id/file-chunks/*', async (c) => {
+    const body = chunkWrite.parse(await c.req.json())
+    return c.json(
+      await chunks.transfer(
+        c.req.param('id'),
+        c.get('project'),
+        decodeURIComponent(new URL(c.req.url).pathname.split('/file-chunks/')[1] ?? ''),
+        body.offset,
+        body.dataBase64,
+      ),
+    )
+  })
   app.post('/v1/sandboxes/:id/snapshots', async (c) => {
     const s = await boxes.snapshot(c.req.param('id'), c.get('project'))
     return c.json({ id: s.id, sizeBytes: s.sizeBytes, at: s.at }, StatusCodes.CREATED)

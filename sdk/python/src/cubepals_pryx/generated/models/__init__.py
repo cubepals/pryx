@@ -11,6 +11,7 @@ from .error_error import ErrorError
 from .exec_event_type_0 import ExecEventType0
 from .exec_event_type_1 import ExecEventType1
 from .exec_event_type_2 import ExecEventType2
+from .exec_event_type_3_error import ExecEventType3Error
 from .exec_request import ExecRequest
 from .exec_request_env import ExecRequestEnv
 from .get_v1_sandboxes_id_endpoints_response_200 import (
@@ -22,6 +23,9 @@ from .get_v1_sandboxes_id_endpoints_response_200_endpoints_item import (
 from .get_v1_sandboxes_id_events_response_200 import GetV1SandboxesIdEventsResponse200
 from .get_v1_sandboxes_id_events_response_200_events_item import (
     GetV1SandboxesIdEventsResponse200EventsItem,
+)
+from .get_v1_sandboxes_id_file_chunks_path_response_200 import (
+    GetV1SandboxesIdFileChunksPathResponse200,
 )
 from .get_v1_sandboxes_id_files_path_response_200 import (
     GetV1SandboxesIdFilesPathResponse200,
@@ -67,6 +71,12 @@ from .post_v1_sandboxes_id_wake_response_200_tier import (
     PostV1SandboxesIdWakeResponse200Tier,
 )
 from .post_v1_templates_response_201 import PostV1TemplatesResponse201
+from .put_v1_sandboxes_id_file_chunks_path_body import (
+    PutV1SandboxesIdFileChunksPathBody,
+)
+from .put_v1_sandboxes_id_file_chunks_path_response_200 import (
+    PutV1SandboxesIdFileChunksPathResponse200,
+)
 from .put_v1_sandboxes_id_files_path_body import PutV1SandboxesIdFilesPathBody
 from .put_v1_sandboxes_id_files_path_response_200 import (
     PutV1SandboxesIdFilesPathResponse200,
@@ -101,12 +111,14 @@ __all__ = (
     "ExecEventType0",
     "ExecEventType1",
     "ExecEventType2",
+    "ExecEventType3Error",
     "ExecRequest",
     "ExecRequestEnv",
     "GetV1SandboxesIdEndpointsResponse200",
     "GetV1SandboxesIdEndpointsResponse200EndpointsItem",
     "GetV1SandboxesIdEventsResponse200",
     "GetV1SandboxesIdEventsResponse200EventsItem",
+    "GetV1SandboxesIdFileChunksPathResponse200",
     "GetV1SandboxesIdFilesPathResponse200",
     "GetV1SandboxesIdSnapshotsResponse200",
     "GetV1SandboxesResponse200",
@@ -135,6 +147,8 @@ __all__ = (
     "PostV1SandboxesIdWakeResponse200",
     "PostV1SandboxesIdWakeResponse200Tier",
     "PostV1TemplatesResponse201",
+    "PutV1SandboxesIdFileChunksPathBody",
+    "PutV1SandboxesIdFileChunksPathResponse200",
     "PutV1SandboxesIdFilesPathBody",
     "PutV1SandboxesIdFilesPathResponse200",
     "Sandbox",

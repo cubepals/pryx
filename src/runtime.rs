@@ -259,6 +259,17 @@ pub trait ContainerRuntime: Send + Sync + 'static {
         timeout: Duration,
         max_output: usize,
     ) -> Result<ExecOutput, RuntimeError>;
+    /// Bounded live exec output. Implementations without attachment support replay their bounded result.
+    async fn exec_stream(
+        &self,
+        container: &str,
+        command: &[String],
+        timeout: Duration,
+        max_output: usize,
+        _output: tokio::sync::mpsc::Sender<LogChunk>,
+    ) -> Result<ExecOutput, RuntimeError> {
+        self.exec(container, command, timeout, max_output).await
+    }
     fn logs(&self, name: &str, options: LogOptions) -> BoxStream<'static, Result<LogChunk, RuntimeError>>;
     async fn stats(&self, name: &str) -> Result<Option<RawStats>, RuntimeError>;
     fn events(&self, label_filters: &[String]) -> BoxStream<'static, Result<RuntimeEvent, RuntimeError>>;

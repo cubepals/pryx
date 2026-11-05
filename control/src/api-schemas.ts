@@ -105,6 +105,7 @@ export const execEvent = z.union([
     killed: z.boolean(),
     durationMs: z.number(),
   }),
+  z.object({ type: z.literal('error'), error: errorSchema.shape.error }),
 ])
 export const templateSchema = z.object({
   name: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/),

@@ -194,11 +194,11 @@ export class FleetRuntime implements SandboxRuntime {
   }
 
   /** Where a handle's node is dialled, as the registry last read it; null for a resting server. */
-  nodeAddress(handle: RuntimeHandle): { id: string; apiAddress: string } | null {
+  nodeAddress(handle: RuntimeHandle): { id: string; apiAddress: string; features?: string[] } | null {
     const ref = decodeHandle(handle)
     if (ref.node === null) return null
     const node = this.#known.get(ref.node)
-    return node === undefined ? null : { id: ref.node, apiAddress: node.apiAddress }
+    return node === undefined ? null : { id: ref.node, apiAddress: node.apiAddress, features: node.features }
   }
 
   #region(regionKey: string): string {

@@ -27,6 +27,11 @@ writeFileSync(target, contents)
 if (mode === 'generate') process.exit(0)
 if (mode !== 'build') throw new Error('release.ts check|generate|build')
 mkdirSync(join(root, 'dist'), { recursive: true })
+writeFileSync(
+  join(root, 'dist/install.sh'),
+  readFileSync(join(root, 'deploy/install.sh'), 'utf8').replaceAll('__PRYX_VERSION__', version),
+  { mode: 0o755 },
+)
 for (const [source, name] of [
   ['cli/src/main.ts', 'pryx'],
   ['control/src/main.ts', 'pryx-control'],
