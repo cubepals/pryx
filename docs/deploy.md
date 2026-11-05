@@ -63,3 +63,8 @@ operator path installs the host Docker/firewall policy and mounts its engine soc
 container requires NET_ADMIN to apply that policy. It is separate from the ordinary process
 start above. Repeated installation retains credentials. Existing binary installations must
 first be stopped and their data migrated; the installer refuses an active binary deployment.
+
+Host installation reserves its configured workload ports in Linux's
+`ip_local_reserved_ports`, preserving existing reservations and writing a sysctl drop-in.
+This prevents outgoing connections from taking a stopped sandbox's published port.
+For an existing manually installed node, run `sudo pryxd reserve-ports --config /etc/pryxd/pryxd.toml`.

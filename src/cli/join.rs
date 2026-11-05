@@ -139,6 +139,9 @@ pub async fn join(options: Join) -> anyhow::Result<String> {
     }
     let token_file = fleet.enrollment_token_file.as_deref().unwrap_or(Path::new(TOKEN));
     let ca = fetch_ca(&token).await?;
+    if options.start && root == Path::new("/") {
+        super::port_reservation::reserve(config.network.port_range, root)?;
+    }
     let service = Systemd { program: options.systemctl.clone() };
 
     if let Some(identity) = &enrolled {

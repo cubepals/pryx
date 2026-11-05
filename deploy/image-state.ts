@@ -23,6 +23,7 @@ import { FleetCa } from '../control/src/ca.ts'
 import { SECOND_MS } from '../control/src/durations.ts'
 import { ensureBucket } from '../control/src/store-bootstrap.ts'
 
+export const IMAGE_NODE_CONFIG = 'pryxd.toml'
 function serviceIds() {
   const entry = readFileSync('/etc/passwd', 'utf8')
     .split('\n')

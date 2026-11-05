@@ -209,6 +209,7 @@ export async function up(args: string[]) {
     )
   }
   if (existsSync('/etc/pryxd/pryxd.toml')) {
+    await runInstallCommand(['/usr/local/bin/pryxd', 'reserve-ports', '--config', '/etc/pryxd/pryxd.toml'])
     if (changed.has('pryxd') && active('pryxd')) await runInstallCommand(['systemctl', 'restart', 'pryxd'])
     else await runInstallCommand(['systemctl', 'enable', '--now', 'pryxd'])
   }

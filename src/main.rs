@@ -63,6 +63,11 @@ enum Command {
         #[arg(long)]
         config: PathBuf,
     },
+    /// Reserve configured workload ports from the host's outgoing ephemeral allocation.
+    ReservePorts {
+        #[arg(long, default_value = pryxd::config::PATH)]
+        config: PathBuf,
+    },
     /// Make this host a node of the fleet a pasted token names: its configuration, the fleet CA,
     /// the token and the systemd unit, then start it. A token for the node this host already is
     /// enrolls it again under its id.
@@ -177,6 +182,9 @@ fn main() -> ExitCode {
                 Err(e) => Err(e.into()),
             }
         }
+        Command::ReservePorts { config } => Config::load(&config).map_err(anyhow::Error::from).and_then(|config| {
+            pryxd::cli::port_reservation::reserve(config.network.port_range, std::path::Path::new("/"))
+        }),
         Command::CheckConfig { config } => {
             let report = doctor::Report { checks: vec![doctor::check_config(&config).0], fixed: None };
             print_report(&report, false, false)

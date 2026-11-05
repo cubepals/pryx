@@ -639,9 +639,6 @@ jobs:
           .venv-python/bin/python sdk/python/e2e/handles.py
           bun control/tools/readme-example.ts sdk/typescript/README.md ts bun -
           bun control/tools/readme-example.ts sdk/python/README.md python .venv-python/bin/python -
-      - name: Service journals on failure
-        if: failure()
-        run: sudo journalctl -u pryx-control -u pryx-edge -u pryx-postgres -u pryx-store -u pryxd --no-pager -n 150
       - name: Measure projects and host units
         run: sudo "$(command -v bun)" control/bench/projects-one-box.ts "$RUNNER_TEMP/projects-one-box.json"
       - name: Save measured project admission
@@ -653,6 +650,7 @@ jobs:
           if-no-files-found: error
 
       - name: Install and repeat the release image on the host
+        if: ${{ !cancelled() && steps.up.outcome == 'success' }}
         run: |
           trap 'sudo python3 control/tools/image-diagnostics.py /var/lib/pryx-image' ERR
           sudo systemctl stop pryx-edge pryx-control pryxd pryx-postgres pryx-store
@@ -665,6 +663,10 @@ jobs:
           [ "$(PRYX_API_URL=http://127.0.0.1:8080 dist/pryx run --image alpine:3.22 -- echo hello)" = hello ]
           sudo dist/pryx up --image pryx-one-box-release --domain sandboxes.example.com
           [ "$(PRYX_API_URL=http://127.0.0.1:8080 dist/pryx run --image alpine:3.22 -- echo hello)" = hello ]
+
+      - name: Service journals on failure
+        if: failure()
+        run: sudo journalctl -u pryx-control -u pryx-edge -u pryx-postgres -u pryx-store -u pryxd --no-pager -n 150
 
   image:
     name: Release image builds

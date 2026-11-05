@@ -5,6 +5,7 @@ import { existsSync, lstatSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { MINUTE_MS, SECOND_MS } from '../../control/src/durations.ts'
 import { PRYX_VERSION } from '../../control/src/generated/release.ts'
+import { IMAGE_NODE_CONFIG } from '../../deploy/image-state.ts'
 import nodeSchema from '../../openapi/node-writes.openapi.json'
 import { callerHomeAndDropPrivileges, writeClientConfig } from './client-config.ts'
 import { installBinary } from './up-assets.ts'
@@ -66,6 +67,9 @@ export async function upImage(args: string[], domain: string, run: InstallComman
     const target = nodeSchema['x-pryx-agent'].defaultBinary
     mkdirSync(dirname(target), { recursive: true, mode: 0o755 })
     installBinary(source, target)
+    const daemon = join('/etc/pryx', 'image-pryxd')
+    await run(['docker', 'cp', `${id}:/pryxd`, daemon])
+    installBinary(daemon, '/usr/local/lib/pryx/pryxd-host')
   } finally {
     await run(['docker', 'rm', '-v', id])
   }
@@ -108,6 +112,12 @@ export async function upImage(args: string[], domain: string, run: InstallComman
     await Bun.sleep(SECOND_MS)
   }
   if (!ready) throw new Error('Release image did not become healthy; inspect its service journal')
+  await run([
+    '/usr/local/lib/pryx/pryxd-host',
+    'reserve-ports',
+    '--config',
+    join(STATE, 'private', IMAGE_NODE_CONFIG),
+  ])
   const privatePath = join(STATE, 'private', 'credentials.json')
   const metadata = lstatSync(privatePath)
   if (!metadata.isFile() || metadata.uid !== 0 || metadata.mode & 0o077)

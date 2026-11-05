@@ -12,7 +12,14 @@ import { createToken, nodeSummaries } from '../control/src/registry.ts'
 import { startEdge } from '../edge/src/agent.ts'
 import { edgeConfig } from '../edge/src/config.ts'
 import { front } from '../edge/src/front.ts'
-import { createPrivateFile, credentials, embedded, privateLog, until } from './image-state.ts'
+import {
+  createPrivateFile,
+  credentials,
+  embedded,
+  IMAGE_NODE_CONFIG,
+  privateLog,
+  until,
+} from './image-state.ts'
 
 let startupStage = 'configuration',
   diagnosticRoot: string | undefined
@@ -113,7 +120,7 @@ async function serve() {
     const token = await createToken(control.db, { regionKey: 'default', ttlSeconds: 600, createdBy: 'image' })
     writeFileSync(tokenPath, token.token, { mode: 0o600 })
   }
-  const nodeConfig = join(root, 'private', 'pryxd.toml')
+  const nodeConfig = join(root, 'private', IMAGE_NODE_CONFIG)
   const user =
     process.getuid?.() === 0
       ? '1000:1000'
