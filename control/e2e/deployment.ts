@@ -4,7 +4,7 @@
 /** A real control and local pryxd deployment for public API, CLI and edge CI suites. */
 import { spawnSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
-import { existsSync, mkdirSync, openSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { FleetCa } from '../src/ca.ts'
@@ -12,9 +12,9 @@ import { loadConfig } from '../src/config.ts'
 import { SECOND_MS } from '../src/durations.ts'
 import { createKey } from '../src/keys.ts'
 import { startControl } from '../src/main.ts'
-import { createToken, nodeSummaries } from '../src/registry.ts'
+import { nodeSummaries } from '../src/registry.ts'
 import { freshDatabase, hasDatabase } from '../test/nodes.ts'
-import { nodeConfigFor } from './runtime-config.ts'
+import { spawnNodes } from './deployment-nodes.ts'
 import { createTestBucket } from './test-bucket.ts'
 import { freePort, until } from './waits.ts'
 export const bin = process.env.PRYXD_BIN ?? new URL('../../target/debug/pryxd', import.meta.url).pathname
@@ -70,37 +70,8 @@ export async function deployment(
     heartbeatSeconds: 1,
     suspend: true,
   })
-  const children: { child: Bun.Subprocess; path: string }[] = []
   const count = options.nodes ?? 1
-  for (let index = 0; index < count; index++) {
-    const nodeDir = count === 1 ? dir : join(dir, String(index))
-    mkdirSync(nodeDir, { recursive: true })
-    writeFileSync(join(nodeDir, 'ca.pem'), pems.certPem)
-    const token = await createToken(control.db, { regionKey: 'default', ttlSeconds: 600, createdBy: 'e2e' })
-    writeFileSync(join(nodeDir, 'token'), token.token, { mode: 0o600 })
-    const path = join(nodeDir, 'pryxd.toml')
-    writeFileSync(
-      path,
-      nodeConfigFor(name)({
-        allowedImages: options.allowedImages,
-        agent: options.agent,
-        storeLease: options.storeLease,
-        home: nodeDir,
-        endpointUrl: config.joinUrl,
-        dir: nodeDir,
-        apiPort: await freePort(),
-        opsPort: await freePort(),
-        low: 40000 + (Number.parseInt(name.slice(-3), 16) % 90) * 100 + index * 50,
-      }),
-    )
-    const args = [bin, 'serve', '--config', path, '--log-format', 'pretty'],
-      log = openSync(join(nodeDir, 'pryxd.log'), 'a')
-    const child = Bun.spawn(process.env.PRYXD_SUDO === '1' ? ['sudo', '-n', ...args] : args, {
-      stdout: log,
-      stderr: log,
-    })
-    children.push({ child, path })
-  }
+  const children = await spawnNodes({ name, dir, bin, options, pems, control, config })
   await until('public node healthy', async () => {
     const nodes = await nodeSummaries(control.db, { suspectSeconds: 15, unavailableSeconds: 45 })
     return nodes.length === count && nodes.every((n) => n.derivedHealth === 'healthy') ? nodes : null
