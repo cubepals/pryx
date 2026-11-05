@@ -14,7 +14,9 @@ import { sql } from 'drizzle-orm'
 
 import type { Queryable } from './database.ts'
 import { SECOND_MS } from './durations.ts'
+import { decodeHandle } from './handle.ts'
 import type { Lifecycle } from './placement.ts'
+import type { RuntimeHandle } from './runtime-model.ts'
 import { rows } from './sql.ts'
 
 /** How often each process rereads node addresses and lifecycles, which pure methods read. */
@@ -42,6 +44,14 @@ export class NodeCache {
   constructor(db: Queryable, log: (message: string, fields?: object) => void) {
     this.#db = db
     this.#log = log
+  }
+
+  /** Where a handle's node is dialled, as the registry last read it; null for a resting server. */
+  address(handle: RuntimeHandle): { id: string; apiAddress: string; features?: string[] } | null {
+    const ref = decodeHandle(handle)
+    if (ref.node === null) return null
+    const node = this.get(ref.node)
+    return node === undefined ? null : { id: ref.node, apiAddress: node.apiAddress, features: node.features }
   }
 
   get(id: string): CachedNode | undefined {
