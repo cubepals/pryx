@@ -10,6 +10,11 @@ use std::{
     process::{Command, Stdio},
 };
 
+// Linux setpriority(2) defines the lowest-priority nice value as 19.
+const MAX_NICE: i64 = 19;
+// The process tier maps this many requested CPU-share weights to one nice step.
+const SHARES_PER_NICE_STEP: i64 = 1024;
+
 impl ProcessRuntime {
     pub(super) fn running(&self, name: &str) -> Result<bool, RuntimeError> {
         Ok(self
@@ -98,7 +103,7 @@ impl ProcessRuntime {
             Some(rustix::process::Gid::from_raw(owner.1)),
         )
         .map_err(error)?;
-        let policy = serde_json::json!({"data":spec.data_dir, "memory_bytes":spec.memory_bytes, "address_space_bytes":self.policy.address_space_mb.saturating_mul(1024*1024), "open_files":self.policy.open_files, "processes":spec.pids_limit, "cpu_seconds":self.policy.cpu_seconds, "nice":(19-(spec.cpu_shares/1024).min(19)) as i32, "network_off":spec.internal_network});
+        let policy = serde_json::json!({"data":spec.data_dir, "memory_bytes":spec.memory_bytes, "address_space_bytes":self.policy.address_space_mb.saturating_mul(1024*1024), "open_files":self.policy.open_files, "processes":spec.pids_limit, "cpu_seconds":self.policy.cpu_seconds, "nice":(MAX_NICE-(spec.cpu_shares/SHARES_PER_NICE_STEP).min(MAX_NICE)) as i32, "network_off":spec.internal_network});
         command
             .env_clear()
             .env("PATH", "/usr/local/bin:/usr/bin:/bin")
