@@ -422,6 +422,9 @@ jobs:
       - name: Measure and prove the ordinary process image
         if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         run: PRYXD_BIN="$GITHUB_WORKSPACE/target/debug/pryxd" bun control/bench/process-speed.ts after "$RUNNER_TEMP/process-speed-after.json"
+      - name: Compose service and persistent credentials
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: bun control/bench/compose-image.ts
       - name: Save paired speed measurements
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
