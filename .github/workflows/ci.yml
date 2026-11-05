@@ -333,6 +333,10 @@ jobs:
         run: >-
           docker run -d --name pryx-s3 -p 9000:9000 -e RUSTFS_ACCESS_KEY=blockly-test
           -e RUSTFS_SECRET_KEY=blockly-test-secret ghcr.io/rustfs/rustfs:1.0.0 /data
+      - name: Measure the K9 baseline on one box
+        env:
+          PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
+        run: bun control/bench/speed.ts before "$RUNNER_TEMP/speed-before.json"
       - name: Build a static daemon for isolated nodes
         run: |
           docker build -t pryx-static-test .
