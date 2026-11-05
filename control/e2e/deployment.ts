@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { FleetCa } from '../src/ca.ts'
 import { loadConfig } from '../src/config.ts'
+import { SECOND_MS } from '../src/durations.ts'
 import { createKey } from '../src/keys.ts'
 import { startControl } from '../src/main.ts'
 import { createToken, nodeSummaries } from '../src/registry.ts'
@@ -119,7 +120,24 @@ export async function deployment(
           process.env.PRYXD_SUDO === '1' ? 'sudo' : (kill[0] ?? 'pkill'),
           process.env.PRYXD_SUDO === '1' ? ['-n', ...kill] : kill.slice(1),
         )
-        await child.exited
+        let timer: ReturnType<typeof setTimeout> | undefined
+        const exited = await Promise.race([
+          child.exited.then(() => true),
+          new Promise<false>((resolve) => {
+            timer = setTimeout(() => resolve(false), 10 * SECOND_MS)
+          }),
+        ])
+        clearTimeout(timer)
+        if (!exited) {
+          // Fault suites deliberately suspend nodes in the middle of runtime requests. Cleanup
+          // cannot depend on that damaged node completing another request or a graceful drain.
+          const force = ['pkill', '-KILL', '-f', '--', `serve --config ${path}`]
+          spawnSync(
+            process.env.PRYXD_SUDO === '1' ? 'sudo' : (force[0] ?? 'pkill'),
+            process.env.PRYXD_SUDO === '1' ? ['-n', ...force] : force.slice(1),
+          )
+          await child.exited
+        }
       }
       const ids = spawnSync('docker', ['ps', '-aq', '--filter', `label=blocklyd.deployment=${name}`])
         .stdout.toString()
