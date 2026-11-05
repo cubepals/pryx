@@ -9,7 +9,7 @@ import { Pryx } from '@cubepals/pryx'
 import { deployment, ready } from '../../../control/e2e/deployment.ts'
 import { deploymentDiagnostics } from '../../../control/e2e/diagnostics.ts'
 import { freePort, until } from '../../../control/e2e/waits.ts'
-import { MINUTE_MS } from '../../../control/src/durations.ts'
+import { MINUTE_MS, MINUTE_S } from '../../../control/src/durations.ts'
 import { containerBridge } from '../src/index.ts'
 
 test.skipIf(!ready || !process.env.CELLD_BIN)(
@@ -30,7 +30,12 @@ test.skipIf(!ready || !process.env.CELLD_BIN)(
         entrypoint: ['sh', '-c', 'echo celld-on-pryx > /data/index.html; httpd -f -p 8080 -h /data'],
       },
     })
-    const server = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: bridge.fetch })
+    const server = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 0,
+      idleTimeout: 4 * MINUTE_S,
+      fetch: bridge.fetch,
+    })
     cpSync(new URL('../prototype/', import.meta.url), dir, { recursive: true })
     writeFileSync(
       `${dir}/.dev.vars`,
