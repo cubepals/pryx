@@ -14,6 +14,7 @@ export const nodeConfigFor = (DEPLOYMENT: string) =>
     apiPort: number
     opsPort: number
     allowedImages?: string[]
+    storeLease?: boolean
     low: number
   }): string {
     const { home, endpointUrl, dir, apiPort, opsPort, low } = at
@@ -35,6 +36,7 @@ allocatable_memory_mb = 4096
 min_free_disk_mb = 256
 [transfer]
 max_put_mb = 1
+${at.storeLease ? '[store_lease]\nenabled = true\nnon_suspending_host = true\n' : ''}
 [fleet]
 url = "${endpointUrl}"
 ca = "${join(dir, 'ca.pem')}"

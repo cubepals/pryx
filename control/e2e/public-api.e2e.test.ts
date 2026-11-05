@@ -69,7 +69,7 @@ describe.skipIf(!ready)('public API end to end', () => {
       expect(await invoke(['run', '--image', 'alpine:3.22', '--', 'echo', 'hello'])).toBe('hello\n')
       const made = await client.make({
         image: 'alpine:3.22',
-        entrypoint: ['sh', '-c', 'while :; do sleep 1; done'],
+        entrypoint: ['sh', '-c', 'trap "exit 0" TERM; while :; do sleep 1; done'],
         resources: { memoryMb: 128 },
       })
       for (const verb of ['ls', 'get', 'logs', 'sleep', 'wake', 'rest', 'wake'])

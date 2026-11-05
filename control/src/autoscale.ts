@@ -138,6 +138,20 @@ export class Autoscale {
         )
       )
         throw new ProviderError('refused', 'Node reports a copy unknown to the sandbox ledger')
+      if (
+        await one(
+          this.db,
+          sql`
+        SELECT 1 FROM fleet_placement_history h JOIN sandboxes b ON b.id=h.workload
+        WHERE h.node_id=${nodeId} AND h.end_reason='lost' AND b.deleted_at IS NULL AND
+        (EXISTS(SELECT 1 FROM fleet_observations o WHERE o.node_id=h.node_id AND o.workload=h.workload AND o.epoch=h.epoch)
+         OR NOT EXISTS(SELECT 1 FROM fleet_nodes n WHERE n.id=h.node_id AND n.last_heartbeat_at>h.ended_at AND n.control_host=${a.host?.address ?? ''}))`,
+        )
+      )
+        throw new ProviderError(
+          'refused',
+          'Node retains a fenced recovery copy; preserve its unsnapshotted data before release',
+        )
       await retire(this.db, nodeId, 'autoscale')
       await this.db.execute(sql`UPDATE provider_acquisitions SET state='releasing' WHERE id=${a.id}`)
       if (!a.host) throw new ProviderError('refused', 'No provider host identity recorded')

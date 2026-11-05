@@ -778,3 +778,16 @@ Format v1 was first published with the `blocklyd-epoch` and `blocklyd-protocol` 
 prefix and the fleet paths `/fleet/v1/enroll`, `/heartbeat`, `/renew`, `/blocklyd`,
 `/blocklyd.sha256`, `/blocklyd.json` and `/join.sh`. Those names, the record fields, spec digest,
 features and Docker daemon configuration stay until protocol v2.
+
+## Optional store lease
+
+A host configured with store_lease.enabled announces `store-lease` in health/heartbeats after
+its independent cgroup watchdog passes startup checks. Other hosts do not announce it. Control
+first GETs `/v1/workloads/{id}/store-lease` for its fresh daemon-session identity, then may POST that endpoint with the ordinary epoch header and the additive
+`StoreLeaseGrant` schema before starting the copy. The grant's presigned URLs stay in memory;
+records and labels keep format v1 unchanged. A missing or expired grant refuses starts and exec
+with `409 store_lease_required`. Expiry freezes/kills the leased cgroup and reports issue
+`store_lease_expired`. This includes stopped/suspended placements that retain a grant for wake.
+See [store-lease.md](store-lease.md) for conditional takeover, host prerequisites, fault model,
+maintenance behavior and the unrun measurement table. The existing execution lease and all
+feature-off behavior remain as described above.

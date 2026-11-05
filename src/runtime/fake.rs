@@ -148,6 +148,7 @@ impl FakeRuntime {
 
     fn info(c: &FakeContainer) -> ContainerInfo {
         ContainerInfo {
+            cgroup_parent: c.spec.cgroup_parent.clone(),
             id: c.id.clone(),
             name: c.spec.name.clone(),
             labels: c.spec.labels.clone(),

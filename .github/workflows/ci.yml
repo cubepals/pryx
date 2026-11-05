@@ -282,7 +282,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 90
     services:
       postgres:
         image: mirror.gcr.io/library/postgres:17-alpine
@@ -344,6 +344,11 @@ jobs:
           PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
 
 
+      - name: Two isolated nodes as root
+        env:
+          PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
+        run: sudo -E env "PATH=$PATH" "$(command -v bun)" test control/e2e/fleet-two-node.e2e.test.ts
+
       - name: Install the pinned celld public release
         run: |
           curl -fsSL https://github.com/denoland/celld/releases/download/v0.6.3/celld-x86_64-unknown-linux-gnu.gz -o "$RUNNER_TEMP/celld.gz"
@@ -372,6 +377,38 @@ jobs:
           PRYX_HETZNER_TOKEN: ${{ secrets.PRYX_HETZNER_TOKEN }}
           PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
         run: bun test control/e2e/hetzner.e2e.test.ts
+
+
+      - name: Configure the isolated lease test host
+        run: |
+          sudo python3 - <<'PYCFG'
+          import json
+          from pathlib import Path
+          p = Path('/etc/docker/daemon.json')
+          config = json.loads(p.read_text()) if p.exists() else {}
+          config['exec-opts'] = ['native.cgroupdriver=cgroupfs']
+          p.write_text(json.dumps(config))
+          PYCFG
+          sudo systemctl restart docker
+          docker start pryx-s3
+          for id in $(docker ps -aq --filter ancestor=mirror.gcr.io/library/postgres:17-alpine); do
+            docker start "$id"
+            for attempt in $(seq 1 30); do
+              docker exec "$id" pg_isready -U pryx && break
+              [ "$attempt" = 30 ] && exit 1
+              sleep 1
+            done
+          done
+      - name: Store cut, watchdog and conditional recovery
+        env:
+          PRYX_LEASE_E2E: '1'
+          PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
+          PRYX_LEASE_MEASUREMENTS: ${{ runner.temp }}/store-lease-measurements.json
+        run: bun test control/e2e/store-lease.e2e.test.ts
+      - name: Lease measurements
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/store-lease-measurements.json" ]; then cat "$RUNNER_TEMP/store-lease-measurements.json" >> "$GITHUB_STEP_SUMMARY"; fi
 
   one-box:
     name: One box and Action

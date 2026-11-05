@@ -95,7 +95,10 @@ function toWorkloadSpec(spec: RuntimeSpec): WorkloadSpec {
 export class WorkloadApi {
   readonly #nodes: Pick<NodeClient, 'call'>
 
-  constructor(nodes: Pick<NodeClient, 'call'>) {
+  constructor(
+    nodes: Pick<NodeClient, 'call'>,
+    readonly beforeStart?: (nodeId: string, workload: string, epoch: number) => Promise<void>,
+  ) {
     this.#nodes = nodes
   }
 
@@ -110,7 +113,7 @@ export class WorkloadApi {
    * The spec to the node. `wake` for a copy that exists, being woken; `ifMatch` replaces only the
    * spec the node's digest names, so an apply can't overwrite a newer one.
    */
-  put(
+  async put(
     node: Dialled,
     key: string,
     spec: RuntimeSpec,
@@ -126,13 +129,14 @@ export class WorkloadApi {
   }
 
   /** A power command; `wake` for a start that wakes the copy, resumed or booted. */
-  power(
+  async power(
     node: Dialled,
     key: string,
     epoch: number,
     verb: 'start' | 'stop' | 'kill' | 'suspend',
     wake = false,
   ): Promise<PowerResponse> {
+    if (verb === 'start') await this.beforeStart?.(node.id, key, epoch)
     return this.#nodes.call<PowerResponse>(address(node), 'POST', `/v1/workloads/${key}/${verb}`, {
       epoch,
       timeoutMs: verb === 'stop' ? TEARDOWN_MS : wake ? WAKE_START_MS : MINUTE_MS,

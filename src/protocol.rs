@@ -20,6 +20,7 @@
 //! - `workload.rs`: what pryxd reports about one workload: its view, stats and log lines.
 //! - `lifecycle.rs`: the verbs that create, start, suspend, stop, fence and delete a workload.
 //! - `transfer.rs`: moving a workload's data: export, restore, snapshots and their upload.
+//! - `store_lease.rs`: optional ephemeral store authority and its versioned object.
 //! - `exec.rs`: running one command inside a workload.
 //! - `node.rs`: what the node reports about itself.
 //! - `wire.rs`: what a node and its control plane send each other: enrollment, heartbeats, renewal.
@@ -34,6 +35,7 @@ mod node;
 #[cfg(test)]
 mod schema;
 mod spec;
+mod store_lease;
 mod transfer;
 pub mod wire;
 mod workload;
@@ -42,6 +44,7 @@ pub use exec::*;
 pub use lifecycle::*;
 pub use node::*;
 pub use spec::*;
+pub(crate) use store_lease::*;
 pub use transfer::*;
 pub use workload::*;
 

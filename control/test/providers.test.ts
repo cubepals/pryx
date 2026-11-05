@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { sql } from 'drizzle-orm'
 import { Autoscale, smallestShape } from '../src/autoscale.ts'
+import { decodeHandle } from '../src/handle.ts'
 import { THRESHOLDS } from '../src/health.ts'
 import { ProviderLedger } from '../src/provider-ledger.ts'
 import { FakeProvider } from '../src/providers/fake.ts'
@@ -252,6 +253,35 @@ describe.skipIf(!hasDatabase)('provider control', () => {
     ).toBe('ready')
     expect((await c.boxes.get(box.id)).state).toBe('resting')
     await c.boxes.delete(box.id)
+  })
+  test('a recovered sandbox retains its prior copy until a fresh inventory confirms removal', async () => {
+    const a = await hosts.acquire('retained-tail', 'fake', 'fit', 'retained-tail')
+    await hosts.settle()
+    const node = await joined(a.id)
+    const box = await c.boxes.make(
+      'default',
+      { image: 'alpine:3.22', resources: { memoryMb: 128 }, storage: { mountPath: '/data', sizeGb: 1 } },
+      { region: 'retained-tail' },
+    )
+    const ref = decodeHandle((await c.boxes.record(box.id)).handle as string)
+    await c.db.execute(sql`UPDATE fleet_placements SET state='released' WHERE workload=${box.id}`)
+    await c.db.execute(
+      sql`UPDATE fleet_placement_history SET end_reason='lost',ended_at=now() WHERE workload=${box.id} AND epoch=${ref.epoch}`,
+    )
+    await c.db.execute(
+      sql`INSERT INTO fleet_observations(node_id,workload,epoch,state,spec_digest,report) VALUES(${node.id},${box.id},${ref.epoch},'fenced','fixture','{}'::jsonb) ON CONFLICT(node_id,workload) DO NOTHING`,
+    )
+    await expect(scaling.release(node.id)).rejects.toMatchObject({ code: 'refused' })
+    expect(provider.released.has((await hosts.record(a.id)).host?.id ?? '')).toBe(false)
+    await c.db.execute(sql`DELETE FROM fleet_observations WHERE node_id=${node.id} AND workload=${box.id}`)
+    await c.db.execute(
+      sql`UPDATE fleet_nodes SET last_heartbeat_at=now()+interval '1 second' WHERE id=${node.id}`,
+    )
+    await expect(scaling.release(node.id)).rejects.toMatchObject({ code: 'refused' })
+    await c.db.execute(
+      sql`UPDATE fleet_nodes SET control_host=${(await hosts.record(a.id)).host?.address ?? ''} WHERE id=${node.id}`,
+    )
+    expect((await scaling.release(node.id)).state).toBe('released')
   })
   test('an unjoined acquisition can be cancelled without ever minting a second host', async () => {
     const a = await hosts.acquire('cancel', 'fake', 'fit', 'cancel')

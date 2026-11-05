@@ -71,6 +71,7 @@ impl Manager {
             state.stats.remove(id);
             state.issues.remove(id);
         }
+        self.store_leases.lock().unwrap().remove(id);
         self.persist_resting_ports().await;
         match data {
             DataDisposition::Keep => {

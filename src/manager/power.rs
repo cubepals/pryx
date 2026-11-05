@@ -25,6 +25,7 @@ impl Manager {
     async fn start_locked(self: &Arc<Self>, id: &WorkloadId, epoch: Option<u64>) -> Result<PowerResponse, NodeError> {
         let record = self.record(id)?;
         check_epoch(&record, epoch, EpochRule::Exact)?;
+        self.require_store_lease(&record)?;
         match record.phase {
             Phase::Creating => {
                 return Err(NodeError::Conflict {

@@ -77,7 +77,24 @@ impl DockerRuntime {
         Ok(Self { socket, client: std::sync::Mutex::new(None) })
     }
 
-    /// The client, made on first use once the socket exists. Cheap to clone (shared inside).
+    /// Prove the independent cgroup watchdog before enabling the optional host feature.
+    pub async fn check_store_lease(&self) -> Result<(), RuntimeError> {
+        let info = self.info().await?;
+        if info.cgroup_version.as_deref() != Some("2") || info.cgroup_driver.as_deref() != Some("cgroupfs") {
+            return Err(RuntimeError::Other("store-lease needs rootful cgroup v2 and Docker cgroupfs driver".into()));
+        }
+        crate::store_lease::guard::prepare("probe", 0)
+            .map_err(|_| RuntimeError::Other("store-lease cgroups are not writable".into()))?;
+        let mut probe = crate::store_lease::guard::Guard::start(
+            "probe",
+            0,
+            crate::store_lease::guard::boot_ms().map_err(|_| RuntimeError::Other("Boot clock unavailable".into()))?
+                + 5000,
+        )
+        .map_err(|_| RuntimeError::Other("Cannot protect independent lease watchdog".into()))?;
+        probe.fence().map_err(|_| RuntimeError::Other("Cannot freeze lease cgroup".into()))?;
+        Ok(())
+    }
     fn docker(&self) -> Result<Docker, RuntimeError> {
         let mut client = self.client.lock().unwrap();
         if let Some(docker) = client.as_ref() {
@@ -196,6 +213,7 @@ fn info_from(inspect: ContainerInspectResponse) -> ContainerInfo {
         .filter_map(|kv| kv.split_once('=').map(|(k, v)| (k.to_owned(), v.to_owned())))
         .collect();
     ContainerInfo {
+        cgroup_parent: inspect.host_config.and_then(|h| h.cgroup_parent),
         id: inspect.id.unwrap_or_default(),
         name: inspect.name.unwrap_or_default().trim_start_matches('/').to_owned(),
         labels: config.labels.unwrap_or_default().into_iter().collect(),
@@ -229,6 +247,7 @@ fn body_of(spec: &ContainerSpec) -> ContainerCreateBody {
         HashMap::from([("/tmp".to_owned(), format!("rw,exec,nosuid,nodev,size={}m", spec.tmp_size_mb))])
     });
     let host_config = HostConfig {
+        cgroup_parent: spec.cgroup_parent.clone(),
         memory: Some(spec.memory_bytes),
         // Equal to memory: no swap. Swapping would stall a workload.
         memory_swap: Some(spec.memory_bytes),
@@ -269,6 +288,8 @@ fn body_of(spec: &ContainerSpec) -> ContainerCreateBody {
     ContainerCreateBody {
         image: Some(spec.image.clone()),
         entrypoint: spec.entrypoint.clone(),
+        // An explicit argv is complete; do not append the image's default CMD.
+        cmd: spec.entrypoint.as_ref().map(|_| Vec::new()),
         env: Some(spec.env.iter().map(|(k, v)| format!("{k}={v}")).collect()),
         labels: Some(spec.labels.clone().into_iter().collect()),
         user: Some(spec.user.clone()),
@@ -671,6 +692,7 @@ mod tests {
 
     fn spec() -> ContainerSpec {
         ContainerSpec {
+            cgroup_parent: None,
             name: "blockly-test-w".into(),
             image: "alpine:3.22".into(),
             entrypoint: None,
@@ -693,6 +715,15 @@ mod tests {
             log_max_files: 3,
             oom_score_adj: 500,
         }
+    }
+
+    #[test]
+    fn explicit_entrypoint_does_not_append_the_images_default_command() {
+        let mut spec = spec();
+        assert_eq!(body_of(&spec).cmd, None);
+        spec.entrypoint = Some(vec!["echo".into(), "exact".into()]);
+        assert_eq!(body_of(&spec).entrypoint, spec.entrypoint);
+        assert_eq!(body_of(&spec).cmd, Some(Vec::new()));
     }
 
     #[test]

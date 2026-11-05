@@ -494,6 +494,85 @@
         ],
         "type": "object"
       },
+      "StoreLeaseGrant": {
+        "additionalProperties": false,
+        "properties": {
+          "generation": {
+            "type": "string"
+          },
+          "readUrl": {
+            "type": "string"
+          },
+          "renewSeconds": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "seconds": {
+            "format": "uint64",
+            "minimum": 10,
+            "type": "integer"
+          },
+          "session": {
+            "type": "string"
+          },
+          "writeUrl": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "session",
+          "readUrl",
+          "writeUrl",
+          "generation",
+          "seconds",
+          "renewSeconds"
+        ],
+        "type": "object",
+        "x-renew-margin-seconds": 2
+      },
+      "StoreLeaseObject": {
+        "additionalProperties": false,
+        "properties": {
+          "epoch": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "expiresAtMs": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "generation": {
+            "type": "string"
+          },
+          "node": {
+            "type": "string"
+          },
+          "session": {
+            "type": "string"
+          },
+          "version": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "workload": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "session",
+          "version",
+          "workload",
+          "node",
+          "epoch",
+          "generation",
+          "expiresAtMs"
+        ],
+        "type": "object"
+      },
       "UpgradeOffer": {
         "description": "The pryxd the control plane wants the node to run, at `GET /fleet/v1/blocklyd`.",
         "properties": {

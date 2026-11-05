@@ -20,7 +20,10 @@ export const bin = process.env.PRYXD_BIN ?? new URL('../../target/debug/pryxd', 
 export const ready = Boolean(
   existsSync(bin) && hasDatabase && process.env.S3_TEST_ENDPOINT && existsSync('/var/run/docker.sock'),
 )
-export async function deployment(options: { allowedImages?: string[] } = {}) {
+export const LEASE_TEST = { seconds: 10, renewSeconds: 3 }
+export async function deployment(
+  options: { allowedImages?: string[]; storeLease?: boolean; nodes?: number; runtimeEndpoint?: string } = {},
+) {
   const name = `public${randomBytes(4).toString('hex')}`,
     dir = join(tmpdir(), name)
   mkdirSync(dir, { recursive: true })
@@ -38,12 +41,16 @@ export async function deployment(options: { allowedImages?: string[] } = {}) {
   const config = loadConfig({
     DATABASE_URL: fresh.url,
     PRYX_DEPLOYMENT: name,
+    PRYX_STORE_LEASE: options.storeLease ? 'on' : 'off',
+    PRYX_STORE_LEASE_SECONDS: String(LEASE_TEST.seconds),
+    PRYX_STORE_LEASE_RENEW_SECONDS: String(LEASE_TEST.renewSeconds),
     PRYX_CA_CERT: pems.certPem,
     PRYX_CA_KEY: pems.keyPem,
     PRYX_OPERATOR_TOKEN: operatorToken,
     PRYX_EDGE_TOKEN: randomBytes(32).toString('hex'),
     PRYX_NODE_LISTEN: `127.0.0.1:${endpointPort}`,
     S3_ENDPOINT: s3.endpoint,
+    S3_RUNTIME_ENDPOINT: options.runtimeEndpoint,
     S3_BUCKET: s3.bucket,
     S3_ACCESS_KEY: s3.accessKeyId,
     S3_SECRET_KEY: s3.secretAccessKey,
@@ -56,32 +63,39 @@ export async function deployment(options: { allowedImages?: string[] } = {}) {
     heartbeatSeconds: 1,
     suspend: true,
   })
-  writeFileSync(join(dir, 'ca.pem'), pems.certPem)
-  const token = await createToken(control.db, { regionKey: 'default', ttlSeconds: 600, createdBy: 'e2e' })
-  writeFileSync(join(dir, 'token'), token.token, { mode: 0o600 })
-  const path = join(dir, 'pryxd.toml'),
-    opsPort = await freePort()
-  writeFileSync(
-    path,
-    nodeConfigFor(name)({
-      allowedImages: options.allowedImages,
-      home: dir,
-      endpointUrl: config.joinUrl,
-      dir,
-      apiPort: await freePort(),
-      opsPort,
-      low: 40000 + (Number.parseInt(name.slice(-3), 16) % 100) * 50,
-    }),
-  )
-  const args = [bin, 'serve', '--config', path, '--log-format', 'pretty'],
-    log = openSync(join(dir, 'pryxd.log'), 'a')
-  const child = Bun.spawn(process.env.PRYXD_SUDO === '1' ? ['sudo', '-n', ...args] : args, {
-    stdout: log,
-    stderr: log,
-  })
+  const children: { child: Bun.Subprocess; path: string }[] = []
+  const count = options.nodes ?? 1
+  for (let index = 0; index < count; index++) {
+    const nodeDir = count === 1 ? dir : join(dir, String(index))
+    mkdirSync(nodeDir, { recursive: true })
+    writeFileSync(join(nodeDir, 'ca.pem'), pems.certPem)
+    const token = await createToken(control.db, { regionKey: 'default', ttlSeconds: 600, createdBy: 'e2e' })
+    writeFileSync(join(nodeDir, 'token'), token.token, { mode: 0o600 })
+    const path = join(nodeDir, 'pryxd.toml')
+    writeFileSync(
+      path,
+      nodeConfigFor(name)({
+        allowedImages: options.allowedImages,
+        storeLease: options.storeLease,
+        home: nodeDir,
+        endpointUrl: config.joinUrl,
+        dir: nodeDir,
+        apiPort: await freePort(),
+        opsPort: await freePort(),
+        low: 40000 + (Number.parseInt(name.slice(-3), 16) % 90) * 100 + index * 50,
+      }),
+    )
+    const args = [bin, 'serve', '--config', path, '--log-format', 'pretty'],
+      log = openSync(join(nodeDir, 'pryxd.log'), 'a')
+    const child = Bun.spawn(process.env.PRYXD_SUDO === '1' ? ['sudo', '-n', ...args] : args, {
+      stdout: log,
+      stderr: log,
+    })
+    children.push({ child, path })
+  }
   await until('public node healthy', async () => {
-    const [node] = await nodeSummaries(control.db, { suspectSeconds: 15, unavailableSeconds: 45 })
-    return node?.derivedHealth === 'healthy' ? node : null
+    const nodes = await nodeSummaries(control.db, { suspectSeconds: 15, unavailableSeconds: 45 })
+    return nodes.length === count && nodes.every((n) => n.derivedHealth === 'healthy') ? nodes : null
   })
   await control.runtime.refreshRegistry()
   const credential = await createKey(control.db, 'default', 'e2e')
@@ -89,6 +103,7 @@ export async function deployment(options: { allowedImages?: string[] } = {}) {
     control,
     dir,
     credential,
+    children,
     env: {
       ...process.env,
       PRYX_API_URL: control.apiUrl.replace(/\/$/, ''),
@@ -98,12 +113,14 @@ export async function deployment(options: { allowedImages?: string[] } = {}) {
       PRYX_EDGE_TOKEN: control.config.edgeToken,
     },
     close: async () => {
-      const kill = ['pkill', '-TERM', '-f', '--', `serve --config ${path}`]
-      spawnSync(
-        process.env.PRYXD_SUDO === '1' ? 'sudo' : (kill[0] ?? 'pkill'),
-        process.env.PRYXD_SUDO === '1' ? ['-n', ...kill] : kill.slice(1),
-      )
-      await child.exited
+      for (const { child, path } of children) {
+        const kill = ['pkill', '-TERM', '-f', '--', `serve --config ${path}`]
+        spawnSync(
+          process.env.PRYXD_SUDO === '1' ? 'sudo' : (kill[0] ?? 'pkill'),
+          process.env.PRYXD_SUDO === '1' ? ['-n', ...kill] : kill.slice(1),
+        )
+        await child.exited
+      }
       const ids = spawnSync('docker', ['ps', '-aq', '--filter', `label=blocklyd.deployment=${name}`])
         .stdout.toString()
         .split(/\s+/)

@@ -44,6 +44,13 @@ enum LogFormat {
 
 #[derive(Subcommand)]
 enum Command {
+    #[command(hide = true)]
+    LeaseWatchdog {
+        #[arg(long)]
+        group: PathBuf,
+        #[arg(long)]
+        deadline: u64,
+    },
     /// Run the daemon.
     Serve {
         #[arg(long, default_value = pryxd::config::PATH)]
@@ -145,8 +152,16 @@ fn init_tracing(format: LogFormat) {
 }
 
 fn main() -> ExitCode {
+    #[cfg(debug_assertions)]
+    if pryxd::upgrade::debug_legacy_executable() && std::env::args().skip(1).eq(["--version"]) {
+        println!("blocklyd {}", env!("CARGO_PKG_VERSION"));
+        return ExitCode::SUCCESS;
+    }
     let cli = Cli::parse();
     let result = match cli.command {
+        Command::LeaseWatchdog { group, deadline } => {
+            pryxd::store_lease::guard::run(&group, deadline).map_err(Into::into)
+        }
         Command::Serve { config, log_format } => {
             init_tracing(log_format);
             // Two workers are plenty: pryxd waits on Docker and the network, and blocking
@@ -324,7 +339,15 @@ async fn serve(path: &Path) -> anyhow::Result<()> {
     let config = Arc::new(config);
     let (tls, server_cert) = api::tls::reloadable_server_config(&tls_material).context("loading TLS material")?;
 
-    let runtime: Arc<dyn ContainerRuntime> = Arc::new(DockerRuntime::new(&config.docker.socket)?);
+    if !config.store_lease.enabled {
+        pryxd::store_lease::check_policy(&config.state_dir, false)?;
+    }
+    let docker = DockerRuntime::new(&config.docker.socket)?;
+    if config.store_lease.enabled {
+        docker.check_store_lease().await?;
+        pryxd::store_lease::check_policy(&config.state_dir, true)?;
+    }
+    let runtime: Arc<dyn ContainerRuntime> = Arc::new(docker);
     let publish = publish_addresses(&config);
     let manager = Manager::new(config.clone(), runtime, store, Arc::new(Metrics::new()), ports::bind_probe(publish));
     if let (Some(identity), Some(fleet)) = (&identity, &config.fleet) {
@@ -334,6 +357,7 @@ async fn serve(path: &Path) -> anyhow::Result<()> {
     // Rebuild everything from disk and the runtime before answering anyone. If Docker is down
     // pryxd still starts, knows its records, and says it is degraded until Docker is back.
     let report = manager.reconcile(Records::FromDisk).await;
+    manager.stop_unleased().await?;
     match &report.error {
         None => info!(
             workloads = report.workloads,

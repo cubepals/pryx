@@ -13,7 +13,7 @@ export function pryxProvider(
     key: string
     image: string
     agentPort: number
-    spec?: Omit<MakeRequest, 'image' | 'ports' | 'entrypoint'>
+    spec?: Omit<MakeRequest, 'image' | 'ports' | 'entrypoint' | 'start'>
   },
 ): SandboxProvider {
   return {
@@ -24,6 +24,7 @@ export function pryxProvider(
         {
           ...options.spec,
           image: options.image,
+          start: true,
           entrypoint: [
             'sandbox-agent',
             'server',

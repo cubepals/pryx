@@ -243,8 +243,7 @@ export class Rehoming {
   /**
    * Without `from`, a planned move: stop, export what can't be made again, a new epoch on another
    * node, restore, and the old copy fenced and deleted. It is left stopped; the application starts
-   * it where it wants it running. With `from`, the host was lost: only a server whose host an
-   * operator confirmed lost is rebuilt, and nothing on that host is touched.
+   * it where it wants it running. With `from`, a confirmed fence displaced the placement and old data is retained.
    */
   async relocate(
     handle: RuntimeHandle,
@@ -468,7 +467,7 @@ export class Rehoming {
   }
 
   /**
-   * A host-lost rebuild: the placement must be displaced, which only an operator makes it. From the
+   * A fenced-placement rebuild: an operator or conditional-store proof must first displace it. From the
    * snapshot the application names when it reached the store, else from the newest of its server's
    * snapshots that did and is no newer.
    */

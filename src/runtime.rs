@@ -31,6 +31,7 @@ use crate::protocol::{Health, Proto};
 #[derive(Clone)]
 pub struct ContainerSpec {
     pub(crate) name: String,
+    pub(crate) cgroup_parent: Option<String>,
     pub(crate) image: String,
     pub(crate) entrypoint: Option<Vec<String>>,
     /// Environment, secrets included. Never logged (see `Debug` below).
@@ -91,6 +92,7 @@ pub enum ContainerStatus {
 /// A container as the runtime reports it right now.
 #[derive(Clone, Debug)]
 pub struct ContainerInfo {
+    pub(crate) cgroup_parent: Option<String>,
     pub(crate) id: String,
     pub(crate) name: String,
     pub(crate) labels: BTreeMap<String, String>,

@@ -30,6 +30,7 @@ hyper-util = { version = "0.1.21", features = ["server", "server-graceful", "tok
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
 bytes = "1"
+httpdate = "1.0.3"
 
 # TLS: rustls with the ring provider (no C/cmake toolchain beyond cc), mutual authentication.
 rustls = { version = "0.23.45", default-features = false, features = ["ring", "std", "logging", "tls12"] }

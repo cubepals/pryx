@@ -17,7 +17,8 @@
     "src",
     "README.md",
     "LICENSE.md",
-    "dist"
+    "dist",
+    "example"
   ],
   "dependencies": {
     "@cubepals/pryx": "workspace:*",
@@ -25,7 +26,8 @@
     "sandbox-agent": "0.5.5"
   },
   "devDependencies": {
-    "@rivet-dev/agentos-core": "0.4.7"
+    "@rivet-dev/agentos-core": "0.4.7",
+    "openai": "7.50.0"
   },
   "peerDependencies": {
     "@rivet-dev/agentos-core": "0.4.7"

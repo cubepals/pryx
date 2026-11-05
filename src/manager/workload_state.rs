@@ -113,6 +113,7 @@ mod tests {
 
     fn exited(code: i64, oom: bool, finished: &str) -> ContainerInfo {
         ContainerInfo {
+            cgroup_parent: None,
             id: "c".into(),
             name: "n".into(),
             labels: BTreeMap::new(),

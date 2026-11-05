@@ -39,7 +39,7 @@ const ED25519_SPKI_PREFIX: [u8; 12] = [0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b,
 
 /// The keys a node takes a release's signature from.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct ReleaseKeys(Vec<[u8; KEY_BYTES]>);
+pub(crate) struct ReleaseKeys(Vec<[u8; KEY_BYTES]>, #[cfg(debug_assertions)] Vec<[u8; KEY_BYTES]>);
 
 impl ReleaseKeys {
     /// The release keys compiled in; none, so that no upgrade is taken, if the file holds none
@@ -47,10 +47,16 @@ impl ReleaseKeys {
     /// takes the PEM file PRYXD_TEST_RELEASE_KEY names, so an end-to-end test can sign the
     /// pryxd it serves; a release build never does.
     pub(crate) fn ours() -> Self {
-        let mut keys = Self::from_pem(RELEASE_KEYS.as_bytes()).unwrap_or_else(|e| {
+        let keys = Self::from_pem(RELEASE_KEYS.as_bytes()).unwrap_or_else(|e| {
             tracing::error!(error = %e, "deploy/release-keys.pem holds no release key, so no upgrade is taken");
-            Self(Vec::new())
+            Self(
+                Vec::new(),
+                #[cfg(debug_assertions)]
+                Vec::new(),
+            )
         });
+        #[cfg(debug_assertions)]
+        let mut keys = keys;
         #[cfg(debug_assertions)]
         if let Some(path) = std::env::var_os("PRYXD_TEST_RELEASE_KEY")
             .or_else(|| std::env::var_os("BLOCKLYD_TEST_RELEASE_KEY"))
@@ -58,7 +64,12 @@ impl ReleaseKeys {
         {
             let path = std::path::PathBuf::from(path);
             match std::fs::read(&path).map_err(|e| e.to_string()).and_then(|pem| Self::from_pem(&pem)) {
-                Ok(test) => keys.0.extend(test.0),
+                Ok(test) => {
+                    if std::env::var_os("PRYXD_TEST_RELEASE_KEY").is_none() {
+                        keys.1.extend(test.0.iter().copied());
+                    }
+                    keys.0.extend(test.0);
+                }
                 Err(e) => {
                     tracing::warn!(error = %e, path = %path.display(), "PRYXD_TEST_RELEASE_KEY taken as no key")
                 }
@@ -81,7 +92,29 @@ impl ReleaseKeys {
         if keys.is_empty() {
             return Err("no PUBLIC KEY".into());
         }
-        Ok(Self(keys))
+        Ok(Self(
+            keys,
+            #[cfg(debug_assertions)]
+            Vec::new(),
+        ))
+    }
+
+    /// Only keys loaded through the explicit former debug-test variable may sign that fixture's statement.
+    /// Compiled release keys never gain this authority, even in a debug build.
+    fn legacy_test_signature(&self, version: &str, sha256: &str, signature: &str) -> bool {
+        #[cfg(debug_assertions)]
+        {
+            let Ok(signature) = hex::decode(signature) else { return false };
+            let statement = format!("blocklyd release\n{version}\n{}\n", sha256.to_ascii_lowercase());
+            self.1
+                .iter()
+                .any(|key| webpki::ring::ED25519.verify_signature(key, statement.as_bytes(), &signature).is_ok())
+        }
+        #[cfg(not(debug_assertions))]
+        {
+            let _ = (version, sha256, signature);
+            false
+        }
     }
 
     /// Whether `signature`, in hex, is one of these keys' over `statement`.
@@ -123,7 +156,7 @@ pub(crate) fn check(offer: &UpgradeOffer, from: &str, keys: &ReleaseKeys) -> Res
     let Some(statement) = statement(to, &offer.sha256) else {
         return Err(format!("the offer of pryxd {to} names no sha256, so it wasn't installed"));
     };
-    if !keys.signed(&statement, signature) {
+    if !keys.signed(&statement, signature) && !keys.legacy_test_signature(to, &offer.sha256, signature) {
         return Err(format!(
             "the offer's signature isn't a pryxd release key's for {to} with sha256 {}, so it wasn't installed",
             offer.sha256
@@ -207,6 +240,20 @@ mod tests {
         let sha = "9b4b33bf5e345140064483ae6c85c2165a1746cbebf5987a3c802f36981e7e8b";
         assert!(check(&offer("9.9.9", sha, Some(signature.clone())), "0.3.5", &keys).is_err());
         assert!(check(&offer("9.9.8", sha, Some(signature)), "0.3.5", &keys).is_err());
+    }
+
+    #[test]
+    #[cfg(debug_assertions)]
+    fn legacy_statement_is_scoped_to_explicit_debug_keys() {
+        use rcgen::SigningKey;
+        let (key, mut keys) = test_key();
+        let sha = "ab".repeat(32);
+        let signature = hex::encode(key.sign(format!("blocklyd release\n0.3.0\n{sha}\n").as_bytes()).unwrap());
+        let offered = offer("0.3.0", &sha, Some(signature));
+        assert!(check(&offered, "0.2.0", &keys).is_err());
+        keys.1 = keys.0.clone();
+        assert!(check(&offered, "0.2.0", &keys).is_ok());
+        assert!(check(&offered, "0.4.0", &keys).is_err());
     }
 
     #[test]

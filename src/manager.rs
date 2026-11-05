@@ -19,6 +19,7 @@
 //! second `delete` finds nothing.
 //!
 //! Parts (`manager/`):
+//! - `store_lease.rs`: host lease admission and ephemeral grants.
 //! - `room.rs`: whether the host has room for a workload: memory to run, disk above the floor.
 //! - `view.rs`: a workload as the protocol shows it.
 //! - `ensure.rs`: makes a workload match the spec it was sent.
@@ -94,6 +95,7 @@ mod restarts;
 mod room;
 mod snapshots;
 mod stats;
+mod store_lease;
 mod view;
 mod workload_state;
 
@@ -218,6 +220,8 @@ pub struct Manager {
     disk_writes: Arc<Mutex<()>>,
     locks: Mutex<HashMap<WorkloadId, Arc<tokio::sync::Mutex<()>>>>,
     exec_keys: Mutex<IdempotencyCache>,
+    store_leases: Mutex<HashMap<WorkloadId, Arc<crate::store_lease::Held>>>,
+    store_lease_session: String,
     pub(crate) started_at: OffsetDateTime,
     started: Instant,
     docker_up: AtomicBool,
@@ -383,6 +387,8 @@ impl Manager {
             disk_writes: Arc::default(),
             locks: Mutex::new(HashMap::new()),
             exec_keys: Mutex::new(IdempotencyCache::default()),
+            store_leases: Mutex::new(HashMap::new()),
+            store_lease_session: uuid::Uuid::new_v4().to_string(),
             started_at: now(),
             started: Instant::now(),
             docker_up: AtomicBool::new(false),

@@ -36,18 +36,22 @@ macro_rules! schemas {
 }
 
 fn node_reads() -> Value {
-    document("pryxd: what a node reads", Contract::Deserialize, |g| {
+    let mut result = document("pryxd: what a node reads", Contract::Deserialize, |g| {
         schemas!(g;
-            WorkloadSpec, StopRequest, FenceRequest, ExecRequest, ExportRequest, RestoreRequest, SnapshotRequest,
+            StoreLeaseGrant, StoreLeaseObject, WorkloadSpec, StopRequest, FenceRequest, ExecRequest, ExportRequest, RestoreRequest, SnapshotRequest,
             UploadRequest, EnrollResponse, HeartbeatResponse, RenewResponse,
         );
-    })
+    });
+    result["components"]["schemas"]["StoreLeaseGrant"]["properties"]["seconds"]["minimum"] =
+        json!(MIN_STORE_LEASE_SECONDS);
+    result["components"]["schemas"]["StoreLeaseGrant"]["x-renew-margin-seconds"] = json!(STORE_LEASE_MARGIN_SECONDS);
+    result
 }
 
 fn node_writes() -> Value {
     document("pryxd: what a node writes", Contract::Serialize, |g| {
         schemas!(g;
-            WorkloadView, ListResponse, StatsView, LogRecord, EnsureResponse, PowerResponse, FenceResponse,
+            StoreLeaseIdentity, WorkloadView, ListResponse, StatsView, LogRecord, EnsureResponse, PowerResponse, FenceResponse,
             DeleteResponse, ExecResponse, ExportResponse, RestoreResponse, SnapshotResponse, SnapshotList,
             SnapshotDeleteResponse, NodeHealth, NodeStatus, ErrorBody, EnrollRequest, HeartbeatRequest, RenewRequest,
         );

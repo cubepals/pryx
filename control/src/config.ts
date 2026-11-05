@@ -10,6 +10,7 @@ import { DEFAULT_EDGE_PORT_RANGE } from './edge-addresses.ts'
 import { THRESHOLDS } from './health.ts'
 import { splitAddress } from './node-client.ts'
 import { DEFAULTS } from './placement.ts'
+import { STORE_LEASE_DEFAULTS } from './store-lease.ts'
 
 const number = (value: string | undefined, fallback: number) =>
   value === undefined ? fallback : Number(value)
@@ -33,6 +34,7 @@ const schema = z.object({
   caCert: z.string().includes('BEGIN CERTIFICATE'),
   caKey: z.string().includes('PRIVATE KEY'),
   operatorToken: z.string().min(32),
+  storeLease: z.object({ enabled: z.boolean(), seconds: positive, renewSeconds: positive }),
   providerEnv: z.record(z.string(), z.string()),
   providerSealKey: z.string().min(32),
   providerImages: z.array(z.string()),
@@ -93,6 +95,11 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     caCert: env.PRYX_CA_CERT?.replaceAll('\\n', '\n'),
     caKey: env.PRYX_CA_KEY?.replaceAll('\\n', '\n'),
     operatorToken: env.PRYX_OPERATOR_TOKEN,
+    storeLease: {
+      enabled: env.PRYX_STORE_LEASE === 'on',
+      seconds: number(env.PRYX_STORE_LEASE_SECONDS, STORE_LEASE_DEFAULTS.seconds),
+      renewSeconds: number(env.PRYX_STORE_LEASE_RENEW_SECONDS, STORE_LEASE_DEFAULTS.renewSeconds),
+    },
     providerEnv: Object.fromEntries(
       Object.entries(env).filter(([k, v]) => /^PRYX_(HETZNER|BOAT|MANUAL)_/.test(k) && v !== undefined),
     ),

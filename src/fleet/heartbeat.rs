@@ -63,7 +63,7 @@ pub fn heartbeat_report(
         seq,
         daemon_version: crate::upgrade::daemon_version(),
         protocol: ProtocolVersions::ours(),
-        features: crate::protocol::features(),
+        features: manager.features(),
         runtime_up: manager.docker_up(),
         reconciled: manager.reconciled(),
         capacity: manager.capacity(),

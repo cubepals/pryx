@@ -82,6 +82,7 @@ export interface FleetRuntimeOptions {
   cpuMillisPerGb: number
   thresholds: Thresholds
   /** Whether a sleep suspends, where the node can; off, every sleep stops. */
+  beforeStart?: (nodeId: string, workload: string, epoch: number) => Promise<void>
   suspend?: boolean
   log?: (message: string, fields?: object) => void
 }
@@ -117,7 +118,7 @@ export class FleetRuntime implements SandboxRuntime {
   constructor(options: FleetRuntimeOptions) {
     this.#o = options
     this.#log = options.log ?? ((message, fields) => console.warn(`fleet: ${message}`, fields ?? ''))
-    this.#api = new WorkloadApi(options.nodes)
+    this.#api = new WorkloadApi(options.nodes, options.beforeStart)
     this.#known = new NodeCache(options.db, this.#log)
     this.#choice = new NodeChoice({
       cpuMillisPerGb: options.cpuMillisPerGb,

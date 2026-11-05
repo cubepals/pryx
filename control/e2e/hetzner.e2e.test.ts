@@ -205,7 +205,7 @@ describe.skipIf(!token)('Hetzner live provider', () => {
           region,
           image: 'alpine:3.22',
           resources: { memoryMb: 128 },
-          entrypoint: ['sh', '-c', 'while :; do sleep 1; done'],
+          entrypoint: ['sh', '-c', 'trap "exit 0" TERM; while :; do sleep 1; done'],
         })
         try {
           expect(

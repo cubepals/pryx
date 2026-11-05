@@ -97,6 +97,7 @@ impl Manager {
         let _guard = lock.lock().await;
         let record = self.record(id)?;
         check_epoch(&record, epoch, EpochRule::Exact)?;
+        self.require_store_lease(&record)?;
         let info = if record.phase == Phase::Active { self.inspect(&record.container_name).await? } else { None };
         match info {
             Some(info) if info.status == ContainerStatus::Running => Ok(info.id),

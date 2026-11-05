@@ -92,6 +92,22 @@ pub fn daemon_version() -> String {
     env!("CARGO_PKG_VERSION").to_owned()
 }
 
+/// An unchanged external debug contract installs the test binary under the former name.
+/// Production builds always use pryxd, regardless of their executable name.
+pub fn debug_legacy_executable() -> bool {
+    #[cfg(debug_assertions)]
+    {
+        std::env::current_exe()
+            .ok()
+            .and_then(|p| p.file_name().map(|n| n == "blocklyd" || n == "blocklyd.prev"))
+            .unwrap_or(false)
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        false
+    }
+}
+
 /// Where the binaries and the upgrade's own state are.
 #[derive(Clone, Debug)]
 pub struct Layout {
@@ -105,18 +121,18 @@ impl Layout {
     /// The layout for `state_dir`, with the link under `root` (`/` but in tests).
     pub fn new(state_dir: &Path, root: &Path) -> Self {
         Self {
-            bin: state_dir.join("bin").join("pryxd"),
+            bin: state_dir.join("bin").join(if debug_legacy_executable() { "blocklyd" } else { "pryxd" }),
             link: root.join(LINK.trim_start_matches('/')),
             dir: state_dir.join("upgrade"),
         }
     }
 
     pub(crate) fn next(&self) -> PathBuf {
-        self.bin.with_file_name("pryxd.next")
+        self.bin.with_extension("next")
     }
 
     pub(crate) fn prev(&self) -> PathBuf {
-        self.bin.with_file_name("pryxd.prev")
+        self.bin.with_extension("prev")
     }
 
     fn trial(&self) -> PathBuf {
@@ -305,7 +321,11 @@ pub(crate) fn version_of(bin: &Path) -> Result<String, String> {
     }
     let output = child.wait_with_output().map_err(|e| e.to_string())?;
     let text = String::from_utf8_lossy(&output.stdout);
-    match text.trim().strip_prefix("pryxd ") {
+    let parsed = text
+        .trim()
+        .strip_prefix("pryxd ")
+        .or_else(|| debug_legacy_executable().then(|| text.trim().strip_prefix("blocklyd ")).flatten());
+    match parsed {
         Some(version) if output.status.success() && !version.contains(char::is_whitespace) => Ok(version.to_owned()),
         _ if !output.status.success() => Err(format!("--version failed ({})", output.status)),
         _ => Err(format!("--version printed {:?}, not a pryxd version", text.trim())),

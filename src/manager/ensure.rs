@@ -61,9 +61,19 @@ impl Manager {
                 let same = !placed_anew
                     && record.phase == Phase::Active
                     && record.spec_digest == digest
-                    && info
-                        .as_ref()
-                        .is_some_and(|i| i.labels.get(LABEL_DIGEST) == Some(&digest) && secrets_match(i, &spec));
+                    && info.as_ref().is_some_and(|i| {
+                        i.labels.get(LABEL_DIGEST) == Some(&digest)
+                            && secrets_match(i, &spec)
+                            && (!self.config.store_lease.enabled
+                                || i.cgroup_parent.as_deref()
+                                    == Some(
+                                        crate::store_lease::guard::docker_parent(
+                                            record.id.as_str(),
+                                            record.epoch.unwrap_or_default(),
+                                        )
+                                        .as_str(),
+                                    ))
+                    });
                 let suspend = self.suspension(id);
                 if same {
                     self.remember(id, info).await;
@@ -167,6 +177,9 @@ impl Manager {
         let mut env: Vec<(String, String)> = spec.env.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
         env.extend(spec.secrets.iter().map(|(k, v)| (k.clone(), v.expose().to_owned())));
         ContainerSpec {
+            cgroup_parent: self.config.store_lease.enabled.then(|| {
+                crate::store_lease::guard::docker_parent(record.id.as_str(), record.epoch.unwrap_or_default())
+            }),
             name: record.container_name.clone(),
             image: spec.image.clone(),
             entrypoint: spec.entrypoint.clone(),
@@ -214,6 +227,10 @@ impl Manager {
     async fn make_container(&self, record: &WorkloadRecord, spec: &WorkloadSpec) -> Result<String, NodeError> {
         let pull = Duration::from_secs(self.config.docker.pull_timeout_seconds);
         self.note(self.runtime.ensure_image(&spec.image, pull).await)?;
+        if self.config.store_lease.enabled {
+            crate::store_lease::guard::prepare(record.id.as_str(), record.epoch.unwrap_or_default())
+                .map_err(|_| NodeError::Internal("Cannot prepare lease cgroup".into()))?;
+        }
         let container = self.container_spec(record, spec);
         match self.note(self.runtime.create(&container).await) {
             Ok(id) => Ok(id),
@@ -347,6 +364,9 @@ impl Manager {
         self.store.ensure_data_dir(&id, self.config.data_owner_ids())?;
         record.generation += 1;
         if epoch.is_some() && epoch != record.epoch {
+            if let Some(held) = self.store_leases.lock().unwrap().remove(&id) {
+                held.expire();
+            }
             // Placed here anew: whatever superseded the old copy is older than this placement.
             record.epoch = epoch;
             record.superseded_by = None;
@@ -370,6 +390,7 @@ impl Manager {
             self.save_suspension(&id, SuspendRecord { resumes_on, ..SuspendRecord::default() }).await?;
         }
         if was_running {
+            self.require_store_lease(&record)?;
             self.note(self.runtime.start(&record.container_name).await).map_err(|e| port_clash(&id, e))?;
         }
         self.clear_resolved_issues(&id);

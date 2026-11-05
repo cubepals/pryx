@@ -58,6 +58,9 @@ pub struct Config {
     /// from it, and reports to it. Without it, pryxd is the single-node daemon it was.
     #[serde(default)]
     pub fleet: Option<FleetConfig>,
+    /// Experimental: require independently fenced object-store leases before any start.
+    #[serde(default)]
+    pub store_lease: StoreLeaseConfig,
     /// What `load` worked out from the host because the file left it out (infer.rs).
     #[serde(skip)]
     pub inferred: Vec<crate::infer::Inferred>,
@@ -696,5 +699,20 @@ mod tests {
         workloads("data_owner = \"101000:101000\"").unwrap();
         let unknown = MINIMAL.to_owned() + "\nprivileged = true\n";
         assert!(toml::from_str::<Config>(&unknown).is_err());
+    }
+}
+
+/// Host policy only. Enabling requires rootful cgroup-v2 Docker with the cgroupfs driver.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct StoreLeaseConfig {
+    pub enabled: bool,
+    /// Operator policy: the host/hypervisor does not suspend a running leased workload.
+    pub non_suspending_host: bool,
+    pub max_seconds: u64,
+}
+impl Default for StoreLeaseConfig {
+    fn default() -> Self {
+        Self { enabled: false, non_suspending_host: false, max_seconds: 60 }
     }
 }

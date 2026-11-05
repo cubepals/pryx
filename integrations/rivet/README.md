@@ -32,9 +32,18 @@ including background processes and stdin, rather than pretending buffered exec s
 The upstream 0.5.5 Docker provider uses `rivetdev/sandbox-agent:0.5.5-full`; the caller chooses
 this image and its host policy. The agent port is private, uses --no-token, and must be reachable
 only from trusted actor hosts on the private network. It is never published through the edge.
-Use agentOsProvider as the provider in agentOS's sandbox options; this supplies an external
+The native provider starts its server explicitly and uses pause/reconnect for lifecycle. Leave idle unset for background agent work: direct private process traffic is outside the public API activity tracker. Use agentOsProvider as the provider in agentOS's sandbox options; this supplies an external
 sandbox/filesystem/process backend, not a replacement for agentOS's JavaScript VM runtime.
 
-[interfaces.md](../interfaces.md) pins the exact source interfaces and their limits. Unit checks
+[Interface references](https://github.com/cubepals/pryx/blob/main/integrations/interfaces.md) pins the exact source interfaces and their limits. Unit checks
 run in the workspace; `bun run integration:e2e` runs the example against Rivet's public self-hosted
 engine binary and a real pryx deployment in CI. No Docker/e2e result is claimed locally.
+
+For the actual model/tool loop, run `bun integrations/rivet/example/agent.ts "your coding task"`
+while the server is running. Set OPENAI_API_KEY and PRYX_AGENT_MODEL on that client process;
+PRYX_AGENT_SESSION reconnects to prior durable memory. PRYX_AGENT_IMAGE defaults to alpine:3.22
+and PRYX_AGENT_MAX_STEPS defaults to six. The official OpenAI SDK supplies the model API types.
+The loop records the command/key before execution, stores tool results in actor memory, and sleeps
+the actor/sandbox afterwards. An unknown exec outcome stops the loop: inspect the recorded key
+before requesting another run. Model calls are not part of credential-free CI; CI exercises the
+same actor's durable memory, real shell, sleep/wake and destruction against the public engine.

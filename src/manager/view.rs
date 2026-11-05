@@ -104,7 +104,14 @@ impl Manager {
             },
             labels: record.spec.labels.clone(),
             secret_names: record.spec.secret_names.clone(),
-            issues: state.issues.get(&record.id).cloned().unwrap_or_default(),
+            issues: state
+                .issues
+                .get(&record.id)
+                .cloned()
+                .unwrap_or_default()
+                .into_iter()
+                .chain(self.store_lease_issue(record))
+                .collect(),
             locate: Locate {
                 container_name: record.container_name.clone(),
                 container_id: info.map(|i| i.id.clone()).or_else(|| record.container_id.clone()),

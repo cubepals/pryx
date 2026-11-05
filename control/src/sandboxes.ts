@@ -458,7 +458,11 @@ export class Sandboxes {
       const ref = decodeHandle(row.handle)
       const node = ref.node ? await getNode(this.db, ref.node) : null
       let from: SnapshotHandle | undefined
-      if (node?.lifecycle === 'lost') {
+      const storeFence = await one(
+        this.db,
+        sql`SELECT 1 FROM store_lease_fences WHERE workload=${id} AND node_id=${ref.node} AND epoch=${ref.epoch}`,
+      )
+      if (node?.lifecycle === 'lost' || storeFence) {
         const snapshot = await one<{ handle: SnapshotHandle }>(
           this.db,
           sql`SELECT s.handle FROM sandbox_snapshots s JOIN fleet_archives a ON a.id = s.id WHERE s.sandbox = ${id} AND s.deleted_at IS NULL AND a.status = 'ready' ORDER BY s.created_at DESC LIMIT 1`,
@@ -511,7 +515,11 @@ export class Sandboxes {
     for (const row of placed) {
       const ref = decodeHandle(row.handle as RuntimeHandle)
       const node = ref.node ? await getNode(this.db, ref.node) : null
-      if (node?.lifecycle === 'lost' || node?.lifecycle === 'draining') {
+      const storeFence = await one(
+        this.db,
+        sql`SELECT 1 FROM store_lease_fences WHERE workload=${row.id} AND node_id=${ref.node} AND epoch=${ref.epoch}`,
+      )
+      if (node?.lifecycle === 'lost' || node?.lifecycle === 'draining' || storeFence) {
         await this.relocate(row.id).catch(async () => {
           await event(this.db, 'sandbox.relocation_failed', {
             workload: row.id,

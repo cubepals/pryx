@@ -28,6 +28,8 @@ import { createPublicApi } from './public-api.ts'
 import { FleetRuntime } from './runtime-engine.ts'
 import { Sandboxes } from './sandboxes.ts'
 import { S3ArchiveStore } from './store.ts'
+import { StoreLeaseAuthority } from './store-lease.ts'
+import { S3LeaseBucket } from './store-lease-bucket.ts'
 
 export async function startControl(
   config: ControlConfig = loadConfig(),
@@ -45,7 +47,10 @@ export async function startControl(
     suspectSeconds: config.suspectSeconds,
     unavailableSeconds: config.unavailableSeconds,
   }
+  let storeLease: StoreLeaseAuthority | undefined
   const runtime = new FleetRuntime({
+    beforeStart: (nodeId, workload, epoch) =>
+      storeLease?.beforeStart(nodeId, workload, epoch) ?? Promise.resolve(),
     db,
     nodes,
     store: new FleetStore(new S3ArchiveStore(config.s3), config.deployment),
@@ -57,6 +62,19 @@ export async function startControl(
     suspend: config.suspend,
   })
   const sandboxes = new Sandboxes(db, runtime, lockPool, nodes)
+  if (config.storeLease.enabled) {
+    const bucket = new S3LeaseBucket(config.s3)
+    await bucket.probe(`${config.deployment}/store-leases/v1`)
+    storeLease = new StoreLeaseAuthority(
+      db,
+      sandboxes,
+      nodes,
+      bucket,
+      config.deployment,
+      config.storeLease.seconds,
+      config.storeLease.renewSeconds,
+    )
+  }
   const unwatch = await runtime.watchRegistry()
   const endpoint = await startNodeEndpoint({
     db,
@@ -136,6 +154,7 @@ export async function startControl(
     maintaining = true
     sandboxes
       .exclusive('__upkeep__', async () => {
+        await storeLease?.tick()
         await scaling.tick()
         await sandboxes.upkeep()
         await api.model.warmTemplates()
@@ -159,6 +178,7 @@ export async function startControl(
     sandboxes,
     hosts,
     scaling,
+    storeLease,
     nodes,
     ca,
     config,

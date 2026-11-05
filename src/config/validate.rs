@@ -20,6 +20,16 @@ const OOM_SCORE_ADJ: std::ops::RangeInclusive<i32> = -1000..=1000;
 
 impl Config {
     pub fn validate(&self) -> Result<(), ConfigError> {
+        if self.store_lease.enabled
+            && (self.fleet.is_none()
+                || self.store_lease.max_seconds < crate::protocol::MIN_STORE_LEASE_SECONDS
+                || !self.store_lease.non_suspending_host)
+        {
+            return Err(ConfigError::Invalid(format!(
+                "store_lease needs fleet mode, non_suspending_host and max_seconds >= {}",
+                crate::protocol::MIN_STORE_LEASE_SECONDS
+            )));
+        }
         let bad = |m: String| Err(ConfigError::Invalid(m));
         if !(1..=MAX_PUT_MB).contains(&self.transfer.max_put_mb) {
             return bad(format!(

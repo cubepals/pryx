@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
-// Generated from openapi/node-reads.openapi.json; sha256 80f0660c2b77134c788b6873a12a80052e0d8c5e69e899546671e04f0e1b622e.
+// Generated from openapi/node-reads.openapi.json; sha256 4af0cf3bf318220250660ee7c7fcce9df67e36cb74f8dfcec2e5f6443c29864a.
 export type paths = Record<string, never>;
 export type webhooks = Record<string, never>;
 export interface components {
@@ -259,6 +259,28 @@ export interface components {
              *     (no per-directory quota on a plain filesystem).
              */
             sizeGb: number;
+        };
+        StoreLeaseGrant: {
+            generation: string;
+            readUrl: string;
+            /** Format: uint64 */
+            renewSeconds: number;
+            /** Format: uint64 */
+            seconds: number;
+            session: string;
+            writeUrl: string;
+        };
+        StoreLeaseObject: {
+            /** Format: uint64 */
+            epoch: number;
+            /** Format: uint64 */
+            expiresAtMs: number;
+            generation: string;
+            node: string;
+            session: string;
+            /** Format: uint32 */
+            version: number;
+            workload: string;
         };
         /** @description The pryxd the control plane wants the node to run, at `GET /fleet/v1/blocklyd`. */
         UpgradeOffer: {

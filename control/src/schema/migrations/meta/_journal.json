@@ -64,6 +64,13 @@
       "when": 9,
       "tag": "0009_providers",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 10,
+      "tag": "0010_store_lease",
+      "breakpoints": false
     }
   ]
 }

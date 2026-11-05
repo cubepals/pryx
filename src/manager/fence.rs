@@ -43,6 +43,9 @@ impl Manager {
         // Nor does it keep the copy running: it is stopped all the same, and the record that
         // couldn't be written is reported once it is.
         let mut unrecorded = self.save_record(&record).await.err();
+        if let Some(held) = self.store_leases.lock().unwrap().remove(id) {
+            held.expire();
+        }
         let mut stopped = false;
         if record.phase == Phase::Active
             && let Some(info) = self.observe(&record).await?

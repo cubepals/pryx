@@ -222,49 +222,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pryxd"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "axum",
- "base64 0.23.1",
- "pryxd",
- "bollard",
- "bytes",
- "clap",
- "flate2",
- "futures-util",
- "hex",
- "http-body-util",
- "hyper",
- "hyper-util",
- "libc",
- "prometheus-client",
- "rcgen",
- "rustix",
- "rustls",
- "rustls-pki-types",
- "rustls-webpki",
- "schemars",
- "serde",
- "serde_json",
- "sha2",
- "tar",
- "tempfile",
- "thiserror",
- "time",
- "tokio",
- "tokio-rustls",
- "tokio-util",
- "toml",
- "tower",
- "tracing",
- "tracing-subscriber",
- "uuid",
-]
-
-[[package]]
 name = "bollard"
 version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1141,6 +1098,50 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.9",
+]
+
+[[package]]
+name = "pryxd"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "axum",
+ "base64 0.23.1",
+ "bollard",
+ "bytes",
+ "clap",
+ "flate2",
+ "futures-util",
+ "hex",
+ "http-body-util",
+ "httpdate",
+ "hyper",
+ "hyper-util",
+ "libc",
+ "prometheus-client",
+ "pryxd",
+ "rcgen",
+ "rustix",
+ "rustls",
+ "rustls-pki-types",
+ "rustls-webpki",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tar",
+ "tempfile",
+ "thiserror",
+ "time",
+ "tokio",
+ "tokio-rustls",
+ "tokio-util",
+ "toml",
+ "tower",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]

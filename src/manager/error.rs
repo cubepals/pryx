@@ -84,6 +84,7 @@ pub enum ConflictCode {
     NotStopped,
     PortConflict,
     SnapshotBusy,
+    StoreLeaseRequired,
 }
 
 impl ConflictCode {
@@ -97,6 +98,7 @@ impl ConflictCode {
             Self::NotRunning => "not_running",
             Self::NotStopped => "not_stopped",
             Self::PortConflict => "port_conflict",
+            Self::StoreLeaseRequired => "store_lease_required",
             Self::SnapshotBusy => "snapshot_busy",
         }
     }

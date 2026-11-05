@@ -37,7 +37,7 @@ test.skipIf(!ready)(
       const box = await agent.make({
         image: 'alpine:3.22',
         resources: { memoryMb: 128 },
-        entrypoint: ['sh', '-c', 'while :; do sleep 1; done'],
+        entrypoint: ['sh', '-c', 'trap "exit 0" TERM; while :; do sleep 1; done'],
       })
       expect(await agent.exec({ command: ['echo', 'rivet-shell'] }, crypto.randomUUID())).toContainEqual(
         expect.objectContaining({ type: 'stdout', data: 'rivet-shell\n' }),

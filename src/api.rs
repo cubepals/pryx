@@ -56,7 +56,7 @@ use crate::manager::{Manager, NodeError, Precondition};
 use crate::protocol::{
     CONFIRM_DELETE_HEADER, DataDisposition, EPOCH_HEADER, ExecRequest, ExportRequest, FenceRequest,
     IDEMPOTENCY_KEY_HEADER, LogRecord, PROTOCOL_HEADER, PROTOCOL_VERSION, REQUEST_ID_HEADER, RestoreRequest,
-    SnapshotRequest, StopRequest, UploadRequest, WorkloadSpec,
+    SnapshotRequest, StopRequest, StoreLeaseGrant, UploadRequest, WorkloadSpec,
 };
 use crate::runtime::parse_time;
 
@@ -351,6 +351,29 @@ async fn upload_snapshot(
     Ok(Json(detached(async move { manager.upload_snapshot(id, snapshot, request).await }).await?).into_response())
 }
 
+async fn store_lease_identity(
+    State(app): State<AppState>,
+    WorkloadPath(id): WorkloadPath,
+    headers: HeaderMap,
+) -> Result<Response, Response> {
+    let epoch = epoch(&headers)?;
+    app.manager
+        .store_lease_identity(&id, epoch)
+        .map(|value| Json(value).into_response())
+        .map_err(IntoResponse::into_response)
+}
+
+async fn store_lease(
+    State(app): State<AppState>,
+    WorkloadPath(id): WorkloadPath,
+    headers: HeaderMap,
+    ApiJson(request): ApiJson<StoreLeaseGrant>,
+) -> Result<Response, Response> {
+    let epoch = epoch(&headers)?;
+    app.manager.grant_store_lease(id, epoch, request).await.map_err(IntoResponse::into_response)?;
+    Ok(StatusCode::NO_CONTENT.into_response())
+}
+
 async fn fence(
     State(app): State<AppState>,
     WorkloadPath(id): WorkloadPath,
@@ -493,6 +516,7 @@ pub fn router(state: AppState, max_body: usize) -> Router {
         .route("/v1/workloads", get(list))
         .route("/v1/workloads/{id}", put(put_workload).get(get_workload).delete(delete))
         .route("/v1/workloads/{id}/start", post(start))
+        .route("/v1/workloads/{id}/store-lease", post(store_lease).get(store_lease_identity))
         .route("/v1/workloads/{id}/suspend", post(suspend))
         .route("/v1/workloads/{id}/stop", post(stop))
         .route("/v1/workloads/{id}/kill", post(kill))

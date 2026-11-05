@@ -33,6 +33,7 @@ pub mod protocol;
 pub mod reconcile;
 pub mod runtime;
 pub mod store;
+pub mod store_lease;
 pub mod tarball;
 pub(crate) mod tls;
 pub mod tree;

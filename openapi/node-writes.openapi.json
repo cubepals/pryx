@@ -1702,6 +1702,18 @@
         ],
         "type": "object"
       },
+      "StoreLeaseIdentity": {
+        "description": "A new random identity for this daemon process, never loaded from local disk or container metadata.",
+        "properties": {
+          "session": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "session"
+        ],
+        "type": "object"
+      },
       "UpgradeFailure": {
         "properties": {
           "reason": {

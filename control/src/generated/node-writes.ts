@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
-// Generated from openapi/node-writes.openapi.json; sha256 76e568f2247c39d17e73cdbc18540c114608582ddb695776b300010b816d1a9a.
+// Generated from openapi/node-writes.openapi.json; sha256 514e92cca557fc36858dc84e3f2cc26d321c9fb9d542188d0b380ca8adf4ee16.
 export type paths = Record<string, never>;
 export type webhooks = Record<string, never>;
 export interface components {
@@ -535,6 +535,10 @@ export interface components {
             sizeGb: number;
             /** Format: uint64 */
             usedBytes: number | null;
+        };
+        /** @description A new random identity for this daemon process, never loaded from local disk or container metadata. */
+        StoreLeaseIdentity: {
+            session: string;
         };
         UpgradeFailure: {
             reason: string;

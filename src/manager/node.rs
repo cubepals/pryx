@@ -20,7 +20,7 @@ impl Manager {
             reconciled,
             daemon_version: env!("CARGO_PKG_VERSION").into(),
             protocol: ProtocolVersions::ours(),
-            features: crate::protocol::features(),
+            features: self.features(),
             node_id: self.config.node_id.to_string(),
             deployment_id: self.config.deployment_id.clone(),
         }

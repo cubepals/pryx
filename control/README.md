@@ -153,3 +153,14 @@ region-to-provider map. Defaults: `PRYX_REGION_MEMORY_FLOOR_MB=0`, `PRYX_NODE_ID
 a successful placement clears the streak. Pending acquisitions suppress additional growth.
 Shrink drains, stores every live snapshot, retires, then returns only tracked managed hosts.
 See [providers](../docs/providers.md) for safety, limitations and measurement status.
+
+## Experimental store lease
+
+`PRYX_STORE_LEASE=on` enables conditional-store authority only for nodes that advertise
+store-lease after explicit host configuration. Term/renewal settings are
+`PRYX_STORE_LEASE_SECONDS=30` and `PRYX_STORE_LEASE_RENEW_SECONDS=10`. Control first probes the
+store's conditional writes, grants ephemeral URLs before starts, refreshes grants on upkeep,
+and displaces a copy only after an expired-object CAS fence. It keeps the node active and restores
+a ready stored snapshot elsewhere under a new epoch. Missing data/capacity stays blocked.
+[store-lease](../docs/store-lease.md) documents the required cgroupfs/watchdog/non-suspending host
+policy, maintenance effects, measured-versus-modeled costs, and CI-only fault experiments.
