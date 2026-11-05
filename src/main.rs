@@ -300,6 +300,20 @@ fn publish_addresses(config: &Config) -> Vec<IpAddr> {
     publish
 }
 
+async fn container_runtime(config: &Config) -> anyhow::Result<Arc<dyn ContainerRuntime>> {
+    let runtime: Arc<dyn ContainerRuntime> = if config.runtime == RuntimeKind::Process {
+        Arc::new(pryxd::runtime::process::ProcessRuntime::new(&config.state_dir, config.process.clone())?)
+    } else {
+        let docker = DockerRuntime::new(&config.docker.socket)?;
+        if config.store_lease.enabled {
+            docker.check_store_lease().await?;
+            pryxd::store_lease::check_policy(&config.state_dir, true)?;
+        }
+        Arc::new(docker)
+    };
+    Ok(runtime)
+}
+
 async fn serve(path: &Path) -> anyhow::Result<()> {
     let boot = Instant::now();
     let mut config = Config::load(path)?;
@@ -346,16 +360,7 @@ async fn serve(path: &Path) -> anyhow::Result<()> {
     if !config.store_lease.enabled {
         pryxd::store_lease::check_policy(&config.state_dir, false)?;
     }
-    let runtime: Arc<dyn ContainerRuntime> = if config.runtime == RuntimeKind::Process {
-        Arc::new(pryxd::runtime::process::ProcessRuntime::new(&config.state_dir, config.process.clone())?)
-    } else {
-        let docker = DockerRuntime::new(&config.docker.socket)?;
-        if config.store_lease.enabled {
-            docker.check_store_lease().await?;
-            pryxd::store_lease::check_policy(&config.state_dir, true)?;
-        }
-        Arc::new(docker)
-    };
+    let runtime = container_runtime(&config).await?;
     let publish = publish_addresses(&config);
     let manager = Manager::new(config.clone(), runtime, store, Arc::new(Metrics::new()), ports::bind_probe(publish));
     if let (Some(identity), Some(fleet)) = (&identity, &config.fleet) {

@@ -37,11 +37,7 @@ impl ProcessRuntime {
         }
         Ok(())
     }
-    pub(super) async fn launch(&self, name: &str) -> Result<(), RuntimeError> {
-        if self.running(name)? {
-            return Ok(());
-        }
-        let mut entry = self.entry(name)?;
+    fn launch_command(&self, entry: &Entry) -> Result<Command, RuntimeError> {
         let spec = &entry.spec;
         let agent = spec.agent.as_ref().ok_or_else(|| error("Missing process supervisor"))?;
         let owner = self.owner(&agent.sandbox)?;
@@ -132,13 +128,20 @@ impl ProcessRuntime {
             .open(diagnostic)
             .map_err(error)?;
         command.stderr(diagnostic);
-        let child = command.spawn().map_err(error)?;
+        Ok(command)
+    }
+    pub(super) async fn launch(&self, name: &str) -> Result<(), RuntimeError> {
+        if self.running(name)? {
+            return Ok(());
+        }
+        let mut entry = self.entry(name)?;
+        let child = self.launch_command(&entry)?.spawn().map_err(error)?;
         entry.pid = Some(child.id());
         entry.ticks = identity(child.id());
         entry.started = Some(format_time(crate::clock::now()));
         entry.cleaned = false;
         entry.finished = None;
-        self.state.children.lock().unwrap().insert(spec.name.clone(), child);
+        self.state.children.lock().unwrap().insert(entry.spec.name.clone(), child);
         self.save(entry)?;
         // Health is a safe read; startup failures never cause a duplicate launch.
         for _ in 0..500 {
