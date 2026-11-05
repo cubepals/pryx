@@ -4,10 +4,10 @@
 
 K9's collector runs real control, edge and pryxd together, with Postgres and S3 on the same
 CI host. No local Docker/e2e measurement is claimed. The paired comparison is from
-[run 41966866167](https://github.com/cubepals/pryx/actions/runs/41966866167): before product
+[run 41975259790](https://github.com/cubepals/pryx/actions/runs/41975259790): before product
 fe77e673364580efe372a4f685837f219ae7a0a5 and after product
-6218d87b0422bf827a93356f11f98cd618c7916a, using the same collector and host. Both measurement
-steps passed; later one-box and fleet-runtime tests failed, so the workflow is not green.
+7cd80e9bff7be320d10993aeadb8e73f3f6f65c8, using the same collector and host. Both measurement
+steps passed; the later Rivet/celld integration step failed, so the workflow is not green.
 [Before](checks/speed-before.json) and [after](checks/speed-after.json) retain every raw sample,
 daemon digest and advertised feature list. Only the after daemon advertises exec-stream.
 
@@ -34,22 +34,24 @@ product commit and the collector commit; neither phase patches the measured prod
 
 | Path | Before n | Before p50/p90 | After n | After p50/p90 | Budget |
 | --- | ---: | --- | ---: | --- | --- |
-| Public API exec | 30 | 55.36 / 58.01 ms | 30 | 57.36 / 63.17 ms | p50 < 50 ms: missed |
-| Control-to-node exec | 30 | 53.40 / 58.17 ms | 30 | 55.74 / 60.35 ms | measured |
-| Create from cached image | 30 | 204.72 / 223.36 ms | 30 | 195.86 / 209.23 ms | measured |
-| Create with cold image reference | 30 | 1679.18 / 1768.75 ms | 30 | 1702.56 / 1788.75 ms | measured |
-| Create from warm template | 30 | 245.00 / 261.27 ms | 30 | 227.67 / 233.25 ms | p50 < 1 s: met |
-| Wake from suspended | 30 | 32.61 / 37.29 ms | 30 | 35.56 / 40.46 ms | p50 < 1 s: met |
-| Start from stopped | 30 | 176.36 / 184.57 ms | 30 | 186.40 / 205.29 ms | measured |
-| Snapshot 100 MB | 30 | 588.92 / 832.93 ms | 30 | 602.52 / 644.37 ms | measured |
-| Fork that snapshot | 30 | 835.62 / 848.90 ms | 30 | 837.50 / 1103.21 ms | measured |
+| Public API exec | 30 | 30.82 / 33.42 ms | 30 | 46.04 / 46.42 ms | p50 < 50 ms: met |
+| Control-to-node exec | 30 | 29.77 / 33.30 ms | 30 | 32.70 / 36.23 ms | measured |
+| Create from cached image | 30 | 141.72 / 156.11 ms | 30 | 141.25 / 150.07 ms | measured |
+| Create with cold image reference | 30 | 1417.34 / 2372.72 ms | 30 | 1380.38 / 2295.81 ms | measured |
+| Create from warm template | 30 | 170.26 / 181.22 ms | 30 | 154.89 / 162.15 ms | p50 < 1 s: met |
+| Wake from suspended | 30 | 18.71 / 24.08 ms | 30 | 21.38 / 24.89 ms | p50 < 1 s: met |
+| Start from stopped | 30 | 109.03 / 117.65 ms | 30 | 114.63 / 121.67 ms | measured |
+| Snapshot 100 MB | 30 | 1009.33 / 1246.25 ms | 30 | 1035.35 / 1060.81 ms | measured |
+| Fork that snapshot | 30 | 1260.32 / 1280.95 ms | 30 | 1010.23 / 1025.15 ms | measured |
 
-Baseline machine: Linux x86_64, Azure kernel 7.0.0-1017-azure, two AMD EPYC 7763 vCPUs,
-Bun 1.4.4. The after public exec p50 (57.36 ms) misses its 50 ms target; warm-template creation
-(227.67 ms) and suspended wake (35.56 ms) meet their 1 s targets. After control-to-node exec is
-55.74 ms: most latency remains below the public API, in the Docker execution path. Reaching the
-exec budget needs that runtime round trip removed, which K11's in-sandbox agent targets.
-This comparison does not show an exec latency improvement. Node-call timings are in the raw
+Baseline machine: Linux x86_64, Azure kernel 7.0.0-1017-azure, two AMD EPYC 9V45 vCPUs,
+Bun 1.4.4. Public exec (46.04 ms), warm-template creation (154.89 ms) and suspended wake
+(21.38 ms) meet their budgets in this cohort. Public exec remains slower than its paired
+buffered baseline, so this comparison does not show an exec latency improvement. The original
+streaming cohort missed the exec budget at 57.36 ms; its [before](checks/speed-stream-first-before.json)
+and [after](checks/speed-stream-first-after.json) reports remain available. The final change
+awaits Docker process exit under the command deadline with four-millisecond inspection steps;
+runtime, transport and stream overhead remain for K11 to remove. Node-call timings are in the raw
 report. The after implementation combines durable-operation insert/read and claim/activity
 updates into one database round trip each. The baseline already had authenticated keep-alive
 connections and used the node start response without waiting for a heartbeat; these are retained.
@@ -60,8 +62,8 @@ daemon package and the collector asserts advertised features and records the exe
 An expired publishing credential delayed the signed fix. The valid paired run now proves live
 TypeScript/CLI output and the four-command quickstart. Run 41969685155 then passed Python's
 async/sync handles and both literal SDK README examples after the same-second trash fix.
-Full workflow acceptance remains open: the project-capacity fixture and a foreign-archive
-fleet test still need their closing CI results.
+Run 41975259790 also passes the project-capacity fixture, all 20 control end-to-end tests and
+all ten isolated-node tests. Full workflow acceptance remains open on the Rivet/celld integration step.
 
 ## K10 project admission
 
