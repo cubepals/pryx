@@ -32,11 +32,20 @@ export function createPublicApi(options: {
   boxes: Sandboxes
   nodes: NodeClient
   domain: string
+  defaultIsolation?: 'container' | 'process'
+  publicOrigin?: string
   edgePortRange?: readonly [number, number]
 }) {
   const { db, boxes, nodes, domain } = options
   boxes.projects ??= new ProjectAdmission(db)
-  const model = new PublicModel(db, boxes, domain, options.edgePortRange)
+  const model = new PublicModel(
+    db,
+    boxes,
+    domain,
+    options.edgePortRange,
+    options.defaultIsolation,
+    options.publicOrigin,
+  )
   const agents = new Agents(boxes, nodes, domain)
   const io = new SandboxIO(db, boxes, nodes, new AgentCompat(agents))
   const chunks = new FileChunks(io)

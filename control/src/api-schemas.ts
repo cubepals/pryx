@@ -54,7 +54,7 @@ export const makeSchema = z
     secrets: map.default({}),
     ttl: z.number().positive().optional(),
     idle: z.number().positive().optional(),
-    isolation: z.literal('container').default('container'),
+    isolation: z.enum(['container', 'process']).optional(),
     restart: z
       .object({
         policy: z.enum(nodeSchemas.RestartPolicy.oneOf.map((p) => p.const) as ['no', 'on-failure']),
@@ -84,6 +84,7 @@ export const snapshotSchema = z.object({
   at: z.string().optional(),
 })
 export const sandboxSchema = z.object({
+  isolation: z.enum(['container', 'process']).optional(),
   files: z.boolean().optional(),
   agent: z.object({ url: z.string() }).optional(),
   id: z.string(),

@@ -368,7 +368,7 @@ impl Manager {
     ) -> Arc<Self> {
         let [low, high] = config.network.port_range;
         let ports = PortAllocator::new(low..=high, Duration::from_secs(config.network.port_quarantine_seconds), probe);
-        let facts = host::facts();
+        let facts = config.host_facts();
         let suspend = store.load_suspends();
         Arc::new(Self {
             state: Arc::new(Mutex::new(State {
@@ -483,6 +483,7 @@ impl Manager {
 
     pub(crate) fn spec_policy(&self) -> SpecPolicy {
         SpecPolicy {
+            process: self.runtime.is_process(),
             allowed_images: self.config.workloads.allowed_images.clone(),
             min_memory_mb: self.config.workloads.min_memory_mb,
             max_memory_mb: u32::try_from(self.allocatable_memory_mb()).unwrap_or(u32::MAX),

@@ -42,7 +42,7 @@ export class Pryx extends Api {
   ) {
     super('url' in options ? { baseUrl: options.url, apiKey: options.key, fetch: options.fetch } : options)
   }
-  async sandbox(options: string | SandboxOptions) {
+  async sandbox(options: string | SandboxOptions = {}) {
     return new Sandbox(
       this.api,
       typeof options === 'string'

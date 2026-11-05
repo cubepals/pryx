@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
 /** The pryx binary: operator commands and public sandbox workflows. */
+import { PryxError } from '@cubepals/pryx'
 import { PRYX_VERSION } from '../../control/src/generated/release.ts'
 import { readClientConfig } from './client-config.ts'
 import { key } from './key.ts'
@@ -41,5 +42,6 @@ try {
   if (result !== undefined) console.log(JSON.stringify(result, null, 2))
 } catch (error) {
   console.error(error instanceof Error ? error.message : 'Command failed')
+  if (error instanceof PryxError && error.details !== undefined) console.error(JSON.stringify(error.details))
   process.exitCode = 1
 }

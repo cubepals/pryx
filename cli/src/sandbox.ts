@@ -32,7 +32,6 @@ function makeRequest(args: string[]): MakeRequest {
   const snapshot = option(args, '--from-snapshot')
   if (snapshot) return { snapshot }
   const image = option(args, '--image')
-  if (!image) throw new Error('create needs --image <image> or --spec <json file>')
   const ttl = option(args, '--ttl'),
     idle = option(args, '--idle')
   const units = option(args, '--units')
@@ -40,7 +39,10 @@ function makeRequest(args: string[]): MakeRequest {
     spares = option(args, '--spare-ports')
   if (network && network !== 'internet' && network !== 'none') throw new Error('network is internet or none')
   return {
-    image,
+    ...(image ? { image } : {}),
+    ...(option(args, '--isolation')
+      ? { isolation: option(args, '--isolation') as 'container' | 'process' }
+      : {}),
     ...(network === 'internet' || network === 'none' ? { network } : {}),
     ...(spares ? { sparePorts: Number(spares) } : {}),
     ...(units ? { units: Number(units) } : {}),

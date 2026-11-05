@@ -31,6 +31,8 @@ pub struct Bootstrap {
     #[arg(long)]
     domain: String,
     #[arg(long)]
+    public_origin: Option<String>,
+    #[arg(long)]
     port: u16,
     #[arg(long, value_delimiter = ',')]
     spare_ports: Vec<u16>,
@@ -58,6 +60,7 @@ pub async fn serve(args: Bootstrap) -> Result<i32, Box<dyn std::error::Error>> {
         telemetry.clone(),
     )
     .await?;
+    ports.set_public_origin(args.public_origin);
     let agent = Arc::new(Agent {
         public_key: key.public_key(),
         key,

@@ -94,6 +94,9 @@ pub fn features() -> Vec<String> {
     FEATURES.iter().map(|f| (*f).to_owned()).collect()
 }
 
+/// Process hosts share pryx's bundled userland rather than pulling workload images.
+pub const PROCESS_IMAGE_PROBLEM: &str = "this host runs the process tier; images are not available";
+
 /// The placement epoch a mutating request acts for: a fencing token the control plane issues,
 /// bumped each time a workload is placed anew (moved, recovered, or brought back). A node refuses
 /// a request older than the copy it holds, so a delayed or stale caller can't act on it.

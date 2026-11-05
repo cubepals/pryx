@@ -16,6 +16,8 @@ use super::Issue;
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct NodeHealth {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub isolation: Option<Vec<String>>,
     pub status: String,
     pub docker: bool,
     pub reconciled: bool,

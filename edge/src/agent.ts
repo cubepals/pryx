@@ -111,9 +111,12 @@ export async function startEdge(config: EdgeConfig = edgeConfig()) {
     async (list) => {
       table.apply(list)
       await ensure('http', HTTP_FRONT_PORT, config.httpPort)
-      await ensure('tls', TLS_FRONT_PORT, config.tlsPort)
+      if (!config.httpOnly) await ensure('tls', TLS_FRONT_PORT, config.tlsPort)
       for (const route of list.routes)
-        if (route.front === 'port' || (route.front === 'tls' && route.publicPort !== TLS_FRONT_PORT))
+        if (
+          !config.httpOnly &&
+          (route.front === 'port' || (route.front === 'tls' && route.publicPort !== TLS_FRONT_PORT))
+        )
           await ensure(route.front, route.publicPort, route.publicPort)
       metrics.routes = table.held.size
       return true
@@ -149,6 +152,9 @@ export async function startEdge(config: EdgeConfig = edgeConfig()) {
         : new Response(null, { status: StatusCodes.NOT_FOUND }),
   })
   return {
+    agents,
+    gate,
+    hold,
     table,
     metrics,
     poll,

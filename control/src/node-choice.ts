@@ -53,6 +53,7 @@ export class NodeChoice {
     only: string | null = null,
   ): PlacementRequest {
     return {
+      isolation: spec.isolation,
       memoryMb: spec.resources.memoryMb,
       cpuMillis: spec.resources.cpuMillis ?? cpuRequest(spec.resources.memoryMb, this.#o.cpuMillisPerGb),
       diskGb: spec.storage.sizeGb,

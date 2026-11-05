@@ -189,6 +189,8 @@ pub struct Locate {
 #[serde(rename_all = "camelCase")]
 pub struct WorkloadView {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub isolation: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent: Option<super::AgentView>,
     pub(crate) id: WorkloadId,
     /// Bumped each time the container is made again for a new spec.

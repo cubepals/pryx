@@ -283,7 +283,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 120
     services:
       postgres:
         image: mirror.gcr.io/library/postgres:17-alpine
@@ -393,6 +393,7 @@ jobs:
           cargo clean --package pryxd
           cargo build --locked
       - name: Build a static daemon for isolated nodes
+        id: static
         run: |
           docker build -t pryx-static-test .
           id=$(docker create pryx-static-test)
@@ -403,7 +404,13 @@ jobs:
       - name: Measure the K11 agent on this host
         run: |
           PRYXD_BIN="$GITHUB_WORKSPACE/target/debug/pryxd" bun control/bench/agent-speed.ts after "$RUNNER_TEMP/agent-speed-after.json"
+      - name: Measure the container tier before the process tier
+        run: PRYXD_BIN="$GITHUB_WORKSPACE/target/debug/pryxd" bun control/bench/process-speed.ts before "$RUNNER_TEMP/process-speed-before.json"
+      - name: Measure and prove the ordinary process image
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: PRYXD_BIN="$GITHUB_WORKSPACE/target/debug/pryxd" bun control/bench/process-speed.ts after "$RUNNER_TEMP/process-speed-after.json"
       - name: Release compilation space before runtime tests
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         run: |
           cp target/debug/pryxd "$RUNNER_TEMP/pryxd-debug"
           cargo clean
@@ -421,11 +428,15 @@ jobs:
             ${{ runner.temp }}/speed-after.json
             ${{ runner.temp }}/agent-speed-before.json
             ${{ runner.temp }}/agent-speed-after.json
+            ${{ runner.temp }}/process-speed-before.json
+            ${{ runner.temp }}/process-speed-after.json
       - name: Prepare Python agent acceptance
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         run: |
           python3 -m venv .venv-agent-python
           .venv-agent-python/bin/pip install -e sdk/python
       - run: bun run e2e
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         env:
           PRYX_PYTHON: ${{ github.workspace }}/.venv-agent-python/bin/python
           PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
@@ -433,11 +444,14 @@ jobs:
 
 
       - name: Two isolated nodes as root
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         env:
           PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
         run: sudo -E env "PATH=$PATH" "$(command -v bun)" test control/e2e/fleet-two-node.e2e.test.ts
 
       - name: Install the pinned celld public release
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        id: celld
         run: |
           curl -fsSL https://github.com/denoland/celld/releases/download/v0.6.3/celld-x86_64-unknown-linux-gnu.gz -o "$RUNNER_TEMP/celld.gz"
           printf '%s  %s\n' 5084a083472cf036551a7eac63fa24d22bb9a56323c517f63205724c12783047 "$RUNNER_TEMP/celld.gz" | sha256sum -c -
@@ -445,6 +459,7 @@ jobs:
           chmod +x "$RUNNER_TEMP/celld"
           "$RUNNER_TEMP/celld" --version
       - name: Rivet self-hosted actor and celld Worker
+        if: ${{ !cancelled() && steps.celld.outcome == 'success' }}
         env:
           CELLD_BIN: ${{ runner.temp }}/celld
           PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
@@ -468,6 +483,8 @@ jobs:
 
 
       - name: Configure the isolated lease test host
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        id: lease-host
         run: |
           sudo python3 - <<'PYCFG'
           import json
@@ -488,6 +505,7 @@ jobs:
             done
           done
       - name: Store cut, watchdog and conditional recovery
+        if: ${{ !cancelled() && steps.lease-host.outcome == 'success' }}
         env:
           PRYX_LEASE_E2E: '1'
           PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
@@ -503,7 +521,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -520,7 +538,7 @@ jobs:
           docker build -t pryx-one-box-release .
           id=$(docker create pryx-one-box-release)
           docker cp "$id:/usr/local/lib/pryx/pryx-agent" dist/pryx-agent
-          docker rm "$id"
+          docker rm -v "$id"
       - name: Prepare the unreleased build artifacts
         run: |
           cp target/debug/pryxd dist/pryxd
@@ -595,6 +613,15 @@ jobs:
           name: projects-one-box
           path: ${{ runner.temp }}/projects-one-box.json
           if-no-files-found: error
+
+      - name: Install and repeat the release image on the host
+        run: |
+          sudo systemctl stop pryx-edge pryx-control pryxd pryx-postgres pryx-store
+          sudo dist/pryx up --image pryx-one-box-release --domain sandboxes.example.com
+          curl -fsS http://127.0.0.1:8080/healthz | jq -e '.isolation == "container"'
+          [ "$(PRYX_API_URL=http://127.0.0.1:8080 dist/pryx run --image alpine:3.22 -- echo hello)" = hello ]
+          sudo dist/pryx up --image pryx-one-box-release --domain sandboxes.example.com
+          [ "$(PRYX_API_URL=http://127.0.0.1:8080 dist/pryx run --image alpine:3.22 -- echo hello)" = hello ]
 
   image:
     name: Release image builds

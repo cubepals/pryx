@@ -4,7 +4,6 @@ from collections.abc import Mapping
 from typing import (
     TYPE_CHECKING,
     Any,
-    Literal,
     TypeVar,
     Union,
     cast,
@@ -12,6 +11,7 @@ from typing import (
 
 from attrs import define as _attrs_define
 
+from ..models.template_request_spec_isolation import TemplateRequestSpecIsolation
 from ..models.template_request_spec_network import TemplateRequestSpecNetwork
 from ..types import UNSET, Unset
 
@@ -46,7 +46,7 @@ class TemplateRequestSpec:
         secrets (Union[Unset, TemplateRequestSpecSecrets]):
         ttl (Union[Unset, float]):
         idle (Union[Unset, float]):
-        isolation (Union[Literal['container'], Unset]):  Default: 'container'.
+        isolation (Union[Unset, TemplateRequestSpecIsolation]):
         restart (Union[Unset, TemplateRequestSpecRestart]):
         labels (Union[Unset, TemplateRequestSpecLabels]):
         start (Union[Unset, bool]):  Default: True.
@@ -69,7 +69,7 @@ class TemplateRequestSpec:
     secrets: Union[Unset, "TemplateRequestSpecSecrets"] = UNSET
     ttl: Union[Unset, float] = UNSET
     idle: Union[Unset, float] = UNSET
-    isolation: Union[Literal["container"], Unset] = "container"
+    isolation: Union[Unset, TemplateRequestSpecIsolation] = UNSET
     restart: Union[Unset, "TemplateRequestSpecRestart"] = UNSET
     labels: Union[Unset, "TemplateRequestSpecLabels"] = UNSET
     start: Union[Unset, bool] = True
@@ -121,7 +121,9 @@ class TemplateRequestSpec:
 
         idle = self.idle
 
-        isolation = self.isolation
+        isolation: Union[Unset, str] = UNSET
+        if not isinstance(self.isolation, Unset):
+            isolation = self.isolation.value
 
         restart: Union[Unset, dict[str, Any]] = UNSET
         if not isinstance(self.restart, Unset):
@@ -252,11 +254,12 @@ class TemplateRequestSpec:
 
         idle = d.pop("idle", UNSET)
 
-        isolation = cast(Union[Literal["container"], Unset], d.pop("isolation", UNSET))
-        if isolation != "container" and not isinstance(isolation, Unset):
-            raise ValueError(
-                f"isolation must match const 'container', got '{isolation}'"
-            )
+        _isolation = d.pop("isolation", UNSET)
+        isolation: Union[Unset, TemplateRequestSpecIsolation]
+        if isinstance(_isolation, Unset):
+            isolation = UNSET
+        else:
+            isolation = TemplateRequestSpecIsolation(_isolation)
 
         _restart = d.pop("restart", UNSET)
         restart: Union[Unset, TemplateRequestSpecRestart]

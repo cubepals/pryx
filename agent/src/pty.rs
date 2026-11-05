@@ -57,6 +57,7 @@ pub(crate) fn spawn(
         command.env(name, value);
     }
     command.env_remove(secret_env);
+    command.env_remove(crate::process_policy::POLICY_ENV);
     let child = pair.slave.spawn_command(command).map_err(failed)?;
     let pid = child.process_id().ok_or(io::Error::other("Terminal has no process id"))?;
     drop(pair.slave);

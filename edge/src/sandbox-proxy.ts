@@ -34,6 +34,10 @@ export class SandboxProxy {
   readonly pending = new Map<string, Promise<Port[]>>()
   readonly server: ReturnType<typeof Bun.serve<SocketState>>
   private tlsServer?: ReturnType<typeof Bun.serve<SocketState>>
+  private control?: string
+  useControl(origin: string) {
+    this.control = origin.replace(/\/$/, '')
+  }
   constructor(
     readonly table: RouteTable,
     readonly hold: Hold,
@@ -109,7 +113,7 @@ export class SandboxProxy {
   }
 
   match(host: string, path: string): EdgeRoute | undefined {
-    const alias = /^\/sandboxes\/([^/]+)\/_pryx(?:\/|$)/.exec(path)
+    const alias = /^\/sandboxes\/([^/]+)\/(?:_pryx|ports\/\d+)(?:\/|$)/.exec(path)
     if (alias) return this.table.held.get(`${alias[1]}:${AGENT_ROUTE_PORT}`)
     const agents = [...this.table.held.values()].filter((route) => route.agent)
     const direct = agents.find((route) => route.hostname === host && path.startsWith('/_pryx/'))
@@ -195,10 +199,25 @@ export class SandboxProxy {
     const url = new URL(request.url),
       host = (request.headers.get('host') ?? url.host).split(':')[0] as string
     const route = this.match(host, url.pathname)
-    if (!route?.agent) return new Response('No such sandbox route', { status: StatusCodes.NOT_FOUND })
-    const exposedPort = this.portFromHost(host, route)
+    if (!route?.agent) {
+      if (this.control && (/^\/v1\//.test(url.pathname) || url.pathname === '/healthz')) {
+        const headers = new Headers(request.headers)
+        for (const name of ['host', 'connection', 'transfer-encoding', 'content-length']) headers.delete(name)
+        return fetch(`${this.control}${url.pathname}${url.search}`, {
+          method: request.method,
+          headers,
+          body: ['GET', 'HEAD'].includes(request.method) ? undefined : request.body,
+          signal: request.signal,
+          redirect: 'manual',
+        })
+      }
+      return new Response('No such sandbox route', { status: StatusCodes.NOT_FOUND })
+    }
+    const publicAlias = new RegExp(`^/sandboxes/${route.sandbox}/ports/(\\d+)(/|$)`).exec(url.pathname)
+    const exposedPort = publicAlias ? Number(publicAlias[1]) : this.portFromHost(host, route)
     const alias = `/sandboxes/${route.sandbox}`
-    const path = url.pathname.startsWith(alias) ? url.pathname.slice(alias.length) : url.pathname
+    const prefix = publicAlias ? `${alias}/ports/${publicAlias[1]}` : alias
+    const path = url.pathname.startsWith(prefix) ? url.pathname.slice(prefix.length) || '/' : url.pathname
     const token = requestToken(request)
     const claims = sandboxToken(token, route)
     if (exposedPort === undefined && claims?.scope !== 'sandbox' && !fileToken(claims, request, path))

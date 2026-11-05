@@ -1331,6 +1331,15 @@
             },
             "type": "array"
           },
+          "isolation": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "nodeId": {
             "type": "string"
           },
@@ -2315,6 +2324,12 @@
           "image": {
             "type": "string"
           },
+          "isolation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "issues": {
             "items": {
               "$ref": "#/components/schemas/Issue"
@@ -2438,5 +2453,8 @@
     "tokenClockSkewSeconds": 30,
     "tokenLifetimeSeconds": 300,
     "tokenPrefix": "pa1"
+  },
+  "x-pryx-process": {
+    "imageProblem": "this host runs the process tier; images are not available"
   }
 }

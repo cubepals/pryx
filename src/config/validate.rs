@@ -20,6 +20,19 @@ const OOM_SCORE_ADJ: std::ops::RangeInclusive<i32> = -1000..=1000;
 
 impl Config {
     pub fn validate(&self) -> Result<(), ConfigError> {
+        if self.runtime == super::RuntimeKind::Process
+            && (self.store_lease.enabled
+                || self.process.uid_first == 0
+                || self.process.uid_count == 0
+                || self.process.uid_first.checked_add(self.process.uid_count).is_none()
+                || self.process.open_files < 64
+                || self.process.cpu_seconds == 0
+                || self.process.address_space_mb == 0)
+        {
+            return Err(ConfigError::Invalid(
+                "process tier requires a non-root UID pool, positive resource limits and store leases off".into(),
+            ));
+        }
         if self.store_lease.enabled
             && (self.fleet.is_none()
                 || self.store_lease.max_seconds < crate::protocol::MIN_STORE_LEASE_SECONDS

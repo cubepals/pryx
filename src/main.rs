@@ -18,7 +18,7 @@ use tracing::{error, info, warn};
 
 use pryxd::api::tls::ServerCert;
 use pryxd::api::{self, AppState};
-use pryxd::config::{Config, FleetConfig, Mode, TlsConfig};
+use pryxd::config::{Config, FleetConfig, Mode, RuntimeKind, TlsConfig};
 use pryxd::fleet::identity::{Credentials, Identity};
 use pryxd::manager::{Manager, Records};
 use pryxd::metrics::Metrics;
@@ -252,7 +252,7 @@ fn print_report(report: &doctor::Report, json: bool, preflight: bool) -> anyhow:
 
 /// What a node says about itself when it enrolls.
 fn facts(config: &Config, fleet: &FleetConfig) -> pryxd::protocol::wire::NodeFacts {
-    let host = pryxd::host::facts();
+    let host = config.host_facts();
     let memory_total_mb = host.memory_total_bytes.map_or(0, |b| b / (1024 * 1024));
     let (disk_total, disk_available) = pryxd::host::disk(&config.state_dir).unzip();
     let [low, high] = config.network.port_range;
@@ -324,7 +324,11 @@ async fn serve(path: &Path) -> anyhow::Result<()> {
     let backstop = Backstop::arm(&config.state_dir, boot);
     // Every create gives a data directory to the workloads' user, which takes root (CAP_CHOWN): a
     // daemon that can't is refused here, rather than by every create that follows.
-    store.check_ownable(config.data_owner_ids())?;
+    store.check_ownable(if config.runtime == RuntimeKind::Process {
+        (rustix::process::geteuid().as_raw(), rustix::process::getegid().as_raw())
+    } else {
+        config.data_owner_ids()
+    })?;
     // Fleet mode: the node's id and TLS material come from enrollment, before anything is served.
     let (identity, tls_material): (Option<Identity>, TlsConfig) = match config.mode()? {
         Mode::Fleet(fleet) => {
@@ -342,12 +346,16 @@ async fn serve(path: &Path) -> anyhow::Result<()> {
     if !config.store_lease.enabled {
         pryxd::store_lease::check_policy(&config.state_dir, false)?;
     }
-    let docker = DockerRuntime::new(&config.docker.socket)?;
-    if config.store_lease.enabled {
-        docker.check_store_lease().await?;
-        pryxd::store_lease::check_policy(&config.state_dir, true)?;
-    }
-    let runtime: Arc<dyn ContainerRuntime> = Arc::new(docker);
+    let runtime: Arc<dyn ContainerRuntime> = if config.runtime == RuntimeKind::Process {
+        Arc::new(pryxd::runtime::process::ProcessRuntime::new(&config.state_dir, config.process.clone())?)
+    } else {
+        let docker = DockerRuntime::new(&config.docker.socket)?;
+        if config.store_lease.enabled {
+            docker.check_store_lease().await?;
+            pryxd::store_lease::check_policy(&config.state_dir, true)?;
+        }
+        Arc::new(docker)
+    };
     let publish = publish_addresses(&config);
     let manager = Manager::new(config.clone(), runtime, store, Arc::new(Metrics::new()), ports::bind_probe(publish));
     if let (Some(identity), Some(fleet)) = (&identity, &config.fleet) {

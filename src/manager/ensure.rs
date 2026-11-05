@@ -320,7 +320,7 @@ impl Manager {
         };
         // Persisted before the container exists: a crash from here on leaves a record, which the
         // next PUT or reconciliation finishes or reports. Never an unfindable container.
-        if let Err(e) = self.store.ensure_data_dir(id, self.config.data_owner_ids()).map_err(NodeError::from) {
+        if let Err(e) = self.store.ensure_data_dir(id, self.data_owner(id)?).map_err(NodeError::from) {
             undo(self);
             return Err(e);
         }
@@ -388,7 +388,7 @@ impl Manager {
             }
             self.note(self.runtime.remove(&record.container_name).await)?;
         }
-        self.store.ensure_data_dir(&id, self.config.data_owner_ids())?;
+        self.store.ensure_data_dir(&id, self.data_owner(&id)?)?;
         record.generation += 1;
         if epoch.is_some() && epoch != record.epoch {
             if let Some(held) = self.store_leases.lock().unwrap().remove(&id) {

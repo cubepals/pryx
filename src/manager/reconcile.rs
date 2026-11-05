@@ -285,7 +285,7 @@ impl Manager {
             created_at: label.created_at,
             updated_at: now_str(),
         };
-        self.store.ensure_data_dir(id, self.config.data_owner_ids())?;
+        self.store.ensure_data_dir(id, self.data_owner(id)?)?;
         self.save_record(&record).await?;
         self.remember(id, Some(c)).await;
         Ok(Ok(Issue::new(

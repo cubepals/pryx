@@ -74,6 +74,7 @@ fn document(title: &str, contract: Contract, add: impl FnOnce(&mut SchemaGenerat
         "info": { "title": title, "version": PROTOCOL_VERSION.to_string() },
         "paths": {},
         "components": { "schemas": generator.take_definitions(true) },
+        "x-pryx-process": {"imageProblem": crate::protocol::PROCESS_IMAGE_PROBLEM},
         "x-pryx-agent": {
             "fileTokenLifetimeSeconds": pryx_agent::auth::FILE_TOKEN_LIFETIME_SECONDS,
             "captureBytes": pryx_agent::contract::CAPTURE_BYTES,

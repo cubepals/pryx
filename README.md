@@ -243,3 +243,12 @@ Versions 0.2.2 and earlier were published under AGPL-3.0-only as part of
 
 "Cubepals" and its logo are trademarks the licence doesn't grant. For anything else, write to
 legal@cubepals.com.
+
+The release also runs as one ordinary container, with embedded Postgres and object storage:
+
+```sh
+docker run -p 8080:8080 ghcr.io/cubepals/pryx:0.1.0
+```
+
+Without a Docker socket it selects the lighter process tier. Read [deployment instructions](docs/deploy.md)
+and its [isolation limits](docs/process-tier.md) before choosing a tier.

@@ -7,18 +7,41 @@
 use brush_builtins::{BuiltinSet, ShellBuilderExt};
 use clap::Parser;
 use std::io::{self, BufRead, Write};
+use std::os::unix::process::CommandExt;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Images run as the same sandbox user. Prevent their processes from reading the agent's
     // bootstrap environment or memory through ptrace/procfs, without adding a privilege.
     rustix::process::set_dumpable_behavior(rustix::process::DumpableBehavior::NotDumpable)?;
+    rustix::process::set_child_subreaper(rustix::process::Pid::from_raw(1))?;
     let _ = rustls::crypto::ring::default_provider().install_default();
     let arguments = std::env::args().skip(1).collect::<Vec<_>>();
+    if arguments.first().is_some_and(|a| a == "process-probe") {
+        println!("{}", serde_json::to_string(&pryx_agent::process_capabilities::probe())?);
+        return Ok(());
+    }
+    if arguments.first().is_some_and(|a| a == "network-off") {
+        pryx_agent::process_policy::network_off()?;
+        let executable = arguments.get(1).ok_or("Missing restricted command")?;
+        return Err(std::process::Command::new(executable).args(&arguments[2..]).exec().into());
+    }
+    if let Ok(encoded) = std::env::var(pryx_agent::process_policy::POLICY_ENV) {
+        let policy = serde_json::from_str(&encoded)?;
+        pryx_agent::process_policy::enter(&policy)?;
+        if arguments.first().is_some_and(|a| a == "restricted") {
+            let executable = arguments.get(1).ok_or("Missing restricted command")?;
+            return Err(std::process::Command::new(executable)
+                .args(&arguments[2..])
+                .env_remove(pryx_agent::process_policy::POLICY_ENV)
+                .exec()
+                .into());
+        }
+    }
     if arguments.first().is_some_and(|a| a == "--version") {
         println!("pryx-agent {}", env!("CARGO_PKG_VERSION"));
         return Ok(());
     }
-    let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
+    let runtime = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build()?;
     if arguments.first().is_some_and(|a| a == "shell") {
         let code = runtime.block_on(shell(arguments.get(1).cloned()))?;
         std::process::exit(code.into());

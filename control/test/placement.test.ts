@@ -67,6 +67,12 @@ const request = (over: Partial<PlacementRequest> = {}): PlacementRequest => ({
 })
 
 describe('selectNode', () => {
+  test('process and container requests cannot cross isolation tiers', () => {
+    const process = node('process', { features: ['placement-epochs', 'process-tier'] })
+    expect(selectNode(request(), [process]).node).toBeNull()
+    expect(selectNode(request({ isolation: 'process' }), [node('container')]).node).toBeNull()
+    expect(selectNode(request({ isolation: 'process' }), [process]).node?.id).toBe('process')
+  })
   test('only an active, healthy node in the region with the features can be chosen', () => {
     const nodes = [
       node('a', { lifecycle: 'draining' }),

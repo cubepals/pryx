@@ -13,6 +13,7 @@ use crate::protocol::{FieldError, RESERVED_LABEL_PREFIX};
 /// The host's own bounds. The protocol validates shape; the host decides what it allows.
 #[derive(Clone, Debug)]
 pub(crate) struct SpecPolicy {
+    pub(crate) process: bool,
     pub(crate) allowed_images: Vec<String>,
     pub(crate) min_memory_mb: u32,
     pub(crate) max_memory_mb: u32,
@@ -126,6 +127,12 @@ impl WorkloadSpec {
     }
 
     fn check_image(&self, policy: &SpecPolicy, problems: &mut Problems) {
+        if policy.process {
+            if !self.image.is_empty() {
+                problems.add("image", crate::protocol::PROCESS_IMAGE_PROBLEM);
+            }
+            return;
+        }
         if !image_ok(&self.image) {
             problems.add("image", "must be an image reference of letters, digits and ._-/:@");
         } else if policy.allowed_images.is_empty() {
@@ -276,6 +283,7 @@ mod tests {
 
     pub(crate) fn policy() -> SpecPolicy {
         SpecPolicy {
+            process: false,
             allowed_images: vec!["ghcr.io/example/http-app:".into(), "alpine:".into()],
             min_memory_mb: 128,
             max_memory_mb: 16_384,

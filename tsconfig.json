@@ -16,6 +16,7 @@
   },
   "include": [
     "control/**/*.ts",
+    "deploy/**/*.ts",
     "cli/**/*.ts",
     "sdk/typescript/**/*.ts",
     "edge/**/*.ts",

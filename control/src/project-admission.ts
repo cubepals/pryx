@@ -108,7 +108,10 @@ export class ProjectAdmission {
       checkLimit(limits, 'maxUnitsPerSandbox', 0, units)
       checkLimit(limits, 'maxTtl', 0, prepared.ttl ?? 0)
       checkLimit(limits, 'maxIdle', 0, prepared.idle ?? 0)
-      if (limits.allowedImages && !limits.allowedImages.some((prefix) => prepared.image.startsWith(prefix)))
+      if (
+        limits.allowedImages &&
+        !limits.allowedImages.some((prefix) => (prepared.image ?? '').startsWith(prefix))
+      )
         exceeded('allowedImages', limits.allowedImages, prepared.image)
       const usage = await projectUsage(tx, project, this.unit)
       if (autoSpares && typeof limits.maxEgressPorts === 'number')

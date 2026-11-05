@@ -11,6 +11,8 @@
 //! - `state.rs`: bounded, non-secret persistent checkpoints.
 //! - `telemetry.rs`: in-memory activity and stream ownership.
 //! - `process.rs`: supervised process trees, streams, stdin and completion.
+//! - `process_policy.rs`: process-tier filesystem, syscall and sampled resource restrictions.
+//! - `process_capabilities.rs`: non-mutating kernel support queries.
 //! - `pty.rs`: terminal ownership through the platform PTY library.
 //! - `server.rs`: the authenticated HTTP and websocket surface.
 //! - `files.rs`: streamed data and filesystem watches.
@@ -27,7 +29,7 @@ pub mod context;
 pub mod contract;
 #[cfg(feature = "server")]
 pub mod files;
-#[cfg(feature = "server")]
+#[cfg(any(feature = "server", feature = "fs"))]
 pub mod logbook;
 #[cfg(any(feature = "server", feature = "fs"))]
 #[path = "../../src/tree/path.rs"]
@@ -36,6 +38,10 @@ pub mod paths;
 pub mod ports;
 #[cfg(feature = "server")]
 pub mod process;
+#[cfg(feature = "fs")]
+pub mod process_capabilities;
+#[cfg(feature = "server")]
+pub mod process_policy;
 #[cfg(feature = "server")]
 pub mod pty;
 #[cfg(all(feature = "schema", feature = "server"))]

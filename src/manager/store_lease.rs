@@ -10,6 +10,20 @@ use crate::store_lease::Held;
 impl Manager {
     pub fn features(&self) -> Vec<String> {
         let mut features = crate::protocol::features();
+        if self.runtime.is_process() {
+            if pryx_agent::process_capabilities::probe().network {
+                features.push("process-network-landlock".into());
+            }
+            features.extend(
+                [
+                    "process-tier",
+                    "process-network-seccomp",
+                    if rustix::process::geteuid().is_root() { "process-uid-pool" } else { "process-shared-uid" },
+                ]
+                .into_iter()
+                .map(String::from),
+            );
+        }
         if self.agent_binary().is_some() {
             features.push("agent".into());
         }

@@ -284,7 +284,7 @@ impl Processes {
     }
 
     fn spawn(&self, request: Start, timeout: Option<u32>) -> Result<Arc<Process>, ProcessError> {
-        let argv = argv(&request.command)?;
+        let argv = crate::process_policy::wrap(argv(&request.command)?)?;
         let cwd = request.cwd.as_ref().map(PathBuf::from).unwrap_or_else(|| self.data.clone());
         if request.pty {
             let spawned = crate::pty::spawn(
@@ -298,7 +298,12 @@ impl Processes {
             return Ok(supervise_terminal(spawned, timeout));
         }
         let mut command = tokio::process::Command::new(&argv[0]);
-        command.args(&argv[1..]).envs(&request.env).env_remove(&self.secret_env).current_dir(cwd);
+        command
+            .args(&argv[1..])
+            .envs(&request.env)
+            .env_remove(&self.secret_env)
+            .env_remove(crate::process_policy::POLICY_ENV)
+            .current_dir(cwd);
         command.stdin(if request.stdin { Stdio::piped() } else { Stdio::null() });
         command.stdout(Stdio::piped()).stderr(Stdio::piped()).process_group(0);
         let mut child = command.spawn()?;

@@ -186,7 +186,7 @@ impl Manager {
         let restoring = self.store.restoring_dir(id);
         // What an earlier restore left unfinished is settled first, as a start would settle it.
         self.settle_restore(id).await?;
-        let owner = self.config.data_owner_ids();
+        let owner = self.data_owner(id)?;
         let made = match &source {
             RestoreSource::Url { url, sha256 } => self.unpack_from(id, url, sha256.as_deref(), &restoring, owner).await,
             RestoreSource::Snapshot(snapshot) => self.copy_from_snapshot(id, snapshot, &restoring, owner).await,

@@ -14,7 +14,7 @@ use std::{
     sync::Mutex,
 };
 use tokio::sync::broadcast;
-const LOG_PATH: &str = ".pryx-agent/entrypoint-log.ndjson";
+pub const LOG_PATH: &str = ".pryx-agent/entrypoint-log.ndjson";
 const DISK_BYTES: u64 = (CAPTURE_BYTES * 4) as u64;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

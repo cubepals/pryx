@@ -9,6 +9,7 @@
 //!
 //! Parts (`config/`):
 //! - `validate.rs`: what a configuration is held to before pryxd runs on it.
+//! - `process.rs`: host-owned process tier and UID pool configuration.
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -21,7 +22,9 @@ use serde::Deserialize;
 
 use crate::ids::NodeId;
 
+mod process;
 mod validate;
+pub use process::{ProcessConfig, RuntimeKind};
 
 /// Where a host keeps its configuration: what `pryxd join` writes and every command reads
 /// unless told otherwise.
@@ -30,6 +33,10 @@ pub const PATH: &str = "/etc/pryxd/pryxd.toml";
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
+    #[serde(default)]
+    pub runtime: RuntimeKind,
+    #[serde(default)]
+    pub process: ProcessConfig,
     /// This host's stable name, written on every container it makes. Two nodes never share one.
     /// In fleet mode it is left out: the control plane issues it at enrollment.
     #[serde(default)]
@@ -239,6 +246,7 @@ pub(crate) struct WorkloadPolicy {
     /// is killed and started afresh on its data.
     pub(crate) resume_timeout_seconds: u64,
     pub(crate) agent_binary: PathBuf,
+    pub(crate) agent_public_origin: Option<String>,
     pub(crate) default_spare_ports: u16,
 }
 
@@ -258,6 +266,7 @@ impl Default for WorkloadPolicy {
             min_memory_mb: 256,
             resume_timeout_seconds: 10,
             agent_binary: PathBuf::from(pryx_agent::contract::DEFAULT_BINARY),
+            agent_public_origin: None,
             default_spare_ports: 3,
         }
     }
@@ -718,5 +727,11 @@ pub struct StoreLeaseConfig {
 impl Default for StoreLeaseConfig {
     fn default() -> Self {
         Self { enabled: false, non_suspending_host: false, max_seconds: 60 }
+    }
+}
+
+impl Config {
+    pub fn host_facts(&self) -> crate::host::HostFacts {
+        if self.runtime == RuntimeKind::Process { crate::host::process_tier_facts() } else { crate::host::facts() }
     }
 }

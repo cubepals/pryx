@@ -374,6 +374,8 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         Sandbox: {
+            /** @enum {string} */
+            isolation?: "container" | "process";
             files?: boolean;
             agent?: {
                 url: string;
@@ -591,11 +593,8 @@ export interface components {
             };
             ttl?: number;
             idle?: number;
-            /**
-             * @default container
-             * @constant
-             */
-            isolation?: "container";
+            /** @enum {string} */
+            isolation?: "container" | "process";
             restart?: {
                 /** @enum {string} */
                 policy: "no" | "on-failure";
@@ -729,11 +728,8 @@ export interface components {
                 };
                 ttl?: number;
                 idle?: number;
-                /**
-                 * @default container
-                 * @constant
-                 */
-                isolation?: "container";
+                /** @enum {string} */
+                isolation?: "container" | "process";
                 restart?: {
                     /** @enum {string} */
                     policy: "no" | "on-failure";

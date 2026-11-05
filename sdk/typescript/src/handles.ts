@@ -56,6 +56,9 @@ export class Sandbox {
   get state() {
     return this.view.state
   }
+  get isolation() {
+    return this.view.isolation
+  }
   get units() {
     return this.view.units
   }

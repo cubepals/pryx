@@ -25,7 +25,7 @@ export const limitsSchema = z
   .strict()
 export type ProjectLimits = z.infer<typeof limitsSchema>
 export type UnitSize = { memoryMb: number; cpuMillis: number }
-export type ProjectSpec = WorkloadSpec & { units?: number; ttl?: number; idle?: number }
+export type ProjectSpec = WorkloadSpec & { image: string; units?: number; ttl?: number; idle?: number }
 export const LIMIT_COLUMNS = {
   maxUnits: 'max_units',
   maxSandboxes: 'max_sandboxes',

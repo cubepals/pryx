@@ -31,6 +31,7 @@ interface PortSpec {
 }
 
 export interface RuntimeSpec {
+  isolation?: 'container' | 'process'
   agent?: import('./wire.ts').WorkloadSpec['agent']
   sparePorts?: number | null
   network?: import('./wire.ts').WorkloadSpec['network']

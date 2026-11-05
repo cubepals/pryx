@@ -36,6 +36,7 @@ struct Slot {
 }
 
 pub struct Ports {
+    public_origin: std::sync::RwLock<Option<String>>,
     held: Mutex<Vec<Slot>>,
     sandbox: String,
     domain: String,
@@ -103,6 +104,7 @@ impl Ports {
             slots.push(Slot { port, target });
         }
         Ok(Arc::new(Self {
+            public_origin: std::sync::RwLock::new(None),
             held: Mutex::new(slots),
             sandbox,
             domain,
@@ -113,6 +115,9 @@ impl Ports {
         }))
     }
 
+    pub fn set_public_origin(&self, origin: Option<String>) {
+        *self.public_origin.write().unwrap() = origin;
+    }
     pub fn revision(&self) -> u64 {
         self.revision.load(Ordering::Acquire)
     }
@@ -134,7 +139,11 @@ impl Ports {
     }
 
     fn view(&self, slot: &Slot, target: u16) -> Exposed {
-        Exposed { port: target, slot: slot.port, url: format!("https://{}-{target}.{}", self.sandbox, self.domain) }
+        let url = self.public_origin.read().unwrap().as_ref().map_or_else(
+            || format!("https://{}-{target}.{}", self.sandbox, self.domain),
+            |origin| format!("{}/sandboxes/{}/ports/{target}", origin.trim_end_matches('/'), self.sandbox),
+        );
+        Exposed { port: target, slot: slot.port, url }
     }
 
     pub async fn list(&self) -> Vec<Exposed> {

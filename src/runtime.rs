@@ -9,10 +9,12 @@
 //! Parts (`runtime/`):
 //! - `docker.rs`: the Docker Engine API, over the local unix socket.
 //! - `fake.rs`: an in-memory runtime for tests, with the Docker behaviour pryxd depends on.
+//! - `process.rs`: namespace-free process tier and private runtime journal.
 
 pub mod docker;
 #[cfg(any(test, feature = "fake"))]
 pub mod fake;
+pub mod process;
 
 use std::collections::BTreeMap;
 use std::net::IpAddr;
@@ -28,7 +30,7 @@ use crate::protocol::{Health, Proto};
 
 /// Everything needed to make one workload's container. Hardening is not optional here: the
 /// manager always fills it from host policy.
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct ContainerSpec {
     pub(crate) agent: Option<AgentBoot>,
     pub(crate) name: String,
@@ -57,8 +59,10 @@ pub struct ContainerSpec {
     pub(crate) oom_score_adj: i32,
 }
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct AgentBoot {
+    #[serde(default)]
+    pub(crate) public_origin: Option<String>,
     pub(crate) binary: PathBuf,
     pub(crate) sandbox: String,
     pub(crate) epoch: u64,
@@ -83,7 +87,7 @@ impl std::fmt::Debug for ContainerSpec {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct PortBinding {
     pub(crate) container_port: u16,
     pub(crate) protocol: Proto,
@@ -246,6 +250,15 @@ impl RuntimeError {
 
 #[async_trait]
 pub trait ContainerRuntime: Send + Sync + 'static {
+    fn data_deleted(&self, _id: &str) -> Result<(), RuntimeError> {
+        Ok(())
+    }
+    fn is_process(&self) -> bool {
+        false
+    }
+    fn data_owner(&self, _id: &str) -> Result<Option<(u32, u32)>, RuntimeError> {
+        Ok(None)
+    }
     fn supports_agent(&self) -> bool {
         false
     }

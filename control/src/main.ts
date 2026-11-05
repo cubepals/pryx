@@ -36,7 +36,7 @@ import { S3LeaseBucket } from './store-lease-bucket.ts'
 
 export async function startControl(
   config: ControlConfig = loadConfig(),
-  options: { providers?: ReadonlyMap<string, Provider> } = {},
+  options: { providers?: ReadonlyMap<string, Provider>; gatewayHealth?: () => Response } = {},
 ) {
   const pool = createPool(config.database)
   const lockPool = createPool(config.database)
@@ -140,12 +140,15 @@ export async function startControl(
   const api = createPublicApi({
     db,
     boxes: sandboxes,
+    defaultIsolation: config.defaultIsolation,
+    publicOrigin: config.publicOrigin,
     nodes,
     domain: config.publicDomain,
     edgePortRange: config.edgePortRange,
   })
   const edge = new EdgeService(db, sandboxes, config.publicDomain, config.edgePortRange, api.agents)
   api.app.route('/edge/v1', edgeApi(edge, config.edgeToken))
+  if (options.gatewayHealth) api.app.get('/healthz', () => options.gatewayHealth?.() as Response)
   const publicListen = splitAddress(config.apiListen)
   const publicServer = Bun.serve({
     maxRequestBodySize: Number.MAX_SAFE_INTEGER,

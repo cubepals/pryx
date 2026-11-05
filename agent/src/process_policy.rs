@@ -1,0 +1,105 @@
+// SPDX-License-Identifier: FSL-1.1-ALv2
+//! Process tier restrictions are host supplied, applied before the agent starts workers, and
+//! inherited by every command. Network-off restrictions are added in a fresh command launcher,
+//! leaving the trusted supervisor's preallocated listener reachable.
+//!
+//! Parts (`process_policy/`):
+//! - `filter.rs`: deny dangerous syscalls and namespace creation.
+//! - `watchdog.rs`: resident-memory sampling outside the filesystem-restricted worker threads.
+mod filter;
+mod watchdog;
+use landlock::{
+    ABI, Access, AccessFs, AccessNet, CompatLevel, Compatible, Ruleset, RulesetAttr, RulesetCreatedAttr, RulesetStatus,
+    path_beneath_rules,
+};
+use rustix::process::{Resource, Rlimit, setrlimit};
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+
+pub const POLICY_ENV: &str = "PRYX_PROCESS_POLICY";
+pub const NETWORK_ENV: &str = "PRYX_PROCESS_NETWORK_OFF";
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Policy {
+    pub data: PathBuf,
+    pub memory_bytes: u64,
+    pub address_space_bytes: u64,
+    pub open_files: u64,
+    pub processes: u64,
+    pub cpu_seconds: u64,
+    pub nice: i32,
+    pub network_off: bool,
+}
+
+pub fn enter(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
+    if !crate::process_capabilities::probe().filesystem {
+        return Err(crate::process_capabilities::FILESYSTEM_UNAVAILABLE.into());
+    }
+    watchdog::start(policy.memory_bytes)?;
+    for (resource, value) in [
+        (Resource::As, policy.address_space_bytes),
+        (Resource::Nofile, policy.open_files),
+        (Resource::Nproc, policy.processes),
+        (Resource::Cpu, policy.cpu_seconds),
+        (Resource::Core, 0),
+    ] {
+        setrlimit(resource, Rlimit { current: Some(value), maximum: Some(value) })?;
+    }
+    rustix::process::setpriority_process(None, policy.nice)?;
+    let abi = ABI::V3;
+    let read = [
+        "/usr",
+        "/bin",
+        "/sbin",
+        "/lib",
+        "/lib64",
+        "/etc/ssl/certs",
+        "/etc/ld.so.cache",
+        "/etc/passwd",
+        "/etc/group",
+        "/etc/resolv.conf",
+        "/etc/nsswitch.conf",
+        "/etc/hosts",
+        "/etc/ssl/openssl.cnf",
+        "/dev/urandom",
+        "/dev/zero",
+    ];
+    let mut read: Vec<PathBuf> = read.into_iter().map(PathBuf::from).filter(|p| p.exists()).collect();
+    read.push(std::env::current_exe()?);
+    read.push(PathBuf::from(format!("/proc/{}/task", std::process::id())));
+    let write = [
+        policy.data.as_path(),
+        std::path::Path::new("/dev/null"),
+        std::path::Path::new("/dev/pts"),
+        std::path::Path::new("/dev/ptmx"),
+    ];
+    let status = Ruleset::default()
+        .set_compatibility(CompatLevel::HardRequirement)
+        .handle_access(AccessFs::from_all(abi))?
+        .create()?
+        .add_rules(path_beneath_rules(read, AccessFs::from_read(abi)))?
+        .add_rules(path_beneath_rules(write, AccessFs::from_all(abi)))?
+        .restrict_self()?;
+    if status.ruleset != RulesetStatus::FullyEnforced {
+        return Err("Landlock filesystem policy is unavailable".into());
+    }
+    filter::apply(false)?;
+    Ok(())
+}
+
+pub fn network_off() -> Result<(), Box<dyn std::error::Error>> {
+    // Landlock network filtering covers TCP; seccomp also denies datagram/Unix egress.
+    let status = Ruleset::default().handle_access(AccessNet::ConnectTcp)?.create()?.restrict_self()?;
+    let _landlock = status.ruleset == RulesetStatus::FullyEnforced;
+    filter::apply(true)?;
+    Ok(())
+}
+
+pub fn wrap(argv: Vec<String>) -> std::io::Result<Vec<String>> {
+    if std::env::var_os(NETWORK_ENV).is_none() {
+        return Ok(argv);
+    }
+    let mut wrapped = vec![std::env::current_exe()?.to_string_lossy().into_owned(), "network-off".into()];
+    wrapped.extend(argv);
+    Ok(wrapped)
+}

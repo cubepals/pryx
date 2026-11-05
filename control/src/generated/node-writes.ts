@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
-// Generated from openapi/node-writes.openapi.json; sha256 c8e392e10a910ae793e0bfc0c8bd3e15fe2c2f591c571328c3d853cf5f0f8f1d.
+// Generated from openapi/node-writes.openapi.json; sha256 43be415a2c550dc2ab7508244dd982b8facb4197734d9c3ce4ea1a62a2213bdc.
 export type paths = Record<string, never>;
 export type webhooks = Record<string, never>;
 export interface components {
@@ -408,6 +408,7 @@ export interface components {
             deploymentId: string;
             docker: boolean;
             features: string[];
+            isolation?: string[] | null;
             nodeId: string;
             protocol: components["schemas"]["ProtocolVersions"];
             reconciled: boolean;
@@ -708,6 +709,7 @@ export interface components {
             health: components["schemas"]["Health"] | null;
             id: components["schemas"]["WorkloadId"];
             image: string;
+            isolation?: string | null;
             issues: components["schemas"]["Issue"][];
             labels: {
                 [key: string]: string;

@@ -31,6 +31,8 @@ const mapRegions = (text = ''): Record<string, string> =>
           }),
       )
 const schema = z.object({
+  defaultIsolation: z.enum(['container', 'process']).default('container'),
+  publicOrigin: z.url().optional(),
   database: z.string().min(1),
   deployment: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/),
   caCert: z.string().includes('BEGIN CERTIFICATE'),
@@ -96,6 +98,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   const hosts = (env.PRYX_ENDPOINT_HOSTS ?? '127.0.0.1,localhost').split(',').filter(Boolean)
   const config = schema.parse({
     database: env.DATABASE_URL,
+    defaultIsolation: env.PRYX_DEFAULT_ISOLATION,
+    publicOrigin: env.PRYX_PUBLIC_URL,
     deployment: env.PRYX_DEPLOYMENT ?? 'pryx',
     caCert: env.PRYX_CA_CERT?.replaceAll('\\n', '\n'),
     caKey: env.PRYX_CA_KEY?.replaceAll('\\n', '\n'),

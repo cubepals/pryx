@@ -32,7 +32,13 @@ import type { WorkloadReport, WorkloadSpec } from './wire.ts'
 import { TRANSFER_MS } from './workload-api.ts'
 
 export const SESSION_LIVE_SECONDS = 2 * MINUTE_S
-export type SandboxSpec = WorkloadSpec & { ttl?: number; idle?: number; units?: number }
+export type SandboxSpec = WorkloadSpec & {
+  image: string
+  isolation?: 'container' | 'process'
+  ttl?: number
+  idle?: number
+  units?: number
+}
 export type SandboxState =
   | 'creating'
   | 'stopped'
@@ -43,6 +49,7 @@ export type SandboxState =
   | 'restoring'
   | 'failed'
 export interface Sandbox {
+  isolation?: 'container' | 'process'
   files?: boolean
   agent?: boolean
   id: string
@@ -90,6 +97,7 @@ export function runtimeSpec(spec: SandboxSpec): RuntimeSpec {
   const defaults = nodeSchema.components.schemas.WorkloadSpec.properties
   return {
     image: spec.image,
+    isolation: spec.isolation,
     ...(spec.agent ? { agent: spec.agent } : {}),
     ...(spec.sparePorts === undefined ? {} : { sparePorts: spec.sparePorts }),
     ...(spec.network === undefined ? {} : { network: spec.network }),
@@ -188,6 +196,7 @@ export class Sandboxes {
         )
       : null
     return {
+      isolation: row.spec.isolation ?? 'container',
       id: row.id,
       files: row.handle
         ? this.engine.nodeAddress(row.handle)?.features?.includes('files') || undefined

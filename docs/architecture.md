@@ -1,6 +1,6 @@
 # Architecture
 
-pryxd runs hardened containers and owns their local files. Control owns desired sandbox state,
+pryxd runs hardened containers or restricted process trees and owns their local files. Control owns desired sandbox state,
 placement epochs and the Postgres ledger, and reaches hosts only through pryxd's mutual-TLS API.
 Edge is the public entry point: it polls routes, reads TLS SNI or HTTP Host (or uses a dedicated
 TCP port), holds bytes while control wakes a sandbox, then relays them. Applications receive
@@ -34,9 +34,12 @@ removes data and snapshots too.
 Prices come from operator/provider configuration, never product constants. Suspension still
 uses memory; stopped sandboxes still use local disk; resting copies use store space and transfer
 requests. XFS reflink shares unchanged blocks; other filesystems may require a full copy.
-Container is the implemented isolation level. Host policy fixes capabilities, filesystem mounts,
-network rules and allowed image prefixes. A sandbox request cannot loosen it. MicroVMs are not
-advertised. Workload ports are private; only configured control/edge sources may dial them.
+The container tier fixes capabilities, filesystem mounts, network rules and allowed image prefixes
+through host policy. The process tier uses the bundled userland, Landlock, seccomp, rlimits and
+sampled resident memory without creating namespaces; its weaker boundary is described in
+[process-tier.md](process-tier.md). Placement enforces the requested isolation tier. A sandbox
+request cannot loosen host policy. MicroVMs are not advertised. Workload ports are private; only
+configured control/edge sources may dial them.
 
 An epoch names one placement. Every mutating node request carries blocklyd-epoch; older handles
 cannot affect a newer copy. Moves fence and retire the old copy, and the edge closes connections

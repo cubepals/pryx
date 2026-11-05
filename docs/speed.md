@@ -156,3 +156,21 @@ ran, with four active at once and ten exact maxUnits refusals. Capacity n=2; com
 unavailable here; the pure capacity tests cover 31 free units for a 16 GiB/8-core reference with
 512 MiB/250-millis host reservations, and seven for the same memory with two cores. Those are
 arithmetic checks, not physical host measurements.
+
+## Process tier and one-image startup
+
+The K12 collector is `control/bench/process-speed.ts`. CI records paired n=30 container and
+process cohorts on the same runner and source commit, with CPU, kernel, image ID, static-agent
+hash, dataset size, raw samples and completion status. This compares deployment tiers; it does
+not attribute the difference to a single code optimization. The earlier daemon-only image has
+no all-in-one API, so its image-start baseline is explicitly unavailable (n=0).
+
+The unchanged agent p90 budgets are run through edge under 20 ms, first byte under 10 ms and
+start/expose/HTTP 200 under 200 ms. Image startup must answer the API in under 10 seconds.
+CLI echo, signal sleep/wake, and snapshot/fork of 100 MB are measured in both cohorts. Cleanup
+is outside the operation timer. No failing sample is discarded. The ordinary image is also
+checked with the default Docker seccomp profile, no extra capabilities or engine socket, and
+one shared UID under `--user`. The collector requires actual Landlock filesystem support.
+
+These Docker cohorts have not run locally. Their CI reports remain pending; local fail-closed
+kernel tests do not establish successful process isolation or any speed result.

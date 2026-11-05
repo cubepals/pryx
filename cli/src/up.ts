@@ -15,6 +15,7 @@ import { installBinary, releaseFiles } from './up-assets.ts'
 import { configurations } from './up-config.ts'
 import { readEnvironment, writeChanged, writeEnvironment } from './up-files.ts'
 import { configureHostRuntime } from './up-host.ts'
+import { imageReference, upImage } from './up-image.ts'
 import { container, service } from './up-units.ts'
 
 export const runInstallCommand = async (args: string[], quiet = true, redactions: string[] = []) => {
@@ -72,9 +73,11 @@ export async function up(args: string[]) {
     throw new Error('The existing domain is immutable; migrate public address assignments before changing it')
   if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]*$/.test(domain)) throw new Error('--domain is a DNS hostname')
   const plan = upPlan(domain)
-  if (args.includes('--check')) return plan
+  if (args.includes('--check'))
+    return args.includes('--image') ? { ...plan, image: imageReference(args) } : plan
   if (!plan.linux || !plan.systemd || !plan.root)
     throw new Error('up requires a Linux systemd host as root; use --check for a read-only plan')
+  if (args.includes('--image')) return upImage(args, domain, runInstallCommand)
   for (const [path, mode] of [
     ['/etc/pryx', 0o700],
     ['/opt/pryx', 0o755],

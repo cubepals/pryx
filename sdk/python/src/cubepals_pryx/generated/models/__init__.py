@@ -56,6 +56,7 @@ from .get_v1_templates_response_200_templates_item import (
 )
 from .make_request import MakeRequest
 from .make_request_env import MakeRequestEnv
+from .make_request_isolation import MakeRequestIsolation
 from .make_request_labels import MakeRequestLabels
 from .make_request_network import MakeRequestNetwork
 from .make_request_ports_item import MakeRequestPortsItem
@@ -109,12 +110,14 @@ from .put_v1_sandboxes_id_files_path_response_200 import (
 from .sandbox import Sandbox
 from .sandbox_agent import SandboxAgent
 from .sandbox_endpoints_item import SandboxEndpointsItem
+from .sandbox_isolation import SandboxIsolation
 from .sandbox_state import SandboxState
 from .sandbox_token import SandboxToken
 from .snapshot import Snapshot
 from .template_request import TemplateRequest
 from .template_request_spec import TemplateRequestSpec
 from .template_request_spec_env import TemplateRequestSpecEnv
+from .template_request_spec_isolation import TemplateRequestSpecIsolation
 from .template_request_spec_labels import TemplateRequestSpecLabels
 from .template_request_spec_network import TemplateRequestSpecNetwork
 from .template_request_spec_ports_item import TemplateRequestSpecPortsItem
@@ -168,6 +171,7 @@ __all__ = (
     "GetV1TemplatesResponse200TemplatesItem",
     "MakeRequest",
     "MakeRequestEnv",
+    "MakeRequestIsolation",
     "MakeRequestLabels",
     "MakeRequestNetwork",
     "MakeRequestPortsItem",
@@ -203,12 +207,14 @@ __all__ = (
     "Sandbox",
     "SandboxAgent",
     "SandboxEndpointsItem",
+    "SandboxIsolation",
     "SandboxState",
     "SandboxToken",
     "Snapshot",
     "TemplateRequest",
     "TemplateRequestSpec",
     "TemplateRequestSpecEnv",
+    "TemplateRequestSpecIsolation",
     "TemplateRequestSpecLabels",
     "TemplateRequestSpecNetwork",
     "TemplateRequestSpecPortsItem",

@@ -3508,6 +3508,13 @@
       "Sandbox": {
         "type": "object",
         "properties": {
+          "isolation": {
+            "type": "string",
+            "enum": [
+              "container",
+              "process"
+            ]
+          },
           "files": {
             "type": "boolean"
           },
@@ -4284,9 +4291,11 @@
             "exclusiveMinimum": 0
           },
           "isolation": {
-            "default": "container",
             "type": "string",
-            "const": "container"
+            "enum": [
+              "container",
+              "process"
+            ]
           },
           "restart": {
             "type": "object",
@@ -4712,9 +4721,11 @@
                 "exclusiveMinimum": 0
               },
               "isolation": {
-                "default": "container",
                 "type": "string",
-                "const": "container"
+                "enum": [
+                  "container",
+                  "process"
+                ]
               },
               "restart": {
                 "type": "object",

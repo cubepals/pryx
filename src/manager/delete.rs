@@ -35,6 +35,9 @@ impl Manager {
         epoch: Option<u64>,
     ) -> Result<DeleteResponse, NodeError> {
         let Some(mut record) = self.state.lock().unwrap().records.get(id).cloned() else {
+            if data == DataDisposition::Delete {
+                self.runtime.data_deleted(id.as_str())?;
+            }
             return Ok(DeleteResponse {
                 existed: false,
                 removed_container: false,
@@ -99,6 +102,7 @@ impl Manager {
                 super::agent_keys::discard(&self.config.state_dir, id)
                     .map_err(|source| NodeError::Io { what: "removing sandbox signing material".into(), source })?;
                 self.locks.lock().unwrap().remove(id);
+                self.runtime.data_deleted(id.as_str())?;
                 Ok(DeleteResponse {
                     existed: true,
                     removed_container,

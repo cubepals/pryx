@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
-// Generated from openapi/node-reads.openapi.json; sha256 05707db89fd34609549e9922ea9daafade8bbfc5adc166f51aa402fc9a9f19bc.
+// Generated from openapi/node-reads.openapi.json; sha256 9358d20ef1410eda7d8e02f99c05d06321ad2a3609d71d5b021daaaedc5361ab.
 export type paths = Record<string, never>;
 export type webhooks = Record<string, never>;
 export interface components {
@@ -339,8 +339,11 @@ export interface components {
             env?: {
                 [key: string]: string;
             };
-            /** @description An image reference. Must match the host's `allowed_images` prefixes. */
-            image: string;
+            /**
+             * @description An image reference. Must match the host's `allowed_images` prefixes.
+             * @default
+             */
+            image?: string;
             /** @default {} */
             labels?: {
                 [key: string]: string;

@@ -26,7 +26,8 @@ impl Manager {
         if !metadata.is_file()
             || metadata.mode() & 0o022 != 0
             || metadata.mode() & 0o111 == 0
-            || metadata.uid() != rustix::process::geteuid().as_raw()
+            || (metadata.uid() != rustix::process::geteuid().as_raw()
+                && !(self.runtime.is_process() && metadata.uid() == 0))
         {
             return None;
         }
@@ -35,7 +36,8 @@ impl Manager {
             let metadata = std::fs::symlink_metadata(parent).ok()?;
             if !metadata.is_dir()
                 || metadata.mode() & 0o022 != 0
-                || metadata.uid() != rustix::process::geteuid().as_raw()
+                || (metadata.uid() != rustix::process::geteuid().as_raw()
+                    && !(self.runtime.is_process() && metadata.uid() == 0))
             {
                 return None;
             }
@@ -91,6 +93,7 @@ impl Manager {
             .collect();
         Ok(Some((
             AgentBoot {
+                public_origin: self.config.workloads.agent_public_origin.clone(),
                 binary,
                 sandbox: record.id.to_string(),
                 epoch: record.epoch.unwrap_or_default(),
@@ -109,7 +112,7 @@ impl Manager {
         let key_name = info.labels.get(KEY_LABEL)?;
         let key = SigningKey::from_encoded(info.env.get(key_name)?).ok()?;
         let port = |p: &AllocatedPort| AgentPort {
-            port: p.container_port,
+            port: if self.runtime.is_process() { p.host_port } else { p.container_port },
             host_port: p.host_port,
             endpoints: self.config.network.edge_ips.iter().map(|ip| endpoint(ip, p.host_port)).collect(),
         };

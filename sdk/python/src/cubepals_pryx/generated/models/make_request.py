@@ -4,7 +4,6 @@ from collections.abc import Mapping
 from typing import (
     TYPE_CHECKING,
     Any,
-    Literal,
     TypeVar,
     Union,
     cast,
@@ -12,6 +11,7 @@ from typing import (
 
 from attrs import define as _attrs_define
 
+from ..models.make_request_isolation import MakeRequestIsolation
 from ..models.make_request_network import MakeRequestNetwork
 from ..types import UNSET, Unset
 
@@ -46,7 +46,7 @@ class MakeRequest:
         secrets (Union[Unset, MakeRequestSecrets]):
         ttl (Union[Unset, float]):
         idle (Union[Unset, float]):
-        isolation (Union[Literal['container'], Unset]):  Default: 'container'.
+        isolation (Union[Unset, MakeRequestIsolation]):
         restart (Union[Unset, MakeRequestRestart]):
         labels (Union[Unset, MakeRequestLabels]):
         start (Union[Unset, bool]):  Default: True.
@@ -67,7 +67,7 @@ class MakeRequest:
     secrets: Union[Unset, "MakeRequestSecrets"] = UNSET
     ttl: Union[Unset, float] = UNSET
     idle: Union[Unset, float] = UNSET
-    isolation: Union[Literal["container"], Unset] = "container"
+    isolation: Union[Unset, MakeRequestIsolation] = UNSET
     restart: Union[Unset, "MakeRequestRestart"] = UNSET
     labels: Union[Unset, "MakeRequestLabels"] = UNSET
     start: Union[Unset, bool] = True
@@ -119,7 +119,9 @@ class MakeRequest:
 
         idle = self.idle
 
-        isolation = self.isolation
+        isolation: Union[Unset, str] = UNSET
+        if not isinstance(self.isolation, Unset):
+            isolation = self.isolation.value
 
         restart: Union[Unset, dict[str, Any]] = UNSET
         if not isinstance(self.restart, Unset):
@@ -246,11 +248,12 @@ class MakeRequest:
 
         idle = d.pop("idle", UNSET)
 
-        isolation = cast(Union[Literal["container"], Unset], d.pop("isolation", UNSET))
-        if isolation != "container" and not isinstance(isolation, Unset):
-            raise ValueError(
-                f"isolation must match const 'container', got '{isolation}'"
-            )
+        _isolation = d.pop("isolation", UNSET)
+        isolation: Union[Unset, MakeRequestIsolation]
+        if isinstance(_isolation, Unset):
+            isolation = UNSET
+        else:
+            isolation = MakeRequestIsolation(_isolation)
 
         _restart = d.pop("restart", UNSET)
         restart: Union[Unset, MakeRequestRestart]

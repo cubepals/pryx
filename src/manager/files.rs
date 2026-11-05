@@ -15,12 +15,15 @@ pub(crate) struct DataAccess {
 }
 
 impl Manager {
+    pub(super) fn data_owner(&self, id: &WorkloadId) -> Result<(u32, u32), NodeError> {
+        Ok(self.runtime.data_owner(id.as_str())?.unwrap_or_else(|| self.config.data_owner_ids()))
+    }
+
     pub(crate) async fn data_access(&self, id: &WorkloadId, epoch: Option<u64>) -> Result<DataAccess, NodeError> {
         let guard = self.lock_for(id).lock_owned().await;
         let record = self.record(id)?;
         check_epoch(&record, epoch, EpochRule::Exact)?;
-        let directory =
-            DataDir::open_owned(&self.store.data_dir(id), self.config.data_owner_ids()).map_err(file_error)?;
+        let directory = DataDir::open_owned(&self.store.data_dir(id), self.data_owner(id)?).map_err(file_error)?;
         Ok(DataAccess { directory, guard })
     }
 

@@ -354,6 +354,9 @@ impl ContainerRuntime for DockerRuntime {
                 "--entrypoint-cwd".into(),
                 config.working_dir.filter(|d| !d.is_empty()).unwrap_or_else(|| "/".into()),
             ];
+            if let Some(origin) = &agent.public_origin {
+                entrypoint.extend(["--public-origin".into(), origin.clone()]);
+            }
             if !agent.spare_ports.is_empty() {
                 entrypoint.extend([
                     "--spare-ports".into(),

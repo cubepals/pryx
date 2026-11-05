@@ -43,6 +43,7 @@ impl fmt::Debug for Secret {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct WorkloadSpec {
     /// An image reference. Must match the host's `allowed_images` prefixes.
+    #[serde(default)]
     pub(crate) image: String,
     /// Replaces the image's entrypoint; absent, the image starts as it was built to.
     #[serde(default)]

@@ -13,6 +13,7 @@ import type { RouteTable } from './routes.ts'
 import type { SandboxProxy } from './sandbox-proxy.ts'
 import type { EdgeRoute } from './wire.ts'
 export interface FrontOptions {
+  control?: { destination: string; paths: RegExp }
   agents?: SandboxProxy
   host: string
   port: number
@@ -165,7 +166,21 @@ async function arrival(client: Socket, o: FrontOptions) {
         : o.kind === 'tls' && o.agents?.destination(true)
           ? o.agents.match(name, '/_pryx/')
           : undefined
-    route = agentRoute ?? o.table.find(name, o.kind, o.routePort)
+    const fallback = !agentRoute && o.kind === 'http' && o.control?.paths.test(path)
+    route =
+      agentRoute ??
+      (fallback
+        ? {
+            id: '__control',
+            sandbox: '__control',
+            hostname: name,
+            port: 'http',
+            front: 'http',
+            publicPort: o.routePort,
+            destination: o.control?.destination as string,
+            epoch: 0,
+          }
+        : o.table.find(name, o.kind, o.routePort))
     releaseOpen = o.gate.admit(route?.sandbox ?? '__unknown__', client.remoteAddress ?? '') ?? undefined
     if (!route || !releaseOpen) throw new Error('Unknown or limited destination')
     o.metrics.holds++
@@ -175,7 +190,7 @@ async function arrival(client: Socket, o: FrontOptions) {
         destination: agentRoute ? (o.agents?.destination(o.kind === 'tls') as string) : route.destination,
         epoch: route.epoch,
       }
-      if (route.state && !agentRoute) target = await o.hold.ready(route, until)
+      if (route.state && !agentRoute && !fallback) target = await o.hold.ready(route, until)
       while (!until.aborted) {
         try {
           upstream = await dial(target.destination, until)
@@ -191,13 +206,13 @@ async function arrival(client: Socket, o: FrontOptions) {
       handed = true
       client.off('data', collect)
       route = { ...route, epoch: target.epoch, destination: target.destination }
-      if (!agentRoute)
+      if (!agentRoute && !fallback)
         untrack = o.table.track(route, target.destination, target.epoch, () => {
           client.destroy()
           upstream?.destroy()
         })
       if (client.destroyed) throw new Error('Route moved')
-      if (!agentRoute) {
+      if (!agentRoute && !fallback) {
         sessionId = crypto.randomUUID()
         o.session(sessionId, { ...route, epoch: target.epoch }, 'connect')
       }

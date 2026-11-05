@@ -15,6 +15,7 @@ impl Manager {
         let docker = self.docker_up();
         let reconciled = self.reconciled();
         NodeHealth {
+            isolation: self.runtime.is_process().then(|| vec!["process".into()]),
             status: if docker && reconciled { "ok".into() } else { "degraded".into() },
             docker,
             reconciled,
@@ -84,7 +85,7 @@ impl Manager {
     /// Capacity as this node sees it: physical, reserved, what its workloads were given, and
     /// what they use.
     pub fn capacity(&self) -> crate::protocol::wire::NodeCapacity {
-        let facts = host::facts();
+        let facts = self.config.host_facts();
         let (disk_total, disk_available) = host::disk(self.store.root()).unzip();
         let (ports_allocated, ports_total) = self.ports_usage();
         let (used_memory, used_cores) = self.running_usage();
@@ -138,7 +139,7 @@ impl Manager {
         if let Ok(info) = self.note(self.runtime.info().await) {
             *self.runtime_info.lock().unwrap() = Some(info);
         }
-        let facts = host::facts();
+        let facts = self.config.host_facts();
         let (disk_total, disk_available) = host::disk(self.store.root()).unzip();
         let process = host::process();
         let trash = {

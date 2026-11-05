@@ -12,6 +12,7 @@ from typing import (
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
+from ..models.sandbox_isolation import SandboxIsolation
 from ..models.sandbox_state import SandboxState
 from ..types import UNSET, Unset
 
@@ -38,6 +39,7 @@ class Sandbox:
         created_at (str):
         updated_at (str):
         expires_at (Union[None, str]):
+        isolation (Union[Unset, SandboxIsolation]):
         files (Union[Unset, bool]):
         agent (Union[Unset, SandboxAgent]):
         units (Union[Unset, int]):
@@ -54,6 +56,7 @@ class Sandbox:
     created_at: str
     updated_at: str
     expires_at: Union[None, str]
+    isolation: Union[Unset, SandboxIsolation] = UNSET
     files: Union[Unset, bool] = UNSET
     agent: Union[Unset, "SandboxAgent"] = UNSET
     units: Union[Unset, int] = UNSET
@@ -88,6 +91,10 @@ class Sandbox:
         expires_at: Union[None, str]
         expires_at = self.expires_at
 
+        isolation: Union[Unset, str] = UNSET
+        if not isinstance(self.isolation, Unset):
+            isolation = self.isolation.value
+
         files = self.files
 
         agent: Union[Unset, dict[str, Any]] = UNSET
@@ -113,6 +120,8 @@ class Sandbox:
                 "expiresAt": expires_at,
             }
         )
+        if isolation is not UNSET:
+            field_dict["isolation"] = isolation
         if files is not UNSET:
             field_dict["files"] = files
         if agent is not UNSET:
@@ -170,6 +179,13 @@ class Sandbox:
 
         expires_at = _parse_expires_at(d.pop("expiresAt"))
 
+        _isolation = d.pop("isolation", UNSET)
+        isolation: Union[Unset, SandboxIsolation]
+        if isinstance(_isolation, Unset):
+            isolation = UNSET
+        else:
+            isolation = SandboxIsolation(_isolation)
+
         files = d.pop("files", UNSET)
 
         _agent = d.pop("agent", UNSET)
@@ -193,6 +209,7 @@ class Sandbox:
             created_at=created_at,
             updated_at=updated_at,
             expires_at=expires_at,
+            isolation=isolation,
             files=files,
             agent=agent,
             units=units,

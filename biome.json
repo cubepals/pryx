@@ -3,6 +3,7 @@
   "files": {
     "includes": [
       "control/**",
+      "deploy/**/*.ts",
       "cli/**",
       "!control/**/generated/**",
       "sdk/typescript/**",

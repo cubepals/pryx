@@ -726,6 +726,7 @@
             "type": "object"
           },
           "image": {
+            "default": "",
             "description": "An image reference. Must match the host's `allowed_images` prefixes.",
             "type": "string"
           },
@@ -794,7 +795,6 @@
           }
         },
         "required": [
-          "image",
           "resources",
           "storage"
         ],
@@ -818,5 +818,8 @@
     "tokenClockSkewSeconds": 30,
     "tokenLifetimeSeconds": 300,
     "tokenPrefix": "pa1"
+  },
+  "x-pryx-process": {
+    "imageProblem": "this host runs the process tier; images are not available"
   }
 }

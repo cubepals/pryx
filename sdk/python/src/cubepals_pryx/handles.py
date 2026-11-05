@@ -27,6 +27,8 @@ class Sandbox:
     @property
     def state(self): return self.view.state
     @property
+    def isolation(self): return None if isinstance(self.view.isolation, Unset) else self.view.isolation
+    @property
     def units(self): return None if isinstance(self.view.units, Unset) else self.view.units
     def refresh(self): self.view = self.api.get(self.id); self.agent.invalidate(); return self
     def run(self, command, *, key=None, **options):
@@ -70,6 +72,8 @@ class AsyncSandbox:
     def id(self): return self.view.id
     @property
     def state(self): return self.view.state
+    @property
+    def isolation(self): return None if isinstance(self.view.isolation, Unset) else self.view.isolation
     @property
     def units(self): return None if isinstance(self.view.units, Unset) else self.view.units
     async def refresh(self): self.view = await self.api.get(self.id); self.agent.invalidate(); return self

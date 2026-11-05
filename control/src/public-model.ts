@@ -5,6 +5,8 @@
 import { randomUUID } from 'node:crypto'
 import { setTimeout as pause } from 'node:timers/promises'
 import { sql } from 'drizzle-orm'
+import { z } from 'zod'
+import nodeSchema from '../../openapi/node-writes.openapi.json'
 import type { Make, PublicPort } from './api-schemas.ts'
 import { makeSchema } from './api-schemas.ts'
 import type { Db } from './database.ts'
@@ -23,6 +25,8 @@ export class PublicModel {
     readonly boxes: Sandboxes,
     readonly domain: string,
     readonly portRange: readonly [number, number] = DEFAULT_EDGE_PORT_RANGE,
+    readonly defaultIsolation: 'container' | 'process' = 'container',
+    readonly publicOrigin?: string,
   ) {}
   async view(id: string, project: string) {
     const sandbox = await this.boxes.get(id, project)
@@ -33,7 +37,15 @@ export class PublicModel {
     const assigned = await addresses(this.db, id, metadata?.public_ports ?? [], this.domain, this.portRange)
     return {
       ...sandbox,
-      ...(sandbox.agent ? { agent: { url: `https://${id}.${this.domain}` } } : { agent: undefined }),
+      ...(sandbox.agent
+        ? {
+            agent: {
+              url: this.publicOrigin
+                ? `${this.publicOrigin.replace(/\/$/, '')}/sandboxes/${id}`
+                : `https://${id}.${this.domain}`,
+            },
+          }
+        : { agent: undefined }),
       state: await shownState(this.db, id, sandbox.state),
       endpoints: sandbox.endpoints.map((e) => {
         const p = metadata?.public_ports.find((p) => p.name === e.name)
@@ -59,7 +71,8 @@ export class PublicModel {
   ) {
     const op = await operation(this.db, project, 'create', key, body)
     if (op.response) return op.response as Awaited<ReturnType<PublicModel['view']>>
-    if ([body.image, body.snapshot, body.template].filter(Boolean).length !== 1)
+    const sources = [body.image, body.snapshot, body.template].filter(Boolean).length
+    if (sources > 1 || (sources === 0 && (body.isolation ?? this.defaultIsolation) !== 'process'))
       throw new SandboxError('invalid_request', 'Choose exactly one of image, snapshot or template')
     if (body.units !== undefined && body.resources !== undefined)
       throw new SandboxError('invalid_request', 'Choose units or explicit resources')
@@ -85,6 +98,7 @@ export class PublicModel {
     let spec: SandboxSpec = {
       ...(source ?? {}),
       image: body.image ?? source?.image ?? '',
+      isolation: body.isolation ?? source?.isolation ?? this.defaultIsolation,
       resources: body.resources ??
         (body.units === undefined ? source?.resources : undefined) ?? {
           memoryMb: this.boxes.projects?.unit.memoryMb ?? UNIT_DEFAULTS.memoryMb,
@@ -115,6 +129,10 @@ export class PublicModel {
       ...(body.ttl ? { ttl: body.ttl } : {}),
       ...(body.idle ? { idle: body.idle } : {}),
     }
+    if (spec.isolation === 'process' && spec.image)
+      throw new z.ZodError([
+        { code: 'custom', path: ['image'], message: nodeSchema['x-pryx-process'].imageProblem },
+      ])
     spec = unitSpec(spec, this.boxes.projects?.unit)
     const id = options.id ?? op.id
     const result = await this.boxes.make(project, spec, {

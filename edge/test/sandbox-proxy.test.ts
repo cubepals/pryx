@@ -61,6 +61,8 @@ test('an exposed spare is public and the SDK terminal keeps initial output and s
     expect((await agent.expose(3000)).url).toBe('https://one-3000.sandboxes.test')
     const response = await c.proxy.fetch(new Request('http://one-3000.sandboxes.test/'))
     expect(await response?.text()).toBe('exposed-app')
+    const alias = await c.proxy.fetch(new Request(`${c.url}/ports/3000/`))
+    expect(await alias?.text()).toBe('exposed-app')
     const unavailable = await c.proxy.fetch(new Request('http://one-3001.sandboxes.test/'))
     expect(unavailable?.status).toBe(StatusCodes.NOT_FOUND)
     const terminal = await agent.terminal({ cols: 120, rows: 40 })
