@@ -6,6 +6,7 @@ import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync
 import { join } from 'node:path'
 import { MINUTE_MS, SECOND_MS } from '../../control/src/durations.ts'
 import { PRYX_VERSION } from '../../control/src/generated/release.ts'
+import type { OperatorToken } from '../../control/src/operator-api.ts'
 import { ensureBucket } from '../../control/src/store-bootstrap.ts'
 import daemonJson from '../../deploy/daemon.json'
 import { option } from './sandbox.ts'
@@ -212,7 +213,9 @@ export async function up(args: string[]) {
       body: JSON.stringify({ region: 'default' }),
     })
     if (!r.ok) throw new Error('Local enrollment token refused')
-    const body = (await r.json()) as { token: string }
+    const body = (await r.json()) as OperatorToken
+    if (!('joinToken' in body) || typeof body.joinToken !== 'string' || !body.joinToken)
+      throw new Error('The control service did not supply a local join token')
     const allow = args.flatMap((v, i) =>
       v === '--allow-image' && args[i + 1] ? [args[i + 1] as string] : [],
     )
@@ -220,13 +223,13 @@ export async function up(args: string[]) {
       [
         '/usr/local/bin/pryxd',
         'join',
-        body.token,
+        body.joinToken,
         '--address',
         '127.0.0.1',
         ...(allow.length ? allow : ['alpine:']).flatMap((p) => ['--allow-image', p]),
       ],
       true,
-      [body.token],
+      [body.token, body.joinToken],
     )
   }
   if (existsSync('/etc/pryxd/pryxd.toml')) {

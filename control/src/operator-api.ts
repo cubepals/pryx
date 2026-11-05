@@ -344,6 +344,8 @@ export function createOperatorApi(options: OperatorApiOptions): Hono {
  * the line pasted on the host. A token that re-enrolls a node names it in `joinToken`, and its line
  * is pasted on that node's host (docs/fleet-operations.md §8).
  */
+export type OperatorToken = Awaited<ReturnType<typeof mintToken>>
+
 async function mintToken(options: OperatorApiOptions, body: Record<string, unknown>, createdBy: string) {
   const regionKey = String(body.region ?? '')
   if (!regionKey && body.node === undefined)
