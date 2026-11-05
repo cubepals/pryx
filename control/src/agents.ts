@@ -100,6 +100,7 @@ export class Agents {
     if (row.state === 'running') {
       const deadline = Date.now() + 5 * SECOND_MS
       let ready = false
+      let last = 'no response'
       while (Date.now() < deadline) {
         try {
           const response = await fetch(`${credential.url}/_pryx/health`, {
@@ -107,15 +108,26 @@ export class Agents {
             signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
             redirect: 'manual',
           })
+          last = String(response.status)
           await response.body?.cancel()
           if (response.ok) {
             ready = true
             break
           }
-        } catch {}
+        } catch (error) {
+          last = error instanceof Error ? error.name : 'transport failure'
+        }
         await pause(SECOND_MS / 100)
       }
-      if (!ready) throw new SandboxError('not_running', 'Agent route did not become ready')
+      if (!ready) {
+        console.error('Agent token readiness failed', {
+          sandbox: id,
+          state: row.state,
+          epoch: ref.epoch,
+          last,
+        })
+        throw new SandboxError('not_running', `Agent route did not become ready (${last})`)
+      }
     }
     return credential
   }

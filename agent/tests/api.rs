@@ -48,6 +48,30 @@ async fn fixture() -> (tempfile::TempDir, Arc<Agent>, String) {
 }
 
 #[tokio::test]
+async fn route_capabilities_allow_only_readiness_and_port_reads() {
+    let (_dir, agent, _) = fixture().await;
+    let token = agent
+        .key
+        .sign(&Claims {
+            sandbox: "one".into(),
+            epoch: 1,
+            issued_at: now(),
+            expires_at: now() + 60,
+            scope: Scope::Routes,
+            max_ports: 0,
+            max_exec_seconds: None,
+            file: None,
+        })
+        .unwrap();
+    assert_eq!(call(&agent, &token, "GET", "/_pryx/health", Value::Null).await.0, StatusCode::OK);
+    assert_eq!(call(&agent, &token, "GET", "/_pryx/ports", Value::Null).await.0, StatusCode::OK);
+    assert_eq!(
+        call(&agent, &token, "POST", "/_pryx/processes", json!({"command":"true"})).await.0,
+        StatusCode::FORBIDDEN
+    );
+}
+
+#[tokio::test]
 async fn file_urls_are_bound_to_one_path_method_and_short_expiry() {
     let (dir, agent, token) = fixture().await;
     std::fs::write(dir.path().join("message"), b"hello").unwrap();

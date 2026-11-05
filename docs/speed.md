@@ -2,6 +2,30 @@
 
 # One-box speed
 
+## K11 TCP_NODELAY cohort
+
+Run [42015142557](https://github.com/cubepals/pryx/actions/runs/42015142557) completed the
+paired collector on one two-vCPU AMD EPYC 7763 runner, then failed sleep/wake acceptance.
+It is not a green workflow. Every available path has n=30; missing baseline paths remain n=0.
+The static agent digest and daemon digest are recorded in the
+[before](checks/agent-speed-nodelay-before.json) and
+[after](checks/agent-speed-nodelay-after.json) reports. The before product is b91ee23 and
+the after product is 008a865. No sample, including the individual slower outliers, is dropped.
+
+| Path | Before p50/p90 ms | After p50/p90 ms | Budget |
+| --- | --- | --- | --- |
+| Run through edge | 103.15 / 177.71 | 2.32 / 2.65 | < 20 ms: met |
+| First output byte | 98.00 / 170.02 | 2.30 / 2.90 | < 10 ms: met |
+| Start, expose, HTTP 200 | 108.19 / 181.08 | 5.02 / 7.62 | < 200 ms: met |
+| Agent from node loopback | unavailable | 1.26 / 1.48 | measured |
+| Terminal round trip | unavailable | 21.19 / 21.81 | measured |
+| Write 100 MB | unavailable | 750.92 / 898.94 | measured |
+| Read 100 MB | unavailable | 2256.98 / 2289.35 | measured |
+
+This differs from the initial cohort's CPU and execution conditions, so its loopback and
+terminal rows do not isolate a causal TCP_NODELAY improvement. The read row is slower than
+the initial cohort and has no specified budget. Final acceptance and a final cohort remain open.
+
 ## K11 initial agent cohort
 
 Run [42007702494](https://github.com/cubepals/pryx/actions/runs/42007702494) completed paired

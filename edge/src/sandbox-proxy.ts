@@ -24,6 +24,11 @@ type SocketState = {
 }
 // RFC 6455 section 7.4.1: a peer closes a message stream that exceeds its bound with 1009.
 const MESSAGE_TOO_BIG = 1009
+class ReadinessFailure extends Error {
+  constructor(readonly last: string) {
+    super('Agent readiness failed')
+  }
+}
 export class SandboxProxy {
   readonly ports = new Map<string, { key: string; revision: number; ports: Port[] }>()
   readonly pending = new Map<string, Promise<Port[]>>()
@@ -49,7 +54,10 @@ export class SandboxProxy {
       idleTimeout: 0,
       maxRequestBodySize: Number.MAX_SAFE_INTEGER,
       fetch: (request, server) => this.fetch(request, server),
-      error: () => new Response('Agent unavailable', { status: StatusCodes.BAD_GATEWAY }),
+      error: (error) => {
+        console.error('Agent relay failed', error instanceof ReadinessFailure ? error.last : error.name)
+        return new Response('Agent unavailable', { status: StatusCodes.BAD_GATEWAY })
+      },
       websocket: {
         open: (socket) => {
           socket.data.peer = socket
@@ -156,6 +164,7 @@ export class SandboxProxy {
   }
 
   private async ready(destination: string, token: string, signal: AbortSignal) {
+    let last = 'no response'
     while (!signal.aborted) {
       try {
         const response = await fetch(`http://${destination}/_pryx/health`, {
@@ -163,14 +172,16 @@ export class SandboxProxy {
           signal,
           redirect: 'manual',
         })
+        last = String(response.status)
         await response.body?.cancel()
         if (response.ok) return
-      } catch {
+      } catch (error) {
+        last = error instanceof Error ? error.name : 'transport failure'
         if (signal.aborted) break
       }
       await Bun.sleep(SECOND_MS / 100)
     }
-    throw new Error('Agent did not become ready after wake')
+    throw new ReadinessFailure(last)
   }
 
   async fetch(
