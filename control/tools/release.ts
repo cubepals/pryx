@@ -14,7 +14,9 @@ const pythonVersion = /^version = "([^"]+)"/m.exec(
 )?.[1]
 if (sdkVersion !== version || pythonVersion !== version) throw new Error('SDK versions must match Cargo.toml')
 const target = join(root, 'control/src/generated/release.ts')
+// REUSE-IgnoreStart
 const contents = `// SPDX-License-Identifier: FSL-1.1-ALv2\n// Generated from Cargo.toml by control/tools/release.ts.\nexport const PRYX_VERSION = '${version}'\n`
+// REUSE-IgnoreEnd
 const mode = process.argv[2] ?? 'check'
 if (mode === 'check') {
   if (readFileSync(target, 'utf8') !== contents) throw new Error('Release version drift')

@@ -14,15 +14,21 @@ import { configurations } from './up-config.ts'
 import { readEnvironment, writeChanged, writeEnvironment } from './up-files.ts'
 import { container, service } from './up-units.ts'
 
-const run = async (args: string[], quiet = true) => {
+export const runInstallCommand = async (args: string[], quiet = true, redactions: string[] = []) => {
   const p = Bun.spawn(args, {
-    stdout: quiet ? 'ignore' : 'inherit',
+    stdout: quiet ? 'pipe' : 'inherit',
     stderr: 'pipe',
     env: { ...process.env, DEBIAN_FRONTEND: 'noninteractive' },
   })
-  await new Response(p.stderr).text()
-  if ((await p.exited) !== 0)
-    throw new Error(`${args[0]} failed; inspect the service journal or package manager`)
+  const [stdout, stderr] = await Promise.all([
+    quiet ? new Response(p.stdout).text() : Promise.resolve(''),
+    new Response(p.stderr).text(),
+  ])
+  if ((await p.exited) !== 0) {
+    let detail = `${stdout}\n${stderr}`
+    for (const secret of redactions) detail = detail.replaceAll(secret, '[redacted]')
+    throw new Error(`${args[0]} failed: ${detail.slice(-8192)}`)
+  }
 }
 const active = (unit: string) => Bun.spawnSync(['systemctl', 'is-active', '--quiet', unit]).exitCode === 0
 export function upPlan(domain: string) {
@@ -91,12 +97,12 @@ export async function up(args: string[]) {
     mkdirSync(path, { recursive: true, mode })
     chmodSync(path, mode)
   }
-  if (!Bun.which('docker')) await run(['sh', '-c', DOCKER_INSTALL])
+  if (!Bun.which('docker')) await runInstallCommand(['sh', '-c', DOCKER_INSTALL])
   if (!Bun.which('nft')) {
-    await run(['apt-get', 'update', '-q'])
-    await run(['apt-get', 'install', '-yq', 'nftables'])
+    await runInstallCommand(['apt-get', 'update', '-q'])
+    await runInstallCommand(['apt-get', 'install', '-yq', 'nftables'])
   }
-  await run(['systemctl', 'enable', '--now', 'docker'])
+  await runInstallCommand(['systemctl', 'enable', '--now', 'docker'])
   const existing = existsSync('/etc/docker/daemon.json')
     ? JSON.parse(readFileSync('/etc/docker/daemon.json', 'utf8'))
     : {}
@@ -108,11 +114,11 @@ export async function up(args: string[]) {
     )
   ) {
     const running = Bun.spawnSync(['docker', 'ps', '-q']).stdout.toString().trim()
-    if (running) await run(['systemctl', 'reload', 'docker'])
-    else await run(['systemctl', 'restart', 'docker'])
+    if (running) await runInstallCommand(['systemctl', 'reload', 'docker'])
+    else await runInstallCommand(['systemctl', 'restart', 'docker'])
   }
   if (Bun.spawnSync(['id', '-u', 'pryx']).exitCode !== 0)
-    await run([
+    await runInstallCommand([
       'useradd',
       '--system',
       '--home-dir',
@@ -151,7 +157,7 @@ export async function up(args: string[]) {
     .arrayBuffer()
     .then((b) => new Bun.CryptoHasher('sha256').update(b).digest('hex'))
   if (!existsSync('/opt/pryx/.assets.sha256') || readFileSync('/opt/pryx/.assets.sha256', 'utf8') !== hash) {
-    await run(['tar', '-xzf', archive, '-C', '/opt/pryx'])
+    await runInstallCommand(['tar', '-xzf', archive, '-C', '/opt/pryx'])
     writeChanged('/opt/pryx/.assets.sha256', hash, 0o644)
     changed.add('pryx-control')
   }
@@ -170,18 +176,18 @@ export async function up(args: string[]) {
     if (inspect.exitCode === 0 && inspect.stdout.toString().trim() !== name)
       throw new Error(`Container pryx-${name} is not owned by this installer`)
     if (Bun.spawnSync([docker, 'volume', 'inspect', `pryx-${name}`]).exitCode !== 0)
-      await run([docker, 'volume', 'create', `pryx-${name}`])
+      await runInstallCommand([docker, 'volume', 'create', `pryx-${name}`])
     if (writeChanged(`/etc/systemd/system/pryx-${name}.service`, container(name, docker), 0o644))
       changed.add(`pryx-${name}`)
   }
   for (const name of ['control', 'edge'] as const)
     if (writeChanged(`/etc/systemd/system/pryx-${name}.service`, service(name), 0o644))
       changed.add(`pryx-${name}`)
-  await run(['systemctl', 'daemon-reload'])
+  await runInstallCommand(['systemctl', 'daemon-reload'])
   for (const name of ['postgres', 'store', 'control', 'edge']) {
     const unit = `pryx-${name}`
-    if (changed.has(unit) && active(unit)) await run(['systemctl', 'restart', unit])
-    else await run(['systemctl', 'enable', '--now', unit])
+    if (changed.has(unit) && active(unit)) await runInstallCommand(['systemctl', 'restart', unit])
+    else await runInstallCommand(['systemctl', 'enable', '--now', unit])
   }
   const control = config.control
   await until(async () => {
@@ -210,18 +216,22 @@ export async function up(args: string[]) {
     const allow = args.flatMap((v, i) =>
       v === '--allow-image' && args[i + 1] ? [args[i + 1] as string] : [],
     )
-    await run([
-      '/usr/local/bin/pryxd',
-      'join',
-      body.token,
-      '--address',
-      '127.0.0.1',
-      ...(allow.length ? allow : ['alpine:']).flatMap((p) => ['--allow-image', p]),
-    ])
+    await runInstallCommand(
+      [
+        '/usr/local/bin/pryxd',
+        'join',
+        body.token,
+        '--address',
+        '127.0.0.1',
+        ...(allow.length ? allow : ['alpine:']).flatMap((p) => ['--allow-image', p]),
+      ],
+      true,
+      [body.token],
+    )
   }
   if (existsSync('/etc/pryxd/pryxd.toml')) {
-    if (changed.has('pryxd') && active('pryxd')) await run(['systemctl', 'restart', 'pryxd'])
-    else await run(['systemctl', 'enable', '--now', 'pryxd'])
+    if (changed.has('pryxd') && active('pryxd')) await runInstallCommand(['systemctl', 'restart', 'pryxd'])
+    else await runInstallCommand(['systemctl', 'enable', '--now', 'pryxd'])
   }
   await until(async () => {
     const r = await fetch('http://127.0.0.1:8081/fleet/v1/nodes', {

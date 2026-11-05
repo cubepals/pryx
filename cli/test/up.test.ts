@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto'
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { up } from '../src/up.ts'
+import { runInstallCommand, up } from '../src/up.ts'
 import { installBinary, RELEASE_FILES, releaseFiles } from '../src/up-assets.ts'
 import { configurations } from '../src/up-config.ts'
 import { readEnvironment, writeChanged, writeEnvironment } from '../src/up-files.ts'
@@ -74,4 +74,24 @@ test('units read secrets from protected files and expose storage only on loopbac
   expect(container('postgres', '/usr/bin/docker')).toContain('127.0.0.1:5432:5432')
   expect(container('store', '/usr/bin/docker')).toContain('127.0.0.1:9000:9000')
   expect(container('postgres', '/usr/bin/docker')).not.toContain('POSTGRES_PASSWORD=')
+})
+
+test('failed install commands retain both output streams and redact enrollment tokens', async () => {
+  const token = 'synthetic-enrollment-secret'
+  const failure = await runInstallCommand(
+    [
+      process.execPath,
+      '-e',
+      'console.log("doctor stdout " + process.argv[1]); console.error("join stderr " + process.argv[1]); process.exit(1)',
+      token,
+    ],
+    true,
+    [token],
+  ).then(
+    () => '',
+    (error) => String(error),
+  )
+  expect(failure).toContain('doctor stdout [redacted]')
+  expect(failure).toContain('join stderr [redacted]')
+  expect(failure).not.toContain(token)
 })

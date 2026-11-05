@@ -406,10 +406,11 @@ pub fn exited(
     let Some(how) = stopped::failure(result, code, status) else {
         return Ok(String::new());
     };
-    let reason = format!("pryxd {} {how} before it came up", trial.to);
+    let name = if debug_legacy_executable() { "blocklyd" } else { "pryxd" };
+    let reason = format!("{name} {} {how} before it came up", trial.to);
     let said = match roll_back(layout, &trial, &reason)? {
-        true => format!("{reason}: put pryxd {} back\n", trial.from),
-        false => format!("{reason}, and there is no pryxd before it to put back\n"),
+        true => format!("{reason}: put {name} {} back\n", trial.from),
+        false => format!("{reason}, and there is no {name} before it to put back\n"),
     };
     Ok(said)
 }
