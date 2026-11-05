@@ -55,7 +55,11 @@ export class SandboxProxy {
       maxRequestBodySize: Number.MAX_SAFE_INTEGER,
       fetch: (request, server) => this.fetch(request, server),
       error: (error) => {
-        console.error('Agent relay failed', error instanceof ReadinessFailure ? error.last : error.name)
+        console.error('Agent relay failed', {
+          kind: error instanceof ReadinessFailure ? error.last : error.name,
+          code: 'code' in error && /^[A-Z_]+$/.test(String(error.code)) ? error.code : undefined,
+          frames: error.stack?.split('\n').slice(1, 4),
+        })
         return new Response('Agent unavailable', { status: StatusCodes.BAD_GATEWAY })
       },
       websocket: {

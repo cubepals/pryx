@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
 /** Authenticated public v1 routes. All placement and lifecycle work goes through the sandbox model. */
+import { setTimeout as pause } from 'node:timers/promises'
 import { sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
@@ -14,6 +15,7 @@ import { AgentCompat } from './agent-compat.ts'
 import { Agents } from './agents.ts'
 import { execSchema, makeSchema, networkSchema, templateSchema } from './api-schemas.ts'
 import type { Db } from './database.ts'
+import { SECOND_MS } from './durations.ts'
 import { events } from './events.ts'
 import { chunkOffset, chunkWrite, FileChunks } from './file-chunks.ts'
 import { authenticate } from './keys.ts'
@@ -191,7 +193,11 @@ export function createPublicApi(options: {
     app.post(`/v1/sandboxes/:id/${verb}`, async (c) => {
       c.env?.beginStream?.()
       const answer = await boxes[verb](c.req.param('id'), c.get('project'))
-      const sandbox = await model.view(c.req.param('id'), c.get('project'))
+      let sandbox = await model.view(c.req.param('id'), c.get('project'))
+      while ((verb === 'wake' || verb === 'start') && sandbox.agent && sandbox.state === 'starting') {
+        await pause(SECOND_MS / 20)
+        sandbox = await model.view(c.req.param('id'), c.get('project'))
+      }
       return c.json('tier' in answer ? { sandbox, tier: answer.tier } : { sandbox })
     })
   app.post('/v1/sandboxes/:id/exec', async (c) => {
