@@ -99,8 +99,10 @@ projects and runs every one, rotating active work within a quota no larger than 
 capacity. A sixth admission must return the full 403 maxUnits body, then the group is cleaned.
 It does not relax CPU or memory admission. The [first capacity observation](checks/projects-capacity.json)
 is 7,932 MiB/two cores: four free units after 2,048 MiB and 1,000 CPU millis of host reservations.
-The first five-active-sandbox fixture hit physical capacity before its project limit; the
-rotation correction still needs CI. Capacity n=1; completed 50-sandbox exercise n=0. A physical 16 GiB host is
+The first five-active-sandbox fixture hit physical capacity before its project limit. The
+[corrected exercise](checks/projects-one-box.json) passed in CI run 41975259790: all 50 sandboxes
+ran, with four active at once and ten exact maxUnits refusals. Capacity n=2; completed
+50-sandbox exercise n=1. A physical 16 GiB host is
 unavailable here; the pure capacity tests cover 31 free units for a 16 GiB/8-core reference with
 512 MiB/250-millis host reservations, and seven for the same memory with two cores. Those are
 arithmetic checks, not physical host measurements.
