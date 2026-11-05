@@ -172,8 +172,8 @@ is outside the operation timer. No failing sample is discarded. The ordinary ima
 checked with the default Docker seccomp profile, no extra capabilities or engine socket, and
 one shared UID under `--user`. The collector requires actual Landlock filesystem support.
 
-These Docker cohorts have not run locally. Their CI reports remain pending; local fail-closed
-kernel tests do not establish successful process isolation or any speed result.
+These Docker cohorts have not run locally. The complete guarded-process CI cohort is recorded
+below; local fail-closed kernel tests do not establish successful process isolation or speed.
 
 Run 42035048409 supplies the initial real one-image cohort on a two-core AMD EPYC 9V74
 runner: n=30, p50 6,691.32 ms and p90 6,977.85 ms, within the 10,000 ms startup budget.
@@ -252,3 +252,34 @@ The three agent latency budgets and image-start budget pass. CLI refusal was rep
 locally: Hono does not catch a manually constructed non-Error ZodError. Parsing the rejected
 image produces the proper Error-derived validation failure and preserves its structured field
 problem; final CI must validate this correction and the remaining isolation assertions.
+
+### K12 complete guarded-process acceptance
+
+Run [42074622463](https://github.com/cubepals/pryx/actions/runs/42074622463), source f8cd96c,
+passes the ordinary-image proof with default Docker isolation, required Landlock enforcement,
+UID pool and shared UID operation, cross-sandbox filesystem denial, network none, stopped-file
+ownership, Node, CLI image refusal, and credentials printed once across restart. The guest-only
+supervisor guard and SCRAM on both Postgres transports are included. This workflow separately
+fails project rotation on a host port conflict; its full workflow is not green.
+
+The paired [container](checks/process-speed-guard-before.json) and
+[process](checks/process-speed-guard-after.json) reports both complete every operation, n=30
+on the same host and source, and retain image/agent digests and all kernel capability facts.
+
+| operation | container p50 / p90 ms | process p50 / p90 ms | budget p90 |
+| --- | --- | --- | --- |
+| image API startup | unavailable, n=0 | 6713.14 / 6775.73 | 10,000 ms |
+| run through edge | 2.28 / 2.55 | 3.04 / 3.36 | 20 ms |
+| first output byte | 2.37 / 2.89 | 3.07 / 4.06 | 10 ms |
+| start, expose, HTTP 200 | 5.32 / 7.05 | 67.01 / 69.85 | 200 ms |
+| snapshot 100 MB | 1198.24 / 1330.37 | 485.07 / 498.29 | measured |
+| fork 100 MB | 1739.09 / 1766.25 | 965.36 / 990.85 | measured |
+| sleep | 34.79 / 39.07 | 9.55 / 13.16 | measured |
+| wake | 948.37 / 1004.62 | 12.43 / 15.60 | measured |
+| CLI echo | 1006.44 / 1043.73 | 992.00 / 1044.73 | measured |
+
+All four stated process/image budgets pass with the supervisor guard. The additional command
+launcher costs about 1 ms compared with the earlier unguarded process cohort on another run;
+that is an observation, not a controlled causal estimate. The same-host container comparison
+retains its 1,004.62 ms wake p90 rather than rounding it below a second. The process wake p90 is
+15.60 ms. Earlier failed cohorts remain above and in raw reports.
