@@ -68,7 +68,7 @@ async fn authenticate(State(agent): State<Arc<Agent>>, mut request: Request, nex
 }
 
 pub fn router(agent: Arc<Agent>) -> Router {
-    Router::new()
+    let router = Router::new()
         .route("/_pryx/health", get(|| async { Json(serde_json::json!({"status":"ok"})) }))
         .route("/_pryx/logs", get(logs))
         .route("/_pryx/processes", get(list).post(start))
@@ -82,7 +82,10 @@ pub fn router(agent: Arc<Agent>) -> Router {
         .route("/_pryx/terminal", get(terminal))
         .route("/_pryx/ports", get(ports).post(expose))
         .route("/_pryx/ports/{port}", delete(unexpose))
-        .merge(crate::files::routes())
+        .merge(crate::files::routes());
+    #[cfg(feature = "mcp")]
+    let router = router.merge(crate::mcp::routes());
+    router
         .layer(DefaultBodyLimit::max(crate::contract::MAX_REQUEST_BYTES))
         .route_layer(middleware::from_fn_with_state(agent.clone(), authenticate))
         .with_state(agent)

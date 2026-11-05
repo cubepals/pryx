@@ -174,3 +174,12 @@ one shared UID under `--user`. The collector requires actual Landlock filesystem
 
 These Docker cohorts have not run locally. Their CI reports remain pending; local fail-closed
 kernel tests do not establish successful process isolation or any speed result.
+
+Run 42035048409 supplies the initial real one-image cohort on a two-core AMD EPYC 9V74
+runner: n=30, p50 6,691.32 ms and p90 6,977.85 ms, within the 10,000 ms startup budget.
+The ordinary-container probes report default seccomp, no engine socket, no writable cgroup
+and no creating of user/mount/PID/network namespaces; changing UID and the required Landlock
+filesystem/network probes succeed. This cohort then fails sandbox admission on available disk,
+before process-operation samples, so it is not successful process acceptance. Raw startup samples,
+image/agent digests and the failure are retained in
+[the initial process report](checks/process-speed-initial-after.json).

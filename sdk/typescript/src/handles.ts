@@ -62,6 +62,12 @@ export class Sandbox {
   get units() {
     return this.view.units
   }
+  async mcpUrl() {
+    const credential = await this.agent.token()
+    const url = new URL(`${credential.url.replace(/\/$/, '')}/_pryx/mcp`)
+    url.searchParams.set('token', credential.token)
+    return url.toString()
+  }
   async refresh() {
     this.agent.invalidate()
     this.view = await this.api.get(this.id)

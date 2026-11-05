@@ -334,6 +334,7 @@ export function createPublicApi(options: {
   })
   app.post('/v1/templates', async (c) => {
     const b = templateSchema.parse(await c.req.json())
+    c.env?.beginStream?.()
     return c.json(await model.template(c.get('project'), b.name, b.spec), StatusCodes.CREATED)
   })
   app.get('/v1/templates', async (c) => c.json({ templates: await model.templates(c.get('project')) }))

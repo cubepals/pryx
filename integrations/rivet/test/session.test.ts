@@ -56,8 +56,11 @@ test('a lost create reply keeps identity; lifecycle manages its recovered sandbo
   expect(sleeps).toBe(1)
   await config.onDestroy?.(context as unknown as Parameters<NonNullable<typeof config.onDestroy>>[0])
   expect(calls.slice(2).map((c) => c.path)).toEqual([
+    '/v1/sandboxes/kept',
     '/v1/sandboxes/kept/sleep',
+    '/v1/sandboxes/kept',
     '/v1/sandboxes/kept/wake',
+    '/v1/sandboxes/kept',
     '/v1/sandboxes/kept/sleep',
     '/v1/sandboxes/kept',
   ])

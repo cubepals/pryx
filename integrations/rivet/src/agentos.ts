@@ -6,38 +6,35 @@
 import type { MakeRequest, Pryx } from '@cubepals/pryx'
 import type { AgentOsSandboxClient, AgentOsSandboxProvider } from '@rivet-dev/agentos-core'
 import { SandboxAgent, type SandboxProvider } from 'sandbox-agent'
+import { SANDBOX_AGENT_PORT, SANDBOX_AGENT_TEMPLATE } from './template.ts'
 
 export function pryxProvider(
   client: Pryx,
   options: {
     key: string
-    image: string
-    agentPort: number
+    image?: string
+    template?: string
+    agentPort?: number
     spec?: Omit<MakeRequest, 'image' | 'ports' | 'entrypoint' | 'start'>
   },
 ): SandboxProvider {
+  if (options.image && options.template) throw new Error('Choose image or template')
+  const port = options.agentPort ?? SANDBOX_AGENT_PORT
   return {
     name: 'pryx',
     defaultCwd: '/data',
     async create() {
-      const made = await client.make(
-        {
-          ...options.spec,
-          image: options.image,
-          start: true,
-          entrypoint: [
-            'sandbox-agent',
-            'server',
-            '--no-token',
-            '--host',
-            '0.0.0.0',
-            '--port',
-            String(options.agentPort),
-          ],
-          ports: [{ name: 'agent', port: options.agentPort, protocol: 'tcp', audience: 'private' }],
-        },
-        options.key,
-      )
+      const made = await client.sandbox({
+        isolation: 'container',
+        ...options.spec,
+        ...(options.image
+          ? { image: options.image }
+          : { template: options.template ?? SANDBOX_AGENT_TEMPLATE }),
+        idempotencyKey: options.key,
+        start: true,
+        entrypoint: ['sandbox-agent', 'server', '--no-token', '--host', '0.0.0.0', '--port', String(port)],
+        ports: [{ name: 'agent', port, protocol: 'tcp', audience: 'private' }],
+      })
       return made.id
     },
     async destroy(id) {

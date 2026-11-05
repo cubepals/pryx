@@ -71,6 +71,57 @@ async fn route_capabilities_allow_only_readiness_and_port_reads() {
     );
 }
 
+#[cfg(feature = "mcp")]
+#[tokio::test]
+async fn mcp_runs_real_processes_and_enforces_file_and_timeout_authority() {
+    let (_dir, agent, token) = fixture().await;
+    let rpc = |name: &str, args: Value| json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":name,"arguments":args}});
+    let (status, ran) =
+        call(&agent, &token, "POST", "/_pryx/mcp", rpc("run", json!({"command":"printf mcp-local"}))).await;
+    assert_eq!(status, StatusCode::OK);
+    let run: Value = serde_json::from_str(ran["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    assert_eq!(run["stdout"], "mcp-local");
+    assert_eq!(run["code"], 0);
+    let denied = call(&agent, &token, "POST", "/_pryx/mcp", rpc("read", json!({"path":"../outside"}))).await.1;
+    assert_eq!(denied["result"]["isError"], true);
+    let timeout =
+        call(&agent, &token, "POST", "/_pryx/mcp", rpc("run", json!({"command":"true","timeout":11}))).await.1;
+    assert_eq!(timeout["result"]["isError"], true);
+    let notification =
+        call(&agent, &token, "POST", "/_pryx/mcp", json!({"jsonrpc":"2.0","method":"notifications/initialized"})).await;
+    assert_eq!(notification.0, StatusCode::ACCEPTED);
+    let initialized = call(
+        &agent,
+        &token,
+        "POST",
+        "/_pryx/mcp",
+        json!({"jsonrpc":"2.0","id":2,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}),
+    )
+    .await
+    .1;
+    assert_eq!(initialized["result"]["protocolVersion"], "2025-06-18");
+    let future = router(agent.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/_pryx/mcp")
+                .header("authorization", format!("Bearer {token}"))
+                .header("content-type", "application/json")
+                .header("mcp-protocol-version", "2026-07-28")
+                .body(Body::from(rpc("run", json!({"command":"touch future"})).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(future.status(), StatusCode::BAD_REQUEST);
+    assert!(agent.data.read("future").is_err());
+
+    assert_eq!(
+        call(&agent, "invalid", "POST", "/_pryx/mcp", rpc("run", json!({"command":"true"}))).await.0,
+        StatusCode::UNAUTHORIZED
+    );
+}
+
 #[tokio::test]
 async fn file_urls_are_bound_to_one_path_method_and_short_expiry() {
     let (dir, agent, token) = fixture().await;

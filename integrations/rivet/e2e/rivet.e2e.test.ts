@@ -10,7 +10,7 @@ import { deploymentDiagnostics, rivetDiagnostics } from '../../../control/e2e/di
 import { freePort, until } from '../../../control/e2e/waits.ts'
 import { MINUTE_MS } from '../../../control/src/durations.ts'
 import type { registry } from '../example/main.ts'
-import { agentOsProvider } from '../src/agentos.ts'
+import type { agentOsProvider } from '../src/agentos.ts'
 
 test.skipIf(!ready)(
   'Rivet actor memory, shell, lifecycle and destruction',
@@ -75,11 +75,17 @@ test.skipIf(!ready)(
     const d = await deployment({ allowedImages: ['rivetdev/sandbox-agent:'] })
     const client = new Pryx({ baseUrl: d.control.apiUrl, apiKey: d.credential.key })
     try {
-      const remote = await agentOsProvider(client, {
-        key: crypto.randomUUID(),
-        image: 'rivetdev/sandbox-agent:0.5.5-full',
-        agentPort: 3000,
-      }).start()
+      if (!process.env.PRYX_PATCH_AGENTOS) throw new Error('The public agentOS patch must be built first')
+      const patched = (await import(process.env.PRYX_PATCH_AGENTOS)) as {
+        pryxSandboxProvider: typeof agentOsProvider
+      }
+      const remote = await patched
+        .pryxSandboxProvider(client, {
+          key: crypto.randomUUID(),
+          image: 'rivetdev/sandbox-agent:0.5.5-full',
+          agentPort: 3000,
+        })
+        .start()
       try {
         const result = await remote.runProcess({
           command: 'sh',

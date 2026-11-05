@@ -42,6 +42,10 @@ class Sandbox:
     def read_bytes(self, path): return self.files.read_bytes(path)
     def read_stream(self, path): return self.files.read_stream(path)
     def terminal(self, **options): return self.agent.terminal(**options)
+    def mcp_url(self):
+        from urllib.parse import urlencode
+        credential = self.agent.token()
+        return credential['url'].rstrip('/') + '/_pryx/mcp?' + urlencode({'token': credential['token']})
     def expose(self, port): return self.agent.expose(port)
     def unexpose(self, port): return self.agent.unexpose(port)
     def network(self, mode):
@@ -88,6 +92,10 @@ class AsyncSandbox:
     async def read_bytes(self, path): return await self.files.read_bytes(path)
     def read_stream(self, path): return self.files.read_stream(path)
     async def terminal(self, **options): return await self.agent.terminal(**options)
+    async def mcp_url(self):
+        from urllib.parse import urlencode
+        credential = await self.agent.token()
+        return credential['url'].rstrip('/') + '/_pryx/mcp?' + urlencode({'token': credential['token']})
     async def expose(self, port): return await self.agent.expose(port)
     async def unexpose(self, port): return await self.agent.unexpose(port)
     async def network(self, mode):

@@ -406,6 +406,7 @@ jobs:
           docker build -t pryx-static-test .
           id=$(docker create pryx-static-test)
           docker cp "$id:/pryxd" "$RUNNER_TEMP/pryxd"
+          docker cp "$id:/usr/local/bin/pryx" "$RUNNER_TEMP/pryx-cli"
           docker cp "$id:/usr/local/lib/pryx/pryx-agent" "$RUNNER_TEMP/pryx-agent"
           docker rm "$id"
           sudo install -D -m 0755 "$RUNNER_TEMP/pryx-agent" /usr/local/lib/pryx/pryx-agent
@@ -440,6 +441,7 @@ jobs:
         if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         env:
           PRYX_PYTHON: ${{ github.workspace }}/.venv-agent-python/bin/python
+          PRYX_MCP_CLI: ${{ runner.temp }}/pryx-cli
           PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
           PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
 
@@ -459,10 +461,17 @@ jobs:
           gzip -dc "$RUNNER_TEMP/celld.gz" > "$RUNNER_TEMP/celld"
           chmod +x "$RUNNER_TEMP/celld"
           "$RUNNER_TEMP/celld" --version
+      - name: Build the versioned sandbox-agent template
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: docker build -t pryx-sandbox-agent-test integrations/rivet/template
+      - name: Build the public Rivet and agentOS patches
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: bun integrations/rivet/upstream/check.ts "$RUNNER_TEMP/pryx-rivet-patches"
       - name: Rivet self-hosted actor and celld Worker
         if: ${{ !cancelled() && steps.celld.outcome == 'success' }}
         env:
           CELLD_BIN: ${{ runner.temp }}/celld
+          PRYX_SANDBOX_AGENT_IMAGE: pryx-sandbox-agent-test
           PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
         run: bun run integration:e2e
 
@@ -552,6 +561,8 @@ jobs:
           # The installed daemon is now in dist; placement still needs real disk above its host floor.
           rm -rf target/debug
           docker builder prune --all --force
+          # The image archive and SDK fixtures coexist with the host's five GiB disk reserve.
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
           df -h .
           head -c 64 /dev/zero > dist/pryxd.sig
           (cd dist && sha256sum pryxd pryx-agent pryxd.sig pryx pryx-control pryx-edge pryx-control-assets.tar.gz install.sh > SHA256SUMS)

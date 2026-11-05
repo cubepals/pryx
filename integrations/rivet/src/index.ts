@@ -16,10 +16,10 @@ export function sandboxActor(client: Pryx, options: { sleepGracePeriod?: number 
     state: { sandbox: null, pending: null, generation: 0, notes: [] } as SessionMemory,
     options,
     onWake: async (c) => {
-      if (c.state.sandbox) await client.action(c.state.sandbox, 'wake')
+      if (c.state.sandbox) await (await client.sandbox(c.state.sandbox)).wake()
     },
     onSleep: async (c) => {
-      if (c.state.sandbox) await client.action(c.state.sandbox, 'sleep')
+      if (c.state.sandbox) await (await client.sandbox(c.state.sandbox)).sleep()
     },
     onDestroy: async (c) => {
       if (c.state.sandbox) await client.delete(c.state.sandbox)
@@ -56,11 +56,21 @@ export function sandboxActor(client: Pryx, options: { sleepGracePeriod?: number 
       exec: async (c, request: ExecRequest, key: string) => {
         if (!c.state.sandbox) throw new Error('Make a sandbox first')
         if (!key) throw new Error('Exec needs a durable caller key')
-        return Array.fromAsync(client.exec(c.state.sandbox, request, key))
+        const box = await client.sandbox(c.state.sandbox)
+        const run = box.run(request.command, {
+          env: request.env,
+          timeout: request.timeout,
+          idempotencyKey: key,
+        })
+        const events: unknown[] = []
+        for await (const chunk of run.stream())
+          events.push({ type: chunk.stream, data: chunk.data, truncated: false })
+        events.push({ type: 'exit', ...(await run) })
+        return events
       },
       snapshot: async (c) => {
         if (!c.state.sandbox) throw new Error('Make a sandbox first')
-        return client.snapshot(c.state.sandbox)
+        return (await (await client.sandbox(c.state.sandbox)).snapshot()).view
       },
       fork: async (
         _c,
@@ -69,7 +79,7 @@ export function sandboxActor(client: Pryx, options: { sleepGracePeriod?: number 
         key: string,
       ) => client.fork(snapshot, body, key),
       sleep: async (c) => {
-        if (c.state.sandbox) await client.action(c.state.sandbox, 'sleep')
+        if (c.state.sandbox) await (await client.sandbox(c.state.sandbox)).sleep()
         c.sleep()
       },
       wake: async (c) => (c.state.sandbox ? client.action(c.state.sandbox, 'wake') : null),

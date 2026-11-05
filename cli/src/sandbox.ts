@@ -85,6 +85,10 @@ export async function sandbox(args: string[]): Promise<unknown> {
   }
   if (!id) throw new Error(`sandbox ${verb} needs an id`)
   if (verb === 'get') return client.get(id)
+  if (verb === 'mcp-url') {
+    console.log(await (await client.sandbox(id)).mcpUrl())
+    return
+  }
   if (verb === 'terminal') {
     await terminal(await client.sandbox(id))
     return

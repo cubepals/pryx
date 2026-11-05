@@ -17,6 +17,7 @@
 //! - `server.rs`: the authenticated HTTP and websocket surface.
 //! - `files.rs`: streamed data and filesystem watches.
 //! - `logbook.rs`: bounded persistent entrypoint output.
+//! - `mcp.rs`: optional authenticated sandbox MCP tools and resources.
 //! - `ports.rs`: preallocated forward slots.
 //! - `main.rs`: PID 1 bootstrap and embedded shell.
 //! - `bootstrap.rs`: entrypoint supervision and termination.
@@ -31,6 +32,8 @@ pub mod contract;
 pub mod files;
 #[cfg(any(feature = "server", feature = "fs"))]
 pub mod logbook;
+#[cfg(feature = "mcp")]
+mod mcp;
 #[cfg(any(feature = "server", feature = "fs"))]
 #[path = "../../src/tree/path.rs"]
 pub mod paths;

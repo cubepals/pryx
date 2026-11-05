@@ -22,3 +22,25 @@ The celld package therefore contains the permitted proposal and a Worker/DO tran
 against an unmodified release. It does not claim that celld already accepts a native pryx backend.
 Store-lease implementation and fault-model/measurement limits are documented separately in
 [store-lease](../docs/store-lease.md).
+
+## K13 public interface refresh
+
+The public heads read for K13 are Rivet `7647c00452f19c90f7617b8d78afff8717ba025f`,
+sandbox-agent `f28965688227b981aae908a88b4a96770cf45e6f`, agentOS
+`785e6441b7fb511857f28e3b2e11f2f655165d58`, and celld
+`8702f6d186c77698dbfb30cf29e3b1922a88f008` (release 0.6.3).
+The old sandbox-agent repository redirects to [rivet-dev/agents](https://github.com/rivet-dev/agents).
+Its current provider contract is `sandbox-agent/sdks/typescript/src/providers/types.ts`, the
+Docker target is `providers/docker.ts`, and the deployment convention is
+`docs/content/docs/deploy/docker.mdx` under the same sandbox-agent directory. The published
+server and SDK remain version 0.5.5. The provider additionally documents optional ensureServer;
+server installation belongs to the versioned image rather than a command downloading mutable code.
+The separate `packages/sandbox-adapter` actor contract is a different interface and is not
+silently substituted for the sandbox-agent deploy target.
+
+The current MCP revision read is [2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28),
+including transports, tools, resources and versioning. The released TypeScript reference SDK
+1.32.2 negotiates 2025-11-25. Both pryx surfaces implement that initialization-based revision,
+including stateless Streamable HTTP; modern clients use the current specification's documented
+[legacy fallback](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning#backward-compatibility-with-initialization-based-versions).
+Unsupported HTTP protocol versions are refused before tool execution rather than advertised.

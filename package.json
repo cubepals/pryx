@@ -17,7 +17,7 @@
     "lint": "biome check control cli sdk/typescript edge integrations deploy",
     "typecheck": "tsc --noEmit",
     "test": "bun test --timeout 30000 control/test cli/test sdk/typescript/test edge/test integrations/rivet/test integrations/celld/test",
-    "e2e": "bun test control/e2e",
+    "e2e": "bun test control/e2e cli/e2e",
     "openapi:generate": "bun control/tools/openapi.ts generate",
     "openapi:check": "bun control/tools/openapi.ts check",
     "docs:generate": "bun control/tools/docs.ts generate",
