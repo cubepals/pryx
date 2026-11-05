@@ -116,7 +116,11 @@ export class Transfers {
    * Uploads one node copy to the archive store. One upload at a time per copy: the row is claimed
    * by compare-and-set, and a claim nobody finished is taken over once it is stale.
    */
-  async upload(archiveId: string): Promise<'ready' | 'skipped' | 'failed'> {
+  upload(archiveId: string) {
+    return this.#upload(archiveId)
+  }
+
+  async #upload(archiveId: string): Promise<'ready' | 'skipped' | 'failed'> {
     const claimed = await one<ArchiveRow>(
       this.#db,
       sql`UPDATE fleet_archives SET status = 'uploading', attempts = attempts + 1, upload_started_at = now()
