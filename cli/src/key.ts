@@ -7,12 +7,14 @@ export async function key(args: string[]) {
   const [verb = 'ls', id] = args
   const token = process.env.PRYX_OPERATOR_TOKEN
   if (!token) throw new Error('Set PRYX_OPERATOR_TOKEN')
-  const body = verb === 'create' ? { name: option(args, '--name') } : undefined
-  if (verb === 'create' && !body?.name) throw new Error('key create --name <name>')
+  const body =
+    verb === 'create'
+      ? { name: option(args, '--name') ?? 'Key', project: option(args, '--project') }
+      : undefined
   if (!['create', 'ls', 'revoke'].includes(verb) || (verb === 'revoke' && !id))
     throw new Error('key create|ls|revoke <id>')
   const response = await fetch(
-    `${process.env.PRYX_OPERATOR_API ?? 'http://127.0.0.1:8081'}/fleet/v1/keys${verb === 'revoke' ? `/${encodeURIComponent(id ?? '')}` : ''}`,
+    `${process.env.PRYX_OPERATOR_API ?? 'http://127.0.0.1:8081'}/fleet/v1/keys${verb === 'revoke' ? `/${encodeURIComponent(id ?? '')}` : ''}${option(args, '--project') ? `?${new URLSearchParams({ project: option(args, '--project') as string })}` : ''}`,
     {
       method: verb === 'create' ? 'POST' : verb === 'revoke' ? 'DELETE' : 'GET',
       headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },

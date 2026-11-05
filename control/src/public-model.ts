@@ -10,6 +10,7 @@ import type { Db } from './database.ts'
 import { addresses, DEFAULT_EDGE_PORT_RANGE } from './edge-addresses.ts'
 import { shownState } from './edge-routed.ts'
 import { complete, fingerprint, operation } from './operations.ts'
+import { UNIT_DEFAULTS, unitSpec } from './project-model.ts'
 import { SandboxError, type Sandboxes, type SandboxSpec } from './sandboxes.ts'
 import { jsonb, one, rows } from './sql.ts'
 
@@ -56,8 +57,17 @@ export class PublicModel {
     if (op.response) return op.response as Awaited<ReturnType<PublicModel['view']>>
     if ([body.image, body.snapshot, body.template].filter(Boolean).length !== 1)
       throw new SandboxError('invalid_request', 'Choose exactly one of image, snapshot or template')
+    if (body.units !== undefined && body.resources !== undefined)
+      throw new SandboxError('invalid_request', 'Choose units or explicit resources')
     let snapshot = body.snapshot
     if (body.template) {
+      if (
+        !(await one(
+          this.db,
+          sql`SELECT 1 FROM templates WHERE (id=${body.template} OR name=${body.template}) AND project=${project}`,
+        ))
+      )
+        throw new SandboxError('not_found', 'No such template')
       const copy = await one<{ snapshot: string }>(
         this.db,
         sql`SELECT c.snapshot FROM template_copies c JOIN templates t ON t.id=c.template WHERE (t.id=${body.template} OR t.name=${body.template}) AND t.project=${project} AND c.snapshot IS NOT NULL ORDER BY c.node LIMIT 1`,
@@ -66,10 +76,14 @@ export class PublicModel {
       snapshot = copy.snapshot
     }
     const source = snapshot ? (await this.boxes.snapshotRecord(snapshot, project)).spec : null
-    const spec: SandboxSpec = {
+    let spec: SandboxSpec = {
       ...(source ?? {}),
       image: body.image ?? source?.image ?? '',
-      resources: body.resources ?? source?.resources ?? { memoryMb: 1024 },
+      resources: body.resources ??
+        (body.units === undefined ? source?.resources : undefined) ?? {
+          memoryMb: this.boxes.projects?.unit.memoryMb ?? UNIT_DEFAULTS.memoryMb,
+        },
+      units: body.units ?? (body.resources === undefined ? source?.units : undefined),
       storage: body.storage ?? source?.storage ?? { mountPath: '/data', sizeGb: 1 },
       env: { ...source?.env, ...body.env },
       secrets: { ...source?.secrets, ...body.secrets },
@@ -85,14 +99,15 @@ export class PublicModel {
       ...(body.ttl ? { ttl: body.ttl } : {}),
       ...(body.idle ? { idle: body.idle } : {}),
     }
+    spec = unitSpec(spec, this.boxes.projects?.unit)
     const id = options.id ?? op.id
-    if (!options.internal) await addresses(this.db, id, body.ports, this.domain, this.portRange)
     const result = await this.boxes.make(project, spec, {
       id,
       region: body.region,
       start: body.start,
       snapshot,
       publicPorts: body.ports,
+      admit: options.internal ? undefined : (q) => addresses(q, id, body.ports, this.domain, this.portRange),
       ...options,
     })
     const view = await this.view(result.id, project)
@@ -100,6 +115,7 @@ export class PublicModel {
     return view
   }
   async template(project: string, name: string, body: Make) {
+    await this.boxes.projects?.write(project)
     if (!body.image || body.snapshot || body.template)
       throw new SandboxError('invalid_request', 'A template starts from an image')
     await this.db.execute(
@@ -123,7 +139,7 @@ export class PublicModel {
   async warmTemplates() {
     const templates = await rows<{ id: string; project: string; spec: Make }>(
       this.db,
-      sql`SELECT * FROM templates`,
+      sql`SELECT t.* FROM templates t JOIN projects p ON p.id=t.project WHERE p.state='active' AND (p.expires_at IS NULL OR p.expires_at>now())`,
     )
     const nodes = await rows<{ id: string; region: string }>(
       this.db,

@@ -347,15 +347,25 @@ jobs:
           cargo build --locked
           bun install --frozen-lockfile
           PRYX_SPEED_SOURCE="$PWD" PRYXD_BIN="$CARGO_TARGET_DIR/debug/pryxd" bun "$GITHUB_WORKSPACE/control/bench/speed.ts" before "$RUNNER_TEMP/speed-before.json"
-      - name: Build the current daemon
+      - name: Check out the pinned K9 after product
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: 6218d87b0422bf827a93356f11f98cd618c7916a
+          path: .benchmark-after
+          persist-credentials: false
+      - name: Measure the K9 after product on the same host
         run: |
-          # The baseline shares dependencies, never the product executable.
+          cp -a .benchmark-after "$RUNNER_TEMP/pryx-k9-after"
+          cd "$RUNNER_TEMP/pryx-k9-after"
+          export CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target"
           cargo clean --package pryxd
           cargo build --locked
-      - name: Measure K9 handles on one box
-        env:
-          PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
-        run: bun control/bench/speed.ts after "$RUNNER_TEMP/speed-after.json"
+          bun install --frozen-lockfile
+          PRYX_SPEED_SOURCE="$PWD" PRYXD_BIN="$CARGO_TARGET_DIR/debug/pryxd" bun "$GITHUB_WORKSPACE/control/bench/speed.ts" after "$RUNNER_TEMP/speed-after.json"
+      - name: Build the current daemon
+        run: |
+          cargo clean --package pryxd
+          cargo build --locked
       - name: Build a static daemon for isolated nodes
         run: |
           docker build -t pryx-static-test .
@@ -514,6 +524,15 @@ jobs:
       - name: Service journals on failure
         if: failure()
         run: sudo journalctl -u pryx-control -u pryx-edge -u pryx-postgres -u pryx-store -u pryxd --no-pager -n 150
+      - name: Measure projects and host units
+        run: sudo "$(command -v bun)" control/bench/projects-one-box.ts "$RUNNER_TEMP/projects-one-box.json"
+      - name: Save measured project admission
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: projects-one-box
+          path: ${{ runner.temp }}/projects-one-box.json
+          if-no-files-found: error
 
   image:
     name: Release image builds

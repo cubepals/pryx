@@ -38,7 +38,7 @@ describe.skipIf(!hasDatabase)('control composition', () => {
           headers: { authorization: `Bearer ${token}` },
         })
         expect(response.status).toBe(StatusCodes.OK)
-        expect(await response.json()).toEqual({ nodes: [] })
+        expect(await response.json()).toEqual({ nodes: [], regions: [] })
       } finally {
         await control.stop()
       }

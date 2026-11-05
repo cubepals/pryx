@@ -49,6 +49,45 @@ For a host to join, set `PRYX_OPERATOR_API` to the operator listener and `PRYX_O
 
 `bun run check` runs Biome, TypeScript, generated node-schema drift checks and unit tests. Set DATABASE_URL to a local test Postgres with permission to create databases so the database suites run. `bun run e2e` uses Docker, an S3 store, and debug/static daemons named by PRYXD_BIN and PRYXD_STATIC_BIN. Those full suites run in CI; a local unit pass says nothing about their result.
 
+## Projects and units
+
+`pryx project create --max-units 5 --max-running 3 --max-ttl 2h --expires-in 24h` creates an
+isolated project. `pryx key create --project <id>` prints a new key once. Operator HTTP routes
+live at `/operator/v1/projects` on the same private listener and use the operator token.
+POST accepts a name, limits and `key: true` to return a key with the project. GET lists projects;
+GET/PATCH/DELETE `/{id}` reads, updates or deletes one; POST `/{id}/freeze` and `/unfreeze` change
+admission; GET `/{id}/usage` reports effective limits and usage. Public GET `/v1/project` is
+scoped to the caller's key. CLI project ls/get/set/freeze/unfreeze/rm/usage map to these routes.
+
+| Limit | Deployment default variable | Counts or bounds |
+| --- | --- | --- |
+| maxUnits | PRYX_PROJECT_MAX_UNITS | Units with compute reserved |
+| maxSandboxes | PRYX_PROJECT_MAX_SANDBOXES | Existing sandboxes in any state, including template backing copies |
+| maxRunning | PRYX_PROJECT_MAX_RUNNING | Compute reservations, including suspended memory |
+| maxUnitsPerSandbox | PRYX_PROJECT_MAX_UNITS_PER_SANDBOX | One sandbox's rounded units |
+| maxTtl | PRYX_PROJECT_MAX_TTL | Lifetime seconds; supplies an omitted TTL |
+| maxIdle | PRYX_PROJECT_MAX_IDLE | Idle seconds; supplies an omitted idle timer |
+| maxExecTimeout | PRYX_PROJECT_MAX_EXEC_TIMEOUT | Public command timeout seconds |
+| maxSnapshots | PRYX_PROJECT_MAX_SNAPSHOTS | Retained snapshots and in-progress capture slots |
+| maxSnapshotBytes | PRYX_PROJECT_MAX_SNAPSHOT_BYTES | Measured retained snapshot bytes |
+| maxEgressPorts | PRYX_PROJECT_MAX_EGRESS_PORTS | Public ports across existing sandboxes |
+| allowedImages | PRYX_PROJECT_ALLOWED_IMAGES | Comma-separated prefixes, further bounded by host policy |
+| expiresAt | PRYX_PROJECT_EXPIRES_AT | ISO timestamp; expiry deletes owned data and revokes keys |
+
+Every absent default is unlimited. Non-null columns override deployment defaults; null restores
+inheritance. CLI set uses `--max-*` flags, `--allowed-images`, and `--expires-in`; numeric/image
+`unlimited` resets inheritance. A refusal is 403 `limit_exceeded` with `details:{name,limit,current}`.
+Freezing stops all project sandboxes and refuses public writes while permitting reads. Unfreezing
+permits new starts; it does not restart them. Lower aggregate limits freeze excess usage during
+upkeep, preserving data for reads. Snapshots/events are owned through their sandbox; foreign IDs
+answer 404 on every resource route, including logs, files and forks.
+
+`PRYX_UNIT_MEMORY_MB=512` and `PRYX_UNIT_CPU_MILLIS=250` configure a unit. Public create accepts
+`units` (default 1) or explicit resources rounded upward to whole units. `pryx node ls` includes
+`unitsFree` on each node and regional totals, bounded by remaining memory and CPU after the
+daemon's own and running reservations. Unknown execution/start outcomes retain their reservation
+until a confirmed stop; they never create room for another concurrent admission.
+
 ## Public API
 
 `PRYX_API_LISTEN` defaults to `127.0.0.1:8082`. Use a trusted TLS reverse proxy for remote
@@ -78,7 +117,7 @@ The committed OpenAPI document is in `control/openapi/pryx.openapi.json`. Run
 `bun run openapi:generate` after schema changes. Errors use `{error:{code,message,details}}`.
 Create accepts the node's resources/storage/restart shapes, entrypoint, env, secrets and labels;
 public ports use `{name,port,protocol,audience}`. Container is the supported isolation level.
-The daemon's image policy and limits remain final authority. Defaults are 1024 MiB memory,
+The daemon's image policy and limits remain final authority. Defaults are one 512 MiB/250 CPU-millis unit,
 1 GiB declared storage mounted at /data, no ports, no TTL/idle timer, start true.
 
 `ttl` is seconds from creation: an expired sandbox answers gone immediately and upkeep deletes it.

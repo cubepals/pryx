@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
 /** Authenticated public v1 routes. All placement and lifecycle work goes through the sandbox model. */
+import { sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { stream } from 'hono/streaming'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
@@ -13,9 +14,12 @@ import { events } from './events.ts'
 import { chunkOffset, chunkWrite, FileChunks } from './file-chunks.ts'
 import { authenticate } from './keys.ts'
 import { type NodeClient, NodeRefused } from './node-client.ts'
+import { ProjectAdmission, projectRow, projectUsage } from './project-admission.ts'
+import { exceeded, ProjectError } from './project-model.ts'
 import { PublicModel } from './public-model.ts'
 import { SandboxIO } from './sandbox-io.ts'
 import { SandboxError, type Sandboxes } from './sandboxes.ts'
+import { one, toDate } from './sql.ts'
 
 export function createPublicApi(options: {
   db: Db
@@ -25,6 +29,7 @@ export function createPublicApi(options: {
   edgePortRange?: readonly [number, number]
 }) {
   const { db, boxes, nodes, domain } = options
+  boxes.projects ??= new ProjectAdmission(db)
   const model = new PublicModel(db, boxes, domain, options.edgePortRange)
   const io = new SandboxIO(db, boxes, nodes)
   const chunks = new FileChunks(io)
@@ -38,9 +43,34 @@ export function createPublicApi(options: {
         StatusCodes.UNAUTHORIZED,
       )
     c.set('project', identity.project)
+    // Check resource scope before policy, so a frozen project cannot distinguish another's IDs.
+    {
+      const match = /^\/v1\/sandboxes\/([^/]+)(?:\/|$)/.exec(new URL(c.req.url).pathname)
+      if (match) {
+        const id = decodeURIComponent(match[1] as string)
+        if (c.req.method === 'DELETE' && new URL(c.req.url).pathname === `/v1/sandboxes/${match[1]}`) {
+          const owned = await one(
+            db,
+            sql`SELECT 1 FROM sandboxes WHERE id=${id} AND project=${identity.project}`,
+          )
+          if (!owned) throw new SandboxError('not_found', 'No such sandbox')
+        } else await boxes.record(id, identity.project)
+      }
+      const fork = /^\/v1\/snapshots\/([^/]+)\/sandboxes$/.exec(new URL(c.req.url).pathname)
+      if (fork) await boxes.snapshotRecord(decodeURIComponent(fork[1] as string), identity.project)
+      const expiry = identity.expiresAt ?? boxes.projects?.defaults.expiresAt
+      if (identity.expired || (expiry && Date.parse(expiry) <= Date.now()))
+        exceeded('expiresAt', expiry ? toDate(expiry).toISOString() : expiry, new Date().toISOString())
+      if (!['GET', 'HEAD', 'OPTIONS'].includes(c.req.method)) await boxes.projects?.write(identity.project)
+    }
     await next()
   })
   app.onError((error, c) => {
+    if (error instanceof ProjectError)
+      return c.json(
+        { error: { code: error.code, message: error.message, details: error.details } },
+        error.code === 'not_found' ? StatusCodes.NOT_FOUND : StatusCodes.FORBIDDEN,
+      )
     if (error instanceof SyntaxError)
       return c.json(
         { error: { code: 'invalid_request', message: 'Invalid JSON body' } },
@@ -83,6 +113,12 @@ export function createPublicApi(options: {
       status,
     )
   })
+  app.get('/v1/project', async (c) =>
+    c.json({
+      ...(await projectRow(db, c.get('project'), boxes.projects?.defaults)),
+      usage: await projectUsage(db, c.get('project'), boxes.projects?.unit),
+    }),
+  )
   app.post('/v1/sandboxes', async (c) =>
     c.json(
       await model.create(
@@ -112,6 +148,7 @@ export function createPublicApi(options: {
     })
   app.post('/v1/sandboxes/:id/exec', async (c) => {
     const body = execSchema.parse(await c.req.json())
+    await boxes.projects?.exec(c.get('project'), body.timeout)
     c.env?.beginStream?.()
     const abort = new AbortController()
     const events = await io.execEvents(

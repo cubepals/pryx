@@ -11,10 +11,12 @@ import { isDeepStrictEqual } from 'node:util'
 import { sql } from 'drizzle-orm'
 import type pg from 'pg'
 import nodeSchema from '../../openapi/node-reads.openapi.json'
-import type { Db } from './database.ts'
+import type { Db, Queryable } from './database.ts'
 import { MINUTE_S, SECOND_MS } from './durations.ts'
 import { decodeHandle, decodeSnapshot } from './handle.ts'
 import type { NodeClient } from './node-client.ts'
+import { ensureProject, type ProjectAdmission } from './project-admission.ts'
+import { unitsFor } from './project-model.ts'
 import { getNode } from './registry.ts'
 import type { FleetRuntime } from './runtime-engine.ts'
 import {
@@ -30,7 +32,7 @@ import type { WorkloadReport, WorkloadSpec } from './wire.ts'
 import { TRANSFER_MS } from './workload-api.ts'
 
 export const SESSION_LIVE_SECONDS = 2 * MINUTE_S
-export type SandboxSpec = WorkloadSpec & { ttl?: number; idle?: number }
+export type SandboxSpec = WorkloadSpec & { ttl?: number; idle?: number; units?: number }
 export type SandboxState =
   | 'creating'
   | 'stopped'
@@ -43,6 +45,7 @@ export type SandboxState =
 export interface Sandbox {
   id: string
   project: string
+  units?: number
   state: SandboxState
   node: string | null
   epoch: number | null
@@ -54,6 +57,7 @@ export interface Sandbox {
   expiresAt: string | null
 }
 export interface SandboxRow {
+  quota_running: boolean
   id: string
   project: string
   spec: SandboxSpec
@@ -106,6 +110,7 @@ export function runtimeSpec(spec: SandboxSpec): RuntimeSpec {
 }
 
 export class Sandboxes {
+  projects?: ProjectAdmission
   placement?: {
     refused: (region: string, spec: SandboxSpec) => Promise<void>
     succeeded: (region: string) => Promise<void>
@@ -180,6 +185,7 @@ export class Sandboxes {
     return {
       id: row.id,
       project: row.project,
+      units: unitsFor(row.spec, this.projects?.unit),
       state: row.state,
       node: ref?.node ?? null,
       epoch: ref?.epoch ?? null,
@@ -225,16 +231,35 @@ export class Sandboxes {
       onlyNode?: string
       internal?: boolean
       publicPorts?: unknown[]
+      admit?: (q: Queryable) => Promise<unknown>
     } = {},
   ): Promise<Sandbox> {
     const id = options.id ?? randomUUID()
-    await this.db.execute(sql`INSERT INTO sandboxes (id, project, spec, region, expires_at, start_requested, source_snapshot, only_node, internal, public_ports)
-      VALUES (${id}, ${project}, ${jsonb(spec)}, ${options.region ?? 'default'}, CASE WHEN ${spec.ttl ?? null}::double precision IS NULL THEN NULL ELSE now() + (${spec.ttl ?? null} * interval '1 second') END, ${options.start !== false}, ${options.snapshot ?? null}, ${options.onlyNode ?? null}, ${options.internal ?? false}, ${jsonb(options.publicPorts ?? [])}) ON CONFLICT (id) DO NOTHING`)
     return this.exclusive(id, async () => {
+      const insert = async (q: Queryable, prepared: SandboxSpec) => {
+        await q.execute(sql`INSERT INTO sandboxes (id, project, spec, region, expires_at, start_requested, source_snapshot, only_node, internal, public_ports, quota_running)
+        VALUES (${id}, ${project}, ${jsonb(prepared)}, ${options.region ?? 'default'}, CASE WHEN ${prepared.ttl ?? null}::double precision IS NULL THEN NULL ELSE now() + (${prepared.ttl ?? null} * interval '1 second') END, ${options.start !== false}, ${options.snapshot ?? null}, ${options.onlyNode ?? null}, ${options.internal ?? false}, ${jsonb(options.publicPorts ?? [])},${options.start !== false}) ON CONFLICT (id) DO NOTHING`)
+        await options.admit?.(q)
+      }
+      if (this.projects)
+        spec = await this.projects.create(
+          project,
+          id,
+          spec,
+          options.start !== false,
+          (options.publicPorts ?? []).filter((port) => (port as { audience?: string }).audience === 'public')
+            .length,
+          insert,
+        )
+      else {
+        await ensureProject(this.db, project)
+        await insert(this.db, spec)
+      }
       const row = await this.record(id, project)
       if (!isDeepStrictEqual(row.spec, spec))
         throw new SandboxError('idempotency_key_reused', 'Sandbox id has another spec')
       if (row.state !== 'creating' && row.state !== 'failed') return this.view(row)
+      if (options.start !== false && !row.quota_running) await this.projects?.start(project, id, row.spec)
       try {
         if (row.source_snapshot) {
           const snap = await this.snapshotRecord(row.source_snapshot, project)
@@ -265,7 +290,10 @@ export class Sandboxes {
         await this.placement?.succeeded(row.region)
         return this.get(id, project)
       } catch (error) {
-        if (error instanceof RuntimeFull) await this.placement?.refused(row.region, row.spec)
+        if (error instanceof RuntimeFull) {
+          await this.projects?.stopped(id)
+          await this.placement?.refused(row.region, row.spec)
+        }
         await this.state(id, 'failed')
         throw error
       }
@@ -280,6 +308,7 @@ export class Sandboxes {
   ): Promise<{ sandbox: Sandbox; tier: 'resumed' | 'booted' | 'restored' }> {
     return this.exclusive(id, async () => {
       const row = await this.record(id, project)
+      await this.projects?.start(row.project, id, row.spec)
       const steps: string[] = []
       const restoring = row.state === 'resting'
       try {
@@ -315,6 +344,7 @@ export class Sandboxes {
         }
       } catch (error) {
         await this.state(id, row.state)
+        if (error instanceof RuntimeFull && !row.quota_running) await this.projects?.stopped(id)
         if (error instanceof RuntimeFull) await this.placement?.refused(row.region, row.spec)
         throw error
       }
@@ -323,7 +353,9 @@ export class Sandboxes {
   async stop(id: string, project?: string): Promise<Sandbox> {
     return this.exclusive(id, async () => {
       const row = await this.record(id, project)
+      if (project !== undefined) await this.projects?.write(row.project)
       if (row.handle && row.state !== 'resting') await this.engine.stop(row.handle)
+      await this.projects?.stopped(id)
       await this.state(id, row.state === 'resting' ? 'resting' : 'stopped')
       return this.get(id, row.project)
     })
@@ -331,7 +363,9 @@ export class Sandboxes {
   async sleep(id: string, project?: string): Promise<{ sandbox: Sandbox; tier: 'suspended' | 'stopped' }> {
     return this.exclusive(id, async () => {
       const row = await this.record(id, project)
+      if (project !== undefined) await this.projects?.write(row.project)
       const tier = row.handle && row.state !== 'resting' ? await this.engine.sleep(row.handle) : 'stopped'
+      if (tier === 'stopped') await this.projects?.stopped(id)
       await this.state(id, row.state === 'resting' ? 'resting' : 'sleeping')
       return { sandbox: await this.get(id, row.project), tier }
     })
@@ -339,6 +373,7 @@ export class Sandboxes {
   async exec(id: string, command: string[], timeout: number, project?: string) {
     const row = await this.exclusive(id, async () => {
       const row = await this.record(id, project)
+      await this.projects?.exec(row.project, timeout)
       if (row.state !== 'running' || !row.handle)
         throw new SandboxError('not_running', 'Sandbox is not running')
       await this.touch(id)
@@ -360,17 +395,33 @@ export class Sandboxes {
   private async capture(row: SandboxRow, resume = true) {
     if (!row.handle || row.state === 'resting')
       throw new SandboxError('not_stopped', 'Sandbox has no local data')
+    const reservation = await this.projects?.reserveSnapshot(row.project, row.id)
     const running = row.state === 'running'
-    if (running || row.state === 'sleeping') await this.engine.stop(row.handle)
-    await this.state(row.id, 'stopped')
-    const snap = await this.engine.snapshot(row.handle)
-    const id = decodeSnapshot(snap.snapshot).archive
-    await this.db.execute(
-      sql`INSERT INTO sandbox_snapshots (id, sandbox, handle, spec) VALUES (${id}, ${row.id}, ${snap.snapshot}, ${jsonb(row.spec)}) ON CONFLICT (id) DO NOTHING`,
-    )
-    if (running && resume) await this.sink(row.id).handle(await this.engine.start(row.handle))
-    if (running && resume) await this.state(row.id, 'running')
-    return { id, handle: snap.snapshot, sizeBytes: snap.sizeBytes, at: snap.at }
+    let captured: SnapshotHandle | undefined
+    let accepted = false
+    try {
+      if (running || row.state === 'sleeping') await this.engine.stop(row.handle)
+      await this.state(row.id, 'stopped')
+      const snap = await this.engine.snapshot(row.handle)
+      captured = snap.snapshot
+      const id = decodeSnapshot(snap.snapshot).archive
+      const insert = (q: Queryable) =>
+        q.execute(
+          sql`INSERT INTO sandbox_snapshots (id, sandbox, handle, spec, size_bytes) VALUES (${id}, ${row.id}, ${snap.snapshot}, ${jsonb(row.spec)},${snap.sizeBytes}) ON CONFLICT (id) DO NOTHING`,
+        )
+      if (this.projects && reservation)
+        await this.projects.snapshot(row.project, reservation, snap.sizeBytes, insert)
+      else await insert(this.db)
+      accepted = true
+      return { id, handle: snap.snapshot, sizeBytes: snap.sizeBytes, at: snap.at }
+    } finally {
+      if (captured && !accepted) await this.engine.deleteSnapshot(captured)
+      if (reservation) await this.projects?.releaseSnapshot(reservation)
+      if (running && resume) {
+        await this.sink(row.id).handle(await this.engine.start(row.handle))
+        await this.state(row.id, 'running')
+      }
+    }
   }
   async snapshots(id: string, project?: string) {
     await this.record(id, project)
@@ -394,6 +445,7 @@ export class Sandboxes {
   async deleteSnapshot(id: string, snapshot: string, project?: string) {
     return this.exclusive(id, async () => {
       const row = await this.record(id, project)
+      if (project !== undefined) await this.projects?.write(row.project)
       const snap = await this.snapshotRecord(snapshot, row.project)
       const held = await one<{ sandbox: string }>(
         this.db,
@@ -408,6 +460,7 @@ export class Sandboxes {
   async rest(id: string, project?: string): Promise<Sandbox> {
     return this.exclusive(id, async () => {
       const row = await this.record(id, project)
+      if (project !== undefined) await this.projects?.write(row.project)
       if (row.state === 'resting') return this.view(row)
       await this.capture(row, false)
       await this.engine.stop(row.handle as RuntimeHandle)
@@ -426,6 +479,7 @@ export class Sandboxes {
         await pause(SECOND_MS)
       }
       await this.sink(id).handle(await this.engine.release(row.handle as RuntimeHandle))
+      await this.projects?.stopped(id)
       await this.state(id, 'resting')
       return this.get(id, row.project)
     })
@@ -435,6 +489,7 @@ export class Sandboxes {
       const row = await one<SandboxRow>(this.db, sql`SELECT * FROM sandboxes WHERE id = ${id}`)
       if (!row || row.deleted_at || (project !== undefined && row.project !== project))
         return { existed: false }
+      if (project !== undefined) await this.projects?.write(row.project)
       await this.engine.destroy(row.handle ?? runtimeKey(id))
       await this.db.execute(
         sql`UPDATE sandboxes SET deleted_at = now(), expired = ${expired}, updated_at = now(), spec = spec - 'secrets' WHERE id = ${id}`,
@@ -488,7 +543,8 @@ export class Sandboxes {
         sql`SELECT b.* FROM sandboxes b WHERE b.id=${id} AND b.deleted_at IS NULL AND b.state='running' AND (b.expires_at IS NULL OR b.expires_at>now()) AND b.spec->>'idle' IS NOT NULL AND b.activity_at + ((b.spec->>'idle')::double precision * interval '1 second') < now() AND NOT EXISTS(SELECT 1 FROM sandbox_sessions s WHERE s.sandbox=b.id AND s.seen_at>now()-(${SESSION_LIVE_SECONDS}*interval '1 second'))`,
       )
       if (!idle) return
-      if (idle.handle) await this.engine.sleep(idle.handle)
+      const tier = idle.handle ? await this.engine.sleep(idle.handle) : 'stopped'
+      if (tier === 'stopped') await this.projects?.stopped(id)
       await this.state(id, 'sleeping')
     })
   }

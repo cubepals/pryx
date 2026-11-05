@@ -71,6 +71,13 @@
       "when": 10,
       "tag": "0010_store_lease",
       "breakpoints": false
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 11,
+      "tag": "0011_projects",
+      "breakpoints": false
     }
   ]
 }

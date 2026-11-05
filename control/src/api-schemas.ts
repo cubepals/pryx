@@ -35,6 +35,7 @@ export const makeSchema = z
     template: z.string().optional(),
     entrypoint: z.array(z.string()).optional(),
     resources: resources.optional(),
+    units: z.number().int().positive().safe().optional(),
     storage: storage.optional(),
     ports: z.array(port).default([]),
     env: map.default({}),
@@ -73,6 +74,7 @@ export const snapshotSchema = z.object({
 export const sandboxSchema = z.object({
   id: z.string(),
   project: z.string(),
+  units: z.number().int().positive().optional(),
   state: z.enum(['creating', 'stopped', 'starting', 'running', 'sleeping', 'resting', 'restoring', 'failed']),
   node: z.string().nullable(),
   epoch: z.number().nullable(),

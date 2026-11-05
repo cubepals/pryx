@@ -4,6 +4,7 @@ Authenticate with `Authorization: Bearer <key>`. Create, list and revoke keys wi
 
 | Method | Endpoint | Request schema | Success |
 | --- | --- | --- | --- |
+| GET | /v1/project | — | 200 |
 | POST | /v1/sandboxes | MakeRequest | 201 |
 | GET | /v1/sandboxes | — | 200 |
 | GET | /v1/sandboxes/{id} | — | 200 |
@@ -35,6 +36,36 @@ Use a stable Idempotency-Key for retried create or exec requests. Reusing one fo
 TTL expires access immediately and upkeep deletes data. Idle is evaluated from activity and live sessions. Templates warm each active node once and retain a stopped snapshot. Public endpoints include their edge hostname/port; private endpoints are reachable only on the private network.
 
 Errors have the node envelope `{error:{code,message,details}}`. Invalid fields answer 422, missing keys 401, forbidden operations 403, missing resources 404, state conflicts 409, expired TTL 410 and unavailable placement 503. API v1 evolves additively.
+
+## Projects and limits
+
+An operator creates a project with POST /operator/v1/projects on the private operator listener.
+The body accepts name, key:true and any project limit; the response includes the project,
+effective limits, usage, and one new raw key only when requested. GET on the collection lists
+projects; GET/PATCH/DELETE /{id} views, changes or deletes one. POST /{id}/freeze stops its
+sandboxes and refuses public writes; /unfreeze permits new work without restarting them.
+GET /{id}/usage and public GET /v1/project show units and counts against effective limits.
+
+`pryx project create --max-units 5 --max-running 3 --max-ttl 2h --expires-in 24h` creates a
+project; `pryx key create --project <id>` prints a key once. Project ls/get/set/freeze/unfreeze/rm
+use the same operator listener. Set accepts --max-* flags, --allowed-images comma-separated
+prefixes and --expires-in. A value of unlimited resets a numeric/image limit to inheritance.
+
+Units default to 512 MiB and 250 CPU millis (PRYX_UNIT_MEMORY_MB/PRYX_UNIT_CPU_MILLIS).
+Create accepts units (default one) or explicit resources rounded upward to whole units.
+Node listings include unitsFree and regional totals after host and running reservations.
+Project limits are maxUnits, maxSandboxes, maxRunning (including suspension with memory held),
+maxUnitsPerSandbox, maxTtl, maxIdle, maxExecTimeout, maxSnapshots, maxSnapshotBytes,
+maxEgressPorts, allowedImages and expiresAt. A refusal is 403 limit_exceeded with
+details:{name,limit,current}. Unknown command outcomes retain their compute reservation until
+a confirmed stop; they never let a retry exceed quota. Snapshot bytes are measured before
+publication. Lower aggregate limits freeze excess usage; expiry deletes owned data and revokes
+keys. Lists and all resource routes are project-scoped; foreign IDs answer 404.
+
+Each limit has PRYX_PROJECT_<UPPER_SNAKE_NAME> as its deployment default, for example
+PRYX_PROJECT_MAX_UNITS and PRYX_PROJECT_ALLOWED_IMAGES. Missing defaults are unlimited.
+Non-null project columns override defaults; null restores inheritance. maxTtl/maxIdle also
+supply omitted sandbox timers. Public image permissions always remain bounded by host policy.
 
 ## SDK handles and live commands
 

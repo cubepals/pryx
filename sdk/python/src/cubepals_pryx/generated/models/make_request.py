@@ -36,6 +36,7 @@ class MakeRequest:
         template (Union[Unset, str]):
         entrypoint (Union[Unset, list[str]]):
         resources (Union[Unset, MakeRequestResources]):
+        units (Union[Unset, int]):
         storage (Union[Unset, MakeRequestStorage]):
         ports (Union[Unset, list['MakeRequestPortsItem']]):
         env (Union[Unset, MakeRequestEnv]):
@@ -54,6 +55,7 @@ class MakeRequest:
     template: Union[Unset, str] = UNSET
     entrypoint: Union[Unset, list[str]] = UNSET
     resources: Union[Unset, "MakeRequestResources"] = UNSET
+    units: Union[Unset, int] = UNSET
     storage: Union[Unset, "MakeRequestStorage"] = UNSET
     ports: Union[Unset, list["MakeRequestPortsItem"]] = UNSET
     env: Union[Unset, "MakeRequestEnv"] = UNSET
@@ -80,6 +82,8 @@ class MakeRequest:
         resources: Union[Unset, dict[str, Any]] = UNSET
         if not isinstance(self.resources, Unset):
             resources = self.resources.to_dict()
+
+        units = self.units
 
         storage: Union[Unset, dict[str, Any]] = UNSET
         if not isinstance(self.storage, Unset):
@@ -131,6 +135,8 @@ class MakeRequest:
             field_dict["entrypoint"] = entrypoint
         if resources is not UNSET:
             field_dict["resources"] = resources
+        if units is not UNSET:
+            field_dict["units"] = units
         if storage is not UNSET:
             field_dict["storage"] = storage
         if ports is not UNSET:
@@ -181,6 +187,8 @@ class MakeRequest:
             resources = UNSET
         else:
             resources = MakeRequestResources.from_dict(_resources)
+
+        units = d.pop("units", UNSET)
 
         _storage = d.pop("storage", UNSET)
         storage: Union[Unset, MakeRequestStorage]
@@ -244,6 +252,7 @@ class MakeRequest:
             template=template,
             entrypoint=entrypoint,
             resources=resources,
+            units=units,
             storage=storage,
             ports=ports,
             env=env,

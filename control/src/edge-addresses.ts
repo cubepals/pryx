@@ -5,7 +5,7 @@
 
 import { sql } from 'drizzle-orm'
 import type { PublicPort } from './api-schemas.ts'
-import type { Db } from './database.ts'
+import type { Queryable } from './database.ts'
 import { MINUTE_S } from './durations.ts'
 
 import { HTTP_FRONT_PORT, TLS_FRONT_PORT } from './edge-headers.ts'
@@ -19,7 +19,7 @@ export interface PublicAddress {
   public_port: number
 }
 export async function addresses(
-  db: Db,
+  db: Queryable,
   id: string,
   ports: PublicPort[],
   domain: string,

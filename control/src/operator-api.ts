@@ -20,6 +20,7 @@ import type { Db } from './database.ts'
 import { DAY_S, HOUR_S } from './durations.ts'
 import type { Thresholds } from './health.ts'
 import { type JoinPoint, joinCommand, joinToken } from './join-token.ts'
+import { freeUnits, ProjectError, UNIT_DEFAULTS, type UnitSize } from './project-model.ts'
 import { ProviderError } from './providers/provider.ts'
 import {
   clearQuarantine,
@@ -51,6 +52,7 @@ export interface OperatorApiOptions {
   join?: JoinPoint
   /** The fleet regions there are, what PRYX_REGION_MAP maps to; a token is for one of them. */
   regions?: readonly string[]
+  unit?: UnitSize
 }
 
 export const OPERATOR_BASE = '/fleet/v1'
@@ -64,13 +66,23 @@ export function createOperatorApi(options: OperatorApiOptions): Hono {
   const by = (c: { req: { header: (name: string) => string | undefined } }) =>
     `operator:${(c.req.header('x-operator') ?? 'unnamed').slice(0, 64)}`
 
-  app.use(`${OPERATOR_BASE}/*`, async (c, next) => {
+  app.use('*', async (c, next) => {
     const given = Buffer.from(c.req.header('authorization') ?? '')
     if (given.length !== expected.length || !timingSafeEqual(given, expected))
       return c.json({ error: 'unauthorized' }, StatusCodes.UNAUTHORIZED)
     await next()
   })
   app.onError((error, c) => {
+    if (error instanceof SyntaxError)
+      return c.json(
+        { error: { code: 'invalid_request', message: 'Invalid JSON body' } },
+        StatusCodes.UNPROCESSABLE_ENTITY,
+      )
+    if (error instanceof ProjectError)
+      return c.json(
+        { error: { code: error.code, message: error.message, details: error.details } },
+        error.code === 'not_found' ? StatusCodes.NOT_FOUND : StatusCodes.FORBIDDEN,
+      )
     if (error instanceof z.ZodError)
       return c.json(
         { error: { code: 'invalid_request', message: 'Invalid fields', details: error.issues } },
@@ -110,7 +122,12 @@ export function createOperatorApi(options: OperatorApiOptions): Hono {
     const nodes = await nodeSummaries(db, thresholds, {
       includeRetired: c.req.query('all') === 'true',
     })
-    return c.json({ nodes: nodes.map(nodeView) })
+    const views = nodes.map((n) => nodeView(n, options.unit))
+    const regions = Object.entries(Object.groupBy(views, (n) => n.region)).map(([region, members]) => ({
+      region,
+      unitsFree: (members ?? []).reduce((sum, node) => sum + node.unitsFree, 0),
+    }))
+    return c.json({ nodes: views, regions })
   })
 
   app.get(`${OPERATOR_BASE}/nodes/:id`, async (c) => {
@@ -136,7 +153,7 @@ export function createOperatorApi(options: OperatorApiOptions): Hono {
       sql`SELECT at, kind, workload, epoch, data FROM fleet_events WHERE node_id = ${id} ORDER BY at DESC LIMIT 50`,
     )
     return c.json({
-      node: nodeView(node),
+      node: nodeView(node, options.unit),
       placements,
       copiesNotPlacedHere: strays,
       events,
@@ -146,10 +163,10 @@ export function createOperatorApi(options: OperatorApiOptions): Hono {
   app.post(`${OPERATOR_BASE}/tokens`, async (c) => c.json(await mintToken(options, await json(c), by(c))))
 
   app.post(`${OPERATOR_BASE}/nodes/:id/drain`, async (c) =>
-    c.json(nodeView(await drainView(c.req.param('id'), 'drain', by(c)))),
+    c.json(nodeView(await drainView(c.req.param('id'), 'drain', by(c)), options.unit)),
   )
   app.post(`${OPERATOR_BASE}/nodes/:id/undrain`, async (c) =>
-    c.json(nodeView(await drainView(c.req.param('id'), 'undrain', by(c)))),
+    c.json(nodeView(await drainView(c.req.param('id'), 'undrain', by(c)), options.unit)),
   )
 
   async function drainView(id: string, what: 'drain' | 'undrain', who: string) {
@@ -212,7 +229,7 @@ export function createOperatorApi(options: OperatorApiOptions): Hono {
     await options.runtime.refreshRegistry()
     const node = (await nodeSummaries(db, thresholds, { includeRetired: true })).find((n) => n.id === id)
     if (node === undefined) throw new Refused(StatusCodes.NOT_FOUND, 'unknown_node', 'no such node')
-    return c.json(nodeView(node))
+    return c.json(nodeView(node, options.unit))
   })
 
   app.get(`${OPERATOR_BASE}/placements`, async (c) => {
@@ -379,10 +396,12 @@ async function mintToken(options: OperatorApiOptions, body: Record<string, unkno
  * `allocated` is every server placed on it, running or asleep, and `running` those that run or are
  * starting: a start needs room beside these (docs/fleet.md, "Admission").
  */
-function nodeView(node: Awaited<ReturnType<typeof nodeSummaries>>[number]) {
+function nodeView(node: Awaited<ReturnType<typeof nodeSummaries>>[number], unit: UnitSize = UNIT_DEFAULTS) {
   const c = node.capacity
   return {
     id: node.id,
+    unitsFree: freeUnits(node, unit),
+    unit,
     name: node.name,
     region: node.region_key,
     lifecycle: node.lifecycle,

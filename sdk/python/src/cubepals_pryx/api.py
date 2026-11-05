@@ -52,6 +52,7 @@ class Pryx:
     def request(self, path: str, method="GET", body=None):
         return _checked(self._client.get_httpx_client().request(method,path,json=body)).json()
     def list(self): return self.request("/v1/sandboxes")
+    def project(self): return self.request("/v1/project")
     def action(self, sandbox: str, verb: str):
         if verb not in ("start","stop","sleep","wake","rest"): raise ValueError("Invalid sandbox action")
         return self.request(f"/v1/sandboxes/{sandbox}/{verb}","POST")

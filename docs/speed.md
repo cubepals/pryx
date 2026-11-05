@@ -49,3 +49,48 @@ Bun 1.4.4. The public exec p50 (52.10 ms) missed its 50 ms target; warm-template
 report. The after implementation combines durable-operation insert/read and claim/activity
 updates into one database round trip each. The baseline already had authenticated keep-alive
 connections and used the node start response without waiting for a heartbeat; these are retained.
+
+Run 41957179796's after samples are discarded: its shared Cargo target reused the baseline
+executable, and the live-output assertion exposed buffered fallback. Both builds now clean the
+daemon package and the collector asserts advertised features and records the executable digest.
+An expired publishing credential delayed the signed fix. A fresh CI result is pending; K9's
+after budgets and real quickstart/live-output acceptance remain open.
+
+## K10 project admission
+
+These are local control-overhead samples with real Postgres and the established in-memory node,
+on the same development host. They do not measure Docker execution or host capacity. Each
+sample creates from the same explicit 128 MiB API input (K10 rounds it to one configured unit),
+waits for running, then deletes outside the timer. One initial warmup is excluded; all 30 timed
+observations are retained. The pinned before source is 36470599034e8a7f1e7f944b809f10267f3331d4.
+The after source was uncommitted during collection; its source digest is in the report.
+
+| Path | Before n | Before p50/p90 | After n | After p50/p90 |
+| --- | ---: | --- | ---: | --- |
+| Public create, Postgres and node double | 30 | 47.19 / 89.51 ms | 30 | 47.53 / 99.84 ms |
+
+[Before](checks/projects-before.json) and [after](checks/projects-after.json) use the same
+collector and adjacent runs. The observed median increase is 0.35 ms; p90 increases 10.33 ms.
+This shared development host is not a controlled container-runtime benchmark. K10 specifies no
+latency budget. Initial exploratory samples are retained separately: the
+[initial before](checks/projects-initial-before.json), [first admission implementation](checks/projects-admission-first.json),
+and [optimized trial](checks/projects-optimized-trial.json). A duplicate project transaction on
+newly reserved creates was removed; an existing intent with a released reservation still
+reacquires quota before starting.
+
+```sh
+git worktree add --detach /tmp/pryx-k10-before 36470599034e8a7f1e7f944b809f10267f3331d4
+(cd /tmp/pryx-k10-before && bun install --frozen-lockfile)
+DATABASE_URL=... PRYX_PROJECT_SOURCE=/tmp/pryx-k10-before \
+  bun control/bench/project-overhead.ts before docs/checks/projects-before.json
+DATABASE_URL=... bun control/bench/project-overhead.ts after docs/checks/projects-after.json
+```
+
+The installed one-box workflow runs `sudo "$(command -v bun)" control/bench/projects-one-box.ts`.
+It records actual node unit capacity, then creates/runs 50 one-unit sandboxes across ten
+successive project groups of five, verifies a sixth admission's full 403 maxUnits body and
+cleans each group. It does not relax CPU or memory admission. This has not run for K10 yet.
+Actual capacity and 50-sandbox CI result: n=0. A physical 16 GiB host is
+unavailable here; the pure capacity tests cover 31 free units for a 16 GiB/8-core reference with
+512 MiB/250-millis host reservations, and seven for the same memory with two cores. Those are
+arithmetic checks, not physical host measurements.

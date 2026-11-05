@@ -34,8 +34,10 @@ function makeRequest(args: string[]): MakeRequest {
   if (!image) throw new Error('create needs --image <image> or --spec <json file>')
   const ttl = option(args, '--ttl'),
     idle = option(args, '--idle')
+  const units = option(args, '--units')
   return {
     image,
+    ...(units ? { units: Number(units) } : {}),
     entrypoint: [...SDK_DEFAULTS.entrypoint],
     ...(ttl ? { ttl: duration(ttl) } : {}),
     ...(idle ? { idle: duration(idle) } : {}),

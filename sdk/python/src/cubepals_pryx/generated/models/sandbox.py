@@ -13,6 +13,7 @@ from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..models.sandbox_state import SandboxState
+from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
     from ..models.sandbox_endpoints_item import SandboxEndpointsItem
@@ -36,6 +37,7 @@ class Sandbox:
         created_at (str):
         updated_at (str):
         expires_at (Union[None, str]):
+        units (Union[Unset, int]):
     """
 
     id: str
@@ -49,6 +51,7 @@ class Sandbox:
     created_at: str
     updated_at: str
     expires_at: Union[None, str]
+    units: Union[Unset, int] = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -80,6 +83,8 @@ class Sandbox:
         expires_at: Union[None, str]
         expires_at = self.expires_at
 
+        units = self.units
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -97,6 +102,8 @@ class Sandbox:
                 "expiresAt": expires_at,
             }
         )
+        if units is not UNSET:
+            field_dict["units"] = units
 
         return field_dict
 
@@ -147,6 +154,8 @@ class Sandbox:
 
         expires_at = _parse_expires_at(d.pop("expiresAt"))
 
+        units = d.pop("units", UNSET)
+
         sandbox = cls(
             id=id,
             project=project,
@@ -159,6 +168,7 @@ class Sandbox:
             created_at=created_at,
             updated_at=updated_at,
             expires_at=expires_at,
+            units=units,
         )
 
         sandbox.additional_properties = d

@@ -20,6 +20,9 @@ import { NodeClient, splitAddress } from './node-client.ts'
 import { startNodeEndpoint } from './node-endpoint.ts'
 import { createOperatorApi } from './operator-api.ts'
 import { withUpgrades } from './operator-upgrades.ts'
+import { ensureProject, ProjectAdmission } from './project-admission.ts'
+import { withProjects } from './project-api.ts'
+import { Projects } from './projects.ts'
 import { withProviders } from './provider-api.ts'
 import { ProviderLedger } from './provider-ledger.ts'
 import type { Provider } from './providers/provider.ts'
@@ -39,6 +42,7 @@ export async function startControl(
   const lockPool = createPool(config.database)
   const db = createDb(pool)
   await migrate(db, { migrationsFolder })
+  await ensureProject(db, config.project)
   if (config.bootstrapKey) await bootstrapKey(db, config.project, config.bootstrapKey)
   const ca = await FleetCa.fromPem(config.caCert, config.caKey)
   const clientIdentity = await ca.identity(controlPlaneName(config.deployment), 'client', 2)
@@ -62,6 +66,9 @@ export async function startControl(
     suspend: config.suspend,
   })
   const sandboxes = new Sandboxes(db, runtime, lockPool, nodes)
+  const projectAdmission = new ProjectAdmission(db, config.unit, config.projectDefaults)
+  sandboxes.projects = projectAdmission
+  const projects = new Projects(projectAdmission, sandboxes)
   if (config.storeLease.enabled) {
     const bucket = new S3LeaseBucket(config.s3)
     await bucket.probe(`${config.deployment}/store-leases/v1`)
@@ -103,9 +110,11 @@ export async function startControl(
     endpointStats: endpoint.stats,
     join: { url: config.joinUrl, caPem: ca.pem, deployment: config.deployment },
     regions: [...new Set(['default', ...Object.values(config.regionMap)])],
+    unit: config.unit,
   })
   withUpgrades(operator, { db, release: endpoint.release })
   withKeys(operator, db, config.project)
+  withProjects(operator, projects)
   const providers = options.providers ?? createProviders(config.providerEnv, config.deployment)
   const hosts = new ProviderLedger(
     db,
@@ -155,6 +164,7 @@ export async function startControl(
     sandboxes
       .exclusive('__upkeep__', async () => {
         await storeLease?.tick()
+        await projects.upkeep()
         await scaling.tick()
         await sandboxes.upkeep()
         await api.model.warmTemplates()
@@ -176,6 +186,7 @@ export async function startControl(
     runtime,
     edge,
     sandboxes,
+    projects,
     hosts,
     scaling,
     storeLease,

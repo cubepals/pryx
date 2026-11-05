@@ -4,6 +4,7 @@ from uuid import uuid4
 from .duration import make_options, run_options
 from .files import Files, AsyncFiles
 from .generated.models import Sandbox as SandboxView
+from .generated.types import Unset
 from .run import Run, AsyncRun
 class Snapshot:
     def __init__(self, api, view, sandbox): self.api, self.view, self.sandbox = api, view, sandbox
@@ -19,6 +20,8 @@ class Sandbox:
     def id(self): return self.view.id
     @property
     def state(self): return self.view.state
+    @property
+    def units(self): return None if isinstance(self.view.units, Unset) else self.view.units
     def refresh(self): self.view = self.api.get(self.id); return self
     def run(self, command, *, key=None, **options): return Run(self.api.exec(self.id, **run_options(command, options), key=(key if key is not None else str(uuid4()))))
     def write(self, path, data): return self.files.write(path, data)
@@ -48,6 +51,8 @@ class AsyncSandbox:
     def id(self): return self.view.id
     @property
     def state(self): return self.view.state
+    @property
+    def units(self): return None if isinstance(self.view.units, Unset) else self.view.units
     async def refresh(self): self.view = await self.api.get(self.id); return self
     def run(self, command, *, key=None, **options): return AsyncRun(self.api.exec(self.id, **run_options(command, options), key=(key if key is not None else str(uuid4()))))
     async def write(self, path, data): return await self.files.write(path, data)

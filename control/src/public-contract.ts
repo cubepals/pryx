@@ -14,6 +14,7 @@ import {
   templateSchema,
 } from './api-schemas.ts'
 import { chunkWrite } from './file-chunks.ts'
+import { limitsSchema } from './project-model.ts'
 import { SDK_DEFAULTS } from './sdk-defaults.ts'
 
 export function publicContract() {
@@ -25,6 +26,21 @@ export function publicContract() {
     Snapshot: snapshotSchema,
     Error: errorSchema,
     TemplateRequest: templateSchema,
+    Project: z.object({
+      id: z.string(),
+      name: z.string(),
+      state: z.enum(['active', 'frozen', 'deleted']),
+      createdAt: z.string(),
+      limits: limitsSchema,
+      usage: z.object({
+        units: z.number(),
+        sandboxes: z.number(),
+        running: z.number(),
+        snapshots: z.number(),
+        snapshotBytes: z.number(),
+        egressPorts: z.number(),
+      }),
+    }),
   }
   const json = (schema: z.ZodType) => {
     const { $schema: _, ...result } = z.toJSONSchema(schema, { unrepresentable: 'any', io: 'input' })
@@ -87,6 +103,7 @@ export function publicContract() {
   })
   const object = { type: 'object', additionalProperties: true }
   const existed = { type: 'object', required: ['existed'], properties: { existed: { type: 'boolean' } } }
+  operation('get', '/v1/project', ref('Project'))
   operation('post', '/v1/sandboxes', ref('Sandbox'), ref('MakeRequest'), StatusCodes.CREATED)
   operation('get', '/v1/sandboxes', array('sandboxes', ref('Sandbox')))
   operation('get', '/v1/sandboxes/{id}', ref('Sandbox'))

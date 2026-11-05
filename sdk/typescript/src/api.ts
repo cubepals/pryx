@@ -60,6 +60,9 @@ export class Pryx {
   list() {
     return this.request<{ sandboxes: Sandbox[] }>('/v1/sandboxes')
   }
+  project() {
+    return this.request<components['schemas']['Project']>('/v1/project')
+  }
   get(id: string) {
     return this.request<Sandbox>(`/v1/sandboxes/${encodeURIComponent(id)}`)
   }

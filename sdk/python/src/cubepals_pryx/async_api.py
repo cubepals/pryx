@@ -15,6 +15,7 @@ class AsyncApi:
     async def get(self, sandbox): return Sandbox.from_dict(await self.request(f'/v1/sandboxes/{sandbox}'))
     async def delete(self, sandbox): return await self.request(f'/v1/sandboxes/{sandbox}', 'DELETE')
     async def list(self): return await self.request('/v1/sandboxes')
+    async def project(self): return await self.request('/v1/project')
     async def action(self, sandbox, verb):
         if verb not in ('start','stop','sleep','wake','rest'): raise ValueError('Invalid sandbox action')
         return await self.request(f'/v1/sandboxes/{sandbox}/{verb}', 'POST')

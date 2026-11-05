@@ -151,7 +151,11 @@ export class Transfers {
     try {
       const node = await this.#ledger.nodeOf(claimed.node_id)
       const target = await this.#store.target(objectKey)
-      await this.#db.execute(sql`UPDATE fleet_archives SET object_key = ${objectKey} WHERE id = ${archiveId}`)
+      const sending = await one(
+        this.#db,
+        sql`UPDATE fleet_archives SET object_key=${objectKey} WHERE id=${archiveId} AND status='uploading' RETURNING id`,
+      )
+      if (!sending) return 'skipped'
       const sent = await this.#sendArchive(
         node,
         `/v1/workloads/${claimed.workload}/snapshots/${claimed.local_id}/upload`,
@@ -165,10 +169,14 @@ export class Transfers {
           `The store holds ${held?.sizeBytes ?? 'nothing'}; the node sent ${sent.sizeBytes} bytes`,
         )
       // One transaction, so a copy seen as ready has its event already.
-      await this.#db.transaction(async (t) => {
-        await t.execute(sql`
+      const completed = await this.#db.transaction(async (t) => {
+        const saved = await one(
+          t,
+          sql`
           UPDATE fleet_archives SET status = 'ready', sha256 = ${sent.sha256}, size_bytes = ${sent.sizeBytes},
-            uploaded_at = now(), error = NULL WHERE id = ${archiveId}`)
+            uploaded_at = now(), error = NULL WHERE id = ${archiveId} AND status='uploading' RETURNING id`,
+        )
+        if (!saved) return false
         await event(t, 'snapshot.uploaded', {
           node: claimed.node_id,
           workload: claimed.workload,
@@ -179,14 +187,24 @@ export class Transfers {
             ms: sent.durationMs,
           },
         })
+        return true
       })
+      if (!completed) {
+        // A deleted upload may finish after deletion already removed its previous object.
+        const deleted = await one(
+          this.#db,
+          sql`UPDATE fleet_archives SET object_key=${objectKey} WHERE id=${archiveId} AND status='deleted' RETURNING id`,
+        )
+        if (deleted) await this.#archives.deleteStored(archiveId, objectKey)
+        return 'skipped'
+      }
       return 'ready'
     } catch (error) {
       // The node is sending it elsewhere (an export for the application): not a failed try, and
       // the next round of uploads sends it.
       if (busy(error)) {
         await this.#db.execute(
-          sql`UPDATE fleet_archives SET status = 'local', attempts = attempts - 1 WHERE id = ${archiveId}`,
+          sql`UPDATE fleet_archives SET status = 'local', attempts = attempts - 1 WHERE id = ${archiveId} AND status='uploading'`,
         )
         return 'skipped'
       }
@@ -195,9 +213,12 @@ export class Transfers {
       // A copy too big for one upload stays too big: it is left on its node, and not sent again.
       const final = large !== null || claimed.attempts >= UPLOAD_ATTEMPTS
       await this.#db.transaction(async (t) => {
-        await t.execute(sql`
-          UPDATE fleet_archives SET status = ${final ? 'failed' : 'local'}, error = ${message} WHERE id = ${archiveId}`)
-        if (final)
+        const changed = await one(
+          t,
+          sql`
+          UPDATE fleet_archives SET status = ${final ? 'failed' : 'local'}, error = ${message} WHERE id = ${archiveId} AND status='uploading' RETURNING id`,
+        )
+        if (final && changed)
           await event(t, 'snapshot.upload_failed', {
             workload: claimed.workload,
             data: {

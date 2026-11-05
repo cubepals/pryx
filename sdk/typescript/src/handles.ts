@@ -52,6 +52,9 @@ export class Sandbox {
   get state() {
     return this.view.state
   }
+  get units() {
+    return this.view.units
+  }
   async refresh() {
     this.view = await this.api.get(this.id)
     return this

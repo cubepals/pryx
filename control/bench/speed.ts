@@ -112,7 +112,10 @@ async function running<T extends { id: string; state: string }>(box: T) {
   return box
 }
 try {
-  const nodes = await nodeSummaries(d.control.db, { suspectSeconds: 15, unavailableSeconds: 45 })
+  const nodes = await nodeSummaries(d.control.db, {
+    suspectSeconds: d.control.config.suspectSeconds,
+    unavailableSeconds: d.control.config.unavailableSeconds,
+  })
   const daemonFeatures = nodes.map((node) => ({ id: node.id, features: node.features }))
   if (nodes.length !== 1 || nodes[0]?.features.includes('exec-stream') !== (phase === 'after'))
     throw new Error(`The ${phase} daemon advertises the wrong features: ${JSON.stringify(daemonFeatures)}`)

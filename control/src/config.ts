@@ -10,6 +10,7 @@ import { DEFAULT_EDGE_PORT_RANGE } from './edge-addresses.ts'
 import { THRESHOLDS } from './health.ts'
 import { splitAddress } from './node-client.ts'
 import { DEFAULTS } from './placement.ts'
+import { limitsSchema, projectDefaults, UNIT_DEFAULTS } from './project-model.ts'
 import { STORE_LEASE_DEFAULTS } from './store-lease.ts'
 
 const number = (value: string | undefined, fallback: number) =>
@@ -50,6 +51,8 @@ const schema = z.object({
   operatorListen: z.string(),
   apiListen: z.string(),
   project: z.string().min(1),
+  projectDefaults: limitsSchema,
+  unit: z.object({ memoryMb: positive, cpuMillis: positive }),
   edgeToken: z.string().min(32).optional(),
   edgePortRange: z
     .tuple([z.number().int().min(1024).max(65535), z.number().int().min(1024).max(65535)])
@@ -117,6 +120,11 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     operatorListen: env.PRYX_OPERATOR_LISTEN ?? '127.0.0.1:8081',
     apiListen: env.PRYX_API_LISTEN ?? '127.0.0.1:8082',
     project: env.PRYX_PROJECT ?? 'default',
+    projectDefaults: projectDefaults(env),
+    unit: {
+      memoryMb: number(env.PRYX_UNIT_MEMORY_MB, UNIT_DEFAULTS.memoryMb),
+      cpuMillis: number(env.PRYX_UNIT_CPU_MILLIS, UNIT_DEFAULTS.cpuMillis),
+    },
     publicDomain: env.PRYX_PUBLIC_DOMAIN ?? 'localhost',
     edgeToken: env.PRYX_EDGE_TOKEN,
     edgePortRange: env.PRYX_EDGE_PORT_RANGE?.split('-').map(Number) ?? [...DEFAULT_EDGE_PORT_RANGE],
