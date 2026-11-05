@@ -35,38 +35,7 @@ impl Config {
         if self.fleet.is_none() && !id_ok(self.node_id.as_str()) {
             return bad("node_id is 1-63 of a-z, 0-9 and '-'".into());
         }
-        match self.mode()? {
-            Mode::Standalone(tls) => {
-                if tls.allowed_clients.is_empty() {
-                    return bad("api.tls.allowed_clients needs at least one client name".into());
-                }
-            }
-            Mode::Fleet(fleet) => {
-                if !self.node_id.as_str().is_empty() {
-                    return bad("in fleet mode node_id comes from enrollment; leave it out".into());
-                }
-                if self.api.tls.is_some() {
-                    return bad("in fleet mode TLS material comes from enrollment; leave api.tls out".into());
-                }
-                if !fleet_url_ok(&fleet.url) {
-                    return bad("fleet.url must be https://host[:port]".into());
-                }
-                if !(1..=60).contains(&fleet.heartbeat_seconds) {
-                    return bad("fleet.heartbeat_seconds is between 1 and 60".into());
-                }
-                // The control plane dials what the node reports: 0.0.0.0 would send it to itself.
-                if fleet.api_address.is_none() && self.api.listen.ip().is_unspecified() {
-                    return bad(format!(
-                        "api.listen is {}, which the control plane can't dial; set fleet.api_address to this \
-                         host's address on the private network",
-                        self.api.listen
-                    ));
-                }
-                if fleet.api_address.is_some_and(|a| a.ip().is_unspecified()) {
-                    return bad("fleet.api_address is where the control plane dials this node; 0.0.0.0 isn't".into());
-                }
-            }
-        }
+        self.validate_mode()?;
         if !name_ok(&self.deployment_id) {
             return bad("deployment_id is 1-32 of a-z, 0-9 and '-'".into());
         }
@@ -123,6 +92,43 @@ impl Config {
                 OOM_SCORE_ADJ.start(),
                 OOM_SCORE_ADJ.end()
             ));
+        }
+        Ok(())
+    }
+
+    fn validate_mode(&self) -> Result<(), ConfigError> {
+        let bad = |m: String| Err(ConfigError::Invalid(m));
+        match self.mode()? {
+            Mode::Standalone(tls) => {
+                if tls.allowed_clients.is_empty() {
+                    return bad("api.tls.allowed_clients needs at least one client name".into());
+                }
+            }
+            Mode::Fleet(fleet) => {
+                if !self.node_id.as_str().is_empty() {
+                    return bad("in fleet mode node_id comes from enrollment; leave it out".into());
+                }
+                if self.api.tls.is_some() {
+                    return bad("in fleet mode TLS material comes from enrollment; leave api.tls out".into());
+                }
+                if !fleet_url_ok(&fleet.url) {
+                    return bad("fleet.url must be https://host[:port]".into());
+                }
+                if !(1..=60).contains(&fleet.heartbeat_seconds) {
+                    return bad("fleet.heartbeat_seconds is between 1 and 60".into());
+                }
+                // The control plane dials what the node reports: 0.0.0.0 would send it to itself.
+                if fleet.api_address.is_none() && self.api.listen.ip().is_unspecified() {
+                    return bad(format!(
+                        "api.listen is {}, which the control plane can't dial; set fleet.api_address to this \
+                         host's address on the private network",
+                        self.api.listen
+                    ));
+                }
+                if fleet.api_address.is_some_and(|a| a.ip().is_unspecified()) {
+                    return bad("fleet.api_address is where the control plane dials this node; 0.0.0.0 isn't".into());
+                }
+            }
         }
         Ok(())
     }

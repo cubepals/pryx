@@ -278,6 +278,13 @@ async fn shutdown_signal() -> &'static str {
     }
 }
 
+fn publish_addresses(config: &Config) -> Vec<IpAddr> {
+    let mut publish: Vec<IpAddr> = config.network.edge_ips.clone();
+    publish.extend(config.network.control_ips.iter().copied());
+    publish.dedup();
+    publish
+}
+
 async fn serve(path: &Path) -> anyhow::Result<()> {
     let boot = Instant::now();
     let mut config = Config::load(path)?;
@@ -318,9 +325,7 @@ async fn serve(path: &Path) -> anyhow::Result<()> {
     let (tls, server_cert) = api::tls::reloadable_server_config(&tls_material).context("loading TLS material")?;
 
     let runtime: Arc<dyn ContainerRuntime> = Arc::new(DockerRuntime::new(&config.docker.socket)?);
-    let mut publish: Vec<IpAddr> = config.network.edge_ips.clone();
-    publish.extend(config.network.control_ips.iter().copied());
-    publish.dedup();
+    let publish = publish_addresses(&config);
     let manager = Manager::new(config.clone(), runtime, store, Arc::new(Metrics::new()), ports::bind_probe(publish));
     if let (Some(identity), Some(fleet)) = (&identity, &config.fleet) {
         manager.set_fleet(identity.node_id(), &fleet.url);
