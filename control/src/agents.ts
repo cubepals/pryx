@@ -6,7 +6,7 @@ import { setTimeout as pause } from 'node:timers/promises'
 import { z } from 'zod'
 import nodeSchema from '../../openapi/node-writes.openapi.json'
 import { SECOND_MS } from './durations.ts'
-import { shownState } from './edge-routed.ts'
+import { routesPending } from './edge-routed.ts'
 import { decodeHandle, encodeHandle, type FleetRef } from './handle.ts'
 import type { NodeClient } from './node-client.ts'
 import { projectRow } from './project-admission.ts'
@@ -61,8 +61,7 @@ export class Agents {
     if (!ref.agent) throw new SandboxError('unsupported', 'This sandbox has no agent')
     // Lifecycle may rotate a signing key before an edge's next poll. Delay only token issuance
     // until the current route is acknowledged; ready agent operations never enter this path.
-    while (row.state === 'running' && (await shownState(this.boxes.db, id, row.state)) === 'starting')
-      await pause(SECOND_MS / 20)
+    while (await routesPending(this.boxes.db, id)) await pause(SECOND_MS / 20)
     const node = await this.boxes.engine.home(row.handle)
     if (!node?.features?.includes('agent'))
       throw new SandboxError('unsupported', 'This node has no agent feature')

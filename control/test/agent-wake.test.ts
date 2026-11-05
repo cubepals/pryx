@@ -8,6 +8,7 @@ import { Hold } from '../../edge/src/hold.ts'
 import { SandboxProxy } from '../../edge/src/sandbox-proxy.ts'
 import { agentContext } from '../../edge/test/agent-context.ts'
 import { SECOND_MS } from '../src/durations.ts'
+import { sawEdge } from '../src/edge-routed.ts'
 import { EdgeService } from '../src/edge-service.ts'
 import { decodeHandle, encodeHandle } from '../src/handle.ts'
 import { jsonb } from '../src/sql.ts'
@@ -53,8 +54,19 @@ test('a sleeping agent request wakes through control and retains its capability'
       })
     puts()
     const service = new EdgeService(c.db, c.boxes, 'sandboxes.test', undefined, c.agents)
+    const prior = await service.routes(true)
+    await sawEdge(c.db, 'sleep-ack', prior.version)
     await c.boxes.sleep(made.id)
     const asleep = await service.routes(true)
+    let issued = false
+    const credential = c.agents.token(made.id, 'default', 'http://127.0.0.1/v1').then((value) => {
+      issued = true
+      return value
+    })
+    await Bun.sleep(SECOND_MS / 20)
+    expect(issued).toBe(false)
+    await sawEdge(c.db, 'sleep-ack', asleep.version)
+    expect((await credential).token).toStartWith('pa1.')
     peer.table.apply(asleep)
     proxy = new SandboxProxy(peer.table, new Hold((id) => service.wake(id)), 5 * SECOND_MS)
     const response = await proxy.fetch(

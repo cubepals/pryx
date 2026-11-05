@@ -101,9 +101,9 @@ export class EdgeService {
           sql`INSERT INTO edge_route_lists(digest,routes) VALUES(${digest},${jsonb(routes)}) RETURNING version,digest`,
         )
       if (!latest) throw new Error('Route version was not written')
-      for (const b of all.filter((b) => b.state === 'running' && routes.some((r) => r.sandbox === b.id)))
+      for (const b of all.filter((b) => routes.some((r) => r.sandbox === b.id)))
         await t.execute(
-          sql`UPDATE sandboxes SET route_listed_version=COALESCE(route_listed_version,${latest.version}::bigint) WHERE id=${b.id} AND state='running' AND handle=${b.handle}`,
+          sql`UPDATE sandboxes SET route_listed_version=COALESCE(route_listed_version,${latest.version}::bigint) WHERE id=${b.id} AND state=${b.state} AND handle=${b.handle}`,
         )
       return Number(latest.version)
     })
