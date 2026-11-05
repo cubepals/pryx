@@ -451,3 +451,5 @@ function nodeView(node: Awaited<ReturnType<typeof nodeSummaries>>[number], unit:
     fencedBy: node.fenced_by,
   }
 }
+
+export type OperatorNode = ReturnType<typeof nodeView>

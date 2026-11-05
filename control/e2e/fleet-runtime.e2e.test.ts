@@ -134,6 +134,7 @@ describe.skipIf(!ready)('FleetRuntime against a real pryxd', () => {
   let nodes: NodeClient
   let node: Daemon
   let handle: RuntimeHandle
+  let foreignCompleted = false
   const key = runtimeKey('0b6f1f2e-6a47-4c9a-9a39-2f4ac7e51f10')
 
   const exec = async (command: string) =>
@@ -200,6 +201,13 @@ describe.skipIf(!ready)('FleetRuntime against a real pryxd', () => {
   }, 120_000)
 
   afterAll(async () => {
+    if (!foreignCompleted && node && existsSync(node.log)) {
+      const status = readFileSync(node.log, 'utf8')
+        .split('\n')
+        .filter((line) => line.includes('status='))
+        .slice(-80)
+      console.error(`Fleet node request status at failure:\n${status.join('\n')}`)
+    }
     node?.kill('KILL')
     const ids = spawnSync('docker', ['ps', '-aq', '--filter', `label=blocklyd.deployment=${DEPLOYMENT}`])
       .stdout.toString()
@@ -387,6 +395,7 @@ describe.skipIf(!ready)('FleetRuntime against a real pryxd', () => {
   test(
     'a data from another runtime is adopted, and comes from its archive onto a node',
     async () => {
+      console.log('Foreign archive: begin')
       // What a move between runtimes asks of the fleet (docs/runtimes.md): a server it never held,
       // its data only in the archive store.
       expect(await runtime.hasRoom({ regionKey: 'eu' }, { memoryMb: 512, storageGb: 1 })).toBe(true)
@@ -397,24 +406,31 @@ describe.skipIf(!ready)('FleetRuntime against a real pryxd', () => {
       await exec('echo elsewhere > /data/data/moved.txt')
       await runtime.stop(handle)
       const taken = await runtime.snapshot(handle)
+      console.log('Foreign archive: captured')
       const archives = archiveStore()
       const keyName = `moved/${DEPLOYMENT}.tar.gz`
       await runtime.exportSnapshot(taken.snapshot, await archives.archiveTarget(keyName, 600, 'runtime'))
+      console.log('Foreign archive: exported')
       const other = runtimeKey(randomUUID())
       const adopted = await runtime.adopt(other, { regionKey: 'eu' }, SPEC)
+      console.log('Foreign archive: adopted')
       expect(runtime.owns(adopted)).toBe(true)
       expect(decodeHandle(adopted).node).toBeNull()
       expect(await runtime.adopt(other, { regionKey: 'eu' }, SPEC)).toBe(adopted)
       const download = await archives.presignGet(keyName, 600, 'runtime')
       const restored = await runtime.restore(adopted, { kind: 'archive', download }, SPEC, progress)
+      console.log('Foreign archive: restored')
       expect(decodeHandle(restored).node).not.toBeNull()
       await runtime.start(restored)
       await runtime.waitRunning(restored, AbortSignal.timeout(MINUTE_MS))
+      console.log('Foreign archive: running')
       const read = await runtime.exec(restored, ['cat', '/data/data/moved.txt', '/data/data/level.dat'], 30)
       expect(read.stdout.trim().split('\n')).toEqual(['elsewhere', 'resting'])
       await runtime.destroy(restored)
+      console.log('Foreign archive: destroyed')
       await runtime.start(handle)
       await runtime.waitRunning(handle, AbortSignal.timeout(MINUTE_MS))
+      foreignCompleted = true
     },
     3 * MINUTE_MS,
   )

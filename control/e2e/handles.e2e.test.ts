@@ -68,7 +68,10 @@ describe.skipIf(!ready)('SDK handles end to end', () => {
         } finally {
           await twin.delete()
         }
+        const heldUnits = (await client.project()).usage.units
+        expect(heldUnits).toBeGreaterThan(0)
         await box.sleep()
+        expect((await client.project()).usage.units).toBe(heldUnits)
         await box.wake()
         await box.stop()
         await box.start()

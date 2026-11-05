@@ -6,6 +6,7 @@ import { cpus, totalmem } from 'node:os'
 import { Pryx, PryxError } from '@cubepals/pryx'
 import { StatusCodes } from 'http-status-codes'
 import { readEnvironment } from '../../cli/src/up-files.ts'
+import type { OperatorNode } from '../src/operator-api.ts'
 import { UNIT_DEFAULTS } from '../src/project-model.ts'
 
 const config = readEnvironment('/etc/pryx/control.env')
@@ -20,29 +21,42 @@ async function operator(path: string, method = 'GET', body?: unknown) {
   if (!response.ok) throw new Error(`Operator measurement refused: ${response.status}`)
   return response.json()
 }
-const capacity = (await operator('/fleet/v1/nodes')) as {
-  nodes: Array<{
-    id: string
-    unitsFree: number
-    memoryMb: { total: number; reservedForHost: number }
-    cpu: { cores: number; reservedForHostMillis: number }
-  }>
+const measured = (await operator('/fleet/v1/nodes')) as { nodes: OperatorNode[] }
+const capacity = {
+  nodes: measured.nodes.map(({ id, unitsFree, unit, memoryMb, cpu, disk, ports }) => ({
+    id,
+    unitsFree,
+    unit,
+    memoryMb,
+    cpu,
+    disk,
+    ports,
+  })),
 }
+assert.equal(capacity.nodes.length, 1)
+const quota = Math.min(5, capacity.nodes[0]?.unitsFree ?? 0)
+assert.ok(quota > 0, 'The measured host must have room for at least one running unit')
 console.log(`PROJECT_CAPACITY ${JSON.stringify(capacity)}`)
 const reports: unknown[] = []
 for (let index = 0; index < 10; index++) {
   const project = (await operator('/operator/v1/projects', 'POST', {
     name: `measurement-${index}`,
     key: true,
-    maxUnits: 5,
-    maxRunning: 5,
+    maxUnits: quota,
+    maxRunning: quota,
   })) as { id: string; key: { key: string } }
   const client = new Pryx({ url: 'http://127.0.0.1:8082', key: project.key.key })
   const boxes = []
   try {
     for (let unit = 0; unit < 5; unit++) {
-      const box = await client.sandbox({ image: 'alpine:3.22', units: 1 })
+      const box = await client.sandbox({ image: 'alpine:3.22', units: 1, start: false })
       boxes.push(box)
+    }
+    const active = []
+    for (const [unit, box] of boxes.entries()) {
+      if (active.length === quota) await active.shift()?.stop()
+      await box.start()
+      active.push(box)
       assert.equal((await box.run(['echo', `project-${index}-${unit}`])).stdout, `project-${index}-${unit}\n`)
     }
     let refusal: unknown
@@ -53,11 +67,11 @@ for (let index = 0; index < 10; index++) {
       if (!(error instanceof PryxError)) throw error
       assert.equal(error.status, StatusCodes.FORBIDDEN)
       assert.equal(error.code, 'limit_exceeded')
-      assert.deepEqual(error.details, { name: 'maxUnits', limit: 5, current: 5 })
+      assert.deepEqual(error.details, { name: 'maxUnits', limit: quota, current: quota })
       refusal = { error: { code: error.code, message: error.message, details: error.details } }
     }
     const usage = await client.project()
-    assert.equal(usage.usage.units, 5)
+    assert.equal(usage.usage.units, quota)
     reports.push({ project: project.id, sandboxes: boxes.length, usage: usage.usage, refusal })
     console.log(`PROJECT_REFUSAL ${JSON.stringify(refusal)}`)
   } finally {
@@ -72,10 +86,10 @@ const report = {
   capacity,
   projects: reports,
   totalSandboxes: 50,
-  simultaneousSandboxes: 5,
+  simultaneousSandboxes: quota,
   physical16GiBHostMeasured: false,
   explanation:
-    'Ten successive groups of five preserve real CPU and memory admission on the available runner. The host capacity above is measured; a physical 16 GiB host is not available.',
+    'Each of ten projects creates five stopped sandboxes and runs every one, rotating active work within its measured host unit capacity. Refusals exceed that project quota without relaxing host reservations. No 16 GiB capacity is inferred from the observed host.',
 }
 writeFileSync(process.argv[2] ?? 'projects-one-box.json', JSON.stringify(report, null, 2) + '\n')
 console.log(`PROJECT_MEASUREMENT ${JSON.stringify(report)}`)
