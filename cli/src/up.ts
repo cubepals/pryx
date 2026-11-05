@@ -8,13 +8,13 @@ import { MINUTE_MS, SECOND_MS } from '../../control/src/durations.ts'
 import { PRYX_VERSION } from '../../control/src/generated/release.ts'
 import type { OperatorToken } from '../../control/src/operator-api.ts'
 import { ensureBucket } from '../../control/src/store-bootstrap.ts'
-import daemonJson from '../../deploy/daemon.json'
 import nodeSchema from '../../openapi/node-writes.openapi.json'
 import { callerHomeAndDropPrivileges, writeClientConfig } from './client-config.ts'
 import { option } from './sandbox.ts'
 import { installBinary, releaseFiles } from './up-assets.ts'
 import { configurations } from './up-config.ts'
 import { readEnvironment, writeChanged, writeEnvironment } from './up-files.ts'
+import { configureHostRuntime } from './up-host.ts'
 import { container, service } from './up-units.ts'
 
 export const runInstallCommand = async (args: string[], quiet = true, redactions: string[] = []) => {
@@ -55,18 +55,6 @@ export function upPlan(domain: string) {
     ],
   }
 }
-const DOCKER_INSTALL = `set -eu
-. /etc/os-release
-case "$ID" in ubuntu|debian) ;; *) exit 1;; esac
-apt-get update -q
-apt-get install -yq ca-certificates curl
-install -d -m 0755 /etc/apt/keyrings
-curl -fsSL "https://download.docker.com/linux/$ID/gpg" -o /etc/apt/keyrings/docker.asc
-chmod a+r /etc/apt/keyrings/docker.asc
-printf 'deb [arch=%s signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/%s %s stable\n' "$(dpkg --print-architecture)" "$ID" "$VERSION_CODENAME" > /etc/apt/sources.list.d/docker.list
-apt-get update -q
-apt-get install -yq docker-ce docker-ce-cli containerd.io
-`
 async function until(work: () => Promise<boolean>, what: string) {
   const deadline = performance.now() + 2 * MINUTE_MS
   while (performance.now() < deadline) {
@@ -100,26 +88,7 @@ export async function up(args: string[]) {
     mkdirSync(path, { recursive: true, mode })
     chmodSync(path, mode)
   }
-  if (!Bun.which('docker')) await runInstallCommand(['sh', '-c', DOCKER_INSTALL])
-  if (!Bun.which('nft')) {
-    await runInstallCommand(['apt-get', 'update', '-q'])
-    await runInstallCommand(['apt-get', 'install', '-yq', 'nftables'])
-  }
-  await runInstallCommand(['systemctl', 'enable', '--now', 'docker'])
-  const existing = existsSync('/etc/docker/daemon.json')
-    ? JSON.parse(readFileSync('/etc/docker/daemon.json', 'utf8'))
-    : {}
-  if (
-    writeChanged(
-      '/etc/docker/daemon.json',
-      JSON.stringify({ ...existing, ...daemonJson }, null, 2) + '\n',
-      0o644,
-    )
-  ) {
-    const running = Bun.spawnSync(['docker', 'ps', '-q']).stdout.toString().trim()
-    if (running) await runInstallCommand(['systemctl', 'reload', 'docker'])
-    else await runInstallCommand(['systemctl', 'restart', 'docker'])
-  }
+  await configureHostRuntime(runInstallCommand)
   if (Bun.spawnSync(['id', '-u', 'pryx']).exitCode !== 0)
     await runInstallCommand([
       'useradd',
