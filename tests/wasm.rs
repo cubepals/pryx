@@ -32,7 +32,12 @@ async fn real_wasm_files_processes_sleep_stop_and_isolation() {
     assert!(reconciled.error.is_none(), "{reconciled:?}");
     let mut spec = support::spec_json();
     spec["image"] = "".into();
-    spec["ports"] = serde_json::json!([]);
+    spec["ports"] = serde_json::json!([{"name":"web","containerPort":3000,"audience":["edge"]}]);
+    spec["entrypoint"] = serde_json::json!([
+        "node",
+        "-e",
+        "require('node:http').createServer((req,res)=>res.end('declared')).listen(3000,'0.0.0.0')"
+    ]);
     spec["resources"]["memoryMb"] = 256.into();
     spec["agent"] = serde_json::json!({"domain":"pryx.test", "keepAlive":true});
     spec["secrets"] = serde_json::json!({"APP_TOKEN":"wasm-private-fixture"});
@@ -40,6 +45,7 @@ async fn real_wasm_files_processes_sleep_stop_and_isolation() {
     manager.ensure(support::id("wasm-one"), spec.clone(), Precondition::None, None).await.unwrap();
     manager.start(support::id("wasm-one"), None).await.unwrap();
     eprintln!("real wasm workload started at {:?}", began.elapsed());
+    declared_http(&manager).await;
     let request =
         |script: &str| ExecRequest { command: vec!["sh".into(), "-c".into(), script.into()], timeout_seconds: 10 };
     let first = manager
@@ -75,7 +81,7 @@ async fn real_wasm_files_processes_sleep_stop_and_isolation() {
     manager.suspend(support::id("wasm-one"), None).await.unwrap();
     manager.start(support::id("wasm-one"), None).await.unwrap();
     let resumed = manager.exec(support::id("wasm-one"), request("cat /data/result"), None, None).await.unwrap();
-    assert_eq!(resumed.exit_code, Some(0));
+    assert_eq!(resumed.exit_code, Some(0), "after wake: {resumed:?}");
     assert_eq!(resumed.stdout, "saved", "after sleep: {resumed:?}");
     let root_file =
         manager.exec(support::id("wasm-one"), request("cat /tmp/pryx-root-persisted"), None, None).await.unwrap();
@@ -171,4 +177,36 @@ async fn compact(manager: &Arc<pryxd::manager::Manager>) {
     assert_eq!(result.exit_code, Some(0));
     assert_eq!(result.stdout, "compact");
     manager.stop(support::id("wasm-compact"), None, None).await.unwrap();
+}
+
+async fn declared_http(manager: &Arc<pryxd::manager::Manager>) {
+    let port = manager.view(&support::id("wasm-one")).unwrap().ports[0].host_port;
+    use http_body_util::BodyExt;
+    tokio::time::timeout(std::time::Duration::from_secs(20), async {
+        loop {
+            if let Ok(socket) = tokio::net::TcpStream::connect((std::net::Ipv4Addr::LOCALHOST, port)).await {
+                let (mut sender, connection) =
+                    hyper::client::conn::http1::handshake(hyper_util::rt::TokioIo::new(socket)).await.unwrap();
+                let connection = tokio::spawn(connection);
+                let request = hyper::Request::builder()
+                    .uri("/")
+                    .header("Host", "localhost")
+                    .header("Connection", "close")
+                    .body(http_body_util::Empty::<bytes::Bytes>::new())
+                    .unwrap();
+                if let Ok(response) = sender.send_request(request).await {
+                    let status = response.status();
+                    let body = response.into_body().collect().await.unwrap().to_bytes();
+                    if status == hyper::StatusCode::OK && body == "declared" {
+                        connection.await.unwrap().unwrap();
+                        break;
+                    }
+                }
+                connection.abort();
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .unwrap();
 }

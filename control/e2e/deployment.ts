@@ -4,7 +4,7 @@
 /** A real control and local pryxd deployment for public API, CLI and edge CI suites. */
 import { spawnSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
-import { existsSync, mkdirSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { FleetCa } from '../src/ca.ts'
@@ -28,6 +28,7 @@ export async function deployment(
     storeLease?: boolean
     nodes?: number
     runtimeEndpoint?: string
+    binary?: string
     tier?: import('../src/isolation.ts').Isolation
     agent?: boolean
   } = {},
@@ -75,11 +76,27 @@ export async function deployment(
     suspend: true,
   })
   const count = options.nodes ?? 1
-  const children = await spawnNodes({ name, dir, bin, options, pems, control, config })
-  await until('public node healthy', async () => {
-    const nodes = await nodeSummaries(control.db, { suspectSeconds: 15, unavailableSeconds: 45 })
-    return nodes.length === count && nodes.every((n) => n.derivedHealth === 'healthy') ? nodes : null
-  })
+  const children = await spawnNodes({ name, dir, bin: options.binary ?? bin, options, pems, control, config })
+  try {
+    await until('public node healthy', async () => {
+      const nodes = await nodeSummaries(control.db, { suspectSeconds: 15, unavailableSeconds: 45 })
+      return nodes.length === count && nodes.every((n) => n.derivedHealth === 'healthy') ? nodes : null
+    })
+  } catch (error) {
+    for (const { path, child } of children) {
+      const log = readFileSync(join(path, '..', 'pryxd.log'), 'utf8')
+      console.error(
+        'NODE_STARTUP_FAILURE',
+        child.exitCode,
+        log
+          .split('\n')
+          .filter((line) => /Error:|ERROR|invalid configuration/i.test(line))
+          .slice(-10)
+          .join('\n'),
+      )
+    }
+    throw error
+  }
   await control.runtime.refreshRegistry()
   const credential = await createKey(control.db, 'default', 'e2e')
   return {

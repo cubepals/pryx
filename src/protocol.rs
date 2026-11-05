@@ -95,6 +95,7 @@ pub fn features() -> Vec<String> {
 }
 
 /// Process hosts share pryx's bundled userland rather than pulling workload images.
+pub const WASM_PORT_PROBLEM: &str = "this host runs the wasm tier; application ports require HTTP over TCP";
 pub const WASM_IMAGE_PROBLEM: &str = "this host runs the wasm tier; images are not available";
 pub const MAX_WASM_PACKAGES: usize = 32;
 pub const PACKAGE_NAME_PATTERN: &str = "^[a-z][a-z0-9-]{0,63}$";

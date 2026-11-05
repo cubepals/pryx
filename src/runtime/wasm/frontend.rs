@@ -4,6 +4,8 @@
 
 use axum::Router;
 use hyper_util::{rt::TokioIo, service::TowerToHyperService};
+use pryx_agent::guest::Forward;
+use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::task::{JoinHandle, JoinSet};
 use tokio_util::sync::CancellationToken;
@@ -13,8 +15,22 @@ pub(super) struct Frontend {
     task: Option<JoinHandle<()>>,
 }
 
+#[derive(Clone)]
+enum Service {
+    Agent(Router),
+    Application(Arc<super::network::Network>, u16),
+}
+
 impl Frontend {
     pub(super) fn start(listener: TcpListener, router: Router) -> Self {
+        Self::run(listener, Service::Agent(router))
+    }
+
+    pub(super) fn forward(listener: TcpListener, network: Arc<super::network::Network>, port: u16) -> Self {
+        Self::run(listener, Service::Application(network, port))
+    }
+
+    fn run(listener: TcpListener, service: Service) -> Self {
         let stop = CancellationToken::new();
         let cancel = stop.clone();
         let task = tokio::spawn(async move {
@@ -34,10 +50,16 @@ impl Frontend {
                         if socket.set_nodelay(true).is_err() {
                             tracing::warn!("Cannot enable agent ingress TCP_NODELAY");
                         }
-                        let service = TowerToHyperService::new(router.clone());
+                        let service = service.clone();
                         connections.spawn(async move {
-                            let _ = hyper::server::conn::http1::Builder::new()
-                                .serve_connection(TokioIo::new(socket), service).with_upgrades().await;
+                            match service {
+                                Service::Agent(router) => {
+                                    let service = TowerToHyperService::new(router);
+                                    let _ = hyper::server::conn::http1::Builder::new()
+                                        .serve_connection(TokioIo::new(socket), service).with_upgrades().await;
+                                }
+                                Service::Application(network, port) => { let _ = network.serve(socket, port, Vec::new()).await; }
+                            }
                         });
                     }
                 }

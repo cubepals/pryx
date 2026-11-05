@@ -44,7 +44,8 @@ as that different topology. A container tier inside an engine-free image is unav
 `control/bench/tiers-default.ts` measures the actual image without a tier override, and a
 separate invocation measures the forced wasm candidate. Both use normal product resource
 defaults and record 30 SDK create-to-hello samples plus 30 compiled `pryx run -- echo hello`
-samples separately.
+samples separately. It also records create acknowledgement and first-byte components;
+whole-command timings include waiting for exit, and CLI totals include cleanup.
 The 100 ms create-to-output target will be assessed from these measurements, with any miss
 and its observed causes recorded here.
 
@@ -60,6 +61,7 @@ and its observed causes recorded here.
 | Isolation | Shared host kernel, namespaces and cgroups | Landlock, seccomp, process groups; dedicated UIDs when root | Virtual kernel, WebAssembly and V8; shared unprivileged sidecar |
 | Kernel per sandbox | No | No | No native kernel; a virtual kernel per VM |
 | Sleep retains files | Yes | Yes | SQLite root and explicit persistent data mount |
+| Application ingress | TCP/UDP according to host policy | Host TCP according to policy | HTTP over TCP; no UDP, raw TCP, TLS passthrough or app WebSockets |
 | Sleep retains processes and terminals | Frozen container | Suspended process group | No; VM is disposed and recreated |
 
 agentOS 0.4.7 has no per-VM suspend operation in its published client. Suspending its shared

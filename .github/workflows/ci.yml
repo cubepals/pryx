@@ -478,7 +478,7 @@ jobs:
 
       - name: K11 agent suite on the wasm tier
         if: ${{ !cancelled() && steps.static.outcome == 'success' }}
-        run: bun test control/e2e/agent.e2e.test.ts
+        run: bun test control/e2e/agent.e2e.test.ts control/e2e/wasm.e2e.test.ts
         env:
           PRYX_TEST_TIER: wasm
           PRYXD_SUDO: '0'

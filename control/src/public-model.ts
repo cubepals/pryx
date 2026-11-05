@@ -141,6 +141,10 @@ export class PublicModel {
           : nodeSchema['x-pryx-process'].imageProblem
       z.object({ image: z.never({ error: problem }) }).parse({ image: spec.image })
     }
+    if (spec.isolation === 'wasm' && spec.ports?.some((port) => port.protocol === 'udp'))
+      z.object({ ports: z.never({ error: nodeSchema['x-pryx-wasm'].portProblem }) }).parse({
+        ports: spec.ports,
+      })
     if (spec.isolation !== 'wasm' && spec.packages?.length)
       z.object({ packages: z.never({ error: 'packages are available only on the wasm tier' }) }).parse({
         packages: spec.packages,

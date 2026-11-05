@@ -15,6 +15,7 @@ export async function spawnNodes(at: {
   dir: string
   bin: string
   options: {
+    binary?: string
     tier?: import('../src/isolation.ts').Isolation
     nodes?: number
     allowedImages?: string[]

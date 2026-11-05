@@ -18,7 +18,7 @@ pub(super) struct Live {
     pub agent: Arc<Agent>,
     pub entrypoint: Option<Arc<Process>>,
     pub status: Arc<std::sync::atomic::AtomicU8>,
-    server: Mutex<Option<super::frontend::Frontend>>,
+    servers: Mutex<Vec<super::frontend::Frontend>>,
     tasks: Mutex<Vec<JoinHandle<()>>>,
 }
 
@@ -26,6 +26,7 @@ pub(super) async fn start(
     vm: AgentOs,
     spec: &ContainerSpec,
     ingress: Arc<tokio::sync::Semaphore>,
+    owner: (u32, u32),
 ) -> Result<Live, RuntimeError> {
     let boot = spec.agent.as_ref().ok_or_else(|| super::error("Wasm requires the agent"))?;
     let secret = spec
@@ -44,14 +45,15 @@ pub(super) async fn start(
             .map(|p| p.host_port)
             .ok_or_else(|| super::error("Missing wasm host port"))
     };
+    let network = Arc::new(super::network::Network::new(vm.clone(), ingress));
     let ports = pryx_agent::ports::Ports::bind_with_forward(
         boot.sandbox.clone(),
         boot.domain.clone(),
         port(boot.agent_port)?,
         boot.spare_ports.iter().map(|p| port(*p)).collect::<Result<_, _>>()?,
-        Some(DataDir::open(&root).map_err(super::error)?),
+        Some(DataDir::open_owned(&root, owner).map_err(super::error)?),
         telemetry.clone(),
-        Some(Arc::new(super::network::Network::new(vm.clone(), ingress))),
+        Some(network.clone()),
     )
     .await
     .map_err(super::error)?;
@@ -65,7 +67,7 @@ pub(super) async fn start(
         sandbox: boot.sandbox.clone(),
         epoch: boot.epoch,
         processes: Processes::embedded(root.clone(), guest),
-        data: DataDir::open(&root).map_err(super::error)?,
+        data: DataDir::open_owned(&root, owner).map_err(super::error)?,
         ports,
         telemetry,
         logs,
@@ -74,8 +76,18 @@ pub(super) async fn start(
         .await
         .map_err(super::error)?;
     let server = super::frontend::Frontend::start(listener, pryx_agent::server::router(agent.clone()));
+    let mut servers = vec![server];
+    for binding in &spec.ports {
+        if binding.container_port == boot.agent_port || boot.spare_ports.contains(&binding.container_port) {
+            continue;
+        }
+        let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::UNSPECIFIED, binding.host_port))
+            .await
+            .map_err(super::error)?;
+        servers.push(super::frontend::Frontend::forward(listener, network.clone(), binding.container_port));
+    }
     let mut live =
-        Live { vm, agent, entrypoint: None, status, server: Mutex::new(Some(server)), tasks: Mutex::new(Vec::new()) };
+        Live { vm, agent, entrypoint: None, status, servers: Mutex::new(servers), tasks: Mutex::new(Vec::new()) };
     if let Some(argv) = spec.entrypoint.as_ref().filter(|argv| !argv.is_empty()) {
         let process = live
             .agent
@@ -98,7 +110,7 @@ pub(super) async fn start(
         live.tasks.lock().unwrap().push(tokio::spawn(logs_task(process.clone(), live.agent.logs.clone())));
         live.entrypoint = Some(process);
     }
-    live.tasks.lock().unwrap().push(tokio::spawn(activity_task(live.agent.clone(), root)));
+    live.tasks.lock().unwrap().push(tokio::spawn(activity_task(live.agent.clone())));
     Ok(live)
 }
 
@@ -117,13 +129,12 @@ async fn logs_task(process: Arc<Process>, logs: Arc<pryx_agent::logbook::Logbook
     }
 }
 
-async fn activity_task(agent: Arc<Agent>, root: std::path::PathBuf) {
+async fn activity_task(agent: Arc<Agent>) {
     let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
     loop {
         interval.tick().await;
-        let written = DataDir::open(&root).and_then(|data| {
-            pryx_agent::state::write(&data, pryx_agent::state::ACTIVITY_PATH, &agent.telemetry.snapshot(), false)
-        });
+        let written =
+            pryx_agent::state::write(&agent.data, pryx_agent::state::ACTIVITY_PATH, &agent.telemetry.snapshot(), false);
         if written.is_err() {
             tracing::warn!("Cannot checkpoint wasm agent activity");
         }
@@ -134,8 +145,8 @@ impl Live {
     pub(super) async fn shutdown(&self) -> Result<(), RuntimeError> {
         use std::sync::atomic::Ordering;
         self.status.store(super::VM_CLOSING, Ordering::Release);
-        let server = self.server.lock().unwrap().take();
-        if let Some(server) = server {
+        let servers = std::mem::take(&mut *self.servers.lock().unwrap());
+        for server in servers {
             server.shutdown().await?;
         }
         let tasks = std::mem::take(&mut *self.tasks.lock().unwrap());
@@ -165,7 +176,7 @@ impl Live {
 
 impl Drop for Live {
     fn drop(&mut self) {
-        self.server.lock().unwrap().take();
+        self.servers.lock().unwrap().clear();
         for task in self.tasks.lock().unwrap().drain(..) {
             task.abort();
         }

@@ -76,9 +76,13 @@ These virtual runtime bounds are not per-VM Linux cgroups; the sidecar is a shar
 | Run and processes | Spawn, retained output pages, exit observation, stdin and awaited signals |
 | Terminal | Open shell, ordered output, stdin, resize and close |
 | Files | The explicit persistent data mount, shared safe streaming path and agentOS virtual filesystem |
-| Expose | Existing spare-port/revision contract, forwarded to the VM's streaming HTTP API |
+| Declared ports and expose | Fixed and spare-port/revision listeners forwarded to the VM's streaming HTTP API |
 | Network | The VM network permission policy; `none` denies traffic outside its virtual network |
 | Packages | Pinned-release registry names resolved and digest-checked before installation |
+
+Application ingress supports HTTP over TCP. UDP is rejected at admission; raw TCP, TLS
+passthrough and application WebSockets are unavailable through this pinned streaming HTTP API.
+The agent API itself retains its authenticated WebSocket terminal and streaming routes.
 
 Requests authenticate with the same scoped, expiring sandbox capabilities as the other tiers.
 Project credentials never enter the guest. Commands execute inside the VM. A virtual PID is

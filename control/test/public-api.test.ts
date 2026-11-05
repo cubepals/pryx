@@ -175,6 +175,14 @@ describe.skipIf(!hasDatabase)('public API', () => {
         packages: ['../../host'],
       })
       expect(invalid.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY)
+      const udp = await ctx.request('/sandboxes', 'POST', {
+        isolation: 'wasm',
+        ports: [{ name: 'datagram', port: 3000, protocol: 'udp' }],
+      })
+      expect(udp.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY)
+      expect(await udp.json()).toMatchObject({
+        error: { details: [{ field: 'ports', problem: nodeWrites['x-pryx-wasm'].portProblem }] },
+      })
       const response = await ctx.request('/sandboxes', 'POST', {
         ...spec,
         image: undefined,

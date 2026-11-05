@@ -12,11 +12,13 @@ import { until } from './waits.ts'
 export async function agentDeployment(
   tier = process.env.PRYX_TEST_TIER as import('../src/isolation.ts').Isolation | undefined,
 ) {
+  const image = process.env.PRYX_IMAGE_TEST ?? 'pryx-static-test:latest'
   const d = await deployment({
     agent: true,
     tier,
+    ...(tier === 'wasm' && process.env.PRYXD_STATIC_BIN ? { binary: process.env.PRYXD_STATIC_BIN } : {}),
     ...(process.env.PRYX_TIER_BENCH === '1'
-      ? { allowedImages: [process.env.PRYX_IMAGE_TEST ?? 'pryx-static-test'] }
+      ? { allowedImages: [image.slice(0, image.lastIndexOf(':') + 1)] }
       : {}),
   })
   const edge = await startEdge({

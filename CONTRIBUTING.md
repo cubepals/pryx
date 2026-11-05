@@ -13,10 +13,16 @@ APIs; on macOS, work in a Linux container or VM).
 cargo fmt --check
 cargo clippy --locked --all-targets -- -D warnings
 cargo clippy --locked -- -D warnings                 # as the release builds, without the fake runtime
-cargo test --locked
+# Python 3.11+ stages the real wasm test dependency; use a new destination once per clone.
+python3 scripts/fetch-agentos.py /tmp/pryx-agentos-test-assets
+PRYX_AGENTOS_DISTRIBUTION=/tmp/pryx-agentos-test-assets cargo test --locked
 sudo cargo test --locked --test docker -- --ignored   # against a real Docker daemon
 cargo deny --locked check
 ```
+
+The wasm case runs as your normal user against the checksum-pinned sidecar; missing assets fail
+setup. Reuse the staged directory on later test runs. Docker and full end-to-end acceptance run
+in CI.
 
 The structure rules are Cubepals' `scripts/check-structure.ts`, run here against
 `structure-baseline.json`; CI's `Structure` step shows how to run it. CI's `contract` job runs

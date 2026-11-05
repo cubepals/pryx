@@ -111,7 +111,7 @@ impl WorkloadSpec {
         self.check_env(&mut problems);
         self.check_resources(policy, &mut problems);
         self.check_storage(&mut problems);
-        self.check_ports(&mut problems);
+        self.check_ports(policy, &mut problems);
         if self.spare_ports.is_some_and(|n| n > pryx_agent::contract::MAX_SPARE_PORTS) {
             problems.add("sparePorts", format!("at most {}", pryx_agent::contract::MAX_SPARE_PORTS));
         }
@@ -233,13 +233,16 @@ impl WorkloadSpec {
 
     /// Each port on its own, and the ports against each other: a name, or a protocol's
     /// container port, is used once.
-    fn check_ports(&self, problems: &mut Problems) {
+    fn check_ports(&self, policy: &SpecPolicy, problems: &mut Problems) {
         if self.ports.len() > MAX_PORTS {
             problems.add("ports", format!("at most {MAX_PORTS}"));
         }
         let mut names = std::collections::BTreeSet::new();
         let mut inside = std::collections::BTreeSet::new();
         for (i, port) in self.ports.iter().enumerate() {
+            if policy.wasm && port.protocol != crate::protocol::Proto::Tcp {
+                problems.add(format!("ports[{i}].protocol"), crate::protocol::WASM_PORT_PROBLEM);
+            }
             if !port_name_ok(&port.name) {
                 problems.add(format!("ports[{i}].name"), "is 1-16 of a-z, 0-9 and '-', starting with a letter");
             }
@@ -374,5 +377,17 @@ mod tests {
         let errors = spec(v).validate(&policy()).unwrap_err();
         assert!(errors.iter().any(|e| e.problem.contains("used twice")));
         assert!(errors.iter().any(|e| e.field == "ports[1].audience"));
+    }
+    #[test]
+    fn wasm_refuses_udp_ingress() {
+        let mut p = policy();
+        p.wasm = true;
+        let mut v = example_spec();
+        v["image"] = "".into();
+        v["ports"][0]["protocol"] = "udp".into();
+        let errors = spec(v).validate(&p).unwrap_err();
+        assert!(
+            errors.iter().any(|e| e.field == "ports[0].protocol" && e.problem == crate::protocol::WASM_PORT_PROBLEM)
+        );
     }
 }

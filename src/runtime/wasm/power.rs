@@ -34,7 +34,7 @@ impl WasmRuntime {
                 return Err(RuntimeError::Unavailable("agentOS VM creation failed; ownership remains pending".into()));
             }
         };
-        let live = match host::start(vm.clone(), &entry.spec, self.state.ingress.clone()).await {
+        let live = match host::start(vm.clone(), &entry.spec, self.state.ingress.clone(), self.state.owner).await {
             Ok(live) => Arc::new(live),
             Err(error) => {
                 if vm.shutdown().await.is_err() {

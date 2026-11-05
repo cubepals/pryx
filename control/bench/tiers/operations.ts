@@ -41,10 +41,11 @@ export async function hot(box: Sandbox, samples: Samples) {
     const start = performance.now(),
       run = box.run('echo hi'),
       stream = run.stream()
-    if ((await stream.next()).value?.data !== 'hi\n') throw new Error('Echo first byte differs')
+    if (!(await stream.next()).value?.data) throw new Error('Echo emitted no first byte')
     samples.first_byte_echo_ms.push(performance.now() - start)
     while (!(await stream.next()).done) {}
-    if ((await run).code !== 0) throw new Error('Echo failed')
+    const result = await run
+    if (result.code !== 0 || result.stdout !== 'hi\n' || result.stderr !== '') throw new Error('Echo failed')
   }
   await box.write('sleep-marker', 'persisted')
   await measure(samples, 'sleep_then_wake_ms', async () => {
@@ -103,7 +104,7 @@ export async function packages(box: Sandbox, samples: Samples, unsupported: Reco
     }
     let index = 0
     await measure(samples, `${name}_install_ms`, async () => {
-      const target = `/data/k14-${name}-${index++}`
+      const target = `k14-${name}-${index++}`
       const result = await box.run(
         `${install} ${target}${name === 'npm' ? ` --cache ${target}/.cache` : ''}`,
         { timeout: '2m' },
@@ -120,7 +121,7 @@ export async function packages(box: Sandbox, samples: Samples, unsupported: Reco
             : [
                 'node',
                 '-e',
-                `if(!require('${target}/node_modules/is-number')(42)) throw Error('package differs')`,
+                `if(!require('./${target}/node_modules/is-number')(42)) throw Error('package differs')`,
               ]
         if ((await box.run(verify)).code !== 0) throw new Error(`${name} package verification failed`)
       }

@@ -13,6 +13,18 @@ const [mode, output] = process.argv.slice(2)
 if (!output || (mode !== 'one-box' && mode !== 'image'))
   throw new Error('tiers.ts one-box|image output-prefix')
 process.env.PRYX_TIER_BENCH = '1'
+// Take the explicit tag from Docker rather than using an untagged policy prefix.
+process.env.PRYX_IMAGE_TEST = (
+  await command([
+    'docker',
+    'image',
+    'inspect',
+    '--format',
+    '{{index .RepoTags 0}}',
+    process.env.PRYX_IMAGE_TEST ?? 'pryx-static-test',
+  ])
+).trim()
+if (!process.env.PRYX_IMAGE_TEST.includes(':')) throw new Error('Comparison image must have a repository tag')
 for (const tier of ['container', 'process', 'wasm'] as const) {
   const samples: Samples = {},
     unsupported: Record<string, string> = {}

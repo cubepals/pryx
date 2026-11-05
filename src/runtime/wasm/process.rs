@@ -254,7 +254,9 @@ impl Remote {
                     .ok().and_then(Result::ok), true)
             }
         };
-        if result.is_none() {
+        // Lifecycle disposal intentionally closes output observation. It already owns the
+        // VM shutdown; an old process must not start a second disposal during recreation.
+        if result.is_none() && self.status.load(Ordering::Acquire) == super::VM_RUNNING {
             match self.vm.shutdown().await {
                 Ok(()) => self.status.store(super::VM_DISPOSED, Ordering::Release),
                 Err(_) => {
