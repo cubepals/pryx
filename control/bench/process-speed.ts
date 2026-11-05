@@ -168,8 +168,15 @@ async function operations(sdk: Pryx, origin: string, env: Record<string, string 
         }
         if (!success) throw new Error('Exposed HTTP content differs')
       } catch (error) {
-        await web.kill()
-        await web.wait()
+        const current = await box.agent.process(web.id)
+        if (current.view.running) await web.kill()
+        const result = await web.wait()
+        let output = ''
+        for await (const chunk of web.stream()) {
+          output += chunk.data.slice(0, Math.max(0, 4096 - output.length))
+          if (output.length >= 4096) break
+        }
+        report.exposeFailure = { result, output }
         throw error
       }
       return async () => {

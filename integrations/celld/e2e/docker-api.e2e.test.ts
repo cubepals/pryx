@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Subprocess } from 'bun'
 import { StatusCodes } from 'http-status-codes'
+import { freePort } from '../../../control/e2e/waits.ts'
 import { MINUTE_MS, SECOND_MS } from '../../../control/src/durations.ts'
 import { dockerApiSpike } from '../src/docker-api-spike.ts'
 
@@ -34,7 +35,7 @@ test(
         expect(response.status).toBe(StatusCodes.OK)
         await response.text()
       }
-      child = Bun.spawn([binary, 'dev', '--port', '0', '--logs'], {
+      child = Bun.spawn([binary, 'dev', '--port', String(await freePort()), '--logs'], {
         cwd: example,
         env: { ...process.env, DOCKER_HOST: `unix://${socket}` },
         stdout: 'pipe',

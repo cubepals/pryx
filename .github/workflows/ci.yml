@@ -297,6 +297,7 @@ jobs:
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       DATABASE_URL: postgres://pryx:pryx-test@127.0.0.1:5432/pryx
+      PRYX_SANDBOX_AGENT_IMAGE: pryx-sandbox-agent-test:local
       S3_TEST_ENDPOINT: http://127.0.0.1:9000
       S3_TEST_CONTAINER: pryx-s3
       PRYXD_SUDO: '1'
@@ -464,7 +465,7 @@ jobs:
           "$RUNNER_TEMP/celld" --version
       - name: Build the versioned sandbox-agent template
         if: ${{ !cancelled() && steps.static.outcome == 'success' }}
-        run: docker build -t pryx-sandbox-agent-test integrations/rivet/template
+        run: docker build -t "$PRYX_SANDBOX_AGENT_IMAGE" integrations/rivet/template
       - name: Build the public Rivet and agentOS patches
         if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         run: bun integrations/rivet/upstream/check.ts "$RUNNER_TEMP/pryx-rivet-patches"
@@ -475,9 +476,9 @@ jobs:
         if: ${{ !cancelled() && steps.celld.outcome == 'success' }}
         env:
           CELLD_BIN: ${{ runner.temp }}/celld
+          CELLD_ESBUILD: ${{ github.workspace }}/node_modules/.bin/esbuild
           PRYX_CELLD_MEASUREMENTS: ${{ runner.temp }}/celld-native-measurements.json
           PRYX_DOCKER_SPIKE_REPORT: ${{ runner.temp }}/docker-api-spike.json
-          PRYX_SANDBOX_AGENT_IMAGE: pryx-sandbox-agent-test
           PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
         run: bun run integration:e2e
 

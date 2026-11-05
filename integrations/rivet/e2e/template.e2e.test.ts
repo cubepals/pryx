@@ -14,7 +14,10 @@ test(
     if (!ready) throw new Error('Template acceptance requires the real CI deployment')
     const image = process.env.PRYX_SANDBOX_AGENT_IMAGE
     if (!image) throw new Error('The repository sandbox-agent image must be built first')
-    const d = await deployment({ agent: true, allowedImages: [image] })
+    const boundary = image.includes('@') ? image.indexOf('@') : image.lastIndexOf(':')
+    if (boundary <= image.lastIndexOf('/'))
+      throw new Error('The fixture image needs an explicit tag or digest')
+    const d = await deployment({ agent: true, allowedImages: [image.slice(0, boundary + 1)] })
     const sdk = new Pryx({ url: d.control.apiUrl, key: d.credential.key })
     try {
       const create = Bun.spawn(

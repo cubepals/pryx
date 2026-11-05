@@ -206,3 +206,22 @@ retain all observations.
 
 All three stated latency budgets pass. Large-file throughput remains slower than the initial
 cohort on a different runner; it is retained without a causal speedup claim.
+
+### K12 first process compute cohort
+
+Run [42055145022](https://github.com/cubepals/pryx/actions/runs/42055145022), source bbadbde,
+reaches actual Landlock-restricted process compute in the ordinary image. Its paired
+[container](checks/process-speed-compute-before.json) and
+[process](checks/process-speed-compute-after.json) reports retain all samples. Both use the same
+CI host and source. The process cohort stops at its first Python exposed-HTTP check, so later
+operations are absent and the cohort/workflow is not complete.
+
+| operation | container p50 / p90 ms | process p50 / p90 ms | result |
+| --- | --- | --- | --- |
+| image API startup | prior daemon-only image has no API, n=0 | 6604.52 / 6670.35 | n=30, under 10 s |
+| run through edge | 2.25 / 2.99 | 2.44 / 2.69 | n=30, under 20 ms |
+| first output byte | 2.32 / 2.92 | 2.37 / 3.05 | n=30, under 10 ms |
+| start, expose, HTTP 200 | 4.60 / 34.32 | n=0, failed | not accepted |
+
+The public/agent end-to-end step, including both reference MCP transports and sandbox MCP URL,
+passes in this run. This does not substitute for the remaining process-image proof.

@@ -21,7 +21,7 @@ fn process_policy_is_enforced_or_compute_is_refused() {
         network_off: false,
     };
     let output = Command::new(env!("CARGO_BIN_EXE_pryx-agent"))
-        .args(["restricted", "/bin/sh", "-c", "printf allowed > permitted; cat permitted; if cat \"$1\" 2>/dev/null; then exit 1; fi; if unshare -Ur true 2>/dev/null; then exit 1; fi", "sh", secret.to_str().unwrap()])
+        .args(["restricted", "/bin/sh", "-c", "printf allowed > permitted; cat permitted; if [ -f /etc/mime.types ]; then cat /etc/mime.types >/dev/null || exit 1; fi; if cat \"$1\" 2>/dev/null; then exit 1; fi; if unshare -Ur true 2>/dev/null; then exit 1; fi", "sh", secret.to_str().unwrap()])
         .current_dir(data.path()).env(POLICY_ENV, serde_json::to_string(&policy).unwrap()).output().unwrap();
     if pryx_agent::process_capabilities::probe().filesystem {
         assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));

@@ -59,6 +59,7 @@ pub fn enter(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
         "/etc/group",
         "/etc/resolv.conf",
         "/etc/nsswitch.conf",
+        "/etc/mime.types",
         "/etc/hosts",
         "/etc/ssl/openssl.cnf",
         "/dev/urandom",
