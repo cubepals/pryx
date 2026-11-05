@@ -32,7 +32,10 @@ def output(events):
 def start_body(command, options):
     from .duration import seconds
     body = {'command': command, **options}
-    if 'timeout' in body: body['timeout'] = seconds(body['timeout'])
+    if 'timeout' in body:
+        value = seconds(body['timeout'])
+        if not float(value).is_integer(): raise ValueError('Process timeout is a whole number of seconds')
+        body['timeout'] = int(value)
     return body
 
 class Agent:

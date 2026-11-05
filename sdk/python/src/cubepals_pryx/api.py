@@ -20,7 +20,7 @@ class PryxError(Exception):
         self.status=status
         self.code=detail.get("code", "http_error")
         self.details=detail.get("details")
-        super().__init__(detail.get("message", "Request refused"))
+        super().__init__(detail.get("message", f"Request refused (HTTP {status})"))
 
 def _checked(response: httpx.Response):
     if response.is_error:
