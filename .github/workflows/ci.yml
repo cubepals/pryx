@@ -392,6 +392,14 @@ jobs:
         run: |
           cargo clean --package pryxd
           cargo build --locked
+      - name: Release compilation space before the image build
+        run: |
+          cp target/debug/pryxd "$RUNNER_TEMP/pryxd-debug"
+          cargo clean
+          mkdir -p target/debug
+          cp "$RUNNER_TEMP/pryxd-debug" target/debug/pryxd
+          docker builder prune --all --force
+          df -h .
       - name: Build a static daemon for isolated nodes
         id: static
         run: |
@@ -409,15 +417,6 @@ jobs:
       - name: Measure and prove the ordinary process image
         if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         run: PRYXD_BIN="$GITHUB_WORKSPACE/target/debug/pryxd" bun control/bench/process-speed.ts after "$RUNNER_TEMP/process-speed-after.json"
-      - name: Release compilation space before runtime tests
-        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
-        run: |
-          cp target/debug/pryxd "$RUNNER_TEMP/pryxd-debug"
-          cargo clean
-          mkdir -p target/debug
-          cp "$RUNNER_TEMP/pryxd-debug" target/debug/pryxd
-          docker builder prune --all --force
-          df -h .
       - name: Save paired speed measurements
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -533,6 +532,11 @@ jobs:
       - run: cargo build --locked
       - run: bun install --frozen-lockfile
       - run: bun run release:build
+      - name: Preserve the daemon and release compiler space
+        run: |
+          cp target/debug/pryxd dist/pryxd
+          cargo clean
+          df -h .
       - name: Build the static agent release asset
         run: |
           docker build -t pryx-one-box-release .
@@ -541,7 +545,6 @@ jobs:
           docker rm -v "$id"
       - name: Prepare the unreleased build artifacts
         run: |
-          cp target/debug/pryxd dist/pryxd
           # The installed daemon is now in dist; placement still needs real disk above its host floor.
           rm -rf target/debug
           docker builder prune --all --force

@@ -7,6 +7,7 @@ import { MINUTE_MS } from '../src/durations.ts'
 import { AGENT_ROUTE_PORT } from '../src/edge-headers.ts'
 import { agentDeployment } from './agent-context.ts'
 import { ready } from './deployment.ts'
+import { deploymentDiagnostics } from './diagnostics.ts'
 import { until } from './waits.ts'
 
 test.skipIf(!ready)(
@@ -14,6 +15,7 @@ test.skipIf(!ready)(
   async () => {
     const c = await agentDeployment()
     const box = await c.sdk.sandbox({ image: 'alpine:pryx-tls', resources: { memoryMb: 256 }, sparePorts: 1 })
+    let stage = 'processes'
     try {
       const route = await c.route(box.id)
       expect(route.agent).toBeDefined()
@@ -46,6 +48,7 @@ test.skipIf(!ready)(
       }
       terminal.close()
       expect(terminalOutput).toContain('terminal-ready')
+      stage = 'files'
       await box.files.mkdir('src')
       const changes = box.files.watch('src')
       expect((await changes.next()).value).toMatchObject({ type: 'ready' })
@@ -69,6 +72,7 @@ test.skipIf(!ready)(
         }),
       )
       expect(await new Response(await box.readStream('large')).bytes()).toEqual(bytes)
+      stage = 'ports'
       await box.write('index.html', 'exposed')
       const web = await box.start(['httpd', '-f', '-p', '3000', '-h', '/data'])
       const url = await box.expose(3000)
@@ -79,6 +83,7 @@ test.skipIf(!ready)(
       await web.kill()
       await web.wait()
       await box.files.delete('src/moved')
+      stage = 'sleep'
       await box.sleep()
       await until(
         'edge observes sleeping agent',
@@ -86,16 +91,24 @@ test.skipIf(!ready)(
       )
       expect((await box.run('printf awake')).stdout).toBe('awake')
       await box.refresh()
+      stage = 'stop'
       await box.stop()
       await box.write('stopped', bytes)
       expect(await box.readBytes('stopped')).toEqual(bytes)
+      stage = 'start'
       await box.start()
       await box.write('stopped', 'updated by running agent')
       expect(await box.read('stopped')).toBe('updated by running agent')
+      stage = 'network-none'
       await box.network('none')
       expect((await box.run('printf isolated')).stdout).toBe('isolated')
+      stage = 'network-internet'
       await box.network('internet')
       expect((await box.run('printf online')).stdout).toBe('online')
+    } catch (error) {
+      console.error('Agent acceptance stage', stage)
+      deploymentDiagnostics(c.d)
+      throw error
     } finally {
       await box.delete()
       await c.close()
