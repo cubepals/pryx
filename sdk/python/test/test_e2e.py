@@ -6,7 +6,7 @@ from cubepals_pryx import Pryx
 class EndToEnd(unittest.TestCase):
     def test_make_exec_snapshot_fork_delete(self):
         with Pryx(os.environ["PRYX_API_URL"],os.environ["PRYX_API_KEY"]) as client:
-            sandbox=client.make({"image":"alpine:3.22","entrypoint":["sh","-c","trap 'exit 0' TERM; while :; do sleep 1; done"],"resources":{"memoryMb":128}},str(uuid.uuid4()))
+            sandbox=client.make({"image":"alpine:3.22","entrypoint":["sh","-c","trap 'exit 0' TERM; while :; do sleep 1; done"]},str(uuid.uuid4()))
             try:
                 answer=list(client.exec(sandbox.id,["sh","-c","echo hello > /data/message; cat /data/message"],key=str(uuid.uuid4())))
                 self.assertIn({"type":"stdout","data":"hello\n","truncated":False},answer)

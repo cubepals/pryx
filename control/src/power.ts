@@ -133,7 +133,8 @@ export class Power {
     })
     // The node lost what the ledger says it holds: the spec again, then the start.
     if (started === null) return this.wake({ ...row, sent_digest: null }, node, spec, progress, false)
-    if (asleep && started.resumed === false) await progress.step('booting')
+    if (!asleep && started.resumed === true) await progress.step('resuming')
+    else if (asleep && started.resumed === false) await progress.step('booting')
     const known = sent === null ? row.spec_digest : sent.nodeDigest
     if (started.resumed !== true && started.workload.specDigest !== known)
       await this.#ledger.booted(key, epoch, started.workload.specDigest)

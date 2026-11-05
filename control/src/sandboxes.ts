@@ -309,7 +309,7 @@ export class Sandboxes {
           sandbox: await this.get(id, row.project),
           tier: restoring
             ? 'restored'
-            : steps.includes('resuming') && !steps.includes('booting')
+            : steps.findLast((step) => step === 'resuming' || step === 'booting') === 'resuming'
               ? 'resumed'
               : 'booted',
         }
