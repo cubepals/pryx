@@ -120,7 +120,11 @@ jobs:
           bun "$RUNNER_TEMP/check-structure.ts" --rust
       # As the runner's own user, not root: data goes to the test's user (tests/support). Every
       # test binary runs even after one fails, so a failure can't hide the others.
+      - name: Stage the verified agentOS distribution
+        run: python3 scripts/fetch-agentos.py "$RUNNER_TEMP/agentos"
       - run: cargo test --locked --no-fail-fast
+        env:
+          PRYX_AGENTOS_DISTRIBUTION: ${{ runner.temp }}/agentos
       # Against the runner's own Docker daemon: hardening, limits, the OOM killer, isolation,
       # restarts. They chown data directories, so Cargo's runner starts the test binary as root;
       # Cargo itself, and so target/, stays the runner's.
@@ -410,6 +414,11 @@ jobs:
           docker cp "$id:/pryxd" "$RUNNER_TEMP/pryxd"
           docker cp "$id:/usr/local/bin/pryx" "$RUNNER_TEMP/pryx-cli"
           docker cp "$id:/usr/local/lib/pryx/pryx-agent" "$RUNNER_TEMP/pryx-agent"
+          docker cp "$id:/usr/local/lib/pryx/agentos" "$RUNNER_TEMP/agentos"
+          sudo install -d -m 0755 /usr/local/lib/pryx
+          sudo mv "$RUNNER_TEMP/agentos" /usr/local/lib/pryx/agentos
+          sudo chown -R root:root /usr/local/lib/pryx/agentos
+          echo "PRYX_AGENTOS_DISTRIBUTION=/usr/local/lib/pryx/agentos" >> "$GITHUB_ENV"
           docker rm "$id"
           sudo install -D -m 0755 "$RUNNER_TEMP/pryx-agent" /usr/local/lib/pryx/pryx-agent
           docker builder prune --all --force
@@ -422,6 +431,22 @@ jobs:
       - name: Measure and prove the ordinary process image
         if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         run: PRYXD_BIN="$GITHUB_WORKSPACE/target/debug/pryxd" bun control/bench/process-speed.ts after "$RUNNER_TEMP/process-speed-after.json"
+      - name: Compare all three tiers in ordinary images
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: PRYXD_BIN="$RUNNER_TEMP/pryxd" bun control/bench/tiers.ts image "$RUNNER_TEMP/tiers-image"
+      - name: Measure the wasm image create-to-output path
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: PRYX_MCP_CLI="$RUNNER_TEMP/pryx-cli" bun control/bench/tiers-default.ts "$RUNNER_TEMP/tiers-image-wasm-hello.json" wasm
+      - name: Measure the image default through SDK and CLI
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: PRYX_MCP_CLI="$RUNNER_TEMP/pryx-cli" bun control/bench/tiers-default.ts "$RUNNER_TEMP/tiers-image-default.json"
+      - name: Save the three-tier image comparison
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tiers-image
+          path: ${{ runner.temp }}/tiers-image-*.json
+          if-no-files-found: error
       - name: Compose service and persistent credentials
         if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         run: bun control/bench/compose-image.ts
@@ -451,6 +476,15 @@ jobs:
           PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
 
 
+      - name: K11 agent suite on the wasm tier
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: bun test control/e2e/agent.e2e.test.ts
+        env:
+          PRYX_TEST_TIER: wasm
+          PRYXD_SUDO: '0'
+          PRYX_PYTHON: ${{ github.workspace }}/.venv-agent-python/bin/python
+          PRYX_MCP_CLI: ${{ runner.temp }}/pryx-cli
+          PRYXD_BIN: ${{ runner.temp }}/pryxd
       - name: Two isolated nodes as root
         if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         env:
@@ -551,7 +585,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -573,6 +607,12 @@ jobs:
           docker build -t pryx-one-box-release .
           id=$(docker create pryx-one-box-release)
           docker cp "$id:/usr/local/lib/pryx/pryx-agent" dist/pryx-agent
+          docker cp "$id:/pryxd" "$RUNNER_TEMP/pryxd-k14"
+          docker cp "$id:/usr/local/lib/pryx/agentos" "$RUNNER_TEMP/agentos"
+          sudo install -d -m 0755 /usr/local/lib/pryx
+          sudo mv "$RUNNER_TEMP/agentos" /usr/local/lib/pryx/agentos
+          sudo chown -R root:root /usr/local/lib/pryx/agentos
+          echo "PRYX_AGENTOS_DISTRIBUTION=/usr/local/lib/pryx/agentos" >> "$GITHUB_ENV"
           docker rm -v "$id"
           docker save pryx-one-box-release | gzip -1 > "$RUNNER_TEMP/pryx-one-box-image.tar.gz"
           docker image rm pryx-one-box-release
@@ -647,6 +687,18 @@ jobs:
         with:
           name: projects-one-box
           path: ${{ runner.temp }}/projects-one-box.json
+          if-no-files-found: error
+
+      - name: Compare all three tiers on one box
+        run: |
+          gzip -dc "$RUNNER_TEMP/pryx-one-box-image.tar.gz" | docker load
+          sudo env "PATH=$PATH" "PRYXD_BIN=$RUNNER_TEMP/pryxd-k14" PRYX_AGENTOS_DISTRIBUTION=/usr/local/lib/pryx/agentos PRYX_IMAGE_TEST=pryx-one-box-release "$(command -v bun)" control/bench/tiers-one-box.ts "$RUNNER_TEMP/tiers-one-box"
+      - name: Save the one-box three-tier comparison
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tiers-one-box
+          path: ${{ runner.temp }}/tiers-one-box-*.json
           if-no-files-found: error
 
       - name: Install and repeat the release image on the host

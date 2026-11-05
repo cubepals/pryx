@@ -9,6 +9,7 @@ import nodeSchema from '../../openapi/node-writes.openapi.json'
 import { AUTOSCALE_DEFAULTS } from './autoscale.ts'
 import { DEFAULT_EDGE_PORT_RANGE } from './edge-addresses.ts'
 import { THRESHOLDS } from './health.ts'
+import { ISOLATIONS } from './isolation.ts'
 import { splitAddress } from './node-client.ts'
 import { DEFAULTS } from './placement.ts'
 import { limitsSchema, projectDefaults, UNIT_DEFAULTS } from './project-model.ts'
@@ -31,7 +32,7 @@ const mapRegions = (text = ''): Record<string, string> =>
           }),
       )
 const schema = z.object({
-  defaultIsolation: z.enum(['container', 'process']).default('container'),
+  defaultIsolation: z.enum(ISOLATIONS).default('container'),
   publicOrigin: z.url().optional(),
   database: z.string().min(1),
   deployment: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/),

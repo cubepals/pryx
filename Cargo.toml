@@ -17,7 +17,10 @@ name = "formats"
 path = "tests/compat/formats.rs"
 
 [dependencies]
-pryx-agent = { workspace = true, features = ["fs"] }
+# Same-version Apache-2.0 client for the separately shipped agentOS sidecar.
+agentos-client = "=0.4.7"
+agentos-sidecar-client = "=0.4.7"
+pryx-agent = { workspace = true, features = ["fs", "mcp"] }
 # Async runtime, HTTP server and middleware. axum is tokio's own router over hyper; the TLS accept
 # loop is written by hand over tokio-rustls so the verified client certificate reaches handlers.
 tokio = { version = "1.53", features = ["rt-multi-thread", "macros", "signal", "net", "time", "sync", "fs", "io-util"] }
@@ -69,7 +72,7 @@ tracing-subscriber = { version = "0.3", features = ["fmt", "json", "env-filter"]
 prometheus-client = "0.25"
 
 # Linux: kill a timed-out exec by host pid, statvfs for disk space, FICLONE, CLOCK_BOOTTIME.
-rustix = { version = "1", features = ["fs", "process", "param", "time"] }
+rustix = { version = "1", features = ["fs", "process", "param", "time", "thread"] }
 # adjtimex, which rustix doesn't wrap: whether the clock is synchronised (doctor).
 libc = "0.2.189"
 async-trait = "0.1"

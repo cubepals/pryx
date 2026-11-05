@@ -38,10 +38,14 @@ function makeRequest(args: string[]): MakeRequest {
   const network = option(args, '--network'),
     spares = option(args, '--spare-ports')
   if (network && network !== 'internet' && network !== 'none') throw new Error('network is internet or none')
+  const packages = args.flatMap((value, index) =>
+    value === '--package' ? [option(args.slice(index), '--package') as string] : [],
+  )
   return {
+    ...(packages.length ? { packages } : {}),
     ...(image ? { image } : {}),
     ...(option(args, '--isolation')
-      ? { isolation: option(args, '--isolation') as 'container' | 'process' }
+      ? { isolation: option(args, '--isolation') as MakeRequest['isolation'] }
       : {}),
     ...(network === 'internet' || network === 'none' ? { network } : {}),
     ...(spares ? { sparePorts: Number(spares) } : {}),
@@ -137,7 +141,7 @@ export async function sandbox(args: string[]): Promise<unknown> {
 export async function run(args: string[]) {
   const split = args.indexOf('--')
   if (split < 0 || split === args.length - 1)
-    throw new Error('run --image <image> [--snapshot] -- <command...>')
+    throw new Error('run [--image <image>] [--isolation container|process|wasm] [--snapshot] -- <command...>')
   const client = publicClient()
   const made = await client.make(
     {

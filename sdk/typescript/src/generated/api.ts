@@ -380,7 +380,7 @@ export interface components {
                 at?: string | null;
             };
             /** @enum {string} */
-            isolation?: "container" | "process";
+            isolation?: "container" | "process" | "wasm";
             files?: boolean;
             agent?: {
                 url: string;
@@ -530,6 +530,7 @@ export interface components {
         });
         MakeRequest: {
             image?: string;
+            packages?: string[];
             snapshot?: string;
             template?: string;
             entrypoint?: string[];
@@ -599,7 +600,7 @@ export interface components {
             ttl?: number;
             idle?: number;
             /** @enum {string} */
-            isolation?: "container" | "process";
+            isolation?: "container" | "process" | "wasm";
             restart?: {
                 /** @enum {string} */
                 policy: "no" | "on-failure";
@@ -665,6 +666,7 @@ export interface components {
             name: string;
             spec: {
                 image?: string;
+                packages?: string[];
                 snapshot?: string;
                 template?: string;
                 entrypoint?: string[];
@@ -734,7 +736,7 @@ export interface components {
                 ttl?: number;
                 idle?: number;
                 /** @enum {string} */
-                isolation?: "container" | "process";
+                isolation?: "container" | "process" | "wasm";
                 restart?: {
                     /** @enum {string} */
                     policy: "no" | "on-failure";

@@ -23,7 +23,8 @@ impl Manager {
         let guard = self.lock_for(id).lock_owned().await;
         let record = self.record(id)?;
         check_epoch(&record, epoch, EpochRule::Exact)?;
-        let directory = DataDir::open_owned(&self.store.data_dir(id), self.data_owner(id)?).map_err(file_error)?;
+        let directory = DataDir::open_owned(&self.runtime.data_path(&self.store.data_dir(id)), self.data_owner(id)?)
+            .map_err(file_error)?;
         Ok(DataAccess { directory, guard })
     }
 

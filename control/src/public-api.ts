@@ -32,7 +32,7 @@ export function createPublicApi(options: {
   boxes: Sandboxes
   nodes: NodeClient
   domain: string
-  defaultIsolation?: 'container' | 'process'
+  defaultIsolation?: import('./isolation.ts').Isolation
   publicOrigin?: string
   edgePortRange?: readonly [number, number]
 }) {

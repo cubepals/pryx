@@ -9,6 +9,7 @@ pub enum RuntimeKind {
     #[default]
     Container,
     Process,
+    Wasm,
 }
 
 #[derive(Clone, Debug, Deserialize)]

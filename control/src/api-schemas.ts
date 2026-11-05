@@ -4,6 +4,9 @@
 /** Public v1 schemas own validation and the generated API contract; node wire types stay independent. */
 import { z } from 'zod'
 import node from '../../openapi/node-reads.openapi.json'
+import writes from '../../openapi/node-writes.openapi.json'
+
+import { ISOLATIONS } from './isolation.ts'
 import type { WorkloadSpec } from './wire.ts'
 
 const map = z.record(z.string(), z.string())
@@ -34,6 +37,10 @@ export const port = z
 export const makeSchema = z
   .object({
     image: z.string().min(1).optional(),
+    packages: z
+      .array(z.string().regex(new RegExp(writes['x-pryx-wasm'].packageNamePattern)))
+      .max(writes['x-pryx-wasm'].maxPackages)
+      .optional(),
     snapshot: z.string().optional(),
     template: z.string().optional(),
     entrypoint: z.array(z.string()).optional(),
@@ -54,7 +61,7 @@ export const makeSchema = z
     secrets: map.default({}),
     ttl: z.number().positive().optional(),
     idle: z.number().positive().optional(),
-    isolation: z.enum(['container', 'process']).optional(),
+    isolation: z.enum(ISOLATIONS).optional(),
     restart: z
       .object({
         policy: z.enum(nodeSchemas.RestartPolicy.oneOf.map((p) => p.const) as ['no', 'on-failure']),
@@ -87,7 +94,7 @@ export const sandboxSchema = z.object({
   exit: z
     .object({ code: z.number().int(), oomKilled: z.boolean(), at: z.string().nullable().optional() })
     .optional(),
-  isolation: z.enum(['container', 'process']).optional(),
+  isolation: z.enum(ISOLATIONS).optional(),
   files: z.boolean().optional(),
   agent: z.object({ url: z.string() }).optional(),
   id: z.string(),

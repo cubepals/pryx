@@ -6,6 +6,7 @@ from enum import Enum
 class SandboxIsolation(str, Enum):
     CONTAINER = "container"
     PROCESS = "process"
+    WASM = "wasm"
 
     def __str__(self) -> str:
         return str(self.value)

@@ -8,6 +8,7 @@ publish = false
 description = "The sandbox's process and file agent"
 
 [dependencies]
+async-trait = { version = "0.1", optional = true }
 base64 = "0.23"
 ring = "0.17"
 serde = { version = "1", features = ["derive"] }
@@ -38,7 +39,7 @@ default = ["server", "mcp"]
 mcp = ["server"]
 fs = ["dep:rustix", "dep:landlock", "dep:tokio"]
 schema = ["dep:schemars"]
-server = ["fs", "dep:axum", "dep:tokio", "dep:tokio-util", "dep:futures-util", "dep:bytes", "dep:uuid", "dep:portable-pty", "dep:notify", "dep:brush-core", "dep:brush-builtins", "dep:reqwest", "dep:libc", "dep:clap", "dep:rustls", "dep:httparse", "dep:landlock", "dep:seccompiler"]
+server = ["dep:async-trait", "fs", "dep:axum", "dep:tokio", "dep:tokio-util", "dep:futures-util", "dep:bytes", "dep:uuid", "dep:portable-pty", "dep:notify", "dep:brush-core", "dep:brush-builtins", "dep:reqwest", "dep:libc", "dep:clap", "dep:rustls", "dep:httparse", "dep:landlock", "dep:seccompiler"]
 
 [[bin]]
 name = "pryx-agent"

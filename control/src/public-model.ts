@@ -13,6 +13,8 @@ import type { Db } from './database.ts'
 import { SECOND_MS } from './durations.ts'
 import { addresses, DEFAULT_EDGE_PORT_RANGE } from './edge-addresses.ts'
 import { shownState } from './edge-routed.ts'
+
+import { nodeIsolation } from './isolation.ts'
 import { complete, fingerprint, operation } from './operations.ts'
 import { UNIT_DEFAULTS, unitSpec } from './project-model.ts'
 import { SandboxError, type Sandboxes, type SandboxSpec } from './sandboxes.ts'
@@ -25,7 +27,7 @@ export class PublicModel {
     readonly boxes: Sandboxes,
     readonly domain: string,
     readonly portRange: readonly [number, number] = DEFAULT_EDGE_PORT_RANGE,
-    readonly defaultIsolation: 'container' | 'process' = 'container',
+    readonly defaultIsolation: import('./isolation.ts').Isolation = 'container',
     readonly publicOrigin?: string,
   ) {}
   async view(id: string, project: string) {
@@ -72,7 +74,7 @@ export class PublicModel {
     const op = await operation(this.db, project, 'create', key, body)
     if (op.response) return op.response as Awaited<ReturnType<PublicModel['view']>>
     const sources = [body.image, body.snapshot, body.template].filter(Boolean).length
-    if (sources > 1 || (sources === 0 && (body.isolation ?? this.defaultIsolation) !== 'process'))
+    if (sources > 1 || (sources === 0 && (body.isolation ?? this.defaultIsolation) === 'container'))
       throw new SandboxError('invalid_request', 'Choose exactly one of image, snapshot or template')
     if (body.units !== undefined && body.resources !== undefined)
       throw new SandboxError('invalid_request', 'Choose units or explicit resources')
@@ -98,6 +100,9 @@ export class PublicModel {
     let spec: SandboxSpec = {
       ...(source ?? {}),
       image: body.image ?? source?.image ?? '',
+      ...((body.packages ?? source?.packages) === undefined
+        ? {}
+        : { packages: body.packages ?? source?.packages }),
       isolation: body.isolation ?? source?.isolation ?? this.defaultIsolation,
       resources: body.resources ??
         (body.units === undefined ? source?.resources : undefined) ?? {
@@ -129,9 +134,16 @@ export class PublicModel {
       ...(body.ttl ? { ttl: body.ttl } : {}),
       ...(body.idle ? { idle: body.idle } : {}),
     }
-    if (spec.isolation === 'process' && spec.image)
-      z.object({ image: z.never({ error: nodeSchema['x-pryx-process'].imageProblem }) }).parse({
-        image: spec.image,
+    if (spec.isolation !== 'container' && spec.image) {
+      const problem =
+        spec.isolation === 'wasm'
+          ? nodeSchema['x-pryx-wasm'].imageProblem
+          : nodeSchema['x-pryx-process'].imageProblem
+      z.object({ image: z.never({ error: problem }) }).parse({ image: spec.image })
+    }
+    if (spec.isolation !== 'wasm' && spec.packages?.length)
+      z.object({ packages: z.never({ error: 'packages are available only on the wasm tier' }) }).parse({
+        packages: spec.packages,
       })
     spec = unitSpec(spec, this.boxes.projects?.unit)
     const id = options.id ?? op.id
@@ -157,8 +169,12 @@ export class PublicModel {
   }
   async template(project: string, name: string, body: Make) {
     await this.boxes.projects?.write(project)
-    if (!body.image || body.snapshot || body.template)
-      throw new SandboxError('invalid_request', 'A template starts from an image')
+    if (
+      (!body.image && (body.isolation ?? this.defaultIsolation) === 'container') ||
+      body.snapshot ||
+      body.template
+    )
+      throw new SandboxError('invalid_request', 'A template starts from a tier-native specification')
     await this.db.execute(
       sql`INSERT INTO templates(id,project,name,spec) VALUES (${randomUUID()},${project},${name},${jsonb(body)}) ON CONFLICT(project,name) DO NOTHING`,
     )
@@ -188,11 +204,7 @@ export class PublicModel {
     )
     for (const t of templates)
       for (const n of nodes) {
-        if (
-          ((t.spec.isolation ?? this.defaultIsolation) === 'process') !==
-          n.features.includes('process-tier')
-        )
-          continue
+        if ((t.spec.isolation ?? this.defaultIsolation) !== nodeIsolation(n.features)) continue
         const id = randomUUID()
         await this.db.execute(
           sql`INSERT INTO template_copies(template,node,sandbox) VALUES(${t.id},${n.id},${id}) ON CONFLICT DO NOTHING`,

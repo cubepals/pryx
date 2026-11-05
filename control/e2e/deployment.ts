@@ -28,6 +28,7 @@ export async function deployment(
     storeLease?: boolean
     nodes?: number
     runtimeEndpoint?: string
+    tier?: import('../src/isolation.ts').Isolation
     agent?: boolean
   } = {},
 ) {
@@ -48,6 +49,9 @@ export async function deployment(
   const config = loadConfig({
     DATABASE_URL: fresh.url,
     PRYX_DEPLOYMENT: name,
+    PRYX_DEFAULT_ISOLATION: options.tier,
+    PRYX_UNIT_MEMORY_MB: process.env.PRYX_TIER_BENCH === '1' ? '64' : undefined,
+    PRYX_UNIT_CPU_MILLIS: process.env.PRYX_TIER_BENCH === '1' ? '10' : undefined,
     PRYX_STORE_LEASE: options.storeLease ? 'on' : 'off',
     PRYX_STORE_LEASE_SECONDS: String(LEASE_TEST.seconds),
     PRYX_STORE_LEASE_RENEW_SECONDS: String(LEASE_TEST.renewSeconds),

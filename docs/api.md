@@ -78,6 +78,16 @@ PRYX_PROJECT_MAX_UNITS and PRYX_PROJECT_ALLOWED_IMAGES. Missing defaults are unl
 Non-null project columns override defaults; null restores inheritance. maxTtl/maxIdle also
 supply omitted sandbox timers. Public image permissions always remain bounded by host policy.
 
+## Isolation and software
+
+Creation accepts isolation: container, process or wasm. A node advertises its available tier;
+placement and template warming require that tier, while project usage counts all tiers in units.
+Container accepts host-permitted images. Process and wasm refuse images with a field-specific
+422 invalid_request. Packages is an array of agentOS registry names, available only for wasm
+and sent only after the node advertises wasm-packages. Names are not URLs or host paths.
+The no-engine image default and measured comparison are in [tiers.md](tiers.md);
+[agentos.md](agentos.md) describes persistence, software distribution and the agentOS boundary.
+
 ## SDK handles and live commands
 
 The TypeScript and Python SDK READMEs contain executable handle examples. Run values collect

@@ -45,7 +45,7 @@ async function checkout(name: string, url: string, commit: string) {
   return path
 }
 const sandboxCommit = 'f28965688227b981aae908a88b4a96770cf45e6f'
-const agentosCommit = '785e6441b7fb511857f28e3b2e11f2f655165d58'
+const agentosCommit = '4662e362fb93adcfbfc86bfd51b51855d463f371'
 const sandbox = await checkout('sandbox-agent', 'https://github.com/rivet-dev/agents', sandboxCommit)
 const agentos = await checkout('agentos', 'https://github.com/rivet-dev/agentos', agentosCommit)
 const provider = join(sandbox, 'sandbox-agent/sdks/typescript/src/providers/pryx.ts')

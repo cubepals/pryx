@@ -21,6 +21,9 @@ impl Manager {
         if !self.runtime.supports_agent() {
             return None;
         }
+        if self.runtime.is_wasm() {
+            return std::env::current_exe().ok();
+        }
         let path = &self.config.workloads.agent_binary;
         let metadata = std::fs::symlink_metadata(path).ok()?;
         if !metadata.is_file()
@@ -112,11 +115,11 @@ impl Manager {
         let key_name = info.labels.get(KEY_LABEL)?;
         let key = SigningKey::from_encoded(info.env.get(key_name)?).ok()?;
         let port = |p: &AllocatedPort| AgentPort {
-            port: if self.runtime.is_process() { p.host_port } else { p.container_port },
+            port: if self.runtime.uses_host_ports() { p.host_port } else { p.container_port },
             host_port: p.host_port,
             endpoints: self.config.network.edge_ips.iter().map(|ip| endpoint(ip, p.host_port)).collect(),
         };
-        let data = pryx_agent::paths::DataDir::open(&self.store.data_dir(&record.id)).ok();
+        let data = pryx_agent::paths::DataDir::open(&self.runtime.data_path(&self.store.data_dir(&record.id))).ok();
         let ports: pryx_agent::state::PortState = data
             .as_ref()
             .and_then(|d| pryx_agent::state::read(d, pryx_agent::state::PORTS_PATH).ok())

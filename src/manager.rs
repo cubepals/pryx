@@ -484,6 +484,7 @@ impl Manager {
     pub(crate) fn spec_policy(&self) -> SpecPolicy {
         SpecPolicy {
             process: self.runtime.is_process(),
+            wasm: self.runtime.is_wasm(),
             allowed_images: self.config.workloads.allowed_images.clone(),
             min_memory_mb: self.config.workloads.min_memory_mb,
             max_memory_mb: u32::try_from(self.allocatable_memory_mb()).unwrap_or(u32::MAX),

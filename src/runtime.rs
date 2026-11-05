@@ -9,12 +9,14 @@
 //! Parts (`runtime/`):
 //! - `docker.rs`: the Docker Engine API, over the local unix socket.
 //! - `fake.rs`: an in-memory runtime for tests, with the Docker behaviour pryxd depends on.
+//! - `wasm.rs`: virtual agentOS VMs through a separately verified sidecar.
 //! - `process.rs`: namespace-free process tier and private runtime journal.
 
 pub mod docker;
 #[cfg(any(test, feature = "fake"))]
 pub mod fake;
 pub mod process;
+pub mod wasm;
 
 use std::collections::BTreeMap;
 use std::net::IpAddr;
@@ -36,6 +38,8 @@ pub struct ContainerSpec {
     pub(crate) name: String,
     pub(crate) cgroup_parent: Option<String>,
     pub(crate) image: String,
+    #[serde(default)]
+    pub(crate) packages: Vec<String>,
     pub(crate) entrypoint: Option<Vec<String>>,
     /// Environment, secrets included. Never logged (see `Debug` below).
     pub env: Vec<(String, String)>,
@@ -250,6 +254,19 @@ impl RuntimeError {
 
 #[async_trait]
 pub trait ContainerRuntime: Send + Sync + 'static {
+    fn is_wasm(&self) -> bool {
+        false
+    }
+    fn isolation(&self) -> &'static str {
+        if self.is_process() { "process" } else { "container" }
+    }
+    fn uses_host_ports(&self) -> bool {
+        self.is_process() || self.is_wasm()
+    }
+    fn data_path(&self, root: &std::path::Path) -> PathBuf {
+        root.into()
+    }
+
     fn data_deleted(&self, _id: &str) -> Result<(), RuntimeError> {
         Ok(())
     }

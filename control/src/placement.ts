@@ -9,12 +9,13 @@
  */
 
 import type { Health } from './health.ts'
+import { nodeIsolation } from './isolation.ts'
 
 type Policy = 'balanced' | 'binpack' | 'spread'
 export type Lifecycle = 'active' | 'draining' | 'lost' | 'retired'
 
 export interface PlacementRequest {
-  isolation?: 'container' | 'process'
+  isolation?: import('./isolation.ts').Isolation
   memoryMb: number
   cpuMillis: number
   diskGb: number
@@ -117,9 +118,7 @@ function refusal(node: NodeView, request: PlacementRequest, options: PlacementOp
   if (node.quarantined) return 'quarantined: duplicate identity'
   if (node.health !== 'healthy') return `health ${node.health}`
   if (node.regionKey !== request.regionKey) return `region ${node.regionKey}`
-  if (
-    (request.isolation ?? 'container') !== (node.features.includes('process-tier') ? 'process' : 'container')
-  )
+  if ((request.isolation ?? 'container') !== nodeIsolation(node.features))
     return 'isolation tier does not match'
   const missing = request.needs.filter((f) => !node.features.includes(f))
   if (missing.length > 0) return `lacks ${missing.join(', ')}`

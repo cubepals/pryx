@@ -45,6 +45,9 @@ pub struct WorkloadSpec {
     /// An image reference. Must match the host's `allowed_images` prefixes.
     #[serde(default)]
     pub(crate) image: String,
+    #[serde(default)]
+    #[cfg_attr(test, schemars(length(max = super::MAX_WASM_PACKAGES)))]
+    pub(crate) packages: Vec<String>,
     /// Replaces the image's entrypoint; absent, the image starts as it was built to.
     #[serde(default)]
     pub(crate) entrypoint: Option<Vec<String>>,
@@ -216,6 +219,7 @@ impl WorkloadSpec {
     pub fn record(&self) -> SpecRecord {
         SpecRecord {
             image: self.image.clone(),
+            packages: self.packages.clone(),
             entrypoint: self.entrypoint.clone(),
             env: self.env.clone(),
             secret_names: self.secrets.keys().cloned().collect(),
@@ -245,6 +249,8 @@ impl WorkloadSpec {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SpecRecord {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(crate) packages: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) agent: Option<super::AgentOptions>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -279,6 +285,7 @@ impl SpecRecord {
             .collect::<Option<BTreeMap<_, _>>>()?;
         Some(WorkloadSpec {
             image: self.image.clone(),
+            packages: self.packages.clone(),
             entrypoint: self.entrypoint.clone(),
             env: self.env.clone(),
             secrets,

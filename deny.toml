@@ -39,6 +39,12 @@ allow = ["CC0-1.0"]
 crate = "terminfo@0.9.0"
 allow = ["WTFPL"]
 
+# The linked client's Mozilla CA data permits redistribution with this licence text.
+# Reviewed at the locked version; this does not allow other crates under the exception.
+[[licenses.exceptions]]
+crate = "webpki-roots@1.0.11"
+allow = ["CDLA-Permissive-2.0"]
+
 [licenses.private]
 # pryxd itself (FSL-1.1-ALv2, LICENSE.md; publish = false) isn't checked against the list above.
 ignore = true

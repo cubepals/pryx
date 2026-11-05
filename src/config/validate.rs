@@ -19,7 +19,24 @@ const UNPRIVILEGED_PORTS: u16 = 1024;
 const OOM_SCORE_ADJ: std::ops::RangeInclusive<i32> = -1000..=1000;
 
 impl Config {
+    fn validate_wasm(&self) -> Result<(), ConfigError> {
+        if self.store_lease.enabled
+            || !self.wasm.distribution.is_absolute()
+            || self.wasm.max_ingress_requests == 0
+            || self.wasm.worker_uid == 0
+            || self.wasm.worker_gid == 0
+        {
+            return Err(ConfigError::Invalid(
+                "wasm tier requires an absolute distribution, positive ingress capacity, non-root worker IDs and store leases off".into(),
+            ));
+        }
+        Ok(())
+    }
+
     pub fn validate(&self) -> Result<(), ConfigError> {
+        if self.runtime == super::RuntimeKind::Wasm {
+            self.validate_wasm()?;
+        }
         if self.runtime == super::RuntimeKind::Process
             && (self.store_lease.enabled
                 || self.process.uid_first == 0

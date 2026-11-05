@@ -1,0 +1,12 @@
+SPDX-License-Identifier: Apache-2.0
+
+agentOS 0.4.7
+Copyright 2025 Rivet Gaming, Inc.
+https://github.com/rivet-dev/agentos
+
+The separately distributed agentOS sidecar, Core artifacts and linked Rust client
+retain their Apache License, Version 2.0. See /licenses/Apache-2.0.txt.
+Bundled software remains under its own licence and notices in the immutable
+.aospkg artifacts. Source for this release is recorded in deploy/agentos.json;
+software build sources and third-party notices are available in that source tree.
+This aggregate does not relicense any agentOS component under pryx's licence.

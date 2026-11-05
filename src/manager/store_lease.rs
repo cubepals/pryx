@@ -10,6 +10,9 @@ use crate::store_lease::Held;
 impl Manager {
     pub fn features(&self) -> Vec<String> {
         let mut features = crate::protocol::features();
+        if self.runtime.is_wasm() {
+            features.extend(["wasm-tier".into(), "wasm-packages".into()]);
+        }
         if self.runtime.is_process() {
             if pryx_agent::process_capabilities::probe().network {
                 features.push("process-network-landlock".into());

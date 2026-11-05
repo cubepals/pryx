@@ -14,20 +14,24 @@ export const nodeConfigFor = (DEPLOYMENT: string) =>
     apiPort: number
     opsPort: number
     allowedImages?: string[]
+    tier?: import('../src/isolation.ts').Isolation
     agent?: boolean
     storeLease?: boolean
     low: number
   }): string {
     const { home, endpointUrl, dir, apiPort, opsPort, low } = at
     return `deployment_id = "${DEPLOYMENT}"
+runtime = "${at.tier ?? 'container'}"
 state_dir = "${join(home, 'state')}"
 [api]
 listen = "127.0.0.1:${apiPort}"
 [ops]
 listen = "127.0.0.1:${opsPort}"
 [network]
-port_range = [${low}, ${low + 49}]
+port_range = [${low}, ${low + (process.env.PRYX_TIER_BENCH === '1' ? 255 : 49)}]
 port_quarantine_seconds = 0
+[wasm]
+distribution = ${JSON.stringify(process.env.PRYX_AGENTOS_DISTRIBUTION ?? '/usr/local/lib/pryx/agentos')}
 [workloads]
 ${at.agent ? '' : 'agent_binary = "/nonexistent/legacy-node-agent"'}
 allowed_images = ${JSON.stringify(at.allowedImages ?? ['alpine:'])}

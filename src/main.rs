@@ -157,6 +157,10 @@ fn init_tracing(format: LogFormat) {
 }
 
 fn main() -> ExitCode {
+    if let Some(error) = pryxd::runtime::wasm::dispatch_sidecar() {
+        eprintln!("agentOS launcher refused: {error}");
+        return ExitCode::FAILURE;
+    }
     #[cfg(debug_assertions)]
     if pryxd::upgrade::debug_legacy_executable() && std::env::args().skip(1).eq(["--version"]) {
         println!("blocklyd {}", env!("CARGO_PKG_VERSION"));
@@ -309,7 +313,9 @@ fn publish_addresses(config: &Config) -> Vec<IpAddr> {
 }
 
 async fn container_runtime(config: &Config) -> anyhow::Result<Arc<dyn ContainerRuntime>> {
-    let runtime: Arc<dyn ContainerRuntime> = if config.runtime == RuntimeKind::Process {
+    let runtime: Arc<dyn ContainerRuntime> = if config.runtime == RuntimeKind::Wasm {
+        Arc::new(pryxd::runtime::wasm::WasmRuntime::new(&config.state_dir, &config.wasm).await?)
+    } else if config.runtime == RuntimeKind::Process {
         Arc::new(pryxd::runtime::process::ProcessRuntime::new(&config.state_dir, config.process.clone())?)
     } else {
         let docker = DockerRuntime::new(&config.docker.socket)?;
@@ -346,7 +352,7 @@ async fn serve(path: &Path) -> anyhow::Result<()> {
     let backstop = Backstop::arm(&config.state_dir, boot);
     // Every create gives a data directory to the workloads' user, which takes root (CAP_CHOWN): a
     // daemon that can't is refused here, rather than by every create that follows.
-    store.check_ownable(if config.runtime == RuntimeKind::Process {
+    store.check_ownable(if config.runtime != RuntimeKind::Container {
         (rustix::process::geteuid().as_raw(), rustix::process::getegid().as_raw())
     } else {
         config.data_owner_ids()

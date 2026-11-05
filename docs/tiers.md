@@ -1,0 +1,73 @@
+<!-- SPDX-License-Identifier: FSL-1.1-ALv2 -->
+
+# Sandbox tiers
+
+The image contains container, process and wasm runtimes. A usable Docker socket selects
+container; `PRYX_DEFAULT_TIER=container|process|wasm` is an operator override. The no-engine
+selection remains process while the K14 comparison is collected. This document does not yet
+claim a measured final selection.
+
+## Comparison method
+
+`control/bench/tiers.ts one-box|image output-prefix` runs all three tiers from the same release
+source and build profile on the same runner. Container and process are the reference cohorts
+and wasm is the added candidate. Historical K12 measurements remain separate; they are not
+substituted for a current reference. Both existing CI jobs upload raw samples on failure too.
+
+Each requested latency and incremental memory cohort has 30 samples; nearest-rank p50 and
+p90 are computed from every successful sample, with partial counts retained on failure.
+Cold creation uses a new sandbox identity, no template and a locally available runtime image.
+It includes API admission and running acknowledgement. `true` and `echo hi` use the real agent
+through the edge. Cold and 50-way cohorts use an explicit common 64 MiB / 10 CPU-millis unit;
+package cohorts use 512 MiB / 250 CPU-millis. These are measurement configurations, not a
+capacity claim or replacement for the product's normal unit defaults.
+
+Memory is proportional resident memory from Linux `smaps_rollup`, in bytes, including the
+node's process tree and container workload trees. Reports distinguish fixed node memory
+from incremental idle, shell and 50-sandbox memory. The ordinary-image tree includes embedded
+services, so its fixed overhead is not a per-VM claim. Shared executable pages count once
+proportionally; retained allocator pages and host noise remain in the samples, including
+negative incremental readings. The 50-way latency ends when every creation reports running;
+its memory read and deletion are outside that latency timer.
+
+Snapshots and forks use exactly 100,000,000 bytes of repeated byte 42, validated before capture
+and after fork. This compressible fixture measures the same workload on each tier; it is not
+an incompressible-data throughput claim. Each package installation has a fresh target path;
+commands and exact package versions are recorded in the collector source. An unavailable tool
+has an explicit n=0 reason, never an invented timing or a passing test.
+
+The no-engine process and wasm image cohorts use ordinary `docker run` without privileged mode,
+added capabilities, security options, a Docker socket or host mounts. A container sandbox
+requires an engine; its reference runs on the same runner's host node and is explicitly marked
+as that different topology. A container tier inside an engine-free image is unavailable.
+
+`control/bench/tiers-default.ts` measures the actual image without a tier override, and a
+separate invocation measures the forced wasm candidate. Both use normal product resource
+defaults and record 30 SDK create-to-hello samples plus 30 compiled `pryx run -- echo hello`
+samples separately.
+The 100 ms create-to-output target will be assessed from these measurements, with any miss
+and its observed causes recorded here.
+
+## Capabilities
+
+| Capability | Container | Process | wasm |
+| --- | --- | --- | --- |
+| Arbitrary image | Yes | No | No; explicit 422 image problem |
+| Native Linux binaries | Image architecture | Host architecture and policy | No; compatible WASM software |
+| Python | Install in image | Bundled CPython | Embedded Pyodide |
+| Node | Install in image | Bundled Node | Embedded V8 compatibility runtime |
+| Shell | Static agent fallback | Static agent shell | Verified agentOS coreutils shell |
+| Isolation | Shared host kernel, namespaces and cgroups | Landlock, seccomp, process groups; dedicated UIDs when root | Virtual kernel, WebAssembly and V8; shared unprivileged sidecar |
+| Kernel per sandbox | No | No | No native kernel; a virtual kernel per VM |
+| Sleep retains files | Yes | Yes | SQLite root and explicit persistent data mount |
+| Sleep retains processes and terminals | Frozen container | Suspended process group | No; VM is disposed and recreated |
+
+agentOS 0.4.7 has no per-VM suspend operation in its published client. Suspending its shared
+sidecar would pause unrelated sandboxes, so it cannot implement pryx sleep. The collector
+records that unsupported alternative with n=0 and measures disposal plus recreation with
+filesystem validation instead.
+
+## Evidence and selection
+
+The full K14 CI comparison and final default selection are pending. No budget is claimed to
+have passed until its raw report is present and its cohort is complete.

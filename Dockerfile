@@ -34,13 +34,23 @@ RUN bun install --frozen-lockfile \
  && bun run release:build \
  && bun build --compile deploy/image.ts --outfile dist/pryx-image
 
+FROM debian:trixie-slim@sha256:7378260c0a098d27ac206225db5e7d92b8c7c84ea7afccc86eeb513756bbd392 AS agentos
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates python3 \
+ && rm -rf /var/lib/apt/lists/*
+WORKDIR /source
+COPY scripts/fetch-agentos.py scripts/fetch-agentos.py
+COPY deploy/agentos.json deploy/agentos.NOTICE deploy/
+COPY LICENSES/Apache-2.0.txt LICENSES/Apache-2.0.txt
+RUN python3 scripts/fetch-agentos.py /agentos
+
 FROM node:24-bookworm-slim@sha256:c0a93797ee78814ae6d32fcca2561fdbbe423149c3f5389aad32d86e9fd85bd4 AS node-userland
 FROM ghcr.io/rustfs/rustfs:1.0.0@sha256:8cc9801755448b71a786705ce76692c77e14936cccd87cf2fc31842e58f4d1ff AS object-store
 FROM debian:trixie-slim@sha256:7378260c0a098d27ac206225db5e7d92b8c7c84ea7afccc86eeb513756bbd392
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates coreutils git curl python3 build-essential postgresql-17 libnss-wrapper util-linux nftables docker-cli tini \
+ && apt-get install -y --no-install-recommends ca-certificates coreutils git curl python3 python3-pip build-essential postgresql-17 libnss-wrapper util-linux nftables docker-cli tini \
  && docker --version \
  && rm -rf /var/lib/apt/lists/*
+COPY --from=agentos /agentos /usr/local/lib/pryx/agentos
 COPY --from=build /src/target/release/pryxd /pryxd
 COPY --from=build /src/target/release/pryx-agent /usr/local/lib/pryx/pryx-agent
 COPY --from=node-userland /usr/local/bin/node /usr/local/bin/node
@@ -57,6 +67,8 @@ COPY openapi /openapi
 COPY deploy/daemon.json deploy/pryxd.service /deploy/
 COPY deploy/process-facts.py /opt/pryx/process-facts.py
 COPY LICENSE.md /LICENSE.md
+COPY LICENSES/CDLA-Permissive-2.0.txt /licenses/CDLA-Permissive-2.0.txt
+COPY deploy/webpki-roots.NOTICE /licenses/webpki-roots.NOTICE
 ENV PRYX_ASSET_DIR=/opt/pryx/control PRYX_STATE_DIR=/var/lib/pryx PRYX_PRYXD_BIN=/pryxd
 EXPOSE 8080
 RUN install -d -m 1777 /var/lib/pryx

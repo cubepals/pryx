@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { sql } from 'drizzle-orm'
 import { StatusCodes } from 'http-status-codes'
+import nodeWrites from '../../openapi/node-writes.openapi.json'
 import { SECOND_MS } from '../src/durations.ts'
 import { one } from '../src/sql.ts'
 import { hasDatabase, report } from './nodes.ts'
@@ -144,6 +145,65 @@ describe.skipIf(!hasDatabase)('public API', () => {
       expect(response.status).toBe(StatusCodes.CREATED)
       expect(((await response.json()) as { copies: unknown[] }).copies).toEqual([])
     } finally {
+      await ctx.db.execute(
+        sql`UPDATE fleet_nodes SET features=${JSON.stringify(node.features)}::jsonb WHERE id=${node.id}`,
+      )
+    }
+  })
+  test('wasm creation retains packages and refuses image and path sources', async () => {
+    const node = await one<{ id: string; features: string[] }>(
+      ctx.db,
+      sql`SELECT id,features FROM fleet_nodes`,
+    )
+    if (!node) throw new Error('Missing enrolled node')
+    let created: string | undefined
+    try {
+      await ctx.db.execute(
+        sql`UPDATE fleet_nodes SET features=${JSON.stringify([...node.features, 'wasm-tier', 'wasm-packages'])}::jsonb WHERE id=${node.id}`,
+      )
+      const image = await ctx.request('/sandboxes', 'POST', { ...spec, isolation: 'wasm' })
+      expect(image.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY)
+      expect(await image.json()).toMatchObject({
+        error: {
+          details: [{ field: 'image', problem: nodeWrites['x-pryx-wasm'].imageProblem }],
+        },
+      })
+      const invalid = await ctx.request('/sandboxes', 'POST', {
+        ...spec,
+        image: undefined,
+        isolation: 'wasm',
+        packages: ['../../host'],
+      })
+      expect(invalid.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY)
+      const response = await ctx.request('/sandboxes', 'POST', {
+        ...spec,
+        image: undefined,
+        isolation: 'wasm',
+        packages: ['coreutils'],
+      })
+      expect(response.status).toBe(StatusCodes.CREATED)
+      const view = (await response.json()) as { id: string; isolation: string }
+      created = view.id
+      expect(view.isolation).toBe('wasm')
+      const stored = await one<{ spec: { packages: string[] } }>(
+        ctx.db,
+        sql`SELECT spec FROM sandboxes WHERE id=${view.id}`,
+      )
+      expect(stored?.spec.packages).toEqual(['coreutils'])
+      const warmed = await ctx.request('/templates', 'POST', {
+        name: 'wasm-base',
+        spec: { isolation: 'wasm', packages: ['coreutils'] },
+      })
+      expect(warmed.status).toBe(StatusCodes.CREATED)
+      const template = (await warmed.json()) as { id: string; copies: Array<{ ready: boolean }> }
+      expect(template.copies[0]?.ready).toBe(true)
+      const forked = await ctx.request('/sandboxes', 'POST', { template: template.id })
+      expect(forked.status).toBe(StatusCodes.CREATED)
+      const fork = (await forked.json()) as { id: string; isolation: string }
+      expect(fork.isolation).toBe('wasm')
+      await ctx.request(`/sandboxes/${fork.id}`, 'DELETE')
+    } finally {
+      if (created) await ctx.request(`/sandboxes/${created}`, 'DELETE')
       await ctx.db.execute(
         sql`UPDATE fleet_nodes SET features=${JSON.stringify(node.features)}::jsonb WHERE id=${node.id}`,
       )

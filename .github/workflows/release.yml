@@ -86,6 +86,14 @@ jobs:
                    deploy/daemon.json deploy/pryxd.service LICENSE.md; do
             docker cp "$id:/$f" "dist/$(basename "$f")"
           done
+          docker cp "$id:/usr/local/lib/pryx/agentos/agentos-runtime-sidecar-linux-x64-gnu/agentos-native-sidecar" dist/agentos-native-sidecar
+          docker cp "$id:/licenses/CDLA-Permissive-2.0.txt" dist/webpki-roots-LICENSE.txt
+          docker cp "$id:/licenses/webpki-roots.NOTICE" dist/webpki-roots-NOTICE.txt
+          mkdir -p "$RUNNER_TEMP/agentos-assets"
+          for f in agentos-core licenses NOTICE distribution.json; do
+            docker cp "$id:/usr/local/lib/pryx/agentos/$f" "$RUNNER_TEMP/agentos-assets/$f"
+          done
+          tar -C "$RUNNER_TEMP/agentos-assets" -czf dist/agentos-assets-linux-x64.tar.gz .
           docker rm "$id" > /dev/null
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:

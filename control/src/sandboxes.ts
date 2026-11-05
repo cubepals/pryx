@@ -34,7 +34,7 @@ import { TRANSFER_MS } from './workload-api.ts'
 export const SESSION_LIVE_SECONDS = 2 * MINUTE_S
 export type SandboxSpec = WorkloadSpec & {
   image: string
-  isolation?: 'container' | 'process'
+  isolation?: import('./isolation.ts').Isolation
   ttl?: number
   idle?: number
   units?: number
@@ -50,7 +50,7 @@ export type SandboxState =
   | 'failed'
 export interface Sandbox {
   exit?: NonNullable<WorkloadReport['exit']>
-  isolation?: 'container' | 'process'
+  isolation?: import('./isolation.ts').Isolation
   files?: boolean
   agent?: boolean
   id: string
@@ -98,6 +98,7 @@ export function runtimeSpec(spec: SandboxSpec): RuntimeSpec {
   const defaults = nodeSchema.components.schemas.WorkloadSpec.properties
   return {
     image: spec.image,
+    packages: spec.packages,
     isolation: spec.isolation,
     ...(spec.agent ? { agent: spec.agent } : {}),
     ...(spec.sparePorts === undefined ? {} : { sparePorts: spec.sparePorts }),

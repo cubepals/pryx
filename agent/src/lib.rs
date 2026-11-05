@@ -4,6 +4,7 @@
 //! The sandbox agent and its small node-facing token contract. Host lifecycle remains in pryxd.
 //!
 //! Parts (`./`):
+//! - `guest.rs`: virtual process controls and private guest ingress adapters.
 //! - `context.rs`: HTTP state and service errors.
 //! - `auth.rs`: scoped, expiring tokens without a shared verification secret.
 //! - `contract.rs`: shared bootstrap names and limits.
@@ -30,6 +31,8 @@ pub mod context;
 pub mod contract;
 #[cfg(feature = "server")]
 pub mod files;
+#[cfg(feature = "server")]
+pub mod guest;
 #[cfg(any(feature = "server", feature = "fs"))]
 pub mod logbook;
 #[cfg(feature = "mcp")]

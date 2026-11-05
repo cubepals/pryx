@@ -2456,5 +2456,10 @@
   },
   "x-pryx-process": {
     "imageProblem": "this host runs the process tier; images are not available"
+  },
+  "x-pryx-wasm": {
+    "imageProblem": "this host runs the wasm tier; images are not available",
+    "maxPackages": 32,
+    "packageNamePattern": "^[a-z][a-z0-9-]{0,63}$"
   }
 }

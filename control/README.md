@@ -116,7 +116,9 @@ API access. Set `PRYX_PROJECT` (default `default`) and `PRYX_PUBLIC_DOMAIN` (def
 The committed OpenAPI document is in `control/openapi/pryx.openapi.json`. Run
 `bun run openapi:generate` after schema changes. Errors use `{error:{code,message,details}}`.
 Create accepts the node's resources/storage/restart shapes, entrypoint, env, secrets and labels;
-public ports use `{name,port,protocol,audience}`. Container is the supported isolation level.
+public ports use `{name,port,protocol,audience}`. Isolation is container, process or wasm; placement requires the node's announced tier. The
+packages field accepts agentOS registry names only on wasm nodes advertising wasm-packages.
+See [the tier comparison](../docs/tiers.md) and [the agentOS backend](../docs/agentos.md).
 The daemon's image policy and limits remain final authority. Defaults are one 512 MiB/250 CPU-millis unit,
 1 GiB declared storage mounted at /data, no ports, no TTL/idle timer, start true.
 

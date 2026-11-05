@@ -19,7 +19,7 @@ use base64::{Engine, engine::general_purpose::STANDARD};
 use serde::Deserialize;
 
 use crate::auth::{self, Claims, Scope};
-use crate::process::{Command, Event, Process, ProcessError, Start};
+use crate::process::{Event, Process, Start};
 
 pub use crate::context::{Agent, Failure};
 pub use crate::telemetry::now;
@@ -150,7 +150,7 @@ async fn stdin(
 }
 
 async fn close_stdin(State(agent): State<Arc<Agent>>, Path(id): Path<String>) -> Result<StatusCode, Failure> {
-    agent.processes.get(&id)?.close_input().await;
+    agent.processes.get(&id)?.close_input_awaited().await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -177,7 +177,7 @@ async fn signal(
     Path(id): Path<String>,
     Json(body): Json<Signal>,
 ) -> Result<StatusCode, Failure> {
-    agent.processes.get(&id)?.signal(signal_number(&body.signal)?)?;
+    agent.processes.get(&id)?.signal_awaited(signal_number(&body.signal)?).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -192,13 +192,7 @@ async fn resize(
     Path(id): Path<String>,
     Json(body): Json<Size>,
 ) -> Result<StatusCode, Failure> {
-    agent
-        .processes
-        .get(&id)?
-        .terminal
-        .as_ref()
-        .ok_or(ProcessError::Invalid("process has no terminal"))?
-        .resize(body.cols, body.rows)?;
+    agent.processes.get(&id)?.resize_awaited(body.cols, body.rows).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -234,14 +228,10 @@ async fn terminal(
     Extension(claims): Extension<Claims>,
     upgrade: WebSocketUpgrade,
 ) -> Result<Response, Failure> {
-    let command = if std::path::Path::new("/bin/sh").is_file() {
-        vec!["/bin/sh".into()]
-    } else {
-        vec![std::env::current_exe()?.to_string_lossy().into(), "shell".into()]
-    };
+    let command = agent.processes.shell()?;
     let process = agent.processes.start(
         Start {
-            command: Command::Argv(command),
+            command,
             env: Default::default(),
             cwd: None,
             stdin: true,
@@ -292,9 +282,9 @@ async fn attached(mut socket: WebSocket, process: Arc<Process>) {
                         Ok(bytes) => process.write(&bytes).await,
                         Err(_) => break,
                     },
-                    Ok(Input::Resize { cols, rows }) => process.terminal.as_ref().ok_or(ProcessError::Invalid("no terminal")).and_then(|t| Ok(t.resize(cols, rows)?)),
+                    Ok(Input::Resize { cols, rows }) => process.resize_awaited(cols, rows).await,
                     Ok(Input::Signal { signal }) => match signal_number(&signal) {
-                        Ok(signal) => process.signal(signal), Err(_) => break,
+                        Ok(signal) => process.signal_awaited(signal).await, Err(_) => break,
                     },
                     Err(_) => break,
                 };

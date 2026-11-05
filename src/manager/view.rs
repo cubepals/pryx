@@ -76,7 +76,7 @@ impl Manager {
         let (used, measured) =
             state.disk.get(&record.id).map(|(b, at)| (Some(*b), Some(format_time(*at)))).unwrap_or_default();
         WorkloadView {
-            isolation: self.runtime.is_process().then(|| "process".into()),
+            isolation: (self.runtime.isolation() != "container").then(|| self.runtime.isolation().into()),
             agent: self.agent_view(record, info),
             id: record.id.clone(),
             generation: record.generation,

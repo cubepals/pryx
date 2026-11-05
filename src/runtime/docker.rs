@@ -641,6 +641,7 @@ mod tests {
 
     fn spec() -> ContainerSpec {
         ContainerSpec {
+            packages: Vec::new(),
             agent: None,
             cgroup_parent: None,
             name: "blockly-test-w".into(),

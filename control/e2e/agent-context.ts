@@ -4,13 +4,21 @@
 import type { AddressInfo } from 'node:net'
 import { startEdge } from '../../edge/src/agent.ts'
 import { edgeConfig } from '../../edge/src/config.ts'
-import { Pryx } from '../../sdk/typescript/src/index.ts'
+import { type MakeRequest, Pryx } from '../../sdk/typescript/src/index.ts'
 import { AGENT_ROUTE_PORT } from '../src/edge-headers.ts'
 import { deployment } from './deployment.ts'
 import { until } from './waits.ts'
 
-export async function agentDeployment() {
-  const d = await deployment({ agent: true })
+export async function agentDeployment(
+  tier = process.env.PRYX_TEST_TIER as import('../src/isolation.ts').Isolation | undefined,
+) {
+  const d = await deployment({
+    agent: true,
+    tier,
+    ...(process.env.PRYX_TIER_BENCH === '1'
+      ? { allowedImages: [process.env.PRYX_IMAGE_TEST ?? 'pryx-static-test'] }
+      : {}),
+  })
   const edge = await startEdge({
     ...edgeConfig({
       PRYX_CONTROL_URL: d.control.apiUrl,
@@ -31,6 +39,8 @@ export async function agentDeployment() {
     edge,
     origin,
     sdk,
+    sandbox: (options: MakeRequest = {}) =>
+      sdk.sandbox(tier && tier !== 'container' ? { ...options, image: undefined, isolation: tier } : options),
     route: (id: string) =>
       until('edge holds agent', async () => edge.table.held.get(`${id}:${AGENT_ROUTE_PORT}`)),
     app: (url: string) => fetch(origin, { headers: { host: new URL(url).hostname } }),

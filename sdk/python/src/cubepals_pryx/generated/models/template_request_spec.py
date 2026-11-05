@@ -33,6 +33,7 @@ class TemplateRequestSpec:
     """
     Attributes:
         image (Union[Unset, str]):
+        packages (Union[Unset, list[str]]):
         snapshot (Union[Unset, str]):
         template (Union[Unset, str]):
         entrypoint (Union[Unset, list[str]]):
@@ -54,6 +55,7 @@ class TemplateRequestSpec:
     """
 
     image: Union[Unset, str] = UNSET
+    packages: Union[Unset, list[str]] = UNSET
     snapshot: Union[Unset, str] = UNSET
     template: Union[Unset, str] = UNSET
     entrypoint: Union[Unset, list[str]] = UNSET
@@ -77,6 +79,10 @@ class TemplateRequestSpec:
 
     def to_dict(self) -> dict[str, Any]:
         image = self.image
+
+        packages: Union[Unset, list[str]] = UNSET
+        if not isinstance(self.packages, Unset):
+            packages = self.packages
 
         snapshot = self.snapshot
 
@@ -142,6 +148,8 @@ class TemplateRequestSpec:
         field_dict.update({})
         if image is not UNSET:
             field_dict["image"] = image
+        if packages is not UNSET:
+            field_dict["packages"] = packages
         if snapshot is not UNSET:
             field_dict["snapshot"] = snapshot
         if template is not UNSET:
@@ -197,6 +205,8 @@ class TemplateRequestSpec:
 
         d = dict(src_dict)
         image = d.pop("image", UNSET)
+
+        packages = cast(list[str], d.pop("packages", UNSET))
 
         snapshot = d.pop("snapshot", UNSET)
 
@@ -281,6 +291,7 @@ class TemplateRequestSpec:
 
         template_request_spec = cls(
             image=image,
+            packages=packages,
             snapshot=snapshot,
             template=template,
             entrypoint=entrypoint,

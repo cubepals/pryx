@@ -73,6 +73,18 @@ describe('selectNode', () => {
     expect(selectNode(request({ isolation: 'process' }), [node('container')]).node).toBeNull()
     expect(selectNode(request({ isolation: 'process' }), [process]).node?.id).toBe('process')
   })
+  test('wasm placement requires its tier and requested package feature', () => {
+    const wasm = node('wasm', { features: ['placement-epochs', 'wasm-tier', 'wasm-packages'] })
+    const process = node('process', { features: ['placement-epochs', 'process-tier'] })
+    const container = node('container')
+    for (const isolation of ['container', 'process', 'wasm'] as const) {
+      const chosen = selectNode(request({ isolation }), [wasm, process, container]).node
+      expect(chosen?.id).toBe(isolation)
+    }
+    const old = node('wasm-old', { features: ['placement-epochs', 'wasm-tier'] })
+    expect(selectNode(request({ isolation: 'wasm', needs: ['wasm-packages'] }), [old]).node).toBeNull()
+    expect(selectNode(request({ isolation: 'wasm', needs: ['wasm-packages'] }), [wasm]).node?.id).toBe('wasm')
+  })
   test('only an active, healthy node in the region with the features can be chosen', () => {
     const nodes = [
       node('a', { lifecycle: 'draining' }),

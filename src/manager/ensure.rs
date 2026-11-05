@@ -194,6 +194,7 @@ impl Manager {
             boot
         });
         Ok(ContainerSpec {
+            packages: spec.packages.clone(),
             agent,
             cgroup_parent: self.config.store_lease.enabled.then(|| {
                 crate::store_lease::guard::docker_parent(record.id.as_str(), record.epoch.unwrap_or_default())

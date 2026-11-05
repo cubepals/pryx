@@ -20,6 +20,7 @@ import {
   privateLog,
   until,
 } from './image-state.ts'
+import { imageTier } from './image-tier.ts'
 
 let startupStage = 'configuration',
   diagnosticRoot: string | undefined
@@ -50,7 +51,7 @@ async function serve() {
       stdout: 'ignore',
       stderr: 'ignore',
     }).exitCode === 0
-  const tier = docker ? 'container' : 'process'
+  const tier = imageTier(docker, process.env.PRYX_DEFAULT_TIER)
   let memory = totalmem()
   try {
     const limit = Number(readFileSync('/sys/fs/cgroup/memory.max', 'utf8').trim())
@@ -108,7 +109,11 @@ async function serve() {
   })
   const control = await startControl(config, {
     gatewayHealth: () =>
-      Response.json({ status: 'ok', isolation: tier, sharedUid: process.getuid?.() !== 0 }),
+      Response.json({
+        status: 'ok',
+        isolation: tier,
+        sharedUid: tier === 'wasm' || process.getuid?.() !== 0,
+      }),
   })
   const nodeRoot = join(root, 'node'),
     identity = join(root, 'private', 'fleet')
@@ -139,7 +144,9 @@ url = "https://127.0.0.1:8443"
 ca = ${JSON.stringify(join(identity, 'ca.pem'))}
 enrollment_token_file = ${JSON.stringify(tokenPath)}
 heartbeat_seconds = 1
-${tier === 'process' ? `[capacity]\nreserved_memory_mb = ${reservedMemory}\nreserved_cpu_millis = ${reservedCpu}` : ''}
+${tier !== 'container' ? `[capacity]\nreserved_memory_mb = ${reservedMemory}\nreserved_cpu_millis = ${reservedCpu}` : ''}
+[wasm]
+distribution = ${JSON.stringify(process.env.PRYX_AGENTOS_DISTRIBUTION ?? '/usr/local/lib/pryx/agentos')}
 [workloads]
 agent_public_origin = ${JSON.stringify(origin)}
 user = "${user}"
@@ -157,7 +164,7 @@ control_ips = ["127.0.0.1"]
     const nodes = await nodeSummaries(control.db, { suspectSeconds: 15, unavailableSeconds: 45 })
     return nodes.some((node) => node.derivedHealth === 'healthy')
   })
-  if (docker) {
+  if (tier === 'container') {
     const isolate = Bun.spawn(['/pryxd', 'isolate', '--config', nodeConfig], {
       stdout: 'ignore',
       stderr: privateLog(root, 'isolate'),
@@ -205,9 +212,15 @@ control_ips = ["127.0.0.1"]
     void child.exited.then(() => {
       if (!stopping) void shutdown(1)
     })
-  console.log(
-    `pryx listening on ${publicPort}; isolation=${tier}; ${process.getuid?.() === 0 ? 'per-sandbox UIDs' : 'shared UID'}`,
-  )
+  const boundary =
+    tier === 'wasm'
+      ? 'virtual kernel; shared sidecar'
+      : tier === 'container'
+        ? 'container namespaces and cgroups'
+        : process.getuid?.() === 0
+          ? 'per-sandbox UIDs'
+          : 'shared UID'
+  console.log(`pryx listening on ${publicPort}; isolation=${tier}; ${boundary}`)
   const printed = join(root, 'private', 'key-printed')
   if (!existsSync(printed)) {
     createPrivateFile(printed, 'printed\n')

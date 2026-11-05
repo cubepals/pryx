@@ -31,11 +31,12 @@ interface PortSpec {
 }
 
 export interface RuntimeSpec {
-  isolation?: 'container' | 'process'
+  isolation?: import('./isolation.ts').Isolation
   agent?: import('./wire.ts').WorkloadSpec['agent']
   sparePorts?: number | null
   network?: import('./wire.ts').WorkloadSpec['network']
   image: string
+  packages?: readonly string[]
   /** Replaces the image's own entrypoint; absent, the image starts as it was built to. */
   entrypoint?: readonly string[]
   env: Readonly<Record<string, string>>

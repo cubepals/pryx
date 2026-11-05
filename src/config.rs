@@ -9,6 +9,7 @@
 //!
 //! Parts (`config/`):
 //! - `validate.rs`: what a configuration is held to before pryxd runs on it.
+//! - `wasm.rs`: verified agentOS distribution paths.
 //! - `process.rs`: host-owned process tier and UID pool configuration.
 
 use std::collections::BTreeMap;
@@ -23,6 +24,8 @@ use serde::Deserialize;
 use crate::ids::NodeId;
 
 mod process;
+mod wasm;
+pub use wasm::WasmConfig;
 mod validate;
 pub use process::{ProcessConfig, RuntimeKind};
 
@@ -37,6 +40,8 @@ pub struct Config {
     pub runtime: RuntimeKind,
     #[serde(default)]
     pub process: ProcessConfig,
+    #[serde(default)]
+    pub wasm: WasmConfig,
     /// This host's stable name, written on every container it makes. Two nodes never share one.
     /// In fleet mode it is left out: the control plane issues it at enrollment.
     #[serde(default)]
@@ -732,6 +737,6 @@ impl Default for StoreLeaseConfig {
 
 impl Config {
     pub fn host_facts(&self) -> crate::host::HostFacts {
-        if self.runtime == RuntimeKind::Process { crate::host::process_tier_facts() } else { crate::host::facts() }
+        if self.runtime != RuntimeKind::Container { crate::host::process_tier_facts() } else { crate::host::facts() }
     }
 }

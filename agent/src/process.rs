@@ -10,6 +10,7 @@ use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use async_trait::async_trait;
 use base64::{Engine, engine::general_purpose::STANDARD};
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
@@ -92,6 +93,18 @@ pub enum ProcessError {
     Io(#[from] std::io::Error),
 }
 
+pub trait Backend: Send + Sync {
+    fn spawn(&self, request: Start, timeout: Option<u32>) -> Result<Arc<Process>, ProcessError>;
+}
+
+#[async_trait]
+pub trait Control: Send + Sync {
+    async fn write(&self, bytes: &[u8]) -> Result<(), ProcessError>;
+    async fn close(&self) -> Result<(), ProcessError>;
+    async fn signal(&self, signal: i32) -> Result<(), ProcessError>;
+    async fn resize(&self, cols: u16, rows: u16) -> Result<(), ProcessError>;
+}
+
 type Input = Box<dyn AsyncWrite + Unpin + Send>;
 struct Output {
     replay: VecDeque<Event>,
@@ -108,6 +121,7 @@ pub struct Process {
     output: AsyncMutex<Output>,
     ended: watch::Sender<Option<ResultView>>,
     started: Instant,
+    remote: Option<Arc<dyn Control>>,
 }
 
 impl Process {
@@ -129,6 +143,9 @@ impl Process {
     }
 
     pub async fn write(&self, bytes: &[u8]) -> Result<(), ProcessError> {
+        if let Some(remote) = &self.remote {
+            return remote.write(bytes).await;
+        }
         let mut input = self.input.lock().await;
         input.as_mut().ok_or(ProcessError::Invalid("stdin is closed"))?.write_all(bytes).await?;
         Ok(())
@@ -139,6 +156,9 @@ impl Process {
     }
 
     pub fn signal(&self, signal: i32) -> Result<(), ProcessError> {
+        if self.remote.is_some() {
+            return Err(ProcessError::Invalid("virtual processes require awaited signals"));
+        }
         if self.ended.borrow().is_some() {
             return Err(ProcessError::Invalid("process already exited"));
         }
@@ -224,11 +244,12 @@ pub struct Processes {
     held: Mutex<HashMap<String, Entry>>,
     pub data: PathBuf,
     pub secret_env: String,
+    backend: Option<Arc<dyn Backend>>,
 }
 
 impl Processes {
     pub fn new(data: PathBuf, secret_env: String) -> Self {
-        Self { held: Mutex::new(HashMap::new()), data, secret_env }
+        Self { held: Mutex::new(HashMap::new()), data, secret_env, backend: None }
     }
 
     pub fn get(&self, id: &str) -> Result<Arc<Process>, ProcessError> {
@@ -240,6 +261,9 @@ impl Processes {
     }
 
     pub fn reap_orphans(&self) {
+        if self.backend.is_some() {
+            return;
+        }
         // start holds this same lock from spawn through insertion, so a new managed child
         // cannot be mistaken for an orphan between those operations.
         let held = self.held.lock().unwrap();
@@ -284,6 +308,9 @@ impl Processes {
     }
 
     fn spawn(&self, request: Start, timeout: Option<u32>) -> Result<Arc<Process>, ProcessError> {
+        if let Some(backend) = &self.backend {
+            return backend.spawn(request, timeout);
+        }
         let argv = crate::process_policy::wrap(argv(&request.command)?)?;
         let cwd = request.cwd.as_ref().map(PathBuf::from).unwrap_or_else(|| self.data.clone());
         if request.pty {
@@ -354,6 +381,7 @@ impl Process {
             }),
             ended: watch::channel(None).0,
             started: Instant::now(),
+            remote: None,
         }
     }
     pub(crate) async fn terminal_output(self: Arc<Self>, reader: impl AsyncRead + Unpin) {
@@ -410,4 +438,64 @@ fn supervise_terminal(spawned: crate::pty::Spawned, timeout: Option<u32>) -> Arc
         own.terminal_exit(code, timed_out).await;
     });
     process
+}
+
+impl Processes {
+    pub fn embedded(data: PathBuf, backend: Arc<dyn Backend>) -> Self {
+        Self { backend: Some(backend), ..Self::new(data, String::new()) }
+    }
+
+    pub fn shell(&self) -> Result<Command, ProcessError> {
+        if self.backend.is_some() {
+            Ok(Command::Argv(vec!["sh".into()]))
+        } else if PathBuf::from("/bin/sh").is_file() {
+            Ok(Command::Argv(vec!["/bin/sh".into()]))
+        } else {
+            Ok(Command::Argv(vec![std::env::current_exe()?.to_string_lossy().into(), "shell".into()]))
+        }
+    }
+}
+
+impl Process {
+    pub fn guest(pid: u32, control: Arc<dyn Control>) -> Arc<Self> {
+        let mut process = Self::new(pid, None, None);
+        process.remote = Some(control);
+        Arc::new(process)
+    }
+
+    pub async fn signal_awaited(&self, signal: i32) -> Result<(), ProcessError> {
+        if let Some(remote) = &self.remote { remote.signal(signal).await } else { self.signal(signal) }
+    }
+
+    pub async fn resize_awaited(&self, cols: u16, rows: u16) -> Result<(), ProcessError> {
+        if let Some(remote) = &self.remote {
+            remote.resize(cols, rows).await
+        } else {
+            Ok(self.terminal.as_ref().ok_or(ProcessError::Invalid("process has no terminal"))?.resize(cols, rows)?)
+        }
+    }
+
+    pub async fn close_input_awaited(&self) -> Result<(), ProcessError> {
+        if let Some(remote) = &self.remote {
+            remote.close().await
+        } else {
+            self.close_input().await;
+            Ok(())
+        }
+    }
+
+    pub async fn guest_output(&self, bytes: &[u8], stream: &'static str) {
+        let bytes = STANDARD.encode(bytes);
+        let length = bytes.len();
+        self.emit(Event::Output { stream, bytes }, length).await;
+    }
+
+    pub async fn guest_truncated(&self) {
+        self.output.lock().await.dropped = true;
+        self.emit(Event::Truncated, 0).await;
+    }
+
+    pub async fn guest_finished(&self, code: Option<i32>, timed_out: bool) {
+        self.finish(code, timed_out).await;
+    }
 }

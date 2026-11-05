@@ -15,7 +15,7 @@ impl Manager {
         let docker = self.docker_up();
         let reconciled = self.reconciled();
         NodeHealth {
-            isolation: self.runtime.is_process().then(|| vec!["process".into()]),
+            isolation: (self.runtime.isolation() != "container").then(|| vec![self.runtime.isolation().into()]),
             status: if docker && reconciled { "ok".into() } else { "degraded".into() },
             docker,
             reconciled,

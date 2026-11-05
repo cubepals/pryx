@@ -14,6 +14,7 @@ use crate::protocol::{FieldError, RESERVED_LABEL_PREFIX};
 #[derive(Clone, Debug)]
 pub(crate) struct SpecPolicy {
     pub(crate) process: bool,
+    pub(crate) wasm: bool,
     pub(crate) allowed_images: Vec<String>,
     pub(crate) min_memory_mb: u32,
     pub(crate) max_memory_mb: u32,
@@ -127,6 +128,23 @@ impl WorkloadSpec {
     }
 
     fn check_image(&self, policy: &SpecPolicy, problems: &mut Problems) {
+        if (!policy.wasm && !self.packages.is_empty())
+            || self.packages.len() > crate::protocol::MAX_WASM_PACKAGES
+            || self.packages.iter().any(|name| {
+                name.is_empty()
+                    || name.len() > 64
+                    || !name.as_bytes()[0].is_ascii_lowercase()
+                    || !name.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+            })
+        {
+            problems.add("packages", "registry package names are available only on the wasm tier");
+        }
+        if policy.wasm {
+            if !self.image.is_empty() {
+                problems.add("image", crate::protocol::WASM_IMAGE_PROBLEM);
+            }
+            return;
+        }
         if policy.process {
             if !self.image.is_empty() {
                 problems.add("image", crate::protocol::PROCESS_IMAGE_PROBLEM);
@@ -284,6 +302,7 @@ mod tests {
     pub(crate) fn policy() -> SpecPolicy {
         SpecPolicy {
             process: false,
+            wasm: false,
             allowed_images: vec!["ghcr.io/example/http-app:".into(), "alpine:".into()],
             min_memory_mb: 128,
             max_memory_mb: 16_384,

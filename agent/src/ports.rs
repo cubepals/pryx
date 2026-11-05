@@ -44,6 +44,7 @@ pub struct Ports {
     revision: AtomicU64,
     checkpoint: Option<DataDir>,
     telemetry: Arc<Telemetry>,
+    tasks: Vec<tokio::task::JoinHandle<()>>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -78,6 +79,18 @@ impl Ports {
         checkpoint: Option<DataDir>,
         telemetry: Arc<Telemetry>,
     ) -> std::io::Result<Arc<Self>> {
+        Self::bind_with_forward(sandbox, domain, agent_port, ports, checkpoint, telemetry, None).await
+    }
+
+    pub async fn bind_with_forward(
+        sandbox: String,
+        domain: String,
+        agent_port: u16,
+        ports: Vec<u16>,
+        checkpoint: Option<DataDir>,
+        telemetry: Arc<Telemetry>,
+        forward: Option<Arc<dyn crate::guest::Forward>>,
+    ) -> std::io::Result<Arc<Self>> {
         if ports.len() > usize::from(MAX_SPARE_PORTS) || ports.contains(&agent_port) || ports.contains(&0) {
             return Err(std::io::ErrorKind::InvalidInput.into());
         }
@@ -97,10 +110,11 @@ impl Ports {
             return Err(std::io::ErrorKind::InvalidData.into());
         }
         let mut slots = Vec::new();
+        let mut tasks = Vec::new();
         for (index, port) in ports.into_iter().enumerate() {
             let listener = TcpListener::bind((std::net::Ipv4Addr::UNSPECIFIED, port)).await?;
             let target = watch::channel(restored.targets.get(index).copied().flatten()).0;
-            tokio::spawn(serve(listener, target.subscribe(), telemetry.clone()));
+            tasks.push(tokio::spawn(serve(listener, target.subscribe(), telemetry.clone(), forward.clone())));
             slots.push(Slot { port, target });
         }
         Ok(Arc::new(Self {
@@ -112,6 +126,7 @@ impl Ports {
             revision: AtomicU64::new(restored.revision),
             checkpoint,
             telemetry,
+            tasks,
         }))
     }
 
@@ -168,6 +183,15 @@ impl Ports {
         Ok(self.view(slot, target))
     }
 
+    pub async fn shutdown(&self) {
+        for task in &self.tasks {
+            task.abort();
+        }
+        for slot in self.held.lock().await.iter() {
+            slot.target.send_replace(None);
+        }
+    }
+
     pub async fn unexpose(&self, target: u16) -> Result<(), PortError> {
         let held = self.held.lock().await;
         if let Some(index) = held.iter().position(|s| *s.target.borrow() == Some(target)) {
@@ -178,13 +202,27 @@ impl Ports {
     }
 }
 
-async fn serve(listener: TcpListener, target: watch::Receiver<Option<u16>>, telemetry: Arc<Telemetry>) {
+impl Drop for Ports {
+    fn drop(&mut self) {
+        for task in &self.tasks {
+            task.abort();
+        }
+    }
+}
+
+async fn serve(
+    listener: TcpListener,
+    target: watch::Receiver<Option<u16>>,
+    telemetry: Arc<Telemetry>,
+    forward: Option<Arc<dyn crate::guest::Forward>>,
+) {
     while let Ok((mut downstream, _)) = listener.accept().await {
         let _ = downstream.set_nodelay(true);
         let mut assigned = target.clone();
         let port = *assigned.borrow_and_update();
         if let Some(port) = port {
             let telemetry = telemetry.clone();
+            let forward = forward.clone();
             tokio::spawn(async move {
                 let header = tokio::time::timeout(Duration::from_secs(3), forward_header(&mut downstream, port)).await;
                 let Ok(Ok(header)) = header else { return };
@@ -192,6 +230,13 @@ async fn serve(listener: TcpListener, target: watch::Receiver<Option<u16>>, tele
                     return;
                 }
                 let _active = telemetry.active();
+                if let Some(forward) = forward {
+                    tokio::select! {
+                        _ = forward.serve(downstream, port, header) => {},
+                        _ = assigned.changed() => {},
+                    }
+                    return;
+                }
                 let connected = tokio::time::timeout(
                     Duration::from_secs(3),
                     TcpStream::connect((std::net::Ipv4Addr::LOCALHOST, port)),

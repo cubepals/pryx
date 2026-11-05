@@ -9,13 +9,14 @@ import { AGENT_ROUTE_PORT } from '../src/edge-headers.ts'
 import { agentDeployment } from './agent-context.ts'
 import { ready } from './deployment.ts'
 import { deploymentDiagnostics } from './diagnostics.ts'
+import { webCommand } from './tier-fixture.ts'
 import { until } from './waits.ts'
 
 test.skipIf(!ready)(
   'TypeScript agent handles run every sandbox operation',
   async () => {
     const c = await agentDeployment()
-    const box = await c.sdk.sandbox({ image: 'alpine:pryx-tls', resources: { memoryMb: 256 }, sparePorts: 1 })
+    const box = await c.sandbox({ image: 'alpine:pryx-tls', resources: { memoryMb: 256 }, sparePorts: 1 })
     let stage = 'processes'
     try {
       const route = await c.route(box.id)
@@ -95,7 +96,7 @@ test.skipIf(!ready)(
       expect(await new Response(await box.readStream('large')).bytes()).toEqual(bytes)
       stage = 'ports'
       await box.write('index.html', 'exposed')
-      const web = await box.start(['httpd', '-f', '-p', '3000', '-h', '/data'])
+      const web = await box.start(webCommand())
       const url = await box.expose(3000)
       expect(await c.app(url).then((r) => r.text())).toBe('exposed')
       await expect(box.expose(3001)).rejects.toMatchObject({ code: 'no_spare_port' })
@@ -160,7 +161,7 @@ test.skipIf(!ready)(
   'the static agent needs no shell or utilities in the image',
   async () => {
     const c = await agentDeployment()
-    const box = await c.sdk.sandbox({ image: 'alpine:pryx-empty', resources: { memoryMb: 256 } })
+    const box = await c.sandbox({ image: 'alpine:pryx-empty', resources: { memoryMb: 256 } })
     try {
       await c.route(box.id)
       expect((await box.run('printf shell-ready')).stdout).toBe('shell-ready')

@@ -63,6 +63,7 @@ export const address = (node: Dialled): NodeAddress => ({
 function toWorkloadSpec(spec: RuntimeSpec, features: readonly string[]): WorkloadSpec {
   return {
     image: spec.image,
+    ...(features.includes('wasm-packages') && spec.packages ? { packages: [...spec.packages] } : {}),
     ...(features.includes('agent') && spec.agent ? { agent: spec.agent, sparePorts: spec.sparePorts } : {}),
     ...(features.includes('network-policy') && spec.network ? { network: spec.network } : {}),
     ...(spec.entrypoint ? { entrypoint: [...spec.entrypoint] } : {}),
