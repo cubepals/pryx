@@ -350,7 +350,7 @@ jobs:
       - name: Check out the pinned K9 after product
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: 6218d87b0422bf827a93356f11f98cd618c7916a
+          ref: 7cd80e9bff7be320d10993aeadb8e73f3f6f65c8
           path: .benchmark-after
           persist-credentials: false
       - name: Measure the K9 after product on the same host
