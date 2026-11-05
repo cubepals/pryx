@@ -171,15 +171,20 @@ pub async fn join(options: Join) -> anyhow::Result<String> {
         written.push(path.display().to_string());
     }
     if options.start {
-        preflight(root, config_file)
-            .await
-            .with_context(|| format!("wrote {}, and left pryxd stopped", written.join(", ")))?;
-        service.systemctl(&["daemon-reload"])?;
-        service.systemctl(&["enable", UNIT_NAME])?;
-        // A start that failed before this join (an old token) is retried with the new one.
-        service.systemctl(&["restart", UNIT_NAME])?;
+        start_service(root, config_file, &written, &service).await?;
     }
     Ok(report(&token, &config, config_file, existing.is_some(), &written, options.start))
+}
+
+async fn start_service(root: &Path, config_file: &Path, written: &[String], service: &Systemd) -> anyhow::Result<()> {
+    preflight(root, config_file)
+        .await
+        .with_context(|| format!("wrote {}, and left pryxd stopped", written.join(", ")))?;
+    service.systemctl(&["daemon-reload"])?;
+    service.systemctl(&["enable", UNIT_NAME])?;
+    // A start that failed before this join (an old token) is retried with the new one.
+    service.systemctl(&["restart", UNIT_NAME])?;
+    Ok(())
 }
 
 /// `pryxd doctor --preflight`, as the unit runs it before each start: what it finds is shown
