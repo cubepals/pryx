@@ -61,7 +61,8 @@ export class Agents {
     if (!ref.agent) throw new SandboxError('unsupported', 'This sandbox has no agent')
     // Lifecycle may rotate a signing key before an edge's next poll. Delay only token issuance
     // until the current route is acknowledged; ready agent operations never enter this path.
-    while ((await shownState(this.boxes.db, id, row.state)) === 'starting') await pause(SECOND_MS / 20)
+    while (row.state === 'running' && (await shownState(this.boxes.db, id, row.state)) === 'starting')
+      await pause(SECOND_MS / 20)
     const node = await this.boxes.engine.home(row.handle)
     if (!node?.features?.includes('agent'))
       throw new SandboxError('unsupported', 'This node has no agent feature')

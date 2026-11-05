@@ -345,7 +345,7 @@ jobs:
       - name: Cache the cold-reference image locally
         run: |
           docker run -d --rm --name pryx-speed-registry -p 127.0.0.1:5001:5000 mirror.gcr.io/library/registry:3
-          curl --retry 5 --retry-connrefused --retry-delay 1 -fsS http://127.0.0.1:5001/v2/
+          curl --retry 5 --retry-all-errors --retry-connrefused --retry-delay 1 -fsS http://127.0.0.1:5001/v2/
           docker tag mirror.gcr.io/library/alpine:3.22 localhost:5001/pryx/alpine:3.22
           docker push localhost:5001/pryx/alpine:3.22
           echo 'PRYX_SPEED_COLD_IMAGE=localhost:5001/pryx/alpine:3.22' >> "$GITHUB_ENV"
@@ -392,20 +392,20 @@ jobs:
         run: |
           cargo clean --package pryxd
           cargo build --locked
-      - name: Measure the K11 agent on this host
-        run: |
-          sudo install -D -m 0755 target/debug/pryx-agent /usr/local/lib/pryx/pryx-agent
-          PRYXD_BIN="$GITHUB_WORKSPACE/target/debug/pryxd" bun control/bench/agent-speed.ts after "$RUNNER_TEMP/agent-speed-after.json"
       - name: Build a static daemon for isolated nodes
         run: |
           docker build -t pryx-static-test .
           id=$(docker create pryx-static-test)
           docker cp "$id:/pryxd" "$RUNNER_TEMP/pryxd"
+          docker cp "$id:/usr/local/lib/pryx/pryx-agent" "$RUNNER_TEMP/pryx-agent"
           docker rm "$id"
+          sudo install -D -m 0755 "$RUNNER_TEMP/pryx-agent" /usr/local/lib/pryx/pryx-agent
+      - name: Measure the K11 agent on this host
+        run: |
+          PRYXD_BIN="$GITHUB_WORKSPACE/target/debug/pryxd" bun control/bench/agent-speed.ts after "$RUNNER_TEMP/agent-speed-after.json"
       - name: Release compilation space before runtime tests
         run: |
           cp target/debug/pryxd "$RUNNER_TEMP/pryxd-debug"
-          sudo install -D -m 0755 target/debug/pryx-agent /usr/local/lib/pryx/pryx-agent
           cargo clean
           mkdir -p target/debug
           cp "$RUNNER_TEMP/pryxd-debug" target/debug/pryxd
@@ -515,10 +515,15 @@ jobs:
       - run: cargo build --locked
       - run: bun install --frozen-lockfile
       - run: bun run release:build
+      - name: Build the static agent release asset
+        run: |
+          docker build -t pryx-one-box-release .
+          id=$(docker create pryx-one-box-release)
+          docker cp "$id:/usr/local/lib/pryx/pryx-agent" dist/pryx-agent
+          docker rm "$id"
       - name: Prepare the unreleased build artifacts
         run: |
           cp target/debug/pryxd dist/pryxd
-          cp target/debug/pryx-agent dist/pryx-agent
           # The installed daemon is now in dist; placement still needs real disk above its host floor.
           rm -rf target/debug
           head -c 64 /dev/zero > dist/pryxd.sig

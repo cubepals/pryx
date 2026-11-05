@@ -169,6 +169,8 @@ export async function* output(events: AsyncIterable<AgentEvent>) {
         const data = decoders[stream].decode()
         if (data) yield { type: stream, data, truncated: false } as const
       }
+      if (event.result.stdoutTruncated) yield { type: 'stdout', data: '', truncated: true } as const
+      if (event.result.stderrTruncated) yield { type: 'stderr', data: '', truncated: true } as const
       yield { type: 'exit', ...event.result } as const
     } else yield { type: 'stdout', data: '', truncated: true } as const
   }
