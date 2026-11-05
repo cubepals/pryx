@@ -45,27 +45,7 @@ pub(super) fn apply(network_off: bool) -> Result<(), Box<dyn std::error::Error>>
     ] {
         rules.insert(syscall, vec![]);
     }
-    rules.insert(
-        libc::SYS_clone,
-        [
-            libc::CLONE_NEWUSER,
-            libc::CLONE_NEWNS,
-            libc::CLONE_NEWPID,
-            libc::CLONE_NEWNET,
-            libc::CLONE_NEWIPC,
-            libc::CLONE_NEWUTS,
-            libc::CLONE_NEWCGROUP,
-        ]
-        .into_iter()
-        .map(|flag| {
-            SeccompRule::new(vec![
-                SeccompCondition::new(0, SeccompCmpArgLen::Qword, SeccompCmpOp::MaskedEq(flag as u64), flag as u64)
-                    .expect("valid clone mask"),
-            ])
-            .expect("valid clone rule")
-        })
-        .collect(),
-    );
+    rules.insert(libc::SYS_clone, clone_rules());
     if network_off {
         for syscall in [libc::SYS_connect, libc::SYS_bind, libc::SYS_sendto, libc::SYS_sendmsg, libc::SYS_sendmmsg] {
             rules.insert(syscall, vec![]);
@@ -85,4 +65,25 @@ pub(super) fn apply(network_off: bool) -> Result<(), Box<dyn std::error::Error>>
     .try_into()?;
     seccompiler::apply_filter(&clone3)?;
     Ok(())
+}
+
+fn clone_rules() -> Vec<SeccompRule> {
+    [
+        libc::CLONE_NEWUSER,
+        libc::CLONE_NEWNS,
+        libc::CLONE_NEWPID,
+        libc::CLONE_NEWNET,
+        libc::CLONE_NEWIPC,
+        libc::CLONE_NEWUTS,
+        libc::CLONE_NEWCGROUP,
+    ]
+    .into_iter()
+    .map(|flag| {
+        SeccompRule::new(vec![
+            SeccompCondition::new(0, SeccompCmpArgLen::Qword, SeccompCmpOp::MaskedEq(flag as u64), flag as u64)
+                .expect("valid clone mask"),
+        ])
+        .expect("valid clone rule")
+    })
+    .collect()
 }
