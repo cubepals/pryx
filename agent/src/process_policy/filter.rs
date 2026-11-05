@@ -16,6 +16,7 @@ pub(super) fn apply(network_off: bool) -> Result<(), Box<dyn std::error::Error>>
         libc::SYS_ptrace,
         libc::SYS_process_vm_readv,
         libc::SYS_process_vm_writev,
+        libc::SYS_pidfd_getfd,
         libc::SYS_keyctl,
         libc::SYS_add_key,
         libc::SYS_request_key,
@@ -159,6 +160,7 @@ mod tests {
             vec![libc::SYS_rt_sigqueueinfo, thread.into(), 0, 0],
             vec![libc::SYS_rt_tgsigqueueinfo, supervisor.into(), thread.into(), 0, 0],
             vec![libc::SYS_pidfd_send_signal, -1, 0, 0, 0],
+            vec![libc::SYS_pidfd_getfd, -1, -1, 0],
             vec![libc::SYS_setpgid, -1, supervisor.into()],
             vec![libc::SYS_prlimit64, supervisor.into(), libc::RLIMIT_NOFILE.into(), 0, 0],
         ];
@@ -187,6 +189,7 @@ for probe in json.loads(os.environ['PROBES']):
 resource.getrlimit(resource.RLIMIT_NOFILE)
 "#;
         let output = std::thread::spawn(move || {
+            apply(false).unwrap();
             child(supervisor).unwrap();
             std::process::Command::new("python3")
                 .args(["-c", script])
@@ -204,6 +207,7 @@ resource.getrlimit(resource.RLIMIT_NOFILE)
         let mut disposable = std::process::Command::new("/bin/sleep").arg("30").spawn().unwrap();
         let target = disposable.id();
         let result = std::thread::spawn(move || {
+            apply(false).unwrap();
             child(std::process::id()).unwrap();
             std::process::Command::new("python3").args(["-c",
                 "import ctypes,os; assert ctypes.CDLL(None).syscall(int(os.environ['SIGNAL_CALL']),int(os.environ['TARGET']),int(os.environ['TARGET']),0)==0"])

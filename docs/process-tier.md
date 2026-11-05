@@ -33,7 +33,7 @@ Use the agent's process signal API for individual child PIDs; guest tgkill remai
 for other thread groups. The trusted supervisor retains its process controls.
 
 The syscall filter denies mount, unmount, pivot_root, chroot, ptrace, cross-process memory
-operations, keyctl/add_key/request_key, bpf, kernel modules, unshare/setns, reboot/kexec,
+operations, pidfd_getfd descriptor copying, keyctl/add_key/request_key, bpf, kernel modules, unshare/setns, reboot/kexec,
 open_by_handle_at/name_to_handle_at, perf_event_open, userfaultfd, io_uring_setup,
 swapon/swapoff, UID/GID changes and capability changes. Clone flags creating namespaces are
 denied. clone3 returns ENOSYS so libc can use the checked clone fallback. no_new_privs
