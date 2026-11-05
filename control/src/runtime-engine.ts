@@ -192,7 +192,12 @@ export class FleetRuntime implements SandboxRuntime {
   refreshRegistry(): Promise<void> {
     return this.#known.refresh()
   }
-
+  supportsAgent(region: string) {
+    return this.#known.supports('agent', this.#region(region))
+  }
+  home(handle: RuntimeHandle) {
+    return this.#known.home(handle)
+  }
   nodeAddress(handle: RuntimeHandle): { id: string; apiAddress: string; features?: string[] } | null {
     return this.#known.address(handle)
   }

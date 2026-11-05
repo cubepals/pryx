@@ -1,10 +1,53 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
-// Generated from openapi/node-writes.openapi.json; sha256 4bd829bec89531440d63de71ed49abca46bce17594dc66906bc1244cde809733.
+// Generated from openapi/node-writes.openapi.json; sha256 375ec189961f9cafbb981fb956fdacae53b32d9e38c64407a60eef2b13470235.
 export type paths = Record<string, never>;
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AgentPort: {
+            endpoints: string[];
+            /** Format: uint16 */
+            hostPort: number;
+            /** Format: uint16 */
+            port: number;
+        };
+        AgentPortAssignment: {
+            /** Format: uint16 */
+            port: number;
+            /** Format: uint16 */
+            slot: number;
+        };
+        AgentTokenResponse: {
+            agent: components["schemas"]["AgentView"];
+            /** Format: uint64 */
+            epoch: number;
+            /** Format: int64 */
+            expiresAt: number;
+            token: string;
+        };
+        AgentView: {
+            /**
+             * Format: uint32
+             * @default 0
+             */
+            activeStreams: number;
+            /**
+             * Format: int64
+             * @default 0
+             */
+            activityAt: number;
+            /** @default [] */
+            exposed: components["schemas"]["AgentPortAssignment"][];
+            port: components["schemas"]["AgentPort"];
+            /**
+             * Format: uint64
+             * @default 0
+             */
+            portRevision: number;
+            publicKey: string;
+            spares: components["schemas"]["AgentPort"][];
+        };
         CapacityView: {
             /**
              * Format: uint64
@@ -25,6 +68,21 @@ export interface components {
              * @description Memory of running workloads: what a start is admitted against.
              */
             runningMemoryMb: number;
+        };
+        Claims: {
+            /** Format: uint64 */
+            epoch: number;
+            /** Format: int64 */
+            expiresAt: number;
+            file?: components["schemas"]["FileAccess"] | null;
+            /** Format: int64 */
+            issuedAt: number;
+            /** Format: uint32 */
+            maxExecSeconds?: number | null;
+            /** Format: uint16 */
+            maxPorts: number;
+            sandbox: string;
+            scope: components["schemas"]["Scope"];
         };
         /** @description The pryxd process itself, as distinct from the node it runs on. */
         DaemonView: {
@@ -152,6 +210,23 @@ export interface components {
             stopped: boolean;
             workload: components["schemas"]["WorkloadView"];
         };
+        FileAccess: {
+            method: components["schemas"]["FileMethod"];
+            path: string;
+        };
+        FileInfo: {
+            kind: string;
+            /** Format: int64 */
+            modified: number;
+            name: string;
+            /** Format: uint64 */
+            size: number;
+        };
+        FileList: {
+            files: components["schemas"]["FileInfo"][];
+        };
+        /** @enum {string} */
+        FileMethod: "GET" | "PUT";
         FleetView: {
             /** @description When the node last renewed its certificates, in this run. */
             certificateRenewedAt: string | null;
@@ -477,6 +552,8 @@ export interface components {
             /** Format: uint64 */
             unpackedBytes: number;
         };
+        /** @enum {string} */
+        Scope: "sandbox" | "routes" | "file";
         SnapshotDeleteResponse: {
             existed: boolean;
         };
@@ -576,6 +653,7 @@ export interface components {
          */
         WorkloadId: string;
         WorkloadReport: {
+            agent?: components["schemas"]["AgentView"] | null;
             changedAt: string;
             /** Format: uint64 */
             epoch: number | null;
@@ -611,6 +689,7 @@ export interface components {
          */
         WorkloadState: "running" | "creating" | "created" | "stopping" | "stopped" | "crashed" | "restarting" | "missing" | "retained" | "unknown" | "fenced" | "suspended";
         WorkloadView: {
+            agent?: components["schemas"]["AgentView"] | null;
             /** @description When the state last changed, as the runtime recorded it (survives pryxd restarts). */
             changedAt: string;
             createdAt: string;

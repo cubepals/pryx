@@ -5,6 +5,7 @@
 /** Postgres handles and migration location; queries belong to the module owning each table. */
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import type { Logger } from 'drizzle-orm/logger'
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres'
 import pg from 'pg'
 import { SECOND_MS } from './durations.ts'
@@ -27,4 +28,4 @@ export const createPool = (connectionString: string, max = 10) => {
   pool.on('error', (error) => console.error('postgres: resting connection closed', error.message))
   return pool
 }
-export const createDb = (pool: pg.Pool): Db => drizzle(pool, { schema })
+export const createDb = (pool: pg.Pool, logger?: Logger): Db => drizzle(pool, { schema, logger })

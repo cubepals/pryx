@@ -10,6 +10,12 @@ use crate::store_lease::Held;
 impl Manager {
     pub fn features(&self) -> Vec<String> {
         let mut features = crate::protocol::features();
+        if self.agent_binary().is_some() {
+            features.push("agent".into());
+        }
+        if self.runtime.supports_network_policy() {
+            features.push("network-policy".into());
+        }
         if self.config.store_lease.enabled {
             features.push("store-lease".into());
         }

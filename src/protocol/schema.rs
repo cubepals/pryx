@@ -38,7 +38,7 @@ macro_rules! schemas {
 fn node_reads() -> Value {
     let mut result = document("pryxd: what a node reads", Contract::Deserialize, |g| {
         schemas!(g;
-            StoreLeaseGrant, StoreLeaseObject, WorkloadSpec, StopRequest, FenceRequest, ExecRequest, ExportRequest, RestoreRequest, SnapshotRequest,
+            AgentTokenRequest, StoreLeaseGrant, StoreLeaseObject, WorkloadSpec, StopRequest, FenceRequest, ExecRequest, ExportRequest, RestoreRequest, SnapshotRequest,
             UploadRequest, EnrollResponse, HeartbeatResponse, RenewResponse,
         );
     });
@@ -51,7 +51,7 @@ fn node_reads() -> Value {
 fn node_writes() -> Value {
     document("pryxd: what a node writes", Contract::Serialize, |g| {
         schemas!(g;
-            StoreLeaseIdentity, WorkloadView, ListResponse, StatsView, LogRecord, EnsureResponse, PowerResponse, FenceResponse,
+            pryx_agent::auth::Claims, AgentTokenResponse, FileList, FileInfo, StoreLeaseIdentity, WorkloadView, ListResponse, StatsView, LogRecord, EnsureResponse, PowerResponse, FenceResponse,
             DeleteResponse, ExecResponse, ExecEvent, ExportResponse, RestoreResponse, SnapshotResponse, SnapshotList,
             SnapshotDeleteResponse, NodeHealth, NodeStatus, ErrorBody, EnrollRequest, HeartbeatRequest, RenewRequest,
         );
@@ -74,6 +74,16 @@ fn document(title: &str, contract: Contract, add: impl FnOnce(&mut SchemaGenerat
         "info": { "title": title, "version": PROTOCOL_VERSION.to_string() },
         "paths": {},
         "components": { "schemas": generator.take_definitions(true) },
+        "x-pryx-agent": {
+            "fileTokenLifetimeSeconds": pryx_agent::auth::FILE_TOKEN_LIFETIME_SECONDS,
+            "captureBytes": pryx_agent::contract::CAPTURE_BYTES,
+            "maxRequestBytes": pryx_agent::contract::MAX_REQUEST_BYTES,
+            "tokenPrefix": pryx_agent::auth::TOKEN_PREFIX,
+            "tokenLifetimeSeconds": pryx_agent::auth::TOKEN_LIFETIME_SECONDS,
+            "tokenClockSkewSeconds": pryx_agent::auth::TOKEN_CLOCK_SKEW_SECONDS,
+            "maxTokenBytes": pryx_agent::auth::MAX_TOKEN_BYTES,
+            "forwardHeader": pryx_agent::contract::FORWARD_HEADER,
+        },
     });
     document.sort_all_objects();
     document

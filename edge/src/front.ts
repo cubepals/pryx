@@ -10,8 +10,10 @@ import type { Hold } from './hold.ts'
 import type { Gate } from './limits.ts'
 import type { Metrics } from './metrics.ts'
 import type { RouteTable } from './routes.ts'
+import type { SandboxProxy } from './sandbox-proxy.ts'
 import type { EdgeRoute } from './wire.ts'
 export interface FrontOptions {
+  agents?: SandboxProxy
   host: string
   port: number
   routePort: number
@@ -141,19 +143,25 @@ async function arrival(client: Socket, o: FrontOptions) {
       })
     }
     releaseGreeting()
-    route = o.table.find(name, o.kind, o.routePort)
+    const path = bytes.toString('latin1').split(' ')[1] ?? ''
+    const agentRoute = o.kind === 'http' ? o.agents?.match(name, path) : undefined
+    route = agentRoute ?? o.table.find(name, o.kind, o.routePort)
     releaseOpen = o.gate.admit(route?.sandbox ?? '__unknown__', client.remoteAddress ?? '') ?? undefined
     if (!route || !releaseOpen) throw new Error('Unknown or limited destination')
     o.metrics.holds++
     const until = AbortSignal.any([cancelled.signal, AbortSignal.timeout(o.holdMs)])
     try {
-      let target = { destination: route.destination, epoch: route.epoch }
-      if (route.state) target = await o.hold.ready(route, until)
+      let target = {
+        destination: agentRoute ? (o.agents?.destination() as string) : route.destination,
+        epoch: route.epoch,
+      }
+      if (route.state && !agentRoute) target = await o.hold.ready(route, until)
       while (!until.aborted) {
         try {
           upstream = await dial(target.destination, until)
           break
         } catch {
+          if (agentRoute) throw new Error('Agent ingress unavailable')
           await pause(SECOND_MS / 4, undefined, { signal: until })
           target = await o.hold.ready(route, until)
         }
@@ -163,13 +171,16 @@ async function arrival(client: Socket, o: FrontOptions) {
       handed = true
       client.off('data', collect)
       route = { ...route, epoch: target.epoch, destination: target.destination }
-      untrack = o.table.track(route, target.destination, target.epoch, () => {
-        client.destroy()
-        upstream?.destroy()
-      })
+      if (!agentRoute)
+        untrack = o.table.track(route, target.destination, target.epoch, () => {
+          client.destroy()
+          upstream?.destroy()
+        })
       if (client.destroyed) throw new Error('Route moved')
-      sessionId = crypto.randomUUID()
-      o.session(sessionId, { ...route, epoch: target.epoch }, 'connect')
+      if (!agentRoute) {
+        sessionId = crypto.randomUUID()
+        o.session(sessionId, { ...route, epoch: target.epoch }, 'connect')
+      }
       upstream.once('close', () => client.destroy())
       upstream.write(bytes)
       bytes = Buffer.alloc(0)

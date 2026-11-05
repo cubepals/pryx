@@ -70,6 +70,10 @@ pub fn bridge_name(network: &str) -> String {
     format!("{prefix}{}", &digest[..IFNAME_MAX - prefix.len()])
 }
 
+pub(crate) fn internal_network(network: &str) -> String {
+    format!("{network}-internal")
+}
+
 pub struct DockerRuntime {
     socket: String,
     client: std::sync::Mutex<Option<Docker>>,
@@ -195,6 +199,43 @@ fn pull_tag(image: &str) -> Option<&'static str> {
 
 #[async_trait]
 impl ContainerRuntime for DockerRuntime {
+    fn supports_agent(&self) -> bool {
+        true
+    }
+    fn supports_network_policy(&self) -> bool {
+        true
+    }
+
+    async fn ensure_internal_network(&self, name: &str, labels: &BTreeMap<String, String>) -> Result<(), RuntimeError> {
+        let inspect =
+            quick("inspect internal network", self.docker()?.inspect_network(name, None::<InspectNetworkOptions>))
+                .await;
+        match inspect {
+            Ok(network) => {
+                if network.internal == Some(true)
+                    && network.options.unwrap_or_default().get(ICC_OPTION).map(String::as_str) == Some("false")
+                {
+                    return Ok(());
+                }
+                return Err(RuntimeError::Other("The internal network does not enforce host policy".into()));
+            }
+            Err(RuntimeError::NotFound(_)) => {}
+            Err(error) => return Err(error),
+        }
+        let request = NetworkCreateRequest {
+            name: name.into(),
+            driver: Some("bridge".into()),
+            internal: Some(true),
+            options: Some(HashMap::from([
+                (ICC_OPTION.into(), "false".into()),
+                (BRIDGE_NAME_OPTION.into(), bridge_name(name)),
+            ])),
+            labels: Some(labels.clone().into_iter().collect()),
+            ..Default::default()
+        };
+        quick("create internal network", self.docker()?.create_network(request)).await?;
+        Ok(())
+    }
     async fn info(&self) -> Result<RuntimeInfo, RuntimeError> {
         let version = quick("version", self.docker()?.version()).await?;
         let info = quick("info", self.docker()?.info()).await?;
@@ -282,8 +323,54 @@ impl ContainerRuntime for DockerRuntime {
     }
 
     async fn create(&self, spec: &ContainerSpec) -> Result<String, RuntimeError> {
+        if spec.internal_network {
+            self.ensure_internal_network(&spec.network, &spec.labels).await?;
+        }
+        let mut spec = spec.clone();
+        if let Some(agent) = &spec.agent {
+            let image = quick("inspect image", self.docker()?.inspect_image(&spec.image)).await?;
+            let config = image.config.unwrap_or_default();
+            let original = if agent.keep_alive {
+                Vec::new()
+            } else {
+                spec.entrypoint.take().unwrap_or_else(|| {
+                    config.entrypoint.unwrap_or_default().into_iter().chain(config.cmd.unwrap_or_default()).collect()
+                })
+            };
+            let mut entrypoint = vec![
+                pryx_agent::contract::BINARY_PATH.into(),
+                "--sandbox".into(),
+                agent.sandbox.clone(),
+                "--epoch".into(),
+                agent.epoch.to_string(),
+                "--data".into(),
+                spec.mount_path.clone(),
+                "--domain".into(),
+                agent.domain.clone(),
+                "--port".into(),
+                agent.agent_port.to_string(),
+                "--secret-env".into(),
+                agent.secret_env.clone(),
+                "--entrypoint-cwd".into(),
+                config.working_dir.filter(|d| !d.is_empty()).unwrap_or_else(|| "/".into()),
+            ];
+            if !agent.spare_ports.is_empty() {
+                entrypoint.extend([
+                    "--spare-ports".into(),
+                    agent.spare_ports.iter().map(u16::to_string).collect::<Vec<_>>().join(","),
+                ]);
+            }
+            if agent.keep_alive {
+                entrypoint.push("--keep-alive".into());
+            }
+            if !original.is_empty() {
+                entrypoint.push("--".into());
+                entrypoint.extend(original);
+            }
+            spec.entrypoint = Some(entrypoint);
+        }
         let options = CreateContainerOptionsBuilder::new().name(&spec.name).build();
-        let created = quick("create", self.docker()?.create_container(Some(options), body_of(spec))).await?;
+        let created = quick("create", self.docker()?.create_container(Some(options), body_of(&spec))).await?;
         Ok(created.id)
     }
 
@@ -535,6 +622,7 @@ mod tests {
 
     fn spec() -> ContainerSpec {
         ContainerSpec {
+            agent: None,
             cgroup_parent: None,
             name: "blockly-test-w".into(),
             image: "alpine:3.22".into(),
@@ -554,6 +642,7 @@ mod tests {
             stop_signal: "SIGTERM".into(),
             stop_timeout_secs: 90,
             network: "blockly-workloads".into(),
+            internal_network: false,
             log_max_size_mb: 10,
             log_max_files: 3,
             oom_score_adj: 500,

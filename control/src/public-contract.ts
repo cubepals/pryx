@@ -4,22 +4,32 @@
 /** OpenAPI operations composed from the runtime zod schemas, including the streaming event unions. */
 import { StatusCodes } from 'http-status-codes'
 import { z } from 'zod'
+import { sandboxTokenSchema } from './agents.ts'
 import {
   errorSchema,
   execEvent,
   execSchema,
   makeSchema,
+  networkSchema,
   sandboxSchema,
   snapshotSchema,
   templateSchema,
 } from './api-schemas.ts'
 import { chunkWrite } from './file-chunks.ts'
+import { agentSchema, fileInfoSchema } from './node-contract.ts'
 import { limitsSchema } from './project-model.ts'
 import { SDK_DEFAULTS } from './sdk-defaults.ts'
 
 export function publicContract() {
   const definitions = {
     Sandbox: sandboxSchema,
+    SandboxToken: sandboxTokenSchema,
+    FileInfo: fileInfoSchema,
+    AgentStart: agentSchema('Start'),
+    AgentProcess: agentSchema('View'),
+    AgentResult: agentSchema('ResultView'),
+    AgentEvent: agentSchema('Event'),
+    AgentExposed: agentSchema('Exposed'),
     MakeRequest: makeSchema,
     ExecRequest: execSchema,
     ExecEvent: execEvent,
@@ -57,6 +67,7 @@ export function publicContract() {
     status: number = StatusCodes.OK,
     content = 'application/json',
     query: string[] = [],
+    bodyContent = 'application/json',
   ) => {
     const parameters = [
       ...Array.from(path.matchAll(/\{(\w+)\}/g), (m) => ({
@@ -89,7 +100,7 @@ export function publicContract() {
       operationId: `${method}_${path.replaceAll(/[^a-zA-Z0-9]+/g, '_')}`,
       security: [{ apiKey: [] }],
       parameters,
-      ...(body ? { requestBody: { required: true, content: { 'application/json': { schema: body } } } } : {}),
+      ...(body ? { requestBody: { required: true, content: { [bodyContent]: { schema: body } } } } : {}),
       responses: {
         ...errors,
         [status]: { description: 'Success', content: { [content]: { schema: response } } },
@@ -104,6 +115,50 @@ export function publicContract() {
   const object = { type: 'object', additionalProperties: true }
   const existed = { type: 'object', required: ['existed'], properties: { existed: { type: 'boolean' } } }
   operation('get', '/v1/project', ref('Project'))
+  operation('post', '/v1/sandboxes/{id}/token', ref('SandboxToken'))
+  operation(
+    'post',
+    '/v1/sandboxes/{id}/network',
+    ref('Sandbox'),
+    json(z.object({ network: networkSchema }).strict()),
+  )
+  operation(
+    'get',
+    '/v1/sandboxes/{id}/data/content',
+    { type: 'string', format: 'binary' },
+    undefined,
+    StatusCodes.OK,
+    'application/octet-stream',
+    ['path'],
+  )
+  operation(
+    'get',
+    '/v1/sandboxes/{id}/data/list',
+    array('files', ref('FileInfo')),
+    undefined,
+    StatusCodes.OK,
+    'application/json',
+    ['path'],
+  )
+  operation(
+    'get',
+    '/v1/sandboxes/{id}/data/stat',
+    ref('FileInfo'),
+    undefined,
+    StatusCodes.OK,
+    'application/json',
+    ['path'],
+  )
+  operation(
+    'put',
+    '/v1/sandboxes/{id}/data/content',
+    {},
+    { type: 'string', format: 'binary' },
+    StatusCodes.NO_CONTENT,
+    'application/json',
+    ['path'],
+    'application/octet-stream',
+  )
   operation('post', '/v1/sandboxes', ref('Sandbox'), ref('MakeRequest'), StatusCodes.CREATED)
   operation('get', '/v1/sandboxes', array('sandboxes', ref('Sandbox')))
   operation('get', '/v1/sandboxes/{id}', ref('Sandbox'))

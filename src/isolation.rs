@@ -50,8 +50,11 @@ const LINK_LOCAL_V4: &str = "169.254.0.0/16";
 /// The rules for a bridge, the ports pryxd hands out and its API's port, as `nft -f` reads them.
 /// The first two lines make the table if it is missing, so the third can always remove it.
 pub fn ruleset(table: &str, bridge: &str, ports: &RangeInclusive<u16>, api_port: u16) -> String {
+    rules_from(table, &format!("iifname \"{bridge}\""), ports, api_port)
+}
+
+fn rules_from(table: &str, from: &str, ports: &RangeInclusive<u16>, api_port: u16) -> String {
     let served = if ports.contains(&api_port) { span(ports) } else { format!("{}, {api_port}", span(ports)) };
-    let from = format!("iifname \"{bridge}\"");
     let to_served = format!("meta l4proto {{ tcp, udp }} th dport {{ {served} }} ct state new drop");
     format!(
         "table inet {table}\n\
@@ -115,7 +118,19 @@ pub async fn isolate(path: &Path) -> anyhow::Result<String> {
         "the bridge of {network} has a name nftables can't be given as is: {bridge:?}"
     );
     let [low, high] = config.network.port_range;
-    apply(&ruleset(TABLE, &bridge, &(low..=high), config.api.listen.port()))?;
+    let internal = crate::runtime::docker::internal_network(network);
+    let internal_bridge = DockerRuntime::new(&config.docker.socket)?
+        .bridge_of(&internal)
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| bridge_name(&internal));
+    ensure!(
+        internal_bridge.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.')),
+        "invalid internal bridge name"
+    );
+    let from = format!("iifname {{ \"{bridge}\", \"{internal_bridge}\" }}");
+    apply(&rules_from(TABLE, &from, &(low..=high), config.api.listen.port()))?;
     Ok(format!(
         "Workloads on {network} ({bridge}) can't open connections to this host, to ports {low}-{high} or {} on \
          private addresses, or to the metadata address (nft list table inet {TABLE}).\n",

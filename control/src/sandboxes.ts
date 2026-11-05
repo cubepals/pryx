@@ -43,6 +43,8 @@ export type SandboxState =
   | 'restoring'
   | 'failed'
 export interface Sandbox {
+  files?: boolean
+  agent?: boolean
   id: string
   project: string
   units?: number
@@ -88,6 +90,9 @@ export function runtimeSpec(spec: SandboxSpec): RuntimeSpec {
   const defaults = nodeSchema.components.schemas.WorkloadSpec.properties
   return {
     image: spec.image,
+    ...(spec.agent ? { agent: spec.agent } : {}),
+    ...(spec.sparePorts === undefined ? {} : { sparePorts: spec.sparePorts }),
+    ...(spec.network === undefined ? {} : { network: spec.network }),
     ...(spec.entrypoint ? { entrypoint: spec.entrypoint } : {}),
     env: spec.env ?? {},
     secrets: spec.secrets ?? {},
@@ -184,6 +189,10 @@ export class Sandboxes {
       : null
     return {
       id: row.id,
+      files: row.handle
+        ? this.engine.nodeAddress(row.handle)?.features?.includes('files') || undefined
+        : undefined,
+      ...(ref?.agent ? { agent: true } : {}),
       project: row.project,
       units: unitsFor(row.spec, this.projects?.unit),
       state: row.state,
@@ -231,6 +240,7 @@ export class Sandboxes {
       onlyNode?: string
       internal?: boolean
       publicPorts?: unknown[]
+      autoSpares?: boolean
       admit?: (q: Queryable) => Promise<unknown>
     } = {},
   ): Promise<Sandbox> {
@@ -250,6 +260,7 @@ export class Sandboxes {
           (options.publicPorts ?? []).filter((port) => (port as { audience?: string }).audience === 'public')
             .length,
           insert,
+          options.autoSpares,
         )
       else {
         await ensureProject(this.db, project)
@@ -301,6 +312,26 @@ export class Sandboxes {
   }
   async start(id: string, project?: string) {
     return this.wake(id, project)
+  }
+  async network(id: string, project: string, network: NonNullable<WorkloadSpec['network']>) {
+    return this.exclusive(id, async () => {
+      const row = await this.record(id, project)
+      if (!row.handle || !['running', 'stopped'].includes(row.state))
+        throw new SandboxError('not_running', 'Wake or stop the sandbox before changing network policy')
+      const node = await this.engine.home(row.handle)
+      if (!node?.features?.includes('network-policy'))
+        throw new SandboxError('unsupported', 'This node has no network-policy feature')
+      if ((row.spec.network ?? 'internet') === network) return
+      const spec = { ...row.spec, network }
+      await this.db.execute(
+        sql`UPDATE sandboxes SET spec=${jsonb(spec)}, state='failed', start_requested=${row.state === 'running'}, route_listed_version=NULL, updated_at=now() WHERE id=${id}`,
+      )
+      const handle = await this.engine.apply(row.handle, runtimeSpec(spec))
+      await this.db.execute(
+        sql`UPDATE sandboxes SET handle=${handle},state=${row.state},updated_at=now(),activity_at=now() WHERE id=${id}`,
+      )
+      await event(this.db, 'sandbox.network', { workload: id, data: { network } })
+    })
   }
   async wake(
     id: string,
@@ -540,7 +571,11 @@ export class Sandboxes {
     await this.exclusive(id, async () => {
       const idle = await one<SandboxRow>(
         this.db,
-        sql`SELECT b.* FROM sandboxes b WHERE b.id=${id} AND b.deleted_at IS NULL AND b.state='running' AND (b.expires_at IS NULL OR b.expires_at>now()) AND b.spec->>'idle' IS NOT NULL AND b.activity_at + ((b.spec->>'idle')::double precision * interval '1 second') < now() AND NOT EXISTS(SELECT 1 FROM sandbox_sessions s WHERE s.sandbox=b.id AND s.seen_at>now()-(${SESSION_LIVE_SECONDS}*interval '1 second'))`,
+        sql`SELECT b.* FROM sandboxes b WHERE b.id=${id} AND b.deleted_at IS NULL AND b.state='running' AND (b.expires_at IS NULL OR b.expires_at>now()) AND b.spec->>'idle' IS NOT NULL AND b.activity_at + ((b.spec->>'idle')::double precision * interval '1 second') < now() AND NOT EXISTS(SELECT 1 FROM sandbox_sessions s WHERE s.sandbox=b.id AND s.seen_at>now()-(${SESSION_LIVE_SECONDS}*interval '1 second'))
+          AND NOT EXISTS(SELECT 1 FROM fleet_placements p JOIN fleet_observations o ON o.workload=p.workload AND o.node_id=p.node_id AND o.epoch=p.epoch
+            WHERE p.workload=b.id AND o.report->'agent' IS NOT NULL AND o.observed_at>now()-(${SESSION_LIVE_SECONDS}*interval '1 second')
+            AND (COALESCE((o.report->'agent'->>'activeStreams')::double precision,0)>0
+              OR to_timestamp(LEAST(COALESCE((o.report->'agent'->>'activityAt')::double precision,0),EXTRACT(EPOCH FROM now()))) + ((b.spec->>'idle')::double precision*interval '1 second')>now()))`,
       )
       if (!idle) return
       const tier = idle.handle ? await this.engine.sleep(idle.handle) : 'stopped'

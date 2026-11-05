@@ -16,6 +16,7 @@ from ..models.sandbox_state import SandboxState
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
+    from ..models.sandbox_agent import SandboxAgent
     from ..models.sandbox_endpoints_item import SandboxEndpointsItem
 
 
@@ -37,6 +38,8 @@ class Sandbox:
         created_at (str):
         updated_at (str):
         expires_at (Union[None, str]):
+        files (Union[Unset, bool]):
+        agent (Union[Unset, SandboxAgent]):
         units (Union[Unset, int]):
     """
 
@@ -51,6 +54,8 @@ class Sandbox:
     created_at: str
     updated_at: str
     expires_at: Union[None, str]
+    files: Union[Unset, bool] = UNSET
+    agent: Union[Unset, "SandboxAgent"] = UNSET
     units: Union[Unset, int] = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -83,6 +88,12 @@ class Sandbox:
         expires_at: Union[None, str]
         expires_at = self.expires_at
 
+        files = self.files
+
+        agent: Union[Unset, dict[str, Any]] = UNSET
+        if not isinstance(self.agent, Unset):
+            agent = self.agent.to_dict()
+
         units = self.units
 
         field_dict: dict[str, Any] = {}
@@ -102,6 +113,10 @@ class Sandbox:
                 "expiresAt": expires_at,
             }
         )
+        if files is not UNSET:
+            field_dict["files"] = files
+        if agent is not UNSET:
+            field_dict["agent"] = agent
         if units is not UNSET:
             field_dict["units"] = units
 
@@ -109,6 +124,7 @@ class Sandbox:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        from ..models.sandbox_agent import SandboxAgent
         from ..models.sandbox_endpoints_item import SandboxEndpointsItem
 
         d = dict(src_dict)
@@ -154,6 +170,15 @@ class Sandbox:
 
         expires_at = _parse_expires_at(d.pop("expiresAt"))
 
+        files = d.pop("files", UNSET)
+
+        _agent = d.pop("agent", UNSET)
+        agent: Union[Unset, SandboxAgent]
+        if isinstance(_agent, Unset):
+            agent = UNSET
+        else:
+            agent = SandboxAgent.from_dict(_agent)
+
         units = d.pop("units", UNSET)
 
         sandbox = cls(
@@ -168,6 +193,8 @@ class Sandbox:
             created_at=created_at,
             updated_at=updated_at,
             expires_at=expires_at,
+            files=files,
+            agent=agent,
             units=units,
         )
 

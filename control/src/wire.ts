@@ -21,6 +21,10 @@ type Reads = NodeReads['schemas']
 type Writes = NodeWrites['schemas']
 
 export type WorkloadSpec = Reads['WorkloadSpec']
+export type AgentView = Writes['AgentView']
+export type AgentTokenRequest = Reads['AgentTokenRequest']
+export type AgentTokenResponse = Writes['AgentTokenResponse']
+export type FileInfo = Writes['FileInfo']
 export type WorkloadState = Writes['WorkloadState']
 /**
  * A workload's view, as far as the control plane reads it and its tests' stand-in nodes answer: the
@@ -30,6 +34,7 @@ export type WorkloadState = Writes['WorkloadState']
 export type WorkloadView = Pick<
   Writes['WorkloadView'],
   | 'id'
+  | 'agent'
   | 'generation'
   | 'epoch'
   | 'supersededBy'

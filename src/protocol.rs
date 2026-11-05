@@ -22,6 +22,7 @@
 //! - `transfer.rs`: moving a workload's data: export, restore, snapshots and their upload.
 //! - `store_lease.rs`: optional ephemeral store authority and its versioned object.
 //! - `exec.rs`: running one command inside a workload.
+//! - `agent.rs`: optional agent bootstrap, tokens and file metadata.
 //! - `node.rs`: what the node reports about itself.
 //! - `wire.rs`: what a node and its control plane send each other: enrollment, heartbeats, renewal.
 //! - `schema.rs`: tests only; these types as the OpenAPI documents the control plane's TypeScript
@@ -29,6 +30,7 @@
 
 use serde::{Deserialize, Serialize};
 
+mod agent;
 mod exec;
 mod lifecycle;
 mod node;
@@ -40,6 +42,7 @@ mod transfer;
 pub mod wire;
 mod workload;
 
+pub use agent::*;
 pub use exec::*;
 pub use lifecycle::*;
 pub use node::*;
@@ -76,6 +79,7 @@ pub(crate) const FEATURES: &[&str] = &[
     "suspend",
     "signed-upgrade",
     "exec-stream",
+    "files",
 ];
 
 impl ProtocolVersions {

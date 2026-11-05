@@ -16,12 +16,14 @@
 //! - `handshake.rs`: the TLS handshake of each connection, bounded in number and time, and its
 //!   refusals reported without flooding the log.
 //! - `tls.rs`: the API's side of mutual TLS: its certificate, and who a client certificate proves.
+//! - `files.rs`: persistent data streams and agent capability issuance.
 
 // A handler's error is the answer itself, axum's `Response`, sent once and never passed along.
 #![expect(clippy::result_large_err, reason = "axum handlers answer Result<Response, Response>")]
 
 pub mod error;
 mod exec_stream;
+mod files;
 mod handshake;
 pub mod tls;
 
@@ -536,6 +538,7 @@ pub fn router(state: AppState, max_body: usize) -> Router {
         .route("/v1/workloads/{id}/exec-stream", post(exec_stream::exec_stream))
         .route("/v1/workloads/{id}/logs", get(logs))
         .route("/v1/workloads/{id}/stats", get(stats))
+        .merge(files::routes())
         .fallback(not_found)
         .layer(middleware::from_fn_with_state(state.clone(), envelope))
         .layer(axum::extract::DefaultBodyLimit::max(max_body))

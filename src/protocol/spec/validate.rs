@@ -110,6 +110,15 @@ impl WorkloadSpec {
         self.check_resources(policy, &mut problems);
         self.check_storage(&mut problems);
         self.check_ports(&mut problems);
+        if self.spare_ports.is_some_and(|n| n > pryx_agent::contract::MAX_SPARE_PORTS) {
+            problems.add("sparePorts", format!("at most {}", pryx_agent::contract::MAX_SPARE_PORTS));
+        }
+        if self.agent.as_ref().is_some_and(|a| rustls::pki_types::DnsName::try_from(a.domain.as_str()).is_err()) {
+            problems.add("agent.domain", "must be a DNS domain");
+        }
+        if self.storage.mount_path == pryx_agent::contract::BINARY_PATH {
+            problems.add("storage.mountPath", "the agent executable path is reserved");
+        }
         self.check_stop_and_restart(&mut problems);
         self.check_labels(&mut problems);
         self.check_resumes_on(&mut problems);

@@ -72,6 +72,22 @@ pub(super) fn body_of(spec: &ContainerSpec) -> ContainerCreateBody {
         // mount is executable anyway, so noexec here would break things and protect nothing.
         HashMap::from([("/tmp".to_owned(), format!("rw,exec,nosuid,nodev,size={}m", spec.tmp_size_mb))])
     });
+    let mut mounts = vec![Mount {
+        typ: Some(MountType::BIND),
+        source: Some(spec.data_dir.to_string_lossy().into_owned()),
+        target: Some(spec.mount_path.clone()),
+        read_only: Some(false),
+        ..Default::default()
+    }];
+    if let Some(agent) = &spec.agent {
+        mounts.push(Mount {
+            typ: Some(MountType::BIND),
+            source: Some(agent.binary.to_string_lossy().into_owned()),
+            target: Some(pryx_agent::contract::BINARY_PATH.into()),
+            read_only: Some(true),
+            ..Default::default()
+        });
+    }
     let host_config = HostConfig {
         cgroup_parent: spec.cgroup_parent.clone(),
         memory: Some(spec.memory_bytes),
@@ -91,13 +107,7 @@ pub(super) fn body_of(spec: &ContainerSpec) -> ContainerCreateBody {
         // reboot, before pryxd runs, which would bring back a fenced copy. pryxd applies the
         // spec's policy itself (`restart_supervisor`).
         restart_policy: Some(DockerRestartPolicy { name: Some(RestartPolicyNameEnum::NO), maximum_retry_count: None }),
-        mounts: Some(vec![Mount {
-            typ: Some(MountType::BIND),
-            source: Some(spec.data_dir.to_string_lossy().into_owned()),
-            target: Some(spec.mount_path.clone()),
-            read_only: Some(false),
-            ..Default::default()
-        }]),
+        mounts: Some(mounts),
         port_bindings: Some(bindings),
         network_mode: Some(spec.network.clone()),
         // Rotated and bounded: a chatty sandbox can't fill the disk with logs.

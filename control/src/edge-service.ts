@@ -4,12 +4,15 @@
 /** Routes, wake coalescing and activity persistence for authenticated edges; all execution stays in Sandboxes. */
 import { sql } from 'drizzle-orm'
 import type { z } from 'zod'
+import type { Agents } from './agents.ts'
 import type { PublicPort } from './api-schemas.ts'
 import type { Db } from './database.ts'
 import { SECOND_MS } from './durations.ts'
 import { addresses, DEFAULT_EDGE_PORT_RANGE } from './edge-addresses.ts'
+import { AGENT_ROUTE_PORT, HTTP_FRONT_PORT } from './edge-headers.ts'
 import type { EdgeRoute, EdgeRoutes, SessionEvent, WakeResult } from './edge-schemas.ts'
 import { decodeHandle } from './handle.ts'
+import { agentViewSchema } from './node-contract.ts'
 import { fingerprint } from './operations.ts'
 import type { Sandboxes, SandboxRow } from './sandboxes.ts'
 import { event, jsonb, lock, one, rows } from './sql.ts'
@@ -20,15 +23,37 @@ export class EdgeService {
     readonly boxes: Sandboxes,
     readonly domain: string,
     readonly portRange: readonly [number, number] = DEFAULT_EDGE_PORT_RANGE,
+    readonly agents?: Agents,
   ) {}
-  async routes(): Promise<EdgeRoutes & { version: number; digest: string }> {
-    const all = await rows<SandboxRow & { public_ports: PublicPort[] }>(
+  async routes(includeAgents = false): Promise<EdgeRoutes & { version: number; digest: string }> {
+    const all = await rows<SandboxRow & { public_ports: PublicPort[]; observed_agent: unknown }>(
       this.db,
-      sql`SELECT * FROM sandboxes WHERE deleted_at IS NULL AND NOT internal AND (expires_at IS NULL OR expires_at > now()) AND state <> 'failed' ORDER BY id`,
+      sql`SELECT b.*, o.report->'agent' AS observed_agent FROM sandboxes b
+        LEFT JOIN fleet_placements p ON p.workload=b.id
+        LEFT JOIN fleet_observations o ON o.workload=p.workload AND o.node_id=p.node_id AND o.epoch=p.epoch
+        WHERE b.deleted_at IS NULL AND NOT b.internal AND (b.expires_at IS NULL OR b.expires_at > now()) AND b.state <> 'failed' ORDER BY b.id`,
     )
     const routes: EdgeRoute[] = []
     for (const b of all) {
       const ref = b.handle ? decodeHandle(b.handle) : null
+      const observed = agentViewSchema.safeParse(b.observed_agent)
+      if (ref?.agent && observed.success && observed.data.publicKey === ref.agent.publicKey)
+        ref.agent = observed.data
+      if (includeAgents && ref?.agent) {
+        const running = b.state === 'running' && ref.node
+        routes.push({
+          id: `${b.id}:${AGENT_ROUTE_PORT}`,
+          sandbox: b.id,
+          hostname: `${b.id}.${this.domain}`,
+          port: AGENT_ROUTE_PORT,
+          front: 'http',
+          publicPort: HTTP_FRONT_PORT,
+          epoch: ref.epoch,
+          destination: ref.agent.port.endpoints[0] ?? '0.0.0.0:0',
+          agent: { manifest: ref.agent },
+          ...(running ? {} : { state: 'asleep' as const }),
+        })
+      }
       for (const a of await addresses(this.db, b.id, b.public_ports, this.domain, this.portRange)) {
         const running = b.state === 'running' && ref?.node
         const endpoint = running
@@ -58,7 +83,9 @@ export class EdgeService {
         })
       }
     }
-    const digest = fingerprint(routes)
+    const digest = fingerprint(
+      routes.some((r) => r.agent) ? { routes, capabilities: this.agents?.capabilityVersion() } : routes,
+    )
     const version = await this.db.transaction(async (t) => {
       await lock(t, 'edge-route-list')
       let latest = await one<{ version: string; digest: string }>(
@@ -77,10 +104,20 @@ export class EdgeService {
         )
       return Number(latest.version)
     })
+    if (this.agents) {
+      const active = new Set(all.map((b) => b.id))
+      for (const key of this.agents.routeTokens.keys())
+        if (!active.has(key.split(':')[0] as string)) this.agents.routeTokens.delete(key)
+      for (const route of routes) {
+        const box = all.find((b) => b.id === route.sandbox)
+        if (route.agent && box?.handle)
+          route.agent.routeToken = await this.agents.routeToken(decodeHandle(box.handle))
+      }
+    }
     return { routes, version, digest }
   }
   async route(id: string) {
-    return (await this.routes()).routes.find((r) => r.id === id)
+    return (await this.routes(true)).routes.find((r) => r.id === id)
   }
   begin(route: EdgeRoute) {
     if (!this.wakes.has(route.sandbox)) {

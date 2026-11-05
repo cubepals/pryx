@@ -12,6 +12,7 @@ from typing import (
 
 from attrs import define as _attrs_define
 
+from ..models.template_request_spec_network import TemplateRequestSpecNetwork
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
@@ -39,6 +40,8 @@ class TemplateRequestSpec:
         units (Union[Unset, int]):
         storage (Union[Unset, TemplateRequestSpecStorage]):
         ports (Union[Unset, list['TemplateRequestSpecPortsItem']]):
+        spare_ports (Union[Unset, int]):
+        network (Union[Unset, TemplateRequestSpecNetwork]):  Default: TemplateRequestSpecNetwork.INTERNET.
         env (Union[Unset, TemplateRequestSpecEnv]):
         secrets (Union[Unset, TemplateRequestSpecSecrets]):
         ttl (Union[Unset, float]):
@@ -58,6 +61,10 @@ class TemplateRequestSpec:
     units: Union[Unset, int] = UNSET
     storage: Union[Unset, "TemplateRequestSpecStorage"] = UNSET
     ports: Union[Unset, list["TemplateRequestSpecPortsItem"]] = UNSET
+    spare_ports: Union[Unset, int] = UNSET
+    network: Union[Unset, TemplateRequestSpecNetwork] = (
+        TemplateRequestSpecNetwork.INTERNET
+    )
     env: Union[Unset, "TemplateRequestSpecEnv"] = UNSET
     secrets: Union[Unset, "TemplateRequestSpecSecrets"] = UNSET
     ttl: Union[Unset, float] = UNSET
@@ -95,6 +102,12 @@ class TemplateRequestSpec:
             for ports_item_data in self.ports:
                 ports_item = ports_item_data.to_dict()
                 ports.append(ports_item)
+
+        spare_ports = self.spare_ports
+
+        network: Union[Unset, str] = UNSET
+        if not isinstance(self.network, Unset):
+            network = self.network.value
 
         env: Union[Unset, dict[str, Any]] = UNSET
         if not isinstance(self.env, Unset):
@@ -141,6 +154,10 @@ class TemplateRequestSpec:
             field_dict["storage"] = storage
         if ports is not UNSET:
             field_dict["ports"] = ports
+        if spare_ports is not UNSET:
+            field_dict["sparePorts"] = spare_ports
+        if network is not UNSET:
+            field_dict["network"] = network
         if env is not UNSET:
             field_dict["env"] = env
         if secrets is not UNSET:
@@ -208,6 +225,15 @@ class TemplateRequestSpec:
 
             ports.append(ports_item)
 
+        spare_ports = d.pop("sparePorts", UNSET)
+
+        _network = d.pop("network", UNSET)
+        network: Union[Unset, TemplateRequestSpecNetwork]
+        if isinstance(_network, Unset):
+            network = UNSET
+        else:
+            network = TemplateRequestSpecNetwork(_network)
+
         _env = d.pop("env", UNSET)
         env: Union[Unset, TemplateRequestSpecEnv]
         if isinstance(_env, Unset):
@@ -259,6 +285,8 @@ class TemplateRequestSpec:
             units=units,
             storage=storage,
             ports=ports,
+            spare_ports=spare_ports,
+            network=network,
             env=env,
             secrets=secrets,
             ttl=ttl,

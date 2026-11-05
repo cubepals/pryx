@@ -2,6 +2,7 @@
 """Single-consumer command values. Iteration is live; collecting never sends a second command."""
 from dataclasses import dataclass
 from .api import PryxError
+from .generated.defaults import SDK_DEFAULTS
 
 @dataclass
 class RunResult:
@@ -17,14 +18,18 @@ class RunResult:
 def _event(result, event):
     kind = event.get("type")
     if kind in ("stdout", "stderr"):
-        setattr(result, kind, getattr(result, kind) + event["data"])
-        setattr(result, kind + "_truncated", getattr(result, kind + "_truncated") or event["truncated"])
+        previous = getattr(result, kind)
+        room = SDK_DEFAULTS['captureBytes'] - len(previous)
+        setattr(result, kind, previous + event['data'][:max(0, room)])
+        setattr(result, kind + "_truncated", getattr(result, kind + "_truncated") or event["truncated"] or len(event['data']) > room)
         return {"stream": kind, "data": event["data"]}
     if kind == "exit":
         result.code = event["code"]
         result.timed_out = event["timedOut"]
         result.killed = event["killed"]
         result.duration_ms = event["durationMs"]
+        result.stdout_truncated |= event.get('stdoutTruncated', False)
+        result.stderr_truncated |= event.get('stderrTruncated', False)
     elif kind == "error":
         raise PryxError(0, {"error": event.get("error", {})})
     return None
@@ -60,6 +65,7 @@ class Run:
         rest = {"stdout": "", "stderr": ""}
         for chunk in self.stream():
             kind = chunk["stream"]
+            if len(rest[kind]) + len(chunk['data']) > SDK_DEFAULTS['captureBytes']: raise PryxError(0, {'error': {'code':'line_too_long', 'message':'Output line exceeds the bounded line buffer; use stream()'}})
             rest[kind] += chunk["data"]
             while "\n" in rest[kind]:
                 line, rest[kind] = rest[kind].split("\n", 1)
@@ -103,6 +109,7 @@ class AsyncRun:
         rest = {"stdout": "", "stderr": ""}
         async for chunk in self.stream():
             kind = chunk["stream"]
+            if len(rest[kind]) + len(chunk['data']) > SDK_DEFAULTS['captureBytes']: raise PryxError(0, {'error': {'code':'line_too_long', 'message':'Output line exceeds the bounded line buffer; use stream()'}})
             rest[kind] += chunk["data"]
             while "\n" in rest[kind]:
                 line, rest[kind] = rest[kind].split("\n", 1)

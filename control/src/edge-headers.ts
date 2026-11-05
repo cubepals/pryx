@@ -14,6 +14,8 @@
  * back as `If-None-Match`, only spares sending a list the edge has already.
  */
 export const EDGE_ID_HEADER = 'x-edge-id'
+export const EDGE_FEATURES_HEADER = 'x-pryx-edge-features'
+export const AGENT_ROUTE_PORT = '_pryx'
 export const ROUTES_VERSION_HEADER = 'x-routes-version'
 export const ROUTES_HELD_HEADER = 'x-routes-held'
 /** When the edge's agent started, in milliseconds: a restarted edge is given time to catch up. */

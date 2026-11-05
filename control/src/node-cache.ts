@@ -54,8 +54,20 @@ export class NodeCache {
     return node === undefined ? null : { id: ref.node, apiAddress: node.apiAddress, features: node.features }
   }
 
+  async home(handle: RuntimeHandle) {
+    const address = this.address(handle)
+    if (address || decodeHandle(handle).node === null) return address
+    await this.refresh()
+    return this.address(handle)
+  }
   get(id: string): CachedNode | undefined {
     return this.#nodes.get(id)
+  }
+  supports(feature: string, region: string): boolean | undefined {
+    const nodes = [...this.#nodes.values()].filter(
+      (node) => node.lifecycle === 'active' && node.region === region,
+    )
+    return nodes.length ? nodes.some((node) => node.features.includes(feature)) : undefined
   }
 
   /** Reads the registry now and every few seconds after, until the returned function is called. */

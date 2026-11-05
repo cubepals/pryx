@@ -31,6 +31,9 @@ interface PortSpec {
 }
 
 export interface RuntimeSpec {
+  agent?: import('./wire.ts').WorkloadSpec['agent']
+  sparePorts?: number | null
+  network?: import('./wire.ts').WorkloadSpec['network']
   image: string
   /** Replaces the image's own entrypoint; absent, the image starts as it was built to. */
   entrypoint?: readonly string[]

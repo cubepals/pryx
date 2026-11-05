@@ -7,6 +7,7 @@
 import 'reflect-metadata'
 import { randomBytes, webcrypto } from 'node:crypto'
 import * as x509 from '@peculiar/x509'
+import type { Logger } from 'drizzle-orm/logger'
 import { migrate } from 'drizzle-orm/node-postgres/migrator'
 import pg from 'pg'
 import { FleetCa, pemSha256 } from '../src/ca.ts'
@@ -17,7 +18,7 @@ import type { HeartbeatRequest, NodeCapacity, NodeFacts, WorkloadReport } from '
 export const hasDatabase = Boolean(process.env.DATABASE_URL)
 
 /** A database of its own, migrated, for one test file; `drop` removes it. */
-export async function freshDatabase(): Promise<{
+export async function freshDatabase(logger?: Logger): Promise<{
   db: Db
   url: string
   drop: () => Promise<void>
@@ -32,7 +33,7 @@ export async function freshDatabase(): Promise<{
   const url = new URL(base)
   url.pathname = `/${name}`
   const pool = createPool(url.toString())
-  const db = createDb(pool)
+  const db = createDb(pool, logger)
   await migrate(db, { migrationsFolder })
   return {
     db,

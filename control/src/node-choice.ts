@@ -56,9 +56,13 @@ export class NodeChoice {
       memoryMb: spec.resources.memoryMb,
       cpuMillis: spec.resources.cpuMillis ?? cpuRequest(spec.resources.memoryMb, this.#o.cpuMillisPerGb),
       diskGb: spec.storage.sizeGb,
-      ports: spec.ports.length,
+      ports: spec.ports.length + (spec.agent ? 1 + (spec.sparePorts ?? 0) : 0),
       regionKey: region,
-      needs: NEEDS,
+      needs: [
+        ...NEEDS,
+        ...(spec.network === 'none' ? ['network-policy'] : []),
+        ...(spec.agent || (spec.sparePorts ?? 0) > 0 ? ['agent'] : []),
+      ],
       avoid,
       ...(only === null ? {} : { only }),
     }

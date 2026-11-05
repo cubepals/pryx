@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
 /** A real Postgres API with the existing node double, isolated per test module. */
+import type { Logger } from 'drizzle-orm/logger'
 import { FleetStore } from '../src/archive-transport.ts'
 import { createPool } from '../src/database.ts'
 import { THRESHOLDS } from '../src/health.ts'
@@ -14,8 +15,8 @@ import { FleetRuntime } from '../src/runtime-engine.ts'
 import { Sandboxes } from '../src/sandboxes.ts'
 import { FlakyStore, Nodes } from './flow-nodes.ts'
 import { beat, enrollNode, freshDatabase, registryOptions, testCa } from './nodes.ts'
-export async function publicContext() {
-  const fresh = await freshDatabase(),
+export async function publicContext(logger?: Logger) {
+  const fresh = await freshDatabase(logger),
     locks = createPool(fresh.url),
     store = new FlakyStore()
   await store.start()

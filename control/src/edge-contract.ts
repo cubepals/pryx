@@ -6,6 +6,7 @@
 import { StatusCodes } from 'http-status-codes'
 
 import { z } from 'zod'
+import { EDGE_FEATURES_HEADER } from './edge-headers.ts'
 import {
   EdgeRoute,
   EdgeRoutes,
@@ -16,9 +17,11 @@ import {
   WakeRequest,
   WakeResult,
 } from './edge-schemas.ts'
+import { agentClaimsSchema } from './node-contract.ts'
 export function edgeContract() {
   const schemas = Object.fromEntries(
     Object.entries({
+      AgentClaims: agentClaimsSchema,
       EdgeRoute,
       EdgeRoutes,
       SessionEvent,
@@ -49,7 +52,16 @@ export function edgeContract() {
           parameters: [
             { in: 'header', name: 'x-edge-id', required: true, schema: { type: 'string' } },
             ...(path === 'routes'
-              ? [{ in: 'header', name: 'x-routes-held', schema: { type: 'string' } }]
+              ? [
+                  { in: 'header', name: 'x-routes-held', schema: { type: 'string' } },
+                  {
+                    in: 'header',
+                    name: EDGE_FEATURES_HEADER,
+                    schema: { type: 'string' },
+                    description:
+                      'Comma-separated additive edge features; agent enables sandbox capabilities and agent manifests.',
+                  },
+                ]
               : []),
           ],
           ...(body

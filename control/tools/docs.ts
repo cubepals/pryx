@@ -46,6 +46,11 @@ lines.push(
 )
 lines.push(
   '',
+  '## Direct sandbox operations',
+  '',
+  'POST /v1/sandboxes/{id}/token returns a short-lived sandbox capability and agent URL. SDKs cache it and send running processes, terminals, streamed files and runtime expose requests through the edge directly to /_pryx/. The project key is never sent to the sandbox. See [the agent API](agent.md) for its contract, file URLs, spare ports and network policy.',
+  'The /data/content, /data/list and /data/stat routes use the node files feature while compute is stopped or sleeping. Raw content streams as application/octet-stream; JSON requests stay bounded. Older nodes retain the existing chunk/archive fallback.',
+  '',
   '## Projects and limits',
   '',
   'An operator creates a project with POST /operator/v1/projects on the private operator listener.',

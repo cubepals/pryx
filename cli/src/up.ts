@@ -132,7 +132,7 @@ export async function up(args: string[]) {
     ])
   if (process.arch !== 'x64') throw new Error('This release installs Linux x86_64 binaries')
   const assets = await releaseFiles(option(args, '--from-dir'))
-  for (const name of ['pryxd', 'pryx-control', 'pryx-edge']) {
+  for (const name of ['pryxd', 'pryx-agent', 'pryx-control', 'pryx-edge']) {
     chmodSync(join(assets, name), 0o755)
     const version = Bun.spawnSync([join(assets, name), '--version'])
     if (version.exitCode !== 0 || version.stdout.toString().trim() !== `${name} ${PRYX_VERSION}`)
@@ -140,6 +140,7 @@ export async function up(args: string[]) {
   }
   mkdirSync('/opt/pryx', { recursive: true })
   const changed = new Set<string>()
+  if (installBinary(join(assets, 'pryx-agent'), '/usr/local/lib/pryx/pryx-agent')) changed.add('pryxd')
   for (const name of ['pryx-control', 'pryx-edge'])
     if (installBinary(join(assets, name), `/opt/pryx/${name}`)) changed.add(name)
   mkdirSync('/var/lib/pryxd', { recursive: true, mode: 0o700 })

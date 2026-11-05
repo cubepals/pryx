@@ -15,14 +15,18 @@ RUN apk add --no-cache musl-dev file
 WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 COPY src src
+COPY agent agent
 # The unit `pryxd join` installs, and the daemon.json `doctor` checks against, are compiled in.
 COPY deploy deploy
 RUN cargo build --locked --release \
  && ./target/release/pryxd --version \
+ && ./target/release/pryx-agent --version \
+ && file target/release/pryx-agent | grep -q 'static' \
  && file target/release/pryxd | grep -q 'static' || { file target/release/pryxd; exit 1; }
 
 FROM scratch
 COPY --from=build /src/target/release/pryxd /pryxd
+COPY --from=build /src/target/release/pryx-agent /usr/local/lib/pryx/pryx-agent
 COPY openapi /openapi
 COPY deploy/daemon.json deploy/pryxd.service /deploy/
 COPY LICENSE.md /LICENSE.md

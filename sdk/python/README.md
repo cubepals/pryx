@@ -58,7 +58,8 @@ Durations accept positive seconds or `s`, `m`, `h`, `d` strings. Make/run genera
 keys unless `key=` is passed. No operation is retried automatically. `PryxError` preserves status,
 code and details. An incomplete stream has an unknown outcome; inspect it before starting another
 command. Disconnect does not imply termination. Output is live on nodes with `exec-stream` and
-buffered on older nodes. `pryx.api` and every existing sync raw method/constructor still work.
+through the agent on current nodes, and buffered on older nodes. `pryx.api` and every existing
+sync raw method/constructor still work.
 
 Models and defaults are generated from the committed OpenAPI with openapi-python-client 0.26.0.
 Install `sdk/python/generator-requirements.lock`, then run `python sdk/python/generate.py generate`
@@ -66,3 +67,17 @@ or `check`. NDJSON is implemented by the wrapper because the generator does not 
 `python -m unittest discover -s sdk/python/test -v` runs units; the real one-box tests require
 PRYX_API_URL/PRYX_API_KEY and run in CI. Client reprs suppress credentials; configure httpx.Timeout
 if a caller needs a deadline independent of the node's command timeout.
+
+Both handles support `start(command, env=..., cwd=..., stdin=True)` returning a process with
+`id`, `pid`, `stream`, `lines`, `stdin.write`, `stdin.close`, `signal`, `kill` and `wait`.
+Omitting the command retains lifecycle start. `terminal(cols=120, rows=40)` returns a websocket
+PTY with `stdin.write`, `resize`, `stream` and `close`; async clients await its I/O methods.
+`expose(port)` returns a public URL, `unexpose` frees a spare, and `network('none')` replaces
+compute while retaining data. Mutations are sent once.
+
+`write` accepts bytes, file objects and iterables (async iterables on the async handle).
+`read_stream` yields bytes without collecting the file. Files provide `list`, `stat`, `mkdir`,
+`move`, `delete`, `watch`, `upload`, `download` and short-lived `url(path, method='GET')`.
+Watches first yield `ready`. Data access selects the node automatically while compute is stopped.
+`pryx.agent(id)` exposes the direct transport. Tokens are cached and never send the project key
+to an agent. See [agent.md](../../docs/agent.md) for security and stream limits.

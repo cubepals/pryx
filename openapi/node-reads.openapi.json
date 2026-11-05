@@ -1,6 +1,56 @@
 {
   "components": {
     "schemas": {
+      "AgentOptions": {
+        "additionalProperties": false,
+        "properties": {
+          "domain": {
+            "type": "string"
+          },
+          "keepAlive": {
+            "default": false,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "domain"
+        ],
+        "type": "object"
+      },
+      "AgentTokenRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expiresAt": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "maxExecSeconds": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "maxPorts": {
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          }
+        },
+        "required": [
+          "scope",
+          "maxPorts"
+        ],
+        "type": "object"
+      },
       "Audience": {
         "description": "Who must be able to reach a port: the edge (players, through the router) or the control\nplane (console, status ping). The host decides which of its addresses each audience uses.",
         "enum": [
@@ -210,6 +260,13 @@
         ],
         "type": "object"
       },
+      "NetworkMode": {
+        "enum": [
+          "internet",
+          "none"
+        ],
+        "type": "string"
+      },
       "PartsTarget": {
         "additionalProperties": false,
         "description": "An archive larger than one PUT carries goes to the store in parts, as its multipart upload:\nthe control plane begins the upload and presigns a URL for each part, and finishes it with the\nparts the node reports. Every part but the last is `part_size` bytes, and the archive takes as\nmany of `urls`, from the first, as it needs; a URL left over is never called.",
@@ -405,6 +462,14 @@
           }
         },
         "type": "object"
+      },
+      "Scope": {
+        "enum": [
+          "sandbox",
+          "routes",
+          "file"
+        ],
+        "type": "string"
       },
       "Secret": {
         "description": "A secret value: never logged, never persisted by pryxd, never returned.",
@@ -631,6 +696,17 @@
       "WorkloadSpec": {
         "additionalProperties": false,
         "properties": {
+          "agent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentOptions"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "entrypoint": {
             "default": null,
             "description": "Replaces the image's entrypoint; absent, the image starts as it was built to.",
@@ -659,6 +735,10 @@
             },
             "default": {},
             "type": "object"
+          },
+          "network": {
+            "$ref": "#/components/schemas/NetworkMode",
+            "default": "internet"
           },
           "ports": {
             "default": [],
@@ -692,6 +772,16 @@
             "description": "Environment the workload needs but nobody else may see.",
             "type": "object"
           },
+          "sparePorts": {
+            "default": null,
+            "format": "uint16",
+            "maximum": 32,
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "stop": {
             "$ref": "#/components/schemas/StopSpec",
             "default": {
@@ -717,5 +807,15 @@
     "version": "1"
   },
   "openapi": "3.1.0",
-  "paths": {}
+  "paths": {},
+  "x-pryx-agent": {
+    "captureBytes": 1048576,
+    "fileTokenLifetimeSeconds": 60,
+    "forwardHeader": "x-pryx-target-port",
+    "maxRequestBytes": 1048576,
+    "maxTokenBytes": 4096,
+    "tokenClockSkewSeconds": 30,
+    "tokenLifetimeSeconds": 300,
+    "tokenPrefix": "pa1"
+  }
 }

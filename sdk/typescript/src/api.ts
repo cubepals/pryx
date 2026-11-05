@@ -38,6 +38,9 @@ export class Pryx {
       ...(body ? { body: JSON.stringify(body) } : {}),
       signal,
     })
+    return this.checked(response)
+  }
+  private async checked(response: Response) {
     if (!response.ok) {
       const data = (await response.json().catch(() => ({}))) as {
         error?: { code?: string; message?: string; details?: unknown }
@@ -50,6 +53,15 @@ export class Pryx {
       )
     }
     return response
+  }
+  async transfer(path: string, method = 'GET', body?: BodyInit) {
+    return this.checked(
+      await this.fetch(`${this.baseUrl}${path}`, {
+        method,
+        body,
+        headers: { authorization: `Bearer ${this.options.apiKey}` },
+      }),
+    )
   }
   async request<T>(path: string, method = 'GET', body?: unknown, key?: string): Promise<T> {
     return (await (await this.raw(path, method, body, key)).json()) as T

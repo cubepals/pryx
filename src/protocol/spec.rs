@@ -67,6 +67,13 @@ pub struct WorkloadSpec {
     /// and its spec is put in place at its next boot. Not part of the spec's digest.
     #[serde(default)]
     pub(crate) resumes_on: Option<String>,
+    #[serde(default)]
+    pub(crate) agent: Option<super::AgentOptions>,
+    #[serde(default)]
+    #[cfg_attr(test, schemars(range(max = pryx_agent::contract::MAX_SPARE_PORTS)))]
+    pub(crate) spare_ports: Option<u16>,
+    #[serde(default)]
+    pub(crate) network: super::NetworkMode,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -217,6 +224,9 @@ impl WorkloadSpec {
             stop: self.stop.clone(),
             restart: self.restart.clone(),
             labels: self.labels.clone(),
+            agent: self.agent.clone(),
+            spare_ports: self.spare_ports,
+            network: self.network,
         }
     }
 }
@@ -234,6 +244,12 @@ impl WorkloadSpec {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SpecRecord {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) agent: Option<super::AgentOptions>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) spare_ports: Option<u16>,
+    #[serde(default, skip_serializing_if = "super::NetworkMode::is_default")]
+    pub(crate) network: super::NetworkMode,
     pub(crate) image: String,
     pub(crate) entrypoint: Option<Vec<String>>,
     pub(crate) env: BTreeMap<String, String>,
@@ -272,6 +288,9 @@ impl SpecRecord {
             restart: self.restart.clone(),
             labels: self.labels.clone(),
             resumes_on,
+            agent: self.agent.clone(),
+            spare_ports: self.spare_ports,
+            network: self.network,
         })
     }
 

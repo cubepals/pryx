@@ -175,6 +175,8 @@ pub struct UpgradeOffer {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct WorkloadReport {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) agent: Option<super::AgentView>,
     pub id: String,
     pub(crate) epoch: Option<u64>,
     pub(crate) superseded_by: Option<u64>,

@@ -5,7 +5,12 @@
 
 import { StatusCodes } from 'http-status-codes'
 import { MINUTE_MS, SECOND_MS } from '../../control/src/durations.ts'
-import { EDGE_ID_HEADER, HTTP_FRONT_PORT, TLS_FRONT_PORT } from '../../control/src/edge-headers.ts'
+import {
+  EDGE_FEATURES_HEADER,
+  EDGE_ID_HEADER,
+  HTTP_FRONT_PORT,
+  TLS_FRONT_PORT,
+} from '../../control/src/edge-headers.ts'
 import { PRYX_VERSION } from '../../control/src/generated/release.ts'
 import { type EdgeConfig, edgeConfig } from './config.ts'
 import { front } from './front.ts'
@@ -14,6 +19,7 @@ import { Gate } from './limits.ts'
 import { Metrics } from './metrics.ts'
 import { RoutesPoll } from './poll.ts'
 import { RouteTable } from './routes.ts'
+import { SandboxProxy } from './sandbox-proxy.ts'
 import type { EdgeRoute, WakeResult } from './wire.ts'
 export async function startEdge(config: EdgeConfig = edgeConfig()) {
   const metrics = new Metrics(),
@@ -60,6 +66,7 @@ export async function startEdge(config: EdgeConfig = edgeConfig()) {
     metrics.count('wake_answers_total', result.outcome)
     return result
   })
+  const agents = new SandboxProxy(table, hold, config.holdMs)
   const ensure = async (kind: EdgeRoute['front'], logicalPort: number, listenPort: number) => {
     const key = `${kind}:${logicalPort}`
     if (listeners.has(key)) return
@@ -70,6 +77,7 @@ export async function startEdge(config: EdgeConfig = edgeConfig()) {
         port: listenPort,
         routePort: logicalPort,
         kind,
+        agents,
         table,
         gate,
         hold,
@@ -84,7 +92,12 @@ export async function startEdge(config: EdgeConfig = edgeConfig()) {
   const poll = new RoutesPoll(
     async (headers) =>
       fetch(`${config.control.replace(/\/$/, '')}/edge/v1/routes`, {
-        headers: { authorization: `Bearer ${config.token}`, [EDGE_ID_HEADER]: config.id, ...headers },
+        headers: {
+          authorization: `Bearer ${config.token}`,
+          [EDGE_ID_HEADER]: config.id,
+          [EDGE_FEATURES_HEADER]: 'agent',
+          ...headers,
+        },
         signal: AbortSignal.any([abort.signal, AbortSignal.timeout(config.requestMs)]),
       }),
     async (list) => {
@@ -138,6 +151,7 @@ export async function startEdge(config: EdgeConfig = edgeConfig()) {
       clearInterval(refresh)
       abort.abort()
       status.stop(true)
+      agents.close()
       for (const c of table.connections) c.close()
       await Promise.all(
         [...listeners.values()].map(

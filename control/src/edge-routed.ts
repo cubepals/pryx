@@ -14,7 +14,7 @@ export async function shownState(db: Db, id: string, state: SandboxState): Promi
   if (state !== 'running') return state
   const waiting = await one(
     db,
-    sql`SELECT 1 FROM sandboxes b WHERE b.id=${id} AND b.updated_at > clock_timestamp()-(${EDGE_BEHIND_MS / SECOND_MS}*interval '1 second') AND EXISTS(SELECT 1 FROM edge_addresses a WHERE a.sandbox=b.id) AND EXISTS(SELECT 1 FROM edges e WHERE e.seen_at > clock_timestamp()-(${EDGE_SEEN_MS / SECOND_MS}*interval '1 second') AND e.first_seen_at <= b.updated_at AND (e.synced_at > e.seen_at-(${EDGE_BEHIND_MS / SECOND_MS}*interval '1 second') OR e.first_seen_at > clock_timestamp()-(${EDGE_BEHIND_MS / SECOND_MS}*interval '1 second')) AND (b.route_listed_version IS NULL OR e.held IS NULL OR e.held < b.route_listed_version))`,
+    sql`SELECT 1 FROM sandboxes b WHERE b.id=${id} AND b.updated_at > clock_timestamp()-(${EDGE_BEHIND_MS / SECOND_MS}*interval '1 second') AND (b.spec->'agent' IS NOT NULL OR EXISTS(SELECT 1 FROM edge_addresses a WHERE a.sandbox=b.id)) AND EXISTS(SELECT 1 FROM edges e WHERE e.seen_at > clock_timestamp()-(${EDGE_SEEN_MS / SECOND_MS}*interval '1 second') AND e.first_seen_at <= b.updated_at AND (e.synced_at > e.seen_at-(${EDGE_BEHIND_MS / SECOND_MS}*interval '1 second') OR e.first_seen_at > clock_timestamp()-(${EDGE_BEHIND_MS / SECOND_MS}*interval '1 second')) AND (b.route_listed_version IS NULL OR e.held IS NULL OR e.held < b.route_listed_version))`,
   )
   return waiting ? 'starting' : state
 }

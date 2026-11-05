@@ -22,13 +22,7 @@ export class SandboxIO {
     readonly nodes: NodeClient,
   ) {}
   private async home(handle: RuntimeHandle) {
-    let address = this.boxes.engine.nodeAddress(handle)
-    // A newly enrolled node may predate the periodic cache refresh. No request has been sent.
-    if (!address && decodeHandle(handle).node !== null) {
-      await this.boxes.engine.refreshRegistry()
-      address = this.boxes.engine.nodeAddress(handle)
-    }
-    return address
+    return this.boxes.engine.home(handle)
   }
   async execEvents(
     id: string,

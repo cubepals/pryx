@@ -14,6 +14,8 @@ export interface paths {
                 header: {
                     "x-edge-id": string;
                     "x-routes-held"?: string;
+                    /** @description Comma-separated additive edge features; agent enables sandbox capabilities and agent manifests. */
+                    "x-pryx-edge-features"?: string;
                 };
                 path?: never;
                 cookie?: never;
@@ -284,7 +286,61 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AgentClaims: {
+            epoch: number;
+            expiresAt: number;
+            file?: ({
+                /** @enum {string} */
+                method: "GET" | "PUT";
+                path: string;
+            } & {
+                [key: string]: unknown;
+            }) | null;
+            issuedAt: number;
+            maxExecSeconds?: number | null;
+            maxPorts: number;
+            sandbox: string;
+            /** @enum {string} */
+            scope: "sandbox" | "routes" | "file";
+        } & {
+            [key: string]: unknown;
+        };
         EdgeRoute: {
+            agent?: {
+                manifest: {
+                    /** @default 0 */
+                    activeStreams: number;
+                    /** @default 0 */
+                    activityAt: number;
+                    /** @default [] */
+                    exposed: ({
+                        port: number;
+                        slot: number;
+                    } & {
+                        [key: string]: unknown;
+                    })[];
+                    port: {
+                        endpoints: string[];
+                        hostPort: number;
+                        port: number;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                    /** @default 0 */
+                    portRevision: number;
+                    publicKey: string;
+                    spares: ({
+                        endpoints: string[];
+                        hostPort: number;
+                        port: number;
+                    } & {
+                        [key: string]: unknown;
+                    })[];
+                } & {
+                    [key: string]: unknown;
+                };
+                routeToken?: string;
+            };
             id: string;
             sandbox: string;
             hostname: string;
@@ -299,6 +355,41 @@ export interface components {
         };
         EdgeRoutes: {
             routes: {
+                agent?: {
+                    manifest: {
+                        /** @default 0 */
+                        activeStreams: number;
+                        /** @default 0 */
+                        activityAt: number;
+                        /** @default [] */
+                        exposed: ({
+                            port: number;
+                            slot: number;
+                        } & {
+                            [key: string]: unknown;
+                        })[];
+                        port: {
+                            endpoints: string[];
+                            hostPort: number;
+                            port: number;
+                        } & {
+                            [key: string]: unknown;
+                        };
+                        /** @default 0 */
+                        portRevision: number;
+                        publicKey: string;
+                        spares: ({
+                            endpoints: string[];
+                            hostPort: number;
+                            port: number;
+                        } & {
+                            [key: string]: unknown;
+                        })[];
+                    } & {
+                        [key: string]: unknown;
+                    };
+                    routeToken?: string;
+                };
                 id: string;
                 sandbox: string;
                 hostname: string;

@@ -14,7 +14,7 @@
 
 import https from 'node:https'
 import { connect as tcpConnect } from 'node:net'
-import type { Readable } from 'node:stream'
+import { Readable } from 'node:stream'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { StatusCodes } from 'http-status-codes'
 import { nodeName } from './ca.ts'
@@ -307,6 +307,51 @@ export class NodeClient {
 
   close(): void {
     this.#agent.destroy()
+  }
+
+  /** A file stream is sent once, including PUT: a partial upload is never silently replayed. */
+  async transfer(
+    node: NodeAddress,
+    method: string,
+    path: string,
+    options: { epoch: number; signal: AbortSignal; body?: ReadableStream<Uint8Array> },
+  ) {
+    const { host, port } = splitAddress(node.apiAddress)
+    const response = await new Promise<import('node:http').IncomingMessage>((resolve, reject) => {
+      const request = https.request(
+        {
+          host,
+          port,
+          method,
+          path,
+          agent: this.#agent,
+          servername: nodeName(node.id, this.#deployment),
+          headers: { [EPOCH_HEADER]: String(options.epoch) },
+          signal: options.signal,
+        },
+        resolve,
+      )
+      request.on('error', (error: NodeJS.ErrnoException) => reject(unreachable(error)))
+      request.setTimeout(30 * SECOND_MS, () => request.destroy(new Error('Node file stream became idle')))
+      if (options.body) {
+        // Node and Bun describe the same WHATWG stream with different convenience methods.
+        const input = Readable.fromWeb(options.body as unknown as Parameters<typeof Readable.fromWeb>[0])
+        input.on('error', () => request.destroy(new Error('File upload interrupted')))
+        request.once('close', () => input.destroy())
+        input.pipe(request)
+      } else request.end()
+    })
+    const headers = new Headers()
+    for (const name of ['content-type', 'content-length', 'cache-control']) {
+      const value = response.headers[name]
+      if (typeof value === 'string') headers.set(name, value)
+    }
+    return new Response(
+      response.statusCode === StatusCodes.NO_CONTENT
+        ? null
+        : (Readable.toWeb(response) as unknown as ReadableStream<Uint8Array>),
+      { status: response.statusCode, headers },
+    )
   }
 }
 

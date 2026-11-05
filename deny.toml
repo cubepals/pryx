@@ -29,6 +29,16 @@ allow = [
 ]
 confidence-threshold = 0.9
 
+# Both are permissive and reviewed at the locked version: notify's public-domain dedication,
+# and the terminfo parser used by the embedded shell. Broader dependencies retain the allowlist.
+[[licenses.exceptions]]
+crate = "notify@8.2.1"
+allow = ["CC0-1.0"]
+
+[[licenses.exceptions]]
+crate = "terminfo@0.9.0"
+allow = ["WTFPL"]
+
 [licenses.private]
 # pryxd itself (FSL-1.1-ALv2, LICENSE.md; publish = false) isn't checked against the list above.
 ignore = true

@@ -1,6 +1,131 @@
 {
   "components": {
     "schemas": {
+      "AgentPort": {
+        "properties": {
+          "endpoints": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "hostPort": {
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "port": {
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "port",
+          "hostPort",
+          "endpoints"
+        ],
+        "type": "object"
+      },
+      "AgentPortAssignment": {
+        "properties": {
+          "port": {
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "slot": {
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "port",
+          "slot"
+        ],
+        "type": "object"
+      },
+      "AgentTokenResponse": {
+        "properties": {
+          "agent": {
+            "$ref": "#/components/schemas/AgentView"
+          },
+          "epoch": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "expiresAt": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "expiresAt",
+          "epoch",
+          "agent"
+        ],
+        "type": "object"
+      },
+      "AgentView": {
+        "properties": {
+          "activeStreams": {
+            "default": 0,
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "activityAt": {
+            "default": 0,
+            "format": "int64",
+            "type": "integer"
+          },
+          "exposed": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/AgentPortAssignment"
+            },
+            "type": "array"
+          },
+          "port": {
+            "$ref": "#/components/schemas/AgentPort"
+          },
+          "portRevision": {
+            "default": 0,
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "publicKey": {
+            "type": "string"
+          },
+          "spares": {
+            "items": {
+              "$ref": "#/components/schemas/AgentPort"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "publicKey",
+          "port",
+          "spares",
+          "portRevision",
+          "exposed",
+          "activityAt",
+          "activeStreams"
+        ],
+        "type": "object"
+      },
       "CapacityView": {
         "properties": {
           "allocatableMemoryMb": {
@@ -38,6 +163,62 @@
           "provisionedMemoryMb",
           "portsTotal",
           "portsAllocated"
+        ],
+        "type": "object"
+      },
+      "Claims": {
+        "properties": {
+          "epoch": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "expiresAt": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "file": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FileAccess"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "issuedAt": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "maxExecSeconds": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "maxPorts": {
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "sandbox": {
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          }
+        },
+        "required": [
+          "sandbox",
+          "epoch",
+          "issuedAt",
+          "expiresAt",
+          "scope",
+          "maxPorts"
         ],
         "type": "object"
       },
@@ -527,6 +708,68 @@
           "workload"
         ],
         "type": "object"
+      },
+      "FileAccess": {
+        "properties": {
+          "method": {
+            "$ref": "#/components/schemas/FileMethod"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "method"
+        ],
+        "type": "object"
+      },
+      "FileInfo": {
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "modified": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "size": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "size",
+          "modified"
+        ],
+        "type": "object"
+      },
+      "FileList": {
+        "properties": {
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/FileInfo"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "files"
+        ],
+        "type": "object"
+      },
+      "FileMethod": {
+        "enum": [
+          "GET",
+          "PUT"
+        ],
+        "type": "string"
       },
       "FleetView": {
         "properties": {
@@ -1525,6 +1768,14 @@
         ],
         "type": "object"
       },
+      "Scope": {
+        "enum": [
+          "sandbox",
+          "routes",
+          "file"
+        ],
+        "type": "string"
+      },
       "SnapshotDeleteResponse": {
         "properties": {
           "existed": {
@@ -1829,6 +2080,16 @@
       },
       "WorkloadReport": {
         "properties": {
+          "agent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "changedAt": {
             "type": "string"
           },
@@ -1990,6 +2251,16 @@
       },
       "WorkloadView": {
         "properties": {
+          "agent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "changedAt": {
             "description": "When the state last changed, as the runtime recorded it (survives pryxd restarts).",
             "type": "string"
@@ -2156,5 +2427,15 @@
     "version": "1"
   },
   "openapi": "3.1.0",
-  "paths": {}
+  "paths": {},
+  "x-pryx-agent": {
+    "captureBytes": 1048576,
+    "fileTokenLifetimeSeconds": 60,
+    "forwardHeader": "x-pryx-target-port",
+    "maxRequestBytes": 1048576,
+    "maxTokenBytes": 4096,
+    "tokenClockSkewSeconds": 30,
+    "tokenLifetimeSeconds": 300,
+    "tokenPrefix": "pa1"
+  }
 }

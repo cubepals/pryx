@@ -25,7 +25,10 @@ export class RouteTable {
         if (
           c.sandbox === route.sandbox &&
           (c.epoch < route.epoch ||
-            (c.route === route.id && (c.destination !== route.destination || route.state !== undefined)))
+            (c.route === route.id &&
+              (c.destination !== route.destination ||
+                route.state !== undefined ||
+                previous?.agent?.manifest.publicKey !== route.agent?.manifest.publicKey)))
         ) {
           this.stale()
           c.close()
@@ -47,6 +50,7 @@ export class RouteTable {
   find(name: string, front: EdgeRoute['front'], port: number) {
     return [...this.held.values()].find(
       (r) =>
+        !r.agent &&
         r.epoch >= (this.epochs.get(r.sandbox) ?? 0) &&
         r.front === front &&
         r.publicPort === port &&

@@ -15,5 +15,8 @@
     "README.md",
     "dist",
     "LICENSE.md"
-  ]
+  ],
+  "dependencies": {
+    "http-status-codes": "2.3.0"
+  }
 }

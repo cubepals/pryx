@@ -52,6 +52,7 @@ impl Manager {
         let ports = record
             .ports
             .iter()
+            .filter(|p| !p.name.starts_with(pryx_agent::contract::INTERNAL_PORT_PREFIX))
             .map(|p| {
                 let audience =
                     record.spec.ports.iter().find(|s| s.name == p.name).map(|s| s.audience.clone()).unwrap_or_default();
@@ -75,6 +76,7 @@ impl Manager {
         let (used, measured) =
             state.disk.get(&record.id).map(|(b, at)| (Some(*b), Some(format_time(*at)))).unwrap_or_default();
         WorkloadView {
+            agent: self.agent_view(record, info),
             id: record.id.clone(),
             generation: record.generation,
             epoch: record.epoch,

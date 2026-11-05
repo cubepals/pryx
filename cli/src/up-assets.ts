@@ -18,6 +18,7 @@ import { join } from 'node:path'
 import { PRYX_VERSION } from '../../control/src/generated/release.ts'
 export const RELEASE_FILES = [
   'pryxd',
+  'pryx-agent',
   'pryxd.sig',
   'pryx-control',
   'pryx-edge',

@@ -241,8 +241,9 @@ export class Ledger {
   handleOf(
     row: Pick<ObservedRow, 'workload' | 'node_id' | 'epoch' | 'region_key' | 'ports' | 'handle'> &
       Partial<Pick<ObservedRow, 'node_name' | 'edge_host' | 'control_host' | 'state'>>,
+    agent?: import('./wire.ts').AgentView | null,
   ): RuntimeHandle {
-    if (row.handle !== null && row.state !== 'placing') {
+    if (agent === undefined && row.handle !== null && row.state !== 'placing') {
       const stored = decodeHandle(row.handle)
       if (stored.epoch === Number(row.epoch) && stored.node === row.node_id)
         return row.handle as RuntimeHandle
@@ -257,6 +258,7 @@ export class Ledger {
       edgeHost: row.edge_host ?? null,
       controlHost: row.control_host ?? null,
       ports: row.ports,
+      ...(agent ? { agent } : {}),
     })
   }
 
@@ -330,14 +332,17 @@ export class Ledger {
       const row = await placementOf(t, key, true)
       if (row === null || Number(row.epoch) !== epoch || row.node_id !== node.id || row.state === 'released')
         throw new StaleHandle('The placement changed while it was being made')
-      const handle = this.handleOf({
-        ...row,
-        state: 'placed',
-        ports,
-        node_name: node.name,
-        edge_host: node.edge_host,
-        control_host: node.control_host,
-      })
+      const handle = this.handleOf(
+        {
+          ...row,
+          state: 'placed',
+          ports,
+          node_name: node.name,
+          edge_host: node.edge_host,
+          control_host: node.control_host,
+        },
+        view.agent ?? null,
+      )
       await t.execute(sql`
         UPDATE fleet_placements SET state = 'placed', ports = ${jsonb(ports)},
           spec_digest = ${sent?.deferred ? null : view.specDigest}, sent_digest = ${sent?.digest ?? null},

@@ -1,8 +1,14 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** One lazy command: awaiting collects its result; streaming consumes it once with backpressure. No command is retried or replayed. */
-import { type ExecRequest, type Pryx, PryxError } from './api.ts'
+import { type ExecEvent, type ExecRequest, type Pryx, PryxError } from './api.ts'
 import { type Duration, seconds } from './duration.ts'
-export type RunOptions = { timeout?: Duration; env?: Record<string, string>; idempotencyKey?: string }
+import { SDK_DEFAULTS } from './generated/defaults.ts'
+export type RunOptions = {
+  timeout?: Duration
+  env?: Record<string, string>
+  cwd?: string
+  idempotencyKey?: string
+}
 export type RunResult = {
   stdout: string
   stderr: string
@@ -26,6 +32,7 @@ export class Run implements PromiseLike<RunResult> {
     private id: string,
     command: string | string[],
     options: RunOptions = {},
+    private executor?: (request: ExecRequest, key: string) => AsyncIterable<ExecEvent>,
   ) {
     this.key = options.idempotencyKey ?? crypto.randomUUID()
     this.body = {
@@ -78,11 +85,18 @@ export class Run implements PromiseLike<RunResult> {
     }
     let exited = false
     try {
-      for await (const event of this.api.exec(this.id, this.body, this.key)) {
+      for await (const event of this.executor
+        ? this.executor(this.body, this.key)
+        : this.api.exec(this.id, this.body, this.key)) {
         if (event.type === 'error')
           throw new PryxError(0, event.error.code, event.error.message, event.error.details)
         if (event.type === 'stdout' || event.type === 'stderr') {
-          result[event.type] += event.data
+          const room = SDK_DEFAULTS.captureBytes - result[event.type].length
+          result[event.type] += event.data.slice(0, Math.max(0, room))
+          if (event.data.length > room) {
+            if (event.type === 'stdout') result.stdoutTruncated = true
+            else result.stderrTruncated = true
+          }
           if (event.type === 'stdout') result.stdoutTruncated ||= event.truncated
           else result.stderrTruncated ||= event.truncated
           yield { stream: event.type, data: event.data }
@@ -114,6 +128,8 @@ export class Run implements PromiseLike<RunResult> {
   async *lines(): AsyncGenerator<string> {
     const rest = { stdout: '', stderr: '' }
     for await (const chunk of this.stream()) {
+      if (rest[chunk.stream].length + chunk.data.length > SDK_DEFAULTS.captureBytes)
+        throw new PryxError(0, 'line_too_long', 'Output line exceeds the bounded line buffer; use stream()')
       rest[chunk.stream] += chunk.data
       let at = rest[chunk.stream].indexOf('\n')
       while (at >= 0) {

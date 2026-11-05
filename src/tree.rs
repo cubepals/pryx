@@ -20,6 +20,9 @@
 //! `copy_tree` uses it for local snapshots, sharing blocks with the source (`FICLONE`) where the
 //! filesystem can, and `tarball::pack` for archives. `disk_usage` measures a tree by the same
 //! rules, opening only its directories.
+//!
+//! Parts (`tree/`):
+//! - `path.rs`: descriptor-relative single-file operations for node and agent.
 
 use std::ffi::{CString, OsStr};
 use std::fs::{self, File, OpenOptions};

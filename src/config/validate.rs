@@ -31,6 +31,14 @@ impl Config {
             )));
         }
         let bad = |m: String| Err(ConfigError::Invalid(m));
+        if !self.workloads.agent_binary.is_absolute()
+            || self.workloads.default_spare_ports > pryx_agent::contract::MAX_SPARE_PORTS
+        {
+            return bad(
+                "workloads.agent_binary must be absolute and default_spare_ports must fit the agent's slot limit"
+                    .into(),
+            );
+        }
         if !(1..=MAX_PUT_MB).contains(&self.transfer.max_put_mb) {
             return bad(format!(
                 "transfer.max_put_mb is the most one PUT carries, 1 to {MAX_PUT_MB}: no store takes more"

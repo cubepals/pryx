@@ -454,6 +454,9 @@ pub(crate) mod tests {
             generation: 1,
             phase: Phase::Active,
             spec: SpecRecord {
+                agent: None,
+                spare_ports: None,
+                network: Default::default(),
                 image: "alpine:3.22".into(),
                 entrypoint: None,
                 env: Default::default(),

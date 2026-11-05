@@ -55,7 +55,7 @@ export async function projectUsage(q: Queryable, project: string, unit: UnitSize
       (SELECT count(*)::int FROM sandboxes WHERE project=${project} AND deleted_at IS NULL AND quota_running) AS running,
       (SELECT count(*)::int FROM sandbox_snapshots s JOIN sandboxes b ON b.id=s.sandbox WHERE b.project=${project} AND s.deleted_at IS NULL) AS snapshots,
       (SELECT COALESCE(sum(s.size_bytes),0)::float8 FROM sandbox_snapshots s JOIN sandboxes b ON b.id=s.sandbox WHERE b.project=${project} AND s.deleted_at IS NULL) AS "snapshotBytes",
-      (SELECT count(*)::int FROM sandboxes b CROSS JOIN LATERAL jsonb_array_elements(b.public_ports) p WHERE b.project=${project} AND b.deleted_at IS NULL AND p->>'audience'='public') AS "egressPorts"`,
+      ((SELECT count(*)::int FROM sandboxes b CROSS JOIN LATERAL jsonb_array_elements(b.public_ports) p WHERE b.project=${project} AND b.deleted_at IS NULL AND p->>'audience'='public') + (SELECT COALESCE(sum(COALESCE((b.spec->>'sparePorts')::int,0)),0)::int FROM sandboxes b WHERE b.project=${project} AND b.deleted_at IS NULL)) AS "egressPorts"`,
   )) as {
     units: number
     sandboxes: number
@@ -94,6 +94,7 @@ export class ProjectAdmission {
     start: boolean,
     ports: number,
     insert: (tx: Queryable, spec: ProjectSpec) => Promise<unknown>,
+    autoSpares = false,
   ) {
     return this.serial(project, async (tx, limits) => {
       const prepared = { ...spec }
@@ -110,8 +111,13 @@ export class ProjectAdmission {
       if (limits.allowedImages && !limits.allowedImages.some((prefix) => prepared.image.startsWith(prefix)))
         exceeded('allowedImages', limits.allowedImages, prepared.image)
       const usage = await projectUsage(tx, project, this.unit)
+      if (autoSpares && typeof limits.maxEgressPorts === 'number')
+        prepared.sparePorts = Math.min(
+          prepared.sparePorts ?? 0,
+          Math.max(0, limits.maxEgressPorts - usage.egressPorts - ports),
+        )
       checkLimit(limits, 'maxSandboxes', usage.sandboxes, 1)
-      checkLimit(limits, 'maxEgressPorts', usage.egressPorts, ports)
+      checkLimit(limits, 'maxEgressPorts', usage.egressPorts, ports + (prepared.sparePorts ?? 0))
       if (start) {
         checkLimit(limits, 'maxUnits', usage.units, units)
         checkLimit(limits, 'maxRunning', usage.running, 1)

@@ -5,6 +5,12 @@ Authenticate with `Authorization: Bearer <key>`. Create, list and revoke keys wi
 | Method | Endpoint | Request schema | Success |
 | --- | --- | --- | --- |
 | GET | /v1/project | — | 200 |
+| POST | /v1/sandboxes/{id}/token | — | 200 |
+| POST | /v1/sandboxes/{id}/network | — | 200 |
+| GET | /v1/sandboxes/{id}/data/content | — | 200 |
+| PUT | /v1/sandboxes/{id}/data/content | — | 204 |
+| GET | /v1/sandboxes/{id}/data/list | — | 200 |
+| GET | /v1/sandboxes/{id}/data/stat | — | 200 |
 | POST | /v1/sandboxes | MakeRequest | 201 |
 | GET | /v1/sandboxes | — | 200 |
 | GET | /v1/sandboxes/{id} | — | 200 |
@@ -36,6 +42,11 @@ Use a stable Idempotency-Key for retried create or exec requests. Reusing one fo
 TTL expires access immediately and upkeep deletes data. Idle is evaluated from activity and live sessions. Templates warm each active node once and retain a stopped snapshot. Public endpoints include their edge hostname/port; private endpoints are reachable only on the private network.
 
 Errors have the node envelope `{error:{code,message,details}}`. Invalid fields answer 422, missing keys 401, forbidden operations 403, missing resources 404, state conflicts 409, expired TTL 410 and unavailable placement 503. API v1 evolves additively.
+
+## Direct sandbox operations
+
+POST /v1/sandboxes/{id}/token returns a short-lived sandbox capability and agent URL. SDKs cache it and send running processes, terminals, streamed files and runtime expose requests through the edge directly to /_pryx/. The project key is never sent to the sandbox. See [the agent API](agent.md) for its contract, file URLs, spare ports and network policy.
+The /data/content, /data/list and /data/stat routes use the node files feature while compute is stopped or sleeping. Raw content streams as application/octet-stream; JSON requests stay bounded. Older nodes retain the existing chunk/archive fallback.
 
 ## Projects and limits
 

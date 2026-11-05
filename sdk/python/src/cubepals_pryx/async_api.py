@@ -16,6 +16,9 @@ class AsyncApi:
     async def delete(self, sandbox): return await self.request(f'/v1/sandboxes/{sandbox}', 'DELETE')
     async def list(self): return await self.request('/v1/sandboxes')
     async def project(self): return await self.request('/v1/project')
+    def agent(self, sandbox):
+        from .async_agent import AsyncAgent
+        return AsyncAgent(self, sandbox)
     async def action(self, sandbox, verb):
         if verb not in ('start','stop','sleep','wake','rest'): raise ValueError('Invalid sandbox action')
         return await self.request(f'/v1/sandboxes/{sandbox}/{verb}', 'POST')

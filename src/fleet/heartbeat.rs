@@ -79,6 +79,7 @@ fn workload_reports(manager: &Manager) -> Vec<WorkloadReport> {
         .list(None)
         .into_iter()
         .map(|v| WorkloadReport {
+            agent: v.agent,
             id: v.id.to_string(),
             epoch: v.epoch,
             superseded_by: v.superseded_by,

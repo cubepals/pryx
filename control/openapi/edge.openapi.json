@@ -27,6 +27,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "in": "header",
+            "name": "x-pryx-edge-features",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated additive edge features; agent enables sandbox capabilities and agent manifests."
           }
         ],
         "responses": {
@@ -248,9 +256,222 @@
   },
   "components": {
     "schemas": {
+      "AgentClaims": {
+        "type": "object",
+        "properties": {
+          "epoch": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "expiresAt": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "file": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "GET",
+                      "PUT"
+                    ]
+                  },
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "method",
+                  "path"
+                ],
+                "additionalProperties": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "issuedAt": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "maxExecSeconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "maxPorts": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "sandbox": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "sandbox",
+              "routes",
+              "file"
+            ]
+          }
+        },
+        "required": [
+          "epoch",
+          "expiresAt",
+          "issuedAt",
+          "maxPorts",
+          "sandbox",
+          "scope"
+        ],
+        "additionalProperties": {}
+      },
       "EdgeRoute": {
         "type": "object",
         "properties": {
+          "agent": {
+            "type": "object",
+            "properties": {
+              "manifest": {
+                "type": "object",
+                "properties": {
+                  "activeStreams": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "activityAt": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "exposed": {
+                    "default": [],
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "port": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 65535
+                        },
+                        "slot": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 65535
+                        }
+                      },
+                      "required": [
+                        "port",
+                        "slot"
+                      ],
+                      "additionalProperties": {}
+                    }
+                  },
+                  "port": {
+                    "type": "object",
+                    "properties": {
+                      "endpoints": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "hostPort": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 65535
+                      },
+                      "port": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 65535
+                      }
+                    },
+                    "required": [
+                      "endpoints",
+                      "hostPort",
+                      "port"
+                    ],
+                    "additionalProperties": {}
+                  },
+                  "portRevision": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "publicKey": {
+                    "type": "string"
+                  },
+                  "spares": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "endpoints": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "hostPort": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 65535
+                        },
+                        "port": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 65535
+                        }
+                      },
+                      "required": [
+                        "endpoints",
+                        "hostPort",
+                        "port"
+                      ],
+                      "additionalProperties": {}
+                    }
+                  }
+                },
+                "required": [
+                  "activeStreams",
+                  "activityAt",
+                  "exposed",
+                  "port",
+                  "portRevision",
+                  "publicKey",
+                  "spares"
+                ],
+                "additionalProperties": {}
+              },
+              "routeToken": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "manifest"
+            ],
+            "additionalProperties": false
+          },
           "id": {
             "type": "string"
           },
@@ -313,6 +534,135 @@
             "items": {
               "type": "object",
               "properties": {
+                "agent": {
+                  "type": "object",
+                  "properties": {
+                    "manifest": {
+                      "type": "object",
+                      "properties": {
+                        "activeStreams": {
+                          "default": 0,
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "activityAt": {
+                          "default": 0,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "exposed": {
+                          "default": [],
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "port": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 65535
+                              },
+                              "slot": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 65535
+                              }
+                            },
+                            "required": [
+                              "port",
+                              "slot"
+                            ],
+                            "additionalProperties": {}
+                          }
+                        },
+                        "port": {
+                          "type": "object",
+                          "properties": {
+                            "endpoints": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "hostPort": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 65535
+                            },
+                            "port": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 65535
+                            }
+                          },
+                          "required": [
+                            "endpoints",
+                            "hostPort",
+                            "port"
+                          ],
+                          "additionalProperties": {}
+                        },
+                        "portRevision": {
+                          "default": 0,
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "publicKey": {
+                          "type": "string"
+                        },
+                        "spares": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "endpoints": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "hostPort": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 65535
+                              },
+                              "port": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 65535
+                              }
+                            },
+                            "required": [
+                              "endpoints",
+                              "hostPort",
+                              "port"
+                            ],
+                            "additionalProperties": {}
+                          }
+                        }
+                      },
+                      "required": [
+                        "activeStreams",
+                        "activityAt",
+                        "exposed",
+                        "port",
+                        "portRevision",
+                        "publicKey",
+                        "spares"
+                      ],
+                      "additionalProperties": {}
+                    },
+                    "routeToken": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "manifest"
+                  ],
+                  "additionalProperties": false
+                },
                 "id": {
                   "type": "string"
                 },

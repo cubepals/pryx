@@ -8,6 +8,7 @@ import type { Duration } from '@cubepals/pryx'
 import { type MakeRequest, Pryx, seconds } from '@cubepals/pryx'
 import { SDK_DEFAULTS } from '../../sdk/typescript/src/generated/defaults.ts'
 import { readClientConfig } from './client-config.ts'
+import { copy, terminal } from './sandbox-data.ts'
 
 export function publicClient() {
   const saved = process.env.PRYX_API_KEY ? undefined : readClientConfig()
@@ -35,8 +36,13 @@ function makeRequest(args: string[]): MakeRequest {
   const ttl = option(args, '--ttl'),
     idle = option(args, '--idle')
   const units = option(args, '--units')
+  const network = option(args, '--network'),
+    spares = option(args, '--spare-ports')
+  if (network && network !== 'internet' && network !== 'none') throw new Error('network is internet or none')
   return {
     image,
+    ...(network === 'internet' || network === 'none' ? { network } : {}),
+    ...(spares ? { sparePorts: Number(spares) } : {}),
     ...(units ? { units: Number(units) } : {}),
     entrypoint: [...SDK_DEFAULTS.entrypoint],
     ...(ttl ? { ttl: duration(ttl) } : {}),
@@ -50,18 +56,19 @@ export async function execCommand(
   command: string[],
   options: { timeout?: number; key?: string } = {},
 ) {
-  let code: number | null = null
-  for await (const event of client.exec(
-    id,
-    { command, ...(options.timeout === undefined ? {} : { timeout: options.timeout }) },
-    options.key ?? crypto.randomUUID(),
-  )) {
-    if (event.type === 'stdout') process.stdout.write(event.data)
-    else if (event.type === 'stderr') process.stderr.write(event.data)
-    else if (event.type === 'exit') code = event.code
-    else throw new Error(event.error.message)
+  const box = await client.sandbox(id)
+  {
+    const run = box.run(command, {
+      ...(options.timeout === undefined ? {} : { timeout: options.timeout }),
+      idempotencyKey: options.key,
+    })
+    for await (const chunk of run.stream()) {
+      const destination = chunk.stream === 'stdout' ? process.stdout : process.stderr
+      if (!destination.write(chunk.data))
+        await new Promise<void>((resolve) => destination.once('drain', resolve))
+    }
+    return (await run).code ?? 1
   }
-  return code ?? 1
 }
 export async function sandbox(args: string[]): Promise<unknown> {
   const client = publicClient()
@@ -69,8 +76,30 @@ export async function sandbox(args: string[]): Promise<unknown> {
   if (verb === 'create')
     return client.make(makeRequest(args), option(args, '--idempotency-key') ?? crypto.randomUUID())
   if (verb === 'ls') return client.list()
+  if (verb === 'cp') {
+    if (!id || !rest[0]) throw new Error('sandbox cp needs a source and destination')
+    await copy(client, id, rest[0])
+    return
+  }
   if (!id) throw new Error(`sandbox ${verb} needs an id`)
   if (verb === 'get') return client.get(id)
+  if (verb === 'terminal') {
+    await terminal(await client.sandbox(id))
+    return
+  }
+  if (verb === 'expose') {
+    if (!rest[0]) throw new Error('sandbox expose needs a target port')
+    return (await client.sandbox(id)).expose(Number(rest[0]))
+  }
+  if (verb === 'unexpose') {
+    await (await client.sandbox(id)).unexpose(Number(rest[0]))
+    return
+  }
+  if (verb === 'network') {
+    const mode = rest[0]
+    if (mode !== 'internet' && mode !== 'none') throw new Error('network is internet or none')
+    return (await client.sandbox(id)).network(mode)
+  }
   if (verb === 'rm') return client.delete(id)
   if (verb === 'snapshot') return client.snapshot(id)
   if (verb === 'fork') return client.fork(id, {}, option(args, '--idempotency-key') ?? crypto.randomUUID())

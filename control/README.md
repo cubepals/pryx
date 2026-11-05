@@ -209,3 +209,17 @@ and displaces a copy only after an expired-object CAS fence. It keeps the node a
 a ready stored snapshot elsewhere under a new epoch. Missing data/capacity stays blocked.
 [store-lease](../docs/store-lease.md) documents the required cgroupfs/watchdog/non-suspending host
 policy, maintenance effects, measured-versus-modeled costs, and CI-only fault experiments.
+
+## Sandbox agents
+
+Nodes with the installed static `pryx-agent` announce `agent`; control requests agent bootstrap
+only after seeing that feature. `files` and `network-policy` separately announce stopped data
+access and internal bridges. Each sandbox receives an expiring capability through the project's
+authenticated token endpoint. The SDK sends its project key only to control, then talks to the
+agent through the edge. Ready commands, terminals, watches, files and expose never query Postgres.
+
+The edge announces its agent feature when polling routes. Old edges receive the previous route
+list. New lists contain public verification keys and port manifests; short-lived route-only
+capabilities are added after persistence and never stored in route JSON. Agent activity and
+spare assignments travel on existing node heartbeats. Projects reserve spare-port quota at
+creation, with no quota query on expose. See [the agent contract](../docs/agent.md).

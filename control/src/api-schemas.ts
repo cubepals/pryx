@@ -8,6 +8,9 @@ import type { WorkloadSpec } from './wire.ts'
 
 const map = z.record(z.string(), z.string())
 const nodeSchemas = node.components.schemas
+export const networkSchema = z.fromJSONSchema(
+  nodeSchemas.NetworkMode as Parameters<typeof z.fromJSONSchema>[0],
+) as z.ZodType<NonNullable<WorkloadSpec['network']>>
 export const resources = z.fromJSONSchema(
   nodeSchemas.Resources as Parameters<typeof z.fromJSONSchema>[0],
 ) as z.ZodType<WorkloadSpec['resources']>
@@ -38,6 +41,15 @@ export const makeSchema = z
     units: z.number().int().positive().safe().optional(),
     storage: storage.optional(),
     ports: z.array(port).default([]),
+    sparePorts: z
+      .number()
+      .int()
+      .nonnegative()
+      .max(nodeSchemas.WorkloadSpec.properties.sparePorts.maximum)
+      .optional(),
+    network: networkSchema.default(
+      nodeSchemas.WorkloadSpec.properties.network.default as NonNullable<WorkloadSpec['network']>,
+    ),
     env: map.default({}),
     secrets: map.default({}),
     ttl: z.number().positive().optional(),
@@ -72,6 +84,8 @@ export const snapshotSchema = z.object({
   at: z.string().optional(),
 })
 export const sandboxSchema = z.object({
+  files: z.boolean().optional(),
+  agent: z.object({ url: z.string() }).optional(),
   id: z.string(),
   project: z.string(),
   units: z.number().int().positive().optional(),

@@ -17,7 +17,7 @@ import type { PublicModel } from '../src/public-model.ts'
 const N = 30
 const DATA_BYTES = 100_000_000
 const IMAGE = 'alpine:3.22'
-const COLD_IMAGE = 'mirror.gcr.io/library/alpine:3.22'
+const COLD_IMAGE = process.env.PRYX_SPEED_COLD_IMAGE ?? 'mirror.gcr.io/library/alpine:3.22'
 const phase = process.argv[2]
 if (phase !== 'before' && phase !== 'after') throw new Error('speed.ts before|after [output.json]')
 const collectorRoot = new URL('../../', import.meta.url).pathname
@@ -39,7 +39,9 @@ const { Pryx: MeasuredPryx } = (await import(new URL('sdk/typescript/src/index.t
   Pryx: typeof Pryx
 }
 if (!ready) throw new Error('Speed measurement requires the real daemon, Docker, Postgres and S3')
-const d = await deployment({ allowedImages: ['alpine:', 'mirror.gcr.io/library/alpine:'] })
+const d = await deployment({
+  allowedImages: ['alpine:', 'mirror.gcr.io/library/alpine:', `${COLD_IMAGE.split('/')[0]}/`],
+})
 const client = new MeasuredPryx({ baseUrl: d.control.apiUrl, apiKey: d.credential.key })
 const edge = await startEdge({
   ...edgeConfig({
@@ -191,7 +193,7 @@ try {
     async () => running(await client.make({ ...spec, image: COLD_IMAGE }, crypto.randomUUID())),
     (box) => client.delete(box.id),
     async () => {
-      const references = [IMAGE, COLD_IMAGE].filter(
+      const references = [COLD_IMAGE].filter(
         (image) => spawnSync('docker', ['image', 'inspect', image], { stdio: 'ignore' }).status === 0,
       )
       if (!references.length) throw new Error('The preceding sample did not leave its image reference')

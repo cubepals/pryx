@@ -143,10 +143,11 @@ export async function startControl(
     domain: config.publicDomain,
     edgePortRange: config.edgePortRange,
   })
-  const edge = new EdgeService(db, sandboxes, config.publicDomain, config.edgePortRange)
+  const edge = new EdgeService(db, sandboxes, config.publicDomain, config.edgePortRange, api.agents)
   api.app.route('/edge/v1', edgeApi(edge, config.edgeToken))
   const publicListen = splitAddress(config.apiListen)
   const publicServer = Bun.serve({
+    maxRequestBodySize: Number.MAX_SAFE_INTEGER,
     hostname: publicListen.host,
     port: publicListen.port,
     fetch: (request, server) => api.app.fetch(request, { beginStream: () => server.timeout(request, 0) }),

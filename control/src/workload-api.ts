@@ -53,16 +53,18 @@ const WAKE_PUT_MS = 2 * MINUTE_MS
 const POLL_MS = 5 * SECOND_MS
 
 /** A node as the runtime dials it. */
-type Dialled = Pick<NodeRow, 'id' | 'api_address'>
+type Dialled = Pick<NodeRow, 'id' | 'api_address'> & Partial<Pick<NodeRow, 'features'>>
 
 export const address = (node: Dialled): NodeAddress => ({
   id: node.id,
   apiAddress: node.api_address,
 })
 
-function toWorkloadSpec(spec: RuntimeSpec): WorkloadSpec {
+function toWorkloadSpec(spec: RuntimeSpec, features: readonly string[]): WorkloadSpec {
   return {
     image: spec.image,
+    ...(features.includes('agent') && spec.agent ? { agent: spec.agent, sparePorts: spec.sparePorts } : {}),
+    ...(features.includes('network-policy') && spec.network ? { network: spec.network } : {}),
     ...(spec.entrypoint ? { entrypoint: [...spec.entrypoint] } : {}),
     env: { ...spec.env },
     secrets: { ...spec.secrets },
@@ -121,7 +123,7 @@ export class WorkloadApi {
     options: { wake?: boolean; ifMatch?: string | null } = {},
   ): Promise<EnsureResponse> {
     return this.#nodes.call<EnsureResponse>(address(node), 'PUT', `/v1/workloads/${key}`, {
-      body: toWorkloadSpec(spec),
+      body: toWorkloadSpec(spec, node.features ?? []),
       epoch,
       ...(options.ifMatch ? { headers: { 'if-match': `"${options.ifMatch}"` } } : {}),
       timeoutMs: options.wake ? spec.stop.timeoutSeconds * SECOND_MS + WAKE_PUT_MS : FIRST_PUT_MS,

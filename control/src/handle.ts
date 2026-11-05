@@ -9,9 +9,11 @@
  */
 
 import { z } from 'zod'
+import { agentViewSchema } from './node-contract.ts'
 import type { RuntimeHandle, SnapshotHandle } from './runtime-model.ts'
 
 const Ref = z.object({
+  agent: agentViewSchema.optional(),
   deployment: z.string(),
   key: z.string(),
   /** Null once released: the data rests in the archive store and the handle names no node. */

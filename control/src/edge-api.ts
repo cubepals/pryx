@@ -6,7 +6,12 @@ import { timingSafeEqual } from 'node:crypto'
 import { Hono } from 'hono'
 import { StatusCodes } from 'http-status-codes'
 import { z } from 'zod'
-import { EDGE_ID_HEADER, ROUTES_HELD_HEADER, ROUTES_VERSION_HEADER } from './edge-headers.ts'
+import {
+  EDGE_FEATURES_HEADER,
+  EDGE_ID_HEADER,
+  ROUTES_HELD_HEADER,
+  ROUTES_VERSION_HEADER,
+} from './edge-headers.ts'
 import { sawEdge } from './edge-routed.ts'
 import { IdleHint, SessionEvent, VisitReports, WakeRequest } from './edge-schemas.ts'
 import type { EdgeService } from './edge-service.ts'
@@ -50,7 +55,7 @@ export function edgeApi(service: EdgeService, token?: string) {
         StatusCodes.UNPROCESSABLE_ENTITY,
       )
     await sawEdge(service.db, c.get('edge'), version)
-    const list = await service.routes()
+    const list = await service.routes(c.req.header(EDGE_FEATURES_HEADER)?.split(',').includes('agent'))
     c.header(ROUTES_VERSION_HEADER, String(list.version))
     c.header('etag', `"${list.digest}"`)
     if (c.req.header('if-none-match') === `"${list.digest}"`) return c.body(null, StatusCodes.NOT_MODIFIED)

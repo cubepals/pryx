@@ -238,6 +238,8 @@ pub(crate) struct WorkloadPolicy {
     /// How long a start of a suspended workload waits for it to come back from memory before it
     /// is killed and started afresh on its data.
     pub(crate) resume_timeout_seconds: u64,
+    pub(crate) agent_binary: PathBuf,
+    pub(crate) default_spare_ports: u16,
 }
 
 impl Default for WorkloadPolicy {
@@ -255,6 +257,8 @@ impl Default for WorkloadPolicy {
             trash_retention_hours: 24,
             min_memory_mb: 256,
             resume_timeout_seconds: 10,
+            agent_binary: PathBuf::from(pryx_agent::contract::DEFAULT_BINARY),
+            default_spare_ports: 3,
         }
     }
 }

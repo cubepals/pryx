@@ -314,7 +314,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: Pull the test images
         run: |
-          for image in ghcr.io/rustfs/rustfs:1.0.0 mirror.gcr.io/library/alpine:3.22 mirror.gcr.io/library/docker:29-dind mirror.gcr.io/rivetdev/sandbox-agent:0.5.5-full; do
+          for image in ghcr.io/rustfs/rustfs:1.0.0 mirror.gcr.io/library/alpine:3.22 mirror.gcr.io/library/docker:29-dind mirror.gcr.io/rivetdev/sandbox-agent:0.5.5-full mirror.gcr.io/library/registry:3; do
             for wait in 2 5 10 20 40 0; do
               docker pull -q "$image" && break
               [ "$wait" = 0 ] && exit 1
@@ -324,6 +324,10 @@ jobs:
           docker tag mirror.gcr.io/library/alpine:3.22 alpine:3.22
           docker tag mirror.gcr.io/library/docker:29-dind docker:29-dind
           docker tag mirror.gcr.io/rivetdev/sandbox-agent:0.5.5-full rivetdev/sandbox-agent:0.5.5-full
+      - name: Build an image without shell or utilities
+        run: |
+          printf 'FROM scratch\n' > "$RUNNER_TEMP/empty.Dockerfile"
+          docker build -t alpine:pryx-empty -f "$RUNNER_TEMP/empty.Dockerfile" "$RUNNER_TEMP"
       - name: Build the TLS sandbox fixture
         run: |
           printf 'FROM mirror.gcr.io/library/alpine:3.22\nRUN apk add --no-cache openssl busybox-extras\n' > "$RUNNER_TEMP/tls.Dockerfile"
@@ -338,6 +342,13 @@ jobs:
           ref: fe77e673364580efe372a4f685837f219ae7a0a5
           path: .benchmark-before
           persist-credentials: false
+      - name: Cache the cold-reference image locally
+        run: |
+          docker run -d --rm --name pryx-speed-registry -p 127.0.0.1:5001:5000 mirror.gcr.io/library/registry:3
+          curl --retry 5 --retry-connrefused --retry-delay 1 -fsS http://127.0.0.1:5001/v2/
+          docker tag mirror.gcr.io/library/alpine:3.22 localhost:5001/pryx/alpine:3.22
+          docker push localhost:5001/pryx/alpine:3.22
+          echo 'PRYX_SPEED_COLD_IMAGE=localhost:5001/pryx/alpine:3.22' >> "$GITHUB_ENV"
       - name: Measure the baseline on the same host
         run: |
           cp -a .benchmark-before "$RUNNER_TEMP/pryx-before"
@@ -362,10 +373,29 @@ jobs:
           cargo build --locked
           bun install --frozen-lockfile
           PRYX_SPEED_SOURCE="$PWD" PRYXD_BIN="$CARGO_TARGET_DIR/debug/pryxd" bun "$GITHUB_WORKSPACE/control/bench/speed.ts" after "$RUNNER_TEMP/speed-after.json"
+      - name: Check out the pinned K11 baseline
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: b91ee23c0212d219080a9e40fb30f5d1c9b62e65
+          path: .agent-before
+          persist-credentials: false
+      - name: Measure the K11 baseline on this host
+        run: |
+          cp -a .agent-before "$RUNNER_TEMP/pryx-agent-before"
+          cd "$RUNNER_TEMP/pryx-agent-before"
+          export CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target"
+          cargo clean --package pryxd
+          cargo build --locked
+          bun install --frozen-lockfile
+          PRYX_SPEED_SOURCE="$PWD" PRYXD_BIN="$CARGO_TARGET_DIR/debug/pryxd" bun "$GITHUB_WORKSPACE/control/bench/agent-speed.ts" before "$RUNNER_TEMP/agent-speed-before.json"
       - name: Build the current daemon
         run: |
           cargo clean --package pryxd
           cargo build --locked
+      - name: Measure the K11 agent on this host
+        run: |
+          sudo install -D -m 0755 target/debug/pryx-agent /usr/local/lib/pryx/pryx-agent
+          PRYXD_BIN="$GITHUB_WORKSPACE/target/debug/pryxd" bun control/bench/agent-speed.ts after "$RUNNER_TEMP/agent-speed-after.json"
       - name: Build a static daemon for isolated nodes
         run: |
           docker build -t pryx-static-test .
@@ -375,13 +405,29 @@ jobs:
       - name: Release compilation space before runtime tests
         run: |
           cp target/debug/pryxd "$RUNNER_TEMP/pryxd-debug"
+          sudo install -D -m 0755 target/debug/pryx-agent /usr/local/lib/pryx/pryx-agent
           cargo clean
           mkdir -p target/debug
           cp "$RUNNER_TEMP/pryxd-debug" target/debug/pryxd
           docker builder prune --all --force
           df -h .
+      - name: Save paired speed measurements
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: paired-speed-measurements
+          path: |
+            ${{ runner.temp }}/speed-before.json
+            ${{ runner.temp }}/speed-after.json
+            ${{ runner.temp }}/agent-speed-before.json
+            ${{ runner.temp }}/agent-speed-after.json
+      - name: Prepare Python agent acceptance
+        run: |
+          python3 -m venv .venv-agent-python
+          .venv-agent-python/bin/pip install -e sdk/python
       - run: bun run e2e
         env:
+          PRYX_PYTHON: ${{ github.workspace }}/.venv-agent-python/bin/python
           PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
           PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
 
@@ -472,10 +518,11 @@ jobs:
       - name: Prepare the unreleased build artifacts
         run: |
           cp target/debug/pryxd dist/pryxd
+          cp target/debug/pryx-agent dist/pryx-agent
           # The installed daemon is now in dist; placement still needs real disk above its host floor.
           rm -rf target/debug
           head -c 64 /dev/zero > dist/pryxd.sig
-          (cd dist && sha256sum pryxd pryxd.sig pryx pryx-control pryx-edge pryx-control-assets.tar.gz install.sh > SHA256SUMS)
+          (cd dist && sha256sum pryxd pryx-agent pryxd.sig pryx pryx-control pryx-edge pryx-control-assets.tar.gz install.sh > SHA256SUMS)
           docker pull -q mirror.gcr.io/library/alpine:3.22
           docker tag mirror.gcr.io/library/alpine:3.22 alpine:3.22
           docker pull -q mirror.gcr.io/library/node:22

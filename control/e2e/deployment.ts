@@ -23,7 +23,13 @@ export const ready = Boolean(
 )
 export const LEASE_TEST = { seconds: 10, renewSeconds: 3 }
 export async function deployment(
-  options: { allowedImages?: string[]; storeLease?: boolean; nodes?: number; runtimeEndpoint?: string } = {},
+  options: {
+    allowedImages?: string[]
+    storeLease?: boolean
+    nodes?: number
+    runtimeEndpoint?: string
+    agent?: boolean
+  } = {},
 ) {
   const name = `public${randomBytes(4).toString('hex')}`,
     dir = join(tmpdir(), name)
@@ -77,6 +83,7 @@ export async function deployment(
       path,
       nodeConfigFor(name)({
         allowedImages: options.allowedImages,
+        agent: options.agent,
         storeLease: options.storeLease,
         home: nodeDir,
         endpointUrl: config.joinUrl,

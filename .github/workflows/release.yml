@@ -80,7 +80,7 @@ jobs:
           [ "$(docker run --rm "$IMAGE:$version" --version)" = "pryxd $version" ]
           mkdir -p dist
           id=$(docker create "$IMAGE:$version")
-          for f in pryxd openapi/node-reads.openapi.json openapi/node-writes.openapi.json \
+          for f in pryxd usr/local/lib/pryx/pryx-agent openapi/node-reads.openapi.json openapi/node-writes.openapi.json \
                    deploy/daemon.json deploy/pryxd.service LICENSE.md; do
             docker cp "$id:/$f" "dist/$(basename "$f")"
           done

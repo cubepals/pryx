@@ -12,6 +12,7 @@ import { shownState } from './edge-routed.ts'
 import { complete, fingerprint, operation } from './operations.ts'
 import { UNIT_DEFAULTS, unitSpec } from './project-model.ts'
 import { SandboxError, type Sandboxes, type SandboxSpec } from './sandboxes.ts'
+import { SDK_DEFAULTS } from './sdk-defaults.ts'
 import { jsonb, one, rows } from './sql.ts'
 
 export class PublicModel {
@@ -30,6 +31,7 @@ export class PublicModel {
     const assigned = await addresses(this.db, id, metadata?.public_ports ?? [], this.domain, this.portRange)
     return {
       ...sandbox,
+      ...(sandbox.agent ? { agent: { url: `https://${id}.${this.domain}` } } : { agent: undefined }),
       state: await shownState(this.db, id, sandbox.state),
       endpoints: sandbox.endpoints.map((e) => {
         const p = metadata?.public_ports.find((p) => p.name === e.name)
@@ -76,6 +78,8 @@ export class PublicModel {
       snapshot = copy.snapshot
     }
     const source = snapshot ? (await this.boxes.snapshotRecord(snapshot, project)).spec : null
+    if (this.boxes.engine.supportsAgent(body.region) === undefined) await this.boxes.engine.refreshRegistry()
+    const agentAvailable = this.boxes.engine.supportsAgent(body.region)
     let spec: SandboxSpec = {
       ...(source ?? {}),
       image: body.image ?? source?.image ?? '',
@@ -88,6 +92,16 @@ export class PublicModel {
       env: { ...source?.env, ...body.env },
       secrets: { ...source?.secrets, ...body.secrets },
       labels: body.labels,
+      ...(agentAvailable
+        ? {
+            agent: {
+              domain: this.domain,
+              keepAlive: JSON.stringify(body.entrypoint) === JSON.stringify(SDK_DEFAULTS.entrypoint),
+            },
+          }
+        : {}),
+      sparePorts: body.sparePorts ?? (agentAvailable ? SDK_DEFAULTS.sparePorts : 0),
+      network: body.network,
       ...(body.entrypoint ? { entrypoint: body.entrypoint } : {}),
       ...(body.restart ? { restart: body.restart } : {}),
       ports: body.ports.map((p) => ({
@@ -108,6 +122,7 @@ export class PublicModel {
       snapshot,
       publicPorts: body.ports,
       admit: options.internal ? undefined : (q) => addresses(q, id, body.ports, this.domain, this.portRange),
+      autoSpares: body.sparePorts === undefined,
       ...options,
     })
     const view = await this.view(result.id, project)

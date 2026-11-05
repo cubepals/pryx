@@ -188,6 +188,8 @@ pub struct Locate {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct WorkloadView {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<super::AgentView>,
     pub(crate) id: WorkloadId,
     /// Bumped each time the container is made again for a new spec.
     pub generation: u64,

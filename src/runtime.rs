@@ -30,6 +30,7 @@ use crate::protocol::{Health, Proto};
 /// manager always fills it from host policy.
 #[derive(Clone)]
 pub struct ContainerSpec {
+    pub(crate) agent: Option<AgentBoot>,
     pub(crate) name: String,
     pub(crate) cgroup_parent: Option<String>,
     pub(crate) image: String,
@@ -50,9 +51,22 @@ pub struct ContainerSpec {
     pub(crate) stop_signal: String,
     pub(crate) stop_timeout_secs: u32,
     pub(crate) network: String,
+    pub(crate) internal_network: bool,
     pub(crate) log_max_size_mb: u32,
     pub(crate) log_max_files: u32,
     pub(crate) oom_score_adj: i32,
+}
+
+#[derive(Clone)]
+pub(crate) struct AgentBoot {
+    pub(crate) binary: PathBuf,
+    pub(crate) sandbox: String,
+    pub(crate) epoch: u64,
+    pub(crate) secret_env: String,
+    pub(crate) domain: String,
+    pub(crate) agent_port: u16,
+    pub(crate) spare_ports: Vec<u16>,
+    pub(crate) keep_alive: bool,
 }
 
 /// Names only for the environment: values may be secrets.
@@ -90,7 +104,7 @@ pub enum ContainerStatus {
 }
 
 /// A container as the runtime reports it right now.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct ContainerInfo {
     pub(crate) cgroup_parent: Option<String>,
     pub(crate) id: String,
@@ -104,6 +118,17 @@ pub struct ContainerInfo {
     pub(crate) finished_at: Option<OffsetDateTime>,
     pub(crate) restart_count: u32,
     pub(crate) health: Option<Health>,
+}
+
+impl std::fmt::Debug for ContainerInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ContainerInfo")
+            .field("id", &self.id)
+            .field("name", &self.name)
+            .field("status", &self.status)
+            .field("env_names", &self.env.keys().collect::<Vec<_>>())
+            .finish_non_exhaustive()
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -221,6 +246,19 @@ impl RuntimeError {
 
 #[async_trait]
 pub trait ContainerRuntime: Send + Sync + 'static {
+    fn supports_agent(&self) -> bool {
+        false
+    }
+    fn supports_network_policy(&self) -> bool {
+        false
+    }
+    async fn ensure_internal_network(
+        &self,
+        _name: &str,
+        _labels: &BTreeMap<String, String>,
+    ) -> Result<(), RuntimeError> {
+        Err(RuntimeError::Other("This runtime has no internal network".into()))
+    }
     async fn info(&self) -> Result<RuntimeInfo, RuntimeError>;
     async fn ensure_network(
         &self,

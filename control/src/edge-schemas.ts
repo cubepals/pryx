@@ -3,7 +3,9 @@
 
 /** Edge v1 schemas: routing, wake and activity only; no application protocol is represented. */
 import { z } from 'zod'
+import { agentViewSchema } from './node-contract.ts'
 export const EdgeRoute = z.object({
+  agent: z.object({ manifest: agentViewSchema, routeToken: z.string().optional() }).optional(),
   id: z.string(),
   sandbox: z.string(),
   hostname: z.string(),

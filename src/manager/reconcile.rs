@@ -107,6 +107,16 @@ impl Manager {
             (LABEL_DEPLOYMENT.to_owned(), self.config.deployment_id.clone()),
         ]);
         let network = self.note(self.runtime.ensure_network(&self.config.docker.network, &network_labels).await)?;
+        if self.runtime.supports_network_policy() {
+            self.note(
+                self.runtime
+                    .ensure_internal_network(
+                        &crate::runtime::docker::internal_network(&self.config.docker.network),
+                        &network_labels,
+                    )
+                    .await,
+            )?;
+        }
         if !network.isolated {
             host_issues.push(Issue::new(
                 IssueCode::NetworkNotIsolated,

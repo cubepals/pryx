@@ -1,10 +1,24 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
-// Generated from openapi/node-reads.openapi.json; sha256 4af0cf3bf318220250660ee7c7fcce9df67e36cb74f8dfcec2e5f6443c29864a.
+// Generated from openapi/node-reads.openapi.json; sha256 09e2d56ce5727725dfca2208bce07f1126c0213f0fe4fb2145b8bcd7eae4c1e9.
 export type paths = Record<string, never>;
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AgentOptions: {
+            domain: string;
+            /** @default false */
+            keepAlive?: boolean;
+        };
+        AgentTokenRequest: {
+            /** Format: int64 */
+            expiresAt?: number | null;
+            /** Format: uint32 */
+            maxExecSeconds?: number | null;
+            /** Format: uint16 */
+            maxPorts: number;
+            scope: components["schemas"]["Scope"];
+        };
         /**
          * @description Who must be able to reach a port: the edge (players, through the router) or the control
          *     plane (console, status ping). The host decides which of its addresses each audience uses.
@@ -117,6 +131,8 @@ export interface components {
              */
             upgrade?: components["schemas"]["UpgradeOffer"] | null;
         };
+        /** @enum {string} */
+        NetworkMode: "internet" | "none";
         /**
          * @description An archive larger than one PUT carries goes to the store in parts, as its multipart upload:
          *     the control plane begins the upload and presigns a URL for each part, and finishes it with the
@@ -205,6 +221,8 @@ export interface components {
             /** @default null */
             url?: string | null;
         };
+        /** @enum {string} */
+        Scope: "sandbox" | "routes" | "file";
         /** @description A secret value: never logged, never persisted by pryxd, never returned. */
         Secret: string;
         /**
@@ -310,6 +328,8 @@ export interface components {
             url: string;
         };
         WorkloadSpec: {
+            /** @default null */
+            agent?: components["schemas"]["AgentOptions"] | null;
             /**
              * @description Replaces the image's entrypoint; absent, the image starts as it was built to.
              * @default null
@@ -325,6 +345,8 @@ export interface components {
             labels?: {
                 [key: string]: string;
             };
+            /** @default internet */
+            network?: components["schemas"]["NetworkMode"];
             /** @default [] */
             ports?: components["schemas"]["PortSpec"][];
             resources: components["schemas"]["Resources"];
@@ -346,6 +368,11 @@ export interface components {
             secrets?: {
                 [key: string]: components["schemas"]["Secret"];
             };
+            /**
+             * Format: uint16
+             * @default null
+             */
+            sparePorts?: number | null;
             /**
              * @default {
              *       "signal": "SIGTERM",

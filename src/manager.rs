@@ -30,6 +30,8 @@
 //! - `archive.rs`: carries a data's data between this node and an object store.
 //! - `snapshots.rs`: local snapshots of a workload's data.
 //! - `exec.rs`: runs a command inside a running workload.
+//! - `agent.rs`: agent bootstrap, public manifest and capability issuance.
+//! - `files.rs`: guarded access to persistent data without running compute.
 //! - `logs.rs`: reads a workload's log.
 //! - `stats.rs`: samples what workloads use.
 //! - `fleet.rs`: the node's standing with its control plane.
@@ -78,12 +80,14 @@ use crate::runtime::{
 use crate::store::restore::Recovery;
 use crate::store::{AllocatedPort, PendingSpec, Phase, RECORD_VERSION, Store, SuspendRecord, WorkloadRecord};
 
+mod agent;
 mod archive;
 mod delete;
 mod ensure;
 mod error;
 mod exec;
 mod fence;
+pub(crate) mod files;
 mod fleet;
 mod label_record;
 mod logs;

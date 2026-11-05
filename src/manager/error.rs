@@ -22,6 +22,8 @@ pub enum NodeError {
     NotFound(WorkloadId),
     #[error("no snapshot {0} of this workload on this node")]
     SnapshotNotFound(String),
+    #[error("no such data file")]
+    FileNotFound,
     #[error("the workload's current spec is not the one the request expected")]
     PreconditionFailed { current: Option<String> },
     #[error("{message}")]
