@@ -30,5 +30,15 @@ Celld's current engine builds/loads images and installs a privileged host-networ
 operations have no public sandbox API equivalent. A Unix listener alone cannot safely make that
 engine compatible. CI attempts the unchanged release and its own example with `DOCKER_HOST`
 pointed at the private mode-0600 socket, retaining actual requests, exit status and output in
-`docker-api-spike.json`. The attempt and result remain pending. No `docker-api` node feature is
-advertised or shipped unless the unchanged example passes.
+`docker-api-spike.json`. Run [42066544946](https://github.com/cubepals/pryx/actions/runs/42066544946)
+completes the experiment: discovery passes, then the unmodified release fails building its
+example image. BuildKit POST `/grpc` and its buildkit-container inspection receive explicit 501
+replies. The [raw report](checks/docker-api-spike-observed.json) retains actual requests and exit 1.
+No start or first-request samples exist for this failed route (n=0). The spike remains unshipped
+and no `docker-api` node feature is advertised.
+
+The [first native experiment](checks/celld-native-initial.json) in the same run builds the
+prepared patch and passes its three filesystem journal tests, then fails during the local
+engine baseline before any accepted sample. The harness's log file was inside celld dev's
+watched directory, causing hot reload to interrupt its first request. Logs now live outside
+the unchanged example; both complete cohorts remain pending in final CI.

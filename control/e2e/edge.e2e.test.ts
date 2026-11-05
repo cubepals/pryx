@@ -82,7 +82,10 @@ describe.skipIf(!ready)('edge through a real pryxd', () => {
             r.id === route.id ? { ...r, epoch: r.epoch + 1, destination: '127.0.0.1:1' } : r,
           ),
         })
+        // Drain bytes already queued on the paused client so Node can observe the peer's FIN.
+        socket.resume()
         await closed
+        expect([...edge.table.connections].some((connection) => connection.sandbox === made.id)).toBe(false)
       } finally {
         await client.delete(made.id)
       }

@@ -39,18 +39,19 @@ test(
     >
     try {
       for (const backend of ['docker', 'pryx']) {
-        const dir = mkdtempSync(join(tmpdir(), `pryx-celld-${backend}-`))
-        cpSync(join(source, 'examples/container'), dir, { recursive: true })
+        const dir = mkdtempSync(join(tmpdir(), `pryx-celld-${backend}-`)),
+          example = join(dir, 'example')
+        cpSync(join(source, 'examples/container'), example, { recursive: true })
         // The Worker, server, Dockerfile and class configuration are the upstream example as released.
-        expect(readFileSync(join(dir, 'index.js'), 'utf8')).toBe(
+        expect(readFileSync(join(example, 'index.js'), 'utf8')).toBe(
           readFileSync(join(source, 'examples/container/index.js'), 'utf8'),
         )
-        await command(['bun', 'install'], dir)
+        await command(['bun', 'install'], example)
         const port = await freePort(),
           logPath = join(dir, 'celld.log')
         const log = Bun.file(logPath)
         const child = Bun.spawn([binary, 'dev', '--port', String(port), '--logs'], {
-          cwd: dir,
+          cwd: example,
           env: {
             ...process.env,
             CELLD_CONTAINER_BACKEND: backend,
@@ -87,6 +88,8 @@ test(
             const start = performance.now()
             const response = await fetch(base + path, { signal: AbortSignal.timeout(MINUTE_MS) })
             const text = await response.text()
+            if (!response.ok)
+              result.lastHttpFailure = { backend, status: response.status, body: text.slice(0, 2048) }
             expect(response.ok).toBe(true)
             expect(text).toContain('passed in by the Container class')
             raw.startFirstRequestMs.push(performance.now() - start)
