@@ -6,6 +6,7 @@ import type { z } from 'zod'
 import { type Exec, execEvent } from './api-schemas.ts'
 import type { Db } from './database.ts'
 import { SECOND_MS } from './durations.ts'
+import { responseEvents } from './exec-events.ts'
 import { decodeHandle } from './handle.ts'
 import type { NodeClient } from './node-client.ts'
 import { claimExec, complete, operation } from './operations.ts'
@@ -173,16 +174,5 @@ export class SandboxIO {
         'File command failed or exceeded the node output bound; image needs sh, realpath, tar and base64',
       )
     return data === undefined ? { archiveBase64: result.stdout.replaceAll(/\s/g, '') } : { written: true }
-  }
-}
-async function* responseEvents(result: ExecResponse): AsyncIterable<z.infer<typeof execEvent>> {
-  for (const type of ['stdout', 'stderr'] as const)
-    if (result[type]) yield { type, data: result[type], truncated: result[`${type}Truncated`] }
-  yield {
-    type: 'exit',
-    code: result.exitCode,
-    timedOut: result.timedOut,
-    killed: result.killed,
-    durationMs: result.durationMs,
   }
 }
