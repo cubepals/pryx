@@ -293,3 +293,15 @@ both engines using the same patched celld 0.6.3 executable and host. Backend-sta
 5.50/5.72 ms locally and 5.74/7.24 ms through pryx. These are observed costs, with no additional
 speed threshold in K13. [docker-api.md](docker-api.md) records the method, limits and complete
 raw samples, including the retained failed initial cohort and unshipped socket experiment.
+
+### Project rotation with reserved host ports
+
+[CI 42082995409](https://github.com/cubepals/pryx/actions/runs/42082995409), source 66230f5,
+passes the corrected one-box installer, both SDK README examples, all ten project groups and
+the image host installer including repeat installation. The
+[complete report](checks/projects-reserved-one-box.json) records 50 acknowledged creations,
+50 validated command runs, four active at once and ten exact quota refusals. The kernel reports
+outgoing ephemeral range 32768–60999 and reserved workload range 42000–42999. Counts and partial
+failures are now retained by the collector. This remains an observed 8 GiB-class runner, not a
+physical 16 GiB measurement. The run's other assigned jobs are still in progress; its final
+aggregate may be blocked by the account-level Actions restriction described in decisions.md.
