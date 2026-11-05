@@ -343,11 +343,15 @@ jobs:
           cp -a .benchmark-before "$RUNNER_TEMP/pryx-before"
           cd "$RUNNER_TEMP/pryx-before"
           export CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target"
+          cargo clean --package pryxd
           cargo build --locked
           bun install --frozen-lockfile
           PRYX_SPEED_SOURCE="$PWD" PRYXD_BIN="$CARGO_TARGET_DIR/debug/pryxd" bun "$GITHUB_WORKSPACE/control/bench/speed.ts" before "$RUNNER_TEMP/speed-before.json"
       - name: Build the current daemon
-        run: cargo build --locked
+        run: |
+          # The baseline shares dependencies, never the product executable.
+          cargo clean --package pryxd
+          cargo build --locked
       - name: Measure K9 handles on one box
         env:
           PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
@@ -450,6 +454,8 @@ jobs:
       - name: Prepare the unreleased build artifacts
         run: |
           cp target/debug/pryxd dist/pryxd
+          # The installed daemon is now in dist; placement still needs real disk above its host floor.
+          rm -rf target/debug
           head -c 64 /dev/zero > dist/pryxd.sig
           (cd dist && sha256sum pryxd pryxd.sig pryx pryx-control pryx-edge pryx-control-assets.tar.gz install.sh > SHA256SUMS)
           docker pull -q mirror.gcr.io/library/alpine:3.22

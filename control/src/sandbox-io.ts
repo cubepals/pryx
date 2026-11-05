@@ -9,6 +9,7 @@ import { SECOND_MS } from './durations.ts'
 import { decodeHandle } from './handle.ts'
 import type { NodeClient } from './node-client.ts'
 import { claimExec, complete, operation } from './operations.ts'
+import type { RuntimeHandle } from './runtime-model.ts'
 import { SandboxError, type Sandboxes } from './sandboxes.ts'
 import type { ExecResponse } from './wire.ts'
 
@@ -20,6 +21,15 @@ export class SandboxIO {
     readonly boxes: Sandboxes,
     readonly nodes: NodeClient,
   ) {}
+  private async home(handle: RuntimeHandle) {
+    let address = this.boxes.engine.nodeAddress(handle)
+    // A newly enrolled node may predate the periodic cache refresh. No request has been sent.
+    if (!address && decodeHandle(handle).node !== null) {
+      await this.boxes.engine.refreshRegistry()
+      address = this.boxes.engine.nodeAddress(handle)
+    }
+    return address
+  }
   async execEvents(
     id: string,
     project: string,
@@ -28,7 +38,7 @@ export class SandboxIO {
     signal = new AbortController().signal,
   ): Promise<AsyncIterable<z.infer<typeof execEvent>>> {
     const row = await this.boxes.record(id, project)
-    const address = row.handle ? this.boxes.engine.nodeAddress(row.handle) : null
+    const address = row.handle ? await this.home(row.handle) : null
     // An older node keeps its exact request/response protocol and durable outcome handling.
     if (!address?.features?.includes('exec-stream'))
       return responseEvents(await this.exec(id, project, body, key))
@@ -97,7 +107,7 @@ export class SandboxIO {
     const row = await this.boxes.record(id, project)
     if (row.state !== 'running' || !row.handle)
       throw new SandboxError('not_running', 'Sandbox is not running')
-    const address = this.boxes.engine.nodeAddress(row.handle)
+    const address = await this.home(row.handle)
     if (!address) throw new SandboxError('not_running', 'Sandbox has no running home')
     if (key) await claimExec(this.db, op.id)
     await this.boxes.touch(id)
@@ -122,7 +132,7 @@ export class SandboxIO {
   async *logs(id: string, project: string, query: URLSearchParams, signal: AbortSignal) {
     const row = await this.boxes.record(id, project)
     if (!row.handle) throw new SandboxError('not_running', 'Sandbox has no local logs')
-    const address = this.boxes.engine.nodeAddress(row.handle)
+    const address = await this.home(row.handle)
     if (!address) throw new SandboxError('not_running', 'Sandbox has no local logs')
     yield* this.nodes.lines(address, `/v1/workloads/${encodeURIComponent(id)}/logs?${query}`, signal)
   }

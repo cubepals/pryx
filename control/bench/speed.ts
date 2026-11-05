@@ -4,7 +4,8 @@
 /** Real one-box latency samples for K9. This collector requires Docker/Postgres/S3; it never substitutes a fake runtime or invents a sample. */
 
 import { spawnSync } from 'node:child_process'
-import { writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { cpus, release } from 'node:os'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -22,9 +23,12 @@ if (phase !== 'before' && phase !== 'after') throw new Error('speed.ts before|af
 const collectorRoot = new URL('../../', import.meta.url).pathname
 const sourceRoot = resolve(process.env.PRYX_SPEED_SOURCE ?? collectorRoot)
 const source = pathToFileURL(`${sourceRoot}/`)
-const { deployment, ready } = (await import(
+const { deployment, ready, bin } = (await import(
   new URL('control/e2e/deployment.ts', source).href
 )) as typeof import('../e2e/deployment.ts')
+const { nodeSummaries } = (await import(
+  new URL('control/src/registry.ts', source).href
+)) as typeof import('../src/registry.ts')
 const { startEdge } = (await import(
   new URL('edge/src/agent.ts', source).href
 )) as typeof import('../../edge/src/agent.ts')
@@ -108,6 +112,12 @@ async function running<T extends { id: string; state: string }>(box: T) {
   return box
 }
 try {
+  const nodes = await nodeSummaries(d.control.db, { suspectSeconds: 15, unavailableSeconds: 45 })
+  const daemonFeatures = nodes.map((node) => ({ id: node.id, features: node.features }))
+  if (nodes.length !== 1 || nodes[0]?.features.includes('exec-stream') !== (phase === 'after'))
+    throw new Error(`The ${phase} daemon advertises the wrong features: ${JSON.stringify(daemonFeatures)}`)
+  const daemonSha256 = createHash('sha256').update(readFileSync(bin)).digest('hex')
+  console.log(`SPEED_DAEMON ${phase} ${JSON.stringify({ daemonSha256, daemonFeatures })}`)
   await Promise.race([
     edge.poll.firstHold,
     Bun.sleep(MINUTE_MS).then(() => {
@@ -224,6 +234,8 @@ try {
       bun: Bun.version,
     },
     dataBytes: DATA_BYTES,
+    daemonSha256,
+    daemonFeatures,
     image: IMAGE,
     coldImage: COLD_IMAGE,
     coldDefinition:
