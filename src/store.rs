@@ -391,10 +391,30 @@ impl Store {
         if !from.exists() {
             return Ok(None);
         }
-        let to = self.trash_dir().join(format!("{id}.{now_unix}"));
-        fs::rename(&from, &to).map_err(io_err("trashing", &from))?;
+        let to = self.rename_to_trash(id.as_str(), &from, now_unix)?;
         File::open(self.workloads_dir()).and_then(|d| d.sync_all()).ok();
         Ok(Some(to))
+    }
+
+    /// A new trash entry never replaces an older one, even an empty directory or a symlink.
+    fn rename_to_trash(&self, prefix: &str, from: &Path, now_unix: i64) -> Result<PathBuf, StoreError> {
+        for serial in 0_u64.. {
+            let name =
+                if serial == 0 { format!("{prefix}.{now_unix}") } else { format!("{prefix}-{serial}.{now_unix}") };
+            let to = self.trash_dir().join(name);
+            match rustix::fs::renameat_with(
+                rustix::fs::CWD,
+                from,
+                rustix::fs::CWD,
+                &to,
+                rustix::fs::RenameFlags::NOREPLACE,
+            ) {
+                Ok(()) => return Ok(to),
+                Err(rustix::io::Errno::EXIST) => continue,
+                Err(error) => return Err(io_err("trashing", from)(error.into())),
+            }
+        }
+        unreachable!("the filesystem cannot hold every u64 trash suffix")
     }
 
     /// Purges trash entries older than `retention_secs`. Returns what it removed.
@@ -551,6 +571,39 @@ pub(crate) mod tests {
         assert!(store.purge_trash(1_000 + 60, hour).is_empty());
         assert_eq!(store.purge_trash(1_000 + hour.as_secs() as i64, hour).len(), 1);
         assert!(store.trash(&id, 2_000).unwrap().is_none(), "trashing twice is a no-op");
+    }
+
+    #[test]
+    fn trash_preserves_every_generation_deleted_in_one_second() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = Store::open(tmp.path()).unwrap();
+        let id = WorkloadId::parse("w").unwrap();
+        store.save(&record("w")).unwrap();
+        fs::create_dir_all(store.data_dir(&id)).unwrap();
+        fs::write(store.data_dir(&id).join("value"), "old").unwrap();
+        let first = store.trash(&id, 1000).unwrap().unwrap();
+        store.save(&record("w")).unwrap();
+        fs::create_dir_all(store.data_dir(&id)).unwrap();
+        fs::write(store.data_dir(&id).join("value"), "new").unwrap();
+        let second = store.trash(&id, 1000).unwrap().unwrap();
+        assert_ne!(first, second);
+        assert_eq!(fs::read_to_string(first.join("data/value")).unwrap(), "old");
+        assert_eq!(fs::read_to_string(second.join("data/value")).unwrap(), "new");
+        assert_eq!(store.purge_trash(2000, Duration::from_secs(500)).len(), 2);
+    }
+
+    #[test]
+    fn trash_does_not_replace_even_an_empty_existing_entry() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = Store::open(tmp.path()).unwrap();
+        let id = WorkloadId::parse("w").unwrap();
+        let previous = store.trash_dir().join("w.1000");
+        fs::create_dir(&previous).unwrap();
+        store.save(&record("w")).unwrap();
+        let moved = store.trash(&id, 1000).unwrap().unwrap();
+        assert_ne!(moved, previous);
+        assert_eq!(fs::read_dir(previous).unwrap().count(), 0);
+        assert!(moved.join("workload.json").is_file());
     }
 
     #[test]

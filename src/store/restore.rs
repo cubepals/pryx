@@ -94,15 +94,7 @@ impl Store {
     fn trash_replaced(&self, id: &WorkloadId, from: &Path, now_unix: i64) -> Result<PathBuf, StoreError> {
         let trash = self.trash_dir();
         fs::DirBuilder::new().recursive(true).mode(0o700).create(&trash).map_err(io_err("creating", &trash))?;
-        let mut to = trash.join(format!("{id}-replaced.{now_unix}"));
-        for n in 1.. {
-            if fs::symlink_metadata(&to).is_err() {
-                break;
-            }
-            to = trash.join(format!("{id}-replaced-{n}.{now_unix}"));
-        }
-        fs::rename(from, &to).map_err(io_err("trashing", from))?;
-        Ok(to)
+        self.rename_to_trash(&format!("{id}-replaced"), from, now_unix)
     }
 }
 
