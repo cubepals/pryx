@@ -244,18 +244,20 @@ async fn an_exec_past_its_timeout_is_killed_inside_the_container() {
     m.reconcile(Records::FromDisk).await;
     m.ensure(id("e"), shell(SERVER, 256), Precondition::None, None).await.unwrap();
     m.start(id("e"), None).await.unwrap();
-    let started = Instant::now();
-    let out = m
-        .exec(
-            id("e"),
-            ExecRequest { command: vec!["sh".into(), "-c".into(), "sleep 60; echo never".into()], timeout_seconds: 2 },
-            None,
-            None,
-        )
-        .await
-        .unwrap();
-    assert!(out.timed_out && out.killed, "{out:?}");
-    assert!(started.elapsed() < Duration::from_secs(6));
+    for command in ["sleep 60; echo never", "exec 1>&- 2>&-; sleep 60; echo never"] {
+        let started = Instant::now();
+        let out = m
+            .exec(
+                id("e"),
+                ExecRequest { command: vec!["sh".into(), "-c".into(), command.into()], timeout_seconds: 2 },
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        assert!(out.timed_out && out.killed, "{out:?}");
+        assert!(started.elapsed() < Duration::from_secs(6));
+    }
     let left = m
         .exec(
             id("e"),
