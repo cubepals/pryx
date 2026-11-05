@@ -24,7 +24,13 @@ to start sandbox compute if filesystem policy cannot be fully installed. System 
 read-only, sandbox data is read-write, and other sandbox data and control credentials are
 inaccessible. PTY device access and only the agent's own proc task directory are granted.
 The memory sampler is a dedicated trusted thread created before filesystem restriction;
-it never executes requests. Untrusted commands inherit the restriction.
+it never executes requests. Untrusted commands inherit the restriction. Their launcher adds a supervisor guard before
+executing user code. It denies legacy thread signals, pidfd signals, scheduler changes,
+cross-process rlimit access, joining the supervisor's process group, and signals to its
+thread group. Legacy kill and queued process signals allow the command's initial PID and separate process groups,
+but refuse other positive PIDs because Linux also accepts supervisor thread IDs there.
+Use the agent's process signal API for individual child PIDs; guest tgkill remains available
+for other thread groups. The trusted supervisor retains its process controls.
 
 The syscall filter denies mount, unmount, pivot_root, chroot, ptrace, cross-process memory
 operations, keyctl/add_key/request_key, bpf, kernel modules, unshare/setns, reboot/kexec,
@@ -56,7 +62,9 @@ requires booting them again from retained data.
 
 The kernel is the host container's kernel. A kernel escape from one process is an escape
 from that container. Separate UIDs improve access control; shared UID mode also shares
-per-UID resource limits and offers a weaker boundary. Choose the container tier for workloads
+per-UID resource limits and permits signaling other sandboxes or same-user services. Use
+shared UID mode only for mutually trusted workloads; its supervisor guard protects its own
+agent but does not create a separate user identity. Choose the container tier for workloads
 that require an independent container wall.
 
 Docker acceptance, kernel facts and n=30 measurements are collected in CI. The development

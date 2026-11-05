@@ -96,7 +96,28 @@ pub fn network_off() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+pub fn child(supervisor: u32, network: bool) -> Result<(), Box<dyn std::error::Error>> {
+    if rustix::process::getpgrp().as_raw_nonzero().get() as u32 == supervisor {
+        return Err("Guest must have a separate process group".into());
+    }
+    filter::child(supervisor)?;
+    if network {
+        network_off()?;
+    }
+    Ok(())
+}
+
 pub fn wrap(argv: Vec<String>) -> std::io::Result<Vec<String>> {
+    if std::env::var_os(POLICY_ENV).is_some() {
+        let mut wrapped = vec![
+            std::env::current_exe()?.to_string_lossy().into_owned(),
+            "process-child".into(),
+            std::process::id().to_string(),
+            std::env::var_os(NETWORK_ENV).is_some().to_string(),
+        ];
+        wrapped.extend(argv);
+        return Ok(wrapped);
+    }
     if std::env::var_os(NETWORK_ENV).is_none() {
         return Ok(argv);
     }

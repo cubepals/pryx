@@ -87,3 +87,130 @@ fn clone_rules() -> Vec<SeccompRule> {
     })
     .collect()
 }
+
+// Guest-only rules protect every supervisor thread: kill accepts non-leader thread IDs,
+// whereas tgkill and queued thread signals require the protected thread-group ID.
+pub(super) fn child(supervisor: u32) -> Result<(), Box<dyn std::error::Error>> {
+    let mut rules = BTreeMap::new();
+    for syscall in [
+        libc::SYS_tkill,
+        libc::SYS_pidfd_send_signal,
+        libc::SYS_setpriority,
+        libc::SYS_sched_setscheduler,
+        libc::SYS_sched_setparam,
+        libc::SYS_sched_setattr,
+        libc::SYS_sched_setaffinity,
+    ] {
+        rules.insert(syscall, vec![]);
+    }
+    for syscall in [libc::SYS_tgkill, libc::SYS_rt_tgsigqueueinfo] {
+        rules.insert(syscall, vec![argument_rule(0, SeccompCmpOp::Eq, supervisor)]);
+    }
+    let positive_other = SeccompRule::new(vec![
+        condition(0, SeccompCmpOp::Le, i32::MAX as u32),
+        condition(0, SeccompCmpOp::Ne, 0),
+        condition(0, SeccompCmpOp::Ne, std::process::id()),
+    ])?;
+    let signals = vec![
+        positive_other,
+        argument_rule(0, SeccompCmpOp::Eq, supervisor),
+        argument_rule(0, SeccompCmpOp::Eq, u32::MAX),
+        argument_rule(0, SeccompCmpOp::Eq, (-(supervisor as i32)) as u32),
+    ];
+    rules.insert(libc::SYS_kill, signals.clone());
+    rules.insert(libc::SYS_rt_sigqueueinfo, signals);
+    rules.insert(libc::SYS_setpgid, vec![argument_rule(1, SeccompCmpOp::Eq, supervisor)]);
+    rules.insert(libc::SYS_prlimit64, vec![argument_rule(0, SeccompCmpOp::Ne, 0)]);
+    let program: BpfProgram = SeccompFilter::new(
+        rules,
+        SeccompAction::Allow,
+        SeccompAction::Errno(libc::EPERM as u32),
+        std::env::consts::ARCH.try_into()?,
+    )?
+    .try_into()?;
+    seccompiler::apply_filter(&program)?;
+    Ok(())
+}
+
+fn condition(argument: u8, op: SeccompCmpOp, value: u32) -> SeccompCondition {
+    SeccompCondition::new(argument, SeccompCmpArgLen::Dword, op, value.into()).expect("valid argument")
+}
+fn argument_rule(argument: u8, op: SeccompCmpOp, value: u32) -> SeccompRule {
+    SeccompRule::new(vec![condition(argument, op, value)]).expect("valid argument rule")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn guest_signals_cannot_reach_supervisor_threads() {
+        let supervisor = std::process::id();
+        let task = std::fs::read_link("/proc/thread-self").unwrap();
+        let thread: u32 = task.file_name().unwrap().to_str().unwrap().parse().unwrap();
+        let probes = vec![
+            vec![libc::SYS_kill, supervisor.into(), 0],
+            vec![libc::SYS_kill, thread.into(), 0],
+            vec![libc::SYS_kill, -(supervisor as i64), 0],
+            vec![libc::SYS_kill, -1, 0],
+            vec![libc::SYS_tkill, thread.into(), 0],
+            vec![libc::SYS_tgkill, supervisor.into(), thread.into(), 0],
+            vec![libc::SYS_rt_sigqueueinfo, supervisor.into(), 0, 0],
+            vec![libc::SYS_rt_sigqueueinfo, thread.into(), 0, 0],
+            vec![libc::SYS_rt_tgsigqueueinfo, supervisor.into(), thread.into(), 0, 0],
+            vec![libc::SYS_pidfd_send_signal, -1, 0, 0, 0],
+            vec![libc::SYS_setpgid, -1, supervisor.into()],
+            vec![libc::SYS_prlimit64, supervisor.into(), libc::RLIMIT_NOFILE.into(), 0, 0],
+        ];
+        let probes = probes
+            .into_iter()
+            .chain(
+                [
+                    libc::SYS_setpriority,
+                    libc::SYS_sched_setscheduler,
+                    libc::SYS_sched_setparam,
+                    libc::SYS_sched_setattr,
+                    libc::SYS_sched_setaffinity,
+                ]
+                .into_iter()
+                .map(|syscall| vec![syscall, -1, -1, 0]),
+            )
+            .collect::<Vec<_>>();
+        let script = r#"
+import ctypes, errno, json, os, resource
+libc = ctypes.CDLL(None, use_errno=True)
+for probe in json.loads(os.environ['PROBES']):
+    ctypes.set_errno(0)
+    result = libc.syscall(*probe)
+    assert result == -1 and ctypes.get_errno() == errno.EPERM, (probe, result, ctypes.get_errno())
+# libc's ordinary self-limit query remains available.
+resource.getrlimit(resource.RLIMIT_NOFILE)
+"#;
+        let output = std::thread::spawn(move || {
+            child(supervisor).unwrap();
+            std::process::Command::new("python3")
+                .args(["-c", script])
+                .env("PROBES", serde_json::to_string(&probes).unwrap())
+                .output()
+                .unwrap()
+        })
+        .join()
+        .unwrap();
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    }
+
+    #[test]
+    fn guest_tgkill_can_still_signal_its_child() {
+        let mut disposable = std::process::Command::new("/bin/sleep").arg("30").spawn().unwrap();
+        let target = disposable.id();
+        let result = std::thread::spawn(move || {
+            child(std::process::id()).unwrap();
+            std::process::Command::new("python3").args(["-c",
+                "import ctypes,os; assert ctypes.CDLL(None).syscall(int(os.environ['SIGNAL_CALL']),int(os.environ['TARGET']),int(os.environ['TARGET']),0)==0"])
+                .env("SIGNAL_CALL", libc::SYS_tgkill.to_string()).env("TARGET", target.to_string()).status().unwrap()
+        }).join();
+        disposable.kill().unwrap();
+        disposable.wait().unwrap();
+        assert!(result.unwrap().success());
+    }
+}

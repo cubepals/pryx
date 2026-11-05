@@ -225,3 +225,30 @@ operations are absent and the cohort/workflow is not complete.
 
 The public/agent end-to-end step, including both reference MCP transports and sandbox MCP URL,
 passes in this run. This does not substitute for the remaining process-image proof.
+
+### K12 complete operation cohort and CLI refusal
+
+Run [42066544946](https://github.com/cubepals/pryx/actions/runs/42066544946), source 52b03d3,
+completes all 30 operation samples on the same two-core EPYC 9V74 host for both tiers.
+The [container](checks/process-speed-http-before.json) and
+[process](checks/process-speed-http-after.json) reports retain every sample and the failure:
+CLI image-refusal acceptance fails after measurement, so this is not completed acceptance.
+The one-box job separately passes the literal quickstart, SDK examples and image host installer,
+including repeat installation. Image-start baseline is unavailable on the prior daemon-only image.
+
+| operation | container p50 / p90 ms | process p50 / p90 ms | budget p90 |
+| --- | --- | --- | --- |
+| image API startup | unavailable, n=0 | 6845.24 / 7180.20 | 10,000 ms |
+| run through edge | 1.77 / 2.47 | 1.98 / 2.23 | 20 ms |
+| first output byte | 1.72 / 2.01 | 2.03 / 2.53 | 10 ms |
+| start, expose, HTTP 200 | 3.75 / 4.70 | 52.80 / 54.85 | 200 ms |
+| snapshot 100 MB | 1446.74 / 2005.11 | 831.14 / 1004.25 | measured |
+| fork 100 MB | 1777.60 / 2696.74 | 1002.13 / 1950.96 | measured |
+| sleep | 32.89 / 103.87 | 8.20 / 16.04 | measured |
+| wake | 886.20 / 989.63 | 11.53 / 15.53 | measured |
+| CLI echo | 1015.73 / 1924.59 | 1000.40 / 1126.74 | measured |
+
+The three agent latency budgets and image-start budget pass. CLI refusal was reproduced
+locally: Hono does not catch a manually constructed non-Error ZodError. Parsing the rejected
+image produces the proper Error-derived validation failure and preserves its structured field
+problem; final CI must validate this correction and the remaining isolation assertions.

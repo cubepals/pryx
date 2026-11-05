@@ -21,7 +21,8 @@ docker run --name pryx -p 8080:8080 -v pryx:/var/lib/pryx ghcr.io/cubepals/pryx:
 `docker compose logs pryx` shows the initial key on first start. A fresh image can use
 `--user 1000:1000`; it then reports shared UID isolation and keeps that user's state in its
 own directory in the volume. Restart with the same UID and volume. No privileged flag,
-engine socket or seccomp override is needed for the process tier.
+engine socket or seccomp override is needed for the process tier. Embedded Postgres requires
+its private password on both TCP and Unix sockets.
 
 The only public listener is HTTP port 8080 (or PORT). Set PRYX_PUBLIC_URL to the externally
 reachable HTTP or HTTPS origin behind your platform's TLS terminator. Agent URLs use an

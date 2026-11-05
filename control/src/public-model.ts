@@ -130,9 +130,9 @@ export class PublicModel {
       ...(body.idle ? { idle: body.idle } : {}),
     }
     if (spec.isolation === 'process' && spec.image)
-      throw new z.ZodError([
-        { code: 'custom', path: ['image'], message: nodeSchema['x-pryx-process'].imageProblem },
-      ])
+      z.object({ image: z.never({ error: nodeSchema['x-pryx-process'].imageProblem }) }).parse({
+        image: spec.image,
+      })
     spec = unitSpec(spec, this.boxes.projects?.unit)
     const id = options.id ?? op.id
     const result = await this.boxes.make(project, spec, {

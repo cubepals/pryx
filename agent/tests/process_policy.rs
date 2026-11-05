@@ -2,7 +2,7 @@
 //! Kernel enforcement is exercised in a child, so the test runner never changes its own
 //! Landlock, seccomp or rlimits. Unsupported policy fails closed rather than skipping a test.
 use pryx_agent::process_policy::{POLICY_ENV, Policy};
-use std::process::Command;
+use std::{os::unix::process::CommandExt, process::Command};
 
 #[test]
 fn process_policy_is_enforced_or_compute_is_refused() {
@@ -46,4 +46,35 @@ fn network_off_denies_connections_without_another_namespace() {
         .output().unwrap();
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     assert_eq!(output.stdout, b"filtered\n");
+}
+
+#[test]
+fn command_launcher_protects_parent_but_allows_self_signals() {
+    let output = Command::new(env!("CARGO_BIN_EXE_pryx-agent"))
+        .args([
+            "process-child",
+            &std::process::id().to_string(),
+            "false",
+            "python3",
+            "-c",
+            r#"
+import errno, os
+parent = os.getppid()
+for target in [parent, -parent, -1] + [int(t) for t in os.listdir('/proc/%s/task' % parent)]:
+    try:
+        os.kill(target, 0)
+    except OSError as error:
+        assert error.errno == errno.EPERM, (target, error)
+    else:
+        raise AssertionError('supervisor signal accepted')
+os.kill(os.getpid(), 0)
+os.kill(0, 0)
+print('protected')
+"#,
+        ])
+        .process_group(0)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(output.stdout, b"protected\n");
 }

@@ -268,7 +268,9 @@ async function acceptance(sdk: Pryx, box: Sandbox, env: Record<string, string | 
     out.includes('hello') ||
     !err.includes('this host runs the process tier; images are not available')
   )
-    throw new Error('CLI image refusal differs')
+    throw new Error(
+      `CLI image refusal differs: ${JSON.stringify({ code: refused.exitCode, stdout: out.slice(0, 256), stderr: err.slice(0, 2048) })}`,
+    )
   await box.stop()
   await box.write('stopped', 'before')
   await box.start()

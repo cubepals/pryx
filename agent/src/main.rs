@@ -20,6 +20,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("{}", serde_json::to_string(&pryx_agent::process_capabilities::probe())?);
         return Ok(());
     }
+    if arguments.first().is_some_and(|a| a == "process-child") {
+        let supervisor = arguments.get(1).ok_or("Missing supervisor")?.parse()?;
+        let network = arguments.get(2).ok_or("Missing network policy")?.parse()?;
+        pryx_agent::process_policy::child(supervisor, network)?;
+        let executable = arguments.get(3).ok_or("Missing restricted command")?;
+        return Err(std::process::Command::new(executable).args(&arguments[4..]).exec().into());
+    }
     if arguments.first().is_some_and(|a| a == "network-off") {
         pryx_agent::process_policy::network_off()?;
         let executable = arguments.get(1).ok_or("Missing restricted command")?;
