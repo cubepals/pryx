@@ -7,6 +7,7 @@ import { cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { Pryx } from '@cubepals/pryx'
 import { deployment, ready } from '../../../control/e2e/deployment.ts'
+import { deploymentDiagnostics } from '../../../control/e2e/diagnostics.ts'
 import { freePort, until } from '../../../control/e2e/waits.ts'
 import { MINUTE_MS } from '../../../control/src/durations.ts'
 import { containerBridge } from '../src/index.ts'
@@ -55,6 +56,9 @@ test.skipIf(!ready || !process.env.CELLD_BIN)(
       expect(await (await fetch(url)).text()).toContain('celld-on-pryx')
       expect((await client.get(box.id)).state).toBe('running')
       expect((await fetch(`${url}/delete`)).ok).toBe(true)
+    } catch (error) {
+      deploymentDiagnostics(d)
+      throw error
     } finally {
       child.kill()
       await child.exited

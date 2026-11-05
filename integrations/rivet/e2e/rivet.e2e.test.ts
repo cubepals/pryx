@@ -6,6 +6,7 @@ import { expect, test } from 'bun:test'
 import { Pryx } from '@cubepals/pryx'
 import { createClient } from 'rivetkit/client'
 import { deployment, ready } from '../../../control/e2e/deployment.ts'
+import { deploymentDiagnostics, rivetDiagnostics } from '../../../control/e2e/diagnostics.ts'
 import { freePort, until } from '../../../control/e2e/waits.ts'
 import { MINUTE_MS } from '../../../control/src/durations.ts'
 import type { registry } from '../example/main.ts'
@@ -25,15 +26,14 @@ test.skipIf(!ready)(
     const sdk = new Pryx({ baseUrl: d.control.apiUrl, apiKey: d.credential.key })
     const client = createClient<typeof registry>({ endpoint: `http://127.0.0.1:${enginePort}` })
     try {
+      await until('Rivet engine health', async () => {
+        const response = await fetch(`http://127.0.0.1:${enginePort}/health`, {
+          signal: AbortSignal.timeout(MINUTE_MS / 60),
+        })
+        return response.ok
+      })
       const agent = client.codingAgent.getOrCreate([crypto.randomUUID()])
-      await until(
-        'Rivet actor ready',
-        async () => {
-          await agent.remember('session memory')
-          return true
-        },
-        2 * MINUTE_MS,
-      )
+      await agent.remember('session memory')
       const box = await agent.make({
         image: 'alpine:3.22',
         resources: { memoryMb: 128 },
@@ -55,6 +55,10 @@ test.skipIf(!ready)(
         'actor destruction deletes sandbox',
         async () => !(await sdk.list()).sandboxes.some((b) => b.id === box.id),
       )
+    } catch (error) {
+      deploymentDiagnostics(d)
+      rivetDiagnostics()
+      throw error
     } finally {
       await client.dispose()
       child.kill()
@@ -87,6 +91,9 @@ test.skipIf(!ready)(
       } finally {
         await remote.dispose?.()
       }
+    } catch (error) {
+      deploymentDiagnostics(d)
+      throw error
     } finally {
       await d.close()
     }
