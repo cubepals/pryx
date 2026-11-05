@@ -183,3 +183,26 @@ filesystem/network probes succeed. This cohort then fails sandbox admission on a
 before process-operation samples, so it is not successful process acceptance. Raw startup samples,
 image/agent digests and the failure are retained in
 [the initial process report](checks/process-speed-initial-after.json).
+
+### K11 private-ingress cohort
+
+Run [42040665809](https://github.com/cubepals/pryx/actions/runs/42040665809) measures the pinned
+K11 baseline and d89960e on the same 2-CPU EPYC 7763 runner, n=30 each. This run passes both
+TypeScript and Python agent acceptance, including network none, and the separate two-node
+recovery and lease watchdog suites. Its process-tier admission and edge connection test still
+fail; this is not a claim that the complete workflow passed. Raw
+[before](checks/agent-speed-relay-before.json) and [after](checks/agent-speed-relay-after.json) samples
+retain all observations.
+
+| operation | before p50 / p90 ms | after p50 / p90 ms | budget p90 |
+| --- | --- | --- | --- |
+| run through edge | 103.64 / 177.56 | 2.29 / 2.66 | 20 ms |
+| first output byte | 99.06 / 170.16 | 2.43 / 3.43 | 10 ms |
+| start, expose, HTTP 200 | 108.48 / 185.97 | 5.29 / 11.08 | 200 ms |
+| node loopback | unavailable on baseline | 1.92 / 2.94 | measured |
+| terminal round trip | unavailable on baseline | 21.33 / 23.33 | measured |
+| write 100 MB | unavailable on baseline | 3040.83 / 3105.22 | measured |
+| read 100 MB | unavailable on baseline | 5634.01 / 5973.70 | measured |
+
+All three stated latency budgets pass. Large-file throughput remains slower than the initial
+cohort on a different runner; it is retained without a causal speedup claim.

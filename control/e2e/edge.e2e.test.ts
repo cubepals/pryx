@@ -40,7 +40,11 @@ describe.skipIf(!ready)('edge through a real pryxd', () => {
     async () => {
       const made = await client.make({
         image: 'alpine:pryx-tls',
-        entrypoint: ['sh', '-c', 'echo hello > /data/index.html; exec httpd -f -p 8080 -h /data'],
+        entrypoint: [
+          'sh',
+          '-c',
+          'echo hello > /data/index.html; dd if=/dev/zero of=/data/hold bs=1048576 count=8; exec httpd -f -p 8080 -h /data',
+        ],
         resources: { memoryMb: 128 },
         ports: [{ name: 'http', port: 8080, audience: 'public' }],
       })
@@ -65,7 +69,8 @@ describe.skipIf(!ready)('edge through a real pryxd', () => {
         console.log('HTTP request woke the sandbox and completed')
         const socket = connect({ host: '127.0.0.1', port: port('http:80') })
         socket.on('error', () => {})
-        socket.write(`GET / HTTP/1.1\r\nHost: ${made.id}.pryx.test\r\n\r\n`)
+        // Leave a large response unread so backpressure keeps the relay live until the epoch changes.
+        socket.write(`GET /hold HTTP/1.1\r\nHost: ${made.id}.pryx.test\r\n\r\n`)
         await until('spliced connection', async () =>
           [...edge.table.connections].find((c) => c.sandbox === made.id),
         )

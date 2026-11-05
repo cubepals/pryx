@@ -84,6 +84,9 @@ export const snapshotSchema = z.object({
   at: z.string().optional(),
 })
 export const sandboxSchema = z.object({
+  exit: z
+    .object({ code: z.number().int(), oomKilled: z.boolean(), at: z.string().nullable().optional() })
+    .optional(),
   isolation: z.enum(['container', 'process']).optional(),
   files: z.boolean().optional(),
   agent: z.object({ url: z.string() }).optional(),

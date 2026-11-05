@@ -399,6 +399,7 @@ jobs:
           mkdir -p target/debug
           cp "$RUNNER_TEMP/pryxd-debug" target/debug/pryxd
           docker builder prune --all --force
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
           df -h .
       - name: Build a static daemon for isolated nodes
         id: static
@@ -467,13 +468,28 @@ jobs:
       - name: Build the public Rivet and agentOS patches
         if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         run: bun integrations/rivet/upstream/check.ts "$RUNNER_TEMP/pryx-rivet-patches"
+      - name: Build the public celld engine patch
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: bun integrations/celld/upstream/check.ts "$RUNNER_TEMP/pryx-celld-patch"
       - name: Rivet self-hosted actor and celld Worker
         if: ${{ !cancelled() && steps.celld.outcome == 'success' }}
         env:
           CELLD_BIN: ${{ runner.temp }}/celld
+          PRYX_CELLD_MEASUREMENTS: ${{ runner.temp }}/celld-native-measurements.json
+          PRYX_DOCKER_SPIKE_REPORT: ${{ runner.temp }}/docker-api-spike.json
           PRYX_SANDBOX_AGENT_IMAGE: pryx-sandbox-agent-test
           PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
         run: bun run integration:e2e
+
+      - name: Save native celld measurements
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: celld-native-measurements
+          path: |
+            ${{ runner.temp }}/celld-native-measurements.json
+            ${{ runner.temp }}/docker-api-spike.json
+          if-no-files-found: error
 
       - name: Check live provider credentials
         env:
@@ -634,6 +650,7 @@ jobs:
 
       - name: Install and repeat the release image on the host
         run: |
+          trap 'sudo python3 control/tools/image-diagnostics.py /var/lib/pryx-image' ERR
           sudo systemctl stop pryx-edge pryx-control pryxd pryx-postgres pryx-store
           docker image rm mirror.gcr.io/library/node:22
           gzip -dc "$RUNNER_TEMP/pryx-one-box-image.tar.gz" | docker load

@@ -374,6 +374,11 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         Sandbox: {
+            exit?: {
+                code: number;
+                oomKilled: boolean;
+                at?: string | null;
+            };
             /** @enum {string} */
             isolation?: "container" | "process";
             files?: boolean;

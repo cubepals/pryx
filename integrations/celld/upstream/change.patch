@@ -1,0 +1,878 @@
+diff --git a/crates/celld/container.rs b/crates/celld/container.rs
+index 7058343..dcb2517 100644
+--- a/crates/celld/container.rs
++++ b/crates/celld/container.rs
+@@ -23,9 +23,11 @@
+ //! into its engine the first time a cell of that class starts, so a node
+ //! never talks to a registry.
+ 
++mod backend;
+ use crate::asyncrt;
+ use crate::docker::{frame_header, Docker, Stream};
+ use anyhow::{anyhow, Context};
++use backend::{ContainerBackend, LocalBackend, PryxBackend};
+ use bytes::Bytes;
+ use serde_json::{json, Value};
+ use std::collections::HashMap;
+@@ -216,6 +218,7 @@ enum Address {
+     None,
+     Ip(String),
+     Published(HashMap<u16, u16>),
++    Remote(HashMap<u16, String>),
+ }
+ 
+ pub struct CellContainer {
+@@ -255,6 +258,10 @@ impl CellContainer {
+                          must be declared with EXPOSE in the image"
+                     )
+                 }),
++            Address::Remote(ports) => ports
++                .get(&port)
++                .cloned()
++                .ok_or_else(|| format!("Declare port {port} in CELLD_PRYX_PORTS")),
+             Address::None => Err(format!("The container is not listening on port {port}")),
+         }
+     }
+@@ -286,6 +293,7 @@ impl CellContainer {
+ }
+ 
+ pub struct ContainerEngine {
++    backend: Arc<dyn ContainerBackend>,
+     /// See `Config::runtime`.
+     runtime: Option<String>,
+     /// See `Config::dns`.
+@@ -293,7 +301,7 @@ pub struct ContainerEngine {
+     /// The absolute path of the container resolv.conf this engine wrote and
+     /// bind-mounts; `None` when it could not be written.
+     resolv_conf: Option<PathBuf>,
+-    docker: Docker,
++    docker: Option<Docker>,
+     node: String,
+     bucket: Option<crate::bucket::Bucket>,
+     /// Per-image load lock, so two cells of one class starting together
+@@ -386,12 +394,20 @@ pub async fn engine() -> anyhow::Result<Arc<ContainerEngine>> {
+                     config.data_dir.clone(),
+                 )
+             };
+-            let docker = Docker::discover().ok_or_else(|| {
+-                anyhow!(
+-                    "no container engine: set DOCKER_HOST to a unix socket, or run a Docker or \
+-                     Podman daemon on this node"
+-                )
+-            })?;
++            let selected =
++                std::env::var("CELLD_CONTAINER_BACKEND").unwrap_or_else(|_| "docker".into());
++            anyhow::ensure!(
++                matches!(selected.as_str(), "docker" | "pryx"),
++                "unknown container backend"
++            );
++            let docker =
++                if PryxBackend::selected() {
++                    None
++                } else {
++                    Some(Docker::discover().ok_or_else(|| {
++                        anyhow!("no local container engine; configure DOCKER_HOST")
++                    })?)
++                };
+             Ok(Arc::new(
+                 ContainerEngine::connect(docker, node, bucket, runtime, dns, data_dir).await?,
+             ))
+@@ -461,7 +477,7 @@ impl ContainerEngine {
+     /// whose object has lost track of it is a leak, so a restart starts
+     /// clean. The next `start()` of each object creates a fresh one.
+     pub async fn connect(
+-        docker: Docker,
++        docker: Option<Docker>,
+         node: String,
+         bucket: Option<crate::bucket::Bucket>,
+         runtime: Option<String>,
+@@ -498,7 +514,17 @@ impl ContainerEngine {
+                 }
+             }
+         };
++        let backend: Arc<dyn ContainerBackend> = if PryxBackend::selected() {
++            anyhow::ensure!(bucket.is_none() || std::env::var_os("CELLD_INTERNAL_DEV_STORE").is_some(), "the prepared pryx backend supports single-node dev only; distributed ownership needs a remote fencing protocol");
++            anyhow::ensure!(runtime.is_none() && dns.is_empty(), "pryx isolation and DNS are host policy; local runtime/DNS overrides are unsupported");
++            Arc::new(PryxBackend::connect(&data_dir).await?)
++        } else {
++            Arc::new(LocalBackend(
++                docker.clone().context("local backend requires Docker")?,
++            ))
++        };
+         let engine = Self {
++            backend,
+             docker,
+             node,
+             bucket,
+@@ -514,14 +540,24 @@ impl ContainerEngine {
+         Ok(engine)
+     }
+ 
+-    pub fn socket(&self) -> &std::path::Path {
+-        self.docker.socket()
++    pub fn socket(&self) -> Option<&std::path::Path> {
++        self.docker.as_ref().map(Docker::socket)
++    }
++
++    fn local_docker(&self) -> anyhow::Result<&Docker> {
++        self.docker
++            .as_ref()
++            .context("this operation requires the local backend")
+     }
+ 
+     async fn reap(&self) -> anyhow::Result<()> {
++        self.backend.reap(self).await
++    }
++
++    async fn local_reap(&self) -> anyhow::Result<()> {
+         let filters = json!({ "label": [format!("celld.node={}", self.node)] }).to_string();
+         let reply = self
+-            .docker
++            .local_docker()?
+             .expect(
+                 "GET",
+                 &format!(
+@@ -539,7 +575,7 @@ impl ContainerEngine {
+         for entry in list.as_array().into_iter().flatten() {
+             if let Some(id) = entry.get("Id").and_then(Value::as_str) {
+                 let _ = self
+-                    .docker
++                    .local_docker()?
+                     .call("DELETE", &format!("/containers/{id}?force=true"), None)
+                     .await;
+             }
+@@ -550,6 +586,10 @@ impl ContainerEngine {
+     /// Make the class's image present in the engine, loading it from the
+     /// bucket when it is not. Idempotent and serialized per image.
+     pub async fn ensure_image(&self, image: &str) -> anyhow::Result<()> {
++        self.backend.ensure_image(self, image).await
++    }
++
++    async fn local_ensure_image(&self, image: &str) -> anyhow::Result<()> {
+         let lock = self
+             .images
+             .lock()
+@@ -562,7 +602,7 @@ impl ContainerEngine {
+             return Ok(());
+         }
+         let reply = self
+-            .docker
++            .local_docker()?
+             .call("GET", &format!("/images/{image}/json"), None)
+             .await?;
+         if reply.status.is_success() {
+@@ -580,7 +620,7 @@ impl ContainerEngine {
+         })?;
+         let bytes = tar.len();
+         let reply = self
+-            .docker
++            .local_docker()?
+             .post_octets("/images/load?quiet=true", tar, "load image")
+             .await?;
+         tracing::info!(
+@@ -609,7 +649,7 @@ impl ContainerEngine {
+             // node start after its reap never has; a failure keeps the old
+             // bridge and says so rather than refusing every container.
+             let current = self
+-                .docker
++                .local_docker()?
+                 .call("GET", &format!("/networks/{name}"), None)
+                 .await?;
+             if current.status.is_success() {
+@@ -629,7 +669,7 @@ impl ContainerEngine {
+                     continue;
+                 }
+                 let removed = self
+-                    .docker
++                    .local_docker()?
+                     .call("DELETE", &format!("/networks/{name}"), None)
+                     .await?;
+                 if !removed.status.is_success() {
+@@ -643,7 +683,7 @@ impl ContainerEngine {
+                 }
+             }
+             let reply = self
+-                .docker
++                .local_docker()?
+                 .call(
+                     "POST",
+                     "/networks/create",
+@@ -699,7 +739,7 @@ impl ContainerEngine {
+             "HostConfig": { "NetworkMode": "host", "CapAdd": ["NET_ADMIN"] },
+         });
+         let created = self
+-            .docker
++            .local_docker()?
+             .expect(
+                 "POST",
+                 "/containers/create",
+@@ -714,7 +754,7 @@ impl ContainerEngine {
+             .ok_or_else(|| anyhow!("create fence container answered without an id"))?
+             .to_string();
+         let outcome = async {
+-            self.docker
++            self.local_docker()?
+                 .expect(
+                     "POST",
+                     &format!("/containers/{id}/start"),
+@@ -723,7 +763,7 @@ impl ContainerEngine {
+                 )
+                 .await?;
+             let waited = self
+-                .docker
++                .local_docker()?
+                 .expect(
+                     "POST",
+                     &format!("/containers/{id}/wait"),
+@@ -747,7 +787,7 @@ impl ContainerEngine {
+         }
+         .await;
+         let _ = self
+-            .docker
++            .local_docker()?
+             .call("DELETE", &format!("/containers/{id}?force=true"), None)
+             .await;
+         outcome.context("fence the container bridges")?;
+@@ -763,7 +803,7 @@ impl ContainerEngine {
+     /// Both output streams of a stopped container, for an error message.
+     async fn logs(&self, id: &str) -> anyhow::Result<String> {
+         let reply = self
+-            .docker
++            .local_docker()?
+             .expect(
+                 "GET",
+                 &format!("/containers/{id}/logs?stdout=true&stderr=true"),
+@@ -886,8 +926,12 @@ impl ContainerEngine {
+     }
+ 
+     async fn inspect_running(&self, cell: &CellContainer) -> anyhow::Result<Option<Address>> {
++        self.backend.inspect(self, cell).await
++    }
++
++    async fn local_inspect_running(&self, cell: &CellContainer) -> anyhow::Result<Option<Address>> {
+         let reply = self
+-            .docker
++            .local_docker()?
+             .call("GET", &format!("/containers/{}/json", cell.name), None)
+             .await?;
+         if reply.status.as_u16() == 404 {
+@@ -920,7 +964,20 @@ impl ContainerEngine {
+         run: u64,
+         params: StartParams,
+     ) -> anyhow::Result<()> {
+-        let started = self.create_and_start(cell, params).await;
++        let started_at = std::time::Instant::now();
++        let started = self.backend.start(self, cell, params).await;
++        if started.is_ok() {
++            tracing::info!(
++                event = "container_backend_start_timing",
++                elapsed_us = started_at.elapsed().as_micros() as u64,
++                backend = if self.backend.remote() {
++                    "pryx"
++                } else {
++                    "docker"
++                },
++                "container backend started"
++            );
++        }
+         let address = match started {
+             Ok(address) => address,
+             Err(error) => {
+@@ -954,26 +1011,12 @@ impl ContainerEngine {
+     /// Wait for the container's root process to end and publish the exit
+     /// for `run`; a later run's start has already replaced the state.
+     fn watch_exit(&self, cell: &Arc<CellContainer>, run: u64) {
+-        let docker = self.docker.clone();
++        let backend = self.backend.clone();
+         let cell_ = cell.clone();
+         asyncrt::spawn(async move {
+-            let result = docker
+-                .call("POST", &format!("/containers/{}/wait", cell_.name), None)
++            let result = backend
++                .wait(&cell_.name)
+                 .await
+-                .and_then(|reply| {
+-                    if !reply.status.is_success() {
+-                        return Err(anyhow!(
+-                            "wait failed with [{}] {}",
+-                            reply.status.as_u16(),
+-                            reply.message()
+-                        ));
+-                    }
+-                    reply
+-                        .json()?
+-                        .get("StatusCode")
+-                        .and_then(Value::as_i64)
+-                        .ok_or_else(|| anyhow!("wait answered without a status code"))
+-                })
+                 .map_err(|error| format!("{error:#}"));
+             let mut state = cell_.state.lock().unwrap();
+             if state.run == run {
+@@ -999,7 +1042,7 @@ impl ContainerEngine {
+         // observed its exit but nothing removed it, or a restart adopted a
+         // stopped one. The name is the cell's, so it is ours to remove.
+         let _ = self
+-            .docker
++            .local_docker()?
+             .call(
+                 "DELETE",
+                 &format!("/containers/{}?force=true", cell.name),
+@@ -1100,7 +1143,7 @@ impl ContainerEngine {
+         // still being removed, so a fresh start after `destroy()` retries
+         // briefly, as workerd's engine does.
+         let mut reply = self
+-            .docker
++            .local_docker()?
+             .call(
+                 "POST",
+                 &format!("/containers/create?name={}", cell.name),
+@@ -1113,7 +1156,7 @@ impl ContainerEngine {
+             }
+             asyncrt::sleep(Duration::from_millis(100)).await;
+             let _ = self
+-                .docker
++                .local_docker()?
+                 .call(
+                     "DELETE",
+                     &format!("/containers/{}?force=true", cell.name),
+@@ -1121,7 +1164,7 @@ impl ContainerEngine {
+                 )
+                 .await;
+             reply = self
+-                .docker
++                .local_docker()?
+                 .call(
+                     "POST",
+                     &format!("/containers/create?name={}", cell.name),
+@@ -1139,7 +1182,7 @@ impl ContainerEngine {
+                 reply.message()
+             ));
+         }
+-        self.docker
++        self.local_docker()?
+             .expect(
+                 "POST",
+                 &format!("/containers/{}/start", cell.name),
+@@ -1148,7 +1191,7 @@ impl ContainerEngine {
+             )
+             .await?;
+         let info = self
+-            .docker
++            .local_docker()?
+             .expect(
+                 "GET",
+                 &format!("/containers/{}/json", cell.name),
+@@ -1177,10 +1220,18 @@ impl ContainerEngine {
+     }
+ 
+     pub async fn destroy(&self, cell: &Arc<CellContainer>) -> anyhow::Result<()> {
++        self.backend.destroy(self, cell).await?;
++        let mut state = cell.state.lock().unwrap();
++        state.running = false;
++        state.address = Address::None;
++        Ok(())
++    }
++
++    async fn local_destroy(&self, cell: &Arc<CellContainer>) -> anyhow::Result<()> {
+         // Kill first so the wait task reports 137 before the removal makes
+         // the name disappear under it.
+         let _ = self
+-            .docker
++            .local_docker()?
+             .call(
+                 "POST",
+                 &format!("/containers/{}/kill?signal=SIGKILL", cell.name),
+@@ -1188,7 +1239,7 @@ impl ContainerEngine {
+             )
+             .await;
+         let _ = self
+-            .docker
++            .local_docker()?
+             .call(
+                 "DELETE",
+                 &format!("/containers/{}?force=true", cell.name),
+@@ -1202,7 +1253,11 @@ impl ContainerEngine {
+     }
+ 
+     pub async fn signal(&self, cell: &Arc<CellContainer>, signal: u32) -> anyhow::Result<()> {
+-        self.docker
++        self.backend.signal(self, cell, signal).await
++    }
++
++    async fn local_signal(&self, cell: &Arc<CellContainer>, signal: u32) -> anyhow::Result<()> {
++        self.local_docker()?
+             .expect(
+                 "POST",
+                 &format!("/containers/{}/kill?signal={signal}", cell.name),
+@@ -1264,6 +1319,7 @@ impl ContainerEngine {
+         if !cell.running() {
+             return Err(anyhow!("exec() requires a running container."));
+         }
++        anyhow::ensure!(!self.backend.remote(), "remote exec is not implemented in this prepared backend; use the sandbox agent API directly");
+         let mut body = json!({
+             "AttachStdin": true,
+             "AttachStdout": true,
+@@ -1285,7 +1341,7 @@ impl ContainerEngine {
+             body["User"] = json!(user);
+         }
+         let created = self
+-            .docker
++            .local_docker()?
+             .expect(
+                 "POST",
+                 &format!("/containers/{}/exec", cell.name),
+@@ -1300,7 +1356,7 @@ impl ContainerEngine {
+             .ok_or_else(|| anyhow!("exec create answered without an id"))?
+             .to_string();
+         let stream = self
+-            .docker
++            .local_docker()?
+             .hijack(
+                 &format!("/exec/{exec_id}/start"),
+                 json!({ "Detach": false, "Tty": false }),
+@@ -1314,7 +1370,7 @@ impl ContainerEngine {
+         let mut pid = 0;
+         for _ in 0..20 {
+             let info = self
+-                .docker
++                .local_docker()?
+                 .expect(
+                     "GET",
+                     &format!("/exec/{exec_id}/json"),
+@@ -1345,7 +1401,7 @@ impl ContainerEngine {
+             exec_id,
+             container: cell.name.clone(),
+             pid,
+-            docker: self.docker.clone(),
++            docker: self.local_docker()?.clone(),
+             stdin: tokio::sync::Mutex::new(Some(write)),
+             stdout: tokio::sync::Mutex::new(stdout_rx),
+             stderr: tokio::sync::Mutex::new(stderr_rx),
+diff --git a/crates/celld/container/backend.rs b/crates/celld/container/backend.rs
+new file mode 100644
+index 0000000..c08bdd8
+--- /dev/null
++++ b/crates/celld/container/backend.rs
+@@ -0,0 +1,422 @@
++// Copyright 2026 The Cubepals Authors. Apache-2.0 license.
++
++//! Container effects are selected at the node boundary. The local engine keeps its existing
++//! behavior; the prepared remote backend uses only pryx's public API and private ingress.
++//! Distributed leases, runtime overrides and exec are refused rather than silently weakened.
++
++use super::*;
++use async_trait::async_trait;
++use reqwest::{Client, Method, StatusCode, Url};
++use std::io::Write;
++use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt};
++
++#[async_trait]
++pub(super) trait ContainerBackend: Send + Sync {
++    fn remote(&self) -> bool {
++        false
++    }
++    async fn reap(&self, engine: &ContainerEngine) -> anyhow::Result<()>;
++    async fn ensure_image(&self, engine: &ContainerEngine, image: &str) -> anyhow::Result<()>;
++    async fn inspect(
++        &self,
++        engine: &ContainerEngine,
++        cell: &CellContainer,
++    ) -> anyhow::Result<Option<Address>>;
++    async fn start(
++        &self,
++        engine: &ContainerEngine,
++        cell: &CellContainer,
++        params: StartParams,
++    ) -> anyhow::Result<Address>;
++    async fn wait(&self, name: &str) -> anyhow::Result<i64>;
++    async fn destroy(
++        &self,
++        engine: &ContainerEngine,
++        cell: &Arc<CellContainer>,
++    ) -> anyhow::Result<()>;
++    async fn signal(
++        &self,
++        engine: &ContainerEngine,
++        cell: &Arc<CellContainer>,
++        signal: u32,
++    ) -> anyhow::Result<()>;
++}
++
++pub(super) struct LocalBackend(pub Docker);
++#[async_trait]
++impl ContainerBackend for LocalBackend {
++    async fn reap(&self, engine: &ContainerEngine) -> anyhow::Result<()> {
++        engine.local_reap().await
++    }
++    async fn ensure_image(&self, engine: &ContainerEngine, image: &str) -> anyhow::Result<()> {
++        engine.local_ensure_image(image).await
++    }
++    async fn inspect(
++        &self,
++        engine: &ContainerEngine,
++        cell: &CellContainer,
++    ) -> anyhow::Result<Option<Address>> {
++        engine.local_inspect_running(cell).await
++    }
++    async fn start(
++        &self,
++        engine: &ContainerEngine,
++        cell: &CellContainer,
++        params: StartParams,
++    ) -> anyhow::Result<Address> {
++        engine.create_and_start(cell, params).await
++    }
++    async fn destroy(
++        &self,
++        engine: &ContainerEngine,
++        cell: &Arc<CellContainer>,
++    ) -> anyhow::Result<()> {
++        engine.local_destroy(cell).await
++    }
++    async fn signal(
++        &self,
++        engine: &ContainerEngine,
++        cell: &Arc<CellContainer>,
++        signal: u32,
++    ) -> anyhow::Result<()> {
++        engine.local_signal(cell, signal).await
++    }
++    async fn wait(&self, name: &str) -> anyhow::Result<i64> {
++        let reply = self
++            .0
++            .expect(
++                "POST",
++                &format!("/containers/{name}/wait"),
++                None,
++                "wait container",
++            )
++            .await?;
++        reply
++            .json()?
++            .get("StatusCode")
++            .and_then(Value::as_i64)
++            .ok_or_else(|| anyhow!("wait answered without a status code"))
++    }
++}
++
++pub(super) struct PryxBackend {
++    client: Client,
++    url: Url,
++    key: String,
++    ports: Vec<u16>,
++    images: HashMap<String, String>,
++    journal: PathBuf,
++    sandboxes: tokio::sync::Mutex<HashMap<String, String>>,
++}
++impl PryxBackend {
++    pub fn selected() -> bool {
++        std::env::var("CELLD_CONTAINER_BACKEND").is_ok_and(|v| v == "pryx")
++    }
++    pub async fn connect(dir: &std::path::Path) -> anyhow::Result<Self> {
++        let url = Url::parse(&std::env::var("PRYX_API_URL").context("PRYX_API_URL is required")?)?;
++        anyhow::ensure!(
++            url.username().is_empty()
++                && url.password().is_none()
++                && url.query().is_none()
++                && url.fragment().is_none(),
++            "API URL must not contain credentials or query parameters"
++        );
++        anyhow::ensure!(
++            url.scheme() == "https"
++                || (url.scheme() == "http"
++                    && matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "::1"))),
++            "remote API requires HTTPS; HTTP is allowed only on loopback"
++        );
++        let key = std::env::var("PRYX_API_KEY").context("PRYX_API_KEY is required")?;
++        anyhow::ensure!(!key.is_empty(), "PRYX_API_KEY is empty");
++        let ports: Vec<u16> = std::env::var("CELLD_PRYX_PORTS")
++            .context("declare private TCP ports in CELLD_PRYX_PORTS")?
++            .split(',')
++            .map(str::parse)
++            .collect::<Result<_, _>>()?;
++        anyhow::ensure!(
++            !ports.is_empty() && ports.len() <= 32 && ports.iter().all(|p| *p != 0),
++            "declare 1..32 nonzero TCP ports"
++        );
++        let images = std::env::var("CELLD_PRYX_IMAGES")
++            .ok()
++            .map(|v| serde_json::from_str(&v))
++            .transpose()?
++            .unwrap_or_default();
++        let dir = dir.join("pryx-backend");
++        if let Ok(meta) = std::fs::symlink_metadata(&dir) {
++            anyhow::ensure!(
++                meta.is_dir()
++                    && !meta.file_type().is_symlink()
++                    && meta.permissions().mode() & 0o077 == 0,
++                "backend state directory must be private and regular"
++            );
++        } else {
++            std::fs::DirBuilder::new().mode(0o700).create(&dir)?;
++        }
++        let journal = dir.join("sandboxes.json");
++        let sandboxes = if journal.exists() {
++            let meta = std::fs::symlink_metadata(&journal)?;
++            anyhow::ensure!(
++                meta.is_file()
++                    && !meta.file_type().is_symlink()
++                    && meta.permissions().mode() & 0o077 == 0
++                    && meta.len() < 1024 * 1024,
++                "backend journal is not a bounded private file"
++            );
++            serde_json::from_slice(&std::fs::read(&journal)?)?
++        } else {
++            HashMap::new()
++        };
++        Ok(Self {
++            client: Client::builder()
++                .redirect(reqwest::redirect::Policy::none())
++                .connect_timeout(Duration::from_secs(10))
++                .build()?,
++            url,
++            key,
++            ports,
++            images,
++            journal,
++            sandboxes: tokio::sync::Mutex::new(sandboxes),
++        })
++    }
++    async fn request(
++        &self,
++        method: Method,
++        path: &str,
++        body: Option<Value>,
++        idempotency: Option<&str>,
++    ) -> anyhow::Result<Option<Value>> {
++        let mut request = self
++            .client
++            .request(method, self.url.join(path)?)
++            .bearer_auth(&self.key);
++        if let Some(body) = body {
++            request = request.json(&body);
++        }
++        if let Some(key) = idempotency {
++            request = request.header("idempotency-key", key);
++        }
++        let response = request.send().await.context("pryx transport failed")?;
++        if response.status() == StatusCode::NOT_FOUND {
++            return Ok(None);
++        }
++        anyhow::ensure!(
++            response.status().is_success(),
++            "pryx refused the operation with {}",
++            response.status()
++        );
++        let mut response = response;
++        let mut bytes = Vec::new();
++        while let Some(chunk) = response.chunk().await? {
++            anyhow::ensure!(
++                bytes.len() + chunk.len() <= 1024 * 1024,
++                "pryx response exceeded its bound"
++            );
++            bytes.extend_from_slice(&chunk);
++        }
++        Ok(Some(if bytes.is_empty() {
++            Value::Null
++        } else {
++            serde_json::from_slice(&bytes)?
++        }))
++    }
++    fn persist(&self, values: &HashMap<String, String>) -> anyhow::Result<()> {
++        let temporary = self.journal.with_extension("new");
++        let mut file = std::fs::OpenOptions::new()
++            .write(true)
++            .create_new(true)
++            .mode(0o600)
++            .open(&temporary)?;
++        file.write_all(&serde_json::to_vec(values)?)?;
++        file.sync_all()?;
++        std::fs::rename(temporary, &self.journal)?;
++        std::fs::File::open(self.journal.parent().unwrap())?.sync_all()?;
++        Ok(())
++    }
++    async fn id(&self, name: &str) -> anyhow::Result<Option<String>> {
++        Ok(self.sandboxes.lock().await.get(name).cloned())
++    }
++    async fn retire(&self, name: &str) -> anyhow::Result<()> {
++        let mut values = self.sandboxes.lock().await;
++        if let Some(id) = values.get(name) {
++            anyhow::ensure!(
++                !id.starts_with("pending:"),
++                "unresolved creation journal: reconcile its idempotency key before running again"
++            );
++            self.request(Method::DELETE, &format!("/v1/sandboxes/{id}"), None, None)
++                .await?;
++            anyhow::ensure!(
++                self.request(Method::GET, &format!("/v1/sandboxes/{id}"), None, None)
++                    .await?
++                    .is_none(),
++                "deleted sandbox remains visible; refusing replacement"
++            );
++            values.remove(name);
++            self.persist(&values)?;
++        }
++        Ok(())
++    }
++    fn address(&self, view: &Value) -> anyhow::Result<Address> {
++        let mut ports = HashMap::new();
++        for endpoint in view["endpoints"].as_array().into_iter().flatten() {
++            let Some(port) = endpoint["name"]
++                .as_str()
++                .and_then(|v| v.strip_prefix("tcp-"))
++                .and_then(|v| v.parse::<u16>().ok())
++            else {
++                continue;
++            };
++            let host = endpoint["host"]
++                .as_str()
++                .ok_or_else(|| anyhow!("private endpoint omitted its host"))?;
++            let target = endpoint["port"]
++                .as_u64()
++                .ok_or_else(|| anyhow!("private endpoint omitted its port"))?;
++            let host = if host.contains(':') {
++                format!("[{host}]")
++            } else {
++                host.to_string()
++            };
++            ports.insert(port, format!("{host}:{target}"));
++        }
++        anyhow::ensure!(
++            self.ports.iter().all(|p| ports.contains_key(p)),
++            "private endpoint mapping incomplete"
++        );
++        Ok(Address::Remote(ports))
++    }
++}
++#[async_trait]
++impl ContainerBackend for PryxBackend {
++    fn remote(&self) -> bool {
++        true
++    }
++    async fn reap(&self, _: &ContainerEngine) -> anyhow::Result<()> {
++        let names: Vec<_> = self.sandboxes.lock().await.keys().cloned().collect();
++        for name in names {
++            self.retire(&name).await?;
++        }
++        Ok(())
++    }
++    async fn ensure_image(&self, _: &ContainerEngine, image: &str) -> anyhow::Result<()> {
++        anyhow::ensure!(!image.is_empty(), "empty image");
++        Ok(())
++    }
++    async fn inspect(
++        &self,
++        _: &ContainerEngine,
++        cell: &CellContainer,
++    ) -> anyhow::Result<Option<Address>> {
++        let Some(id) = self.id(&cell.name).await? else {
++            return Ok(None);
++        };
++        let Some(view) = self
++            .request(Method::GET, &format!("/v1/sandboxes/{id}"), None, None)
++            .await?
++        else {
++            return Ok(None);
++        };
++        if view["state"] == "running" {
++            Ok(Some(self.address(&view)?))
++        } else {
++            Ok(None)
++        }
++    }
++    async fn start(
++        &self,
++        engine: &ContainerEngine,
++        cell: &CellContainer,
++        params: StartParams,
++    ) -> anyhow::Result<Address> {
++        anyhow::ensure!(
++            cell.spec.runtime.is_none(),
++            "OCI runtime overrides are host policy and unsupported by this backend"
++        );
++        engine.enforce_instance_ceiling(cell).await?;
++        self.retire(&cell.name).await?;
++        let mut env: serde_json::Map<String, Value> = DEFAULT_ENV
++            .iter()
++            .filter_map(|v| v.split_once('='))
++            .map(|(k, v)| (k.into(), json!(v)))
++            .collect();
++        env.insert("CLOUDFLARE_DURABLE_OBJECT_ID".into(), json!(cell.scope));
++        for (key, value) in params.env {
++            env.insert(key, json!(value));
++        }
++        let (cpu, memory) = instance_resources(
++            cell.spec
++                .instance_type
++                .as_deref()
++                .unwrap_or(DEFAULT_INSTANCE_TYPE),
++        )
++        .ok_or_else(|| anyhow!("unknown instance type"))?;
++        let labels: serde_json::Map<String, Value> = params
++            .labels
++            .into_iter()
++            .map(|(k, v)| (format!("celld.user.{k}"), json!(v)))
++            .collect();
++        let mut body = json!({"labels":labels,"image": self.images.get(&cell.spec.image).unwrap_or(&cell.spec.image), "isolation":"container", "start":true,  "sparePorts":0, "env":env, "resources":{"memoryMb":memory/(1024*1024),"cpuMillis":(cpu*1000.0) as u64}, "ports": self.ports.iter().map(|p| json!({"name":format!("tcp-{p}"),"port":p,"audience":"private","protocol":"tcp"})).collect::<Vec<_>>()});
++        if !params.enable_internet {
++            body["network"] = json!("none");
++        }
++        if let Some(command) = params.entrypoint {
++            body["entrypoint"] = json!(command);
++        }
++        // Write a durable creation key before effects. A lost reply remains unresolved and blocks
++        // future replacement until the operator reconciles that operation; never retry a mutation.
++        let mut values = self.sandboxes.lock().await;
++        let key = format!(
++            "{}-{}",
++            cell.name,
++            std::time::SystemTime::now()
++                .duration_since(std::time::UNIX_EPOCH)?
++                .as_nanos()
++        );
++        values.insert(cell.name.clone(), format!("pending:{key}"));
++        self.persist(&values)?;
++        let made = self
++            .request(Method::POST, "/v1/sandboxes", Some(body), Some(&key))
++            .await?
++            .ok_or_else(|| anyhow!("create returned no sandbox"))?;
++        let id = made["id"]
++            .as_str()
++            .ok_or_else(|| anyhow!("create omitted its id"))?;
++        values.insert(cell.name.clone(), id.into());
++        self.persist(&values)?;
++        self.address(&made)
++    }
++    async fn wait(&self, name: &str) -> anyhow::Result<i64> {
++        let id = self
++            .id(name)
++            .await?
++            .ok_or_else(|| anyhow!("container disappeared before wait"))?;
++        loop {
++            let view = self
++                .request(Method::GET, &format!("/v1/sandboxes/{id}"), None, None)
++                .await?
++                .ok_or_else(|| anyhow!("container was deleted before its exit was observed"))?;
++            if let Some(code) = view.pointer("/exit/code").and_then(Value::as_i64) {
++                return Ok(code);
++            }
++            anyhow::ensure!(
++                view["state"] != "failed",
++                "sandbox failed without a process exit"
++            );
++            asyncrt::sleep(Duration::from_secs(1)).await;
++        }
++    }
++    async fn destroy(&self, _: &ContainerEngine, cell: &Arc<CellContainer>) -> anyhow::Result<()> {
++        self.retire(&cell.name).await
++    }
++    async fn signal(
++        &self,
++        _: &ContainerEngine,
++        cell: &Arc<CellContainer>,
++        _: u32,
++    ) -> anyhow::Result<()> {
++        let _ = cell;
++        anyhow::bail!("root-process signaling is not exposed by pryx's public lifecycle API; use destroy or an agent process handle")
++    }
++}

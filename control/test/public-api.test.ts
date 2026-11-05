@@ -7,7 +7,7 @@ import { sql } from 'drizzle-orm'
 import { StatusCodes } from 'http-status-codes'
 import { SECOND_MS } from '../src/durations.ts'
 import { one } from '../src/sql.ts'
-import { hasDatabase } from './nodes.ts'
+import { hasDatabase, report } from './nodes.ts'
 import { publicContext } from './public-context.ts'
 
 describe.skipIf(!hasDatabase)('public API', () => {
@@ -126,5 +126,47 @@ describe.skipIf(!hasDatabase)('public API', () => {
     const made = await ctx.request('/sandboxes', 'POST', { template: template.id })
     expect(made.status).toBe(StatusCodes.CREATED)
     await ctx.request(`/sandboxes/${((await made.json()) as { id: string }).id}`, 'DELETE')
+  })
+  test('container templates do not warm copies on process nodes', async () => {
+    const node = await one<{ id: string; features: string[] }>(
+      ctx.db,
+      sql`SELECT id,features FROM fleet_nodes`,
+    )
+    if (!node) throw new Error('Missing enrolled node')
+    try {
+      await ctx.db.execute(
+        sql`UPDATE fleet_nodes SET features=${JSON.stringify([...node.features, 'process-tier'])}::jsonb WHERE id=${node.id}`,
+      )
+      const response = await ctx.request('/templates', 'POST', {
+        name: 'container-only',
+        spec: { ...spec, isolation: 'container' },
+      })
+      expect(response.status).toBe(StatusCodes.CREATED)
+      expect(((await response.json()) as { copies: unknown[] }).copies).toEqual([])
+    } finally {
+      await ctx.db.execute(
+        sql`UPDATE fleet_nodes SET features=${JSON.stringify(node.features)}::jsonb WHERE id=${node.id}`,
+      )
+    }
+  })
+  test('sandbox views retain the node reported process exit', async () => {
+    const made = (await (await ctx.request('/sandboxes', 'POST', spec)).json()) as {
+      id: string
+      node: string
+      epoch: number
+    }
+    try {
+      const exit = { code: 37, oomKilled: false, at: new Date().toISOString() }
+      await ctx.db.execute(
+        sql`INSERT INTO fleet_observations(node_id,workload,epoch,state,report)
+            VALUES(${made.node},${made.id},${made.epoch},'running',${JSON.stringify(report(made.id, made.epoch, { exit }))}::jsonb)
+            ON CONFLICT(node_id,workload) DO UPDATE SET report=EXCLUDED.report`,
+      )
+      expect(((await (await ctx.request(`/sandboxes/${made.id}`)).json()) as { exit: unknown }).exit).toEqual(
+        exit,
+      )
+    } finally {
+      await ctx.request(`/sandboxes/${made.id}`, 'DELETE')
+    }
   })
 })

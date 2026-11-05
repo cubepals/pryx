@@ -49,6 +49,7 @@ export type SandboxState =
   | 'restoring'
   | 'failed'
 export interface Sandbox {
+  exit?: NonNullable<WorkloadReport['exit']>
   isolation?: 'container' | 'process'
   files?: boolean
   agent?: boolean
@@ -215,6 +216,7 @@ export class Sandboxes {
         : [],
       usage: row.usage,
       issues: observed?.report.issues ?? [],
+      ...(observed?.report.exit ? { exit: observed.report.exit } : {}),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       expiresAt: row.expires_at,

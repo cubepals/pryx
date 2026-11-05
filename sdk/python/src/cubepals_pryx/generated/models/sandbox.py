@@ -19,6 +19,7 @@ from ..types import UNSET, Unset
 if TYPE_CHECKING:
     from ..models.sandbox_agent import SandboxAgent
     from ..models.sandbox_endpoints_item import SandboxEndpointsItem
+    from ..models.sandbox_exit import SandboxExit
 
 
 T = TypeVar("T", bound="Sandbox")
@@ -39,6 +40,7 @@ class Sandbox:
         created_at (str):
         updated_at (str):
         expires_at (Union[None, str]):
+        exit_ (Union[Unset, SandboxExit]):
         isolation (Union[Unset, SandboxIsolation]):
         files (Union[Unset, bool]):
         agent (Union[Unset, SandboxAgent]):
@@ -56,6 +58,7 @@ class Sandbox:
     created_at: str
     updated_at: str
     expires_at: Union[None, str]
+    exit_: Union[Unset, "SandboxExit"] = UNSET
     isolation: Union[Unset, SandboxIsolation] = UNSET
     files: Union[Unset, bool] = UNSET
     agent: Union[Unset, "SandboxAgent"] = UNSET
@@ -91,6 +94,10 @@ class Sandbox:
         expires_at: Union[None, str]
         expires_at = self.expires_at
 
+        exit_: Union[Unset, dict[str, Any]] = UNSET
+        if not isinstance(self.exit_, Unset):
+            exit_ = self.exit_.to_dict()
+
         isolation: Union[Unset, str] = UNSET
         if not isinstance(self.isolation, Unset):
             isolation = self.isolation.value
@@ -120,6 +127,8 @@ class Sandbox:
                 "expiresAt": expires_at,
             }
         )
+        if exit_ is not UNSET:
+            field_dict["exit"] = exit_
         if isolation is not UNSET:
             field_dict["isolation"] = isolation
         if files is not UNSET:
@@ -135,6 +144,7 @@ class Sandbox:
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.sandbox_agent import SandboxAgent
         from ..models.sandbox_endpoints_item import SandboxEndpointsItem
+        from ..models.sandbox_exit import SandboxExit
 
         d = dict(src_dict)
         id = d.pop("id")
@@ -179,6 +189,13 @@ class Sandbox:
 
         expires_at = _parse_expires_at(d.pop("expiresAt"))
 
+        _exit_ = d.pop("exit", UNSET)
+        exit_: Union[Unset, SandboxExit]
+        if isinstance(_exit_, Unset):
+            exit_ = UNSET
+        else:
+            exit_ = SandboxExit.from_dict(_exit_)
+
         _isolation = d.pop("isolation", UNSET)
         isolation: Union[Unset, SandboxIsolation]
         if isinstance(_isolation, Unset):
@@ -209,6 +226,7 @@ class Sandbox:
             created_at=created_at,
             updated_at=updated_at,
             expires_at=expires_at,
+            exit_=exit_,
             isolation=isolation,
             files=files,
             agent=agent,

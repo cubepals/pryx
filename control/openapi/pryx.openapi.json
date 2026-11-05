@@ -3508,6 +3508,29 @@
       "Sandbox": {
         "type": "object",
         "properties": {
+          "exit": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "oomKilled": {
+                "type": "boolean"
+              },
+              "at": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "code",
+              "oomKilled"
+            ]
+          },
           "isolation": {
             "type": "string",
             "enum": [

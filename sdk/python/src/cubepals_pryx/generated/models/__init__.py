@@ -110,6 +110,7 @@ from .put_v1_sandboxes_id_files_path_response_200 import (
 from .sandbox import Sandbox
 from .sandbox_agent import SandboxAgent
 from .sandbox_endpoints_item import SandboxEndpointsItem
+from .sandbox_exit import SandboxExit
 from .sandbox_isolation import SandboxIsolation
 from .sandbox_state import SandboxState
 from .sandbox_token import SandboxToken
@@ -207,6 +208,7 @@ __all__ = (
     "Sandbox",
     "SandboxAgent",
     "SandboxEndpointsItem",
+    "SandboxExit",
     "SandboxIsolation",
     "SandboxState",
     "SandboxToken",

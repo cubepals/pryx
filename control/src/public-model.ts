@@ -182,12 +182,13 @@ export class PublicModel {
       this.db,
       sql`SELECT t.* FROM templates t JOIN projects p ON p.id=t.project WHERE p.state='active' AND (p.expires_at IS NULL OR p.expires_at>now())`,
     )
-    const nodes = await rows<{ id: string; region: string }>(
+    const nodes = await rows<{ id: string; region: string; features: string[] }>(
       this.db,
-      sql`SELECT id,region_key AS region FROM fleet_nodes WHERE lifecycle='active' AND duplicate_seen_at IS NULL`,
+      sql`SELECT id,region_key AS region,features FROM fleet_nodes WHERE lifecycle='active' AND duplicate_seen_at IS NULL`,
     )
     for (const t of templates)
       for (const n of nodes) {
+        if ((t.spec.isolation === 'process') !== n.features.includes('process-tier')) continue
         const id = randomUUID()
         await this.db.execute(
           sql`INSERT INTO template_copies(template,node,sandbox) VALUES(${t.id},${n.id},${id}) ON CONFLICT DO NOTHING`,
