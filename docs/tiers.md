@@ -4,8 +4,8 @@
 
 The image contains container, process and wasm runtimes. A usable Docker socket selects
 container; `PRYX_DEFAULT_TIER=container|process|wasm` is an operator override. The no-engine
-selection remains process while the K14 comparison is collected. This document does not yet
-claim a measured final selection.
+selection is **process**, the measured winner for this workload. Wasm remains available through
+`PRYX_DEFAULT_TIER=wasm` or explicit placement. The complete measurements and limits follow.
 
 ## Comparison method
 
@@ -80,8 +80,8 @@ separate invocation measures the forced wasm candidate. Both use normal product 
 defaults and record 30 SDK create-to-hello samples plus 30 compiled `pryx run -- echo hello`
 samples separately. It also records create acknowledgement and first-byte components;
 whole-command timings include waiting for exit, and CLI totals include cleanup.
-The 100 ms create-to-output target will be assessed from these measurements, with any miss
-and its observed causes recorded here.
+The 100 ms create-to-output target is assessed separately below; it is missed on both
+candidates. These are fresh sandboxes, without a pre-created VM or warmed command.
 
 ## Capabilities
 
@@ -103,7 +103,153 @@ sidecar would pause unrelated sandboxes, so it cannot implement pryx sleep. The 
 records that unsupported alternative with n=0 and measures disposal plus recreation with
 filesystem validation instead.
 
-## Evidence and selection
+## Complete comparison
 
-The full K14 CI comparison and final default selection are pending. No budget is claimed to
-have passed until its raw report is present and its cohort is complete.
+The tables pin the complete [raw reports from CI 42166712195](measurements/k14/42166712195/),
+source `becd30a2051e59ecde599a22f3ff5e868bcd59e3`. Every tier completes every requested cohort,
+including thirty verified pip installs, thirty verified npm installs and thirty batches of
+fifty creations. Recomputing nearest-rank percentiles from the raw samples matches every
+reported value. Later PID-identity hardening has its own real-child regression and full Rust
+verification; the final branch workflow repeats collection on that code. The table remains
+pinned to its measured source rather than relabeling old samples with a new commit.
+
+| Runner | CPU model | Visible cores | RAM bytes | Kernel | Bun |
+| --- | --- | ---: | ---: | --- | --- |
+| one-box | AMD EPYC 9V74 80-Core Processor | 4 | 16,760,348,672 | 7.0.0-1017-azure | 1.4.4 |
+| image | AMD EPYC 7763 64-Core Processor | 4 | 16,760,344,576 | 7.0.0-1017-azure | 1.4.4 |
+
+Each context compares all three tiers sequentially on its own single runner. The two contexts
+use separate runners; cross-context differences are not attributed solely to the deployment.
+All six use the release daemon SHA-256
+`e55ae6475d085d1ba74bbad7ba20b2631bda9a0a6bdec764875f5095cd99b9e2`.
+The one-box release image is
+`sha256:2ed5e4ad69a1c34d3fcd13951a329cac025e9171d6536dee4c10e2d4e0de3b93`;
+the ordinary image is
+`sha256:20353f09155fb93e1875d5078be2de057f287c5854aa74573016d71429dfba24`.
+Both contain the same checksum-pinned agentOS 0.4.7 distribution described in
+[agentos.md](agentos.md). Resource requests, enforcement differences, context resets,
+port quarantine and the bounded comparison gateway profile are specified above and in each
+raw report.
+
+### One-box services
+
+All cells are p50 / p90; every requested cohort has n=30.
+
+| Latency (ms) | Container | Process | Wasm |
+| --- | ---: | ---: | ---: |
+| Cold create to running | 700.59 / 982.53 | 803.10 / 833.25 | 1,922.30 / 1,986.85 |
+| Agent true | 1.44 / 1.59 | 1.78 / 1.85 | 434.69 / 446.06 |
+| Echo first byte | 1.43 / 1.68 | 1.63 / 1.81 | 421.10 / 429.65 |
+| Sleep then wake | 417.39 / 1,000.66 | 887.07 / 992.57 | 994.51 / 1,034.36 |
+| Snapshot 100 MB | 665.22 / 1,232.55 | 568.88 / 988.59 | 686.02 / 923.79 |
+| Fork 100 MB | 772.08 / 1,730.24 | 941.49 / 955.35 | 1,087.66 / 1,136.90 |
+| pip install | 1,494.94 / 1,520.58 | 573.22 / 584.50 | 3,659.82 / 4,041.77 |
+| npm install | 2,464.77 / 2,515.95 | 416.03 / 439.78 | 4,971.42 / 5,194.99 |
+| 50 concurrent to running | 5,085.35 / 6,110.38 | 2,646.52 / 3,082.58 | 68,308.21 / 85,753.49 |
+
+| Memory (MiB) | Container | Process | Wasm |
+| --- | ---: | ---: | ---: |
+| Idle context PSS | 18.30 / 18.38 | 18.80 / 18.80 | 334.44 / 368.13 |
+| Idle paired PSS delta | 5.21 / 5.25 | 6.19 / 6.20 | -39.60 / -39.28 |
+| Running-shell context PSS | 21.14 / 21.24 | 19.29 / 19.29 | 426.45 / 464.48 |
+| Running-shell paired PSS delta | 8.07 / 8.11 | 6.68 / 6.69 | 49.90 / 64.04 |
+| 50-sandbox context PSS | 52.79 / 52.87 | 54.18 / 54.28 | 679.56 / 683.75 |
+| 50-sandbox paired PSS delta | 37.29 / 37.42 | 39.84 / 39.91 | 2.44 / 5.57 |
+
+Fixed context PSS (n=1, MiB): container 11.56, process 10.77, wasm 64.84.
+
+### Ordinary image
+
+All cells are p50 / p90; every requested cohort has n=30.
+
+| Latency (ms) | Container | Process | Wasm |
+| --- | ---: | ---: | ---: |
+| Cold create to running | 629.19 / 653.16 | 777.98 / 786.75 | 1,791.04 / 1,817.37 |
+| Agent true | 1.96 / 2.06 | 2.70 / 2.84 | 466.69 / 472.86 |
+| Echo first byte | 1.90 / 2.38 | 2.55 / 2.95 | 452.86 / 462.80 |
+| Sleep then wake | 600.61 / 1,026.34 | 819.61 / 1,025.14 | 980.40 / 1,029.71 |
+| Snapshot 100 MB | 388.85 / 440.72 | 241.74 / 248.19 | 461.73 / 471.22 |
+| Fork 100 MB | 738.72 / 771.98 | 961.51 / 985.50 | 1,000.84 / 1,044.90 |
+| pip install | 2,055.52 / 2,172.08 | 564.06 / 694.86 | 4,969.76 / 5,127.07 |
+| npm install | 3,261.74 / 3,316.12 | 569.64 / 584.98 | 6,565.43 / 6,825.03 |
+| 50 concurrent to running | 7,116.82 / 7,146.71 | 1,915.59 / 2,905.34 | 68,769.87 / 70,949.82 |
+
+| Memory (MiB) | Container | Process | Wasm |
+| --- | ---: | ---: | ---: |
+| Idle context PSS | 20.14 / 20.16 | 333.51 / 339.76 | 654.07 / 694.60 |
+| Idle paired PSS delta | 5.20 / 5.21 | 6.80 / 9.36 | -40.11 / -37.91 |
+| Running-shell context PSS | 22.99 / 23.07 | 334.08 / 339.83 | 742.80 / 798.99 |
+| Running-shell paired PSS delta | 8.03 / 8.13 | 7.35 / 8.95 | 50.93 / 68.91 |
+| 50-sandbox context PSS | 53.34 / 53.40 | 429.88 / 433.31 | 548.85 / 555.47 |
+| 50-sandbox paired PSS delta | 39.92 / 39.98 | 118.86 / 123.59 | 182.72 / 195.10 |
+
+Fixed context PSS (n=1, MiB): container 13.43, process 307.57, wasm 365.40.
+
+## Measured default and create-to-output target
+
+Keep **process** as the image default when no Docker socket is usable. In the ordinary-image
+comparison its cold-create p50 is **777.98 ms**, versus **1,791.04 ms** for Wasm; hot echo first
+byte is **2.55 ms** versus **452.86 ms**; fifty creations finish in **1,915.59 ms** versus
+**68,769.87 ms**. Its idle context PSS is **333.51 MiB** versus **654.07 MiB**, and running-shell
+context PSS is **334.08 MiB** versus **742.80 MiB**. Wasm wins none of those selection measures.
+These memory totals include services; the paired deltas and fixed overhead are reported above.
+Process also runs native host binaries. Wasm offers its virtual-kernel boundary and compatible
+Python/JavaScript software as an explicit option; a shared worker remains a shared fault domain.
+The result does not establish a universal winner for arbitrary applications or host policies.
+A Docker host still defaults to container, preserving arbitrary-image support.
+
+The following separate cohorts use the ordinary image, normal **512 MiB / 250 CPU-millis**
+resource defaults and normal gateway limits. There is no tier override for process; Wasm is
+explicitly forced to verify the brief's requested hello path. Every command prints exactly
+`hello` plus newline, with zero exit status and no stderr; cleanup is checked. All cells are
+p50 / p90 milliseconds, n=30 for every cell.
+
+| Path | Implicit process default | Forced Wasm |
+| --- | ---: | ---: |
+| SDK create acknowledgement | 983.06 / 987.05 | 2,048.53 / 2,078.72 |
+| SDK first echo after create | 7.67 / 8.14 | 907.84 / 921.21 |
+| SDK create to first byte | 990.38 / 994.28 | 2,960.64 / 2,983.88 |
+| SDK create to completed echo | 990.50 / 994.42 | 2,976.27 / 3,002.76 |
+| Compiled CLI to first byte | 968.53 / 984.71 | 2,947.15 / 2,976.99 |
+| Compiled CLI total including cleanup | 998.71 / 1,016.82 | 3,000.34 / 3,033.40 |
+
+**The 100 ms goal is missed.** Forced-Wasm SDK create-to-first-byte p50 is **2,960.64 ms**;
+compiled `pryx run -- echo hello` first-byte p50 is **2,947.15 ms**. The normal process default
+is **990.38 ms** through the SDK and **968.53 ms** through the compiled CLI. These measurements
+include fresh creation and API running acknowledgement. The observed Wasm components are
+**2,048.53 ms** to create acknowledgement and **907.84 ms** from acknowledgement to first echo;
+process is **983.06 ms** and **7.67 ms**, respectively. Percentiles of components do not add
+exactly to the percentile of their sum. The pinned sidecar's VM/root initialization and first
+command through its process/output bridge are on this measured path; the millisecond boot
+claim does not describe end-to-end pryx creation. These component timings locate the cost,
+without claiming an isolated profiler attribution. No pre-created sandbox, missing assertion
+or relaxed product limit is used to claim the target passed.
+
+## Paired budget checks
+
+The same image runner also repeats the existing before/after collectors. All samples and
+source/binary identities are retained beside the tier reports. K9 compares its pinned before
+and after products; K11 compares its pinned pre-agent baseline with this source; K12 compares
+same-source container and process/image deployments. K12's preceding daemon-only image has
+no one-image API, so image startup has an explicit n=0 before reason rather than an invented
+reference. Every numeric cell below has n=30. Values are milliseconds at the stated percentile;
+the limits apply to the after product.
+
+| Budget | Percentile | Before | After | Required after |
+| --- | --- | ---: | ---: | ---: |
+| K9 public exec | p50 | 45.13 | 46.80 | < 50 |
+| K9 template create | p50 | 186.62 | 181.93 | < 1,000 |
+| K9 suspended wake | p50 | 27.90 | 27.56 | < 1,000 |
+| K11 agent run | p90 | 103.88 | 2.24 | < 20 |
+| K11 first byte | p90 | 101.59 | 2.11 | < 10 |
+| K11 expose/200 | p90 | 107.28 | 5.71 | < 200 |
+| K12 process run | p90 | 2.20 | 2.82 | < 20 |
+| K12 first byte | p90 | 2.12 | 2.93 | < 10 |
+| K12 expose/200 | p90 | 7.57 | 60.60 | < 200 |
+| K12 image startup | p90 | Unavailable, n=0 | 6,475.04 | < 10,000 |
+
+All specified K9/K11/K12 after budgets pass in this complete checkpoint. K14's distinct cold
+create-to-output goal above remains a documented miss. Historical partial and failed cohorts
+remain under [measurements/k14](measurements/k14/); they are not substituted for these complete
+samples. The final workflow must pass its tests and repeat the required comparisons before
+the pull request is opened; its exact final commit and run are linked in the pull request.
