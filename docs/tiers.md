@@ -16,6 +16,8 @@ substituted for a current reference. Both existing CI jobs upload raw samples on
 
 Each requested latency and incremental memory cohort has 30 samples; nearest-rank p50 and
 p90 are computed from every successful sample, with partial counts retained on failure.
+Concurrent admission records all 30 attempted waves, including capacity refusals;
+only waves that admit all 50 enter the full-50 latency and memory percentiles.
 Cold creation uses a new sandbox identity, no template and a locally available runtime image.
 It includes API admission and running acknowledgement. `true` and `echo hi` use the real agent
 through the edge. Cold and 50-way cohorts use an explicit common 256 MiB / 100 CPU-millis unit;
@@ -42,6 +44,18 @@ increment negative. Such a delta is not a negative per-VM footprint. Absolute co
 includes the fixed node/services and retained allocator memory, rather than attributing every
 resident page to the one active VM. The 50-way latency ends when every creation reports running;
 its memory read and deletion are outside that latency timer.
+Every wave issues all 50 requests without retry or downsizing. After all responses settle,
+`concurrentCapacity` records the requested count, confirmed running count, refused count,
+elapsed time, baseline and current context PSS, paired PSS delta, and each refusal's code,
+HTTP status, message and count, **before deleting any successful creation**. A structured SDK
+`no_room` response produces `capacity_refused`; the tier's final status is `capacity_limited`
+if any wave is refused. This is a successful measurement. Later waves and tiers still run.
+Partial waves do not count as full-50 latency successes. All other creation errors, invalid
+running results, missing memory readings and failed cleanup remain fatal. The public API also
+uses `no_room` for unavailable admission, so a refusal is an observed admission result, not proof
+that physical RAM alone set the limit or that the fitted count is a universal maximum.
+The existing one-box and ordinary-image jobs upload these raw records and append every wave's
+running/refused counts, memory and refusal to their GitHub job summaries, including on failure.
 The one-box collector reuses its node across all thirty 50-way batches. Its temporary listener
 pool is derived below the host kernel's ephemeral range so outgoing connections cannot race
 listener allocation. It has 2,048 ports and retains the normal ten-minute quarantine, allowing
@@ -56,6 +70,32 @@ The ordinary-image comparison supplies an explicit bounded edge profile: 64 simu
 greetings per address, a burst of 128 connections and 64 new connections per second. This
 admits the fifty-client experiment without disabling any guard. Default/forced-Wasm goal
 cohorts retain the normal edge limits. Raw reports identify the comparison profile.
+
+### Capacity evidence before refusal reporting
+
+For head `795abeedc9d599f296e29f00e47609812c1c8683`, the
+[PR run](https://github.com/cubepals/pryx/actions/runs/42227512991) measured merge source
+`0b15b8e7b4f9ad711488c5c157e2dfd0f2f391ec`: it completed 16 full-50 Wasm
+waves, then aborted on wave 17 with HTTP 503, `no_room`, "No node can complete this request".
+The old collector did not retain that wave's admitted count or PSS: **both are unavailable**.
+The wave number is not an admitted-sandbox count. Its preceding approximately 680 MB readings
+are total context PSS, rather than a footprint for each sandbox.
+
+The [push run of that head](https://github.com/cubepals/pryx/actions/runs/42227505210)
+did fit all 50 in all 30 waves on each tier. Its
+[raw artifact](https://github.com/cubepals/pryx/actions/runs/42227505210/artifacts/13513821935)
+records the following; memory includes the context and fixed services. This successful run
+does not fill in the missing observations from the failed run.
+Both raw cohorts are retained under [measurements/k14](measurements/k14/).
+
+| One-box tier | Requested per wave | Running per completed wave | Full waves | Refusals observed | Context PSS MiB, p50 / p90 |
+| --- | ---: | ---: | ---: | --- | ---: |
+| Container | 50 | 50 | 30/30 | None | 53.00 / 53.15 |
+| Process | 50 | 50 | 30/30 | None | 55.01 / 55.49 |
+| Wasm | 50 | 50 | 30/30 | None | 668.63 / 673.10 |
+
+The new collector keeps this full-50 path wherever it fits and records partial or zero-admission
+waves with their own measured memory and refusal instead of terminating the comparison.
 
 Snapshots and forks use exactly 100,000,000 bytes of repeated byte 42, validated before capture
 and after fork. This compressible fixture measures the same workload on each tier; it is not

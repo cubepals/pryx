@@ -1,0 +1,776 @@
+$ bun run lint && bun run typecheck && bun run openapi:check && bun run docs:check && bun run release:check && bun run test
+$ biome check control cli sdk/typescript edge integrations deploy
+cli/src/sandbox.ts:168:49 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    166 │       console.error(JSON.stringify({ snapshot: kept?.id, sandbox: retained.id }))
+    167 │       const output = option(args.slice(0, split), '--snapshot-output')
+  > 168 │       if (output && kept) writeFileSync(output, kept.id + '\n', { mode: 0o600 })
+        │                                                 ^^^^^^^^^^^^^^
+    169 │     }
+    170 │     process.exitCode = code
+  
+  i Unsafe fix: Use a template literal.
+  
+    166 166 │         console.error(JSON.stringify({ snapshot: kept?.id, sandbox: retained.id }))
+    167 167 │         const output = option(args.slice(0, split), '--snapshot-output')
+    168     │ - ······if·(output·&&·kept)·writeFileSync(output,·kept.id·+·'\n',·{·mode:·0o600·})
+        168 │ + ······if·(output·&&·kept)·writeFileSync(output,·`${kept.id}\n`,·{·mode:·0o600·})
+    169 169 │       }
+    170 170 │       process.exitCode = code
+  
+
+cli/src/up-files.ts:34:5 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    32 │   writeChanged(
+    33 │     path,
+  > 34 │     Object.entries(env)
+       │     ^^^^^^^^^^^^^^^^^^^
+  > 35 │       .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
+  > 36 │       .join('\n') + '\n',
+       │       ^^^^^^^^^^^^^^^^^^
+    37 │     0o600,
+    38 │   )
+  
+  i Unsafe fix: Use a template literal.
+  
+    32 32 │     writeChanged(
+    33 33 │       path,
+    34    │ - ····Object.entries(env)
+       34 │ + ····`${Object.entries(env)
+    35 35 │         .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
+    36    │ - ······.join('\n')·+·'\n',
+       36 │ + ······.join('\n')}\n`,
+    37 37 │       0o600,
+    38 38 │     )
+  
+
+cli/src/up-host.ts:33:7 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    31 │     writeChanged(
+    32 │       '/etc/docker/daemon.json',
+  > 33 │       JSON.stringify({ ...existing, ...daemonJson }, null, 2) + '\n',
+       │       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    34 │       0o644,
+    35 │     )
+  
+  i Unsafe fix: Use a template literal.
+  
+    31 31 │       writeChanged(
+    32 32 │         '/etc/docker/daemon.json',
+    33    │ - ······JSON.stringify({·...existing,·...daemonJson·},·null,·2)·+·'\n',
+       33 │ + ······`${JSON.stringify({·...existing,·...daemonJson·},·null,·2)}\n`,
+    34 34 │         0o644,
+    35 35 │       )
+  
+
+cli/test/up.test.ts:55:44 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    53 │           .digest('hex')}  ${n}`,
+    54 │     )
+  > 55 │     writeFileSync(join(dir, 'SHA256SUMS'), lines.join('\n') + '\n')
+       │                                            ^^^^^^^^^^^^^^^^^^^^^^^
+    56 │     expect(await releaseFiles(dir)).toBe(dir)
+    57 │     const destination = join(dir, 'installed')
+  
+  i Unsafe fix: Use a template literal.
+  
+    53 53 │             .digest('hex')}  ${n}`,
+    54 54 │       )
+    55    │ - ····writeFileSync(join(dir,·'SHA256SUMS'),·lines.join('\n')·+·'\n')
+       55 │ + ····writeFileSync(join(dir,·'SHA256SUMS'),·`${lines.join('\n')}\n`)
+    56 56 │       expect(await releaseFiles(dir)).toBe(dir)
+    57 57 │       const destination = join(dir, 'installed')
+  
+
+control/bench/project-overhead.ts:50:62 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    48 │     samplesMs,
+    49 │   }
+  > 50 │   writeFileSync(process.argv[3] ?? `projects-${phase}.json`, JSON.stringify(report, null, 2) + '\n')
+       │                                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    51 │   console.log(JSON.stringify(report))
+    52 │ } finally {
+  
+  i Unsafe fix: Use a template literal.
+  
+    48 48 │       samplesMs,
+    49 49 │     }
+    50    │ - ··writeFileSync(process.argv[3]·??·`projects-${phase}.json`,·JSON.stringify(report,·null,·2)·+·'\n')
+       50 │ + ··writeFileSync(process.argv[3]·??·`projects-${phase}.json`,·`${JSON.stringify(report,·null,·2)}\n`)
+    51 51 │     console.log(JSON.stringify(report))
+    52 52 │   } finally {
+  
+
+control/src/sandbox-io.ts:173:11 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    171 │     const script =
+    172 │       data === undefined
+  > 173 │         ? guard + 'tar -C "$base" -cf - -- "$2" | base64'
+        │           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    174 │         : guard + 'printf %s "$3" | base64 -d > "$target"'
+    175 │     const result = await this.exec(id, project, {
+  
+  i Unsafe fix: Use a template literal.
+  
+    171 171 │       const script =
+    172 172 │         data === undefined
+    173     │ - ········?·guard·+·'tar·-C·"$base"·-cf·-·--·"$2"·|·base64'
+        173 │ + ········?·`${guard}tar·-C·"$base"·-cf·-·--·"$2"·|·base64`
+    174 174 │           : guard + 'printf %s "$3" | base64 -d > "$target"'
+    175 175 │       const result = await this.exec(id, project, {
+  
+
+control/src/sandbox-io.ts:174:11 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    172 │       data === undefined
+    173 │         ? guard + 'tar -C "$base" -cf - -- "$2" | base64'
+  > 174 │         : guard + 'printf %s "$3" | base64 -d > "$target"'
+        │           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    175 │     const result = await this.exec(id, project, {
+    176 │       command: [
+  
+  i Unsafe fix: Use a template literal.
+  
+    172 172 │         data === undefined
+    173 173 │           ? guard + 'tar -C "$base" -cf - -- "$2" | base64'
+    174     │ - ········:·guard·+·'printf·%s·"$3"·|·base64·-d·>·"$target"'
+        174 │ + ········:·`${guard}printf·%s·"$3"·|·base64·-d·>·"$target"`
+    175 175 │       const result = await this.exec(id, project, {
+    176 176 │         command: [
+  
+
+control/tools/docs.ts:117:16 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    115 │   ],
+    116 │ )
+  > 117 │ const output = lines.join('\n') + '\n',
+        │                ^^^^^^^^^^^^^^^^^^^^^^^
+    118 │   path = new URL('docs/api.md', root)
+    119 │ if (process.argv[2] === 'generate') writeFileSync(path, output)
+  
+  i Unsafe fix: Use a template literal.
+  
+    115 115 │     ],
+    116 116 │   )
+    117     │ - const·output·=·lines.join('\n')·+·'\n',
+        117 │ + const·output·=·`${lines.join('\n')}\n`,
+    118 118 │     path = new URL('docs/api.md', root)
+    119 119 │   if (process.argv[2] === 'generate') writeFileSync(path, output)
+  
+
+edge/src/agent.ts:151:24 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    149 │     fetch: (r) =>
+    150 │       new URL(r.url).pathname === '/metrics'
+  > 151 │         ? new Response(metrics.render() + `pryx_edge_version_lag ${poll.current() ? 0 : 1}\n`)
+        │                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    152 │         : new Response(null, { status: StatusCodes.NOT_FOUND }),
+    153 │   })
+  
+  i Unsafe fix: Use a template literal.
+  
+    149 149 │       fetch: (r) =>
+    150 150 │         new URL(r.url).pathname === '/metrics'
+    151     │ - ········?·new·Response(metrics.render()·+·`pryx_edge_version_lag·${poll.current()·?·0·:·1}\n`)
+        151 │ + ········?·new·Response(`${metrics.render()}pryx_edge_version_lag·${poll.current()·?·0·:·1}\n`)
+    152 152 │           : new Response(null, { status: StatusCodes.NOT_FOUND }),
+    153 153 │     })
+  
+
+edge/src/metrics.ts:16:7 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    14 │   render() {
+    15 │     return (
+  > 16 │       [
+       │       ^
+  > 17 │         `pryx_edge_routes_held ${this.routes}`,
+  > 18 │         `pryx_edge_version_held ${this.version}`,
+  > 19 │         `pryx_edge_holds ${this.holds}`,
+  > 20 │         ...[...this.counters].map(([key, value]) => `${key} ${value}`),
+  > 21 │       ].join('\n') + '\n'
+       │       ^^^^^^^^^^^^^^^^^^^
+    22 │     )
+    23 │   }
+  
+  i Unsafe fix: Use a template literal.
+  
+    14 14 │     render() {
+    15 15 │       return (
+    16    │ - ······[
+       16 │ + ······`${[
+    17 17 │           `pryx_edge_routes_held ${this.routes}`,
+    18 18 │           `pryx_edge_version_held ${this.version}`,
+    19 19 │           `pryx_edge_holds ${this.holds}`,
+    20 20 │           ...[...this.counters].map(([key, value]) => `${key} ${value}`),
+    21    │ - ······].join('\n')·+·'\n'
+       21 │ + ······].join('\n')}\n`
+    22 22 │       )
+    23 23 │     }
+  
+
+integrations/celld/e2e/docker-api.e2e.test.ts:66:9 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    64 │       writeFileSync(
+    65 │         process.env.PRYX_DOCKER_SPIKE_REPORT ?? join(tmpdir(), 'pryx-docker-spike.json'),
+  > 66 │         JSON.stringify(result, null, 2) + '\n',
+       │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    67 │       )
+    68 │       rmSync(dir, { recursive: true, force: true })
+  
+  i Unsafe fix: Use a template literal.
+  
+    64 64 │         writeFileSync(
+    65 65 │           process.env.PRYX_DOCKER_SPIKE_REPORT ?? join(tmpdir(), 'pryx-docker-spike.json'),
+    66    │ - ········JSON.stringify(result,·null,·2)·+·'\n',
+       66 │ + ········`${JSON.stringify(result,·null,·2)}\n`,
+    67 67 │         )
+    68 68 │         rmSync(dir, { recursive: true, force: true })
+  
+
+integrations/celld/e2e/native.e2e.test.ts:140:27 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    138 │     } finally {
+    139 │       const path = process.env.PRYX_CELLD_MEASUREMENTS ?? join(tmpdir(), 'celld-native-measurements.json')
+  > 140 │       writeFileSync(path, JSON.stringify(result, null, 2) + '\n')
+        │                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    141 │       await d.close()
+    142 │     }
+  
+  i Unsafe fix: Use a template literal.
+  
+    138 138 │       } finally {
+    139 139 │         const path = process.env.PRYX_CELLD_MEASUREMENTS ?? join(tmpdir(), 'celld-native-measurements.json')
+    140     │ - ······writeFileSync(path,·JSON.stringify(result,·null,·2)·+·'\n')
+        140 │ + ······writeFileSync(path,·`${JSON.stringify(result,·null,·2)}\n`)
+    141 141 │         await d.close()
+    142 142 │       }
+  
+
+sdk/typescript/test/handles.test.ts:63:59 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    61 │           async start(controller) {
+    62 │             const send = (value: unknown) =>
+  > 63 │               controller.enqueue(new TextEncoder().encode(JSON.stringify(value) + '\n'))
+       │                                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    64 │             send({ type: 'stdout', data: 'first\npar', truncated: false })
+    65 │             await ended
+  
+  i Unsafe fix: Use a template literal.
+  
+     61  61 │             async start(controller) {
+     62  62 │               const send = (value: unknown) =>
+     63     │ - ··············controller.enqueue(new·TextEncoder().encode(JSON.stringify(value)·+·'\n'))
+         63 │ + ··············controller.enqueue(new·TextEncoder().encode(`${JSON.stringify(value)}\n`))
+     64  64 │               send({ type: 'stdout', data: 'first\npar', truncated: false })
+     65  65 │               await ended
+  
+
+Checked 271 files in 2s. No fixes applied.
+Found 13 infos.
+$ tsc --noEmit
+$ bun control/tools/openapi.ts check
+Node API types: check
+Public API and SDK types: check
+Edge API types: check
+Provider API types: check
+$ bun control/tools/docs.ts check
+$ bun control/tools/release.ts check
+$ bun test --timeout 30000 control/test cli/test sdk/typescript/test edge/test integrations/rivet/test integrations/celld/test
+bun test v1.4.4 (38afee6c8)
+
+cli/test/up-image.test.ts:
+(pass) image references cannot add commands or unit directives [0.45ms]
+
+cli/test/client-config.test.ts:
+(pass) client credentials stay private and refuse symlinks or public permissions [2.37ms]
+(pass) installer rejects a wrong checksum before invoking the downloaded CLI [66.11ms]
+(pass) installer rejects URL userinfo disguised as a loopback port [10.51ms]
+
+cli/test/public.test.ts:
+(pass) public CLI > create and exec accept duration strings [2793.19ms]
+(pass) public CLI > run prints output, returns command status and deletes its sandbox [954.72ms]
+(pass) public CLI > process image refusal retains the field problem in CLI stderr [760.63ms]
+
+cli/test/node.test.ts:
+(pass) node commands through the operator API > ls, token, drain and events use the control service [42.99ms]
+
+cli/test/copy-paths.test.ts:
+(pass) recursive downloads cannot traverse local directory symlinks [3.57ms]
+(pass) uploads reject symlink components above the selected file [1.32ms]
+
+cli/test/mcp.test.ts:
+(pass) reference MCP clients use CLI HTTP and stdio with project authority [1383.43ms]
+
+cli/test/providers.test.ts:
+(pass) provider CLI > shapes/acquire/acquisition use one keyed fake acquisition [2149.75ms]
+
+cli/test/image-network.test.ts:
+(pass) image pools avoid outgoing ports and retain explicit and legacy restart addresses [6.63ms]
+(pass) image pool configuration never follows a file symlink [1.40ms]
+(pass) private image configuration replacement is atomic and never writes through a symlink [5.43ms]
+
+cli/test/project.test.ts:
+(pass) project limits parse numbers, durations, image prefixes and expiry [0.92ms]
+
+cli/test/up.test.ts:
+(pass) check mode reports prerequisites without generating credentials [2.39ms]
+(pass) root-only environment files and generated secrets are stable on a second run [7.20ms]
+(pass) release checks preserve signature bytes and refuse a modified executable [2.20ms]
+(pass) units read secrets from protected files and expose storage only on loopback [0.16ms]
+(pass) failed install commands retain both output streams and redact enrollment tokens [8.10ms]
+
+control/test/agent-hot-path.test.ts:
+(pass) run, start, terminal, files and expose issue zero control queries after token warmup [486.32ms]
+
+control/test/image-diagnostics.test.ts:
+(pass) image diagnostics redact credentials and refuse an unsafe private directory [160.78ms]
+
+control/test/projects.test.ts:
+(pass) projects > units round both resources, timer defaults are bounded, and owned delete remains idempotent [784.00ms]
+(pass) projects > a snapshot deleted while uploading cannot return as ready [683.43ms]
+(pass) projects > every sandbox endpoint, fork and template lookup hides another project [999.17ms]
+(pass) projects > each creation limit returns its name, limit and current count [762.45ms]
+(pass) projects > exec and both snapshot quotas are enforced and rejected captures resume safely [957.35ms]
+(pass) projects > concurrent creates reserve the last unit once, stop releases it and wake checks it again [908.18ms]
+(pass) projects > freeze waits for an admitted create, then refuses writes and permits reads until unfreeze [737.68ms]
+(pass) projects > operator routes require authentication and create a scoped key once [652.37ms]
+(pass) unit capacity uses both resources after reservations; every limit has an environment default [2.29ms]
+
+control/test/fleet-runtime.test.ts:
+(pass) FleetRuntime, with pryxd in memory > a move whose placement changed while its data was copied discards the copy [137.01ms]
+(pass) FleetRuntime, with pryxd in memory > so does a move to make room to start [142.38ms]
+(pass) FleetRuntime, with pryxd in memory > a server that ran before a move keeps its room where it lands until it starts there [135.13ms]
+(pass) FleetRuntime, with pryxd in memory > a server that was stopped moves without claiming room to run [99.42ms]
+(pass) FleetRuntime, with pryxd in memory > a first placement its node never got is undone once nothing can still be making it [132.88ms]
+(pass) FleetRuntime, with pryxd in memory > a first placement whose node reports its copy is finished, never abandoned [58.34ms]
+(pass) FleetRuntime, with pryxd in memory > a deleted snapshot's copy in the store goes once the store answers again [56.80ms]
+(pass) FleetRuntime, with pryxd in memory > a deleted snapshot's copy on a lost node is deleted once that node beats again [99.80ms]
+(pass) FleetRuntime, with pryxd in memory > a snapshot larger than one PUT carries goes up in parts, and the store holds it whole [140.81ms]
+(pass) FleetRuntime, with pryxd in memory > a snapshot known to be large is offered parts at once; one that packs small drops them [158.91ms]
+(pass) FleetRuntime, with pryxd in memory > a copy larger than one PUT carries is exported from the store in parts, read by its ranges [433.11ms]
+(pass) FleetRuntime, with pryxd in memory > a move of a data larger than one PUT carries goes through the store in parts [396.18ms]
+(pass) FleetRuntime, with pryxd in memory > a snapshot too big for one upload is failed for good, saying why [50.12ms]
+(pass) FleetRuntime, with pryxd in memory > an export waits out the snapshot’s own upload off its node, then asks the node [2057.90ms]
+(pass) FleetRuntime, with pryxd in memory > an export a node refuses as busy with that snapshot asks again, once it is free [2087.18ms]
+(pass) FleetRuntime, with pryxd in memory > an upload off a node busy sending that snapshot elsewhere is not a failed try [96.30ms]
+(pass) FleetRuntime, with pryxd in memory > a move of a data too big for one upload is declined, and the server runs where it was [245.04ms]
+(pass) FleetRuntime, with pryxd in memory > a start whose data is too big to move to a node with room waits for room where it is [229.53ms]
+
+control/test/new-node-io.test.ts:
+(pass) new node I/O > first exec does not wait for the cache timer [965.72ms]
+
+control/test/store.test.ts:
+(pass) FleetStore.copyTo > one PUT carries a copy no larger than it, hashed on the way [510.20ms]
+(pass) FleetStore.copyTo > a larger one is read by its ranges into parts, in order, so its hash is of the whole [380.33ms]
+(pass) FleetStore.copyTo > a part the store fails is sent again, and hashed once [457.93ms]
+(pass) FleetStore.copyTo > a part refused for good drops the upload in parts and fails the copy [40.20ms]
+(pass) FleetStore.copyTo > three failures of one part fail the copy [171.34ms]
+(pass) FleetStore.copyTo > nothing at the key is a plain failure, and nothing is begun [0.51ms]
+
+control/test/fleet-runtime.sleep.test.ts:
+(pass) FleetRuntime asleep, with pryxd in memory > with the switch off, a sleep stops and gives its room back [113.41ms]
+(pass) FleetRuntime asleep, with pryxd in memory > on a node without the feature, a sleep stops [56.85ms]
+(pass) FleetRuntime asleep, with pryxd in memory > a copy not running is stopped, as one the node won’t suspend [67.12ms]
+(pass) FleetRuntime asleep, with pryxd in memory > a sleep suspends, keeps its room, and the wake resumes it with one call [180.26ms]
+(pass) FleetRuntime woken, with pryxd in memory > a change only a start reads waits, asleep, for the next boot [162.04ms]
+(pass) FleetRuntime woken, with pryxd in memory > a rotated secret is sent, since the node’s digest leaves secrets out [98.36ms]
+(pass) FleetRuntime woken, with pryxd in memory > a start of a copy the node lost sends the spec again, then starts [95.90ms]
+(pass) FleetRuntime applying and waiting, with pryxd in memory > an apply replaces only the spec the ledger last saw [66.65ms]
+(pass) FleetRuntime applying and waiting, with pryxd in memory > the wait for running asks again past an unreachable node, and ends with its signal [801.90ms]
+
+control/test/cpu.test.ts:
+(pass) unit reservations do not invent a native quota and container quotas stay enforced [0.40ms]
+(pass) CPU reservations are sent only to nodes announcing the additive field [0.48ms]
+(pass) public native CPU ceilings and weights fail before any compute call [578.67ms]
+(pass) project accounting counts CPU reservations on records without unit metadata [1113.43ms]
+
+control/test/agent-wake.test.ts:
+(pass) a sleeping agent request wakes through control and retains its capability [1058.01ms]
+
+control/test/node-client.test.ts:
+(pass) ndjsonLines > a character whose bytes two chunks split arrives whole [35.46ms]
+(pass) ndjsonLines > blank lines are skipped, and the last line needs no newline [2.05ms]
+(pass) ndjsonLines > a body that fails ends with its error, unless the request was called off [48.16ms]
+(pass) a node that does not answer > reads, a PUT, a start and a stop may be sent again; nothing else is [0.27ms]
+(pass) a node that does not answer > a call safe to repeat is sent again, and the answer that comes is the answer [1307.27ms]
+(pass) a node that does not answer > one that is not safe to repeat is sent once [2.03ms]
+(pass) a node that does not answer > a node that never answers fails the call after its last attempt, as unreachable [3806.33ms]
+(pass) a node that does not answer > the call's timeout bounds its attempts [256.46ms]
+(pass) a node that does not answer > a refusal is an answer, and is not sent again [29.16ms]
+
+control/test/health.test.ts:
+(pass) deriveHealth > fresh, with its runtime up and reconciled, is healthy [0.08ms]
+(pass) deriveHealth > fresh but with Docker down or not yet reconciled is degraded, not dead [0.03ms]
+(pass) deriveHealth > one missed beat is nothing; three are suspect; nine are unavailable [0.03ms]
+(pass) deriveHealth > never lost: silence alone never produces a verdict [0.04ms]
+(pass) deriveHealth > a node that never beat is unavailable [0.01ms]
+(pass) deriveHealth > a control plane that just started gives every node one suspect window first [0.02ms]
+
+control/test/compiled.test.ts:
+(pass) compiled control assets > migrates, authenticates the initial key and serves the bootstrap script [1164.33ms]
+
+control/test/provider-adapters.test.ts:
+(pass) Hetzner attaches the explicit network/firewall and sends bootstrap only in cloud-init [2.51ms]
+(pass) Boat keeps bootstrap contents out of command arguments and uses native creation identity [2.85ms]
+(pass) manual SSH preserves host verification and keeps join bytes on stdin [0.82ms]
+(pass) shared and private address classes do not admit unrelated public space [0.14ms]
+
+control/test/node-reports.test.ts:
+(pass) the lease, and who may beat for a node > a second host beating with a new session gets no lease and no edge, then or once caught [81.35ms]
+(pass) the lease, and who may beat for a node > a second host's beats leave the copies the node reported, and their room, as they were [81.01ms]
+(pass) the lease, and who may beat for a node > a second host's beat just past the in-flight window, before the original's next, is still held [63.18ms]
+(pass) the lease, and who may beat for a node > a rebooted node gets its lease, and is reached at its new address, once the old session is past [59.27ms]
+(pass) epochs, as nodes report them > an epoch past the exact integers is refused [17.84ms]
+(pass) epochs, as nodes report them > one up to the ceiling is taken, and the epochs after it stay exact [22.15ms]
+(pass) epochs, as nodes report them > every node's copy counts, so a restored database never hands out an epoch a node holds [52.91ms]
+(pass) a first placement, as its node reports it > one whose copy is still being made waits for it, and is undone if it never is [70.95ms]
+(pass) a first placement, as its node reports it > one whose copy is made is finished from its report [45.31ms]
+
+control/test/sandboxes.test.ts:
+(pass) sandbox intent on Postgres > start false makes storage without starting application code [94.38ms]
+(pass) sandbox intent on Postgres > a retried make reads a JSONB spec independent of object key order [161.69ms]
+(pass) sandbox intent on Postgres > sleep and wake report their tier and keep the epoch [119.86ms]
+(pass) sandbox intent on Postgres > snapshot, fork, rest and restore keep the uploaded source [338.35ms]
+(pass) sandbox intent on Postgres > upkeep deletes elapsed TTL and sleeps idle sandboxes [177.90ms]
+(pass) sandbox intent on Postgres > upkeep finishes a stopped creation after its final state write was interrupted [97.35ms]
+(pass) sandbox intent on Postgres > placement reserves the CPU request sent to the node [51.75ms]
+
+control/test/public-api.test.ts:
+(pass) public API > a long lifecycle response outlives the HTTP idle timer [1339.84ms]
+(pass) public API > keys are hashed, project-scoped and revocable [21.18ms]
+(pass) public API > create retries persist their result, reject reuse and never expose secrets [411.66ms]
+(pass) public API > exec caches its exact bounded answer and refuses uncertain reexecution [123.10ms]
+(pass) public API > templates warm a stopped snapshot on an active node [236.69ms]
+(pass) public API > container templates do not warm copies on process nodes [14.65ms]
+(pass) public API > wasm creation retains packages and refuses image and path sources [326.03ms]
+(pass) public API > sandbox views retain the node reported process exit [97.44ms]
+
+control/test/image-state.test.ts:
+(pass) image credentials persist unchanged with private modes [8.28ms]
+(pass) private image logs reject symlinks and public file modes [7.49ms]
+
+control/test/edge-api.test.ts:
+(pass) edge control > running waits for the counted edge to acknowledge the route, then sleep routes nowhere [191.36ms]
+(pass) edge control > raw port reservations stay quarantined after delete and host collisions are refused [113.90ms]
+
+control/test/ca.test.ts:
+(pass) the fleet CA > issues a node two certificates for its own key, under a name the control plane chooses [32.13ms]
+(pass) the fleet CA > refuses a request not signed by its own key [15.99ms]
+(pass) the fleet CA > comes back the same from the PEMs configuration holds, and refuses a key that is not its own [28.58ms]
+(pass) the fleet CA > names the node endpoint by the addresses nodes dial it by [14.72ms]
+
+control/test/join-routes.test.ts:
+(pass) the join routes > the CA is served byte for byte, so the token’s hash checks it [0.95ms]
+(pass) the join routes > join.sh carries daemon.json and is a script sh reads [4.29ms]
+(pass) the join routes > pryxd and its sha256, in the form sha256sum -c reads [2.23ms]
+(pass) the join routes > joining hosts receive the agent and its verified checksum before enrollment [4.67ms]
+(pass) the join routes > without a pryxd, each answers 404 and says why [1.89ms]
+fleet: /tmp/blockly-join-UMYWcO/broken --version failed, so no node is offered it: Command failed: /tmp/blockly-join-UMYWcO/broken --version
+(pass) the join routes > the release the rollout offers is the binary’s own version and sha256, or none [11.07ms]
+fleet: /tmp/blockly-join-UMYWcO/signed.sig is 15 bytes, not a signature, so it isn't passed on
+(pass) the join routes > the release’s signature beside the binary is passed on, in hex, and nothing else is [6.10ms]
+
+control/test/tiers-capacity.test.ts:
+CONCURRENT_CAPACITY container {"attempt":1,"requested":50,"running":50,"refused":0,"outcome":"complete","elapsedMs":1113.3389769999994,"baselinePssBytes":1000,"contextPssBytes":6000,"incrementalPssBytes":5000,"refusals":[]}
+CONCURRENT_CAPACITY container {"attempt":2,"requested":50,"running":3,"refused":47,"outcome":"capacity_refused","elapsedMs":752.2642199999973,"baselinePssBytes":1000,"contextPssBytes":1300,"incrementalPssBytes":300,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":47}]}
+CONCURRENT_CAPACITY container {"attempt":3,"requested":50,"running":3,"refused":47,"outcome":"capacity_refused","elapsedMs":692.8913620000021,"baselinePssBytes":1000,"contextPssBytes":1300,"incrementalPssBytes":300,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":47}]}
+CONCURRENT_CAPACITY container {"attempt":4,"requested":50,"running":3,"refused":47,"outcome":"capacity_refused","elapsedMs":814.2433709999968,"baselinePssBytes":1000,"contextPssBytes":1300,"incrementalPssBytes":300,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":47}]}
+CONCURRENT_CAPACITY container {"attempt":5,"requested":50,"running":3,"refused":47,"outcome":"capacity_refused","elapsedMs":784.2689930000051,"baselinePssBytes":1000,"contextPssBytes":1300,"incrementalPssBytes":300,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":47}]}
+CONCURRENT_CAPACITY container {"attempt":6,"requested":50,"running":3,"refused":47,"outcome":"capacity_refused","elapsedMs":861.0639129999981,"baselinePssBytes":1000,"contextPssBytes":1300,"incrementalPssBytes":300,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":47}]}
+CONCURRENT_CAPACITY container {"attempt":7,"requested":50,"running":3,"refused":47,"outcome":"capacity_refused","elapsedMs":732.9185499999949,"baselinePssBytes":1000,"contextPssBytes":1300,"incrementalPssBytes":300,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":47}]}
+CONCURRENT_CAPACITY container {"attempt":8,"requested":50,"running":3,"refused":47,"outcome":"capacity_refused","elapsedMs":654.8042019999993,"baselinePssBytes":1000,"contextPssBytes":1300,"incrementalPssBytes":300,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":47}]}
+CONCURRENT_CAPACITY container {"attempt":9,"requested":50,"running":3,"refused":47,"outcome":"capacity_refused","elapsedMs":758.3408080000008,"baselinePssBytes":1000,"contextPssBytes":1300,"incrementalPssBytes":300,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":47}]}
+CONCURRENT_CAPACITY container {"attempt":10,"requested":50,"running":3,"refused":47,"outcome":"capacity_refused","elapsedMs":716.3401370000065,"baselinePssBytes":1000,"contextPssBytes":1300,"incrementalPssBytes":300,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":47}]}
+CONCURRENT_CAPACITY container {"attempt":11,"requested":50,"running":3,"refused":47,"outcome":"capacity_refused","elapsedMs":683.5194649999976,"baselinePssBytes":1000,"contextPssBytes":1300,"incrementalPssBytes":300,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":47}]}
+CONCURRENT_CAPACITY container {"attempt":12,"requested":50,"running":3,"refused":47,"outcome":"capacity_refused","elapsedMs":763.6733249999961,"baselinePssBytes":1000,"contextPssBytes":1300,"incrementalPssBytes":300,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":47}]}
+CONCURRENT_CAPACITY container {"attempt":13,"requested":50,"running":3,"refused":47,"outcome":"capacity_refused","elapsedMs":677.9506600000022,"baselinePssBytes":1000,"contextPssBytes":1300,"incrementalPssBytes":300,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":47}]}
+CONCURRENT_CAPACITY container {"attempt":14,"requested":50,"running":3,"refused":47,"outcome":"capacity_refused","elapsedMs":746.7039500000028,"baselinePssBytes":1000,"contextPssBytes":1300,"incrementalPssBytes":300,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":47}]}
+CONCURRENT_CAPACITY container {"attempt":15,"requested":50,"running":3,"refused":47,"outcome":"capacity_refused","elapsedMs":766.2022440000001,"baselinePssBytes":1000,"contextPssBytes":1300,"incrementalPssBytes":300,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":47}]}
+CONCURRENT_CAPACITY container {"attempt":16,"requested":50,"running":3,"refused":47,"outcome":"capacity_refused","elapsedMs":701.5592179999949,"baselinePssBytes":1000,"contextPssBytes":1300,"incrementalPssBytes":300,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":47}]}
+CONCURRENT_CAPACITY container {"attempt":17,"requested":50,"running":3,"refused":47,"outcome":"capacity_refused","elapsedMs":852.3507029999964,"baselinePssBytes":1000,"contextPssBytes":1300,"incrementalPssBytes":300,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":47}]}
+CONCURRENT_CAPACITY container {"attempt":18,"requested":50,"running":3,"refused":47,"outcome":"capacity_refused","elapsedMs":750.931577000003,"baselinePssBytes":1000,"contextPssBytes":1300,"incrementalPssBytes":300,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":47}]}
+CONCURRENT_CAPACITY container {"attempt":19,"requested":50,"running":3,"refused":47,"outcome":"capacity_refused","elapsedMs":1335.0029070000019,"baselinePssBytes":1000,"contextPssBytes":1300,"incrementalPssBytes":300,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":47}]}
+CONCURRENT_CAPACITY container {"attempt":20,"requested":50,"running":3,"refused":47,"outcome":"capacity_refused","elapsedMs":1253.3864130000002,"baselinePssBytes":1000,"contextPssBytes":1300,"incrementalPssBytes":300,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":47}]}
+CONCURRENT_CAPACITY container {"attempt":21,"requested":50,"running":3,"refused":47,"outcome":"capacity_refused","elapsedMs":861.8445810000048,"baselinePssBytes":1000,"contextPssBytes":1300,"incrementalPssBytes":300,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":47}]}
+CONCURRENT_CAPACITY container {"attempt":22,"requested":50,"running":3,"refused":47,"outcome":"capacity_refused","elapsedMs":869.8125749999963,"baselinePssBytes":1000,"contextPssBytes":1300,"incrementalPssBytes":300,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":47}]}
+CONCURRENT_CAPACITY container {"attempt":23,"requested":50,"running":3,"refused":47,"outcome":"capacity_refused","elapsedMs":1305.4368400000021,"baselinePssBytes":1000,"contextPssBytes":1300,"incrementalPssBytes":300,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":47}]}
+CONCURRENT_CAPACITY container {"attempt":24,"requested":50,"running":3,"refused":47,"outcome":"capacity_refused","elapsedMs":1023.0527479999946,"baselinePssBytes":1000,"contextPssBytes":1300,"incrementalPssBytes":300,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":47}]}
+CONCURRENT_CAPACITY container {"attempt":25,"requested":50,"running":3,"refused":47,"outcome":"capacity_refused","elapsedMs":956.9621230000048,"baselinePssBytes":1000,"contextPssBytes":1300,"incrementalPssBytes":300,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":47}]}
+CONCURRENT_CAPACITY container {"attempt":26,"requested":50,"running":3,"refused":47,"outcome":"capacity_refused","elapsedMs":1472.0505940000003,"baselinePssBytes":1000,"contextPssBytes":1300,"incrementalPssBytes":300,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":47}]}
+CONCURRENT_CAPACITY container {"attempt":27,"requested":50,"running":3,"refused":47,"outcome":"capacity_refused","elapsedMs":1148.0967609999934,"baselinePssBytes":1000,"contextPssBytes":1300,"incrementalPssBytes":300,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":47}]}
+CONCURRENT_CAPACITY container {"attempt":28,"requested":50,"running":3,"refused":47,"outcome":"capacity_refused","elapsedMs":930.927904000011,"baselinePssBytes":1000,"contextPssBytes":1300,"incrementalPssBytes":300,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":47}]}
+CONCURRENT_CAPACITY container {"attempt":29,"requested":50,"running":3,"refused":47,"outcome":"capacity_refused","elapsedMs":918.0798529999884,"baselinePssBytes":1000,"contextPssBytes":1300,"incrementalPssBytes":300,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":47}]}
+CONCURRENT_CAPACITY container {"attempt":30,"requested":50,"running":3,"refused":47,"outcome":"capacity_refused","elapsedMs":974.4569100000081,"baselinePssBytes":1000,"contextPssBytes":1300,"incrementalPssBytes":300,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":47}]}
+(pass) tier comparison capacity > all thirty waves keep fifty where they fit and record later capacity refusal [28287.76ms]
+(pass) tier comparison capacity > zero admitted still records refusal, memory and summary without inventing latency [977.21ms]
+(pass) tier comparison capacity > a non-capacity creation error still fails and cleans every successful creation [1109.41ms]
+(pass) tier comparison capacity > a failed memory read still fails and cleans every admitted sandbox [1150.42ms]
+(pass) tier comparison capacity > cleanup failure stays fatal after the admission outcome was recorded [840.50ms]
+
+control/test/app-requests.test.ts:
+(pass) application fixtures reuse each origin without sharing its routed connection [11.46ms]
+
+control/test/providers.test.ts:
+(pass) provider control > smallest fit accounts for the daemon host reservations [0.24ms]
+(pass) provider control > lost acquire replies reconcile the same host and the ledger never contains the join token [200.01ms]
+(pass) provider control > claimed provider labels cannot bind a hand-enrolled node [99.06ms]
+(pass) provider control > growth requires two refusals, creates one pending host and resets after successful placement [93.69ms]
+(pass) provider control > hand-joined, lost and quarantined nodes cannot be returned [63.49ms]
+(pass) provider control > an owned provider host is retained even when its node is idle [56.72ms]
+(pass) provider control > the memory floor grows one host and a region minimum blocks release [93.51ms]
+(pass) provider control > release resumes after retirement when the vendor deletion reply was lost [131.81ms]
+(pass) provider control > every local snapshot reaches the store before idle rest releases a host [1405.98ms]
+(pass) provider control > a recovered sandbox retains its prior copy until a fresh inventory confirms removal [197.77ms]
+(pass) provider control > an unjoined acquisition can be cancelled without ever minting a second host [40.13ms]
+(pass) provider control > queued lock waiters leave a connection available for nested intents [302.95ms]
+(pass) provider control > idle expiry returns an empty managed node [188.69ms]
+
+control/test/fleet-runtime.flows.test.ts:
+(pass) FleetRuntime flows, with pryxd in memory > 1. a first start on a node with room: PUT, then start, with its room claimed [115.66ms]
+(pass) FleetRuntime flows, with pryxd in memory > 2. a first placement its node refuses for room is undone, and its room given back [56.59ms]
+(pass) FleetRuntime flows, with pryxd in memory > 3. a start its node refuses for room gives the claim back and moves the server to start [171.09ms]
+(pass) FleetRuntime flows, with pryxd in memory > 4. start() on a node with no room now claims nothing and asks no node [124.01ms]
+(pass) FleetRuntime flows, with pryxd in memory > 5. an upload is tried five times, and one nobody finished is taken over after three hours [93.79ms]
+(pass) FleetRuntime flows, with pryxd in memory > 6. a node's copy is trimmed only when a newer one of its server reached the store [106.83ms]
+(pass) FleetRuntime flows, with pryxd in memory > 7. a snapshot, its upload, its deletion, and what upkeep deletes once the store answers [127.99ms]
+(pass) FleetRuntime flows, with pryxd in memory > 8. a planned move: stop, export, a new home restored, then the old copy fenced and deleted [167.97ms]
+(pass) FleetRuntime flows, with pryxd in memory > 9. a move with no room once its data is copied: the copy goes, and it runs where it was [177.80ms]
+(pass) FleetRuntime flows, with pryxd in memory > 10. a move whose old copy its node refuses to fence is finished, and the copy left for upkeep [418.96ms]
+(pass) FleetRuntime flows, with pryxd in memory > 11. a restore in place: a new epoch, the copy stopped, filled from its local snapshot, started [98.28ms]
+(pass) FleetRuntime flows, with pryxd in memory > 12. a release deletes its copy and keeps its backups; a destroy deletes everything [86.98ms]
+(pass) FleetRuntime flows, with pryxd in memory > 13. a suspended copy whose resume does not come back goes on as a boot [80.03ms]
+
+control/test/node-endpoint.test.ts:
+(pass) the node endpoint listens once it is bound > Bun TLS requests verify the CA, client usage and node identity before registry access [70.45ms]
+(pass) the node endpoint listens once it is bound > restarted on a port the endpoint before it still holds, the start fails with why [27.49ms]
+(pass) the node endpoint listens once it is bound > restarted in a process of its own, it is there to dial the moment it says it listens [7365.20ms]
+(pass) the node endpoint listens once it is bound > in a process of its own, a port another holds ends it before it says it listens [3031.99ms]
+
+control/test/operator-api.test.ts:
+(pass) the operator API > an operator corrects a node's price and its other labels, and the change is recorded [61.31ms]
+(pass) the operator API > labels are refused when they say nothing, or give a price that is not a whole number of cents [40.96ms]
+(pass) tokens from the operator API > a new node gets the bare token, the pasted form, and the line to paste it in [9.80ms]
+(pass) tokens from the operator API > a region the region map doesn’t name is refused; a node re-enrolled gets its own line [39.54ms]
+
+control/test/handle.test.ts:
+(pass) fleet handles > round-trip, and change when the epoch does [0.29ms]
+(pass) fleet handles > refuse another runtime's handle, and a malformed one [0.43ms]
+(pass) fleet handles > a resting server’s handle names no node [0.06ms]
+(pass) fleet handles > snapshots name the copy and the epoch it was taken at [0.10ms]
+
+control/test/agent-compat.test.ts:
+(pass) public exec forwards through the agent and replays its durable cached outcome [620.02ms]
+
+control/test/store-lease.test.ts:
+(pass) store lease control > feature-off nodes receive no grant; store time and identity survive a lost grant reply [620.49ms]
+(pass) store lease control > a winning renewal prevents displacement; an expired CAS fence recovers after a crash without losing a node [535.68ms]
+(pass) store lease control > malformed expiry cannot authorize a takeover [353.87ms]
+(pass) presigning leaves a changing If-Match unsigned and uses only the configured runtime endpoint [41.61ms]
+(pass) startup probe rejects a store that ignores conditional writes [27.52ms]
+
+control/test/fleet-runtime.moves.test.ts:
+(pass) FleetRuntime, the copies a failed or finished move leaves > a snapshot not yet uploaded is uploaded before a move deletes the copy it leaves [168.25ms]
+(pass) FleetRuntime, the copies a failed or finished move leaves > a snapshot that can’t be uploaded is no longer offered once the copy it was on is deleted [161.63ms]
+(pass) FleetRuntime, the copies a failed or finished move leaves > a move’s copy whose export failed after reaching the store is removed [179.27ms]
+(pass) FleetRuntime, the copies a failed or finished move leaves > a move’s copy whose export never finished is removed by upkeep once it is stale [68.26ms]
+(pass) FleetRuntime, a new home that fails part-way > a move target declared lost and reinstated finishes the move at the next start [420.35ms]
+(pass) FleetRuntime, a new home that fails part-way > a wake its node refuses for room goes to another node once one has room [207.27ms]
+
+control/test/placement.test.ts:
+(pass) selectNode > hard CPU limits cannot be placed on a tier without cgroups [0.46ms]
+(pass) selectNode > process and container requests cannot cross isolation tiers [0.06ms]
+(pass) selectNode > wasm placement requires its tier and requested package feature [0.08ms]
+(pass) selectNode > only an active, healthy node in the region with the features can be chosen [0.21ms]
+(pass) selectNode > counts the ledger, not what the node says it uses, and keeps the headroom [0.07ms]
+(pass) selectNode > refuses on CPU even when memory fits [0.10ms]
+(pass) selectNode > refuses on disk, and on ports [0.18ms]
+(pass) selectNode > binpack fills the fullest node that fits; spread the emptiest [0.10ms]
+(pass) selectNode > balanced packs memory, but not onto a node past the CPU pressure line [0.09ms]
+(pass) selectNode > a sleeping server holds no memory; a running one does [0.09ms]
+(pass) selectNode > placement scores what is placed, not what happens to run as it is asked [0.09ms]
+(pass) selectNode > ties break on the node id, so the same inputs give the same answer [0.17ms]
+(pass) selectNode > a move never picks its own source [0.09ms]
+(pass) selectNode > an operator can name the one node a move goes to, and its refusal says so [0.13ms]
+(pass) selectNode > one node is a whole fleet: every server that fits goes there [0.59ms]
+(pass) selectNode > a placed server starts where it is when the sandboxes running there leave it room [0.13ms]
+(pass) selectNode > a CPU request follows memory when the spec names none [0.02ms]
+
+control/test/main.test.ts:
+(pass) control composition > the operator listener still returns JSON after the node endpoint starts [646.24ms]
+
+control/test/exec-stream.test.ts:
+(pass) live exec forwarding > only an announced feature streams and the first event precedes command completion [889.83ms]
+
+control/test/registry.test.ts:
+(pass) the node registry, against Postgres > a token enrolls one node, once, and expires [57.40ms]
+(pass) the node registry, against Postgres > a node whose answer was lost enrolls again with the same key, and nobody else can [52.15ms]
+(pass) the node registry, against Postgres > a re-enrollment whose answer was lost is answered again; a retired node never is [100.09ms]
+(pass) the node registry, against Postgres > only the hash of a token is kept [4.94ms]
+(pass) the node registry, against Postgres > a heartbeat needs the node's current certificate [37.95ms]
+(pass) the node registry, against Postgres > fences a copy whose server moved on, until the node reports it fenced [81.01ms]
+(pass) the node registry, against Postgres > fences a copy of no placement at all, and reports it once [45.46ms]
+(pass) the node registry, against Postgres > never fences a copy a restore in place is taking over [31.28ms]
+(pass) the node registry, against Postgres > adopts a newer epoch its own node reports (a restored database), and flags one from elsewhere [224.47ms]
+(pass) the node registry, against Postgres > a delayed beat changes nothing, and a node that reports nothing holds nothing [83.02ms]
+(pass) the node registry, against Postgres > what a node finds wrong with a workload is kept with its report, for operators to read [71.34ms]
+(pass) the node registry, against Postgres > an unchanged report writes nothing [105.15ms]
+(pass) the node registry, against Postgres > a daemon restart is a new session, not a clone [91.94ms]
+(pass) the node registry, against Postgres > a second host with the same identity is caught and quarantined [81.29ms]
+(pass) the node registry, against Postgres > a node that moves to a new address is reached there, and the change is recorded [57.27ms]
+(pass) the node registry, against Postgres > renewal: the new certificate works alongside the old until a heartbeat brings it [228.27ms]
+(pass) the node registry, against Postgres > a certificate is due for renewal by the database’s clock, whatever this process’s says [52.83ms]
+(pass) the node registry, against Postgres > renewal needs the node's current certificate, and a node in good standing [30.77ms]
+(pass) the node registry, against Postgres > a node enrolls again under its own id, and its old certificate stops working [84.64ms]
+(pass) the node registry, against Postgres > loss is confirmed, never timed; a returning copy is fenced, gets no lease, and is recorded as a fork [92.61ms]
+(pass) the node registry, against Postgres > a node that comes back before its sandboxes were rebuilt can be reinstated [582.35ms]
+(pass) the node registry, against Postgres > retiring needs an empty node, and its certificates stop working [85.87ms]
+(pass) the node registry, against Postgres > draining is an operator’s, and recorded with who asked [58.29ms]
+(pass) the node registry, against Postgres > the ledger counts what placements promised on each node [74.53ms]
+(pass) the node registry, against Postgres > only sandboxes that run, or are being started or made, hold memory [432.05ms]
+(pass) the node registry, against Postgres > silence while no endpoint listened isn't held against a node [394.26ms]
+(pass) the node registry, against Postgres > sessions: a stale sequence, a restart and a clone are told apart [0.22ms]
+(pass) join tokens, against Postgres > a token is for a fleet region the region map names, and nothing else [59.07ms]
+(pass) join tokens, against Postgres > a pasted token names the endpoint, the CA and the deployment, and enrolls by its secret [37.24ms]
+(pass) the ledger and a node's own answers, against Postgres > a suspended copy holds its memory; one the node's own answer says stopped frees it at once [206.59ms]
+
+edge/test/image-routing.test.ts:
+(pass) image fallback preserves declared HTTP hosts and control and agent aliases [324.40ms]
+
+edge/test/poll.test.ts:
+(pass) holds routes once a list is applied, and keeps doing so while the control plane is unreachable [0.88ms]
+(pass) is not held while the first list is not applied [0.43ms]
+
+edge/test/limits.quality.test.ts:
+(pass) admission follows the live connections, even when close events repeat or arrive out of order [186.31ms]
+(pass) a bucket admits exactly its burst and refills only at the next token boundary [30.61ms]
+(pass) IPv6 spelling and host bits cannot evade the same network connection limit [73.31ms]
+(pass) leading and trailing IPv6 compression preserves the network, and mapped IPv4 keeps every octet [10.80ms]
+(pass) refusal telemetry distinguishes greeting, opening rate and server capacity and is drained once [7.14ms]
+(pass) a maintenance sweep never frees live sockets even when their rate bucket has refilled [0.21ms]
+
+edge/test/sandbox-proxy.test.ts:
+(pass) invalid, expired, foreign and route-only capabilities cannot wake an agent [201.20ms]
+(pass) an exposed spare is public and the SDK terminal keeps initial output and stdin [238.51ms]
+
+edge/test/relay.test.ts:
+(pass) HTTP greeting waits for complete headers and rejects ambiguity [0.77ms]
+(pass) a large upload pauses at its greeting while a wake is outstanding [321.69ms]
+(pass) a later epoch closes old connections and a delayed route cannot restore them [0.90ms]
+(pass) waiting connections share a wake even if the first leaves [0.88ms]
+(pass) HTTP hold replays the body and TLS forwards the original ClientHello [183.66ms]
+(pass) a spliced raw connection survives the former hold deadline [330.85ms]
+
+edge/test/agent-tls.test.ts:
+(pass) verified agent TLS authenticates before waking [348.78ms]
+
+edge/test/poll.quality.test.ts:
+(pass) failed updates keep acknowledging only the last fully applied version, then recover [2.23ms]
+(pass) a rejected first application neither resolves readiness nor claims a held version [0.41ms]
+(pass) an unchanged response refreshes only an already held version and freshness expires after its boundary [0.52ms]
+
+edge/test/limits.test.ts:
+(pass) a flood on one server is refused there, and another server still takes connections [0.13ms]
+(pass) a server takes connections again as its rate refills [0.06ms]
+(pass) a server holds only so many connections open, and a closed one frees its place [0.04ms]
+(pass) an address may open only so many connections a second, and only so many still greeting [0.54ms]
+(pass) an IPv6 address counts by its /64, and an IPv4 one written as IPv6 as itself [0.07ms]
+(pass) a sweep says what was refused, once, and forgets what limits nothing [0.17ms]
+(pass) an address holds only so many connections let through, across servers, and a closed one frees its place [0.08ms]
+(pass) an IPv6 address holds its connections by its /64 [0.06ms]
+(pass) a connection given no address is counted against its server alone [0.07ms]
+
+edge/test/agent-gateway.test.ts:
+(pass) one connection switches between control and agent requests [12.40ms]
+(pass) relay preserves encoded response bytes and representation headers [7.84ms]
+
+control/test/s3/parts.test.ts:
+(pass) partPlan > one PUT carries no more than R2 takes in one [0.02ms]
+(pass) partPlan > an archive of 5363466241 bytes fits its parts, whole MiB each, within what S3 and R2 take [0.06ms]
+(pass) partPlan > an archive of 6442450944 bytes fits its parts, whole MiB each, within what S3 and R2 take
+(pass) partPlan > an archive of 53687091200 bytes fits its parts, whole MiB each, within what S3 and R2 take
+(pass) partPlan > an archive of 322122547200 bytes fits its parts, whole MiB each, within what S3 and R2 take
+(pass) partPlan > an archive of 32985348833280 bytes fits its parts, whole MiB each, within what S3 and R2 take
+(pass) partPlan > about as many parts as asked, unless the parts would be larger than any store takes [0.03ms]
+(pass) partPlan > a small object is still parts of 8 MiB, the least the plan makes [0.02ms]
+(pass) partPlan > more than 10,000 parts of the largest size hold is refused [0.04ms]
+
+control/test/registry/upgrades.test.ts:
+(pass) versions compare by their numbers, and a version that is not one is never older [0.94ms]
+(pass) the pryxd rollout, against Postgres > two nodes in a region are never offered at once; the next is once the first beats healthy [511.17ms]
+(pass) the pryxd rollout, against Postgres > a failure stops the region until the node is retried [285.21ms]
+(pass) the pryxd rollout, against Postgres > an offered node that never comes back on the release fails when its time is up [64.88ms]
+(pass) the pryxd rollout, against Postgres > a draining, lost, quarantined or unhealthy node is not offered, and a drained one gives its turn up [127.11ms]
+(pass) nodes the rollout passes by, and what operators see > a node too old to upgrade itself is skipped, and says so [31.54ms]
+(pass) nodes the rollout passes by, and what operators see > a node that takes only a signed pryxd is offered the signature, and nothing without one [240.20ms]
+(pass) nodes the rollout passes by, and what operators see > a node already on the release, or newer, or a deployment rolling none out, is offered nothing [71.52ms]
+(pass) the operators’ view > lists every node in the rollout, and retries a failed one [101.25ms]
+
+control/test/registry/heartbeat-records.test.ts:
+(pass) session boundaries distinguish late beats, restarts and duplicate hosts [1.08ms]
+(pass) only a matching current or next certificate is accepted [61.08ms]
+(pass) refusals retain the reason for wrong identities, certificates and retired nodes [70.24ms]
+(pass) invalid epochs are refused while zero remains a valid whole epoch [96.78ms]
+(pass) a duplicate identity is quarantined and audited once across repeated beats [88.46ms]
+(pass) address changes retain their exact fields and reject invalid hosts [112.45ms]
+(pass) a beat from the replaced session explains the newer session [50.09ms]
+
+control/test/registry/summaries-records.test.ts:
+(pass) placement views retain every capacity field and default absent fields [78.70ms]
+(pass) health changes are persisted and audited once with their measured age [89.83ms]
+(pass) a node that never beat records an unknown age and retired nodes stay untouched [63.09ms]
+
+control/test/registry/answer-order.test.ts:
+(pass) ordering a node’s reports of its own copy > a heartbeat sampled before a stop answer keeps the released memory free [70.77ms]
+
+integrations/rivet/test/session.test.ts:
+(pass) a lost create reply keeps identity; lifecycle manages its recovered sandbox [5.17ms]
+(pass) sandbox-agent provider preserves keys, pauses and handles private IPv6 endpoints [0.69ms]
+
+integrations/celld/test/bridge.test.ts:
+(pass) first use is keyed, private forwarding wakes and never sends the bridge credential [5.08ms]
+
+sdk/typescript/test/client.test.ts:
+(pass) NDJSON carries split UTF-8, final lines and cancels its source [0.34ms]
+(pass) a refused mutation carries its envelope and is sent once [0.27ms]
+
+sdk/typescript/test/agent.test.ts:
+(pass) agent run is live, caches its token and keeps the project key off sandbox requests [1.71ms]
+(pass) agent mutations are sent once and preserve structured refusal [0.32ms]
+(pass) file streams use the agent while running and node data after stop [2.35ms]
+
+sdk/typescript/test/handles.test.ts:
+(pass) handles normalize durations, retain raw methods and assign mutation keys once [1.15ms]
+(pass) line iteration yields before exit and keeps stdout and stderr line boundaries [0.48ms]
+(pass) one-shot cleanup runs on command errors and a missing exit stays unknown [0.55ms]
+(pass) writes exceed the old file bound in chunks, including UTF-8 and empty truncation [20.98ms]
+
+ 308 pass
+ 0 fail
+ 7456 expect() calls
+Ran 308 tests across 63 files. [115.88s]

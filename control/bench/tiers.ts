@@ -4,6 +4,7 @@
  * - `context.ts`: real host and ordinary-image contexts with PSS accounting.
  * - `operations.ts`: validated same-source latency, files and packages.
  * - `concurrent.ts`: concurrent creation and context memory measurements.
+ * - `capacity-summary.ts`: job-summary tables of admission outcomes and memory.
  * - `report.ts`: raw evidence, host identity and nearest-rank percentiles.
  * - `process-diagnostics.ts`: failure-only OS codes from private supervisor diagnostics.
  */
@@ -16,7 +17,7 @@ import {
   TIER_BENCH_UNIT,
 } from '../e2e/runtime-config.ts'
 import { NodeClient, NodeRefused } from '../src/node-client.ts'
-import { concurrent } from './tiers/concurrent.ts'
+import { type ConcurrentOutcome, concurrent } from './tiers/concurrent.ts'
 import { context, IMAGE_BENCH_GATEWAY } from './tiers/context.ts'
 import { cold, creation, hot, packages, snapshots } from './tiers/operations.ts'
 import { command, report, type Samples, save } from './tiers/report.ts'
@@ -54,10 +55,12 @@ for (const tier of ['container', 'process', 'wasm'] as const) {
   const samples: Samples = {},
     unsupported: Record<string, string> = {}
   const evidence = report(`${mode}/${tier}`, samples, unsupported)
+  const concurrentCapacity: ConcurrentOutcome[] = []
   let c: Awaited<ReturnType<typeof context>> | undefined
   const extra: Record<string, unknown> = {
     tier,
     status: 'incomplete',
+    concurrentCapacity,
     coldAndConcurrentResources: {
       memoryMb: TIER_BENCH_UNIT.memoryMb,
       cpuReservationMillis: TIER_BENCH_UNIT.cpuMillis,
@@ -109,11 +112,13 @@ for (const tier of ['container', 'process', 'wasm'] as const) {
       await c.close()
       c = undefined
     }
-    await concurrent(mode, tier, samples, c, checkpoint)
+    await concurrent(mode, tier, samples, c, checkpoint, concurrentCapacity)
     if (tier === 'wasm')
       unsupported.vm_suspend =
         'agentOS 0.4.7 exports disposal, not per-VM suspend; stopping the shared worker would stop other sandboxes; n=0'
-    extra.status = 'complete'
+    extra.status = concurrentCapacity.some((outcome) => outcome.outcome === 'capacity_refused')
+      ? 'capacity_limited'
+      : 'complete'
   } catch (error) {
     c?.diagnostics?.()
     extra.failure = error instanceof Error ? error.message : String(error)

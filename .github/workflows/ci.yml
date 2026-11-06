@@ -456,6 +456,9 @@ jobs:
           name: tiers-image
           path: ${{ runner.temp }}/tiers-image-*.json
           if-no-files-found: error
+      - name: Summarize three-tier image capacity
+        if: always()
+        run: bun control/tools/tiers-summary.ts "$RUNNER_TEMP"/tiers-image-*.json >> "$GITHUB_STEP_SUMMARY"
       - name: Compose service and persistent credentials
         if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         run: bun control/bench/compose-image.ts
@@ -709,6 +712,9 @@ jobs:
           name: tiers-one-box
           path: ${{ runner.temp }}/tiers-one-box-*.json
           if-no-files-found: error
+      - name: Summarize one-box three-tier capacity
+        if: always()
+        run: bun control/tools/tiers-summary.ts "$RUNNER_TEMP"/tiers-one-box-*.json >> "$GITHUB_STEP_SUMMARY"
 
       - name: Install and repeat the release image on the host
         if: ${{ !cancelled() && steps.up.outcome == 'success' }}

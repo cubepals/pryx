@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
-/** Validated agent latency, retained files, package installations and concurrent admission. */
+/** Validated agent latency, retained files and package installations; admission is measured separately. */
 import type { MakeRequest, Sandbox } from '../../../sdk/typescript/src/index.ts'
 import { TIER_BENCH_LARGE_UNITS } from '../../e2e/runtime-config.ts'
 import type { Isolation } from '../../src/isolation.ts'
