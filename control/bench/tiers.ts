@@ -2,7 +2,8 @@
 /** K14 complete three-tier comparison in existing one-box and end-to-end CI jobs.
  * Parts (`tiers/`):
  * - `context.ts`: real host and ordinary-image contexts with PSS accounting.
- * - `operations.ts`: validated same-source latency, files, packages and 50-way cohorts.
+ * - `operations.ts`: validated same-source latency, files and packages.
+ * - `concurrent.ts`: concurrent creation and context memory measurements.
  * - `report.ts`: raw evidence, host identity and nearest-rank percentiles.
  * - `process-diagnostics.ts`: failure-only OS codes from private supervisor diagnostics.
  */
@@ -15,8 +16,9 @@ import {
   TIER_BENCH_UNIT,
 } from '../e2e/runtime-config.ts'
 import { NodeClient, NodeRefused } from '../src/node-client.ts'
+import { concurrent } from './tiers/concurrent.ts'
 import { context, IMAGE_BENCH_GATEWAY } from './tiers/context.ts'
-import { cold, concurrent, creation, hot, packages, snapshots } from './tiers/operations.ts'
+import { cold, creation, hot, packages, snapshots } from './tiers/operations.ts'
 import { command, report, type Samples, save } from './tiers/report.ts'
 
 // Benchmark-only refusal evidence excludes request bodies, headers and connection identities.
