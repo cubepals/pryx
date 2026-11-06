@@ -2,7 +2,7 @@
 //! Agent launch and tree signals. PID start ticks prevent a stale runtime journal from acting
 //! on a reused PID, and pidfds bind each signal to the observed process generation.
 use super::journal::error;
-use super::observe::{identity, tree};
+use super::observe::{identity, matching_pid, tree};
 use super::*;
 use std::{
     fs,
@@ -23,7 +23,7 @@ impl ProcessRuntime {
     }
     pub(super) fn signal_tree(&self, name: &str, signal: rustix::process::Signal) -> Result<(), RuntimeError> {
         let entry = self.entry(name)?;
-        let Some(root) = entry.pid.filter(|pid| identity(*pid) == entry.ticks) else { return Ok(()) };
+        let Some(root) = matching_pid(entry.pid, entry.ticks) else { return Ok(()) };
         // Freeze the supervisor first, then repeatedly include descendants that raced the scan.
         for _ in 0..3 {
             let mut targets = tree(root);
@@ -187,7 +187,7 @@ impl ProcessRuntime {
             self.state.children.lock().unwrap().remove(&entry.spec.name);
             self.save_in(&mut entries, entry.clone())?;
         }
-        let alive = entry.pid.is_some_and(|pid| identity(pid) == entry.ticks);
+        let alive = matching_pid(entry.pid, entry.ticks).is_some();
         if !alive && !entry.cleaned {
             if let Some(agent) = &entry.spec.agent {
                 self.retire_orphans(&agent.sandbox)?;

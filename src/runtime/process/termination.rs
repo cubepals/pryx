@@ -3,7 +3,7 @@
 //! retire orphaned compute after a supervisor dies; shared-UID mode cannot signal unrelated
 //! processes and deliberately retains its weaker boundary.
 use super::journal::error;
-use super::observe::{identity, tree, uid_processes};
+use super::observe::{identity, matching_pid, tree, uid_processes};
 use super::*;
 use rustix::process::{Pid, PidfdFlags, Signal, pidfd_open, pidfd_send_signal};
 use std::fs;
@@ -25,7 +25,7 @@ fn stopped(pid: u32) -> bool {
 impl ProcessRuntime {
     pub(super) async fn freeze_tree(&self, name: &str) -> Result<Vec<(u32, u64)>, RuntimeError> {
         let entry = self.entry(name)?;
-        let Some(root) = entry.pid.filter(|pid| identity(*pid) == entry.ticks) else { return Ok(Vec::new()) };
+        let Some(root) = matching_pid(entry.pid, entry.ticks) else { return Ok(Vec::new()) };
         let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
         loop {
             let mut targets = tree(root);
@@ -37,7 +37,7 @@ impl ProcessRuntime {
             if !current.is_empty() && current.iter().all(|(pid, _)| stopped(*pid)) {
                 return Ok(current);
             }
-            if identity(root) != entry.ticks {
+            if matching_pid(Some(root), entry.ticks).is_none() {
                 return Ok(Vec::new());
             }
             if tokio::time::Instant::now() >= deadline {

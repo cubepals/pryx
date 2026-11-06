@@ -176,7 +176,7 @@ impl ContainerRuntime for ProcessRuntime {
     }
     async fn stats(&self, name: &str) -> Result<Option<RawStats>, RuntimeError> {
         let entry = self.entry(name)?;
-        Ok(entry.pid.filter(|pid| observe::identity(*pid) == entry.ticks).map(|pid| RawStats {
+        Ok(observe::matching_pid(entry.pid, entry.ticks).map(|pid| RawStats {
             memory_usage: observe::resident_tree(pid),
             memory_limit: u64::try_from(entry.spec.memory_bytes).ok(),
             pids_limit: u64::try_from(entry.spec.pids_limit).ok(),
