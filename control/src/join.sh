@@ -79,12 +79,7 @@ DAEMON_JSON
   fi
 fi
 
-dir=$(mktemp -d)
-trap 'rm -rf "$dir"' EXIT
-curl -sS --fail-with-body --cacert "$ca" "$url/fleet/v1/blocklyd" -o "$dir/pryxd" ||
-  fail "pryxd couldn't be downloaded: $(head -c 300 "$dir/pryxd" 2>/dev/null)"
-curl -fsS --cacert "$ca" "$url/fleet/v1/blocklyd.sha256" -o "$dir/pryxd.sha256"
-(cd "$dir" && sha256sum -c --quiet pryxd.sha256) || fail "the pryxd downloaded doesn't match its sha256, so it wasn't installed"
+@DAEMON_FETCH@
 # Under the state directory, which is all the service may write, so pryxd can upgrade itself.
 install -d -m 0700 /var/lib/pryxd
 install -D -m 0755 "$dir/pryxd" /var/lib/pryxd/bin/pryxd

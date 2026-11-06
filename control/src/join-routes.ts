@@ -99,6 +99,12 @@ install -D -m 0755 "$dir/pryx-agent" '${nodeSchema['x-pryx-agent'].defaultBinary
       : new URL('./daemon.json', import.meta.url),
     'utf8',
   )
+  const daemonFetch = String.raw`dir=$(mktemp -d)
+trap 'rm -rf "$dir"' EXIT
+curl -sS --fail-with-body --cacert "$ca" "$url/fleet/v1/blocklyd" -o "$dir/pryxd" ||
+  fail "pryxd couldn't be downloaded: $(head -c 300 "$dir/pryxd" 2>/dev/null)"
+curl -fsS --cacert "$ca" "$url/fleet/v1/blocklyd.sha256" -o "$dir/pryxd.sha256"
+(cd "$dir" && sha256sum -c --quiet pryxd.sha256) || fail "the pryxd downloaded doesn't match its sha256, so it wasn't installed"`
   const script = readFileSync(
     process.env.PRYX_ASSET_DIR
       ? join(process.env.PRYX_ASSET_DIR, 'join.sh')
@@ -107,6 +113,7 @@ install -D -m 0755 "$dir/pryx-agent" '${nodeSchema['x-pryx-agent'].defaultBinary
   )
     .replace('@DAEMON_JSON@', daemonJson.trimEnd())
     .replace('@AGENT_INSTALL@', agentInstall)
+    .replace('@DAEMON_FETCH@', daemonFetch)
   const missing = (c: { text: (text: string, status: typeof StatusCodes.NOT_FOUND) => Response }) =>
     c.text(
       `This control plane has no pryxd to hand out: ${options.pryxdBin} is missing. Its image carries ` +
