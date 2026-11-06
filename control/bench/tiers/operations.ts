@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Validated agent latency, retained files, package installations and concurrent admission. */
 import type { MakeRequest, Sandbox } from '../../../sdk/typescript/src/index.ts'
-import { TIER_BENCH_UNIT } from '../../e2e/runtime-config.ts'
+import { TIER_BENCH_LARGE_UNIT, TIER_BENCH_LARGE_UNITS, TIER_BENCH_UNIT } from '../../e2e/runtime-config.ts'
 import type { Isolation } from '../../src/isolation.ts'
 import type { Context } from './context.ts'
 import { DATA_BYTES, measure, REPETITIONS, type Samples } from './report.ts'
@@ -104,42 +104,74 @@ export async function snapshots(box: Sandbox, samples: Samples) {
     await snapshot.delete()
   }
 }
-export async function packages(box: Sandbox, samples: Samples, unsupported: Record<string, string>) {
+export async function packages(c: Context, tier: Isolation, box: Sandbox, samples: Samples) {
   await box.files.delete('payload')
   for (const [name, program, install] of [
-    ['pip', 'pip3', ['install', '--disable-pip-version-check', '--no-cache-dir', 'six==1.17.0', '--target']],
+    [
+      'pip',
+      'pip3',
+      ['install', '--disable-pip-version-check', '--no-cache-dir', 'peppercorn==0.6', '--target'],
+    ],
     ['npm', 'npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund', 'is-number@7.0.0', '--prefix']],
   ] as const) {
     const probe = await box.run([program, '--version'])
-    if (probe.code !== 0) {
-      unsupported[`${name}_install_ms`] =
-        `${program} --version returned ${probe.code}: ${probe.stderr.slice(0, 512)}; n=0`
-      continue
-    }
-    let index = 0
-    await measure(samples, `${name}_install_ms`, async () => {
-      const target = `k14-${name}-${index++}`
-      const result = await box.run(
-        [program, ...install, target, ...(name === 'npm' ? ['--cache', `${target}/.cache`] : [])],
-        { timeout: '2m' },
+    if (probe.code !== 0)
+      throw new Error(`${program} availability failed (${probe.code}): ${probe.stderr.slice(-2048)}`)
+    let pending: Sandbox | undefined
+    try {
+      await measure(
+        samples,
+        `${name}_install_ms`,
+        async () => {
+          if (!pending) throw new Error('Package sandbox missing')
+          const fresh = pending,
+            target = `k14-${name}`
+          const result = await fresh.run(
+            tier === 'wasm' && name === 'pip'
+              ? [program, 'install', 'peppercorn==0.6']
+              : [program, ...install, target, ...(name === 'npm' ? ['--cache', `${target}/.cache`] : [])],
+            { timeout: '2m' },
+          )
+          if (result.code !== 0) throw new Error(`${name} installation failed: ${result.stderr.slice(-2048)}`)
+          return async () => {
+            pending = undefined
+            try {
+              const verify =
+                name === 'pip'
+                  ? [
+                      'python3',
+                      '-c',
+                      `import sys, pathlib; sys.path.insert(0, '${target}'); import peppercorn, importlib.metadata; assert importlib.metadata.version('peppercorn') == '0.6'; assert peppercorn.parse([('name', 'hello')]) == {'name': 'hello'}${tier === 'wasm' ? '' : `; assert pathlib.Path(peppercorn.__file__).resolve().is_relative_to(pathlib.Path('${target}').resolve())`}`,
+                    ]
+                  : [
+                      'node',
+                      '-e',
+                      `if(!require('./${target}/node_modules/is-number')(42)) throw Error('package differs')`,
+                    ]
+              const verified = await fresh.run(verify)
+              if (verified.code !== 0)
+                throw new Error(`${name} package verification failed: ${verified.stderr.slice(-2048)}`)
+            } finally {
+              await fresh.delete()
+            }
+          }
+        },
+        async () => {
+          pending = await c.sdk.sandbox({ ...creation(tier), resources: TIER_BENCH_LARGE_UNIT })
+          if (pending.units !== TIER_BENCH_LARGE_UNITS) throw new Error('Package unit envelope differs')
+          if (tier === 'wasm' && name === 'pip') {
+            const absent = await pending.run([
+              'python3',
+              '-c',
+              "import importlib.util; assert importlib.util.find_spec('peppercorn') is None",
+            ])
+            if (absent.code !== 0) throw new Error('Package was already available before installation')
+          }
+        },
       )
-      if (result.code !== 0) throw new Error(`${name} installation failed: ${result.stderr.slice(-2048)}`)
-      return async () => {
-        const verify =
-          name === 'pip'
-            ? [
-                'python3',
-                '-c',
-                `import sys; sys.path.insert(0, '${target}'); import six; assert six.__version__ == '1.17.0'`,
-              ]
-            : [
-                'node',
-                '-e',
-                `if(!require('./${target}/node_modules/is-number')(42)) throw Error('package differs')`,
-              ]
-        if ((await box.run(verify)).code !== 0) throw new Error(`${name} package verification failed`)
-      }
-    })
+    } finally {
+      await pending?.delete()
+    }
   }
 }
 export async function concurrent(c: Context, tier: Isolation, samples: Samples) {

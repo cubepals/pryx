@@ -60,10 +60,12 @@ export async function measure(
   samples: Samples,
   name: string,
   operation: () => Promise<void | (() => Promise<void>)>,
+  prepare?: () => Promise<void>,
 ) {
   const values = samples[name] ?? []
   samples[name] = values
   for (let i = 0; i < REPETITIONS; i++) {
+    if (prepare) await prepare()
     const start = performance.now()
     const cleanup = await operation()
     values.push(performance.now() - start)

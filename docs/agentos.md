@@ -37,7 +37,9 @@ router through explicit virtual-process and guest-ingress adapters.
 
 The sandbox data directory contains `root.sqlite` for the VM's chunked SQLite root, plus a
 separate `content/` directory mounted at the sandbox's configured data path. That explicit
-agentOS host-directory mount is the only guest access to host files. The existing descriptor
+agentOS host-directory mount is the only writable guest access to host files. The dependency
+also exposes its runtime libraries, including the host npm package, through read-only mappings.
+The existing descriptor
 walk serves the same content through the agent and stopped-node files API, including large
 streams; it does not expose the root database, runtime journal or signing keys.
 
@@ -61,7 +63,8 @@ checks agree with native mount metadata. A root daemon drops its sidecar to
 clears supplementary groups and sets no-new-privileges; an unprivileged daemon keeps its own
 UID. Reserve those worker IDs for the service and use consistent worker IDs across a fleet.
 The worker has a separate private home/cache. Project and provider environment are removed;
-proxy and CA configuration remain.
+the operator's PATH, proxy and CA configuration remain. The pinned sidecar resolves npm's
+JavaScript CLI from that host PATH and runs it inside the VM; the image includes Node/npm.
 Host-owned `wasm.max_ingress_requests` (default eight) bounds simultaneous exposed-application
 requests across VMs, in addition to each VM's connection and upstream frame bounds. Process
 counts and JavaScript, Python and WASM heap settings come from the declared resource envelope.

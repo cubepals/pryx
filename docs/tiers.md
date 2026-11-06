@@ -41,8 +41,15 @@ its memory read and deletion are outside that latency timer.
 
 Snapshots and forks use exactly 100,000,000 bytes of repeated byte 42, validated before capture
 and after fork. This compressible fixture measures the same workload on each tier; it is not
-an incompressible-data throughput claim. Each package installation has a fresh target path;
-commands and exact package versions are recorded in the collector source. An unavailable tool
+an incompressible-data throughput claim. Snapshot timing ends at the API acknowledgement of
+local capture; background object-store upload is not a remote-durability timing.
+Each package installation uses a fresh sandbox prepared outside its timer. Native pip installs
+`peppercorn==0.6` into a new target and verifies its import path, version and behavior. The wasm
+micropip shim lacks `--target`, so it installs into a fresh VM after an assertion that the package
+is absent; creation, that assertion, import verification and deletion are outside the install timer.
+The sidecar resolves npm's CLI from the operator's host PATH; the image includes that userland.
+Npm installs `is-number` at version 7.0.0 with scripts disabled and verifies its behavior. Commands and exact
+package versions are recorded in the collector source. An unavailable tool
 has an explicit n=0 reason, never an invented timing or a passing test.
 
 The no-engine process and wasm image cohorts use ordinary `docker run` without privileged mode,

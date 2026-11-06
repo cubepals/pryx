@@ -107,6 +107,7 @@ pub(super) fn execute() -> std::io::Result<std::convert::Infallible> {
     }
     let mut command = std::process::Command::new(config.binary);
     let environment = [
+        "PATH",
         "HTTP_PROXY",
         "HTTPS_PROXY",
         "NO_PROXY",

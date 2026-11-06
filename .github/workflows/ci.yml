@@ -319,13 +319,22 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: Pull the test images
         run: |
-          for image in ghcr.io/rustfs/rustfs:1.0.0 mirror.gcr.io/library/alpine:3.22 mirror.gcr.io/library/docker:29-dind mirror.gcr.io/rivetdev/sandbox-agent:0.5.5-full mirror.gcr.io/library/registry:3; do
+          for image in ghcr.io/rustfs/rustfs:1.0.0 mirror.gcr.io/library/alpine:3.22 mirror.gcr.io/library/docker:29-dind mirror.gcr.io/rivetdev/sandbox-agent:0.5.5-full; do
             for wait in 2 5 10 20 40 0; do
               docker pull -q "$image" && break
               [ "$wait" = 0 ] && exit 1
               sleep "$wait"
             done
           done
+          # The mirror can return unknown blobs or exhaust its upstream quota. Keep the same
+          # official registry image available through its upstream, with bounded attempts.
+          for registry_source in mirror.gcr.io/library/registry:3 docker.io/library/registry:3; do
+            if docker pull -q "$registry_source"; then
+              docker tag "$registry_source" pryx-speed-registry:local
+              break
+            fi
+          done
+          docker image inspect pryx-speed-registry:local > /dev/null
           docker tag mirror.gcr.io/library/alpine:3.22 alpine:3.22
           docker tag mirror.gcr.io/library/docker:29-dind docker:29-dind
           docker tag mirror.gcr.io/rivetdev/sandbox-agent:0.5.5-full rivetdev/sandbox-agent:0.5.5-full
@@ -349,7 +358,7 @@ jobs:
           persist-credentials: false
       - name: Cache the cold-reference image locally
         run: |
-          docker run -d --rm --name pryx-speed-registry -p 127.0.0.1:5001:5000 mirror.gcr.io/library/registry:3
+          docker run -d --rm --name pryx-speed-registry -p 127.0.0.1:5001:5000 pryx-speed-registry:local
           curl --retry 5 --retry-all-errors --retry-connrefused --retry-delay 1 -fsS http://127.0.0.1:5001/v2/
           docker tag mirror.gcr.io/library/alpine:3.22 localhost:5001/pryx/alpine:3.22
           docker push localhost:5001/pryx/alpine:3.22

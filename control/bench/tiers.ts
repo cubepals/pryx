@@ -68,7 +68,7 @@ for (const tier of ['container', 'process', 'wasm'] as const) {
       if (box.units !== TIER_BENCH_LARGE_UNITS) throw new Error('Large cohort unit envelope differs')
       await hot(box, samples)
       await snapshots(box, samples)
-      await packages(box, samples, unsupported)
+      await packages(c, tier, box, samples)
     } finally {
       await box.delete()
     }
