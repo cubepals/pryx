@@ -338,6 +338,7 @@ mod tests {
                 SpawnOptions::default(),
             )
             .unwrap();
+        let began = std::time::Instant::now();
         let head = super::super::network::start(
             vm,
             agentos_client::net::HttpRequest {
@@ -348,8 +349,13 @@ mod tests {
                 body: None,
             },
         )
-        .await
-        .unwrap();
+        .await;
+        if let Err(error) = &head {
+            eprintln!("guest HTTP readiness failed after {:?}: {error:?}", began.elapsed());
+            eprintln!("guest processes: {:?}", vm.list_processes());
+            eprintln!("listener output: {:?}", vm.read_process_output(process.pid, None, Some(32), None).await);
+        }
+        let head = head.unwrap();
         assert_eq!(head.status, hyper::StatusCode::OK.as_u16());
         assert_eq!(vm.http_request_stream_read(&head.stream_id, 1024).await.unwrap().body, b"ready");
         vm.signal_process_awaited(process.pid, "SIGTERM").await.unwrap();

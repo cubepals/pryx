@@ -1,0 +1,8 @@
+PR run: https://github.com/cubepals/pryx/actions/runs/42254747830
+Job: Control end to end (128018955430)
+Source: dc2e738d004a43c6ad35f48e48cae8a655fea7a2
+Container report: incomplete; fork_100mb_ms contains 22 samples.
+This run did not capture whether the container was running after the timeout.
+
+2026-11-06T17:16:22.9223429Z NODE_RUNTIME_FAILURE 504 start took longer than 20s
+2026-11-06T17:16:23.0834103Z TIER_FAILURE container Node refused the operation

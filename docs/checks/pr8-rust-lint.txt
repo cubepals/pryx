@@ -1,0 +1,1275 @@
+Strict all-target clippy
+    Checking pryxd v0.1.0 (/workspace/pryx)
+    Finished `dev` profile [unoptimized] target(s) in 42.61s
+
+Strict clippy
+    Checking pryxd v0.1.0 (/workspace/pryx)
+    Finished `dev` profile [unoptimized] target(s) in 17.26s
+
+cargo fmt --check
+
+
+Rust structure
+Rust structure holds.
+
+cargo deny --locked check
+warning[duplicate]: found 2 duplicate entries for crate 'base64'
+   ┌─ /workspace/pryx/Cargo.lock:29:1
+   │
+29 │ ╭ base64 0.22.1 registry+https://github.com/rust-lang/crates.io-index
+30 │ │ base64 0.23.1 registry+https://github.com/rust-lang/crates.io-index
+   │ ╰───────────────────────────────────────────────────────────────────┘ lock entries
+   │
+   ├ base64 v0.22.1
+     ├── agentos-client v0.4.7
+     │   └── pryxd v0.1.0
+     │       └── (dev) pryxd v0.1.0 (*)
+     ├── agentos-vfs-core v0.4.7
+     │   └── agentos-client v0.4.7 (*)
+     ├── axum v0.8.9
+     │   ├── pryx-agent v0.1.0
+     │   │   ├── (dev) pryx-agent v0.1.0 (*)
+     │   │   └── (dev) pryxd v0.1.0 (*)
+     │   └── pryxd v0.1.0 (*)
+     ├── bollard v0.21.1
+     │   └── pryxd v0.1.0 (*)
+     └── reqwest v0.12.28
+         ├── agentos-client v0.4.7 (*)
+         └── pryx-agent v0.1.0 (*)
+   ├ base64 v0.23.1
+     ├── hyper-util v0.1.21
+     │   ├── axum v0.8.9
+     │   │   ├── pryx-agent v0.1.0
+     │   │   │   ├── (dev) pryx-agent v0.1.0 (*)
+     │   │   │   └── (dev) pryxd v0.1.0
+     │   │   │       └── (dev) pryxd v0.1.0 (*)
+     │   │   └── pryxd v0.1.0 (*)
+     │   ├── bollard v0.21.1
+     │   │   └── pryxd v0.1.0 (*)
+     │   ├── hyper-rustls v0.27.10
+     │   │   └── reqwest v0.12.28
+     │   │       ├── agentos-client v0.4.7
+     │   │       │   └── pryxd v0.1.0 (*)
+     │   │       └── pryx-agent v0.1.0 (*)
+     │   ├── hyperlocal v0.9.1
+     │   │   └── bollard v0.21.1 (*)
+     │   ├── pryxd v0.1.0 (*)
+     │   └── reqwest v0.12.28 (*)
+     ├── pem v4.0.0
+     │   └── rcgen v0.14.10
+     │       └── (dev) pryxd v0.1.0 (*)
+     ├── pryx-agent v0.1.0 (*)
+     └── pryxd v0.1.0 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'block-buffer'
+   ┌─ /workspace/pryx/Cargo.lock:36:1
+   │
+36 │ ╭ block-buffer 0.10.4 registry+https://github.com/rust-lang/crates.io-index
+37 │ │ block-buffer 0.12.1 registry+https://github.com/rust-lang/crates.io-index
+   │ ╰─────────────────────────────────────────────────────────────────────────┘ lock entries
+   │
+   ├ block-buffer v0.10.4
+     └── digest v0.10.7
+         ├── sha1 v0.10.7
+         │   ├── axum v0.8.9
+         │   │   ├── pryx-agent v0.1.0
+         │   │   │   ├── (dev) pryx-agent v0.1.0 (*)
+         │   │   │   └── (dev) pryxd v0.1.0
+         │   │   │       └── (dev) pryxd v0.1.0 (*)
+         │   │   └── pryxd v0.1.0 (*)
+         │   └── tungstenite v0.29.0
+         │       └── tokio-tungstenite v0.29.0
+         │           ├── axum v0.8.9 (*)
+         │           └── (dev) pryx-agent v0.1.0 (*)
+         └── sha2 v0.10.9
+             └── agentos-client v0.4.7
+                 └── pryxd v0.1.0 (*)
+   ├ block-buffer v0.12.1
+     └── digest v0.11.3
+         └── sha2 v0.11.1
+             └── pryxd v0.1.0
+                 └── (dev) pryxd v0.1.0 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'cfg_aliases'
+   ┌─ /workspace/pryx/Cargo.lock:51:1
+   │
+51 │ ╭ cfg_aliases 0.1.1 registry+https://github.com/rust-lang/crates.io-index
+52 │ │ cfg_aliases 0.2.2 registry+https://github.com/rust-lang/crates.io-index
+   │ ╰───────────────────────────────────────────────────────────────────────┘ lock entries
+   │
+   ├ cfg_aliases v0.1.1
+     └── (build) nix v0.28.0
+         └── portable-pty v0.9.0
+             └── pryx-agent v0.1.0
+                 ├── (dev) pryx-agent v0.1.0 (*)
+                 └── (dev) pryxd v0.1.0
+                     └── (dev) pryxd v0.1.0 (*)
+   ├ cfg_aliases v0.2.2
+     └── (build) nix v0.31.3
+         ├── brush-builtins v0.2.0
+         │   └── pryx-agent v0.1.0
+         │       ├── (dev) pryx-agent v0.1.0 (*)
+         │       └── (dev) pryxd v0.1.0
+         │           └── (dev) pryxd v0.1.0 (*)
+         ├── brush-core v0.5.0
+         │   ├── brush-builtins v0.2.0 (*)
+         │   └── pryx-agent v0.1.0 (*)
+         ├── command-fds v0.3.3
+         │   ├── agentos-sidecar-client v0.4.7
+         │   │   ├── agentos-client v0.4.7
+         │   │   │   └── pryxd v0.1.0 (*)
+         │   │   └── pryxd v0.1.0 (*)
+         │   └── brush-core v0.5.0 (*)
+         └── uucore v0.8.0
+             └── brush-builtins v0.2.0 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'cpufeatures'
+   ┌─ /workspace/pryx/Cargo.lock:66:1
+   │
+66 │ ╭ cpufeatures 0.2.17 registry+https://github.com/rust-lang/crates.io-index
+67 │ │ cpufeatures 0.3.1 registry+https://github.com/rust-lang/crates.io-index
+   │ ╰───────────────────────────────────────────────────────────────────────┘ lock entries
+   │
+   ├ cpufeatures v0.2.17
+     ├── sha1 v0.10.7
+     │   ├── axum v0.8.9
+     │   │   ├── pryx-agent v0.1.0
+     │   │   │   ├── (dev) pryx-agent v0.1.0 (*)
+     │   │   │   └── (dev) pryxd v0.1.0
+     │   │   │       └── (dev) pryxd v0.1.0 (*)
+     │   │   └── pryxd v0.1.0 (*)
+     │   └── tungstenite v0.29.0
+     │       └── tokio-tungstenite v0.29.0
+     │           ├── axum v0.8.9 (*)
+     │           └── (dev) pryx-agent v0.1.0 (*)
+     └── sha2 v0.10.9
+         └── agentos-client v0.4.7
+             └── pryxd v0.1.0 (*)
+   ├ cpufeatures v0.3.1
+     ├── blake3 v1.8.7
+     │   └── agentos-vfs-core v0.4.7
+     │       └── agentos-client v0.4.7
+     │           └── pryxd v0.1.0
+     │               └── (dev) pryxd v0.1.0 (*)
+     ├── chacha20 v0.10.2
+     │   └── rand v0.10.3
+     │       └── brush-core v0.5.0
+     │           ├── brush-builtins v0.2.0
+     │           │   └── pryx-agent v0.1.0
+     │           │       ├── (dev) pryx-agent v0.1.0 (*)
+     │           │       └── (dev) pryxd v0.1.0 (*)
+     │           └── pryx-agent v0.1.0 (*)
+     └── sha2 v0.11.1
+         └── pryxd v0.1.0 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'crypto-common'
+   ┌─ /workspace/pryx/Cargo.lock:69:1
+   │
+69 │ ╭ crypto-common 0.1.7 registry+https://github.com/rust-lang/crates.io-index
+70 │ │ crypto-common 0.2.2 registry+https://github.com/rust-lang/crates.io-index
+   │ ╰─────────────────────────────────────────────────────────────────────────┘ lock entries
+   │
+   ├ crypto-common v0.1.7
+     └── digest v0.10.7
+         ├── sha1 v0.10.7
+         │   ├── axum v0.8.9
+         │   │   ├── pryx-agent v0.1.0
+         │   │   │   ├── (dev) pryx-agent v0.1.0 (*)
+         │   │   │   └── (dev) pryxd v0.1.0
+         │   │   │       └── (dev) pryxd v0.1.0 (*)
+         │   │   └── pryxd v0.1.0 (*)
+         │   └── tungstenite v0.29.0
+         │       └── tokio-tungstenite v0.29.0
+         │           ├── axum v0.8.9 (*)
+         │           └── (dev) pryx-agent v0.1.0 (*)
+         └── sha2 v0.10.9
+             └── agentos-client v0.4.7
+                 └── pryxd v0.1.0 (*)
+   ├ crypto-common v0.2.2
+     └── digest v0.11.3
+         └── sha2 v0.11.1
+             └── pryxd v0.1.0
+                 └── (dev) pryxd v0.1.0 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'darling'
+   ┌─ /workspace/pryx/Cargo.lock:71:1
+   │
+71 │ ╭ darling 0.20.11 registry+https://github.com/rust-lang/crates.io-index
+72 │ │ darling 0.24.1 registry+https://github.com/rust-lang/crates.io-index
+   │ ╰────────────────────────────────────────────────────────────────────┘ lock entries
+   │
+   ├ darling v0.20.11
+     └── cached_proc_macro v0.27.0
+         └── cached v0.59.0
+             ├── brush-core v0.5.0
+             │   ├── brush-builtins v0.2.0
+             │   │   └── pryx-agent v0.1.0
+             │   │       ├── (dev) pryx-agent v0.1.0 (*)
+             │   │       └── (dev) pryxd v0.1.0
+             │   │           └── (dev) pryxd v0.1.0 (*)
+             │   └── pryx-agent v0.1.0 (*)
+             └── brush-parser v0.4.0
+                 ├── brush-builtins v0.2.0 (*)
+                 └── brush-core v0.5.0 (*)
+   ├ darling v0.24.1
+     └── bon-macros v3.10.3
+         └── bon v3.10.3
+             ├── brush-core v0.5.0
+             │   ├── brush-builtins v0.2.0
+             │   │   └── pryx-agent v0.1.0
+             │   │       ├── (dev) pryx-agent v0.1.0 (*)
+             │   │       └── (dev) pryxd v0.1.0
+             │   │           └── (dev) pryxd v0.1.0 (*)
+             │   └── pryx-agent v0.1.0 (*)
+             └── brush-parser v0.4.0
+                 ├── brush-builtins v0.2.0 (*)
+                 └── brush-core v0.5.0 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'darling_core'
+   ┌─ /workspace/pryx/Cargo.lock:73:1
+   │
+73 │ ╭ darling_core 0.20.11 registry+https://github.com/rust-lang/crates.io-index
+74 │ │ darling_core 0.24.1 registry+https://github.com/rust-lang/crates.io-index
+   │ ╰─────────────────────────────────────────────────────────────────────────┘ lock entries
+   │
+   ├ darling_core v0.20.11
+     ├── darling v0.20.11
+     │   └── cached_proc_macro v0.27.0
+     │       └── cached v0.59.0
+     │           ├── brush-core v0.5.0
+     │           │   ├── brush-builtins v0.2.0
+     │           │   │   └── pryx-agent v0.1.0
+     │           │   │       ├── (dev) pryx-agent v0.1.0 (*)
+     │           │   │       └── (dev) pryxd v0.1.0
+     │           │   │           └── (dev) pryxd v0.1.0 (*)
+     │           │   └── pryx-agent v0.1.0 (*)
+     │           └── brush-parser v0.4.0
+     │               ├── brush-builtins v0.2.0 (*)
+     │               └── brush-core v0.5.0 (*)
+     └── darling_macro v0.20.11
+         └── darling v0.20.11 (*)
+   ├ darling_core v0.24.1
+     ├── darling v0.24.1
+     │   └── bon-macros v3.10.3
+     │       └── bon v3.10.3
+     │           ├── brush-core v0.5.0
+     │           │   ├── brush-builtins v0.2.0
+     │           │   │   └── pryx-agent v0.1.0
+     │           │   │       ├── (dev) pryx-agent v0.1.0 (*)
+     │           │   │       └── (dev) pryxd v0.1.0
+     │           │   │           └── (dev) pryxd v0.1.0 (*)
+     │           │   └── pryx-agent v0.1.0 (*)
+     │           └── brush-parser v0.4.0
+     │               ├── brush-builtins v0.2.0 (*)
+     │               └── brush-core v0.5.0 (*)
+     └── darling_macro v0.24.1
+         └── darling v0.24.1 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'darling_macro'
+   ┌─ /workspace/pryx/Cargo.lock:75:1
+   │
+75 │ ╭ darling_macro 0.20.11 registry+https://github.com/rust-lang/crates.io-index
+76 │ │ darling_macro 0.24.1 registry+https://github.com/rust-lang/crates.io-index
+   │ ╰──────────────────────────────────────────────────────────────────────────┘ lock entries
+   │
+   ├ darling_macro v0.20.11
+     └── darling v0.20.11
+         └── cached_proc_macro v0.27.0
+             └── cached v0.59.0
+                 ├── brush-core v0.5.0
+                 │   ├── brush-builtins v0.2.0
+                 │   │   └── pryx-agent v0.1.0
+                 │   │       ├── (dev) pryx-agent v0.1.0 (*)
+                 │   │       └── (dev) pryxd v0.1.0
+                 │   │           └── (dev) pryxd v0.1.0 (*)
+                 │   └── pryx-agent v0.1.0 (*)
+                 └── brush-parser v0.4.0
+                     ├── brush-builtins v0.2.0 (*)
+                     └── brush-core v0.5.0 (*)
+   ├ darling_macro v0.24.1
+     └── darling v0.24.1
+         └── bon-macros v3.10.3
+             └── bon v3.10.3
+                 ├── brush-core v0.5.0
+                 │   ├── brush-builtins v0.2.0
+                 │   │   └── pryx-agent v0.1.0
+                 │   │       ├── (dev) pryx-agent v0.1.0 (*)
+                 │   │       └── (dev) pryxd v0.1.0
+                 │   │           └── (dev) pryxd v0.1.0 (*)
+                 │   └── pryx-agent v0.1.0 (*)
+                 └── brush-parser v0.4.0
+                     ├── brush-builtins v0.2.0 (*)
+                     └── brush-core v0.5.0 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'digest'
+   ┌─ /workspace/pryx/Cargo.lock:80:1
+   │
+80 │ ╭ digest 0.10.7 registry+https://github.com/rust-lang/crates.io-index
+81 │ │ digest 0.11.3 registry+https://github.com/rust-lang/crates.io-index
+   │ ╰───────────────────────────────────────────────────────────────────┘ lock entries
+   │
+   ├ digest v0.10.7
+     ├── sha1 v0.10.7
+     │   ├── axum v0.8.9
+     │   │   ├── pryx-agent v0.1.0
+     │   │   │   ├── (dev) pryx-agent v0.1.0 (*)
+     │   │   │   └── (dev) pryxd v0.1.0
+     │   │   │       └── (dev) pryxd v0.1.0 (*)
+     │   │   └── pryxd v0.1.0 (*)
+     │   └── tungstenite v0.29.0
+     │       └── tokio-tungstenite v0.29.0
+     │           ├── axum v0.8.9 (*)
+     │           └── (dev) pryx-agent v0.1.0 (*)
+     └── sha2 v0.10.9
+         └── agentos-client v0.4.7
+             └── pryxd v0.1.0 (*)
+   ├ digest v0.11.3
+     └── sha2 v0.11.1
+         └── pryxd v0.1.0
+             └── (dev) pryxd v0.1.0 (*)
+
+warning[duplicate]: found 3 duplicate entries for crate 'getrandom'
+    ┌─ /workspace/pryx/Cargo.lock:115:1
+    │
+115 │ ╭ getrandom 0.2.17 registry+https://github.com/rust-lang/crates.io-index
+116 │ │ getrandom 0.3.4 registry+https://github.com/rust-lang/crates.io-index
+117 │ │ getrandom 0.4.3 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰─────────────────────────────────────────────────────────────────────┘ lock entries
+    │
+    ├ getrandom v0.2.17
+      └── ring v0.17.14
+          ├── pryx-agent v0.1.0
+          │   ├── (dev) pryx-agent v0.1.0 (*)
+          │   └── (dev) pryxd v0.1.0
+          │       └── (dev) pryxd v0.1.0 (*)
+          ├── rcgen v0.14.10
+          │   └── (dev) pryxd v0.1.0 (*)
+          ├── rustls v0.23.46
+          │   ├── hyper-rustls v0.27.10
+          │   │   └── reqwest v0.12.28
+          │   │       ├── agentos-client v0.4.7
+          │   │       │   └── pryxd v0.1.0 (*)
+          │   │       └── pryx-agent v0.1.0 (*)
+          │   ├── pryx-agent v0.1.0 (*)
+          │   ├── pryxd v0.1.0 (*)
+          │   ├── reqwest v0.12.28 (*)
+          │   └── tokio-rustls v0.26.6
+          │       ├── hyper-rustls v0.27.10 (*)
+          │       ├── pryxd v0.1.0 (*)
+          │       └── reqwest v0.12.28 (*)
+          ├── rustls-webpki v0.103.16
+          │   ├── pryxd v0.1.0 (*)
+          │   └── rustls v0.23.46 (*)
+          └── x509-parser v0.18.1
+              └── rcgen v0.14.10 (*)
+    ├ getrandom v0.3.4
+      └── rand_core v0.9.5
+          ├── rand v0.9.5
+          │   └── tungstenite v0.29.0
+          │       └── tokio-tungstenite v0.29.0
+          │           ├── axum v0.8.9
+          │           │   ├── pryx-agent v0.1.0
+          │           │   │   ├── (dev) pryx-agent v0.1.0 (*)
+          │           │   │   └── (dev) pryxd v0.1.0
+          │           │   │       └── (dev) pryxd v0.1.0 (*)
+          │           │   └── pryxd v0.1.0 (*)
+          │           └── (dev) pryx-agent v0.1.0 (*)
+          └── rand_chacha v0.9.0
+              └── rand v0.9.5 (*)
+    ├ getrandom v0.4.3
+      ├── rand v0.10.3
+      │   └── brush-core v0.5.0
+      │       ├── brush-builtins v0.2.0
+      │       │   └── pryx-agent v0.1.0
+      │       │       ├── (dev) pryx-agent v0.1.0 (*)
+      │       │       └── (dev) pryxd v0.1.0
+      │       │           └── (dev) pryxd v0.1.0 (*)
+      │       └── pryx-agent v0.1.0 (*)
+      ├── tempfile v3.27.0
+      │   ├── agentos-client v0.4.7
+      │   │   └── pryxd v0.1.0 (*)
+      │   ├── insta v1.49.0
+      │   │   └── brush-parser v0.4.0
+      │   │       ├── brush-builtins v0.2.0 (*)
+      │   │       └── brush-core v0.5.0 (*)
+      │   ├── (dev) pryx-agent v0.1.0 (*)
+      │   └── pryxd v0.1.0 (*)
+      └── uuid v1.29.0
+          ├── agentos-client v0.4.7 (*)
+          ├── pryx-agent v0.1.0 (*)
+          └── pryxd v0.1.0 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'hashbrown'
+    ┌─ /workspace/pryx/Cargo.lock:119:1
+    │
+119 │ ╭ hashbrown 0.16.1 registry+https://github.com/rust-lang/crates.io-index
+120 │ │ hashbrown 0.17.1 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰──────────────────────────────────────────────────────────────────────┘ lock entries
+    │
+    ├ hashbrown v0.16.1
+      └── cached v0.59.0
+          ├── brush-core v0.5.0
+          │   ├── brush-builtins v0.2.0
+          │   │   └── pryx-agent v0.1.0
+          │   │       ├── (dev) pryx-agent v0.1.0 (*)
+          │   │       └── (dev) pryxd v0.1.0
+          │   │           └── (dev) pryxd v0.1.0 (*)
+          │   └── pryx-agent v0.1.0 (*)
+          └── brush-parser v0.4.0
+              ├── brush-builtins v0.2.0 (*)
+              └── brush-core v0.5.0 (*)
+    ├ hashbrown v0.17.1
+      └── indexmap v2.14.2
+          └── h2 v0.4.20
+              ├── hyper v1.12.0
+              │   ├── axum v0.8.9
+              │   │   ├── pryx-agent v0.1.0
+              │   │   │   ├── (dev) pryx-agent v0.1.0 (*)
+              │   │   │   └── (dev) pryxd v0.1.0
+              │   │   │       └── (dev) pryxd v0.1.0 (*)
+              │   │   └── pryxd v0.1.0 (*)
+              │   ├── bollard v0.21.1
+              │   │   └── pryxd v0.1.0 (*)
+              │   ├── hyper-rustls v0.27.10
+              │   │   └── reqwest v0.12.28
+              │   │       ├── agentos-client v0.4.7
+              │   │       │   └── pryxd v0.1.0 (*)
+              │   │       └── pryx-agent v0.1.0 (*)
+              │   ├── hyper-util v0.1.21
+              │   │   ├── axum v0.8.9 (*)
+              │   │   ├── bollard v0.21.1 (*)
+              │   │   ├── hyper-rustls v0.27.10 (*)
+              │   │   ├── hyperlocal v0.9.1
+              │   │   │   └── bollard v0.21.1 (*)
+              │   │   ├── pryxd v0.1.0 (*)
+              │   │   └── reqwest v0.12.28 (*)
+              │   ├── hyperlocal v0.9.1 (*)
+              │   ├── pryxd v0.1.0 (*)
+              │   └── reqwest v0.12.28 (*)
+              └── reqwest v0.12.28 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'nix'
+    ┌─ /workspace/pryx/Cargo.lock:178:1
+    │
+178 │ ╭ nix 0.28.0 registry+https://github.com/rust-lang/crates.io-index
+179 │ │ nix 0.31.3 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰────────────────────────────────────────────────────────────────┘ lock entries
+    │
+    ├ nix v0.28.0
+      └── portable-pty v0.9.0
+          └── pryx-agent v0.1.0
+              ├── (dev) pryx-agent v0.1.0 (*)
+              └── (dev) pryxd v0.1.0
+                  └── (dev) pryxd v0.1.0 (*)
+    ├ nix v0.31.3
+      ├── brush-builtins v0.2.0
+      │   └── pryx-agent v0.1.0
+      │       ├── (dev) pryx-agent v0.1.0 (*)
+      │       └── (dev) pryxd v0.1.0
+      │           └── (dev) pryxd v0.1.0 (*)
+      ├── brush-core v0.5.0
+      │   ├── brush-builtins v0.2.0 (*)
+      │   └── pryx-agent v0.1.0 (*)
+      ├── command-fds v0.3.3
+      │   ├── agentos-sidecar-client v0.4.7
+      │   │   ├── agentos-client v0.4.7
+      │   │   │   └── pryxd v0.1.0 (*)
+      │   │   └── pryxd v0.1.0 (*)
+      │   └── brush-core v0.5.0 (*)
+      └── uucore v0.8.0
+          └── brush-builtins v0.2.0 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'prettyplease'
+    ┌─ /workspace/pryx/Cargo.lock:214:1
+    │
+214 │ ╭ prettyplease 0.2.37 registry+https://github.com/rust-lang/crates.io-index
+215 │ │ prettyplease 0.3.0 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰────────────────────────────────────────────────────────────────────────┘ lock entries
+    │
+    ├ prettyplease v0.2.37
+      └── rivet-vbare-compiler v0.0.5
+          ├── (build) agentos-sidecar-protocol v0.4.7
+          │   └── agentos-sidecar-client v0.4.7
+          │       ├── agentos-client v0.4.7
+          │       │   └── pryxd v0.1.0
+          │       │       └── (dev) pryxd v0.1.0 (*)
+          │       └── pryxd v0.1.0 (*)
+          └── (build) agentos-vfs-core v0.4.7
+              └── agentos-client v0.4.7 (*)
+    ├ prettyplease v0.3.0
+      └── bon-macros v3.10.3
+          └── bon v3.10.3
+              ├── brush-core v0.5.0
+              │   ├── brush-builtins v0.2.0
+              │   │   └── pryx-agent v0.1.0
+              │   │       ├── (dev) pryx-agent v0.1.0 (*)
+              │   │       └── (dev) pryxd v0.1.0
+              │   │           └── (dev) pryxd v0.1.0 (*)
+              │   └── pryx-agent v0.1.0 (*)
+              └── brush-parser v0.4.0
+                  ├── brush-builtins v0.2.0 (*)
+                  └── brush-core v0.5.0 (*)
+
+warning[duplicate]: found 3 duplicate entries for crate 'rand'
+    ┌─ /workspace/pryx/Cargo.lock:225:1
+    │
+225 │ ╭ rand 0.8.8 registry+https://github.com/rust-lang/crates.io-index
+226 │ │ rand 0.9.5 registry+https://github.com/rust-lang/crates.io-index
+227 │ │ rand 0.10.3 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰─────────────────────────────────────────────────────────────────┘ lock entries
+    │
+    ├ rand v0.8.8
+      └── phf_generator v0.11.3
+          └── phf_codegen v0.11.3
+              └── (build) terminfo v0.9.0
+                  └── brush-core v0.5.0
+                      ├── brush-builtins v0.2.0
+                      │   └── pryx-agent v0.1.0
+                      │       ├── (dev) pryx-agent v0.1.0 (*)
+                      │       └── (dev) pryxd v0.1.0
+                      │           └── (dev) pryxd v0.1.0 (*)
+                      └── pryx-agent v0.1.0 (*)
+    ├ rand v0.9.5
+      └── tungstenite v0.29.0
+          └── tokio-tungstenite v0.29.0
+              ├── axum v0.8.9
+              │   ├── pryx-agent v0.1.0
+              │   │   ├── (dev) pryx-agent v0.1.0 (*)
+              │   │   └── (dev) pryxd v0.1.0
+              │   │       └── (dev) pryxd v0.1.0 (*)
+              │   └── pryxd v0.1.0 (*)
+              └── (dev) pryx-agent v0.1.0 (*)
+    ├ rand v0.10.3
+      └── brush-core v0.5.0
+          ├── brush-builtins v0.2.0
+          │   └── pryx-agent v0.1.0
+          │       ├── (dev) pryx-agent v0.1.0 (*)
+          │       └── (dev) pryxd v0.1.0
+          │           └── (dev) pryxd v0.1.0 (*)
+          └── pryx-agent v0.1.0 (*)
+
+warning[duplicate]: found 3 duplicate entries for crate 'rand_core'
+    ┌─ /workspace/pryx/Cargo.lock:229:1
+    │
+229 │ ╭ rand_core 0.6.4 registry+https://github.com/rust-lang/crates.io-index
+230 │ │ rand_core 0.9.5 registry+https://github.com/rust-lang/crates.io-index
+231 │ │ rand_core 0.10.1 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰──────────────────────────────────────────────────────────────────────┘ lock entries
+    │
+    ├ rand_core v0.6.4
+      └── rand v0.8.8
+          └── phf_generator v0.11.3
+              └── phf_codegen v0.11.3
+                  └── (build) terminfo v0.9.0
+                      └── brush-core v0.5.0
+                          ├── brush-builtins v0.2.0
+                          │   └── pryx-agent v0.1.0
+                          │       ├── (dev) pryx-agent v0.1.0 (*)
+                          │       └── (dev) pryxd v0.1.0
+                          │           └── (dev) pryxd v0.1.0 (*)
+                          └── pryx-agent v0.1.0 (*)
+    ├ rand_core v0.9.5
+      ├── rand v0.9.5
+      │   └── tungstenite v0.29.0
+      │       └── tokio-tungstenite v0.29.0
+      │           ├── axum v0.8.9
+      │           │   ├── pryx-agent v0.1.0
+      │           │   │   ├── (dev) pryx-agent v0.1.0 (*)
+      │           │   │   └── (dev) pryxd v0.1.0
+      │           │   │       └── (dev) pryxd v0.1.0 (*)
+      │           │   └── pryxd v0.1.0 (*)
+      │           └── (dev) pryx-agent v0.1.0 (*)
+      └── rand_chacha v0.9.0
+          └── rand v0.9.5 (*)
+    ├ rand_core v0.10.1
+      ├── chacha20 v0.10.2
+      │   └── rand v0.10.3
+      │       └── brush-core v0.5.0
+      │           ├── brush-builtins v0.2.0
+      │           │   └── pryx-agent v0.1.0
+      │           │       ├── (dev) pryx-agent v0.1.0 (*)
+      │           │       └── (dev) pryxd v0.1.0
+      │           │           └── (dev) pryxd v0.1.0 (*)
+      │           └── pryx-agent v0.1.0 (*)
+      ├── getrandom v0.4.3
+      │   ├── rand v0.10.3 (*)
+      │   ├── tempfile v3.27.0
+      │   │   ├── agentos-client v0.4.7
+      │   │   │   └── pryxd v0.1.0 (*)
+      │   │   ├── insta v1.49.0
+      │   │   │   └── brush-parser v0.4.0
+      │   │   │       ├── brush-builtins v0.2.0 (*)
+      │   │   │       └── brush-core v0.5.0 (*)
+      │   │   ├── (dev) pryx-agent v0.1.0 (*)
+      │   │   └── pryxd v0.1.0 (*)
+      │   └── uuid v1.29.0
+      │       ├── agentos-client v0.4.7 (*)
+      │       ├── pryx-agent v0.1.0 (*)
+      │       └── pryxd v0.1.0 (*)
+      └── rand v0.10.3 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'sha2'
+    ┌─ /workspace/pryx/Cargo.lock:272:1
+    │
+272 │ ╭ sha2 0.10.9 registry+https://github.com/rust-lang/crates.io-index
+273 │ │ sha2 0.11.1 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰─────────────────────────────────────────────────────────────────┘ lock entries
+    │
+    ├ sha2 v0.10.9
+      └── agentos-client v0.4.7
+          └── pryxd v0.1.0
+              └── (dev) pryxd v0.1.0 (*)
+    ├ sha2 v0.11.1
+      └── pryxd v0.1.0
+          └── (dev) pryxd v0.1.0 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'syn'
+    ┌─ /workspace/pryx/Cargo.lock:290:1
+    │
+290 │ ╭ syn 2.0.119 registry+https://github.com/rust-lang/crates.io-index
+291 │ │ syn 3.0.9 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰───────────────────────────────────────────────────────────────┘ lock entries
+    │
+    ├ syn v2.0.119
+      ├── asn1-rs-derive v0.6.0
+      │   └── asn1-rs v0.7.2
+      │       ├── der-parser v10.0.0
+      │       │   └── x509-parser v0.18.1
+      │       │       └── rcgen v0.14.10
+      │       │           └── (dev) pryxd v0.1.0
+      │       │               └── (dev) pryxd v0.1.0 (*)
+      │       ├── oid-registry v0.8.1
+      │       │   └── x509-parser v0.18.1 (*)
+      │       └── x509-parser v0.18.1 (*)
+      ├── asn1-rs-impl v0.2.0
+      │   └── asn1-rs v0.7.2 (*)
+      ├── cached_proc_macro v0.27.0
+      │   └── cached v0.59.0
+      │       ├── brush-core v0.5.0
+      │       │   ├── brush-builtins v0.2.0
+      │       │   │   └── pryx-agent v0.1.0
+      │       │   │       ├── (dev) pryx-agent v0.1.0 (*)
+      │       │   │       └── (dev) pryxd v0.1.0 (*)
+      │       │   └── pryx-agent v0.1.0 (*)
+      │       └── brush-parser v0.4.0
+      │           ├── brush-builtins v0.2.0 (*)
+      │           └── brush-core v0.5.0 (*)
+      ├── color-print-proc-macro v0.3.7
+      │   └── color-print v0.3.7
+      │       └── brush-core v0.5.0 (*)
+      ├── darling_core v0.20.11
+      │   ├── darling v0.20.11
+      │   │   └── cached_proc_macro v0.27.0 (*)
+      │   └── darling_macro v0.20.11
+      │       └── darling v0.20.11 (*)
+      ├── darling_macro v0.20.11 (*)
+      ├── enumflags2_derive v0.7.12
+      │   └── enumflags2 v0.7.12
+      │       └── landlock v0.4.7
+      │           └── pryx-agent v0.1.0 (*)
+      ├── prettyplease v0.2.37
+      │   └── rivet-vbare-compiler v0.0.5
+      │       ├── (build) agentos-sidecar-protocol v0.4.7
+      │       │   └── agentos-sidecar-client v0.4.7
+      │       │       ├── agentos-client v0.4.7
+      │       │       │   └── pryxd v0.1.0 (*)
+      │       │       └── pryxd v0.1.0 (*)
+      │       └── (build) agentos-vfs-core v0.4.7
+      │           └── agentos-client v0.4.7 (*)
+      ├── rivet-vbare-compiler v0.0.5 (*)
+      ├── rivet-vbare-gen v0.0.5
+      │   └── rivet-vbare-compiler v0.0.5 (*)
+      ├── strum_macros v0.28.0
+      │   ├── brush-builtins v0.2.0 (*)
+      │   └── brush-core v0.5.0 (*)
+      ├── synstructure v0.13.2
+      │   └── asn1-rs-derive v0.6.0 (*)
+      ├── thiserror-impl v1.0.69
+      │   └── thiserror v1.0.69
+      │       └── filedescriptor v0.8.3
+      │           └── portable-pty v0.9.0
+      │               └── pryx-agent v0.1.0 (*)
+      ├── tracing-attributes v0.1.31
+      │   └── tracing v0.1.44
+      │       ├── agentos-bridge v0.4.7
+      │       │   └── agentos-client v0.4.7 (*)
+      │       ├── agentos-client v0.4.7 (*)
+      │       ├── agentos-sidecar-client v0.4.7 (*)
+      │       ├── agentos-vfs-core v0.4.7 (*)
+      │       ├── brush-builtins v0.2.0 (*)
+      │       ├── brush-core v0.5.0 (*)
+      │       ├── brush-parser v0.4.0 (*)
+      │       ├── h2 v0.4.20
+      │       │   ├── hyper v1.12.0
+      │       │   │   ├── axum v0.8.9
+      │       │   │   │   ├── pryx-agent v0.1.0 (*)
+      │       │   │   │   └── pryxd v0.1.0 (*)
+      │       │   │   ├── bollard v0.21.1
+      │       │   │   │   └── pryxd v0.1.0 (*)
+      │       │   │   ├── hyper-rustls v0.27.10
+      │       │   │   │   └── reqwest v0.12.28
+      │       │   │   │       ├── agentos-client v0.4.7 (*)
+      │       │   │   │       └── pryx-agent v0.1.0 (*)
+      │       │   │   ├── hyper-util v0.1.21
+      │       │   │   │   ├── axum v0.8.9 (*)
+      │       │   │   │   ├── bollard v0.21.1 (*)
+      │       │   │   │   ├── hyper-rustls v0.27.10 (*)
+      │       │   │   │   ├── hyperlocal v0.9.1
+      │       │   │   │   │   └── bollard v0.21.1 (*)
+      │       │   │   │   ├── pryxd v0.1.0 (*)
+      │       │   │   │   └── reqwest v0.12.28 (*)
+      │       │   │   ├── hyperlocal v0.9.1 (*)
+      │       │   │   ├── pryxd v0.1.0 (*)
+      │       │   │   └── reqwest v0.12.28 (*)
+      │       │   └── reqwest v0.12.28 (*)
+      │       ├── hyper-util v0.1.21 (*)
+      │       ├── pryxd v0.1.0 (*)
+      │       └── tracing-subscriber v0.3.23
+      │           └── pryxd v0.1.0 (*)
+      └── ts-rs-macros v10.1.0
+          └── ts-rs v10.1.0
+              └── agentos-vm-config v0.4.7
+                  ├── agentos-client v0.4.7 (*)
+                  └── agentos-sidecar-protocol v0.4.7 (*)
+    ├ syn v3.0.9
+      ├── async-recursion v1.2.0
+      │   └── brush-core v0.5.0
+      │       ├── brush-builtins v0.2.0
+      │       │   └── pryx-agent v0.1.0
+      │       │       ├── (dev) pryx-agent v0.1.0 (*)
+      │       │       └── (dev) pryxd v0.1.0
+      │       │           └── (dev) pryxd v0.1.0 (*)
+      │       └── pryx-agent v0.1.0 (*)
+      ├── async-trait v0.1.92
+      │   ├── agentos-client v0.4.7
+      │   │   └── pryxd v0.1.0 (*)
+      │   ├── agentos-vfs-core v0.4.7
+      │   │   └── agentos-client v0.4.7 (*)
+      │   ├── brush-core v0.5.0 (*)
+      │   ├── pryx-agent v0.1.0 (*)
+      │   └── pryxd v0.1.0 (*)
+      ├── bon-macros v3.10.3
+      │   └── bon v3.10.3
+      │       ├── brush-core v0.5.0 (*)
+      │       └── brush-parser v0.4.0
+      │           ├── brush-builtins v0.2.0 (*)
+      │           └── brush-core v0.5.0 (*)
+      ├── clap_derive v4.6.7
+      │   └── clap v4.6.7
+      │       ├── brush-builtins v0.2.0 (*)
+      │       ├── brush-core v0.5.0 (*)
+      │       ├── pryx-agent v0.1.0 (*)
+      │       ├── pryxd v0.1.0 (*)
+      │       └── uucore v0.8.0
+      │           └── brush-builtins v0.2.0 (*)
+      ├── darling_core v0.24.1
+      │   ├── darling v0.24.1
+      │   │   └── bon-macros v3.10.3 (*)
+      │   └── darling_macro v0.24.1
+      │       └── darling v0.24.1 (*)
+      ├── darling_macro v0.24.1 (*)
+      ├── displaydoc v0.2.7
+      │   ├── asn1-rs v0.7.2
+      │   │   ├── der-parser v10.0.0
+      │   │   │   └── x509-parser v0.18.1
+      │   │   │       └── rcgen v0.14.10
+      │   │   │           └── (dev) pryxd v0.1.0 (*)
+      │   │   ├── oid-registry v0.8.1
+      │   │   │   └── x509-parser v0.18.1 (*)
+      │   │   └── x509-parser v0.18.1 (*)
+      │   ├── der-parser v10.0.0 (*)
+      │   ├── icu_collections v2.4.0
+      │   │   ├── icu_locale v2.4.0
+      │   │   │   └── uucore v0.8.0 (*)
+      │   │   ├── icu_normalizer v2.4.0
+      │   │   │   └── idna_adapter v1.2.2
+      │   │   │       └── idna v1.1.0
+      │   │   │           └── url v2.5.8
+      │   │   │               ├── bollard v0.21.1
+      │   │   │               │   └── pryxd v0.1.0 (*)
+      │   │   │               ├── reqwest v0.12.28
+      │   │   │               │   ├── agentos-client v0.4.7 (*)
+      │   │   │               │   └── pryx-agent v0.1.0 (*)
+      │   │   │               └── tower-http v0.6.11
+      │   │   │                   └── reqwest v0.12.28 (*)
+      │   │   └── icu_properties v2.4.0
+      │   │       └── idna_adapter v1.2.2 (*)
+      │   ├── icu_locale_core v2.4.0
+      │   │   ├── icu_locale v2.4.0 (*)
+      │   │   ├── icu_locale_fallback v2.4.0
+      │   │   │   └── icu_locale v2.4.0 (*)
+      │   │   ├── icu_properties v2.4.0 (*)
+      │   │   └── icu_provider v2.4.0
+      │   │       ├── icu_locale v2.4.0 (*)
+      │   │       ├── icu_locale_fallback v2.4.0 (*)
+      │   │       ├── icu_normalizer v2.4.0 (*)
+      │   │       └── icu_properties v2.4.0 (*)
+      │   ├── icu_properties v2.4.0 (*)
+      │   ├── icu_provider v2.4.0 (*)
+      │   ├── tinystr v0.8.5
+      │   │   ├── icu_locale v2.4.0 (*)
+      │   │   ├── icu_locale_core v2.4.0 (*)
+      │   │   ├── icu_locale_fallback v2.4.0 (*)
+      │   │   └── unic-langid-impl v0.9.6
+      │   │       └── unic-langid v0.9.6
+      │   │           ├── fluent v0.17.0
+      │   │           │   └── uucore v0.8.0 (*)
+      │   │           ├── fluent-bundle v0.16.0
+      │   │           │   ├── fluent v0.17.0 (*)
+      │   │           │   └── uucore v0.8.0 (*)
+      │   │           ├── fluent-langneg v0.13.1
+      │   │           │   └── fluent-bundle v0.16.0 (*)
+      │   │           ├── intl-memoizer v0.5.3
+      │   │           │   └── fluent-bundle v0.16.0 (*)
+      │   │           ├── intl_pluralrules v7.0.2
+      │   │           │   └── fluent-bundle v0.16.0 (*)
+      │   │           └── uucore v0.8.0 (*)
+      │   └── zerotrie v0.2.5
+      │       ├── icu_properties v2.4.0 (*)
+      │       └── icu_provider v2.4.0 (*)
+      ├── futures-macro v0.3.34
+      │   └── futures-util v0.3.34
+      │       ├── axum v0.8.9
+      │       │   ├── pryx-agent v0.1.0 (*)
+      │       │   └── pryxd v0.1.0 (*)
+      │       ├── bollard v0.21.1 (*)
+      │       ├── futures v0.3.34
+      │       │   ├── agentos-client v0.4.7 (*)
+      │       │   ├── agentos-sidecar-client v0.4.7
+      │       │   │   ├── agentos-client v0.4.7 (*)
+      │       │   │   └── pryxd v0.1.0 (*)
+      │       │   ├── brush-builtins v0.2.0 (*)
+      │       │   └── brush-core v0.5.0 (*)
+      │       ├── futures-executor v0.3.34
+      │       │   └── futures v0.3.34 (*)
+      │       ├── hyper-util v0.1.21
+      │       │   ├── axum v0.8.9 (*)
+      │       │   ├── bollard v0.21.1 (*)
+      │       │   ├── hyper-rustls v0.27.10
+      │       │   │   └── reqwest v0.12.28 (*)
+      │       │   ├── hyperlocal v0.9.1
+      │       │   │   └── bollard v0.21.1 (*)
+      │       │   ├── pryxd v0.1.0 (*)
+      │       │   └── reqwest v0.12.28 (*)
+      │       ├── pryx-agent v0.1.0 (*)
+      │       ├── pryxd v0.1.0 (*)
+      │       ├── reqwest v0.12.28 (*)
+      │       ├── tokio-tungstenite v0.29.0
+      │       │   ├── axum v0.8.9 (*)
+      │       │   └── (dev) pryx-agent v0.1.0 (*)
+      │       ├── tokio-util v0.7.20
+      │       │   ├── agentos-client v0.4.7 (*)
+      │       │   ├── bollard v0.21.1 (*)
+      │       │   ├── h2 v0.4.20
+      │       │   │   ├── hyper v1.12.0
+      │       │   │   │   ├── axum v0.8.9 (*)
+      │       │   │   │   ├── bollard v0.21.1 (*)
+      │       │   │   │   ├── hyper-rustls v0.27.10 (*)
+      │       │   │   │   ├── hyper-util v0.1.21 (*)
+      │       │   │   │   ├── hyperlocal v0.9.1 (*)
+      │       │   │   │   ├── pryxd v0.1.0 (*)
+      │       │   │   │   └── reqwest v0.12.28 (*)
+      │       │   │   └── reqwest v0.12.28 (*)
+      │       │   ├── pryx-agent v0.1.0 (*)
+      │       │   ├── pryxd v0.1.0 (*)
+      │       │   └── reqwest v0.12.28 (*)
+      │       ├── tower v0.5.3
+      │       │   ├── axum v0.8.9 (*)
+      │       │   ├── (dev) pryx-agent v0.1.0 (*)
+      │       │   ├── pryxd v0.1.0 (*)
+      │       │   ├── reqwest v0.12.28 (*)
+      │       │   └── tower-http v0.6.11 (*)
+      │       └── tower-http v0.6.11 (*)
+      ├── inherent v1.0.14
+      │   └── brush-core v0.5.0 (*)
+      ├── pest_generator v2.9.5
+      │   └── pest_derive v2.9.5
+      │       ├── insta v1.49.0
+      │       │   └── brush-parser v0.4.0 (*)
+      │       └── rivet-vbare-gen v0.0.5
+      │           └── rivet-vbare-compiler v0.0.5
+      │               ├── (build) agentos-sidecar-protocol v0.4.7
+      │               │   └── agentos-sidecar-client v0.4.7 (*)
+      │               └── (build) agentos-vfs-core v0.4.7 (*)
+      ├── prettyplease v0.3.0
+      │   └── bon-macros v3.10.3 (*)
+      ├── prometheus-client-derive-encode v0.5.1
+      │   └── prometheus-client v0.25.2
+      │       └── pryxd v0.1.0 (*)
+      ├── ref-cast-impl v1.0.27
+      │   └── ref-cast v1.0.27
+      │       └── schemars v1.2.3
+      │           ├── pryx-agent v0.1.0 (*)
+      │           └── (dev) pryxd v0.1.0 (*)
+      ├── schemars_derive v1.2.3
+      │   └── schemars v1.2.3 (*)
+      ├── serde_derive v1.0.229
+      │   ├── bollard v0.21.1 (*)
+      │   └── serde v1.0.229
+      │       ├── agentos-bridge v0.4.7
+      │       │   └── agentos-client v0.4.7 (*)
+      │       ├── agentos-client v0.4.7 (*)
+      │       ├── agentos-sidecar-protocol v0.4.7 (*)
+      │       ├── agentos-vfs-core v0.4.7 (*)
+      │       ├── agentos-vm-config v0.4.7
+      │       │   ├── agentos-client v0.4.7 (*)
+      │       │   └── agentos-sidecar-protocol v0.4.7 (*)
+      │       ├── bollard v0.21.1 (*)
+      │       ├── bollard-stubs v1.53.1-rc.29.3.1
+      │       │   └── bollard v0.21.1 (*)
+      │       ├── chrono v0.4.45
+      │       │   ├── agentos-client v0.4.7 (*)
+      │       │   ├── brush-builtins v0.2.0 (*)
+      │       │   ├── brush-core v0.5.0 (*)
+      │       │   ├── procfs v0.18.0
+      │       │   │   ├── brush-builtins v0.2.0 (*)
+      │       │   │   └── pryx-agent v0.1.0 (*)
+      │       │   └── procfs-core v0.18.0
+      │       │       └── procfs v0.18.0 (*)
+      │       ├── insta v1.49.0 (*)
+      │       ├── pryx-agent v0.1.0 (*)
+      │       ├── pryxd v0.1.0 (*)
+      │       ├── reqwest v0.12.28 (*)
+      │       ├── rivet-vbare-gen v0.0.5 (*)
+      │       ├── schemars v1.2.3 (*)
+      │       ├── serde_bare v0.5.0
+      │       │   ├── agentos-client v0.4.7 (*)
+      │       │   ├── agentos-sidecar-protocol v0.4.7 (*)
+      │       │   └── agentos-vfs-core v0.4.7 (*)
+      │       ├── serde_urlencoded v0.7.1
+      │       │   ├── axum v0.8.9 (*)
+      │       │   ├── bollard v0.21.1 (*)
+      │       │   └── reqwest v0.12.28 (*)
+      │       ├── tracing-serde v0.2.0
+      │       │   └── tracing-subscriber v0.3.23
+      │       │       └── pryxd v0.1.0 (*)
+      │       └── tracing-subscriber v0.3.23 (*)
+      ├── serde_derive_internals v0.30.0
+      │   └── schemars_derive v1.2.3 (*)
+      ├── serde_repr v0.1.21
+      │   └── bollard-stubs v1.53.1-rc.29.3.1 (*)
+      ├── synstructure v0.14.0
+      │   ├── yoke-derive v0.8.4
+      │   │   └── yoke v0.8.4
+      │   │       ├── icu_collections v2.4.0 (*)
+      │   │       ├── icu_provider v2.4.0 (*)
+      │   │       ├── zerotrie v0.2.5 (*)
+      │   │       └── zerovec v0.11.9
+      │   │           ├── icu_collections v2.4.0 (*)
+      │   │           ├── icu_locale v2.4.0 (*)
+      │   │           ├── icu_locale_core v2.4.0 (*)
+      │   │           ├── icu_locale_fallback v2.4.0 (*)
+      │   │           ├── icu_normalizer v2.4.0 (*)
+      │   │           ├── icu_properties v2.4.0 (*)
+      │   │           ├── icu_provider v2.4.0 (*)
+      │   │           ├── potential_utf v0.1.6
+      │   │           │   ├── icu_collections v2.4.0 (*)
+      │   │           │   └── icu_locale_fallback v2.4.0 (*)
+      │   │           └── tinystr v0.8.5 (*)
+      │   └── zerofrom-derive v0.1.8
+      │       └── zerofrom v0.1.8
+      │           ├── icu_collections v2.4.0 (*)
+      │           ├── icu_provider v2.4.0 (*)
+      │           ├── yoke v0.8.4 (*)
+      │           ├── zerotrie v0.2.5 (*)
+      │           └── zerovec v0.11.9 (*)
+      ├── thiserror-impl v2.0.21
+      │   └── thiserror v2.0.21
+      │       ├── agentos-client v0.4.7 (*)
+      │       ├── agentos-sidecar-client v0.4.7 (*)
+      │       ├── asn1-rs v0.7.2 (*)
+      │       ├── bollard v0.21.1 (*)
+      │       ├── brush-builtins v0.2.0 (*)
+      │       ├── brush-core v0.5.0 (*)
+      │       ├── brush-parser v0.4.0 (*)
+      │       ├── cached v0.59.0
+      │       │   ├── brush-core v0.5.0 (*)
+      │       │   └── brush-parser v0.4.0 (*)
+      │       ├── command-fds v0.3.3
+      │       │   ├── agentos-sidecar-client v0.4.7 (*)
+      │       │   └── brush-core v0.5.0 (*)
+      │       ├── fluent-syntax v0.12.0
+      │       │   ├── fluent-bundle v0.16.0 (*)
+      │       │   └── uucore v0.8.0 (*)
+      │       ├── landlock v0.4.7
+      │       │   └── pryx-agent v0.1.0 (*)
+      │       ├── pryx-agent v0.1.0 (*)
+      │       ├── pryxd v0.1.0 (*)
+      │       ├── ts-rs v10.1.0
+      │       │   └── agentos-vm-config v0.4.7 (*)
+      │       ├── tungstenite v0.29.0
+      │       │   └── tokio-tungstenite v0.29.0 (*)
+      │       ├── uucore v0.8.0 (*)
+      │       └── x509-parser v0.18.1 (*)
+      ├── tokio-macros v2.7.2
+      │   └── tokio v1.54.1
+      │       ├── agentos-client v0.4.7 (*)
+      │       ├── agentos-runtime v0.4.7
+      │       │   └── agentos-vfs-core v0.4.7 (*)
+      │       ├── agentos-sidecar-client v0.4.7 (*)
+      │       ├── agentos-vfs-core v0.4.7 (*)
+      │       ├── axum v0.8.9 (*)
+      │       ├── bollard v0.21.1 (*)
+      │       ├── brush-builtins v0.2.0 (*)
+      │       ├── brush-core v0.5.0 (*)
+      │       ├── command-fds v0.3.3 (*)
+      │       ├── h2 v0.4.20 (*)
+      │       ├── hyper v1.12.0 (*)
+      │       ├── hyper-rustls v0.27.10 (*)
+      │       ├── hyper-util v0.1.21 (*)
+      │       ├── hyperlocal v0.9.1 (*)
+      │       ├── pryx-agent v0.1.0 (*)
+      │       ├── pryxd v0.1.0 (*)
+      │       ├── reqwest v0.12.28 (*)
+      │       ├── tokio-rustls v0.26.6
+      │       │   ├── hyper-rustls v0.27.10 (*)
+      │       │   ├── pryxd v0.1.0 (*)
+      │       │   └── reqwest v0.12.28 (*)
+      │       ├── tokio-tungstenite v0.29.0 (*)
+      │       ├── tokio-util v0.7.20 (*)
+      │       └── tower v0.5.3 (*)
+      ├── yoke-derive v0.8.4 (*)
+      ├── zerofrom-derive v0.1.8 (*)
+      └── zerovec-derive v0.11.7
+          └── zerovec v0.11.9 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'synstructure'
+    ┌─ /workspace/pryx/Cargo.lock:293:1
+    │
+293 │ ╭ synstructure 0.13.2 registry+https://github.com/rust-lang/crates.io-index
+294 │ │ synstructure 0.14.0 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰─────────────────────────────────────────────────────────────────────────┘ lock entries
+    │
+    ├ synstructure v0.13.2
+      └── asn1-rs-derive v0.6.0
+          └── asn1-rs v0.7.2
+              ├── der-parser v10.0.0
+              │   └── x509-parser v0.18.1
+              │       └── rcgen v0.14.10
+              │           └── (dev) pryxd v0.1.0
+              │               └── (dev) pryxd v0.1.0 (*)
+              ├── oid-registry v0.8.1
+              │   └── x509-parser v0.18.1 (*)
+              └── x509-parser v0.18.1 (*)
+    ├ synstructure v0.14.0
+      ├── yoke-derive v0.8.4
+      │   └── yoke v0.8.4
+      │       ├── icu_collections v2.4.0
+      │       │   ├── icu_locale v2.4.0
+      │       │   │   └── uucore v0.8.0
+      │       │   │       └── brush-builtins v0.2.0
+      │       │   │           └── pryx-agent v0.1.0
+      │       │   │               ├── (dev) pryx-agent v0.1.0 (*)
+      │       │   │               └── (dev) pryxd v0.1.0
+      │       │   │                   └── (dev) pryxd v0.1.0 (*)
+      │       │   ├── icu_normalizer v2.4.0
+      │       │   │   └── idna_adapter v1.2.2
+      │       │   │       └── idna v1.1.0
+      │       │   │           └── url v2.5.8
+      │       │   │               ├── bollard v0.21.1
+      │       │   │               │   └── pryxd v0.1.0 (*)
+      │       │   │               ├── reqwest v0.12.28
+      │       │   │               │   ├── agentos-client v0.4.7
+      │       │   │               │   │   └── pryxd v0.1.0 (*)
+      │       │   │               │   └── pryx-agent v0.1.0 (*)
+      │       │   │               └── tower-http v0.6.11
+      │       │   │                   └── reqwest v0.12.28 (*)
+      │       │   └── icu_properties v2.4.0
+      │       │       └── idna_adapter v1.2.2 (*)
+      │       ├── icu_provider v2.4.0
+      │       │   ├── icu_locale v2.4.0 (*)
+      │       │   ├── icu_locale_fallback v2.4.0
+      │       │   │   └── icu_locale v2.4.0 (*)
+      │       │   ├── icu_normalizer v2.4.0 (*)
+      │       │   └── icu_properties v2.4.0 (*)
+      │       ├── zerotrie v0.2.5
+      │       │   ├── icu_properties v2.4.0 (*)
+      │       │   └── icu_provider v2.4.0 (*)
+      │       └── zerovec v0.11.9
+      │           ├── icu_collections v2.4.0 (*)
+      │           ├── icu_locale v2.4.0 (*)
+      │           ├── icu_locale_core v2.4.0
+      │           │   ├── icu_locale v2.4.0 (*)
+      │           │   ├── icu_locale_fallback v2.4.0 (*)
+      │           │   ├── icu_properties v2.4.0 (*)
+      │           │   └── icu_provider v2.4.0 (*)
+      │           ├── icu_locale_fallback v2.4.0 (*)
+      │           ├── icu_normalizer v2.4.0 (*)
+      │           ├── icu_properties v2.4.0 (*)
+      │           ├── icu_provider v2.4.0 (*)
+      │           ├── potential_utf v0.1.6
+      │           │   ├── icu_collections v2.4.0 (*)
+      │           │   └── icu_locale_fallback v2.4.0 (*)
+      │           └── tinystr v0.8.5
+      │               ├── icu_locale v2.4.0 (*)
+      │               ├── icu_locale_core v2.4.0 (*)
+      │               ├── icu_locale_fallback v2.4.0 (*)
+      │               └── unic-langid-impl v0.9.6
+      │                   └── unic-langid v0.9.6
+      │                       ├── fluent v0.17.0
+      │                       │   └── uucore v0.8.0 (*)
+      │                       ├── fluent-bundle v0.16.0
+      │                       │   ├── fluent v0.17.0 (*)
+      │                       │   └── uucore v0.8.0 (*)
+      │                       ├── fluent-langneg v0.13.1
+      │                       │   └── fluent-bundle v0.16.0 (*)
+      │                       ├── intl-memoizer v0.5.3
+      │                       │   └── fluent-bundle v0.16.0 (*)
+      │                       ├── intl_pluralrules v7.0.2
+      │                       │   └── fluent-bundle v0.16.0 (*)
+      │                       └── uucore v0.8.0 (*)
+      └── zerofrom-derive v0.1.8
+          └── zerofrom v0.1.8
+              ├── icu_collections v2.4.0 (*)
+              ├── icu_provider v2.4.0 (*)
+              ├── yoke v0.8.4 (*)
+              ├── zerotrie v0.2.5 (*)
+              └── zerovec v0.11.9 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'thiserror'
+    ┌─ /workspace/pryx/Cargo.lock:300:1
+    │
+300 │ ╭ thiserror 1.0.69 registry+https://github.com/rust-lang/crates.io-index
+301 │ │ thiserror 2.0.21 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰──────────────────────────────────────────────────────────────────────┘ lock entries
+    │
+    ├ thiserror v1.0.69
+      └── filedescriptor v0.8.3
+          └── portable-pty v0.9.0
+              └── pryx-agent v0.1.0
+                  ├── (dev) pryx-agent v0.1.0 (*)
+                  └── (dev) pryxd v0.1.0
+                      └── (dev) pryxd v0.1.0 (*)
+    ├ thiserror v2.0.21
+      ├── agentos-client v0.4.7
+      │   └── pryxd v0.1.0
+      │       └── (dev) pryxd v0.1.0 (*)
+      ├── agentos-sidecar-client v0.4.7
+      │   ├── agentos-client v0.4.7 (*)
+      │   └── pryxd v0.1.0 (*)
+      ├── asn1-rs v0.7.2
+      │   ├── der-parser v10.0.0
+      │   │   └── x509-parser v0.18.1
+      │   │       └── rcgen v0.14.10
+      │   │           └── (dev) pryxd v0.1.0 (*)
+      │   ├── oid-registry v0.8.1
+      │   │   └── x509-parser v0.18.1 (*)
+      │   └── x509-parser v0.18.1 (*)
+      ├── bollard v0.21.1
+      │   └── pryxd v0.1.0 (*)
+      ├── brush-builtins v0.2.0
+      │   └── pryx-agent v0.1.0
+      │       ├── (dev) pryx-agent v0.1.0 (*)
+      │       └── (dev) pryxd v0.1.0 (*)
+      ├── brush-core v0.5.0
+      │   ├── brush-builtins v0.2.0 (*)
+      │   └── pryx-agent v0.1.0 (*)
+      ├── brush-parser v0.4.0
+      │   ├── brush-builtins v0.2.0 (*)
+      │   └── brush-core v0.5.0 (*)
+      ├── cached v0.59.0
+      │   ├── brush-core v0.5.0 (*)
+      │   └── brush-parser v0.4.0 (*)
+      ├── command-fds v0.3.3
+      │   ├── agentos-sidecar-client v0.4.7 (*)
+      │   └── brush-core v0.5.0 (*)
+      ├── fluent-syntax v0.12.0
+      │   ├── fluent-bundle v0.16.0
+      │   │   ├── fluent v0.17.0
+      │   │   │   └── uucore v0.8.0
+      │   │   │       └── brush-builtins v0.2.0 (*)
+      │   │   └── uucore v0.8.0 (*)
+      │   └── uucore v0.8.0 (*)
+      ├── landlock v0.4.7
+      │   └── pryx-agent v0.1.0 (*)
+      ├── pryx-agent v0.1.0 (*)
+      ├── pryxd v0.1.0 (*)
+      ├── ts-rs v10.1.0
+      │   └── agentos-vm-config v0.4.7
+      │       ├── agentos-client v0.4.7 (*)
+      │       └── agentos-sidecar-protocol v0.4.7
+      │           └── agentos-sidecar-client v0.4.7 (*)
+      ├── tungstenite v0.29.0
+      │   └── tokio-tungstenite v0.29.0
+      │       ├── axum v0.8.9
+      │       │   ├── pryx-agent v0.1.0 (*)
+      │       │   └── pryxd v0.1.0 (*)
+      │       └── (dev) pryx-agent v0.1.0 (*)
+      ├── uucore v0.8.0 (*)
+      └── x509-parser v0.18.1 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'thiserror-impl'
+    ┌─ /workspace/pryx/Cargo.lock:302:1
+    │
+302 │ ╭ thiserror-impl 1.0.69 registry+https://github.com/rust-lang/crates.io-index
+303 │ │ thiserror-impl 2.0.21 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰───────────────────────────────────────────────────────────────────────────┘ lock entries
+    │
+    ├ thiserror-impl v1.0.69
+      └── thiserror v1.0.69
+          └── filedescriptor v0.8.3
+              └── portable-pty v0.9.0
+                  └── pryx-agent v0.1.0
+                      ├── (dev) pryx-agent v0.1.0 (*)
+                      └── (dev) pryxd v0.1.0
+                          └── (dev) pryxd v0.1.0 (*)
+    ├ thiserror-impl v2.0.21
+      └── thiserror v2.0.21
+          ├── agentos-client v0.4.7
+          │   └── pryxd v0.1.0
+          │       └── (dev) pryxd v0.1.0 (*)
+          ├── agentos-sidecar-client v0.4.7
+          │   ├── agentos-client v0.4.7 (*)
+          │   └── pryxd v0.1.0 (*)
+          ├── asn1-rs v0.7.2
+          │   ├── der-parser v10.0.0
+          │   │   └── x509-parser v0.18.1
+          │   │       └── rcgen v0.14.10
+          │   │           └── (dev) pryxd v0.1.0 (*)
+          │   ├── oid-registry v0.8.1
+          │   │   └── x509-parser v0.18.1 (*)
+          │   └── x509-parser v0.18.1 (*)
+          ├── bollard v0.21.1
+          │   └── pryxd v0.1.0 (*)
+          ├── brush-builtins v0.2.0
+          │   └── pryx-agent v0.1.0
+          │       ├── (dev) pryx-agent v0.1.0 (*)
+          │       └── (dev) pryxd v0.1.0 (*)
+          ├── brush-core v0.5.0
+          │   ├── brush-builtins v0.2.0 (*)
+          │   └── pryx-agent v0.1.0 (*)
+          ├── brush-parser v0.4.0
+          │   ├── brush-builtins v0.2.0 (*)
+          │   └── brush-core v0.5.0 (*)
+          ├── cached v0.59.0
+          │   ├── brush-core v0.5.0 (*)
+          │   └── brush-parser v0.4.0 (*)
+          ├── command-fds v0.3.3
+          │   ├── agentos-sidecar-client v0.4.7 (*)
+          │   └── brush-core v0.5.0 (*)
+          ├── fluent-syntax v0.12.0
+          │   ├── fluent-bundle v0.16.0
+          │   │   ├── fluent v0.17.0
+          │   │   │   └── uucore v0.8.0
+          │   │   │       └── brush-builtins v0.2.0 (*)
+          │   │   └── uucore v0.8.0 (*)
+          │   └── uucore v0.8.0 (*)
+          ├── landlock v0.4.7
+          │   └── pryx-agent v0.1.0 (*)
+          ├── pryx-agent v0.1.0 (*)
+          ├── pryxd v0.1.0 (*)
+          ├── ts-rs v10.1.0
+          │   └── agentos-vm-config v0.4.7
+          │       ├── agentos-client v0.4.7 (*)
+          │       └── agentos-sidecar-protocol v0.4.7
+          │           └── agentos-sidecar-client v0.4.7 (*)
+          ├── tungstenite v0.29.0
+          │   └── tokio-tungstenite v0.29.0
+          │       ├── axum v0.8.9
+          │       │   ├── pryx-agent v0.1.0 (*)
+          │       │   └── pryxd v0.1.0 (*)
+          │       └── (dev) pryx-agent v0.1.0 (*)
+          ├── uucore v0.8.0 (*)
+          └── x509-parser v0.18.1 (*)
+
+advisories ok, bans ok, licenses ok, sources ok

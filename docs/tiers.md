@@ -143,6 +143,17 @@ complete samples beside it. The teardown follow-up keeps every delete and its fa
 serializes the unmeasured deletion phase on every tier/context, and verifies that the fifty
 creation requests still overlap. The actual admission-refusal observation above stays separate.
 
+The corresponding [PR run](https://github.com/cubepals/pryx/actions/runs/42254747830)
+instead failed in the container fork cohort after 22 timings: Docker's start response exceeded
+the unchanged 20-second deadline. Its [raw reports](measurements/k14/42254747830/) retain the
+incomplete container result and complete process, Wasm and hello cohorts; the
+[failure log](checks/pr8-container-fork-before.txt) does not establish that container's final state.
+The runtime now inspects once after a start timeout and succeeds only if Docker confirms
+`Running`, without repeating start. A real Docker transport-fault regression withholds the
+response after Docker accepts the mutation: it fails before the fix and passes after it,
+confirming a single start request and the actual running container. Other states and errors
+remain failures; this changes neither capacity classification nor benchmark budgets.
+
 Snapshots and forks use exactly 100,000,000 bytes of repeated byte 42, validated before capture
 and after fork. This compressible fixture measures the same workload on each tier; it is not
 an incompressible-data throughput claim. Snapshot timing ends at the API acknowledgement of

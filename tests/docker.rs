@@ -29,6 +29,79 @@ fn docker() -> Arc<dyn ContainerRuntime> {
     Arc::new(DockerRuntime::new(&DockerConfig::default().socket).unwrap())
 }
 
+#[tokio::test]
+#[ignore = "needs Docker"]
+async fn a_lost_start_response_is_confirmed_without_repeating_the_mutation() {
+    use axum::body::Body;
+    use axum::extract::{Request, State};
+    use axum::http::StatusCode;
+    use axum::{Router, routing::any};
+    use std::sync::atomic::AtomicUsize;
+    use tokio::net::{UnixListener, UnixStream};
+    use tokio::sync::Notify;
+
+    #[derive(Clone)]
+    struct Proxy {
+        socket: std::path::PathBuf,
+        starts: Arc<AtomicUsize>,
+        release: Arc<Notify>,
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let socket = dir.path().join("docker.sock");
+    let listener = UnixListener::bind(&socket).unwrap();
+    let starts = Arc::new(AtomicUsize::new(0));
+    let release = Arc::new(Notify::new());
+    let proxy = Proxy { socket: DockerConfig::default().socket, starts: starts.clone(), release: release.clone() };
+    let app = Router::new()
+        .fallback(any(|State(p): State<Proxy>, request: Request| async move {
+            let path = request.uri().path_and_query().unwrap().as_str().to_owned();
+            let is_start = request.method() == axum::http::Method::POST
+                && path.contains("/containers/")
+                && path.ends_with("/start");
+            let stream = UnixStream::connect(&p.socket).await.map_err(|_| StatusCode::BAD_GATEWAY)?;
+            let (mut sender, connection) = hyper::client::conn::http1::handshake(hyper_util::rt::TokioIo::new(stream))
+                .await
+                .map_err(|_| StatusCode::BAD_GATEWAY)?;
+            tokio::spawn(async move {
+                let _ = connection.await;
+            });
+            let response = sender.send_request(request).await.map_err(|_| StatusCode::BAD_GATEWAY)?;
+            let status = response.status();
+            if is_start {
+                p.starts.fetch_add(1, Ordering::SeqCst);
+                assert!(status.is_success(), "the real Docker accepted start");
+                p.release.notified().await;
+            }
+            Ok::<_, StatusCode>(response.map(Body::new))
+        }))
+        .with_state(proxy);
+    let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let dep = deployment();
+    let _cleanup = Cleanup(dep.clone());
+    let backend = bollard::Docker::connect_with_unix(
+        DockerConfig::default().socket.to_str().unwrap(),
+        60,
+        bollard::API_DEFAULT_VERSION,
+    )
+    .unwrap();
+    let name = format!("lost-start-{dep}");
+    let options = bollard::query_parameters::CreateContainerOptionsBuilder::new().name(&name).build();
+    let container = bollard::models::ContainerCreateBody {
+        image: Some("alpine:3.22".into()),
+        cmd: Some(vec!["sleep".into(), "300".into()]),
+        labels: Some([(LABEL_DEPLOYMENT.to_owned(), dep.clone())].into_iter().collect()),
+        ..Default::default()
+    };
+    backend.create_container(Some(options), container).await.unwrap();
+    let runtime = DockerRuntime::new(&socket).unwrap();
+    let started = runtime.start(&name).await;
+    release.notify_waiters();
+    assert_eq!(starts.load(Ordering::SeqCst), 1, "a timed-out mutation is never repeated");
+    assert_eq!(backend.inspect_container(&name, None).await.unwrap().state.unwrap().running, Some(true));
+    started.unwrap();
+    server.abort();
+}
+
 /// A test's own deployment id, which carries its port slot for `extra`. Slots are handed out in
 /// order, so two daemons running at once never share a range, as a random slot could.
 fn deployment() -> String {
