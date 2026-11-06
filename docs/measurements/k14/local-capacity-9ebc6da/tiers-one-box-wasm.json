@@ -1,0 +1,47 @@
+{
+  "context": "local one-box/wasm capacity validation",
+  "source": "9ebc6da8a14b095d64ffa2f73398838cf487a6d8",
+  "comparison": "one real capacity wave on this workspace; not the CI three-tier comparison",
+  "host": {
+    "cpu": "INTEL(R) XEON(R) PLATINUM 8573C",
+    "cores": 5,
+    "kernel": "6.18.57",
+    "memoryBytes": 18882662400,
+    "bun": "1.4.4"
+  },
+  "datasetBytes": 100000000,
+  "repetitions": 1,
+  "samples": {},
+  "unsupported": {},
+  "tier": "wasm",
+  "status": "capacity_limited",
+  "concurrentCapacity": [
+    {
+      "attempt": 1,
+      "requested": 50,
+      "running": 31,
+      "refused": 19,
+      "outcome": "capacity_refused",
+      "elapsedMs": 128992.201956,
+      "baselinePssBytes": 84762624,
+      "contextPssBytes": 157673472,
+      "incrementalPssBytes": 72910848,
+      "refusals": [
+        {
+          "code": "no_room",
+          "status": 503,
+          "message": "No node can complete this request",
+          "count": 19
+        }
+      ]
+    }
+  ],
+  "requestedResources": {
+    "memoryMb": 256,
+    "cpuMillis": 100
+  },
+  "cpuAdmissionOvercommit": 2,
+  "topology": "local host node, control and edge; current UID reads its own Wasm supervisor tree with the unchanged tier-memory.py",
+  "binarySha256": "471e2576b9d13ca5b03b0beb101a597247a6182a45b26181e490de4562cf7106",
+  "summary": {}
+}

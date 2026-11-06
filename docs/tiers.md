@@ -74,7 +74,7 @@ cohorts retain the normal edge limits. Raw reports identify the comparison profi
 ### Capacity evidence before refusal reporting
 
 For head `795abeedc9d599f296e29f00e47609812c1c8683`, the
-[PR run](https://github.com/cubepals/pryx/actions/runs/42227512991) measured merge source
+[PR run, attempt 1](https://github.com/cubepals/pryx/actions/runs/42227512991/attempts/1) measured merge source
 `0b15b8e7b4f9ad711488c5c157e2dfd0f2f391ec`: it completed 16 full-50 Wasm
 waves, then aborted on wave 17 with HTTP 503, `no_room`, "No node can complete this request".
 The old collector did not retain that wave's admitted count or PSS: **both are unavailable**.
@@ -96,6 +96,32 @@ Both raw cohorts are retained under [measurements/k14](measurements/k14/).
 
 The new collector keeps this full-50 path wherever it fits and records partial or zero-admission
 waves with their own measured memory and refusal instead of terminating the comparison.
+
+### Measured capacity refusal with the new collector
+
+A single real Wasm wave on the local workspace at source
+`9ebc6da8a14b095d64ffa2f73398838cf487a6d8` validates the refusal path end to end:
+
+| Context / tier | Waves | Requested | Confirmed running | Refused | Baseline PSS MiB | PSS before cleanup MiB | Delta MiB | Refusal |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| Local host / Wasm | 1 | 50 | 31 | 19 | 80.84 | 150.37 | 69.53 | 19 × HTTP 503 `no_room`: "No node can complete this request" |
+
+All 50 responses settled in **128,992.20 ms**. The outcome is `capacity_refused`, the final
+report status is `capacity_limited`, cleanup completed and the collector exited **0**. The
+31 running sandboxes were still present when memory and refusal evidence were checkpointed.
+This partial wave contributes **zero full-50 latency samples**. Its admitted count describes
+this observation, rather than establishing a physical memory ceiling or a runner-independent
+maximum. This is one local validation wave, separate from the CI jobs' thirty-wave comparisons.
+
+The [raw report](measurements/k14/local-capacity-9ebc6da/tiers-one-box-wasm.json) records the
+host, source, binary hash, unit profile, CPU admission overcommit, exact bytes and refusal.
+The [driver and invocation](checks/pr8-capacity-local-command.txt) use the benchmark collector,
+real SDK/API/Postgres/node/sidecar and unchanged `tier-memory.py`. The workspace has no `sudo`
+and cannot install it; all measured Wasm processes belong to the current UID, so the driver
+reads that owned process tree directly and refuses missing PSS. This fresh node has no prior
+scalar/package workload or retained allocator history; its PSS is separate from the historical
+reused-node CI memory above. Neither set of totals measures memory per VM. Raw output and the
+rendered [capacity summary](checks/pr8-capacity-local-summary.md) retain the counts and refusal.
 
 Snapshots and forks use exactly 100,000,000 bytes of repeated byte 42, validated before capture
 and after fork. This compressible fixture measures the same workload on each tier; it is not

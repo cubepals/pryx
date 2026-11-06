@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Job-summary rendering of recorded admission outcomes; no capacity or latency is inferred. */
 import type { ConcurrentOutcome } from './concurrent.ts'
+import { REPETITIONS } from './report.ts'
 
 export interface CapacityReport {
   context: string
   source: string
   status: string
+  repetitions?: number
   concurrentCapacity?: ConcurrentOutcome[]
 }
 const cell = (value: string) =>
@@ -21,7 +23,7 @@ export function capacitySummary(reports: CapacityReport[]) {
   const lines = [
     '### Three-tier concurrent capacity',
     '',
-    'Every wave requests all 50 sandboxes, for 30 waves per tier. Capacity refusal is a measured outcome. Only complete waves enter full-50 latency percentiles.',
+    `Every wave requests all 50 sandboxes, for ${REPETITIONS} waves per tier in CI. Capacity refusal is a measured outcome. Only complete waves enter full-50 latency percentiles.`,
     'Memory is total context PSS (including fixed services) after all requests settle and before cleanup; delta subtracts the pre-wave baseline. It is not per-sandbox memory.',
     'A no_room response records observed API admission refusal, not a proven physical memory ceiling. Other creation, validation, memory and cleanup failures still fail the job.',
     '',
@@ -31,7 +33,7 @@ export function capacitySummary(reports: CapacityReport[]) {
     lines.push(
       `#### ${cell(report.context)} — ${cell(report.status)}`,
       '',
-      `Source: \`${cell(report.source)}\`. Recorded waves: ${outcomes.length}/30; full 50: ${outcomes.filter((wave) => wave.outcome === 'complete').length}.`,
+      `Source: \`${cell(report.source)}\`. Recorded waves: ${outcomes.length}/${report.repetitions ?? REPETITIONS}; full 50: ${outcomes.filter((wave) => wave.outcome === 'complete').length}.`,
       '',
       '| Wave | Requested | Running | Refused | Context PSS MiB | Delta MiB | Outcome ms | Outcome / refusal |',
       '| ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |',
