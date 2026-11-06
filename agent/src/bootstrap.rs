@@ -4,8 +4,10 @@
 //! PID 1 starts the original entrypoint, serves the agent and forwards termination. Adopted
 //! descendants are reaped separately from the process API's managed children.
 
-use std::path::PathBuf;
+use std::collections::{BTreeMap, BTreeSet};
+use std::net::{IpAddr, Ipv4Addr};
 use std::sync::Arc;
+use std::{io, path::PathBuf};
 
 use axum::serve::ListenerExt;
 use base64::{Engine, engine::general_purpose::STANDARD};
@@ -39,6 +41,8 @@ pub struct Bootstrap {
     #[arg(long)]
     secret_env: String,
     #[arg(long)]
+    host_bindings: Option<String>,
+    #[arg(long)]
     keep_alive: bool,
     #[arg(long, default_value = "/")]
     entrypoint_cwd: String,
@@ -46,18 +50,57 @@ pub struct Bootstrap {
     entrypoint: Vec<String>,
 }
 
+impl Bootstrap {
+    fn bindings(&self, process_tier: bool) -> io::Result<BTreeMap<u16, Vec<IpAddr>>> {
+        let expected = std::iter::once(self.port).chain(self.spare_ports.iter().copied()).collect::<BTreeSet<_>>();
+        if expected.contains(&0) || expected.len() != self.spare_ports.len() + 1 {
+            return Err(io::ErrorKind::InvalidInput.into());
+        }
+        let Some(encoded) = &self.host_bindings else {
+            if process_tier {
+                return Err(io::Error::new(io::ErrorKind::InvalidInput, "Process host bindings are required"));
+            }
+            // Container agents listen inside their private network namespace.
+            return Ok(expected.into_iter().map(|port| (port, vec![Ipv4Addr::UNSPECIFIED.into()])).collect());
+        };
+        let bindings: BTreeMap<u16, Vec<IpAddr>> = serde_json::from_str(encoded).map_err(io::Error::other)?;
+        if bindings.len() != expected.len()
+            || expected.iter().any(|port| {
+                bindings.get(port).is_none_or(|ips| ips.is_empty() || ips.iter().any(IpAddr::is_unspecified))
+            })
+        {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid process host bindings"));
+        }
+        Ok(bindings)
+    }
+}
+
 pub async fn serve(args: Bootstrap) -> Result<i32, Box<dyn std::error::Error>> {
+    let bindings = args.bindings(std::env::var_os(crate::process_policy::POLICY_ENV).is_some())?;
     let encoded = std::env::var(&args.secret_env).map_err(|_| "Agent signing material is missing")?;
     let key = SigningKey::from_encoded(&encoded)?;
     let logbook = Arc::new(crate::logbook::Logbook::open(&args.data)?);
     let telemetry = Arc::new(crate::telemetry::Telemetry::default());
-    let ports = Ports::bind_persistent(
+    let mut listeners = Vec::new();
+    for ip in &bindings[&args.port] {
+        listeners.push(tokio::net::TcpListener::bind((*ip, args.port)).await?);
+    }
+    let mut spares = Vec::new();
+    for port in args.spare_ports {
+        let mut held = Vec::new();
+        for ip in &bindings[&port] {
+            held.push(tokio::net::TcpListener::bind((*ip, port)).await?);
+        }
+        spares.push((port, held));
+    }
+    let ports = Ports::bind_listeners(
         args.sandbox.clone(),
         args.domain,
         args.port,
-        args.spare_ports,
+        spares,
         Some(DataDir::open(&args.data)?),
         telemetry.clone(),
+        None,
     )
     .await?;
     ports.set_public_origin(args.public_origin);
@@ -72,11 +115,13 @@ pub async fn serve(args: Bootstrap) -> Result<i32, Box<dyn std::error::Error>> {
         telemetry,
         logs: logbook.clone(),
     });
-    let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::UNSPECIFIED, args.port)).await?;
-    let listener = listener.tap_io(|socket| {
-        let _ = socket.set_nodelay(true);
-    });
-    let server = tokio::spawn(axum::serve(listener, router(agent.clone())).into_future());
+    let mut servers = Vec::new();
+    for listener in listeners {
+        let listener = listener.tap_io(|socket| {
+            let _ = socket.set_nodelay(true);
+        });
+        servers.push(tokio::spawn(axum::serve(listener, router(agent.clone())).into_future()));
+    }
     let mut term = signal(SignalKind::terminate())?;
     let mut interrupt = signal(SignalKind::interrupt())?;
     let entrypoint = if args.entrypoint.is_empty() {
@@ -134,7 +179,9 @@ pub async fn serve(args: Bootstrap) -> Result<i32, Box<dyn std::error::Error>> {
         _ = term.recv() => { terminate(&agent, libc::SIGTERM).await; 0 },
         _ = interrupt.recv() => { terminate(&agent, libc::SIGINT).await; 0 },
     };
-    server.abort();
+    for server in servers {
+        server.abort();
+    }
     reaper.abort();
     if let Some(logs) = logs {
         let _ = tokio::time::timeout(std::time::Duration::from_secs(1), logs).await;
@@ -175,5 +222,59 @@ async fn terminate(agent: &Agent, signal: i32) {
         if let Ok(process) = agent.processes.get(&process.id) {
             let _ = process.signal(libc::SIGKILL);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::contract::AGENT_PORT;
+
+    #[test]
+    fn process_bootstrap_requires_complete_explicit_bindings() {
+        let agent_port = AGENT_PORT.to_string();
+        let spare_port = (AGENT_PORT + 1).to_string();
+        let base = [
+            "pryx-agent",
+            "--sandbox",
+            "one",
+            "--epoch",
+            "1",
+            "--data",
+            "/data",
+            "--domain",
+            "pryx.test",
+            "--port",
+            &agent_port,
+            "--spare-ports",
+            &spare_port,
+            "--secret-env",
+            "TEST_SECRET",
+        ];
+        let args = Bootstrap::try_parse_from(base).unwrap();
+        assert!(args.bindings(true).is_err());
+        assert!(args.bindings(false).unwrap()[&AGENT_PORT][0].is_unspecified());
+        for ips in
+            [Vec::<IpAddr>::new(), vec![Ipv4Addr::UNSPECIFIED.into()], vec![std::net::Ipv6Addr::UNSPECIFIED.into()]]
+        {
+            let json = serde_json::to_string(&BTreeMap::from([
+                (AGENT_PORT, ips),
+                (AGENT_PORT + 1, vec![Ipv4Addr::LOCALHOST.into()]),
+            ]))
+            .unwrap();
+            let args = Bootstrap::try_parse_from(base.into_iter().chain(["--host-bindings", &json])).unwrap();
+            assert!(args.bindings(true).is_err());
+        }
+        for json in ["{}".to_string(), serde_json::json!({agent_port.clone(): ["127.0.0.1"]}).to_string()] {
+            let args = Bootstrap::try_parse_from(base.into_iter().chain(["--host-bindings", &json])).unwrap();
+            assert!(args.bindings(true).is_err());
+        }
+        let expected = BTreeMap::from([
+            (AGENT_PORT, vec!["127.0.0.1".parse::<IpAddr>().unwrap(), "::1".parse().unwrap()]),
+            (AGENT_PORT + 1, vec!["127.0.0.2".parse::<IpAddr>().unwrap()]),
+        ]);
+        let json = serde_json::to_string(&expected).unwrap();
+        let args = Bootstrap::try_parse_from(base.into_iter().chain(["--host-bindings", &json])).unwrap();
+        assert_eq!(args.bindings(true).unwrap(), expected);
     }
 }

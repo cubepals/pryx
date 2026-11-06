@@ -233,10 +233,8 @@ fn main() -> ExitCode {
             .and_then(|runtime| runtime.block_on(pryxd::cli::upgrade::upgrade(&config, !no_restart)))
             .map(|said| print!("{said}")),
         Command::DevCerts { out, node_dns, node_ip, client, extra_client } => {
-            certs::generate(&out, &node_dns, &node_ip, &client, &extra_client).map(|paths| {
-                println!("CA certificate:     {}", paths.ca_cert.display());
-                println!("node certificate:   {} (key {})", paths.node_cert.display(), paths.node_key.display());
-                println!("client certificate: {} (key {})", paths.client_cert.display(), paths.client_key.display());
+            certs::generate(&out, &node_dns, &node_ip, &client, &extra_client).map(|_| {
+                println!("Development certificates and private keys generated");
                 println!("client name to allow: {client}");
             })
         }

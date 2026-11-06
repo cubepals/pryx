@@ -69,7 +69,12 @@ for large or indefinitely long output. PTYs provide a controlling terminal and s
 Files stream without a total body-size cap; JSON requests are limited to 1 MiB. Paths are
 relative to persistent data, opened with descriptor-relative walks that refuse parent symlinks,
 special files and traversal. A watch first sends `ready`, then `change` messages; overflow is
-explicit. URL transfers preserve HTTPS verification and refuse redirects. `files.url(path,
+explicit. URL transfers accept only HTTP and HTTPS destinations without user information.
+They resolve the hostname before connecting, refuse every non-public answer (including
+loopback, private, link-local and multicast addresses), and pin connections to that first
+answer set. Redirects and transfer-client proxy overrides are disabled; HTTPS certificate
+and hostname verification remain enabled. This applies to container, process and Wasm agents.
+`files.url(path,
 'GET' | 'PUT')` returns a capability URL bound to that path and method for at most one minute,
 and never beyond the parent token. Treat the URL as a credential until it expires.
 

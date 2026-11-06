@@ -17,31 +17,14 @@ pub(crate) struct Transfer {
     url: String,
 }
 
-fn client(url: &str) -> Result<reqwest::Client, Failure> {
-    let parsed = reqwest::Url::parse(url)
-        .map_err(|_| Failure(StatusCode::UNPROCESSABLE_ENTITY, "invalid_request", "Invalid transfer URL".into()))?;
-    if !matches!(parsed.scheme(), "https" | "http") || !parsed.username().is_empty() || parsed.password().is_some() {
-        return Err(Failure(
-            StatusCode::UNPROCESSABLE_ENTITY,
-            "invalid_request",
-            "Transfer requires an HTTP URL without user information".into(),
-        ));
-    }
-    reqwest::Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .connect_timeout(std::time::Duration::from_secs(10))
-        .build()
-        .map_err(transfer_failed)
-}
-
 fn transfer_failed(_error: reqwest::Error) -> Failure {
     // The upstream URL can contain a signed credential. It never enters an error or log.
     Failure(StatusCode::BAD_GATEWAY, "transfer_failed", "Remote file transfer failed".into())
 }
 
 pub(crate) async fn upload(State(agent): State<Arc<Agent>>, Json(body): Json<Transfer>) -> Result<StatusCode, Failure> {
-    let response = client(&body.url)?
-        .get(&body.url)
+    let response = crate::transfer_target::request(&body.url, reqwest::Method::GET)
+        .await?
         .send()
         .await
         .map_err(transfer_failed)?
@@ -60,8 +43,8 @@ pub(crate) async fn download(
 ) -> Result<StatusCode, Failure> {
     let file = tokio::fs::File::from_std(agent.data.read(&body.path)?);
     let length = file.metadata().await?.len();
-    client(&body.url)?
-        .put(&body.url)
+    crate::transfer_target::request(&body.url, reqwest::Method::PUT)
+        .await?
         .header(reqwest::header::CONTENT_LENGTH, length)
         .body(reqwest::Body::wrap_stream(ReaderStream::new(file)))
         .send()

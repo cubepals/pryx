@@ -18,6 +18,7 @@
 //! - `server.rs`: the authenticated HTTP and websocket surface.
 //! - `files.rs`: streamed data and filesystem watches.
 //! - `transfers.rs`: remote file transfer requests and streaming.
+//! - `transfer_target.rs`: public-address validation and pinned transfer DNS.
 //! - `logbook.rs`: bounded persistent entrypoint output.
 //! - `mcp.rs`: optional authenticated sandbox MCP tools and resources.
 //! - `ports.rs`: preallocated forward slots.
@@ -62,3 +63,6 @@ pub mod telemetry;
 
 #[cfg(feature = "server")]
 mod transfers;
+
+#[cfg(feature = "server")]
+mod transfer_target;

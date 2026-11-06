@@ -17,9 +17,12 @@ const SHARES_PER_NICE_STEP: i64 = 1024;
 
 fn temporary_directory(spec: &ContainerSpec, owner: (u32, u32)) -> Result<PathBuf, RuntimeError> {
     let tmp = spec.data_dir.join(".tmp");
-    fs::create_dir_all(&tmp).map_err(error)?;
-    rustix::fs::chown(
-        &tmp,
+    // DataDir walks each component using openat with O_DIRECTORY and O_NOFOLLOW.
+    let data = pryx_agent::paths::DataDir::open(&spec.data_dir).map_err(error)?;
+    data.mkdir(".tmp").map_err(error)?;
+    let temporary = data.directory_file(".tmp").map_err(error)?;
+    rustix::fs::fchown(
+        &temporary,
         Some(rustix::process::Uid::from_raw(owner.0)),
         Some(rustix::process::Gid::from_raw(owner.1)),
     )
@@ -67,16 +70,27 @@ impl ProcessRuntime {
                 break;
             }
         }
-        let port = |logical| {
+        let binding = |logical| {
             spec.ports
                 .iter()
-                .find(|p| p.container_port == logical)
-                .map(|p| p.host_port)
+                .find(|p| p.container_port == logical && p.protocol == crate::protocol::Proto::Tcp)
                 .ok_or_else(|| error("Missing agent port binding"))
         };
+        let port = |logical| binding(logical).map(|p| p.host_port);
+        let bindings = std::iter::once(agent.agent_port)
+            .chain(agent.spare_ports.iter().copied())
+            .map(|logical| {
+                let bound = binding(logical)?;
+                if bound.host_ips.is_empty() || bound.host_ips.iter().any(std::net::IpAddr::is_unspecified) {
+                    return Err(error("Process listeners require explicit host addresses"));
+                }
+                Ok((bound.host_port, bound.host_ips.clone()))
+            })
+            .collect::<Result<BTreeMap<_, _>, RuntimeError>>()?;
         let spares =
             agent.spare_ports.iter().map(|p| port(*p).map(|p| p.to_string())).collect::<Result<Vec<_>, _>>()?;
         let mut command = Command::new(&agent.binary);
+        command.args(["--host-bindings", &serde_json::to_string(&bindings).map_err(error)?]);
         if let Some(origin) = &agent.public_origin {
             command.args(["--public-origin", origin]);
         }
@@ -228,5 +242,87 @@ impl ProcessRuntime {
             restart_count: 0,
             health: None,
         }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::{MetadataExt, PermissionsExt, symlink};
+
+    #[test]
+    fn launch_refuses_a_temporary_directory_symlink_without_touching_its_target() {
+        let root = tempfile::tempdir().unwrap();
+        let state = root.path().join("state");
+        let runtime = ProcessRuntime::new(&state, ProcessConfig::default()).unwrap();
+        let data = state.join("data");
+        fs::create_dir(&data).unwrap();
+        let outside = root.path().join("outside");
+        fs::create_dir(&outside).unwrap();
+        fs::set_permissions(&outside, fs::Permissions::from_mode(0o700)).unwrap();
+        fs::write(outside.join("marker"), b"untouched").unwrap();
+        symlink(&outside, data.join(".tmp")).unwrap();
+        let before = fs::metadata(&outside).unwrap();
+        let spec: ContainerSpec = serde_json::from_value(serde_json::json!({
+            "name": "tmp-link", "image": "", "env": [], "labels": {},
+            "agent": {"binary": "/nonexistent-agent", "sandbox": "tmp-link", "epoch": 1,
+                "secret_env": "TEST_AGENT_SECRET", "domain": "pryx.test",
+                "agent_port": pryx_agent::contract::AGENT_PORT, "spare_ports": [], "keep_alive": true},
+            "user": "", "memory_bytes": 0, "cpu_shares": 0, "pids_limit": 0,
+            "read_only_rootfs": true, "tmp_size_mb": 0, "data_dir": data,
+            "mount_path": "/data", "ports": [{"container_port": pryx_agent::contract::AGENT_PORT,
+                "host_port": pryx_agent::contract::AGENT_PORT, "host_ips": ["127.0.0.1"], "protocol": "tcp"}],
+            "stop_signal": "SIGTERM", "stop_timeout_secs": 0, "network": "", "internal_network": false,
+            "log_max_size_mb": 0, "log_max_files": 0, "oom_score_adj": 0
+        }))
+        .unwrap();
+        runtime.create_entry(&spec).unwrap();
+        let result = runtime.launch_command(&runtime.entry(&spec.name).unwrap());
+        let after = fs::metadata(&outside).unwrap();
+        assert_eq!(
+            (after.uid(), after.gid(), after.mode(), after.ctime(), after.ctime_nsec()),
+            (before.uid(), before.gid(), before.mode(), before.ctime(), before.ctime_nsec()),
+            "the daemon changed the outside directory"
+        );
+        assert_eq!(fs::read(outside.join("marker")).unwrap(), b"untouched");
+        assert_eq!(fs::read_dir(&outside).unwrap().count(), 1);
+        assert!(result.is_err(), "a temporary-directory symlink must prevent launch");
+    }
+
+    #[test]
+    fn launch_passes_each_host_binding_to_the_agent_and_refuses_wildcards() {
+        let root = tempfile::tempdir().unwrap();
+        let runtime = ProcessRuntime::new(root.path(), ProcessConfig::default()).unwrap();
+        let data = root.path().join("data");
+        fs::create_dir(&data).unwrap();
+        let logical = pryx_agent::contract::AGENT_PORT;
+        let spec: ContainerSpec = serde_json::from_value(serde_json::json!({
+            "name": "bound", "image": "", "env": [], "labels": {},
+            "agent": {"binary": "/nonexistent-agent", "sandbox": "bound", "epoch": 1,
+                "secret_env": "TEST_AGENT_SECRET", "domain": "pryx.test",
+                "agent_port": logical, "spare_ports": [logical + 1], "keep_alive": true},
+            "user": "", "memory_bytes": 0, "cpu_shares": 0, "pids_limit": 0,
+            "read_only_rootfs": true, "tmp_size_mb": 0, "data_dir": data,
+            "mount_path": "/data", "ports": [
+                {"container_port": logical, "host_port": logical + 100, "host_ips": ["127.0.0.1", "::1"], "protocol": "tcp"},
+                {"container_port": logical + 1, "host_port": logical + 101, "host_ips": ["127.0.0.2"], "protocol": "tcp"}],
+            "stop_signal": "SIGTERM", "stop_timeout_secs": 0, "network": "", "internal_network": false,
+            "log_max_size_mb": 0, "log_max_files": 0, "oom_score_adj": 0
+        })).unwrap();
+        runtime.create_entry(&spec).unwrap();
+        let mut entry = runtime.entry(&spec.name).unwrap();
+        let command = runtime.launch_command(&entry).unwrap();
+        let arguments = command.get_args().map(|a| a.to_str().unwrap()).collect::<Vec<_>>();
+        let option = arguments.iter().position(|a| *a == "--host-bindings").unwrap();
+        let bindings: BTreeMap<u16, Vec<std::net::IpAddr>> = serde_json::from_str(arguments[option + 1]).unwrap();
+        assert_eq!(
+            bindings[&(logical + 100)],
+            vec!["127.0.0.1".parse::<std::net::IpAddr>().unwrap(), "::1".parse().unwrap()]
+        );
+        assert_eq!(bindings[&(logical + 101)], vec!["127.0.0.2".parse::<std::net::IpAddr>().unwrap()]);
+        entry.spec.ports[0].host_ips.clear();
+        assert!(runtime.launch_command(&entry).is_err());
+        entry.spec.ports[0].host_ips = vec![std::net::Ipv4Addr::UNSPECIFIED.into()];
+        assert!(runtime.launch_command(&entry).is_err());
     }
 }

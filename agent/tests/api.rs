@@ -336,3 +336,33 @@ async fn terminal_has_a_controlling_pty_and_resizes() {
         .collect::<Vec<_>>();
     assert!(String::from_utf8(output).unwrap().contains("24 80"));
 }
+
+#[tokio::test]
+async fn remote_transfers_cannot_contact_an_owned_loopback_server_or_replace_files() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let (dir, agent, token) = fixture().await;
+    std::fs::write(dir.path().join("payload"), b"original").unwrap();
+    let hits = Arc::new(AtomicUsize::new(0));
+    let count = hits.clone();
+    let app = axum::Router::new().route(
+        "/transfer",
+        axum::routing::any(move || {
+            let count = count.clone();
+            async move {
+                count.fetch_add(1, Ordering::SeqCst);
+                "external content"
+            }
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}/transfer", listener.local_addr().unwrap());
+    let server = tokio::spawn(axum::serve(listener, app).into_future());
+    for path in ["/_pryx/files/upload", "/_pryx/files/download"] {
+        let (status, _) = call(&agent, &token, "POST", path, json!({"path":"payload","url":url})).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    }
+    assert_eq!(hits.load(Ordering::SeqCst), 0);
+    assert_eq!(std::fs::read(dir.path().join("payload")).unwrap(), b"original");
+    server.abort();
+}
