@@ -85,15 +85,17 @@ async fn a_lost_start_response_is_confirmed_without_repeating_the_mutation() {
     )
     .unwrap();
     let name = format!("lost-start-{dep}");
+    let runtime = DockerRuntime::new(&socket).unwrap();
+    let image = "alpine:3.22";
+    runtime.ensure_image(image, Duration::from_secs(120)).await.unwrap();
     let options = bollard::query_parameters::CreateContainerOptionsBuilder::new().name(&name).build();
     let container = bollard::models::ContainerCreateBody {
-        image: Some("alpine:3.22".into()),
+        image: Some(image.into()),
         cmd: Some(vec!["sleep".into(), "300".into()]),
         labels: Some([(LABEL_DEPLOYMENT.to_owned(), dep.clone())].into_iter().collect()),
         ..Default::default()
     };
     backend.create_container(Some(options), container).await.unwrap();
-    let runtime = DockerRuntime::new(&socket).unwrap();
     let started = runtime.start(&name).await;
     release.notify_waiters();
     assert_eq!(starts.load(Ordering::SeqCst), 1, "a timed-out mutation is never repeated");

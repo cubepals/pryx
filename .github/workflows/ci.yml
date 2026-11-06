@@ -542,6 +542,9 @@ jobs:
           if-no-files-found: error
 
       - name: Check live provider credentials
+        # Live infrastructure credentials are only read by a trusted main push. Do not use
+        # a prior step's mutable environment flag as the trust decision.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           HETZNER_TOKEN: ${{ secrets.PRYX_HETZNER_TOKEN }}
         run: |
@@ -551,7 +554,7 @@ jobs:
             echo '::notice::Skipping Hetzner live provisioning because PRYX_HETZNER_TOKEN is absent'
           fi
       - name: Hetzner acquire, sandbox and release
-        if: env.HAS_HETZNER == 'true'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_HETZNER == 'true'
         env:
           PRYX_HETZNER_TOKEN: ${{ secrets.PRYX_HETZNER_TOKEN }}
           PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd

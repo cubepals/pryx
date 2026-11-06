@@ -56,7 +56,10 @@ runs before publishing percentiles. No provider credentials were configured in t
 | Manual | 0 | unavailable | unavailable | No SSH host/key supplied |
 | Fake (tests only) | 0 | not applicable | not applicable | Synthetic calls are not provisioning measurements |
 
-CI uses only the repository secret PRYX_HETZNER_TOKEN. It creates temporary network, firewall and
+CI reads the repository secret PRYX_HETZNER_TOKEN only on pushes to `refs/heads/main`.
+Both the credential check and live test independently require that event and ref; branch pushes
+and pull requests run the other suites without receiving provider credentials. The live test
+creates temporary network, firewall and
 SSH keys, restricts public ingress to the runner's SSH address, and uses strict known-host tunnels
 for bootstrap, node API and snapshot storage. It invokes the operator CLI for acquire/release and
 the public SDK for a real sandbox. Cleanup deletes only test-created resources. The step visibly
