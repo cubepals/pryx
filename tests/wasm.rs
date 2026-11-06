@@ -40,6 +40,7 @@ async fn real_wasm_files_processes_sleep_stop_and_isolation() {
         "require('node:http').createServer((req,res)=>res.end('declared')).listen(3000,'0.0.0.0')"
     ]);
     spec["resources"]["memoryMb"] = 256.into();
+    spec["resources"]["cpuReservationMillis"] = 250.into();
     spec["agent"] = serde_json::json!({"domain":"pryx.test", "keepAlive":false});
     spec["secrets"] = serde_json::json!({"APP_TOKEN":"wasm-private-fixture"});
     let spec: pryxd::protocol::WorkloadSpec = serde_json::from_value(spec).unwrap();
@@ -49,6 +50,7 @@ async fn real_wasm_files_processes_sleep_stop_and_isolation() {
     declared_http(&manager).await;
     let stats = serde_json::to_value(manager.stats(&support::id("wasm-one")).await.unwrap()).unwrap();
     assert_eq!(stats["pids"], 1);
+    assert!(stats["cpuLimitMillis"].is_null(), "an admission reservation is not a CPU ceiling");
     let request =
         |script: &str| ExecRequest { command: vec!["sh".into(), "-c".into(), script.into()], timeout_seconds: 10 };
     let first = manager

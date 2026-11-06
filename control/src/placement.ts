@@ -9,7 +9,8 @@
  */
 
 import type { Health } from './health.ts'
-import { nodeIsolation } from './isolation.ts'
+import { CPU_LIMIT_PROBLEM, nodeIsolation } from './isolation.ts'
+import type { RuntimeSpec } from './runtime-model.ts'
 
 type Policy = 'balanced' | 'binpack' | 'spread'
 export type Lifecycle = 'active' | 'draining' | 'lost' | 'retired'
@@ -18,6 +19,8 @@ export interface PlacementRequest {
   isolation?: import('./isolation.ts').Isolation
   memoryMb: number
   cpuMillis: number
+  /** Requires enforceable per-sandbox CPU quota or weight. */
+  cpuLimits?: boolean
   diskGb: number
   /** Host ports the workload needs. */
   ports: number
@@ -120,6 +123,7 @@ function refusal(node: NodeView, request: PlacementRequest, options: PlacementOp
   if (node.regionKey !== request.regionKey) return `region ${node.regionKey}`
   if ((request.isolation ?? 'container') !== nodeIsolation(node.features))
     return 'isolation tier does not match'
+  if (request.cpuLimits && nodeIsolation(node.features) !== 'container') return CPU_LIMIT_PROBLEM
   const missing = request.needs.filter((f) => !node.features.includes(f))
   if (missing.length > 0) return `lacks ${missing.join(', ')}`
   const memoryFree = node.capacity.allocatableMemoryMb - node.running.memoryMb - options.headroomMb
@@ -235,4 +239,12 @@ export function selectNode(
 /** CPU a workload is counted for when its spec names none: one core per `perGbMillis` × GB. */
 export function cpuRequest(memoryMb: number, perGbMillis: number): number {
   return Math.ceil((memoryMb / 1024) * perGbMillis)
+}
+
+/** Admission counts the larger reservation/ceiling; neither becomes an unenforced quota. */
+export function reservedCpu(resources: RuntimeSpec['resources'], perGbMillis: number): number {
+  return (
+    Math.max(resources.cpuReservationMillis ?? 0, resources.cpuMillis ?? 0) ||
+    cpuRequest(resources.memoryMb, perGbMillis)
+  )
 }

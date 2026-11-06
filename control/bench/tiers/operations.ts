@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Validated agent latency, retained files, package installations and concurrent admission. */
 import type { MakeRequest, Sandbox } from '../../../sdk/typescript/src/index.ts'
-import { TIER_BENCH_LARGE_UNIT, TIER_BENCH_LARGE_UNITS, TIER_BENCH_UNIT } from '../../e2e/runtime-config.ts'
+import { TIER_BENCH_LARGE_UNITS } from '../../e2e/runtime-config.ts'
 import type { Isolation } from '../../src/isolation.ts'
 import { type Context, context } from './context.ts'
 import { DATA_BYTES, measure, REPETITIONS, type Samples } from './report.ts'
@@ -10,7 +10,7 @@ export function creation(tier: Isolation): MakeRequest {
   return {
     isolation: tier,
     ...(tier === 'container' ? { image: process.env.PRYX_IMAGE_TEST ?? 'pryx-static-test' } : {}),
-    resources: TIER_BENCH_UNIT,
+    units: 1,
     sparePorts: 0,
   }
 }
@@ -163,7 +163,7 @@ export async function packages(c: Context, tier: Isolation, box: Sandbox, sample
           }
         },
         async () => {
-          pending = await c.sdk.sandbox({ ...creation(tier), resources: TIER_BENCH_LARGE_UNIT })
+          pending = await c.sdk.sandbox({ ...creation(tier), units: TIER_BENCH_LARGE_UNITS })
           if (pending.units !== TIER_BENCH_LARGE_UNITS) throw new Error('Package unit envelope differs')
           if (tier === 'wasm' && name === 'pip') {
             const absent = await pending.run([

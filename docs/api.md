@@ -64,6 +64,7 @@ prefixes and --expires-in. A value of unlimited resets a numeric/image limit to 
 
 Units default to 512 MiB and 250 CPU millis (PRYX_UNIT_MEMORY_MB/PRYX_UNIT_CPU_MILLIS).
 Create accepts units (default one) or explicit resources rounded upward to whole units.
+cpuReservationMillis records admission CPU, not an enforced ceiling. Container units retain their quotas. Process and Wasm units reserve CPU without a quota; explicit cpuMillis ceilings or cpuWeight requests on those tiers return 422 with the resource field identified. Use container isolation when those controls are required.
 Node listings include unitsFree and regional totals after host and running reservations.
 Project limits are maxUnits, maxSandboxes, maxRunning (including suspension with memory held),
 maxUnitsPerSandbox, maxTtl, maxIdle, maxExecTimeout, maxSnapshots, maxSnapshotBytes,

@@ -67,6 +67,14 @@ const request = (over: Partial<PlacementRequest> = {}): PlacementRequest => ({
 })
 
 describe('selectNode', () => {
+  test('hard CPU limits cannot be placed on a tier without cgroups', () => {
+    for (const isolation of ['process', 'wasm'] as const) {
+      const target = node(isolation, { features: ['placement-epochs', `${isolation}-tier`] })
+      expect(selectNode(request({ isolation, cpuLimits: true }), [target]).node).toBeNull()
+      expect(selectNode(request({ isolation, cpuLimits: false }), [target]).node?.id).toBe(isolation)
+    }
+    expect(selectNode(request({ cpuLimits: true }), [node('container')]).node?.id).toBe('container')
+  })
   test('process and container requests cannot cross isolation tiers', () => {
     const process = node('process', { features: ['placement-epochs', 'process-tier'] })
     expect(selectNode(request(), [process]).node).toBeNull()

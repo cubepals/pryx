@@ -150,6 +150,16 @@ export class PublicModel {
         packages: spec.packages,
       })
     spec = unitSpec(spec, this.boxes.projects?.unit)
+    if (spec.isolation !== 'container') {
+      for (const field of ['cpuMillis', 'cpuWeight'] as const) {
+        if (spec.resources[field] != null)
+          z.object({
+            resources: z.object({
+              [field]: z.never({ error: nodeSchema['x-pryx-resources'].cpuLimitProblem }),
+            }),
+          }).parse({ resources: { [field]: spec.resources[field] } })
+      }
+    }
     const id = options.id ?? op.id
     const result = await this.boxes.make(project, spec, {
       id,

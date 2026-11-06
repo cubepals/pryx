@@ -86,6 +86,7 @@ pub(crate) const FEATURES: &[&str] = &[
     "signed-upgrade",
     "exec-stream",
     "files",
+    "cpu-reservation",
 ];
 
 impl ProtocolVersions {
@@ -106,6 +107,7 @@ pub const WASM_IMAGE_PROBLEM: &str = "this host runs the wasm tier; images are n
 pub const MAX_WASM_PACKAGES: usize = 32;
 pub const PACKAGE_NAME_PATTERN: &str = "^[a-z][a-z0-9-]{0,63}$";
 pub const PROCESS_IMAGE_PROBLEM: &str = "this host runs the process tier; images are not available";
+pub const CPU_LIMIT_PROBLEM: &str = "CPU ceilings and weights require container isolation";
 
 /// The placement epoch a mutating request acts for: a fencing token the control plane issues,
 /// bumped each time a workload is placed anew (moved, recovered, or brought back). A node refuses

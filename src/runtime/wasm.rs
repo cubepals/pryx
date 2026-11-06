@@ -240,6 +240,9 @@ impl ContainerRuntime for WasmRuntime {
         if image.is_empty() { Ok(false) } else { Err(error(crate::protocol::WASM_IMAGE_PROBLEM)) }
     }
     async fn create(&self, spec: &ContainerSpec) -> Result<String, RuntimeError> {
+        if spec.nano_cpus.is_some() {
+            return Err(error(crate::protocol::CPU_LIMIT_PROBLEM));
+        }
         let id = format!("wasm-{}", uuid::Uuid::new_v4());
         launcher::traverse(&spec.data_dir, self.state.root.parent().expect("state directory"), self.state.owner)
             .map_err(error)?;

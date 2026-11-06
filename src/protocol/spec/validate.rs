@@ -195,23 +195,32 @@ impl WorkloadSpec {
 
     fn check_resources(&self, policy: &SpecPolicy, problems: &mut Problems) {
         let r = &self.resources;
+        if policy.process || policy.wasm {
+            for (field, present) in [("cpuMillis", r.cpu_millis.is_some()), ("cpuWeight", r.cpu_weight.is_some())] {
+                if present {
+                    problems.add(format!("resources.{field}"), crate::protocol::CPU_LIMIT_PROBLEM);
+                }
+            }
+        }
         if r.memory_mb < policy.min_memory_mb || r.memory_mb > policy.max_memory_mb {
             problems.add(
                 "resources.memoryMb",
                 format!("must be between {} and {} on this host", policy.min_memory_mb, policy.max_memory_mb),
             );
         }
-        if let Some(cpu) = r.cpu_millis
-            && (cpu < crate::protocol::MIN_CPU_MILLIS || cpu > policy.max_cpu_millis)
-        {
-            problems.add(
-                "resources.cpuMillis",
-                format!(
-                    "must be between {} and {} on this host",
-                    crate::protocol::MIN_CPU_MILLIS,
-                    policy.max_cpu_millis
-                ),
-            );
+        for (field, cpu) in [("cpuMillis", r.cpu_millis), ("cpuReservationMillis", r.cpu_reservation_millis)] {
+            if let Some(cpu) = cpu
+                && (cpu < crate::protocol::MIN_CPU_MILLIS || cpu > policy.max_cpu_millis)
+            {
+                problems.add(
+                    format!("resources.{field}"),
+                    format!(
+                        "must be between {} and {} on this host",
+                        crate::protocol::MIN_CPU_MILLIS,
+                        policy.max_cpu_millis
+                    ),
+                );
+            }
         }
         if let Some(weight) = r.cpu_weight
             && !CPU_WEIGHTS.contains(&weight)
@@ -325,6 +334,50 @@ mod tests {
         assert!(s.validate(&policy()).is_ok());
         assert_eq!(s.ports[0].protocol, Proto::Tcp, "tcp is the default");
         assert_eq!(s.restart, RestartSpec::default());
+    }
+
+    #[test]
+    fn tiers_without_cgroups_refuse_cpu_ceilings_and_weights() {
+        for wasm in [false, true] {
+            let mut p = policy();
+            p.process = !wasm;
+            p.wasm = wasm;
+            let mut v = example_spec();
+            v["image"] = "".into();
+            v["resources"]["cpuWeight"] = 1024.into();
+            let errors = spec(v).validate(&p).err().unwrap_or_default();
+            for field in ["resources.cpuMillis", "resources.cpuWeight"] {
+                assert!(errors.iter().any(|e| e.field == field), "unenforced {field} was accepted");
+            }
+        }
+    }
+
+    #[test]
+    fn cpu_reservations_are_bounded_admission_without_a_ceiling() {
+        for wasm in [false, true] {
+            let mut p = policy();
+            p.process = !wasm;
+            p.wasm = wasm;
+            let mut v = example_spec();
+            v["image"] = "".into();
+            v["resources"] = serde_json::json!({"memoryMb": 512, "cpuReservationMillis": 250});
+            let s = spec(v.clone());
+            assert!(s.validate(&p).is_ok());
+            assert_eq!(s.resources.cpu_millis, None);
+            assert_eq!(s.resources.cpu_reservation_millis, Some(250));
+            for cpu in [0, crate::protocol::MIN_CPU_MILLIS - 1, p.max_cpu_millis + 1] {
+                v["resources"]["cpuReservationMillis"] = cpu.into();
+                assert!(
+                    spec(v.clone())
+                        .validate(&p)
+                        .unwrap_err()
+                        .iter()
+                        .any(|e| e.field == "resources.cpuReservationMillis")
+                );
+            }
+        }
+        let r = spec(example_spec()).resources;
+        assert!(serde_json::to_value(r).unwrap().get("cpuReservationMillis").is_none());
     }
 
     #[test]

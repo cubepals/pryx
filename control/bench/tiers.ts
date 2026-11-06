@@ -56,8 +56,16 @@ for (const tier of ['container', 'process', 'wasm'] as const) {
   const extra: Record<string, unknown> = {
     tier,
     status: 'incomplete',
-    coldAndConcurrentResources: TIER_BENCH_UNIT,
-    hotAndInstallResources: TIER_BENCH_LARGE_UNIT,
+    coldAndConcurrentResources: {
+      memoryMb: TIER_BENCH_UNIT.memoryMb,
+      cpuReservationMillis: TIER_BENCH_UNIT.cpuMillis,
+      cpuLimitMillis: tier === 'container' ? TIER_BENCH_UNIT.cpuMillis : null,
+    },
+    hotAndInstallResources: {
+      memoryMb: TIER_BENCH_LARGE_UNIT.memoryMb,
+      cpuReservationMillis: TIER_BENCH_LARGE_UNIT.cpuMillis,
+      cpuLimitMillis: tier === 'container' ? TIER_BENCH_LARGE_UNIT.cpuMillis : null,
+    },
     cpuAdmissionOvercommit: TIER_BENCH_CPU_OVERCOMMIT,
     concurrentContext: mode === 'image' ? 'fresh context per sample' : 'one node reused for all samples',
     imageGatewayProfile: mode === 'image' && tier !== 'container' ? IMAGE_BENCH_GATEWAY : null,
@@ -83,7 +91,7 @@ for (const tier of ['container', 'process', 'wasm'] as const) {
     checkpoint()
     await cold(c, tier, samples)
     checkpoint()
-    const box = await c.sdk.sandbox({ ...creation(tier), resources: TIER_BENCH_LARGE_UNIT })
+    const box = await c.sdk.sandbox({ ...creation(tier), units: TIER_BENCH_LARGE_UNITS })
     try {
       if (box.units !== TIER_BENCH_LARGE_UNITS) throw new Error('Large cohort unit envelope differs')
       await hot(box, samples)

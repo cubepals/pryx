@@ -155,10 +155,13 @@ impl ProcessRuntime {
         Ok(command)
     }
     pub(super) async fn launch(&self, name: &str) -> Result<(), RuntimeError> {
+        let mut entry = self.entry(name)?;
+        if entry.spec.nano_cpus.is_some() {
+            return Err(error(crate::protocol::CPU_LIMIT_PROBLEM));
+        }
         if self.running(name)? {
             return Ok(());
         }
-        let mut entry = self.entry(name)?;
         let child = self.launch_command(&entry)?.spawn().map_err(error)?;
         entry.pid = Some(child.id());
         entry.ticks = identity(child.id());

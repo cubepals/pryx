@@ -139,7 +139,8 @@ mutually untrusted workloads; see [process isolation](docs/process-tier.md) and
   default), no capabilities, no privilege escalation, memory with no swap, a PID limit, an isolated
   network. A request can't relax any of it; it only picks its sizes, within bounds. CPU is shared
   by weight, in proportion to memory by default; there is a ceiling only when a request sets
-  `cpuMillis`, which the fleet control plane never sends.
+  `cpuMillis`. Container units retain their quotas. Process and Wasm use admission CPU
+  reservations and refuse explicit hard CPU limits or weights; see [tiers](docs/tiers.md).
 - **Only the edge and the control plane dial a workload.** Docker keeps workloads from reaching
   each other's own addresses, but not each other's published ports. So before every start, the
   unit runs `pryxd isolate`, as root, which puts one nftables table in place

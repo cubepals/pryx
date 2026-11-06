@@ -90,6 +90,10 @@ pub(crate) struct Resources {
     /// processors. Absent: no ceiling, weight only.
     #[serde(default)]
     pub(crate) cpu_millis: Option<u32>,
+    /// CPU reserved for admission, in thousandths of a core. This is not a CPU ceiling.
+    /// Sent only after the node announces cpu-reservation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) cpu_reservation_millis: Option<u32>,
     /// Share of CPU under contention, relative (cgroup weight). Absent: proportional to memory.
     #[serde(default)]
     pub(crate) cpu_weight: Option<u32>,

@@ -50,7 +50,7 @@ export async function projectUsage(q: Queryable, project: string, unit: UnitSize
   }>(
     q,
     sql`
-    SELECT (SELECT COALESCE(sum(COALESCE((spec->>'units')::int,GREATEST(1,ceil((spec->'resources'->>'memoryMb')::float8/${unit.memoryMb}),ceil(COALESCE((spec->'resources'->>'cpuMillis')::float8,0)/${unit.cpuMillis})))),0)::float8 FROM sandboxes WHERE project=${project} AND deleted_at IS NULL AND quota_running) AS units,
+    SELECT (SELECT COALESCE(sum(COALESCE((spec->>'units')::int,GREATEST(1,ceil((spec->'resources'->>'memoryMb')::float8/${unit.memoryMb}),ceil(GREATEST(COALESCE((spec->'resources'->>'cpuMillis')::float8,0),COALESCE((spec->'resources'->>'cpuReservationMillis')::float8,0))/${unit.cpuMillis})))),0)::float8 FROM sandboxes WHERE project=${project} AND deleted_at IS NULL AND quota_running) AS units,
       (SELECT count(*)::int FROM sandboxes WHERE project=${project} AND deleted_at IS NULL) AS sandboxes,
       (SELECT count(*)::int FROM sandboxes WHERE project=${project} AND deleted_at IS NULL AND quota_running) AS running,
       (SELECT count(*)::int FROM sandbox_snapshots s JOIN sandboxes b ON b.id=s.sandbox WHERE b.project=${project} AND s.deleted_at IS NULL) AS snapshots,

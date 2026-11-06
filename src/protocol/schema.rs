@@ -76,7 +76,8 @@ fn document(title: &str, contract: Contract, add: impl FnOnce(&mut SchemaGenerat
         "components": { "schemas": generator.take_definitions(true) },
         "x-pryx-resources": {
             "minCpuMillis": crate::protocol::MIN_CPU_MILLIS,
-            "defaultMinMemoryMb": crate::protocol::DEFAULT_MIN_MEMORY_MB
+            "defaultMinMemoryMb": crate::protocol::DEFAULT_MIN_MEMORY_MB,
+            "cpuLimitProblem": crate::protocol::CPU_LIMIT_PROBLEM
         },
         "x-pryx-network": {"defaultPortRange": crate::protocol::DEFAULT_PORT_RANGE},
         "x-pryx-wasm": {"imageProblem": crate::protocol::WASM_IMAGE_PROBLEM, "portProblem": crate::protocol::WASM_PORT_PROBLEM, "maxPackages": crate::protocol::MAX_WASM_PACKAGES, "packageNamePattern": crate::protocol::PACKAGE_NAME_PATTERN},

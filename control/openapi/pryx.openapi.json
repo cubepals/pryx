@@ -4162,6 +4162,19 @@
                   }
                 ]
               },
+              "cpuReservationMillis": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "CPU reserved for admission, in thousandths of a core. This is not a CPU ceiling.\nSent only after the node announces cpu-reservation."
+              },
               "cpuWeight": {
                 "default": null,
                 "description": "Share of CPU under contention, relative (cgroup weight). Absent: proportional to memory.",
@@ -4600,6 +4613,19 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "cpuReservationMillis": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "CPU reserved for admission, in thousandths of a core. This is not a CPU ceiling.\nSent only after the node announces cpu-reservation."
                   },
                   "cpuWeight": {
                     "default": null,

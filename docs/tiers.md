@@ -94,6 +94,7 @@ candidates. These are fresh sandboxes, without a pre-created VM or warmed comman
 | Shell | Static agent fallback | Static agent shell | Verified agentOS coreutils shell |
 | Isolation | Shared host kernel, namespaces and cgroups | Landlock, seccomp, process groups; dedicated UIDs when root; shared host network, mutually trusted Internet workloads | Virtual kernel, WebAssembly and V8; shared unprivileged sidecar |
 | Kernel per sandbox | No | No | No native kernel; a virtual kernel per VM |
+| CPU enforcement | Per-sandbox cgroup quota and weight | Admission reservation and best-effort nice; hard CPU limits/weights refused | Admission reservation; hard CPU limits/weights refused |
 | Sleep retains files | Yes | Yes | SQLite root and explicit persistent data mount |
 | Application ingress | TCP/UDP according to host policy | Host TCP according to policy | HTTP over TCP; no UDP, raw TCP, TLS passthrough or app WebSockets |
 | Sleep retains processes and terminals | Frozen container | Suspended process group | No; VM is disposed and recreated |

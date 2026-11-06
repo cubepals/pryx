@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
-// Generated from openapi/node-reads.openapi.json; sha256 645241fd0f75a522b45622492002b7911f857871dab4a2de0ffb39f83458de4f.
+// Generated from openapi/node-reads.openapi.json; sha256 cd7b20d1969a1bf66e6e6543327e61acc582a177f964b8470f1eaed8d78ecf79.
 export type paths = Record<string, never>;
 export type webhooks = Record<string, never>;
 export interface components {
@@ -174,6 +174,12 @@ export interface components {
              * @default null
              */
             cpuMillis?: number | null;
+            /**
+             * Format: uint32
+             * @description CPU reserved for admission, in thousandths of a core. This is not a CPU ceiling.
+             *     Sent only after the node announces cpu-reservation.
+             */
+            cpuReservationMillis?: number | null;
             /**
              * Format: uint32
              * @description Share of CPU under contention, relative (cgroup weight). Absent: proportional to memory.

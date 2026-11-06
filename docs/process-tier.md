@@ -40,12 +40,20 @@ denied. clone3 returns ENOSYS so libc can use the checked clone fallback. no_new
 prevents setuid executables gaining privileges. The existing platform seccomp policy stays active.
 
 Host policy fixes rlimits for virtual address space, descriptors, per-UID processes and CPU
-time. The virtual ceiling allows V8's large virtual reservations; it is separate from the
-resident budget. Nice provides a relative CPU share, not a CPU quota. The agent samples the
+time per process, not an aggregate tree CPU allowance. The virtual ceiling allows V8's large
+virtual reservations; it is separate from the resident budget. Nice is a best-effort process
+priority, not a per-sandbox CPU weight or quota. A process spec requesting `resources.cpuMillis`
+or `resources.cpuWeight` is refused with 422 before compute starts. Use a container host for
+those controls. Units reserve `cpuReservationMillis` for admission; stats report no enforced
+CPU ceiling for this tier. The agent samples the
 entire descendant tree's RSS every 100 ms and kills it when its memory budget is exceeded.
 This is not a hard memory cap: allocations can overshoot between samples, and shared pages
 may be counted more than once. Admission uses the enclosing container's readable memory
 allowance, not unrestricted host RAM. The enclosing platform's own memory limit still applies.
+
+Existing native specifications naming a CPU ceiling must be recreated as unit/admission-only
+specifications before restarting. Explicit hard-limit requests are never silently downgraded
+to reservations; persistent data is retained.
 
 Network-off is a filter, not a namespace. Landlock TCP connect filtering is used where
 available; the announced seccomp fallback also denies connect, bind, sendto, sendmsg and

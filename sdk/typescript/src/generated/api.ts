@@ -542,6 +542,11 @@ export interface components {
                  */
                 cpuMillis?: number | null;
                 /**
+                 * @description CPU reserved for admission, in thousandths of a core. This is not a CPU ceiling.
+                 *     Sent only after the node announces cpu-reservation.
+                 */
+                cpuReservationMillis?: number | null;
+                /**
                  * @description Share of CPU under contention, relative (cgroup weight). Absent: proportional to memory.
                  * @default null
                  */
@@ -677,6 +682,11 @@ export interface components {
                      * @default null
                      */
                     cpuMillis?: number | null;
+                    /**
+                     * @description CPU reserved for admission, in thousandths of a core. This is not a CPU ceiling.
+                     *     Sent only after the node announces cpu-reservation.
+                     */
+                    cpuReservationMillis?: number | null;
                     /**
                      * @description Share of CPU under contention, relative (cgroup weight). Absent: proportional to memory.
                      * @default null

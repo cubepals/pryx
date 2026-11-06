@@ -2,6 +2,7 @@
 /** Project configuration and unit accounting. Node wire schemas remain owned by Rust. */
 import { z } from 'zod'
 import { SECOND_MS } from './durations.ts'
+import type { Isolation } from './isolation.ts'
 import type { NodeSummary } from './registry/summaries.ts'
 import type { WorkloadSpec } from './wire.ts'
 
@@ -25,7 +26,13 @@ export const limitsSchema = z
   .strict()
 export type ProjectLimits = z.infer<typeof limitsSchema>
 export type UnitSize = { memoryMb: number; cpuMillis: number }
-export type ProjectSpec = WorkloadSpec & { image: string; units?: number; ttl?: number; idle?: number }
+export type ProjectSpec = WorkloadSpec & {
+  image: string
+  isolation?: Isolation
+  units?: number
+  ttl?: number
+  idle?: number
+}
 export const LIMIT_COLUMNS = {
   maxUnits: 'max_units',
   maxSandboxes: 'max_sandboxes',
@@ -71,6 +78,7 @@ export function unitsFor(spec: Pick<ProjectSpec, 'resources'>, size: UnitSize = 
     1,
     Math.ceil(spec.resources.memoryMb / size.memoryMb),
     Math.ceil((spec.resources.cpuMillis ?? 0) / size.cpuMillis),
+    Math.ceil((spec.resources.cpuReservationMillis ?? 0) / size.cpuMillis),
   )
 }
 export function unitSpec(spec: ProjectSpec, size: UnitSize = UNIT_DEFAULTS): ProjectSpec {
@@ -78,7 +86,14 @@ export function unitSpec(spec: ProjectSpec, size: UnitSize = UNIT_DEFAULTS): Pro
   return {
     ...spec,
     units,
-    resources: { ...spec.resources, memoryMb: units * size.memoryMb, cpuMillis: units * size.cpuMillis },
+    resources: {
+      ...spec.resources,
+      memoryMb: units * size.memoryMb,
+      cpuReservationMillis: units * size.cpuMillis,
+      ...(spec.resources.cpuMillis != null || (spec.isolation ?? 'container') === 'container'
+        ? { cpuMillis: units * size.cpuMillis }
+        : {}),
+    },
   }
 }
 export function freeUnits(node: Pick<NodeSummary, 'capacity' | 'running'>, unit: UnitSize = UNIT_DEFAULTS) {

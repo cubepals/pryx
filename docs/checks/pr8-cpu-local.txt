@@ -1,0 +1,1346 @@
+Full Rust command: PRYX_AGENTOS_DISTRIBUTION=/tmp/pryx-agentos-staged CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 cargo test --locked --no-fail-fast
+Result: 383 passed, 0 failed, 13 existing ignores. Root/Docker checks run in CI; the opt-in storage benchmark was measured separately earlier.
+Strengthened live-supervisor journal regression additionally rerun after the full suite.
+Full Bun check with real local Postgres: 303 passed, 0 failed, 7376 assertions.
+Both clippy modes, cargo deny, Rust and TypeScript structure without baseline growth, format, docs, REUSE and whitespace checks pass.
+
+   Compiling pryxd v0.1.0 (/workspace/pryx)
+    Finished `test` profile [unoptimized] target(s) in 1m 32s
+     Running unittests src/lib.rs (target/debug/deps/pryx_agent-72e1d78c1f61d851)
+
+running 17 tests
+test auth::tests::malformed_and_oversized_tokens_are_refused ... ok
+test auth::tests::signed_claims_cannot_gain_an_unbounded_or_future_lifetime ... ok
+test auth::tests::a_token_is_bound_to_key_sandbox_epoch_and_expiry ... ok
+test paths::tests::a_fifo_is_refused_without_waiting_for_a_writer ... ok
+test paths::tests::files_remain_under_the_open_root ... ok
+test bootstrap::tests::process_bootstrap_requires_complete_explicit_bindings ... ok
+test process_peer::tests::owned_peer_fixture ... ok
+test process_peer::tests::exited_supervisor_cannot_authorize_a_peer ... ok
+test process_peer::tests::same_uid_foreign_listener_is_refused_before_connect ... ok
+test process_policy::filter::tests::guest_signals_cannot_reach_supervisor_threads ... ok
+test transfer_target::tests::connector_resolution_never_rebinds_or_resolves_another_host ... ok
+test transfer_target::tests::refuses_each_non_public_address_class_and_encoded_variants ... ok
+test transfer_target::tests::rejects_empty_and_mixed_public_private_dns_answers ... ok
+test transfer_target::tests::rejects_resolved_localhost_bad_schemes_and_user_information ... ok
+test process_peer::tests::connects_to_owned_child_ipv4_and_dual_stack_ipv6 ... ok
+test process_policy::filter::tests::guest_tgkill_can_still_signal_its_child ... ok
+test process_peer::tests::owned_port_does_not_authorize_a_different_connected_peer ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.04s
+
+     Running unittests src/main.rs (target/debug/deps/pryx_agent-ff7d248a15902151)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/api.rs (target/debug/deps/api-bf45206590c818f6)
+
+running 9 tests
+test output_is_live_and_processes_outlive_their_first_observer ... ok
+test authentication_precedes_process_creation_and_keys_bind_requests ... ok
+test route_capabilities_allow_only_readiness_and_port_reads ... ok
+test file_urls_are_bound_to_one_path_method_and_short_expiry ... ok
+test mcp_runs_real_processes_and_enforces_file_and_timeout_authority ... ok
+test remote_transfers_cannot_contact_an_owned_loopback_server_or_replace_files ... ok
+test terminal_has_a_controlling_pty_and_resizes ... ok
+test streamed_files_have_no_sdk_chunk_limit_and_cannot_follow_links ... ok
+test stdin_environment_cwd_and_deadlines_use_real_processes ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.04s
+
+     Running tests/bootstrap.rs (target/debug/deps/bootstrap-43ca26599e215261)
+
+running 2 tests
+test agent_and_spare_listeners_are_unreachable_on_non_configured_interfaces ... ok
+test process_spare_cannot_forward_a_service_outside_its_supervisor_tree ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running tests/logbook.rs (target/debug/deps/logbook-968c971a2468524b)
+
+running 2 tests
+test logs_survive_restart_and_internal_state_stays_out_of_user_lists ... ok
+test rotation_bounds_memory_and_disk_and_slow_readers_observe_a_gap ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+
+     Running tests/privacy.rs (target/debug/deps/privacy-98dac9b12269fef7)
+
+running 2 tests
+test embedded_printf_does_not_depend_on_external_utilities ... ok
+test same_user_processes_cannot_read_the_agent_environment ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running tests/process_policy.rs (target/debug/deps/process_policy-b9ded5892c5d36d6)
+
+running 3 tests
+test process_policy_is_enforced_or_compute_is_refused ... ok
+test command_launcher_protects_parent_but_allows_self_signals ... ok
+test network_off_denies_connections_without_another_namespace ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+
+     Running tests/schema.rs (target/debug/deps/schema-9690b512e2f84fa5)
+
+running 1 test
+test the_committed_agent_schema_matches_serde ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/streams.rs (target/debug/deps/streams-92a538b47f0f7e9e)
+
+running 4 tests
+test spare_ports_forward_locally_and_unexpose_closes_connections ... ok
+test port_assignments_restore_from_an_atomic_checkpoint ... ok
+test websocket_authenticates_before_attachment_and_passes_stdin ... ok
+test file_watch_observes_the_open_directory ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running unittests src/lib.rs (target/debug/deps/pryxd-2898cecbd2b7d2e8)
+
+running 206 tests
+test api::exec_stream::tests::utf8_boundaries_match_the_buffered_result ... ok
+test api::handshake::tests::places_are_capped_per_address_and_overall_and_given_back ... ok
+test api::exec_stream::tests::buffered_tail_completes_a_live_utf8_prefix ... ok
+test cli::port_reservation::tests::reservations_merge_without_losing_other_services ... ok
+test cli::reenroll::tests::a_node_re_enrolls_under_its_own_id_and_drops_the_old_identity_once_it_beats ... ok
+test cli::port_reservation::tests::installation_updates_kernel_and_persistent_policy_idempotently ... ok
+test cli::reenroll::tests::a_token_naming_a_new_ca_replaces_the_hosts ... ok
+test cli::service::tests::a_beat_counts_once_the_control_plane_accepted_one ... ok
+test config::tests::addresses_others_dial_are_never_unspecified ... ok
+test config::tests::an_image_prefix_ends_where_a_path_tag_or_digest_starts ... ok
+test config::tests::minimal_config_takes_safe_defaults ... ok
+test config::tests::one_put_carries_at_least_a_mebibyte_and_never_more_than_any_store_takes ... ok
+test cli::reenroll::tests::an_enrolled_identity_is_kept_when_its_first_beat_is_slow ... ok
+test config::tests::root_workloads_and_unknown_keys_are_refused ... ok
+test config::tests::the_example_config_is_valid ... ok
+test config::tests::the_example_fleet_mode_is_valid ... ok
+test config::tests::the_fleet_url_is_one_the_node_can_call ... ok
+test config::tests::the_example_states_every_default ... ok
+test cli::reenroll::tests::without_a_beat_the_old_identity_and_ca_come_back ... ok
+test config::tests::the_ops_listener_stays_off_public_addresses ... ok
+test config::tests::unknown_keys_in_a_section_are_refused ... ok
+test doctor::config::tests::a_missing_or_invalid_file_fails_and_stops_pryxd ... ok
+test doctor::docker::tests::a_host_set_up_like_deploy_passes ... ok
+test doctor::docker::tests::a_network_pryxd_hasnt_made_yet_passes_and_json_file_with_max_size_is_bounded ... ok
+test doctor::docker::tests::docker_down_is_a_warning_and_daemon_json_is_still_read ... ok
+test doctor::docker::tests::an_unreadable_daemon_json_says_so ... ok
+test doctor::docker::tests::live_restore_off_cgroup_v1_and_shared_network_warn ... ok
+test doctor::fix::tests::a_host_with_servers_is_left_alone ... ok
+test doctor::config::tests::fleet_mode_without_identity_or_token_fails_but_loads ... ok
+test doctor::fix::tests::merging_keeps_the_hosts_own_settings_and_lays_blocklys_over_them ... ok
+test doctor::host::tests::a_machine_id_of_its_own_passes ... ok
+test doctor::host::tests::an_unsynchronised_clock_warns ... ok
+test doctor::network::tests::free_ports_pass_and_taken_ones_warn ... ok
+test doctor::network::tests::listeners_stay_off_public_addresses ... ok
+test doctor::state::tests::a_data_owner_pryxd_cant_give_to_fails_and_stops_pryxd ... ok
+test doctor::fix::tests::a_fresh_host_gets_its_state_dir_and_daemon_json ... ok
+test doctor::state::tests::a_file_where_the_state_dir_goes_stops_pryxd ... ok
+test doctor::state::tests::a_missing_state_dir_is_a_warning_pryxd_fixes_itself ... ok
+test doctor::state::tests::a_usable_state_dir_passes_and_reflink_is_never_worse_than_a_warning ... ok
+test doctor::state::tests::disk_below_the_floor_warns ... ok
+test doctor::state::tests::serving_this_config_is_this_pryxd ... ok
+test doctor::state::tests::workloads_and_their_ports_come_from_records ... ok
+test doctor::tests::json_has_name_status_detail_and_fix ... ok
+test doctor::tests::preflight_fails_only_on_what_stops_pryxd_today ... ok
+test durable::tests::a_failed_write_leaves_the_old_file_and_no_temp_file ... ok
+test doctor::state::tests::a_lock_held_by_something_other_than_this_pryxd_fails ... ok
+test doctor::fix::tests::daemon_json_is_written_with_a_backup_and_left_alone_once_it_matches ... ok
+test durable::tests::a_file_is_replaced_whole_at_its_mode_and_leaves_nothing_beside_it ... ok
+test durable::tests::a_tree_is_synced_on_the_filesystem_it_went_to ... ok
+test api::handshake::tests::refusals_are_summed_up_in_one_warning_a_window ... ok
+test fleet::heartbeat::tests::a_stop_is_reported_within_about_a_second ... ok
+test fleet::heartbeat::tests::a_beat_that_failed_is_not_retried_sooner_for_a_change ... ok
+test fleet::token::tests::a_bare_token_is_not_a_join_token_but_still_reads ... ok
+test fleet::token::tests::a_damaged_token_is_refused_and_says_so ... ok
+test fleet::token::tests::a_join_token_carries_the_endpoint_the_ca_the_deployment_and_the_secret ... ok
+test fleet::token::tests::a_token_that_re_enrolls_a_node_names_it ... ok
+test fleet::token::tests::the_endpoint_may_be_an_address_a_name_or_a_path_under_one ... ok
+test host::tests::reads_this_host ... ok
+test http_client::tests::a_root_that_doesnt_parse_leaves_the_rest_of_the_system_bundle_trusted ... ok
+test fleet::heartbeat::tests::an_answers_fences_are_applied_without_holding_up_the_next_beat ... ok
+test http_client::tests::a_tls_failure_is_final_only_when_rustls_refused ... ok
+test http_client::tests::an_answer_cut_short_is_asked_again_and_one_that_isnt_json_is_not ... ok
+test http_client::tests::a_small_get_whose_body_stops_coming_ends_within_its_limit ... ok
+test ids::tests::accepts_uuids_and_labels ... ok
+test ids::tests::deserializing_validates ... ok
+test ids::tests::refuses_anything_that_could_escape_a_path_or_a_name ... ok
+test infer::tests::a_wireguard_address_counts_whatever_its_range ... ok
+test infer::tests::one_private_address_is_where_a_fleet_node_serves ... ok
+test infer::tests::the_host_keeps_a_sixteenth_of_its_memory_and_never_less_than_before ... ok
+test infer::tests::two_private_addresses_or_none_is_a_question_for_the_operator ... ok
+test infer::tests::what_the_file_sets_wins_and_a_single_node_keeps_loopback ... ok
+test isolation::tests::ports_nftables_would_refuse_are_written_another_way ... ok
+test isolation::tests::the_rules_drop_new_connections_from_the_bridge_only ... ok
+test manager::agent_keys::tests::keys_survive_compute_replacement_but_not_epoch_change_or_data_delete ... ok
+test manager::archive::tests::a_copy_the_floor_or_a_full_disk_stopped_is_insufficient_disk_and_any_other_failure_internal ... ok
+test manager::archive::tests::an_archive_one_put_cant_carry_is_refused_before_it_is_sent ... ok
+test manager::exec::tests::active_keys_survive_capacity_and_expiry ... ok
+test manager::logs::tests::log_chunks_become_records ... ok
+test manager::node::tests::workloads_may_be_given_what_the_reserve_leaves_and_no_more_than_the_ceiling ... ok
+test manager::reconcile::tests::reconciliation_does_not_reclaim_a_deletes_quarantined_port ... ok
+test manager::reconcile::tests::reconciliation_keeps_a_creates_unpersisted_port_reservation ... ok
+test fleet::heartbeat::tests::nothing_changed_waits_out_the_interval ... ok
+test manager::room::tests::a_long_write_looks_at_the_floor_every_few_hundred_mib_not_every_write ... ok
+test manager::workload_state::tests::exits_are_stops_or_crashes_by_what_was_asked ... ok
+test manager::workload_state::tests::missing_vs_unknown_depends_on_whether_the_runtime_answered ... ok
+test manager::workload_state::tests::only_a_workload_asked_to_suspend_reads_as_suspended ... ok
+test metrics::tests::canonical_metrics_keep_their_prefix_and_the_debug_contract_has_its_lease_alias ... ok
+test metrics::tests::only_the_usual_methods_are_named_in_a_label ... ok
+test ports::tests::allocates_lowest_free_and_never_twice ... ok
+test ports::tests::an_unreserved_port_is_free_again_at_once ... ok
+test ports::tests::claims_rebuild_state_and_catch_conflicts ... ok
+test ports::tests::ports_held_by_other_processes_are_skipped ... ok
+test ports::tests::quarantine_survives_a_snapshot_and_restore ... ok
+test ports::tests::release_only_touches_the_holders_port ... ok
+test ports::tests::released_ports_rest_before_reuse ... ok
+test ports::tests::the_real_probe_sees_a_bound_port ... ok
+test ports::tests::without_quarantine_a_port_comes_back ... ok
+test priority::tests::a_transfer_works_at_idle_priority_and_hands_its_thread_back_as_it_was ... ok
+test priority::tests::idle_nests_and_the_outer_one_puts_the_thread_back ... ok
+test protocol::exec::tests::exec_requests_are_bounded ... ok
+test protocol::exec::tests::fingerprints_separate_arguments ... ok
+test http_client::tests::an_answer_whose_body_stops_coming_ends_within_the_callers_limit ... ok
+test protocol::schema::the_documents_follow_serde_in_each_direction ... ok
+test protocol::spec::tests::a_kept_spec_is_whole_again_only_with_every_secret_it_names ... ok
+test protocol::spec::tests::a_secret_never_shows_in_debug_output_or_the_record ... ok
+test protocol::schema::the_committed_documents_are_what_the_wire_types_say ... ok
+test protocol::spec::tests::the_digest_of_a_spec_is_the_same_in_every_build ... ok
+test protocol::spec::tests::the_digest_is_stable_and_ignores_secret_values ... ok
+test protocol::spec::tests::unknown_fields_are_refused_not_ignored ... ok
+test protocol::spec::validate::tests::an_example_runtime_spec_is_valid ... ok
+test protocol::spec::validate::tests::cpu_reservations_are_bounded_admission_without_a_ceiling ... ok
+test protocol::spec::validate::tests::every_problem_is_reported_at_once ... ok
+test protocol::spec::tests::what_a_spec_leaves_out_takes_the_one_default ... ok
+test protocol::spec::validate::tests::mount_paths_are_plain ... ok
+test protocol::spec::validate::tests::ports_must_be_distinct_and_audienced ... ok
+test protocol::spec::validate::tests::tiers_without_cgroups_refuse_cpu_ceilings_and_weights ... ok
+test protocol::spec::validate::tests::wasm_refuses_udp_ingress ... ok
+test protocol::tests::features_only_grow ... ok
+test protocol::tests::this_build_speaks_its_own_protocol_version ... ok
+test protocol::transfer::tests::signatures_never_reach_a_log ... ok
+test runtime::docker::relay::tests::tcp_relay_preserves_bytes_and_cancellation_closes_connections ... ok
+test protocol::spec::validate::tests::secrets_are_held_to_the_env_rules_and_limits ... ok
+test runtime::docker::relay::tests::udp_relay_keeps_each_peers_reply_address ... ok
+test runtime::docker::tests::explicit_entrypoint_does_not_append_the_images_default_command ... ok
+test runtime::docker::tests::docker_is_never_asked_to_restart_a_workload ... ok
+test runtime::docker::tests::only_a_reference_without_tag_or_digest_is_pulled_as_latest ... ok
+test runtime::docker::tests::the_tree_walk_never_starts_from_0_or_1 ... ok
+test runtime::docker::tests::killing_from_0_or_1_signals_nothing ... ok
+test runtime::process::journal::tests::a_missing_start_time_never_identifies_a_running_process ... ok
+test runtime::process::journal::tests::cpu_ceilings_are_refused_before_creation_or_journal_relaunch ... ok
+test runtime::process::journal::tests::owner_reservations_survive_restart_and_release ... ok
+test runtime::process::journal::tests::private_journals_reject_symlinks_and_public_permissions ... ok
+test runtime::process::journal::tests::removal_keeps_the_child_until_termination_is_reaped ... ok
+test runtime::process::logs::tests::logs_decode_timestamps_tail_and_since ... ok
+test runtime::process::power::tests::launch_passes_each_host_binding_to_the_agent_and_refuses_wildcards ... ok
+test runtime::process::power::tests::launch_refuses_a_temporary_directory_symlink_without_touching_its_target ... ok
+test runtime::tests::docker_zero_time_is_none ... ok
+test runtime::wasm::frontend::tests::disposal_closes_keepalive_and_cancels_unfinished_uploads ... ok
+test runtime::wasm::host::tests::listeners_use_only_the_host_selected_addresses ... ok
+test manager::restarts::tests::only_a_crash_is_due_a_restart_never_a_stop_that_ended_badly ... ok
+test store::leftovers::tests::what_a_crash_left_is_removed_and_what_needs_a_human_is_left ... ok
+test store::quarantine::tests::ports_in_quarantine_are_read_back_as_saved ... ok
+test store::restore::tests::a_restore_is_swapped_in_whole_by_either_route ... ok
+test store::snapshots::tests::a_snapshot_exists_once_its_description_is_written ... ok
+test store::tests::a_record_from_before_restart_counts_loads_with_none ... ok
+test store::tests::a_suspend_record_is_kept_only_while_it_holds_something ... ok
+test store::tests::abandon_never_removes_data ... ok
+test store::tests::one_daemon_per_state_dir ... ok
+test store::tests::orphan_dirs_are_found ... ok
+test store::tests::records_round_trip_and_bad_ones_are_reported_not_lost ... ok
+test store::tests::saves_of_one_record_at_once_each_leave_it_whole ... ok
+test store::tests::trash_does_not_replace_even_an_empty_existing_entry ... ok
+test store::tests::trash_moves_everything_and_purges_only_when_old ... ok
+test store::tests::trash_preserves_every_generation_deleted_in_one_second ... ok
+test store::tests::whether_data_can_go_to_the_workloads_user_is_known_up_front ... ok
+test store_lease::client::exchange_tests::store_time_skew_cas_refusal_and_cut_never_grant_extra_time ... ok
+test store_lease::client::tests::authority_is_anchored_before_network_and_rounded_early ... ok
+test store_lease::guard::tests::fence_attempts_both_controls_and_leaves_parent_frozen ... ok
+test store_lease::policy_tests::feature_off_hosts_are_untouched_and_enabled_policy_cannot_silently_downgrade ... ok
+test tarball::tests::a_file_that_changes_while_read_keeps_its_stated_size ... ok
+test fleet::heartbeat::tests::under_steady_churn_beats_come_once_a_second ... ok
+test tarball::tests::a_pack_stops_when_the_disk_has_no_room ... ok
+test tarball::tests::a_pax_size_near_the_largest_number_is_too_large_not_an_overflow ... ok
+test tarball::tests::a_world_round_trips_with_its_hash ... ok
+test tarball::tests::an_archive_in_several_gzip_members_unpacks_whole ... ok
+test tarball::tests::an_unpack_stops_when_the_disk_has_no_room ... ok
+test tarball::tests::climbing_out_refuses_the_whole_archive ... ok
+test tarball::tests::data_stating_more_than_a_restore_takes_is_refused_before_it_is_packed ... ok
+test tarball::tests::entries_named_for_the_root_count_toward_what_unpacks ... ok
+test tarball::tests::garbage_is_damaged_not_a_panic ... ok
+test tarball::tests::links_and_devices_are_skipped_and_modes_are_tamed ... ok
+test tarball::tests::long_names_and_pax_records_of_ordinary_size_still_unpack ... ok
+test tarball::tests::metadata_larger_than_a_mebibyte_is_damaged_before_it_is_held ... ok
+test tree::tests::a_copy_holds_the_same_bytes_and_tamed_modes ... ok
+test tree::tests::a_copy_stops_when_the_disk_has_no_room ... ok
+test tree::tests::a_directory_of_more_names_than_a_walk_takes_is_refused_before_any_is_visited ... ok
+test tree::tests::a_directory_swapped_for_a_link_mid_walk_is_never_followed ... ok
+test runtime::process::journal::tests::observation_cannot_restore_removed_compute ... ok
+test tree::tests::a_tree_stating_more_than_a_restore_takes_is_refused_before_it_is_copied ... ok
+test tree::tests::a_walk_visits_parents_first_in_order_and_leaves_out_what_is_excluded ... ok
+test tree::tests::disk_usage_counts_an_honest_tree_as_it_always_did ... ok
+test tree::tests::disk_usage_never_counts_or_enters_a_directory_swapped_for_a_link ... ok
+test tree::tests::exclusion_is_by_top_level_name_only ... ok
+test tree::tests::links_are_reported_never_followed_and_fifos_are_never_opened ... ok
+test upgrade::backstop::tests::a_trial_not_ended_by_the_deadline_stops_the_process_and_one_ended_never_does ... ok
+test upgrade::backstop::tests::only_a_start_on_trial_is_armed ... ok
+test upgrade::stopped::tests::systemd_says_whether_a_stop_failed_and_its_exit_says_how ... ok
+test upgrade::stopped::tests::the_state_directory_is_read_from_its_key_alone ... ok
+test upgrade::tests::a_control_plane_without_a_binary_fails_the_upgrade_and_one_that_is_down_is_tried_again ... ok
+test upgrade::tests::a_failed_trial_puts_the_binary_before_back_and_says_why ... ok
+test upgrade::tests::a_plain_binary_is_moved_under_the_state_directory_and_linked ... ok
+test upgrade::tests::a_swap_keeps_the_binary_before_and_puts_the_new_one_on_trial ... ok
+test tree::tests::a_long_file_is_stopped_at_the_floor_while_it_is_copied ... ok
+test upgrade::tests::a_trial_ends_with_a_heartbeat_once_reconciled_or_puts_the_binary_before_back ... ok
+test tarball::tests::a_long_file_is_stopped_at_the_floor_while_it_is_packed ... ok
+test upgrade::tests::a_version_is_what_the_binary_prints ... ok
+test upgrade::tests::after_a_stop_only_a_trial_that_exited_badly_is_put_back ... ok
+test upgrade::trust::tests::a_node_never_goes_back_to_an_older_pryxd ... ok
+test upgrade::trust::tests::a_public_key_is_read_from_its_pem_as_openssl_and_rcgen_write_it ... ok
+test upgrade::trust::tests::a_signature_for_the_previous_release_statement_is_refused ... ok
+test upgrade::trust::tests::an_offer_is_trusted_only_signed_for_its_version_and_sha256 ... ok
+test upgrade::trust::tests::legacy_statement_is_scoped_to_explicit_debug_keys ... ok
+test upgrade::trust::tests::the_release_keys_are_ed25519_keys ... ok
+test upgrade::tests::an_offer_without_a_release_signature_for_it_is_never_downloaded_or_run ... ok
+test upgrade::tests::an_offer_is_installed_only_when_its_sha256_and_version_match ... ok
+test runtime::wasm::process::tests::real_terminal_exit_and_immediate_http_listener ... ok
+
+test result: ok. 206 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.16s
+
+     Running unittests src/main.rs (target/debug/deps/pryxd-0bfd40da8a545e21)
+
+running 1 test
+test tests::join_takes_each_allowed_image_prefix ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/api.rs (target/debug/deps/api-1df91a13ac77153f)
+
+running 13 tests
+test a_certificate_from_another_ca_is_refused ... ok
+test a_server_certificate_cannot_be_used_as_a_client ... ok
+test an_empty_image_policy_refuses_every_spec ... ok
+test a_whole_lifecycle_over_http ... ok
+test live_and_buffered_exec_share_one_idempotency_key ... ok
+test methods_nobody_uses_are_counted_under_one_label ... ok
+test no_client_certificate_no_connection ... ok
+test refused_handshakes_never_flood_the_log ... ok
+test the_allowed_client_gets_in_and_every_answer_names_the_protocol ... ok
+test malformed_requests_get_the_protocols_errors ... ok
+test the_ops_listener_stops_at_once_even_with_half_a_request_open ... ok
+test a_valid_certificate_for_another_name_is_forbidden_and_its_connection_closed ... ok
+test handshakes_in_progress_are_capped_per_address_and_overall ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.07s
+
+     Running tests/debug_contract.rs (target/debug/deps/debug_contract-f2e4f2c0ae3207f4)
+
+running 1 test
+test version_alias_is_scoped_to_the_debug_fixture_executable ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.26s
+
+     Running tests/docker.rs (target/debug/deps/docker-52d74356e6e72824)
+
+running 12 tests
+test a_port_another_process_holds_is_skipped ... ignored, needs Docker
+test a_restarted_daemon_adopts_running_workloads_without_touching_them ... ignored, needs Docker
+test a_short_exec_timeout_kills_the_exec_and_leaves_the_workload_running ... ignored, needs Docker
+test a_start_docker_refuses_for_a_taken_port_is_a_port_conflict ... ignored, needs Docker
+test a_suspended_server_keeps_its_memory_and_answers_within_a_second_of_start ... ignored, needs Docker
+test an_exec_past_its_timeout_is_killed_inside_the_container ... ignored, needs Docker
+test crashes_restart_by_policy_then_stay_crashed ... ignored, needs Docker
+test isolation_keeps_a_workload_off_another_s_published_port ... ignored, needs Docker, and root for nftables
+test lifecycle_hardening_and_graceful_stop ... ignored, needs Docker
+test the_memory_limit_is_hard_and_an_oom_kill_is_reported ... ignored, needs Docker
+test with_docker_gone_the_daemon_answers_and_says_why ... ignored, needs Docker
+test workloads_cannot_reach_each_other ... ignored, needs Docker
+
+test result: ok. 0 passed; 0 failed; 12 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/doctor.rs (target/debug/deps/doctor-f818f3e57b260a01)
+
+running 2 tests
+test docker_down_is_a_warning_and_pryxd_still_starts ... ok
+test preflight_refuses_an_invalid_config_and_nothing_pryxd_survives ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/durable.rs (target/debug/deps/durable-af800cd94111cff4)
+
+running 1 test
+test a_file_gets_the_mode_asked_for_whatever_the_umask ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/epochs.rs (target/debug/deps/epochs-0229db67146f60c0)
+
+running 12 tests
+test a_fence_the_disk_couldnt_record_still_stops_the_copy ... ok
+test a_fenced_copy_can_be_placed_here_again_under_a_newer_epoch ... ok
+test a_fenced_copy_stops_and_never_starts_again ... ok
+test a_fenced_copy_survives_a_restart_as_fenced ... ok
+test a_late_fence_leaves_the_current_copy_alone ... ok
+test a_new_epoch_takes_the_copy_over_keeping_data_and_ports ... ok
+test a_placed_copy_answers_only_to_its_own_epoch ... ok
+test the_epoch_is_rebuilt_from_labels_when_the_state_directory_is_lost ... ok
+test a_newer_epoch_may_always_tear_an_older_copy_down ... ok
+test workloads_without_epochs_keep_the_single_node_protocol ... ok
+test a_fence_the_runtime_couldnt_apply_is_applied_at_the_next_resync ... ok
+test the_resync_never_stops_a_copy_that_isnt_superseded ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.16s
+
+     Running tests/files.rs (target/debug/deps/files-639748cffa854eb7)
+
+running 1 test
+test stopped_files_stream_with_exact_epochs_and_refuse_links ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
+
+     Running tests/fleet.rs (target/debug/deps/fleet-ddfc5cfc15fc0157)
+
+running 11 tests
+test a_node_with_an_identity_never_uses_an_enrollment_key ... ok
+test a_pasted_token_is_all_a_host_needs_to_join ... ok
+test a_pasted_token_sends_only_its_secret_once_it_names_this_deployment_and_ca ... ok
+test a_handshake_cut_short_is_tried_again_and_one_a_stranger_vouches_for_is_not ... ok
+test an_answer_lost_on_the_way_is_asked_for_again_with_the_same_key ... ok
+test an_answer_the_node_cant_serve_with_leaves_it_unenrolled_to_ask_again ... ok
+test nothing_is_written_until_the_ca_and_the_address_are_certain ... ok
+test only_the_ca_a_node_was_provisioned_with_is_trusted ... ok
+test asked_to_renew_a_node_makes_a_new_key_and_switches_to_it_whole ... ok
+test a_renewal_that_fails_leaves_the_node_on_its_current_identity ... ok
+test a_join_waits_for_an_endpoint_that_is_still_coming_up ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.14s
+
+     Running tests/compat/formats.rs (target/debug/deps/formats-e81dfea981715eaf)
+
+running 7 tests
+test pinned::a_fleet_identity_after_renewals ... ok
+test pinned::a_snapshot_description ... ok
+test pinned::an_upgrade_on_trial_and_one_given_up_on ... ok
+test pinned::ports_resting_in_quarantine ... ok
+test pinned::a_workload_record_with_nothing_optional ... ok
+test pinned::the_record_a_container_carries_in_its_label ... ok
+test pinned::a_workload_record_with_every_field_set ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/lifecycle.rs (target/debug/deps/lifecycle-67bd646841ed432a)
+
+running 34 tests
+test a_create_below_the_free_disk_floor_is_refused_and_leaves_nothing ... ok
+test a_changed_secret_is_a_new_spec_though_the_digest_ignores_it ... ok
+test a_container_lost_by_the_runtime_is_reported_and_made_again_on_request ... ok
+test a_port_a_failed_create_held_for_a_moment_is_free_at_once ... ok
+test a_follow_ends_when_its_reader_goes_away_however_quiet_the_workload ... ok
+test a_record_written_from_two_sides_at_once_ends_as_the_newest ... ok
+test a_kill_during_a_restart_backoff_keeps_the_workload_stopped ... ok
+test a_restart_that_wouldnt_fit_is_refused_and_says_why ... ok
+test a_restart_of_pryxd_doesnt_give_a_crash_loop_its_retries_again ... ok
+test a_stop_during_a_restart_backoff_keeps_the_workload_stopped ... ok
+test a_stop_that_needed_a_kill_says_so_and_is_still_a_stop ... ok
+test an_exec_runs_in_the_container_it_was_checked_against_or_not_at_all ... ok
+test an_unreachable_runtime_is_an_answer_not_a_hang ... ok
+test apply_keeps_ports_and_data_and_restarts_a_running_workload ... ok
+test concurrent_duplicate_creates_are_serialized ... ok
+test concurrent_execs_with_one_key_run_once ... ok
+test conditional_puts_follow_http_semantics ... ok
+test crashes_and_oom_kills_are_reported_as_such ... ok
+test delete_while_running_stops_gracefully_and_keeps_data_by_default ... ok
+test delete_while_stopped_removes_without_stopping ... ok
+test deleting_data_needs_confirmation_and_goes_to_trash ... ok
+test duplicate_create_makes_one_workload ... ok
+test exec_runs_once_per_idempotency_key ... ok
+test invalid_ids_and_specs_are_refused_before_anything_happens ... ok
+test logs_stream_what_the_workload_printed ... ok
+test memory_admission_refuses_a_start_that_would_overfill_the_host ... ok
+test node_totals_count_what_runs_now ... ok
+test ports_are_never_shared_and_run_out_cleanly ... ok
+test a_workload_found_dead_at_startup_is_not_restarted ... ok
+test start_and_stop_are_idempotent ... ok
+test while_the_runtime_is_down_nothing_stale_is_passed_off_as_the_state ... ok
+test a_crash_pryxd_sees_is_restarted_within_the_policy_and_nothing_else_is ... ok
+test ports_workloads_let_go_of_at_once_all_rest ... ok
+test a_workload_busy_for_long_holds_up_no_other_workloads_restart ... ok
+
+test result: ok. 34 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.25s
+
+     Running tests/reconcile.rs (target/debug/deps/reconcile-2410a001f15e0f29)
+
+running 14 tests
+test a_container_the_runtime_lost_is_reported_not_recreated ... ok
+test a_create_interrupted_after_the_container_existed_is_completed ... ok
+test a_create_interrupted_before_the_container_existed_is_finished_by_the_next_put ... ok
+test a_lost_state_directory_is_rebuilt_from_container_labels ... ok
+test a_crash_reaches_the_workload_through_the_event_stream ... ok
+test an_issue_the_next_pass_no_longer_finds_is_gone ... ok
+test a_restore_cut_short_before_it_replaced_anything_is_removed_at_startup ... ok
+test orphaned_data_is_reported_and_never_touched ... ok
+test a_restarted_daemon_finds_everything_and_hands_out_no_port_twice ... ok
+test another_deployments_containers_are_invisible ... ok
+test a_restore_cut_short_once_its_data_was_complete_is_finished_at_startup ... ok
+test reconciliation_with_the_runtime_down_keeps_the_records ... ok
+test what_a_crash_left_in_the_spool_and_of_snapshots_is_cleared_at_startup ... ok
+test two_records_claiming_one_port_are_both_flagged ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running tests/resume.rs (target/debug/deps/resume-90f902ed5a4b9451)
+
+running 10 tests
+test a_lease_too_long_to_count_is_held_rather_than_stopping_pryxd ... ok
+test a_node_held_lost_resumes_nothing_now_or_after_the_next_restart ... ok
+test a_fence_the_heartbeat_hands_off_wins_over_the_resume_too ... ok
+test a_fence_in_the_same_answer_wins_over_the_resume ... ok
+test a_fence_the_disk_couldnt_record_still_keeps_the_copy_from_resuming ... ok
+test a_workload_the_host_went_down_under_comes_back_by_itself ... ok
+test a_restart_of_pryxd_alone_is_not_a_restart_of_the_host ... ok
+test a_stop_while_the_resume_waits_for_the_lease_keeps_the_workload_stopped ... ok
+test in_a_fleet_the_resume_waits_for_the_lease ... ok
+test what_had_stopped_before_the_host_went_down_stays_stopped ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.12s
+
+     Running tests/storage_bench.rs (target/debug/deps/storage_bench-14f3a8701798f441)
+
+running 1 test
+test snapshot_archive_and_restore_costs ... ignored, a benchmark: run it on purpose, on the disk it should measure
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/suspend.rs (target/debug/deps/suspend-a3e2456bd71a3bb7)
+
+running 10 tests
+test a_deferred_spec_the_hosts_policy_no_longer_admits_never_boots ... ok
+test a_spec_sent_while_it_sleeps_waits_for_its_next_boot ... ok
+test a_suspended_workload_resumes_from_memory_as_the_same_process ... ok
+test any_other_spec_replaces_a_sleeping_workload_as_it_always_did ... ok
+test only_a_running_workload_can_be_suspended ... ok
+test over_http_suspend_takes_the_epoch_and_old_answers_stay_as_they_were ... ok
+test stop_kill_fence_and_delete_each_reach_a_suspended_copy ... ok
+test a_resume_that_hangs_is_killed_and_started_afresh_on_its_data ... ok
+test a_restart_of_the_host_ends_the_sleep_and_resumes_nothing ... ok
+test a_cold_start_after_a_hung_resume_boots_the_deferred_spec ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.08s
+
+     Running tests/transfer.rs (target/debug/deps/transfer-22f467bb0614b59c)
+
+running 19 tests
+test a_download_the_disk_has_no_room_for_is_refused_before_it_is_spooled ... ok
+test a_move_leaves_out_what_the_server_makes_again ... ok
+test a_restore_onto_a_disk_below_its_floor_is_refused_and_changes_nothing ... ok
+test a_running_workload_exports_only_when_quiesced_and_never_restores ... ok
+test a_snapshot_is_restored_only_with_room_for_all_of_it ... ok
+test a_snapshot_is_taken_once_restored_in_place_and_uploaded ... ok
+test a_download_that_stops_coming_fails_and_lets_go_of_the_workload ... ok
+test a_refusal_whose_reason_stops_coming_still_ends_the_export ... ok
+test a_superseded_copy_can_never_become_the_newest_backup ... ok
+test a_wrong_checksum_changes_nothing ... ok
+test a_world_moves_through_the_store_and_its_hash_holds ... ok
+test an_archive_too_large_for_one_upload_is_refused_with_its_sizes ... ok
+test an_export_never_follows_a_link_out_of_the_data ... ok
+test parts_the_store_cant_take_are_refused_and_a_small_archive_still_goes_whole ... ok
+test a_snapshot_larger_than_one_put_uploads_in_parts ... ok
+test snapshots_follow_the_export_rules ... ok
+test an_archive_larger_than_one_put_goes_in_parts_and_restores_whole ... ok
+test parts_too_few_for_the_archive_are_refused_before_anything_is_sent ... ok
+test a_part_the_store_failed_to_take_is_sent_again ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.04s
+
+     Running tests/wasm.rs (target/debug/deps/wasm-3740529cbaaf73bc)
+
+running 1 test
+2026-11-06T13:28:39.767651Z  WARN pryxd::runtime::wasm::process: agentOS process operation failed code="termination_unconfirmed"
+ERR_AGENTOS_VM_FORCED_PROCESS_FINALIZE: vm_id=vm-2 process_count=1
+2026-11-06T13:28:47.887345Z  WARN pryxd::runtime::wasm::process: agentOS process operation failed code="termination_unconfirmed"
+ERR_AGENTOS_VM_FORCED_PROCESS_FINALIZE: vm_id=vm-3 process_count=1
+AGENTOS_TELEMETRY_FALLBACK severity=warning code=ERR_AGENTOS_RUNTIME_WORKER_STALL subsystem=runtime message="task_class=Timer poll_ms=246 threshold_ms=100" truncated=false
+AGENTOS_TELEMETRY_FALLBACK severity=warning code=ERR_AGENTOS_RUNTIME_WORKER_STALL subsystem=runtime message="task_class=Timer poll_ms=148 threshold_ms=100" truncated=false
+test real_wasm_files_processes_sleep_stop_and_isolation has been running for over 60 seconds
+2026-11-06T13:29:11.561622Z  WARN pryxd::runtime::wasm::process: agentOS process operation failed code="termination_unconfirmed"
+ERR_AGENTOS_VM_FORCED_PROCESS_FINALIZE: vm_id=vm-4 process_count=1
+2026-11-06T13:29:36.617564Z  WARN pryxd::runtime::wasm::process: agentOS process operation failed code="termination_unconfirmed"
+ERR_AGENTOS_VM_FORCED_PROCESS_FINALIZE: vm_id=vm-2 process_count=1
+test real_wasm_files_processes_sleep_stop_and_isolation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 89.75s
+
+   Doc-tests pryx_agent
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests pryxd
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+Focused live-supervisor regression:
+    Finished `test` profile [unoptimized] target(s) in 0.75s
+     Running unittests src/lib.rs (target/debug/deps/pryx_agent-72e1d78c1f61d851)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 17 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/pryxd-2898cecbd2b7d2e8)
+
+running 1 test
+test runtime::process::journal::tests::cpu_ceilings_are_refused_before_creation_or_journal_relaunch ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 205 filtered out; finished in 0.02s
+
+
+Full Bun check:
+$ bun run lint && bun run typecheck && bun run openapi:check && bun run docs:check && bun run release:check && bun run test
+$ biome check control cli sdk/typescript edge integrations deploy
+cli/src/sandbox.ts:168:49 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+
+    166 │       console.error(JSON.stringify({ snapshot: kept?.id, sandbox: retained.id }))
+    167 │       const output = option(args.slice(0, split), '--snapshot-output')
+  > 168 │       if (output && kept) writeFileSync(output, kept.id + '\n', { mode: 0o600 })
+        │                                                 ^^^^^^^^^^^^^^
+    169 │     }
+    170 │     process.exitCode = code
+
+  i Unsafe fix: Use a template literal.
+
+    166 166 │         console.error(JSON.stringify({ snapshot: kept?.id, sandbox: retained.id }))
+    167 167 │         const output = option(args.slice(0, split), '--snapshot-output')
+    168     │ - ······if·(output·&&·kept)·writeFileSync(output,·kept.id·+·'\n',·{·mode:·0o600·})
+        168 │ + ······if·(output·&&·kept)·writeFileSync(output,·`${kept.id}\n`,·{·mode:·0o600·})
+    169 169 │       }
+    170 170 │       process.exitCode = code
+
+
+cli/src/up-files.ts:34:5 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+
+    32 │   writeChanged(
+    33 │     path,
+  > 34 │     Object.entries(env)
+       │     ^^^^^^^^^^^^^^^^^^^
+  > 35 │       .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
+  > 36 │       .join('\n') + '\n',
+       │       ^^^^^^^^^^^^^^^^^^
+    37 │     0o600,
+    38 │   )
+
+  i Unsafe fix: Use a template literal.
+
+    32 32 │     writeChanged(
+    33 33 │       path,
+    34    │ - ····Object.entries(env)
+       34 │ + ····`${Object.entries(env)
+    35 35 │         .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
+    36    │ - ······.join('\n')·+·'\n',
+       36 │ + ······.join('\n')}\n`,
+    37 37 │       0o600,
+    38 38 │     )
+
+
+cli/src/up-host.ts:33:7 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+
+    31 │     writeChanged(
+    32 │       '/etc/docker/daemon.json',
+  > 33 │       JSON.stringify({ ...existing, ...daemonJson }, null, 2) + '\n',
+       │       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    34 │       0o644,
+    35 │     )
+
+  i Unsafe fix: Use a template literal.
+
+    31 31 │       writeChanged(
+    32 32 │         '/etc/docker/daemon.json',
+    33    │ - ······JSON.stringify({·...existing,·...daemonJson·},·null,·2)·+·'\n',
+       33 │ + ······`${JSON.stringify({·...existing,·...daemonJson·},·null,·2)}\n`,
+    34 34 │         0o644,
+    35 35 │       )
+
+
+cli/test/up.test.ts:55:44 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+
+    53 │           .digest('hex')}  ${n}`,
+    54 │     )
+  > 55 │     writeFileSync(join(dir, 'SHA256SUMS'), lines.join('\n') + '\n')
+       │                                            ^^^^^^^^^^^^^^^^^^^^^^^
+    56 │     expect(await releaseFiles(dir)).toBe(dir)
+    57 │     const destination = join(dir, 'installed')
+
+  i Unsafe fix: Use a template literal.
+
+    53 53 │             .digest('hex')}  ${n}`,
+    54 54 │       )
+    55    │ - ····writeFileSync(join(dir,·'SHA256SUMS'),·lines.join('\n')·+·'\n')
+       55 │ + ····writeFileSync(join(dir,·'SHA256SUMS'),·`${lines.join('\n')}\n`)
+    56 56 │       expect(await releaseFiles(dir)).toBe(dir)
+    57 57 │       const destination = join(dir, 'installed')
+
+
+control/bench/project-overhead.ts:50:62 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+
+    48 │     samplesMs,
+    49 │   }
+  > 50 │   writeFileSync(process.argv[3] ?? `projects-${phase}.json`, JSON.stringify(report, null, 2) + '\n')
+       │                                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    51 │   console.log(JSON.stringify(report))
+    52 │ } finally {
+
+  i Unsafe fix: Use a template literal.
+
+    48 48 │       samplesMs,
+    49 49 │     }
+    50    │ - ··writeFileSync(process.argv[3]·??·`projects-${phase}.json`,·JSON.stringify(report,·null,·2)·+·'\n')
+       50 │ + ··writeFileSync(process.argv[3]·??·`projects-${phase}.json`,·`${JSON.stringify(report,·null,·2)}\n`)
+    51 51 │     console.log(JSON.stringify(report))
+    52 52 │   } finally {
+
+
+control/src/sandbox-io.ts:173:11 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+
+    171 │     const script =
+    172 │       data === undefined
+  > 173 │         ? guard + 'tar -C "$base" -cf - -- "$2" | base64'
+        │           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    174 │         : guard + 'printf %s "$3" | base64 -d > "$target"'
+    175 │     const result = await this.exec(id, project, {
+
+  i Unsafe fix: Use a template literal.
+
+    171 171 │       const script =
+    172 172 │         data === undefined
+    173     │ - ········?·guard·+·'tar·-C·"$base"·-cf·-·--·"$2"·|·base64'
+        173 │ + ········?·`${guard}tar·-C·"$base"·-cf·-·--·"$2"·|·base64`
+    174 174 │           : guard + 'printf %s "$3" | base64 -d > "$target"'
+    175 175 │       const result = await this.exec(id, project, {
+
+
+control/src/sandbox-io.ts:174:11 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+
+    172 │       data === undefined
+    173 │         ? guard + 'tar -C "$base" -cf - -- "$2" | base64'
+  > 174 │         : guard + 'printf %s "$3" | base64 -d > "$target"'
+        │           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    175 │     const result = await this.exec(id, project, {
+    176 │       command: [
+
+  i Unsafe fix: Use a template literal.
+
+    172 172 │         data === undefined
+    173 173 │           ? guard + 'tar -C "$base" -cf - -- "$2" | base64'
+    174     │ - ········:·guard·+·'printf·%s·"$3"·|·base64·-d·>·"$target"'
+        174 │ + ········:·`${guard}printf·%s·"$3"·|·base64·-d·>·"$target"`
+    175 175 │       const result = await this.exec(id, project, {
+    176 176 │         command: [
+
+
+control/tools/docs.ts:117:16 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+
+    115 │   ],
+    116 │ )
+  > 117 │ const output = lines.join('\n') + '\n',
+        │                ^^^^^^^^^^^^^^^^^^^^^^^
+    118 │   path = new URL('docs/api.md', root)
+    119 │ if (process.argv[2] === 'generate') writeFileSync(path, output)
+
+  i Unsafe fix: Use a template literal.
+
+    115 115 │     ],
+    116 116 │   )
+    117     │ - const·output·=·lines.join('\n')·+·'\n',
+        117 │ + const·output·=·`${lines.join('\n')}\n`,
+    118 118 │     path = new URL('docs/api.md', root)
+    119 119 │   if (process.argv[2] === 'generate') writeFileSync(path, output)
+
+
+edge/src/agent.ts:151:24 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+
+    149 │     fetch: (r) =>
+    150 │       new URL(r.url).pathname === '/metrics'
+  > 151 │         ? new Response(metrics.render() + `pryx_edge_version_lag ${poll.current() ? 0 : 1}\n`)
+        │                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    152 │         : new Response(null, { status: StatusCodes.NOT_FOUND }),
+    153 │   })
+
+  i Unsafe fix: Use a template literal.
+
+    149 149 │       fetch: (r) =>
+    150 150 │         new URL(r.url).pathname === '/metrics'
+    151     │ - ········?·new·Response(metrics.render()·+·`pryx_edge_version_lag·${poll.current()·?·0·:·1}\n`)
+        151 │ + ········?·new·Response(`${metrics.render()}pryx_edge_version_lag·${poll.current()·?·0·:·1}\n`)
+    152 152 │           : new Response(null, { status: StatusCodes.NOT_FOUND }),
+    153 153 │     })
+
+
+edge/src/metrics.ts:16:7 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+
+    14 │   render() {
+    15 │     return (
+  > 16 │       [
+       │       ^
+  > 17 │         `pryx_edge_routes_held ${this.routes}`,
+  > 18 │         `pryx_edge_version_held ${this.version}`,
+  > 19 │         `pryx_edge_holds ${this.holds}`,
+  > 20 │         ...[...this.counters].map(([key, value]) => `${key} ${value}`),
+  > 21 │       ].join('\n') + '\n'
+       │       ^^^^^^^^^^^^^^^^^^^
+    22 │     )
+    23 │   }
+
+  i Unsafe fix: Use a template literal.
+
+    14 14 │     render() {
+    15 15 │       return (
+    16    │ - ······[
+       16 │ + ······`${[
+    17 17 │           `pryx_edge_routes_held ${this.routes}`,
+    18 18 │           `pryx_edge_version_held ${this.version}`,
+    19 19 │           `pryx_edge_holds ${this.holds}`,
+    20 20 │           ...[...this.counters].map(([key, value]) => `${key} ${value}`),
+    21    │ - ······].join('\n')·+·'\n'
+       21 │ + ······].join('\n')}\n`
+    22 22 │       )
+    23 23 │     }
+
+
+integrations/celld/e2e/docker-api.e2e.test.ts:66:9 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+
+    64 │       writeFileSync(
+    65 │         process.env.PRYX_DOCKER_SPIKE_REPORT ?? join(tmpdir(), 'pryx-docker-spike.json'),
+  > 66 │         JSON.stringify(result, null, 2) + '\n',
+       │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    67 │       )
+    68 │       rmSync(dir, { recursive: true, force: true })
+
+  i Unsafe fix: Use a template literal.
+
+    64 64 │         writeFileSync(
+    65 65 │           process.env.PRYX_DOCKER_SPIKE_REPORT ?? join(tmpdir(), 'pryx-docker-spike.json'),
+    66    │ - ········JSON.stringify(result,·null,·2)·+·'\n',
+       66 │ + ········`${JSON.stringify(result,·null,·2)}\n`,
+    67 67 │         )
+    68 68 │         rmSync(dir, { recursive: true, force: true })
+
+
+integrations/celld/e2e/native.e2e.test.ts:140:27 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+
+    138 │     } finally {
+    139 │       const path = process.env.PRYX_CELLD_MEASUREMENTS ?? join(tmpdir(), 'celld-native-measurements.json')
+  > 140 │       writeFileSync(path, JSON.stringify(result, null, 2) + '\n')
+        │                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    141 │       await d.close()
+    142 │     }
+
+  i Unsafe fix: Use a template literal.
+
+    138 138 │       } finally {
+    139 139 │         const path = process.env.PRYX_CELLD_MEASUREMENTS ?? join(tmpdir(), 'celld-native-measurements.json')
+    140     │ - ······writeFileSync(path,·JSON.stringify(result,·null,·2)·+·'\n')
+        140 │ + ······writeFileSync(path,·`${JSON.stringify(result,·null,·2)}\n`)
+    141 141 │         await d.close()
+    142 142 │       }
+
+
+sdk/typescript/test/handles.test.ts:63:59 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+
+    61 │           async start(controller) {
+    62 │             const send = (value: unknown) =>
+  > 63 │               controller.enqueue(new TextEncoder().encode(JSON.stringify(value) + '\n'))
+       │                                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    64 │             send({ type: 'stdout', data: 'first\npar', truncated: false })
+    65 │             await ended
+
+  i Unsafe fix: Use a template literal.
+
+     61  61 │             async start(controller) {
+     62  62 │               const send = (value: unknown) =>
+     63     │ - ··············controller.enqueue(new·TextEncoder().encode(JSON.stringify(value)·+·'\n'))
+         63 │ + ··············controller.enqueue(new·TextEncoder().encode(`${JSON.stringify(value)}\n`))
+     64  64 │               send({ type: 'stdout', data: 'first\npar', truncated: false })
+     65  65 │               await ended
+
+
+Checked 267 files in 543ms. No fixes applied.
+Found 13 infos.
+$ tsc --noEmit
+$ bun control/tools/openapi.ts check
+Node API types: check
+Public API and SDK types: check
+Edge API types: check
+Provider API types: check
+$ bun control/tools/docs.ts check
+$ bun control/tools/release.ts check
+$ bun test --timeout 30000 control/test cli/test sdk/typescript/test edge/test integrations/rivet/test integrations/celld/test
+bun test v1.4.4 (38afee6c8)
+
+cli/test/up-image.test.ts:
+(pass) image references cannot add commands or unit directives [0.45ms]
+
+cli/test/client-config.test.ts:
+(pass) client credentials stay private and refuse symlinks or public permissions [2.32ms]
+(pass) installer rejects a wrong checksum before invoking the downloaded CLI [86.48ms]
+(pass) installer rejects URL userinfo disguised as a loopback port [11.50ms]
+
+cli/test/public.test.ts:
+(pass) public CLI > create and exec accept duration strings [2431.51ms]
+(pass) public CLI > run prints output, returns command status and deletes its sandbox [966.86ms]
+(pass) public CLI > process image refusal retains the field problem in CLI stderr [648.74ms]
+
+cli/test/node.test.ts:
+(pass) node commands through the operator API > ls, token, drain and events use the control service [36.74ms]
+
+cli/test/copy-paths.test.ts:
+(pass) recursive downloads cannot traverse local directory symlinks [3.59ms]
+(pass) uploads reject symlink components above the selected file [1.33ms]
+
+cli/test/mcp.test.ts:
+(pass) reference MCP clients use CLI HTTP and stdio with project authority [2297.90ms]
+
+cli/test/providers.test.ts:
+(pass) provider CLI > shapes/acquire/acquisition use one keyed fake acquisition [2458.96ms]
+
+cli/test/image-network.test.ts:
+(pass) image pools avoid outgoing ports and retain explicit and legacy restart addresses [8.32ms]
+(pass) image pool configuration never follows a file symlink [1.57ms]
+(pass) private image configuration replacement is atomic and never writes through a symlink [7.66ms]
+
+cli/test/project.test.ts:
+(pass) project limits parse numbers, durations, image prefixes and expiry [1.83ms]
+
+cli/test/up.test.ts:
+(pass) check mode reports prerequisites without generating credentials [3.32ms]
+(pass) root-only environment files and generated secrets are stable on a second run [13.40ms]
+(pass) release checks preserve signature bytes and refuse a modified executable [2.60ms]
+(pass) units read secrets from protected files and expose storage only on loopback [0.16ms]
+(pass) failed install commands retain both output streams and redact enrollment tokens [7.41ms]
+
+control/test/agent-hot-path.test.ts:
+(pass) run, start, terminal, files and expose issue zero control queries after token warmup [500.67ms]
+
+control/test/image-diagnostics.test.ts:
+(pass) image diagnostics redact credentials and refuse an unsafe private directory [174.89ms]
+
+control/test/projects.test.ts:
+(pass) projects > units round both resources, timer defaults are bounded, and owned delete remains idempotent [1331.93ms]
+(pass) projects > a snapshot deleted while uploading cannot return as ready [2148.65ms]
+(pass) projects > every sandbox endpoint, fork and template lookup hides another project [1538.66ms]
+(pass) projects > each creation limit returns its name, limit and current count [2284.09ms]
+(pass) projects > exec and both snapshot quotas are enforced and rejected captures resume safely [3564.33ms]
+(pass) projects > concurrent creates reserve the last unit once, stop releases it and wake checks it again [1879.57ms]
+(pass) projects > freeze waits for an admitted create, then refuses writes and permits reads until unfreeze [1401.51ms]
+(pass) projects > operator routes require authentication and create a scoped key once [544.05ms]
+(pass) unit capacity uses both resources after reservations; every limit has an environment default [3.19ms]
+
+control/test/fleet-runtime.test.ts:
+(pass) FleetRuntime, with pryxd in memory > a move whose placement changed while its data was copied discards the copy [220.20ms]
+(pass) FleetRuntime, with pryxd in memory > so does a move to make room to start [164.61ms]
+(pass) FleetRuntime, with pryxd in memory > a server that ran before a move keeps its room where it lands until it starts there [206.11ms]
+(pass) FleetRuntime, with pryxd in memory > a server that was stopped moves without claiming room to run [375.12ms]
+(pass) FleetRuntime, with pryxd in memory > a first placement its node never got is undone once nothing can still be making it [479.57ms]
+(pass) FleetRuntime, with pryxd in memory > a first placement whose node reports its copy is finished, never abandoned [159.01ms]
+(pass) FleetRuntime, with pryxd in memory > a deleted snapshot's copy in the store goes once the store answers again [112.74ms]
+(pass) FleetRuntime, with pryxd in memory > a deleted snapshot's copy on a lost node is deleted once that node beats again [106.81ms]
+(pass) FleetRuntime, with pryxd in memory > a snapshot larger than one PUT carries goes up in parts, and the store holds it whole [227.00ms]
+(pass) FleetRuntime, with pryxd in memory > a snapshot known to be large is offered parts at once; one that packs small drops them [346.92ms]
+(pass) FleetRuntime, with pryxd in memory > a copy larger than one PUT carries is exported from the store in parts, read by its ranges [2610.40ms]
+(pass) FleetRuntime, with pryxd in memory > a move of a data larger than one PUT carries goes through the store in parts [313.62ms]
+(pass) FleetRuntime, with pryxd in memory > a snapshot too big for one upload is failed for good, saying why [47.56ms]
+(pass) FleetRuntime, with pryxd in memory > an export waits out the snapshot’s own upload off its node, then asks the node [2039.19ms]
+(pass) FleetRuntime, with pryxd in memory > an export a node refuses as busy with that snapshot asks again, once it is free [2053.28ms]
+(pass) FleetRuntime, with pryxd in memory > an upload off a node busy sending that snapshot elsewhere is not a failed try [90.00ms]
+(pass) FleetRuntime, with pryxd in memory > a move of a data too big for one upload is declined, and the server runs where it was [177.57ms]
+(pass) FleetRuntime, with pryxd in memory > a start whose data is too big to move to a node with room waits for room where it is [167.48ms]
+
+control/test/new-node-io.test.ts:
+(pass) new node I/O > first exec does not wait for the cache timer [705.26ms]
+
+control/test/store.test.ts:
+(pass) FleetStore.copyTo > one PUT carries a copy no larger than it, hashed on the way [348.30ms]
+(pass) FleetStore.copyTo > a larger one is read by its ranges into parts, in order, so its hash is of the whole [506.89ms]
+(pass) FleetStore.copyTo > a part the store fails is sent again, and hashed once [427.08ms]
+(pass) FleetStore.copyTo > a part refused for good drops the upload in parts and fails the copy [62.91ms]
+(pass) FleetStore.copyTo > three failures of one part fail the copy [188.17ms]
+(pass) FleetStore.copyTo > nothing at the key is a plain failure, and nothing is begun [0.92ms]
+
+control/test/fleet-runtime.sleep.test.ts:
+(pass) FleetRuntime asleep, with pryxd in memory > with the switch off, a sleep stops and gives its room back [91.51ms]
+(pass) FleetRuntime asleep, with pryxd in memory > on a node without the feature, a sleep stops [51.93ms]
+(pass) FleetRuntime asleep, with pryxd in memory > a copy not running is stopped, as one the node won’t suspend [62.62ms]
+(pass) FleetRuntime asleep, with pryxd in memory > a sleep suspends, keeps its room, and the wake resumes it with one call [138.70ms]
+(pass) FleetRuntime woken, with pryxd in memory > a change only a start reads waits, asleep, for the next boot [121.44ms]
+(pass) FleetRuntime woken, with pryxd in memory > a rotated secret is sent, since the node’s digest leaves secrets out [78.47ms]
+(pass) FleetRuntime woken, with pryxd in memory > a start of a copy the node lost sends the spec again, then starts [108.29ms]
+(pass) FleetRuntime applying and waiting, with pryxd in memory > an apply replaces only the spec the ledger last saw [90.59ms]
+(pass) FleetRuntime applying and waiting, with pryxd in memory > the wait for running asks again past an unreachable node, and ends with its signal [802.08ms]
+
+control/test/cpu.test.ts:
+(pass) unit reservations do not invent a native quota and container quotas stay enforced [3.30ms]
+(pass) CPU reservations are sent only to nodes announcing the additive field [2.48ms]
+(pass) public native CPU ceilings and weights fail before any compute call [543.16ms]
+(pass) project accounting counts CPU reservations on records without unit metadata [574.08ms]
+
+control/test/agent-wake.test.ts:
+(pass) a sleeping agent request wakes through control and retains its capability [703.70ms]
+
+control/test/node-client.test.ts:
+(pass) ndjsonLines > a character whose bytes two chunks split arrives whole [6.70ms]
+(pass) ndjsonLines > blank lines are skipped, and the last line needs no newline [0.79ms]
+(pass) ndjsonLines > a body that fails ends with its error, unless the request was called off [21.34ms]
+(pass) a node that does not answer > reads, a PUT, a start and a stop may be sent again; nothing else is [0.21ms]
+(pass) a node that does not answer > a call safe to repeat is sent again, and the answer that comes is the answer [1307.79ms]
+(pass) a node that does not answer > one that is not safe to repeat is sent once [4.13ms]
+(pass) a node that does not answer > a node that never answers fails the call after its last attempt, as unreachable [3798.84ms]
+(pass) a node that does not answer > the call's timeout bounds its attempts [264.08ms]
+(pass) a node that does not answer > a refusal is an answer, and is not sent again [35.53ms]
+
+control/test/health.test.ts:
+(pass) deriveHealth > fresh, with its runtime up and reconciled, is healthy [0.07ms]
+(pass) deriveHealth > fresh but with Docker down or not yet reconciled is degraded, not dead [0.02ms]
+(pass) deriveHealth > one missed beat is nothing; three are suspect; nine are unavailable [0.03ms]
+(pass) deriveHealth > never lost: silence alone never produces a verdict [0.13ms]
+(pass) deriveHealth > a node that never beat is unavailable [0.02ms]
+(pass) deriveHealth > a control plane that just started gives every node one suspect window first [0.03ms]
+
+control/test/compiled.test.ts:
+(pass) compiled control assets > migrates, authenticates the initial key and serves the bootstrap script [979.26ms]
+
+control/test/provider-adapters.test.ts:
+(pass) Hetzner attaches the explicit network/firewall and sends bootstrap only in cloud-init [2.89ms]
+(pass) Boat keeps bootstrap contents out of command arguments and uses native creation identity [3.12ms]
+(pass) manual SSH preserves host verification and keeps join bytes on stdin [0.57ms]
+(pass) shared and private address classes do not admit unrelated public space [0.14ms]
+
+control/test/node-reports.test.ts:
+(pass) the lease, and who may beat for a node > a second host beating with a new session gets no lease and no edge, then or once caught [119.54ms]
+(pass) the lease, and who may beat for a node > a second host's beats leave the copies the node reported, and their room, as they were [137.98ms]
+(pass) the lease, and who may beat for a node > a second host's beat just past the in-flight window, before the original's next, is still held [101.01ms]
+(pass) the lease, and who may beat for a node > a rebooted node gets its lease, and is reached at its new address, once the old session is past [83.50ms]
+(pass) epochs, as nodes report them > an epoch past the exact integers is refused [24.57ms]
+(pass) epochs, as nodes report them > one up to the ceiling is taken, and the epochs after it stay exact [32.66ms]
+(pass) epochs, as nodes report them > every node's copy counts, so a restored database never hands out an epoch a node holds [69.74ms]
+(pass) a first placement, as its node reports it > one whose copy is still being made waits for it, and is undone if it never is [65.25ms]
+(pass) a first placement, as its node reports it > one whose copy is made is finished from its report [39.05ms]
+
+control/test/sandboxes.test.ts:
+(pass) sandbox intent on Postgres > start false makes storage without starting application code [78.88ms]
+(pass) sandbox intent on Postgres > a retried make reads a JSONB spec independent of object key order [47.69ms]
+(pass) sandbox intent on Postgres > sleep and wake report their tier and keep the epoch [83.45ms]
+(pass) sandbox intent on Postgres > snapshot, fork, rest and restore keep the uploaded source [262.61ms]
+(pass) sandbox intent on Postgres > upkeep deletes elapsed TTL and sleeps idle sandboxes [213.31ms]
+(pass) sandbox intent on Postgres > upkeep finishes a stopped creation after its final state write was interrupted [96.64ms]
+(pass) sandbox intent on Postgres > placement reserves the CPU request sent to the node [111.13ms]
+
+control/test/public-api.test.ts:
+(pass) public API > a long lifecycle response outlives the HTTP idle timer [1310.41ms]
+(pass) public API > keys are hashed, project-scoped and revocable [7.00ms]
+(pass) public API > create retries persist their result, reject reuse and never expose secrets [362.41ms]
+(pass) public API > exec caches its exact bounded answer and refuses uncertain reexecution [214.30ms]
+(pass) public API > templates warm a stopped snapshot on an active node [227.32ms]
+(pass) public API > container templates do not warm copies on process nodes [11.41ms]
+(pass) public API > wasm creation retains packages and refuses image and path sources [284.22ms]
+(pass) public API > sandbox views retain the node reported process exit [66.40ms]
+
+control/test/image-state.test.ts:
+(pass) image credentials persist unchanged with private modes [17.78ms]
+(pass) private image logs reject symlinks and public file modes [7.36ms]
+
+control/test/edge-api.test.ts:
+(pass) edge control > running waits for the counted edge to acknowledge the route, then sleep routes nowhere [215.36ms]
+(pass) edge control > raw port reservations stay quarantined after delete and host collisions are refused [114.35ms]
+
+control/test/ca.test.ts:
+(pass) the fleet CA > issues a node two certificates for its own key, under a name the control plane chooses [56.24ms]
+(pass) the fleet CA > refuses a request not signed by its own key [30.50ms]
+(pass) the fleet CA > comes back the same from the PEMs configuration holds, and refuses a key that is not its own [21.51ms]
+(pass) the fleet CA > names the node endpoint by the addresses nodes dial it by [11.81ms]
+
+control/test/join-routes.test.ts:
+(pass) the join routes > the CA is served byte for byte, so the token’s hash checks it [0.94ms]
+(pass) the join routes > join.sh carries daemon.json and is a script sh reads [3.38ms]
+(pass) the join routes > pryxd and its sha256, in the form sha256sum -c reads [2.75ms]
+(pass) the join routes > joining hosts receive the agent and its verified checksum before enrollment [3.77ms]
+(pass) the join routes > without a pryxd, each answers 404 and says why [2.47ms]
+fleet: /tmp/blockly-join-2TYq9a/broken --version failed, so no node is offered it: Command failed: /tmp/blockly-join-2TYq9a/broken --version
+(pass) the join routes > the release the rollout offers is the binary’s own version and sha256, or none [6.07ms]
+fleet: /tmp/blockly-join-2TYq9a/signed.sig is 15 bytes, not a signature, so it isn't passed on
+(pass) the join routes > the release’s signature beside the binary is passed on, in hex, and nothing else is [3.77ms]
+
+control/test/app-requests.test.ts:
+(pass) application fixtures reuse each origin without sharing its routed connection [14.95ms]
+
+control/test/providers.test.ts:
+(pass) provider control > smallest fit accounts for the daemon host reservations [9.95ms]
+(pass) provider control > lost acquire replies reconcile the same host and the ledger never contains the join token [423.59ms]
+(pass) provider control > claimed provider labels cannot bind a hand-enrolled node [70.00ms]
+(pass) provider control > growth requires two refusals, creates one pending host and resets after successful placement [83.71ms]
+(pass) provider control > hand-joined, lost and quarantined nodes cannot be returned [99.62ms]
+(pass) provider control > an owned provider host is retained even when its node is idle [60.76ms]
+(pass) provider control > the memory floor grows one host and a region minimum blocks release [127.58ms]
+(pass) provider control > release resumes after retirement when the vendor deletion reply was lost [154.56ms]
+(pass) provider control > every local snapshot reaches the store before idle rest releases a host [1455.82ms]
+(pass) provider control > a recovered sandbox retains its prior copy until a fresh inventory confirms removal [176.17ms]
+(pass) provider control > an unjoined acquisition can be cancelled without ever minting a second host [39.48ms]
+(pass) provider control > queued lock waiters leave a connection available for nested intents [154.68ms]
+(pass) provider control > idle expiry returns an empty managed node [156.53ms]
+
+control/test/fleet-runtime.flows.test.ts:
+(pass) FleetRuntime flows, with pryxd in memory > 1. a first start on a node with room: PUT, then start, with its room claimed [97.10ms]
+(pass) FleetRuntime flows, with pryxd in memory > 2. a first placement its node refuses for room is undone, and its room given back [42.29ms]
+(pass) FleetRuntime flows, with pryxd in memory > 3. a start its node refuses for room gives the claim back and moves the server to start [157.63ms]
+(pass) FleetRuntime flows, with pryxd in memory > 4. start() on a node with no room now claims nothing and asks no node [77.56ms]
+(pass) FleetRuntime flows, with pryxd in memory > 5. an upload is tried five times, and one nobody finished is taken over after three hours [64.60ms]
+(pass) FleetRuntime flows, with pryxd in memory > 6. a node's copy is trimmed only when a newer one of its server reached the store [38.55ms]
+(pass) FleetRuntime flows, with pryxd in memory > 7. a snapshot, its upload, its deletion, and what upkeep deletes once the store answers [114.46ms]
+(pass) FleetRuntime flows, with pryxd in memory > 8. a planned move: stop, export, a new home restored, then the old copy fenced and deleted [141.21ms]
+(pass) FleetRuntime flows, with pryxd in memory > 9. a move with no room once its data is copied: the copy goes, and it runs where it was [234.52ms]
+(pass) FleetRuntime flows, with pryxd in memory > 10. a move whose old copy its node refuses to fence is finished, and the copy left for upkeep [783.67ms]
+(pass) FleetRuntime flows, with pryxd in memory > 11. a restore in place: a new epoch, the copy stopped, filled from its local snapshot, started [131.66ms]
+(pass) FleetRuntime flows, with pryxd in memory > 12. a release deletes its copy and keeps its backups; a destroy deletes everything [106.31ms]
+(pass) FleetRuntime flows, with pryxd in memory > 13. a suspended copy whose resume does not come back goes on as a boot [78.67ms]
+
+control/test/node-endpoint.test.ts:
+(pass) the node endpoint listens once it is bound > Bun TLS requests verify the CA, client usage and node identity before registry access [70.52ms]
+(pass) the node endpoint listens once it is bound > restarted on a port the endpoint before it still holds, the start fails with why [25.78ms]
+(pass) the node endpoint listens once it is bound > restarted in a process of its own, it is there to dial the moment it says it listens [10662.56ms]
+(pass) the node endpoint listens once it is bound > in a process of its own, a port another holds ends it before it says it listens [3160.31ms]
+
+control/test/operator-api.test.ts:
+(pass) the operator API > an operator corrects a node's price and its other labels, and the change is recorded [79.78ms]
+(pass) the operator API > labels are refused when they say nothing, or give a price that is not a whole number of cents [54.83ms]
+(pass) tokens from the operator API > a new node gets the bare token, the pasted form, and the line to paste it in [13.24ms]
+(pass) tokens from the operator API > a region the region map doesn’t name is refused; a node re-enrolled gets its own line [49.13ms]
+
+control/test/handle.test.ts:
+(pass) fleet handles > round-trip, and change when the epoch does [0.56ms]
+(pass) fleet handles > refuse another runtime's handle, and a malformed one [68.81ms]
+(pass) fleet handles > a resting server’s handle names no node [8.28ms]
+(pass) fleet handles > snapshots name the copy and the epoch it was taken at [321.85ms]
+
+control/test/agent-compat.test.ts:
+(pass) public exec forwards through the agent and replays its durable cached outcome [1291.80ms]
+
+control/test/store-lease.test.ts:
+(pass) store lease control > feature-off nodes receive no grant; store time and identity survive a lost grant reply [584.48ms]
+(pass) store lease control > a winning renewal prevents displacement; an expired CAS fence recovers after a crash without losing a node [612.75ms]
+(pass) store lease control > malformed expiry cannot authorize a takeover [1222.04ms]
+(pass) presigning leaves a changing If-Match unsigned and uses only the configured runtime endpoint [58.29ms]
+(pass) startup probe rejects a store that ignores conditional writes [58.88ms]
+
+control/test/fleet-runtime.moves.test.ts:
+(pass) FleetRuntime, the copies a failed or finished move leaves > a snapshot not yet uploaded is uploaded before a move deletes the copy it leaves [178.20ms]
+(pass) FleetRuntime, the copies a failed or finished move leaves > a snapshot that can’t be uploaded is no longer offered once the copy it was on is deleted [167.26ms]
+(pass) FleetRuntime, the copies a failed or finished move leaves > a move’s copy whose export failed after reaching the store is removed [196.79ms]
+(pass) FleetRuntime, the copies a failed or finished move leaves > a move’s copy whose export never finished is removed by upkeep once it is stale [53.07ms]
+(pass) FleetRuntime, a new home that fails part-way > a move target declared lost and reinstated finishes the move at the next start [279.42ms]
+(pass) FleetRuntime, a new home that fails part-way > a wake its node refuses for room goes to another node once one has room [364.85ms]
+
+control/test/placement.test.ts:
+(pass) selectNode > hard CPU limits cannot be placed on a tier without cgroups [0.70ms]
+(pass) selectNode > process and container requests cannot cross isolation tiers [0.14ms]
+(pass) selectNode > wasm placement requires its tier and requested package feature [0.12ms]
+(pass) selectNode > only an active, healthy node in the region with the features can be chosen [0.18ms]
+(pass) selectNode > counts the ledger, not what the node says it uses, and keeps the headroom [0.17ms]
+(pass) selectNode > refuses on CPU even when memory fits [0.12ms]
+(pass) selectNode > refuses on disk, and on ports [0.10ms]
+(pass) selectNode > binpack fills the fullest node that fits; spread the emptiest [0.38ms]
+(pass) selectNode > balanced packs memory, but not onto a node past the CPU pressure line [0.21ms]
+(pass) selectNode > a sleeping server holds no memory; a running one does [0.29ms]
+(pass) selectNode > placement scores what is placed, not what happens to run as it is asked [0.20ms]
+(pass) selectNode > ties break on the node id, so the same inputs give the same answer [0.15ms]
+(pass) selectNode > a move never picks its own source [0.10ms]
+(pass) selectNode > an operator can name the one node a move goes to, and its refusal says so [0.20ms]
+(pass) selectNode > one node is a whole fleet: every server that fits goes there [0.31ms]
+(pass) selectNode > a placed server starts where it is when the sandboxes running there leave it room [0.07ms]
+(pass) selectNode > a CPU request follows memory when the spec names none [0.01ms]
+
+control/test/main.test.ts:
+(pass) control composition > the operator listener still returns JSON after the node endpoint starts [407.64ms]
+
+control/test/exec-stream.test.ts:
+(pass) live exec forwarding > only an announced feature streams and the first event precedes command completion [483.44ms]
+
+control/test/registry.test.ts:
+(pass) the node registry, against Postgres > a token enrolls one node, once, and expires [42.80ms]
+(pass) the node registry, against Postgres > a node whose answer was lost enrolls again with the same key, and nobody else can [62.10ms]
+(pass) the node registry, against Postgres > a re-enrollment whose answer was lost is answered again; a retired node never is [81.84ms]
+(pass) the node registry, against Postgres > only the hash of a token is kept [4.74ms]
+(pass) the node registry, against Postgres > a heartbeat needs the node's current certificate [1543.05ms]
+(pass) the node registry, against Postgres > fences a copy whose server moved on, until the node reports it fenced [211.05ms]
+(pass) the node registry, against Postgres > fences a copy of no placement at all, and reports it once [193.70ms]
+(pass) the node registry, against Postgres > never fences a copy a restore in place is taking over [219.85ms]
+(pass) the node registry, against Postgres > adopts a newer epoch its own node reports (a restored database), and flags one from elsewhere [98.83ms]
+(pass) the node registry, against Postgres > a delayed beat changes nothing, and a node that reports nothing holds nothing [77.35ms]
+(pass) the node registry, against Postgres > what a node finds wrong with a workload is kept with its report, for operators to read [41.08ms]
+(pass) the node registry, against Postgres > an unchanged report writes nothing [91.12ms]
+(pass) the node registry, against Postgres > a daemon restart is a new session, not a clone [72.31ms]
+(pass) the node registry, against Postgres > a second host with the same identity is caught and quarantined [158.72ms]
+(pass) the node registry, against Postgres > a node that moves to a new address is reached there, and the change is recorded [53.68ms]
+(pass) the node registry, against Postgres > renewal: the new certificate works alongside the old until a heartbeat brings it [107.15ms]
+(pass) the node registry, against Postgres > a certificate is due for renewal by the database’s clock, whatever this process’s says [82.83ms]
+(pass) the node registry, against Postgres > renewal needs the node's current certificate, and a node in good standing [24.73ms]
+(pass) the node registry, against Postgres > a node enrolls again under its own id, and its old certificate stops working [72.83ms]
+(pass) the node registry, against Postgres > loss is confirmed, never timed; a returning copy is fenced, gets no lease, and is recorded as a fork [901.29ms]
+(pass) the node registry, against Postgres > a node that comes back before its sandboxes were rebuilt can be reinstated [95.57ms]
+(pass) the node registry, against Postgres > retiring needs an empty node, and its certificates stop working [47.28ms]
+(pass) the node registry, against Postgres > draining is an operator’s, and recorded with who asked [55.45ms]
+(pass) the node registry, against Postgres > the ledger counts what placements promised on each node [55.07ms]
+(pass) the node registry, against Postgres > only sandboxes that run, or are being started or made, hold memory [329.10ms]
+(pass) the node registry, against Postgres > silence while no endpoint listened isn't held against a node [61.66ms]
+(pass) the node registry, against Postgres > sessions: a stale sequence, a restart and a clone are told apart [0.16ms]
+(pass) join tokens, against Postgres > a token is for a fleet region the region map names, and nothing else [101.53ms]
+(pass) join tokens, against Postgres > a pasted token names the endpoint, the CA and the deployment, and enrolls by its secret [72.96ms]
+(pass) the ledger and a node's own answers, against Postgres > a suspended copy holds its memory; one the node's own answer says stopped frees it at once [71.20ms]
+
+edge/test/image-routing.test.ts:
+(pass) image fallback preserves declared HTTP hosts and control and agent aliases [28.89ms]
+
+edge/test/poll.test.ts:
+(pass) holds routes once a list is applied, and keeps doing so while the control plane is unreachable [0.54ms]
+(pass) is not held while the first list is not applied [0.08ms]
+
+edge/test/limits.quality.test.ts:
+(pass) admission follows the live connections, even when close events repeat or arrive out of order [18.44ms]
+(pass) a bucket admits exactly its burst and refills only at the next token boundary [4.02ms]
+(pass) IPv6 spelling and host bits cannot evade the same network connection limit [7.24ms]
+(pass) leading and trailing IPv6 compression preserves the network, and mapped IPv4 keeps every octet [0.14ms]
+(pass) refusal telemetry distinguishes greeting, opening rate and server capacity and is drained once [0.35ms]
+(pass) a maintenance sweep never frees live sockets even when their rate bucket has refilled [0.34ms]
+
+edge/test/sandbox-proxy.test.ts:
+(pass) invalid, expired, foreign and route-only capabilities cannot wake an agent [32.16ms]
+(pass) an exposed spare is public and the SDK terminal keeps initial output and stdin [36.96ms]
+
+edge/test/relay.test.ts:
+(pass) HTTP greeting waits for complete headers and rejects ambiguity [15.83ms]
+(pass) a large upload pauses at its greeting while a wake is outstanding [215.31ms]
+(pass) a later epoch closes old connections and a delayed route cannot restore them [0.80ms]
+(pass) waiting connections share a wake even if the first leaves [0.46ms]
+(pass) HTTP hold replays the body and TLS forwards the original ClientHello [35.35ms]
+(pass) a spliced raw connection survives the former hold deadline [252.58ms]
+
+edge/test/agent-tls.test.ts:
+(pass) verified agent TLS authenticates before waking [43.09ms]
+
+edge/test/poll.quality.test.ts:
+(pass) failed updates keep acknowledging only the last fully applied version, then recover [2.10ms]
+(pass) a rejected first application neither resolves readiness nor claims a held version [0.41ms]
+(pass) an unchanged response refreshes only an already held version and freshness expires after its boundary [1.12ms]
+
+edge/test/limits.test.ts:
+(pass) a flood on one server is refused there, and another server still takes connections [0.18ms]
+(pass) a server takes connections again as its rate refills [0.08ms]
+(pass) a server holds only so many connections open, and a closed one frees its place [0.04ms]
+(pass) an address may open only so many connections a second, and only so many still greeting [0.09ms]
+(pass) an IPv6 address counts by its /64, and an IPv4 one written as IPv6 as itself [0.04ms]
+(pass) a sweep says what was refused, once, and forgets what limits nothing [0.10ms]
+(pass) an address holds only so many connections let through, across servers, and a closed one frees its place [0.07ms]
+(pass) an IPv6 address holds its connections by its /64 [0.07ms]
+(pass) a connection given no address is counted against its server alone [0.06ms]
+
+edge/test/agent-gateway.test.ts:
+(pass) one connection switches between control and agent requests [11.18ms]
+(pass) relay preserves encoded response bytes and representation headers [15.16ms]
+
+control/test/s3/parts.test.ts:
+(pass) partPlan > one PUT carries no more than R2 takes in one [0.02ms]
+(pass) partPlan > an archive of 5363466241 bytes fits its parts, whole MiB each, within what S3 and R2 take [0.23ms]
+(pass) partPlan > an archive of 6442450944 bytes fits its parts, whole MiB each, within what S3 and R2 take [0.01ms]
+(pass) partPlan > an archive of 53687091200 bytes fits its parts, whole MiB each, within what S3 and R2 take
+(pass) partPlan > an archive of 322122547200 bytes fits its parts, whole MiB each, within what S3 and R2 take
+(pass) partPlan > an archive of 32985348833280 bytes fits its parts, whole MiB each, within what S3 and R2 take
+(pass) partPlan > about as many parts as asked, unless the parts would be larger than any store takes [0.04ms]
+(pass) partPlan > a small object is still parts of 8 MiB, the least the plan makes [0.02ms]
+(pass) partPlan > more than 10,000 parts of the largest size hold is refused [0.05ms]
+
+control/test/registry/upgrades.test.ts:
+(pass) versions compare by their numbers, and a version that is not one is never older [0.55ms]
+(pass) the pryxd rollout, against Postgres > two nodes in a region are never offered at once; the next is once the first beats healthy [167.60ms]
+(pass) the pryxd rollout, against Postgres > a failure stops the region until the node is retried [122.93ms]
+(pass) the pryxd rollout, against Postgres > an offered node that never comes back on the release fails when its time is up [77.22ms]
+(pass) the pryxd rollout, against Postgres > a draining, lost, quarantined or unhealthy node is not offered, and a drained one gives its turn up [88.88ms]
+(pass) nodes the rollout passes by, and what operators see > a node too old to upgrade itself is skipped, and says so [28.85ms]
+(pass) nodes the rollout passes by, and what operators see > a node that takes only a signed pryxd is offered the signature, and nothing without one [82.29ms]
+(pass) nodes the rollout passes by, and what operators see > a node already on the release, or newer, or a deployment rolling none out, is offered nothing [31.75ms]
+(pass) the operators’ view > lists every node in the rollout, and retries a failed one [73.11ms]
+
+control/test/registry/heartbeat-records.test.ts:
+(pass) session boundaries distinguish late beats, restarts and duplicate hosts [0.32ms]
+(pass) only a matching current or next certificate is accepted [26.74ms]
+(pass) refusals retain the reason for wrong identities, certificates and retired nodes [24.05ms]
+(pass) invalid epochs are refused while zero remains a valid whole epoch [41.57ms]
+(pass) a duplicate identity is quarantined and audited once across repeated beats [42.06ms]
+(pass) address changes retain their exact fields and reject invalid hosts [224.60ms]
+(pass) a beat from the replaced session explains the newer session [82.09ms]
+
+control/test/registry/summaries-records.test.ts:
+(pass) placement views retain every capacity field and default absent fields [62.86ms]
+(pass) health changes are persisted and audited once with their measured age [60.89ms]
+(pass) a node that never beat records an unknown age and retired nodes stay untouched [48.85ms]
+
+control/test/registry/answer-order.test.ts:
+(pass) ordering a node’s reports of its own copy > a heartbeat sampled before a stop answer keeps the released memory free [138.70ms]
+
+integrations/rivet/test/session.test.ts:
+(pass) a lost create reply keeps identity; lifecycle manages its recovered sandbox [342.33ms]
+(pass) sandbox-agent provider preserves keys, pauses and handles private IPv6 endpoints [41.93ms]
+
+integrations/celld/test/bridge.test.ts:
+(pass) first use is keyed, private forwarding wakes and never sends the bridge credential [10.04ms]
+
+sdk/typescript/test/client.test.ts:
+(pass) NDJSON carries split UTF-8, final lines and cancels its source [3.74ms]
+(pass) a refused mutation carries its envelope and is sent once [0.35ms]
+
+sdk/typescript/test/agent.test.ts:
+(pass) agent run is live, caches its token and keeps the project key off sandbox requests [2.34ms]
+(pass) agent mutations are sent once and preserve structured refusal [0.50ms]
+(pass) file streams use the agent while running and node data after stop [1.97ms]
+
+sdk/typescript/test/handles.test.ts:
+(pass) handles normalize durations, retain raw methods and assign mutation keys once [2.27ms]
+(pass) line iteration yields before exit and keeps stdout and stderr line boundaries [0.76ms]
+(pass) one-shot cleanup runs on command errors and a missing exit stays unknown [4.71ms]
+(pass) writes exceed the old file bound in chunks, including UTF-8 and empty truncation [20.07ms]
+
+ 303 pass
+ 0 fail
+ 7376 expect() calls
+Ran 303 tests across 62 files. [93.95s]

@@ -44,6 +44,7 @@ export interface RuntimeSpec {
   resources: {
     memoryMb: number
     cpuMillis?: number | null
+    cpuReservationMillis?: number | null
     cpuWeight?: number | null
     pidsLimit?: number | null
   }

@@ -139,6 +139,9 @@ impl ProcessRuntime {
         Ok(())
     }
     pub(super) fn create_entry(&self, spec: &ContainerSpec) -> Result<String, RuntimeError> {
+        if spec.nano_cpus.is_some() {
+            return Err(error(crate::protocol::CPU_LIMIT_PROBLEM));
+        }
         if self.entry(&spec.name).is_ok() {
             return Err(RuntimeError::Conflict("Process sandbox exists".into()));
         }
@@ -175,6 +178,36 @@ impl ProcessRuntime {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn cpu_ceilings_are_refused_before_creation_or_journal_relaunch() {
+        let dir = tempfile::tempdir().unwrap();
+        let runtime = ProcessRuntime::new(dir.path(), ProcessConfig::default()).unwrap();
+        let mut spec = fixture_spec(dir.path(), 0);
+        spec.nano_cpus = Some(250_000_000);
+        assert!(
+            matches!(runtime.create_entry(&spec), Err(RuntimeError::Other(s)) if s == crate::protocol::CPU_LIMIT_PROBLEM)
+        );
+        assert!(runtime.names().is_empty());
+        spec.nano_cpus = None;
+        runtime.create_entry(&spec).unwrap();
+        let mut entry = runtime.entry(&spec.name).unwrap();
+        entry.spec.nano_cpus = Some(250_000_000);
+        runtime.save(entry).unwrap();
+        assert!(
+            matches!(runtime.launch(&spec.name).await, Err(RuntimeError::Other(s)) if s == crate::protocol::CPU_LIMIT_PROBLEM)
+        );
+        assert!(runtime.state.children.lock().unwrap().is_empty());
+        let mut child = std::process::Command::new("sleep").arg("10").spawn().unwrap();
+        let mut entry = runtime.entry(&spec.name).unwrap();
+        entry.pid = Some(child.id());
+        entry.ticks = super::super::observe::identity(child.id());
+        runtime.save(entry).unwrap();
+        let running = runtime.launch(&spec.name).await;
+        child.kill().unwrap();
+        child.wait().unwrap();
+        assert!(matches!(running, Err(RuntimeError::Other(s)) if s == crate::protocol::CPU_LIMIT_PROBLEM));
+    }
     use std::os::unix::fs::{PermissionsExt, symlink};
 
     #[test]

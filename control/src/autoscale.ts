@@ -13,7 +13,7 @@ import {
   HOST_MEMORY_DIVISOR,
   HOST_MIN_MEMORY_MB,
 } from './host-defaults.ts'
-import { cpuRequest } from './placement.ts'
+import { reservedCpu } from './placement.ts'
 import type { Acquisition, ProviderLedger } from './provider-ledger.ts'
 import { ProviderError, type Shape } from './providers/provider.ts'
 import { drain, getNode, nodeSummaries, retire, toNodeView } from './registry.ts'
@@ -55,7 +55,7 @@ export class Autoscale {
   async refused(region: string, spec: SandboxSpec) {
     const required = {
       memoryMb: spec.resources.memoryMb,
-      cpuMillis: spec.resources.cpuMillis ?? cpuRequest(spec.resources.memoryMb, this.config.cpuMillisPerGb),
+      cpuMillis: reservedCpu(spec.resources, this.config.cpuMillisPerGb),
       diskGb: spec.storage.sizeGb,
     }
     await this.db.execute(

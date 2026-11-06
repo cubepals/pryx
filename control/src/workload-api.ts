@@ -61,6 +61,7 @@ export const address = (node: Dialled): NodeAddress => ({
 })
 
 function toWorkloadSpec(spec: RuntimeSpec, features: readonly string[]): WorkloadSpec {
+  const { cpuReservationMillis, ...resources } = spec.resources
   return {
     image: spec.image,
     ...(features.includes('wasm-packages') && spec.packages ? { packages: [...spec.packages] } : {}),
@@ -69,7 +70,12 @@ function toWorkloadSpec(spec: RuntimeSpec, features: readonly string[]): Workloa
     ...(spec.entrypoint ? { entrypoint: [...spec.entrypoint] } : {}),
     env: { ...spec.env },
     secrets: { ...spec.secrets },
-    resources: { ...spec.resources },
+    resources: {
+      ...resources,
+      ...(features.includes('cpu-reservation') && cpuReservationMillis != null
+        ? { cpuReservationMillis }
+        : {}),
+    },
     storage: { mountPath: spec.storage.mountPath, sizeGb: spec.storage.sizeGb },
     ports: spec.ports.map((p) => ({
       name: p.name,

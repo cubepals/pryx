@@ -10,6 +10,9 @@ impl WasmRuntime {
         let transition = self.transition(name)?;
         let _turn = transition.lock().await;
         let entry = self.entry(name)?;
+        if entry.spec.nano_cpus.is_some() {
+            return Err(error(crate::protocol::CPU_LIMIT_PROBLEM));
+        }
         if self.state.live.lock().unwrap().contains_key(&entry.id) {
             return Ok(());
         }

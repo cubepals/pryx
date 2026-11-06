@@ -366,6 +366,15 @@
               "null"
             ]
           },
+          "cpuReservationMillis": {
+            "description": "CPU reserved for admission, in thousandths of a core. This is not a CPU ceiling.\nSent only after the node announces cpu-reservation.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "cpuWeight": {
             "default": null,
             "description": "Share of CPU under contention, relative (cgroup weight). Absent: proportional to memory.",
@@ -837,6 +846,7 @@
     "imageProblem": "this host runs the process tier; images are not available"
   },
   "x-pryx-resources": {
+    "cpuLimitProblem": "CPU ceilings and weights require container isolation",
     "defaultMinMemoryMb": 256,
     "minCpuMillis": 100
   },

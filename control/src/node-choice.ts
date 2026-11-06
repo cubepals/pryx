@@ -14,11 +14,11 @@ import type { Queryable } from './database.ts'
 import type { Thresholds } from './health.ts'
 import {
   type Considered,
-  cpuRequest,
   type Decision,
   type NodeView,
   type PlacementOptions,
   type PlacementRequest,
+  reservedCpu,
   selectNode,
   startRefusal,
 } from './placement.ts'
@@ -55,7 +55,8 @@ export class NodeChoice {
     return {
       isolation: spec.isolation,
       memoryMb: spec.resources.memoryMb,
-      cpuMillis: spec.resources.cpuMillis ?? cpuRequest(spec.resources.memoryMb, this.#o.cpuMillisPerGb),
+      cpuMillis: reservedCpu(spec.resources, this.#o.cpuMillisPerGb),
+      cpuLimits: spec.resources.cpuMillis != null || spec.resources.cpuWeight != null,
       diskGb: spec.storage.sizeGb,
       ports: spec.ports.length + (spec.agent ? 1 + (spec.sparePorts ?? 0) : 0),
       regionKey: region,
