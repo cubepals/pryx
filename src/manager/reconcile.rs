@@ -155,13 +155,23 @@ impl Manager {
         Ok(by_workload)
     }
 
-    /// Rebuilds the port allocator from the records, every pass, so it can't drift from them.
-    /// A port two records claim, or one out of range, is an issue of each workload involved.
+    /// Rebuilds idle claims from records. Active verbs own reservations before their record is
+    /// persisted, or release ports before its deletion is persisted; keep those transitions intact.
+    /// A port two stable records claim, or one out of range, is an issue of each workload involved.
     fn claim_ports(&self, issues: &mut HashMap<WorkloadId, Vec<Issue>>) {
         let mut state = self.state.lock().unwrap();
-        state.ports.clear();
+        // Holding state prevents allocation between checking the verb locks and rebuilding.
+        let active: HashSet<WorkloadId> = self
+            .locks
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(_, lock)| lock.try_lock().is_err())
+            .map(|(id, _)| id.clone())
+            .collect();
+        state.ports.retain_owners(&active);
         let records: Vec<WorkloadRecord> = state.records.values().cloned().collect();
-        for r in records.iter().filter(|r| r.phase != Phase::Retained) {
+        for r in records.iter().filter(|r| r.phase != Phase::Retained && !active.contains(&r.id)) {
             for p in &r.ports {
                 let Err(e) = state.ports.claim(&r.id, p.protocol, p.host_port) else { continue };
                 let issue = match e {
@@ -346,5 +356,73 @@ impl Manager {
         unreadable
             .map(|b| Issue::new(IssueCode::UnreadableSnapshot, format!("{}: {}", b.path.display(), b.problem)))
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::protocol::Proto;
+    use crate::runtime::fake::FakeRuntime;
+
+    fn manager() -> (tempfile::TempDir, Arc<Manager>) {
+        let dir = tempfile::tempdir().unwrap();
+        let (uid, gid) = (rustix::process::getuid().as_raw(), rustix::process::getgid().as_raw());
+        let config: Config = toml::from_str(&format!(
+            "deployment_id = \"test\"\nnode_id = \"n\"\nstate_dir = \"{}\"\n[api]\nlisten = \"127.0.0.1:0\"\n\
+             [workloads]\nallowed_images = [\"alpine:\"]\ndata_owner = \"{uid}:{gid}\"\n\
+             [capacity]\nmin_free_disk_mb = 1\n",
+            dir.path().display()
+        ))
+        .unwrap();
+        let store = Store::open(&config.state_dir).unwrap();
+        let m = Manager::new(
+            Arc::new(config),
+            Arc::new(FakeRuntime::new()),
+            store,
+            Arc::new(Metrics::new()),
+            Arc::new(|_, _| true),
+        );
+        (dir, m)
+    }
+
+    #[tokio::test]
+    async fn reconciliation_keeps_a_creates_unpersisted_port_reservation() {
+        let (_dir, m) = manager();
+        let pending = WorkloadId::parse("pending").unwrap();
+        let other = WorkloadId::parse("other").unwrap();
+        let lock = m.lock_for(&pending);
+        let guard = lock.lock().await;
+        // Exactly the interval between allocation and save_record's blocking write.
+        let reserved = m.state.lock().unwrap().ports.allocate(&pending, Proto::Tcp).unwrap();
+        m.claim_ports(&mut HashMap::new());
+        let next = m.state.lock().unwrap().ports.allocate(&other, Proto::Tcp).unwrap();
+        assert_ne!(reserved, next, "reconciliation must not hand an active create's port out twice");
+        drop(guard);
+        // An abandoned reservation without a record is still repaired after the verb ends.
+        m.claim_ports(&mut HashMap::new());
+        assert_eq!(m.state.lock().unwrap().ports.allocate(&other, Proto::Tcp).unwrap(), reserved);
+    }
+
+    #[tokio::test]
+    async fn reconciliation_does_not_reclaim_a_deletes_quarantined_port() {
+        let (_dir, m) = manager();
+        let id = WorkloadId::parse("deleting").unwrap();
+        let spec = serde_json::from_value(serde_json::json!({
+            "image": "alpine:3.22",
+            "resources": { "memoryMb": 1024 },
+            "storage": { "mountPath": "/data", "sizeGb": 1 },
+            "ports": [{ "name": "http", "containerPort": crate::examples::HTTP_PORT, "audience": ["control"] }]
+        }))
+        .unwrap();
+        m.ensure(id.clone(), spec, Precondition::None, None).await.unwrap();
+        let lock = m.lock_for(&id);
+        let _guard = lock.lock().await;
+        // Delete releases ports before its record is trashed on the blocking pool.
+        m.state.lock().unwrap().ports.release_all(&id);
+        m.claim_ports(&mut HashMap::new());
+        let state = m.state.lock().unwrap();
+        assert_eq!(state.ports.allocated(), 0, "the old record is not a new claim during deletion");
+        assert_eq!(state.ports.resting().len(), 1, "the original quarantine must survive");
     }
 }

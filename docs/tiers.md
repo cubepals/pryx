@@ -109,7 +109,7 @@ The tables pin the complete [raw reports from CI 42166712195](measurements/k14/4
 source `becd30a2051e59ecde599a22f3ff5e868bcd59e3`. Every tier completes every requested cohort,
 including thirty verified pip installs, thirty verified npm installs and thirty batches of
 fifty creations. Recomputing nearest-rank percentiles from the raw samples matches every
-reported value. Later PID-identity hardening has its own real-child regression and full Rust
+reported value. Later PID-identity and port-ownership hardening have failing-before regressions and full Rust
 verification; the final branch workflow repeats collection on that code. The table remains
 pinned to its measured source rather than relabeling old samples with a new commit.
 

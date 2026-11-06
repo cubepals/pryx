@@ -16,7 +16,7 @@
 //! its address. Released ports rest in quarantine before reuse, so a route still cached somewhere
 //! (the edge polls every second) can't reach the next workload.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::net::{IpAddr, SocketAddr, TcpListener, UdpSocket};
 use std::ops::RangeInclusive;
 use std::sync::Arc;
@@ -142,8 +142,9 @@ impl PortAllocator {
         self.held.get(&(proto, port))
     }
 
-    pub(crate) fn clear(&mut self) {
-        self.held.clear();
+    /// Rebuild idle claims without dropping a reservation whose owning verb is still active.
+    pub(crate) fn retain_owners(&mut self, active: &HashSet<WorkloadId>) {
+        self.held.retain(|_, owner| active.contains(owner));
     }
 
     /// Resting ports and how long ago each was released, for persisting across restarts.
