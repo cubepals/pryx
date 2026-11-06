@@ -161,7 +161,10 @@ impl ProcessRuntime {
         Err(RuntimeError::Timeout("Process supervisor did not become healthy".into()))
     }
     pub(super) fn observe_entry(&self, name: &str) -> Result<Option<ContainerInfo>, RuntimeError> {
-        let mut entry = match self.entry(name) {
+        // Observation and journal removal share the same turn; a late observation cannot
+        // recreate removed compute or replace a newer exit status.
+        let mut entries = self.state.entries.lock().unwrap();
+        let mut entry = match Self::entry_from(&entries, name) {
             Ok(entry) => entry,
             Err(RuntimeError::NotFound(_)) => return Ok(None),
             Err(e) => return Err(e),
@@ -178,7 +181,7 @@ impl ProcessRuntime {
             entry.code = status.code().map_or_else(|| exit_by(status.signal().unwrap_or(libc::SIGKILL)), i64::from);
             entry.finished = Some(format_time(crate::clock::now()));
             self.state.children.lock().unwrap().remove(&entry.spec.name);
-            self.save(entry.clone())?;
+            self.save_in(&mut entries, entry.clone())?;
         }
         let alive = entry.pid.is_some_and(|pid| identity(pid) == entry.ticks);
         if !alive && !entry.cleaned {
@@ -186,7 +189,7 @@ impl ProcessRuntime {
                 self.retire_orphans(&agent.sandbox)?;
             }
             entry.cleaned = true;
-            self.save(entry.clone())?;
+            self.save_in(&mut entries, entry.clone())?;
         }
         let paused = alive
             && entry

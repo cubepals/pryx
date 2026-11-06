@@ -12,6 +12,7 @@ import { createToken, nodeSummaries } from '../control/src/registry.ts'
 import { startEdge } from '../edge/src/agent.ts'
 import { edgeConfig } from '../edge/src/config.ts'
 import { front } from '../edge/src/front.ts'
+import { imagePortRange } from './image-network.ts'
 import {
   createPrivateFile,
   credentials,
@@ -130,7 +131,7 @@ async function serve() {
     process.getuid?.() === 0
       ? '1000:1000'
       : `${process.getuid?.()}:${process.getgid?.() || process.getuid?.()}`
-  writeFileSync(
+  createPrivateFile(
     nodeConfig,
     `deployment_id = "pryx"
 runtime = "${tier}"
@@ -152,10 +153,11 @@ agent_public_origin = ${JSON.stringify(origin)}
 user = "${user}"
 allowed_images = ["alpine:", "ghcr.io/", "docker.io/", "mirror.gcr.io/"]
 [network]
+port_range = ${JSON.stringify(imagePortRange(nodeConfig))}
 edge_ips = ["127.0.0.1"]
 control_ips = ["127.0.0.1"]
 `,
-    { mode: 0o600 },
+    true,
   )
   startupStage = 'enrollment'
   const log = privateLog(root, 'node')
@@ -172,13 +174,16 @@ control_ips = ["127.0.0.1"]
     if (await isolate.exited) throw new Error('Container tier host firewall policy could not be installed')
   }
   await control.runtime.refreshRegistry()
+  const ingress = edgeConfig({
+    ...process.env,
+    PRYX_CONTROL_URL: control.apiUrl,
+    PRYX_EDGE_TOKEN: values.edge,
+    PRYX_EDGE_HOST: '127.0.0.1',
+    PRYX_EDGE_METRICS_HOST: '127.0.0.1',
+    PRYX_EDGE_HTTP_ONLY: '1',
+  })
   const edge = await startEdge({
-    ...edgeConfig({
-      PRYX_CONTROL_URL: control.apiUrl,
-      PRYX_EDGE_TOKEN: values.edge,
-      PRYX_EDGE_HOST: '127.0.0.1',
-      PRYX_EDGE_HTTP_ONLY: '1',
-    }),
+    ...ingress,
     httpPort: 0,
     metricsPort: 0,
   })
@@ -194,9 +199,9 @@ control_ips = ["127.0.0.1"]
     table: edge.table,
     gate: edge.gate,
     hold: edge.hold,
-    holdMs: edgeConfig({ PRYX_EDGE_TOKEN: values.edge }).holdMs,
-    greetingMs: SECOND_MS * 5,
-    bufferBytes: 64 * 1024,
+    holdMs: ingress.holdMs,
+    greetingMs: ingress.greetingMs,
+    bufferBytes: ingress.bufferBytes,
     metrics: edge.metrics,
     session: () => {},
     control: { destination: edge.agents.destination() as string, paths: /^\// },

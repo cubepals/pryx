@@ -11,6 +11,7 @@ import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { StatusCodes } from 'http-status-codes'
 import nodeSchema from '../../openapi/node-writes.openapi.json'
+import { AppRequests } from '../e2e/app-requests.ts'
 import { SECOND_MS } from '../src/durations.ts'
 
 const phase = process.argv[2]
@@ -46,6 +47,7 @@ const edge = await startEdge({
 })
 const port = (edge.listeners.get('http:80')?.address() as AddressInfo).port
 const origin = `http://127.0.0.1:${port}`
+const apps = new AppRequests(origin)
 if (phase === 'after' && d.control.edge.agents) d.control.edge.agents.localOrigin = origin
 const sdk = new Pryx({ url: d.control.apiUrl, key: d.credential.key })
 const box = await sdk.sandbox({
@@ -72,7 +74,7 @@ async function available(host: string) {
   const end = performance.now() + SECOND_MS
   while (true) {
     try {
-      const response = await fetch(origin, { headers: { host }, keepalive: false })
+      const response = await apps.get(`http://${host}/`)
       if (response.status === StatusCodes.OK && (await response.text()) === 'ready') return
     } catch {
       /* A read can wait for the already-started listener; a start is never retried. */
@@ -224,6 +226,7 @@ try {
   writeFileSync(process.argv[3] ?? `/tmp/agent-speed-${phase}.json`, JSON.stringify(result, null, 2))
   console.log(JSON.stringify(result))
 } finally {
+  apps.close()
   await box.delete()
   await edge.stop()
   await d.close()

@@ -37,6 +37,11 @@ authenticated `/sandboxes/<id>/_pryx/` alias; exposed application ports use publ
 their URL prefix. TLS and raw TCP fronts are disabled in the image. Standalone host edges
 can still use wildcard DNS, certificates and raw fronts as documented in [agent.md](agent.md).
 
+New image state derives its private node listener pool below the kernel's outgoing ephemeral
+range without changing sysctls. Restart preserves the stored pool, including older implicit
+pools. The image honors the edge's `PRYX_EDGE_*` admission and greeting settings while keeping
+embedded service listeners private; normal limits remain the defaults.
+
 Without DATABASE_URL the image starts private Postgres in the volume. With DATABASE_URL it
 uses that existing Postgres and applies pryx's migrations. Without S3_ENDPOINT it starts a
 private S3-compatible store in the volume. To use external S3, set S3_ENDPOINT, S3_BUCKET,

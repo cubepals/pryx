@@ -7,6 +7,7 @@ mod support;
 use pryxd::config::WasmConfig;
 use pryxd::manager::{Precondition, Records};
 use pryxd::protocol::ExecRequest;
+use pryxd::runtime::ContainerRuntime;
 use pryxd::runtime::wasm::WasmRuntime;
 use std::sync::Arc;
 
@@ -157,6 +158,16 @@ async fn restart(
         .await
         .unwrap();
     assert_eq!(restored.stdout, "savedroot-savedwasm-private-fixture");
+    let observer = recovered.clone();
+    let watching = tokio::spawn(async move {
+        for _ in 0..100 {
+            observer.list(&[]).await.unwrap();
+            tokio::task::yield_now().await;
+        }
+    });
+    manager.delete(support::id("wasm-one"), pryxd::protocol::DataDisposition::Keep, None, None).await.unwrap();
+    watching.await.unwrap();
+    assert!(recovered.list(&[]).await.unwrap().is_empty());
     recovered.shutdown().await.unwrap();
 }
 

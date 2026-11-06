@@ -2454,6 +2454,12 @@
     "tokenLifetimeSeconds": 300,
     "tokenPrefix": "pa1"
   },
+  "x-pryx-network": {
+    "defaultPortRange": [
+      42000,
+      42999
+    ]
+  },
   "x-pryx-process": {
     "imageProblem": "this host runs the process tier; images are not available"
   },

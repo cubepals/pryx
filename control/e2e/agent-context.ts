@@ -6,6 +6,7 @@ import { startEdge } from '../../edge/src/agent.ts'
 import { edgeConfig } from '../../edge/src/config.ts'
 import { type MakeRequest, Pryx } from '../../sdk/typescript/src/index.ts'
 import { AGENT_ROUTE_PORT } from '../src/edge-headers.ts'
+import { AppRequests } from './app-requests.ts'
 import { deployment } from './deployment.ts'
 import { until } from './waits.ts'
 
@@ -33,6 +34,7 @@ export async function agentDeployment(
   })
   const port = (edge.listeners.get('http:80')?.address() as AddressInfo).port
   const origin = `http://127.0.0.1:${port}`
+  const apps = new AppRequests(origin)
   if (!d.control.edge.agents) throw new Error('Missing agent capability service')
   d.control.edge.agents.localOrigin = origin
   const sdk = new Pryx({ url: d.control.apiUrl, key: d.credential.key })
@@ -45,9 +47,9 @@ export async function agentDeployment(
       sdk.sandbox(tier && tier !== 'container' ? { ...options, image: undefined, isolation: tier } : options),
     route: (id: string) =>
       until('edge holds agent', async () => edge.table.held.get(`${id}:${AGENT_ROUTE_PORT}`)),
-    // Distinct production origins share this local URL; do not reuse an agent's routed socket.
-    app: (url: string) => fetch(origin, { headers: { host: new URL(url).hostname }, keepalive: false }),
+    app: (url: string) => apps.get(url),
     close: async () => {
+      apps.close()
       await edge.stop()
       await d.close()
     },

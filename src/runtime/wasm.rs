@@ -41,6 +41,7 @@ struct State {
     launcher: PathBuf,
     pool: String,
     entries: Mutex<BTreeMap<String, Entry>>,
+    transitions: Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>,
     live: Mutex<HashMap<String, Arc<host::Live>>>,
     events: tokio::sync::broadcast::Sender<RuntimeEvent>,
     anchor: AgentOs,
@@ -121,6 +122,7 @@ impl WasmRuntime {
                 launcher,
                 pool,
                 entries: Mutex::new(entries),
+                transitions: Mutex::new(HashMap::new()),
                 live: Mutex::new(HashMap::new()),
                 events: tokio::sync::broadcast::channel(256).0,
                 anchor,
@@ -167,6 +169,22 @@ impl WasmRuntime {
             .find(|entry| entry.id == name || entry.spec.name == name)
             .cloned()
             .ok_or_else(|| RuntimeError::NotFound("Wasm sandbox".into()))
+    }
+
+    fn transition(&self, name: &str) -> Result<Arc<tokio::sync::Mutex<()>>, RuntimeError> {
+        let entries = self.state.entries.lock().unwrap();
+        let entry = entries
+            .values()
+            .find(|entry| entry.id == name || entry.spec.name == name)
+            .ok_or_else(|| RuntimeError::NotFound("Wasm sandbox".into()))?;
+        Ok(self
+            .state
+            .transitions
+            .lock()
+            .unwrap()
+            .entry(entry.id.clone())
+            .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(())))
+            .clone())
     }
 
     fn emit(&self, id: &str, action: &str) {
@@ -271,14 +289,10 @@ impl ContainerRuntime for WasmRuntime {
         Ok(())
     }
     async fn remove(&self, name: &str) -> Result<(), RuntimeError> {
-        let entry = match self.entry(name) {
-            Ok(entry) => entry,
-            Err(RuntimeError::NotFound(_)) => return Ok(()),
-            Err(error) => return Err(error),
-        };
-        self.dispose(&entry.id, false).await?;
-        self.state.entries.lock().unwrap().remove(&entry.id);
-        self.save()
+        match self.finish(name, false, true, None).await {
+            Err(RuntimeError::NotFound(_)) => Ok(()),
+            result => result,
+        }
     }
     async fn inspect(&self, name: &str) -> Result<Option<ContainerInfo>, RuntimeError> {
         self.inspect_entry(name).await

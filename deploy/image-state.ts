@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
-/** Private image credentials and embedded services. Credentials are persisted once, with mode
- * 0600, and never included in subprocess diagnostics or the ordinary startup log. */
+/** Private image files and embedded services. Credentials are persisted once; regenerable node
+ * configuration uses atomic replacement. Contents stay out of ordinary subprocess diagnostics. */
 import { randomBytes, randomUUID } from 'node:crypto'
 import {
   chmodSync,
@@ -15,6 +15,7 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  renameSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs'
@@ -33,7 +34,7 @@ function serviceIds() {
   return { uid: Number(fields[2]), gid: Number(fields[3]) }
 }
 const secret = () => randomBytes(32).toString('hex')
-export function createPrivateFile(path: string, contents: string) {
+export function createPrivateFile(path: string, contents: string, replace = false) {
   const temporary = `${path}.next-${randomUUID()}`
   const fd = openSync(
     temporary,
@@ -46,10 +47,14 @@ export function createPrivateFile(path: string, contents: string) {
   } finally {
     closeSync(fd)
   }
+  let moved = false
   try {
-    linkSync(temporary, path)
+    if (replace) {
+      renameSync(temporary, path)
+      moved = true
+    } else linkSync(temporary, path)
   } finally {
-    unlinkSync(temporary)
+    if (!moved) unlinkSync(temporary)
   }
   const directory = openSync(dirname(path), constants.O_RDONLY | constants.O_DIRECTORY)
   try {

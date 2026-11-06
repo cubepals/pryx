@@ -3,6 +3,7 @@
  * origin; project credentials are forwarded only to the configured control listener. */
 import { expect, test } from 'bun:test'
 import { Agent, request } from 'node:http'
+import { gzipSync } from 'node:zlib'
 import { agentContext } from './agent-context.ts'
 
 test('one connection switches between control and agent requests', async () => {
@@ -13,7 +14,9 @@ test('one connection switches between control and agent requests', async () => {
     port: 0,
     fetch: (request) => {
       authorization.push(request.headers.get('authorization') === 'Bearer project-key')
-      return new Response('control')
+      return new Response('control', {
+        headers: { connection: 'close, x-upstream-only', 'x-upstream-only': 'private-hop' },
+      })
     },
   })
   c.proxy.useControl(control.url.toString())
@@ -25,6 +28,8 @@ test('one connection switches between control and agent requests', async () => {
         `${c.url.split('/sandboxes/')[0]}${path}`,
         { agent, headers: { authorization: `Bearer ${token}` } },
         (response) => {
+          expect(response.headers['x-upstream-only']).toBeUndefined()
+          expect(response.headers.connection).not.toBe('close')
           connections.add(response.socket.localPort as number)
           let body = ''
           response.on('data', (bytes) => {
@@ -46,5 +51,34 @@ test('one connection switches between control and agent requests', async () => {
     agent.destroy()
     c.close()
     control.stop(true)
+  }
+})
+
+test('relay preserves encoded response bytes and representation headers', async () => {
+  const c = agentContext(),
+    encoded = gzipSync('encoded application content')
+  const upstream = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    fetch: () =>
+      new Response(encoded, {
+        headers: {
+          'content-encoding': 'gzip',
+          'content-length': String(encoded.length),
+          connection: 'close, x-upstream-only',
+          'x-upstream-only': 'private-hop',
+        },
+      }),
+  })
+  c.proxy.useControl(upstream.url.toString())
+  try {
+    const response = await fetch(`${c.url.split('/sandboxes/')[0]}/v1/encoded`, { decompress: false })
+    expect(response.headers.get('content-encoding')).toBe('gzip')
+    expect(response.headers.get('content-length')).toBe(String(encoded.length))
+    expect(response.headers.get('x-upstream-only')).toBeNull()
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array(encoded))
+  } finally {
+    c.close()
+    upstream.stop(true)
   }
 })

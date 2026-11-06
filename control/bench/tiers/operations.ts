@@ -19,12 +19,16 @@ export async function cold(c: Context, tier: Isolation, samples: Samples) {
   samples.fixed_node_pss_bytes = [baseline]
   samples.idle_increment_pss_bytes = []
   samples.shell_increment_pss_bytes = []
+  samples.idle_pss_bytes = []
+  samples.shell_pss_bytes = []
   await measure(samples, 'cold_create_running_ms', async () => {
     const box = await c.sdk.sandbox(creation(tier))
     if (box.state !== 'running' || box.isolation !== tier || box.units !== 1)
       throw new Error('Cold sandbox differs')
     return async () => {
-      samples.idle_increment_pss_bytes?.push((await c.memory()) - baseline)
+      const idle = await c.memory()
+      samples.idle_pss_bytes?.push(idle)
+      samples.idle_increment_pss_bytes?.push(idle - baseline)
       const marker = 'shell-ready'
       const shell = await box.start(['sh', '-c', `printf ${marker}; read value`], {
         stdin: true,
@@ -37,7 +41,9 @@ export async function cold(c: Context, tier: Isolation, samples: Samples) {
         if (greeting === marker) break
       }
       if (greeting !== marker) throw new Error('Shell did not become ready')
-      samples.shell_increment_pss_bytes?.push((await c.memory()) - baseline)
+      const running = await c.memory()
+      samples.shell_pss_bytes?.push(running)
+      samples.shell_increment_pss_bytes?.push(running - baseline)
       await shell.stdin.write('done\n')
       if ((await shell.wait()).code !== 0) throw new Error('Shell failed')
       await box.delete()
@@ -174,7 +180,13 @@ export async function packages(c: Context, tier: Isolation, box: Sandbox, sample
     }
   }
 }
-export async function concurrent(mode: string, tier: Isolation, samples: Samples, existing?: Context) {
+export async function concurrent(
+  mode: string,
+  tier: Isolation,
+  samples: Samples,
+  existing?: Context,
+  checkpoint = () => {},
+) {
   samples.concurrent_50_increment_pss_bytes = []
   samples.concurrent_50_running_ms = []
   samples.concurrent_50_pss_bytes = []
@@ -199,6 +211,7 @@ export async function concurrent(mode: string, tier: Isolation, samples: Samples
         samples.concurrent_50_pss_bytes.push(used)
         samples.concurrent_50_increment_pss_bytes.push(used - baseline)
         console.info('CONCURRENT_50', tier, i + 1, samples.concurrent_50_running_ms.at(-1), used)
+        checkpoint()
       } finally {
         await Promise.all(boxes.map((box) => box.delete()))
       }

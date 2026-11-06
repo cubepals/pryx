@@ -20,7 +20,8 @@ export const TIER_BENCH_LARGE_UNIT = {
   cpuMillis: TIER_BENCH_UNIT.cpuMillis * TIER_BENCH_LARGE_UNITS,
 }
 export const TEST_NODE_PORTS = 50
-export const TIER_BENCH_NODE_PORTS = 256
+// More than 1,500 concurrent-cohort creations plus scalar cohorts can rest without reuse.
+export const TIER_BENCH_NODE_PORTS = 2048
 
 export function nodePortLow(deployment: string, index: number) {
   const ephemeralStart = Number(
@@ -64,7 +65,7 @@ listen = "127.0.0.1:${apiPort}"
 listen = "127.0.0.1:${opsPort}"
 [network]
 port_range = [${low}, ${low + (process.env.PRYX_TIER_BENCH === '1' ? TIER_BENCH_NODE_PORTS : TEST_NODE_PORTS) - 1}]
-port_quarantine_seconds = 0
+${process.env.PRYX_TIER_BENCH === '1' ? '' : 'port_quarantine_seconds = 0'}
 [wasm]
 distribution = ${JSON.stringify(process.env.PRYX_AGENTOS_DISTRIBUTION ?? '/usr/local/lib/pryx/agentos')}
 [workloads]

@@ -10,6 +10,7 @@ import { SECOND_MS } from '../../control/src/durations.ts'
 import { AGENT_ROUTE_PORT } from '../../control/src/edge-headers.ts'
 import nodeSchema from '../../openapi/node-writes.openapi.json'
 import type { Hold } from './hold.ts'
+import { responseHeaders } from './response-headers.ts'
 import type { RouteTable } from './routes.ts'
 import { fileToken, requestToken, sandboxToken } from './sandbox-token.ts'
 import type { EdgeRoute } from './wire.ts'
@@ -203,12 +204,18 @@ export class SandboxProxy {
       if (this.control && (/^\/v1\//.test(url.pathname) || url.pathname === '/healthz')) {
         const headers = new Headers(request.headers)
         for (const name of ['host', 'connection', 'transfer-encoding', 'content-length']) headers.delete(name)
-        return fetch(`${this.control}${url.pathname}${url.search}`, {
+        const response = await fetch(`${this.control}${url.pathname}${url.search}`, {
           method: request.method,
           headers,
           body: ['GET', 'HEAD'].includes(request.method) ? undefined : request.body,
           signal: request.signal,
           redirect: 'manual',
+          decompress: false,
+        })
+        return new Response(response.body, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: responseHeaders(response.headers),
         })
       }
       return new Response('No such sandbox route', { status: StatusCodes.NOT_FOUND })
@@ -278,6 +285,7 @@ export class SandboxProxy {
         body: ['GET', 'HEAD'].includes(request.method) ? undefined : request.body,
         signal: AbortSignal.any([request.signal, cancelled.signal]),
         redirect: 'manual',
+        decompress: false,
       })
     } catch (error) {
       untrack()
@@ -296,7 +304,11 @@ export class SandboxProxy {
     }
     if (!response.body) {
       untrack()
-      return response
+      return new Response(null, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: responseHeaders(response.headers),
+      })
     }
     const reader = response.body.getReader()
     return new Response(
@@ -318,7 +330,11 @@ export class SandboxProxy {
           await reader.cancel()
         },
       }),
-      { status: response.status, statusText: response.statusText, headers: response.headers },
+      {
+        status: response.status,
+        statusText: response.statusText,
+        headers: responseHeaders(response.headers),
+      },
     )
   }
 

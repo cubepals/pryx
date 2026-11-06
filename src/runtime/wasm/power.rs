@@ -7,6 +7,8 @@ use futures_util::{StreamExt, stream};
 
 impl WasmRuntime {
     pub(super) async fn launch(&self, name: &str) -> Result<(), RuntimeError> {
+        let transition = self.transition(name)?;
+        let _turn = transition.lock().await;
         let entry = self.entry(name)?;
         if self.state.live.lock().unwrap().contains_key(&entry.id) {
             return Ok(());
@@ -63,12 +65,34 @@ impl WasmRuntime {
     }
 
     pub(super) async fn dispose(&self, name: &str, paused: bool) -> Result<(), RuntimeError> {
-        let own = self.clone();
-        let name = name.to_owned();
-        tokio::spawn(async move { own.dispose_inner(&name, paused).await }).await.map_err(error)?
+        self.finish(name, paused, false, None).await
     }
 
-    async fn dispose_inner(&self, name: &str, paused: bool) -> Result<(), RuntimeError> {
+    pub(super) async fn finish(
+        &self,
+        name: &str,
+        paused: bool,
+        remove: bool,
+        code: Option<i64>,
+    ) -> Result<(), RuntimeError> {
+        let own = self.clone();
+        let name = name.to_owned();
+        tokio::spawn(async move {
+            let transition = own.transition(&name)?;
+            let _turn = transition.lock().await;
+            own.dispose_inner(&name, paused, remove, code).await
+        })
+        .await
+        .map_err(error)?
+    }
+
+    async fn dispose_inner(
+        &self,
+        name: &str,
+        paused: bool,
+        remove: bool,
+        code: Option<i64>,
+    ) -> Result<(), RuntimeError> {
         let entry = self.entry(name)?;
         let live = self.state.live.lock().unwrap().get(&entry.id).cloned();
         if entry.pending {
@@ -88,6 +112,13 @@ impl WasmRuntime {
             current.running = false;
             current.paused = paused;
             current.finished = Some(format_time(OffsetDateTime::now_utc()));
+            if let Some(code) = code {
+                current.code = code;
+            }
+            if remove {
+                entries.remove(&entry.id);
+                self.state.transitions.lock().unwrap().remove(&entry.id);
+            }
         }
         self.save()?;
         self.emit(&entry.id, if paused { "pause" } else { DIED });
@@ -101,29 +132,33 @@ impl WasmRuntime {
             Err(error) => return Err(error),
         };
         let live = self.state.live.lock().unwrap().get(&entry.id).cloned();
-        if let Some(live) = live {
+        if let Some(live) = live.filter(|_| !entry.pending) {
             match live.status.load(std::sync::atomic::Ordering::Acquire) {
                 super::VM_UNCERTAIN => {
                     return Err(RuntimeError::Unavailable("Wasm VM termination remains uncertain".into()));
                 }
-                super::VM_DISPOSED => {
-                    self.dispose(&entry.id, false).await?;
-                    self.state.entries.lock().unwrap().get_mut(&entry.id).expect("entry retained").code =
-                        exit_by(libc::SIGKILL);
-                    self.save()?;
-                    entry = self.entry(&entry.id)?;
-                }
+                super::VM_DISPOSED => match self.finish(&entry.id, false, false, Some(exit_by(libc::SIGKILL))).await {
+                    Ok(()) => {}
+                    Err(RuntimeError::NotFound(_)) => return Ok(None),
+                    Err(error) => return Err(error),
+                },
                 _ => {}
             }
             let keep_alive = entry.spec.agent.as_ref().is_some_and(|agent| agent.keep_alive);
             if !keep_alive && let Some(result) = live.entrypoint.as_ref().and_then(|p| p.view().result) {
-                self.dispose(&entry.id, false).await?;
-                self.state.entries.lock().unwrap().get_mut(&entry.id).expect("entry retained").code =
-                    result.code.map(i64::from).unwrap_or_else(|| exit_by(libc::SIGKILL));
-                self.save()?;
-                entry = self.entry(&entry.id)?;
+                let code = result.code.map(i64::from).unwrap_or_else(|| exit_by(libc::SIGKILL));
+                match self.finish(&entry.id, false, false, Some(code)).await {
+                    Ok(()) => {}
+                    Err(RuntimeError::NotFound(_)) => return Ok(None),
+                    Err(error) => return Err(error),
+                }
             }
         }
+        entry = match self.entry(&entry.id) {
+            Ok(entry) => entry,
+            Err(RuntimeError::NotFound(_)) => return Ok(None),
+            Err(error) => return Err(error),
+        };
         let status = if entry.paused {
             ContainerStatus::Paused
         } else if entry.running {

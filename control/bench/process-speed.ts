@@ -8,6 +8,7 @@ import { StatusCodes } from 'http-status-codes'
 import { startEdge } from '../../edge/src/agent.ts'
 import { edgeConfig } from '../../edge/src/config.ts'
 import { Pryx, type Sandbox } from '../../sdk/typescript/src/index.ts'
+import { AppRequests } from '../e2e/app-requests.ts'
 import { deployment, ready } from '../e2e/deployment.ts'
 import { SECOND_MS } from '../src/durations.ts'
 
@@ -119,6 +120,7 @@ async function remove(name: string) {
 }
 
 async function operations(sdk: Pryx, origin: string, env: Record<string, string | undefined>) {
+  const apps = new AppRequests(origin)
   const box = await sdk.sandbox({
     ...(phase === 'before' ? { image: 'alpine:pryx-tls' } : {}),
     resources: { memoryMb: 512 },
@@ -155,10 +157,7 @@ async function operations(sdk: Pryx, origin: string, env: Record<string, string 
         let success = false
         while (performance.now() < end) {
           try {
-            const response =
-              phase === 'before'
-                ? await fetch(origin, { headers: { host: new URL(url).hostname }, keepalive: false })
-                : await fetch(url)
+            const response = phase === 'before' ? await apps.get(url) : await fetch(url)
             if (response.status === StatusCodes.OK && (await response.text()) === 'ready') {
               success = true
               break
@@ -251,6 +250,7 @@ async function operations(sdk: Pryx, origin: string, env: Record<string, string 
     })
     if (phase === 'after') await acceptance(sdk, box, env)
   } finally {
+    apps.close()
     await box.delete()
   }
 }

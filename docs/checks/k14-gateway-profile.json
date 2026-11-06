@@ -1,0 +1,14 @@
+[
+  {
+    "profile": "default",
+    "requests": 50,
+    "passed": 10,
+    "refused": 40
+  },
+  {
+    "profile": "comparison",
+    "requests": 50,
+    "passed": 50,
+    "refused": 0
+  }
+]

@@ -56,6 +56,8 @@ pub(crate) const PROTOCOL_VERSION: u32 = 1;
 pub const MIN_CPU_MILLIS: u32 = 100;
 /// Default host memory floor; the operator may configure a different policy.
 pub const DEFAULT_MIN_MEMORY_MB: u32 = 256;
+/// Default inclusive host listener pool, also used for legacy image configurations.
+pub const DEFAULT_PORT_RANGE: [u16; 2] = [42000, 42999];
 /// Every protocol version this pryxd speaks, PROTOCOL_VERSION among them.
 pub(crate) const SUPPORTED_VERSIONS: &[u32] = &[1];
 /// Sent on every response so a client can tell which protocol answered.

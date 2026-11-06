@@ -9,6 +9,12 @@ import type { Isolation } from '../../src/isolation.ts'
 import { command } from './report.ts'
 
 export type Context = Awaited<ReturnType<typeof context>>
+// Explicit bounded operator profile for fifty simultaneous public HTTP requests.
+export const IMAGE_BENCH_GATEWAY = {
+  PRYX_EDGE_ADDRESS_GREETING: '64',
+  PRYX_EDGE_ADDRESS_CONNECTIONS_BURST: '128',
+  PRYX_EDGE_ADDRESS_CONNECTIONS_PER_SECOND: '64',
+}
 export async function context(mode: string, tier: Isolation, override = true) {
   if (mode === 'one-box' || tier === 'container') {
     const c = await agentDeployment(tier)
@@ -42,6 +48,7 @@ export async function context(mode: string, tier: Isolation, override = true) {
           `PRYX_UNIT_CPU_MILLIS=${TIER_BENCH_UNIT.cpuMillis}`,
           '-e',
           `PRYX_CPU_OVERCOMMIT=${TIER_BENCH_CPU_OVERCOMMIT}`,
+          ...Object.entries(IMAGE_BENCH_GATEWAY).flatMap(([key, value]) => ['-e', `${key}=${value}`]),
         ]
       : []),
     process.env.PRYX_IMAGE_TEST ?? 'pryx-static-test',

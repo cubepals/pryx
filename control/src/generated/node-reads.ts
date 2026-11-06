@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
-// Generated from openapi/node-reads.openapi.json; sha256 78abaab1b24a35f7037a5d6ffe3763093e602a232231b866bcdf7097313fdd9b.
+// Generated from openapi/node-reads.openapi.json; sha256 645241fd0f75a522b45622492002b7911f857871dab4a2de0ffb39f83458de4f.
 export type paths = Record<string, never>;
 export type webhooks = Record<string, never>;
 export interface components {

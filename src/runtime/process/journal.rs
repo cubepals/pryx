@@ -122,8 +122,11 @@ impl ProcessRuntime {
         self.state.entries.lock().unwrap().keys().cloned().collect()
     }
     pub(super) fn save(&self, entry: Entry) -> Result<(), RuntimeError> {
+        self.save_in(&mut self.state.entries.lock().unwrap(), entry)
+    }
+    pub(super) fn save_in(&self, entries: &mut BTreeMap<String, Entry>, entry: Entry) -> Result<(), RuntimeError> {
         self.persist(&entry)?;
-        self.state.entries.lock().unwrap().insert(entry.spec.name.clone(), entry);
+        entries.insert(entry.spec.name.clone(), entry);
         Ok(())
     }
     pub(super) fn persist(&self, entry: &Entry) -> Result<(), RuntimeError> {
@@ -157,9 +160,10 @@ impl ProcessRuntime {
         Ok(id)
     }
     pub(super) fn remove_entry(&self, name: &str) -> Result<(), RuntimeError> {
-        let entry = self.entry(name)?;
+        let mut entries = self.state.entries.lock().unwrap();
+        let entry = Self::entry_from(&entries, name)?;
         fs::remove_file(self.state.root.join(format!("{}.json", entry.id))).map_err(error)?;
-        self.state.entries.lock().unwrap().remove(&entry.spec.name);
+        entries.remove(&entry.spec.name);
         self.state.children.lock().unwrap().remove(&entry.spec.name);
         Ok(())
     }
@@ -203,5 +207,61 @@ mod tests {
         fs::write(&path, b"{}").unwrap();
         fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
         assert!(ProcessRuntime::new(dir.path(), ProcessConfig::default()).is_err());
+    }
+
+    #[test]
+    fn observation_cannot_restore_removed_compute() {
+        use std::sync::{
+            Barrier,
+            atomic::{AtomicBool, Ordering},
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let runtime = ProcessRuntime::new(dir.path(), ProcessConfig::default()).unwrap();
+        let done = Arc::new(AtomicBool::new(false));
+        let ready = Arc::new(Barrier::new(2));
+        let observer = {
+            let runtime = runtime.clone();
+            let done = done.clone();
+            let ready = ready.clone();
+            std::thread::spawn(move || {
+                ready.wait();
+                while !done.load(Ordering::Acquire) {
+                    for name in runtime.names() {
+                        runtime.observe_entry(&name).unwrap();
+                    }
+                    std::thread::yield_now();
+                }
+            })
+        };
+        ready.wait();
+        let result = (|| {
+            for index in 0..250 {
+                let spec: ContainerSpec = serde_json::from_value(serde_json::json!({
+                    "name": format!("observe-{index}"), "image": "", "env": [], "labels": {},
+                    "agent": {"binary": "", "sandbox": format!("observe-{index}"), "epoch": 1,
+                        "secret_env": "", "domain": "pryx.test", "agent_port": pryx_agent::contract::AGENT_PORT,
+                        "spare_ports": [], "keep_alive": true},
+                    "user": "", "memory_bytes": 0, "cpu_shares": 0, "pids_limit": 0,
+                    "read_only_rootfs": true, "tmp_size_mb": 0, "data_dir": dir.path(),
+                    "mount_path": "/data", "ports": [], "stop_signal": "SIGTERM",
+                    "stop_timeout_secs": 0, "network": "", "internal_network": false,
+                    "log_max_size_mb": 0, "log_max_files": 0, "oom_score_adj": 0
+                }))
+                .unwrap();
+                runtime.create_entry(&spec)?;
+                let mut entry = runtime.entry(&spec.name)?;
+                entry.cleaned = false;
+                runtime.save(entry)?;
+                std::thread::yield_now();
+                runtime.remove_entry(&spec.name)?;
+                runtime.release_owner(&spec.name)?;
+            }
+            Ok::<_, RuntimeError>(())
+        })();
+        done.store(true, Ordering::Release);
+        observer.join().unwrap();
+        result.unwrap();
+        assert!(runtime.names().is_empty());
+        assert!(ProcessRuntime::new(dir.path(), ProcessConfig::default()).unwrap().names().is_empty());
     }
 }

@@ -216,7 +216,7 @@ pub struct NetworkConfig {
 impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
-            port_range: [42000, 42999],
+            port_range: crate::protocol::DEFAULT_PORT_RANGE,
             edge_ips: vec![IpAddr::from([127, 0, 0, 1])],
             control_ips: vec![IpAddr::from([127, 0, 0, 1])],
             port_quarantine_seconds: Duration::from_mins(10).as_secs(),
