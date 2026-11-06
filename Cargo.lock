@@ -2485,6 +2485,7 @@ dependencies = [
  "libc",
  "notify",
  "portable-pty",
+ "procfs",
  "pryx-agent",
  "reqwest",
  "ring",

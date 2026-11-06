@@ -32,6 +32,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let executable = arguments.get(1).ok_or("Missing restricted command")?;
         return Err(std::process::Command::new(executable).args(&arguments[2..]).exec().into());
     }
+    // This trusted metadata reader must exist before the main thread installs Landlock.
+    // Only the supervisor bootstrap uses it; guest shell/launcher invocations cannot create
+    // a less restricted worker from their inherited policy.
+    let bootstrap = !matches!(arguments.first().map(String::as_str), Some("shell" | "--version" | "restricted"));
+    let forwarding = if bootstrap
+        && (std::env::var_os(pryx_agent::process_policy::POLICY_ENV).is_some()
+            || arguments.iter().any(|a| a == "--host-bindings" || a.starts_with("--host-bindings=")))
+    {
+        Some(pryx_agent::process_forward::ProcessForward::start()?)
+    } else {
+        None
+    };
     if let Ok(encoded) = std::env::var(pryx_agent::process_policy::POLICY_ENV) {
         let policy = serde_json::from_str(&encoded)?;
         pryx_agent::process_policy::enter(&policy)?;
@@ -53,7 +65,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let code = runtime.block_on(shell(arguments.get(1).cloned()))?;
         std::process::exit(code.into());
     }
-    let code = runtime.block_on(pryx_agent::bootstrap::serve(pryx_agent::bootstrap::Bootstrap::parse()))?;
+    let code = runtime.block_on(pryx_agent::bootstrap::serve(pryx_agent::bootstrap::Bootstrap::parse(), forwarding))?;
     std::process::exit(code)
 }
 

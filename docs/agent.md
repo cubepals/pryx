@@ -86,6 +86,10 @@ their quota for these bindings up front. `expose(port)` assigns a spare and retu
 409 `no_spare_port`. Unexpose closes existing forwards and frees the slot. Assignments survive
 agent restart in an atomic checkpoint. A target header checked by the agent prevents a stale
 hostname from reaching a reused slot; it is removed before the application sees the request.
+On the process tier, the agent also proves the connected application socket belongs to its
+supervisor tree before sending request bytes. Foreign sockets are refused even for the same
+UID. This proxy check does not isolate direct guest networking; Internet-enabled process
+workloads must be mutually trusted as described in [process-tier.md](process-tier.md).
 
 Activity stays in agent memory and is checkpointed once per second. Existing node heartbeats
 carry activity and assignments to control and edge polling. Idle upkeep honors recent activity

@@ -13,6 +13,8 @@
 //! - `telemetry.rs`: in-memory activity and stream ownership.
 //! - `process.rs`: supervised process trees, streams, stdin and completion.
 //! - `process_policy.rs`: process-tier filesystem, syscall and sampled resource restrictions.
+//! - `process_forward.rs`: ownership-verified process-tier forwarding channel.
+//! - `process_peer.rs`: kernel process and connected-peer ownership evidence.
 //! - `process_capabilities.rs`: non-mutating kernel support queries.
 //! - `pty.rs`: terminal ownership through the platform PTY library.
 //! - `server.rs`: the authenticated HTTP and websocket surface.
@@ -66,3 +68,8 @@ mod transfers;
 
 #[cfg(feature = "server")]
 mod transfer_target;
+
+#[cfg(feature = "server")]
+pub mod process_forward;
+#[cfg(feature = "server")]
+mod process_peer;

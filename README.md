@@ -122,6 +122,13 @@ development uses.
 
 ## Security model
 
+The container tier provides the network boundary described below. The process tier shares
+the host network: Internet-enabled workloads must be mutually trusted even with separate
+UIDs. Its agent verifies application socket ownership before forwarding, but guest code can
+still dial host and neighboring services directly. Use container or Wasm isolation for
+mutually untrusted workloads; see [process isolation](docs/process-tier.md) and
+[tier capabilities](docs/tiers.md).
+
 - **It is root-equivalent.** It holds Docker's socket and runs as root to hand data directories to
   the workloads' user. Its API is reachable only with a client certificate from the fleet CA for
   the control plane's name, over TLS 1.3, on the private network. The ops listener (`/healthz`,

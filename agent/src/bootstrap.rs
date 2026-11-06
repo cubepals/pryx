@@ -75,7 +75,13 @@ impl Bootstrap {
     }
 }
 
-pub async fn serve(args: Bootstrap) -> Result<i32, Box<dyn std::error::Error>> {
+pub async fn serve(
+    args: Bootstrap,
+    forward: Option<Arc<dyn crate::guest::Forward>>,
+) -> Result<i32, Box<dyn std::error::Error>> {
+    if args.host_bindings.is_some() && forward.is_none() {
+        return Err("Process forwarding ownership channel is required".into());
+    }
     let bindings = args.bindings(std::env::var_os(crate::process_policy::POLICY_ENV).is_some())?;
     let encoded = std::env::var(&args.secret_env).map_err(|_| "Agent signing material is missing")?;
     let key = SigningKey::from_encoded(&encoded)?;
@@ -100,7 +106,7 @@ pub async fn serve(args: Bootstrap) -> Result<i32, Box<dyn std::error::Error>> {
         spares,
         Some(DataDir::open(&args.data)?),
         telemetry.clone(),
-        None,
+        forward,
     )
     .await?;
     ports.set_public_origin(args.public_origin);

@@ -23,6 +23,7 @@ uuid = { version = "1", features = ["v4"], optional = true }
 rustix = { version = "1", features = ["fs", "process"], optional = true }
 portable-pty = { version = "0.9", optional = true }
 notify = { version = "8", optional = true }
+procfs = { version = "0.18", default-features = false, optional = true }
 brush-core = { version = "0.5", optional = true }
 brush-builtins = { version = "0.2", optional = true }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-no-provider", "stream"], optional = true }
@@ -39,7 +40,7 @@ default = ["server", "mcp"]
 mcp = ["server"]
 fs = ["dep:rustix", "dep:landlock", "dep:tokio"]
 schema = ["dep:schemars"]
-server = ["dep:async-trait", "fs", "dep:axum", "dep:tokio", "dep:tokio-util", "dep:futures-util", "dep:bytes", "dep:uuid", "dep:portable-pty", "dep:notify", "dep:brush-core", "dep:brush-builtins", "dep:reqwest", "dep:libc", "dep:clap", "dep:rustls", "dep:httparse", "dep:landlock", "dep:seccompiler"]
+server = ["dep:async-trait", "fs", "dep:axum", "dep:tokio", "dep:tokio-util", "dep:futures-util", "dep:bytes", "dep:uuid", "dep:portable-pty", "dep:notify", "dep:procfs", "dep:brush-core", "dep:brush-builtins", "dep:reqwest", "dep:libc", "dep:clap", "dep:rustls", "dep:httparse", "dep:landlock", "dep:seccompiler"]
 
 [[bin]]
 name = "pryx-agent"

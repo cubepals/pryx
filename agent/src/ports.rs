@@ -21,6 +21,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{Mutex, watch};
 
 pub use crate::contract::{AGENT_PORT, MAX_SPARE_PORTS};
+pub(crate) const FORWARD_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 
 #[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -260,7 +261,7 @@ async fn serve(
                     return;
                 }
                 let connected = tokio::time::timeout(
-                    Duration::from_secs(3),
+                    FORWARD_CONNECT_TIMEOUT,
                     TcpStream::connect((std::net::Ipv4Addr::LOCALHOST, port)),
                 )
                 .await;
