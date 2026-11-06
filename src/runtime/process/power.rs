@@ -15,6 +15,18 @@ const MAX_NICE: i64 = 19;
 // The process tier maps this many requested CPU-share weights to one nice step.
 const SHARES_PER_NICE_STEP: i64 = 1024;
 
+fn temporary_directory(spec: &ContainerSpec, owner: (u32, u32)) -> Result<PathBuf, RuntimeError> {
+    let tmp = spec.data_dir.join(".tmp");
+    fs::create_dir_all(&tmp).map_err(error)?;
+    rustix::fs::chown(
+        &tmp,
+        Some(rustix::process::Uid::from_raw(owner.0)),
+        Some(rustix::process::Gid::from_raw(owner.1)),
+    )
+    .map_err(error)?;
+    Ok(tmp)
+}
+
 impl ProcessRuntime {
     pub(super) fn running(&self, name: &str) -> Result<bool, RuntimeError> {
         Ok(self
@@ -95,14 +107,7 @@ impl ProcessRuntime {
         {
             command.arg("--").args(argv);
         }
-        let tmp = spec.data_dir.join(".tmp");
-        fs::create_dir_all(&tmp).map_err(error)?;
-        rustix::fs::chown(
-            &tmp,
-            Some(rustix::process::Uid::from_raw(owner.0)),
-            Some(rustix::process::Gid::from_raw(owner.1)),
-        )
-        .map_err(error)?;
+        let tmp = temporary_directory(spec, owner)?;
         let policy = serde_json::json!({"data":spec.data_dir, "memory_bytes":spec.memory_bytes, "address_space_bytes":self.policy.address_space_mb.saturating_mul(1024*1024), "open_files":self.policy.open_files, "processes":spec.pids_limit, "cpu_seconds":self.policy.cpu_seconds, "nice":(MAX_NICE-(spec.cpu_shares/SHARES_PER_NICE_STEP).min(MAX_NICE)) as i32, "network_off":spec.internal_network});
         command
             .env_clear()
