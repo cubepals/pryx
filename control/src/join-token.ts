@@ -16,7 +16,7 @@
 
 import { createHash } from 'node:crypto'
 
-const JOIN_TOKEN_PREFIX = 'bk1.'
+export const JOIN_TOKEN_PREFIX = 'bk1.'
 
 /** What a host needs to find the control plane and trust it before anything else. */
 export interface JoinPoint {
@@ -55,16 +55,9 @@ export function secretOf(token: string): string {
 }
 
 /**
- * The line an operator pastes on a host, as root: a new one, or one a token re-enrolls. It fetches the CA without trusting it (it
- * isn't yet), stops unless its sha256 is the token's, then fetches join.sh over TLS checked
- * against that CA and runs it with the token: nothing runs before the hash matches.
+ * The locally installed CLI verifies release-signed bootstrap bytes before execution. The fleet
+ * CA authenticates transport only; it cannot authorize host code. Install the CLI independently.
  */
-export function joinCommand(join: JoinPoint, token: string): string {
-  const base = join.url.replace(/\/+$/, '')
-  return [
-    'd=$(mktemp -d)',
-    `curl -fsSk '${base}/fleet/v1/ca.pem' -o "$d/ca.pem"`,
-    `echo "${caSha256(join.caPem)}  $d/ca.pem" | sha256sum -c --quiet`,
-    `curl -fsS --cacert "$d/ca.pem" '${base}/fleet/v1/join.sh' | sh -s -- ${token} "$d/ca.pem"`,
-  ].join(' && ')
+export function joinCommand(_join: JoinPoint, token: string): string {
+  return `pryx node join '${token.replaceAll("'", "'\\''")}'`
 }

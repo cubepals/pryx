@@ -5,6 +5,7 @@
 import { describe, expect, test } from 'bun:test'
 import { Autoscale } from '../../control/src/autoscale.ts'
 import { THRESHOLDS } from '../../control/src/health.ts'
+import { JOIN_TOKEN_PREFIX, secretOf } from '../../control/src/join-token.ts'
 import { createOperatorApi } from '../../control/src/operator-api.ts'
 import { withProviders } from '../../control/src/provider-api.ts'
 import { ProviderLedger } from '../../control/src/provider-ledger.ts'
@@ -93,10 +94,11 @@ describe.skipIf(!hasDatabase)('provider CLI', () => {
       expect(provider.creates).toBe(1)
       expect((await invoke(['acquisition', first.id])).state).toBe('waiting')
       const record = await hosts.record(first.id)
-      const encoded = /sh -s -- (bk1\.[^ ]+)/.exec(hosts.bootstrap(record.id).line)?.[1] as string
-      const secret = (
-        JSON.parse(Buffer.from(encoded.slice('bk1.'.length), 'base64url').toString()) as { s: string }
-      ).s
+      const encoded = hosts
+        .bootstrap(record.id)
+        .line.split("'")
+        .find((part) => part.startsWith(JOIN_TOKEN_PREFIX)) as string
+      const secret = secretOf(encoded)
       const node = await enrollNode(c.db, await testCa(), 'cli-rental', { token: secret })
       await heartbeat(c.db, registryOptions(), node.id, node.sha, beat(node, 'cli-rental', 1))
       expect((await invoke(['release', node.id])).state).toBe('released')

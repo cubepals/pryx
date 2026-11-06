@@ -38,6 +38,7 @@ const endpoint = await startNodeEndpoint({
   listen: { host, port: Number(port) },
   names: { dns: [], ips: ['127.0.0.1', ...ips.split(',').filter(Boolean)] },
   pryxdBin: process.env.PRYXD_STATIC_BIN ?? '/nonexistent/pryxd',
+  bootstrapSignatureFile: process.env.PRYX_BOOTSTRAP_SIGNATURE_FILE,
   upgrades: process.env.PRYX_UPGRADES !== 'off',
 })
 // The handler goes first: a parent may signal the moment it reads `listening`.

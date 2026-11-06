@@ -83,9 +83,12 @@ against it, so a change here that would break the running control plane fails be
 
 ## Run
 
-On a fleet's host, the line Cubepals' `bun scripts/fleet.ts token <region>` prints does all of it,
-as root: Docker, pryxd, its configuration and its service ([fleet-operations.md
-§2](https://github.com/cubepals/cubepals/blob/main/docs/fleet-operations.md#2-adding-a-node)). That line ends in `pryxd join`:
+On a fleet's host, install the release CLI from the project installer above, then run the
+`pryx node join '<bk1. token>'` command printed by `pryx node token <region>` as root.
+The CLI verifies the fleet CA pin and an independent release-key signature before executing
+bootstrap code; that signed code verifies both daemon and agent bytes before installing them.
+Unsigned development releases refuse remote bootstrap. The command installs Docker, pryxd,
+its configuration and its service, then invokes the daemon's enrollment command:
 
 ```sh
 pryxd join <bk1. token> --allow-image ghcr.io/example/               # the fleet CA, checked against the token; the configuration,

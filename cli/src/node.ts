@@ -2,12 +2,17 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-/** Operator commands over the control API; no database, provider credentials or host access. */
+/** Operator node commands and locally authenticated host joining; no provider credentials. */
 
+import { joinHost } from './join.ts'
 import { option } from './sandbox.ts'
 
 export async function node(args: string[]): Promise<unknown> {
   const [verb = 'ls', id, ...rest] = args
+  if (verb === 'join') {
+    if (!id) throw new Error('node join <join-token> [pryxd join options]')
+    return await joinHost(id, { args: rest })
+  }
   const base = process.env.PRYX_OPERATOR_API ?? 'http://127.0.0.1:8081'
   const token = process.env.PRYX_OPERATOR_TOKEN
   if (!token) throw new Error('Set PRYX_OPERATOR_TOKEN')

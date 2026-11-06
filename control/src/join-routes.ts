@@ -10,6 +10,8 @@
  * - `GET /fleet/v1/ca.pem`: the fleet CA, fetched without trusting the connection and checked
  *   against the join token's hash.
  * - `GET /fleet/v1/join.sh`: join.sh, beside this file, with daemon.json written into it.
+ * - `GET /fleet/v1/bootstrap.sh` and `…/bootstrap.json`: release-authenticated bootstrap and
+ *   detached signature metadata. The independently installed CLI verifies before execution.
  * - `GET /fleet/v1/blocklyd` and `…/blocklyd.sha256`: the static pryxd this control plane's
  *   image carries, and its hash in `sha256sum -c` form. A process without it starts as usual
  *   and answers 404, saying so.
@@ -32,6 +34,7 @@ import { Hono } from 'hono'
 import { StatusCodes } from 'http-status-codes'
 import nodeSchema from '../../openapi/node-writes.openapi.json' with { type: 'json' }
 import { SECOND_MS } from './durations.ts'
+import { BOOTSTRAP_SIGNATURE_SUFFIX, bootstrapOffer, joinBootstrapScript } from './join-bootstrap.ts'
 import type { UpgradeOffer } from './wire.ts'
 
 /** An Ed25519 signature's length: `pryxd.sig` is one, raw, as `openssl pkeyutl -sign` writes it. */
@@ -41,8 +44,8 @@ const SIGNATURE_BYTES = 64
  * The release's signature beside `bin` (`<bin>.sig`), in hex; null when there is none, saying so
  * when there is a file that isn't one.
  */
-async function signatureOf(bin: string): Promise<string | null> {
-  const signature = await readFile(`${bin}.sig`).catch(() => null)
+async function signatureOf(bin: string, suffix = '.sig'): Promise<string | null> {
+  const signature = await readFile(`${bin}${suffix}`).catch(() => null)
   if (signature === null) return null
   if (signature.length === SIGNATURE_BYTES) return signature.toString('hex')
   console.error(`fleet: ${bin}.sig is ${signature.length} bytes, not a signature, so it isn't passed on`)
@@ -78,6 +81,8 @@ export function joinRoutes(options: {
   caPem: string
   pryxdBin: string
   agentBin?: string
+  /** A detached signature file carries no signing authority; the host independently verifies it. */
+  bootstrapSignatureFile?: string
   /** `pryxdRelease(pryxdBin)`, read as the process started. */
   release: UpgradeOffer | null
 }): Hono {
@@ -105,15 +110,27 @@ curl -sS --fail-with-body --cacert "$ca" "$url/fleet/v1/blocklyd" -o "$dir/pryxd
   fail "pryxd couldn't be downloaded: $(head -c 300 "$dir/pryxd" 2>/dev/null)"
 curl -fsS --cacert "$ca" "$url/fleet/v1/blocklyd.sha256" -o "$dir/pryxd.sha256"
 (cd "$dir" && sha256sum -c --quiet pryxd.sha256) || fail "the pryxd downloaded doesn't match its sha256, so it wasn't installed"`
-  const script = readFileSync(
+  const template = readFileSync(
     process.env.PRYX_ASSET_DIR
       ? join(process.env.PRYX_ASSET_DIR, 'join.sh')
       : new URL('./join.sh', import.meta.url),
     'utf8',
   )
+  const script = template
     .replace('@DAEMON_JSON@', daemonJson.trimEnd())
     .replace('@AGENT_INSTALL@', agentInstall)
     .replace('@DAEMON_FETCH@', daemonFetch)
+    .replace('@ROOT_CHECK@', '[ "$(id -u)" = 0 ] || fail "run it as root"')
+    .replace('@PREPARE@', '')
+  const verifiedScript =
+    options.release && existsSync(agentBin)
+      ? joinBootstrapScript(
+          template,
+          daemonJson,
+          options.release.sha256,
+          createHash('sha256').update(readFileSync(agentBin)).digest('hex'),
+        )
+      : null
   const missing = (c: { text: (text: string, status: typeof StatusCodes.NOT_FOUND) => Response }) =>
     c.text(
       `This control plane has no pryxd to hand out: ${options.pryxdBin} is missing. Its image carries ` +
@@ -126,6 +143,24 @@ curl -fsS --cacert "$ca" "$url/fleet/v1/blocklyd.sha256" -o "$dir/pryxd.sha256"
   )
   app.get('/fleet/v1/join.sh', (c) =>
     c.body(script, StatusCodes.OK, { 'content-type': 'text/x-shellscript' }),
+  )
+  app.get('/fleet/v1/bootstrap.sh', (c) =>
+    verifiedScript === null
+      ? missing(c)
+      : c.body(verifiedScript, StatusCodes.OK, { 'content-type': 'text/x-shellscript' }),
+  )
+  app.get('/fleet/v1/bootstrap.json', async (c) =>
+    verifiedScript === null
+      ? missing(c)
+      : c.json(
+          bootstrapOffer(
+            verifiedScript,
+            (await signatureOf(
+              options.bootstrapSignatureFile ?? `${options.pryxdBin}${BOOTSTRAP_SIGNATURE_SUFFIX}`,
+              '',
+            )) ?? undefined,
+          ),
+        ),
   )
   app.get('/fleet/v1/blocklyd', async (c) => {
     const binary = await readFile(options.pryxdBin).catch(() => null)

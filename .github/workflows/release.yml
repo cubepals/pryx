@@ -123,10 +123,13 @@ jobs:
             { echo "PRYXD_RELEASE_KEY's public half isn't in deploy/release-keys.pem."; exit 1; }
           printf '%s\n' "$RELEASE_KEY" | openssl pkeyutl -sign -inkey /dev/stdin -rawin -in statement -out dist/pryxd.sig
           openssl pkeyutl -verify -pubin -inkey release-key.pub -rawin -in statement -sigfile dist/pryxd.sig
+          bun control/tools/join-bootstrap.ts dist/pryxd dist/pryx-agent "$RUNNER_TEMP/join-bootstrap.statement"
+          printf '%s\n' "$RELEASE_KEY" | openssl pkeyutl -sign -inkey /dev/stdin -rawin -in "$RUNNER_TEMP/join-bootstrap.statement" -out dist/pryxd.bootstrap.sig
+          openssl pkeyutl -verify -pubin -inkey release-key.pub -rawin -in "$RUNNER_TEMP/join-bootstrap.statement" -sigfile dist/pryxd.bootstrap.sig
           (cd dist && sha256sum -- * > SHA256SUMS && cat SHA256SUMS)
       # Beside the binary in the image too, for the control plane that carries it to pass on.
       - name: Put the signature in the image
-        run: printf 'FROM %s\nCOPY pryxd.sig /pryxd.sig\n' "$IMAGE:$version" | docker build -q -t "$IMAGE:$version" -f - dist
+        run: printf 'FROM %s\nCOPY pryxd.sig /pryxd.sig\nCOPY pryxd.bootstrap.sig /pryxd.bootstrap.sig\n' "$IMAGE:$version" | docker build -q -t "$IMAGE:$version" -f - dist
       - name: Push the image
         id: push
         run: |

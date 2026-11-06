@@ -29,7 +29,7 @@ fail() {
   exit 1
 }
 
-[ "$(id -u)" = 0 ] || fail "run it as root"
+@ROOT_CHECK@
 
 # The endpoint the token names: its payload is base64url JSON, with the URL as "u".
 payload=$(printf '%s' "${token#bk1.}" | tr '_-' '/+')
@@ -39,6 +39,8 @@ case $((${#payload} % 4)) in
 esac
 url=$(printf '%s' "$payload" | base64 -d 2>/dev/null | sed -n 's/.*"u":"\([^"]*\)".*/\1/p')
 [ -n "$url" ] || fail "the token names no control plane: paste the whole line fleet.ts token printed"
+
+@PREPARE@
 
 if ! command -v docker >/dev/null 2>&1; then
   command -v apt-get >/dev/null 2>&1 || fail "Docker is missing, and only Debian and Ubuntu are set up here: install Docker Engine, then paste the line again"

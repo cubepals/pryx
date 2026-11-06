@@ -7,6 +7,7 @@ import { sql } from 'drizzle-orm'
 import { Autoscale, smallestShape } from '../src/autoscale.ts'
 import { decodeHandle } from '../src/handle.ts'
 import { THRESHOLDS } from '../src/health.ts'
+import { JOIN_TOKEN_PREFIX, secretOf } from '../src/join-token.ts'
 import { ProviderLedger } from '../src/provider-ledger.ts'
 import { FakeProvider } from '../src/providers/fake.ts'
 import type { Shape } from '../src/providers/provider.ts'
@@ -61,11 +62,10 @@ describe.skipIf(!hasDatabase)('provider control', () => {
   const joined = async (id: string) => {
     const record = await hosts.record(id)
     const line = hosts.bootstrap(record.id).line,
-      token = /sh -s -- (bk1\.[^ ]+)/.exec(line)?.[1]
+      token = line.split("'").find((part) => part.startsWith(JOIN_TOKEN_PREFIX))
     if (!token) throw new Error('Missing join token')
-    const raw = JSON.parse(Buffer.from(token.slice('bk1.'.length), 'base64url').toString()) as { s: string }
     const node = await enrollNode(c.db, await testCa(), `rented-${id}`, {
-      token: raw.s,
+      token: secretOf(token),
       region: record.region,
     })
     await heartbeat(

@@ -41,8 +41,17 @@ Join control, edge and nodes through a private network (for example WireGuard). 
 node endpoint's names/addresses and firewall before joining remote hosts. Only control reaches
 pryxd's mutual-TLS management API; only edge reaches edge-audience ports. Images are explicitly
 allowed by host policy, never by a public request. Use `pryx node token <region>` with
-PRYX_OPERATOR_API and PRYX_OPERATOR_TOKEN on a trusted operator host, paste its returned join
-line as root on the node, and append `--allow-image <prefix>` for each permitted image.
+PRYX_OPERATOR_API and PRYX_OPERATOR_TOKEN on a trusted operator host. Install the current pryx
+CLI independently from the project's release distribution on the joining node, then run the
+returned `pryx node join <token>` command as root and append `--allow-image <prefix>` for each
+permitted image. The local CLI verifies the bootstrap with compiled release keys; the fleet CA
+authenticates transport only. The authenticated script pins both executable digests before any
+installation or execution. `--verify-only` checks the artifacts without installing them. Unsigned
+preview builds cannot bootstrap remote hosts. Provider cloud-init installs the verifier from
+the independent project distribution before joining; no verifier key comes from the fleet.
+One-box installs publish the daemon and its detached signatures under `/opt/pryx/fleet`,
+readable by control. The daemon's identity and active binary stay under root-only
+`/var/lib/pryxd`; exposing public release artifacts does not grant control access to that tree.
 Use --address when the host has multiple possible private addresses. Then `pryx node ls` shows
 active/healthy and placement begins. XFS reflink makes snapshots cheap until data changes;
 ext4 works with full copies and needs extra disk space.

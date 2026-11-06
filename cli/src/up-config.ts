@@ -7,6 +7,7 @@ import { randomBytes } from 'node:crypto'
 
 import { join } from 'node:path'
 import { FleetCa } from '../../control/src/ca.ts'
+import { FLEET_PRYXD_BIN } from './up-assets.ts'
 import { readEnvironment, writeEnvironment } from './up-files.ts'
 
 const secret = () => randomBytes(32).toString('hex')
@@ -33,7 +34,7 @@ export async function configurations(domain: string, folder = '/etc/pryx') {
       PRYX_OPERATOR_LISTEN: '127.0.0.1:8081',
       PRYX_NODE_LISTEN: '127.0.0.1:8443',
       PRYX_ENDPOINT_HOSTS: '127.0.0.1,localhost',
-      PRYX_PRYXD_BIN: '/usr/local/bin/pryxd',
+      PRYX_PRYXD_BIN: FLEET_PRYXD_BIN,
       PRYX_ASSET_DIR: '/opt/pryx/control',
       S3_ENDPOINT: 'http://127.0.0.1:9000',
       S3_BUCKET: 'pryx-snapshots',
@@ -52,6 +53,8 @@ export async function configurations(domain: string, folder = '/etc/pryx') {
       RUSTFS_CONSOLE_ENABLE: 'false',
     })
   }
+  if (!control.PRYX_PRYXD_BIN || control.PRYX_PRYXD_BIN === '/usr/local/bin/pryxd')
+    control.PRYX_PRYXD_BIN = FLEET_PRYXD_BIN
   control.PRYX_PUBLIC_DOMAIN = domain
   const changed = writeEnvironment(join(folder, 'control.env'), control)
   const edgeChanged = writeEnvironment(join(folder, 'edge.env'), {

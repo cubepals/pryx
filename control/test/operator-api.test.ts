@@ -11,7 +11,7 @@ import { FleetStore } from '../src/archive-transport.ts'
 import type { Db } from '../src/database.ts'
 import { encodeHandle } from '../src/handle.ts'
 import { THRESHOLDS } from '../src/health.ts'
-import { caSha256, joinCommand, joinToken } from '../src/join-token.ts'
+import { joinCommand, joinToken } from '../src/join-token.ts'
 import type { NodeClient } from '../src/node-client.ts'
 import { createOperatorApi } from '../src/operator-api.ts'
 import { DEFAULTS } from '../src/placement.ts'
@@ -182,12 +182,8 @@ describe.skipIf(!hasDatabase)('tokens from the operator API', () => {
     })
     expect(status).toBe(StatusCodes.OK)
     expect(body.joinToken).toBe(joinToken(join, body.token))
-    const hash = caSha256(join.caPem)
-    expect(body.joinCommand).toBe(
-      `d=$(mktemp -d) && curl -fsSk 'https://10.0.0.2:8443/fleet/v1/ca.pem' -o "$d/ca.pem" && ` +
-        `echo "${hash}  $d/ca.pem" | sha256sum -c --quiet && ` +
-        `curl -fsS --cacert "$d/ca.pem" 'https://10.0.0.2:8443/fleet/v1/join.sh' | sh -s -- ${body.joinToken} "$d/ca.pem"`,
-    )
+    expect(body.joinCommand).toBe(`pryx node join '${body.joinToken}'`)
+    expect(body.joinCommand).not.toContain('curl')
   })
 
   test('a region the region map doesn’t name is refused; a node re-enrolled gets its own line', async () => {

@@ -637,7 +637,8 @@ jobs:
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
           df -h .
           head -c 64 /dev/zero > dist/pryxd.sig
-          (cd dist && sha256sum pryxd pryx-agent pryxd.sig pryx pryx-control pryx-edge pryx-control-assets.tar.gz install.sh > SHA256SUMS)
+          head -c 64 /dev/zero > dist/pryxd.bootstrap.sig
+          (cd dist && sha256sum pryxd pryx-agent pryxd.sig pryxd.bootstrap.sig pryx pryx-control pryx-edge pryx-control-assets.tar.gz install.sh > SHA256SUMS)
           docker pull -q mirror.gcr.io/library/alpine:3.22
           docker tag mirror.gcr.io/library/alpine:3.22 alpine:3.22
           docker pull -q mirror.gcr.io/library/node:22

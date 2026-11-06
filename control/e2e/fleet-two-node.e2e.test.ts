@@ -22,17 +22,21 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { spawnSync } from 'node:child_process'
-import { randomBytes } from 'node:crypto'
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { generateKeyPairSync, randomBytes, sign } from 'node:crypto'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { sql } from 'drizzle-orm'
+import { joinHost } from '../../cli/src/join.ts'
+import nodeSchema from '../../openapi/node-writes.openapi.json' with { type: 'json' }
 import { FleetStore } from '../src/archive-transport.ts'
 import { controlPlaneName, FleetCa } from '../src/ca.ts'
 import type { Db } from '../src/database.ts'
 import { MINUTE_MS, SECOND_MS } from '../src/durations.ts'
+import { PRYX_VERSION } from '../src/generated/release.ts'
 import { decodeHandle } from '../src/handle.ts'
+import { bootstrapHash, bootstrapStatement, joinBootstrapScript } from '../src/join-bootstrap.ts'
 import { type JoinPoint, joinCommand, joinToken } from '../src/join-token.ts'
 import { NodeClient, NodeUnreachable, splitAddress } from '../src/node-client.ts'
 import { DEFAULTS } from '../src/placement.ts'
@@ -140,16 +144,13 @@ const SPEC: RuntimeSpec = {
 }
 
 /**
- * The line an operator pastes, but with join.sh read rather than run (on this machine it would
- * install Docker), then pryxd fetched and checked as join.sh does.
+ * The host verifier and signed script check both executable digests without installing Docker.
+ * Its trust key is local to this isolated fixture, independent of the endpoint's fleet CA.
  */
-function fetchedAsPasted(point: JoinPoint): string {
-  return [
-    joinCommand(point, 'bk1.e30').replace(/ \| sh -s -- .*$/, ' > "$d/join.sh" && sh -n "$d/join.sh"'),
-    `curl -fsS --cacert "$d/ca.pem" '${point.url}/fleet/v1/blocklyd' -o "$d/pryxd"`,
-    `curl -fsS --cacert "$d/ca.pem" '${point.url}/fleet/v1/blocklyd.sha256' -o "$d/blocklyd.sha256"`,
-    'cd "$d" && sha256sum -c --quiet blocklyd.sha256',
-  ].join(' && ')
+async function fetchedAsPasted(point: JoinPoint, trustedKeys: string) {
+  const token = joinToken(point, 'bootstrap-fixture')
+  expect(joinCommand(point, token)).toBe(`pryx node join '${token}'`)
+  await joinHost(token, { trustedKeys, verifyOnly: true })
 }
 
 interface Node {
@@ -282,6 +283,8 @@ describe.skipIf(!ready)('FleetRuntime across two nodes', () => {
   let h1: RuntimeHandle
   let lastSnapshot: SnapshotHandle
   let joinPoint: JoinPoint
+  const bootstrapKeys = generateKeyPairSync('ed25519')
+  const bootstrapPublic = bootstrapKeys.publicKey.export({ format: 'pem', type: 'spki' }).toString()
 
   const exec = async (handle: RuntimeHandle, command: string) =>
     (await runtime.exec(handle, ['sh', '-c', command], 10)).stdout.trim()
@@ -321,6 +324,21 @@ describe.skipIf(!ready)('FleetRuntime across two nodes', () => {
     writeFileSync(join(dir, 'ca.pem'), ca.pem)
     writeFileSync(join(dir, 'ca.key'), pems.keyPem, { mode: 0o600 })
     const endpointPort = await freePort()
+    const bootstrapScript = joinBootstrapScript(
+      readFileSync(new URL('../src/join.sh', import.meta.url), 'utf8'),
+      readFileSync(new URL('../src/daemon.json', import.meta.url), 'utf8'),
+      bootstrapHash(readFileSync(BIN as string)),
+      bootstrapHash(readFileSync(nodeSchema['x-pryx-agent'].defaultBinary)),
+    )
+    const bootstrapSignature = join(dir, 'bootstrap.sig')
+    writeFileSync(
+      bootstrapSignature,
+      sign(
+        null,
+        Buffer.from(bootstrapStatement(PRYX_VERSION, bootstrapHash(bootstrapScript))),
+        bootstrapKeys.privateKey,
+      ),
+    )
     endpoint = Bun.spawn(
       [
         'node',
@@ -333,7 +351,7 @@ describe.skipIf(!ready)('FleetRuntime across two nodes', () => {
         gateway,
       ],
       {
-        env: { ...env, DATABASE_URL: fresh.url },
+        env: { ...env, DATABASE_URL: fresh.url, PRYX_BOOTSTRAP_SIGNATURE_FILE: bootstrapSignature },
         stdout: 'pipe',
         stderr: 'inherit',
       },
@@ -474,13 +492,12 @@ describe.skipIf(!ready)('FleetRuntime across two nodes', () => {
     expect(node.a.id).not.toBe(node.b.id)
   })
 
-  test('the line an operator pastes checks the CA, then fetches join.sh and pryxd over it', () => {
-    const run = spawnSync('sh', ['-c', fetchedAsPasted(joinPoint)])
-    expect(run.status, run.stderr.toString()).toBe(0)
+  test('the host CLI pins the CA and verifies release-signed bootstrap and both binaries', async () => {
+    await fetchedAsPasted(joinPoint, bootstrapPublic)
     // A token naming another CA stops the line before anything is fetched over the one served.
-    const stopped = spawnSync('sh', ['-c', joinCommand({ ...joinPoint, caPem: 'another CA' }, 'bk1.e30')])
-    expect(stopped.status).not.toBe(0)
-    expect(stopped.stdout.toString() + stopped.stderr.toString()).toContain('FAILED')
+    await expect(fetchedAsPasted({ ...joinPoint, caPem: 'another CA' }, bootstrapPublic)).rejects.toThrow(
+      'FAILED',
+    )
   })
 
   test(

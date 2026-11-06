@@ -9,11 +9,14 @@
 
 import { describe, expect, test } from 'bun:test'
 import { spawnSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
+import { createHash, generateKeyPairSync, sign } from 'node:crypto'
 import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { StatusCodes } from 'http-status-codes'
+import { verifyBootstrapOffer } from '../../cli/src/join-trust.ts'
+import { PRYX_VERSION } from '../src/generated/release.ts'
+import { bootstrapHash, bootstrapStatement, joinBootstrapScript } from '../src/join-bootstrap.ts'
 import { joinRoutes, pryxdRelease } from '../src/join-routes.ts'
 import { caSha256 } from '../src/join-token.ts'
 import type { UpgradeOffer } from '../src/wire.ts'
@@ -72,6 +75,46 @@ describe('the join routes', () => {
       expect(answer.status).toBe(StatusCodes.NOT_FOUND)
       expect(await answer.text()).toContain('PRYX_PRYXD_BIN')
     }
+  })
+
+  test('bootstrap metadata authenticates the exact rendered script and both executable hashes', async () => {
+    const bin = join(dir, 'bootstrap-daemon'),
+      agentBin = join(dir, 'bootstrap-agent')
+    writeFileSync(bin, 'daemon bytes')
+    writeFileSync(agentBin, 'agent bytes')
+    const script = joinBootstrapScript(
+      readFileSync(new URL('../src/join.sh', import.meta.url), 'utf8'),
+      readFileSync(new URL('../src/daemon.json', import.meta.url), 'utf8'),
+      bootstrapHash(readFileSync(bin)),
+      bootstrapHash(readFileSync(agentBin)),
+    )
+    const key = generateKeyPairSync('ed25519')
+    const signature = sign(
+      null,
+      Buffer.from(bootstrapStatement(PRYX_VERSION, bootstrapHash(script))),
+      key.privateKey,
+    )
+    writeFileSync(`${bin}.bootstrap.sig`, signature)
+    const routes = joinRoutes({
+      caPem,
+      pryxdBin: bin,
+      agentBin,
+      release: { version: PRYX_VERSION, sha256: bootstrapHash(readFileSync(bin)) },
+    })
+    expect(await (await routes.request('https://endpoint/fleet/v1/bootstrap.sh')).text()).toBe(script)
+    const offer = await (await routes.request('https://endpoint/fleet/v1/bootstrap.json')).json()
+    expect(
+      verifyBootstrapOffer(offer, key.publicKey.export({ format: 'pem', type: 'spki' }).toString()).sha256,
+    ).toBe(bootstrapHash(script))
+    const statementFile = join(dir, 'bootstrap.statement')
+    const prepared = spawnSync(process.execPath, [
+      'control/tools/join-bootstrap.ts',
+      bin,
+      agentBin,
+      statementFile,
+    ])
+    expect(prepared.status, prepared.stderr.toString()).toBe(0)
+    expect(readFileSync(statementFile, 'utf8')).toBe(bootstrapStatement(PRYX_VERSION, bootstrapHash(script)))
   })
 
   test('the release the rollout offers is the binary’s own version and sha256, or none', async () => {

@@ -16,10 +16,14 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PRYX_VERSION } from '../../control/src/generated/release.ts'
+import { BOOTSTRAP_SIGNATURE_ASSET } from '../../control/src/join-bootstrap.ts'
+export const FLEET_HANDOUT_DIR = '/opt/pryx/fleet'
+export const FLEET_PRYXD_BIN = `${FLEET_HANDOUT_DIR}/pryxd`
 export const RELEASE_FILES = [
   'pryxd',
   'pryx-agent',
   'pryxd.sig',
+  BOOTSTRAP_SIGNATURE_ASSET,
   'pryx-control',
   'pryx-edge',
   'pryx-control-assets.tar.gz',

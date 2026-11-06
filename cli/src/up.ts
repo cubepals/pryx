@@ -6,12 +6,13 @@ import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync
 import { join } from 'node:path'
 import { MINUTE_MS, SECOND_MS } from '../../control/src/durations.ts'
 import { PRYX_VERSION } from '../../control/src/generated/release.ts'
+import { BOOTSTRAP_SIGNATURE_ASSET, BOOTSTRAP_SIGNATURE_SUFFIX } from '../../control/src/join-bootstrap.ts'
 import type { OperatorToken } from '../../control/src/operator-api.ts'
 import { ensureBucket } from '../../control/src/store-bootstrap.ts'
 import nodeSchema from '../../openapi/node-writes.openapi.json'
 import { callerHomeAndDropPrivileges, writeClientConfig } from './client-config.ts'
 import { option } from './sandbox.ts'
-import { installBinary, releaseFiles } from './up-assets.ts'
+import { FLEET_HANDOUT_DIR, FLEET_PRYXD_BIN, installBinary, releaseFiles } from './up-assets.ts'
 import { configurations } from './up-config.ts'
 import { readEnvironment, writeChanged, writeEnvironment } from './up-files.ts'
 import { configureHostRuntime } from './up-host.ts'
@@ -81,6 +82,7 @@ export async function up(args: string[]) {
   for (const [path, mode] of [
     ['/etc/pryx', 0o700],
     ['/opt/pryx', 0o755],
+    [FLEET_HANDOUT_DIR, 0o755],
     ['/var/lib/pryxd', 0o700],
   ] as const) {
     if (existsSync(path)) {
@@ -113,6 +115,14 @@ export async function up(args: string[]) {
   }
   mkdirSync('/opt/pryx', { recursive: true })
   const changed = new Set<string>()
+  // Control can read public release artifacts without access to the daemon's 0700 identity tree.
+  if (installBinary(join(assets, 'pryxd'), FLEET_PRYXD_BIN)) changed.add('pryx-control')
+  for (const [source, suffix] of [
+    ['pryxd.sig', '.sig'],
+    [BOOTSTRAP_SIGNATURE_ASSET, BOOTSTRAP_SIGNATURE_SUFFIX],
+  ])
+    if (writeChanged(`${FLEET_PRYXD_BIN}${suffix}`, readFileSync(join(assets, source as string)), 0o644))
+      changed.add('pryx-control')
   if (installBinary(join(assets, 'pryx-agent'), nodeSchema['x-pryx-agent'].defaultBinary))
     changed.add('pryxd')
   for (const name of ['pryx-control', 'pryx-edge'])
@@ -121,6 +131,11 @@ export async function up(args: string[]) {
   chmodSync('/var/lib/pryxd', 0o700)
   if (installBinary(join(assets, 'pryxd'), '/var/lib/pryxd/bin/pryxd')) changed.add('pryxd')
   writeChanged('/var/lib/pryxd/bin/pryxd.sig', readFileSync(join(assets, 'pryxd.sig')), 0o644)
+  writeChanged(
+    `/var/lib/pryxd/bin/pryxd${BOOTSTRAP_SIGNATURE_SUFFIX}`,
+    readFileSync(join(assets, BOOTSTRAP_SIGNATURE_ASSET)),
+    0o644,
+  )
   const link = '/usr/local/bin/pryxd'
   if (
     !existsSync(link) ||

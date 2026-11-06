@@ -6,6 +6,7 @@ import { createHmac } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import type { Db } from './database.ts'
 import { HOUR_S } from './durations.ts'
+import { PRYX_VERSION } from './generated/release.ts'
 import { type JoinPoint, joinCommand, joinToken } from './join-token.ts'
 import { operation } from './operations.ts'
 import type { Bootstrap, Host, Provider, Shape } from './providers/provider.ts'
@@ -51,7 +52,10 @@ export class ProviderLedger {
   }
   bootstrap(id: string): Bootstrap {
     return {
-      line: joinCommand(this.join, joinToken(this.join, this.tokenSecret(id))),
+      // The verifier comes from the independent project distribution, never the fleet endpoint.
+      line:
+        `installer=$(mktemp) && curl --proto '=https' --proto-redir '=https' -fsSL 'https://github.com/cubepals/pryx/releases/download/v${PRYX_VERSION}/install.sh' -o "$installer" && sh "$installer" && rm -f "$installer" && ` +
+        joinCommand(this.join, joinToken(this.join, this.tokenSecret(id))),
       allowedImages: this.allowedImages,
     }
   }

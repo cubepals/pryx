@@ -8,7 +8,7 @@ import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runInstallCommand, up } from '../src/up.ts'
-import { installBinary, RELEASE_FILES, releaseFiles } from '../src/up-assets.ts'
+import { FLEET_PRYXD_BIN, installBinary, RELEASE_FILES, releaseFiles } from '../src/up-assets.ts'
 import { configurations } from '../src/up-config.ts'
 import { readEnvironment, writeChanged, writeEnvironment } from '../src/up-files.ts'
 import { container, service } from '../src/up-units.ts'
@@ -38,6 +38,29 @@ test('root-only environment files and generated secrets are stable on a second r
     rmSync(dir, { recursive: true, force: true })
   }
 })
+test('fleet artifacts migrate the managed path and preserve custom paths and credentials', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'pryx-up-migration-'))
+  try {
+    const first = await configurations('pryx.test', dir)
+    expect(first.control.PRYX_PRYXD_BIN).toBe(FLEET_PRYXD_BIN)
+    const file = join(dir, 'control.env')
+    for (const old of [undefined, '/usr/local/bin/pryxd']) {
+      const previous = { ...first.control }
+      if (old) previous.PRYX_PRYXD_BIN = old
+      else delete previous.PRYX_PRYXD_BIN
+      writeEnvironment(file, previous)
+      const migrated = await configurations('pryx.test', dir)
+      expect(migrated.control.PRYX_PRYXD_BIN).toBe(FLEET_PRYXD_BIN)
+      expect(migrated.control.PRYX_CA_KEY).toBe(first.control.PRYX_CA_KEY)
+      expect(migrated.control.PRYX_OPERATOR_TOKEN).toBe(first.control.PRYX_OPERATOR_TOKEN)
+    }
+    writeEnvironment(file, { ...first.control, PRYX_PRYXD_BIN: '/srv/releases/pryxd' })
+    expect((await configurations('pryx.test', dir)).control.PRYX_PRYXD_BIN).toBe('/srv/releases/pryxd')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('release checks preserve signature bytes and refuse a modified executable', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'pryx-up-assets-'))
   try {
