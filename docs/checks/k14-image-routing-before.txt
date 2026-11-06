@@ -1,0 +1,22 @@
+bun test v1.4.4 (38afee6c8)
+
+edge/test/image-routing.test.ts:
+51 |     control: { destination: c.proxy.destination() as string, paths: /^\// },
+52 |   })
+53 |   const origin = `http://127.0.0.1:${(listener.address() as AddressInfo).port}`
+54 |   const apps = new AppRequests(origin)
+55 |   try {
+56 |     expect(await (await apps.get(`http://${declared.hostname}/hello`)).text()).toBe('declared:/hello')
+                                                                                    ^
+error: expect(received).toBe(expected)
+
+Expected: "declared:/hello"
+Received: "No such sandbox route"
+
+      at <anonymous> (/workspace/pryx/edge/test/image-routing.test.ts:56:80)
+(fail) image fallback preserves declared HTTP hosts and control and agent aliases [49.67ms]
+
+ 0 pass
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [148.00ms]

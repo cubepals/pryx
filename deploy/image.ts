@@ -204,7 +204,11 @@ control_ips = ["127.0.0.1"]
     bufferBytes: ingress.bufferBytes,
     metrics: edge.metrics,
     session: () => {},
-    control: { destination: edge.agents.destination() as string, paths: /^\// },
+    control: {
+      destination: edge.agents.destination() as string,
+      paths: /^\//,
+      hostname: new URL(origin).hostname,
+    },
   })
   stop = async () => {
     gateway.closeClients()

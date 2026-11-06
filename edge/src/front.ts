@@ -13,7 +13,7 @@ import type { RouteTable } from './routes.ts'
 import type { SandboxProxy } from './sandbox-proxy.ts'
 import type { EdgeRoute } from './wire.ts'
 export interface FrontOptions {
-  control?: { destination: string; paths: RegExp }
+  control?: { destination: string; paths: RegExp; hostname?: string }
   agents?: SandboxProxy
   host: string
   port: number
@@ -166,7 +166,12 @@ async function arrival(client: Socket, o: FrontOptions) {
         : o.kind === 'tls' && o.agents?.destination(true)
           ? o.agents.match(name, '/_pryx/')
           : undefined
-    const fallback = !agentRoute && o.kind === 'http' && o.control?.paths.test(path)
+    const assigned = agentRoute ? undefined : o.table.find(name, o.kind, o.routePort)
+    const fallback =
+      !agentRoute &&
+      o.kind === 'http' &&
+      o.control?.paths.test(path) &&
+      (!assigned || !o.control.hostname || o.control.hostname === name)
     route =
       agentRoute ??
       (fallback
@@ -180,7 +185,7 @@ async function arrival(client: Socket, o: FrontOptions) {
             destination: o.control?.destination as string,
             epoch: 0,
           }
-        : o.table.find(name, o.kind, o.routePort))
+        : assigned)
     releaseOpen = o.gate.admit(route?.sandbox ?? '__unknown__', client.remoteAddress ?? '') ?? undefined
     if (!route || !releaseOpen) throw new Error('Unknown or limited destination')
     o.metrics.holds++

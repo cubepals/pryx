@@ -33,8 +33,11 @@ its private password on both TCP and Unix sockets.
 The only public listener is HTTP port 8080 (or PORT). Set PRYX_PUBLIC_URL to the externally
 reachable HTTP or HTTPS origin behind your platform's TLS terminator. Agent URLs use an
 authenticated `/sandboxes/<id>/_pryx/` alias; exposed application ports use public
-`/sandboxes/<id>/ports/<port>/` aliases. Applications using absolute asset paths must support
-their URL prefix. TLS and raw TCP fronts are disabled in the image. Standalone host edges
+`/sandboxes/<id>/ports/<port>/` aliases. Applications using those aliases must support their
+URL prefix. Declared HTTP ports use the public hostnames returned by the API; configure DNS
+and preserve the Host header through the TLS terminator. The configured PRYX_PUBLIC_URL
+hostname stays reserved for control routing, including when a declared hostname collides.
+TLS and raw TCP fronts are disabled in the image. Standalone host edges
 can still use wildcard DNS, certificates and raw fronts as documented in [agent.md](agent.md).
 
 New image state derives its private node listener pool below the kernel's outgoing ephemeral
