@@ -68,18 +68,7 @@ async fn real_wasm_files_processes_sleep_stop_and_isolation() {
     let secret =
         manager.exec(support::id("wasm-one"), request("env | grep PRYX_AGENT_SECRET_"), None, None).await.unwrap();
     assert_ne!(secret.exit_code, Some(0));
-    let outside = directory.path().join("outside-marker");
-    std::fs::write(&outside, "outside-only").unwrap();
-    let refused = manager
-        .exec(
-            support::id("wasm-one"),
-            ExecRequest { command: vec!["cat".into(), outside.to_string_lossy().into()], timeout_seconds: 10 },
-            None,
-            None,
-        )
-        .await
-        .unwrap();
-    assert_ne!(refused.exit_code, Some(0));
+    host_paths(&manager, &directory).await;
     manager.suspend(support::id("wasm-one"), None).await.unwrap();
     manager.start(support::id("wasm-one"), None).await.unwrap();
     let resumed = manager.exec(support::id("wasm-one"), request("cat /data/result"), None, None).await.unwrap();
@@ -100,6 +89,21 @@ async fn real_wasm_files_processes_sleep_stop_and_isolation() {
     let metadata: serde_json::Value = serde_json::from_str(&journal).unwrap();
     assert!(metadata.as_object().unwrap().values().all(|entry| entry["spec"]["env"].as_array().unwrap().is_empty()));
     restart(directory.path(), &config, runtime, manager, spec).await;
+}
+
+async fn host_paths(manager: &Arc<pryxd::manager::Manager>, directory: &tempfile::TempDir) {
+    let outside = directory.path().join("outside-marker");
+    std::fs::write(&outside, "outside-only").unwrap();
+    let refused = manager
+        .exec(
+            support::id("wasm-one"),
+            ExecRequest { command: vec!["cat".into(), outside.to_string_lossy().into()], timeout_seconds: 10 },
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+    assert_ne!(refused.exit_code, Some(0));
 }
 
 async fn restart(
