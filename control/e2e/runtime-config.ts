@@ -5,6 +5,19 @@
 /** The single-node daemon configuration fixture, parameterized by its deployment. */
 
 import { join } from 'node:path'
+import nodeSchema from '../../openapi/node-reads.openapi.json'
+
+export const TIER_BENCH_UNIT = {
+  memoryMb: 64,
+  cpuMillis: nodeSchema['x-pryx-resources'].minCpuMillis,
+}
+// Fifty idle sandboxes request five cores on the observed four-core runner.
+export const TIER_BENCH_CPU_OVERCOMMIT = 2
+export const TIER_BENCH_LARGE_UNITS = 8
+export const TIER_BENCH_LARGE_UNIT = {
+  memoryMb: TIER_BENCH_UNIT.memoryMb * TIER_BENCH_LARGE_UNITS,
+  cpuMillis: TIER_BENCH_UNIT.cpuMillis * TIER_BENCH_LARGE_UNITS,
+}
 
 export const nodeConfigFor = (DEPLOYMENT: string) =>
   function nodeConfig(at: {

@@ -18,9 +18,11 @@ Each requested latency and incremental memory cohort has 30 samples; nearest-ran
 p90 are computed from every successful sample, with partial counts retained on failure.
 Cold creation uses a new sandbox identity, no template and a locally available runtime image.
 It includes API admission and running acknowledgement. `true` and `echo hi` use the real agent
-through the edge. Cold and 50-way cohorts use an explicit common 64 MiB / 10 CPU-millis unit;
-package cohorts use 512 MiB / 250 CPU-millis. These are measurement configurations, not a
-capacity claim or replacement for the product's normal unit defaults. Enforcement differs:
+through the edge. Cold and 50-way cohorts use an explicit common 64 MiB / 100 CPU-millis unit;
+Hot and package cohorts use eight units, 512 MiB / 800 CPU-millis. These measurement
+configurations are not a capacity claim or replacement for the product's normal unit defaults. A declared 2× CPU admission
+overcommit lets fifty idle 100-CPU-millis sandboxes fit the four-core runner; the reports record it.
+Enforcement differs:
 container uses cgroups, process uses native limits and priority, and wasm uses virtual heap/process
 bounds in a shared worker without a per-VM CPU-rate quota. Equal requests do not imply identical
 host enforcement.

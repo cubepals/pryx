@@ -374,7 +374,15 @@ impl ContainerRuntime for WasmRuntime {
         let live = self.state.live.lock().unwrap().get(&entry.id).cloned();
         match live {
             Some(live) => Ok(Some(RawStats {
-                pids: Some(live.vm.all_processes().await.map_err(error)?.len() as u64),
+                pids: Some(
+                    live.vm
+                        .all_processes()
+                        .await
+                        .map_err(error)?
+                        .into_iter()
+                        .filter(|process| process.status == agentos_client::process::ProcessStatus::Running)
+                        .count() as u64,
+                ),
                 ..Default::default()
             })),
             None => Ok(None),

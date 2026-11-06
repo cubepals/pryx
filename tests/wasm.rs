@@ -39,13 +39,15 @@ async fn real_wasm_files_processes_sleep_stop_and_isolation() {
         "require('node:http').createServer((req,res)=>res.end('declared')).listen(3000,'0.0.0.0')"
     ]);
     spec["resources"]["memoryMb"] = 256.into();
-    spec["agent"] = serde_json::json!({"domain":"pryx.test", "keepAlive":true});
+    spec["agent"] = serde_json::json!({"domain":"pryx.test", "keepAlive":false});
     spec["secrets"] = serde_json::json!({"APP_TOKEN":"wasm-private-fixture"});
     let spec: pryxd::protocol::WorkloadSpec = serde_json::from_value(spec).unwrap();
     manager.ensure(support::id("wasm-one"), spec.clone(), Precondition::None, None).await.unwrap();
     manager.start(support::id("wasm-one"), None).await.unwrap();
     eprintln!("real wasm workload started at {:?}", began.elapsed());
     declared_http(&manager).await;
+    let stats = serde_json::to_value(manager.stats(&support::id("wasm-one")).await.unwrap()).unwrap();
+    assert_eq!(stats["pids"], 1);
     let request =
         |script: &str| ExecRequest { command: vec!["sh".into(), "-c".into(), script.into()], timeout_seconds: 10 };
     let first = manager
@@ -159,6 +161,7 @@ async fn compact(manager: &Arc<pryxd::manager::Manager>) {
     spec["image"] = "".into();
     spec["ports"] = serde_json::json!([]);
     spec["resources"]["memoryMb"] = 64.into();
+    spec["entrypoint"] = serde_json::json!(["sh", "-c", "sleep 60"]);
     spec["agent"] = serde_json::json!({"domain":"pryx.test", "keepAlive":true});
     manager
         .ensure(support::id("wasm-compact"), serde_json::from_value(spec).unwrap(), Precondition::None, None)
@@ -176,6 +179,8 @@ async fn compact(manager: &Arc<pryxd::manager::Manager>) {
         .unwrap();
     assert_eq!(result.exit_code, Some(0));
     assert_eq!(result.stdout, "compact");
+    let stats = serde_json::to_value(manager.stats(&support::id("wasm-compact")).await.unwrap()).unwrap();
+    assert_eq!(stats["pids"], 0, "keepAlive must suppress the placeholder entrypoint and exclude exited commands");
     manager.stop(support::id("wasm-compact"), None, None).await.unwrap();
 }
 

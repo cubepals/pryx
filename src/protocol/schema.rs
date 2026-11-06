@@ -74,6 +74,7 @@ fn document(title: &str, contract: Contract, add: impl FnOnce(&mut SchemaGenerat
         "info": { "title": title, "version": PROTOCOL_VERSION.to_string() },
         "paths": {},
         "components": { "schemas": generator.take_definitions(true) },
+        "x-pryx-resources": {"minCpuMillis": crate::protocol::MIN_CPU_MILLIS},
         "x-pryx-wasm": {"imageProblem": crate::protocol::WASM_IMAGE_PROBLEM, "portProblem": crate::protocol::WASM_PORT_PROBLEM, "maxPackages": crate::protocol::MAX_WASM_PACKAGES, "packageNamePattern": crate::protocol::PACKAGE_NAME_PATTERN},
         "x-pryx-process": {"imageProblem": crate::protocol::PROCESS_IMAGE_PROBLEM},
         "x-pryx-agent": {

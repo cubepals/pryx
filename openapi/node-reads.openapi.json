@@ -830,6 +830,9 @@
   "x-pryx-process": {
     "imageProblem": "this host runs the process tier; images are not available"
   },
+  "x-pryx-resources": {
+    "minCpuMillis": 100
+  },
   "x-pryx-wasm": {
     "imageProblem": "this host runs the wasm tier; images are not available",
     "maxPackages": 32,

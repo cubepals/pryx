@@ -15,6 +15,7 @@ import { startControl } from '../src/main.ts'
 import { nodeSummaries } from '../src/registry.ts'
 import { freshDatabase, hasDatabase } from '../test/nodes.ts'
 import { spawnNodes } from './deployment-nodes.ts'
+import { TIER_BENCH_CPU_OVERCOMMIT, TIER_BENCH_UNIT } from './runtime-config.ts'
 import { createTestBucket } from './test-bucket.ts'
 import { freePort, until } from './waits.ts'
 export const bin = process.env.PRYXD_BIN ?? new URL('../../target/debug/pryxd', import.meta.url).pathname
@@ -51,8 +52,9 @@ export async function deployment(
     DATABASE_URL: fresh.url,
     PRYX_DEPLOYMENT: name,
     PRYX_DEFAULT_ISOLATION: options.tier,
-    PRYX_UNIT_MEMORY_MB: process.env.PRYX_TIER_BENCH === '1' ? '64' : undefined,
-    PRYX_UNIT_CPU_MILLIS: process.env.PRYX_TIER_BENCH === '1' ? '10' : undefined,
+    PRYX_UNIT_MEMORY_MB: process.env.PRYX_TIER_BENCH === '1' ? String(TIER_BENCH_UNIT.memoryMb) : undefined,
+    PRYX_UNIT_CPU_MILLIS: process.env.PRYX_TIER_BENCH === '1' ? String(TIER_BENCH_UNIT.cpuMillis) : undefined,
+    PRYX_CPU_OVERCOMMIT: process.env.PRYX_TIER_BENCH === '1' ? String(TIER_BENCH_CPU_OVERCOMMIT) : undefined,
     PRYX_STORE_LEASE: options.storeLease ? 'on' : 'off',
     PRYX_STORE_LEASE_SECONDS: String(LEASE_TEST.seconds),
     PRYX_STORE_LEASE_RENEW_SECONDS: String(LEASE_TEST.renewSeconds),

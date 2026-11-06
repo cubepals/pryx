@@ -85,7 +85,9 @@ pub(super) async fn start(
     }
     let mut live =
         Live { vm, agent, entrypoint: None, status, servers: Mutex::new(servers), tasks: Mutex::new(Vec::new()) };
-    if let Some(argv) = spec.entrypoint.as_ref().filter(|argv| !argv.is_empty()) {
+    if !boot.keep_alive
+        && let Some(argv) = spec.entrypoint.as_ref().filter(|argv| !argv.is_empty())
+    {
         let process = live
             .agent
             .processes

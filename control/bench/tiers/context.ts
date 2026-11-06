@@ -2,6 +2,7 @@
 /** Real deployment contexts and process-tree memory for the existing CI comparison jobs. */
 import { Pryx } from '../../../sdk/typescript/src/index.ts'
 import { agentDeployment } from '../../e2e/agent-context.ts'
+import { TIER_BENCH_CPU_OVERCOMMIT, TIER_BENCH_UNIT } from '../../e2e/runtime-config.ts'
 import { until } from '../../e2e/waits.ts'
 import { SECOND_MS } from '../../src/durations.ts'
 import type { Isolation } from '../../src/isolation.ts'
@@ -33,7 +34,16 @@ export async function context(mode: string, tier: Isolation, override = true) {
     '-p',
     '8080:8080',
     ...(override ? ['-e', `PRYX_DEFAULT_TIER=${tier}`] : []),
-    ...(mode === 'image' ? ['-e', 'PRYX_UNIT_MEMORY_MB=64', '-e', 'PRYX_UNIT_CPU_MILLIS=10'] : []),
+    ...(mode === 'image'
+      ? [
+          '-e',
+          `PRYX_UNIT_MEMORY_MB=${TIER_BENCH_UNIT.memoryMb}`,
+          '-e',
+          `PRYX_UNIT_CPU_MILLIS=${TIER_BENCH_UNIT.cpuMillis}`,
+          '-e',
+          `PRYX_CPU_OVERCOMMIT=${TIER_BENCH_CPU_OVERCOMMIT}`,
+        ]
+      : []),
     process.env.PRYX_IMAGE_TEST ?? 'pryx-static-test',
   ])
   try {

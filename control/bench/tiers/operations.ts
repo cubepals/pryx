@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Validated agent latency, retained files, package installations and concurrent admission. */
 import type { MakeRequest, Sandbox } from '../../../sdk/typescript/src/index.ts'
+import { TIER_BENCH_UNIT } from '../../e2e/runtime-config.ts'
 import type { Isolation } from '../../src/isolation.ts'
 import type { Context } from './context.ts'
 import { DATA_BYTES, measure, REPETITIONS, type Samples } from './report.ts'
@@ -9,7 +10,7 @@ export function creation(tier: Isolation): MakeRequest {
   return {
     isolation: tier,
     ...(tier === 'container' ? { image: process.env.PRYX_IMAGE_TEST ?? 'pryx-static-test' } : {}),
-    resources: { memoryMb: 64, cpuMillis: 10 },
+    resources: TIER_BENCH_UNIT,
     sparePorts: 0,
   }
 }
@@ -20,7 +21,8 @@ export async function cold(c: Context, tier: Isolation, samples: Samples) {
   samples.shell_increment_pss_bytes = []
   await measure(samples, 'cold_create_running_ms', async () => {
     const box = await c.sdk.sandbox(creation(tier))
-    if (box.state !== 'running' || box.isolation !== tier) throw new Error('Cold sandbox differs')
+    if (box.state !== 'running' || box.isolation !== tier || box.units !== 1)
+      throw new Error('Cold sandbox differs')
     return async () => {
       samples.idle_increment_pss_bytes?.push((await c.memory()) - baseline)
       const shell = await box.start(['sh', '-c', 'read value'], { stdin: true })
@@ -92,12 +94,11 @@ export async function snapshots(box: Sandbox, samples: Samples) {
 }
 export async function packages(box: Sandbox, samples: Samples, unsupported: Record<string, string>) {
   await box.files.delete('payload')
-  for (const [name, check, install] of [
-    ['pip', 'pip3 --version', 'pip3 install --disable-pip-version-check --no-cache-dir six==1.17.0 --target'],
-    ['npm', 'npm --version', 'npm install --ignore-scripts --no-audit --no-fund is-number@7.0.0 --prefix'],
-  ]) {
-    if (!name || !check || !install) throw new Error('Package cohort definition missing')
-    const probe = await box.run(check)
+  for (const [name, program, install] of [
+    ['pip', 'pip3', ['install', '--disable-pip-version-check', '--no-cache-dir', 'six==1.17.0', '--target']],
+    ['npm', 'npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund', 'is-number@7.0.0', '--prefix']],
+  ] as const) {
+    const probe = await box.run([program, '--version'])
     if (probe.code !== 0) {
       unsupported[`${name}_install_ms`] = `command unavailable: ${probe.stderr.slice(0, 512)}; n=0`
       continue
@@ -106,7 +107,7 @@ export async function packages(box: Sandbox, samples: Samples, unsupported: Reco
     await measure(samples, `${name}_install_ms`, async () => {
       const target = `k14-${name}-${index++}`
       const result = await box.run(
-        `${install} ${target}${name === 'npm' ? ` --cache ${target}/.cache` : ''}`,
+        [program, ...install, target, ...(name === 'npm' ? ['--cache', `${target}/.cache`] : [])],
         { timeout: '2m' },
       )
       if (result.code !== 0) throw new Error(`${name} installation failed: ${result.stderr.slice(-2048)}`)
@@ -138,7 +139,10 @@ export async function concurrent(c: Context, tier: Isolation, samples: Samples) 
     const made = await Promise.allSettled(Array.from({ length: 50 }, () => c.sdk.sandbox(creation(tier))))
     const boxes = made.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []))
     const failure = made.find((result) => result.status === 'rejected')
-    if (failure || boxes.some((box) => box.state !== 'running')) {
+    if (
+      failure ||
+      boxes.some((box) => box.state !== 'running' || box.isolation !== tier || box.units !== 1)
+    ) {
       await Promise.all(boxes.map((box) => box.delete()))
       throw failure?.status === 'rejected' ? failure.reason : new Error('Concurrent sandbox did not run')
     }
@@ -147,6 +151,7 @@ export async function concurrent(c: Context, tier: Isolation, samples: Samples) 
       const used = await c.memory()
       samples.concurrent_50_pss_bytes.push(used)
       samples.concurrent_50_increment_pss_bytes.push(used - baseline)
+      console.info('CONCURRENT_50', tier, i + 1, samples.concurrent_50_running_ms.at(-1), used)
     } finally {
       await Promise.all(boxes.map((box) => box.delete()))
     }

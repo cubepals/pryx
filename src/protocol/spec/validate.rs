@@ -202,10 +202,16 @@ impl WorkloadSpec {
             );
         }
         if let Some(cpu) = r.cpu_millis
-            && (cpu < 100 || cpu > policy.max_cpu_millis)
+            && (cpu < crate::protocol::MIN_CPU_MILLIS || cpu > policy.max_cpu_millis)
         {
-            problems
-                .add("resources.cpuMillis", format!("must be between 100 and {} on this host", policy.max_cpu_millis));
+            problems.add(
+                "resources.cpuMillis",
+                format!(
+                    "must be between {} and {} on this host",
+                    crate::protocol::MIN_CPU_MILLIS,
+                    policy.max_cpu_millis
+                ),
+            );
         }
         if let Some(weight) = r.cpu_weight
             && !CPU_WEIGHTS.contains(&weight)

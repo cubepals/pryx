@@ -69,4 +69,5 @@ export async function measure(
     values.push(performance.now() - start)
     if (cleanup) await cleanup()
   }
+  console.info('METRIC', name, values.length, 'p50', percentile(values, 0.5), 'p90', percentile(values, 0.9))
 }
