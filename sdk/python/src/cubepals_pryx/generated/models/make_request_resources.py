@@ -23,6 +23,9 @@ class MakeRequestResources:
         cpu_millis (Union[None, Unset, int]): CPU ceiling in thousandths of a core (CFS quota). Also what the JVM counts
             as its
             processors. Absent: no ceiling, weight only.
+        cpu_reservation_millis (Union[None, Unset, int]): CPU reserved for admission, in thousandths of a core. This is
+            not a CPU ceiling.
+            Sent only after the node announces cpu-reservation.
         cpu_weight (Union[None, Unset, int]): Share of CPU under contention, relative (cgroup weight). Absent:
             proportional to memory.
         pids_limit (Union[None, Unset, int]): Processes and threads. Absent: the host default (4096).
@@ -30,6 +33,7 @@ class MakeRequestResources:
 
     memory_mb: int
     cpu_millis: Union[None, Unset, int] = UNSET
+    cpu_reservation_millis: Union[None, Unset, int] = UNSET
     cpu_weight: Union[None, Unset, int] = UNSET
     pids_limit: Union[None, Unset, int] = UNSET
 
@@ -41,6 +45,12 @@ class MakeRequestResources:
             cpu_millis = UNSET
         else:
             cpu_millis = self.cpu_millis
+
+        cpu_reservation_millis: Union[None, Unset, int]
+        if isinstance(self.cpu_reservation_millis, Unset):
+            cpu_reservation_millis = UNSET
+        else:
+            cpu_reservation_millis = self.cpu_reservation_millis
 
         cpu_weight: Union[None, Unset, int]
         if isinstance(self.cpu_weight, Unset):
@@ -63,6 +73,8 @@ class MakeRequestResources:
         )
         if cpu_millis is not UNSET:
             field_dict["cpuMillis"] = cpu_millis
+        if cpu_reservation_millis is not UNSET:
+            field_dict["cpuReservationMillis"] = cpu_reservation_millis
         if cpu_weight is not UNSET:
             field_dict["cpuWeight"] = cpu_weight
         if pids_limit is not UNSET:
@@ -83,6 +95,17 @@ class MakeRequestResources:
             return cast(Union[None, Unset, int], data)
 
         cpu_millis = _parse_cpu_millis(d.pop("cpuMillis", UNSET))
+
+        def _parse_cpu_reservation_millis(data: object) -> Union[None, Unset, int]:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(Union[None, Unset, int], data)
+
+        cpu_reservation_millis = _parse_cpu_reservation_millis(
+            d.pop("cpuReservationMillis", UNSET)
+        )
 
         def _parse_cpu_weight(data: object) -> Union[None, Unset, int]:
             if data is None:
@@ -105,6 +128,7 @@ class MakeRequestResources:
         make_request_resources = cls(
             memory_mb=memory_mb,
             cpu_millis=cpu_millis,
+            cpu_reservation_millis=cpu_reservation_millis,
             cpu_weight=cpu_weight,
             pids_limit=pids_limit,
         )
