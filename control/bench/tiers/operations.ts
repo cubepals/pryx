@@ -100,7 +100,8 @@ export async function packages(box: Sandbox, samples: Samples, unsupported: Reco
   ] as const) {
     const probe = await box.run([program, '--version'])
     if (probe.code !== 0) {
-      unsupported[`${name}_install_ms`] = `command unavailable: ${probe.stderr.slice(0, 512)}; n=0`
+      unsupported[`${name}_install_ms`] =
+        `${program} --version returned ${probe.code}: ${probe.stderr.slice(0, 512)}; n=0`
       continue
     }
     let index = 0

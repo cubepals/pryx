@@ -104,6 +104,25 @@ async fn host_paths(manager: &Arc<pryxd::manager::Manager>, directory: &tempfile
         .await
         .unwrap();
     assert_ne!(refused.exit_code, Some(0));
+    for (name, target, guest) in [
+        ("outside-link", outside.clone(), "/data/outside-link"),
+        ("outside-dir", directory.path().to_path_buf(), "/data/outside-dir/outside-marker"),
+    ] {
+        let link = directory.path().join("state/workloads/wasm-one/data/content").join(name);
+        std::os::unix::fs::symlink(target, &link).unwrap();
+        let refused = manager
+            .exec(
+                support::id("wasm-one"),
+                ExecRequest { command: vec!["cat".into(), guest.into()], timeout_seconds: 10 },
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        std::fs::remove_file(link).unwrap();
+        assert_ne!(refused.exit_code, Some(0), "{name}: {refused:?}");
+        assert!(!refused.stdout.contains("outside-only"));
+    }
 }
 
 async fn restart(
