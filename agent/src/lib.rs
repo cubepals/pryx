@@ -17,6 +17,7 @@
 //! - `pty.rs`: terminal ownership through the platform PTY library.
 //! - `server.rs`: the authenticated HTTP and websocket surface.
 //! - `files.rs`: streamed data and filesystem watches.
+//! - `transfers.rs`: remote file transfer requests and streaming.
 //! - `logbook.rs`: bounded persistent entrypoint output.
 //! - `mcp.rs`: optional authenticated sandbox MCP tools and resources.
 //! - `ports.rs`: preallocated forward slots.
@@ -58,3 +59,6 @@ pub mod server;
 pub mod state;
 #[cfg(feature = "server")]
 pub mod telemetry;
+
+#[cfg(feature = "server")]
+mod transfers;
