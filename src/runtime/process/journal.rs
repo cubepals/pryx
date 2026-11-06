@@ -162,6 +162,9 @@ impl ProcessRuntime {
     pub(super) fn remove_entry(&self, name: &str) -> Result<(), RuntimeError> {
         let mut entries = self.state.entries.lock().unwrap();
         let entry = Self::entry_from(&entries, name)?;
+        if self.state.children.lock().unwrap().contains_key(&entry.spec.name) {
+            return Err(RuntimeError::Conflict("Process supervisor still awaits termination and reaping".into()));
+        }
         fs::remove_file(self.state.root.join(format!("{}.json", entry.id))).map_err(error)?;
         entries.remove(&entry.spec.name);
         self.state.children.lock().unwrap().remove(&entry.spec.name);
@@ -267,5 +270,34 @@ mod tests {
         result.unwrap();
         assert!(runtime.names().is_empty());
         assert!(ProcessRuntime::new(dir.path(), ProcessConfig::default()).unwrap().names().is_empty());
+    }
+
+    #[tokio::test]
+    async fn removal_keeps_the_child_until_termination_is_reaped() {
+        let dir = tempfile::tempdir().unwrap();
+        let runtime = ProcessRuntime::new(dir.path(), ProcessConfig::default()).unwrap();
+        let spec = fixture_spec(dir.path(), 0);
+        runtime.create_entry(&spec).unwrap();
+        let child = std::process::Command::new("sleep").arg("10").spawn().unwrap();
+        let pid = rustix::process::Pid::from_raw(child.id() as i32).unwrap();
+        let mut entry = runtime.entry(&spec.name).unwrap();
+        entry.pid = Some(child.id());
+        entry.ticks = super::super::observe::identity(child.id());
+        entry.cleaned = false;
+        runtime.save(entry).unwrap();
+        runtime.state.children.lock().unwrap().insert(spec.name.clone(), child);
+        let retained = runtime.remove_entry(&spec.name).is_err();
+        if retained {
+            runtime.kill(&spec.name).await.unwrap();
+            runtime.remove_entry(&spec.name).unwrap();
+        } else {
+            rustix::process::kill_process(pid, rustix::process::Signal::KILL).unwrap();
+            rustix::process::waitpid(Some(pid), rustix::process::WaitOptions::empty()).unwrap();
+        }
+        assert!(retained, "removal discarded a child that still needed termination and reaping");
+        assert_eq!(
+            rustix::process::waitpid(Some(pid), rustix::process::WaitOptions::NOHANG).unwrap_err(),
+            rustix::io::Errno::CHILD
+        );
     }
 }

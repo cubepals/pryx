@@ -4,6 +4,7 @@
  * - `context.ts`: real host and ordinary-image contexts with PSS accounting.
  * - `operations.ts`: validated same-source latency, files, packages and 50-way cohorts.
  * - `report.ts`: raw evidence, host identity and nearest-rank percentiles.
+ * - `process-diagnostics.ts`: failure-only OS codes from private supervisor diagnostics.
  */
 
 import { StatusCodes } from 'http-status-codes'
@@ -104,6 +105,7 @@ for (const tier of ['container', 'process', 'wasm'] as const) {
         'agentOS 0.4.7 exports disposal, not per-VM suspend; stopping the shared worker would stop other sandboxes; n=0'
     extra.status = 'complete'
   } catch (error) {
+    c?.diagnostics?.()
     extra.failure = error instanceof Error ? error.message : String(error)
     failures.push(error)
     console.error('TIER_FAILURE', tier, extra.failure)

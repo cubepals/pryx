@@ -158,15 +158,23 @@ async fn restart(
         .await
         .unwrap();
     assert_eq!(restored.stdout, "savedroot-savedwasm-private-fixture");
+    let metadata: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(config.state_dir.join("wasm-runtime/workloads.json")).unwrap()).unwrap();
+    let id = metadata.as_object().unwrap().keys().next().unwrap().clone();
+    let done = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let stopped = done.clone();
     let observer = recovered.clone();
     let watching = tokio::spawn(async move {
-        for _ in 0..100 {
+        while !stopped.load(std::sync::atomic::Ordering::Acquire) {
             observer.list(&[]).await.unwrap();
+            observer.stats(&id).await.unwrap();
             tokio::task::yield_now().await;
         }
     });
-    manager.delete(support::id("wasm-one"), pryxd::protocol::DataDisposition::Keep, None, None).await.unwrap();
+    let deleted = manager.delete(support::id("wasm-one"), pryxd::protocol::DataDisposition::Keep, None, None).await;
+    done.store(true, std::sync::atomic::Ordering::Release);
     watching.await.unwrap();
+    deleted.unwrap();
     assert!(recovered.list(&[]).await.unwrap().is_empty());
     recovered.shutdown().await.unwrap();
 }

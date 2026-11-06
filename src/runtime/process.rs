@@ -121,8 +121,9 @@ impl ContainerRuntime for ProcessRuntime {
     }
     async fn kill(&self, name: &str) -> Result<(), RuntimeError> {
         self.terminate_tree(name).await?;
+        let key = self.entry(name)?.spec.name;
         for _ in 0..100 {
-            if !self.running(name)? {
+            if !self.running(name)? && !self.state.children.lock().unwrap().contains_key(&key) {
                 return Ok(());
             }
             tokio::time::sleep(Duration::from_millis(10)).await;

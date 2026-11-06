@@ -384,7 +384,20 @@ impl ContainerRuntime for WasmRuntime {
         self.logs_for(id, options)
     }
     async fn stats(&self, id: &str) -> Result<Option<RawStats>, RuntimeError> {
-        let entry = self.entry(id)?;
+        let transition = match self.transition(id) {
+            Ok(transition) => transition,
+            Err(RuntimeError::NotFound(_)) => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        let _turn = transition.lock().await;
+        let entry = match self.entry(id) {
+            Ok(entry) => entry,
+            Err(RuntimeError::NotFound(_)) => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        if entry.pending || !entry.running {
+            return Ok(None);
+        }
         let live = self.state.live.lock().unwrap().get(&entry.id).cloned();
         match live {
             Some(live) => Ok(Some(RawStats {

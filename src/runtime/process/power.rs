@@ -151,7 +151,11 @@ impl ProcessRuntime {
         // Health is a safe read; startup failures never cause a duplicate launch.
         for _ in 0..500 {
             if !self.running(name)? {
-                return Err(error("Process supervisor exited during startup; inspect its private diagnostic"));
+                let exit = self.entry(name)?;
+                let code = exit.finished.map(|_| exit.code.to_string()).unwrap_or_else(|| "unconfirmed".into());
+                return Err(error(format!(
+                    "Process supervisor exited during startup (exit {code}); inspect its private diagnostic"
+                )));
             }
             if self.agent_health(name).await.is_ok() {
                 return Ok(());

@@ -6,6 +6,7 @@ import { TIER_BENCH_CPU_OVERCOMMIT, TIER_BENCH_UNIT } from '../../e2e/runtime-co
 import { until } from '../../e2e/waits.ts'
 import { SECOND_MS } from '../../src/durations.ts'
 import type { Isolation } from '../../src/isolation.ts'
+import { processDiagnostics } from './process-diagnostics.ts'
 import { command } from './report.ts'
 
 export type Context = Awaited<ReturnType<typeof context>>
@@ -28,6 +29,7 @@ export async function context(mode: string, tier: Isolation, override = true) {
           c.d.control.config.deployment,
         ),
       close: c.close,
+      diagnostics: () => processDiagnostics(c.d),
     }
   }
   const name = `pryx-k14-${tier}${override ? '' : '-default'}`
@@ -84,6 +86,7 @@ export async function context(mode: string, tier: Isolation, override = true) {
       sdk: new Pryx({ url: env.PRYX_API_URL, key: keys[0] as string }),
       env,
       topology: 'ordinary docker run; no capabilities, security options, socket or host mounts',
+      diagnostics: undefined,
       memory: () => memory([pid]),
       close: async () => {
         await command(['docker', 'rm', '-fv', name])
