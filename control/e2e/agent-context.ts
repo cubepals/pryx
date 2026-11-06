@@ -45,7 +45,8 @@ export async function agentDeployment(
       sdk.sandbox(tier && tier !== 'container' ? { ...options, image: undefined, isolation: tier } : options),
     route: (id: string) =>
       until('edge holds agent', async () => edge.table.held.get(`${id}:${AGENT_ROUTE_PORT}`)),
-    app: (url: string) => fetch(origin, { headers: { host: new URL(url).hostname } }),
+    // Distinct production origins share this local URL; do not reuse an agent's routed socket.
+    app: (url: string) => fetch(origin, { headers: { host: new URL(url).hostname }, keepalive: false }),
     close: async () => {
       await edge.stop()
       await d.close()

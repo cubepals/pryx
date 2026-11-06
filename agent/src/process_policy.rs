@@ -60,6 +60,7 @@ pub fn enter(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
         "/etc/resolv.conf",
         "/etc/nsswitch.conf",
         "/etc/mime.types",
+        "/etc/debian_version",
         "/etc/hosts",
         "/etc/ssl/openssl.cnf",
         "/dev/urandom",

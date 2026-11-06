@@ -15,7 +15,7 @@ export function creation(tier: Isolation): MakeRequest {
   }
 }
 export async function cold(c: Context, tier: Isolation, samples: Samples) {
-  const baseline = await c.memory()
+  let baseline = await c.memory()
   samples.fixed_node_pss_bytes = [baseline]
   samples.idle_increment_pss_bytes = []
   samples.shell_increment_pss_bytes = []
@@ -25,11 +25,23 @@ export async function cold(c: Context, tier: Isolation, samples: Samples) {
       throw new Error('Cold sandbox differs')
     return async () => {
       samples.idle_increment_pss_bytes?.push((await c.memory()) - baseline)
-      const shell = await box.start(['sh', '-c', 'read value'], { stdin: true })
+      const marker = 'shell-ready'
+      const shell = await box.start(['sh', '-c', `printf ${marker}; read value`], {
+        stdin: true,
+        timeout: '30s',
+      })
+      let greeting = ''
+      for await (const chunk of shell.stream()) {
+        greeting += chunk.data
+        if (!marker.startsWith(greeting)) throw new Error('Shell readiness output differs')
+        if (greeting === marker) break
+      }
+      if (greeting !== marker) throw new Error('Shell did not become ready')
       samples.shell_increment_pss_bytes?.push((await c.memory()) - baseline)
       await shell.stdin.write('done\n')
       if ((await shell.wait()).code !== 0) throw new Error('Shell failed')
       await box.delete()
+      baseline = await c.memory()
     }
   })
 }

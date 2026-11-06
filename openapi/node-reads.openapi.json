@@ -831,6 +831,7 @@
     "imageProblem": "this host runs the process tier; images are not available"
   },
   "x-pryx-resources": {
+    "defaultMinMemoryMb": 256,
     "minCpuMillis": 100
   },
   "x-pryx-wasm": {

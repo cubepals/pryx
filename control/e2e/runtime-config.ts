@@ -8,12 +8,12 @@ import { join } from 'node:path'
 import nodeSchema from '../../openapi/node-reads.openapi.json'
 
 export const TIER_BENCH_UNIT = {
-  memoryMb: 64,
+  memoryMb: nodeSchema['x-pryx-resources'].defaultMinMemoryMb,
   cpuMillis: nodeSchema['x-pryx-resources'].minCpuMillis,
 }
 // Fifty idle sandboxes request five cores on the observed four-core runner.
 export const TIER_BENCH_CPU_OVERCOMMIT = 2
-export const TIER_BENCH_LARGE_UNITS = 8
+export const TIER_BENCH_LARGE_UNITS = 2
 export const TIER_BENCH_LARGE_UNIT = {
   memoryMb: TIER_BENCH_UNIT.memoryMb * TIER_BENCH_LARGE_UNITS,
   cpuMillis: TIER_BENCH_UNIT.cpuMillis * TIER_BENCH_LARGE_UNITS,
@@ -48,11 +48,9 @@ distribution = ${JSON.stringify(process.env.PRYX_AGENTOS_DISTRIBUTION ?? '/usr/l
 [workloads]
 ${at.agent ? '' : 'agent_binary = "/nonexistent/legacy-node-agent"'}
 allowed_images = ${JSON.stringify(at.allowedImages ?? ['alpine:'])}
-min_memory_mb = 64
+min_memory_mb = ${process.env.PRYX_TIER_BENCH === '1' ? TIER_BENCH_UNIT.memoryMb : 64}
 [capacity]
-reserved_memory_mb = 0
-allocatable_memory_mb = 4096
-min_free_disk_mb = 256
+${process.env.PRYX_TIER_BENCH === '1' ? '' : 'reserved_memory_mb = 0\nallocatable_memory_mb = 4096\n'}min_free_disk_mb = 256
 [transfer]
 max_put_mb = 1
 ${at.storeLease ? '[store_lease]\nenabled = true\nnon_suspending_host = true\n' : ''}

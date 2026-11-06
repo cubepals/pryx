@@ -268,7 +268,7 @@ impl Default for WorkloadPolicy {
             log_max_files: 5,
             oom_score_adj: 500,
             trash_retention_hours: 24,
-            min_memory_mb: 256,
+            min_memory_mb: crate::protocol::DEFAULT_MIN_MEMORY_MB,
             resume_timeout_seconds: 10,
             agent_binary: PathBuf::from(pryx_agent::contract::DEFAULT_BINARY),
             agent_public_origin: None,

@@ -1,0 +1,66 @@
+{
+  "context": "one-box/wasm",
+  "source": "8cdc1b447f382fa7f6a5e3d3d1379c1a17d51b0c",
+  "comparison": "same-source container/process reference versus wasm candidate; release profile",
+  "host": {
+    "cpu": "Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",
+    "cores": 4,
+    "kernel": "7.0.0-1017-azure",
+    "memoryBytes": 16759308288,
+    "bun": "1.4.4"
+  },
+  "datasetBytes": 100000000,
+  "repetitions": 30,
+  "samples": {
+    "fixed_node_pss_bytes": [
+      67849216
+    ],
+    "idle_increment_pss_bytes": [
+      9593856
+    ],
+    "shell_increment_pss_bytes": [
+      54195200
+    ],
+    "cold_create_running_ms": [
+      1958.3368829999818
+    ]
+  },
+  "unsupported": {},
+  "tier": "wasm",
+  "status": "incomplete",
+  "coldAndConcurrentResources": {
+    "memoryMb": 64,
+    "cpuMillis": 100
+  },
+  "hotAndInstallResources": {
+    "memoryMb": 512,
+    "cpuMillis": 800
+  },
+  "cpuAdmissionOvercommit": 2,
+  "imageId": "sha256:8b31e2d955cd41dda16b4b745ecff620c5a3d86013d590bf332b29df4bb88850",
+  "binarySha256": "6059dbdef5c20980bd1221653896bed02c0c4d18c6e7e53ac9938eab6874ddab",
+  "topology": "host node, control and edge; container requires the host engine",
+  "failure": "Process operation failed: agentOS process operation failed: invalid_state",
+  "summary": {
+    "fixed_node_pss_bytes": {
+      "n": 1,
+      "p50": 67849216,
+      "p90": 67849216
+    },
+    "idle_increment_pss_bytes": {
+      "n": 1,
+      "p50": 9593856,
+      "p90": 9593856
+    },
+    "shell_increment_pss_bytes": {
+      "n": 1,
+      "p50": 54195200,
+      "p90": 54195200
+    },
+    "cold_create_running_ms": {
+      "n": 1,
+      "p50": 1958.3368829999818,
+      "p90": 1958.3368829999818
+    }
+  }
+}

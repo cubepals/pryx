@@ -72,7 +72,7 @@ async function available(host: string) {
   const end = performance.now() + SECOND_MS
   while (true) {
     try {
-      const response = await fetch(origin, { headers: { host } })
+      const response = await fetch(origin, { headers: { host }, keepalive: false })
       if (response.status === StatusCodes.OK && (await response.text()) === 'ready') return
     } catch {
       /* A read can wait for the already-started listener; a start is never retried. */

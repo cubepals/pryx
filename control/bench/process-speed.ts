@@ -157,7 +157,7 @@ async function operations(sdk: Pryx, origin: string, env: Record<string, string 
           try {
             const response =
               phase === 'before'
-                ? await fetch(origin, { headers: { host: new URL(url).hostname } })
+                ? await fetch(origin, { headers: { host: new URL(url).hostname }, keepalive: false })
                 : await fetch(url)
             if (response.status === StatusCodes.OK && (await response.text()) === 'ready') {
               success = true
