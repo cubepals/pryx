@@ -1,0 +1,318 @@
+{
+  "at": "2026-11-06T01:26:52.732Z",
+  "machine": {
+    "memoryBytes": 16759304192,
+    "cpus": 4
+  },
+  "unit": {
+    "memoryMb": 512,
+    "cpuMillis": 250
+  },
+  "capacity": {
+    "nodes": [
+      {
+        "id": "aafe19c8-bbea-42ef-9840-06461882a80c",
+        "unitsFree": 12,
+        "unit": {
+          "memoryMb": 512,
+          "cpuMillis": 250
+        },
+        "memoryMb": {
+          "total": 15982,
+          "reservedForHost": 2048,
+          "allocatable": 13934,
+          "allocated": 0,
+          "running": 0,
+          "runningServers": 512,
+          "usedBytes": null
+        },
+        "cpu": {
+          "cores": 4,
+          "reservedForHostMillis": 1000,
+          "allocatedMillis": 0,
+          "runningMillis": 0,
+          "usedCores": null,
+          "loadAverage": [
+            2.16,
+            2.32,
+            1.97
+          ]
+        },
+        "disk": {
+          "totalBytes": 154894188544,
+          "availableBytes": 100716519424,
+          "reservedGb": 0,
+          "snapshotBytes": 0,
+          "reflink": false
+        },
+        "ports": {
+          "total": 1000,
+          "allocated": 4
+        }
+      }
+    ]
+  },
+  "kernel": {
+    "ephemeralPorts": "32768\t60999",
+    "reservedPorts": "42000-42999"
+  },
+  "projects": [
+    {
+      "project": "e12200a9-fc68-4fb6-ac02-aa2bf4c5e342",
+      "sandboxes": 5,
+      "ran": 5,
+      "completed": true,
+      "usage": {
+        "units": 5,
+        "sandboxes": 5,
+        "running": 5,
+        "snapshots": 0,
+        "snapshotBytes": 0,
+        "egressPorts": 15
+      },
+      "refusal": {
+        "error": {
+          "code": "limit_exceeded",
+          "message": "Project limit maxUnits exceeded",
+          "details": {
+            "name": "maxUnits",
+            "limit": 5,
+            "current": 5
+          }
+        }
+      }
+    },
+    {
+      "project": "84f1c15c-e126-4d1f-aa28-f5389f14718c",
+      "sandboxes": 5,
+      "ran": 5,
+      "completed": true,
+      "usage": {
+        "units": 5,
+        "sandboxes": 5,
+        "running": 5,
+        "snapshots": 0,
+        "snapshotBytes": 0,
+        "egressPorts": 15
+      },
+      "refusal": {
+        "error": {
+          "code": "limit_exceeded",
+          "message": "Project limit maxUnits exceeded",
+          "details": {
+            "name": "maxUnits",
+            "limit": 5,
+            "current": 5
+          }
+        }
+      }
+    },
+    {
+      "project": "4ab5cc81-34bf-4c72-9f69-161657c55997",
+      "sandboxes": 5,
+      "ran": 5,
+      "completed": true,
+      "usage": {
+        "units": 5,
+        "sandboxes": 5,
+        "running": 5,
+        "snapshots": 0,
+        "snapshotBytes": 0,
+        "egressPorts": 15
+      },
+      "refusal": {
+        "error": {
+          "code": "limit_exceeded",
+          "message": "Project limit maxUnits exceeded",
+          "details": {
+            "name": "maxUnits",
+            "limit": 5,
+            "current": 5
+          }
+        }
+      }
+    },
+    {
+      "project": "70fe816b-62cd-417f-a31f-a2c84c7b78a6",
+      "sandboxes": 5,
+      "ran": 5,
+      "completed": true,
+      "usage": {
+        "units": 5,
+        "sandboxes": 5,
+        "running": 5,
+        "snapshots": 0,
+        "snapshotBytes": 0,
+        "egressPorts": 15
+      },
+      "refusal": {
+        "error": {
+          "code": "limit_exceeded",
+          "message": "Project limit maxUnits exceeded",
+          "details": {
+            "name": "maxUnits",
+            "limit": 5,
+            "current": 5
+          }
+        }
+      }
+    },
+    {
+      "project": "3189343b-7e42-42bf-a6f6-5579712c3091",
+      "sandboxes": 5,
+      "ran": 5,
+      "completed": true,
+      "usage": {
+        "units": 5,
+        "sandboxes": 5,
+        "running": 5,
+        "snapshots": 0,
+        "snapshotBytes": 0,
+        "egressPorts": 15
+      },
+      "refusal": {
+        "error": {
+          "code": "limit_exceeded",
+          "message": "Project limit maxUnits exceeded",
+          "details": {
+            "name": "maxUnits",
+            "limit": 5,
+            "current": 5
+          }
+        }
+      }
+    },
+    {
+      "project": "6ca8ee71-5345-4e3e-a8a7-cce9170595f8",
+      "sandboxes": 5,
+      "ran": 5,
+      "completed": true,
+      "usage": {
+        "units": 5,
+        "sandboxes": 5,
+        "running": 5,
+        "snapshots": 0,
+        "snapshotBytes": 0,
+        "egressPorts": 15
+      },
+      "refusal": {
+        "error": {
+          "code": "limit_exceeded",
+          "message": "Project limit maxUnits exceeded",
+          "details": {
+            "name": "maxUnits",
+            "limit": 5,
+            "current": 5
+          }
+        }
+      }
+    },
+    {
+      "project": "df7555ed-f1e0-4a5a-a8ea-46aa02d9ecb5",
+      "sandboxes": 5,
+      "ran": 5,
+      "completed": true,
+      "usage": {
+        "units": 5,
+        "sandboxes": 5,
+        "running": 5,
+        "snapshots": 0,
+        "snapshotBytes": 0,
+        "egressPorts": 15
+      },
+      "refusal": {
+        "error": {
+          "code": "limit_exceeded",
+          "message": "Project limit maxUnits exceeded",
+          "details": {
+            "name": "maxUnits",
+            "limit": 5,
+            "current": 5
+          }
+        }
+      }
+    },
+    {
+      "project": "9f146a58-ad33-4286-8d4d-c7b2d4fa8200",
+      "sandboxes": 5,
+      "ran": 5,
+      "completed": true,
+      "usage": {
+        "units": 5,
+        "sandboxes": 5,
+        "running": 5,
+        "snapshots": 0,
+        "snapshotBytes": 0,
+        "egressPorts": 15
+      },
+      "refusal": {
+        "error": {
+          "code": "limit_exceeded",
+          "message": "Project limit maxUnits exceeded",
+          "details": {
+            "name": "maxUnits",
+            "limit": 5,
+            "current": 5
+          }
+        }
+      }
+    },
+    {
+      "project": "10c93f71-8e6c-4f1a-bd4e-0e047be58b9a",
+      "sandboxes": 5,
+      "ran": 5,
+      "completed": true,
+      "usage": {
+        "units": 5,
+        "sandboxes": 5,
+        "running": 5,
+        "snapshots": 0,
+        "snapshotBytes": 0,
+        "egressPorts": 15
+      },
+      "refusal": {
+        "error": {
+          "code": "limit_exceeded",
+          "message": "Project limit maxUnits exceeded",
+          "details": {
+            "name": "maxUnits",
+            "limit": 5,
+            "current": 5
+          }
+        }
+      }
+    },
+    {
+      "project": "1fdb74f8-a457-4693-b1e0-932d87f19a99",
+      "sandboxes": 5,
+      "ran": 5,
+      "completed": true,
+      "usage": {
+        "units": 5,
+        "sandboxes": 5,
+        "running": 5,
+        "snapshots": 0,
+        "snapshotBytes": 0,
+        "egressPorts": 15
+      },
+      "refusal": {
+        "error": {
+          "code": "limit_exceeded",
+          "message": "Project limit maxUnits exceeded",
+          "details": {
+            "name": "maxUnits",
+            "limit": 5,
+            "current": 5
+          }
+        }
+      }
+    }
+  ],
+  "totalSandboxes": 50,
+  "ranSandboxes": 50,
+  "simultaneousSandboxes": 5,
+  "quota": 5,
+  "completed": true,
+  "physical16GiBHostMeasured": false,
+  "explanation": "Each of ten projects creates five stopped sandboxes and runs every one, rotating active work within its measured host unit capacity. Counts include acknowledged creations and validated command results only. Refusals exceed that project quota without relaxing host reservations. No 16 GiB capacity is inferred from the observed host."
+}

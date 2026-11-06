@@ -4,6 +4,7 @@
 
 /** The single-node daemon configuration fixture, parameterized by its deployment. */
 
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import nodeSchema from '../../openapi/node-reads.openapi.json'
 
@@ -17,6 +18,27 @@ export const TIER_BENCH_LARGE_UNITS = 2
 export const TIER_BENCH_LARGE_UNIT = {
   memoryMb: TIER_BENCH_UNIT.memoryMb * TIER_BENCH_LARGE_UNITS,
   cpuMillis: TIER_BENCH_UNIT.cpuMillis * TIER_BENCH_LARGE_UNITS,
+}
+export const TEST_NODE_PORTS = 50
+export const TIER_BENCH_NODE_PORTS = 256
+
+export function nodePortLow(deployment: string, index: number) {
+  const ephemeralStart = Number(
+    readFileSync('/proc/sys/net/ipv4/ip_local_port_range', 'utf8').trim().split(/\s+/)[0],
+  )
+  const unprivilegedStart = Number(readFileSync('/proc/sys/net/ipv4/ip_unprivileged_port_start', 'utf8'))
+  const slots = 90,
+    stride = 2 * TEST_NODE_PORTS,
+    base = ephemeralStart - (slots * stride + TIER_BENCH_NODE_PORTS),
+    low = base + (Number.parseInt(deployment.slice(-3), 16) % slots) * stride + index * TEST_NODE_PORTS
+  if (
+    !Number.isInteger(low) ||
+    !Number.isInteger(unprivilegedStart) ||
+    base < unprivilegedStart ||
+    low + TIER_BENCH_NODE_PORTS > ephemeralStart
+  )
+    throw new Error('Kernel port policy has no room for the test listener pool')
+  return low
 }
 
 export const nodeConfigFor = (DEPLOYMENT: string) =>
@@ -41,7 +63,7 @@ listen = "127.0.0.1:${apiPort}"
 [ops]
 listen = "127.0.0.1:${opsPort}"
 [network]
-port_range = [${low}, ${low + (process.env.PRYX_TIER_BENCH === '1' ? 255 : 49)}]
+port_range = [${low}, ${low + (process.env.PRYX_TIER_BENCH === '1' ? TIER_BENCH_NODE_PORTS : TEST_NODE_PORTS) - 1}]
 port_quarantine_seconds = 0
 [wasm]
 distribution = ${JSON.stringify(process.env.PRYX_AGENTOS_DISTRIBUTION ?? '/usr/local/lib/pryx/agentos')}

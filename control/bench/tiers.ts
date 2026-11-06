@@ -6,15 +6,30 @@
  * - `report.ts`: raw evidence, host identity and nearest-rank percentiles.
  */
 
+import { StatusCodes } from 'http-status-codes'
 import {
   TIER_BENCH_CPU_OVERCOMMIT,
   TIER_BENCH_LARGE_UNIT,
   TIER_BENCH_LARGE_UNITS,
   TIER_BENCH_UNIT,
 } from '../e2e/runtime-config.ts'
+import { NodeClient, NodeRefused } from '../src/node-client.ts'
 import { context } from './tiers/context.ts'
 import { cold, concurrent, creation, hot, packages, snapshots } from './tiers/operations.ts'
 import { command, report, type Samples, save } from './tiers/report.ts'
+
+// Benchmark-only refusal evidence excludes request bodies, headers and connection identities.
+const nodeCall = NodeClient.prototype.call
+let nativeRefusals = false
+NodeClient.prototype.call = async function <T>(...args: Parameters<NodeClient['call']>): Promise<T> {
+  try {
+    return (await nodeCall.apply(this, args)) as T
+  } catch (error) {
+    if (nativeRefusals && error instanceof NodeRefused && error.status >= StatusCodes.INTERNAL_SERVER_ERROR)
+      console.error('NODE_RUNTIME_FAILURE', error.status, error.message.slice(0, 1024))
+    throw error
+  }
+}
 
 const [mode, output] = process.argv.slice(2)
 if (!output || (mode !== 'one-box' && mode !== 'image'))
@@ -34,6 +49,7 @@ process.env.PRYX_IMAGE_TEST = (
 if (!process.env.PRYX_IMAGE_TEST.includes(':')) throw new Error('Comparison image must have a repository tag')
 const failures: unknown[] = []
 for (const tier of ['container', 'process', 'wasm'] as const) {
+  nativeRefusals = tier === 'process'
   const samples: Samples = {},
     unsupported: Record<string, string> = {}
   const evidence = report(`${mode}/${tier}`, samples, unsupported)
@@ -44,6 +60,7 @@ for (const tier of ['container', 'process', 'wasm'] as const) {
     coldAndConcurrentResources: TIER_BENCH_UNIT,
     hotAndInstallResources: TIER_BENCH_LARGE_UNIT,
     cpuAdmissionOvercommit: TIER_BENCH_CPU_OVERCOMMIT,
+    concurrentContext: mode === 'image' ? 'fresh context per sample' : 'one node reused for all samples',
   }
   console.info('TIER', mode, tier)
   try {
@@ -72,7 +89,11 @@ for (const tier of ['container', 'process', 'wasm'] as const) {
     } finally {
       await box.delete()
     }
-    await concurrent(c, tier, samples)
+    if (mode === 'image') {
+      await c.close()
+      c = undefined
+    }
+    await concurrent(mode, tier, samples, c)
     if (tier === 'wasm')
       unsupported.vm_suspend =
         'agentOS 0.4.7 exports disposal, not per-VM suspend; stopping the shared worker would stop other sandboxes; n=0'

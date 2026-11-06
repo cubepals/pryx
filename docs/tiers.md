@@ -38,6 +38,12 @@ services, so its fixed overhead is not a per-VM claim. Shared executable pages c
 proportionally; retained allocator pages and host noise remain in the samples, including
 negative incremental readings. The 50-way latency ends when every creation reports running;
 its memory read and deletion are outside that latency timer.
+The one-box collector reuses its node across all thirty 50-way batches. Its temporary listener
+pool is derived below the host kernel's ephemeral range so outgoing connections cannot race
+listener allocation. The ordinary-image collector prepares a fresh context outside each 50-way
+timer on all three tiers: the product's unchanged ten-minute port quarantine and thousand-port
+pool cannot immediately reuse ports for 1,500 creations. Image startup and baseline memory
+sampling are outside this creation timer; each sample still creates fifty sandboxes at once.
 
 Snapshots and forks use exactly 100,000,000 bytes of repeated byte 42, validated before capture
 and after fork. This compressible fixture measures the same workload on each tier; it is not
