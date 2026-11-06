@@ -5,12 +5,17 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { sql } from 'drizzle-orm'
 import { StatusCodes } from 'http-status-codes'
-import { Pryx } from '../../sdk/typescript/src/index.ts'
+import { Pryx, PryxError } from '../../sdk/typescript/src/index.ts'
 import { capacitySummary } from '../bench/tiers/capacity-summary.ts'
-import { type ConcurrentOutcome, concurrent, concurrentAttempt } from '../bench/tiers/concurrent.ts'
+import {
+  type ConcurrentOutcome,
+  concurrent,
+  concurrentAttempt,
+  concurrentFailureDetails,
+} from '../bench/tiers/concurrent.ts'
 import type { Context } from '../bench/tiers/context.ts'
 import { REPETITIONS, type Samples } from '../bench/tiers/report.ts'
-import { MINUTE_MS } from '../src/durations.ts'
+import { MINUTE_MS, SECOND_MS } from '../src/durations.ts'
 import { NodeRefused } from '../src/node-client.ts'
 import { capacity, hasDatabase } from './nodes.ts'
 import { publicContext } from './public-context.ts'
@@ -19,6 +24,8 @@ describe.skipIf(!hasDatabase)('tier comparison capacity', () => {
   let c: Awaited<ReturnType<typeof publicContext>>
   let sdk: Pryx
   let creates = 0
+  let creating = 0
+  let peakCreates = 0
   const room = async (count: number) =>
     c.db.execute(sql`UPDATE fleet_nodes SET
     last_heartbeat_at=now(), capacity=${JSON.stringify(
@@ -32,9 +39,17 @@ describe.skipIf(!hasDatabase)('tier comparison capacity', () => {
     sdk = new Pryx({
       url: 'http://control.test',
       key: c.credential.key,
-      fetch: ((input, init) => {
-        if (init?.method === 'POST' && String(input).endsWith('/sandboxes')) creates++
-        return c.app.request(new Request(input, init))
+      fetch: (async (input, init) => {
+        const creation = init?.method === 'POST' && String(input).endsWith('/sandboxes')
+        if (creation) {
+          creates++
+          peakCreates = Math.max(peakCreates, ++creating)
+        }
+        try {
+          return await c.app.request(new Request(input, init))
+        } finally {
+          if (creation) creating--
+        }
       }) as typeof fetch,
     })
     await room(3)
@@ -73,6 +88,7 @@ describe.skipIf(!hasDatabase)('tier comparison capacity', () => {
         outcomes,
       )
       expect(creates).toBe(50 * REPETITIONS)
+      expect(peakCreates).toBe(50)
       expect(samples.concurrent_capacity_running_count).toEqual([50, ...Array(REPETITIONS - 1).fill(3)])
       expect(samples.concurrent_capacity_pss_bytes).toEqual([6000, ...Array(REPETITIONS - 1).fill(1300)])
       expect(samples.concurrent_50_running_ms).toHaveLength(1)
@@ -128,6 +144,31 @@ describe.skipIf(!hasDatabase)('tier comparison capacity', () => {
     expect(markdown).toContain('50× no_room (HTTP 503): No node can complete this request')
   })
 
+  test('teardown deletes each admitted sandbox once without a second concurrent load', async () => {
+    await room(3)
+    let active = 0
+    let peak = 0
+    let attempts = 0
+    for (let i = 0; i < 3; i++)
+      c.nodes.once(/^DELETE /, async (answer) => {
+        attempts++
+        peak = Math.max(peak, ++active)
+        try {
+          await new Promise((resolve) => setTimeout(resolve, SECOND_MS / 10))
+          return answer()
+        } finally {
+          active--
+        }
+      })
+    await concurrentAttempt({ sdk, memory: async () => 1000 }, 'container', 1, (wave) => {
+      expect(wave.running).toBe(3)
+      expect(attempts).toBe(0)
+    })
+    expect(attempts).toBe(3)
+    expect(peak).toBe(1)
+    expect([...c.nodes.copies.values()].filter((copy) => copy.state === 'running')).toEqual([])
+  })
+
   test('a non-capacity creation error still fails and cleans every successful creation', async () => {
     await room(3)
     c.nodes.once(/^PUT /, async () => {
@@ -171,11 +212,43 @@ describe.skipIf(!hasDatabase)('tier comparison capacity', () => {
       throw new NodeRefused(StatusCodes.SERVICE_UNAVAILABLE, 'no_room', 'delete failed', null)
     })
     let recorded = false
-    await expect(
-      concurrentAttempt({ sdk, memory: async () => 1000 }, 'container', 1, () => {
+    let admitted = 0
+    const before = c.nodes.calls.filter((call) => call.method === 'DELETE').length
+    let failure: unknown
+    try {
+      await concurrentAttempt({ sdk, memory: async () => 1000 }, 'container', 1, (wave) => {
         recorded = true
-      }),
-    ).rejects.toThrow('Concurrent cleanup failed')
+        admitted = wave.running
+      })
+    } catch (error) {
+      failure = error
+    }
+    expect(failure).toBeInstanceOf(AggregateError)
+    expect((failure as Error).message).toBe('Concurrent cleanup failed')
     expect(recorded).toBe(true)
+    expect(admitted).toBeGreaterThan(0)
+    expect(c.nodes.calls.filter((call) => call.method === 'DELETE').length - before).toBe(admitted)
+    expect(concurrentFailureDetails(failure)).toEqual([
+      {
+        phase: 'cleanup',
+        name: PryxError.name,
+        status: StatusCodes.SERVICE_UNAVAILABLE,
+        code: 'no_room',
+        message: 'No node can complete this request',
+      },
+    ])
   })
+})
+
+test('cohort failure diagnostics are bounded and omit private error fields', () => {
+  const secret = 'private-request-details'
+  const sdk = new PryxError(StatusCodes.SERVICE_UNAVAILABLE, 'no_room', 'Public refusal', { secret })
+  const error = new AggregateError([sdk, new Error(secret)])
+  const details = concurrentFailureDetails(error)
+  expect(details[0]).toMatchObject({ status: sdk.status, code: sdk.code, message: sdk.message })
+  expect(JSON.stringify(details)).not.toContain(secret)
+  expect(concurrentFailureDetails(new AggregateError(Array(200).fill(sdk)))).toHaveLength(100)
+  const cycle = new AggregateError([])
+  cycle.errors.push(cycle)
+  expect(concurrentFailureDetails(cycle)).toHaveLength(1)
 })

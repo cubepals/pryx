@@ -17,7 +17,7 @@ import {
   TIER_BENCH_UNIT,
 } from '../e2e/runtime-config.ts'
 import { NodeClient, NodeRefused } from '../src/node-client.ts'
-import { type ConcurrentOutcome, concurrent } from './tiers/concurrent.ts'
+import { type ConcurrentOutcome, concurrent, concurrentFailureDetails } from './tiers/concurrent.ts'
 import { context, IMAGE_BENCH_GATEWAY } from './tiers/context.ts'
 import { cold, creation, hot, packages, snapshots } from './tiers/operations.ts'
 import { command, report, type Samples, save } from './tiers/report.ts'
@@ -122,14 +122,16 @@ for (const tier of ['container', 'process', 'wasm'] as const) {
   } catch (error) {
     c?.diagnostics?.()
     extra.failure = error instanceof Error ? error.message : String(error)
+    extra.failureCauses = concurrentFailureDetails(error)
     failures.push(error)
-    console.error('TIER_FAILURE', tier, extra.failure)
+    console.error('TIER_FAILURE', tier, extra.failure, JSON.stringify(extra.failureCauses))
   } finally {
     try {
       await c?.close()
     } catch (error) {
       extra.status = 'incomplete'
       extra.cleanupFailure = error instanceof Error ? error.message : String(error)
+      extra.cleanupFailureCauses = concurrentFailureDetails(error)
       failures.push(error)
     }
     checkpoint()

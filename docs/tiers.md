@@ -54,6 +54,11 @@ Partial waves do not count as full-50 latency successes. All other creation erro
 running results, missing memory readings and failed cleanup remain fatal. The public API also
 uses `no_room` for unavailable admission, so a refusal is an observed admission result, not proof
 that physical RAM alone set the limit or that the fitted count is a universal maximum.
+After the checkpoint, teardown deletes every admitted sandbox once, in sequence, outside the
+creation timer and memory reading. All fifty creation requests remain concurrent. Teardown
+does not add a second fifty-way mutation load; every delete is attempted and any failure is
+fatal, without retry. Raw failures retain nested SDK phase/status/code/public-message evidence
+while omitting request details, private error text and stacks.
 The existing one-box and ordinary-image jobs upload these raw records and append every wave's
 running/refused counts, memory and refusal to their GitHub job summaries, including on failure.
 The one-box collector reuses its node across all thirty 50-way batches. Its temporary listener
@@ -122,6 +127,21 @@ reads that owned process tree directly and refuses missing PSS. This fresh node 
 scalar/package workload or retained allocator history; its PSS is separate from the historical
 reused-node CI memory above. Neither set of totals measures memory per VM. Raw output and the
 rendered [capacity summary](checks/pr8-capacity-local-summary.md) retain the counts and refusal.
+
+### Failed teardown remains a failure
+
+The [7934065 push run](https://github.com/cubepals/pryx/actions/runs/42254735382) records a separate
+ordinary-image failure after the first Wasm wave had admitted all 50 with zero admission
+refusals. Its creation time was 66,869.40 ms and pre-cleanup context PSS was 554.99 MiB.
+The simultaneous delete fan-out then returned HTTP 503 `no_room`; the tier remained
+`incomplete` and the job failed. This public error does not identify the underlying host or
+database cause. The [raw report](measurements/k14/42254735382/tiers-image-wasm.json) and
+[log excerpt](checks/pr8-capacity-image-cleanup-before.txt) retain that failed observation;
+the one recorded wave is not presented as a completed thirty-wave comparison.
+Container, process, normal-default and forced-Wasm hello cohorts from that run retain their
+complete samples beside it. The teardown follow-up keeps every delete and its fatal assertion,
+serializes the unmeasured deletion phase on every tier/context, and verifies that the fifty
+creation requests still overlap. The actual admission-refusal observation above stays separate.
 
 Snapshots and forks use exactly 100,000,000 bytes of repeated byte 42, validated before capture
 and after fork. This compressible fixture measures the same workload on each tier; it is not

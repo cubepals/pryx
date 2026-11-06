@@ -7,6 +7,51 @@ import { creation } from './operations.ts'
 import { REPETITIONS, type Samples } from './report.ts'
 
 export const CONCURRENT_REQUESTS = 50
+type FailurePhase = 'creation' | 'cleanup' | 'cohort'
+class ConcurrentFailure extends AggregateError {
+  constructor(
+    readonly phase: FailurePhase,
+    errors: unknown[],
+    message: string,
+  ) {
+    super(errors, message)
+  }
+}
+
+/** Only public SDK fields enter artifacts; omit details, stacks and arbitrary internal error text. */
+export function concurrentFailureDetails(error: unknown) {
+  const details: Array<{
+    phase?: FailurePhase
+    name: string
+    status?: number
+    code?: string
+    message?: string
+  }> = []
+  // At most fifty creation and fifty cleanup failures; bounded recursion also handles cycles.
+  const visit = (cause: unknown, phase?: FailurePhase, depth = 0) => {
+    if (details.length >= 2 * CONCURRENT_REQUESTS) return
+    if (cause instanceof AggregateError && depth < 4) {
+      for (const inner of cause.errors) {
+        if (details.length >= 2 * CONCURRENT_REQUESTS) break
+        visit(inner, cause instanceof ConcurrentFailure ? cause.phase : phase, depth + 1)
+      }
+    } else
+      details.push(
+        cause instanceof PryxError
+          ? {
+              phase,
+              name: PryxError.name,
+              status: cause.status,
+              code: cause.code,
+              message: cause.message.slice(0, 1024),
+            }
+          : { phase, name: Error.name },
+      )
+  }
+  visit(error)
+  return details
+}
+
 export interface ConcurrentOutcome {
   attempt: number
   requested: number
@@ -38,7 +83,7 @@ export async function concurrentAttempt(
     const errors = made.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))
     // The public API owns this admission code. Do not classify errors by message text or retry creation.
     const fatal = errors.filter((error) => !(error instanceof PryxError && error.code === 'no_room'))
-    if (fatal.length) throw new AggregateError(fatal, 'Concurrent creation failed')
+    if (fatal.length) throw new ConcurrentFailure('creation', fatal, 'Concurrent creation failed')
     if (boxes.some((box) => box.state !== 'running' || box.isolation !== tier || box.units !== 1))
       throw new Error('Concurrent sandbox did not run')
     const refusals: ConcurrentOutcome['refusals'] = []
@@ -65,11 +110,18 @@ export async function concurrentAttempt(
   } catch (error) {
     failures.push(error)
   }
-  const deleted = await Promise.allSettled(boxes.map((box) => box.delete()))
-  const cleanup = deleted.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))
-  if (cleanup.length) failures.push(new AggregateError(cleanup, 'Concurrent cleanup failed'))
+  // Teardown is outside the measured cohort: do not introduce a second fifty-request mutation load.
+  const cleanup: unknown[] = []
+  for (const box of boxes) {
+    try {
+      await box.delete()
+    } catch (error) {
+      cleanup.push(error)
+    }
+  }
+  if (cleanup.length) failures.push(new ConcurrentFailure('cleanup', cleanup, 'Concurrent cleanup failed'))
   if (failures.length === 1) throw failures[0]
-  if (failures.length) throw new AggregateError(failures, 'Concurrent cohort failed')
+  if (failures.length) throw new ConcurrentFailure('cohort', failures, 'Concurrent cohort failed')
 }
 
 export async function concurrent(
