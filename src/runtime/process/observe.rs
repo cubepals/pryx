@@ -12,7 +12,8 @@ pub(super) fn identity(pid: u32) -> Option<u64> {
     fields.nth(18)?.parse().ok()
 }
 pub(super) fn matching_pid(pid: Option<u32>, ticks: Option<u64>) -> Option<u32> {
-    pid.filter(|pid| identity(*pid) == ticks)
+    let ticks = ticks?;
+    pid.filter(|pid| identity(*pid) == Some(ticks))
 }
 pub(super) fn tree(root: u32) -> Vec<(u32, u64)> {
     let mut all = Vec::new();

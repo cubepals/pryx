@@ -300,4 +300,22 @@ mod tests {
             rustix::io::Errno::CHILD
         );
     }
+
+    #[test]
+    fn a_missing_start_time_never_identifies_a_running_process() {
+        let dir = tempfile::tempdir().unwrap();
+        let runtime = ProcessRuntime::new(dir.path(), ProcessConfig::default()).unwrap();
+        let spec = fixture_spec(dir.path(), 0);
+        runtime.create_entry(&spec).unwrap();
+        let mut child = std::process::Command::new("true").spawn().unwrap();
+        let pid = child.id();
+        assert!(child.wait().unwrap().success());
+        assert!(super::super::observe::identity(pid).is_none());
+        let mut entry = runtime.entry(&spec.name).unwrap();
+        entry.pid = Some(pid);
+        entry.ticks = None;
+        runtime.save(entry).unwrap();
+        assert!(!runtime.running(&spec.name).unwrap());
+        assert_eq!(runtime.observe_entry(&spec.name).unwrap().unwrap().status, ContainerStatus::Exited);
+    }
 }
