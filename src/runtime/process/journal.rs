@@ -109,10 +109,10 @@ impl ProcessRuntime {
         Ok(())
     }
     pub(super) fn entry(&self, name: &str) -> Result<Entry, RuntimeError> {
-        self.state
-            .entries
-            .lock()
-            .unwrap()
+        Self::entry_from(&self.state.entries.lock().unwrap(), name)
+    }
+    pub(super) fn entry_from(entries: &BTreeMap<String, Entry>, name: &str) -> Result<Entry, RuntimeError> {
+        entries
             .values()
             .find(|entry| entry.spec.name == name || entry.id == name)
             .cloned()
@@ -122,13 +122,17 @@ impl ProcessRuntime {
         self.state.entries.lock().unwrap().keys().cloned().collect()
     }
     pub(super) fn save(&self, entry: Entry) -> Result<(), RuntimeError> {
+        self.persist(&entry)?;
+        self.state.entries.lock().unwrap().insert(entry.spec.name.clone(), entry);
+        Ok(())
+    }
+    pub(super) fn persist(&self, entry: &Entry) -> Result<(), RuntimeError> {
         crate::durable::write_atomic(
             &self.state.root.join(format!("{}.json", entry.id)),
             &serde_json::to_vec(&entry).map_err(error)?,
             0o600,
         )
         .map_err(error)?;
-        self.state.entries.lock().unwrap().insert(entry.spec.name.clone(), entry);
         Ok(())
     }
     pub(super) fn create_entry(&self, spec: &ContainerSpec) -> Result<String, RuntimeError> {
