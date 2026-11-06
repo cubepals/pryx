@@ -209,6 +209,21 @@ mod tests {
         assert!(ProcessRuntime::new(dir.path(), ProcessConfig::default()).is_err());
     }
 
+    fn fixture_spec(path: &Path, index: usize) -> ContainerSpec {
+        serde_json::from_value(serde_json::json!({
+            "name": format!("observe-{index}"), "image": "", "env": [], "labels": {},
+            "agent": {"binary": "", "sandbox": format!("observe-{index}"), "epoch": 1,
+                "secret_env": "", "domain": "pryx.test", "agent_port": pryx_agent::contract::AGENT_PORT,
+                "spare_ports": [], "keep_alive": true},
+            "user": "", "memory_bytes": 0, "cpu_shares": 0, "pids_limit": 0,
+            "read_only_rootfs": true, "tmp_size_mb": 0, "data_dir": path,
+            "mount_path": "/data", "ports": [], "stop_signal": "SIGTERM",
+            "stop_timeout_secs": 0, "network": "", "internal_network": false,
+            "log_max_size_mb": 0, "log_max_files": 0, "oom_score_adj": 0
+        }))
+        .unwrap()
+    }
+
     #[test]
     fn observation_cannot_restore_removed_compute() {
         use std::sync::{
@@ -236,18 +251,7 @@ mod tests {
         ready.wait();
         let result = (|| {
             for index in 0..250 {
-                let spec: ContainerSpec = serde_json::from_value(serde_json::json!({
-                    "name": format!("observe-{index}"), "image": "", "env": [], "labels": {},
-                    "agent": {"binary": "", "sandbox": format!("observe-{index}"), "epoch": 1,
-                        "secret_env": "", "domain": "pryx.test", "agent_port": pryx_agent::contract::AGENT_PORT,
-                        "spare_ports": [], "keep_alive": true},
-                    "user": "", "memory_bytes": 0, "cpu_shares": 0, "pids_limit": 0,
-                    "read_only_rootfs": true, "tmp_size_mb": 0, "data_dir": dir.path(),
-                    "mount_path": "/data", "ports": [], "stop_signal": "SIGTERM",
-                    "stop_timeout_secs": 0, "network": "", "internal_network": false,
-                    "log_max_size_mb": 0, "log_max_files": 0, "oom_score_adj": 0
-                }))
-                .unwrap();
+                let spec = fixture_spec(dir.path(), index);
                 runtime.create_entry(&spec)?;
                 let mut entry = runtime.entry(&spec.name)?;
                 entry.cleaned = false;
