@@ -5,6 +5,7 @@
 
 import type { MakeRequest, Pryx } from '@cubepals/pryx'
 import type { AgentOsSandboxClient, AgentOsSandboxProvider } from '@rivet-dev/agentos-core'
+import { StatusCodes } from 'http-status-codes'
 import { SandboxAgent, type SandboxProvider } from 'sandbox-agent'
 import { SANDBOX_AGENT_PORT, SANDBOX_AGENT_TEMPLATE } from './template.ts'
 
@@ -18,6 +19,14 @@ export function pryxProvider(
     spec?: Omit<MakeRequest, 'image' | 'ports' | 'entrypoint' | 'start'>
   },
 ): SandboxProvider {
+  async function remove(id: string) {
+    try {
+      await (await client.sandbox(id)).delete()
+    } catch (error) {
+      if (!(error instanceof Error && 'status' in error && error.status === StatusCodes.GONE)) throw error
+    }
+  }
+
   if (options.image && options.template) throw new Error('Choose image or template')
   const port = options.agentPort ?? SANDBOX_AGENT_PORT
   return {
@@ -38,10 +47,10 @@ export function pryxProvider(
       return made.id
     },
     async destroy(id) {
-      await (await client.sandbox(id)).delete()
+      await remove(id)
     },
     async kill(id) {
-      await (await client.sandbox(id)).delete()
+      await remove(id)
     },
     async pause(id) {
       await (await client.sandbox(id)).sleep()

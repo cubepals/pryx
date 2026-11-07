@@ -3,6 +3,7 @@
 
 /** A RivetKit actor owns session memory and one sandbox; credentials live in the server closure, never actor state. */
 import type { ExecRequest, MakeRequest, Pryx } from '@cubepals/pryx'
+import { StatusCodes } from 'http-status-codes'
 import { actor } from 'rivetkit'
 
 export interface SessionMemory {
@@ -12,6 +13,13 @@ export interface SessionMemory {
   notes: string[]
 }
 export function sandboxActor(client: Pryx, options: { sleepGracePeriod?: number } = {}) {
+  async function remove(id: string) {
+    try {
+      await (await client.sandbox(id)).delete()
+    } catch (error) {
+      if (!(error instanceof Error && 'status' in error && error.status === StatusCodes.GONE)) throw error
+    }
+  }
   return actor({
     state: { sandbox: null, pending: null, generation: 0, notes: [] } as SessionMemory,
     options,
@@ -22,7 +30,7 @@ export function sandboxActor(client: Pryx, options: { sleepGracePeriod?: number 
       if (c.state.sandbox) await (await client.sandbox(c.state.sandbox)).sleep()
     },
     onDestroy: async (c) => {
-      if (c.state.sandbox) await (await client.sandbox(c.state.sandbox)).delete()
+      if (c.state.sandbox) await remove(c.state.sandbox)
       // A create reply can be lost before state receives its id. Recover the same keyed identity.
       else if (c.state.pending) {
         const made = await client.sandbox({ ...c.state.pending.body, idempotencyKey: c.state.pending.key })
@@ -86,7 +94,7 @@ export function sandboxActor(client: Pryx, options: { sleepGracePeriod?: number 
           ? (await client.sandbox(c.state.sandbox)).wake().then((box) => ({ sandbox: box.toJSON() }))
           : null,
       delete: async (c) => {
-        if (c.state.sandbox) await (await client.sandbox(c.state.sandbox)).delete()
+        if (c.state.sandbox) await remove(c.state.sandbox)
         else if (c.state.pending)
           await (
             await client.sandbox({ ...c.state.pending.body, idempotencyKey: c.state.pending.key })

@@ -164,7 +164,7 @@ export class PublicModel {
     let view = await this.view(result.id, project)
     // Agent-only routes are new to otherwise synchronous create/fork calls. Wait for the
     // counted edge to acknowledge them before caching a successful creation response.
-    while (spec.agent && view.state === 'starting') {
+    while (view.state === 'starting') {
       await pause(SECOND_MS / 20)
       view = await this.view(result.id, project)
     }

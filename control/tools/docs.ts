@@ -109,7 +109,7 @@ lines.push(
   'remain for HTTP callers; SDKs use binary streams directly. Control forwards binary bytes to the',
   'agent, with stopped data served by the node. Positional JSON writes spool existing bytes to a',
   'private control temp file before replacement, keeping RAM bounded. Concurrent writers must be',
-  'serialized by callers; multi-request writes are not atomic. No sandbox command or archive',
+  'serialized by callers; multi-request writes are not atomic. Decoded JSON file reads use the node-owned JSON memory bound; binary streams and chunk reads have no total file bound. No sandbox command or archive',
   'extraction is involved. Paths remain relative, without dot segments or symlink components.',
 )
 const output = `${lines.join('\n')}\n`,

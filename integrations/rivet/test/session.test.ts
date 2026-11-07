@@ -4,6 +4,7 @@
 /** Exercise persisted create recovery and lifecycle callbacks from the real RivetKit definition against SDK HTTP transport. */
 import { expect, test } from 'bun:test'
 import { Pryx } from '@cubepals/pryx'
+import { StatusCodes } from 'http-status-codes'
 import { pryxProvider } from '../src/agentos.ts'
 import { type SessionMemory, sandboxActor } from '../src/index.ts'
 
@@ -105,4 +106,27 @@ test('sandbox-agent provider preserves keys, pauses and handles private IPv6 end
     '/v1/sandboxes/one',
     '/v1/sandboxes/one',
   ])
+})
+
+test('provider deletion stays idempotent after lookup reports gone', async () => {
+  let deleted = false,
+    deletes = 0
+  const client = new Pryx({
+    url: 'http://fixture',
+    key: 'secret',
+    fetch: (async (_input, init) => {
+      if (init?.method === 'DELETE') {
+        deletes++
+        deleted = true
+        return Response.json({ existed: true })
+      }
+      return deleted
+        ? Response.json({ error: { code: 'gone', message: 'Deleted' } }, { status: StatusCodes.GONE })
+        : Response.json({ id: 'one', state: 'running', endpoints: [] })
+    }) as typeof fetch,
+  })
+  const provider = pryxProvider(client, { key: 'one', image: 'alpine:3.22' })
+  await provider.destroy('one')
+  await provider.destroy('one')
+  expect(deletes).toBe(1)
 })

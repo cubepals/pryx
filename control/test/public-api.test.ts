@@ -12,6 +12,13 @@ import { one } from '../src/sql.ts'
 import { hasDatabase, report } from './nodes.ts'
 import { publicContext } from './public-context.ts'
 
+const spec = {
+  image: 'alpine:3.22',
+  resources: { memoryMb: 128 },
+  ports: [{ name: 'http', port: 8080, audience: 'public' }],
+  secrets: { TOKEN: 'never-return-this' },
+}
+
 describe.skipIf(!hasDatabase)('public API', () => {
   let ctx: Awaited<ReturnType<typeof publicContext>>
   beforeAll(async () => {
@@ -20,37 +27,7 @@ describe.skipIf(!hasDatabase)('public API', () => {
   afterAll(async () => {
     await ctx?.close()
   })
-  const spec = {
-    image: 'alpine:3.22',
-    resources: { memoryMb: 128 },
-    ports: [{ name: 'http', port: 8080, audience: 'public' }],
-    secrets: { TOKEN: 'never-return-this' },
-  }
-  test('a long lifecycle response outlives the HTTP idle timer', async () => {
-    const made = (await (await ctx.request('/sandboxes', 'POST', spec)).json()) as { id: string }
-    const original = ctx.boxes.delete.bind(ctx.boxes)
-    ctx.boxes.delete = async (...args) => {
-      await new Promise((resolve) => setTimeout(resolve, 1.2 * SECOND_MS))
-      return original(...args)
-    }
-    const server = Bun.serve({
-      hostname: '127.0.0.1',
-      port: 0,
-      idleTimeout: 1,
-      fetch: (request, server) => ctx.app.fetch(request, { beginStream: () => server.timeout(request, 0) }),
-    })
-    try {
-      const result = await fetch(`${server.url}v1/sandboxes/${made.id}`, {
-        method: 'DELETE',
-        headers: { authorization: `Bearer ${ctx.credential.key}` },
-      })
-      expect(result.status).toBe(StatusCodes.OK)
-      expect(await result.json()).toEqual({ existed: true })
-    } finally {
-      ctx.boxes.delete = original
-      server.stop(true)
-    }
-  })
+
   test('keys are hashed, project-scoped and revocable', async () => {
     const raw = await one<{ hash: string }>(ctx.db, sql`SELECT hash FROM keys WHERE id=${ctx.credential.id}`)
     expect(raw?.hash).not.toBe(ctx.credential.key)
@@ -209,7 +186,9 @@ describe.skipIf(!hasDatabase)('public API', () => {
     }
   })
   test('sandbox views retain the node reported process exit', async () => {
-    const made = (await (await ctx.request('/sandboxes', 'POST', spec)).json()) as {
+    const created = await ctx.request('/sandboxes', 'POST', spec)
+    expect(created.status).toBe(StatusCodes.CREATED)
+    const made = (await created.json()) as {
       id: string
       node: string
       epoch: number
@@ -271,7 +250,60 @@ test('v1 file envelopes carry agent bytes without executing a sandbox command', 
       false,
     )
     expect(ctx.peers.get(made.id)?.calls.some((c) => c === 'POST /_pryx/processes')).toBe(false)
+    const peer = ctx.peers.get(made.id)
+    if (!peer) throw new Error('Missing agent peer')
+    const large = Buffer.alloc(nodeWrites['x-pryx-agent'].maxRequestBytes + 1, 42)
+    await fetch(peer.url + '/_pryx/files/content?path=large', {
+      method: 'PUT',
+      headers: { authorization: `Bearer ${peer.token()}` },
+      body: large,
+    })
+    expect((await ctx.request(file)).status).toBe(StatusCodes.UNPROCESSABLE_ENTITY)
+    expect(await read(`${chunk}?offset=${bytes}`, 'data')).toEqual(large.subarray(bytes, 2 * bytes))
     await ctx.request(`/sandboxes/${made.id}`, 'DELETE')
+  } finally {
+    await ctx.close()
+  }
+})
+
+test('a long lifecycle response outlives the HTTP idle timer', async () => {
+  const ctx = await publicContext()
+  try {
+    const made = (await (await ctx.request('/sandboxes', 'POST', spec)).json()) as { id: string }
+    const project = ctx.boxes.projects
+    if (!project) throw new Error('Missing project admission')
+    const write = project.write.bind(project)
+    let waiting = true
+    project.write = async (...args) => {
+      if (waiting) {
+        waiting = false
+        await Bun.sleep(12 * SECOND_MS)
+      }
+      return write(...args)
+    }
+    const original = ctx.boxes.delete.bind(ctx.boxes)
+    ctx.boxes.delete = async (...args) => {
+      await new Promise((resolve) => setTimeout(resolve, 1.2 * SECOND_MS))
+      return original(...args)
+    }
+    const server = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 0,
+      idleTimeout: 1,
+      fetch: (request, server) => ctx.app.fetch(request, { beginStream: () => server.timeout(request, 0) }),
+    })
+    try {
+      const result = await fetch(`${server.url}v1/sandboxes/${made.id}`, {
+        method: 'DELETE',
+        headers: { authorization: `Bearer ${ctx.credential.key}` },
+      })
+      expect(result.status).toBe(StatusCodes.OK)
+      expect(await result.json()).toEqual({ existed: true })
+    } finally {
+      ctx.boxes.delete = original
+      project.write = write
+      server.stop(true)
+    }
   } finally {
     await ctx.close()
   }

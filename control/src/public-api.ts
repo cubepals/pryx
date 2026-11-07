@@ -58,6 +58,8 @@ export function createPublicApi(options: {
         StatusCodes.UNAUTHORIZED,
       )
     c.set('project', identity.project)
+    const writing = !['GET', 'HEAD', 'OPTIONS'].includes(c.req.method)
+    if (writing) c.env?.beginStream?.()
     // Check resource scope before policy, so a frozen project cannot distinguish another's IDs.
     {
       const match = /^\/v1\/sandboxes\/([^/]+)(?:\/|$)/.exec(new URL(c.req.url).pathname)
@@ -76,7 +78,7 @@ export function createPublicApi(options: {
       const expiry = identity.expiresAt ?? boxes.projects?.defaults.expiresAt
       if (identity.expired || (expiry && Date.parse(expiry) <= Date.now()))
         exceeded('expiresAt', expiry ? toDate(expiry).toISOString() : expiry, new Date().toISOString())
-      if (!['GET', 'HEAD', 'OPTIONS'].includes(c.req.method)) await boxes.projects?.write(identity.project)
+      if (writing) await boxes.projects?.write(identity.project)
     }
     await next()
   })
@@ -165,7 +167,6 @@ export function createPublicApi(options: {
       .object({ network: networkSchema })
       .strict()
       .parse(await c.req.json())
-    c.env?.beginStream?.()
     await boxes.network(c.req.param('id'), c.get('project'), body.network)
     return c.json(await model.view(c.req.param('id'), c.get('project')))
   })
@@ -182,7 +183,6 @@ export function createPublicApi(options: {
       )
     })
   app.put('/v1/sandboxes/:id/data/content', async (c) => {
-    c.env?.beginStream?.()
     return agents.data(
       c.req.param('id'),
       c.get('project'),
@@ -194,15 +194,13 @@ export function createPublicApi(options: {
     )
   })
   app.delete('/v1/sandboxes/:id', async (c) => {
-    c.env?.beginStream?.()
     return c.json(await boxes.delete(c.req.param('id'), c.get('project')))
   })
   for (const verb of ['start', 'wake', 'stop', 'sleep', 'rest'] as const)
     app.post(`/v1/sandboxes/:id/${verb}`, async (c) => {
-      c.env?.beginStream?.()
       const answer = await boxes[verb](c.req.param('id'), c.get('project'))
       let sandbox = await model.view(c.req.param('id'), c.get('project'))
-      while ((verb === 'wake' || verb === 'start') && sandbox.agent && sandbox.state === 'starting') {
+      while ((verb === 'wake' || verb === 'start') && sandbox.state === 'starting') {
         await pause(SECOND_MS / 20)
         sandbox = await model.view(c.req.param('id'), c.get('project'))
       }
@@ -211,7 +209,6 @@ export function createPublicApi(options: {
   app.post('/v1/sandboxes/:id/exec', async (c) => {
     const body = execSchema.parse(await c.req.json())
     await boxes.projects?.exec(c.get('project'), body.timeout)
-    c.env?.beginStream?.()
     const abort = new AbortController()
     const events = await io.exec(
       c.req.param('id'),
@@ -267,6 +264,7 @@ export function createPublicApi(options: {
         decodeURIComponent(new URL(c.req.url).pathname.split('/files/')[1] ?? ''),
         undefined,
         c.req.url,
+        c.req.raw.signal,
       ),
     ),
   )
@@ -278,6 +276,7 @@ export function createPublicApi(options: {
         decodeURIComponent(new URL(c.req.url).pathname.split('/files/')[1] ?? ''),
         z.object({ dataBase64: z.string() }).parse(await c.req.json()).dataBase64,
         c.req.url,
+        c.req.raw.signal,
       ),
     ),
   )
@@ -290,6 +289,7 @@ export function createPublicApi(options: {
         chunkOffset.parse(c.req.query('offset') ?? 0),
         undefined,
         c.req.url,
+        c.req.raw.signal,
       ),
     ),
   )
@@ -303,11 +303,11 @@ export function createPublicApi(options: {
         body.offset,
         body.dataBase64,
         c.req.url,
+        c.req.raw.signal,
       ),
     )
   })
   app.post('/v1/sandboxes/:id/snapshots', async (c) => {
-    c.env?.beginStream?.()
     const s = await boxes.snapshot(c.req.param('id'), c.get('project'))
     return c.json({ id: s.id, sizeBytes: s.sizeBytes, at: s.at }, StatusCodes.CREATED)
   })
@@ -321,7 +321,6 @@ export function createPublicApi(options: {
   )
   app.post('/v1/snapshots/:snapshot/sandboxes', async (c) => {
     const body = makeSchema.parse({ ...(await c.req.json()), snapshot: c.req.param('snapshot') })
-    c.env?.beginStream?.()
     return c.json(
       await model.create(c.get('project'), body, c.req.header('idempotency-key')),
       StatusCodes.CREATED,
@@ -339,7 +338,6 @@ export function createPublicApi(options: {
   })
   app.post('/v1/templates', async (c) => {
     const b = templateSchema.parse(await c.req.json())
-    c.env?.beginStream?.()
     return c.json(await model.template(c.get('project'), b.name, b.spec), StatusCodes.CREATED)
   })
   app.get('/v1/templates', async (c) => c.json({ templates: await model.templates(c.get('project')) }))

@@ -57,7 +57,7 @@ writeFileSync(
     {
       extends: join(repository, 'tsconfig.json'),
       compilerOptions: {
-        url: repository,
+        baseUrl: repository,
         paths: { 'sandbox-agent/pryx': [provider] },
         typeRoots: [join(repository, 'node_modules/@types')],
       },

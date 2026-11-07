@@ -225,7 +225,7 @@ const ANSWERS: Array<{
   {
     name: 'an apply against a node that went away ends stopped on what it ran, not failed',
     ms: 180_000,
-    run: async ({ db, runtime, nodes, node, h1 }) => {
+    run: async ({ db, runtime, node, h1 }) => {
       const busy = nodeOf(h1) ?? ''
       const gone = busy === node.a.id ? node.b : node.a
       await drain(db, busy, 'e2e')

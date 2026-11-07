@@ -47,7 +47,7 @@ try {
     p90Ms: sorted[26],
     samplesMs,
   }
-  writeFileSync(process.argv[3] ?? `projects-${phase}.json`, `${JSON.stringify(report, null, 2)}\n`)
+  writeFileSync(process.argv[3] ?? `projects-${phase}.json`, JSON.stringify(report, null, 2) + '\n')
   console.log(JSON.stringify(report))
 } finally {
   await c.close()
