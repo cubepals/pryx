@@ -2,14 +2,14 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! What blocklyd keeps on disk, and the host's filesystem layout.
+//! What pryxd keeps on disk, and the host's filesystem layout.
 //!
 //! ```text
-//! <state_dir>/                       0700 root   (default /var/lib/blocklyd, FHS: /var/lib/<pkg>)
-//!   blocklyd.lock                                    flock: one blocklyd per state dir
+//! <state_dir>/                       0700 root   (default /var/lib/pryxd, FHS: /var/lib/<pkg>)
+//!   pryxd.lock                                    flock: one pryxd per state dir
 //!   ports.json                       0600 root    released host ports still in quarantine
 //!   workloads/<id>/                  0700 root
-//!     workload.json                  0600 root    blocklyd's record (no secret values)
+//!     workload.json                  0600 root    pryxd's record (no secret values)
 //!     suspend.json                   0600 root    its suspension and deferred spec, if any
 //!     data/                          0750 uid:gid the workload's persistent data, bind-mounted
 //!     snapshots/<snapshot>/                       local snapshots (tree.rs), never mounted
@@ -31,7 +31,7 @@
 //!
 //! Parts (`store/`):
 //! - `leftovers.rs`: what a crash leaves (spool files, unfinished snapshots, temp files), cleared
-//!   when blocklyd starts.
+//!   when pryxd starts.
 //! - `restore.rs`: putting a restore's new data in place of the old, and finishing one a crash
 //!   interrupted.
 //! - `snapshots.rs`: local snapshots, beside the data they copy.
@@ -96,15 +96,15 @@ pub struct WorkloadRecord {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub superseded_by: Option<u64>,
     /// Set when the control plane asks for a stop or kill and cleared by a start: an exit after
-    /// it is a stop, not a crash, even if blocklyd restarted in between.
+    /// it is a stop, not a crash, even if pryxd restarted in between.
     pub stop_requested_at: Option<String>,
-    /// The host's boot (kernel boot id) in which blocklyd last saw this workload running, cleared
+    /// The host's boot (kernel boot id) in which pryxd last saw this workload running, cleared
     /// once it saw it stop in that same boot. Still set for an earlier boot after a restart of
     /// the host means the host went down under it: it is resumed (see `Manager::resume`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub running_boot: Option<String>,
-    /// Restarts blocklyd made after failures in the current run; a requested start or a new spec
-    /// begins a new one. Kept here, not in memory, so a restart of blocklyd doesn't give a crash
+    /// Restarts pryxd made after failures in the current run; a requested start or a new spec
+    /// begins a new one. Kept here, not in memory, so a restart of pryxd doesn't give a crash
     /// loop its retries again.
     #[serde(default)]
     pub restart_count: u32,
@@ -151,13 +151,13 @@ pub enum StoreError {
     /// The daemon can't hand a directory to the workloads' data owner: it isn't root, or runs
     /// without CAP_CHOWN.
     #[error(
-        "can't give {path} to {}:{}, the workloads' data owner: {source}. blocklyd runs as root (with \
+        "can't give {path} to {}:{}, the workloads' data owner: {source}. pryxd runs as root (with \
          CAP_CHOWN), or workloads.data_owner is its own uid:gid",
         owner.0,
         owner.1
     )]
     Ownership { path: PathBuf, owner: (u32, u32), source: io::Error },
-    #[error("another blocklyd holds {0}; one blocklyd per state directory")]
+    #[error("another pryxd holds {0}; one pryxd per state directory")]
     Locked(PathBuf),
 }
 
@@ -203,10 +203,10 @@ impl Store {
         &self.root
     }
 
-    /// Holds an exclusive lock on `blocklyd.lock` for as long as the file lives. A second blocklyd on
+    /// Holds an exclusive lock on `pryxd.lock` for as long as the file lives. A second pryxd on
     /// the same state directory would hand out the same ports twice; it refuses to start.
     pub fn lock(&self) -> Result<File, StoreError> {
-        let path = self.root.join("blocklyd.lock");
+        let path = self.root.join("pryxd.lock");
         let file = OpenOptions::new()
             .create(true)
             .truncate(false)
@@ -315,7 +315,7 @@ impl Store {
         Ok((records, bad))
     }
 
-    /// Workload directories that hold no record: data blocklyd doesn't know. Never deleted.
+    /// Workload directories that hold no record: data pryxd doesn't know. Never deleted.
     pub(crate) fn orphan_dirs(&self, known: &std::collections::BTreeSet<WorkloadId>) -> Vec<PathBuf> {
         let Ok(entries) = fs::read_dir(self.workloads_dir()) else { return Vec::new() };
         entries
@@ -359,7 +359,7 @@ impl Store {
     }
 
     /// Whether this daemon can hand a directory to `owner`, as every create does. Checked when
-    /// blocklyd starts, so a daemon without the privilege for it refuses to start rather than
+    /// pryxd starts, so a daemon without the privilege for it refuses to start rather than
     /// failing every create that follows.
     pub fn check_ownable(&self, owner: (u32, u32)) -> Result<(), StoreError> {
         let probe = self.root.join(format!(".ownership-check-{}", std::process::id()));
@@ -391,10 +391,30 @@ impl Store {
         if !from.exists() {
             return Ok(None);
         }
-        let to = self.trash_dir().join(format!("{id}.{now_unix}"));
-        fs::rename(&from, &to).map_err(io_err("trashing", &from))?;
+        let to = self.rename_to_trash(id.as_str(), &from, now_unix)?;
         File::open(self.workloads_dir()).and_then(|d| d.sync_all()).ok();
         Ok(Some(to))
+    }
+
+    /// A new trash entry never replaces an older one, even an empty directory or a symlink.
+    fn rename_to_trash(&self, prefix: &str, from: &Path, now_unix: i64) -> Result<PathBuf, StoreError> {
+        for serial in 0_u64.. {
+            let name =
+                if serial == 0 { format!("{prefix}.{now_unix}") } else { format!("{prefix}-{serial}.{now_unix}") };
+            let to = self.trash_dir().join(name);
+            match rustix::fs::renameat_with(
+                rustix::fs::CWD,
+                from,
+                rustix::fs::CWD,
+                &to,
+                rustix::fs::RenameFlags::NOREPLACE,
+            ) {
+                Ok(()) => return Ok(to),
+                Err(rustix::io::Errno::EXIST) => continue,
+                Err(error) => return Err(io_err("trashing", from)(error.into())),
+            }
+        }
+        unreachable!("the filesystem cannot hold every u64 trash suffix")
     }
 
     /// Purges trash entries older than `retention_secs`. Returns what it removed.
@@ -434,11 +454,21 @@ pub(crate) mod tests {
             generation: 1,
             phase: Phase::Active,
             spec: SpecRecord {
+                packages: Vec::new(),
+                agent: None,
+                spare_ports: None,
+                network: Default::default(),
                 image: "alpine:3.22".into(),
                 entrypoint: None,
                 env: Default::default(),
                 secret_names: vec![],
-                resources: Resources { memory_mb: 256, cpu_millis: None, cpu_weight: None, pids_limit: None },
+                resources: Resources {
+                    memory_mb: 256,
+                    cpu_millis: None,
+                    cpu_reservation_millis: None,
+                    cpu_weight: None,
+                    pids_limit: None,
+                },
                 storage: Storage { mount_path: "/data".into(), size_gb: 1 },
                 ports: vec![],
                 stop: StopSpec::default(),
@@ -447,9 +477,9 @@ pub(crate) mod tests {
             },
             spec_digest: "sha256:x".into(),
             ports: vec![AllocatedPort {
-                name: "game".into(),
+                name: "http".into(),
                 protocol: Proto::Tcp,
-                container_port: crate::minecraft::GAME_PORT,
+                container_port: crate::examples::HTTP_PORT,
                 host_port: 42000,
             }],
             container_name: format!("bly-{id}"),
@@ -551,6 +581,39 @@ pub(crate) mod tests {
         assert!(store.purge_trash(1_000 + 60, hour).is_empty());
         assert_eq!(store.purge_trash(1_000 + hour.as_secs() as i64, hour).len(), 1);
         assert!(store.trash(&id, 2_000).unwrap().is_none(), "trashing twice is a no-op");
+    }
+
+    #[test]
+    fn trash_preserves_every_generation_deleted_in_one_second() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = Store::open(tmp.path()).unwrap();
+        let id = WorkloadId::parse("w").unwrap();
+        store.save(&record("w")).unwrap();
+        fs::create_dir_all(store.data_dir(&id)).unwrap();
+        fs::write(store.data_dir(&id).join("value"), "old").unwrap();
+        let first = store.trash(&id, 1000).unwrap().unwrap();
+        store.save(&record("w")).unwrap();
+        fs::create_dir_all(store.data_dir(&id)).unwrap();
+        fs::write(store.data_dir(&id).join("value"), "new").unwrap();
+        let second = store.trash(&id, 1000).unwrap().unwrap();
+        assert_ne!(first, second);
+        assert_eq!(fs::read_to_string(first.join("data/value")).unwrap(), "old");
+        assert_eq!(fs::read_to_string(second.join("data/value")).unwrap(), "new");
+        assert_eq!(store.purge_trash(2000, Duration::from_secs(500)).len(), 2);
+    }
+
+    #[test]
+    fn trash_does_not_replace_even_an_empty_existing_entry() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = Store::open(tmp.path()).unwrap();
+        let id = WorkloadId::parse("w").unwrap();
+        let previous = store.trash_dir().join("w.1000");
+        fs::create_dir(&previous).unwrap();
+        store.save(&record("w")).unwrap();
+        let moved = store.trash(&id, 1000).unwrap().unwrap();
+        assert_ne!(moved, previous);
+        assert_eq!(fs::read_dir(previous).unwrap().count(), 0);
+        assert!(moved.join("workload.json").is_file());
     }
 
     #[test]

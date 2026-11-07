@@ -1,0 +1,45 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.4.8/schema.json",
+  "files": {
+    "includes": [
+      "control/**",
+      "deploy/**/*.ts",
+      "cli/**",
+      "!control/**/generated/**",
+      "sdk/typescript/**",
+      "!sdk/typescript/src/generated/**",
+      "!control/openapi/**",
+      "edge/**",
+      "!edge/src/generated/**",
+      "!cli/src/generated/**",
+      "!sdk/typescript/dist/**",
+      "!control/src/providers/openapi/**",
+      "integrations/**",
+      "!integrations/**/dist/**"
+    ]
+  },
+  "formatter": {
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 110
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "semicolons": "asNeeded"
+    }
+  },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true
+    }
+  }
+}

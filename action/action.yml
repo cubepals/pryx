@@ -1,0 +1,70 @@
+name: pryx sandbox
+description: Run a workflow command inside an isolated pryx sandbox
+inputs:
+  url:
+    description: Public control API URL
+    required: true
+  key:
+    description: Public API key
+    required: true
+  image:
+    description: Sandbox image (ignored with from-snapshot)
+    default: alpine:3.22
+  run:
+    description: Shell command executed inside the sandbox
+    required: true
+  snapshot:
+    description: Keep a snapshot at the end
+    default: 'false'
+  from-snapshot:
+    description: Start from an existing snapshot
+    default: ''
+outputs:
+  snapshot:
+    description: Retained snapshot id, when requested
+    value: ${{ steps.run.outputs.snapshot }}
+runs:
+  using: composite
+  steps:
+    - id: run
+      shell: bash
+      env:
+        PRYX_API_URL: ${{ inputs.url }}
+        PRYX_API_KEY: ${{ inputs.key }}
+        PRYX_IMAGE: ${{ inputs.image }}
+        PRYX_COMMAND: ${{ inputs.run }}
+        PRYX_SNAPSHOT: ${{ inputs.snapshot }}
+        PRYX_FROM_SNAPSHOT: ${{ inputs.from-snapshot }}
+        PRYX_ACTION_REF: ${{ github.action_ref }}
+      run: |
+        set -euo pipefail
+        [[ "$PRYX_API_KEY" != *$'\n'* && "$PRYX_API_KEY" != *$'\r'* ]]
+        printf '::add-mask::%s\n' "$PRYX_API_KEY"
+        dir=$(mktemp -d "$RUNNER_TEMP/pryx-action.XXXXXX")
+        trap 'rm -rf "$dir"' EXIT
+        if [ -n "${PRYX_ACTION_CLI:-}" ]; then
+          cp "$PRYX_ACTION_CLI" "$dir/pryx"
+          cp "$(dirname "$PRYX_ACTION_CLI")/SHA256SUMS" "$dir/SHA256SUMS"
+        else
+          [[ "$PRYX_ACTION_REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+[-+a-zA-Z0-9.]*$ ]] || { echo 'Use this Action at a release version tag.'; exit 1; }
+          base="https://github.com/cubepals/pryx/releases/download/$PRYX_ACTION_REF"
+          curl -fsSL "$base/pryx" -o "$dir/pryx"
+          curl -fsSL "$base/SHA256SUMS" -o "$dir/SHA256SUMS"
+        fi
+        (cd "$dir" && awk '$2 == "pryx"' SHA256SUMS | sha256sum -c --status)
+        chmod 0755 "$dir/pryx"
+        args=(run)
+        if [ -n "$PRYX_FROM_SNAPSHOT" ]; then args+=(--from-snapshot "$PRYX_FROM_SNAPSHOT"); else args+=(--image "$PRYX_IMAGE"); fi
+        case "$PRYX_SNAPSHOT" in
+          true) args+=(--snapshot --snapshot-output "$dir/snapshot") ;;
+          false) ;;
+          *) echo 'snapshot must be true or false'; exit 1 ;;
+        esac
+        status=0
+        "$dir/pryx" "${args[@]}" -- sh -c "$PRYX_COMMAND" || status=$?
+        if [ -f "$dir/snapshot" ]; then
+          read -r snapshot < "$dir/snapshot"
+          [[ "$snapshot" =~ ^[a-f0-9-]{36}$ ]]
+          printf 'snapshot=%s\n' "$snapshot" >> "$GITHUB_OUTPUT"
+        fi
+        exit "$status"

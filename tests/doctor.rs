@@ -2,17 +2,17 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! `blocklyd doctor` and `check-config` as the unit and scripts run them: their exit status, and
+//! `pryxd doctor` and `check-config` as the unit and scripts run them: their exit status, and
 //! the JSON `join` reads. Docker is pointed at a socket that doesn't exist.
 
 use std::path::Path;
 use std::process::Command;
 
 fn config(dir: &Path, api_listen: &str) -> std::path::PathBuf {
-    let certs = blocklyd::certs::generate(&dir.join("certs"), &["localhost".into()], &[], "control", &[]).unwrap();
+    let certs = pryxd::certs::generate(&dir.join("certs"), &["localhost".into()], &[], "control", &[]).unwrap();
     let (uid, gid) = (rustix::process::getuid().as_raw(), rustix::process::getgid().as_raw());
     let owner = if uid == 0 { "1000:1000".to_owned() } else { format!("{uid}:{gid}") };
-    let path = dir.join(format!("blocklyd-{}.toml", api_listen.replace([':', '.'], "-")));
+    let path = dir.join(format!("pryxd-{}.toml", api_listen.replace([':', '.'], "-")));
     std::fs::write(
         &path,
         format!(
@@ -32,49 +32,52 @@ fn config(dir: &Path, api_listen: &str) -> std::path::PathBuf {
     path
 }
 
-fn blocklyd(args: &[&str], config: &Path) -> (bool, String) {
-    let out = Command::new(env!("CARGO_BIN_EXE_blocklyd")).args(args).arg("--config").arg(config).output().unwrap();
+fn pryxd(args: &[&str], config: &Path) -> (bool, String) {
+    let out = Command::new(env!("CARGO_BIN_EXE_pryxd")).args(args).arg("--config").arg(config).output().unwrap();
     (out.status.success(), String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
 #[test]
-fn docker_down_is_a_warning_and_blocklyd_still_starts() {
+fn docker_down_is_a_warning_and_pryxd_still_starts() {
     let dir = tempfile::tempdir().unwrap();
     let config = config(dir.path(), "127.0.0.1:7443");
     std::fs::create_dir(dir.path().join("state")).unwrap();
 
-    let (ok, out) = blocklyd(&["check-config"], &config);
+    let (ok, out) = pryxd(&["check-config"], &config);
     assert!(ok, "{out}");
     assert!(out.contains("is valid"), "{out}");
 
-    let (ok, out) = blocklyd(&["doctor", "--preflight"], &config);
+    let (ok, out) = pryxd(&["doctor", "--preflight"], &config);
     assert!(ok, "{out}");
-    assert!(out.contains("blocklyd starts."), "{out}");
+    assert!(out.contains("pryxd starts."), "{out}");
 
-    let (_, out) = blocklyd(&["doctor", "--json"], &config);
+    let (_, out) = pryxd(&["doctor", "--json"], &config);
     let report: serde_json::Value = serde_json::from_str(&out).unwrap();
     let docker = report["checks"].as_array().unwrap().iter().find(|c| c["name"] == "docker").unwrap();
     assert_eq!(docker["status"], "warn");
+    let images = report["checks"].as_array().unwrap().iter().find(|c| c["name"] == "workloads.allowed_images").unwrap();
+    assert_eq!(images["status"], "warn");
+    assert_eq!(images["detail"], "no image prefix is allowed on this host");
     assert!(docker["fix"].as_str().unwrap().starts_with("Start Docker"));
 }
 
 #[test]
-fn preflight_refuses_an_invalid_config_and_nothing_blocklyd_survives() {
+fn preflight_refuses_an_invalid_config_and_nothing_pryxd_survives() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir(dir.path().join("state")).unwrap();
 
     let public = config(dir.path(), "203.0.113.9:7443");
-    let (ok, out) = blocklyd(&["doctor"], &public);
+    let (ok, out) = pryxd(&["doctor"], &public);
     assert!(!ok, "a public api.listen is a failure: {out}");
-    let (ok, out) = blocklyd(&["doctor", "--preflight"], &public);
-    assert!(ok, "but blocklyd starts with one, as it always has: {out}");
-    let (ok, _) = blocklyd(&["check-config"], &public);
+    let (ok, out) = pryxd(&["doctor", "--preflight"], &public);
+    assert!(ok, "but pryxd starts with one, as it always has: {out}");
+    let (ok, _) = pryxd(&["check-config"], &public);
     assert!(ok);
 
     let broken = dir.path().join("broken.toml");
     std::fs::write(&broken, "deployment_id = \"dev\"\n").unwrap();
     for args in [&["check-config"][..], &["doctor", "--preflight"], &["doctor"]] {
-        let (ok, out) = blocklyd(args, &broken);
+        let (ok, out) = pryxd(args, &broken);
         assert!(!ok, "{args:?}: {out}");
     }
 }

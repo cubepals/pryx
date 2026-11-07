@@ -1,0 +1,171 @@
+diff --git a/sandbox-agent/sdks/typescript/src/providers/pryx.ts b/sandbox-agent/sdks/typescript/src/providers/pryx.ts
+new file mode 100644
+--- /dev/null
++++ b/sandbox-agent/sdks/typescript/src/providers/pryx.ts
+@@ -0,0 +1,55 @@
++// Copyright 2026 The Cubepals Authors. Apache-2.0 license.
++import type { MakeRequest, Pryx } from "@cubepals/pryx";
++import type { SandboxProvider } from "./types.ts";
++// The versioned template is prepared through pryx's CLI before selecting this provider.
++const SANDBOX_AGENT_PORT = 3000;
++const SANDBOX_AGENT_TEMPLATE = "sandbox-agent";
++export function pryx(
++  client: Pryx,
++  options: {
++    key: string
++    image?: string
++    template?: string
++    agentPort?: number
++    spec?: Omit<MakeRequest, 'image' | 'ports' | 'entrypoint' | 'start'>
++  },
++): SandboxProvider {
++  if (options.image && options.template) throw new Error('Choose image or template')
++  const port = options.agentPort ?? SANDBOX_AGENT_PORT
++  return {
++    name: 'pryx',
++    defaultCwd: '/data',
++    async create() {
++      const made = await client.sandbox({
++        isolation: 'container',
++        ...options.spec,
++        ...(options.image
++          ? { image: options.image }
++          : { template: options.template ?? SANDBOX_AGENT_TEMPLATE }),
++        idempotencyKey: options.key,
++        start: true,
++        entrypoint: ['sandbox-agent', 'server', '--no-token', '--host', '0.0.0.0', '--port', String(port)],
++        ports: [{ name: 'agent', port, protocol: 'tcp', audience: 'private' }],
++      })
++      return made.id
++    },
++    async destroy(id) {
++      await client.delete(id)
++    },
++    async kill(id) {
++      await client.delete(id)
++    },
++    async pause(id) {
++      await client.action(id, 'sleep')
++    },
++    async reconnect(id) {
++      await client.action(id, 'wake')
++    },
++    async getUrl(id) {
++      const endpoint = (await client.endpoints(id)).endpoints.find((p) => p.name === 'agent')
++      if (!endpoint) throw new Error('Sandbox has no private agent endpoint')
++      const host = endpoint.host.includes(':') ? `[${endpoint.host}]` : endpoint.host
++      return `http://${host}:${endpoint.port}`
++    },
++  }
++}
+diff --git a/sandbox-agent/sdks/typescript/package.json b/sandbox-agent/sdks/typescript/package.json
+--- a/sandbox-agent/sdks/typescript/package.json
++++ b/sandbox-agent/sdks/typescript/package.json
+@@ -54,6 +54,10 @@
+     "./sprites": {
+       "types": "./dist/providers/sprites.d.ts",
+       "import": "./dist/providers/sprites.js"
++    },
++    "./pryx": {
++      "types": "./dist/providers/pryx.d.ts",
++      "import": "./dist/providers/pryx.js"
+     }
+   },
+   "peerDependencies": {
+@@ -65,7 +69,8 @@
+     "dockerode": ">=4.0.0",
+     "get-port": ">=7.0.0",
+     "modal": ">=0.1.0",
+-    "computesdk": ">=0.1.0"
++    "computesdk": ">=0.1.0",
++    "@cubepals/pryx": ">=0.1.0"
+   },
+   "peerDependenciesMeta": {
+     "@cloudflare/sandbox": {
+@@ -93,6 +98,9 @@
+       "optional": true
+     },
+     "computesdk": {
++      "optional": true
++    },
++    "@cubepals/pryx": {
+       "optional": true
+     }
+   },
+diff --git a/sandbox-agent/sdks/typescript/tsup.config.ts b/sandbox-agent/sdks/typescript/tsup.config.ts
+--- a/sandbox-agent/sdks/typescript/tsup.config.ts
++++ b/sandbox-agent/sdks/typescript/tsup.config.ts
+@@ -4,6 +4,7 @@
+   entry: [
+     "src/index.ts",
+     "src/providers/local.ts",
++    "src/providers/pryx.ts",
+     "src/providers/e2b.ts",
+     "src/providers/daytona.ts",
+     "src/providers/agentcomputer.ts",
+@@ -26,6 +27,7 @@
+     "@vercel/sandbox",
+     "dockerode",
+     "get-port",
++    "@cubepals/pryx",
+     "modal",
+     "computesdk",
+   ],
+diff --git a/sandbox-agent/docs/content/docs/deploy/pryx.mdx b/sandbox-agent/docs/content/docs/deploy/pryx.mdx
+new file mode 100644
+--- /dev/null
++++ b/sandbox-agent/docs/content/docs/deploy/pryx.mdx
+@@ -0,0 +1,30 @@
++---
++title: "pryx"
++description: "Use a warmed sandbox-agent template on your pryx fleet."
++---
++
++Build and release the template from the pryx repository, then prepare it on the container tier:
++
++```sh
++pryx template create sandbox-agent
++```
++
++```typescript
++import { Pryx } from "@cubepals/pryx";
++import { SandboxAgent } from "sandbox-agent";
++import { pryx } from "sandbox-agent/pryx";
++
++const client = new Pryx({ url: process.env.PRYX_API_URL!, key: process.env.PRYX_API_KEY! });
++const agent = await SandboxAgent.start({ sandbox: pryx(client, {
++  key: crypto.randomUUID(), template: "sandbox-agent",
++}) });
++const result = await agent.runProcess({ command: "sh", args: ["-c", "echo hello"], cwd: "/data" });
++await agent.destroySandbox();
++```
++
++The key stays in the service closure. Use a durable creation key when recovering an uncertain
++create response. Reconnect wakes the existing sandbox; pause preserves data and destroy removes
++it. The server uses private control ingress, so run this service on the fleet's allowed control
++network. The warmed image contains the server; no mutable installer is downloaded at boot.
++An explicit image and server port may be selected instead of a template. Images require a
++container-tier node; pryx's host policy remains authoritative.
+diff --git a/sandbox-agent/sdks/typescript/tests/providers/pryx.test.ts b/sandbox-agent/sdks/typescript/tests/providers/pryx.test.ts
+new file mode 100644
+--- /dev/null
++++ b/sandbox-agent/sdks/typescript/tests/providers/pryx.test.ts
+@@ -0,0 +1,18 @@
++import { expect, test } from "vitest";
++import { Pryx } from "@cubepals/pryx";
++import { pryx } from "../../src/providers/pryx.ts";
++
++test("pryx names the target and preserves durable template creation", async () => {
++  const requests: Request[] = [];
++  const client = new Pryx({url:"http://control.invalid",key:"fixture-key",fetch:(async (input,init)=>{
++    const request = new Request(input,init);requests.push(request);return Response.json({id:"sandbox-one"});
++  }) as typeof fetch});
++  const provider = pryx(client,{key:"durable-key",template:"sandbox-agent"});
++  expect(provider.name).toBe("pryx");
++  expect(await provider.create()).toBe("sandbox-one");
++  expect(requests[0]!.headers.get("idempotency-key")).toBe("durable-key");
++  const body = await requests[0]!.json();
++  expect(body.template).toBe("sandbox-agent");
++  expect(body.image).toBeUndefined();
++  expect(body.ports[0].audience).toBe("private");
++});

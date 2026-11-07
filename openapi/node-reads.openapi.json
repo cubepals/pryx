@@ -1,6 +1,56 @@
 {
   "components": {
     "schemas": {
+      "AgentOptions": {
+        "additionalProperties": false,
+        "properties": {
+          "domain": {
+            "type": "string"
+          },
+          "keepAlive": {
+            "default": false,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "domain"
+        ],
+        "type": "object"
+      },
+      "AgentTokenRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expiresAt": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "maxExecSeconds": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "maxPorts": {
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          }
+        },
+        "required": [
+          "scope",
+          "maxPorts"
+        ],
+        "type": "object"
+      },
       "Audience": {
         "description": "Who must be able to reach a port: the edge (players, through the router) or the control\nplane (console, status ping). The host decides which of its addresses each audience uses.",
         "enum": [
@@ -57,7 +107,7 @@
         "additionalProperties": false,
         "properties": {
           "command": {
-            "description": "argv, never a shell string: blocklyd adds no shell. It runs inside the workload, as\nthe workload's user, with its limits; never on the host.",
+            "description": "argv, never a shell string: pryxd adds no shell. It runs inside the workload, as\nthe workload's user, with its limits; never on the host.",
             "items": {
               "type": "string"
             },
@@ -81,7 +131,7 @@
         "properties": {
           "exclude": {
             "default": [],
-            "description": "Names at the top of the data the archive leaves out: what the image makes again when it\nis missing (a server jar, the libraries it unpacks), so a move carries only the world.",
+            "description": "Names at the top of the data the archive leaves out: what the image makes again when it\nis missing (an application bundle, its unpacked dependencies), so a move carries only the data.",
             "items": {
               "type": "string"
             },
@@ -109,7 +159,7 @@
           },
           "quiesced": {
             "default": false,
-            "description": "The caller paused the workload's own saving (for Minecraft: `save-off`, `save-all\nflush`), so its files are consistent while it runs. Without it only a stopped workload\nexports.",
+            "description": "The caller paused the workload's own writes (for example, flushed and paused an\napplication's data writer), so its files are consistent while it runs. Without it only a stopped workload\nexports.",
             "type": "boolean"
           },
           "url": {
@@ -202,13 +252,20 @@
               }
             ],
             "default": null,
-            "description": "A newer blocklyd to upgrade to: offered to one node of a region at a time."
+            "description": "A newer pryxd to upgrade to: offered to one node of a region at a time."
           }
         },
         "required": [
           "lifecycle"
         ],
         "type": "object"
+      },
+      "NetworkMode": {
+        "enum": [
+          "internet",
+          "none"
+        ],
+        "type": "string"
       },
       "PartsTarget": {
         "additionalProperties": false,
@@ -309,6 +366,15 @@
               "null"
             ]
           },
+          "cpuReservationMillis": {
+            "description": "CPU reserved for admission, in thousandths of a core. This is not a CPU ceiling.\nSent only after the node announces cpu-reservation.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "cpuWeight": {
             "default": null,
             "description": "Share of CPU under contention, relative (cgroup weight). Absent: proportional to memory.",
@@ -320,7 +386,7 @@
             ]
           },
           "memoryMb": {
-            "description": "Hard memory limit (no swap). Blockly's size: 3072 for a 3 GB server.",
+            "description": "Hard memory limit (no swap). Expressed in MiB.",
             "format": "uint32",
             "minimum": 0,
             "type": "integer"
@@ -350,7 +416,7 @@
           },
           {
             "const": "on-failure",
-            "description": "Started again after a failing exit, up to `maxRetries` times (Blockly's Fly and Docker\nruntimes both use 3; 0 means never, not Docker's \"no limit\"). Never after a requested stop.\nAfter a restart of the host, a workload that was running when the host went down is\nresumed; after a restart of blocklyd alone, in the same boot, nothing is. In fleet mode\neither needs the execution lease, which the node takes only after applying the fences of\nthe heartbeat answer that grants it.",
+            "description": "Started again after a failing exit, up to `maxRetries` times (0 means never, not an unlimited retry count). Never after a requested stop.\nAfter a restart of the host, a workload that was running when the host went down is\nresumed; after a restart of pryxd alone, in the same boot, nothing is. In fleet mode\neither needs the execution lease, which the node takes only after applying the fences of\nthe heartbeat answer that grants it.",
             "type": "string"
           }
         ]
@@ -406,8 +472,16 @@
         },
         "type": "object"
       },
+      "Scope": {
+        "enum": [
+          "sandbox",
+          "routes",
+          "file"
+        ],
+        "type": "string"
+      },
       "Secret": {
-        "description": "A secret value: never logged, never persisted by blocklyd, never returned.",
+        "description": "A secret value: never logged, never persisted by pryxd, never returned.",
         "type": "string"
       },
       "SnapshotId": {
@@ -462,7 +536,7 @@
           "signal": {
             "$ref": "#/components/schemas/StopSignal",
             "default": "SIGTERM",
-            "description": "Sent first; the workload saves and exits on it (Blockly's image: `stop` on the console)."
+            "description": "Sent first; the workload saves and exits on it."
           },
           "timeoutSeconds": {
             "default": 90,
@@ -478,7 +552,7 @@
         "additionalProperties": false,
         "properties": {
           "mountPath": {
-            "description": "Where the workload's persistent data appears inside it (Blockly: `/data`).",
+            "description": "Where the workload's persistent data appears inside it.",
             "type": "string"
           },
           "sizeGb": {
@@ -494,14 +568,93 @@
         ],
         "type": "object"
       },
+      "StoreLeaseGrant": {
+        "additionalProperties": false,
+        "properties": {
+          "generation": {
+            "type": "string"
+          },
+          "readUrl": {
+            "type": "string"
+          },
+          "renewSeconds": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "seconds": {
+            "format": "uint64",
+            "minimum": 10,
+            "type": "integer"
+          },
+          "session": {
+            "type": "string"
+          },
+          "writeUrl": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "session",
+          "readUrl",
+          "writeUrl",
+          "generation",
+          "seconds",
+          "renewSeconds"
+        ],
+        "type": "object",
+        "x-renew-margin-seconds": 2
+      },
+      "StoreLeaseObject": {
+        "additionalProperties": false,
+        "properties": {
+          "epoch": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "expiresAtMs": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "generation": {
+            "type": "string"
+          },
+          "node": {
+            "type": "string"
+          },
+          "session": {
+            "type": "string"
+          },
+          "version": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "workload": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "session",
+          "version",
+          "workload",
+          "node",
+          "epoch",
+          "generation",
+          "expiresAtMs"
+        ],
+        "type": "object"
+      },
       "UpgradeOffer": {
-        "description": "The blocklyd the control plane wants the node to run, at `GET /fleet/v1/blocklyd`.",
+        "description": "The pryxd the control plane wants the node to run, at `GET /fleet/v1/blocklyd`.",
         "properties": {
           "sha256": {
             "type": "string"
           },
           "signature": {
-            "description": "The release's Ed25519 signature of `version` and `sha256`, in hex: its `blocklyd.sig`,\nwhich the control plane passes on (upgrade/trust.rs). A node that lists `signed-upgrade`\ninstalls nothing without it.",
+            "description": "The release's Ed25519 signature of `version` and `sha256`, in hex: its `pryxd.sig`,\nwhich the control plane passes on (upgrade/trust.rs). A node that lists `signed-upgrade`\ninstalls nothing without it.",
             "type": [
               "string",
               "null"
@@ -552,6 +705,17 @@
       "WorkloadSpec": {
         "additionalProperties": false,
         "properties": {
+          "agent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentOptions"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "entrypoint": {
             "default": null,
             "description": "Replaces the image's entrypoint; absent, the image starts as it was built to.",
@@ -571,6 +735,7 @@
             "type": "object"
           },
           "image": {
+            "default": "",
             "description": "An image reference. Must match the host's `allowed_images` prefixes.",
             "type": "string"
           },
@@ -580,6 +745,18 @@
             },
             "default": {},
             "type": "object"
+          },
+          "network": {
+            "$ref": "#/components/schemas/NetworkMode",
+            "default": "internet"
+          },
+          "packages": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 32,
+            "type": "array"
           },
           "ports": {
             "default": [],
@@ -610,8 +787,18 @@
             "additionalProperties": {
               "$ref": "#/components/schemas/Secret"
             },
-            "description": "Environment the workload needs but nobody else may see (Blockly: `RCON_PASSWORD`).",
+            "description": "Environment the workload needs but nobody else may see.",
             "type": "object"
+          },
+          "sparePorts": {
+            "default": null,
+            "format": "uint16",
+            "maximum": 32,
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "stop": {
             "$ref": "#/components/schemas/StopSpec",
@@ -625,7 +812,6 @@
           }
         },
         "required": [
-          "image",
           "resources",
           "storage"
         ],
@@ -634,9 +820,40 @@
     }
   },
   "info": {
-    "title": "blocklyd: what a node reads",
+    "title": "pryxd: what a node reads",
     "version": "1"
   },
   "openapi": "3.1.0",
-  "paths": {}
+  "paths": {},
+  "x-pryx-agent": {
+    "captureBytes": 1048576,
+    "defaultBinary": "/usr/local/lib/pryx/pryx-agent",
+    "fileTokenLifetimeSeconds": 60,
+    "forwardHeader": "x-pryx-target-port",
+    "maxRequestBytes": 1048576,
+    "maxTokenBytes": 4096,
+    "tokenClockSkewSeconds": 30,
+    "tokenLifetimeSeconds": 300,
+    "tokenPrefix": "pa1"
+  },
+  "x-pryx-network": {
+    "defaultPortRange": [
+      42000,
+      42999
+    ]
+  },
+  "x-pryx-process": {
+    "imageProblem": "this host runs the process tier; images are not available"
+  },
+  "x-pryx-resources": {
+    "cpuLimitProblem": "CPU ceilings and weights require container isolation",
+    "defaultMinMemoryMb": 256,
+    "minCpuMillis": 100
+  },
+  "x-pryx-wasm": {
+    "imageProblem": "this host runs the wasm tier; images are not available",
+    "maxPackages": 32,
+    "packageNamePattern": "^[a-z][a-z0-9-]{0,63}$",
+    "portProblem": "this host runs the wasm tier; application ports require HTTP over TCP"
+  }
 }

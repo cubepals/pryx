@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! What `blocklyd join` asks of the host once its files are in place: systemd, to stop and start
-//! the unit, and the blocklyd it started, whether the control plane has accepted a heartbeat from
+//! What `pryxd join` asks of the host once its files are in place: systemd, to stop and start
+//! the unit, and the pryxd it started, whether the control plane has accepted a heartbeat from
 //! it yet. That is read from the ops listener's metrics, which answer without a certificate.
 //!
 //! A re-enrollment (reenroll.rs) goes through `Service` for both, so its tests stand in for the
@@ -18,18 +18,18 @@ use anyhow::Context;
 
 use crate::http_client as client;
 
-/// blocklyd's systemd unit, as deploy/blocklyd.service installs it.
-pub(crate) const UNIT_NAME: &str = "blocklyd";
+/// pryxd's systemd unit, as deploy/pryxd.service installs it.
+pub(crate) const UNIT_NAME: &str = "pryxd";
 
 pub(crate) trait Service {
     /// `systemctl` with these arguments; an error when it fails.
     fn systemctl(&self, args: &[&str]) -> anyhow::Result<()>;
-    /// Whether the blocklyd whose ops listener is `ops` has had a heartbeat accepted, by `within`
+    /// Whether the pryxd whose ops listener is `ops` has had a heartbeat accepted, by `within`
     /// from now.
     fn first_beat(&self, ops: SocketAddr, within: Duration) -> impl Future<Output = bool>;
 }
 
-/// The host's own systemd; `program` is another `systemctl` in tests that run blocklyd as a plain
+/// The host's own systemd; `program` is another `systemctl` in tests that run pryxd as a plain
 /// process.
 pub(crate) struct Systemd {
     pub(crate) program: PathBuf,
@@ -67,10 +67,10 @@ impl Service for Systemd {
 }
 
 /// Whether the metrics count an accepted heartbeat: the counter starts with the process, so this
-/// is this blocklyd's, not the one before it.
+/// is this pryxd's, not the one before it.
 fn beat_accepted(metrics: &[u8]) -> bool {
     String::from_utf8_lossy(metrics).lines().any(|line| {
-        line.strip_prefix(r#"blocklyd_heartbeats_total{outcome="ok"} "#)
+        line.strip_prefix(r#"pryxd_heartbeats_total{outcome="ok"} "#)
             .and_then(|count| count.trim().parse::<f64>().ok())
             .is_some_and(|count| count >= 1.0)
     })
@@ -82,11 +82,10 @@ mod tests {
 
     #[test]
     fn a_beat_counts_once_the_control_plane_accepted_one() {
-        let metrics = |ok: &str| {
-            format!("# TYPE blocklyd_heartbeats counter\n{ok}blocklyd_heartbeats_total{{outcome=\"error\"}} 3\n")
-        };
+        let metrics =
+            |ok: &str| format!("# TYPE pryxd_heartbeats counter\n{ok}pryxd_heartbeats_total{{outcome=\"error\"}} 3\n");
         assert!(!beat_accepted(metrics("").as_bytes()));
-        assert!(!beat_accepted(metrics("blocklyd_heartbeats_total{outcome=\"ok\"} 0\n").as_bytes()));
-        assert!(beat_accepted(metrics("blocklyd_heartbeats_total{outcome=\"ok\"} 1\n").as_bytes()));
+        assert!(!beat_accepted(metrics("pryxd_heartbeats_total{outcome=\"ok\"} 0\n").as_bytes()));
+        assert!(beat_accepted(metrics("pryxd_heartbeats_total{outcome=\"ok\"} 1\n").as_bytes()));
     }
 }

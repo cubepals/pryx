@@ -16,10 +16,12 @@ use super::Issue;
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct NodeHealth {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub isolation: Option<Vec<String>>,
     pub status: String,
     pub docker: bool,
     pub reconciled: bool,
-    /// blocklyd's version: what a control plane reads before relying on a feature.
+    /// pryxd's version: what a control plane reads before relying on a feature.
     pub(crate) daemon_version: String,
     pub(crate) protocol: ProtocolVersions,
     pub(crate) features: Vec<String>,
@@ -81,7 +83,7 @@ pub(crate) struct FleetView {
     pub(crate) certificate_renewed_at: Option<String>,
 }
 
-/// The blocklyd process itself, as distinct from the node it runs on.
+/// The pryxd process itself, as distinct from the node it runs on.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]

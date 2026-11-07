@@ -11,9 +11,9 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use blocklyd::api::HandshakeLimits;
 use hyper::StatusCode;
 use hyper::header::{CONTENT_TYPE, ETAG, IF_MATCH, IF_NONE_MATCH};
+use pryxd::api::HandshakeLimits;
 use support::{CLIENT, client, fixture, pki, request, serve, serve_with, server_cert_as_client, spec_json, tls_over};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpSocket, TcpStream};
@@ -80,7 +80,7 @@ async fn no_client_certificate_no_connection() {
 #[tokio::test]
 async fn a_certificate_from_another_ca_is_refused() {
     let e = env().await;
-    let stranger_ca = blocklyd::certs::authority("someone else's CA").unwrap();
+    let stranger_ca = pryxd::certs::authority("someone else's CA").unwrap();
     let stranger = client(&stranger_ca, CLIENT);
     let r = request(e.server.addr, &e.pki.ca.pem, Some(&stranger), "GET", "/v1/health", &[], None).await;
     assert!(r.is_err(), "same name, wrong issuer");
@@ -116,7 +116,7 @@ async fn a_valid_certificate_for_another_name_is_forbidden_and_its_connection_cl
 /// A request for `/v1/health` that asks to keep its connection open.
 const KEEP_ALIVE: &str = "GET /v1/health HTTP/1.1\r\nhost: localhost\r\n\r\n";
 
-/// Sends `head` and reads what comes back until the server closes the connection, for up to
+/// Sends `head` and reads what comes back until the sandbox closes the connection, for up to
 /// `within`: Err with what it read if the connection is still open then.
 async fn until_closed(
     mut io: impl AsyncRead + AsyncWrite + Unpin,
@@ -137,7 +137,7 @@ async fn connect_from(source: &str, addr: SocketAddr) -> TcpStream {
     socket.connect(addr).await.unwrap()
 }
 
-/// How many of `streams` the server closes within `within`, though none sent a byte.
+/// How many of `streams` the sandbox closes within `within`, though none sent a byte.
 async fn closed_within(streams: &mut [TcpStream], within: Duration) -> usize {
     let reads =
         streams.iter_mut().map(|s| async move { tokio::time::timeout(within, s.read(&mut [0u8; 1])).await.is_ok() });
@@ -167,7 +167,7 @@ async fn handshakes_in_progress_are_capped_per_address_and_overall() {
     }
     assert_eq!(closed_within(&mut third, Duration::from_secs(1)).await, 1);
     let metrics = f.manager.metrics.render(&f.manager);
-    assert!(metrics.contains(r#"blocklyd_auth_failures_total{reason="tls_handshakes_full"} 6"#), "{metrics}");
+    assert!(metrics.contains(r#"pryxd_auth_failures_total{reason="tls_handshakes_full"} 6"#), "{metrics}");
     // A handshake that ends, however it ends, gives its place back.
     drop((silent, third));
     let answer = support::eventually("a place for 127.0.0.2 again", async || {
@@ -224,7 +224,7 @@ async fn refused_handshakes_never_flood_the_log() {
     let debug = text.lines().filter(|l| l.contains("DEBUG") && l.contains("TLS handshake refused")).count();
     assert_eq!(debug, 100, "each one is still logged, at debug");
     let metrics = e._f.manager.metrics.render(&e._f.manager);
-    assert!(metrics.contains(r#"blocklyd_auth_failures_total{reason="tls_handshake"} 100"#), "and counted");
+    assert!(metrics.contains(r#"pryxd_auth_failures_total{reason="tls_handshake"} 100"#), "and counted");
 }
 
 #[tokio::test]
@@ -269,6 +269,39 @@ async fn malformed_requests_get_the_protocols_errors() {
 }
 
 #[tokio::test]
+async fn live_and_buffered_exec_share_one_idempotency_key() {
+    let e = env().await;
+    let path = "/v1/workloads/w1";
+    assert_eq!(e.call("PUT", path, Some(spec_json())).await.status, StatusCode::CREATED);
+    assert_eq!(e.call("POST", &format!("{path}/start"), None).await.status, StatusCode::OK);
+    let headers = [("idempotency-key", "stream-once")];
+    let command = serde_json::json!({"command": ["echo", "héllo"]});
+    let stream = e.call_with("POST", &format!("{path}/exec-stream"), &headers, Some(command.clone())).await;
+    assert_eq!(stream.status, StatusCode::OK);
+    let frames: Vec<serde_json::Value> =
+        String::from_utf8(stream.body).unwrap().lines().map(|line| serde_json::from_str(line).unwrap()).collect();
+    assert_eq!(frames[0]["type"], "stdout");
+    assert_eq!(frames[0]["data"], "echo héllo");
+    assert_eq!(frames.last().unwrap()["type"], "exit");
+    assert_eq!(frames.last().unwrap()["code"], 0);
+    let buffered = e.call_with("POST", &format!("{path}/exec"), &headers, Some(command.clone())).await;
+    assert_eq!(buffered.json()["stdout"], "echo héllo");
+    let cached = e.call_with("POST", &format!("{path}/exec-stream"), &headers, Some(command)).await;
+    assert!(String::from_utf8(cached.body).unwrap().contains("echo héllo"));
+    assert_eq!(e._f.fake.count_calls("exec "), 1);
+    let mismatch = e
+        .call_with("POST", &format!("{path}/exec-stream"), &headers, Some(serde_json::json!({"command": ["other"]})))
+        .await;
+    let error: serde_json::Value = serde_json::from_slice(&mismatch.body).unwrap();
+    assert_eq!(error["type"], "error");
+    assert_eq!(error["error"]["code"], "idempotency_key_reused");
+    let invalid = e
+        .call("POST", &format!("{path}/exec-stream"), Some(serde_json::json!({"command": [], "timeoutSeconds": 0})))
+        .await;
+    assert_eq!(invalid.status, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[tokio::test]
 async fn methods_nobody_uses_are_counted_under_one_label() {
     // Any token is a method to HTTP: one label value each would be a series kept for good.
     let e = env().await;
@@ -276,8 +309,8 @@ async fn methods_nobody_uses_are_counted_under_one_label() {
         assert_eq!(e.call(method, "/v1/health", None).await.status, StatusCode::METHOD_NOT_ALLOWED);
     }
     let metrics = e._f.manager.metrics.render(&e._f.manager);
-    let series: Vec<_> = metrics.lines().filter(|l| l.starts_with("blocklyd_http_requests_total{")).collect();
-    assert_eq!(series, [r#"blocklyd_http_requests_total{method="other",route="/v1/health",status="405"} 2"#]);
+    let series: Vec<_> = metrics.lines().filter(|l| l.starts_with("pryxd_http_requests_total{")).collect();
+    assert_eq!(series, [r#"pryxd_http_requests_total{method="other",route="/v1/health",status="405"} 2"#]);
 }
 
 #[tokio::test]
@@ -289,7 +322,7 @@ async fn the_ops_listener_stops_at_once_even_with_half_a_request_open() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let cancel = tokio_util::sync::CancellationToken::new();
-    let serving = tokio::spawn(blocklyd::api::serve_ops(listener, f.manager.clone(), cancel.clone()));
+    let serving = tokio::spawn(pryxd::api::serve_ops(listener, f.manager.clone(), cancel.clone()));
     // A whole request is answered as ever.
     let mut whole = TcpStream::connect(addr).await.unwrap();
     whole.write_all(b"GET /healthz HTTP/1.1\r\nhost: ops\r\nconnection: close\r\n\r\n").await.unwrap();
@@ -316,7 +349,7 @@ async fn a_whole_lifecycle_over_http() {
     assert_eq!(etag, format!("\"{}\"", created.json()["workload"]["specDigest"].as_str().unwrap()));
     let body = created.json();
     assert!(!String::from_utf8_lossy(&created.body).contains("first-secret"), "secrets never come back");
-    assert_eq!(body["workload"]["secretNames"][0], "RCON_PASSWORD");
+    assert_eq!(body["workload"]["secretNames"][0], "APP_TOKEN");
     assert_eq!(
         body["workload"]["ports"][0]["endpoints"]["edge"][0],
         format!("127.0.0.1:{}", body["workload"]["ports"][0]["hostPort"])
@@ -381,4 +414,23 @@ async fn a_whole_lifecycle_over_http() {
     assert_eq!(host.json()["nodeId"], "test-node");
     e.server.cancel.cancel();
     e.server.task.await.unwrap();
+}
+
+#[tokio::test]
+async fn an_empty_image_policy_refuses_every_spec() {
+    let f = fixture("[workloads]\nallowed_images = []\n").await;
+    let pki = pki(f.dir.path());
+    let server = serve(f.manager.clone()).await;
+    let me = client(&pki.ca, CLIENT);
+    let e = Env { _f: f, pki, server, me };
+    let r = e.call("PUT", "/v1/workloads/denied", Some(spec_json())).await;
+    assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(r.code(), "invalid_request");
+    assert_eq!(
+        r.json()["error"]["details"]["fields"],
+        serde_json::json!([
+            { "field": "image", "problem": "no image prefix is allowed on this host" }
+        ])
+    );
+    assert_eq!(e._f.fake.count_calls("create "), 0);
 }

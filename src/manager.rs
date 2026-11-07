@@ -2,12 +2,12 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! blocklyd's core: workloads on this host, their records, ports and observations, and every
+//! pryxd's core: workloads on this host, their records, ports and observations, and every
 //! operation the protocol offers.
 //!
 //! Authority is split deliberately (docs/fleet.md, "The parts"). The control plane owns what
 //! should exist and whether it should run. This host owns what does exist: containers, the ports
-//! it handed out, where data lives, what it observed. blocklyd never decides on its own to
+//! it handed out, where data lives, what it observed. pryxd never decides on its own to
 //! start, stop or delete a workload, with three exceptions it carries out itself (every
 //! container's Docker restart policy is `no`): the restart-on-failure policy the spec asked for
 //! and resuming what was running when the host went down, both under the execution lease in fleet
@@ -19,6 +19,7 @@
 //! second `delete` finds nothing.
 //!
 //! Parts (`manager/`):
+//! - `store_lease.rs`: host lease admission and ephemeral grants.
 //! - `room.rs`: whether the host has room for a workload: memory to run, disk above the floor.
 //! - `view.rs`: a workload as the protocol shows it.
 //! - `ensure.rs`: makes a workload match the spec it was sent.
@@ -26,9 +27,12 @@
 //! - `restarts.rs`: brings a workload back without being asked, after a crash or a host restart.
 //! - `fence.rs`: fences a copy a newer placement has superseded.
 //! - `delete.rs`: removes a workload, and its data when told to.
-//! - `archive.rs`: carries a world's data between this node and an object store.
+//! - `archive.rs`: carries a data's data between this node and an object store.
 //! - `snapshots.rs`: local snapshots of a workload's data.
 //! - `exec.rs`: runs a command inside a running workload.
+//! - `agent.rs`: agent bootstrap, public manifest and capability issuance.
+//! - `agent_keys.rs`: epoch-scoped private signing material outside sandbox data.
+//! - `files.rs`: guarded access to persistent data without running compute.
 //! - `logs.rs`: reads a workload's log.
 //! - `stats.rs`: samples what workloads use.
 //! - `fleet.rs`: the node's standing with its control plane.
@@ -77,12 +81,15 @@ use crate::runtime::{
 use crate::store::restore::Recovery;
 use crate::store::{AllocatedPort, PendingSpec, Phase, RECORD_VERSION, Store, SuspendRecord, WorkloadRecord};
 
+mod agent;
+mod agent_keys;
 mod archive;
 mod delete;
 mod ensure;
 mod error;
 mod exec;
 mod fence;
+pub(crate) mod files;
 mod fleet;
 mod label_record;
 mod logs;
@@ -94,6 +101,7 @@ mod restarts;
 mod room;
 mod snapshots;
 mod stats;
+mod store_lease;
 mod view;
 mod workload_state;
 
@@ -110,7 +118,7 @@ fn now_str() -> String {
 /// Where a reconciliation takes the records from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Records {
-    /// Read again from disk, and what a crash left settled: when blocklyd starts.
+    /// Read again from disk, and what a crash left settled: when pryxd starts.
     FromDisk,
     /// As memory holds them: every pass after the first.
     InMemory,
@@ -131,7 +139,7 @@ pub enum Precondition {
 struct Observed {
     info: Option<ContainerInfo>,
     /// The runtime era it was seen in (see `runtime_era`): a transition only counts as a crash
-    /// blocklyd saw happen if nothing interrupted its view in between.
+    /// pryxd saw happen if nothing interrupted its view in between.
     era: u64,
 }
 
@@ -203,7 +211,7 @@ struct State {
     /// What each workload keeps for suspending (`suspend.json`), for those that keep anything.
     suspend: HashMap<WorkloadId, SuspendRecord>,
     /// Deferred specs whole, secret values included, which only memory holds. One lost to a
-    /// restart of blocklyd takes its secrets from the container it replaces (`boot_spec`).
+    /// restart of pryxd takes its secrets from the container it replaces (`boot_spec`).
     pending: HashMap<WorkloadId, WorkloadSpec>,
 }
 
@@ -218,6 +226,8 @@ pub struct Manager {
     disk_writes: Arc<Mutex<()>>,
     locks: Mutex<HashMap<WorkloadId, Arc<tokio::sync::Mutex<()>>>>,
     exec_keys: Mutex<IdempotencyCache>,
+    store_leases: Mutex<HashMap<WorkloadId, Arc<crate::store_lease::Held>>>,
+    store_lease_session: String,
     pub(crate) started_at: OffsetDateTime,
     started: Instant,
     docker_up: AtomicBool,
@@ -358,7 +368,7 @@ impl Manager {
     ) -> Arc<Self> {
         let [low, high] = config.network.port_range;
         let ports = PortAllocator::new(low..=high, Duration::from_secs(config.network.port_quarantine_seconds), probe);
-        let facts = host::facts();
+        let facts = config.host_facts();
         let suspend = store.load_suspends();
         Arc::new(Self {
             state: Arc::new(Mutex::new(State {
@@ -383,6 +393,8 @@ impl Manager {
             disk_writes: Arc::default(),
             locks: Mutex::new(HashMap::new()),
             exec_keys: Mutex::new(IdempotencyCache::default()),
+            store_leases: Mutex::new(HashMap::new()),
+            store_lease_session: uuid::Uuid::new_v4().to_string(),
             started_at: now(),
             started: Instant::now(),
             docker_up: AtomicBool::new(false),
@@ -415,7 +427,7 @@ impl Manager {
         self.reconciled.load(Ordering::SeqCst)
     }
 
-    /// Whether what blocklyd remembers about workloads is current: the runtime answers, and a
+    /// Whether what pryxd remembers about workloads is current: the runtime answers, and a
     /// full pass has looked since it last didn't. Otherwise every state reads `unknown`: after an
     /// outage the last observation is history (a daemon stop kills workloads), and reporting it
     /// as the state would tell the control plane something false.
@@ -429,7 +441,7 @@ impl Manager {
     }
 
     /// Records whether the runtime answered; every runtime error funnels through here. An
-    /// outage also forgets that blocklyd was reconciled: whatever happened while it couldn't
+    /// outage also forgets that pryxd was reconciled: whatever happened while it couldn't
     /// look (a daemon stop kills workloads) is unknown until a full pass has looked again.
     fn note<T>(&self, result: Result<T, RuntimeError>) -> Result<T, RuntimeError> {
         match &result {
@@ -471,6 +483,8 @@ impl Manager {
 
     pub(crate) fn spec_policy(&self) -> SpecPolicy {
         SpecPolicy {
+            process: self.runtime.is_process(),
+            wasm: self.runtime.is_wasm(),
             allowed_images: self.config.workloads.allowed_images.clone(),
             min_memory_mb: self.config.workloads.min_memory_mb,
             max_memory_mb: u32::try_from(self.allocatable_memory_mb()).unwrap_or(u32::MAX),
@@ -570,7 +584,7 @@ impl Manager {
     fn note_observed(&self, id: &WorkloadId, info: Option<ContainerInfo>) -> bool {
         let mut state = self.state.lock().unwrap();
         let era = self.runtime_era.load(Ordering::SeqCst);
-        // A failure blocklyd watched happen: it was running at the last look, in this same era,
+        // A failure pryxd watched happen: it was running at the last look, in this same era,
         // and has now exited badly. Anything else (found dead at startup, after a reboot or a
         // runtime outage) is reported and left alone.
         let was_running = state.observed.get(id).is_some_and(|o| {

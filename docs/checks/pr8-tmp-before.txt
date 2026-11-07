@@ -1,0 +1,32 @@
+Command: cargo test --locked --lib launch_refuses_a_temporary_directory_symlink -- --nocapture
+Source: e9f51f0 plus only the temporary-directory regression
+Result: failed at the outside-directory metadata assertion before the fix
+
+   Compiling pryx-agent v0.1.0 (/workspace/pryx/agent)
+   Compiling pryxd v0.1.0 (/workspace/pryx)
+    Finished `test` profile [unoptimized] target(s) in 1m 05s
+     Running unittests src/lib.rs (target/debug/deps/pryx_agent-b51e466bd2065e21)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/pryxd-ac97ad37e6418e33)
+
+running 1 test
+
+thread 'runtime::process::power::tests::launch_refuses_a_temporary_directory_symlink_without_touching_its_target' (425280) panicked at src/runtime/process/power.rs:262:9:
+assertion `left == right` failed: the daemon changed the outside directory
+  left: (1000, 1000, 16832, 1793965010, 298150749)
+ right: (1000, 1000, 16832, 1793965010, 290150824)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test runtime::process::power::tests::launch_refuses_a_temporary_directory_symlink_without_touching_its_target ... FAILED
+
+failures:
+
+failures:
+    runtime::process::power::tests::launch_refuses_a_temporary_directory_symlink_without_touching_its_target
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 201 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p pryxd --lib`

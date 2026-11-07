@@ -17,22 +17,22 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use blocklyd::config::{Config, FleetConfig};
-use blocklyd::fleet::enroll::ensure_identity;
-use blocklyd::fleet::heartbeat;
-use blocklyd::fleet::identity::{Credentials, Identity, IdentityFile};
-use blocklyd::manager::Records;
-use blocklyd::protocol::wire::{
-    EnrollRequest, EnrollResponse, HeartbeatResponse, NodeCapacity, NodeFacts, RenewRequest, RenewResponse,
-};
-use blocklyd::runtime::fake::FakeRuntime;
-use blocklyd::upgrade::Upgrader;
 use bytes::Bytes;
 use http_body_util::{BodyExt, Full};
 use hyper::body::Incoming;
 use hyper::server::conn::http1;
 use hyper::{Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
+use pryxd::config::{Config, FleetConfig};
+use pryxd::fleet::enroll::ensure_identity;
+use pryxd::fleet::heartbeat;
+use pryxd::fleet::identity::{Credentials, Identity, IdentityFile};
+use pryxd::manager::Records;
+use pryxd::protocol::wire::{
+    EnrollRequest, EnrollResponse, HeartbeatResponse, NodeCapacity, NodeFacts, RenewRequest, RenewResponse,
+};
+use pryxd::runtime::fake::FakeRuntime;
+use pryxd::upgrade::Upgrader;
 use rcgen::{
     BasicConstraints, CertificateParams, CertificateSigningRequestParams, DnType, ExtendedKeyUsagePurpose, IsCa,
     Issuer, KeyPair, KeyUsagePurpose, PublicKeyData,
@@ -81,7 +81,7 @@ enum Answer {
     OtherCa,
     /// Names the fleet CA, its PEM written with CRLF line ends.
     Crlf,
-    /// A server certificate for another key than the one asked for.
+    /// A sandbox certificate for another key than the one asked for.
     WrongKey,
 }
 
@@ -97,7 +97,7 @@ enum Renewal {
     Refuse,
     /// Names a CA the node wasn't provisioned with.
     OtherCa,
-    /// A server certificate for another key than the one asked for.
+    /// A sandbox certificate for another key than the one asked for.
     WrongKey,
 }
 
@@ -370,7 +370,7 @@ impl Node {
         Self { dir, config, fleet, token }
     }
 
-    /// One start of blocklyd, as far as its identity: `serve` runs this before anything else.
+    /// One start of pryxd, as far as its identity: `serve` runs this before anything else.
     fn enrolling(&self) -> impl Future<Output = anyhow::Result<Identity>> + use<> {
         let (config, fleet) = (self.config.clone(), self.fleet.clone());
         async move { ensure_identity(&config, &fleet, facts()).await }
@@ -388,10 +388,10 @@ impl Node {
         self.dir.path().join("enrollment-token")
     }
 
-    /// blocklyd serving under this identity, as `serve` sets it up: the API's TLS, and a
+    /// pryxd serving under this identity, as `serve` sets it up: the API's TLS, and a
     /// heartbeat every second.
     async fn serve(&self, identity: Identity, cp: &ControlPlane) -> Serving {
-        let (api, certificate) = blocklyd::api::tls::reloadable_server_config(&identity.server_tls().unwrap()).unwrap();
+        let (api, certificate) = pryxd::api::tls::reloadable_server_config(&identity.server_tls().unwrap()).unwrap();
         let credentials = Credentials::new(identity, certificate).unwrap();
         let manager = support::manager_on(self.dir.path(), Arc::new(FakeRuntime::new()), "");
         manager.reconcile(Records::FromDisk).await;
@@ -442,7 +442,7 @@ fn facts() -> NodeFacts {
         boot_id: None,
         machine_id_sha256: None,
         daemon_version: env!("CARGO_PKG_VERSION").into(),
-        protocol: blocklyd::protocol::ProtocolVersions { current: 1, supported: vec![1] },
+        protocol: pryxd::protocol::ProtocolVersions { current: 1, supported: vec![1] },
         features: Vec::new(),
         api_address: "127.0.0.1:7443".parse().unwrap(),
         edge_ips: Vec::new(),
@@ -491,7 +491,7 @@ async fn only_the_ca_a_node_was_provisioned_with_is_trusted() {
 async fn an_answer_lost_on_the_way_is_asked_for_again_with_the_same_key() {
     let cp = ControlPlane::start().await;
     let node = Node::new(&cp);
-    // The first attempt spends the token and its answer never comes: blocklyd is restarted while
+    // The first attempt spends the token and its answer never comes: pryxd is restarted while
     // it waits.
     cp.answer_next(Answer::Never);
     tokio::select! {
@@ -520,13 +520,13 @@ async fn an_answer_lost_on_the_way_is_asked_for_again_with_the_same_key() {
 async fn an_answer_the_node_cant_serve_with_leaves_it_unenrolled_to_ask_again() {
     let cp = ControlPlane::start().await;
     let node = Node::new(&cp);
-    // A server certificate for another key: it loads like any other, and the API can't use it.
+    // A sandbox certificate for another key: it loads like any other, and the API can't use it.
     cp.answer_next(Answer::WrongKey);
     node.enroll().await.expect_err("enrolled with a server certificate for another key");
     assert!(Identity::load(&node.config.state_dir).unwrap().is_none(), "not enrolled, so the next start asks again");
     // It does, with the same key and the token the first answer spent, and can serve.
     let identity = node.enroll().await.unwrap();
-    blocklyd::api::tls::reloadable_server_config(&identity.server_tls().unwrap()).unwrap();
+    pryxd::api::tls::reloadable_server_config(&identity.server_tls().unwrap()).unwrap();
     let asked = cp.enrollments();
     assert_eq!((asked.len(), &asked[0]), (2, &asked[1]));
 }
@@ -604,7 +604,7 @@ async fn asked_to_renew_a_node_makes_a_new_key_and_switches_to_it_whole() {
     for file in replaced {
         assert!(!file.exists(), "{} is still there", file.display());
     }
-    // Heartbeats carry the new client certificate, and the API presents the new server one.
+    // Heartbeats carry the new client certificate, and the API presents the new sandbox one.
     assert_eq!(cp.beats().last(), Some(&certificate(&renewed.client_cert_path())));
     assert_eq!(serving.presents(&cp, &name).await, certificate(&renewed.server_cert_path()));
 }
@@ -629,7 +629,7 @@ async fn a_renewal_that_fails_leaves_the_node_on_its_current_identity() {
     assert!(cp.beats().iter().all(|c| *c == client), "every beat came with the current certificate");
     assert_eq!(on_disk(), before);
 
-    // Answers the node can't use: another CA, or a server certificate for another key.
+    // Answers the node can't use: another CA, or a sandbox certificate for another key.
     for answer in [Renewal::OtherCa, Renewal::WrongKey] {
         cp.ask_to_renew(answer);
         serving.credentials.renew(&cp.url).await.expect_err("renewed with an answer it can't use");
@@ -639,7 +639,7 @@ async fn a_renewal_that_fails_leaves_the_node_on_its_current_identity() {
     // A restart finds the identity it had, and can serve with it.
     let identity = Identity::load(&node.config.state_dir).unwrap().expect("an identity");
     assert_eq!(identity.file.generation, 0);
-    blocklyd::api::tls::reloadable_server_config(&identity.server_tls().unwrap()).unwrap();
+    pryxd::api::tls::reloadable_server_config(&identity.server_tls().unwrap()).unwrap();
     identity.client_tls().unwrap();
 }
 
@@ -698,15 +698,16 @@ fn host(root: &Path, addresses: &[(&str, [u8; 4])]) {
 }
 
 async fn join(root: &Path, token: String, address: Option<std::net::IpAddr>) -> anyhow::Result<String> {
-    let options = blocklyd::cli::join::Join {
+    let options = pryxd::cli::join::Join {
+        allow_images: vec!["ghcr.io/example/".into(), "alpine:".into()],
         token,
         address,
-        config: blocklyd::config::PATH.into(),
+        config: pryxd::config::PATH.into(),
         root: root.to_owned(),
         start: false,
         systemctl: "systemctl".into(),
     };
-    blocklyd::cli::join::join(options).await
+    pryxd::cli::join::join(options).await
 }
 
 #[tokio::test]
@@ -718,29 +719,28 @@ async fn a_pasted_token_is_all_a_host_needs_to_join() {
     let token = pasted(&cp, "secret", "production", cp.ca_pem(), None);
     let said = join(root, format!("{token}\n"), None).await.unwrap();
 
-    let text = std::fs::read_to_string(root.join("etc/blocklyd/blocklyd.toml")).unwrap();
-    let config = Config::parse(&text, Path::new("/etc/blocklyd/blocklyd.toml"), root).unwrap();
+    let text = std::fs::read_to_string(root.join("etc/pryxd/pryxd.toml")).unwrap();
+    let config = Config::parse(&text, Path::new("/etc/pryxd/pryxd.toml"), root).unwrap();
     assert_eq!(config.deployment_id, "production");
+    assert!(text.contains("allowed_images = [\"ghcr.io/example/\", \"alpine:\"]"), "{text}");
     assert_eq!(config.api.listen.to_string(), "10.0.0.5:7443", "worked out at each start, not written down");
     assert!(!text.contains("10.0.0.5"), "{text}");
     let fleet = config.fleet.unwrap();
-    assert_eq!((fleet.url.as_str(), fleet.ca.to_str().unwrap()), (cp.url.as_str(), "/etc/blocklyd/fleet-ca.pem"));
-    assert_eq!(std::fs::read_to_string(root.join("etc/blocklyd/fleet-ca.pem")).unwrap(), cp.ca_pem());
-    let written = root.join("var/lib/blocklyd/enrollment-token");
+    assert_eq!((fleet.url.as_str(), fleet.ca.to_str().unwrap()), (cp.url.as_str(), "/etc/pryxd/fleet-ca.pem"));
+    assert_eq!(std::fs::read_to_string(root.join("etc/pryxd/fleet-ca.pem")).unwrap(), cp.ca_pem());
+    let written = root.join("var/lib/pryxd/enrollment-token");
     assert_eq!(std::fs::read_to_string(&written).unwrap(), token, "the whole token: enrollment checks it again");
     assert_eq!(std::fs::metadata(&written).unwrap().permissions().mode() & 0o777, 0o600);
-    let unit = std::fs::read_to_string(root.join(blocklyd::cli::join::UNIT.trim_start_matches('/'))).unwrap();
-    assert!(unit.contains("ExecStart=/usr/local/bin/blocklyd serve"), "{unit}");
+    let unit = std::fs::read_to_string(root.join(pryxd::cli::join::UNIT.trim_start_matches('/'))).unwrap();
+    assert!(unit.contains("ExecStart=/usr/local/bin/pryxd serve"), "{unit}");
     assert!(said.contains("api.listen = \"10.0.0.5:7443\"    (the host's private address, on enp7s0)"), "{said}");
-    assert!(said.contains("systemctl enable --now blocklyd"), "{said}");
+    assert!(said.contains("systemctl enable --now pryxd"), "{said}");
 
     // Run again before enrolling, over an operator's own setting: it is kept.
-    std::fs::write(root.join("etc/blocklyd/blocklyd.toml"), format!("{text}heartbeat_seconds = 2\n")).unwrap();
+    std::fs::write(root.join("etc/pryxd/pryxd.toml"), format!("{text}heartbeat_seconds = 2\n")).unwrap();
     let said = join(root, token.clone(), None).await.unwrap();
-    assert!(said.contains("Kept /etc/blocklyd/blocklyd.toml"), "{said}");
-    assert!(
-        std::fs::read_to_string(root.join("etc/blocklyd/blocklyd.toml")).unwrap().contains("heartbeat_seconds = 2")
-    );
+    assert!(said.contains("Kept /etc/pryxd/pryxd.toml"), "{said}");
+    assert!(std::fs::read_to_string(root.join("etc/pryxd/pryxd.toml")).unwrap().contains("heartbeat_seconds = 2"));
 
     // Enrolled, it changes nothing; a token for another deployment is refused.
     let key = KeyPair::generate().unwrap();
@@ -754,13 +754,13 @@ async fn a_pasted_token_is_all_a_host_needs_to_join() {
         generation: 0,
     };
     let (server, client) = (cp.shared.ca.issue(&key, name, true), cp.shared.ca.issue(&key, name, false));
-    Identity::save(&root.join("var/lib/blocklyd"), file, &key.serialize_pem(), &server, &client, cp.ca_pem()).unwrap();
+    Identity::save(&root.join("var/lib/pryxd"), file, &key.serialize_pem(), &server, &client, cp.ca_pem()).unwrap();
     let said = join(root, token, None).await.unwrap();
     assert!(said.contains("already node n1 of deployment production: nothing changed"), "{said}");
     let refused = join(root, pasted(&cp, "secret", "staging", cp.ca_pem(), None), None).await.unwrap_err().to_string();
     assert!(refused.contains("already node n1 of deployment production, and the token is for staging"), "{refused}");
 
-    // A token that re-enrolls another node is refused; one for this node restarts blocklyd.
+    // A token that re-enrolls another node is refused; one for this node restarts pryxd.
     let refused = join(root, pasted(&cp, "again", "production", cp.ca_pem(), Some("n2")), None).await.unwrap_err();
     assert!(refused.to_string().contains("this host is node n1, and the token re-enrolls node n2"), "{refused}");
     let refused = join(root, pasted(&cp, "again", "production", cp.ca_pem(), Some("n1")), None).await.unwrap_err();
@@ -773,7 +773,7 @@ async fn a_join_waits_for_an_endpoint_that_is_still_coming_up() {
     let root = tempfile::tempdir().unwrap();
     host(root.path(), &[("enp7s0", [10, 0, 0, 5])]);
     join(root.path(), pasted(&cp, "secret", "production", cp.ca_pem(), None), None).await.unwrap();
-    assert_eq!(std::fs::read_to_string(root.path().join("etc/blocklyd/fleet-ca.pem")).unwrap(), cp.ca_pem());
+    assert_eq!(std::fs::read_to_string(root.path().join("etc/pryxd/fleet-ca.pem")).unwrap(), cp.ca_pem());
 }
 
 #[tokio::test]
@@ -795,8 +795,8 @@ async fn nothing_is_written_until_the_ca_and_the_address_are_certain() {
     assert!(!root.join("etc").exists() && !root.join("var").exists(), "nothing written");
 
     join(root, token, Some("10.1.0.5".parse().unwrap())).await.unwrap();
-    let text = std::fs::read_to_string(root.join("etc/blocklyd/blocklyd.toml")).unwrap();
-    let config = Config::parse(&text, Path::new("/etc/blocklyd/blocklyd.toml"), root).unwrap();
+    let text = std::fs::read_to_string(root.join("etc/pryxd/pryxd.toml")).unwrap();
+    let config = Config::parse(&text, Path::new("/etc/pryxd/pryxd.toml"), root).unwrap();
     assert_eq!(config.api.listen.to_string(), "10.1.0.5:7443");
     assert_eq!(config.network.edge_ips, vec!["10.1.0.5".parse::<std::net::IpAddr>().unwrap()]);
     assert!(config.inferred.iter().all(|i| i.key == "capacity.reserved_memory_mb"), "{:?}", config.inferred);

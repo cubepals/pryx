@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: ['**']
   pull_request:
   # A merge queue tests the pull request merged onto main's head, with the same jobs and names.
   merge_group:
@@ -33,6 +33,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        if: github.event_name == 'pull_request'
         id: filter
         with:
           predicate-quantifier: every
@@ -97,12 +98,12 @@ jobs:
       # Every file says whose it is and under what license, by its own SPDX lines or REUSE.toml.
       - name: Licenses
         run: pipx run reuse==6.2.0 lint
-      # AGENTS.md's "Values from elsewhere", where a grep can see it: Minecraft's ports outside
+      # AGENTS.md's "Values from elsewhere", where a grep can see it: Example port constants outside
       # their one definition (formats.rs and its fixtures pin bytes), Docker's errors matched
       # outside the runtime that classifies them, HTTP statuses as numbers.
       - name: Values from elsewhere
         run: |
-          if git grep -nwE '25565|25575' -- src tests examples deploy ':!src/minecraft.rs' ':!tests/formats.rs' ':!tests/fixtures'; then exit 1; fi
+          if git grep -nwE '25565|25575' -- src tests examples deploy ':!src/examples.rs' ':!tests/formats.rs' ':!tests/fixtures'; then exit 1; fi
           if git grep -n 'DockerResponseServerError' -- src tests ':!src/runtime/docker.rs'; then exit 1; fi
           if git grep -nE '(status|status_code|code)(: *| *== *)[1-5][0-9]{2}\b|as_u16\(\) *[=!<>]=? *[0-9]|\.status, *[1-5][0-9]{2}\b' -- src tests; then exit 1; fi
       # A length of time comes from std's Duration::from_mins/from_hours or a named constant, not
@@ -119,7 +120,11 @@ jobs:
           bun "$RUNNER_TEMP/check-structure.ts" --rust
       # As the runner's own user, not root: data goes to the test's user (tests/support). Every
       # test binary runs even after one fails, so a failure can't hide the others.
+      - name: Stage the verified agentOS distribution
+        run: python3 scripts/fetch-agentos.py "$RUNNER_TEMP/agentos"
       - run: cargo test --locked --no-fail-fast
+        env:
+          PRYX_AGENTOS_DISTRIBUTION: ${{ runner.temp }}/agentos
       # Against the runner's own Docker daemon: hardening, limits, the OOM killer, isolation,
       # restarts. They chown data directories, so Cargo's runner starts the test binary as root;
       # Cargo itself, and so target/, stays the runner's.
@@ -146,10 +151,10 @@ jobs:
 
   contract:
     name: Contract with the control plane
-    # Cubepals' control plane, from its main, against this blocklyd, for real: enrollment over
+    # Cubepals' control plane, from its main, against this pryxd, for real: enrollment over
     # mutual TLS, placement, snapshots, restores, a daemon killed and back, a node held lost, a
     # self-upgrade (apps/control/src/infra/fleet/fleet-runtime.e2e.test.ts there). A debug build,
-    # since only debug builds take BLOCKLYD_TEST_VERSION, which the upgrade test sets.
+    # since only debug builds take PRYXD_TEST_VERSION, which the upgrade test sets.
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-24.04
@@ -169,12 +174,12 @@ jobs:
     env:
       DATABASE_URL: postgres://blockly:blockly@127.0.0.1:5432/blockly
       S3_TEST_ENDPOINT: http://127.0.0.1:9000
-      # blocklyd hands data directories to the workloads' user, so it runs as root.
+      # pryxd hands data directories to the workloads' user, so it runs as root.
       BLOCKLYD_SUDO: '1'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          path: blocklyd
+          path: pryxd
           persist-credentials: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -184,7 +189,7 @@ jobs:
           persist-credentials: false
       - name: Rust from rust-toolchain.toml
         id: rust
-        working-directory: blocklyd
+        working-directory: pryxd
         run: |
           rustup toolchain install
           echo "version=$(rustc --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
@@ -194,11 +199,11 @@ jobs:
           path: |
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
-            blocklyd/target
-          key: contract-${{ steps.rust.outputs.version }}-${{ hashFiles('blocklyd/Cargo.lock') }}
+            pryxd/target
+          key: contract-${{ steps.rust.outputs.version }}-${{ hashFiles('pryxd/Cargo.lock') }}
           restore-keys: contract-${{ steps.rust.outputs.version }}-
       - run: cargo build --locked
-        working-directory: blocklyd
+        working-directory: pryxd
       # Docker Hub caps anonymous pulls per IP and runners share IPs, so these come from mirrors.
       # Mirrors refuse bursts when parallel jobs pull at once, so each pull retries.
       - name: Pull the test images
@@ -211,6 +216,10 @@ jobs:
             done
           done
           docker tag mirror.gcr.io/library/alpine:3.22 alpine:3.22
+      - name: Build the TLS sandbox fixture
+        run: |
+          printf 'FROM mirror.gcr.io/library/alpine:3.22\nRUN apk add --no-cache openssl busybox-extras\n' > "$RUNNER_TEMP/tls.Dockerfile"
+          docker build -t alpine:pryx-tls -f "$RUNNER_TEMP/tls.Dockerfile" "$RUNNER_TEMP"
       - name: Start an S3 store
         run: >-
           docker run -d --name s3 -p 9000:9000 -e RUSTFS_ACCESS_KEY=blockly-test
@@ -229,10 +238,507 @@ jobs:
       - run: bun test apps/control/src/infra/fleet/fleet-runtime.e2e.test.ts
         working-directory: cubepals
         env:
-          BLOCKLYD_BIN: ${{ github.workspace }}/blocklyd/target/debug/blocklyd
+          BLOCKLYD_BIN: ${{ github.workspace }}/pryxd/target/debug/pryxd
 
   # The image a release publishes builds, and its binary is static. Not on main's own push, where
   # release.yml builds it.
+  control:
+    name: Control workspaces
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: mirror.gcr.io/library/postgres:17-alpine
+        env:
+          POSTGRES_USER: pryx
+          POSTGRES_PASSWORD: pryx-test
+          POSTGRES_DB: pryx
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U pryx"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://pryx:pryx-test@127.0.0.1:5432/pryx
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.23.2
+      - run: bun install --frozen-lockfile
+      - run: bun run release:build
+      - run: bun run check
+      - name: Python generation and unit tests
+        run: |
+          python3 -m venv .venv-python
+          .venv-python/bin/pip install -r sdk/python/generator-requirements.lock
+          .venv-python/bin/pip install -e sdk/python
+          PATH="$PWD/.venv-python/bin:$PATH" python3 sdk/python/generate.py check
+          .venv-python/bin/python -m unittest discover -s sdk/python/test -v
+      - run: bun scripts/check-control-structure.ts
+
+  e2e:
+    name: Control end to end
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    services:
+      postgres:
+        image: mirror.gcr.io/library/postgres:17-alpine
+        env:
+          POSTGRES_USER: pryx
+          POSTGRES_PASSWORD: pryx-test
+          POSTGRES_DB: pryx
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U pryx"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://pryx:pryx-test@127.0.0.1:5432/pryx
+      PRYX_SANDBOX_AGENT_IMAGE: pryx-sandbox-agent-test:local
+      S3_TEST_ENDPOINT: http://127.0.0.1:9000
+      S3_TEST_CONTAINER: pryx-s3
+      PRYXD_SUDO: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.23.2
+      - run: rustup toolchain install
+      - run: bun install --frozen-lockfile
+      - name: Pull the test images
+        run: |
+          for image in ghcr.io/rustfs/rustfs:1.0.0 mirror.gcr.io/library/alpine:3.22 mirror.gcr.io/library/docker:29-dind mirror.gcr.io/rivetdev/sandbox-agent:0.5.5-full; do
+            for wait in 2 5 10 20 40 0; do
+              docker pull -q "$image" && break
+              [ "$wait" = 0 ] && exit 1
+              sleep "$wait"
+            done
+          done
+          # The mirror can return unknown blobs or exhaust its upstream quota. Keep the same
+          # official registry image available through its upstream, with bounded attempts.
+          for registry_source in mirror.gcr.io/library/registry:3 docker.io/library/registry:3; do
+            if docker pull -q "$registry_source"; then
+              docker tag "$registry_source" pryx-speed-registry:local
+              break
+            fi
+          done
+          docker image inspect pryx-speed-registry:local > /dev/null
+          docker tag mirror.gcr.io/library/alpine:3.22 alpine:3.22
+          docker tag mirror.gcr.io/library/docker:29-dind docker:29-dind
+          docker tag mirror.gcr.io/rivetdev/sandbox-agent:0.5.5-full rivetdev/sandbox-agent:0.5.5-full
+      - name: Build an image without shell or utilities
+        run: |
+          printf 'FROM scratch\n' > "$RUNNER_TEMP/empty.Dockerfile"
+          docker build -t alpine:pryx-empty -f "$RUNNER_TEMP/empty.Dockerfile" "$RUNNER_TEMP"
+      - name: Build the TLS sandbox fixture
+        run: |
+          printf 'FROM mirror.gcr.io/library/alpine:3.22\nRUN apk add --no-cache openssl busybox-extras\n' > "$RUNNER_TEMP/tls.Dockerfile"
+          docker build -t alpine:pryx-tls -f "$RUNNER_TEMP/tls.Dockerfile" "$RUNNER_TEMP"
+      - name: Start an S3 store
+        run: >-
+          docker run -d --name pryx-s3 -p 9000:9000 -e RUSTFS_ACCESS_KEY=blockly-test
+          -e RUSTFS_SECRET_KEY=blockly-test-secret ghcr.io/rustfs/rustfs:1.0.0 /data
+      - name: Check out the pinned K9 baseline
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fe77e673364580efe372a4f685837f219ae7a0a5
+          path: .benchmark-before
+          persist-credentials: false
+      - name: Cache the cold-reference image locally
+        run: |
+          docker run -d --rm --name pryx-speed-registry -p 127.0.0.1:5001:5000 pryx-speed-registry:local
+          curl --retry 5 --retry-all-errors --retry-connrefused --retry-delay 1 -fsS http://127.0.0.1:5001/v2/
+          docker tag mirror.gcr.io/library/alpine:3.22 localhost:5001/pryx/alpine:3.22
+          docker push localhost:5001/pryx/alpine:3.22
+          echo 'PRYX_SPEED_COLD_IMAGE=localhost:5001/pryx/alpine:3.22' >> "$GITHUB_ENV"
+      - name: Measure the baseline on the same host
+        run: |
+          cp -a .benchmark-before "$RUNNER_TEMP/pryx-before"
+          cd "$RUNNER_TEMP/pryx-before"
+          export CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target"
+          cargo clean --package pryxd
+          cargo build --locked
+          bun install --frozen-lockfile
+          PRYX_SPEED_SOURCE="$PWD" PRYXD_BIN="$CARGO_TARGET_DIR/debug/pryxd" bun "$GITHUB_WORKSPACE/control/bench/speed.ts" before "$RUNNER_TEMP/speed-before.json"
+      - name: Check out the pinned K9 after product
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: 7cd80e9bff7be320d10993aeadb8e73f3f6f65c8
+          path: .benchmark-after
+          persist-credentials: false
+      - name: Measure the K9 after product on the same host
+        run: |
+          cp -a .benchmark-after "$RUNNER_TEMP/pryx-k9-after"
+          cd "$RUNNER_TEMP/pryx-k9-after"
+          export CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target"
+          cargo clean --package pryxd
+          cargo build --locked
+          bun install --frozen-lockfile
+          PRYX_SPEED_SOURCE="$PWD" PRYXD_BIN="$CARGO_TARGET_DIR/debug/pryxd" bun "$GITHUB_WORKSPACE/control/bench/speed.ts" after "$RUNNER_TEMP/speed-after.json"
+      - name: Check out the pinned K11 baseline
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: b91ee23c0212d219080a9e40fb30f5d1c9b62e65
+          path: .agent-before
+          persist-credentials: false
+      - name: Measure the K11 baseline on this host
+        run: |
+          cp -a .agent-before "$RUNNER_TEMP/pryx-agent-before"
+          cd "$RUNNER_TEMP/pryx-agent-before"
+          export CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target"
+          cargo clean --package pryxd
+          cargo build --locked
+          bun install --frozen-lockfile
+          PRYX_SPEED_SOURCE="$PWD" PRYXD_BIN="$CARGO_TARGET_DIR/debug/pryxd" bun "$GITHUB_WORKSPACE/control/bench/agent-speed.ts" before "$RUNNER_TEMP/agent-speed-before.json"
+      - name: Build the current daemon
+        run: |
+          cargo clean --package pryxd
+          cargo build --locked
+      - name: Release compilation space before the image build
+        run: |
+          cp target/debug/pryxd "$RUNNER_TEMP/pryxd-debug"
+          cargo clean
+          mkdir -p target/debug
+          cp "$RUNNER_TEMP/pryxd-debug" target/debug/pryxd
+          docker builder prune --all --force
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          df -h .
+      - name: Build a static daemon for isolated nodes
+        id: static
+        run: |
+          docker build -t pryx-static-test .
+          id=$(docker create pryx-static-test)
+          docker cp "$id:/pryxd" "$RUNNER_TEMP/pryxd"
+          docker cp "$id:/usr/local/bin/pryx" "$RUNNER_TEMP/pryx-cli"
+          docker cp "$id:/usr/local/lib/pryx/pryx-agent" "$RUNNER_TEMP/pryx-agent"
+          docker cp "$id:/usr/local/lib/pryx/agentos" "$RUNNER_TEMP/agentos"
+          sudo install -d -m 0755 /usr/local/lib/pryx
+          sudo mv "$RUNNER_TEMP/agentos" /usr/local/lib/pryx/agentos
+          sudo chown -R root:root /usr/local/lib/pryx/agentos
+          echo "PRYX_AGENTOS_DISTRIBUTION=/usr/local/lib/pryx/agentos" >> "$GITHUB_ENV"
+          docker rm "$id"
+          sudo install -D -m 0755 "$RUNNER_TEMP/pryx-agent" /usr/local/lib/pryx/pryx-agent
+          docker builder prune --all --force
+          df -h .
+      - name: Measure the K11 agent on this host
+        run: |
+          PRYXD_BIN="$GITHUB_WORKSPACE/target/debug/pryxd" bun control/bench/agent-speed.ts after "$RUNNER_TEMP/agent-speed-after.json"
+      - name: Measure the container tier before the process tier
+        run: PRYXD_BIN="$GITHUB_WORKSPACE/target/debug/pryxd" bun control/bench/process-speed.ts before "$RUNNER_TEMP/process-speed-before.json"
+      - name: Measure and prove the ordinary process image
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: PRYXD_BIN="$GITHUB_WORKSPACE/target/debug/pryxd" bun control/bench/process-speed.ts after "$RUNNER_TEMP/process-speed-after.json"
+      - name: Compare all three tiers in ordinary images
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: PRYXD_BIN="$RUNNER_TEMP/pryxd" bun control/bench/tiers.ts image "$RUNNER_TEMP/tiers-image"
+      - name: Measure the wasm image create-to-output path
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: PRYX_MCP_CLI="$RUNNER_TEMP/pryx-cli" bun control/bench/tiers-default.ts "$RUNNER_TEMP/tiers-image-wasm-hello.json" wasm
+      - name: Measure the image default through SDK and CLI
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: PRYX_MCP_CLI="$RUNNER_TEMP/pryx-cli" bun control/bench/tiers-default.ts "$RUNNER_TEMP/tiers-image-default.json"
+      - name: Save the three-tier image comparison
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tiers-image
+          path: ${{ runner.temp }}/tiers-image-*.json
+          if-no-files-found: error
+      - name: Summarize three-tier image capacity
+        if: always()
+        run: bun control/tools/tiers-summary.ts "$RUNNER_TEMP"/tiers-image-*.json >> "$GITHUB_STEP_SUMMARY"
+      - name: Compose service and persistent credentials
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: bun control/bench/compose-image.ts
+      - name: Save paired speed measurements
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: paired-speed-measurements
+          path: |
+            ${{ runner.temp }}/speed-before.json
+            ${{ runner.temp }}/speed-after.json
+            ${{ runner.temp }}/agent-speed-before.json
+            ${{ runner.temp }}/agent-speed-after.json
+            ${{ runner.temp }}/process-speed-before.json
+            ${{ runner.temp }}/process-speed-after.json
+      - name: Prepare Python agent acceptance
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: |
+          python3 -m venv .venv-agent-python
+          .venv-agent-python/bin/pip install -e sdk/python
+      - run: bun run e2e
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        env:
+          PRYX_PYTHON: ${{ github.workspace }}/.venv-agent-python/bin/python
+          PRYX_MCP_CLI: ${{ runner.temp }}/pryx-cli
+          PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
+          PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
+
+
+      - name: K11 agent suite on the wasm tier
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: bun test control/e2e/agent.e2e.test.ts control/e2e/wasm.e2e.test.ts
+        env:
+          PRYX_TEST_TIER: wasm
+          PRYXD_SUDO: '0'
+          PRYX_PYTHON: ${{ github.workspace }}/.venv-agent-python/bin/python
+          PRYX_MCP_CLI: ${{ runner.temp }}/pryx-cli
+          PRYXD_BIN: ${{ runner.temp }}/pryxd
+      - name: Two isolated nodes as root
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        env:
+          PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
+        run: sudo -E env "PATH=$PATH" "$(command -v bun)" test control/e2e/fleet-two-node.e2e.test.ts
+
+      - name: Install the pinned celld public release
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        id: celld
+        run: |
+          curl -fsSL https://github.com/denoland/celld/releases/download/v0.6.3/celld-x86_64-unknown-linux-gnu.gz -o "$RUNNER_TEMP/celld.gz"
+          printf '%s  %s\n' 5084a083472cf036551a7eac63fa24d22bb9a56323c517f63205724c12783047 "$RUNNER_TEMP/celld.gz" | sha256sum -c -
+          gzip -dc "$RUNNER_TEMP/celld.gz" > "$RUNNER_TEMP/celld"
+          chmod +x "$RUNNER_TEMP/celld"
+          "$RUNNER_TEMP/celld" --version
+      - name: Build the versioned sandbox-agent template
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: docker build -t "$PRYX_SANDBOX_AGENT_IMAGE" integrations/rivet/template
+      - name: Build the public Rivet and agentOS patches
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: bun integrations/rivet/upstream/check.ts "$RUNNER_TEMP/pryx-rivet-patches"
+      - name: Build the public celld engine patch
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: bun integrations/celld/upstream/check.ts "$RUNNER_TEMP/pryx-celld-patch"
+      - name: Rivet self-hosted actor and celld Worker
+        if: ${{ !cancelled() && steps.celld.outcome == 'success' }}
+        env:
+          CELLD_BIN: ${{ runner.temp }}/celld
+          CELLD_ESBUILD: ${{ github.workspace }}/node_modules/.bin/esbuild
+          PRYX_CELLD_MEASUREMENTS: ${{ runner.temp }}/celld-native-measurements.json
+          PRYX_DOCKER_SPIKE_REPORT: ${{ runner.temp }}/docker-api-spike.json
+          PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
+        run: bun run integration:e2e
+
+      - name: Save native celld measurements
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: celld-native-measurements
+          path: |
+            ${{ runner.temp }}/celld-native-measurements.json
+            ${{ runner.temp }}/docker-api-spike.json
+          if-no-files-found: error
+
+      - name: Check live provider credentials
+        # Live infrastructure credentials are only read by a trusted main push. Do not use
+        # a prior step's mutable environment flag as the trust decision.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          HETZNER_TOKEN: ${{ secrets.PRYX_HETZNER_TOKEN }}
+        run: |
+          if [ -n "$HETZNER_TOKEN" ]; then
+            echo 'HAS_HETZNER=true' >> "$GITHUB_ENV"
+          else
+            echo '::notice::Skipping Hetzner live provisioning because PRYX_HETZNER_TOKEN is absent'
+          fi
+      - name: Hetzner acquire, sandbox and release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_HETZNER == 'true'
+        env:
+          PRYX_HETZNER_TOKEN: ${{ secrets.PRYX_HETZNER_TOKEN }}
+          PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
+        run: bun test control/e2e/hetzner.e2e.test.ts
+
+
+      - name: Configure the isolated lease test host
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        id: lease-host
+        run: |
+          sudo python3 - <<'PYCFG'
+          import json
+          from pathlib import Path
+          p = Path('/etc/docker/daemon.json')
+          config = json.loads(p.read_text()) if p.exists() else {}
+          config['exec-opts'] = ['native.cgroupdriver=cgroupfs']
+          p.write_text(json.dumps(config))
+          PYCFG
+          sudo systemctl restart docker
+          docker start pryx-s3
+          for id in $(docker ps -aq --filter ancestor=mirror.gcr.io/library/postgres:17-alpine); do
+            docker start "$id"
+            for attempt in $(seq 1 30); do
+              docker exec "$id" pg_isready -U pryx && break
+              [ "$attempt" = 30 ] && exit 1
+              sleep 1
+            done
+          done
+      - name: Store cut, watchdog and conditional recovery
+        if: ${{ !cancelled() && steps.lease-host.outcome == 'success' }}
+        env:
+          PRYX_LEASE_E2E: '1'
+          PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
+          PRYX_LEASE_MEASUREMENTS: ${{ runner.temp }}/store-lease-measurements.json
+        run: bun test control/e2e/store-lease.e2e.test.ts
+      - name: Lease measurements
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/store-lease-measurements.json" ]; then cat "$RUNNER_TEMP/store-lease-measurements.json" >> "$GITHUB_STEP_SUMMARY"; fi
+
+  one-box:
+    name: One box and Action
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - run: rustup toolchain install
+      - run: cargo build --locked
+      - run: bun install --frozen-lockfile
+      - run: bun run release:build
+      - name: Preserve the daemon and release compiler space
+        run: |
+          cp target/debug/pryxd dist/pryxd
+          cargo clean
+          df -h .
+      - name: Build the static agent release asset
+        run: |
+          docker build -t pryx-one-box-release .
+          id=$(docker create pryx-one-box-release)
+          docker cp "$id:/usr/local/lib/pryx/pryx-agent" dist/pryx-agent
+          docker cp "$id:/pryxd" "$RUNNER_TEMP/pryxd-k14"
+          docker cp "$id:/usr/local/lib/pryx/agentos" "$RUNNER_TEMP/agentos"
+          sudo install -d -m 0755 /usr/local/lib/pryx
+          sudo mv "$RUNNER_TEMP/agentos" /usr/local/lib/pryx/agentos
+          sudo chown -R root:root /usr/local/lib/pryx/agentos
+          echo "PRYX_AGENTOS_DISTRIBUTION=/usr/local/lib/pryx/agentos" >> "$GITHUB_ENV"
+          docker rm -v "$id"
+          docker save pryx-one-box-release | gzip -1 > "$RUNNER_TEMP/pryx-one-box-image.tar.gz"
+          docker image rm pryx-one-box-release
+      - name: Prepare the unreleased build artifacts
+        run: |
+          # The installed daemon is now in dist; placement still needs real disk above its host floor.
+          rm -rf target/debug
+          docker builder prune --all --force
+          # The image archive and SDK fixtures coexist with the host's five GiB disk reserve.
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          df -h .
+          head -c 64 /dev/zero > dist/pryxd.sig
+          head -c 64 /dev/zero > dist/pryxd.bootstrap.sig
+          (cd dist && sha256sum pryxd pryx-agent pryxd.sig pryxd.bootstrap.sig pryx pryx-control pryx-edge pryx-control-assets.tar.gz install.sh > SHA256SUMS)
+          docker pull -q mirror.gcr.io/library/alpine:3.22
+          docker tag mirror.gcr.io/library/alpine:3.22 alpine:3.22
+          docker pull -q mirror.gcr.io/library/node:22
+          docker tag mirror.gcr.io/library/node:22 node:22
+          python3 -m http.server 9876 --bind 127.0.0.1 --directory dist > "$RUNNER_TEMP/artifact-server.log" 2>&1 &
+          printf 'Defaults env_keep += "PRYX_RELEASE_BASE_URL"\n' | sudo tee /etc/sudoers.d/pryx-ci-artifacts >/dev/null
+      - name: Four-command quickstart and repeat install
+        id: up
+        run: |
+          started=$(date +%s)
+          export PRYX_RELEASE_BASE_URL=http://127.0.0.1:9876
+          # Only the download origin is replaced for this unreleased build.
+          curl --retry 5 --retry-connrefused -fsSL "$PRYX_RELEASE_BASE_URL/install.sh" | sh
+          output=$(sudo pryx up --domain sandboxes.example.com)
+          key=$(printf '%s\n' "$output" | sed -n 's/^export PRYX_API_KEY=//p')
+          [ -n "$key" ]
+          printf '::add-mask::%s\n' "$key"
+          printf 'key=%s\n' "$key" >> "$GITHUB_OUTPUT"
+          [ "$(pryx run --image alpine:3.22 -- echo hello)" = hello ]
+          made=$(pryx sandbox create --image alpine:3.22 --idle 5m)
+          id=$(printf '%s' "$made" | jq -r .id)
+          pryx sandbox rm "$id"
+          [ "$(printf '%s\n' "$output" | grep -c '^export PRYX_')" = 3 ]
+          second=$(sudo pryx up --domain sandboxes.example.com)
+          if printf '%s\n' "$second" | grep -Fq "$key"; then echo 'Repeated the initial key'; exit 1; fi
+          [ "$(printf '%s\n' "$second" | grep -c '^export PRYX_')" = 3 ]
+          echo "One-box elapsed: $(($(date +%s)-started)) seconds" >> "$GITHUB_STEP_SUMMARY"
+      - name: Run hello through the compiled CLI
+        env:
+          PRYX_API_URL: http://127.0.0.1:8082
+          PRYX_API_KEY: ${{ steps.up.outputs.key }}
+        run: |
+          [ "$(dist/pryx run --image alpine:3.22 -- echo hello)" = hello ]
+      - uses: ./action
+        with:
+          url: http://127.0.0.1:8082
+          key: ${{ steps.up.outputs.key }}
+          image: alpine:3.22
+          run: echo hello
+          snapshot: 'true'
+        env:
+          PRYX_ACTION_CLI: ${{ github.workspace }}/dist/pryx
+      - name: Python against the one-box control
+        env:
+          PRYX_API_URL: http://127.0.0.1:8082
+          PRYX_API_KEY: ${{ steps.up.outputs.key }}
+        run: |
+          python3 -m venv .venv-python
+          .venv-python/bin/pip install -e sdk/python
+          .venv-python/bin/python -m unittest discover -s sdk/python/test -v
+          .venv-python/bin/python sdk/python/e2e/handles.py
+          bun control/tools/readme-example.ts sdk/typescript/README.md ts bun -
+          bun control/tools/readme-example.ts sdk/python/README.md python .venv-python/bin/python -
+      - name: Measure projects and host units
+        run: sudo "$(command -v bun)" control/bench/projects-one-box.ts "$RUNNER_TEMP/projects-one-box.json"
+      - name: Save measured project admission
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: projects-one-box
+          path: ${{ runner.temp }}/projects-one-box.json
+          if-no-files-found: error
+
+      - name: Compare all three tiers on one box
+        run: |
+          gzip -dc "$RUNNER_TEMP/pryx-one-box-image.tar.gz" | docker load
+          sudo env "PATH=$PATH" "PRYXD_BIN=$RUNNER_TEMP/pryxd-k14" PRYX_AGENTOS_DISTRIBUTION=/usr/local/lib/pryx/agentos PRYX_IMAGE_TEST=pryx-one-box-release "$(command -v bun)" control/bench/tiers-one-box.ts "$RUNNER_TEMP/tiers-one-box"
+      - name: Save the one-box three-tier comparison
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tiers-one-box
+          path: ${{ runner.temp }}/tiers-one-box-*.json
+          if-no-files-found: error
+      - name: Summarize one-box three-tier capacity
+        if: always()
+        run: bun control/tools/tiers-summary.ts "$RUNNER_TEMP"/tiers-one-box-*.json >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Install and repeat the release image on the host
+        if: ${{ !cancelled() && steps.up.outcome == 'success' }}
+        run: |
+          trap 'sudo python3 control/tools/image-diagnostics.py /var/lib/pryx-image' ERR
+          sudo systemctl stop pryx-edge pryx-control pryxd pryx-postgres pryx-store
+          docker image rm mirror.gcr.io/library/node:22
+          gzip -dc "$RUNNER_TEMP/pryx-one-box-image.tar.gz" | docker load
+          rm "$RUNNER_TEMP/pryx-one-box-image.tar.gz"
+          df -h .
+          sudo dist/pryx up --image pryx-one-box-release --domain sandboxes.example.com
+          curl -fsS http://127.0.0.1:8080/healthz | jq -e '.isolation == "container"'
+          [ "$(PRYX_API_URL=http://127.0.0.1:8080 dist/pryx run --image alpine:3.22 -- echo hello)" = hello ]
+          sudo dist/pryx up --image pryx-one-box-release --domain sandboxes.example.com
+          [ "$(PRYX_API_URL=http://127.0.0.1:8080 dist/pryx run --image alpine:3.22 -- echo hello)" = hello ]
+
+      - name: Service journals on failure
+        if: failure()
+        run: sudo journalctl -u pryx-control -u pryx-edge -u pryx-postgres -u pryx-store -u pryxd --no-pager -n 150
+
   image:
     name: Release image builds
     needs: changes
@@ -242,8 +748,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: docker build -t blocklyd .
-      - run: docker run --rm blocklyd --version
+      - run: docker build -t pryxd .
+      - run: docker run --rm pryxd --version
 
   # The pull request's title becomes the squash commit's subject on main, and its body the commit's
   # body, so they follow the rules lefthook's commit-msg hook holds commits to:
@@ -271,7 +777,7 @@ jobs:
         run: scripts/check-mentions.sh --pr
 
   check:
-    needs: [changes, test, supply-chain, contract, subject, image]
+    needs: [changes, test, supply-chain, contract, subject, image, control, e2e, one-box]
     if: always()
     runs-on: ubuntu-24.04
     steps:

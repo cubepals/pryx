@@ -1,0 +1,71 @@
+./AGENTS.md:22:- **Format v1 keeps its names.** The `blocklyd-epoch` and `blocklyd-protocol` headers, the
+./AGENTS.md:23:  `blocklyd.*` container labels, `blocklyd.record`, `workload.json`, the `bk1.` token prefix and
+./README.md:198:pryxd 0.1.0 continues blocklyd 0.3.x, published as cubepals/blocklyd under the same licence; 0.2.2 and earlier were published under AGPL-3.0-only as part of cubepals/cubepals.
+./docs/protocol.md:30:  `blocklyd-protocol: 1`. `GET /v1/health` lists `protocol.supported` and `features`.
+./docs/protocol.md:68:request in the `blocklyd-epoch` header, and pryxd stores it with the copy (in its record and as
+./docs/protocol.md:69:the container label `blocklyd.epoch`). Each verb checks it against the copy's own:
+./docs/protocol.md:177:| `labels` | ≤ 32. Keys `[a-z0-9._/-]`. The `blocklyd.` prefix is reserved. Values ≤ 256. |
+./docs/protocol.md:590:- `GET /fleet/v1/blocklyd` and `GET /fleet/v1/blocklyd.sha256`: the static pryxd the control
+./docs/protocol.md:594:An enrolled node's `pryxd upgrade` also asks for `GET /fleet/v1/blocklyd.json`: the offer a
+./docs/protocol.md:693:  the endpoint serves at `GET /fleet/v1/blocklyd`, to a node that lists `self-upgrade`; the answer
+./docs/protocol.md:779:Format v1 was first published with the `blocklyd-epoch` and `blocklyd-protocol` headers,
+./docs/protocol.md:780:`blocklyd.*` container labels (including `blocklyd.record`), `workload.json`, the `bk1.` token
+./docs/protocol.md:781:prefix and the fleet paths `/fleet/v1/enroll`, `/heartbeat`, `/renew`, `/blocklyd`,
+./docs/protocol.md:782:`/blocklyd.sha256`, `/blocklyd.json` and `/join.sh`. Those names, the record fields, spec digest,
+./docs/decisions.md:9:- K1: The unchanged Cubepals main upgrade contract signs the old release statement and supervises state/bin/blocklyd; it conflicts with the required new release statement and install paths. Do not weaken release verification or modify Cubepals to hide it.
+./openapi/node-reads.openapi.json:498:        "description": "The pryxd the control plane wants the node to run, at `GET /fleet/v1/blocklyd`.",
+./openapi/node-writes.openapi.json:1980:            "description": "Restarts the host made after failures since the last requested start or new spec. Kept\nacross restarts of blocklyd.",
+./src/cli/upgrade.rs:6://! a heartbeat's answer offers it. It asks for the offer itself (`GET /fleet/v1/blocklyd.json`),
+./src/cli/upgrade.rs:38:    let url = format!("{}{FLEET_API}/blocklyd.json", fleet.url.trim_end_matches('/'));
+./src/labels.rs:8:pub(crate) const LABEL_MANAGED: &str = "blocklyd.managed";
+./src/labels.rs:9:pub const LABEL_DEPLOYMENT: &str = "blocklyd.deployment";
+./src/labels.rs:10:pub(crate) const LABEL_NODE: &str = "blocklyd.node";
+./src/labels.rs:11:pub(crate) const LABEL_WORKLOAD: &str = "blocklyd.workload";
+./src/labels.rs:12:pub(crate) const LABEL_GENERATION: &str = "blocklyd.generation";
+./src/labels.rs:13:pub(crate) const LABEL_DIGEST: &str = "blocklyd.spec-digest";
+./src/labels.rs:14:pub const LABEL_EPOCH: &str = "blocklyd.epoch";
+./src/labels.rs:17:pub(crate) const LABEL_RECORD: &str = "blocklyd.record";
+./src/protocol/wire.rs:160:/// The pryxd the control plane wants the node to run, at `GET /fleet/v1/blocklyd`.
+./src/protocol.rs:52:pub(crate) const PROTOCOL_HEADER: &str = "blocklyd-protocol";
+./src/protocol.rs:92:pub(crate) const EPOCH_HEADER: &str = "blocklyd-epoch";
+./src/protocol.rs:96:pub(crate) const RESERVED_LABEL_PREFIX: &str = "blocklyd.";
+./src/upgrade/trust.rs:206:        let signature = hex::encode(include_bytes!("../../tests/fixtures/release-signature/blocklyd.sig"));
+./src/upgrade.rs:5://! pryxd upgrading itself to the pryxd its control plane serves (`GET /fleet/v1/blocklyd`,
+./src/upgrade.rs:236:    let url = format!("{}{FLEET_API}/blocklyd", control_plane.trim_end_matches('/'));
+./src/upgrade.rs:642:    /// A control plane that serves `binary` at /fleet/v1/blocklyd, over plain HTTP.
+./src/upgrade.rs:647:            "/fleet/v1/blocklyd",
+./tests/api.rs:68:    assert_eq!(r.headers.get("blocklyd-protocol").unwrap(), "1");
+./tests/fixtures/README.md:1:# What older blocklyd builds left behind
+./tests/fixtures/README.md:3:Each file here is byte for byte what blocklyd 0.2.0 writes:
+./tests/fixtures/README.md:11:- `label-record.json`: the `blocklyd.record` label on a container, on one line as the label holds it
+./tests/fixtures/README.md:31:`release-signature/` is not a file a node writes but what release.yml makes: `blocklyd.sig`,
+./tests/fixtures/README.md:32:`openssl pkeyutl -sign -rawin` of blocklyd 9.9.9's statement (`src/upgrade/trust.rs`), and
+./tests/fixtures/failed.json:3:  "reason": "blocklyd 0.3.0 didn't reconcile and get a heartbeat accepted within 120 s"
+./tests/formats.rs:5://! What blocklyd leaves on disk and on its containers, pinned as an older build wrote it. A node
+./tests/formats.rs:12:use blocklyd::cli::upgrade::Trial;
+./tests/formats.rs:13:use blocklyd::fleet::identity::IdentityFile;
+./tests/formats.rs:14:use blocklyd::fleet::wire::UpgradeFailure;
+./tests/formats.rs:15:use blocklyd::ids::{SnapshotId, WorkloadId};
+./tests/formats.rs:16:use blocklyd::manager::LabelRecord;
+./tests/formats.rs:17:use blocklyd::protocol::{Proto, SnapshotView, SpecRecord, WorkloadSpec};
+./tests/formats.rs:18:use blocklyd::store::{AllocatedPort, Phase, RestingPort, WorkloadRecord};
+./tests/formats.rs:19:use blocklyd::tree::Method;
+./tests/formats.rs:23:/// How blocklyd writes each: a file pretty, a label on one line.
+./tests/formats.rs:194:        reason: "blocklyd 0.3.0 didn't reconcile and get a heartbeat accepted within 120 s".into(),
+./tests/suspend.rs:280:    let epoch = [("blocklyd-epoch", "3")];
+./tests/suspend.rs:289:    let r = call("POST", "/v1/workloads/w/suspend", &[("blocklyd-epoch", "2")], None).await;
+./tests/compat/formats.rs:5:extern crate pryxd as blocklyd;
+./PLAN.md:1:# The plan: from blocklyd to pryx
+./PLAN.md:32:## K1: blocklyd becomes pryxd
+./PLAN.md:37:Rename this daemon from blocklyd to pryxd everywhere a person or a host sees a name, while keeping
+./PLAN.md:39:against blocklyd 0.3.x keeps working against pryxd with no change but the binary's name.
+./PLAN.md:43:This repository is the former cubepals/blocklyd, with its history. Read AGENTS.md first, then
+./PLAN.md:44:README.md, docs/protocol.md, Cargo.toml, src/main.rs, src/lib.rs, deploy/blocklyd.service,
+./PLAN.md:45:deploy/daemon.json, Dockerfile, examples/blocklyd.toml, .github/workflows/ci.yml and release.yml,
+./PLAN.md:56:("pryxd release" in place of "blocklyd release": no node exists that verifies the old statement);
+./PLAN.md:61:(pryxd_… in place of blocklyd_…), and every comment and doc string.
+./PLAN.md:64:the blocklyd-epoch and blocklyd-protocol headers; the blocklyd.* container labels, including
+./PLAN.md:65:blocklyd.record; workload.json and the record's fields; the bk1. token prefix; the fleet endpoint's
+./PLAN.md:66:paths (/fleet/v1/enroll, /heartbeat, /renew, /blocklyd, /blocklyd.sha256, /join.sh); the
+./PLAN.md:70:continues blocklyd 0.3.x, which was published as cubepals/blocklyd under the same licence, and
+./PLAN.md:100:- `grep -rn blocklyd --include=*.rs --include=*.md --include=*.toml --include=*.yml --include=*.json --include=*.service --include=*.sh .`

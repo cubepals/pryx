@@ -1,0 +1,1 @@
+LOCAL_CAPACITY_OUTCOME {"attempt":1,"requested":50,"running":31,"refused":19,"outcome":"capacity_refused","elapsedMs":128992.201956,"baselinePssBytes":84762624,"contextPssBytes":157673472,"incrementalPssBytes":72910848,"refusals":[{"code":"no_room","status":503,"message":"No node can complete this request","count":19}]}

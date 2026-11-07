@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! Carries a world's data between this node and an object store: export out, restore in, over
+//! Carries a data's data between this node and an object store: export out, restore in, over
 //! presigned URLs. Local snapshots are `snapshots.rs`, which uploads through `pack_and_put`
 //! here; whether the disk has room is asked of `room.rs`.
 
@@ -186,7 +186,7 @@ impl Manager {
         let restoring = self.store.restoring_dir(id);
         // What an earlier restore left unfinished is settled first, as a start would settle it.
         self.settle_restore(id).await?;
-        let owner = self.config.data_owner_ids();
+        let owner = self.data_owner(id)?;
         let made = match &source {
             RestoreSource::Url { url, sha256 } => self.unpack_from(id, url, sha256.as_deref(), &restoring, owner).await,
             RestoreSource::Snapshot(snapshot) => self.copy_from_snapshot(id, snapshot, &restoring, owner).await,
@@ -231,7 +231,7 @@ impl Manager {
                 tracing::warn!(workload = %id, ?previous, "finished an interrupted restore: the restored data is in place");
                 Ok(Some(Issue::new(
                     IssueCode::RestoreFinished,
-                    "a restore was interrupted after its data was complete, and finished when blocklyd started",
+                    "a restore was interrupted after its data was complete, and finished when pryxd started",
                 )))
             }
             Recovery::Discarded => {
@@ -324,7 +324,7 @@ impl Manager {
         use http_body_util::BodyExt;
         use std::io::Write;
         // The network is read here; the spool is written on a blocking thread at idle priority, as
-        // the unpack after it is, so a download's disk writes wait behind a booting server's.
+        // the unpack after it is, so a download's disk writes wait behind a booting sandbox's.
         let (frames, mut landed) = tokio::sync::mpsc::channel::<bytes::Bytes>(SPOOL_FRAMES);
         let spooling = {
             let (spool, mut watch) = (spool.to_owned(), self.floor_watch());
@@ -511,7 +511,7 @@ async fn put_part(
 }
 
 /// A write that failed for want of space reached the disk's floor the hard way; any other failure
-/// is blocklyd's own.
+/// is pryxd's own.
 fn write_failed(what: &str, e: std::io::Error) -> NodeError {
     if e.kind() == std::io::ErrorKind::StorageFull {
         NodeError::InsufficientDisk(format!("{what}: {e}"))
@@ -521,7 +521,7 @@ fn write_failed(what: &str, e: std::io::Error) -> NodeError {
 }
 
 /// A copy or a pack its floor watch stopped reached the disk's floor, as one a write failed for
-/// want of space did; any other failure is blocklyd's own.
+/// want of space did; any other failure is pryxd's own.
 pub(super) fn copy_failed(what: &str, e: std::io::Error) -> NodeError {
     match crate::tree::NoRoom::of(&e) {
         Some(refused) => NodeError::InsufficientDisk(refused.to_owned()),

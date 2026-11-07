@@ -5,21 +5,25 @@
 //! The protocol over HTTP/1.1 + JSON, under `/v1`, behind mutual TLS; and a plain ops listener
 //! for `/healthz`, `/readyz` and `/metrics`.
 //!
-//! HTTP/JSON rather than gRPC: Blockly's control plane is TypeScript with no protobuf toolchain,
+//! HTTP/JSON rather than gRPC: the control plane's control plane is TypeScript with no protobuf toolchain,
 //! its other internal protocol (the edge's) is versioned HTTP/JSON, and nothing here needs a
-//! bidirectional stream: exec is request/response (the console is RCON), logs are one-way. JSON is
+//! bidirectional stream: exec is request/response (application protocols stay outside the daemon), logs are one-way. JSON is
 //! also what an operator can read with curl at 3 a.m.
 //!
 //! Parts (`api/`):
 //! - `error.rs`: errors as the protocol states them: an HTTP status and a stable code.
+//! - `exec_stream.rs`: bounded live exec attachment, decoding and terminal results.
 //! - `handshake.rs`: the TLS handshake of each connection, bounded in number and time, and its
 //!   refusals reported without flooding the log.
 //! - `tls.rs`: the API's side of mutual TLS: its certificate, and who a client certificate proves.
+//! - `files.rs`: persistent data streams and agent capability issuance.
 
 // A handler's error is the answer itself, axum's `Response`, sent once and never passed along.
 #![expect(clippy::result_large_err, reason = "axum handlers answer Result<Response, Response>")]
 
 pub mod error;
+mod exec_stream;
+mod files;
 mod handshake;
 pub mod tls;
 
@@ -56,7 +60,7 @@ use crate::manager::{Manager, NodeError, Precondition};
 use crate::protocol::{
     CONFIRM_DELETE_HEADER, DataDisposition, EPOCH_HEADER, ExecRequest, ExportRequest, FenceRequest,
     IDEMPOTENCY_KEY_HEADER, LogRecord, PROTOCOL_HEADER, PROTOCOL_VERSION, REQUEST_ID_HEADER, RestoreRequest,
-    SnapshotRequest, StopRequest, UploadRequest, WorkloadSpec,
+    SnapshotRequest, StopRequest, StoreLeaseGrant, UploadRequest, WorkloadSpec,
 };
 use crate::runtime::parse_time;
 
@@ -351,6 +355,29 @@ async fn upload_snapshot(
     Ok(Json(detached(async move { manager.upload_snapshot(id, snapshot, request).await }).await?).into_response())
 }
 
+async fn store_lease_identity(
+    State(app): State<AppState>,
+    WorkloadPath(id): WorkloadPath,
+    headers: HeaderMap,
+) -> Result<Response, Response> {
+    let epoch = epoch(&headers)?;
+    app.manager
+        .store_lease_identity(&id, epoch)
+        .map(|value| Json(value).into_response())
+        .map_err(IntoResponse::into_response)
+}
+
+async fn store_lease(
+    State(app): State<AppState>,
+    WorkloadPath(id): WorkloadPath,
+    headers: HeaderMap,
+    ApiJson(request): ApiJson<StoreLeaseGrant>,
+) -> Result<Response, Response> {
+    let epoch = epoch(&headers)?;
+    app.manager.grant_store_lease(id, epoch, request).await.map_err(IntoResponse::into_response)?;
+    Ok(StatusCode::NO_CONTENT.into_response())
+}
+
 async fn fence(
     State(app): State<AppState>,
     WorkloadPath(id): WorkloadPath,
@@ -389,7 +416,17 @@ async fn exec(
     headers: HeaderMap,
     ApiJson(request): ApiJson<ExecRequest>,
 ) -> Result<Response, Response> {
-    let key = match headers.get(IDEMPOTENCY_KEY_HEADER).map(|v| v.to_str()) {
+    let key = exec_key(&headers)?;
+    let epoch = epoch(&headers)?;
+    let manager = app.manager.clone();
+    let result = detached(async move { manager.exec(id, request, key, epoch).await })
+        .await
+        .map_err(IntoResponse::into_response)?;
+    Ok(Json(result).into_response())
+}
+
+fn exec_key(headers: &HeaderMap) -> Result<Option<String>, Response> {
+    Ok(match headers.get(IDEMPOTENCY_KEY_HEADER).map(|v| v.to_str()) {
         None => None,
         Some(Ok(k)) if !k.is_empty() && k.len() <= 128 && k.bytes().all(|b| b.is_ascii_graphic()) => Some(k.to_owned()),
         Some(_) => {
@@ -400,13 +437,7 @@ async fn exec(
                 None,
             ));
         }
-    };
-    let epoch = epoch(&headers)?;
-    let manager = app.manager.clone();
-    let result = detached(async move { manager.exec(id, request, key, epoch).await })
-        .await
-        .map_err(IntoResponse::into_response)?;
-    Ok(Json(result).into_response())
+    })
 }
 
 #[derive(Deserialize)]
@@ -493,6 +524,7 @@ pub fn router(state: AppState, max_body: usize) -> Router {
         .route("/v1/workloads", get(list))
         .route("/v1/workloads/{id}", put(put_workload).get(get_workload).delete(delete))
         .route("/v1/workloads/{id}/start", post(start))
+        .route("/v1/workloads/{id}/store-lease", post(store_lease).get(store_lease_identity))
         .route("/v1/workloads/{id}/suspend", post(suspend))
         .route("/v1/workloads/{id}/stop", post(stop))
         .route("/v1/workloads/{id}/kill", post(kill))
@@ -503,8 +535,10 @@ pub fn router(state: AppState, max_body: usize) -> Router {
         .route("/v1/workloads/{id}/snapshots/{snapshot}", axum::routing::delete(delete_snapshot))
         .route("/v1/workloads/{id}/snapshots/{snapshot}/upload", post(upload_snapshot))
         .route("/v1/workloads/{id}/exec", post(exec))
+        .route("/v1/workloads/{id}/exec-stream", post(exec_stream::exec_stream))
         .route("/v1/workloads/{id}/logs", get(logs))
         .route("/v1/workloads/{id}/stats", get(stats))
+        .merge(files::routes())
         .fallback(not_found)
         .layer(middleware::from_fn_with_state(state.clone(), envelope))
         .layer(axum::extract::DefaultBodyLimit::max(max_body))
@@ -620,7 +654,7 @@ pub(crate) fn ops_router(manager: Arc<Manager>) -> Router {
 
 /// Serves the ops endpoints until `cancel`, then stops at once. Each answers from memory, so there
 /// is nothing to drain, and a graceful shutdown would wait forever on a client that sent half a
-/// request: it would keep blocklyd from exiting, an upgrade's restart included. Connections still
+/// request: it would keep pryxd from exiting, an upgrade's restart included. Connections still
 /// open end with the runtime.
 pub async fn serve_ops(listener: TcpListener, manager: Arc<Manager>, cancel: CancellationToken) {
     let serving = axum::serve(listener, ops_router(manager)).into_future();

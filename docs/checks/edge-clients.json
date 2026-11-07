@@ -1,0 +1,314 @@
+{
+  "capSeconds": 15,
+  "n": 3,
+  "versions": {
+    "curl": "curl 8.14.1 (x86_64-pc-linux-gnu) libcurl/8.14.1 OpenSSL/3.5.7 zlib/1.3.1 brotli/1.1.0 zstd/1.5.7 libidn2/2.3.8 libpsl/0.21.2 libssh2/1.11.1 nghttp2/1.64.0 nghttp3/1.8.0 librtmp/2.3 OpenLDAP/2.6.10",
+    "Node fetch": "v24.22.1",
+    "Python requests": "2.32.5",
+    "Go net/http": "go version go1.27.3 linux/amd64",
+    "Chrome": "Chromium 155.0.8059.79 built on Debian GNU/Linux 13 (trixie)",
+    "OpenSSH": "OpenSSH_10.0p2 Debian-7+deb13u4, OpenSSL 3.5.7 9 Jun 2026"
+  },
+  "results": [
+    {
+      "client": "curl",
+      "kind": "TLS",
+      "sample": 0,
+      "seconds": 15.0463,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "curl",
+      "kind": "TLS",
+      "sample": 1,
+      "seconds": 15.0481,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "curl",
+      "kind": "TLS",
+      "sample": 2,
+      "seconds": 15.049,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "curl",
+      "kind": "HTTP",
+      "sample": 0,
+      "seconds": 15.0483,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "curl",
+      "kind": "HTTP",
+      "sample": 1,
+      "seconds": 15.1619,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "curl",
+      "kind": "HTTP",
+      "sample": 2,
+      "seconds": 15.0493,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Node fetch",
+      "kind": "TLS",
+      "sample": 0,
+      "seconds": 10.7787,
+      "censored": false,
+      "exit": 1,
+      "stderr": ""
+    },
+    {
+      "client": "Node fetch",
+      "kind": "TLS",
+      "sample": 1,
+      "seconds": 10.7242,
+      "censored": false,
+      "exit": 1,
+      "stderr": ""
+    },
+    {
+      "client": "Node fetch",
+      "kind": "TLS",
+      "sample": 2,
+      "seconds": 10.7127,
+      "censored": false,
+      "exit": 1,
+      "stderr": ""
+    },
+    {
+      "client": "Node fetch",
+      "kind": "HTTP",
+      "sample": 0,
+      "seconds": 15.2953,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Node fetch",
+      "kind": "HTTP",
+      "sample": 1,
+      "seconds": 15.0141,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Node fetch",
+      "kind": "HTTP",
+      "sample": 2,
+      "seconds": 15.0116,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Python requests",
+      "kind": "TLS",
+      "sample": 0,
+      "seconds": 15.0048,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Python requests",
+      "kind": "TLS",
+      "sample": 1,
+      "seconds": 15.0112,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Python requests",
+      "kind": "TLS",
+      "sample": 2,
+      "seconds": 15.0086,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Python requests",
+      "kind": "HTTP",
+      "sample": 0,
+      "seconds": 15.0358,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Python requests",
+      "kind": "HTTP",
+      "sample": 1,
+      "seconds": 15.0329,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Python requests",
+      "kind": "HTTP",
+      "sample": 2,
+      "seconds": 15.0386,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Go net/http",
+      "kind": "TLS",
+      "sample": 0,
+      "seconds": 10.0759,
+      "censored": false,
+      "exit": 1,
+      "stderr": "Get \"https://127.0.0.1:42357/\": net/http: TLS handshake timeout\n"
+    },
+    {
+      "client": "Go net/http",
+      "kind": "TLS",
+      "sample": 1,
+      "seconds": 10.0147,
+      "censored": false,
+      "exit": 1,
+      "stderr": "Get \"https://127.0.0.1:42357/\": net/http: TLS handshake timeout\n"
+    },
+    {
+      "client": "Go net/http",
+      "kind": "TLS",
+      "sample": 2,
+      "seconds": 10.0642,
+      "censored": false,
+      "exit": 1,
+      "stderr": "Get \"https://127.0.0.1:42357/\": net/http: TLS handshake timeout\n"
+    },
+    {
+      "client": "Go net/http",
+      "kind": "HTTP",
+      "sample": 0,
+      "seconds": 15.0136,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Go net/http",
+      "kind": "HTTP",
+      "sample": 1,
+      "seconds": 15.0045,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Go net/http",
+      "kind": "HTTP",
+      "sample": 2,
+      "seconds": 15.0049,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Chrome",
+      "kind": "TLS",
+      "sample": 0,
+      "seconds": 15.0121,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Chrome",
+      "kind": "TLS",
+      "sample": 1,
+      "seconds": 15.0489,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Chrome",
+      "kind": "TLS",
+      "sample": 2,
+      "seconds": 15.0396,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Chrome",
+      "kind": "HTTP",
+      "sample": 0,
+      "seconds": 15.0477,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Chrome",
+      "kind": "HTTP",
+      "sample": 1,
+      "seconds": 15.0338,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "Chrome",
+      "kind": "HTTP",
+      "sample": 2,
+      "seconds": 15.0287,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "OpenSSH",
+      "kind": "banner",
+      "sample": 0,
+      "seconds": 15.0297,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "OpenSSH",
+      "kind": "banner",
+      "sample": 1,
+      "seconds": 15.0226,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    },
+    {
+      "client": "OpenSSH",
+      "kind": "banner",
+      "sample": 2,
+      "seconds": 15.004,
+      "censored": true,
+      "exit": -9,
+      "stderr": ""
+    }
+  ],
+  "missing": {
+    "Safari": "Unavailable on this Linux host; no Safari measurement was run."
+  }
+}

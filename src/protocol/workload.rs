@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! What blocklyd reports about one workload: its view (state, health, ports, storage, issues),
+//! What pryxd reports about one workload: its view (state, health, ports, storage, issues),
 //! the list of every view, its resource stats, and the lines of its log stream.
 //! It holds no verb's request: those are in `lifecycle.rs`, `transfer.rs` and `exec.rs`. What the
 //! node reports about itself is in `node.rs`.
@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use super::{Proto, Resources};
 use crate::ids::WorkloadId;
 
-/// What a workload is doing, normalized. How it maps onto Blockly's `ObservedState`:
+/// What a workload is doing, normalized. How it maps onto the control plane's `ObservedState`:
 /// created/stopped → stopped · running → running · stopping → stopping · crashed → crashed ·
 /// restarting → starting (with `lastFailureAt`) · missing/retained → absent · creating → stopped
 /// · unknown → unknown · fenced → stopped (this copy lost its placement; the current one is
@@ -36,7 +36,7 @@ pub enum WorkloadState {
     Crashed,
     /// The host is starting it again after a failure (restart policy).
     Restarting,
-    /// blocklyd holds a record but the container is gone (the runtime lost it).
+    /// pryxd holds a record but the container is gone (the runtime lost it).
     Missing,
     /// Compute removed on request, data kept (`DELETE ?data=keep`).
     Retained,
@@ -46,7 +46,7 @@ pub enum WorkloadState {
     /// node). This copy is stopped, never started again, and its data kept until deleted.
     Fenced,
     /// Frozen on request with its memory kept (`POST …/suspend`); a start resumes it. Only a
-    /// workload asked to suspend is ever in this state. In Blockly's terms: asleep, its memory
+    /// workload asked to suspend is ever in this state. In the control plane's terms: asleep, its memory
     /// kept.
     Suspended,
 }
@@ -111,7 +111,7 @@ pub struct PortView {
     pub(crate) container_port: u16,
     pub host_port: u16,
     /// `host:port` per audience, `[v6]:port` for IPv6: where the edge and the control plane
-    /// reach this port. Blockly's `endpoint(handle, port, audience)`.
+    /// reach this port. the control plane's `endpoint(handle, port, audience)`.
     pub(crate) endpoints: Endpoints,
 }
 
@@ -152,6 +152,7 @@ impl Issue {
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum IssueCode {
+    StoreLeaseExpired,
     ContainerMissing,
     CreateIncomplete,
     DigestMismatch,
@@ -187,6 +188,10 @@ pub struct Locate {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct WorkloadView {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub isolation: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<super::AgentView>,
     pub(crate) id: WorkloadId,
     /// Bumped each time the container is made again for a new spec.
     pub generation: u64,
@@ -204,13 +209,13 @@ pub struct WorkloadView {
     pub(crate) health: Option<Health>,
     pub exit: Option<ExitInfo>,
     /// Restarts the host made after failures since the last requested start or new spec. Kept
-    /// across restarts of blocklyd.
+    /// across restarts of pryxd.
     pub restart_count: u32,
-    /// When it last failed and the host started it again (Blockly's `failedAt`).
+    /// When it last failed and the host started it again (the control plane's `failedAt`).
     pub last_failure_at: Option<String>,
     pub started_at: Option<String>,
     pub(crate) finished_at: Option<String>,
-    /// When the state last changed, as the runtime recorded it (survives blocklyd restarts).
+    /// When the state last changed, as the runtime recorded it (survives pryxd restarts).
     pub(crate) changed_at: String,
     pub ports: Vec<PortView>,
     pub(crate) resources: Resources,

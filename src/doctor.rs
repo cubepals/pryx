@@ -2,27 +2,27 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! `blocklyd doctor`: looks at this host the way blocklyd will use it, and says what is wrong and
+//! `pryxd doctor`: looks at this host the way pryxd will use it, and says what is wrong and
 //! what to do about it. `check-config` only reads the file; doctor also asks Docker, the state
 //! directory, the ports, the machine id and the clock.
 //!
 //! Every check passes, warns or fails, and anything short of a pass carries one instruction. A
-//! failure is something blocklyd can't work without; a warning is something it survives. Doctor
-//! never stops blocklyd from starting for anything blocklyd survives today: `--preflight` (the
-//! unit's `ExecStartPre`) refuses only what `check-config` refused, plus a state directory blocklyd
+//! failure is something pryxd can't work without; a warning is something it survives. Doctor
+//! never stops pryxd from starting for anything pryxd survives today: `--preflight` (the
+//! unit's `ExecStartPre`) refuses only what `check-config` refused, plus a state directory pryxd
 //! can't own, and reports every other failure as a warning in the journal.
 //!
 //! Parts (`doctor/`):
 //! - `check.rs`: one verdict: pass, warn or fail, with what to do.
 //! - `config.rs`: whether the configuration file (and its certificates) is valid.
-//! - `docker.rs`: whether Docker is reachable and configured the way blocklyd expects.
+//! - `docker.rs`: whether Docker is reachable and configured the way pryxd expects.
 //! - `state.rs`: whether the state directory can be owned, locked, cloned into and has room.
-//! - `network.rs`: whether the game ports are free and the listeners stay off public addresses.
+//! - `network.rs`: whether the public ports are free and the listeners stay off public addresses.
 //! - `host.rs`: whether the host has a machine id and a synchronised clock.
 //! - `fix.rs`: the safe fixes `--fix` applies on a host with no workloads yet.
 //!
 //! Not here: anything that changes a host with workloads on it, and inferring a configuration
-//! (`blocklyd join` writes one).
+//! (`pryxd join` writes one).
 
 mod check;
 mod config;
@@ -50,7 +50,7 @@ pub struct Report {
 }
 
 impl Report {
-    /// What `--preflight` reports: a failure blocklyd survives becomes a warning.
+    /// What `--preflight` reports: a failure pryxd survives becomes a warning.
     pub(crate) fn for_preflight(mut self) -> Self {
         for check in &mut self.checks {
             if check.status == Status::Fail && !check.gates_start {
@@ -91,8 +91,8 @@ impl Report {
         }
         let (warnings, failures) = (self.count(Status::Warn), self.count(Status::Fail));
         out.push_str(&match (failures, preflight) {
-            (0, true) => format!("{warnings} warning(s); blocklyd starts.\n"),
-            (_, true) => format!("{failures} failure(s); blocklyd can't start until they are fixed.\n"),
+            (0, true) => format!("{warnings} warning(s); pryxd starts.\n"),
+            (_, true) => format!("{failures} failure(s); pryxd can't start until they are fixed.\n"),
             (0, false) => format!("{warnings} warning(s), no failures.\n"),
             (_, false) => format!("{failures} failure(s), {warnings} warning(s).\n"),
         });
@@ -137,12 +137,19 @@ pub async fn run(options: &Options) -> Report {
         Some(runtime) => checks.extend(docker::checks(runtime.as_ref(), &config.docker.network, daemon_json).await),
         None => checks.push(Check::warn(
             "docker",
-            format!("docker.socket {} isn't a path blocklyd can use", config.docker.socket.display()),
+            format!("docker.socket {} isn't a path pryxd can use", config.docker.socket.display()),
             format!(
                 "Set docker.socket to Docker's unix socket, usually {}",
                 crate::config::DockerConfig::default().socket.display()
             ),
         )),
+    }
+    if config.workloads.allowed_images.is_empty() {
+        checks.push(Check::warn(
+            "workloads.allowed_images",
+            "no image prefix is allowed on this host",
+            "Set workloads.allowed_images in the configuration, or join with --allow-image <prefix>",
+        ));
     }
     checks.extend(state::checks(&config, &options.config));
     checks.push(network::ports(&config, &state::held_ports(&config.state_dir)));
@@ -170,7 +177,7 @@ mod tests {
     }
 
     #[test]
-    fn preflight_fails_only_on_what_stops_blocklyd_today() {
+    fn preflight_fails_only_on_what_stops_pryxd_today() {
         let mut gated = report();
         assert!(!gated.ok());
         gated = gated.for_preflight();
@@ -181,8 +188,8 @@ mod tests {
         survivable.checks.remove(0);
         assert!(!survivable.ok(), "without --preflight, a failure is a failure");
         let survivable = survivable.for_preflight();
-        assert!(survivable.ok(), "blocklyd starts with Docker down and a public api.listen, as it always has");
-        assert!(survivable.text(true).ends_with("2 warning(s); blocklyd starts.\n"));
+        assert!(survivable.ok(), "pryxd starts with Docker down and a public api.listen, as it always has");
+        assert!(survivable.text(true).ends_with("2 warning(s); pryxd starts.\n"));
     }
 
     #[test]

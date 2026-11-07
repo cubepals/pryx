@@ -4,7 +4,7 @@
 
 //! Certificates and keys, read from their PEM files, and the crypto provider every TLS setting is
 //! built on: the API's server side (`api::tls`), the node's calls out (`http_client`), enrollment,
-//! `blocklyd join` and doctor.
+//! `pryxd join` and doctor.
 
 use std::fs;
 use std::path::Path;

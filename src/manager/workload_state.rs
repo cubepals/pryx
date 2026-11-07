@@ -9,7 +9,7 @@ use crate::protocol::WorkloadState;
 use crate::runtime::{ContainerInfo, ContainerStatus, exit_by, parse_time};
 use crate::store::{Phase, WorkloadRecord};
 
-/// Whether a stop blocklyd was asked for is under way: a container still running then reads as
+/// Whether a stop pryxd was asked for is under way: a container still running then reads as
 /// stopping.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Stopping {
@@ -25,7 +25,7 @@ pub(crate) enum Suspend {
     NotAsked,
 }
 
-/// Whether what blocklyd last saw of the runtime is current (`Manager::trustworthy`), or history
+/// Whether what pryxd last saw of the runtime is current (`Manager::trustworthy`), or history
 /// after an outage.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Sight {
@@ -58,7 +58,7 @@ pub(super) fn derive_power_state(
     match record.phase {
         Phase::Retained => WorkloadState::Retained,
         Phase::Creating if info.is_none() => WorkloadState::Creating,
-        // What blocklyd last saw is history, not the state: a daemon stop may have killed it.
+        // What pryxd last saw is history, not the state: a daemon stop may have killed it.
         _ if sight == Sight::Stale => WorkloadState::Unknown,
         _ => match info {
             None => WorkloadState::Missing,
@@ -113,6 +113,7 @@ mod tests {
 
     fn exited(code: i64, oom: bool, finished: &str) -> ContainerInfo {
         ContainerInfo {
+            cgroup_parent: None,
             id: "c".into(),
             name: "n".into(),
             labels: BTreeMap::new(),

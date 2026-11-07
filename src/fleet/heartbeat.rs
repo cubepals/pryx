@@ -15,12 +15,12 @@
 //! A beat that failed waits out the interval as before.
 //!
 //! The node never stops a workload because it lost contact: self-fencing on a lease would make a
-//! control-plane outage stop every server in the fleet (docs/fleet.md, "Epochs and fencing"). The
+//! control-plane outage stop every sandbox in the fleet (docs/fleet.md, "Epochs and fencing"). The
 //! lease only governs what the node does unasked, restarting a failed workload or resuming one the
 //! host went down under, so a node cut off from the control plane, which may have been replaced,
 //! brings nothing back on its own.
 //!
-//! An answer may also offer a newer blocklyd, which the node installs and restarts into
+//! An answer may also offer a newer pryxd, which the node installs and restarts into
 //! (upgrade.rs); a beat accepted once reconciled ends the trial of one just installed.
 
 use std::collections::BTreeMap;
@@ -63,7 +63,7 @@ pub fn heartbeat_report(
         seq,
         daemon_version: crate::upgrade::daemon_version(),
         protocol: ProtocolVersions::ours(),
-        features: crate::protocol::features(),
+        features: manager.features(),
         runtime_up: manager.docker_up(),
         reconciled: manager.reconciled(),
         capacity: manager.capacity(),
@@ -79,6 +79,7 @@ fn workload_reports(manager: &Manager) -> Vec<WorkloadReport> {
         .list(None)
         .into_iter()
         .map(|v| WorkloadReport {
+            agent: v.agent,
             id: v.id.to_string(),
             epoch: v.epoch,
             superseded_by: v.superseded_by,
@@ -267,7 +268,7 @@ mod tests {
         assert!(took >= Duration::from_secs(2), "{took:?}");
     }
 
-    /// blocklyd over the in-memory runtime, with nothing on it yet.
+    /// pryxd over the in-memory runtime, with nothing on it yet.
     async fn daemon() -> (tempfile::TempDir, Arc<FakeRuntime>, Arc<Manager>) {
         let dir = tempfile::tempdir().unwrap();
         let (uid, gid) = (rustix::process::getuid().as_raw(), rustix::process::getgid().as_raw());

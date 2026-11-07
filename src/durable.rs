@@ -58,7 +58,7 @@ pub fn write_atomic(path: &Path, contents: &[u8], mode: u32) -> Result<(), Write
 
 /// The filesystem a tree is being written to, synced whole once it is written: one `syncfs(2)`
 /// instead of an fsync per file, as PostgreSQL's `recovery_init_sync_method=syncfs` does. It
-/// flushes whatever else is waiting on that filesystem too (the running servers' saves), so on a
+/// flushes whatever else is waiting on that filesystem too (the running sandboxes' saves), so on a
 /// busy disk it takes a while, once per tree.
 ///
 /// Opened before the writing starts: Linux (5.8 and later) reports to `syncfs` a write-back error

@@ -4,7 +4,7 @@
 
 //! Mutual TLS: the only way into the workload API.
 //!
-//! Why mTLS rather than bearer tokens: blocklyd holds a root-equivalent socket, so its API is
+//! Why mTLS rather than bearer tokens: pryxd holds a root-equivalent socket, so its API is
 //! worth attacking. With mTLS no secret crosses the wire (a leaked request log reveals nothing),
 //! both sides are authenticated, captured traffic can't be replayed (TLS 1.3, no 0-RTT), and it is
 //! what node agents with this much power already use (kubelet, Nomad, Docker's own TCP socket).

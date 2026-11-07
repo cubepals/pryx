@@ -52,6 +52,7 @@ impl Manager {
         let ports = record
             .ports
             .iter()
+            .filter(|p| !p.name.starts_with(pryx_agent::contract::INTERNAL_PORT_PREFIX))
             .map(|p| {
                 let audience =
                     record.spec.ports.iter().find(|s| s.name == p.name).map(|s| s.audience.clone()).unwrap_or_default();
@@ -75,6 +76,8 @@ impl Manager {
         let (used, measured) =
             state.disk.get(&record.id).map(|(b, at)| (Some(*b), Some(format_time(*at)))).unwrap_or_default();
         WorkloadView {
+            isolation: (self.runtime.isolation() != "container").then(|| self.runtime.isolation().into()),
+            agent: self.agent_view(record, info),
             id: record.id.clone(),
             generation: record.generation,
             epoch: record.epoch,
@@ -104,7 +107,14 @@ impl Manager {
             },
             labels: record.spec.labels.clone(),
             secret_names: record.spec.secret_names.clone(),
-            issues: state.issues.get(&record.id).cloned().unwrap_or_default(),
+            issues: state
+                .issues
+                .get(&record.id)
+                .cloned()
+                .unwrap_or_default()
+                .into_iter()
+                .chain(self.store_lease_issue(record))
+                .collect(),
             locate: Locate {
                 container_name: record.container_name.clone(),
                 container_id: info.map(|i| i.id.clone()).or_else(|| record.container_id.clone()),
@@ -115,7 +125,7 @@ impl Manager {
         }
     }
 
-    /// Every workload, or those whose state changed at or after `since` (Blockly's
+    /// Every workload, or those whose state changed at or after `since` (the control plane's
     /// `observeChanged`: level-triggered, answered from one local listing).
     pub(crate) fn list(&self, since: Option<OffsetDateTime>) -> Vec<WorkloadView> {
         let state = self.state.lock().unwrap();
@@ -147,7 +157,7 @@ impl Manager {
     }
 }
 
-/// A failure blocklyd will restart reads as restarting, not crashed: the host is starting it again,
+/// A failure pryxd will restart reads as restarting, not crashed: the host is starting it again,
 /// as Docker's own policy would say.
 fn pending_restart(state: &State, id: &WorkloadId, derived: WorkloadState) -> WorkloadState {
     let waiting = match derived {

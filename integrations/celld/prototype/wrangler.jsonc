@@ -1,0 +1,8 @@
+{
+  "name": "pryx-container-prototype",
+  "main": "worker.js",
+  "no_bundle": true,
+  "compatibility_date": "2026-01-01",
+  "durable_objects": { "bindings": [{ "name": "CONTAINERS", "class_name": "PryxContainer" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PryxContainer"] }]
+}

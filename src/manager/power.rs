@@ -5,7 +5,7 @@
 //! Changes whether a workload runs when the control plane asks: start, suspend, stop, kill. A
 //! suspended workload is frozen with its memory kept, and a start resumes it; one whose resume
 //! doesn't come back in time is killed and booted afresh on its data. A spec deferred while it
-//! slept is put in place at its next boot. Restarts blocklyd makes on its own are in
+//! slept is put in place at its next boot. Restarts pryxd makes on its own are in
 //! `restarts.rs`; the stop a fence makes is in `fence.rs`.
 
 use super::*;
@@ -25,6 +25,7 @@ impl Manager {
     async fn start_locked(self: &Arc<Self>, id: &WorkloadId, epoch: Option<u64>) -> Result<PowerResponse, NodeError> {
         let record = self.record(id)?;
         check_epoch(&record, epoch, EpochRule::Exact)?;
+        self.require_store_lease(&record)?;
         match record.phase {
             Phase::Creating => {
                 return Err(NodeError::Conflict {
@@ -90,11 +91,11 @@ impl Manager {
     }
 
     /// The spec a `PUT` deferred, whole, for its workload's next boot. Memory holds it with its
-    /// secret values; after a restart of blocklyd they are taken from the container it replaces,
+    /// secret values; after a restart of pryxd they are taken from the container it replaces,
     /// which runs with them. A deferred spec naming a secret that container lacks can't be made
     /// here and is dropped: the control plane, seeing the old digest, sends it again. So is one
     /// the host's policy no longer admits (an image prefix taken out of `allowed_images` since its
-    /// `PUT`, say): it is checked again here, against the policy blocklyd runs with now.
+    /// `PUT`, say): it is checked again here, against the policy pryxd runs with now.
     fn boot_spec(&self, record: &WorkloadRecord, info: &ContainerInfo) -> Option<WorkloadSpec> {
         let suspend = self.suspension(&record.id);
         let pending = suspend.pending?;
@@ -206,8 +207,8 @@ impl Manager {
         if !matches!(status, Some(ContainerStatus::Running | ContainerStatus::Paused)) {
             return Err(not_running());
         }
-        // Recorded before the freeze: a frozen container blocklyd made is never taken for a running
-        // one, even if blocklyd dies right after.
+        // Recorded before the freeze: a frozen container pryxd made is never taken for a running
+        // one, even if pryxd dies right after.
         self.save_suspension(id, SuspendRecord { suspended_at: Some(now_str()), ..suspend.clone() }).await?;
         if status == Some(ContainerStatus::Running)
             && let Err(e) = self.note(self.runtime.pause(&record.container_name).await)
@@ -267,7 +268,7 @@ impl Manager {
         if record.phase != Phase::Active {
             return Ok(PowerResponse { changed: false, forced: false, resumed: None, workload: self.view(id)? });
         }
-        // Whatever the container is doing, nothing blocklyd would start on its own (a restart
+        // Whatever the container is doing, nothing pryxd would start on its own (a restart
         // after a failure, a resume after the host went down) comes after this. In memory first,
         // so a record the disk can't take still keeps this run from starting it.
         {
@@ -288,7 +289,7 @@ impl Manager {
             }
             return Ok(PowerResponse { changed: false, forced: false, resumed: None, workload: self.view(id)? });
         }
-        // Persisted before the signal, so the exit reads as a stop even if blocklyd dies now.
+        // Persisted before the signal, so the exit reads as a stop even if pryxd dies now.
         record.stop_requested_at = Some(now_str());
         record.updated_at = now_str();
         self.save_record(&record).await?;

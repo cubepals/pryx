@@ -11,8 +11,8 @@
 //! once. One whose handshake has ended no longer counts: a client that finished it proved who it
 //! is, and `api.rs` serves it.
 //!
-//! Each refusal is counted (`blocklyd_auth_failures_total`) and logged at debug. A warning for each
-//! would let anyone flood the journal past its rate limit and silence blocklyd's other warnings,
+//! Each refusal is counted (`pryxd_auth_failures_total`) and logged at debug. A warning for each
+//! would let anyone flood the journal past its rate limit and silence pryxd's other warnings,
 //! so one warning a minute at most sums them up.
 
 use std::collections::HashMap;

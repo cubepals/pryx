@@ -1,5 +1,5 @@
 # What isn't Rust and can't carry its own license lines (configuration, fixtures, the lockfile,
-# docs, the API's description, CI): all of it is blocklyd's, under the same license as the code.
+# docs, the API's description, CI): all of it is pryxd's, under the same license as the code.
 # `reuse lint` checks every file is covered, by its own lines or by this.
 version = 1
 

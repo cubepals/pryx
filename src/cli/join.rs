@@ -2,18 +2,18 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! `blocklyd join <token>`: makes this host a node of the fleet a `bk1.` token names
+//! `pryxd join <token>`: makes this host a node of the fleet a `bk1.` token names
 //! (fleet/token.rs), with nothing else to hand. `join.sh`, which the node endpoint serves, runs it
 //! once Docker and the binary are in place (docs/fleet-operations.md, "Adding a node").
 //!
 //! 1. It fetches the fleet CA from the token's endpoint and checks it against the token's hash,
 //!    the only thing that vouches for it: nothing is written if it doesn't match.
-//! 2. It writes `/etc/blocklyd/blocklyd.toml` with only what the host can't work out (the
-//!    deployment and the endpoint), `/etc/blocklyd/fleet-ca.pem`, the token as
-//!    `/var/lib/blocklyd/enrollment-token` (0600) and the systemd unit, each whole or not at all.
+//! 2. It writes `/etc/pryxd/pryxd.toml` with only what the host can't work out (the
+//!    deployment and the endpoint), `/etc/pryxd/fleet-ca.pem`, the token as
+//!    `/var/lib/pryxd/enrollment-token` (0600) and the systemd unit, each whole or not at all.
 //!    A configuration already there is kept: what an operator set wins.
-//! 3. It runs `blocklyd doctor --preflight`, shows what it found and stops on a failure, then
-//!    enables and starts the unit. blocklyd enrolls on its first start, as it always has.
+//! 3. It runs `pryxd doctor --preflight`, shows what it found and stops on a failure, then
+//!    enables and starts the unit. pryxd enrolls on its first start, as it always has.
 //!
 //! What `Config::load` works out from the host (infer.rs) is worked out here first, so a host
 //! with two private addresses is asked which before anything is written, and it is printed with
@@ -45,11 +45,11 @@ use crate::infer::API_PORT;
 use crate::protocol::wire::FLEET_API;
 
 /// The paths as the host sees them; under `root` when one is given.
-const CA: &str = "/etc/blocklyd/fleet-ca.pem";
-const TOKEN: &str = "/var/lib/blocklyd/enrollment-token";
-pub const UNIT: &str = "/etc/systemd/system/blocklyd.service";
+const CA: &str = "/etc/pryxd/fleet-ca.pem";
+const TOKEN: &str = "/var/lib/pryxd/enrollment-token";
+pub const UNIT: &str = "/etc/systemd/system/pryxd.service";
 
-const UNIT_FILE: &str = include_str!("../../deploy/blocklyd.service");
+const UNIT_FILE: &str = include_str!("../../deploy/pryxd.service");
 
 /// How long a re-enrolling node has for its first heartbeat (reenroll.rs says what happens after):
 /// enrollment retries every 30 s at most, and a heartbeat follows within seconds.
@@ -60,6 +60,8 @@ const FIRST_BEAT: Duration = Duration::from_secs(120);
 const CA_WAIT: Duration = Duration::from_secs(30);
 
 pub struct Join {
+    /// Image reference prefixes the host permits; an empty list denies every image.
+    pub allow_images: Vec<String>,
     /// The token as pasted.
     pub token: String,
     /// The address to serve the fleet on, where the host's own can't be told (infer.rs).
@@ -70,22 +72,22 @@ pub struct Join {
     pub root: PathBuf,
     /// Enables and starts the unit once everything is written.
     pub start: bool,
-    /// `systemctl`, or what stands in for it in tests that run blocklyd as a plain process.
+    /// `systemctl`, or what stands in for it in tests that run pryxd as a plain process.
     pub systemctl: PathBuf,
 }
 
 /// Does it, and returns what to tell the operator.
 pub async fn join(options: Join) -> anyhow::Result<String> {
     let token = JoinToken::decode(&options.token)
-        .map_err(|e| anyhow!("{e}. blocklyd join takes the bk1. token `bun scripts/fleet.ts token` prints"))?;
+        .map_err(|e| anyhow!("{e}. pryxd join takes the bk1. token `bun scripts/fleet.ts token` prints"))?;
     let root = options.root.as_path();
     if root == Path::new("/") && !rustix::process::geteuid().is_root() {
-        bail!("blocklyd join writes to /etc and installs a service: run it as root");
+        bail!("pryxd join writes to /etc and installs a service: run it as root");
     }
     let config_file = options.config.as_path();
     let shown = config_file.display();
     let existing = std::fs::read_to_string(under(root, config_file)).ok();
-    let text = existing.clone().unwrap_or_else(|| configuration(&token, options.address));
+    let text = existing.clone().unwrap_or_else(|| configuration(&token, options.address, &options.allow_images));
     let config = Config::parse(&text, config_file, root)?;
     let state_dir = under(root, &config.state_dir);
     let enrolled = Identity::load(&state_dir)?;
@@ -118,14 +120,14 @@ pub async fn join(options: Join) -> anyhow::Result<String> {
                 )
             }
             Some(_) if !options.start => {
-                bail!("re-enrolling restarts blocklyd and waits for its first heartbeat: run it without --no-start")
+                bail!("re-enrolling restarts pryxd and waits for its first heartbeat: run it without --no-start")
             }
             Some(_) => {}
         }
     }
 
     let Some(fleet) = &config.fleet else {
-        bail!("{shown} runs blocklyd alone, without [fleet]: remove it to join a fleet");
+        bail!("{shown} runs pryxd alone, without [fleet]: remove it to join a fleet");
     };
     if config.deployment_id != token.deployment_id {
         bail!(
@@ -137,6 +139,9 @@ pub async fn join(options: Join) -> anyhow::Result<String> {
     }
     let token_file = fleet.enrollment_token_file.as_deref().unwrap_or(Path::new(TOKEN));
     let ca = fetch_ca(&token).await?;
+    if options.start && root == Path::new("/") {
+        super::port_reservation::reserve(config.network.port_range, root)?;
+    }
     let service = Systemd { program: options.systemctl.clone() };
 
     if let Some(identity) = &enrolled {
@@ -169,26 +174,28 @@ pub async fn join(options: Join) -> anyhow::Result<String> {
         written.push(path.display().to_string());
     }
     if options.start {
-        preflight(root, config_file)
-            .await
-            .with_context(|| format!("wrote {}, and left blocklyd stopped", written.join(", ")))?;
-        service.systemctl(&["daemon-reload"])?;
-        service.systemctl(&["enable", UNIT_NAME])?;
-        // A start that failed before this join (an old token) is retried with the new one.
-        service.systemctl(&["restart", UNIT_NAME])?;
+        start_service(root, config_file, &written, &service).await?;
     }
     Ok(report(&token, &config, config_file, existing.is_some(), &written, options.start))
 }
 
-/// `blocklyd doctor --preflight`, as the unit runs it before each start: what it finds is shown
-/// now, and a failure stops the join before blocklyd is started.
+async fn start_service(root: &Path, config_file: &Path, written: &[String], service: &Systemd) -> anyhow::Result<()> {
+    preflight(root, config_file)
+        .await
+        .with_context(|| format!("wrote {}, and left pryxd stopped", written.join(", ")))?;
+    service.systemctl(&["daemon-reload"])?;
+    service.systemctl(&["enable", UNIT_NAME])?;
+    // A start that failed before this join (an old token) is retried with the new one.
+    service.systemctl(&["restart", UNIT_NAME])?;
+    Ok(())
+}
+
+/// `pryxd doctor --preflight`, as the unit runs it before each start: what it finds is shown
+/// now, and a failure stops the join before pryxd is started.
 async fn preflight(root: &Path, config_file: &Path) -> anyhow::Result<()> {
     let report = doctor::run(&doctor::Options { config: under(root, config_file), preflight: true, fix: false }).await;
     print!("{}", report.text(true));
-    anyhow::ensure!(
-        report.ok(),
-        "doctor found what keeps blocklyd from starting (above): fix it, and run the line again"
-    );
+    anyhow::ensure!(report.ok(), "doctor found what keeps pryxd from starting (above): fix it, and run the line again");
     Ok(())
 }
 
@@ -198,12 +205,12 @@ fn under(root: &Path, path: &Path) -> PathBuf {
 
 /// The configuration `join` writes: the deployment and where its control plane is, and the
 /// address only when the operator named it. Everything else is a default or worked out.
-fn configuration(token: &JoinToken, address: Option<IpAddr>) -> String {
+fn configuration(token: &JoinToken, address: Option<IpAddr>, allow_images: &[String]) -> String {
     let quoted = |text: &str| toml::Value::String(text.to_owned()).to_string();
     let mut text = format!(
-        "# Written by `blocklyd join`. Every key left out has a default or is worked out from this host\n\
-         # at each start, as `blocklyd doctor` lists; a key set here wins.\n\
-         # https://github.com/cubepals/blocklyd/blob/main/examples/blocklyd.toml lists every key.\n\
+        "# Written by `pryxd join`. Every key left out has a default or is worked out from this host\n\
+         # at each start, as `pryxd doctor` lists; a key set here wins.\n\
+         # https://github.com/cubepals/pryx/blob/main/examples/pryxd.toml lists every key.\n\
          deployment_id = {}\n",
         quoted(&token.deployment_id)
     );
@@ -213,6 +220,10 @@ fn configuration(token: &JoinToken, address: Option<IpAddr>) -> String {
             SocketAddr::new(ip, API_PORT)
         );
     }
+    text += &format!(
+        "\n[workloads]\nallowed_images = {}\n",
+        toml::Value::Array(allow_images.iter().cloned().map(toml::Value::String).collect())
+    );
     text + &format!("\n[fleet]\nurl = {}\nca = \"{CA}\"\nenrollment_token_file = \"{TOKEN}\"\n", quoted(&token.url))
 }
 
@@ -229,9 +240,9 @@ fn report(token: &JoinToken, config: &Config, file: &Path, kept: bool, written: 
     }
     out += &format!("Wrote {}.\n", written.join(", "));
     out += if started {
-        "blocklyd is running and enrolls on its own: `bun scripts/fleet.ts nodes` shows it. Its log: journalctl -u blocklyd\n"
+        "pryxd is running and enrolls on its own: `bun scripts/fleet.ts nodes` shows it. Its log: journalctl -u pryxd\n"
     } else {
-        "Start it with: systemctl enable --now blocklyd\n"
+        "Start it with: systemctl enable --now pryxd\n"
     };
     out
 }

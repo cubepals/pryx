@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: FSL-1.1-ALv2
+services:
+  - type: web
+    name: pryx
+    runtime: docker
+    plan: standard
+    healthCheckPath: /healthz
+    disk:
+      name: pryx-state
+      mountPath: /var/lib/pryx
+      sizeGB: 10
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: pryx-database
+          property: connectionString
+databases:
+  - name: pryx-database
+    plan: basic-256mb

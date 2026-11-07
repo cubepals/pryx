@@ -20,6 +20,18 @@ impl Manager {
         epoch: Option<u64>,
     ) -> Result<EnsureResponse, NodeError> {
         spec.validate(&self.spec_policy()).map_err(NodeError::Invalid)?;
+        if (spec.agent.is_some() || spec.spare_ports.is_some()) && self.agent_binary().is_none() {
+            return Err(NodeError::Invalid(vec![FieldError {
+                field: "agent".into(),
+                problem: "the host has no trusted agent executable".into(),
+            }]));
+        }
+        if spec.network == crate::protocol::NetworkMode::None && !self.runtime.supports_network_policy() {
+            return Err(NodeError::Invalid(vec![FieldError {
+                field: "network".into(),
+                problem: "the host has no network-policy feature".into(),
+            }]));
+        }
         let lock = self.lock_for(&id);
         let _guard = lock.lock().await;
         let started = Instant::now();
@@ -61,9 +73,19 @@ impl Manager {
                 let same = !placed_anew
                     && record.phase == Phase::Active
                     && record.spec_digest == digest
-                    && info
-                        .as_ref()
-                        .is_some_and(|i| i.labels.get(LABEL_DIGEST) == Some(&digest) && secrets_match(i, &spec));
+                    && info.as_ref().is_some_and(|i| {
+                        i.labels.get(LABEL_DIGEST) == Some(&digest)
+                            && secrets_match(i, &spec)
+                            && (!self.config.store_lease.enabled
+                                || i.cgroup_parent.as_deref()
+                                    == Some(
+                                        crate::store_lease::guard::docker_parent(
+                                            record.id.as_str(),
+                                            record.epoch.unwrap_or_default(),
+                                        )
+                                        .as_str(),
+                                    ))
+                    });
                 let suspend = self.suspension(id);
                 if same {
                     self.remember(id, info).await;
@@ -115,7 +137,7 @@ impl Manager {
         let mut state = self.state.lock().unwrap();
         let mut out = Vec::new();
         let mut fresh = Vec::new();
-        for p in &spec.ports {
+        for p in &self.requested_ports(spec) {
             let reused = keep.iter().find(|k| k.name == p.name && k.protocol == p.protocol).map(|k| k.host_port);
             let host_port = match reused {
                 Some(port) => port,
@@ -150,7 +172,7 @@ impl Manager {
         Ok(out)
     }
 
-    fn container_spec(&self, record: &WorkloadRecord, spec: &WorkloadSpec) -> ContainerSpec {
+    fn container_spec(&self, record: &WorkloadRecord, spec: &WorkloadSpec) -> Result<ContainerSpec, NodeError> {
         let r = &spec.resources;
         let (min_weight, max_weight) = (i64::from(*CPU_WEIGHTS.start()), i64::from(*CPU_WEIGHTS.end()));
         let mut labels = spec.labels.clone();
@@ -166,7 +188,17 @@ impl Manager {
         labels.insert(LABEL_RECORD.into(), serde_json::to_string(&LabelRecord::of(record)).expect("serializes"));
         let mut env: Vec<(String, String)> = spec.env.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
         env.extend(spec.secrets.iter().map(|(k, v)| (k.clone(), v.expose().to_owned())));
-        ContainerSpec {
+        let agent = self.agent_boot(record, spec)?.map(|(boot, secret)| {
+            env.push((boot.secret_env.clone(), secret));
+            labels.insert(pryx_agent::contract::KEY_LABEL.into(), boot.secret_env.clone());
+            boot
+        });
+        Ok(ContainerSpec {
+            packages: spec.packages.clone(),
+            agent,
+            cgroup_parent: self.config.store_lease.enabled.then(|| {
+                crate::store_lease::guard::docker_parent(record.id.as_str(), record.epoch.unwrap_or_default())
+            }),
             name: record.container_name.clone(),
             image: spec.image.clone(),
             entrypoint: spec.entrypoint.clone(),
@@ -175,7 +207,7 @@ impl Manager {
             user: self.config.workloads.user.to_string(),
             memory_bytes: i64::from(r.memory_mb) * 1024 * 1024,
             nano_cpus: r.cpu_millis.map(|m| i64::from(m) * 1_000_000),
-            // Weight follows size unless asked otherwise: a 4 GB server gets Docker's default
+            // Weight follows size unless asked otherwise: a 4 GB sandbox gets Docker's default
             // 1024, a 3 GB one 768, an 8 GB one 2048. Contention is shared as the price is.
             cpu_shares: r
                 .cpu_weight
@@ -189,8 +221,12 @@ impl Manager {
                 .ports
                 .iter()
                 .map(|p| {
-                    let audience =
-                        spec.ports.iter().find(|s| s.name == p.name).map(|s| s.audience.clone()).unwrap_or_default();
+                    let audience = self
+                        .requested_ports(spec)
+                        .iter()
+                        .find(|s| s.name == p.name)
+                        .map(|s| s.audience.clone())
+                        .unwrap_or_default();
                     PortBinding {
                         container_port: p.container_port,
                         protocol: p.protocol,
@@ -201,11 +237,16 @@ impl Manager {
                 .collect(),
             stop_signal: spec.stop.signal.as_str().into(),
             stop_timeout_secs: spec.stop.timeout_seconds,
-            network: self.config.docker.network.clone(),
+            network: if spec.network == crate::protocol::NetworkMode::None {
+                crate::runtime::docker::internal_network(&self.config.docker.network)
+            } else {
+                self.config.docker.network.clone()
+            },
             log_max_size_mb: self.config.workloads.log_max_size_mb,
+            internal_network: spec.network == crate::protocol::NetworkMode::None,
             log_max_files: self.config.workloads.log_max_files,
             oom_score_adj: self.config.workloads.oom_score_adj,
-        }
+        })
     }
 
     /// Makes the container. A container already under this name is ours by construction (the
@@ -214,7 +255,11 @@ impl Manager {
     async fn make_container(&self, record: &WorkloadRecord, spec: &WorkloadSpec) -> Result<String, NodeError> {
         let pull = Duration::from_secs(self.config.docker.pull_timeout_seconds);
         self.note(self.runtime.ensure_image(&spec.image, pull).await)?;
-        let container = self.container_spec(record, spec);
+        if self.config.store_lease.enabled {
+            crate::store_lease::guard::prepare(record.id.as_str(), record.epoch.unwrap_or_default())
+                .map_err(|_| NodeError::Internal("Cannot prepare lease cgroup".into()))?;
+        }
+        let container = self.container_spec(record, spec)?;
         match self.note(self.runtime.create(&container).await) {
             Ok(id) => Ok(id),
             Err(RuntimeError::Conflict(_)) => {
@@ -276,7 +321,7 @@ impl Manager {
         };
         // Persisted before the container exists: a crash from here on leaves a record, which the
         // next PUT or reconciliation finishes or reports. Never an unfindable container.
-        if let Err(e) = self.store.ensure_data_dir(id, self.config.data_owner_ids()).map_err(NodeError::from) {
+        if let Err(e) = self.store.ensure_data_dir(id, self.data_owner(id)?).map_err(NodeError::from) {
             undo(self);
             return Err(e);
         }
@@ -344,9 +389,12 @@ impl Manager {
             }
             self.note(self.runtime.remove(&record.container_name).await)?;
         }
-        self.store.ensure_data_dir(&id, self.config.data_owner_ids())?;
+        self.store.ensure_data_dir(&id, self.data_owner(&id)?)?;
         record.generation += 1;
         if epoch.is_some() && epoch != record.epoch {
+            if let Some(held) = self.store_leases.lock().unwrap().remove(&id) {
+                held.expire();
+            }
             // Placed here anew: whatever superseded the old copy is older than this placement.
             record.epoch = epoch;
             record.superseded_by = None;
@@ -370,6 +418,7 @@ impl Manager {
             self.save_suspension(&id, SuspendRecord { resumes_on, ..SuspendRecord::default() }).await?;
         }
         if was_running {
+            self.require_store_lease(&record)?;
             self.note(self.runtime.start(&record.container_name).await).map_err(|e| port_clash(&id, e))?;
         }
         self.clear_resolved_issues(&id);
@@ -378,7 +427,7 @@ impl Manager {
     }
 }
 
-/// Whether the container runs with exactly these secret values. blocklyd keeps no copy of
+/// Whether the container runs with exactly these secret values. pryxd keeps no copy of
 /// secrets, so the container's own environment is what a new spec is compared against.
 fn secrets_match(info: &ContainerInfo, spec: &WorkloadSpec) -> bool {
     spec.secrets.iter().all(|(k, v)| info.env.get(k).map(String::as_str) == Some(v.expose()))

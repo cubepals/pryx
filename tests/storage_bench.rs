@@ -2,16 +2,16 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! What a world's data costs to snapshot, archive and restore on this host's disk: the work a
+//! What a data's data costs to snapshot, archive and restore on this host's disk: the work a
 //! backup, a move and a restore do, without Docker or the network. Ignored by default:
 //!
 //!     cargo test --release --test storage_bench -- --ignored --nocapture
 //!
 //! BENCH_DIR (default: the system temp dir) picks the filesystem; BENCH_WORLD_MB (default 1024)
-//! the world's size. The world is shaped like a Minecraft one: region files of about 1 MB of
+//! the data's size. The data is shaped like a Minecraft one: region files of about 1 MB of
 //! incompressible bytes (chunks are compressed already), and a few thousand small files.
 //!
-//! Last, a server's boot beside exports that keep every CPU busy: once at the exports' own
+//! Last, a sandbox's boot beside exports that keep every CPU busy: once at the exports' own
 //! priority, as a transfer ran before it yielded, and once with the exports at idle priority
 //! (`priority::Idle`), as they run now. Where the process may not raise a thread's nice value
 //! back (no `CAP_SYS_NICE`), the exports keep their CPU priority and the two come out alike.
@@ -57,7 +57,7 @@ fn world(root: &Path, megabytes: usize) {
     fs::write(root.join("libraries/server.jar"), noise(50 * 1024 * 1024)).unwrap();
 }
 
-/// What a server's boot asks of the node, without Docker: it reads its jar and its players'
+/// What a sandbox's boot asks of the node, without Docker: it reads its jar and its players'
 /// files and works through every byte. The seconds it took.
 fn boot(root: &Path) -> f64 {
     let mut files = vec![root.join("libraries/server.jar")];
@@ -86,7 +86,7 @@ fn boot_beside_exports(data: &Path, spools: &Path, level: bool) -> f64 {
                 while !done.load(Ordering::Relaxed) {
                     let spool = spools.join(format!("{export}-{round}.tar.gz"));
                     let mut first = round == 0;
-                    let _ = blocklyd::tarball::pack(data, &spool, &[], &mut |_| {
+                    let _ = pryxd::tarball::pack(data, &spool, &[], &mut |_| {
                         if std::mem::take(&mut first) {
                             started.fetch_add(1, Ordering::Relaxed);
                         }
@@ -101,7 +101,7 @@ fn boot_beside_exports(data: &Path, spools: &Path, level: bool) -> f64 {
             std::thread::yield_now();
         }
         let took = {
-            let _idle = level.then(blocklyd::priority::Idle::enter);
+            let _idle = level.then(pryxd::priority::Idle::enter);
             boot(data)
         };
         done.store(true, Ordering::Relaxed);
@@ -110,11 +110,11 @@ fn boot_beside_exports(data: &Path, spools: &Path, level: bool) -> f64 {
 }
 
 fn used(path: &Path) -> u64 {
-    blocklyd::tree::disk_usage(path).unwrap_or(0)
+    pryxd::tree::disk_usage(path).unwrap_or(0)
 }
 
 fn free(path: &Path) -> u64 {
-    blocklyd::host::disk(path).map_or(0, |(_, available)| available)
+    pryxd::host::disk(path).map_or(0, |(_, available)| available)
 }
 
 #[test]
@@ -129,11 +129,11 @@ fn snapshot_archive_and_restore_costs() {
     let me = (rustix::process::getuid().as_raw(), rustix::process::getgid().as_raw());
     let mb = |bytes: u64| bytes as f64 / (1024.0 * 1024.0);
     let rate = |bytes: u64, secs: f64| mb(bytes) / secs;
-    println!("world: {:.0} MB on disk, reflink: {}", mb(used(&data)), blocklyd::tree::reflink_supported(dir.path()));
+    println!("world: {:.0} MB on disk, reflink: {}", mb(used(&data)), pryxd::tree::reflink_supported(dir.path()));
 
     let before = free(dir.path());
     let started = Instant::now();
-    let copied = blocklyd::tree::copy_tree(&data, &dir.path().join("snapshot"), None, &[], &mut |_| Ok(())).unwrap();
+    let copied = pryxd::tree::copy_tree(&data, &dir.path().join("snapshot"), None, &[], &mut |_| Ok(())).unwrap();
     let took = started.elapsed().as_secs_f64();
     println!(
         "snapshot: {:.2} s ({:.0} MB/s), method {}, {} files, disk taken {:.0} MB",
@@ -146,7 +146,7 @@ fn snapshot_archive_and_restore_costs() {
 
     let started = Instant::now();
     let packed =
-        blocklyd::tarball::pack(&dir.path().join("snapshot"), &dir.path().join("all.tar.gz"), &[], &mut |_| Ok(()))
+        pryxd::tarball::pack(&dir.path().join("snapshot"), &dir.path().join("all.tar.gz"), &[], &mut |_| Ok(()))
             .unwrap();
     let took = started.elapsed().as_secs_f64();
     println!(
@@ -159,26 +159,22 @@ fn snapshot_archive_and_restore_costs() {
 
     let started = Instant::now();
     let moved =
-        blocklyd::tarball::pack(&data, &dir.path().join("move.tar.gz"), &["libraries".to_owned()], &mut |_| Ok(()))
+        pryxd::tarball::pack(&data, &dir.path().join("move.tar.gz"), &["libraries".to_owned()], &mut |_| Ok(()))
             .unwrap();
     let took = started.elapsed().as_secs_f64();
     println!("archive (a move, without libraries/): {:.2} s, {:.0} MB out", took, mb(moved.size_bytes));
 
     let started = Instant::now();
     let unpacked =
-        blocklyd::tarball::unpack(&dir.path().join("all.tar.gz"), &dir.path().join("restored"), me, &mut |_| Ok(()))
+        pryxd::tarball::unpack(&dir.path().join("all.tar.gz"), &dir.path().join("restored"), me, &mut |_| Ok(()))
             .unwrap();
     let took = started.elapsed().as_secs_f64();
     println!("restore from an archive: {:.2} s ({:.0} MB/s out)", took, rate(unpacked.bytes, took));
 
     let started = Instant::now();
-    blocklyd::tree::copy_tree(
-        &dir.path().join("snapshot"),
-        &dir.path().join("from-snapshot"),
-        Some(me),
-        &[],
-        &mut |_| Ok(()),
-    )
+    pryxd::tree::copy_tree(&dir.path().join("snapshot"), &dir.path().join("from-snapshot"), Some(me), &[], &mut |_| {
+        Ok(())
+    })
     .unwrap();
     let took = started.elapsed().as_secs_f64();
     println!("restore from a snapshot on the node: {:.2} s", took);

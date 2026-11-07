@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! Whether the game port range is free on the addresses blocklyd publishes on, and whether its
+//! Whether the public port range is free on the addresses pryxd publishes on, and whether its
 //! listeners stay off public addresses.
 
 use std::collections::HashSet;
@@ -21,7 +21,7 @@ pub(crate) fn ports(config: &Config, held: &HashSet<(Proto, u16)>) -> Check {
     verdict(config.network.port_range, &addresses, held, bind_probe(addresses.clone()))
 }
 
-/// Ports blocklyd's own workloads hold are counted as free: they are where they should be.
+/// Ports pryxd's own workloads hold are counted as free: they are where they should be.
 fn verdict(range: [u16; 2], addresses: &[IpAddr], held: &HashSet<(Proto, u16)>, probe: Probe) -> Check {
     let [low, high] = range;
     let total = usize::from(high - low) + 1;
@@ -41,7 +41,7 @@ fn verdict(range: [u16; 2], addresses: &[IpAddr], held: &HashSet<(Proto, u16)>, 
         n => Check::warn(
             "ports",
             format!(
-                "{n} of {total} ports in {low}-{high} are taken by something else (first {}); blocklyd skips them",
+                "{n} of {total} ports in {low}-{high} are taken by something else (first {}); pryxd skips them",
                 busy[0]
             ),
             format!(
@@ -104,7 +104,7 @@ mod tests {
         assert!(check.detail.starts_with("1 of 10 ports"), "{}", check.detail);
 
         let ours = HashSet::from([(Proto::Tcp, 42003)]);
-        assert_eq!(verdict([42000, 42009], &ips(), &ours, one_taken).status, Status::Pass, "blocklyd's own server");
+        assert_eq!(verdict([42000, 42009], &ips(), &ours, one_taken).status, Status::Pass, "pryxd's own server");
 
         let none: Probe = Arc::new(|_, _| false);
         let check = verdict([42000, 42009], &ips(), &HashSet::new(), none);

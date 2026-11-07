@@ -35,6 +35,7 @@ impl IntoResponse for NodeError {
                 (StatusCode::UNPROCESSABLE_ENTITY, INVALID_REQUEST, Some(serde_json::json!({ "fields": errors })))
             }
             Self::NotFound(_) => (StatusCode::NOT_FOUND, "not_found", None),
+            Self::FileNotFound => (StatusCode::NOT_FOUND, "file_not_found", None),
             Self::SnapshotNotFound(_) => (StatusCode::NOT_FOUND, "snapshot_not_found", None),
             Self::PreconditionFailed { current } => (
                 StatusCode::PRECONDITION_FAILED,

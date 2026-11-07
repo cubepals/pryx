@@ -15,7 +15,7 @@
 //!   errors, and its own requests to the control plane.
 //!
 //! Only tests derive the schemas, so none of this reaches the binary. A test fails when a committed
-//! document is not what the types say; `BLOCKLYD_WRITE_SCHEMA=1 cargo test --lib protocol::schema`
+//! document is not what the types say; `PRYXD_WRITE_SCHEMA=1 cargo test --lib protocol::schema`
 //! writes them again. The documents don't describe the API's paths: those are in docs/protocol.md.
 
 use std::path::Path;
@@ -36,19 +36,23 @@ macro_rules! schemas {
 }
 
 fn node_reads() -> Value {
-    document("blocklyd: what a node reads", Contract::Deserialize, |g| {
+    let mut result = document("pryxd: what a node reads", Contract::Deserialize, |g| {
         schemas!(g;
-            WorkloadSpec, StopRequest, FenceRequest, ExecRequest, ExportRequest, RestoreRequest, SnapshotRequest,
+            AgentTokenRequest, StoreLeaseGrant, StoreLeaseObject, WorkloadSpec, StopRequest, FenceRequest, ExecRequest, ExportRequest, RestoreRequest, SnapshotRequest,
             UploadRequest, EnrollResponse, HeartbeatResponse, RenewResponse,
         );
-    })
+    });
+    result["components"]["schemas"]["StoreLeaseGrant"]["properties"]["seconds"]["minimum"] =
+        json!(MIN_STORE_LEASE_SECONDS);
+    result["components"]["schemas"]["StoreLeaseGrant"]["x-renew-margin-seconds"] = json!(STORE_LEASE_MARGIN_SECONDS);
+    result
 }
 
 fn node_writes() -> Value {
-    document("blocklyd: what a node writes", Contract::Serialize, |g| {
+    document("pryxd: what a node writes", Contract::Serialize, |g| {
         schemas!(g;
-            WorkloadView, ListResponse, StatsView, LogRecord, EnsureResponse, PowerResponse, FenceResponse,
-            DeleteResponse, ExecResponse, ExportResponse, RestoreResponse, SnapshotResponse, SnapshotList,
+            pryx_agent::auth::Claims, AgentTokenResponse, FileList, FileInfo, StoreLeaseIdentity, WorkloadView, ListResponse, StatsView, LogRecord, EnsureResponse, PowerResponse, FenceResponse,
+            DeleteResponse, ExecResponse, ExecEvent, ExportResponse, RestoreResponse, SnapshotResponse, SnapshotList,
             SnapshotDeleteResponse, NodeHealth, NodeStatus, ErrorBody, EnrollRequest, HeartbeatRequest, RenewRequest,
         );
     })
@@ -70,6 +74,25 @@ fn document(title: &str, contract: Contract, add: impl FnOnce(&mut SchemaGenerat
         "info": { "title": title, "version": PROTOCOL_VERSION.to_string() },
         "paths": {},
         "components": { "schemas": generator.take_definitions(true) },
+        "x-pryx-resources": {
+            "minCpuMillis": crate::protocol::MIN_CPU_MILLIS,
+            "defaultMinMemoryMb": crate::protocol::DEFAULT_MIN_MEMORY_MB,
+            "cpuLimitProblem": crate::protocol::CPU_LIMIT_PROBLEM
+        },
+        "x-pryx-network": {"defaultPortRange": crate::protocol::DEFAULT_PORT_RANGE},
+        "x-pryx-wasm": {"imageProblem": crate::protocol::WASM_IMAGE_PROBLEM, "portProblem": crate::protocol::WASM_PORT_PROBLEM, "maxPackages": crate::protocol::MAX_WASM_PACKAGES, "packageNamePattern": crate::protocol::PACKAGE_NAME_PATTERN},
+        "x-pryx-process": {"imageProblem": crate::protocol::PROCESS_IMAGE_PROBLEM},
+        "x-pryx-agent": {
+            "fileTokenLifetimeSeconds": pryx_agent::auth::FILE_TOKEN_LIFETIME_SECONDS,
+            "captureBytes": pryx_agent::contract::CAPTURE_BYTES,
+            "maxRequestBytes": pryx_agent::contract::MAX_REQUEST_BYTES,
+            "defaultBinary": pryx_agent::contract::DEFAULT_BINARY,
+            "tokenPrefix": pryx_agent::auth::TOKEN_PREFIX,
+            "tokenLifetimeSeconds": pryx_agent::auth::TOKEN_LIFETIME_SECONDS,
+            "tokenClockSkewSeconds": pryx_agent::auth::TOKEN_CLOCK_SKEW_SECONDS,
+            "maxTokenBytes": pryx_agent::auth::MAX_TOKEN_BYTES,
+            "forwardHeader": pryx_agent::contract::FORWARD_HEADER,
+        },
     });
     document.sort_all_objects();
     document
@@ -90,14 +113,14 @@ fn the_committed_documents_are_what_the_wire_types_say() {
     for (name, document) in [("node-reads.openapi.json", node_reads()), ("node-writes.openapi.json", node_writes())] {
         let path = Path::new(OPENAPI).join(name);
         let generated = canonical(&document);
-        if std::env::var_os("BLOCKLYD_WRITE_SCHEMA").is_some() {
+        if std::env::var_os("PRYXD_WRITE_SCHEMA").or_else(|| std::env::var_os("BLOCKLYD_WRITE_SCHEMA")).is_some() {
             std::fs::write(&path, &generated).expect("writes the document");
             continue;
         }
         let committed = std::fs::read_to_string(&path).unwrap_or_default();
         assert!(
             committed == generated,
-            "{} is not what the wire types say: run `BLOCKLYD_WRITE_SCHEMA=1 cargo test --lib protocol::schema` \
+            "{} is not what the wire types say: run `PRYXD_WRITE_SCHEMA=1 cargo test --lib protocol::schema` \
              and commit openapi/",
             path.display()
         );

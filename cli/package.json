@@ -1,0 +1,16 @@
+{
+  "name": "@pryx/cli",
+  "private": true,
+  "type": "module",
+  "license": "FSL-1.1-ALv2",
+  "scripts": {
+    "start": "bun src/main.ts",
+    "build": "bun build --compile src/main.ts --outfile ../dist/pryx"
+  },
+  "dependencies": {
+    "@cubepals/pryx": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "zod": "4.4.3",
+    "zod-to-json-schema": "3.25.1"
+  }
+}

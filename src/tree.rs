@@ -4,8 +4,8 @@
 
 //! Walking a directory a workload can write to, without being led anywhere else.
 //!
-//! A server's data directory belongs to whatever runs in its container: plugins and mods can
-//! create, rename and replace anything in it, while blocklyd reads it as root. A walk by path
+//! A sandbox's data directory belongs to whatever runs in its container: plugins and mods can
+//! create, rename and replace anything in it, while pryxd reads it as root. A walk by path
 //! follows a directory that was swapped for a symlink between looking and opening, and would read
 //! the host's files (this node's key, say) into a backup its owner can download. So every step
 //! here is taken relative to a directory already open, with `O_NOFOLLOW`:
@@ -20,6 +20,9 @@
 //! `copy_tree` uses it for local snapshots, sharing blocks with the source (`FICLONE`) where the
 //! filesystem can, and `tarball::pack` for archives. `disk_usage` measures a tree by the same
 //! rules, opening only its directories.
+//!
+//! Parts (`tree/`):
+//! - `path.rs`: descriptor-relative single-file operations for node and agent.
 
 use std::ffi::{CString, OsStr};
 use std::fs::{self, File, OpenOptions};
@@ -34,13 +37,13 @@ use rustix::io::Errno;
 
 pub use crate::protocol::Method;
 
-/// Directories deeper than this are refused rather than walked: no world nests like that, and
+/// Directories deeper than this are refused rather than walked: the descriptor count must be bounded, and
 /// the walk holds a descriptor per level.
 pub(crate) const MAX_DEPTH: usize = 128;
-/// Entries a walk visits before it gives up: worlds hold thousands.
+/// Entries a walk visits before it gives up: data sets hold thousands.
 pub(crate) const MAX_ENTRIES: u64 = 2_000_000;
 /// Bytes a tree may come to: what a restore unpacks at most (`tarball::MAX_UNPACKED_BYTES`), and
-/// what `copy_tree` and `tarball::pack` take, by the sizes the files state. A world is a few GB.
+/// what `copy_tree` and `tarball::pack` take, by the sizes the files state. A data set may be several GB.
 /// A sparse file states any size with no blocks behind it, which `disk_usage` doesn't see, and
 /// its holes come out as bytes.
 pub(crate) const MAX_BYTES: u64 = 256 * 1024 * 1024 * 1024;
@@ -609,7 +612,7 @@ mod tests {
 
     #[test]
     fn a_directory_swapped_for_a_link_mid_walk_is_never_followed() {
-        // What a plugin can do while the server runs: swap a directory it owns for a link to the
+        // What a plugin can do while the sandbox runs: swap a directory it owns for a link to the
         // host, over and over, hoping a walk looks before the swap and opens after it.
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().join("data");

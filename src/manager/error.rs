@@ -22,6 +22,8 @@ pub enum NodeError {
     NotFound(WorkloadId),
     #[error("no snapshot {0} of this workload on this node")]
     SnapshotNotFound(String),
+    #[error("no such data file")]
+    FileNotFound,
     #[error("the workload's current spec is not the one the request expected")]
     PreconditionFailed { current: Option<String> },
     #[error("{message}")]
@@ -44,7 +46,7 @@ pub enum NodeError {
     Runtime(#[source] RuntimeError),
     #[error("{0}")]
     Internal(String),
-    /// blocklyd's own failure, at `what`: answered as `Internal` is.
+    /// pryxd's own failure, at `what`: answered as `Internal` is.
     #[error("{what}: {source}")]
     Io { what: String, source: std::io::Error },
     /// The state directory's: answered as `Internal` is.
@@ -81,9 +83,11 @@ pub enum ConflictCode {
     NotCreated,
     NotQuiesced,
     NotRunning,
+    ExecBusy,
     NotStopped,
     PortConflict,
     SnapshotBusy,
+    StoreLeaseRequired,
 }
 
 impl ConflictCode {
@@ -95,8 +99,10 @@ impl ConflictCode {
             Self::NotCreated => "not_created",
             Self::NotQuiesced => "not_quiesced",
             Self::NotRunning => "not_running",
+            Self::ExecBusy => "exec_busy",
             Self::NotStopped => "not_stopped",
             Self::PortConflict => "port_conflict",
+            Self::StoreLeaseRequired => "store_lease_required",
             Self::SnapshotBusy => "snapshot_busy",
         }
     }

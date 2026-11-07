@@ -17,16 +17,91 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU16, Ordering};
 use std::time::{Duration, Instant};
 
-use blocklyd::config::DockerConfig;
-use blocklyd::labels::LABEL_DEPLOYMENT;
-use blocklyd::manager::{ConflictCode, Manager, NodeError, Precondition, Records};
-use blocklyd::protocol::{DataDisposition, EnsureOutcome, ExecRequest, WorkloadSpec, WorkloadState};
-use blocklyd::runtime::ContainerRuntime;
-use blocklyd::runtime::docker::DockerRuntime;
+use pryxd::config::DockerConfig;
+use pryxd::labels::LABEL_DEPLOYMENT;
+use pryxd::manager::{ConflictCode, Manager, NodeError, Precondition, Records};
+use pryxd::protocol::{DataDisposition, EnsureOutcome, ExecRequest, WorkloadSpec, WorkloadState};
+use pryxd::runtime::ContainerRuntime;
+use pryxd::runtime::docker::DockerRuntime;
 use support::{id, manager_on, manager_probed};
 
 fn docker() -> Arc<dyn ContainerRuntime> {
     Arc::new(DockerRuntime::new(&DockerConfig::default().socket).unwrap())
+}
+
+#[tokio::test]
+#[ignore = "needs Docker"]
+async fn a_lost_start_response_is_confirmed_without_repeating_the_mutation() {
+    use axum::body::Body;
+    use axum::extract::{Request, State};
+    use axum::http::StatusCode;
+    use axum::{Router, routing::any};
+    use std::sync::atomic::AtomicUsize;
+    use tokio::net::{UnixListener, UnixStream};
+    use tokio::sync::Notify;
+
+    #[derive(Clone)]
+    struct Proxy {
+        socket: std::path::PathBuf,
+        starts: Arc<AtomicUsize>,
+        release: Arc<Notify>,
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let socket = dir.path().join("docker.sock");
+    let listener = UnixListener::bind(&socket).unwrap();
+    let starts = Arc::new(AtomicUsize::new(0));
+    let release = Arc::new(Notify::new());
+    let proxy = Proxy { socket: DockerConfig::default().socket, starts: starts.clone(), release: release.clone() };
+    let app = Router::new()
+        .fallback(any(|State(p): State<Proxy>, request: Request| async move {
+            let path = request.uri().path_and_query().unwrap().as_str().to_owned();
+            let is_start = request.method() == axum::http::Method::POST
+                && path.contains("/containers/")
+                && path.ends_with("/start");
+            let stream = UnixStream::connect(&p.socket).await.map_err(|_| StatusCode::BAD_GATEWAY)?;
+            let (mut sender, connection) = hyper::client::conn::http1::handshake(hyper_util::rt::TokioIo::new(stream))
+                .await
+                .map_err(|_| StatusCode::BAD_GATEWAY)?;
+            tokio::spawn(async move {
+                let _ = connection.await;
+            });
+            let response = sender.send_request(request).await.map_err(|_| StatusCode::BAD_GATEWAY)?;
+            let status = response.status();
+            if is_start {
+                p.starts.fetch_add(1, Ordering::SeqCst);
+                assert!(status.is_success(), "the real Docker accepted start");
+                p.release.notified().await;
+            }
+            Ok::<_, StatusCode>(response.map(Body::new))
+        }))
+        .with_state(proxy);
+    let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let dep = deployment();
+    let _cleanup = Cleanup(dep.clone());
+    let backend = bollard::Docker::connect_with_unix(
+        DockerConfig::default().socket.to_str().unwrap(),
+        60,
+        bollard::API_DEFAULT_VERSION,
+    )
+    .unwrap();
+    let name = format!("lost-start-{dep}");
+    let runtime = DockerRuntime::new(&socket).unwrap();
+    let image = "alpine:3.22";
+    runtime.ensure_image(image, Duration::from_secs(120)).await.unwrap();
+    let options = bollard::query_parameters::CreateContainerOptionsBuilder::new().name(&name).build();
+    let container = bollard::models::ContainerCreateBody {
+        image: Some(image.into()),
+        cmd: Some(vec!["sleep".into(), "300".into()]),
+        labels: Some([(LABEL_DEPLOYMENT.to_owned(), dep.clone())].into_iter().collect()),
+        ..Default::default()
+    };
+    backend.create_container(Some(options), container).await.unwrap();
+    let started = runtime.start(&name).await;
+    release.notify_waiters();
+    assert_eq!(starts.load(Ordering::SeqCst), 1, "a timed-out mutation is never repeated");
+    assert_eq!(backend.inspect_container(&name, None).await.unwrap().state.unwrap().running, Some(true));
+    started.unwrap();
+    server.abort();
 }
 
 /// A test's own deployment id, which carries its port slot for `extra`. Slots are handed out in
@@ -55,7 +130,7 @@ impl Drop for Cleanup {
 
 /// Each test is a separate daemon on one Docker host, so each gets its own ports: two allocators
 /// over one range collide, and Docker only says so at start ("port is already allocated"). That
-/// is the reason there is one blocklyd per host; these tests found it by accident first.
+/// is the reason there is one pryxd per host; these tests found it by accident first.
 /// As on a host: each workload's data belongs to the workloads' user (the fixture otherwise gives
 /// it to the test's own).
 const HOST_OWNERSHIP: &str = "[workloads]\ndata_owner = \"1000:1000\"\n";
@@ -70,9 +145,9 @@ fn extra(deployment: &str) -> String {
 }
 
 fn daemon(dir: &std::path::Path, dep: &str) -> Arc<Manager> {
-    let probe = blocklyd::ports::bind_probe(vec!["127.0.0.1".parse().unwrap()]);
+    let probe = pryxd::ports::bind_probe(vec!["127.0.0.1".parse().unwrap()]);
     let manager = manager_probed(dir, docker(), &extra(dep), probe);
-    // As `serve` does: blocklyd, not Docker, applies restart policies.
+    // As `serve` does: pryxd, not Docker, applies restart policies.
     tokio::spawn(manager.clone().restart_supervisor(tokio_util::sync::CancellationToken::new()));
     manager
 }
@@ -82,10 +157,10 @@ fn shell(script: &str, memory_mb: u32) -> WorkloadSpec {
     serde_json::from_value(serde_json::json!({
         "image": "alpine:3.22",
         "entrypoint": ["/bin/sh", "-c", script],
-        "secrets": { "RCON_PASSWORD": "docker-test-secret" },
+        "secrets": { "APP_TOKEN": "docker-test-secret" },
         "resources": { "memoryMb": memory_mb, "cpuMillis": 500 },
         "storage": { "mountPath": "/data", "sizeGb": 1 },
-        "ports": [{ "name": "game", "containerPort": blocklyd::minecraft::GAME_PORT, "audience": ["edge", "control"] }],
+        "ports": [{ "name": "http", "containerPort": pryxd::examples::HTTP_PORT, "audience": ["edge", "control"] }],
         "stop": { "timeoutSeconds": 10 },
         "restart": { "policy": "on-failure", "maxRetries": 2 }
     }))
@@ -95,12 +170,7 @@ fn shell(script: &str, memory_mb: u32) -> WorkloadSpec {
 const SERVER: &str = "trap 'echo saving; echo saved > /data/saved; exit 0' TERM; echo booting; \
      while true; do sleep 0.2; done";
 
-async fn eventually(
-    manager: &Arc<Manager>,
-    id: &str,
-    what: &str,
-    f: impl Fn(&blocklyd::protocol::WorkloadView) -> bool,
-) {
+async fn eventually(manager: &Arc<Manager>, id: &str, what: &str, f: impl Fn(&pryxd::protocol::WorkloadView) -> bool) {
     let deadline = Instant::now() + Duration::from_secs(30);
     loop {
         manager.stats(&support::id(id)).await.ok();
@@ -249,18 +319,20 @@ async fn an_exec_past_its_timeout_is_killed_inside_the_container() {
     m.reconcile(Records::FromDisk).await;
     m.ensure(id("e"), shell(SERVER, 256), Precondition::None, None).await.unwrap();
     m.start(id("e"), None).await.unwrap();
-    let started = Instant::now();
-    let out = m
-        .exec(
-            id("e"),
-            ExecRequest { command: vec!["sh".into(), "-c".into(), "sleep 60; echo never".into()], timeout_seconds: 2 },
-            None,
-            None,
-        )
-        .await
-        .unwrap();
-    assert!(out.timed_out && out.killed, "{out:?}");
-    assert!(started.elapsed() < Duration::from_secs(6));
+    for command in ["sleep 60; echo never", "exec 1>&- 2>&-; sleep 60; echo never"] {
+        let started = Instant::now();
+        let out = m
+            .exec(
+                id("e"),
+                ExecRequest { command: vec!["sh".into(), "-c".into(), command.into()], timeout_seconds: 2 },
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        assert!(out.timed_out && out.killed, "{out:?}");
+        assert!(started.elapsed() < Duration::from_secs(6));
+    }
     let left = m
         .exec(
             id("e"),
@@ -303,14 +375,14 @@ async fn a_short_exec_timeout_kills_the_exec_and_leaves_the_workload_running() {
     cleanup(&m, &["s"]).await;
 }
 
-/// Like a Minecraft server: it holds its world in memory (64 MB in its tmpfs, counted against its
+/// Like a Minecraft sandbox: it holds its data in memory (64 MB in its tmpfs, counted against its
 /// limit), and answers on the game port with a token it drew when it booted.
 fn memory_server() -> String {
     format!(
         "head -c {WORLD_BYTES} /dev/zero > /tmp/heap; \
          head -c 8 /dev/urandom | od -An -tx1 | tr -d ' \\n' > /tmp/token; \
          nc -lk -p {} -e cat /tmp/token & trap 'exit 0' TERM; while true; do sleep 0.2; done",
-        blocklyd::minecraft::GAME_PORT
+        pryxd::examples::HTTP_PORT
     )
 }
 
@@ -454,7 +526,7 @@ async fn a_port_another_process_holds_is_skipped() {
     // A port the kernel hands out: a fixed one can already be some outbound connection's.
     let squatter = TcpListener::bind("127.0.0.1:0").unwrap();
     let held = squatter.local_addr().unwrap().port();
-    let probe = blocklyd::ports::bind_probe(vec!["127.0.0.1".parse().unwrap()]);
+    let probe = pryxd::ports::bind_probe(vec!["127.0.0.1".parse().unwrap()]);
     let text = format!(
         "deployment_id = \"{dep}\"\n[network]\nport_range = [{held}, {}]\nport_quarantine_seconds = 0\n{HOST_OWNERSHIP}",
         held + 10
@@ -522,7 +594,7 @@ async fn with_docker_gone_the_daemon_answers_and_says_why() {
     assert!(started.elapsed() < Duration::from_secs(2), "fails fast, doesn't hang");
 }
 
-/// The host's address on its default route: where a node publishes its servers, and an address the
+/// The host's address on its default route: where a node publishes its sandboxes, and an address the
 /// workloads' bridge reaches, as it doesn't loopback.
 fn host_address() -> std::net::IpAddr {
     let socket = std::net::UdpSocket::bind("0.0.0.0:0").unwrap();
@@ -546,7 +618,7 @@ async fn isolation_keeps_a_workload_off_another_s_published_port() {
     let dir = tempfile::tempdir().unwrap();
     let dep = deployment();
     let _cleanup = Cleanup(dep.clone());
-    let (host, network, table) = (host_address(), format!("blockly-{dep}"), format!("blocklyd_{dep}"));
+    let (host, network, table) = (host_address(), format!("blockly-{dep}"), format!("pryxd_{dep}"));
     let _rules = Rules(table.clone());
     let low = 44000 + dep[1..4].parse::<u16>().unwrap() * 10;
     let text = format!(
@@ -554,9 +626,9 @@ async fn isolation_keeps_a_workload_off_another_s_published_port() {
          port_quarantine_seconds = 0\nedge_ips = [\"{host}\"]\ncontrol_ips = [\"{host}\"]\n{HOST_OWNERSHIP}",
         low + 9
     );
-    let m = manager_probed(dir.path(), docker(), &text, blocklyd::ports::bind_probe(vec![host]));
+    let m = manager_probed(dir.path(), docker(), &text, pryxd::ports::bind_probe(vec![host]));
     assert!(m.reconcile(Records::FromDisk).await.error.is_none());
-    let game = blocklyd::minecraft::GAME_PORT;
+    let game = pryxd::examples::HTTP_PORT;
     let listener = format!("nc -lk -p {game} -e echo server-answered & while true; do sleep 1; done");
     m.ensure(id("server"), shell(&listener, 128), Precondition::None, None).await.unwrap();
     m.ensure(id("neighbour"), shell(SERVER, 128), Precondition::None, None).await.unwrap();
@@ -572,9 +644,9 @@ async fn isolation_keeps_a_workload_off_another_s_published_port() {
     assert!(before.stdout.contains("server-answered"), "without the rules, Docker's proxy hands it on: {before:?}");
 
     let bridge = DockerRuntime::new(&DockerConfig::default().socket).unwrap().bridge_of(&network).await.unwrap();
-    assert_eq!(bridge.as_deref(), Some(blocklyd::runtime::docker::bridge_name(&network).as_str()));
-    let rules = blocklyd::isolation::ruleset(&table, &bridge.unwrap(), &(low..=low + 9), 7443);
-    blocklyd::isolation::apply(&rules).unwrap();
+    assert_eq!(bridge.as_deref(), Some(pryxd::runtime::docker::bridge_name(&network).as_str()));
+    let rules = pryxd::isolation::ruleset(&table, &bridge.unwrap(), &(low..=low + 9), 7443);
+    pryxd::isolation::apply(&rules).unwrap();
     let after = from_neighbour().await.unwrap();
     assert!(!after.stdout.contains("server-answered"), "with them, the neighbour gets nothing: {after:?}");
 

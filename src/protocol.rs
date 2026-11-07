@@ -2,12 +2,12 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! Protocol v1: what the control plane sends and what blocklyd answers.
+//! Protocol v1: what the control plane sends and what pryxd answers.
 //!
 //! The vocabulary is workloads, not containers. A workload is a spec (image, environment,
-//! resources, storage, ports, stop) blocklyd keeps running or stopped on this host. Nothing
-//! here names Docker, so blocklyd could move to containerd or microVMs under the same
-//! protocol. It mirrors Blockly's `RuntimeSpec` (apps/control/src/app/ports/runtime.ts) closely
+//! resources, storage, ports, stop) pryxd keeps running or stopped on this host. Nothing
+//! here names Docker, so pryxd could move to containerd or microVMs under the same
+//! protocol. It mirrors the control plane's `RuntimeSpec` (apps/control/src/app/ports/runtime.ts) closely
 //! on purpose: an `infra/fleet` adapter would translate field for field.
 //!
 //! Requests are strict (`deny_unknown_fields`): a node daemon that silently ignored a field a newer
@@ -16,11 +16,13 @@
 //! `NodeHealth::features` before anyone sends them.
 //!
 //! Parts (`protocol/`):
-//! - `spec.rs`: what a workload is, as the control plane sends it and as blocklyd keeps it.
-//! - `workload.rs`: what blocklyd reports about one workload: its view, stats and log lines.
+//! - `spec.rs`: what a workload is, as the control plane sends it and as pryxd keeps it.
+//! - `workload.rs`: what pryxd reports about one workload: its view, stats and log lines.
 //! - `lifecycle.rs`: the verbs that create, start, suspend, stop, fence and delete a workload.
 //! - `transfer.rs`: moving a workload's data: export, restore, snapshots and their upload.
+//! - `store_lease.rs`: optional ephemeral store authority and its versioned object.
 //! - `exec.rs`: running one command inside a workload.
+//! - `agent.rs`: optional agent bootstrap, tokens and file metadata.
 //! - `node.rs`: what the node reports about itself.
 //! - `wire.rs`: what a node and its control plane send each other: enrollment, heartbeats, renewal.
 //! - `schema.rs`: tests only; these types as the OpenAPI documents the control plane's TypeScript
@@ -28,25 +30,35 @@
 
 use serde::{Deserialize, Serialize};
 
+mod agent;
 mod exec;
 mod lifecycle;
 mod node;
 #[cfg(test)]
 mod schema;
 mod spec;
+mod store_lease;
 mod transfer;
 pub mod wire;
 mod workload;
 
+pub use agent::*;
 pub use exec::*;
 pub use lifecycle::*;
 pub use node::*;
 pub use spec::*;
+pub(crate) use store_lease::*;
 pub use transfer::*;
 pub use workload::*;
 
 pub(crate) const PROTOCOL_VERSION: u32 = 1;
-/// Every protocol version this blocklyd speaks, PROTOCOL_VERSION among them.
+/// The existing minimum requested CPU rate, shared by all runtime policies.
+pub const MIN_CPU_MILLIS: u32 = 100;
+/// Default host memory floor; the operator may configure a different policy.
+pub const DEFAULT_MIN_MEMORY_MB: u32 = 256;
+/// Default inclusive host listener pool, also used for legacy image configurations.
+pub const DEFAULT_PORT_RANGE: [u16; 2] = [42000, 42999];
+/// Every protocol version this pryxd speaks, PROTOCOL_VERSION among them.
 pub(crate) const SUPPORTED_VERSIONS: &[u32] = &[1];
 /// Sent on every response so a client can tell which protocol answered.
 pub(crate) const PROTOCOL_HEADER: &str = "blocklyd-protocol";
@@ -72,6 +84,9 @@ pub(crate) const FEATURES: &[&str] = &[
     "self-upgrade",
     "suspend",
     "signed-upgrade",
+    "exec-stream",
+    "files",
+    "cpu-reservation",
 ];
 
 impl ProtocolVersions {
@@ -86,12 +101,20 @@ pub fn features() -> Vec<String> {
     FEATURES.iter().map(|f| (*f).to_owned()).collect()
 }
 
+/// Process hosts share pryx's bundled userland rather than pulling workload images.
+pub const WASM_PORT_PROBLEM: &str = "this host runs the wasm tier; application ports require HTTP over TCP";
+pub const WASM_IMAGE_PROBLEM: &str = "this host runs the wasm tier; images are not available";
+pub const MAX_WASM_PACKAGES: usize = 32;
+pub const PACKAGE_NAME_PATTERN: &str = "^[a-z][a-z0-9-]{0,63}$";
+pub const PROCESS_IMAGE_PROBLEM: &str = "this host runs the process tier; images are not available";
+pub const CPU_LIMIT_PROBLEM: &str = "CPU ceilings and weights require container isolation";
+
 /// The placement epoch a mutating request acts for: a fencing token the control plane issues,
 /// bumped each time a workload is placed anew (moved, recovered, or brought back). A node refuses
 /// a request older than the copy it holds, so a delayed or stale caller can't act on it.
 pub(crate) const EPOCH_HEADER: &str = "blocklyd-epoch";
 
-/// Label keys blocklyd writes itself; a spec may not set anything under this prefix, so a
+/// Label keys pryxd writes itself; a spec may not set anything under this prefix, so a
 /// request can never forge ownership of a container.
 pub(crate) const RESERVED_LABEL_PREFIX: &str = "blocklyd.";
 

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
 //! The priority a thread doing a transfer works at: the lowest CPU priority (nice 19) and the idle
-//! I/O class, so a server booting on the node gets the CPU and the disk first and a snapshot,
+//! I/O class, so a sandbox booting on the node gets the CPU and the disk first and a snapshot,
 //! export or restore beside it takes what is left.
 //!
 //! [`Idle`] lowers the thread it is entered on and puts both back when it drops. The threads are

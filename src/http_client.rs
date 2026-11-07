@@ -132,7 +132,7 @@ fn config_with(
 }
 
 /// TLS to public endpoints (a presigned object-store URL): the system's CA bundle, loaded once it
-/// is found. Until then each transfer looks again, so a bundle installed after blocklyd started is
+/// is found. Until then each transfer looks again, so a bundle installed after pryxd started is
 /// used without a restart.
 pub(crate) fn public_tls() -> Result<Arc<rustls::ClientConfig>, String> {
     static CONFIG: std::sync::OnceLock<Arc<rustls::ClientConfig>> = std::sync::OnceLock::new();

@@ -2,38 +2,39 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! blocklyd upgrading itself to the blocklyd its control plane serves (`GET /fleet/v1/blocklyd`,
+//! pryxd upgrading itself to the pryxd its control plane serves (`GET /fleet/v1/blocklyd`,
 //! docs/fleet-operations.md §9): when a heartbeat's answer offers it, which the control plane does
-//! for one node of a region at a time, or at once with `blocklyd upgrade` (`cli/upgrade.rs`).
+//! for one node of a region at a time, or at once with `pryxd upgrade` (`cli/upgrade.rs`).
 //!
 //! ```text
-//! <state_dir>/bin/blocklyd          the binary systemd runs: /usr/local/bin/blocklyd links here
-//! <state_dir>/bin/blocklyd.prev     the one before it, kept to go back to
+//! <state_dir>/bin/pryxd          the binary systemd runs: /usr/local/bin/pryxd links here
+//! <state_dir>/bin/pryxd.prev     the one before it, kept to go back to
 //! <state_dir>/upgrade/trial.json    an upgrade that hasn't come up yet: from, to, sha256
 //! <state_dir>/upgrade/failed.json   the last upgrade given up on, which heartbeats report
 //! ```
 //!
 //! The binary lives under the state directory because the unit's `ProtectSystem=strict` leaves
-//! blocklyd nothing else to write, and the unit needs no new writable path for it. A
-//! `ReadWritePaths=` naming /usr/local/bin/blocklyd would bind-mount that one file, which a rename
+//! pryxd nothing else to write, and the unit needs no new writable path for it. A
+//! `ReadWritePaths=` naming /usr/local/bin/pryxd would bind-mount that one file, which a rename
 //! can't replace, and naming /usr/local/bin would open every binary there.
 //!
-//! 1. An offer is taken only if a blocklyd release key signed its version and sha256, and its
+//! 1. An offer is taken only if a pryxd release key signed its version and sha256, and its
 //!    version isn't older than this one (`trust.rs`). The binary is then downloaded over the node's
-//!    mutual TLS to `blocklyd.next`, and kept only if its sha256 is the one offered and it runs
+//!    mutual TLS to `pryxd.next`, and kept only if its sha256 is the one offered and it runs
 //!    here, saying it is the version offered.
-//! 2. The current binary is kept as `blocklyd.prev`, the trial is written down, and
-//!    `blocklyd.next` is renamed over `blocklyd`: one rename, so a crash leaves one or the other.
-//! 3. blocklyd exits cleanly and systemd (`Restart=always`) starts the new one. Servers keep
-//!    running: they are Docker's, not blocklyd's children.
+//! 2. The current binary is kept as `pryxd.prev`, the trial is written down, and
+//!    `pryxd.next` is renamed over `pryxd`: one rename, so a crash leaves one or the other.
+//! 3. pryxd exits cleanly and systemd (`Restart=always`) starts the new one. Sandboxes keep
+//!    running: they are Docker's, not pryxd's children.
 //! 4. The new one is on trial while `trial.json` names its version: it must reconcile and have a
 //!    heartbeat accepted within TRIAL_SECONDS, which ends the trial. Otherwise it puts
-//!    `blocklyd.prev` back and exits. One that can't even start is put back by the unit's
-//!    `ExecStopPost`, `blocklyd.prev upgrade --exited`, after a stop systemd doesn't call a
+//!    `pryxd.prev` back and exits. One that can't even start is put back by the unit's
+//!    `ExecStopPost`, `pryxd.prev upgrade --exited`, after a stop systemd doesn't call a
 //!    success, its `ExecStartPre` failing included. One that hangs is ended by its backstop.
-//! 5. The blocklyd put back says why in its heartbeats, until the next upgrade is tried.
+//! 5. The pryxd put back says why in its heartbeats, until the next upgrade is tried.
 //!
 //! Parts (`upgrade/`):
+//! - `tests.rs`: release validation, swap and rollback regression tests.
 //! - `trust.rs`: whether an offer is taken: a release's signature, and never an older version.
 //! - `stopped.rs`: what `--exited` goes by: systemd's word on the stop, and the state directory.
 //! - `backstop.rs`: ends a start still on trial long after it began, for `--exited` to put back.
@@ -64,27 +65,47 @@ use crate::protocol::wire::FLEET_API;
 use crate::protocol::wire::{UpgradeFailure, UpgradeOffer};
 use crate::upgrade::trust::ReleaseKeys;
 
-/// How long a new blocklyd has to reconcile and get a heartbeat accepted before it is put back.
+/// How long a new pryxd has to reconcile and get a heartbeat accepted before it is put back.
 pub(crate) const TRIAL_SECONDS: u64 = 120;
-/// No blocklyd is this big; a download that is stops.
+/// No pryxd is this big; a download that is stops.
 const MAX_BYTES: u64 = 512 * 1024 * 1024;
 const DOWNLOAD_TIMEOUT: Duration = Duration::from_mins(10);
-/// How long the control plane has to start answering for its blocklyd or the blocklyd's sha256.
+/// How long the control plane has to start answering for its pryxd or the pryxd's sha256.
 pub(crate) const ANSWER_TIMEOUT: Duration = Duration::from_secs(30);
 /// After a failed attempt, an offer is taken up again only this long after: by then the control
 /// plane has heard of a failure, and offers again only once an operator retries.
 const RETRY_AFTER: Duration = Duration::from_mins(1);
-const LINK: &str = "/usr/local/bin/blocklyd";
+const LINK: &str = "/usr/local/bin/pryxd";
 
-/// The version this blocklyd reports to the control plane, which offers an upgrade to an older one.
-/// A debug build reports BLOCKLYD_TEST_VERSION instead when it is set, so an end-to-end test can
-/// run a node that looks older than the blocklyd it is offered.
+/// The version this pryxd reports to the control plane, which offers an upgrade to an older one.
+/// A debug build reports PRYXD_TEST_VERSION instead when it is set, so an end-to-end test can
+/// run a node that looks older than the pryxd it is offered.
 pub fn daemon_version() -> String {
     #[cfg(debug_assertions)]
-    if let Some(version) = std::env::var("BLOCKLYD_TEST_VERSION").ok().filter(|v| !v.is_empty()) {
+    if let Some(version) = std::env::var("PRYXD_TEST_VERSION")
+        .or_else(|_| std::env::var("BLOCKLYD_TEST_VERSION"))
+        .ok()
+        .filter(|v| !v.is_empty())
+    {
         return version;
     }
     env!("CARGO_PKG_VERSION").to_owned()
+}
+
+/// An unchanged external debug contract installs the test binary under the former name.
+/// Production builds always use pryxd, regardless of their executable name.
+pub fn debug_legacy_executable() -> bool {
+    #[cfg(debug_assertions)]
+    {
+        std::env::current_exe()
+            .ok()
+            .and_then(|p| p.file_name().map(|n| n == "blocklyd" || n == "blocklyd.prev"))
+            .unwrap_or(false)
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        false
+    }
 }
 
 /// Where the binaries and the upgrade's own state are.
@@ -100,18 +121,18 @@ impl Layout {
     /// The layout for `state_dir`, with the link under `root` (`/` but in tests).
     pub fn new(state_dir: &Path, root: &Path) -> Self {
         Self {
-            bin: state_dir.join("bin").join("blocklyd"),
+            bin: state_dir.join("bin").join(if debug_legacy_executable() { "blocklyd" } else { "pryxd" }),
             link: root.join(LINK.trim_start_matches('/')),
             dir: state_dir.join("upgrade"),
         }
     }
 
     pub(crate) fn next(&self) -> PathBuf {
-        self.bin.with_file_name("blocklyd.next")
+        self.bin.with_extension("next")
     }
 
     pub(crate) fn prev(&self) -> PathBuf {
-        self.bin.with_file_name("blocklyd.prev")
+        self.bin.with_extension("prev")
     }
 
     fn trial(&self) -> PathBuf {
@@ -168,10 +189,10 @@ pub(crate) async fn install(
     let printed = tokio::task::spawn_blocking(move || version_of(&next))
         .await
         .map_err(|e| UpgradeError::Failed(e.to_string()))?
-        .map_err(|e| UpgradeError::Failed(format!("the blocklyd downloaded doesn't run here: {e}")))?;
+        .map_err(|e| UpgradeError::Failed(format!("the pryxd downloaded doesn't run here: {e}")))?;
     if printed != offer.version {
         return Err(UpgradeError::Failed(format!(
-            "the blocklyd downloaded says it is {printed}, not the {} offered",
+            "the pryxd downloaded says it is {printed}, not the {} offered",
             offer.version
         )));
     }
@@ -180,9 +201,9 @@ pub(crate) async fn install(
     Ok(printed)
 }
 
-/// The binary at `bin`, where an upgrade can replace it. A host that has /usr/local/bin/blocklyd as
-/// a plain file, from before blocklyd upgraded itself, has it moved there and linked, which only
-/// works outside the unit's sandbox: as root, from `blocklyd upgrade`.
+/// The binary at `bin`, where an upgrade can replace it. A host that has /usr/local/bin/pryxd as
+/// a plain file, from before pryxd upgraded itself, has it moved there and linked, which only
+/// works outside the unit's sandbox: as root, from `pryxd upgrade`.
 fn settle(layout: &Layout, running: Option<&Path>) -> Result<(), UpgradeError> {
     let canonical = |path: &Path| fs::canonicalize(path).ok();
     if let Some(exe) = running
@@ -190,7 +211,7 @@ fn settle(layout: &Layout, running: Option<&Path>) -> Result<(), UpgradeError> {
         && canonical(exe) != canonical(&layout.link)
     {
         return Err(UpgradeError::Failed(format!(
-            "this blocklyd runs from {}, not {}: only the blocklyd the service runs upgrades itself",
+            "this pryxd runs from {}, not {}: only the pryxd the service runs upgrades itself",
             exe.display(),
             layout.link.display()
         )));
@@ -199,11 +220,11 @@ fn settle(layout: &Layout, running: Option<&Path>) -> Result<(), UpgradeError> {
         return Ok(());
     }
     if !fs::symlink_metadata(&layout.link).is_ok_and(|m| m.file_type().is_file()) {
-        return Err(UpgradeError::Failed(format!("there is no blocklyd at {} to upgrade", layout.bin.display())));
+        return Err(UpgradeError::Failed(format!("there is no pryxd at {} to upgrade", layout.bin.display())));
     }
     let moved = || -> std::io::Result<()> {
         // The link first, where it can't be made the rest isn't either.
-        let link = layout.link.with_file_name("blocklyd.link");
+        let link = layout.link.with_file_name("pryxd.link");
         let _ = fs::remove_file(&link);
         std::os::unix::fs::symlink(&layout.bin, &link)?;
         fs::create_dir_all(layout.bin.parent().unwrap_or(Path::new("/")))?;
@@ -214,7 +235,7 @@ fn settle(layout: &Layout, running: Option<&Path>) -> Result<(), UpgradeError> {
     };
     moved().map_err(|e| {
         UpgradeError::Failed(format!(
-            "blocklyd is a plain file at {}, which can't be moved to {} from here ({e}): run `sudo blocklyd upgrade` \
+            "pryxd is a plain file at {}, which can't be moved to {} from here ({e}): run `sudo pryxd upgrade` \
              on the host once",
             layout.link.display(),
             layout.bin.display()
@@ -222,7 +243,7 @@ fn settle(layout: &Layout, running: Option<&Path>) -> Result<(), UpgradeError> {
     })
 }
 
-/// `blocklyd.next`, from the control plane, if its sha256 is `sha256`.
+/// `pryxd.next`, from the control plane, if its sha256 is `sha256`.
 async fn download(
     layout: &Layout,
     control_plane: &str,
@@ -249,7 +270,7 @@ async fn download(
             let Ok(data) = frame.map_err(|e| transient(&e))?.into_data() else { continue };
             size += data.len() as u64;
             if size > MAX_BYTES {
-                return Err(UpgradeError::Failed(format!("{url}: more than {MAX_BYTES} bytes, which no blocklyd is")));
+                return Err(UpgradeError::Failed(format!("{url}: more than {MAX_BYTES} bytes, which no pryxd is")));
             }
             hasher.update(&data);
             file.write_all(&data).await.map_err(failed("writing", &next))?;
@@ -266,13 +287,13 @@ async fn download(
     if !got.eq_ignore_ascii_case(sha256) {
         let _ = fs::remove_file(&next);
         return Err(UpgradeError::Failed(format!(
-            "the blocklyd downloaded has sha256 {got}, not the {sha256} offered, so it wasn't installed"
+            "the pryxd downloaded has sha256 {got}, not the {sha256} offered, so it wasn't installed"
         )));
     }
     fs::set_permissions(&next, fs::Permissions::from_mode(0o755)).map_err(failed("making executable", &next))
 }
 
-/// What `<bin> --version` says it is: `blocklyd 0.3.0` is 0.3.0.
+/// What `<bin> --version` says it is: `pryxd 0.3.0` is 0.3.0.
 pub(crate) fn version_of(bin: &Path) -> Result<String, String> {
     use std::process::{Command, Stdio};
     let spawn =
@@ -300,17 +321,21 @@ pub(crate) fn version_of(bin: &Path) -> Result<String, String> {
     }
     let output = child.wait_with_output().map_err(|e| e.to_string())?;
     let text = String::from_utf8_lossy(&output.stdout);
-    match text.trim().strip_prefix("blocklyd ") {
+    let parsed = text
+        .trim()
+        .strip_prefix("pryxd ")
+        .or_else(|| debug_legacy_executable().then(|| text.trim().strip_prefix("blocklyd ")).flatten());
+    match parsed {
         Some(version) if output.status.success() && !version.contains(char::is_whitespace) => Ok(version.to_owned()),
         _ if !output.status.success() => Err(format!("--version failed ({})", output.status)),
-        _ => Err(format!("--version printed {:?}, not a blocklyd version", text.trim())),
+        _ => Err(format!("--version printed {:?}, not a pryxd version", text.trim())),
     }
 }
 
 /// Step 2. The trial is written before the rename: a crash between them leaves the old binary with
 /// a trial for another version, which it drops (`on_trial`), rather than an untried new one.
 fn swap(layout: &Layout, trial: &Trial) -> Result<(), UpgradeError> {
-    let (prev, kept) = (layout.prev(), layout.bin.with_file_name("blocklyd.prev.tmp"));
+    let (prev, kept) = (layout.prev(), layout.bin.with_file_name("pryxd.prev.tmp"));
     let _ = fs::remove_file(&kept);
     fs::hard_link(&layout.bin, &kept).map_err(failed("keeping", &layout.bin))?;
     fs::rename(&kept, &prev).map_err(failed("keeping", &prev))?;
@@ -336,12 +361,12 @@ pub(crate) fn on_trial(layout: &Layout, version: &str) -> Option<Trial> {
     }
 }
 
-/// The trial passed: the new binary stays, and `blocklyd.prev` with it, for going back by hand.
+/// The trial passed: the new binary stays, and `pryxd.prev` with it, for going back by hand.
 pub(crate) fn confirm(layout: &Layout) {
     let _ = fs::remove_file(layout.trial());
 }
 
-/// Puts `blocklyd.prev` back for a trial that failed, and writes down why, for the heartbeats.
+/// Puts `pryxd.prev` back for a trial that failed, and writes down why, for the heartbeats.
 /// Returns whether there was one to put back.
 pub(crate) fn roll_back(layout: &Layout, trial: &Trial, reason: &str) -> anyhow::Result<bool> {
     let prev = layout.prev();
@@ -366,7 +391,7 @@ pub(crate) fn failure(layout: &Layout) -> Option<UpgradeFailure> {
     serde_json::from_slice(&fs::read(layout.failed()).ok()?).ok()
 }
 
-/// `blocklyd.prev upgrade --exited`, the unit's `ExecStopPost`, after any stop: a binary on trial
+/// `pryxd.prev upgrade --exited`, the unit's `ExecStopPost`, after any stop: a binary on trial
 /// that stopped other than cleanly is put back. `result`, `code` and `status` are systemd's
 /// `SERVICE_RESULT`, `EXIT_CODE` and `EXIT_STATUS`, which `stopped::failure` reads.
 pub fn exited(
@@ -381,10 +406,11 @@ pub fn exited(
     let Some(how) = stopped::failure(result, code, status) else {
         return Ok(String::new());
     };
-    let reason = format!("blocklyd {} {how} before it came up", trial.to);
+    let name = if debug_legacy_executable() { "blocklyd" } else { "pryxd" };
+    let reason = format!("{name} {} {how} before it came up", trial.to);
     let said = match roll_back(layout, &trial, &reason)? {
-        true => format!("{reason}: put blocklyd {} back\n", trial.from),
-        false => format!("{reason}, and there is no blocklyd before it to put back\n"),
+        true => format!("{reason}: put {name} {} back\n", trial.from),
+        false => format!("{reason}, and there is no {name} before it to put back\n"),
     };
     Ok(said)
 }
@@ -471,19 +497,19 @@ impl Upgrader {
         }
         let Some(trial) = self.trial.lock().unwrap().take() else { return };
         let reason =
-            format!("blocklyd {} didn't reconcile and get a heartbeat accepted within {TRIAL_SECONDS} s", trial.to);
+            format!("pryxd {} didn't reconcile and get a heartbeat accepted within {TRIAL_SECONDS} s", trial.to);
         match roll_back(&self.layout, &trial, &reason) {
             Ok(true) => {
                 error!(from = %trial.from, to = %trial.to, "{reason}: put {} back; stopping to run it", trial.from);
                 *self.rolled_back.lock().unwrap() = Some(format!("{reason}; put {} back", trial.from));
                 self.cancel.cancel();
             }
-            Ok(false) => warn!(to = %trial.to, "{reason}, and there is no blocklyd before it to put back"),
+            Ok(false) => warn!(to = %trial.to, "{reason}, and there is no pryxd before it to put back"),
             Err(e) => error!(error = format!("{e:#}"), "{reason}, and putting the one before back failed"),
         }
     }
 
-    /// A heartbeat's answer offered `offer`: it is installed in the background, and blocklyd
+    /// A heartbeat's answer offered `offer`: it is installed in the background, and pryxd
     /// stops once it is, unless an attempt runs or failed a moment ago.
     pub(crate) fn offered(self: &Arc<Self>, offer: UpgradeOffer, tls: Arc<rustls::ClientConfig>) {
         if offer.version == self.version || self.trial.lock().unwrap().is_some() || self.cancel.is_cancelled() {
@@ -495,19 +521,19 @@ impl Upgrader {
         }
         let this = self.clone();
         tokio::spawn(async move {
-            info!(from = %this.version, to = %offer.version, "upgrading blocklyd, as the control plane offers");
+            info!(from = %this.version, to = %offer.version, "upgrading pryxd, as the control plane offers");
             let running = std::env::current_exe().ok();
             let (layout, keys) = (&this.layout, &this.keys);
             let installed =
                 install(layout, &this.control_plane, Some(tls), &offer, keys, &this.version, running.as_deref());
             match installed.await {
                 Ok(to) => {
-                    info!(from = %this.version, to = %to, "installed; restarting into it, servers keep running");
+                    info!(from = %this.version, to = %to, "installed; restarting into it, sandboxes keep running");
                     this.cancel.cancel();
                     return;
                 }
                 Err(UpgradeError::Transient(e)) => {
-                    warn!(error = %e, "couldn't download the blocklyd offered; trying again in a minute")
+                    warn!(error = %e, "couldn't download the pryxd offered; trying again in a minute")
                 }
                 Err(UpgradeError::Failed(e)) => {
                     warn!(error = %e, to = %offer.version, "gave up on the upgrade offered; the control plane is told");
@@ -523,265 +549,4 @@ impl Upgrader {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// A stand-in blocklyd: a script that says it is `version` and does nothing else.
-    fn script(path: &Path, version: &str) {
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(path, format!("#!/bin/sh\n[ \"$1\" = --version ] && echo 'blocklyd {version}'\n")).unwrap();
-        fs::set_permissions(path, fs::Permissions::from_mode(0o755)).unwrap();
-    }
-
-    fn layout(root: &Path) -> Layout {
-        let layout = Layout::new(&root.join("var/lib/blocklyd"), root);
-        script(&layout.bin, "0.2.0");
-        layout
-    }
-
-    fn trial() -> Trial {
-        Trial { from: "0.2.0".into(), to: "0.3.0".into(), sha256: "ab".repeat(32) }
-    }
-
-    #[test]
-    fn a_swap_keeps_the_binary_before_and_puts_the_new_one_on_trial() {
-        let root = tempfile::tempdir().unwrap();
-        let layout = layout(root.path());
-        script(&layout.next(), "0.3.0");
-        swap(&layout, &trial()).unwrap();
-        assert_eq!(version_of(&layout.bin).unwrap(), "0.3.0");
-        assert_eq!(version_of(&layout.prev()).unwrap(), "0.2.0");
-        assert!(!layout.next().exists());
-        assert_eq!(on_trial(&layout, "0.3.0"), Some(trial()));
-        // The binary before it, started instead, drops a trial that isn't its own.
-        assert_eq!(on_trial(&layout, "0.2.0"), None);
-        assert_eq!(on_trial(&layout, "0.3.0"), None);
-    }
-
-    #[test]
-    fn a_failed_trial_puts_the_binary_before_back_and_says_why() {
-        let root = tempfile::tempdir().unwrap();
-        let layout = layout(root.path());
-        script(&layout.next(), "0.3.0");
-        swap(&layout, &trial()).unwrap();
-        assert!(roll_back(&layout, &trial(), "it didn't come up").unwrap());
-        assert_eq!(version_of(&layout.bin).unwrap(), "0.2.0");
-        assert!(!layout.prev().exists());
-        assert_eq!(on_trial(&layout, "0.3.0"), None);
-        assert_eq!(
-            failure(&layout),
-            Some(UpgradeFailure { version: "0.3.0".into(), reason: "it didn't come up".into() })
-        );
-    }
-
-    #[test]
-    fn after_a_stop_only_a_trial_that_exited_badly_is_put_back() {
-        let root = tempfile::tempdir().unwrap();
-        let layout = layout(root.path());
-        // Nothing on trial: whatever the exit, nothing changes.
-        assert_eq!(exited(&layout, Some("exit-code"), Some("exited"), Some("1")).unwrap(), "");
-        script(&layout.next(), "0.3.0");
-        swap(&layout, &trial()).unwrap();
-        // The old binary's own clean exit, right after the swap; and a stop (systemctl stop, the
-        // host shutting down) before the trial ended, whose SIGTERM systemd counts as clean.
-        assert_eq!(exited(&layout, Some("success"), Some("exited"), Some("0")).unwrap(), "");
-        assert_eq!(exited(&layout, None, Some("exited"), Some("0")).unwrap(), "");
-        assert_eq!(exited(&layout, Some("success"), Some("killed"), Some("TERM")).unwrap(), "");
-        assert_eq!(on_trial(&layout, "0.3.0"), Some(trial()), "the trial carries on at the next start");
-        let said = exited(&layout, None, Some("exited"), Some("1")).unwrap();
-        assert_eq!(said, "blocklyd 0.3.0 exited with status 1 before it came up: put blocklyd 0.2.0 back\n");
-        assert_eq!(version_of(&layout.bin).unwrap(), "0.2.0");
-        assert_eq!(failure(&layout).unwrap().reason, "blocklyd 0.3.0 exited with status 1 before it came up");
-        // Its ExecStartPre failed, so it never ran: systemd says so, with no EXIT_CODE or EXIT_STATUS.
-        script(&layout.next(), "0.3.0");
-        swap(&layout, &trial()).unwrap();
-        let said = exited(&layout, Some("exit-code"), None, None).unwrap();
-        assert_eq!(said, "blocklyd 0.3.0 didn't start (exit-code) before it came up: put blocklyd 0.2.0 back\n");
-        assert_eq!(version_of(&layout.bin).unwrap(), "0.2.0");
-    }
-
-    #[test]
-    fn a_version_is_what_the_binary_prints() {
-        let dir = tempfile::tempdir().unwrap();
-        let good = dir.path().join("good");
-        script(&good, "0.3.0");
-        assert_eq!(version_of(&good).unwrap(), "0.3.0");
-        let broken = dir.path().join("broken");
-        fs::write(&broken, "#!/bin/sh\nexit 1\n").unwrap();
-        fs::set_permissions(&broken, fs::Permissions::from_mode(0o755)).unwrap();
-        assert!(version_of(&broken).unwrap_err().contains("failed"));
-        let chatty = dir.path().join("chatty");
-        fs::write(&chatty, "#!/bin/sh\necho hello there\n").unwrap();
-        fs::set_permissions(&chatty, fs::Permissions::from_mode(0o755)).unwrap();
-        assert!(version_of(&chatty).unwrap_err().contains("not a blocklyd version"));
-        assert!(version_of(&dir.path().join("missing")).is_err());
-    }
-
-    #[test]
-    fn a_plain_binary_is_moved_under_the_state_directory_and_linked() {
-        let root = tempfile::tempdir().unwrap();
-        let layout = Layout::new(&root.path().join("var/lib/blocklyd"), root.path());
-        script(&layout.link, "0.2.0");
-        settle(&layout, None).unwrap();
-        assert_eq!(fs::read_link(&layout.link).unwrap(), layout.bin);
-        assert_eq!(version_of(&layout.link).unwrap(), "0.2.0");
-        // Only the binary the service runs upgrades itself.
-        let elsewhere = root.path().join("target/debug/blocklyd");
-        script(&elsewhere, "0.2.0");
-        let refused = settle(&layout, Some(&elsewhere)).unwrap_err();
-        assert!(refused.to_string().contains("only the blocklyd the service runs"), "{refused}");
-        settle(&layout, Some(&layout.link)).unwrap();
-        let empty = Layout::new(&root.path().join("elsewhere"), &root.path().join("none"));
-        assert!(settle(&empty, None).unwrap_err().to_string().contains("no blocklyd"));
-    }
-
-    /// A control plane that serves `binary` at /fleet/v1/blocklyd, over plain HTTP.
-    async fn serving(binary: Option<Vec<u8>>) -> String {
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let address = listener.local_addr().unwrap();
-        let app = axum::Router::new().route(
-            "/fleet/v1/blocklyd",
-            axum::routing::get(move || {
-                let binary = binary.clone();
-                async move {
-                    match binary {
-                        Some(bytes) => (axum::http::StatusCode::OK, bytes),
-                        None => (axum::http::StatusCode::NOT_FOUND, b"no blocklyd here".to_vec()),
-                    }
-                }
-            }),
-        );
-        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
-        format!("http://{address}")
-    }
-
-    /// An offer of `version` and `sha256`, signed for them by `key`.
-    fn signed(key: &rcgen::KeyPair, version: &str, sha256: &str) -> UpgradeOffer {
-        UpgradeOffer {
-            version: version.into(),
-            sha256: sha256.into(),
-            signature: Some(trust::test_signature(key, version, sha256)),
-        }
-    }
-
-    #[tokio::test]
-    async fn an_offer_is_installed_only_when_its_sha256_and_version_match() {
-        let root = tempfile::tempdir().unwrap();
-        let layout = layout(root.path());
-        let (key, keys) = trust::test_key();
-        let new = root.path().join("new");
-        script(&new, "0.3.0");
-        let bytes = fs::read(&new).unwrap();
-        let sha = hex::encode(Sha256::digest(&bytes));
-        let url = serving(Some(bytes)).await;
-        let install = |offer: UpgradeOffer| {
-            let (layout, url, keys) = (layout.clone(), url.clone(), keys.clone());
-            async move { install(&layout, &url, None, &offer, &keys, "0.2.0", None).await }
-        };
-
-        let wrong = install(signed(&key, "0.3.0", &"0".repeat(64))).await.unwrap_err();
-        assert!(matches!(wrong, UpgradeError::Failed(ref e) if e.contains("not the")), "{wrong}");
-        assert!(!layout.next().exists());
-        let other = install(signed(&key, "0.4.0", &sha)).await.unwrap_err();
-        assert!(other.to_string().contains("not the 0.4.0 offered"), "{other}");
-        assert_eq!(version_of(&layout.bin).unwrap(), "0.2.0");
-        assert_eq!(on_trial(&layout, "0.3.0"), None);
-
-        assert_eq!(install(signed(&key, "0.3.0", &sha)).await.unwrap(), "0.3.0");
-        assert_eq!(version_of(&layout.bin).unwrap(), "0.3.0");
-        assert_eq!(version_of(&layout.prev()).unwrap(), "0.2.0");
-        assert_eq!(
-            on_trial(&layout, "0.3.0").unwrap(),
-            Trial { from: "0.2.0".into(), to: "0.3.0".into(), sha256: sha }
-        );
-    }
-
-    #[tokio::test]
-    async fn an_offer_without_a_release_signature_for_it_is_never_downloaded_or_run() {
-        let root = tempfile::tempdir().unwrap();
-        let layout = layout(root.path());
-        let (key, keys) = trust::test_key();
-        let (stranger, _) = trust::test_key();
-        // A binary that leaves a mark if it is ever run, even for its --version.
-        let ran = root.path().join("ran");
-        let new = root.path().join("new");
-        fs::write(&new, format!("#!/bin/sh\ntouch '{}'\necho 'blocklyd 0.3.0'\n", ran.display())).unwrap();
-        let bytes = fs::read(&new).unwrap();
-        let sha = hex::encode(Sha256::digest(&bytes));
-        let url = serving(Some(bytes)).await;
-
-        let unsigned = UpgradeOffer { signature: None, ..signed(&key, "0.3.0", &sha) };
-        let by_a_stranger = signed(&stranger, "0.3.0", &sha);
-        let for_another_version = UpgradeOffer { version: "0.3.0".into(), ..signed(&key, "0.3.1", &sha) };
-        let garbled = UpgradeOffer { signature: Some("00".repeat(64)), ..signed(&key, "0.3.0", &sha) };
-        // Signed, but older than the 0.2.0 this node runs.
-        let older = signed(&key, "0.1.0", &sha);
-        for (offer, why) in [
-            (unsigned, "carries no release signature"),
-            (by_a_stranger, "isn't a blocklyd release key's"),
-            (for_another_version, "isn't a blocklyd release key's"),
-            (garbled, "isn't a blocklyd release key's"),
-            (older, "never goes back"),
-        ] {
-            let refused = install(&layout, &url, None, &offer, &keys, "0.2.0", None).await.unwrap_err();
-            assert!(matches!(refused, UpgradeError::Failed(ref e) if e.contains(why)), "{refused}");
-            assert_eq!(version_of(&layout.bin).unwrap(), "0.2.0");
-            assert!(!layout.next().exists(), "nothing was downloaded");
-            assert!(!layout.prev().exists());
-            assert!(!layout.trial().exists(), "no trial.json");
-            assert!(!ran.exists(), "the binary offered never ran");
-        }
-    }
-
-    #[tokio::test]
-    async fn a_control_plane_without_a_binary_fails_the_upgrade_and_one_that_is_down_is_tried_again() {
-        let root = tempfile::tempdir().unwrap();
-        let layout = layout(root.path());
-        let (key, keys) = trust::test_key();
-        let offer = signed(&key, "0.3.0", &"0".repeat(64));
-        let missing = install(&layout, &serving(None).await, None, &offer, &keys, "0.2.0", None).await.unwrap_err();
-        assert!(
-            matches!(missing, UpgradeError::Failed(ref e) if e.contains(axum::http::StatusCode::NOT_FOUND.as_str())),
-            "{missing}"
-        );
-        let closed = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap().local_addr().unwrap();
-        let down = install(&layout, &format!("http://{closed}"), None, &offer, &keys, "0.2.0", None).await;
-        assert!(matches!(down, Err(UpgradeError::Transient(_))));
-    }
-
-    #[tokio::test]
-    async fn a_trial_ends_with_a_heartbeat_once_reconciled_or_puts_the_binary_before_back() {
-        let root = tempfile::tempdir().unwrap();
-        let state = root.path().join("var/lib/blocklyd");
-        let layout = layout(root.path());
-        let ours = Trial { to: daemon_version(), ..trial() };
-        script(&layout.next(), &ours.to);
-        swap(&layout, &ours).unwrap();
-
-        let ended = Arc::new(AtomicBool::new(false));
-        let upgrader = Arc::new(Upgrader::new(&state, "https://control", ended.clone(), CancellationToken::new()));
-        upgrader.accepted(false);
-        assert!(on_trial(&layout, &ours.to).is_some());
-        assert!(!ended.load(Ordering::SeqCst));
-        upgrader.accepted(true);
-        assert!(on_trial(&layout, &ours.to).is_none());
-        assert!(ended.load(Ordering::SeqCst), "the backstop is disarmed");
-        upgrader.clone().watch_trial().await;
-        assert_eq!(upgrader.rolled_back(), None);
-
-        script(&layout.bin, "0.2.0");
-        script(&layout.next(), &ours.to);
-        swap(&layout, &ours).unwrap();
-        let cancel = CancellationToken::new();
-        let ended = Arc::new(AtomicBool::new(false));
-        let mut upgrader = Upgrader::new(&state, "https://control", ended.clone(), cancel.clone());
-        upgrader.trial_for = Duration::from_millis(10);
-        let upgrader = Arc::new(upgrader);
-        upgrader.clone().watch_trial().await;
-        assert!(cancel.is_cancelled());
-        assert!(!ended.load(Ordering::SeqCst), "the backstop still bounds the stop");
-        assert!(upgrader.rolled_back().unwrap().contains("didn't reconcile"));
-        assert_eq!(version_of(&layout.bin).unwrap(), "0.2.0");
-        assert_eq!(upgrader.failure().unwrap().version, ours.to);
-    }
-}
+mod tests;

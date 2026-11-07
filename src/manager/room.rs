@@ -24,7 +24,7 @@ impl Manager {
     }
 
     /// Memory admission: running workloads, this one included, fit in what the host gives out.
-    /// Refusing here is Blockly's `RuntimeFull`: "no room where it runs just now".
+    /// Refusing here is the control plane's `RuntimeFull`: "no room where it runs just now".
     pub(super) fn admit(&self, id: &WorkloadId, memory_mb: u64) -> Result<(), NodeError> {
         let running = self.running_memory_mb(Some(id));
         let limit = (self.allocatable_memory_mb() as f64 * self.config.capacity.memory_overcommit) as u64;

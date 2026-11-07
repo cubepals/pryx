@@ -1,0 +1,8 @@
+   Compiling pryxd v0.1.0 (/workspace/pryx)
+    Finished `test` profile [unoptimized] target(s) in 1m 00s
+     Running tests/docker.rs (target/debug/deps/docker-52d74356e6e72824)
+
+running 1 test
+test a_lost_start_response_is_confirmed_without_repeating_the_mutation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 12 filtered out; finished in 20.80s

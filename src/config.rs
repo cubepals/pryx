@@ -8,7 +8,9 @@
 //! the host enforces.
 //!
 //! Parts (`config/`):
-//! - `validate.rs`: what a configuration is held to before blocklyd runs on it.
+//! - `validate.rs`: what a configuration is held to before pryxd runs on it.
+//! - `wasm.rs`: verified agentOS distribution paths.
+//! - `process.rs`: host-owned process tier and UID pool configuration.
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -21,15 +23,25 @@ use serde::Deserialize;
 
 use crate::ids::NodeId;
 
+mod process;
+mod wasm;
+pub use wasm::WasmConfig;
 mod validate;
+pub use process::{ProcessConfig, RuntimeKind};
 
-/// Where a host keeps its configuration: what `blocklyd join` writes and every command reads
+/// Where a host keeps its configuration: what `pryxd join` writes and every command reads
 /// unless told otherwise.
-pub const PATH: &str = "/etc/blocklyd/blocklyd.toml";
+pub const PATH: &str = "/etc/pryxd/pryxd.toml";
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
+    #[serde(default)]
+    pub runtime: RuntimeKind,
+    #[serde(default)]
+    pub process: ProcessConfig,
+    #[serde(default)]
+    pub wasm: WasmConfig,
     /// This host's stable name, written on every container it makes. Two nodes never share one.
     /// In fleet mode it is left out: the control plane issues it at enrollment.
     #[serde(default)]
@@ -55,16 +67,19 @@ pub struct Config {
     #[serde(default)]
     pub(crate) transfer: TransferConfig,
     /// Fleet mode: this node enrolls with a control plane, takes its identity and TLS material
-    /// from it, and reports to it. Without it, blocklyd is the single-node daemon it was.
+    /// from it, and reports to it. Without it, pryxd is the single-node daemon it was.
     #[serde(default)]
     pub fleet: Option<FleetConfig>,
+    /// Experimental: require independently fenced object-store leases before any start.
+    #[serde(default)]
+    pub store_lease: StoreLeaseConfig,
     /// What `load` worked out from the host because the file left it out (infer.rs).
     #[serde(skip)]
     pub inferred: Vec<crate::infer::Inferred>,
 }
 
-/// Where blocklyd keeps its state unless `state_dir` says otherwise.
-pub(crate) const STATE_DIR: &str = "/var/lib/blocklyd";
+/// Where pryxd keeps its state unless `state_dir` says otherwise.
+pub(crate) const STATE_DIR: &str = "/var/lib/pryxd";
 
 fn default_state_dir() -> PathBuf {
     PathBuf::from(STATE_DIR)
@@ -187,7 +202,7 @@ impl Default for DockerConfig {
 pub struct NetworkConfig {
     /// Host ports handed to workloads, inclusive. Nothing else on the host should use them.
     pub port_range: [u16; 2],
-    /// Addresses the edge reaches game ports on. Loopback by default: exposing a port is a
+    /// Addresses the edge reaches public ports on. Loopback by default: exposing a port is a
     /// decision, not an accident. In fleet mode joining is that decision, and left out, both
     /// lists are the address `api.listen` gives, or else the host's private address (infer.rs).
     pub edge_ips: Vec<IpAddr>,
@@ -201,7 +216,7 @@ pub struct NetworkConfig {
 impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
-            port_range: [42000, 42999],
+            port_range: crate::protocol::DEFAULT_PORT_RANGE,
             edge_ips: vec![IpAddr::from([127, 0, 0, 1])],
             control_ips: vec![IpAddr::from([127, 0, 0, 1])],
             port_quarantine_seconds: Duration::from_mins(10).as_secs(),
@@ -227,7 +242,7 @@ pub(crate) struct WorkloadPolicy {
     pub(crate) log_max_size_mb: u32,
     pub(crate) log_max_files: u32,
     /// The kernel kills the highest score first when the host runs out; workloads go before
-    /// blocklyd and Docker.
+    /// pryxd and Docker.
     pub(crate) oom_score_adj: i32,
     /// How long deleted data stays in the host's trash before it is purged.
     pub(crate) trash_retention_hours: u64,
@@ -235,12 +250,15 @@ pub(crate) struct WorkloadPolicy {
     /// How long a start of a suspended workload waits for it to come back from memory before it
     /// is killed and started afresh on its data.
     pub(crate) resume_timeout_seconds: u64,
+    pub(crate) agent_binary: PathBuf,
+    pub(crate) agent_public_origin: Option<String>,
+    pub(crate) default_spare_ports: u16,
 }
 
 impl Default for WorkloadPolicy {
     fn default() -> Self {
         Self {
-            allowed_images: vec!["itzg/minecraft-server:".into(), "docker.io/itzg/minecraft-server:".into()],
+            allowed_images: vec![],
             user: Ids { uid: 1000, gid: 1000 },
             data_owner: None,
             read_only_rootfs: true,
@@ -250,8 +268,11 @@ impl Default for WorkloadPolicy {
             log_max_files: 5,
             oom_score_adj: 500,
             trash_retention_hours: 24,
-            min_memory_mb: 256,
+            min_memory_mb: crate::protocol::DEFAULT_MIN_MEMORY_MB,
             resume_timeout_seconds: 10,
+            agent_binary: PathBuf::from(pryx_agent::contract::DEFAULT_BINARY),
+            agent_public_origin: None,
+            default_spare_ports: 3,
         }
     }
 }
@@ -269,7 +290,7 @@ impl WorkloadPolicy {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct CapacityConfig {
-    /// Memory kept for the host: kernel, page cache, Docker, blocklyd. Never given out. Left out,
+    /// Memory kept for the host: kernel, page cache, Docker, pryxd. Never given out. Left out,
     /// it grows with the host's memory, from 2048 (infer.rs).
     pub reserved_memory_mb: u64,
     /// A ceiling on what workloads may be given, below total minus reserved: for a host that
@@ -280,7 +301,7 @@ pub struct CapacityConfig {
     /// Running memory may reach allocatable × this. 1.0: no overcommit (the default, since a
     /// JVM with a pre-touched heap really uses what it is given).
     pub(crate) memory_overcommit: f64,
-    /// CPU kept for the host (kernel, Docker, blocklyd, network interrupts), in millicores.
+    /// CPU kept for the host (kernel, Docker, pryxd, network interrupts), in millicores.
     pub reserved_cpu_millis: u64,
 }
 
@@ -468,9 +489,9 @@ mod tests {
         [api]
         listen = "10.0.0.5:7443"
         [api.tls]
-        cert = "/etc/blocklyd/tls/node.pem"
-        key = "/etc/blocklyd/tls/node.key"
-        client_ca = "/etc/blocklyd/tls/ca.pem"
+        cert = "/etc/pryxd/tls/node.pem"
+        key = "/etc/pryxd/tls/node.key"
+        client_ca = "/etc/pryxd/tls/ca.pem"
         allowed_clients = ["control-plane.staging.blockly.internal"]
     "#;
 
@@ -499,7 +520,7 @@ mod tests {
         }
     }
 
-    const EXAMPLE: &str = include_str!("../examples/blocklyd.toml");
+    const EXAMPLE: &str = include_str!("../examples/pryxd.toml");
 
     #[test]
     fn the_example_config_is_valid() {
@@ -578,7 +599,8 @@ mod tests {
             let text = format!("{MINIMAL}\n[workloads]\nallowed_images = {prefixes}\n");
             toml::from_str::<Config>(&text).unwrap().validate()
         };
-        for fine in [r#"["ghcr.io/cubepals/"]"#, r#"["itzg/minecraft-server:"]"#, r#"["itzg/minecraft-server@"]"#] {
+        for fine in [r#"["ghcr.io/cubepals/"]"#, r#"["ghcr.io/example/http-app:"]"#, r#"["ghcr.io/example/http-app@"]"#]
+        {
             with(fine).unwrap();
         }
         for open in [r#"["ghcr.io/cubepals"]"#, r#"["registry.example.com"]"#, r#"["alpine:", ""]"#] {
@@ -596,7 +618,7 @@ mod tests {
         let fleet = |listen: &str, api_address: &str| {
             format!(
                 "deployment_id = \"staging\"\n[api]\nlisten = \"{listen}\"\n[fleet]\n\
-                 url = \"https://control.internal:8443\"\nca = \"/etc/blocklyd/fleet-ca.pem\"\n{api_address}"
+                 url = \"https://control.internal:8443\"\nca = \"/etc/pryxd/fleet-ca.pem\"\n{api_address}"
             )
         };
         let anywhere: Config = toml::from_str(&fleet("0.0.0.0:7443", "")).unwrap();
@@ -612,7 +634,7 @@ mod tests {
         let fleet = |url: &str| {
             let config: Config = toml::from_str(&format!(
                 "deployment_id = \"staging\"\n[api]\nlisten = \"10.0.0.5:7443\"\n[fleet]\nurl = \"{url}\"\n\
-                 ca = \"/etc/blocklyd/fleet-ca.pem\"\n"
+                 ca = \"/etc/pryxd/fleet-ca.pem\"\n"
             ))
             .unwrap();
             config.validate()
@@ -695,5 +717,26 @@ mod tests {
         workloads("data_owner = \"101000:101000\"").unwrap();
         let unknown = MINIMAL.to_owned() + "\nprivileged = true\n";
         assert!(toml::from_str::<Config>(&unknown).is_err());
+    }
+}
+
+/// Host policy only. Enabling requires rootful cgroup-v2 Docker with the cgroupfs driver.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct StoreLeaseConfig {
+    pub enabled: bool,
+    /// Operator policy: the host/hypervisor does not suspend a running leased workload.
+    pub non_suspending_host: bool,
+    pub max_seconds: u64,
+}
+impl Default for StoreLeaseConfig {
+    fn default() -> Self {
+        Self { enabled: false, non_suspending_host: false, max_seconds: 60 }
+    }
+}
+
+impl Config {
+    pub fn host_facts(&self) -> crate::host::HostFacts {
+        if self.runtime != RuntimeKind::Container { crate::host::process_tier_facts() } else { crate::host::facts() }
     }
 }

@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: FSL-1.1-ALv2
+services:
+  pryx:
+    image: ghcr.io/cubepals/pryx:0.1.0
+    build: .
+    ports: ["8080:8080"]
+    volumes: ["pryx:/var/lib/pryx"]
+    environment:
+      PRYX_PUBLIC_URL: http://localhost:8080
+    restart: unless-stopped
+volumes:
+  pryx:

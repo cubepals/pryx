@@ -1,0 +1,47 @@
+{
+  "run": 41969685155,
+  "at": "2026-11-05T04:50:01Z",
+  "status": "capacity measured; the original five-active-sandbox exercise exceeded this host before its project quota",
+  "nodes": [
+    {
+      "id": "9caf2d2f-201f-47b5-8e5c-3875593dd35b",
+      "unitsFree": 4,
+      "unit": {
+        "memoryMb": 512,
+        "cpuMillis": 250
+      },
+      "memoryMb": {
+        "total": 7932,
+        "reservedForHost": 2048,
+        "allocatable": 5884,
+        "allocated": 0,
+        "running": 0,
+        "runningServers": 512,
+        "usedBytes": null
+      },
+      "cpu": {
+        "cores": 2,
+        "reservedForHostMillis": 1000,
+        "allocatedMillis": 0,
+        "runningMillis": 0,
+        "usedCores": null,
+        "loadAverage": [
+          1.82,
+          1.36,
+          0.63
+        ]
+      },
+      "disk": {
+        "totalBytes": 76887154688,
+        "availableBytes": 7016271872,
+        "reservedGb": 0,
+        "snapshotBytes": 0,
+        "reflink": false
+      },
+      "ports": {
+        "total": 1000,
+        "allocated": 0
+      }
+    }
+  ]
+}

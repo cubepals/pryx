@@ -4,7 +4,7 @@
 
 //! A restore's new data, put together in `data.restoring/` beside the data, takes the data's place
 //! in one swap, and what it replaced goes to the trash. A crash anywhere leaves the old data or the
-//! new, and `Store::recover_restore` settles what it left when blocklyd next starts.
+//! new, and `Store::recover_restore` settles what it left when pryxd next starts.
 
 use std::fs::{self, File, OpenOptions};
 use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
@@ -53,14 +53,14 @@ impl Store {
             }
             Err(e) => return Err(StoreError::Io { what: "swapping in", path: data, source: e.into() }),
         };
-        // A marker left behind is removed when blocklyd next starts.
+        // A marker left behind is removed when pryxd next starts.
         let _ = fs::remove_file(data.join(RESTORE_COMPLETE));
         let dir = self.workload_dir(id);
         File::open(&dir).and_then(|d| d.sync_all()).map_err(io_err("syncing", &dir))?;
         Ok(previous)
     }
 
-    /// Settles what a restore left on disk when it didn't get to finish: called when blocklyd
+    /// Settles what a restore left on disk when it didn't get to finish: called when pryxd
     /// starts, and before each restore, so never while one is under way.
     pub(crate) fn recover_restore(&self, id: &WorkloadId, now_unix: i64) -> Result<Recovery, StoreError> {
         let (data, restoring) = (self.data_dir(id), self.restoring_dir(id));
@@ -94,23 +94,15 @@ impl Store {
     fn trash_replaced(&self, id: &WorkloadId, from: &Path, now_unix: i64) -> Result<PathBuf, StoreError> {
         let trash = self.trash_dir();
         fs::DirBuilder::new().recursive(true).mode(0o700).create(&trash).map_err(io_err("creating", &trash))?;
-        let mut to = trash.join(format!("{id}-replaced.{now_unix}"));
-        for n in 1.. {
-            if fs::symlink_metadata(&to).is_err() {
-                break;
-            }
-            to = trash.join(format!("{id}-replaced-{n}.{now_unix}"));
-        }
-        fs::rename(from, &to).map_err(io_err("trashing", from))?;
-        Ok(to)
+        self.rename_to_trash(&format!("{id}-replaced"), from, now_unix)
     }
 }
 
 /// Left at the top of a restore's new data, `data.restoring/`, once it is complete. It moves with
 /// the directory when the two are swapped, so after a crash it says which side of the swap
-/// blocklyd stopped on (`Store::recover_restore`); it is removed once the new data is in place.
-/// The name is blocklyd's: a world that holds it at its top loses that entry.
-pub const RESTORE_COMPLETE: &str = ".blocklyd-restore-complete";
+/// pryxd stopped on (`Store::recover_restore`); it is removed once the new data is in place.
+/// The name is pryxd's: a data that holds it at its top loses that entry.
+pub const RESTORE_COMPLETE: &str = ".pryxd-restore-complete";
 
 /// What `Store::recover_restore` found and did.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -128,7 +120,7 @@ fn exchange(a: &Path, b: &Path) -> rustix::io::Result<()> {
     rustix::fs::renameat_with(rustix::fs::CWD, a, rustix::fs::CWD, b, rustix::fs::RenameFlags::EXCHANGE)
 }
 
-/// Marks a restore's new data complete, durably, before it is swapped in. Whatever a world brought
+/// Marks a restore's new data complete, durably, before it is swapped in. Whatever a data brought
 /// under the marker's name goes first; the marker is made new, never through a link.
 fn mark_complete(restoring: &Path) -> Result<(), StoreError> {
     let marker = restoring.join(RESTORE_COMPLETE);

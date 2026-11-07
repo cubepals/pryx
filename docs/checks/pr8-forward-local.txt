@@ -1,0 +1,583 @@
+Command: PRYX_AGENTOS_DISTRIBUTION=/tmp/pryx-agentos-staged CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 cargo test --locked --no-fail-fast
+Result: 380 passed, 0 failed, 13 existing ignores (twelve CI root/Docker cases and the separately measured opt-in storage benchmark)
+Both clippy modes, cargo deny, format, the unchanged pinned Rust structure ratchet, docs, REUSE and whitespace checks pass.
+The focused peer tests and real bootstrap regressions also pass.
+
+   Compiling pryx-agent v0.1.0 (/workspace/pryx/agent)
+   Compiling pryxd v0.1.0 (/workspace/pryx)
+    Finished `test` profile [unoptimized] target(s) in 1m 35s
+     Running unittests src/lib.rs (target/debug/deps/pryx_agent-72e1d78c1f61d851)
+
+running 17 tests
+test auth::tests::malformed_and_oversized_tokens_are_refused ... ok
+test paths::tests::a_fifo_is_refused_without_waiting_for_a_writer ... ok
+test bootstrap::tests::process_bootstrap_requires_complete_explicit_bindings ... ok
+test auth::tests::a_token_is_bound_to_key_sandbox_epoch_and_expiry ... ok
+test auth::tests::signed_claims_cannot_gain_an_unbounded_or_future_lifetime ... ok
+test process_peer::tests::owned_peer_fixture ... ok
+test paths::tests::files_remain_under_the_open_root ... ok
+test process_peer::tests::exited_supervisor_cannot_authorize_a_peer ... ok
+test process_peer::tests::same_uid_foreign_listener_is_refused_before_connect ... ok
+test process_peer::tests::connects_to_owned_child_ipv4_and_dual_stack_ipv6 ... ok
+test transfer_target::tests::connector_resolution_never_rebinds_or_resolves_another_host ... ok
+test transfer_target::tests::refuses_each_non_public_address_class_and_encoded_variants ... ok
+test transfer_target::tests::rejects_empty_and_mixed_public_private_dns_answers ... ok
+test process_policy::filter::tests::guest_tgkill_can_still_signal_its_child ... ok
+test transfer_target::tests::rejects_resolved_localhost_bad_schemes_and_user_information ... ok
+test process_policy::filter::tests::guest_signals_cannot_reach_supervisor_threads ... ok
+test process_peer::tests::owned_port_does_not_authorize_a_different_connected_peer ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.02s
+
+     Running unittests src/main.rs (target/debug/deps/pryx_agent-ff7d248a15902151)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/api.rs (target/debug/deps/api-bf45206590c818f6)
+
+running 9 tests
+test output_is_live_and_processes_outlive_their_first_observer ... ok
+test remote_transfers_cannot_contact_an_owned_loopback_server_or_replace_files ... ok
+test route_capabilities_allow_only_readiness_and_port_reads ... ok
+test mcp_runs_real_processes_and_enforces_file_and_timeout_authority ... ok
+test file_urls_are_bound_to_one_path_method_and_short_expiry ... ok
+test authentication_precedes_process_creation_and_keys_bind_requests ... ok
+test terminal_has_a_controlling_pty_and_resizes ... ok
+test streamed_files_have_no_sdk_chunk_limit_and_cannot_follow_links ... ok
+test stdin_environment_cwd_and_deadlines_use_real_processes ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.02s
+
+     Running tests/bootstrap.rs (target/debug/deps/bootstrap-43ca26599e215261)
+
+running 2 tests
+test agent_and_spare_listeners_are_unreachable_on_non_configured_interfaces ... ok
+test process_spare_cannot_forward_a_service_outside_its_supervisor_tree ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running tests/logbook.rs (target/debug/deps/logbook-968c971a2468524b)
+
+running 2 tests
+test logs_survive_restart_and_internal_state_stays_out_of_user_lists ... ok
+test rotation_bounds_memory_and_disk_and_slow_readers_observe_a_gap ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+
+     Running tests/privacy.rs (target/debug/deps/privacy-98dac9b12269fef7)
+
+running 2 tests
+test embedded_printf_does_not_depend_on_external_utilities ... ok
+test same_user_processes_cannot_read_the_agent_environment ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/process_policy.rs (target/debug/deps/process_policy-b9ded5892c5d36d6)
+
+running 3 tests
+test process_policy_is_enforced_or_compute_is_refused ... ok
+test command_launcher_protects_parent_but_allows_self_signals ... ok
+test network_off_denies_connections_without_another_namespace ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running tests/schema.rs (target/debug/deps/schema-9690b512e2f84fa5)
+
+running 1 test
+test the_committed_agent_schema_matches_serde ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/streams.rs (target/debug/deps/streams-92a538b47f0f7e9e)
+
+running 4 tests
+test spare_ports_forward_locally_and_unexpose_closes_connections ... ok
+test websocket_authenticates_before_attachment_and_passes_stdin ... ok
+test file_watch_observes_the_open_directory ... ok
+test port_assignments_restore_from_an_atomic_checkpoint ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running unittests src/lib.rs (target/debug/deps/pryxd-2898cecbd2b7d2e8)
+
+running 203 tests
+test api::exec_stream::tests::utf8_boundaries_match_the_buffered_result ... ok
+test api::handshake::tests::places_are_capped_per_address_and_overall_and_given_back ... ok
+test api::exec_stream::tests::buffered_tail_completes_a_live_utf8_prefix ... ok
+test cli::port_reservation::tests::reservations_merge_without_losing_other_services ... ok
+test cli::reenroll::tests::a_node_re_enrolls_under_its_own_id_and_drops_the_old_identity_once_it_beats ... ok
+test cli::port_reservation::tests::installation_updates_kernel_and_persistent_policy_idempotently ... ok
+test cli::reenroll::tests::a_token_naming_a_new_ca_replaces_the_hosts ... ok
+test cli::service::tests::a_beat_counts_once_the_control_plane_accepted_one ... ok
+test config::tests::addresses_others_dial_are_never_unspecified ... ok
+test config::tests::an_image_prefix_ends_where_a_path_tag_or_digest_starts ... ok
+test config::tests::minimal_config_takes_safe_defaults ... ok
+test config::tests::one_put_carries_at_least_a_mebibyte_and_never_more_than_any_store_takes ... ok
+test cli::reenroll::tests::an_enrolled_identity_is_kept_when_its_first_beat_is_slow ... ok
+test config::tests::the_example_config_is_valid ... ok
+test config::tests::the_example_fleet_mode_is_valid ... ok
+test config::tests::the_example_states_every_default ... ok
+test config::tests::root_workloads_and_unknown_keys_are_refused ... ok
+test config::tests::the_fleet_url_is_one_the_node_can_call ... ok
+test config::tests::unknown_keys_in_a_section_are_refused ... ok
+test config::tests::the_ops_listener_stays_off_public_addresses ... ok
+test cli::reenroll::tests::without_a_beat_the_old_identity_and_ca_come_back ... ok
+test doctor::config::tests::a_missing_or_invalid_file_fails_and_stops_pryxd ... ok
+test doctor::docker::tests::a_network_pryxd_hasnt_made_yet_passes_and_json_file_with_max_size_is_bounded ... ok
+test doctor::docker::tests::a_host_set_up_like_deploy_passes ... ok
+test doctor::docker::tests::an_unreadable_daemon_json_says_so ... ok
+test doctor::docker::tests::docker_down_is_a_warning_and_daemon_json_is_still_read ... ok
+test doctor::config::tests::fleet_mode_without_identity_or_token_fails_but_loads ... ok
+test doctor::fix::tests::a_host_with_servers_is_left_alone ... ok
+test doctor::docker::tests::live_restore_off_cgroup_v1_and_shared_network_warn ... ok
+test doctor::fix::tests::merging_keeps_the_hosts_own_settings_and_lays_blocklys_over_them ... ok
+test doctor::host::tests::a_machine_id_of_its_own_passes ... ok
+test doctor::host::tests::an_unsynchronised_clock_warns ... ok
+test doctor::network::tests::free_ports_pass_and_taken_ones_warn ... ok
+test doctor::network::tests::listeners_stay_off_public_addresses ... ok
+test doctor::state::tests::a_data_owner_pryxd_cant_give_to_fails_and_stops_pryxd ... ok
+test doctor::state::tests::a_file_where_the_state_dir_goes_stops_pryxd ... ok
+test doctor::fix::tests::a_fresh_host_gets_its_state_dir_and_daemon_json ... ok
+test doctor::state::tests::a_missing_state_dir_is_a_warning_pryxd_fixes_itself ... ok
+test doctor::state::tests::a_usable_state_dir_passes_and_reflink_is_never_worse_than_a_warning ... ok
+test doctor::state::tests::disk_below_the_floor_warns ... ok
+test doctor::state::tests::serving_this_config_is_this_pryxd ... ok
+test doctor::state::tests::workloads_and_their_ports_come_from_records ... ok
+test doctor::state::tests::a_lock_held_by_something_other_than_this_pryxd_fails ... ok
+test doctor::tests::json_has_name_status_detail_and_fix ... ok
+test doctor::tests::preflight_fails_only_on_what_stops_pryxd_today ... ok
+test doctor::fix::tests::daemon_json_is_written_with_a_backup_and_left_alone_once_it_matches ... ok
+test durable::tests::a_failed_write_leaves_the_old_file_and_no_temp_file ... ok
+test durable::tests::a_file_is_replaced_whole_at_its_mode_and_leaves_nothing_beside_it ... ok
+test durable::tests::a_tree_is_synced_on_the_filesystem_it_went_to ... ok
+test api::handshake::tests::refusals_are_summed_up_in_one_warning_a_window ... ok
+test fleet::heartbeat::tests::a_stop_is_reported_within_about_a_second ... ok
+test fleet::heartbeat::tests::a_beat_that_failed_is_not_retried_sooner_for_a_change ... ok
+test fleet::token::tests::a_bare_token_is_not_a_join_token_but_still_reads ... ok
+test fleet::token::tests::a_damaged_token_is_refused_and_says_so ... ok
+test fleet::token::tests::a_join_token_carries_the_endpoint_the_ca_the_deployment_and_the_secret ... ok
+test fleet::token::tests::a_token_that_re_enrolls_a_node_names_it ... ok
+test fleet::token::tests::the_endpoint_may_be_an_address_a_name_or_a_path_under_one ... ok
+test host::tests::reads_this_host ... ok
+test http_client::tests::a_root_that_doesnt_parse_leaves_the_rest_of_the_system_bundle_trusted ... ok
+test http_client::tests::a_small_get_whose_body_stops_coming_ends_within_its_limit ... ok
+test http_client::tests::a_tls_failure_is_final_only_when_rustls_refused ... ok
+test http_client::tests::an_answer_cut_short_is_asked_again_and_one_that_isnt_json_is_not ... ok
+test fleet::heartbeat::tests::an_answers_fences_are_applied_without_holding_up_the_next_beat ... ok
+test ids::tests::accepts_uuids_and_labels ... ok
+test ids::tests::deserializing_validates ... ok
+test ids::tests::refuses_anything_that_could_escape_a_path_or_a_name ... ok
+test infer::tests::a_wireguard_address_counts_whatever_its_range ... ok
+test infer::tests::one_private_address_is_where_a_fleet_node_serves ... ok
+test infer::tests::the_host_keeps_a_sixteenth_of_its_memory_and_never_less_than_before ... ok
+test infer::tests::two_private_addresses_or_none_is_a_question_for_the_operator ... ok
+test infer::tests::what_the_file_sets_wins_and_a_single_node_keeps_loopback ... ok
+test isolation::tests::ports_nftables_would_refuse_are_written_another_way ... ok
+test isolation::tests::the_rules_drop_new_connections_from_the_bridge_only ... ok
+test manager::agent_keys::tests::keys_survive_compute_replacement_but_not_epoch_change_or_data_delete ... ok
+test manager::archive::tests::a_copy_the_floor_or_a_full_disk_stopped_is_insufficient_disk_and_any_other_failure_internal ... ok
+test manager::archive::tests::an_archive_one_put_cant_carry_is_refused_before_it_is_sent ... ok
+test manager::exec::tests::active_keys_survive_capacity_and_expiry ... ok
+test manager::logs::tests::log_chunks_become_records ... ok
+test manager::node::tests::workloads_may_be_given_what_the_reserve_leaves_and_no_more_than_the_ceiling ... ok
+test manager::reconcile::tests::reconciliation_does_not_reclaim_a_deletes_quarantined_port ... ok
+test manager::reconcile::tests::reconciliation_keeps_a_creates_unpersisted_port_reservation ... ok
+test fleet::heartbeat::tests::nothing_changed_waits_out_the_interval ... ok
+test manager::room::tests::a_long_write_looks_at_the_floor_every_few_hundred_mib_not_every_write ... ok
+test manager::workload_state::tests::exits_are_stops_or_crashes_by_what_was_asked ... ok
+test manager::workload_state::tests::missing_vs_unknown_depends_on_whether_the_runtime_answered ... ok
+test manager::workload_state::tests::only_a_workload_asked_to_suspend_reads_as_suspended ... ok
+test metrics::tests::canonical_metrics_keep_their_prefix_and_the_debug_contract_has_its_lease_alias ... ok
+test metrics::tests::only_the_usual_methods_are_named_in_a_label ... ok
+test ports::tests::allocates_lowest_free_and_never_twice ... ok
+test ports::tests::an_unreserved_port_is_free_again_at_once ... ok
+test ports::tests::claims_rebuild_state_and_catch_conflicts ... ok
+test ports::tests::ports_held_by_other_processes_are_skipped ... ok
+test ports::tests::quarantine_survives_a_snapshot_and_restore ... ok
+test ports::tests::release_only_touches_the_holders_port ... ok
+test ports::tests::released_ports_rest_before_reuse ... ok
+test ports::tests::the_real_probe_sees_a_bound_port ... ok
+test ports::tests::without_quarantine_a_port_comes_back ... ok
+test priority::tests::a_transfer_works_at_idle_priority_and_hands_its_thread_back_as_it_was ... ok
+test priority::tests::idle_nests_and_the_outer_one_puts_the_thread_back ... ok
+test protocol::exec::tests::exec_requests_are_bounded ... ok
+test protocol::exec::tests::fingerprints_separate_arguments ... ok
+test protocol::schema::the_committed_documents_are_what_the_wire_types_say ... ok
+test protocol::schema::the_documents_follow_serde_in_each_direction ... ok
+test protocol::spec::tests::a_kept_spec_is_whole_again_only_with_every_secret_it_names ... ok
+test protocol::spec::tests::a_secret_never_shows_in_debug_output_or_the_record ... ok
+test protocol::spec::tests::the_digest_is_stable_and_ignores_secret_values ... ok
+test protocol::spec::tests::the_digest_of_a_spec_is_the_same_in_every_build ... ok
+test protocol::spec::tests::unknown_fields_are_refused_not_ignored ... ok
+test protocol::spec::tests::what_a_spec_leaves_out_takes_the_one_default ... ok
+test protocol::spec::validate::tests::an_example_runtime_spec_is_valid ... ok
+test protocol::spec::validate::tests::every_problem_is_reported_at_once ... ok
+test protocol::spec::validate::tests::mount_paths_are_plain ... ok
+test protocol::spec::validate::tests::ports_must_be_distinct_and_audienced ... ok
+test protocol::spec::validate::tests::secrets_are_held_to_the_env_rules_and_limits ... ok
+test protocol::spec::validate::tests::wasm_refuses_udp_ingress ... ok
+test protocol::tests::features_only_grow ... ok
+test protocol::tests::this_build_speaks_its_own_protocol_version ... ok
+test protocol::transfer::tests::signatures_never_reach_a_log ... ok
+test runtime::docker::relay::tests::tcp_relay_preserves_bytes_and_cancellation_closes_connections ... ok
+test runtime::docker::relay::tests::udp_relay_keeps_each_peers_reply_address ... ok
+test runtime::docker::tests::docker_is_never_asked_to_restart_a_workload ... ok
+test runtime::docker::tests::explicit_entrypoint_does_not_append_the_images_default_command ... ok
+test runtime::docker::tests::killing_from_0_or_1_signals_nothing ... ok
+test runtime::docker::tests::only_a_reference_without_tag_or_digest_is_pulled_as_latest ... ok
+test runtime::docker::tests::the_tree_walk_never_starts_from_0_or_1 ... ok
+test runtime::process::journal::tests::a_missing_start_time_never_identifies_a_running_process ... ok
+test http_client::tests::an_answer_whose_body_stops_coming_ends_within_the_callers_limit ... ok
+test runtime::process::journal::tests::owner_reservations_survive_restart_and_release ... ok
+test runtime::process::journal::tests::private_journals_reject_symlinks_and_public_permissions ... ok
+test runtime::process::journal::tests::removal_keeps_the_child_until_termination_is_reaped ... ok
+test runtime::process::logs::tests::logs_decode_timestamps_tail_and_since ... ok
+test runtime::process::power::tests::launch_passes_each_host_binding_to_the_agent_and_refuses_wildcards ... ok
+test runtime::process::power::tests::launch_refuses_a_temporary_directory_symlink_without_touching_its_target ... ok
+test runtime::tests::docker_zero_time_is_none ... ok
+test runtime::wasm::frontend::tests::disposal_closes_keepalive_and_cancels_unfinished_uploads ... ok
+test runtime::wasm::host::tests::listeners_use_only_the_host_selected_addresses ... ok
+test manager::restarts::tests::only_a_crash_is_due_a_restart_never_a_stop_that_ended_badly ... ok
+test store::leftovers::tests::what_a_crash_left_is_removed_and_what_needs_a_human_is_left ... ok
+test store::quarantine::tests::ports_in_quarantine_are_read_back_as_saved ... ok
+test store::restore::tests::a_restore_is_swapped_in_whole_by_either_route ... ok
+test store::snapshots::tests::a_snapshot_exists_once_its_description_is_written ... ok
+test store::tests::a_record_from_before_restart_counts_loads_with_none ... ok
+test store::tests::a_suspend_record_is_kept_only_while_it_holds_something ... ok
+test store::tests::abandon_never_removes_data ... ok
+test store::tests::one_daemon_per_state_dir ... ok
+test store::tests::orphan_dirs_are_found ... ok
+test store::tests::records_round_trip_and_bad_ones_are_reported_not_lost ... ok
+test store::tests::saves_of_one_record_at_once_each_leave_it_whole ... ok
+test store::tests::trash_does_not_replace_even_an_empty_existing_entry ... ok
+test store::tests::trash_moves_everything_and_purges_only_when_old ... ok
+test store::tests::trash_preserves_every_generation_deleted_in_one_second ... ok
+test store::tests::whether_data_can_go_to_the_workloads_user_is_known_up_front ... ok
+test store_lease::client::exchange_tests::store_time_skew_cas_refusal_and_cut_never_grant_extra_time ... ok
+test store_lease::client::tests::authority_is_anchored_before_network_and_rounded_early ... ok
+test store_lease::guard::tests::fence_attempts_both_controls_and_leaves_parent_frozen ... ok
+test store_lease::policy_tests::feature_off_hosts_are_untouched_and_enabled_policy_cannot_silently_downgrade ... ok
+test tarball::tests::a_file_that_changes_while_read_keeps_its_stated_size ... ok
+test fleet::heartbeat::tests::under_steady_churn_beats_come_once_a_second ... ok
+test tarball::tests::a_pack_stops_when_the_disk_has_no_room ... ok
+test tarball::tests::a_pax_size_near_the_largest_number_is_too_large_not_an_overflow ... ok
+test tarball::tests::a_world_round_trips_with_its_hash ... ok
+test tarball::tests::an_archive_in_several_gzip_members_unpacks_whole ... ok
+test tarball::tests::an_unpack_stops_when_the_disk_has_no_room ... ok
+test tarball::tests::climbing_out_refuses_the_whole_archive ... ok
+test tarball::tests::data_stating_more_than_a_restore_takes_is_refused_before_it_is_packed ... ok
+test tarball::tests::entries_named_for_the_root_count_toward_what_unpacks ... ok
+test tarball::tests::garbage_is_damaged_not_a_panic ... ok
+test tarball::tests::links_and_devices_are_skipped_and_modes_are_tamed ... ok
+test tarball::tests::long_names_and_pax_records_of_ordinary_size_still_unpack ... ok
+test tarball::tests::metadata_larger_than_a_mebibyte_is_damaged_before_it_is_held ... ok
+test tree::tests::a_copy_holds_the_same_bytes_and_tamed_modes ... ok
+test tree::tests::a_copy_stops_when_the_disk_has_no_room ... ok
+test tree::tests::a_directory_of_more_names_than_a_walk_takes_is_refused_before_any_is_visited ... ok
+test tree::tests::a_directory_swapped_for_a_link_mid_walk_is_never_followed ... ok
+test runtime::process::journal::tests::observation_cannot_restore_removed_compute ... ok
+test tree::tests::a_tree_stating_more_than_a_restore_takes_is_refused_before_it_is_copied ... ok
+test tree::tests::a_walk_visits_parents_first_in_order_and_leaves_out_what_is_excluded ... ok
+test tree::tests::disk_usage_counts_an_honest_tree_as_it_always_did ... ok
+test tarball::tests::a_long_file_is_stopped_at_the_floor_while_it_is_packed ... ok
+test tree::tests::exclusion_is_by_top_level_name_only ... ok
+test tree::tests::links_are_reported_never_followed_and_fifos_are_never_opened ... ok
+test upgrade::backstop::tests::a_trial_not_ended_by_the_deadline_stops_the_process_and_one_ended_never_does ... ok
+test upgrade::backstop::tests::only_a_start_on_trial_is_armed ... ok
+test upgrade::stopped::tests::systemd_says_whether_a_stop_failed_and_its_exit_says_how ... ok
+test upgrade::stopped::tests::the_state_directory_is_read_from_its_key_alone ... ok
+test upgrade::tests::a_control_plane_without_a_binary_fails_the_upgrade_and_one_that_is_down_is_tried_again ... ok
+test upgrade::tests::a_failed_trial_puts_the_binary_before_back_and_says_why ... ok
+test upgrade::tests::a_plain_binary_is_moved_under_the_state_directory_and_linked ... ok
+test upgrade::tests::a_swap_keeps_the_binary_before_and_puts_the_new_one_on_trial ... ok
+test upgrade::tests::a_trial_ends_with_a_heartbeat_once_reconciled_or_puts_the_binary_before_back ... ok
+test upgrade::tests::a_version_is_what_the_binary_prints ... ok
+test upgrade::tests::after_a_stop_only_a_trial_that_exited_badly_is_put_back ... ok
+test tree::tests::a_long_file_is_stopped_at_the_floor_while_it_is_copied ... ok
+test upgrade::tests::an_offer_without_a_release_signature_for_it_is_never_downloaded_or_run ... ok
+test upgrade::trust::tests::a_node_never_goes_back_to_an_older_pryxd ... ok
+test upgrade::trust::tests::a_public_key_is_read_from_its_pem_as_openssl_and_rcgen_write_it ... ok
+test upgrade::trust::tests::a_signature_for_the_previous_release_statement_is_refused ... ok
+test upgrade::trust::tests::an_offer_is_trusted_only_signed_for_its_version_and_sha256 ... ok
+test upgrade::trust::tests::legacy_statement_is_scoped_to_explicit_debug_keys ... ok
+test upgrade::trust::tests::the_release_keys_are_ed25519_keys ... ok
+test upgrade::tests::an_offer_is_installed_only_when_its_sha256_and_version_match ... ok
+test tree::tests::disk_usage_never_counts_or_enters_a_directory_swapped_for_a_link ... ok
+test runtime::wasm::process::tests::real_terminal_exit_and_immediate_http_listener ... ok
+
+test result: ok. 203 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.45s
+
+     Running unittests src/main.rs (target/debug/deps/pryxd-0bfd40da8a545e21)
+
+running 1 test
+test tests::join_takes_each_allowed_image_prefix ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/api.rs (target/debug/deps/api-1df91a13ac77153f)
+
+running 13 tests
+test a_certificate_from_another_ca_is_refused ... ok
+test a_server_certificate_cannot_be_used_as_a_client ... ok
+test an_empty_image_policy_refuses_every_spec ... ok
+test a_whole_lifecycle_over_http ... ok
+test live_and_buffered_exec_share_one_idempotency_key ... ok
+test methods_nobody_uses_are_counted_under_one_label ... ok
+test no_client_certificate_no_connection ... ok
+test refused_handshakes_never_flood_the_log ... ok
+test the_allowed_client_gets_in_and_every_answer_names_the_protocol ... ok
+test malformed_requests_get_the_protocols_errors ... ok
+test the_ops_listener_stops_at_once_even_with_half_a_request_open ... ok
+test a_valid_certificate_for_another_name_is_forbidden_and_its_connection_closed ... ok
+test handshakes_in_progress_are_capped_per_address_and_overall ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.04s
+
+     Running tests/debug_contract.rs (target/debug/deps/debug_contract-f2e4f2c0ae3207f4)
+
+running 1 test
+test version_alias_is_scoped_to_the_debug_fixture_executable ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running tests/docker.rs (target/debug/deps/docker-52d74356e6e72824)
+
+running 12 tests
+test a_port_another_process_holds_is_skipped ... ignored, needs Docker
+test a_restarted_daemon_adopts_running_workloads_without_touching_them ... ignored, needs Docker
+test a_short_exec_timeout_kills_the_exec_and_leaves_the_workload_running ... ignored, needs Docker
+test a_start_docker_refuses_for_a_taken_port_is_a_port_conflict ... ignored, needs Docker
+test a_suspended_server_keeps_its_memory_and_answers_within_a_second_of_start ... ignored, needs Docker
+test an_exec_past_its_timeout_is_killed_inside_the_container ... ignored, needs Docker
+test crashes_restart_by_policy_then_stay_crashed ... ignored, needs Docker
+test isolation_keeps_a_workload_off_another_s_published_port ... ignored, needs Docker, and root for nftables
+test lifecycle_hardening_and_graceful_stop ... ignored, needs Docker
+test the_memory_limit_is_hard_and_an_oom_kill_is_reported ... ignored, needs Docker
+test with_docker_gone_the_daemon_answers_and_says_why ... ignored, needs Docker
+test workloads_cannot_reach_each_other ... ignored, needs Docker
+
+test result: ok. 0 passed; 0 failed; 12 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/doctor.rs (target/debug/deps/doctor-f818f3e57b260a01)
+
+running 2 tests
+test docker_down_is_a_warning_and_pryxd_still_starts ... ok
+test preflight_refuses_an_invalid_config_and_nothing_pryxd_survives ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/durable.rs (target/debug/deps/durable-af800cd94111cff4)
+
+running 1 test
+test a_file_gets_the_mode_asked_for_whatever_the_umask ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/epochs.rs (target/debug/deps/epochs-0229db67146f60c0)
+
+running 12 tests
+test a_fence_the_disk_couldnt_record_still_stops_the_copy ... ok
+test a_fenced_copy_can_be_placed_here_again_under_a_newer_epoch ... ok
+test a_fenced_copy_stops_and_never_starts_again ... ok
+test a_fenced_copy_survives_a_restart_as_fenced ... ok
+test a_late_fence_leaves_the_current_copy_alone ... ok
+test a_new_epoch_takes_the_copy_over_keeping_data_and_ports ... ok
+test a_newer_epoch_may_always_tear_an_older_copy_down ... ok
+test the_epoch_is_rebuilt_from_labels_when_the_state_directory_is_lost ... ok
+test a_placed_copy_answers_only_to_its_own_epoch ... ok
+test workloads_without_epochs_keep_the_single_node_protocol ... ok
+test a_fence_the_runtime_couldnt_apply_is_applied_at_the_next_resync ... ok
+test the_resync_never_stops_a_copy_that_isnt_superseded ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.18s
+
+     Running tests/files.rs (target/debug/deps/files-639748cffa854eb7)
+
+running 1 test
+test stopped_files_stream_with_exact_epochs_and_refuse_links ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
+
+     Running tests/fleet.rs (target/debug/deps/fleet-ddfc5cfc15fc0157)
+
+running 11 tests
+test a_node_with_an_identity_never_uses_an_enrollment_key ... ok
+test a_pasted_token_sends_only_its_secret_once_it_names_this_deployment_and_ca ... ok
+test a_pasted_token_is_all_a_host_needs_to_join ... ok
+test a_handshake_cut_short_is_tried_again_and_one_a_stranger_vouches_for_is_not ... ok
+test an_answer_the_node_cant_serve_with_leaves_it_unenrolled_to_ask_again ... ok
+test an_answer_lost_on_the_way_is_asked_for_again_with_the_same_key ... ok
+test nothing_is_written_until_the_ca_and_the_address_are_certain ... ok
+test only_the_ca_a_node_was_provisioned_with_is_trusted ... ok
+test asked_to_renew_a_node_makes_a_new_key_and_switches_to_it_whole ... ok
+test a_renewal_that_fails_leaves_the_node_on_its_current_identity ... ok
+test a_join_waits_for_an_endpoint_that_is_still_coming_up ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.08s
+
+     Running tests/compat/formats.rs (target/debug/deps/formats-e81dfea981715eaf)
+
+running 7 tests
+test pinned::a_snapshot_description ... ok
+test pinned::a_fleet_identity_after_renewals ... ok
+test pinned::an_upgrade_on_trial_and_one_given_up_on ... ok
+test pinned::ports_resting_in_quarantine ... ok
+test pinned::a_workload_record_with_nothing_optional ... ok
+test pinned::a_workload_record_with_every_field_set ... ok
+test pinned::the_record_a_container_carries_in_its_label ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/lifecycle.rs (target/debug/deps/lifecycle-67bd646841ed432a)
+
+running 34 tests
+test a_create_below_the_free_disk_floor_is_refused_and_leaves_nothing ... ok
+test a_changed_secret_is_a_new_spec_though_the_digest_ignores_it ... ok
+test a_container_lost_by_the_runtime_is_reported_and_made_again_on_request ... ok
+test a_port_a_failed_create_held_for_a_moment_is_free_at_once ... ok
+test a_follow_ends_when_its_reader_goes_away_however_quiet_the_workload ... ok
+test a_kill_during_a_restart_backoff_keeps_the_workload_stopped ... ok
+test a_record_written_from_two_sides_at_once_ends_as_the_newest ... ok
+test a_restart_of_pryxd_doesnt_give_a_crash_loop_its_retries_again ... ok
+test a_restart_that_wouldnt_fit_is_refused_and_says_why ... ok
+test a_stop_during_a_restart_backoff_keeps_the_workload_stopped ... ok
+test a_stop_that_needed_a_kill_says_so_and_is_still_a_stop ... ok
+test an_exec_runs_in_the_container_it_was_checked_against_or_not_at_all ... ok
+test an_unreachable_runtime_is_an_answer_not_a_hang ... ok
+test apply_keeps_ports_and_data_and_restarts_a_running_workload ... ok
+test concurrent_duplicate_creates_are_serialized ... ok
+test concurrent_execs_with_one_key_run_once ... ok
+test conditional_puts_follow_http_semantics ... ok
+test crashes_and_oom_kills_are_reported_as_such ... ok
+test delete_while_running_stops_gracefully_and_keeps_data_by_default ... ok
+test delete_while_stopped_removes_without_stopping ... ok
+test deleting_data_needs_confirmation_and_goes_to_trash ... ok
+test duplicate_create_makes_one_workload ... ok
+test exec_runs_once_per_idempotency_key ... ok
+test invalid_ids_and_specs_are_refused_before_anything_happens ... ok
+test logs_stream_what_the_workload_printed ... ok
+test memory_admission_refuses_a_start_that_would_overfill_the_host ... ok
+test a_workload_found_dead_at_startup_is_not_restarted ... ok
+test ports_are_never_shared_and_run_out_cleanly ... ok
+test node_totals_count_what_runs_now ... ok
+test start_and_stop_are_idempotent ... ok
+test while_the_runtime_is_down_nothing_stale_is_passed_off_as_the_state ... ok
+test a_crash_pryxd_sees_is_restarted_within_the_policy_and_nothing_else_is ... ok
+test a_workload_busy_for_long_holds_up_no_other_workloads_restart ... ok
+test ports_workloads_let_go_of_at_once_all_rest ... ok
+
+test result: ok. 34 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 9.30s
+
+     Running tests/reconcile.rs (target/debug/deps/reconcile-2410a001f15e0f29)
+
+running 14 tests
+test a_container_the_runtime_lost_is_reported_not_recreated ... ok
+test a_create_interrupted_after_the_container_existed_is_completed ... ok
+test a_create_interrupted_before_the_container_existed_is_finished_by_the_next_put ... ok
+test a_lost_state_directory_is_rebuilt_from_container_labels ... ok
+test a_crash_reaches_the_workload_through_the_event_stream ... ok
+test an_issue_the_next_pass_no_longer_finds_is_gone ... ok
+test a_restore_cut_short_before_it_replaced_anything_is_removed_at_startup ... ok
+test orphaned_data_is_reported_and_never_touched ... ok
+test another_deployments_containers_are_invisible ... ok
+test a_restarted_daemon_finds_everything_and_hands_out_no_port_twice ... ok
+test a_restore_cut_short_once_its_data_was_complete_is_finished_at_startup ... ok
+test reconciliation_with_the_runtime_down_keeps_the_records ... ok
+test what_a_crash_left_in_the_spool_and_of_snapshots_is_cleared_at_startup ... ok
+test two_records_claiming_one_port_are_both_flagged ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+     Running tests/resume.rs (target/debug/deps/resume-90f902ed5a4b9451)
+
+running 10 tests
+test a_lease_too_long_to_count_is_held_rather_than_stopping_pryxd ... ok
+test a_node_held_lost_resumes_nothing_now_or_after_the_next_restart ... ok
+test a_fence_the_heartbeat_hands_off_wins_over_the_resume_too ... ok
+test a_fence_in_the_same_answer_wins_over_the_resume ... ok
+test a_fence_the_disk_couldnt_record_still_keeps_the_copy_from_resuming ... ok
+test a_workload_the_host_went_down_under_comes_back_by_itself ... ok
+test a_restart_of_pryxd_alone_is_not_a_restart_of_the_host ... ok
+test a_stop_while_the_resume_waits_for_the_lease_keeps_the_workload_stopped ... ok
+test in_a_fleet_the_resume_waits_for_the_lease ... ok
+test what_had_stopped_before_the_host_went_down_stays_stopped ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.21s
+
+     Running tests/storage_bench.rs (target/debug/deps/storage_bench-14f3a8701798f441)
+
+running 1 test
+test snapshot_archive_and_restore_costs ... ignored, a benchmark: run it on purpose, on the disk it should measure
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/suspend.rs (target/debug/deps/suspend-a3e2456bd71a3bb7)
+
+running 10 tests
+test a_deferred_spec_the_hosts_policy_no_longer_admits_never_boots ... ok
+test a_spec_sent_while_it_sleeps_waits_for_its_next_boot ... ok
+test a_suspended_workload_resumes_from_memory_as_the_same_process ... ok
+test any_other_spec_replaces_a_sleeping_workload_as_it_always_did ... ok
+test only_a_running_workload_can_be_suspended ... ok
+test over_http_suspend_takes_the_epoch_and_old_answers_stay_as_they_were ... ok
+test stop_kill_fence_and_delete_each_reach_a_suspended_copy ... ok
+test a_resume_that_hangs_is_killed_and_started_afresh_on_its_data ... ok
+test a_cold_start_after_a_hung_resume_boots_the_deferred_spec ... ok
+test a_restart_of_the_host_ends_the_sleep_and_resumes_nothing ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.19s
+
+     Running tests/transfer.rs (target/debug/deps/transfer-22f467bb0614b59c)
+
+running 19 tests
+test a_download_the_disk_has_no_room_for_is_refused_before_it_is_spooled ... ok
+test a_move_leaves_out_what_the_server_makes_again ... ok
+test a_restore_onto_a_disk_below_its_floor_is_refused_and_changes_nothing ... ok
+test a_running_workload_exports_only_when_quiesced_and_never_restores ... ok
+test a_snapshot_is_restored_only_with_room_for_all_of_it ... ok
+test a_snapshot_is_taken_once_restored_in_place_and_uploaded ... ok
+test a_download_that_stops_coming_fails_and_lets_go_of_the_workload ... ok
+test a_refusal_whose_reason_stops_coming_still_ends_the_export ... ok
+test a_superseded_copy_can_never_become_the_newest_backup ... ok
+test a_wrong_checksum_changes_nothing ... ok
+test a_world_moves_through_the_store_and_its_hash_holds ... ok
+test an_archive_too_large_for_one_upload_is_refused_with_its_sizes ... ok
+test an_export_never_follows_a_link_out_of_the_data ... ok
+test parts_the_store_cant_take_are_refused_and_a_small_archive_still_goes_whole ... ok
+test a_snapshot_larger_than_one_put_uploads_in_parts ... ok
+test snapshots_follow_the_export_rules ... ok
+test parts_too_few_for_the_archive_are_refused_before_anything_is_sent ... ok
+test an_archive_larger_than_one_put_goes_in_parts_and_restores_whole ... ok
+test a_part_the_store_failed_to_take_is_sent_again ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.56s
+
+     Running tests/wasm.rs (target/debug/deps/wasm-3740529cbaaf73bc)
+
+running 1 test
+2026-11-06T12:48:47.958284Z  WARN pryxd::runtime::wasm::process: agentOS process operation failed code="termination_unconfirmed"
+ERR_AGENTOS_VM_FORCED_PROCESS_FINALIZE: vm_id=vm-2 process_count=1
+2026-11-06T12:48:54.615093Z  WARN pryxd::runtime::wasm::process: agentOS process operation failed code="termination_unconfirmed"
+ERR_AGENTOS_VM_FORCED_PROCESS_FINALIZE: vm_id=vm-3 process_count=1
+test real_wasm_files_processes_sleep_stop_and_isolation has been running for over 60 seconds
+2026-11-06T12:49:12.966783Z  WARN pryxd::runtime::wasm::process: agentOS process operation failed code="termination_unconfirmed"
+ERR_AGENTOS_VM_FORCED_PROCESS_FINALIZE: vm_id=vm-4 process_count=1
+2026-11-06T12:49:41.217047Z  WARN pryxd::runtime::wasm::process: agentOS process operation failed code="termination_unconfirmed"
+ERR_AGENTOS_VM_FORCED_PROCESS_FINALIZE: vm_id=vm-2 process_count=1
+test real_wasm_files_processes_sleep_stop_and_isolation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 91.95s
+
+   Doc-tests pryx_agent
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests pryxd
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

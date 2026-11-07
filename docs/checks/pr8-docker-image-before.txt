@@ -1,0 +1,310 @@
+Work CI: https://github.com/cubepals/pryx/actions/runs/42284542693
+Source: 280299ca07b469f06bb75c0067ba43234a0168de
+Job: 128121927704
+The new transport regression ran before any other test had pulled Alpine.
+
+2026-11-06T20:04:06.5230662Z running 13 tests
+2026-11-06T20:04:06.5355772Z test a_certificate_from_another_ca_is_refused ... ok
+2026-11-06T20:04:06.5395823Z test a_server_certificate_cannot_be_used_as_a_client ... ok
+2026-11-06T20:04:06.5463166Z test an_empty_image_policy_refuses_every_spec ... ok
+2026-11-06T20:04:06.6526374Z test a_whole_lifecycle_over_http ... ok
+2026-11-06T20:04:06.7099937Z test live_and_buffered_exec_share_one_idempotency_key ... ok
+2026-11-06T20:04:06.7236501Z test methods_nobody_uses_are_counted_under_one_label ... ok
+2026-11-06T20:04:06.7298403Z test no_client_certificate_no_connection ... ok
+2026-11-06T20:04:06.7805944Z test refused_handshakes_never_flood_the_log ... ok
+2026-11-06T20:04:06.7861747Z test the_allowed_client_gets_in_and_every_answer_names_the_protocol ... ok
+2026-11-06T20:04:06.8415563Z test malformed_requests_get_the_protocols_errors ... ok
+2026-11-06T20:04:06.9893704Z test the_ops_listener_stops_at_once_even_with_half_a_request_open ... ok
+2026-11-06T20:04:07.0473291Z test a_valid_certificate_for_another_name_is_forbidden_and_its_connection_closed ... ok
+2026-11-06T20:04:08.5565859Z test handshakes_in_progress_are_capped_per_address_and_overall ... ok
+2026-11-06T20:04:08.5566437Z
+2026-11-06T20:04:08.5566873Z test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.03s
+2026-11-06T20:04:08.5567482Z
+2026-11-06T20:04:08.5584220Z      Running tests/debug_contract.rs (target/debug/deps/debug_contract-96cace1f83317490)
+2026-11-06T20:04:08.5597839Z
+2026-11-06T20:04:08.5598129Z running 1 test
+2026-11-06T20:04:08.7066402Z test version_alias_is_scoped_to_the_debug_fixture_executable ... ok
+2026-11-06T20:04:08.7067393Z
+2026-11-06T20:04:08.7067820Z test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+2026-11-06T20:04:08.7068370Z
+2026-11-06T20:04:08.7071290Z      Running tests/docker.rs (target/debug/deps/docker-f01ad09da0b4e6b5)
+2026-11-06T20:04:08.7088619Z
+2026-11-06T20:04:08.7088860Z running 13 tests
+2026-11-06T20:04:08.7089635Z test a_lost_start_response_is_confirmed_without_repeating_the_mutation ... ignored, needs Docker
+2026-11-06T20:04:08.7090664Z test a_port_another_process_holds_is_skipped ... ignored, needs Docker
+2026-11-06T20:04:08.7091666Z test a_restarted_daemon_adopts_running_workloads_without_touching_them ... ignored, needs Docker
+2026-11-06T20:04:08.7092830Z test a_short_exec_timeout_kills_the_exec_and_leaves_the_workload_running ... ignored, needs Docker
+2026-11-06T20:04:08.7093934Z test a_start_docker_refuses_for_a_taken_port_is_a_port_conflict ... ignored, needs Docker
+2026-11-06T20:04:08.7095268Z test a_suspended_server_keeps_its_memory_and_answers_within_a_second_of_start ... ignored, needs Docker
+2026-11-06T20:04:08.7096080Z test an_exec_past_its_timeout_is_killed_inside_the_container ... ignored, needs Docker
+2026-11-06T20:04:08.7096630Z test crashes_restart_by_policy_then_stay_crashed ... ignored, needs Docker
+2026-11-06T20:04:08.7097260Z test isolation_keeps_a_workload_off_another_s_published_port ... ignored, needs Docker, and root for nftables
+2026-11-06T20:04:08.7098141Z test lifecycle_hardening_and_graceful_stop ... ignored, needs Docker
+2026-11-06T20:04:08.7098868Z test the_memory_limit_is_hard_and_an_oom_kill_is_reported ... ignored, needs Docker
+2026-11-06T20:04:08.7099504Z test with_docker_gone_the_daemon_answers_and_says_why ... ignored, needs Docker
+2026-11-06T20:04:08.7100174Z test workloads_cannot_reach_each_other ... ignored, needs Docker
+2026-11-06T20:04:08.7112380Z
+2026-11-06T20:04:08.7112885Z test result: ok. 0 passed; 0 failed; 13 ignored; 0 measured; 0 filtered out; finished in 0.00s
+2026-11-06T20:04:08.7113541Z
+2026-11-06T20:04:08.7114181Z      Running tests/doctor.rs (target/debug/deps/doctor-3a8ec968d6200196)
+2026-11-06T20:04:08.7120810Z
+2026-11-06T20:04:08.7121032Z running 2 tests
+2026-11-06T20:04:08.7349492Z test docker_down_is_a_warning_and_pryxd_still_starts ... ok
+2026-11-06T20:04:08.7452504Z test preflight_refuses_an_invalid_config_and_nothing_pryxd_survives ... ok
+2026-11-06T20:04:08.7452991Z
+2026-11-06T20:04:08.7453496Z test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+2026-11-06T20:04:08.7453926Z
+2026-11-06T20:04:08.7455894Z      Running tests/durable.rs (target/debug/deps/durable-71c09fe7445d5451)
+2026-11-06T20:04:08.7468163Z
+2026-11-06T20:04:08.7468407Z running 1 test
+2026-11-06T20:04:08.7482797Z test a_file_gets_the_mode_asked_for_whatever_the_umask ... ok
+2026-11-06T20:04:08.7483406Z
+2026-11-06T20:04:08.7484149Z test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+2026-11-06T20:04:08.7484802Z
+2026-11-06T20:04:08.7485918Z      Running tests/epochs.rs (target/debug/deps/epochs-05409f3d7ac18a43)
+2026-11-06T20:04:08.7500184Z
+2026-11-06T20:04:08.7500347Z running 12 tests
+2026-11-06T20:04:08.7653539Z test a_fence_the_disk_couldnt_record_still_stops_the_copy ... ok
+2026-11-06T20:04:08.7674408Z test a_fenced_copy_can_be_placed_here_again_under_a_newer_epoch ... ok
+2026-11-06T20:04:08.7696892Z test a_fenced_copy_stops_and_never_starts_again ... ok
+2026-11-06T20:04:08.7754581Z test a_fenced_copy_survives_a_restart_as_fenced ... ok
+2026-11-06T20:04:08.7766943Z test a_late_fence_leaves_the_current_copy_alone ... ok
+2026-11-06T20:04:08.7813543Z test a_new_epoch_takes_the_copy_over_keeping_data_and_ports ... ok
+2026-11-06T20:04:08.7855773Z test a_placed_copy_answers_only_to_its_own_epoch ... ok
+2026-11-06T20:04:08.7886403Z test a_newer_epoch_may_always_tear_an_older_copy_down ... ok
+2026-11-06T20:04:08.7902621Z test the_epoch_is_rebuilt_from_labels_when_the_state_directory_is_lost ... ok
+2026-11-06T20:04:08.8002669Z test workloads_without_epochs_keep_the_single_node_protocol ... ok
+2026-11-06T20:04:13.7683675Z test a_fence_the_runtime_couldnt_apply_is_applied_at_the_next_resync ... ok
+2026-11-06T20:04:13.8239464Z test the_resync_never_stops_a_copy_that_isnt_superseded ... ok
+2026-11-06T20:04:13.8240019Z
+2026-11-06T20:04:13.8240502Z test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.07s
+2026-11-06T20:04:13.8241145Z
+2026-11-06T20:04:13.8247359Z      Running tests/files.rs (target/debug/deps/files-bfd602ce10dff2ff)
+2026-11-06T20:04:13.8265148Z
+2026-11-06T20:04:13.8265317Z running 1 test
+2026-11-06T20:04:13.9020248Z test stopped_files_stream_with_exact_epochs_and_refuse_links ... ok
+2026-11-06T20:04:13.9020800Z
+2026-11-06T20:04:13.9021320Z test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+2026-11-06T20:04:13.9021946Z
+2026-11-06T20:04:13.9027969Z      Running tests/fleet.rs (target/debug/deps/fleet-2192a08b82250d5d)
+2026-11-06T20:04:13.9047808Z
+2026-11-06T20:04:13.9047961Z running 11 tests
+2026-11-06T20:04:13.9597598Z test a_node_with_an_identity_never_uses_an_enrollment_key ... ok
+2026-11-06T20:04:14.0099754Z test a_pasted_token_sends_only_its_secret_once_it_names_this_deployment_and_ca ... ok
+2026-11-06T20:04:14.0128217Z test a_pasted_token_is_all_a_host_needs_to_join ... ok
+2026-11-06T20:04:14.9643980Z test a_handshake_cut_short_is_tried_again_and_one_a_stranger_vouches_for_is_not ... ok
+2026-11-06T20:04:15.0618303Z test an_answer_the_node_cant_serve_with_leaves_it_unenrolled_to_ask_again ... ok
+2026-11-06T20:04:15.0779739Z test an_answer_lost_on_the_way_is_asked_for_again_with_the_same_key ... ok
+2026-11-06T20:04:15.1695567Z test nothing_is_written_until_the_ca_and_the_address_are_certain ... ok
+2026-11-06T20:04:15.2639015Z test only_the_ca_a_node_was_provisioned_with_is_trusted ... ok
+2026-11-06T20:04:16.1737394Z test asked_to_renew_a_node_makes_a_new_key_and_switches_to_it_whole ... ok
+2026-11-06T20:04:16.2524746Z test a_renewal_that_fails_leaves_the_node_on_its_current_identity ... ok
+2026-11-06T20:04:16.9588260Z test a_join_waits_for_an_endpoint_that_is_still_coming_up ... ok
+2026-11-06T20:04:16.9588850Z
+2026-11-06T20:04:16.9589327Z test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.05s
+2026-11-06T20:04:16.9589982Z
+2026-11-06T20:04:16.9596769Z      Running tests/compat/formats.rs (target/debug/deps/formats-5427429ef14dbaef)
+2026-11-06T20:04:16.9609017Z
+2026-11-06T20:04:16.9609297Z running 7 tests
+2026-11-06T20:04:16.9618025Z test pinned::a_fleet_identity_after_renewals ... ok
+2026-11-06T20:04:16.9618714Z test pinned::a_snapshot_description ... ok
+2026-11-06T20:04:16.9619335Z test pinned::ports_resting_in_quarantine ... ok
+2026-11-06T20:04:16.9620460Z test pinned::an_upgrade_on_trial_and_one_given_up_on ... ok
+2026-11-06T20:04:16.9621237Z test pinned::a_workload_record_with_nothing_optional ... ok
+2026-11-06T20:04:16.9621982Z test pinned::a_workload_record_with_every_field_set ... ok
+2026-11-06T20:04:16.9622714Z test pinned::the_record_a_container_carries_in_its_label ... ok
+2026-11-06T20:04:16.9623165Z
+2026-11-06T20:04:16.9623584Z test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+2026-11-06T20:04:16.9624183Z
+2026-11-06T20:04:16.9625715Z      Running tests/lifecycle.rs (target/debug/deps/lifecycle-ccf41bc178cddc1d)
+2026-11-06T20:04:16.9641477Z
+2026-11-06T20:04:16.9641635Z running 34 tests
+2026-11-06T20:04:16.9677171Z test a_create_below_the_free_disk_floor_is_refused_and_leaves_nothing ... ok
+2026-11-06T20:04:16.9750210Z test a_container_lost_by_the_runtime_is_reported_and_made_again_on_request ... ok
+2026-11-06T20:04:16.9767088Z test a_changed_secret_is_a_new_spec_though_the_digest_ignores_it ... ok
+2026-11-06T20:04:16.9830097Z test a_port_a_failed_create_held_for_a_moment_is_free_at_once ... ok
+2026-11-06T20:04:17.0286148Z test a_follow_ends_when_its_reader_goes_away_however_quiet_the_workload ... ok
+2026-11-06T20:04:17.1658757Z test a_record_written_from_two_sides_at_once_ends_as_the_newest ... ok
+2026-11-06T20:04:17.7087364Z test a_restart_that_wouldnt_fit_is_refused_and_says_why ... ok
+2026-11-06T20:04:17.9848096Z test a_kill_during_a_restart_backoff_keeps_the_workload_stopped ... ok
+2026-11-06T20:04:18.5838634Z test a_restart_of_pryxd_doesnt_give_a_crash_loop_its_retries_again ... ok
+2026-11-06T20:04:18.7176962Z test a_stop_during_a_restart_backoff_keeps_the_workload_stopped ... ok
+2026-11-06T20:04:18.9942381Z test a_stop_that_needed_a_kill_says_so_and_is_still_a_stop ... ok
+2026-11-06T20:04:19.0318114Z test an_exec_runs_in_the_container_it_was_checked_against_or_not_at_all ... ok
+2026-11-06T20:04:19.0381949Z test an_unreachable_runtime_is_an_answer_not_a_hang ... ok
+2026-11-06T20:04:19.0462450Z test apply_keeps_ports_and_data_and_restarts_a_running_workload ... ok
+2026-11-06T20:04:19.0507911Z test concurrent_duplicate_creates_are_serialized ... ok
+2026-11-06T20:04:19.2579022Z test concurrent_execs_with_one_key_run_once ... ok
+2026-11-06T20:04:19.2648266Z test conditional_puts_follow_http_semantics ... ok
+2026-11-06T20:04:19.2730475Z test crashes_and_oom_kills_are_reported_as_such ... ok
+2026-11-06T20:04:19.2849727Z test delete_while_running_stops_gracefully_and_keeps_data_by_default ... ok
+2026-11-06T20:04:19.2899693Z test delete_while_stopped_removes_without_stopping ... ok
+2026-11-06T20:04:19.2947319Z test deleting_data_needs_confirmation_and_goes_to_trash ... ok
+2026-11-06T20:04:19.2983918Z test duplicate_create_makes_one_workload ... ok
+2026-11-06T20:04:19.3036877Z test exec_runs_once_per_idempotency_key ... ok
+2026-11-06T20:04:19.3050290Z test invalid_ids_and_specs_are_refused_before_anything_happens ... ok
+2026-11-06T20:04:19.3103976Z test logs_stream_what_the_workload_printed ... ok
+2026-11-06T20:04:19.3209338Z test memory_admission_refuses_a_start_that_would_overfill_the_host ... ok
+2026-11-06T20:04:19.9357575Z test node_totals_count_what_runs_now ... ok
+2026-11-06T20:04:19.9420223Z test ports_are_never_shared_and_run_out_cleanly ... ok
+2026-11-06T20:04:20.7269584Z test a_workload_found_dead_at_startup_is_not_restarted ... ok
+2026-11-06T20:04:20.7364470Z test start_and_stop_are_idempotent ... ok
+2026-11-06T20:04:20.7449727Z test while_the_runtime_is_down_nothing_stale_is_passed_off_as_the_state ... ok
+2026-11-06T20:04:20.9453192Z test ports_workloads_let_go_of_at_once_all_rest ... ok
+2026-11-06T20:04:22.5261394Z test a_crash_pryxd_sees_is_restarted_within_the_policy_and_nothing_else_is ... ok
+2026-11-06T20:04:24.1082308Z test a_workload_busy_for_long_holds_up_no_other_workloads_restart ... ok
+2026-11-06T20:04:24.1082996Z
+2026-11-06T20:04:24.1083516Z test result: ok. 34 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.14s
+2026-11-06T20:04:24.1084245Z
+2026-11-06T20:04:24.1092175Z      Running tests/reconcile.rs (target/debug/deps/reconcile-21efe37f7c9ab959)
+2026-11-06T20:04:24.1106884Z
+2026-11-06T20:04:24.1107097Z running 14 tests
+2026-11-06T20:04:24.1177611Z test a_container_the_runtime_lost_is_reported_not_recreated ... ok
+2026-11-06T20:04:24.1223436Z test a_create_interrupted_after_the_container_existed_is_completed ... ok
+2026-11-06T20:04:24.1236362Z test a_create_interrupted_before_the_container_existed_is_finished_by_the_next_put ... ok
+2026-11-06T20:04:24.1304652Z test a_lost_state_directory_is_rebuilt_from_container_labels ... ok
+2026-11-06T20:04:24.1343896Z test a_restore_cut_short_before_it_replaced_anything_is_removed_at_startup ... ok
+2026-11-06T20:04:24.1358157Z test a_restarted_daemon_finds_everything_and_hands_out_no_port_twice ... ok
+2026-11-06T20:04:24.1393350Z test an_issue_the_next_pass_no_longer_finds_is_gone ... ok
+2026-11-06T20:04:24.1411065Z test a_restore_cut_short_once_its_data_was_complete_is_finished_at_startup ... ok
+2026-11-06T20:04:24.1422025Z test orphaned_data_is_reported_and_never_touched ... ok
+2026-11-06T20:04:24.1424089Z test another_deployments_containers_are_invisible ... ok
+2026-11-06T20:04:24.1469956Z test a_crash_reaches_the_workload_through_the_event_stream ... ok
+2026-11-06T20:04:24.1471771Z test reconciliation_with_the_runtime_down_keeps_the_records ... ok
+2026-11-06T20:04:24.1503125Z test what_a_crash_left_in_the_spool_and_of_snapshots_is_cleared_at_startup ... ok
+2026-11-06T20:04:24.1519202Z test two_records_claiming_one_port_are_both_flagged ... ok
+2026-11-06T20:04:24.1519655Z
+2026-11-06T20:04:24.1520090Z test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+2026-11-06T20:04:24.1520591Z
+2026-11-06T20:04:24.1525694Z      Running tests/resume.rs (target/debug/deps/resume-ced0c067196f3620)
+2026-11-06T20:04:24.1540678Z
+2026-11-06T20:04:24.1540862Z running 10 tests
+2026-11-06T20:04:24.1920840Z test a_lease_too_long_to_count_is_held_rather_than_stopping_pryxd ... ok
+2026-11-06T20:04:24.2261849Z test a_node_held_lost_resumes_nothing_now_or_after_the_next_restart ... ok
+2026-11-06T20:04:25.1654119Z test a_fence_the_heartbeat_hands_off_wins_over_the_resume_too ... ok
+2026-11-06T20:04:25.1662212Z test a_fence_the_disk_couldnt_record_still_keeps_the_copy_from_resuming ... ok
+2026-11-06T20:04:25.1663761Z test a_fence_in_the_same_answer_wins_over_the_resume ... ok
+2026-11-06T20:04:25.2013189Z test a_workload_the_host_went_down_under_comes_back_by_itself ... ok
+2026-11-06T20:04:25.2347732Z test a_restart_of_pryxd_alone_is_not_a_restart_of_the_host ... ok
+2026-11-06T20:04:26.1771024Z test a_stop_while_the_resume_waits_for_the_lease_keeps_the_workload_stopped ... ok
+2026-11-06T20:04:26.2003668Z test in_a_fleet_the_resume_waits_for_the_lease ... ok
+2026-11-06T20:04:26.2136087Z test what_had_stopped_before_the_host_went_down_stays_stopped ... ok
+2026-11-06T20:04:26.2136663Z
+2026-11-06T20:04:26.2137122Z test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.06s
+2026-11-06T20:04:26.2137774Z
+2026-11-06T20:04:26.2143046Z      Running tests/storage_bench.rs (target/debug/deps/storage_bench-af82185c525a6107)
+2026-11-06T20:04:26.2155452Z
+2026-11-06T20:04:26.2155635Z running 1 test
+2026-11-06T20:04:26.2156804Z test snapshot_archive_and_restore_costs ... ignored, a benchmark: run it on purpose, on the disk it should measure
+2026-11-06T20:04:26.2157587Z
+2026-11-06T20:04:26.2157900Z test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+2026-11-06T20:04:26.2158276Z
+2026-11-06T20:04:26.2159183Z      Running tests/suspend.rs (target/debug/deps/suspend-5e5553f7b7e55134)
+2026-11-06T20:04:26.2175525Z
+2026-11-06T20:04:26.2175824Z running 10 tests
+2026-11-06T20:04:26.2365817Z test a_deferred_spec_the_hosts_policy_no_longer_admits_never_boots ... ok
+2026-11-06T20:04:26.2541996Z test a_spec_sent_while_it_sleeps_waits_for_its_next_boot ... ok
+2026-11-06T20:04:26.2611021Z test a_suspended_workload_resumes_from_memory_as_the_same_process ... ok
+2026-11-06T20:04:26.2906019Z test any_other_spec_replaces_a_sleeping_workload_as_it_always_did ... ok
+2026-11-06T20:04:26.2950648Z test only_a_running_workload_can_be_suspended ... ok
+2026-11-06T20:04:26.3292679Z test over_http_suspend_takes_the_epoch_and_old_answers_stay_as_they_were ... ok
+2026-11-06T20:04:26.3732360Z test stop_kill_fence_and_delete_each_reach_a_suspended_copy ... ok
+2026-11-06T20:04:27.2353808Z test a_resume_that_hangs_is_killed_and_started_afresh_on_its_data ... ok
+2026-11-06T20:04:27.2405146Z test a_restart_of_the_host_ends_the_sleep_and_resumes_nothing ... ok
+2026-11-06T20:04:27.2407005Z test a_cold_start_after_a_hung_resume_boots_the_deferred_spec ... ok
+2026-11-06T20:04:27.2407517Z
+2026-11-06T20:04:27.2407962Z test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.02s
+2026-11-06T20:04:27.2408582Z
+2026-11-06T20:04:27.2415075Z      Running tests/transfer.rs (target/debug/deps/transfer-69e70736f159bfaf)
+2026-11-06T20:04:27.2433108Z
+2026-11-06T20:04:27.2433287Z running 19 tests
+2026-11-06T20:04:27.2505148Z test a_download_the_disk_has_no_room_for_is_refused_before_it_is_spooled ... ok
+2026-11-06T20:04:27.2561240Z test a_move_leaves_out_what_the_server_makes_again ... ok
+2026-11-06T20:04:27.2665169Z test a_restore_onto_a_disk_below_its_floor_is_refused_and_changes_nothing ... ok
+2026-11-06T20:04:27.2742453Z test a_running_workload_exports_only_when_quiesced_and_never_restores ... ok
+2026-11-06T20:04:27.2837980Z test a_snapshot_is_restored_only_with_room_for_all_of_it ... ok
+2026-11-06T20:04:27.3083372Z test a_snapshot_is_taken_once_restored_in_place_and_uploaded ... ok
+2026-11-06T20:04:28.2540799Z test a_download_that_stops_coming_fails_and_lets_go_of_the_workload ... ok
+2026-11-06T20:04:28.2603730Z test a_superseded_copy_can_never_become_the_newest_backup ... ok
+2026-11-06T20:04:28.2616768Z test a_refusal_whose_reason_stops_coming_still_ends_the_export ... ok
+2026-11-06T20:04:28.2704212Z test a_wrong_checksum_changes_nothing ... ok
+2026-11-06T20:04:28.2832629Z test a_world_moves_through_the_store_and_its_hash_holds ... ok
+2026-11-06T20:04:28.2856067Z test an_archive_too_large_for_one_upload_is_refused_with_its_sizes ... ok
+2026-11-06T20:04:28.2986713Z test an_export_never_follows_a_link_out_of_the_data ... ok
+2026-11-06T20:04:28.3086838Z test parts_the_store_cant_take_are_refused_and_a_small_archive_still_goes_whole ... ok
+2026-11-06T20:04:29.9436588Z test a_snapshot_larger_than_one_put_uploads_in_parts ... ok
+2026-11-06T20:04:29.9925835Z test snapshots_follow_the_export_rules ... ok
+2026-11-06T20:04:33.2419524Z test parts_too_few_for_the_archive_are_refused_before_anything_is_sent ... ok
+2026-11-06T20:04:33.4920822Z test an_archive_larger_than_one_put_goes_in_parts_and_restores_whole ... ok
+2026-11-06T20:04:34.2306334Z test a_part_the_store_failed_to_take_is_sent_again ... ok
+2026-11-06T20:04:34.2306950Z
+2026-11-06T20:04:34.2307593Z test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.99s
+2026-11-06T20:04:34.2308244Z
+2026-11-06T20:04:34.2342726Z      Running tests/wasm.rs (target/debug/deps/wasm-41d2a8c3c9f1adbc)
+2026-11-06T20:04:34.2372843Z
+2026-11-06T20:04:34.2373281Z running 1 test
+2026-11-06T20:05:04.3277000Z 2026-11-06T20:05:04.327124Z  WARN pryxd::runtime::wasm::process: agentOS process operation failed code="termination_unconfirmed"
+2026-11-06T20:05:04.5308859Z ERR_AGENTOS_VM_FORCED_PROCESS_FINALIZE: vm_id=vm-2 process_count=1
+2026-11-06T20:05:07.8635705Z 2026-11-06T20:05:07.863230Z  WARN pryxd::runtime::wasm::process: agentOS process operation failed code="termination_unconfirmed"
+2026-11-06T20:05:08.0665920Z ERR_AGENTOS_VM_FORCED_PROCESS_FINALIZE: vm_id=vm-3 process_count=1
+2026-11-06T20:05:16.9719948Z 2026-11-06T20:05:16.971511Z  WARN pryxd::runtime::wasm::process: agentOS process operation failed code="termination_unconfirmed"
+2026-11-06T20:05:17.1739242Z ERR_AGENTOS_VM_FORCED_PROCESS_FINALIZE: vm_id=vm-4 process_count=1
+2026-11-06T20:05:34.2376133Z test real_wasm_files_processes_sleep_stop_and_isolation has been running for over 60 seconds
+2026-11-06T20:05:42.9072959Z 2026-11-06T20:05:42.906972Z  WARN pryxd::runtime::wasm::process: agentOS process operation failed code="termination_unconfirmed"
+2026-11-06T20:05:43.1105285Z ERR_AGENTOS_VM_FORCED_PROCESS_FINALIZE: vm_id=vm-2 process_count=1
+2026-11-06T20:05:43.3267214Z test real_wasm_files_processes_sleep_stop_and_isolation ... ok
+2026-11-06T20:05:43.3267827Z
+2026-11-06T20:05:43.3268346Z test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 69.09s
+2026-11-06T20:05:43.3269095Z
+2026-11-06T20:05:43.3279634Z    Doc-tests pryx_agent
+2026-11-06T20:05:43.5332983Z
+2026-11-06T20:05:43.5333501Z running 0 tests
+2026-11-06T20:05:43.5333779Z
+2026-11-06T20:05:43.5334306Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+2026-11-06T20:05:43.5335279Z
+2026-11-06T20:05:43.5377281Z    Doc-tests pryxd
+2026-11-06T20:05:44.5076447Z
+2026-11-06T20:05:44.5076871Z running 0 tests
+2026-11-06T20:05:44.5077079Z
+2026-11-06T20:05:44.5077511Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+2026-11-06T20:05:44.5078073Z
+2026-11-06T20:05:44.5250231Z ##[group]Run CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER=sudo cargo test --locked --test docker -- --ignored --test-threads 2
+2026-11-06T20:05:44.5251163Z CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER=sudo cargo test --locked --test docker -- --ignored --test-threads 2
+2026-11-06T20:05:44.5295303Z shell: /usr/bin/bash -e {0}
+2026-11-06T20:05:44.5295572Z env:
+2026-11-06T20:05:44.5295775Z   CARGO_TERM_COLOR: always
+2026-11-06T20:05:44.5296020Z ##[endgroup]
+2026-11-06T20:05:45.0034118Z     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.43s
+2026-11-06T20:05:45.0177425Z      Running tests/docker.rs (target/debug/deps/docker-f01ad09da0b4e6b5)
+2026-11-06T20:05:45.0307969Z
+2026-11-06T20:05:45.0308448Z running 13 tests
+2026-11-06T20:05:45.1570378Z test a_lost_start_response_is_confirmed_without_repeating_the_mutation ... FAILED
+2026-11-06T20:05:47.3192599Z test a_port_another_process_holds_is_skipped ... ok
+2026-11-06T20:05:47.3377370Z test a_restarted_daemon_adopts_running_workloads_without_touching_them ... ok
+2026-11-06T20:05:48.0347912Z test a_start_docker_refuses_for_a_taken_port_is_a_port_conflict ... ok
+2026-11-06T20:05:48.8555210Z test a_short_exec_timeout_kills_the_exec_and_leaves_the_workload_running ... ok
+2026-11-06T20:05:50.0757122Z test a_suspended_server_keeps_its_memory_and_answers_within_a_second_of_start ... ok
+2026-11-06T20:05:53.3936254Z test an_exec_past_its_timeout_is_killed_inside_the_container ... ok
+2026-11-06T20:06:04.5908701Z test crashes_restart_by_policy_then_stay_crashed ... ok
+2026-11-06T20:06:05.0835777Z test lifecycle_hardening_and_graceful_stop ... ok
+2026-11-06T20:06:18.6174786Z test the_memory_limit_is_hard_and_an_oom_kill_is_reported ... ok
+2026-11-06T20:06:18.6347928Z test with_docker_gone_the_daemon_answers_and_says_why ... ok
+2026-11-06T20:06:19.3281601Z test isolation_keeps_a_workload_off_another_s_published_port ... ok
+2026-11-06T20:06:31.5577649Z test workloads_cannot_reach_each_other ... ok
+2026-11-06T20:06:31.5578141Z
+2026-11-06T20:06:31.5578281Z failures:
+2026-11-06T20:06:31.5578470Z
+2026-11-06T20:06:31.5578876Z ---- a_lost_start_response_is_confirmed_without_repeating_the_mutation stdout ----
+2026-11-06T20:06:31.5579443Z
+2026-11-06T20:06:31.5580031Z thread 'a_lost_start_response_is_confirmed_without_repeating_the_mutation' (5013) panicked at tests/docker.rs:95:62:
+2026-11-06T20:06:31.5581472Z called `Result::unwrap()` on an `Err` value: DockerResponseServerError { status_code: 404, message: "No such image: alpine:3.22" }
+2026-11-06T20:06:31.5582701Z note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+2026-11-06T20:06:31.5583196Z
+2026-11-06T20:06:31.5583202Z
+2026-11-06T20:06:31.5583357Z failures:
+2026-11-06T20:06:31.5583857Z     a_lost_start_response_is_confirmed_without_repeating_the_mutation
+2026-11-06T20:06:31.5584355Z
+2026-11-06T20:06:31.5584684Z test result: FAILED. 12 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 46.53s
+2026-11-06T20:06:31.5585402Z
+2026-11-06T20:06:31.5597156Z error: test failed, to rerun pass `-p pryxd --test docker`
+2026-11-06T20:06:31.5702896Z ##[error]Process completed with exit code 101.

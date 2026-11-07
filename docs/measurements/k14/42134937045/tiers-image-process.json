@@ -1,0 +1,54 @@
+{
+  "context": "image/process",
+  "source": "8cdc1b447f382fa7f6a5e3d3d1379c1a17d51b0c",
+  "comparison": "same-source container/process reference versus wasm candidate; release profile",
+  "host": {
+    "cpu": "AMD EPYC 9V45 96-Core Processor",
+    "cores": 4,
+    "kernel": "7.0.0-1017-azure",
+    "memoryBytes": 16760344576,
+    "bun": "1.4.4"
+  },
+  "datasetBytes": 100000000,
+  "repetitions": 30,
+  "samples": {
+    "fixed_node_pss_bytes": [
+      330280960
+    ],
+    "idle_increment_pss_bytes": [],
+    "shell_increment_pss_bytes": [],
+    "cold_create_running_ms": []
+  },
+  "unsupported": {},
+  "tier": "process",
+  "status": "incomplete",
+  "coldAndConcurrentResources": {
+    "memoryMb": 64,
+    "cpuMillis": 100
+  },
+  "hotAndInstallResources": {
+    "memoryMb": 512,
+    "cpuMillis": 800
+  },
+  "cpuAdmissionOvercommit": 2,
+  "imageId": "sha256:a5ab1b8970451d5f984cd77eee6c9cd0bb036645f332414a7417bfe9e32efce6",
+  "binarySha256": "6059dbdef5c20980bd1221653896bed02c0c4d18c6e7e53ac9938eab6874ddab",
+  "topology": "ordinary docker run; no capabilities, security options, socket or host mounts",
+  "failure": "Node refused the operation",
+  "summary": {
+    "fixed_node_pss_bytes": {
+      "n": 1,
+      "p50": 330280960,
+      "p90": 330280960
+    },
+    "idle_increment_pss_bytes": {
+      "n": 0
+    },
+    "shell_increment_pss_bytes": {
+      "n": 0
+    },
+    "cold_create_running_ms": {
+      "n": 0
+    }
+  }
+}

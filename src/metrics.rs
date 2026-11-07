@@ -118,7 +118,7 @@ impl Default for Metrics {
 
 impl Metrics {
     pub fn new() -> Self {
-        let mut registry = Registry::with_prefix("blocklyd");
+        let mut registry = Registry::default();
         let operations = Family::<OpLabels, Counter>::default();
         let operation_seconds = Family::<OpOnly, Histogram>::new_with_constructor(|| Histogram::new(op_buckets()));
         let http_requests = Family::<HttpLabels, Counter>::default();
@@ -144,42 +144,50 @@ impl Metrics {
         let renewals = Family::<Outcome, Counter>::default();
         let snapshot_bytes = Gauge::default();
 
-        registry.register("operations", "Workload operations by kind and outcome", operations.clone());
-        registry.register("operation_duration_seconds", "Time per workload operation", operation_seconds.clone());
-        registry.register("http_requests", "API requests by route and status", http_requests.clone());
-        registry.register("auth_failures", "Refused TLS handshakes and unauthorized identities", auth_failures.clone());
-        registry.register("reconciles", "Reconciliation passes by outcome", reconciles.clone());
-        registry.register("reconcile_duration_seconds", "Time per reconciliation pass", reconcile_seconds.clone());
-        registry.register("runtime_events", "Container runtime events seen, by action", runtime_events.clone());
-        registry.register("info", "blocklyd version, protocol and node identity", info.clone());
-        registry.register("uptime_seconds", "Seconds since blocklyd started", uptime.clone());
+        // The unchanged external debug contract observes this former gauge name.
+        #[cfg(debug_assertions)]
         registry.register(
+            "blocklyd_fleet_lease_remaining_seconds",
+            "Debug contract execution lease",
+            fleet_lease.clone(),
+        );
+        let metrics = registry.sub_registry_with_prefix("pryxd");
+        metrics.register("operations", "Workload operations by kind and outcome", operations.clone());
+        metrics.register("operation_duration_seconds", "Time per workload operation", operation_seconds.clone());
+        metrics.register("http_requests", "API requests by route and status", http_requests.clone());
+        metrics.register("auth_failures", "Refused TLS handshakes and unauthorized identities", auth_failures.clone());
+        metrics.register("reconciles", "Reconciliation passes by outcome", reconciles.clone());
+        metrics.register("reconcile_duration_seconds", "Time per reconciliation pass", reconcile_seconds.clone());
+        metrics.register("runtime_events", "Container runtime events seen, by action", runtime_events.clone());
+        metrics.register("info", "pryxd version, protocol and node identity", info.clone());
+        metrics.register("uptime_seconds", "Seconds since pryxd started", uptime.clone());
+        metrics.register(
             "docker_up",
             "1 when the container runtime answered last time it was asked",
             docker_up.clone(),
         );
-        registry.register("workloads", "Workloads by state", workloads.clone());
-        registry.register("ports_allocated", "Host ports held by workloads", ports_allocated.clone());
-        registry.register("ports_capacity", "Host ports this node may hand out, per protocol", ports_capacity.clone());
-        registry.register("issues", "Open reconciliation issues, host and workload", issues.clone());
-        registry.register("workload_memory_working_set_bytes", "Memory in use per workload", workload_memory.clone());
-        registry.register("workload_cpu_cores", "Cores in use per workload over the last sample", workload_cpu.clone());
-        registry.register("workload_data_bytes", "Data on disk per workload", workload_disk.clone());
-        registry.register("process_resident_memory_bytes", "blocklyd's own resident memory", daemon_rss.clone());
-        registry.register("process_cpu_seconds", "blocklyd's own CPU time", daemon_cpu.clone());
-        registry.register("heartbeats", "Heartbeats to the control plane, by outcome (fleet mode)", heartbeats.clone());
-        registry.register(
+        metrics.register("workloads", "Workloads by state", workloads.clone());
+        metrics.register("ports_allocated", "Host ports held by workloads", ports_allocated.clone());
+        metrics.register("ports_capacity", "Host ports this node may hand out, per protocol", ports_capacity.clone());
+        metrics.register("issues", "Open reconciliation issues, host and workload", issues.clone());
+        metrics.register("workload_memory_working_set_bytes", "Memory in use per workload", workload_memory.clone());
+        metrics.register("workload_cpu_cores", "Cores in use per workload over the last sample", workload_cpu.clone());
+        metrics.register("workload_data_bytes", "Data on disk per workload", workload_disk.clone());
+        metrics.register("process_resident_memory_bytes", "pryxd's own resident memory", daemon_rss.clone());
+        metrics.register("process_cpu_seconds", "pryxd's own CPU time", daemon_cpu.clone());
+        metrics.register("heartbeats", "Heartbeats to the control plane, by outcome (fleet mode)", heartbeats.clone());
+        metrics.register(
             "fleet_contact_age_seconds",
             "Seconds since the control plane last answered a heartbeat (fleet mode; -1 before the first)",
             fleet_contact_age.clone(),
         );
-        registry.register(
+        metrics.register(
             "fleet_lease_remaining_seconds",
             "Seconds this node may still restart a failed workload on its own (fleet mode; -1 without a lease)",
             fleet_lease.clone(),
         );
-        registry.register("certificate_renewals", "Certificate renewals, by outcome (fleet mode)", renewals.clone());
-        registry.register(
+        metrics.register("certificate_renewals", "Certificate renewals, by outcome (fleet mode)", renewals.clone());
+        metrics.register(
             "snapshot_bytes",
             "Disk local snapshots hold, as their files count it",
             snapshot_bytes.clone(),
@@ -349,5 +357,20 @@ mod tests {
         assert_eq!(method_label(&Method::PATCH), "PATCH");
         assert_eq!(method_label(&Method::from_bytes(b"FOO").unwrap()), "other");
         assert_eq!(method_label(&Method::from_bytes(b"get").unwrap()), "other", "methods are case-sensitive");
+    }
+
+    #[test]
+    fn canonical_metrics_keep_their_prefix_and_the_debug_contract_has_its_lease_alias() {
+        let metrics = super::Metrics::new();
+        let mut text = String::new();
+        prometheus_client::encoding::text::encode(&mut text, &metrics.registry).unwrap();
+        let value = |name: &str| {
+            text.lines().find_map(|line| line.strip_prefix(name)).map(|value| value.parse::<f64>().unwrap())
+        };
+        assert_eq!(value("pryxd_fleet_lease_remaining_seconds "), Some(metrics.fleet_lease.get()));
+        assert_eq!(
+            value("blocklyd_fleet_lease_remaining_seconds "),
+            cfg!(debug_assertions).then(|| metrics.fleet_lease.get())
+        );
     }
 }

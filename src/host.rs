@@ -48,6 +48,20 @@ pub fn facts() -> HostFacts {
     }
 }
 
+/// Process sandboxes share the enclosing container's memory allowance. Reading its cgroup
+/// does not require a writable cgroup or any additional capability.
+pub fn process_tier_facts() -> HostFacts {
+    let mut facts = facts();
+    if let Some(limit) = read("/sys/fs/cgroup/memory.max").and_then(|value| value.parse::<u64>().ok()) {
+        facts.memory_total_bytes = Some(facts.memory_total_bytes.unwrap_or(limit).min(limit));
+        if let Some(used) = read("/sys/fs/cgroup/memory.current").and_then(|value| value.parse::<u64>().ok()) {
+            facts.memory_available_bytes =
+                Some(facts.memory_available_bytes.unwrap_or(limit).min(limit.saturating_sub(used)));
+        }
+    }
+    facts
+}
+
 /// The kernel's boot id: new on every boot, so a reboot can be told from a daemon restart.
 pub fn boot_id() -> Option<String> {
     read("/proc/sys/kernel/random/boot_id").filter(|id| !id.is_empty())
@@ -65,7 +79,7 @@ pub(crate) struct ProcessFacts {
     pub(crate) cpu_seconds: Option<f64>,
 }
 
-/// This process's resident memory and CPU time: blocklyd's own footprint.
+/// This process's resident memory and CPU time: pryxd's own footprint.
 pub(crate) fn process() -> ProcessFacts {
     let page = rustix::param::page_size() as u64;
     let rss_bytes = read("/proc/self/statm")

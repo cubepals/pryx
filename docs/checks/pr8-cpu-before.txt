@@ -1,0 +1,85 @@
+Source: f52a1c9fc398dac2c74eda68181fd5a7cbb394c1 plus regression tests only
+Both regressions FAIL as expected: native CPU ceilings are accepted by node validation and placement.
+
+Rust command: CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 cargo test --locked --lib tiers_without_cgroups_refuse
+   Compiling pryxd v0.1.0 (/workspace/pryx)
+    Finished `test` profile [unoptimized] target(s) in 1m 17s
+     Running unittests src/lib.rs (target/debug/deps/pryx_agent-72e1d78c1f61d851)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 17 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/pryxd-2898cecbd2b7d2e8)
+
+running 1 test
+test protocol::spec::validate::tests::tiers_without_cgroups_refuse_cpu_ceilings_and_weights ... FAILED
+
+failures:
+
+---- protocol::spec::validate::tests::tiers_without_cgroups_refuse_cpu_ceilings_and_weights stdout ----
+
+thread 'protocol::spec::validate::tests::tiers_without_cgroups_refuse_cpu_ceilings_and_weights' (434526) panicked at src/protocol/spec/validate.rs:341:17:
+unenforced resources.cpuMillis was accepted
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    protocol::spec::validate::tests::tiers_without_cgroups_refuse_cpu_ceilings_and_weights
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 203 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p pryxd --lib`
+
+Bun command: bun test control/test/placement.test.ts -t "hard CPU limits"
+bun test v1.4.4 (38afee6c8)
+
+control/test/placement.test.ts:
+68 |
+69 | describe('selectNode', () => {
+70 |   test('hard CPU limits cannot be placed on a tier without cgroups', () => {
+71 |     for (const isolation of ['process', 'wasm'] as const) {
+72 |       const target = node(isolation, { features: ['placement-epochs', `${isolation}-tier`] })
+73 |       expect(selectNode(request({ isolation, cpuLimits: true }), [target]).node).toBeNull()
+                                                                                      ^
+error: expect(received).toBeNull()
+
+Received: {
+  id: "process",
+  name: "process",
+  regionKey: "eu",
+  lifecycle: "active",
+  health: "healthy",
+  quarantined: false,
+  features: [ "placement-epochs", "process-tier" ],
+  capacity: {
+    allocatableMemoryMb: 16384,
+    cpus: 8,
+    reservedCpuMillis: 1000,
+    diskTotalBytes: 429496729600,
+    diskAvailableBytes: 214748364800,
+    minFreeDiskMb: 2048,
+    portsTotal: 100,
+    portsAllocated: 0,
+  },
+  allocated: {
+    memoryMb: 0,
+    cpuMillis: 0,
+    diskGb: 0,
+    workloads: 0,
+  },
+  running: {
+    memoryMb: 0,
+    cpuMillis: 0,
+    workloads: 0,
+  },
+}
+
+      at <anonymous> (/workspace/pryx/control/test/placement.test.ts:73:82)
+(fail) selectNode > hard CPU limits cannot be placed on a tier without cgroups [4.67ms]
+
+ 0 pass
+ 16 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [63.00ms]

@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! What a host's configuration is held to before blocklyd runs on it: the ranges, addresses and
+//! What a host's configuration is held to before pryxd runs on it: the ranges, addresses and
 //! ids it may name, and the floor of the policy every workload is held to. Not for what the
 //! configuration holds or leaves out (`config.rs`), or for working out what it leaves out
 //! (`crate::infer`).
@@ -19,8 +19,56 @@ const UNPRIVILEGED_PORTS: u16 = 1024;
 const OOM_SCORE_ADJ: std::ops::RangeInclusive<i32> = -1000..=1000;
 
 impl Config {
+    fn validate_wasm(&self) -> Result<(), ConfigError> {
+        if self.store_lease.enabled
+            || !self.wasm.distribution.is_absolute()
+            || self.wasm.max_ingress_requests == 0
+            || self.wasm.worker_uid == 0
+            || self.wasm.worker_gid == 0
+        {
+            return Err(ConfigError::Invalid(
+                "wasm tier requires an absolute distribution, positive ingress capacity, non-root worker IDs and store leases off".into(),
+            ));
+        }
+        Ok(())
+    }
+
     pub fn validate(&self) -> Result<(), ConfigError> {
+        if self.runtime == super::RuntimeKind::Wasm {
+            self.validate_wasm()?;
+        }
+        if self.runtime == super::RuntimeKind::Process
+            && (self.store_lease.enabled
+                || self.process.uid_first == 0
+                || self.process.uid_count == 0
+                || self.process.uid_first.checked_add(self.process.uid_count).is_none()
+                || self.process.open_files < 64
+                || self.process.cpu_seconds == 0
+                || self.process.address_space_mb == 0)
+        {
+            return Err(ConfigError::Invalid(
+                "process tier requires a non-root UID pool, positive resource limits and store leases off".into(),
+            ));
+        }
+        if self.store_lease.enabled
+            && (self.fleet.is_none()
+                || self.store_lease.max_seconds < crate::protocol::MIN_STORE_LEASE_SECONDS
+                || !self.store_lease.non_suspending_host)
+        {
+            return Err(ConfigError::Invalid(format!(
+                "store_lease needs fleet mode, non_suspending_host and max_seconds >= {}",
+                crate::protocol::MIN_STORE_LEASE_SECONDS
+            )));
+        }
         let bad = |m: String| Err(ConfigError::Invalid(m));
+        if !self.workloads.agent_binary.is_absolute()
+            || self.workloads.default_spare_ports > pryx_agent::contract::MAX_SPARE_PORTS
+        {
+            return bad(
+                "workloads.agent_binary must be absolute and default_spare_ports must fit the agent's slot limit"
+                    .into(),
+            );
+        }
         if !(1..=MAX_PUT_MB).contains(&self.transfer.max_put_mb) {
             return bad(format!(
                 "transfer.max_put_mb is the most one PUT carries, 1 to {MAX_PUT_MB}: no store takes more"
@@ -35,38 +83,7 @@ impl Config {
         if self.fleet.is_none() && !id_ok(self.node_id.as_str()) {
             return bad("node_id is 1-63 of a-z, 0-9 and '-'".into());
         }
-        match self.mode()? {
-            Mode::Standalone(tls) => {
-                if tls.allowed_clients.is_empty() {
-                    return bad("api.tls.allowed_clients needs at least one client name".into());
-                }
-            }
-            Mode::Fleet(fleet) => {
-                if !self.node_id.as_str().is_empty() {
-                    return bad("in fleet mode node_id comes from enrollment; leave it out".into());
-                }
-                if self.api.tls.is_some() {
-                    return bad("in fleet mode TLS material comes from enrollment; leave api.tls out".into());
-                }
-                if !fleet_url_ok(&fleet.url) {
-                    return bad("fleet.url must be https://host[:port]".into());
-                }
-                if !(1..=60).contains(&fleet.heartbeat_seconds) {
-                    return bad("fleet.heartbeat_seconds is between 1 and 60".into());
-                }
-                // The control plane dials what the node reports: 0.0.0.0 would send it to itself.
-                if fleet.api_address.is_none() && self.api.listen.ip().is_unspecified() {
-                    return bad(format!(
-                        "api.listen is {}, which the control plane can't dial; set fleet.api_address to this \
-                         host's address on the private network",
-                        self.api.listen
-                    ));
-                }
-                if fleet.api_address.is_some_and(|a| a.ip().is_unspecified()) {
-                    return bad("fleet.api_address is where the control plane dials this node; 0.0.0.0 isn't".into());
-                }
-            }
-        }
+        self.validate_mode()?;
         if !name_ok(&self.deployment_id) {
             return bad("deployment_id is 1-32 of a-z, 0-9 and '-'".into());
         }
@@ -105,9 +122,6 @@ impl Config {
                 ));
             }
         }
-        if self.workloads.allowed_images.is_empty() {
-            return bad("workloads.allowed_images needs at least one prefix".into());
-        }
         // A prefix is matched as text, so one that stops inside a name admits more than it says:
         // `ghcr.io/cubepals` admits `ghcr.io/cubepalsx/…`, and a registry's host admits a longer
         // host that starts with it.
@@ -126,6 +140,43 @@ impl Config {
                 OOM_SCORE_ADJ.start(),
                 OOM_SCORE_ADJ.end()
             ));
+        }
+        Ok(())
+    }
+
+    fn validate_mode(&self) -> Result<(), ConfigError> {
+        let bad = |m: String| Err(ConfigError::Invalid(m));
+        match self.mode()? {
+            Mode::Standalone(tls) => {
+                if tls.allowed_clients.is_empty() {
+                    return bad("api.tls.allowed_clients needs at least one client name".into());
+                }
+            }
+            Mode::Fleet(fleet) => {
+                if !self.node_id.as_str().is_empty() {
+                    return bad("in fleet mode node_id comes from enrollment; leave it out".into());
+                }
+                if self.api.tls.is_some() {
+                    return bad("in fleet mode TLS material comes from enrollment; leave api.tls out".into());
+                }
+                if !fleet_url_ok(&fleet.url) {
+                    return bad("fleet.url must be https://host[:port]".into());
+                }
+                if !(1..=60).contains(&fleet.heartbeat_seconds) {
+                    return bad("fleet.heartbeat_seconds is between 1 and 60".into());
+                }
+                // The control plane dials what the node reports: 0.0.0.0 would send it to itself.
+                if fleet.api_address.is_none() && self.api.listen.ip().is_unspecified() {
+                    return bad(format!(
+                        "api.listen is {}, which the control plane can't dial; set fleet.api_address to this \
+                         host's address on the private network",
+                        self.api.listen
+                    ));
+                }
+                if fleet.api_address.is_some_and(|a| a.ip().is_unspecified()) {
+                    return bad("fleet.api_address is where the control plane dials this node; 0.0.0.0 isn't".into());
+                }
+            }
         }
         Ok(())
     }

@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! blocklyd: Blockly's node daemon. See README.md.
+//! pryxd: pryx's node daemon. See README.md.
 
 use std::net::IpAddr;
 use std::path::{Path, PathBuf};
@@ -16,25 +16,21 @@ use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
-use blocklyd::api::tls::ServerCert;
-use blocklyd::api::{self, AppState};
-use blocklyd::config::{Config, FleetConfig, Mode, TlsConfig};
-use blocklyd::fleet::identity::{Credentials, Identity};
-use blocklyd::manager::{Manager, Records};
-use blocklyd::metrics::Metrics;
-use blocklyd::runtime::ContainerRuntime;
-use blocklyd::runtime::docker::DockerRuntime;
-use blocklyd::store::Store;
-use blocklyd::upgrade::Upgrader;
-use blocklyd::upgrade::backstop::Backstop;
-use blocklyd::{certs, doctor, ports, reconcile};
+use pryxd::api::tls::ServerCert;
+use pryxd::api::{self, AppState};
+use pryxd::config::{Config, FleetConfig, Mode, RuntimeKind, TlsConfig};
+use pryxd::fleet::identity::{Credentials, Identity};
+use pryxd::manager::{Manager, Records};
+use pryxd::metrics::Metrics;
+use pryxd::runtime::ContainerRuntime;
+use pryxd::runtime::docker::DockerRuntime;
+use pryxd::store::Store;
+use pryxd::upgrade::Upgrader;
+use pryxd::upgrade::backstop::Backstop;
+use pryxd::{certs, doctor, ports, reconcile};
 
 #[derive(Parser)]
-#[command(
-    name = "blocklyd",
-    version,
-    about = "Blockly's node daemon: runs Minecraft servers on this host for a Blockly control plane."
-)]
+#[command(name = "pryxd", version, about = "pryx's node daemon: runs sandboxes on this host for a pryx control plane.")]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -48,9 +44,16 @@ enum LogFormat {
 
 #[derive(Subcommand)]
 enum Command {
+    #[command(hide = true)]
+    LeaseWatchdog {
+        #[arg(long)]
+        group: PathBuf,
+        #[arg(long)]
+        deadline: u64,
+    },
     /// Run the daemon.
     Serve {
-        #[arg(long, default_value = blocklyd::config::PATH)]
+        #[arg(long, default_value = pryxd::config::PATH)]
         config: PathBuf,
         #[arg(long, value_enum, default_value = "json")]
         log_format: LogFormat,
@@ -58,6 +61,11 @@ enum Command {
     /// Check a configuration file (and its certificates) and exit: doctor's first check alone.
     CheckConfig {
         #[arg(long)]
+        config: PathBuf,
+    },
+    /// Reserve configured workload ports from the host's outgoing ephemeral allocation.
+    ReservePorts {
+        #[arg(long, default_value = pryxd::config::PATH)]
         config: PathBuf,
     },
     /// Make this host a node of the fleet a pasted token names: its configuration, the fleet CA,
@@ -72,42 +80,45 @@ enum Command {
         /// Write everything, but leave the service stopped.
         #[arg(long)]
         no_start: bool,
+        /// Image reference prefix allowed on this host, repeated for each prefix.
+        #[arg(long = "allow-image")]
+        allow_images: Vec<String>,
         /// Where `/` is, for tests.
         #[arg(long, hide = true, default_value = "/")]
         root: PathBuf,
         /// The configuration, for tests that keep it elsewhere.
-        #[arg(long, hide = true, default_value = blocklyd::config::PATH)]
+        #[arg(long, hide = true, default_value = pryxd::config::PATH)]
         config: PathBuf,
-        /// What to run as systemctl, for tests that run blocklyd as a plain process.
+        /// What to run as systemctl, for tests that run pryxd as a plain process.
         #[arg(long, hide = true, default_value = "systemctl")]
         systemctl: PathBuf,
     },
-    /// Check this host the way blocklyd will use it, and say what to fix.
+    /// Check this host the way pryxd will use it, and say what to fix.
     Doctor {
-        #[arg(long, default_value = blocklyd::config::PATH)]
+        #[arg(long, default_value = pryxd::config::PATH)]
         config: PathBuf,
         /// Print {checks: [{name, status, detail, fix}]} instead of text.
         #[arg(long)]
         json: bool,
-        /// Fail only on what keeps blocklyd from starting, and report the rest as warnings.
+        /// Fail only on what keeps pryxd from starting, and report the rest as warnings.
         #[arg(long)]
         preflight: bool,
-        /// First apply the safe fixes (daemon.json, the state directory) on a host with no servers.
+        /// First apply the safe fixes (daemon.json, the state directory) on a host with no sandboxes.
         #[arg(long)]
         fix: bool,
     },
-    /// Keep workloads off this host, and off the ports blocklyd serves on the private network: the
+    /// Keep workloads off this host, and off the ports pryxd serves on the private network: the
     /// host's firewall rules (one nftables table), as root. The unit runs it before every start.
     Isolate {
-        #[arg(long, default_value = blocklyd::config::PATH)]
+        #[arg(long, default_value = pryxd::config::PATH)]
         config: PathBuf,
     },
-    /// Upgrade to the blocklyd the control plane serves, and restart into it. It puts this one back
+    /// Upgrade to the pryxd the control plane serves, and restart into it. It puts this one back
     /// by itself if the new one doesn't come up.
     Upgrade {
-        #[arg(long, default_value = blocklyd::config::PATH)]
+        #[arg(long, default_value = pryxd::config::PATH)]
         config: PathBuf,
-        /// Install it, and leave the running blocklyd as it is until the next restart.
+        /// Install it, and leave the running pryxd as it is until the next restart.
         #[arg(long)]
         no_restart: bool,
         /// After the service stopped (its ExecStopPost): put this binary back if the one on trial
@@ -146,11 +157,23 @@ fn init_tracing(format: LogFormat) {
 }
 
 fn main() -> ExitCode {
+    if let Some(error) = pryxd::runtime::wasm::dispatch_sidecar() {
+        eprintln!("agentOS launcher refused: {error}");
+        return ExitCode::FAILURE;
+    }
+    #[cfg(debug_assertions)]
+    if pryxd::upgrade::debug_legacy_executable() && std::env::args().skip(1).eq(["--version"]) {
+        println!("blocklyd {}", env!("CARGO_PKG_VERSION"));
+        return ExitCode::SUCCESS;
+    }
     let cli = Cli::parse();
     let result = match cli.command {
+        Command::LeaseWatchdog { group, deadline } => {
+            pryxd::store_lease::guard::run(&group, deadline).map_err(Into::into)
+        }
         Command::Serve { config, log_format } => {
             init_tracing(log_format);
-            // Two workers are plenty: blocklyd waits on Docker and the network, and blocking
+            // Two workers are plenty: pryxd waits on Docker and the network, and blocking
             // work (disk walks) goes to tokio's blocking pool.
             match tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build() {
                 Ok(runtime) => {
@@ -163,6 +186,9 @@ fn main() -> ExitCode {
                 Err(e) => Err(e.into()),
             }
         }
+        Command::ReservePorts { config } => Config::load(&config).map_err(anyhow::Error::from).and_then(|config| {
+            pryxd::cli::port_reservation::reserve(config.network.port_range, std::path::Path::new("/"))
+        }),
         Command::CheckConfig { config } => {
             let report = doctor::Report { checks: vec![doctor::check_config(&config).0], fixed: None };
             print_report(&report, false, false)
@@ -176,40 +202,39 @@ fn main() -> ExitCode {
                 Err(e) => Err(e.into()),
             }
         }
-        Command::Join { token, address, no_start, root, config, systemctl } => {
-            let join = blocklyd::cli::join::Join { token, address, config, root, start: !no_start, systemctl };
+        Command::Join { token, address, no_start, allow_images, root, config, systemctl } => {
+            let join =
+                pryxd::cli::join::Join { token, address, config, root, start: !no_start, systemctl, allow_images };
             tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
                 .map_err(anyhow::Error::from)
-                .and_then(|runtime| runtime.block_on(blocklyd::cli::join::join(join)))
+                .and_then(|runtime| runtime.block_on(pryxd::cli::join::join(join)))
                 .map(|said| print!("{said}"))
         }
         Command::Isolate { config } => tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .map_err(anyhow::Error::from)
-            .and_then(|runtime| runtime.block_on(blocklyd::isolation::isolate(&config)))
+            .and_then(|runtime| runtime.block_on(pryxd::isolation::isolate(&config)))
             .map(|said| print!("{said}")),
         Command::Upgrade { config, exited: true, .. } => {
-            let state_dir = blocklyd::upgrade::stopped::state_dir(&config);
-            let layout = blocklyd::upgrade::Layout::new(&state_dir, Path::new("/"));
+            let state_dir = pryxd::upgrade::stopped::state_dir(&config);
+            let layout = pryxd::upgrade::Layout::new(&state_dir, Path::new("/"));
             let var = |name: &str| std::env::var(name).ok();
             let (result, code, status) = (var("SERVICE_RESULT"), var("EXIT_CODE"), var("EXIT_STATUS"));
-            blocklyd::upgrade::exited(&layout, result.as_deref(), code.as_deref(), status.as_deref())
+            pryxd::upgrade::exited(&layout, result.as_deref(), code.as_deref(), status.as_deref())
                 .map(|said| eprint!("{said}"))
         }
         Command::Upgrade { config, no_restart, .. } => tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .map_err(anyhow::Error::from)
-            .and_then(|runtime| runtime.block_on(blocklyd::cli::upgrade::upgrade(&config, !no_restart)))
+            .and_then(|runtime| runtime.block_on(pryxd::cli::upgrade::upgrade(&config, !no_restart)))
             .map(|said| print!("{said}")),
         Command::DevCerts { out, node_dns, node_ip, client, extra_client } => {
-            certs::generate(&out, &node_dns, &node_ip, &client, &extra_client).map(|paths| {
-                println!("CA certificate:     {}", paths.ca_cert.display());
-                println!("node certificate:   {} (key {})", paths.node_cert.display(), paths.node_key.display());
-                println!("client certificate: {} (key {})", paths.client_cert.display(), paths.client_key.display());
+            certs::generate(&out, &node_dns, &node_ip, &client, &extra_client).map(|_| {
+                println!("Development certificates and private keys generated");
                 println!("client name to allow: {client}");
             })
         }
@@ -217,14 +242,14 @@ fn main() -> ExitCode {
     match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            error!(error = format!("{e:#}"), "blocklyd failed");
-            eprintln!("blocklyd: {e:#}");
+            error!(error = format!("{e:#}"), "pryxd failed");
+            eprintln!("pryxd: {e:#}");
             ExitCode::FAILURE
         }
     }
 }
 
-/// Prints a doctor report; a failure in it is blocklyd's exit status.
+/// Prints a doctor report; a failure in it is pryxd's exit status.
 fn print_report(report: &doctor::Report, json: bool, preflight: bool) -> anyhow::Result<()> {
     if json {
         println!("{}", serde_json::to_string_pretty(report)?);
@@ -236,22 +261,22 @@ fn print_report(report: &doctor::Report, json: bool, preflight: bool) -> anyhow:
 }
 
 /// What a node says about itself when it enrolls.
-fn facts(config: &Config, fleet: &FleetConfig) -> blocklyd::protocol::wire::NodeFacts {
-    let host = blocklyd::host::facts();
+fn facts(config: &Config, fleet: &FleetConfig) -> pryxd::protocol::wire::NodeFacts {
+    let host = config.host_facts();
     let memory_total_mb = host.memory_total_bytes.map_or(0, |b| b / (1024 * 1024));
-    let (disk_total, disk_available) = blocklyd::host::disk(&config.state_dir).unzip();
+    let (disk_total, disk_available) = pryxd::host::disk(&config.state_dir).unzip();
     let [low, high] = config.network.port_range;
-    blocklyd::protocol::wire::NodeFacts {
+    pryxd::protocol::wire::NodeFacts {
         hostname: host.hostname,
-        boot_id: blocklyd::host::boot_id(),
-        machine_id_sha256: blocklyd::fleet::enroll::machine_id_sha256(),
-        daemon_version: blocklyd::upgrade::daemon_version(),
-        protocol: blocklyd::protocol::ProtocolVersions::ours(),
-        features: blocklyd::protocol::features(),
+        boot_id: pryxd::host::boot_id(),
+        machine_id_sha256: pryxd::fleet::enroll::machine_id_sha256(),
+        daemon_version: pryxd::upgrade::daemon_version(),
+        protocol: pryxd::protocol::ProtocolVersions::ours(),
+        features: pryxd::protocol::features(),
         api_address: fleet.api_address.unwrap_or(config.api.listen),
         edge_ips: config.network.edge_ips.clone(),
         control_ips: config.network.control_ips.clone(),
-        capacity: blocklyd::protocol::wire::NodeCapacity {
+        capacity: pryxd::protocol::wire::NodeCapacity {
             memory_total_mb,
             reserved_memory_mb: config.capacity.reserved_memory_mb,
             allocatable_memory_mb: config.capacity.allocatable_mb(memory_total_mb),
@@ -278,6 +303,29 @@ async fn shutdown_signal() -> &'static str {
     }
 }
 
+fn publish_addresses(config: &Config) -> Vec<IpAddr> {
+    let mut publish: Vec<IpAddr> = config.network.edge_ips.clone();
+    publish.extend(config.network.control_ips.iter().copied());
+    publish.dedup();
+    publish
+}
+
+async fn container_runtime(config: &Config) -> anyhow::Result<Arc<dyn ContainerRuntime>> {
+    let runtime: Arc<dyn ContainerRuntime> = if config.runtime == RuntimeKind::Wasm {
+        Arc::new(pryxd::runtime::wasm::WasmRuntime::new(&config.state_dir, &config.wasm).await?)
+    } else if config.runtime == RuntimeKind::Process {
+        Arc::new(pryxd::runtime::process::ProcessRuntime::new(&config.state_dir, config.process.clone())?)
+    } else {
+        let docker = DockerRuntime::new(&config.docker.socket)?;
+        if config.store_lease.enabled {
+            docker.check_store_lease().await?;
+            pryxd::store_lease::check_policy(&config.state_dir, true)?;
+        }
+        Arc::new(docker)
+    };
+    Ok(runtime)
+}
+
 async fn serve(path: &Path) -> anyhow::Result<()> {
     let boot = Instant::now();
     let mut config = Config::load(path)?;
@@ -286,7 +334,7 @@ async fn serve(path: &Path) -> anyhow::Result<()> {
         deployment = %config.deployment_id,
         fleet = config.fleet.as_ref().map(|f| f.url.as_str()),
         version = env!("CARGO_PKG_VERSION"),
-        "blocklyd starting"
+        "pryxd starting"
     );
     for inferred in &config.inferred {
         info!(key = inferred.key, value = %inferred.value, from = %inferred.from, "worked out from the host; set it in the configuration to override");
@@ -294,7 +342,7 @@ async fn serve(path: &Path) -> anyhow::Result<()> {
     let _ = rustls::crypto::ring::default_provider().install_default();
 
     let store = Store::open(&config.state_dir)?;
-    // Held until exit: a second blocklyd on this state directory refuses to start.
+    // Held until exit: a second pryxd on this state directory refuses to start.
     let _lock = store.lock()?;
     // A start on trial after an upgrade ends itself if the trial hasn't ended long after it began,
     // whatever the startup below does (upgrade/backstop.rs). Armed once the state directory is
@@ -302,12 +350,16 @@ async fn serve(path: &Path) -> anyhow::Result<()> {
     let backstop = Backstop::arm(&config.state_dir, boot);
     // Every create gives a data directory to the workloads' user, which takes root (CAP_CHOWN): a
     // daemon that can't is refused here, rather than by every create that follows.
-    store.check_ownable(config.data_owner_ids())?;
+    store.check_ownable(if config.runtime != RuntimeKind::Container {
+        (rustix::process::geteuid().as_raw(), rustix::process::getegid().as_raw())
+    } else {
+        config.data_owner_ids()
+    })?;
     // Fleet mode: the node's id and TLS material come from enrollment, before anything is served.
     let (identity, tls_material): (Option<Identity>, TlsConfig) = match config.mode()? {
         Mode::Fleet(fleet) => {
             let fleet = fleet.clone();
-            let identity = blocklyd::fleet::enroll::ensure_identity(&config, &fleet, facts(&config, &fleet)).await?;
+            let identity = pryxd::fleet::enroll::ensure_identity(&config, &fleet, facts(&config, &fleet)).await?;
             config.node_id = identity.node_id().clone();
             let tls = identity.server_tls()?;
             (Some(identity), tls)
@@ -317,18 +369,20 @@ async fn serve(path: &Path) -> anyhow::Result<()> {
     let config = Arc::new(config);
     let (tls, server_cert) = api::tls::reloadable_server_config(&tls_material).context("loading TLS material")?;
 
-    let runtime: Arc<dyn ContainerRuntime> = Arc::new(DockerRuntime::new(&config.docker.socket)?);
-    let mut publish: Vec<IpAddr> = config.network.edge_ips.clone();
-    publish.extend(config.network.control_ips.iter().copied());
-    publish.dedup();
+    if !config.store_lease.enabled {
+        pryxd::store_lease::check_policy(&config.state_dir, false)?;
+    }
+    let runtime = container_runtime(&config).await?;
+    let publish = publish_addresses(&config);
     let manager = Manager::new(config.clone(), runtime, store, Arc::new(Metrics::new()), ports::bind_probe(publish));
     if let (Some(identity), Some(fleet)) = (&identity, &config.fleet) {
         manager.set_fleet(identity.node_id(), &fleet.url);
     }
 
     // Rebuild everything from disk and the runtime before answering anyone. If Docker is down
-    // blocklyd still starts, knows its records, and says it is degraded until Docker is back.
+    // pryxd still starts, knows its records, and says it is degraded until Docker is back.
     let report = manager.reconcile(Records::FromDisk).await;
+    manager.stop_unleased().await?;
     match &report.error {
         None => info!(
             workloads = report.workloads,
@@ -379,7 +433,7 @@ async fn serve(path: &Path) -> anyhow::Result<()> {
     cancel.cancel();
     let _ = api_task.await;
     let _ = tokio::join!(ops, events, periodic, restarts);
-    // An upgrade on trial that was put back stops blocklyd with an error, saying why.
+    // An upgrade on trial that was put back stops pryxd with an error, saying why.
     let rolled_back = match fleet {
         Some(fleet) => fleet.stopped().await,
         None => None,
@@ -388,7 +442,7 @@ async fn serve(path: &Path) -> anyhow::Result<()> {
     rolled_back.map_or(Ok(()), |reason| Err(anyhow::anyhow!(reason)))
 }
 
-/// Fleet mode's own tasks, and what decides how blocklyd stops.
+/// Fleet mode's own tasks, and what decides how pryxd stops.
 struct FleetTasks {
     heartbeat: tokio::task::JoinHandle<()>,
     trial: tokio::task::JoinHandle<()>,
@@ -403,12 +457,12 @@ impl FleetTasks {
     }
 }
 
-/// Until a signal, or until blocklyd stops itself so that systemd runs the binary now in place:
+/// Until a signal, or until pryxd stops itself so that systemd runs the binary now in place:
 /// an upgrade installed, or one on trial put back.
 async fn until_stopped(cancel: &CancellationToken) {
     tokio::select! {
         signal = shutdown_signal() => info!(signal, "shutting down; workloads keep running"),
-        () = cancel.cancelled() => info!("stopping to run the blocklyd now installed; workloads keep running"),
+        () = cancel.cancelled() => info!("stopping to run the pryxd now installed; workloads keep running"),
     }
 }
 
@@ -425,7 +479,7 @@ fn start_fleet(
     let credentials = Credentials::new(identity, server_cert).context("the node's identity")?;
     let upgrader = Arc::new(Upgrader::new(&manager.config.state_dir, &fleet.url, backstop.ended(), cancel.clone()));
     let trial = tokio::spawn(upgrader.clone().watch_trial());
-    let heartbeat = tokio::spawn(blocklyd::fleet::heartbeat::run(
+    let heartbeat = tokio::spawn(pryxd::fleet::heartbeat::run(
         manager.clone(),
         credentials,
         upgrader.clone(),
@@ -434,4 +488,26 @@ fn start_fleet(
         cancel.clone(),
     ));
     Ok(FleetTasks { heartbeat, trial, upgrader })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn join_takes_each_allowed_image_prefix() {
+        let cli = Cli::try_parse_from([
+            "pryxd",
+            "join",
+            "token",
+            "--allow-image",
+            "alpine:",
+            "--allow-image",
+            "ghcr.io/example/",
+            "--no-start",
+        ])
+        .unwrap();
+        let Command::Join { allow_images, .. } = cli.command else { panic!("join") };
+        assert_eq!(allow_images, ["alpine:", "ghcr.io/example/"]);
+    }
 }

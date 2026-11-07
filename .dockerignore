@@ -1,2 +1,7 @@
 target
 .git
+
+.benchmark-before
+.benchmark-after
+**/node_modules
+dist

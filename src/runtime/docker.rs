@@ -2,10 +2,20 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! Docker Engine API over the local unix socket (bollard). blocklyd is the only client that
+//! Docker Engine API over the local unix socket (bollard). pryxd is the only client that
 //! needs the socket, which is root-equivalent: whoever holds it can start a privileged container
-//! with the host's filesystem mounted. blocklyd never exposes it; it exposes the narrow
+//! with the host's filesystem mounted. pryxd never exposes it; it exposes the narrow
 //! workload protocol instead, and fills every container's isolation from host policy.
+//!
+//! Parts (`docker/`):
+//! - `container.rs`: container construction and observation types.
+//! - `exec.rs`: command attachment and timeout containment.
+//! - `relay.rs`: bounded private ingress to gateway-free internal networks.
+
+mod container;
+mod exec;
+mod relay;
+use container::{body_of, info_from};
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
@@ -17,9 +27,7 @@ use bollard::container::LogOutput;
 use bollard::errors::Error as BollardError;
 use bollard::exec::{CreateExecOptions, StartExecOptions, StartExecResults};
 use bollard::models::{
-    ContainerCreateBody, ContainerInspectResponse, ContainerStateStatusEnum, ContainerUpdateBody, HealthStatusEnum,
-    HostConfig, HostConfigLogConfig, Mount, MountType, NetworkCreateRequest, PortBinding as DockerPortBinding,
-    RestartPolicy as DockerRestartPolicy, RestartPolicyNameEnum,
+    ContainerUpdateBody, NetworkCreateRequest, RestartPolicy as DockerRestartPolicy, RestartPolicyNameEnum,
 };
 use bollard::query_parameters::{
     CreateContainerOptionsBuilder, CreateImageOptionsBuilder, EventsOptionsBuilder, InspectNetworkOptions,
@@ -33,9 +41,9 @@ use time::OffsetDateTime;
 
 use super::{
     ContainerInfo, ContainerRuntime, ContainerSpec, ContainerStatus, ExecOutput, LogChunk, LogOptions, LogStream,
-    NetworkReport, RawStats, RuntimeError, RuntimeEvent, RuntimeInfo, parse_time,
+    NetworkReport, RawStats, RuntimeError, RuntimeEvent, RuntimeInfo,
 };
-use crate::protocol::{Health, MAX_STOP_TIMEOUT};
+use crate::protocol::MAX_STOP_TIMEOUT;
 
 /// Longer than the longest stop: Docker answers a stop only once the container exited.
 const CLIENT_TIMEOUT_SECS: u64 = MAX_STOP_TIMEOUT as u64 + 60;
@@ -55,7 +63,7 @@ const IFNAME_MAX: usize = 15;
 const EXEC_PID_WAIT: Duration = Duration::from_secs(2);
 const EXEC_PID_STEP: Duration = Duration::from_millis(50);
 
-/// The interface blocklyd names the bridge of the workloads' network `network`, named for the
+/// The interface pryxd names the bridge of the workloads' network `network`, named for the
 /// network so the host's rules (isolation.rs) can name it before it exists, and two networks on one
 /// host never share one.
 pub fn bridge_name(network: &str) -> String {
@@ -64,20 +72,42 @@ pub fn bridge_name(network: &str) -> String {
     format!("{prefix}{}", &digest[..IFNAME_MAX - prefix.len()])
 }
 
+pub(crate) fn internal_network(network: &str) -> String {
+    format!("{network}-internal")
+}
+
 pub struct DockerRuntime {
     socket: String,
     client: std::sync::Mutex<Option<Docker>>,
+    relays: relay::Relays,
 }
 
 impl DockerRuntime {
-    /// Doesn't connect yet: blocklyd starts even while Docker is down (bollard refuses to build a
+    /// Doesn't connect yet: pryxd starts even while Docker is down (bollard refuses to build a
     /// client for a socket that doesn't exist yet), and says so until it's back.
     pub fn new(socket: &Path) -> Result<Self, RuntimeError> {
         let socket = socket.to_str().ok_or_else(|| RuntimeError::Other("socket path is not UTF-8".into()))?.to_owned();
-        Ok(Self { socket, client: std::sync::Mutex::new(None) })
+        Ok(Self { socket, client: std::sync::Mutex::new(None), relays: relay::Relays::default() })
     }
 
-    /// The client, made on first use once the socket exists. Cheap to clone (shared inside).
+    /// Prove the independent cgroup watchdog before enabling the optional host feature.
+    pub async fn check_store_lease(&self) -> Result<(), RuntimeError> {
+        let info = self.info().await?;
+        if info.cgroup_version.as_deref() != Some("2") || info.cgroup_driver.as_deref() != Some("cgroupfs") {
+            return Err(RuntimeError::Other("store-lease needs rootful cgroup v2 and Docker cgroupfs driver".into()));
+        }
+        crate::store_lease::guard::prepare("probe", 0)
+            .map_err(|_| RuntimeError::Other("store-lease cgroups are not writable".into()))?;
+        let mut probe = crate::store_lease::guard::Guard::start(
+            "probe",
+            0,
+            crate::store_lease::guard::boot_ms().map_err(|_| RuntimeError::Other("Boot clock unavailable".into()))?
+                + 5000,
+        )
+        .map_err(|_| RuntimeError::Other("Cannot protect independent lease watchdog".into()))?;
+        probe.fence().map_err(|_| RuntimeError::Other("Cannot freeze lease cgroup".into()))?;
+        Ok(())
+    }
     fn docker(&self) -> Result<Docker, RuntimeError> {
         let mut client = self.client.lock().unwrap();
         if let Some(docker) = client.as_ref() {
@@ -170,118 +200,45 @@ fn pull_tag(image: &str) -> Option<&'static str> {
     (!image.contains('@') && !last.contains(':')).then_some("latest")
 }
 
-fn info_from(inspect: ContainerInspectResponse) -> ContainerInfo {
-    let state = inspect.state.unwrap_or_default();
-    let config = inspect.config.unwrap_or_default();
-    let status = match state.status {
-        Some(ContainerStateStatusEnum::CREATED) => ContainerStatus::Created,
-        Some(ContainerStateStatusEnum::RUNNING) => ContainerStatus::Running,
-        Some(ContainerStateStatusEnum::PAUSED) => ContainerStatus::Paused,
-        Some(ContainerStateStatusEnum::RESTARTING) => ContainerStatus::Restarting,
-        Some(ContainerStateStatusEnum::REMOVING) => ContainerStatus::Removing,
-        Some(ContainerStateStatusEnum::EXITED) => ContainerStatus::Exited,
-        Some(ContainerStateStatusEnum::DEAD) => ContainerStatus::Dead,
-        _ => ContainerStatus::Unknown,
-    };
-    let health = state.health.and_then(|h| h.status).and_then(|s| match s {
-        HealthStatusEnum::STARTING => Some(Health::Starting),
-        HealthStatusEnum::HEALTHY => Some(Health::Healthy),
-        HealthStatusEnum::UNHEALTHY => Some(Health::Unhealthy),
-        _ => None,
-    });
-    let env = config
-        .env
-        .unwrap_or_default()
-        .into_iter()
-        .filter_map(|kv| kv.split_once('=').map(|(k, v)| (k.to_owned(), v.to_owned())))
-        .collect();
-    ContainerInfo {
-        id: inspect.id.unwrap_or_default(),
-        name: inspect.name.unwrap_or_default().trim_start_matches('/').to_owned(),
-        labels: config.labels.unwrap_or_default().into_iter().collect(),
-        env,
-        status,
-        exit_code: state.exit_code.unwrap_or(0),
-        oom_killed: state.oom_killed.unwrap_or(false),
-        started_at: parse_time(state.started_at.as_deref()),
-        finished_at: parse_time(state.finished_at.as_deref()),
-        restart_count: inspect.restart_count.unwrap_or(0).max(0) as u32,
-        health,
-    }
-}
-
-fn body_of(spec: &ContainerSpec) -> ContainerCreateBody {
-    let mut exposed = Vec::new();
-    let mut bindings: HashMap<String, Option<Vec<DockerPortBinding>>> = HashMap::new();
-    for port in &spec.ports {
-        let key = format!("{}/{}", port.container_port, port.protocol.as_str());
-        exposed.push(key.clone());
-        let host = port
-            .host_ips
-            .iter()
-            .map(|ip| DockerPortBinding { host_ip: Some(ip.to_string()), host_port: Some(port.host_port.to_string()) })
-            .collect();
-        bindings.insert(key, Some(host));
-    }
-    let tmpfs = spec.read_only_rootfs.then(|| {
-        // exec: the JVM's native transports and some mods load libraries from /tmp, and the data
-        // mount is executable anyway, so noexec here would break things and protect nothing.
-        HashMap::from([("/tmp".to_owned(), format!("rw,exec,nosuid,nodev,size={}m", spec.tmp_size_mb))])
-    });
-    let host_config = HostConfig {
-        memory: Some(spec.memory_bytes),
-        // Equal to memory: no swap. A JVM that swaps is a server that lags.
-        memory_swap: Some(spec.memory_bytes),
-        nano_cpus: spec.nano_cpus,
-        cpu_shares: Some(spec.cpu_shares),
-        pids_limit: Some(spec.pids_limit),
-        readonly_rootfs: Some(spec.read_only_rootfs),
-        tmpfs,
-        cap_drop: Some(vec!["ALL".into()]),
-        security_opt: Some(vec!["no-new-privileges:true".into()]),
-        privileged: Some(false),
-        ipc_mode: Some("private".into()),
-        init: Some(false),
-        // Docker never restarts a workload by itself: its on-failure also fires after an unclean
-        // reboot, before blocklyd runs, which would bring back a fenced copy. blocklyd applies the
-        // spec's policy itself (`restart_supervisor`).
-        restart_policy: Some(DockerRestartPolicy { name: Some(RestartPolicyNameEnum::NO), maximum_retry_count: None }),
-        mounts: Some(vec![Mount {
-            typ: Some(MountType::BIND),
-            source: Some(spec.data_dir.to_string_lossy().into_owned()),
-            target: Some(spec.mount_path.clone()),
-            read_only: Some(false),
-            ..Default::default()
-        }]),
-        port_bindings: Some(bindings),
-        network_mode: Some(spec.network.clone()),
-        // Rotated and bounded: a chatty server can't fill the disk with logs.
-        log_config: Some(HostConfigLogConfig {
-            typ: Some("local".into()),
-            config: Some(HashMap::from([
-                ("max-size".into(), format!("{}m", spec.log_max_size_mb)),
-                ("max-file".into(), spec.log_max_files.to_string()),
-            ])),
-        }),
-        oom_score_adj: Some(i64::from(spec.oom_score_adj)),
-        ..Default::default()
-    };
-    ContainerCreateBody {
-        image: Some(spec.image.clone()),
-        entrypoint: spec.entrypoint.clone(),
-        env: Some(spec.env.iter().map(|(k, v)| format!("{k}={v}")).collect()),
-        labels: Some(spec.labels.clone().into_iter().collect()),
-        user: Some(spec.user.clone()),
-        exposed_ports: Some(exposed),
-        stop_signal: Some(spec.stop_signal.clone()),
-        stop_timeout: Some(i64::from(spec.stop_timeout_secs)),
-        host_config: Some(host_config),
-        ..Default::default()
-    }
-}
-
 #[async_trait]
 impl ContainerRuntime for DockerRuntime {
+    fn supports_agent(&self) -> bool {
+        true
+    }
+    fn supports_network_policy(&self) -> bool {
+        true
+    }
+
+    async fn ensure_internal_network(&self, name: &str, labels: &BTreeMap<String, String>) -> Result<(), RuntimeError> {
+        let inspect =
+            quick("inspect internal network", self.docker()?.inspect_network(name, None::<InspectNetworkOptions>))
+                .await;
+        match inspect {
+            Ok(network) => {
+                if network.internal == Some(true)
+                    && network.options.unwrap_or_default().get(ICC_OPTION).map(String::as_str) == Some("false")
+                {
+                    return Ok(());
+                }
+                return Err(RuntimeError::Other("The internal network does not enforce host policy".into()));
+            }
+            Err(RuntimeError::NotFound(_)) => {}
+            Err(error) => return Err(error),
+        }
+        let request = NetworkCreateRequest {
+            name: name.into(),
+            driver: Some("bridge".into()),
+            internal: Some(true),
+            options: Some(HashMap::from([
+                (ICC_OPTION.into(), "false".into()),
+                (BRIDGE_NAME_OPTION.into(), bridge_name(name)),
+            ])),
+            labels: Some(labels.clone().into_iter().collect()),
+            ..Default::default()
+        };
+        quick("create internal network", self.docker()?.create_network(request)).await?;
+        Ok(())
+    }
     async fn info(&self) -> Result<RuntimeInfo, RuntimeError> {
         let version = quick("version", self.docker()?.version()).await?;
         let info = quick("info", self.docker()?.info()).await?;
@@ -308,7 +265,7 @@ impl ContainerRuntime for DockerRuntime {
         let request = NetworkCreateRequest {
             name: name.to_owned(),
             driver: Some("bridge".into()),
-            // Workloads can't reach each other directly; each reaches the world and is reached
+            // Workloads can't reach each other directly; each reaches the outside network and is reached
             // through its published ports only, which the host's rules keep the others off.
             options: Some(HashMap::from([
                 (ICC_OPTION.to_owned(), "false".to_owned()),
@@ -369,13 +326,81 @@ impl ContainerRuntime for DockerRuntime {
     }
 
     async fn create(&self, spec: &ContainerSpec) -> Result<String, RuntimeError> {
+        if spec.internal_network {
+            self.ensure_internal_network(&spec.network, &spec.labels).await?;
+        }
+        let mut spec = spec.clone();
+        if spec.internal_network {
+            spec.labels.insert(
+                crate::labels::LABEL_INTERNAL_BINDINGS.into(),
+                serde_json::to_string(&spec.ports)
+                    .map_err(|_| RuntimeError::Other("Cannot encode private bindings".into()))?,
+            );
+        }
+        if let Some(agent) = &spec.agent {
+            let image = quick("inspect image", self.docker()?.inspect_image(&spec.image)).await?;
+            let config = image.config.unwrap_or_default();
+            let original = if agent.keep_alive {
+                Vec::new()
+            } else {
+                spec.entrypoint.take().unwrap_or_else(|| {
+                    config.entrypoint.unwrap_or_default().into_iter().chain(config.cmd.unwrap_or_default()).collect()
+                })
+            };
+            let mut entrypoint = vec![
+                pryx_agent::contract::BINARY_PATH.into(),
+                "--sandbox".into(),
+                agent.sandbox.clone(),
+                "--epoch".into(),
+                agent.epoch.to_string(),
+                "--data".into(),
+                spec.mount_path.clone(),
+                "--domain".into(),
+                agent.domain.clone(),
+                "--port".into(),
+                agent.agent_port.to_string(),
+                "--secret-env".into(),
+                agent.secret_env.clone(),
+                "--entrypoint-cwd".into(),
+                config.working_dir.filter(|d| !d.is_empty()).unwrap_or_else(|| "/".into()),
+            ];
+            if let Some(origin) = &agent.public_origin {
+                entrypoint.extend(["--public-origin".into(), origin.clone()]);
+            }
+            if !agent.spare_ports.is_empty() {
+                entrypoint.extend([
+                    "--spare-ports".into(),
+                    agent.spare_ports.iter().map(u16::to_string).collect::<Vec<_>>().join(","),
+                ]);
+            }
+            if agent.keep_alive {
+                entrypoint.push("--keep-alive".into());
+            }
+            if !original.is_empty() {
+                entrypoint.push("--".into());
+                entrypoint.extend(original);
+            }
+            spec.entrypoint = Some(entrypoint);
+        }
         let options = CreateContainerOptionsBuilder::new().name(&spec.name).build();
-        let created = quick("create", self.docker()?.create_container(Some(options), body_of(spec))).await?;
+        let created = quick("create", self.docker()?.create_container(Some(options), body_of(&spec))).await?;
         Ok(created.id)
     }
 
     async fn start(&self, name: &str) -> Result<(), RuntimeError> {
-        quick("start", self.docker()?.start_container(name, None)).await
+        if let Err(error) = quick("start", self.docker()?.start_container(name, None)).await {
+            // A lost response does not undo Docker's mutation. Confirm its current state once;
+            // never issue a second start, and preserve the timeout unless it is already running.
+            if matches!(error, RuntimeError::Timeout(_))
+                && matches!(self.inspect(name).await, Ok(Some(info)) if info.status == ContainerStatus::Running)
+            {
+                tracing::warn!("confirmed running after Docker start timeout without repeating start");
+                return Ok(());
+            }
+            return Err(error);
+        }
+        self.inspect(name).await?;
+        Ok(())
     }
 
     async fn stop(&self, name: &str, signal: &str, grace: Duration) -> Result<(), RuntimeError> {
@@ -418,6 +443,7 @@ impl ContainerRuntime for DockerRuntime {
     }
 
     async fn remove(&self, name: &str) -> Result<(), RuntimeError> {
+        self.relays.stop(name).await;
         // v: anonymous volumes an image declares go with the container instead of leaking; the
         // workload's data is a bind mount, which removal never touches.
         let options = RemoveContainerOptionsBuilder::new().force(true).v(true).build();
@@ -429,7 +455,10 @@ impl ContainerRuntime for DockerRuntime {
 
     async fn inspect(&self, name: &str) -> Result<Option<ContainerInfo>, RuntimeError> {
         match quick("inspect", self.docker()?.inspect_container(name, None)).await {
-            Ok(inspect) => Ok(Some(info_from(inspect))),
+            Ok(inspect) => {
+                self.relays.ensure(&inspect).await?;
+                Ok(Some(info_from(inspect)))
+            }
             Err(RuntimeError::NotFound(_)) => Ok(None),
             Err(e) => Err(e),
         }
@@ -456,67 +485,18 @@ impl ContainerRuntime for DockerRuntime {
         timeout: Duration,
         max_output: usize,
     ) -> Result<ExecOutput, RuntimeError> {
-        let options = CreateExecOptions::<String> {
-            cmd: Some(command.to_vec()),
-            attach_stdout: Some(true),
-            attach_stderr: Some(true),
-            attach_stdin: Some(false),
-            tty: Some(false),
-            privileged: Some(false),
-            ..Default::default()
-        };
-        let created = quick("create exec", self.docker()?.create_exec(container, options)).await?;
-        let exec_id = created.id;
-        let started = quick(
-            "start exec",
-            self.docker()?
-                .start_exec(&exec_id, Some(StartExecOptions { detach: false, tty: false, output_capacity: None })),
-        )
-        .await?;
-        let StartExecResults::Attached { mut output, .. } = started else {
-            return Err(RuntimeError::Other("exec started detached".into()));
-        };
+        self.exec_command(container, command, timeout, max_output, None).await
+    }
 
-        let mut result = ExecOutput::default();
-        let collect = async {
-            while let Some(item) = output.next().await {
-                let (buffer, truncated, bytes) = match item.map_err(map_err)? {
-                    LogOutput::StdOut { message } => (&mut result.stdout, &mut result.stdout_truncated, message),
-                    LogOutput::StdErr { message } => (&mut result.stderr, &mut result.stderr_truncated, message),
-                    _ => continue,
-                };
-                let room = max_output.saturating_sub(buffer.len());
-                buffer.extend_from_slice(&bytes[..bytes.len().min(room)]);
-                *truncated |= bytes.len() > room;
-            }
-            Ok::<(), RuntimeError>(())
-        };
-        match tokio::time::timeout(timeout, collect).await {
-            Ok(Ok(())) => {}
-            Ok(Err(e)) => return Err(e),
-            Err(_) => {
-                result.timed_out = true;
-                // Docker has no API to stop an exec (moby/moby#35703). From the host, blocklyd
-                // can: find its pid, make sure it is still this container's, and kill its tree.
-                if let Some((pid, container)) = self.exec_pid(&exec_id).await {
-                    result.killed = kill_exec_tree(pid, &container) > 0;
-                }
-            }
-        }
-        drop(output);
-        // The exit code lands a moment after the stream ends.
-        for _ in 0..50 {
-            let inspect = quick("inspect exec", self.docker()?.inspect_exec(&exec_id)).await?;
-            if inspect.running != Some(true) {
-                result.exit_code = inspect.exit_code;
-                break;
-            }
-            if result.timed_out && !result.killed {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(20)).await;
-        }
-        Ok(result)
+    async fn exec_stream(
+        &self,
+        container: &str,
+        command: &[String],
+        timeout: Duration,
+        max_output: usize,
+        output: tokio::sync::mpsc::Sender<LogChunk>,
+    ) -> Result<ExecOutput, RuntimeError> {
+        self.exec_command(container, command, timeout, max_output, Some(output)).await
     }
 
     fn logs(&self, name: &str, options: LogOptions) -> BoxStream<'static, Result<LogChunk, RuntimeError>> {
@@ -671,6 +651,9 @@ mod tests {
 
     fn spec() -> ContainerSpec {
         ContainerSpec {
+            packages: Vec::new(),
+            agent: None,
+            cgroup_parent: None,
             name: "blockly-test-w".into(),
             image: "alpine:3.22".into(),
             entrypoint: None,
@@ -683,16 +666,26 @@ mod tests {
             pids_limit: 4096,
             read_only_rootfs: true,
             tmp_size_mb: 64,
-            data_dir: "/var/lib/blocklyd/workloads/w/data".into(),
+            data_dir: "/var/lib/pryxd/workloads/w/data".into(),
             mount_path: "/data".into(),
             ports: Vec::new(),
             stop_signal: "SIGTERM".into(),
             stop_timeout_secs: 90,
             network: "blockly-workloads".into(),
+            internal_network: false,
             log_max_size_mb: 10,
             log_max_files: 3,
             oom_score_adj: 500,
         }
+    }
+
+    #[test]
+    fn explicit_entrypoint_does_not_append_the_images_default_command() {
+        let mut spec = spec();
+        assert_eq!(body_of(&spec).cmd, None);
+        spec.entrypoint = Some(vec!["echo".into(), "exact".into()]);
+        assert_eq!(body_of(&spec).entrypoint, spec.entrypoint);
+        assert_eq!(body_of(&spec).cmd, Some(Vec::new()));
     }
 
     #[test]

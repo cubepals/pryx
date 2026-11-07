@@ -13,6 +13,8 @@ use crate::protocol::{FieldError, RESERVED_LABEL_PREFIX};
 /// The host's own bounds. The protocol validates shape; the host decides what it allows.
 #[derive(Clone, Debug)]
 pub(crate) struct SpecPolicy {
+    pub(crate) process: bool,
+    pub(crate) wasm: bool,
     pub(crate) allowed_images: Vec<String>,
     pub(crate) min_memory_mb: u32,
     pub(crate) max_memory_mb: u32,
@@ -109,7 +111,16 @@ impl WorkloadSpec {
         self.check_env(&mut problems);
         self.check_resources(policy, &mut problems);
         self.check_storage(&mut problems);
-        self.check_ports(&mut problems);
+        self.check_ports(policy, &mut problems);
+        if self.spare_ports.is_some_and(|n| n > pryx_agent::contract::MAX_SPARE_PORTS) {
+            problems.add("sparePorts", format!("at most {}", pryx_agent::contract::MAX_SPARE_PORTS));
+        }
+        if self.agent.as_ref().is_some_and(|a| rustls::pki_types::DnsName::try_from(a.domain.as_str()).is_err()) {
+            problems.add("agent.domain", "must be a DNS domain");
+        }
+        if self.storage.mount_path == pryx_agent::contract::BINARY_PATH {
+            problems.add("storage.mountPath", "the agent executable path is reserved");
+        }
         self.check_stop_and_restart(&mut problems);
         self.check_labels(&mut problems);
         self.check_resumes_on(&mut problems);
@@ -117,8 +128,33 @@ impl WorkloadSpec {
     }
 
     fn check_image(&self, policy: &SpecPolicy, problems: &mut Problems) {
+        if (!policy.wasm && !self.packages.is_empty())
+            || self.packages.len() > crate::protocol::MAX_WASM_PACKAGES
+            || self.packages.iter().any(|name| {
+                name.is_empty()
+                    || name.len() > 64
+                    || !name.as_bytes()[0].is_ascii_lowercase()
+                    || !name.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+            })
+        {
+            problems.add("packages", "registry package names are available only on the wasm tier");
+        }
+        if policy.wasm {
+            if !self.image.is_empty() {
+                problems.add("image", crate::protocol::WASM_IMAGE_PROBLEM);
+            }
+            return;
+        }
+        if policy.process {
+            if !self.image.is_empty() {
+                problems.add("image", crate::protocol::PROCESS_IMAGE_PROBLEM);
+            }
+            return;
+        }
         if !image_ok(&self.image) {
             problems.add("image", "must be an image reference of letters, digits and ._-/:@");
+        } else if policy.allowed_images.is_empty() {
+            problems.add("image", "no image prefix is allowed on this host");
         } else if !policy.allowed_images.iter().any(|prefix| self.image.starts_with(prefix.as_str())) {
             problems
                 .add("image", format!("is not allowed on this host (allowed: {})", policy.allowed_images.join(", ")));
@@ -159,17 +195,32 @@ impl WorkloadSpec {
 
     fn check_resources(&self, policy: &SpecPolicy, problems: &mut Problems) {
         let r = &self.resources;
+        if policy.process || policy.wasm {
+            for (field, present) in [("cpuMillis", r.cpu_millis.is_some()), ("cpuWeight", r.cpu_weight.is_some())] {
+                if present {
+                    problems.add(format!("resources.{field}"), crate::protocol::CPU_LIMIT_PROBLEM);
+                }
+            }
+        }
         if r.memory_mb < policy.min_memory_mb || r.memory_mb > policy.max_memory_mb {
             problems.add(
                 "resources.memoryMb",
                 format!("must be between {} and {} on this host", policy.min_memory_mb, policy.max_memory_mb),
             );
         }
-        if let Some(cpu) = r.cpu_millis
-            && (cpu < 100 || cpu > policy.max_cpu_millis)
-        {
-            problems
-                .add("resources.cpuMillis", format!("must be between 100 and {} on this host", policy.max_cpu_millis));
+        for (field, cpu) in [("cpuMillis", r.cpu_millis), ("cpuReservationMillis", r.cpu_reservation_millis)] {
+            if let Some(cpu) = cpu
+                && (cpu < crate::protocol::MIN_CPU_MILLIS || cpu > policy.max_cpu_millis)
+            {
+                problems.add(
+                    format!("resources.{field}"),
+                    format!(
+                        "must be between {} and {} on this host",
+                        crate::protocol::MIN_CPU_MILLIS,
+                        policy.max_cpu_millis
+                    ),
+                );
+            }
         }
         if let Some(weight) = r.cpu_weight
             && !CPU_WEIGHTS.contains(&weight)
@@ -197,13 +248,16 @@ impl WorkloadSpec {
 
     /// Each port on its own, and the ports against each other: a name, or a protocol's
     /// container port, is used once.
-    fn check_ports(&self, problems: &mut Problems) {
+    fn check_ports(&self, policy: &SpecPolicy, problems: &mut Problems) {
         if self.ports.len() > MAX_PORTS {
             problems.add("ports", format!("at most {MAX_PORTS}"));
         }
         let mut names = std::collections::BTreeSet::new();
         let mut inside = std::collections::BTreeSet::new();
         for (i, port) in self.ports.iter().enumerate() {
+            if policy.wasm && port.protocol != crate::protocol::Proto::Tcp {
+                problems.add(format!("ports[{i}].protocol"), crate::protocol::WASM_PORT_PROBLEM);
+            }
             if !port_name_ok(&port.name) {
                 problems.add(format!("ports[{i}].name"), "is 1-16 of a-z, 0-9 and '-', starting with a letter");
             }
@@ -240,7 +294,7 @@ impl WorkloadSpec {
                 problems.add(format!("labels.{key}"), "keys are lowercase letters, digits and ._/-");
             }
             if key.starts_with(RESERVED_LABEL_PREFIX) {
-                problems.add(format!("labels.{key}"), format!("the {RESERVED_LABEL_PREFIX} prefix is blocklyd's own"));
+                problems.add(format!("labels.{key}"), format!("the {RESERVED_LABEL_PREFIX} prefix is pryxd's own"));
             }
             if value.len() > 256 || !no_nul(value) {
                 problems.add(format!("labels.{key}"), "values are at most 256 bytes, without NUL");
@@ -259,13 +313,15 @@ impl WorkloadSpec {
 
 #[cfg(test)]
 mod tests {
-    use super::super::tests::{blockly_like, spec};
+    use super::super::tests::{example_spec, spec};
     use super::*;
     use crate::protocol::{Proto, RestartSpec};
 
     pub(crate) fn policy() -> SpecPolicy {
         SpecPolicy {
-            allowed_images: vec!["itzg/minecraft-server:".into(), "alpine:".into()],
+            process: false,
+            wasm: false,
+            allowed_images: vec!["ghcr.io/example/http-app:".into(), "alpine:".into()],
             min_memory_mb: 128,
             max_memory_mb: 16_384,
             max_cpu_millis: 8000,
@@ -273,16 +329,60 @@ mod tests {
     }
 
     #[test]
-    fn a_blockly_runtime_spec_is_valid() {
-        let s = spec(blockly_like());
+    fn an_example_runtime_spec_is_valid() {
+        let s = spec(example_spec());
         assert!(s.validate(&policy()).is_ok());
         assert_eq!(s.ports[0].protocol, Proto::Tcp, "tcp is the default");
         assert_eq!(s.restart, RestartSpec::default());
     }
 
     #[test]
+    fn tiers_without_cgroups_refuse_cpu_ceilings_and_weights() {
+        for wasm in [false, true] {
+            let mut p = policy();
+            p.process = !wasm;
+            p.wasm = wasm;
+            let mut v = example_spec();
+            v["image"] = "".into();
+            v["resources"]["cpuWeight"] = 1024.into();
+            let errors = spec(v).validate(&p).err().unwrap_or_default();
+            for field in ["resources.cpuMillis", "resources.cpuWeight"] {
+                assert!(errors.iter().any(|e| e.field == field), "unenforced {field} was accepted");
+            }
+        }
+    }
+
+    #[test]
+    fn cpu_reservations_are_bounded_admission_without_a_ceiling() {
+        for wasm in [false, true] {
+            let mut p = policy();
+            p.process = !wasm;
+            p.wasm = wasm;
+            let mut v = example_spec();
+            v["image"] = "".into();
+            v["resources"] = serde_json::json!({"memoryMb": 512, "cpuReservationMillis": 250});
+            let s = spec(v.clone());
+            assert!(s.validate(&p).is_ok());
+            assert_eq!(s.resources.cpu_millis, None);
+            assert_eq!(s.resources.cpu_reservation_millis, Some(250));
+            for cpu in [0, crate::protocol::MIN_CPU_MILLIS - 1, p.max_cpu_millis + 1] {
+                v["resources"]["cpuReservationMillis"] = cpu.into();
+                assert!(
+                    spec(v.clone())
+                        .validate(&p)
+                        .unwrap_err()
+                        .iter()
+                        .any(|e| e.field == "resources.cpuReservationMillis")
+                );
+            }
+        }
+        let r = spec(example_spec()).resources;
+        assert!(serde_json::to_value(r).unwrap().get("cpuReservationMillis").is_none());
+    }
+
+    #[test]
     fn every_problem_is_reported_at_once() {
-        let mut v = blockly_like();
+        let mut v = example_spec();
         v["image"] = "evil/image:latest".into();
         v["storage"]["mountPath"] = "/data/../etc".into();
         v["resources"]["memoryMb"] = 64.into();
@@ -308,9 +408,9 @@ mod tests {
 
     #[test]
     fn secrets_are_held_to_the_env_rules_and_limits() {
-        let mut v = blockly_like();
+        let mut v = example_spec();
         v["secrets"]["bad-name"] = "x".into();
-        v["secrets"]["EULA"] = "TRUE".into();
+        v["secrets"]["APP_MODE"] = "TRUE".into();
         v["secrets"]["BIG"] = "x".repeat(MAX_ENV_VALUE).into();
         v["env"]["ALSO_BIG"] = "x".repeat(MAX_ENV_TOTAL - MAX_ENV_VALUE).into();
         let errors = spec(v).validate(&policy()).unwrap_err();
@@ -319,7 +419,7 @@ mod tests {
             problems,
             [
                 ("env.ALSO_BIG", "values are at most 65536 bytes, without NUL"),
-                ("secrets.EULA", "is also in env; a name is one or the other"),
+                ("secrets.APP_MODE", "is also in env; a name is one or the other"),
                 ("secrets.bad-name", "names are letters, digits and _, not starting with a digit"),
                 ("env", "all variables together must stay under 524288 bytes"),
             ]
@@ -328,13 +428,25 @@ mod tests {
 
     #[test]
     fn ports_must_be_distinct_and_audienced() {
-        let mut v = blockly_like();
+        let mut v = example_spec();
         v["ports"] = serde_json::json!([
-            { "name": "game", "containerPort": crate::minecraft::GAME_PORT, "audience": ["edge"] },
-            { "name": "game", "containerPort": crate::minecraft::GAME_PORT, "audience": [] }
+            { "name": "http", "containerPort": crate::examples::HTTP_PORT, "audience": ["edge"] },
+            { "name": "http", "containerPort": crate::examples::HTTP_PORT, "audience": [] }
         ]);
         let errors = spec(v).validate(&policy()).unwrap_err();
         assert!(errors.iter().any(|e| e.problem.contains("used twice")));
         assert!(errors.iter().any(|e| e.field == "ports[1].audience"));
+    }
+    #[test]
+    fn wasm_refuses_udp_ingress() {
+        let mut p = policy();
+        p.wasm = true;
+        let mut v = example_spec();
+        v["image"] = "".into();
+        v["ports"][0]["protocol"] = "udp".into();
+        let errors = spec(v).validate(&p).unwrap_err();
+        assert!(
+            errors.iter().any(|e| e.field == "ports[0].protocol" && e.problem == crate::protocol::WASM_PORT_PROBLEM)
+        );
     }
 }

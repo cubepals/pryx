@@ -1,0 +1,86 @@
+// SPDX-FileCopyrightText: 2026 The Cubepals Authors
+//
+// SPDX-License-Identifier: FSL-1.1-ALv2
+
+/** The single-node daemon configuration fixture, parameterized by its deployment. */
+
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import nodeSchema from '../../openapi/node-reads.openapi.json'
+
+export const TIER_BENCH_UNIT = {
+  memoryMb: nodeSchema['x-pryx-resources'].defaultMinMemoryMb,
+  cpuMillis: nodeSchema['x-pryx-resources'].minCpuMillis,
+}
+// Fifty idle sandboxes request five cores on the observed four-core runner.
+export const TIER_BENCH_CPU_OVERCOMMIT = 2
+export const TIER_BENCH_LARGE_UNITS = 2
+export const TIER_BENCH_LARGE_UNIT = {
+  memoryMb: TIER_BENCH_UNIT.memoryMb * TIER_BENCH_LARGE_UNITS,
+  cpuMillis: TIER_BENCH_UNIT.cpuMillis * TIER_BENCH_LARGE_UNITS,
+}
+export const TEST_NODE_PORTS = 50
+// More than 1,500 concurrent-cohort creations plus scalar cohorts can rest without reuse.
+export const TIER_BENCH_NODE_PORTS = 2048
+
+export function nodePortLow(deployment: string, index: number) {
+  const ephemeralStart = Number(
+    readFileSync('/proc/sys/net/ipv4/ip_local_port_range', 'utf8').trim().split(/\s+/)[0],
+  )
+  const unprivilegedStart = Number(readFileSync('/proc/sys/net/ipv4/ip_unprivileged_port_start', 'utf8'))
+  const slots = 90,
+    stride = 2 * TEST_NODE_PORTS,
+    base = ephemeralStart - (slots * stride + TIER_BENCH_NODE_PORTS),
+    low = base + (Number.parseInt(deployment.slice(-3), 16) % slots) * stride + index * TEST_NODE_PORTS
+  if (
+    !Number.isInteger(low) ||
+    !Number.isInteger(unprivilegedStart) ||
+    base < unprivilegedStart ||
+    low + TIER_BENCH_NODE_PORTS > ephemeralStart
+  )
+    throw new Error('Kernel port policy has no room for the test listener pool')
+  return low
+}
+
+export const nodeConfigFor = (DEPLOYMENT: string) =>
+  function nodeConfig(at: {
+    home: string
+    endpointUrl: string
+    dir: string
+    apiPort: number
+    opsPort: number
+    allowedImages?: string[]
+    tier?: import('../src/isolation.ts').Isolation
+    agent?: boolean
+    storeLease?: boolean
+    low: number
+  }): string {
+    const { home, endpointUrl, dir, apiPort, opsPort, low } = at
+    return `deployment_id = "${DEPLOYMENT}"
+runtime = "${at.tier ?? 'container'}"
+state_dir = "${join(home, 'state')}"
+[api]
+listen = "127.0.0.1:${apiPort}"
+[ops]
+listen = "127.0.0.1:${opsPort}"
+[network]
+port_range = [${low}, ${low + (process.env.PRYX_TIER_BENCH === '1' ? TIER_BENCH_NODE_PORTS : TEST_NODE_PORTS) - 1}]
+${process.env.PRYX_TIER_BENCH === '1' ? '' : 'port_quarantine_seconds = 0'}
+[wasm]
+distribution = ${JSON.stringify(process.env.PRYX_AGENTOS_DISTRIBUTION ?? '/usr/local/lib/pryx/agentos')}
+[workloads]
+${at.agent ? '' : 'agent_binary = "/nonexistent/legacy-node-agent"'}
+allowed_images = ${JSON.stringify(at.allowedImages ?? ['alpine:'])}
+min_memory_mb = ${process.env.PRYX_TIER_BENCH === '1' ? TIER_BENCH_UNIT.memoryMb : 64}
+[capacity]
+${process.env.PRYX_TIER_BENCH === '1' ? '' : 'reserved_memory_mb = 0\nallocatable_memory_mb = 4096\n'}min_free_disk_mb = 256
+[transfer]
+max_put_mb = 1
+${at.storeLease ? '[store_lease]\nenabled = true\nnon_suspending_host = true\n' : ''}
+[fleet]
+url = "${endpointUrl}"
+ca = "${join(dir, 'ca.pem')}"
+enrollment_token_file = "${join(home, 'token')}"
+heartbeat_seconds = 1
+`
+  }

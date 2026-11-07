@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! `doctor --fix`: the fixes that are safe to make without asking, on a host with no blocklyd
-//! servers yet. It writes Docker's daemon.json from `deploy/daemon.json` (merged over the one there,
+//! `doctor --fix`: the fixes that are safe to make without asking, on a host with no pryxd
+//! sandboxes yet. It writes Docker's daemon.json from `deploy/daemon.json` (merged over the one there,
 //! which it keeps as a `.bak`) and makes the state directory. Each change says how to undo it.
 //!
 //! Docker is restarted only while no container at all exists; with containers it is reloaded,
@@ -41,8 +41,7 @@ pub(crate) async fn apply(config: &Config, runtime: &dyn ContainerRuntime, daemo
     let servers = runtime.list(&[format!("{LABEL_MANAGED}=true")]).await;
     if has_workloads(&config.state_dir) || servers.as_ref().is_ok_and(|servers| !servers.is_empty()) {
         fixed.next.push(
-            "Nothing changed: this host already runs blocklyd servers, and --fix changes only a host without any"
-                .into(),
+            "Nothing changed: this host already runs pryxd servers, and --fix changes only a host without any".into(),
         );
         return fixed;
     }
@@ -67,7 +66,7 @@ pub(crate) async fn apply(config: &Config, runtime: &dyn ContainerRuntime, daemo
     fixed
 }
 
-/// `on_disk` with every setting of Blockly's daemon.json laid over it.
+/// `on_disk` with every setting of the control plane's daemon.json laid over it.
 pub(crate) fn merged(on_disk: Option<Map<String, Value>>) -> Map<String, Value> {
     let mut settings = on_disk.unwrap_or_default();
     settings.extend(deploy_daemon_json());

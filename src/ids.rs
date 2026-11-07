@@ -70,7 +70,7 @@ macro_rules! id_type {
 }
 
 id_type!(
-    /// What the control plane calls a workload: Blockly's server id (a UUID) in practice, but any
+    /// What the control plane calls a workload: the control plane's sandbox id (a UUID) in practice, but any
     /// lowercase DNS label will do. The character set is the whole defence against path traversal
     /// and injection: a valid id is always one safe path component, one safe container-name suffix
     /// and one safe label value, so nothing downstream needs to escape it.

@@ -4,5 +4,5 @@ contact_links:
     url: mailto:support@cubepals.com
     about: Account and server problems go to support, who can look at your account.
   - name: Report a security vulnerability
-    url: https://github.com/cubepals/blocklyd/security/advisories/new
+    url: https://github.com/cubepals/pryx/security/advisories/new
     about: Privately, never as a public issue.

@@ -56,7 +56,7 @@ impl Manager {
         }
         let data = self.store.data_dir(id);
         // The data's full size, even where the copy will share blocks with it: a shared copy is
-        // free only until the world changes, and then takes as much as a plain one. Counted as
+        // free only until the data changes, and then takes as much as a plain one. Counted as
         // free, copies could pile up on a node near its floor and need that space later.
         let need = {
             let data = data.clone();

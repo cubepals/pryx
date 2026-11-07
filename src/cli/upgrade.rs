@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! `blocklyd upgrade`: the control plane's blocklyd at once, as root on the host, rather than when
+//! `pryxd upgrade`: the control plane's pryxd at once, as root on the host, rather than when
 //! a heartbeat's answer offers it. It asks for the offer itself (`GET /fleet/v1/blocklyd.json`),
 //! which must carry the release's signature as a heartbeat's must. How an upgrade is checked,
 //! installed, tried and put back is `crate::upgrade`.
@@ -21,20 +21,18 @@ pub use crate::upgrade::Trial;
 use crate::upgrade::trust::ReleaseKeys;
 use crate::upgrade::{Layout, TRIAL_SECONDS, install};
 
-/// `blocklyd upgrade`: the control plane's blocklyd now, then a restart into it, which goes back by
+/// `pryxd upgrade`: the control plane's pryxd now, then a restart into it, which goes back by
 /// itself if the new one doesn't come up.
 pub async fn upgrade(config: &Path, restart: bool) -> anyhow::Result<String> {
     if !rustix::process::geteuid().is_root() {
-        bail!("blocklyd upgrade replaces the service's binary: run it as root");
+        bail!("pryxd upgrade replaces the service's binary: run it as root");
     }
     let config = Config::load(config)?;
     let Some(fleet) = &config.fleet else {
-        bail!(
-            "this blocklyd runs without [fleet]: it upgrades from a control plane only, so replace the binary by hand"
-        );
+        bail!("this pryxd runs without [fleet]: it upgrades from a control plane only, so replace the binary by hand");
     };
     let Some(identity) = Identity::load(&config.state_dir)? else {
-        bail!("this node hasn't enrolled yet: start blocklyd first, and upgrade once it has");
+        bail!("this node hasn't enrolled yet: start pryxd first, and upgrade once it has");
     };
     let tls = identity.client_tls()?;
     let url = format!("{}{FLEET_API}/blocklyd.json", fleet.url.trim_end_matches('/'));
@@ -51,26 +49,23 @@ pub async fn upgrade(config: &Path, restart: bool) -> anyhow::Result<String> {
     let current = crate::upgrade::daemon_version();
     let installed = if layout.bin.is_file() { &layout.bin } else { &layout.link };
     if fs::read(installed).is_ok_and(|b| hex::encode(Sha256::digest(&b)).eq_ignore_ascii_case(&offer.sha256)) {
-        return Ok(format!("This is already the control plane's blocklyd ({current}): nothing changed.\n"));
+        return Ok(format!("This is already the control plane's pryxd ({current}): nothing changed.\n"));
     }
     let to = install(&layout, &fleet.url, Some(tls), &offer, &ReleaseKeys::ours(), &current, None).await?;
     let mut said = format!(
-        "Installed blocklyd {to} (was {current}) at {}, and kept the one before as {}.\n",
+        "Installed pryxd {to} (was {current}) at {}, and kept the one before as {}.\n",
         layout.bin.display(),
         layout.prev().display()
     );
     if restart {
         let status = std::process::Command::new("systemctl").args(["restart", super::service::UNIT_NAME]).status();
-        anyhow::ensure!(
-            status.is_ok_and(|s| s.success()),
-            "{said}systemctl restart blocklyd failed: restart it yourself"
-        );
+        anyhow::ensure!(status.is_ok_and(|s| s.success()), "{said}systemctl restart pryxd failed: restart it yourself");
         said += &format!(
-            "Restarted blocklyd; servers keep running. If {to} doesn't reconcile and reach the control plane \
-             within {TRIAL_SECONDS} s, blocklyd puts {current} back by itself.\n"
+            "Restarted pryxd; sandboxes keep running. If {to} doesn't reconcile and reach the control plane \
+             within {TRIAL_SECONDS} s, pryxd puts {current} back by itself.\n"
         );
     } else {
-        said += "It runs from the next restart: `systemctl restart blocklyd`.\n";
+        said += "It runs from the next restart: `systemctl restart pryxd`.\n";
     }
     Ok(said)
 }

@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! The wall clock blocklyd stamps records, files and answers with.
+//! The wall clock pryxd stamps records, files and answers with.
 
 use time::OffsetDateTime;
 

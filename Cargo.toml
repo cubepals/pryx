@@ -1,18 +1,26 @@
 [package]
-name = "blocklyd"
-version = "0.3.7"
+name = "pryxd"
+version.workspace = true
 edition = "2024"
 rust-version = "1.99"
 license = "FSL-1.1-ALv2"
 publish = false
-repository = "https://github.com/cubepals/blocklyd"
-description = "Cubepals' node daemon: runs Minecraft servers on a Linux host through Docker, for a control plane that places them."
+repository = "https://github.com/cubepals/pryx"
+description = "pryx node daemon: runs sandboxes on a Linux host through Docker, for a control plane that places them."
 
 [[bin]]
-name = "blocklyd"
+name = "pryxd"
 path = "src/main.rs"
 
+[[test]]
+name = "formats"
+path = "tests/compat/formats.rs"
+
 [dependencies]
+# Same-version Apache-2.0 client for the separately shipped agentOS sidecar.
+agentos-client = "=0.4.7"
+agentos-sidecar-client = "=0.4.7"
+pryx-agent = { workspace = true, features = ["fs", "mcp"] }
 # Async runtime, HTTP server and middleware. axum is tokio's own router over hyper; the TLS accept
 # loop is written by hand over tokio-rustls so the verified client certificate reaches handlers.
 tokio = { version = "1.53", features = ["rt-multi-thread", "macros", "signal", "net", "time", "sync", "fs", "io-util"] }
@@ -26,6 +34,7 @@ hyper-util = { version = "0.1.21", features = ["server", "server-graceful", "tok
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
 bytes = "1"
+httpdate = "1.0.3"
 
 # TLS: rustls with the ring provider (no C/cmake toolchain beyond cc), mutual authentication.
 rustls = { version = "0.23.45", default-features = false, features = ["ring", "std", "logging", "tls12"] }
@@ -63,7 +72,7 @@ tracing-subscriber = { version = "0.3", features = ["fmt", "json", "env-filter"]
 prometheus-client = "0.25"
 
 # Linux: kill a timed-out exec by host pid, statvfs for disk space, FICLONE, CLOCK_BOOTTIME.
-rustix = { version = "1", features = ["fs", "process", "param", "time"] }
+rustix = { version = "1", features = ["fs", "process", "param", "time", "thread"] }
 # adjtimex, which rustix doesn't wrap: whether the clock is synchronised (doctor).
 libc = "0.2.189"
 async-trait = "0.1"
@@ -74,7 +83,8 @@ async-trait = "0.1"
 fake = []
 
 [dev-dependencies]
-blocklyd = { path = ".", features = ["fake"] }
+pryx-agent = { workspace = true, features = ["schema"] }
+pryxd = { path = ".", features = ["fake"] }
 # The control plane tests/fleet.rs stands in for reads the node's certificate requests.
 rcgen = { version = "0.14", default-features = false, features = ["pem", "ring", "crypto", "x509-parser"] }
 # The wire types' JSON Schema, which only the protocol's schema test reads (src/protocol/schema.rs):
@@ -105,3 +115,14 @@ lto = "thin"
 codegen-units = 1
 strip = "symbols"
 panic = "abort"
+
+[workspace]
+members = ["agent"]
+default-members = [".", "agent"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+
+[workspace.dependencies]
+pryx-agent = { path = "agent", version = "0.1", default-features = false }

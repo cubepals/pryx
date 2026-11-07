@@ -16,7 +16,7 @@ use crate::ids::WorkloadId;
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ExecRequest {
-    /// argv, never a shell string: blocklyd adds no shell. It runs inside the workload, as
+    /// argv, never a shell string: pryxd adds no shell. It runs inside the workload, as
     /// the workload's user, with its limits; never on the host.
     pub command: Vec<String>,
     #[serde(default = "thirty")]
@@ -25,6 +25,33 @@ pub struct ExecRequest {
 
 fn thirty() -> u32 {
     30
+}
+
+/// Maximum live frame payload and buffered queue item size.
+pub(crate) const EXEC_CHUNK_BYTES: usize = 16 * 1024;
+
+#[derive(Debug, Serialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub(crate) enum ExecEvent {
+    Stdout {
+        data: String,
+        truncated: bool,
+    },
+    Stderr {
+        data: String,
+        truncated: bool,
+    },
+    #[serde(rename_all = "camelCase")]
+    Exit {
+        code: Option<i64>,
+        timed_out: bool,
+        killed: bool,
+        duration_ms: u64,
+    },
+    Error {
+        error: super::ErrorDetail,
+    },
 }
 
 pub(crate) const MAX_EXEC_ARGS: usize = 256;
@@ -87,7 +114,7 @@ pub struct ExecResponse {
     pub(crate) stdout_truncated: bool,
     pub(crate) stderr_truncated: bool,
     pub timed_out: bool,
-    /// blocklyd killed the process (by its host pid) after the timeout. Docker alone can't:
+    /// pryxd killed the process (by its host pid) after the timeout. Docker alone can't:
     /// its API has no way to stop an exec (moby/moby#35703).
     pub killed: bool,
     pub(crate) duration_ms: u64,

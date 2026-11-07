@@ -2,17 +2,21 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! The seam between blocklyd and whatever runs containers. The manager speaks only these types;
+//! The seam between pryxd and whatever runs containers. The manager speaks only these types;
 //! Docker is one implementation (docker.rs), an in-memory fake another (fake.rs). A containerd or
 //! microVM backend would be a third, and the protocol would not change.
 //!
 //! Parts (`runtime/`):
 //! - `docker.rs`: the Docker Engine API, over the local unix socket.
-//! - `fake.rs`: an in-memory runtime for tests, with the Docker behaviour blocklyd depends on.
+//! - `fake.rs`: an in-memory runtime for tests, with the Docker behaviour pryxd depends on.
+//! - `wasm.rs`: virtual agentOS VMs through a separately verified sidecar.
+//! - `process.rs`: namespace-free process tier and private runtime journal.
 
 pub mod docker;
 #[cfg(any(test, feature = "fake"))]
 pub mod fake;
+pub mod process;
+pub mod wasm;
 
 use std::collections::BTreeMap;
 use std::net::IpAddr;
@@ -28,10 +32,14 @@ use crate::protocol::{Health, Proto};
 
 /// Everything needed to make one workload's container. Hardening is not optional here: the
 /// manager always fills it from host policy.
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct ContainerSpec {
+    pub(crate) agent: Option<AgentBoot>,
     pub(crate) name: String,
+    pub(crate) cgroup_parent: Option<String>,
     pub(crate) image: String,
+    #[serde(default)]
+    pub(crate) packages: Vec<String>,
     pub(crate) entrypoint: Option<Vec<String>>,
     /// Environment, secrets included. Never logged (see `Debug` below).
     pub env: Vec<(String, String)>,
@@ -49,9 +57,24 @@ pub struct ContainerSpec {
     pub(crate) stop_signal: String,
     pub(crate) stop_timeout_secs: u32,
     pub(crate) network: String,
+    pub(crate) internal_network: bool,
     pub(crate) log_max_size_mb: u32,
     pub(crate) log_max_files: u32,
     pub(crate) oom_score_adj: i32,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub(crate) struct AgentBoot {
+    #[serde(default)]
+    pub(crate) public_origin: Option<String>,
+    pub(crate) binary: PathBuf,
+    pub(crate) sandbox: String,
+    pub(crate) epoch: u64,
+    pub(crate) secret_env: String,
+    pub(crate) domain: String,
+    pub(crate) agent_port: u16,
+    pub(crate) spare_ports: Vec<u16>,
+    pub(crate) keep_alive: bool,
 }
 
 /// Names only for the environment: values may be secrets.
@@ -68,7 +91,7 @@ impl std::fmt::Debug for ContainerSpec {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct PortBinding {
     pub(crate) container_port: u16,
     pub(crate) protocol: Proto,
@@ -89,8 +112,9 @@ pub enum ContainerStatus {
 }
 
 /// A container as the runtime reports it right now.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct ContainerInfo {
+    pub(crate) cgroup_parent: Option<String>,
     pub(crate) id: String,
     pub(crate) name: String,
     pub(crate) labels: BTreeMap<String, String>,
@@ -102,6 +126,17 @@ pub struct ContainerInfo {
     pub(crate) finished_at: Option<OffsetDateTime>,
     pub(crate) restart_count: u32,
     pub(crate) health: Option<Health>,
+}
+
+impl std::fmt::Debug for ContainerInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ContainerInfo")
+            .field("id", &self.id)
+            .field("name", &self.name)
+            .field("status", &self.status)
+            .field("env_names", &self.env.keys().collect::<Vec<_>>())
+            .finish_non_exhaustive()
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -174,14 +209,14 @@ pub struct RuntimeInfo {
     pub(crate) storage_driver: Option<String>,
     pub(crate) security_options: Vec<String>,
     pub(crate) live_restore: Option<bool>,
-    /// The daemon's default log driver, for containers that don't name one (blocklyd's always do).
+    /// The daemon's default log driver, for containers that don't name one (pryxd's always do).
     pub(crate) log_driver: Option<String>,
 }
 
 #[derive(Clone, Debug, Default)]
 pub struct NetworkReport {
     /// False when the network lets workloads talk to each other; reported, not fixed, since the
-    /// network may predate blocklyd.
+    /// network may predate pryxd.
     pub(crate) isolated: bool,
 }
 
@@ -219,6 +254,41 @@ impl RuntimeError {
 
 #[async_trait]
 pub trait ContainerRuntime: Send + Sync + 'static {
+    fn is_wasm(&self) -> bool {
+        false
+    }
+    fn isolation(&self) -> &'static str {
+        if self.is_process() { "process" } else { "container" }
+    }
+    fn uses_host_ports(&self) -> bool {
+        self.is_process() || self.is_wasm()
+    }
+    fn data_path(&self, root: &std::path::Path) -> PathBuf {
+        root.into()
+    }
+
+    fn data_deleted(&self, _id: &str) -> Result<(), RuntimeError> {
+        Ok(())
+    }
+    fn is_process(&self) -> bool {
+        false
+    }
+    fn data_owner(&self, _id: &str) -> Result<Option<(u32, u32)>, RuntimeError> {
+        Ok(None)
+    }
+    fn supports_agent(&self) -> bool {
+        false
+    }
+    fn supports_network_policy(&self) -> bool {
+        false
+    }
+    async fn ensure_internal_network(
+        &self,
+        _name: &str,
+        _labels: &BTreeMap<String, String>,
+    ) -> Result<(), RuntimeError> {
+        Err(RuntimeError::Other("This runtime has no internal network".into()))
+    }
     async fn info(&self) -> Result<RuntimeInfo, RuntimeError>;
     async fn ensure_network(
         &self,
@@ -241,14 +311,14 @@ pub trait ContainerRuntime: Send + Sync + 'static {
     /// Thaws a container `pause` froze. May not return if the freezer is stuck: callers bound it.
     async fn unpause(&self, name: &str) -> Result<(), RuntimeError>;
     /// Sets the container's restart policy to never, so the runtime can't bring back a copy
-    /// blocklyd has fenced.
+    /// pryxd has fenced.
     async fn disable_restart(&self, name: &str) -> Result<(), RuntimeError>;
     /// Removes the container (not its bind-mounted data). Missing counts as removed.
     async fn remove(&self, name: &str) -> Result<(), RuntimeError>;
     async fn inspect(&self, name: &str) -> Result<Option<ContainerInfo>, RuntimeError>;
     /// Every container matching all `key=value` label filters.
     async fn list(&self, label_filters: &[String]) -> Result<Vec<ContainerInfo>, RuntimeError>;
-    /// Runs `command` in the container with this id. blocklyd never names it here: a container
+    /// Runs `command` in the container with this id. pryxd never names it here: a container
     /// made under the same name meanwhile is another one, and must not be the one it runs in.
     async fn exec(
         &self,
@@ -257,6 +327,17 @@ pub trait ContainerRuntime: Send + Sync + 'static {
         timeout: Duration,
         max_output: usize,
     ) -> Result<ExecOutput, RuntimeError>;
+    /// Bounded live exec output. Implementations without attachment support replay their bounded result.
+    async fn exec_stream(
+        &self,
+        container: &str,
+        command: &[String],
+        timeout: Duration,
+        max_output: usize,
+        _output: tokio::sync::mpsc::Sender<LogChunk>,
+    ) -> Result<ExecOutput, RuntimeError> {
+        self.exec(container, command, timeout, max_output).await
+    }
     fn logs(&self, name: &str, options: LogOptions) -> BoxStream<'static, Result<LogChunk, RuntimeError>>;
     async fn stats(&self, name: &str) -> Result<Option<RawStats>, RuntimeError>;
     fn events(&self, label_filters: &[String]) -> BoxStream<'static, Result<RuntimeEvent, RuntimeError>>;

@@ -1,5 +1,5 @@
 name: Bug
-description: Something blocklyd does wrong on a host.
+description: Something pryxd does wrong on a host.
 labels: [bug]
 body:
   - type: textarea
@@ -23,18 +23,18 @@ body:
     id: version
     attributes:
       label: Version
-      description: '`blocklyd --version`'
+      description: '`pryxd --version`'
     validations:
       required: true
   - type: textarea
     id: host
     attributes:
       label: The host
-      description: 'What `blocklyd doctor` prints (Docker, cgroups, the clock), and the distribution: `grep PRETTY /etc/os-release`.'
+      description: 'What `pryxd doctor` prints (Docker, cgroups, the clock), and the distribution: `grep PRETTY /etc/os-release`.'
       render: text
   - type: textarea
     id: logs
     attributes:
       label: Logs
-      description: '`journalctl -u blocklyd`, around when it happened. Leave out tokens, keys and addresses you keep private.'
+      description: '`journalctl -u pryxd`, around when it happened. Leave out tokens, keys and addresses you keep private.'
       render: text

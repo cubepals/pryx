@@ -1,0 +1,904 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "pryx edge protocol",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/edge/v1/routes": {
+      "get": {
+        "security": [
+          {
+            "edgeToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-edge-id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-routes-held",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-pryx-edge-features",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated additive edge features; agent enables sandbox capabilities and agent manifests."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EdgeRoutes"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Edge token refused"
+          }
+        }
+      }
+    },
+    "/edge/v1/wake": {
+      "post": {
+        "security": [
+          {
+            "edgeToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-edge-id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WakeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WakeResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Edge token refused"
+          }
+        }
+      }
+    },
+    "/edge/v1/ping-wake": {
+      "post": {
+        "security": [
+          {
+            "edgeToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-edge-id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WakeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PingWakeResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Edge token refused"
+          }
+        }
+      }
+    },
+    "/edge/v1/idle": {
+      "post": {
+        "security": [
+          {
+            "edgeToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-edge-id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdleHint"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Edge token refused"
+          }
+        }
+      }
+    },
+    "/edge/v1/sessions": {
+      "post": {
+        "security": [
+          {
+            "edgeToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-edge-id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Edge token refused"
+          }
+        }
+      }
+    },
+    "/edge/v1/visits": {
+      "post": {
+        "security": [
+          {
+            "edgeToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-edge-id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitReports"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Edge token refused"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AgentClaims": {
+        "type": "object",
+        "properties": {
+          "epoch": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "expiresAt": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "file": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "GET",
+                      "PUT"
+                    ]
+                  },
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "method",
+                  "path"
+                ],
+                "additionalProperties": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "issuedAt": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "maxExecSeconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "maxPorts": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "sandbox": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "sandbox",
+              "routes",
+              "file"
+            ]
+          }
+        },
+        "required": [
+          "epoch",
+          "expiresAt",
+          "issuedAt",
+          "maxPorts",
+          "sandbox",
+          "scope"
+        ],
+        "additionalProperties": {}
+      },
+      "EdgeRoute": {
+        "type": "object",
+        "properties": {
+          "agent": {
+            "type": "object",
+            "properties": {
+              "manifest": {
+                "type": "object",
+                "properties": {
+                  "activeStreams": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "activityAt": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "exposed": {
+                    "default": [],
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "port": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 65535
+                        },
+                        "slot": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 65535
+                        }
+                      },
+                      "required": [
+                        "port",
+                        "slot"
+                      ],
+                      "additionalProperties": {}
+                    }
+                  },
+                  "port": {
+                    "type": "object",
+                    "properties": {
+                      "endpoints": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "hostPort": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 65535
+                      },
+                      "port": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 65535
+                      }
+                    },
+                    "required": [
+                      "endpoints",
+                      "hostPort",
+                      "port"
+                    ],
+                    "additionalProperties": {}
+                  },
+                  "portRevision": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "publicKey": {
+                    "type": "string"
+                  },
+                  "spares": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "endpoints": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "hostPort": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 65535
+                        },
+                        "port": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 65535
+                        }
+                      },
+                      "required": [
+                        "endpoints",
+                        "hostPort",
+                        "port"
+                      ],
+                      "additionalProperties": {}
+                    }
+                  }
+                },
+                "required": [
+                  "activeStreams",
+                  "activityAt",
+                  "exposed",
+                  "port",
+                  "portRevision",
+                  "publicKey",
+                  "spares"
+                ],
+                "additionalProperties": {}
+              },
+              "routeToken": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "manifest"
+            ],
+            "additionalProperties": false
+          },
+          "id": {
+            "type": "string"
+          },
+          "sandbox": {
+            "type": "string"
+          },
+          "hostname": {
+            "type": "string"
+          },
+          "port": {
+            "type": "string"
+          },
+          "front": {
+            "type": "string",
+            "enum": [
+              "http",
+              "tls",
+              "port"
+            ]
+          },
+          "publicPort": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "destination": {
+            "type": "string"
+          },
+          "epoch": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "asleep",
+              "restarting",
+              "waking"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "sandbox",
+          "hostname",
+          "port",
+          "front",
+          "publicPort",
+          "destination",
+          "epoch"
+        ],
+        "additionalProperties": false
+      },
+      "EdgeRoutes": {
+        "type": "object",
+        "properties": {
+          "routes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "agent": {
+                  "type": "object",
+                  "properties": {
+                    "manifest": {
+                      "type": "object",
+                      "properties": {
+                        "activeStreams": {
+                          "default": 0,
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "activityAt": {
+                          "default": 0,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "exposed": {
+                          "default": [],
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "port": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 65535
+                              },
+                              "slot": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 65535
+                              }
+                            },
+                            "required": [
+                              "port",
+                              "slot"
+                            ],
+                            "additionalProperties": {}
+                          }
+                        },
+                        "port": {
+                          "type": "object",
+                          "properties": {
+                            "endpoints": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "hostPort": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 65535
+                            },
+                            "port": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 65535
+                            }
+                          },
+                          "required": [
+                            "endpoints",
+                            "hostPort",
+                            "port"
+                          ],
+                          "additionalProperties": {}
+                        },
+                        "portRevision": {
+                          "default": 0,
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "publicKey": {
+                          "type": "string"
+                        },
+                        "spares": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "endpoints": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "hostPort": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 65535
+                              },
+                              "port": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 65535
+                              }
+                            },
+                            "required": [
+                              "endpoints",
+                              "hostPort",
+                              "port"
+                            ],
+                            "additionalProperties": {}
+                          }
+                        }
+                      },
+                      "required": [
+                        "activeStreams",
+                        "activityAt",
+                        "exposed",
+                        "port",
+                        "portRevision",
+                        "publicKey",
+                        "spares"
+                      ],
+                      "additionalProperties": {}
+                    },
+                    "routeToken": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "manifest"
+                  ],
+                  "additionalProperties": false
+                },
+                "id": {
+                  "type": "string"
+                },
+                "sandbox": {
+                  "type": "string"
+                },
+                "hostname": {
+                  "type": "string"
+                },
+                "port": {
+                  "type": "string"
+                },
+                "front": {
+                  "type": "string",
+                  "enum": [
+                    "http",
+                    "tls",
+                    "port"
+                  ]
+                },
+                "publicPort": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "destination": {
+                  "type": "string"
+                },
+                "epoch": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "asleep",
+                    "restarting",
+                    "waking"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "sandbox",
+                "hostname",
+                "port",
+                "front",
+                "publicPort",
+                "destination",
+                "epoch"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "routes"
+        ],
+        "additionalProperties": false
+      },
+      "SessionEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "sandbox": {
+            "type": "string"
+          },
+          "epoch": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "event": {
+            "type": "string",
+            "enum": [
+              "connect",
+              "disconnect"
+            ]
+          },
+          "at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "sandbox",
+          "epoch",
+          "event"
+        ],
+        "additionalProperties": false
+      },
+      "VisitReports": {
+        "type": "object",
+        "properties": {
+          "reports": {
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "sandbox": {
+                  "type": "string"
+                },
+                "event": {
+                  "type": "string",
+                  "enum": [
+                    "connect",
+                    "disconnect",
+                    "refused"
+                  ]
+                },
+                "bytesUp": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "bytesDown": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "sandbox",
+                "event"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "reports"
+        ],
+        "additionalProperties": false
+      },
+      "WakeRequest": {
+        "type": "object",
+        "properties": {
+          "route": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "route"
+        ],
+        "additionalProperties": false
+      },
+      "WakeResult": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "outcome": {
+                "type": "string",
+                "const": "ready"
+              },
+              "destination": {
+                "type": "string"
+              },
+              "epoch": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "outcome",
+              "destination",
+              "epoch"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "outcome": {
+                "type": "string",
+                "const": "starting"
+              }
+            },
+            "required": [
+              "outcome"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "outcome": {
+                "type": "string",
+                "const": "denied"
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "outcome",
+              "reason"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "IdleHint": {
+        "type": "object",
+        "properties": {
+          "sandbox": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sandbox"
+        ],
+        "additionalProperties": false
+      },
+      "PingWakeResult": {
+        "type": "object",
+        "properties": {
+          "waking": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "waking"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "securitySchemes": {
+      "edgeToken": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

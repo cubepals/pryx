@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! What `blocklyd.prev upgrade --exited`, the unit's `ExecStopPost`, goes by after the service
+//! What `pryxd.prev upgrade --exited`, the unit's `ExecStopPost`, goes by after the service
 //! stopped: how systemd says the stop went, and the state directory the trial is in. That command
 //! runs the binary from before the upgrade, so it reads the configuration for `state_dir` alone
 //! rather than loading it whole.
@@ -32,7 +32,7 @@ pub(crate) fn failure(result: Option<&str>, code: Option<&str>, status: Option<&
 }
 
 /// The state directory `config` names: its `state_dir` key alone, or the default Config gives it
-/// (`/var/lib/blocklyd`) when the file has none, or can't be read or parsed. Not `Config::load`,
+/// (`/var/lib/pryxd`) when the file has none, or can't be read or parsed. Not `Config::load`,
 /// which holds the file to this older binary's whole schema and works out addresses from the
 /// host: when that failed, the unit's `-` would hide it, and nothing would be put back.
 pub fn state_dir(config: &Path) -> PathBuf {
@@ -77,11 +77,11 @@ mod tests {
     #[test]
     fn the_state_directory_is_read_from_its_key_alone() {
         let dir = tempfile::tempdir().unwrap();
-        let config = dir.path().join("blocklyd.toml");
+        let config = dir.path().join("pryxd.toml");
         // What the configuration itself makes of it, default included.
         let minimal = "node_id = \"host-1\"\ndeployment_id = \"staging\"\n[api]\nlisten = \"10.0.0.5:7443\"\n\
                        [api.tls]\ncert = \"/c\"\nkey = \"/k\"\nclient_ca = \"/ca\"\nallowed_clients = [\"cp\"]\n";
-        for text in [minimal.to_owned(), format!("state_dir = \"/srv/blocklyd\"\n{minimal}")] {
+        for text in [minimal.to_owned(), format!("state_dir = \"/srv/pryxd\"\n{minimal}")] {
             std::fs::write(&config, &text).unwrap();
             assert_eq!(state_dir(&config), toml::from_str::<crate::config::Config>(&text).unwrap().state_dir);
         }
@@ -90,7 +90,7 @@ mod tests {
         assert_eq!(state_dir(&config), Path::new("/srv/b"));
         // A file that isn't TOML, or none: the default.
         std::fs::write(&config, "state_dir = [").unwrap();
-        assert_eq!(state_dir(&config), Path::new("/var/lib/blocklyd"));
-        assert_eq!(state_dir(&dir.path().join("missing.toml")), Path::new("/var/lib/blocklyd"));
+        assert_eq!(state_dir(&config), Path::new("/var/lib/pryxd"));
+        assert_eq!(state_dir(&dir.path().join("missing.toml")), Path::new("/var/lib/pryxd"));
     }
 }

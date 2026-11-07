@@ -1,0 +1,101 @@
+diff --git a/packages/agentos-sandbox/PRYX.md b/packages/agentos-sandbox/PRYX.md
+new file mode 100644
+index 0000000..452953b
+--- /dev/null
++++ b/packages/agentos-sandbox/PRYX.md
+@@ -0,0 +1,10 @@
++# pryx external sandboxes
++
++Prepare `pryx template create sandbox-agent` on your fleet. Import `pryxSandboxProvider` from
++`agentos-sandbox/pryx`, passing a configured pryx client and a durable creation key/template.
++Use its result in the existing external sandbox mount provider option. Disposal destroys the
++sandbox. This integrates the public process/filesystem boundary; it does not replace the VM.
++
++The service must reach pryx's private control ingress. Keep its project key in the service
++environment, not VM state. This adapter delegates the current sandbox-agent deploy target and
++the existing AgentOS sandboxAgentProvider bridge rather than inventing another mount API.
+diff --git a/packages/agentos-sandbox/package.json b/packages/agentos-sandbox/package.json
+index e19d958..e8e3634 100644
+--- a/packages/agentos-sandbox/package.json
++++ b/packages/agentos-sandbox/package.json
+@@ -58,6 +58,11 @@
+ 			"types": "./dist/sprites.d.ts",
+ 			"import": "./dist/sprites.js",
+ 			"default": "./dist/sprites.js"
++		},
++		"./pryx": {
++			"types": "./dist/pryx.d.ts",
++			"import": "./dist/pryx.js",
++			"default": "./dist/pryx.js"
+ 		}
+ 	},
+ 	"scripts": {
+@@ -69,12 +74,20 @@
+ 		"@rivet-dev/agentos-core": "workspace:*",
+ 		"dockerode": "^4.0.9",
+ 		"get-port": "^7.1.0",
+-		"sandbox-agent": "^0.4.2"
++		"sandbox-agent": "^0.5.5"
+ 	},
+ 	"devDependencies": {
+ 		"@agentos-software/common": "workspace:*",
+ 		"@types/node": "^22.10.2",
+ 		"typescript": "^5.7.2",
+ 		"vitest": "^2.1.8"
++	},
++	"peerDependencies": {
++		"@cubepals/pryx": ">=0.1.0"
++	},
++	"peerDependenciesMeta": {
++		"@cubepals/pryx": {
++			"optional": true
++		}
+ 	}
+ }
+diff --git a/packages/agentos-sandbox/src/pryx.ts b/packages/agentos-sandbox/src/pryx.ts
+new file mode 100644
+index 0000000..da1296b
+--- /dev/null
++++ b/packages/agentos-sandbox/src/pryx.ts
+@@ -0,0 +1,9 @@
++// Copyright 2026 The Cubepals Authors. Apache-2.0 license.
++import type { Pryx } from "@cubepals/pryx";
++import { pryx } from "sandbox-agent/pryx";
++import { sandboxAgentProvider } from "./provider.js";
++
++/** A prepared pryx template backs the existing external filesystem/process boundary. */
++export function pryxSandboxProvider(client: Pryx, options: Parameters<typeof pryx>[1]) {
++  return sandboxAgentProvider(pryx(client, options));
++}
+diff --git a/packages/agentos-sandbox/tests/pryx.test.ts b/packages/agentos-sandbox/tests/pryx.test.ts
+new file mode 100644
+index 0000000..4d3627d
+--- /dev/null
++++ b/packages/agentos-sandbox/tests/pryx.test.ts
+@@ -0,0 +1,26 @@
++// Copyright 2026 The Cubepals Authors. Apache-2.0 license.
++import { Pryx } from "@cubepals/pryx";
++import { SandboxAgent, type SandboxProvider } from "sandbox-agent";
++import { expect, test, vi } from "vitest";
++import { pryxSandboxProvider } from "../src/pryx.js";
++
++test("pryx selects its deploy target and retains the external process/disposal boundary", async () => {
++  const requests: Request[] = [];
++  const client = new Pryx({url:"http://control.invalid",key:"fixture-key",fetch:(async (input,init)=>{
++    const request = new Request(input,init);requests.push(request);return Response.json({id:"sandbox-one"});
++  }) as typeof fetch});
++  const destroySandbox = vi.fn(async () => {});
++  const runProcess = vi.fn(async () => ({stdout:"external",exitCode:0}));
++  const start = vi.spyOn(SandboxAgent,"start").mockResolvedValue({destroySandbox,runProcess} as never);
++  try {
++    const remote = await pryxSandboxProvider(client,{key:"durable-key",template:"sandbox-agent"}).start();
++    const backend = start.mock.calls[0]![0]!.sandbox as SandboxProvider;
++    expect(backend.name).toBe("pryx");
++    expect(await backend.create()).toBe("sandbox-one");
++    expect(requests[0]!.headers.get("idempotency-key")).toBe("durable-key");
++    expect((await requests[0]!.json()).template).toBe("sandbox-agent");
++    await expect(remote.runProcess({command:"echo"})).resolves.toEqual({stdout:"external",exitCode:0});
++    await remote.dispose?.();
++    expect(destroySandbox).toHaveBeenCalledOnce();
++  } finally { start.mockRestore(); }
++});

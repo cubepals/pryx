@@ -1,0 +1,49 @@
+{
+  "version": "0.4.7",
+  "sourceCommit": "a4c049b2e25ceb2098889a307b71853526de2bdf",
+  "binarySha256": "980832011b605155e3060337aa44d32978fbed481cabf6a3006105f1171e3f0b",
+  "artifacts": [
+    {
+      "package": "agentos-runtime-sidecar-linux-x64-gnu",
+      "integrity": "sha512-K6VypQ2KmRw1y9s5RNiUZsuGui1VdDwTDN8EjspSghdpJbhW4rnWPQdox9Y8fcHzdDecOinBFiEmfLaiZHzTJA=="
+    },
+    {
+      "package": "agentos-core",
+      "integrity": "sha512-xayx2Bzl5orwr8PU/6LWYqEvo8i9BSGJmjgwN/LbBmQFIG7gF/8FlXmydUqjjKSrZ/pgUkxfaBc2DcLK+cMOlg=="
+    }
+  ],
+  "defaultPackages": [
+    {
+      "name": "coreutils",
+      "sha256": "4d5c36994a6b715ba756fa3a723ebde5ef282cef21d31b95bcf4d04e709e042c"
+    },
+    {
+      "name": "sed",
+      "sha256": "8a6c68787889c11e8c6a3c4583810e057e47378a26167eefcc64b7d54e95bd7a"
+    },
+    {
+      "name": "grep",
+      "sha256": "5a85295048c2956e6afe1cad5a9e26e76fc8913e50312e23e2f91e7d38ab049a"
+    },
+    {
+      "name": "gawk",
+      "sha256": "7f383e38bc4af3484fde4daec231b7b5aea227192cd445c6cc490a21541f8618"
+    },
+    {
+      "name": "findutils",
+      "sha256": "8d0f7900007a358f0052f5e301b50d7ca5bac3fdb5ca33c5d8f6d4a8ce502177"
+    },
+    {
+      "name": "diffutils",
+      "sha256": "7b0844a6542bbf5577e0bc019f8745fb3bca28bb5f3dbfdac152fdec117ac28c"
+    },
+    {
+      "name": "tar",
+      "sha256": "84c6eda97be2606b84cb599769281935f6884550baa76d329a5f735fee6c0a5b"
+    },
+    {
+      "name": "gzip",
+      "sha256": "fc32771962067f57940e6a633a8ca24bab657df76d978095d3ed8121c87da637"
+    }
+  ]
+}

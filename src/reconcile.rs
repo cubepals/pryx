@@ -2,10 +2,10 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! blocklyd's background work. Events from the runtime are hints that make observation quick;
+//! pryxd's background work. Events from the runtime are hints that make observation quick;
 //! the periodic resync is what makes it correct, since an event stream can drop (a daemon
 //! restart ends it) and nothing may depend on having seen every event. It's the same rule as
-//! Blockly's realtime layer: an event says something may have changed; the reader asks for the
+//! the control plane's realtime layer: an event says something may have changed; the reader asks for the
 //! truth.
 
 use std::sync::Arc;
@@ -51,7 +51,7 @@ pub async fn follow_events(manager: Arc<Manager>, cancel: CancellationToken) {
             () = tokio::time::sleep(backoff) => {}
             () = cancel.cancelled() => return,
         }
-        // Short: after an outage the first look decides when blocklyd is trustworthy again.
+        // Short: after an outage the first look decides when pryxd is trustworthy again.
         backoff = (backoff * 2).min(Duration::from_secs(5));
         let report = manager.reconcile(Records::InMemory).await;
         if report.error.is_none() {
