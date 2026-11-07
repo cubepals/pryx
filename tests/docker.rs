@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! Against a real Docker daemon, with small alpine workloads. Ignored by default so `cargo test`
+//! Against a real Docker daemon, with small alpine workloads. Docker cases are ignored so `cargo test`
 //! never needs Docker:
 //!
 //!     cargo test --test docker -- --ignored --test-threads 2
@@ -714,18 +714,7 @@ async fn an_egress_policy_holds_dns_to_its_names() {
     let dep = deployment();
     let _cleanup = Cleanup(dep.clone());
     let config = dir.path().join("pryxd.toml");
-    let low = 44000 + dep[1..4].parse::<u16>().unwrap() * 10;
-    let tls = dir.path().join("tls");
-    let text = format!(
-        "deployment_id = \"{dep}\"\n[api]\nlisten = \"127.0.0.1:7443\"\n[api.tls]\ncert = \"{tls}/node.pem\"\n\
-         key = \"{tls}/node.key\"\nclient_ca = \"{tls}/ca.pem\"\nallowed_clients = [\"{}\"]\n[docker]\n\
-         network = \"blockly-{dep}\"\n[network]\n\
-         port_range = [{low}, {}]\n",
-        support::CLIENT,
-        low + 9,
-        tls = tls.display()
-    );
-    std::fs::write(&config, text).unwrap();
+    std::fs::write(&config, dns_isolation_config(dir.path(), &dep)).unwrap();
     // The pryxd table names a bridge of this test's own that never exists; pryx_egress is global.
     pryxd::isolation::isolate(&config).await.unwrap();
     let m = daemon(dir.path(), &dep);
@@ -756,4 +745,28 @@ async fn an_egress_policy_holds_dns_to_its_names() {
     let direct = lookup("example.com 1.1.1.1").await.unwrap().stdout;
     assert!(direct.contains("exit=0") && direct.contains("Name:"), "{direct}");
     cleanup(&m, &["dns"]).await;
+}
+
+/// The exact standalone configuration parsed by isolate, also checked without host privileges.
+fn dns_isolation_config(dir: &std::path::Path, dep: &str) -> String {
+    let low = 44000 + dep[1..4].parse::<u16>().unwrap() * 10;
+    let tls = dir.join("tls");
+    format!(
+        "node_id = \"{dep}\"\ndeployment_id = \"{dep}\"\n[api]\nlisten = \"127.0.0.1:7443\"\n[api.tls]\ncert = \"{tls}/node.pem\"\n\
+         key = \"{tls}/node.key\"\nclient_ca = \"{tls}/ca.pem\"\nallowed_clients = [\"{}\"]\n[docker]\n\
+         network = \"blockly-{dep}\"\n[network]\n\
+         port_range = [{low}, {}]\n",
+        support::CLIENT,
+        low + 9,
+        tls = tls.display()
+    )
+}
+
+#[test]
+fn the_dns_isolation_fixture_loads_without_host_defaults() {
+    let dir = tempfile::tempdir().unwrap();
+    let dep = deployment();
+    let config = dir.path().join("pryxd.toml");
+    std::fs::write(&config, dns_isolation_config(dir.path(), &dep)).unwrap();
+    assert_eq!(pryxd::config::Config::load(&config).unwrap().node_id.as_str(), dep);
 }
