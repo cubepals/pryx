@@ -85,6 +85,7 @@ test('handles normalize durations and assign one command identity', async () => 
   await box.wake()
   expect(box.state).toBe('running')
   const snap = await box.snapshot()
+  expect(JSON.parse(JSON.stringify(snap))).toEqual(snap.view)
   expect((await snap.fork({ idle: '5m' })).id).toBe(view.id)
   expect(calls.at(-1)?.body.idle).toBe(300)
   expect(calls.at(-1)?.key).toBeString()

@@ -52,6 +52,19 @@ test('reference MCP clients use CLI HTTP and stdio with project authority', asyn
         const first = resource.contents[0]
         if (!first || !('text' in first)) throw new Error('State resource omitted text')
         expect(JSON.parse(first.text).id).toBe(box.id)
+        const snapshot = await client.callTool({ name: 'sandbox_snapshot', arguments: { id: box.id } })
+        expect(snapshot.isError).not.toBe(true)
+        const snapshotContent = snapshot.content as { type: string; text: string }[]
+        const saved = JSON.parse(snapshotContent[0]?.text ?? '{}') as { id: string }
+        expect(saved.id).toBeString()
+        const fork = await client.callTool({ name: 'sandbox_fork', arguments: { snapshot: saved.id } })
+        expect(fork.isError).not.toBe(true)
+        const forkContent = fork.content as { type: string; text: string }[]
+        const child = JSON.parse(forkContent[0]?.text ?? '{}') as { id: string }
+        expect(child.id).toBeString()
+        expect(
+          (await client.callTool({ name: 'sandbox_delete', arguments: { id: child.id } })).isError,
+        ).not.toBe(true)
         expect(
           (await client.callTool({ name: 'sandbox_delete', arguments: { id: box.id } })).isError,
         ).not.toBe(true)

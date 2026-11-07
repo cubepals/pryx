@@ -49,6 +49,9 @@ export class Snapshot {
   get id() {
     return this.view.id
   }
+  toJSON() {
+    return this.view
+  }
   async fork(options: Omit<SandboxOptions, 'image' | 'snapshot' | 'template'> = {}) {
     return new Sandbox(
       this.#api,

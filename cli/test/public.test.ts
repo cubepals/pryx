@@ -90,6 +90,11 @@ describe.skipIf(!hasDatabase)('public CLI', () => {
       expect(peer.requests.at(-1)?.body).toMatchObject({
         timeout: nodeProtocol.components.schemas.ExecRequest.properties.timeoutSeconds.default,
       })
+      const snapshot = JSON.parse(await invoke(['snapshot', id])) as { id: string }
+      expect(snapshot.id).toBeString()
+      const fork = JSON.parse(await invoke(['fork', snapshot.id])) as { id: string }
+      expect(fork.id).toBeString()
+      await invoke(['rm', fork.id])
       await invoke(['rm', id])
     } finally {
       server.stop(true)

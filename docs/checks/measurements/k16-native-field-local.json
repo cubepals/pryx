@@ -29,5 +29,19 @@
     "single-branch fetch refspec after origin changed",
     "Python event stream missing authentication",
     "code-template start cwd missing"
-  ]
+  ],
+  "legacyAfterSnapshotSerialization": {
+    "source": "00161b95198fbaee6d98914efdc1ba895a93102a",
+    "dirty": true,
+    "cases": [
+      "cli/e2e/mcp.e2e.test.ts",
+      "control/e2e/public-api.e2e.test.ts"
+    ],
+    "exitCode": 0,
+    "tests": 4,
+    "bunAssertions": 70,
+    "suiteDurationMs": 63620,
+    "sameRuntimeFixture": true,
+    "freezer": "stop fallback; actual freezer remains required in CI"
+  }
 }
