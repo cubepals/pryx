@@ -19,6 +19,18 @@ pub struct ProcessForward {
     requests: mpsc::Sender<Request>,
 }
 impl ProcessForward {
+    async fn connect(&self, port: u16) -> io::Result<TcpStream> {
+        let (reply, result) = oneshot::channel();
+        let stream = tokio::time::timeout(FORWARD_CONNECT_TIMEOUT * 2, async {
+            self.requests.send((port, reply)).await.map_err(|_| io::ErrorKind::BrokenPipe)?;
+            result.await.map_err(|_| io::ErrorKind::BrokenPipe)?
+        })
+        .await
+        .map_err(|_| io::ErrorKind::TimedOut)??;
+        stream.set_nonblocking(true)?;
+        TcpStream::from_std(stream)
+    }
+
     pub fn start() -> io::Result<Arc<dyn Forward>> {
         let owner = OwnedPeer::new(std::process::id())?;
         let (requests, mut receive) = mpsc::channel::<Request>(128);
@@ -33,15 +45,7 @@ impl ProcessForward {
 #[async_trait::async_trait]
 impl Forward for ProcessForward {
     async fn serve(&self, mut downstream: TcpStream, port: u16, header: Vec<u8>) -> io::Result<()> {
-        let (reply, result) = oneshot::channel();
-        let stream = tokio::time::timeout(FORWARD_CONNECT_TIMEOUT * 2, async {
-            self.requests.send((port, reply)).await.map_err(|_| io::ErrorKind::BrokenPipe)?;
-            result.await.map_err(|_| io::ErrorKind::BrokenPipe)?
-        })
-        .await
-        .map_err(|_| io::ErrorKind::TimedOut)??;
-        stream.set_nonblocking(true)?;
-        let mut upstream = TcpStream::from_std(stream)?;
+        let mut upstream = self.connect(port).await?;
         upstream.write_all(&header).await?;
         tokio::io::copy_bidirectional(&mut downstream, &mut upstream).await?;
         Ok(())
