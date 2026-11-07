@@ -31,6 +31,7 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { stripVTControlCharacters } from 'node:util'
 import { sql } from 'drizzle-orm'
 import { StatusCodes } from 'http-status-codes'
 import { FleetStore } from '../src/archive-transport.ts'
@@ -39,7 +40,7 @@ import type { Db } from '../src/database.ts'
 import { MINUTE_MS } from '../src/durations.ts'
 import { decodeHandle } from '../src/handle.ts'
 import { joinToken } from '../src/join-token.ts'
-import { NodeClient } from '../src/node-client.ts'
+import type { NodeClient } from '../src/node-client.ts'
 import { createOperatorApi } from '../src/operator-api.ts'
 import { DEFAULTS } from '../src/placement.ts'
 import { confirmLost, createToken, nodeSummaries, reinstate } from '../src/registry.ts'
@@ -49,6 +50,7 @@ import { runtimeKey } from '../src/runtime-model.ts'
 import { rows } from '../src/sql.ts'
 import { S3ArchiveStore } from '../src/store.ts'
 import { freshDatabase, hasDatabase } from '../test/nodes.ts'
+import { FleetClient } from './fleet-client.ts'
 import { BIN, type Daemon, daemon, SUDO } from './fleet-daemon.ts'
 import { nodeCommand } from './node-command.ts'
 import { nodeConfigFor, nodePortLow, TEST_NODE_PORTS } from './runtime-config.ts'
@@ -163,7 +165,7 @@ describe.skipIf(!ready)('FleetRuntime against a real pryxd', () => {
     endpointUrl = `https://127.0.0.1:${endpointPort}`
     endpoint = await startEndpoint(join(dir, 'ca.pem'), join(dir, 'ca.key'), endpointUrl, database)
     const client = await ca.identity(controlPlaneName(DEPLOYMENT), 'client', 1)
-    nodes = new NodeClient({ caPem: ca.pem, certPem: client.certPem, keyPem: client.keyPem }, DEPLOYMENT)
+    nodes = new FleetClient({ caPem: ca.pem, certPem: client.certPem, keyPem: client.keyPem }, DEPLOYMENT)
     runtime = new FleetRuntime({
       db,
       nodes,
@@ -202,11 +204,20 @@ describe.skipIf(!ready)('FleetRuntime against a real pryxd', () => {
 
   afterAll(async () => {
     if (!foreignCompleted && node && existsSync(node.log)) {
-      const status = readFileSync(node.log, 'utf8')
+      const status = stripVTControlCharacters(readFileSync(node.log, 'utf8'))
         .split('\n')
         .filter((line) => line.includes('status='))
         .slice(-80)
       console.error(`Fleet node request status at failure:\n${status.join('\n')}`)
+      console.error(
+        'Fleet archive state at failure:',
+        await rows(
+          db,
+          sql`
+        SELECT id, status, attempts, upload_started_at, error
+        FROM fleet_archives ORDER BY captured_at DESC LIMIT 5`,
+        ),
+      )
     }
     node?.kill('KILL')
     const ids = spawnSync('docker', ['ps', '-aq', '--filter', `label=blocklyd.deployment=${DEPLOYMENT}`])
@@ -407,37 +418,40 @@ describe.skipIf(!ready)('FleetRuntime against a real pryxd', () => {
       expect(held.machines[0]?.sandboxes).toBe(1)
       await exec('echo elsewhere > /data/data/moved.txt')
       await runtime.stop(handle)
-      const taken = await runtime.snapshot(handle)
-      console.log('Foreign archive: captured')
-      const archives = archiveStore()
-      const keyName = `moved/${DEPLOYMENT}.tar.gz`
-      await runtime.exportSnapshot(taken.snapshot, await archives.archiveTarget(keyName, 600, 'runtime'))
-      console.log('Foreign archive: exported')
-      const other = runtimeKey(randomUUID())
-      const adopted = await runtime.adopt(other, { regionKey: 'eu' }, SPEC)
-      console.log('Foreign archive: adopted')
-      expect(runtime.owns(adopted)).toBe(true)
-      expect(decodeHandle(adopted).node).toBeNull()
-      expect(await runtime.adopt(other, { regionKey: 'eu' }, SPEC)).toBe(adopted)
-      const download = await archives.presignGet(keyName, 600, 'runtime')
-      const restored = await runtime.restore(adopted, { kind: 'archive', download }, SPEC, progress)
-      console.log('Foreign archive: restored')
-      expect(decodeHandle(restored).node).not.toBeNull()
-      await runtime.start(restored)
-      await runtime.waitRunning(restored, AbortSignal.timeout(MINUTE_MS))
-      console.log('Foreign archive: running')
-      const read = await nodeCommand(
-        runtime,
-        nodes,
-        restored,
-        ['cat', '/data/data/moved.txt', '/data/data/level.dat'],
-        30,
-      )
-      expect(read.stdout.trim().split('\n')).toEqual(['elsewhere', 'resting'])
-      await runtime.destroy(restored)
-      console.log('Foreign archive: destroyed')
-      await runtime.start(handle)
-      await runtime.waitRunning(handle, AbortSignal.timeout(MINUTE_MS))
+      try {
+        const taken = await runtime.snapshot(handle)
+        console.log('Foreign archive: captured')
+        const archives = archiveStore()
+        const keyName = `moved/${DEPLOYMENT}.tar.gz`
+        await runtime.exportSnapshot(taken.snapshot, await archives.archiveTarget(keyName, 600, 'runtime'))
+        console.log('Foreign archive: exported')
+        const other = runtimeKey(randomUUID())
+        const adopted = await runtime.adopt(other, { regionKey: 'eu' }, SPEC)
+        console.log('Foreign archive: adopted')
+        expect(runtime.owns(adopted)).toBe(true)
+        expect(decodeHandle(adopted).node).toBeNull()
+        expect(await runtime.adopt(other, { regionKey: 'eu' }, SPEC)).toBe(adopted)
+        const download = await archives.presignGet(keyName, 600, 'runtime')
+        const restored = await runtime.restore(adopted, { kind: 'archive', download }, SPEC, progress)
+        console.log('Foreign archive: restored')
+        expect(decodeHandle(restored).node).not.toBeNull()
+        await runtime.start(restored)
+        await runtime.waitRunning(restored, AbortSignal.timeout(MINUTE_MS))
+        console.log('Foreign archive: running')
+        const read = await nodeCommand(
+          runtime,
+          nodes,
+          restored,
+          ['cat', '/data/data/moved.txt', '/data/data/level.dat'],
+          30,
+        )
+        expect(read.stdout.trim().split('\n')).toEqual(['elsewhere', 'resting'])
+        await runtime.destroy(restored)
+        console.log('Foreign archive: destroyed')
+      } finally {
+        await runtime.start(handle)
+        await runtime.waitRunning(handle, AbortSignal.timeout(MINUTE_MS))
+      }
       foreignCompleted = true
     },
     3 * MINUTE_MS,
