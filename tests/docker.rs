@@ -272,41 +272,45 @@ async fn the_memory_limit_is_hard_and_an_oom_kill_is_reported() {
     let _cleanup = Cleanup(dep.clone());
     let m = daemon(dir.path(), &dep);
     m.reconcile(Records::FromDisk).await;
-    let mut spec = shell("sleep 1; head -c 400m /dev/zero | tail > /dev/null; sleep 60", 64);
+    let mut spec = shell(
+        "sleep 1; mkfifo /tmp/oom-input || exit 1; head -c 400m /dev/zero > /tmp/oom-input & exec tail /tmp/oom-input > /dev/null",
+        64,
+    );
     spec.restart.max_retries = 0;
     m.ensure(id("oom"), spec, Precondition::None, None).await.unwrap();
     m.start(id("oom"), None).await.unwrap();
-    // `tail` buffers its whole input; the cgroup kills it at 64 MB. Whether the shell survives
-    // decides running vs crashed; either way the kill is visible.
+    // A non-seekable input makes tail buffer the unbroken line. Make that allocator PID 1:
+    // Docker retains its OOMKilled exit, whereas a surviving shell only leaves a transient event.
     let deadline = Instant::now() + Duration::from_secs(30);
     let mut saw_oom = false;
     while Instant::now() < deadline && !saw_oom {
         m.stats(&id("oom")).await.ok();
         let view = m.view(&id("oom")).unwrap();
-        saw_oom = view.exit.as_ref().is_some_and(|e| e.oom_killed) || oom_events(&view.locate.container_name);
+        saw_oom = view.exit.as_ref().is_some_and(|e| e.oom_killed);
         tokio::time::sleep(Duration::from_millis(300)).await;
     }
-    assert!(saw_oom, "the kernel's OOM kill inside the limit was observed");
+    let view = m.view(&id("oom")).unwrap();
+    if !saw_oom {
+        let mut inspect = tokio::process::Command::new("docker");
+        inspect.kill_on_drop(true).args([
+            "inspect",
+            "--format",
+            "{{json .State}} memory={{.HostConfig.Memory}} swap={{.HostConfig.MemorySwap}}",
+            &view.locate.container_name,
+        ]);
+        let diagnostic = tokio::time::timeout(Duration::from_secs(5), inspect.output())
+            .await
+            .map_err(|e| e.to_string())
+            .and_then(|out| out.map_err(|e| e.to_string()))
+            .map(|out| format!("{} {}", out.status, String::from_utf8_lossy(&out.stdout)));
+        eprintln!("OOM_DOCKER_STATE {diagnostic:?}");
+    }
+    assert!(
+        saw_oom,
+        "the kernel's OOM kill inside the limit was observed: state={:?} exit={:?}",
+        view.state, view.exit
+    );
     cleanup(&m, &["oom"]).await;
-}
-
-/// Docker counts OOM kills of any process in the container's cgroup as `oom` events; the
-/// container itself only shows OOMKilled when its main process died of it.
-fn oom_events(container: &str) -> bool {
-    let out = std::process::Command::new("docker")
-        .args([
-            "events",
-            "--since",
-            "2m",
-            "--until",
-            "0s",
-            "--filter",
-            &format!("container={container}"),
-            "--filter",
-            "event=oom",
-        ])
-        .output();
-    out.is_ok_and(|o| !o.stdout.is_empty())
 }
 
 #[tokio::test]
