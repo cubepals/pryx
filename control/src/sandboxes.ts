@@ -700,9 +700,15 @@ export class Sandboxes {
       sql`SELECT id FROM sandboxes WHERE expires_at <= now() AND deleted_at IS NULL`,
     )
     for (const row of expired)
-      await this.delete(row.id, undefined, true).catch((error) =>
-        console.error('TTL cleanup failed', row.id, error instanceof Error ? error.name : 'error'),
-      )
+      await this.delete(row.id, undefined, true)
+        .catch(async (error: unknown) => {
+          if (error instanceof SandboxError && error.code === 'forbidden')
+            await this.stop(row.id, undefined, true)
+          else throw error
+        })
+        .catch((error) =>
+          console.error('TTL cleanup failed', row.id, error instanceof Error ? error.name : 'error'),
+        )
     const idle = await rows<{ id: string }>(
       this.db,
       sql`SELECT b.id FROM sandboxes b WHERE b.deleted_at IS NULL AND b.state = 'running' AND b.spec->>'idle' IS NOT NULL AND b.activity_at + ((b.spec->>'idle')::double precision * interval '1 second') < now() AND NOT EXISTS (SELECT 1 FROM sandbox_sessions s WHERE s.sandbox = b.id AND s.seen_at > now() - (${SESSION_LIVE_SECONDS}*interval '1 second'))`,

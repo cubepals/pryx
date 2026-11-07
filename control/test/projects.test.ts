@@ -15,7 +15,7 @@ import { rows } from '../src/sql.ts'
 import { publicContext } from './public-context.ts'
 
 describe('projects', () => {
-  for (const action of ['freeze', 'remove', 'upkeep'] as const)
+  for (const action of ['freeze', 'remove', 'upkeep', 'ttl'] as const)
     test(`${action} handles expired template builders without losing retained snapshots`, async () => {
       const c = await publicContext(),
         projects = new Projects(c.boxes.projects as ProjectAdmission, c.boxes),
@@ -37,21 +37,27 @@ describe('projects', () => {
         if (action === 'upkeep') {
           await projects.set('default', { expiresAt: '2000-01-01T00:00:00Z' })
           await projects.upkeep()
-        } else await projects[action]('default')
+        } else if (action === 'ttl') await c.boxes.upkeep()
+        else await projects[action]('default')
         const state = await rows<{ state: string; deleted_at: string | null; quota_running: boolean }>(
           c.db,
           sql`SELECT state,deleted_at,quota_running FROM sandboxes WHERE id=${box.id}`,
         )
         expect(state[0]?.state).toBe('stopped')
         expect(state[0]?.quota_running).toBe(false)
-        if (action === 'freeze') {
+        if (action === 'freeze' || action === 'ttl') {
           expect(state[0]?.deleted_at).toBeNull()
           expect((await templates.versions('default', 'retained')).length).toBe(1)
           expect(
             await rows(c.db, sql`SELECT deleted_at FROM sandbox_snapshots WHERE id=${snapshot.id}`),
           ).toEqual([{ deleted_at: null }])
-          expect((await projects.get('default')).state).toBe('frozen')
+          expect((await projects.get('default')).state).toBe(action === 'freeze' ? 'frozen' : 'active')
           await expect(c.boxes.stop(box.id, 'default')).rejects.toMatchObject({ code: 'gone' })
+          if (action === 'ttl') {
+            await c.boxes.upkeep()
+            expect((await templates.versions('default', 'retained')).length).toBe(1)
+            await expect(c.boxes.delete(box.id)).rejects.toMatchObject({ code: 'forbidden' })
+          }
         } else {
           expect(state[0]?.deleted_at).not.toBeNull()
           expect(await templates.versions('default', 'retained')).toEqual([])
