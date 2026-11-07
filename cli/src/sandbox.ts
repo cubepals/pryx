@@ -120,7 +120,7 @@ export async function sandbox(args: string[]): Promise<unknown> {
     return
   }
   if (!id) throw new Error(`sandbox ${verb} needs an id`)
-  if (verb === 'get') return client.sandbox(id)
+  if (verb === 'get') return client.sandbox(id, { wake: false })
   if (verb === 'mcp-url') {
     console.log(await (await client.sandbox(id)).mcpUrl())
     return
@@ -140,18 +140,19 @@ export async function sandbox(args: string[]): Promise<unknown> {
   if (verb === 'network') {
     const mode = rest[0]
     if (mode !== 'internet' && mode !== 'none') throw new Error('network is internet or none')
-    return (await client.sandbox(id)).network(mode)
+    return (await client.sandbox(id, { wake: false })).network(mode)
   }
-  if (verb === 'rm') return (await client.sandbox(id)).delete()
-  if (verb === 'snapshot') return (await client.sandbox(id)).snapshot()
+  if (verb === 'rm') return (await client.sandbox(id, { wake: false })).delete()
+  if (verb === 'snapshot') return (await client.sandbox(id, { wake: false })).snapshot()
   if (verb === 'fork')
     return client.sandbox({
       snapshot: id,
       idempotencyKey: option(args, '--idempotency-key') ?? crypto.randomUUID(),
     })
-  if (verb === 'endpoints') return { endpoints: await (await client.sandbox(id)).endpoints() }
+  if (verb === 'endpoints')
+    return { endpoints: await (await client.sandbox(id, { wake: false })).endpoints() }
   if (verb === 'events') {
-    for await (const event of (await client.sandbox(id)).events({
+    for await (const event of (await client.sandbox(id, { wake: false })).events({
       since: option(rest, '--since'),
       follow: rest.includes('--follow'),
     }))
@@ -159,7 +160,7 @@ export async function sandbox(args: string[]): Promise<unknown> {
     return
   }
   if (verb === 'start' || verb === 'stop' || verb === 'sleep' || verb === 'wake' || verb === 'rest')
-    return { sandbox: await (await client.sandbox(id))[verb]() }
+    return { sandbox: await (await client.sandbox(id, { wake: false }))[verb]() }
   if (verb === 'exec') {
     const split = rest.indexOf('--')
     const options = split < 0 ? [] : rest.slice(0, split)

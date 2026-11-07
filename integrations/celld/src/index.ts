@@ -40,13 +40,17 @@ export function containerBridge(
     )
   })
   app.post('/containers/:id/sleep', async (c) =>
-    c.json({ sandbox: await (await client.sandbox(c.req.param('id'))).sleep() }),
+    c.json({ sandbox: await (await client.sandbox(c.req.param('id'), { wake: false })).sleep() }),
   )
-  app.delete('/containers/:id', async (c) => c.json(await (await client.sandbox(c.req.param('id'))).delete()))
+  app.delete('/containers/:id', async (c) =>
+    c.json(await (await client.sandbox(c.req.param('id'), { wake: false })).delete()),
+  )
   app.all('/containers/:id/fetch/*', async (c) => {
     const id = c.req.param('id')
-    await (await client.sandbox(id)).wake()
-    const endpoint = (await (await client.sandbox(id)).endpoints()).find((p) => p.name === 'http')
+    await (await client.sandbox(id, { wake: false })).wake()
+    const endpoint = (await (await client.sandbox(id, { wake: false })).endpoints()).find(
+      (p) => p.name === 'http',
+    )
     if (!endpoint) return c.json({ error: 'no HTTP port' }, StatusCodes.SERVICE_UNAVAILABLE)
     const host = endpoint.host.includes(':') ? `[${endpoint.host}]` : endpoint.host
     const suffix = c.req.path.split('/fetch/').slice(1).join('/fetch/')

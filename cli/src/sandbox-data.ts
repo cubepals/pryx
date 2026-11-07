@@ -35,7 +35,7 @@ export async function copy(client: Pryx, source: string, destination: string) {
     to = remote.exec(destination)
   if (Boolean(from) === Boolean(to)) throw new Error('cp needs one sandbox:path and one local path')
   const match = (from ?? to) as RegExpExecArray
-  const box = await client.sandbox(match[1] as string)
+  const box = await client.sandbox(match[1] as string, { wake: false })
   const path = match[2] || '.'
   if (from)
     await ((await box.files.stat(path)).kind === 'directory'

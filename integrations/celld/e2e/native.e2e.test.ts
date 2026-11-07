@@ -102,7 +102,7 @@ test(
               const boxes = await sdk.sandboxes()
               expect(boxes.length).toBe(1)
               expect(boxes[0]?.isolation).toBe('container')
-              for (const box of boxes) await (await sdk.sandbox(box.id)).delete()
+              for (const box of boxes) await (await sdk.sandbox(box.id, { wake: false })).delete()
             } else {
               const ids = (await command(['docker', 'ps', '-aq', '--filter', 'label=celld.cell']))
                 .split('\n')

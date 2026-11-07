@@ -15,7 +15,7 @@ export interface SessionMemory {
 export function sandboxActor(client: Pryx, options: { sleepGracePeriod?: number } = {}) {
   async function remove(id: string) {
     try {
-      await (await client.sandbox(id)).delete()
+      await (await client.sandbox(id, { wake: false })).delete()
     } catch (error) {
       if (!(error instanceof Error && 'status' in error && error.status === StatusCodes.GONE)) throw error
     }
@@ -24,10 +24,10 @@ export function sandboxActor(client: Pryx, options: { sleepGracePeriod?: number 
     state: { sandbox: null, pending: null, generation: 0, notes: [] } as SessionMemory,
     options,
     onWake: async (c) => {
-      if (c.state.sandbox) await (await client.sandbox(c.state.sandbox)).wake()
+      if (c.state.sandbox) await (await client.sandbox(c.state.sandbox, { wake: false })).wake()
     },
     onSleep: async (c) => {
-      if (c.state.sandbox) await (await client.sandbox(c.state.sandbox)).sleep()
+      if (c.state.sandbox) await (await client.sandbox(c.state.sandbox, { wake: false })).sleep()
     },
     onDestroy: async (c) => {
       if (c.state.sandbox) await remove(c.state.sandbox)
@@ -46,7 +46,7 @@ export function sandboxActor(client: Pryx, options: { sleepGracePeriod?: number 
         c.state.notes.push(note)
       },
       make: async (c, body: MakeRequest) => {
-        if (c.state.sandbox) return (await client.sandbox(c.state.sandbox)).toJSON()
+        if (c.state.sandbox) return (await client.sandbox(c.state.sandbox, { wake: false })).toJSON()
         if (Object.keys(body.secrets ?? {}).length)
           throw new Error(
             'Actor make does not persist secret-bearing requests; provision through a server-owned template',
@@ -77,7 +77,7 @@ export function sandboxActor(client: Pryx, options: { sleepGracePeriod?: number 
       },
       snapshot: async (c) => {
         if (!c.state.sandbox) throw new Error('Make a sandbox first')
-        return (await (await client.sandbox(c.state.sandbox)).snapshot()).view
+        return (await (await client.sandbox(c.state.sandbox, { wake: false })).snapshot()).view
       },
       fork: async (
         _c,
@@ -86,12 +86,14 @@ export function sandboxActor(client: Pryx, options: { sleepGracePeriod?: number 
         key: string,
       ) => client.sandbox({ ...body, snapshot, idempotencyKey: key }).then((box) => box.toJSON()),
       sleep: async (c) => {
-        if (c.state.sandbox) await (await client.sandbox(c.state.sandbox)).sleep()
+        if (c.state.sandbox) await (await client.sandbox(c.state.sandbox, { wake: false })).sleep()
         c.sleep()
       },
       wake: async (c) =>
         c.state.sandbox
-          ? (await client.sandbox(c.state.sandbox)).wake().then((box) => ({ sandbox: box.toJSON() }))
+          ? (await client.sandbox(c.state.sandbox, { wake: false }))
+              .wake()
+              .then((box) => ({ sandbox: box.toJSON() }))
           : null,
       delete: async (c) => {
         if (c.state.sandbox) await remove(c.state.sandbox)

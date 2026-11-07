@@ -84,12 +84,12 @@ test(
             await client.callTool({ name: 'sandbox_fork', arguments: { snapshot: snapshot.id } }),
           )
           value(await client.callTool({ name: 'sandbox_delete', arguments: { id: twin.id } }))
-          await (await (await c.sdk.sandbox(id as string)).snapshots())
+          await (await (await c.sdk.sandbox(id as string, { wake: false })).snapshots())
             .find((s) => s.id === snapshot.id)
             ?.delete()
           expect(value(await client.callTool({ name: 'project_usage', arguments: {} })).usage).toBeDefined()
         } finally {
-          if (id) await (await c.sdk.sandbox(id)).delete()
+          if (id) await (await c.sdk.sandbox(id, { wake: false })).delete()
           await client.close()
         }
       }

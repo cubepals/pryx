@@ -44,12 +44,15 @@ test.skipIf(!ready)(
       )
       expect((await agent.memory()).notes).toContain('session memory')
       await agent.sleep()
-      await until('sandbox sleeps with actor', async () => (await sdk.sandbox(box.id)).state === 'sleeping')
+      await until(
+        'sandbox sleeps with actor',
+        async () => (await sdk.sandbox(box.id, { wake: false })).state === 'sleeping',
+      )
       expect((await agent.memory()).sandbox).toBe(box.id)
-      expect((await sdk.sandbox(box.id)).state).toBe('running')
+      expect((await sdk.sandbox(box.id, { wake: false })).state).toBe('running')
       const snapshot = await agent.snapshot()
       const fork = await agent.fork(snapshot.id, { start: false }, crypto.randomUUID())
-      await (await sdk.sandbox(fork.id)).delete()
+      await (await sdk.sandbox(fork.id, { wake: false })).delete()
       await agent.destroyActor()
       await until(
         'actor destruction deletes sandbox',

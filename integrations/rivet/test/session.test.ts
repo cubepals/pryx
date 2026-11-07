@@ -130,3 +130,35 @@ test('provider deletion stays idempotent after lookup reports gone', async () =>
   await provider.destroy('one')
   expect(deletes).toBe(1)
 })
+
+test('provider inspection and teardown do not need wake capacity', async () => {
+  const calls: string[] = []
+  let allowWake = false
+  const client = new Pryx({
+    url: 'http://fixture',
+    key: 'secret',
+    fetch: (async (input, init) => {
+      const request = new Request(input, init)
+      const path = new URL(request.url).pathname
+      calls.push(`${request.method} ${path}`)
+      if (path.endsWith('/wake') && !allowWake)
+        return Response.json(
+          { error: { code: 'capacity', message: 'No wake capacity' } },
+          { status: StatusCodes.SERVICE_UNAVAILABLE },
+        )
+      return Response.json(
+        path.endsWith('/endpoints')
+          ? { endpoints: [{ name: 'agent', host: '127.0.0.1', port: 1234 }] }
+          : { id: 'one', state: 'sleeping', endpoints: [] },
+      )
+    }) as typeof fetch,
+  })
+  const provider = pryxProvider(client, { key: 'one', image: 'alpine:3.22' })
+  expect(await provider.getUrl?.('one')).toBe('http://127.0.0.1:1234')
+  await provider.pause?.('one')
+  await provider.destroy('one')
+  expect(calls.some((call) => call.endsWith('/wake'))).toBe(false)
+  allowWake = true
+  await provider.reconnect?.('one')
+  expect(calls.filter((call) => call.endsWith('/wake'))).toHaveLength(1)
+})

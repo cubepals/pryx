@@ -100,7 +100,7 @@ index 0000000..009192a
 +  },
 +): SandboxProvider {
 +  async function remove(id:string) {
-+    try {await (await client.sandbox(id)).delete()}
++    try {await (await client.sandbox(id, { wake: false })).delete()}
 +    catch(error){if(!(error instanceof Error && 'status' in error && error.status===StatusCodes.GONE))throw error}
 +  }
 +
@@ -130,13 +130,13 @@ index 0000000..009192a
 +      await remove(id)
 +    },
 +    async pause(id) {
-+      await (await client.sandbox(id)).sleep()
++      await (await client.sandbox(id, { wake: false })).sleep()
 +    },
 +    async reconnect(id) {
-+      await (await client.sandbox(id)).wake()
++      await (await client.sandbox(id, { wake: false })).wake()
 +    },
 +    async getUrl(id) {
-+      const endpoint = (await (await client.sandbox(id)).endpoints()).find((p) => p.name === 'agent')
++      const endpoint = (await (await client.sandbox(id, { wake: false })).endpoints()).find((p) => p.name === 'agent')
 +      if (!endpoint) throw new Error('Sandbox has no private agent endpoint')
 +      const host = endpoint.host.includes(':') ? `[${endpoint.host}]` : endpoint.host
 +      return `http://${host}:${endpoint.port}`

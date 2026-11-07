@@ -4,6 +4,7 @@
 /** Run the real CLI process through an HTTP listener and real Postgres sandbox intents. */
 
 import { describe, expect, test } from 'bun:test'
+import { StatusCodes } from 'http-status-codes'
 import { HOUR_S, MINUTE_S } from '../../control/src/durations.ts'
 import type { NodeClient } from '../../control/src/node-client.ts'
 import { createPublicApi } from '../../control/src/public-api.ts'
@@ -13,6 +14,48 @@ import nodeProtocol from '../../openapi/node-reads.openapi.json'
 import nodeWrites from '../../openapi/node-writes.openapi.json'
 
 describe.skipIf(!hasDatabase)('public CLI', () => {
+  test('inspection and deletion do not wake a sleeping sandbox', async () => {
+    const ctx = await publicContext()
+    let wakes = 0
+    const server = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 0,
+      fetch: (request) => {
+        if (new URL(request.url).pathname.endsWith('/wake')) {
+          wakes++
+          return Response.json(
+            { error: { code: 'capacity', message: 'No wake capacity' } },
+            { status: StatusCodes.SERVICE_UNAVAILABLE },
+          )
+        }
+        return ctx.app.fetch(request)
+      },
+    })
+    try {
+      const made = await ctx.request('/sandboxes', 'POST', { image: 'alpine:3.22' }, 'sleeping-cli')
+      const { id } = (await made.json()) as { id: string }
+      await ctx.boxes.sleep(id, 'default')
+      for (const verb of ['get', 'rm']) {
+        const child = Bun.spawn(['bun', 'cli/src/main.ts', 'sandbox', verb, id], {
+          env: { ...process.env, PRYX_API_URL: server.url.toString(), PRYX_API_KEY: ctx.credential.key },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        })
+        const [stdout, stderr, code] = await Promise.all([
+          new Response(child.stdout).text(),
+          new Response(child.stderr).text(),
+          child.exited,
+        ])
+        expect({ verb, code, stderr }).toEqual({ verb, code: 0, stderr: '' })
+        if (verb === 'get') expect(JSON.parse(stdout).state).toBe('sleeping')
+      }
+      expect(wakes).toBe(0)
+      expect(await ctx.boxes.list('default')).toHaveLength(0)
+    } finally {
+      server.stop(true)
+      await ctx.close()
+    }
+  })
   test('create and exec accept duration strings', async () => {
     const ctx = await publicContext()
     const server = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: ctx.app.fetch })

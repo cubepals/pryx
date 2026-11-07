@@ -57,9 +57,9 @@ test.skipIf(!ready || !process.env.CELLD_BIN)(
       const box = (await client.sandboxes())[0]
       if (!box) throw new Error('Worker did not create a sandbox')
       expect((await fetch(`${url}/sleep`)).ok).toBe(true)
-      expect((await client.sandbox(box.id)).state).toBe('sleeping')
+      expect((await client.sandbox(box.id, { wake: false })).state).toBe('sleeping')
       expect(await (await fetch(url)).text()).toContain('celld-on-pryx')
-      expect((await client.sandbox(box.id)).state).toBe('running')
+      expect((await client.sandbox(box.id, { wake: false })).state).toBe('running')
       expect((await fetch(`${url}/delete`)).ok).toBe(true)
     } catch (error) {
       deploymentDiagnostics(d)

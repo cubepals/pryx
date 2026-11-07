@@ -31,7 +31,7 @@ async function answer(operation: () => Promise<unknown>) {
   }
 }
 async function read(client: Pryx, sandbox: string, file: string) {
-  const reader = (await (await client.sandbox(sandbox)).files.readStream(file)).getReader()
+  const reader = (await (await client.sandbox(sandbox, { wake: false })).files.readStream(file)).getReader()
   const decoder = new TextDecoder('utf8', { fatal: true })
   let size = 0,
     value = ''
@@ -103,12 +103,12 @@ export function mcpServer(client: Pryx) {
     answer(async () => ({ sandboxes: await client.sandboxes() })),
   )
   registerTool('sandbox_get', { description: 'Read sandbox state', inputSchema: { id } }, ({ id }) =>
-    answer(() => client.sandbox(id)),
+    answer(() => client.sandbox(id, { wake: false })),
   )
   registerTool(
     'sandbox_delete',
     { description: 'Permanently delete a sandbox and its data', inputSchema: { id } },
-    ({ id }) => answer(() => (async () => (await client.sandbox(id)).delete())()),
+    ({ id }) => answer(() => (async () => (await client.sandbox(id, { wake: false })).delete())()),
   )
   const run = { id, command, timeout: z.number().int().positive().optional(), key: z.string().optional() }
   registerTool(
@@ -133,15 +133,15 @@ export function mcpServer(client: Pryx) {
   registerTool(
     'sandbox_write',
     { description: 'Write a UTF-8 file', inputSchema: { id, path, text: z.string().max(FILE_BYTES) } },
-    ({ id, path, text }) => answer(async () => (await client.sandbox(id)).write(path, text)),
+    ({ id, path, text }) => answer(async () => (await client.sandbox(id, { wake: false })).write(path, text)),
   )
   registerTool(
     'sandbox_list_files',
     { description: 'List files in a sandbox directory', inputSchema: { id, path: path.default('.') } },
-    ({ id, path }) => answer(async () => (await client.sandbox(id)).files.list(path)),
+    ({ id, path }) => answer(async () => (await client.sandbox(id, { wake: false })).files.list(path)),
   )
   registerTool('sandbox_snapshot', { description: 'Snapshot sandbox data', inputSchema: { id } }, ({ id }) =>
-    answer(() => (async () => (await client.sandbox(id)).snapshot())()),
+    answer(() => (async () => (await client.sandbox(id, { wake: false })).snapshot())()),
   )
   registerTool(
     'sandbox_fork',
@@ -154,7 +154,9 @@ export function mcpServer(client: Pryx) {
   )
   for (const action of ['sleep', 'wake'] as const)
     registerTool(`sandbox_${action}`, { description: `${action} a sandbox`, inputSchema: { id } }, ({ id }) =>
-      answer(() => (async () => ({ sandbox: await (await client.sandbox(id))[action]() }))()),
+      answer(() =>
+        (async () => ({ sandbox: await (await client.sandbox(id, { wake: false }))[action]() }))(),
+      ),
     )
   registerTool(
     'sandbox_expose',
@@ -198,7 +200,7 @@ export function mcpServer(client: Pryx) {
           mimeType: 'application/json',
           text: JSON.stringify(
             match[2] === 'state'
-              ? await client.sandbox(sandbox)
+              ? await client.sandbox(sandbox, { wake: false })
               : await Array.fromAsync((await client.sandbox(sandbox)).logs({ follow: false, tail: 200 })),
           ),
         },
