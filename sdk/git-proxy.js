@@ -4,13 +4,16 @@
  * The random path capability and fixed origin prevent use as an open proxy. No credential or
  * repository config is written by this process. The SDK kills it after the Git call completes. */
 const http = require('node:http')
+// The guest HTTP builtin has no named status enum: RFC 9110 sections 15.5.4 and 15.6.3.
+const HTTP_FORBIDDEN = 403
+const HTTP_BAD_GATEWAY = 502
 const origin = new URL(process.env.PRYX_PROXY_ORIGIN)
 const prefix = `/${process.env.PRYX_PROXY_NONCE}/`
 const limit = Number(process.env.PRYX_PROXY_MAX_BODY)
 if (!['http:', 'https:'].includes(origin.protocol) || !Number.isSafeInteger(limit) || limit <= 0) process.exit(1)
 const server = http.createServer(async (request, response) => {
   try {
-    if (!request.url.startsWith(prefix)) { response.writeHead(403); response.end(); return }
+    if (!request.url.startsWith(prefix)) { response.writeHead(HTTP_FORBIDDEN); response.end(); return }
     const path = new URL(request.url.slice(prefix.length - 1), 'http://loopback')
     const target = new URL(origin.origin)
     target.pathname = path.pathname
@@ -55,7 +58,7 @@ const server = http.createServer(async (request, response) => {
     }
     response.end()
   } catch {
-    if (!response.headersSent) response.writeHead(502)
+    if (!response.headersSent) response.writeHead(HTTP_BAD_GATEWAY)
     response.end()
   }
 })
