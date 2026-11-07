@@ -20,14 +20,22 @@ const server = http.createServer(async (request, response) => {
     headers['accept-encoding'] = 'identity'
     let body
     if (!['GET', 'HEAD'].includes(request.method)) {
-      const chunks = []
-      let length = 0
-      for await (const chunk of request) {
-        length += chunk.length
-        if (length > limit) throw new Error('Git HTTP body exceeds the guest frame budget')
-        chunks.push(chunk)
-      }
-      body = Buffer.concat(chunks)
+      // Guest IncomingMessage supports stream events but not asynchronous iteration.
+      body = await new Promise((resolve, reject) => {
+        const chunks = []
+        let length = 0
+        let failed = false
+        const fail = error => { failed = true; chunks.length = 0; reject(error) }
+        request.on('data', chunk => {
+          if (failed) return
+          length += chunk.length
+          if (length > limit) { fail(new Error('Git HTTP body exceeds the guest frame budget')); return }
+          chunks.push(chunk)
+        })
+        request.once('end', () => { if (!failed) resolve(Buffer.concat(chunks)) })
+        request.once('error', fail)
+        request.once('aborted', () => fail(new Error('Git HTTP request aborted')))
+      })
     }
     const upstream = await fetch(target, { method: request.method, headers, body, redirect: 'manual' })
     const output = {}

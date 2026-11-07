@@ -2,14 +2,66 @@
 /** Field surface contracts against a fake transport: no command or mutation is replayed, and
  * secrets remain in scoped Git input rather than the public create body or command argv. */
 import { expect, test } from 'bun:test'
+import { once } from 'node:events'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createServer as httpServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { runInNewContext } from 'node:vm'
 import { StatusCodes } from 'http-status-codes'
 import { SDK_DEFAULTS } from '../src/generated/defaults.ts'
 import { Git } from '../src/git.ts'
 import { Pryx, PryxError } from '../src/index.ts'
+
+test('guest Git bridge accepts bounded binary POST without async request iteration', async () => {
+  const calls: { url: string; options: RequestInit }[] = []
+  const source = readFileSync(new URL('../../git-proxy.js', import.meta.url), 'utf8')
+  const server = runInNewContext(`${source}\nserver`, {
+    require: () => ({
+      createServer: (listener: (request: IncomingMessage, response: ServerResponse) => void) =>
+        httpServer((request, response) => {
+          Object.defineProperty(request, Symbol.asyncIterator, { value: undefined })
+          listener(request, response)
+        }),
+    }),
+    process: {
+      env: {
+        PRYX_PROXY_ORIGIN: 'https://upstream.test',
+        PRYX_PROXY_NONCE: 'owned',
+        PRYX_PROXY_MAX_BODY: '8',
+      },
+    },
+    URL,
+    Buffer,
+    console: { log() {} },
+    fetch: async (url: URL, options: RequestInit) => {
+      calls.push({ url: String(url), options })
+      return new Response(options.body, { headers: { 'content-type': 'application/octet-stream' } })
+    },
+  }) as ReturnType<typeof httpServer>
+  try {
+    await once(server, 'listening')
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Missing bridge port')
+    const base = `http://127.0.0.1:${address.port}`
+    const body = new Uint8Array([0, 255, 10, 42])
+    const response = await fetch(`${base}/owned/repo/git-upload-pack?version=2`, { method: 'POST', body })
+    expect(response.status).toBe(StatusCodes.OK)
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(body)
+    expect(calls[0]?.url).toBe('https://upstream.test/repo/git-upload-pack?version=2')
+    expect(calls[0]?.options.redirect).toBe('manual')
+    expect(new Headers(calls[0]?.options.headers).has('host')).toBe(false)
+    expect((await fetch(`${base}/owned/repo`, { method: 'POST', body: new Uint8Array(9) })).status).toBe(
+      StatusCodes.BAD_GATEWAY,
+    )
+    expect((await fetch(`${base}/wrong/repo`)).status).toBe(StatusCodes.FORBIDDEN)
+    expect(calls).toHaveLength(1)
+  } finally {
+    server.closeAllConnections()
+    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
+  }
+})
 
 const result = {
   code: 0,
