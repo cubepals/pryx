@@ -170,3 +170,9 @@ disabled for helper calls; results redact the token and refuse incomplete parsed
 On wasm, a transient loopback bridge adapts Git HTTP to the VM fetch stack, retains the original
 HTTPS remote and terminates after the call. VM network policy and upstream TLS remain in force.
 Container hostname egress is enforced by the host bridge; process and wasm refuse it explicitly.
+
+Wasm Git clones keep their object database in the VM’s persistent guest filesystem via Git’s
+separate-git-dir option; checkout files stay in persistent data. This avoids the host mount’s
+read-only object-write limitation without relaxing permissions. Both are retained by stop and
+snapshot. Git network helpers have a five-minute default and per-call timeout overrides and disable automatic background
+maintenance/GC. Virtual Git HTTP request bodies are bounded by the 16 MiB guest frame limit.

@@ -6,11 +6,15 @@ import { SDK_DEFAULTS } from './generated/defaults.ts'
 import { GIT_PROXY_SOURCE } from './generated/git-proxy.ts'
 import { PryxError } from './transport.ts'
 export type GitSpawn = (command: string[], options?: StartOptions) => Promise<Process>
-export async function gitProxy(spawn: GitSpawn, url: string) {
+export async function gitProxy(
+  spawn: GitSpawn,
+  url: string,
+  timeout: StartOptions['timeout'] = SDK_DEFAULTS.gitTimeoutSeconds,
+) {
   const origin = new URL(url).origin
   const nonce = crypto.randomUUID().replaceAll('-', '')
   const process = await spawn(['node', '-e', GIT_PROXY_SOURCE], {
-    timeout: SDK_DEFAULTS.runTimeoutSeconds,
+    timeout,
     env: {
       PRYX_PROXY_ORIGIN: origin,
       PRYX_PROXY_NONCE: nonce,

@@ -6,14 +6,15 @@ from pathlib import Path
 import httpx
 from cubepals_pryx import Pryx,PryxError
 from test_handles import VIEW
+from cubepals_pryx.generated.defaults import SDK_DEFAULTS
 RESULT=dict(code=0,timedOut=False,killed=False,durationMs=1,stdoutTruncated=False,stderrTruncated=False)
 async def take(value):return await value if inspect.isawaitable(value) else value
 async def items(value):
     if hasattr(value,'__aiter__'):return [item async for item in value]
     return list(value)
 class Peer:
-    def __init__(self):self.calls=[];self.state='sleeping';self.command=[];self.files={};self.archives={};self.failure=None;self.version=2
-    def view(self):return dict(VIEW,state=self.state,name='named',labels={'role':'agent'},workdir='/data')
+    def __init__(self):self.calls=[];self.state='sleeping';self.command=[];self.files={};self.archives={};self.failure=None;self.version=2;self.isolation=None
+    def view(self):return dict(VIEW,state=self.state,name='named',labels={'role':'agent'},workdir='/data',**({'isolation':self.isolation} if self.isolation else {}))
     def handle(self,request):
         path=request.url.path;method=request.method;body=json.loads(request.content) if request.content and request.headers.get('content-type')=='application/json' else {}
         self.calls.append((path,method,body,request.content))
@@ -32,8 +33,9 @@ class Peer:
         if path.endswith('/kill-all'):return response({'killed':['proc']})
         if path=='/_pryx/shells':return response({'id':'shell'})
         if path.endswith('/shells/shell/run'):return response(dict(RESULT,stdout='state',stderr='err',code=7))
+        if path.endswith('/wait'):return response(RESULT)
         if path.endswith('/output'):
-            stdout='abc\n' if 'rev-parse' in self.command else 'abc\0Name\0email\0date\0subject\0\n' if 'log' in self.command else ''
+            stdout='PRYX_GIT_PROXY_READY 34567\n' if any('PRYX_GIT_PROXY_READY' in arg for arg in self.command) else 'https://example.com/repo.git\n' if 'get-url' in self.command else 'abc\n' if 'rev-parse' in self.command else 'abc\0Name\0email\0date\0subject\0\n' if 'log' in self.command else ''
             events=[dict(type='output',stream='stdout',bytes=base64.b64encode(stdout.encode()).decode()),dict(type='exit',result=RESULT)]
             return httpx.Response(HTTPStatus.OK,text=''.join(json.dumps(event)+'\n' for event in events))
         if path.endswith('/find'):return response({'paths':['known.txt']})
@@ -132,3 +134,40 @@ class Field(unittest.IsolatedAsyncioTestCase):
         async def exercise(client,peer):
             hook=await take(client.webhook(url='https://example.com/hook',kinds=['created','deleted']));self.assertEqual(hook.secret,'shown-once');self.assertNotIn('secret',hook.view);self.assertEqual(await take(hook.deadletters()),[]);await take(hook.delete());self.assertEqual(await take(client.webhooks()),[])
         await self.both(exercise)
+
+
+    async def test_virtual_git_uses_bridge_for_push_and_guest_metadata(self):
+        async def exercise(client,peer):
+            peer.isolation='wasm';box=await take(client.sandbox('box'))
+            await take(box.git.clone('https://example.com/repo.git',token='fixture-only',timeout='2m'));await take(box.git.push(token='fixture-only',timeout='2m'))
+            starts=[c[2] for c in peer.calls if c[0]=='/_pryx/processes' and c[1]=='POST']
+            self.assertEqual(len([c for c in starts if any('PRYX_GIT_PROXY_READY' in arg for arg in c['command'])]),2)
+            self.assertTrue(all(c['timeout']==2*SDK_DEFAULTS['units']['m'] for c in starts))
+            clone=next(c for c in starts if 'clone' in c['command']);self.assertTrue(any(arg.startswith('--separate-git-dir=/tmp/.pryx-git-') for arg in clone['command']))
+            push=next(c for c in starts if 'push' in c['command']);self.assertTrue(any('insteadOf=https://example.com/' in arg for arg in push['command']));self.assertNotIn('fixture-only',str(push['command']))
+        await self.both(exercise)
+
+class GitTraceSecurity(unittest.TestCase):
+    def test_trace_settings_cannot_persist_a_token_in_both_modes(self):
+        import asyncio,os,socket,subprocess
+        from cubepals_pryx.git import Git,AsyncGit
+        from cubepals_pryx.run import RunResult
+        for asynchronous in (False,True):
+            with tempfile.TemporaryDirectory() as root,socket.socket() as listener:
+                listener.bind(('127.0.0.1',0));port=listener.getsockname()[1]
+                # Bound without listening: the owned endpoint refuses before any TLS/credential exchange.
+                trace=Path(root)/'trace.json'
+                def run(command,*,env,**_options):
+                    child=subprocess.run(command,cwd=root,env={**os.environ,**env,'NO_PROXY':'127.0.0.1','no_proxy':'127.0.0.1','GIT_TRACE2_EVENT':str(trace),'GIT_TRACE2_ENV_VARS':'PRYX_GIT_TOKEN'},capture_output=True,text=True,check=False,timeout=10)
+                    return RunResult(stdout=child.stdout,stderr=child.stderr,code=child.returncode)
+                async def async_run(command,*,env,**_options):return await asyncio.to_thread(run,command,env=env)
+                git=AsyncGit(async_run) if asynchronous else Git(run)
+                with self.assertRaises(PryxError):
+                    result=git.clone('https://127.0.0.1:'+str(port)+'/fixture.git',token='one-call-fixture-token')
+                    if asynchronous:asyncio.run(result)
+                subprocess.run(['git','init',str(Path(root)/'repo')],capture_output=True,check=True)
+                subprocess.run(['git','-C',str(Path(root)/'repo'),'remote','add','origin','https://127.0.0.1:'+str(port)+'/fixture.git'],capture_output=True,check=True)
+                with self.assertRaises(PryxError):
+                    result=git.push(token='one-call-fixture-token')
+                    if asynchronous:asyncio.run(result)
+                self.assertFalse(trace.exists())

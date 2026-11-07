@@ -2,10 +2,13 @@
 /** Field surface contracts against a fake transport: no command or mutation is replayed, and
  * secrets remain in scoped Git input rather than the public create body or command argv. */
 import { expect, test } from 'bun:test'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { StatusCodes } from 'http-status-codes'
+import { SDK_DEFAULTS } from '../src/generated/defaults.ts'
+import { Git } from '../src/git.ts'
 import { Pryx, PryxError } from '../src/index.ts'
 
 const result = {
@@ -16,7 +19,7 @@ const result = {
   stdoutTruncated: false,
   stderrTruncated: false,
 }
-function peer(version = 2) {
+function peer(version = 2, isolation?: 'wasm') {
   const calls: {
     path: string
     method: string
@@ -34,6 +37,7 @@ function peer(version = 2) {
     name: 'named',
     labels: { role: 'agent' },
     workdir: '/data',
+    isolation,
   })
   const client = new Pryx({
     url: 'http://api.test',
@@ -79,14 +83,19 @@ function peer(version = 2) {
       if (path === '/_pryx/shells') return Response.json({ id: 'shell' })
       if (path.endsWith('/shells/shell/run'))
         return Response.json({ ...result, stdout: 'state', stderr: 'err', code: 7 })
+      if (path.endsWith('/wait')) return Response.json(result)
       if (path.endsWith('/output')) {
-        const stdout = command.includes('status')
-          ? ''
-          : command.includes('rev-parse')
-            ? 'abc\n'
-            : command.includes('log')
-              ? 'abc\0Name\0email\0date\0subject\0\n'
-              : ''
+        const stdout = command.includes('PRYX_GIT_PROXY_READY')
+          ? 'PRYX_GIT_PROXY_READY 34567\n'
+          : command.includes('get-url')
+            ? 'https://example.com/repo.git\n'
+            : command.includes('status')
+              ? ''
+              : command.includes('rev-parse')
+                ? 'abc\n'
+                : command.includes('log')
+                  ? 'abc\0Name\0email\0date\0subject\0\n'
+                  : ''
         return new Response(
           [
             JSON.stringify({
@@ -242,4 +251,81 @@ test('lookup, lifecycle, templates and webhooks use public ownership routes', as
   expect(await hook.deadletters()).toEqual([])
   await hook.delete()
   expect(await p.client.webhooks()).toEqual([])
+})
+
+test('Git trace environment cannot persist the one-call token', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'pryx-git-trace-'))
+  const server = createServer((socket) => socket.destroy())
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const port = (server.address() as { port: number }).port
+  const trace = join(root, 'trace.json')
+  const git = new Git(async (command, options) => {
+    const child = Bun.spawn(command, {
+      cwd: root,
+      env: {
+        ...process.env,
+        ...options?.env,
+        NO_PROXY: '127.0.0.1',
+        no_proxy: '127.0.0.1',
+        GIT_TRACE2_EVENT: trace,
+        GIT_TRACE2_ENV_VARS: 'PRYX_GIT_TOKEN',
+      },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    })
+    const [stdout, stderr, code] = await Promise.all([
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+      child.exited,
+    ])
+    return { ...result, stdout, stderr, code }
+  })
+  try {
+    await expect(
+      git.clone('https://127.0.0.1:' + port + '/fixture.git', { token: 'one-call-fixture-token' }),
+    ).rejects.toMatchObject({ code: 'git_failed' })
+    expect(
+      Bun.spawnSync(['git', 'init', join(root, 'repo')], { stdout: 'ignore', stderr: 'ignore' }).exitCode,
+    ).toBe(0)
+    expect(
+      Bun.spawnSync(
+        [
+          'git',
+          '-C',
+          join(root, 'repo'),
+          'remote',
+          'add',
+          'origin',
+          'https://127.0.0.1:' + port + '/fixture.git',
+        ],
+        { stdout: 'ignore', stderr: 'ignore' },
+      ).exitCode,
+    ).toBe(0)
+    await expect(git.push({ token: 'one-call-fixture-token' })).rejects.toMatchObject({ code: 'git_failed' })
+    expect(existsSync(trace)).toBe(false)
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('virtual Git clone and push share the scoped bridge and persistent metadata layout', async () => {
+  const p = peer(2, 'wasm'),
+    box = await p.client.sandbox('box')
+  await box.git.clone('https://example.com/repo.git', { token: 'fixture-only', timeout: '2m' })
+  await box.git.push({ token: 'fixture-only', timeout: '2m' })
+  const starts = p.calls.filter((call) => call.path === '/_pryx/processes' && call.method === 'POST')
+  expect(
+    starts.filter((call) => JSON.stringify(call.body.command).includes('PRYX_GIT_PROXY_READY')),
+  ).toHaveLength(2)
+  expect(starts.every((call) => call.body.timeout === 2 * SDK_DEFAULTS.units.m)).toBe(true)
+  const clone = starts.find((call) => (call.body.command as string[]).includes('clone'))
+  expect(
+    (clone?.body.command as string[]).some((arg) => arg.startsWith('--separate-git-dir=/tmp/.pryx-git-')),
+  ).toBe(true)
+  const push = starts.find((call) => (call.body.command as string[]).includes('push'))
+  expect((push?.body.command as string[]).some((arg) => arg.includes('insteadOf=https://example.com/'))).toBe(
+    true,
+  )
+  expect(JSON.stringify(push?.body.command)).not.toContain('fixture-only')
 })

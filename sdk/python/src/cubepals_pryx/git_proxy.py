@@ -6,9 +6,9 @@ from .generated.git_proxy import GIT_PROXY_SOURCE
 from .generated.defaults import SDK_DEFAULTS
 from ._transport import PryxError
 
-def options(url):
+def options(url,timeout=None):
     parsed=urlparse(url);origin=parsed.scheme+'://'+parsed.netloc;nonce=uuid4().hex
-    return origin,nonce,dict(timeout=SDK_DEFAULTS['runTimeoutSeconds'],env={'PRYX_PROXY_ORIGIN':origin,'PRYX_PROXY_NONCE':nonce,'PRYX_PROXY_MAX_BODY':str(SDK_DEFAULTS['guestFrameBytes'])})
+    return origin,nonce,dict(timeout=SDK_DEFAULTS['gitTimeoutSeconds'] if timeout is None else timeout,env={'PRYX_PROXY_ORIGIN':origin,'PRYX_PROXY_NONCE':nonce,'PRYX_PROXY_MAX_BODY':str(SDK_DEFAULTS['guestFrameBytes'])})
 def configuration(origin,nonce,port):
     host='127.0.0.1:'+str(port);base='http://'+host+'/'+nonce+'/'
     return dict(host=host,protocol='http',args=['-c','url.'+base+'.insteadOf='+origin+'/','-c','credential.useHttpPath=true'])
@@ -20,8 +20,8 @@ def failed():return PryxError(0,{'error':{'code':'git_proxy_failed','message':'G
 class GitProxy:
     def __init__(self,process,config):self.process,self.config=process,config
     @classmethod
-    def start(cls,spawn,url):
-        origin,nonce,config=options(url);process=spawn(['node','-e',GIT_PROXY_SOURCE],**config);text='';stream=process.stream()
+    def start(cls,spawn,url,timeout=None):
+        origin,nonce,config=options(url,timeout);process=spawn(['node','-e',GIT_PROXY_SOURCE],**config);text='';stream=process.stream()
         try:
             for chunk in stream:
                 if chunk['stream']=='stderr':raise failed()
@@ -39,8 +39,8 @@ class GitProxy:
         self.process.wait()
 class AsyncGitProxy(GitProxy):
     @classmethod
-    async def start(cls,spawn,url):
-        origin,nonce,config=options(url);process=await spawn(['node','-e',GIT_PROXY_SOURCE],**config);text='';stream=process.stream()
+    async def start(cls,spawn,url,timeout=None):
+        origin,nonce,config=options(url,timeout);process=await spawn(['node','-e',GIT_PROXY_SOURCE],**config);text='';stream=process.stream()
         try:
             async for chunk in stream:
                 if chunk['stream']=='stderr':raise failed()

@@ -33,7 +33,7 @@ async def exercise(client,suffix):
     await take(box.git.clone('https://github.com/octocat/Hello-World.git',path=path,depth=1));assert (await take(box.git.status()))['value']['clean']
     await take(box.git.branch(branch));await take(box.git.checkout(branch));await take(box.write(path+'/python.txt','committed'));await take(box.git.add('python.txt'));assert (await take(box.git.diff(staged=True)))['value']['patch']
     await take(box.git.commit('Python field commit',author={'name':'Field Test','email':'field@example.test'}));assert (await take(box.git.log(limit=1)))['value'][0]['subject']=='Python field commit'
-    for args in [['remote','set-url','origin','../local.git'],['config','push.default','current'],['config','branch.'+branch+'.remote','origin'],['config','branch.'+branch+'.merge','refs/heads/'+branch]]:assert (await take(box.run(['git','-C',path,*args]))).code==0
+    for args in [['remote','set-url','origin',os.environ['PRYX_FIELD_GIT_REMOTE']],['config','push.default','current'],['config','branch.'+branch+'.remote','origin'],['config','branch.'+branch+'.merge','refs/heads/'+branch]]:assert (await take(box.run(['git','-C',path,*args]))).code==0
     await take(box.git.push());await take(box.git.pull())
     await take(box.keep_alive('10m'));await take(box.set_ttl('10m'));await take(box.set_idle('10m'));await take(box.wait_until('running'));assert (await take(box.metrics()))['metrics']
     events=box.events()

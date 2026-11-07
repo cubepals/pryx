@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** One owned sandbox traverses the field surface through TypeScript, both Python context modes
- * and the actual CLI. Container egress proves host enforcement independently of proxy env. */
+ * and the actual CLI. Host egress acceptance lives in egress.e2e.test.ts. */
 import { expect, test } from 'bun:test'
 import { createHmac } from 'node:crypto'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -120,8 +120,15 @@ test(
       await box.git.commit('field commit', { author: { name: 'Field Test', email: 'field@example.test' } })
       expect((await box.git.log({ limit: 1 })).value[0]?.subject).toBe('field commit')
       for (const args of [
-        ['init', '--bare', 'local.git'],
-        ['-C', 'repo', 'remote', 'set-url', 'origin', '../local.git'],
+        ['init', '--bare', tier === 'wasm' ? '/tmp/field-local.git' : 'local.git'],
+        [
+          '-C',
+          'repo',
+          'remote',
+          'set-url',
+          'origin',
+          tier === 'wasm' ? '/tmp/field-local.git' : '../local.git',
+        ],
         ['-C', 'repo', 'config', 'push.default', 'current'],
         ['-C', 'repo', 'config', 'branch.field.remote', 'origin'],
         ['-C', 'repo', 'config', 'branch.field.merge', 'refs/heads/field'],
@@ -150,6 +157,7 @@ test(
       await box.rest()
       box = await c.sdk.sandbox({ name })
       expect(box.state).toBe('running')
+      expect((await box.git.status()).value.clean).toBe(true)
       const plan: TemplateOptions = {
         name: 'field-code',
         isolation: tier as TemplateOptions['isolation'],
@@ -184,6 +192,7 @@ test(
           PRYX_FIELD_SANDBOX: id,
           PRYX_FIELD_LOCAL: root,
           PRYX_FIELD_RECEIVER: receiver.url.toString(),
+          PRYX_FIELD_GIT_REMOTE: tier === 'wasm' ? '/tmp/field-local.git' : '../local.git',
           PRYX_TEST_EDGE_URL: c.origin,
         },
         stdout: 'pipe',

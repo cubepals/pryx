@@ -30,7 +30,7 @@ const POLICY_LABEL: &str = "blocklyd.egress-policy";
 
 pub(crate) fn ruleset() -> String {
     format!(
-        "table inet {TABLE}\ndelete table inet {TABLE}\ntable inet {TABLE} {{\n chain redirect {{ type nat hook prerouting priority dstnat - 10; policy accept; iifname \"{PREFIX}*\" tcp dport 80 redirect to :{HTTP_PORT}; iifname \"{PREFIX}*\" tcp dport 443 redirect to :{TLS_PORT}; }}\n chain input {{ type filter hook input priority filter - 20; policy accept; iifname \"{PREFIX}*\" ct state established,related accept; iifname \"{PREFIX}*\" tcp dport {{ {HTTP_PORT}, {TLS_PORT} }} accept; iifname \"{PREFIX}*\" drop; }}\n chain forward {{ type filter hook forward priority filter - 20; policy accept; iifname \"{PREFIX}*\" ct state new drop; }}\n}}\n"
+        "table inet {TABLE}\ndelete table inet {TABLE}\ntable inet {TABLE} {{\n chain http_redirect {{ type nat hook prerouting priority dstnat - 10; policy accept; iifname \"{PREFIX}*\" tcp dport 80 redirect to :{HTTP_PORT}; iifname \"{PREFIX}*\" tcp dport 443 redirect to :{TLS_PORT}; }}\n chain gateway_input {{ type filter hook input priority filter - 20; policy accept; iifname \"{PREFIX}*\" ct state established,related accept; iifname \"{PREFIX}*\" tcp dport {{ {HTTP_PORT}, {TLS_PORT} }} accept; iifname \"{PREFIX}*\" drop; }}\n chain bridge_forward {{ type filter hook forward priority filter - 20; policy accept; iifname \"{PREFIX}*\" ct state new drop; }}\n}}\n"
     )
 }
 pub(crate) fn mark_ready() -> std::io::Result<()> {

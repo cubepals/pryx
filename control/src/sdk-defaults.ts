@@ -13,6 +13,7 @@ export const SDK_DEFAULTS = {
   secondMs: SECOND_MS,
   captureBytes: node['x-pryx-agent'].captureBytes,
   tokenRenewBeforeSeconds: node['x-pryx-agent'].tokenClockSkewSeconds,
+  gitTimeoutSeconds: 5 * MINUTE_S,
   runTimeoutSeconds: node.components.schemas.ExecRequest.properties.timeoutSeconds.default,
   sparePorts: 3,
   units: { s: 1, m: MINUTE_S, h: HOUR_S, d: DAY_S },

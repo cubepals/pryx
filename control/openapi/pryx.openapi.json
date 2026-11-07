@@ -13,6 +13,7 @@
     "secondMs": 1000,
     "captureBytes": 1048576,
     "tokenRenewBeforeSeconds": 30,
+    "gitTimeoutSeconds": 300,
     "runTimeoutSeconds": 30,
     "sparePorts": 3,
     "units": {

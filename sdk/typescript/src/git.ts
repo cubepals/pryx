@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Git commands use fixed argv and one-call credential helpers. Secrets never enter a URL,
  * argv, file or repository config; parsed results retain their bounded raw process result. */
+
+import { SDK_DEFAULTS } from './generated/defaults.ts'
 import { type GitSpawn, gitProxy } from './git-proxy.ts'
 import type { RunOptions, RunResult } from './run.ts'
 import { PryxError } from './transport.ts'
 
+type GitOptions = { timeout?: RunOptions['timeout'] }
 type Execute = (command: string[], options?: RunOptions) => Promise<RunResult>
 export type GitResult<T> = { value: T; raw: RunResult }
 export class Git {
@@ -21,14 +24,22 @@ export class Git {
       path?: string
       env?: Record<string, string>
       root?: boolean
+      timeout?: RunOptions['timeout']
       credentialUrl?: string
     } = {},
   ) {
     const { token, path, env } = options
+    const timeout =
+      options.timeout ??
+      (['clone', 'push', 'pull'].includes(args[0] ?? '')
+        ? SDK_DEFAULTS.gitTimeoutSeconds
+        : SDK_DEFAULTS.runTimeoutSeconds)
     let credentialHost = ''
     if (token) {
       if (/[\r\n\0]/.test(token)) throw new TypeError('Git token must be a single line')
-      const remote = options.credentialUrl ?? (await this.call(['remote', 'get-url', 'origin'])).stdout.trim()
+      const remote =
+        options.credentialUrl ??
+        (await this.call(['remote', 'get-url', 'origin'], { timeout: options.timeout })).stdout.trim()
       const url = new URL(remote)
       if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash)
         throw new TypeError('Git tokens require an HTTPS remote without credentials or query')
@@ -36,8 +47,10 @@ export class Git {
     }
     let bridge: Awaited<ReturnType<typeof gitProxy>> | undefined
     if (this.isolation === 'wasm' && this.spawn && ['clone', 'push', 'pull'].includes(args[0] ?? '')) {
-      const remote = options.credentialUrl ?? (await this.call(['remote', 'get-url', 'origin'])).stdout.trim()
-      if (/^https?:/.test(remote)) bridge = await gitProxy(this.spawn, remote)
+      const remote =
+        options.credentialUrl ??
+        (await this.call(['remote', 'get-url', 'origin'], { timeout: options.timeout })).stdout.trim()
+      if (/^https?:/.test(remote)) bridge = await gitProxy(this.spawn, remote, timeout)
     }
     if (bridge && token) credentialHost = bridge.host
     try {
@@ -59,6 +72,20 @@ export class Git {
           '-u',
           'GIT_TRACE_PERFORMANCE',
           '-u',
+          'GIT_TRACE2',
+          '-u',
+          'GIT_TRACE2_EVENT',
+          '-u',
+          'GIT_TRACE2_PERF',
+          '-u',
+          'GIT_TRACE2_ENV_VARS',
+          '-u',
+          'GIT_TRACE2_CONFIG_PARAMS',
+          '-u',
+          'GIT_TRACE2_BRIEF',
+          '-u',
+          'GIT_TRACE2_EVENT_BRIEF',
+          '-u',
           'GIT_CONFIG_PARAMETERS',
           '-u',
           'GIT_SSL_NO_VERIFY',
@@ -72,6 +99,10 @@ export class Git {
           'core.hooksPath=/dev/null',
           '-c',
           'core.fsmonitor=false',
+          '-c',
+          'maintenance.auto=false',
+          '-c',
+          'gc.auto=0',
           ...(options.root ? [] : ['-C', this.#path]),
           ...(token
             ? [
@@ -82,6 +113,7 @@ export class Git {
           ...args,
         ],
         {
+          timeout,
           ...(path ? { cwd: path } : {}),
           env: {
             GIT_TERMINAL_PROMPT: '0',
@@ -105,13 +137,17 @@ export class Git {
           'git_output_truncated',
           'Git stdout exceeded the capture budget; parsed output is incomplete',
         )
-      if (raw.code !== 0) throw new PryxError(0, 'git_failed', `git ${args[0]} failed: ${raw.stderr}`)
+      if (raw.code !== 0)
+        throw new PryxError(0, 'git_failed', `git ${args[0]} failed: ${raw.stderr}`, { raw })
       return raw
     } finally {
       await bridge?.close()
     }
   }
-  async clone(url: string, options: { path?: string; branch?: string; depth?: number; token?: string } = {}) {
+  async clone(
+    url: string,
+    options: GitOptions & { path?: string; branch?: string; depth?: number; token?: string } = {},
+  ) {
     if (options.token && (!/^https:\/\//.test(url) || /[\r\n\0]/.test(options.token)))
       throw new TypeError('Git tokens require HTTPS and a single line')
     if (options.depth !== undefined && (!Number.isSafeInteger(options.depth) || options.depth <= 0))
@@ -125,19 +161,22 @@ export class Git {
     const raw = await this.call(
       [
         'clone',
+        ...(this.isolation === 'wasm' ? ['--separate-git-dir=/tmp/.pryx-git-' + crypto.randomUUID()] : []),
         ...(options.branch ? ['--branch', options.branch] : []),
         ...(options.depth ? ['--depth', String(options.depth)] : []),
         '--',
         url,
         path,
       ],
-      { token: options.token, root: true, credentialUrl: url },
+      { token: options.token, timeout: options.timeout, root: true, credentialUrl: url },
     )
     this.#path = path
     return { value: { path }, raw }
   }
-  async status(): Promise<GitResult<{ clean: boolean; entries: { status: string; path: string }[] }>> {
-    const raw = await this.call(['status', '--porcelain=v1', '-z'])
+  async status(
+    options: GitOptions = {},
+  ): Promise<GitResult<{ clean: boolean; entries: { status: string; path: string }[] }>> {
+    const raw = await this.call(['status', '--porcelain=v1', '-z'], options)
     const fields = raw.stdout.split('\0')
     const entries = []
     for (let i = 0; i < fields.length; i++) {
@@ -148,30 +187,31 @@ export class Git {
     }
     return { value: { clean: entries.length === 0, entries }, raw }
   }
-  async diff(options: { staged?: boolean } = {}) {
-    const raw = await this.call([
-      'diff',
-      ...(options.staged ? ['--cached'] : []),
-      '--no-ext-diff',
-      '--no-textconv',
-    ])
+  async diff(options: GitOptions & { staged?: boolean } = {}) {
+    const raw = await this.call(
+      ['diff', ...(options.staged ? ['--cached'] : []), '--no-ext-diff', '--no-textconv'],
+      options,
+    )
     return { value: { patch: raw.stdout }, raw }
   }
-  async branch(name?: string) {
+  async branch(name?: string, options: GitOptions = {}) {
     if (name?.startsWith('-')) throw new TypeError('Invalid branch name')
-    const raw = await this.call(name ? ['branch', '--', name] : ['branch', '--format=%(refname:short)'])
+    const raw = await this.call(
+      name ? ['branch', '--', name] : ['branch', '--format=%(refname:short)'],
+      options,
+    )
     return { value: raw.stdout.trim().split('\n').filter(Boolean), raw }
   }
-  async checkout(ref: string, options: { create?: boolean } = {}) {
+  async checkout(ref: string, options: GitOptions & { create?: boolean } = {}) {
     if (ref.startsWith('-')) throw new TypeError('Invalid ref')
-    const raw = await this.call(['checkout', ...(options.create ? ['-b'] : []), ref, '--'])
+    const raw = await this.call(['checkout', ...(options.create ? ['-b'] : []), ref, '--'], options)
     return { value: { ref }, raw }
   }
-  async add(paths: string | string[]) {
-    const raw = await this.call(['add', '--', ...(typeof paths === 'string' ? [paths] : paths)])
+  async add(paths: string | string[], options: GitOptions = {}) {
+    const raw = await this.call(['add', '--', ...(typeof paths === 'string' ? [paths] : paths)], options)
     return { value: { added: true }, raw }
   }
-  async commit(message: string, options: { author?: { name: string; email: string } } = {}) {
+  async commit(message: string, options: GitOptions & { author?: { name: string; email: string } } = {}) {
     const env: Record<string, string> = options.author
       ? {
           GIT_AUTHOR_NAME: options.author.name,
@@ -180,25 +220,22 @@ export class Git {
           GIT_COMMITTER_EMAIL: options.author.email,
         }
       : {}
-    const raw = await this.call(
-      ['-c', 'core.hooksPath=/dev/null', 'commit', '--no-gpg-sign', '-m', message],
-      { env },
-    )
-    const head = await this.call(['rev-parse', 'HEAD'])
+    const raw = await this.call(['commit', '--no-gpg-sign', '-m', message], { env, timeout: options.timeout })
+    const head = await this.call(['rev-parse', 'HEAD'], { timeout: options.timeout })
     return { value: { hash: head.stdout.trim() }, raw }
   }
-  async push(options: { token?: string } = {}) {
-    const raw = await this.call(['-c', 'core.hooksPath=/dev/null', 'push'], options)
+  async push(options: GitOptions & { token?: string } = {}) {
+    const raw = await this.call(['push'], options)
     return { value: { pushed: true }, raw }
   }
-  async pull() {
-    const raw = await this.call(['pull', '--ff-only'])
+  async pull(options: GitOptions = {}) {
+    const raw = await this.call(['pull', '--ff-only'], options)
     return { value: { pulled: true }, raw }
   }
-  async log(options: { limit?: number } = {}) {
+  async log(options: GitOptions & { limit?: number } = {}) {
     const limit = options.limit ?? 10
     if (!Number.isSafeInteger(limit) || limit <= 0) throw new TypeError('limit must be a positive integer')
-    const raw = await this.call(['log', `-${limit}`, '--format=%H%x00%an%x00%ae%x00%aI%x00%s%x00'])
+    const raw = await this.call(['log', `-${limit}`, '--format=%H%x00%an%x00%ae%x00%aI%x00%s%x00'], options)
     const fields = raw.stdout.split('\0')
     const value = []
     for (let i = 0; i + 4 < fields.length; i += 5)
