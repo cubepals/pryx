@@ -13,7 +13,8 @@ if (!['before', 'after'].includes(phase ?? '') || !outputPath)
   throw new Error('field-speed.ts before|after output.json')
 const root = resolve(process.env.PRYX_FIELD_SOURCE_ROOT ?? new URL('../../', import.meta.url).pathname)
 const source = Bun.spawnSync(['git', '-C', root, 'rev-parse', 'HEAD']).stdout.toString().trim()
-const dirty = Boolean(Bun.spawnSync(['git', '-C', root, 'status', '--porcelain']).stdout.toString().trim())
+const gitStatus = Bun.spawnSync(['git', '-C', root, 'status', '--porcelain']).stdout.toString().trim()
+const dirty = Boolean(gitStatus)
 const { agentDeployment } = await import(pathToFileURL(resolve(root, 'control/e2e/agent-context.ts')).href)
 const c = await agentDeployment('wasm')
 const box = await c.sandbox()
@@ -80,6 +81,7 @@ try {
     phase,
     source,
     dirty,
+    gitStatus,
     tier: 'wasm',
     at: new Date().toISOString(),
     daemonSha256: createHash('sha256').update(readFileSync(daemon)).digest('hex'),
