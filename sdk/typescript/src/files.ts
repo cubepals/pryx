@@ -156,6 +156,8 @@ export class Files {
     )
   }
   async downloadDir(remote: string, localDir: string, options: { onProgress?: Progress } = {}) {
+    if (this.#direct.view().state !== 'running')
+      return (await import('./local-files.ts')).downloadTree(this, remote, localDir, options.onProgress)
     await this.#direct.agent.requireVersion()
     const response = await this.#direct.agent.raw(
       `/_pryx/files/archive?${new URLSearchParams({ path: remote })}`,

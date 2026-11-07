@@ -10,6 +10,7 @@ import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { StatusCodes } from 'http-status-codes'
 import { extract, pack } from 'tar-stream'
+import type { components } from './generated/api.ts'
 import { SDK_DEFAULTS } from './generated/defaults.ts'
 export type Progress = (bytes: number, total?: number) => void
 export type DiskFiles = {
@@ -105,7 +106,12 @@ export async function upload(files: DiskFiles, local: string, remote: string, on
     await file.close()
   }
 }
-export async function download(files: DiskFiles, remote: string, local: string, onProgress?: Progress) {
+export async function download(
+  files: Pick<DiskFiles, 'stat' | 'readStream'>,
+  remote: string,
+  local: string,
+  onProgress?: Progress,
+) {
   const info = await files.stat(remote)
   const file = await output(local)
   let bytes = 0
@@ -123,6 +129,40 @@ export async function download(files: DiskFiles, remote: string, local: string, 
     source.destroy()
     await file.close()
   }
+}
+/** Stopped data has list/read access without starting an agent. Keep the same local path checks. */
+export async function downloadTree(
+  files: Pick<DiskFiles, 'stat' | 'readStream'> & {
+    list(path: string): Promise<components['schemas']['FileInfo'][]>
+  },
+  remote: string,
+  local: string,
+  onProgress?: Progress,
+) {
+  let count = 0,
+    bytes = 0
+  async function visit(source: string, destination: string) {
+    const held = await directory(destination, true)
+    await held.close()
+    for (const entry of await files.list(source)) {
+      if (++count > SDK_DEFAULTS.archiveEntries) throw new Error('Archive exceeds entry budget')
+      if (!entry.name || ['.', '..'].includes(entry.name) || /[/\\\0]/.test(entry.name))
+        throw new Error('Unsafe remote directory entry')
+      const path = `${source}/${entry.name}`,
+        target = join(destination, entry.name)
+      if (entry.kind === 'directory') await visit(path, target)
+      else if (entry.kind === 'file') {
+        let previous = 0
+        await download(files, path, target, (current) => {
+          bytes += current - previous
+          previous = current
+          if (bytes > SDK_DEFAULTS.archiveBytes) throw new Error('Archive exceeds byte budget')
+          onProgress?.(bytes)
+        })
+      } else throw new Error('Directory transfers refuse links and special files')
+    }
+  }
+  await visit(remote, local)
 }
 async function* entries(
   root: string,
