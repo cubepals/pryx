@@ -3,10 +3,10 @@
 /** The direct sandbox transport caches a scoped capability, never a project key. Every mutation
  * is sent once. Processes and terminals use this transport; lifecycle remains on the public API. */
 import { StatusCodes } from 'http-status-codes'
-import { ndjson, type Pryx, PryxError } from './api.ts'
 import { type Duration, seconds } from './duration.ts'
 import type { components } from './generated/api.ts'
 import { SDK_DEFAULTS } from './generated/defaults.ts'
+import { ndjson, type Pryx, PryxError } from './transport.ts'
 
 export type AgentStart = components['schemas']['AgentStart']
 export type AgentEvent = components['schemas']['AgentEvent']

@@ -3,7 +3,7 @@
 
 /** Public SDK facade composes lifecycle and direct sandbox operations.
  * Parts (`./`):
- * - `api.ts`: authenticated public transport.
+ * - `transport.ts`: authenticated public transport.
  * - `agent.ts`: direct processes, terminals and tokens.
  * - `handles.ts`: sandbox and snapshot identities.
  * - `run.ts`: command values and output.
@@ -11,25 +11,25 @@
  * - `duration.ts`: duration parsing.
  */
 import { Agent } from './agent.ts'
-import { Pryx as Api } from './api.ts'
 import { makeOptions, Sandbox, type SandboxOptions } from './handles.ts'
 import type { RunOptions } from './run.ts'
+import { Pryx as Api } from './transport.ts'
 
 export type { StartOptions } from './agent.ts'
 export { Agent, Process, Terminal } from './agent.ts'
+export type { Duration } from './duration.ts'
+export { seconds } from './duration.ts'
+export type { SandboxOptions } from './handles.ts'
+export { Sandbox, Snapshot } from './handles.ts'
+export type { Chunk, RunOptions, RunResult } from './run.ts'
 export type {
   ExecEvent,
   ExecRequest,
   MakeRequest,
   Sandbox as SandboxView,
   Snapshot as SnapshotView,
-} from './api.ts'
-export { ndjson, PryxError } from './api.ts'
-export type { Duration } from './duration.ts'
-export { seconds } from './duration.ts'
-export type { SandboxOptions } from './handles.ts'
-export { Sandbox, Snapshot } from './handles.ts'
-export type { Chunk, RunOptions, RunResult } from './run.ts'
+} from './transport.ts'
+export { ndjson, PryxError } from './transport.ts'
 export class Pryx extends Api {
   agent(id: string) {
     return new Agent(this.api, id)

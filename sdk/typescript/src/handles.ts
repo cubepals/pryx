@@ -2,11 +2,11 @@
 /** Sandbox and snapshot handles compose the stable raw API. State changes follow server responses and refresh is explicit. */
 
 import { Agent, output, type Process, type StartOptions } from './agent.ts'
-import type { MakeRequest, Pryx, Sandbox as SandboxView, Snapshot as SnapshotView } from './api.ts'
 import { type Duration, seconds } from './duration.ts'
 import { type FileData, Files } from './files.ts'
 import { SDK_DEFAULTS } from './generated/defaults.ts'
 import { Run, type RunOptions } from './run.ts'
+import type { MakeRequest, Pryx, Sandbox as SandboxView, Snapshot as SnapshotView } from './transport.ts'
 export type SandboxOptions = Omit<MakeRequest, 'idle' | 'ttl'> & {
   idle?: Duration
   ttl?: Duration

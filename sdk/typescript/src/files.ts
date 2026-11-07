@@ -2,10 +2,10 @@
 /** Bounded file chunks over the public exec/tar transport. Archives are read in memory, never extracted on the client filesystem. */
 
 import { type Agent, binaryBody } from './agent.ts'
-import type { Sandbox } from './api.ts'
-import { type Pryx, PryxError } from './api.ts'
 import type { components } from './generated/api.ts'
 import { SDK_DEFAULTS } from './generated/defaults.ts'
+import type { Sandbox } from './transport.ts'
+import { type Pryx, PryxError } from './transport.ts'
 export type FileData = string | Uint8Array | ReadableStream<Uint8Array> | AsyncIterable<Uint8Array>
 type FileInfo = components['schemas']['FileInfo']
 

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** One lazy command: awaiting collects its result; streaming consumes it once with backpressure. No command is retried or replayed. */
-import { type ExecEvent, type ExecRequest, type Pryx, PryxError } from './api.ts'
+
 import { type Duration, seconds } from './duration.ts'
 import { SDK_DEFAULTS } from './generated/defaults.ts'
+import { type ExecEvent, type ExecRequest, type Pryx, PryxError } from './transport.ts'
 export type RunOptions = {
   timeout?: Duration
   env?: Record<string, string>
