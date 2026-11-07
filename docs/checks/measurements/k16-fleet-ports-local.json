@@ -15,5 +15,11 @@
   "limits": [
     "This is a configuration regression and sixty-four real bound listener probes, not a privileged Docker restore or a speed cohort.",
     "The real FleetRuntime restore, upgrade and lifecycle cases remain required in the next full branch CI run."
-  ]
+  ],
+  "followupCiThresholdFailure": {
+    "ciRun": 42357314956,
+    "ciJob": 128358152180,
+    "ciHead": "2bc0017206625711eebca98f1afc0b6239c6b0eb",
+    "excerpt": "2026-11-07T10:31:07.1529621Z (pass) FleetRuntime against a real pryxd > enrollment pinned the node, without its token on disk [1.91ms]\n2026-11-07T10:31:07.4114232Z 239 |       expect(await exec('cat /data/data/level.dat')).toBe('fresh')\n2026-11-07T10:31:07.4115030Z 240 |       const ref = decodeHandle(handle)\n2026-11-07T10:31:07.4115660Z 241 |       expect(ref.epoch).toBe(1)\n2026-11-07T10:31:07.4116421Z 242 |       const endpoint = runtime.endpoint(handle, 'game', 'edge')\n2026-11-07T10:31:07.4116854Z 243 |       expect(endpoint.host).toBe('127.0.0.1')\n2026-11-07T10:31:07.4117276Z 244 |       expect(endpoint.port).toBeGreaterThan(44_999)\n2026-11-07T10:31:07.4117636Z                                   ^\n2026-11-07T10:31:07.4118000Z error: expect(received).toBeGreaterThan(expected)\n2026-11-07T10:31:07.4118238Z \n2026-11-07T10:31:07.4118348Z Expected: > 44999\n2026-11-07T10:31:07.4118927Z Received: 22320\n2026-11-07T10:31:07.4119116Z \n2026-11-07T10:31:07.4119582Z       at <anonymous> (/home/runner/work/pryx/pryx/control/e2e/fleet-runtime.e2e.test.ts:244:29)\n2026-11-07T10:31:07.4120109Z \n2026-11-07T10:31:07.4150328Z ##[error]Expected: > 44999\nReceived: 22320\n\n      at <anonymous> (/home/runner/work/pryx/pryx/control/e2e/fleet-runtime.e2e.test.ts:244:29)\n2026-11-07T10:31:07.4161226Z (fail) FleetRuntime against a real pryxd > a server is placed, runs, and answers [258.57ms]\n2026-11-07T10:31:08.5923842Z (pass) FleetRuntime against a real pryxd > asleep, it is suspended and wakes where it was; a change made meanwhile lands at its next boot [1180.86ms]"
+  }
 }

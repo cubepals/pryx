@@ -1,0 +1,63 @@
+{
+  "case": "owned supervisor/allocator/acknowledgement smoke, without memory allocation",
+  "source": "a854852c07ca5b81aabc07e07c163135dc8bd037",
+  "dirty": true,
+  "memoryLimit": false,
+  "swapLimit": false,
+  "failedCiRun": 42363490680,
+  "failedCiJob": 128376572576,
+  "failedCiObservation": {
+    "state": {
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 137,
+      "Error": "",
+      "StartedAt": "2026-11-07T10:27:13.381398743Z",
+      "FinishedAt": "2026-11-07T10:27:15.799838618Z"
+    },
+    "memoryBytes": 67108864,
+    "memorySwapBytes": 67108864
+  },
+  "limits": [
+    "The workspace cannot enforce memory/swap limits, so this is not an OOM pass.",
+    "The writer is delayed for 600 seconds; the diagnostic kills only its owned allocator before it allocates.",
+    "The real test releases PID 1 only after Docker reports OOM and still requires pryx OOMKilled plus SIGKILL within the existing thirty seconds.",
+    "The first local docker-top probe is unavailable; preserve its partial report and use container-local ps."
+  ],
+  "beforePs": "PID   PPID  COMMAND\n    1     0 sh\n   38     1 sh\n   39     1 tail\n   40    38 sleep\n   47     0 ps",
+  "childExitCode": 137,
+  "heldState": {
+    "Status": "running",
+    "Running": true,
+    "Paused": false,
+    "Restarting": false,
+    "OOMKilled": false,
+    "Dead": false,
+    "Pid": 566518,
+    "ExitCode": 0,
+    "Error": "",
+    "StartedAt": "2026-11-07T10:39:16.466002538Z",
+    "FinishedAt": "0001-01-01T00:00:00Z"
+  },
+  "releasedExitCode": 137,
+  "releasedState": {
+    "Status": "exited",
+    "Running": false,
+    "Paused": false,
+    "Restarting": false,
+    "OOMKilled": false,
+    "Dead": false,
+    "Pid": 0,
+    "ExitCode": 137,
+    "Error": "",
+    "StartedAt": "2026-11-07T10:39:16.466002538Z",
+    "FinishedAt": "2026-11-07T10:39:18.369917178Z"
+  },
+  "coordinationPassed": true,
+  "failedCiRaw": "2026-11-07T10:27:47.7614942Z OOM_DOCKER_STATE Ok(\"exit status: 0 {\\\"Status\\\":\\\"exited\\\",\\\"Running\\\":false,\\\"Paused\\\":false,\\\"Restarting\\\":false,\\\"OOMKilled\\\":false,\\\"Dead\\\":false,\\\"Pid\\\":0,\\\"ExitCode\\\":137,\\\"Error\\\":\\\"\\\",\\\"StartedAt\\\":\\\"2026-11-07T10:27:13.381398743Z\\\",\\\"FinishedAt\\\":\\\"2026-11-07T10:27:15.799838618Z\\\"} memory=67108864 swap=67108864\\n\")"
+}

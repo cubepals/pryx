@@ -51,7 +51,7 @@ import { S3ArchiveStore } from '../src/store.ts'
 import { freshDatabase, hasDatabase } from '../test/nodes.ts'
 import { BIN, type Daemon, daemon, SUDO } from './fleet-daemon.ts'
 import { nodeCommand } from './node-command.ts'
-import { nodeConfigFor, nodePortLow } from './runtime-config.ts'
+import { nodeConfigFor, nodePortLow, TEST_NODE_PORTS } from './runtime-config.ts'
 import { SUPERVISOR } from './supervisor.ts'
 import { createTestBucket } from './test-bucket.ts'
 import { freePort, until } from './waits.ts'
@@ -241,7 +241,9 @@ describe.skipIf(!ready)('FleetRuntime against a real pryxd', () => {
       expect(ref.epoch).toBe(1)
       const endpoint = runtime.endpoint(handle, 'game', 'edge')
       expect(endpoint.host).toBe('127.0.0.1')
-      expect(endpoint.port).toBeGreaterThan(44_999)
+      const low = nodePortLow(DEPLOYMENT, 0)
+      expect(endpoint.port).toBeGreaterThanOrEqual(low)
+      expect(endpoint.port).toBeLessThan(low + TEST_NODE_PORTS)
       await until('a running observation', async () => (await runtime.observe(handle)).state === 'running')
       // Calling it again converges on what is there.
       const again = await runtime.ensureProvisioned(key, { regionKey: 'eu' }, SPEC, progress)
