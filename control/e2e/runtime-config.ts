@@ -52,9 +52,10 @@ export const nodeConfigFor = (DEPLOYMENT: string) =>
     allowedImages?: string[]
     tier?: import('../src/isolation.ts').Isolation
     storeLease?: boolean
-    low: number
+    index?: number
   }): string {
-    const { home, endpointUrl, dir, apiPort, opsPort, low } = at
+    const { home, endpointUrl, dir, apiPort, opsPort } = at
+    const low = nodePortLow(DEPLOYMENT, at.index ?? 0)
     return `deployment_id = "${DEPLOYMENT}"
 runtime = "${at.tier ?? 'container'}"
 state_dir = "${join(home, 'state')}"

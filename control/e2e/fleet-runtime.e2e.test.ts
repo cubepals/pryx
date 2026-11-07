@@ -51,7 +51,7 @@ import { S3ArchiveStore } from '../src/store.ts'
 import { freshDatabase, hasDatabase } from '../test/nodes.ts'
 import { BIN, type Daemon, daemon, SUDO } from './fleet-daemon.ts'
 import { nodeCommand } from './node-command.ts'
-import { nodeConfigFor } from './runtime-config.ts'
+import { nodeConfigFor, nodePortLow } from './runtime-config.ts'
 import { SUPERVISOR } from './supervisor.ts'
 import { createTestBucket } from './test-bucket.ts'
 import { freePort, until } from './waits.ts'
@@ -189,9 +189,8 @@ describe.skipIf(!ready)('FleetRuntime against a real pryxd', () => {
     writeFileSync(join(home, 'token'), token)
     const apiPort = await freePort()
     const opsPort = await freePort()
-    const low = 45_000 + (Number.parseInt(DEPLOYMENT.slice(3), 16) % 90) * 50
     const config = join(home, 'pryxd.toml')
-    writeFileSync(config, nodeConfig({ home, endpointUrl, dir, apiPort, opsPort, low }))
+    writeFileSync(config, nodeConfig({ home, endpointUrl, dir, apiPort, opsPort }))
     node = daemon(home, config, opsPort)
     node.start()
     await until('the node to enroll and beat', async () => {
@@ -687,7 +686,7 @@ describe.skipIf(!ready)('pryxd upgrading itself to the pryxd the node endpoint s
       createdBy: 'e2e',
     })
     writeFileSync(join(dir, 'token'), token)
-    const low = 47_500 + (Number.parseInt(DEPLOYMENT.slice(3), 16) % 90) * 20
+    const low = nodePortLow(DEPLOYMENT, 1)
     writeFileSync(
       config,
       `deployment_id = "${DEPLOYMENT}"\nstate_dir = "${join(dir, 'state')}"\n` +

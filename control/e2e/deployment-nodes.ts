@@ -7,7 +7,7 @@ import type { FleetCa } from '../src/ca.ts'
 import type { loadConfig } from '../src/config.ts'
 import type { startControl } from '../src/main.ts'
 import { createToken } from '../src/registry.ts'
-import { nodeConfigFor, nodePortLow } from './runtime-config.ts'
+import { nodeConfigFor } from './runtime-config.ts'
 import { freePort } from './waits.ts'
 
 export async function spawnNodes(at: {
@@ -47,7 +47,7 @@ export async function spawnNodes(at: {
         dir: nodeDir,
         apiPort: await freePort(),
         opsPort: await freePort(),
-        low: nodePortLow(name, index),
+        index,
       }),
     )
     if (options.egressPolicy) {
