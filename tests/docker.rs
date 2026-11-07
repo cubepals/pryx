@@ -703,3 +703,57 @@ async fn isolation_keeps_a_workload_off_another_s_published_port() {
     cleanup(&m, &["server", "neighbour"]).await;
     let _ = std::process::Command::new("docker").args(["network", "rm", &network]).output();
 }
+
+#[tokio::test]
+#[ignore = "needs Docker, and root for nftables"]
+async fn an_egress_policy_holds_dns_to_its_names() {
+    let had = |table: &str| std::process::Command::new("nft").args(["list", "table", "inet", table]).output();
+    assert!(!had("pryxd").unwrap().status.success(), "runs only where pryxd's own rules aren't installed");
+    let (_host_rules, _egress_rules) = (Rules("pryxd".into()), Rules("pryx_egress".into()));
+    let dir = tempfile::tempdir().unwrap();
+    let dep = deployment();
+    let _cleanup = Cleanup(dep.clone());
+    let config = dir.path().join("pryxd.toml");
+    let low = 44000 + dep[1..4].parse::<u16>().unwrap() * 10;
+    let tls = dir.path().join("tls");
+    let text = format!(
+        "deployment_id = \"{dep}\"\n[api]\nlisten = \"127.0.0.1:7443\"\n[api.tls]\ncert = \"{tls}/node.pem\"\n\
+         key = \"{tls}/node.key\"\nclient_ca = \"{tls}/ca.pem\"\nallowed_clients = [\"{}\"]\n[docker]\n\
+         network = \"blockly-{dep}\"\n[network]\n\
+         port_range = [{low}, {}]\n",
+        support::CLIENT,
+        low + 9,
+        tls = tls.display()
+    );
+    std::fs::write(&config, text).unwrap();
+    // The pryxd table names a bridge of this test's own that never exists; pryx_egress is global.
+    pryxd::isolation::isolate(&config).await.unwrap();
+    let m = daemon(dir.path(), &dep);
+    assert!(m.reconcile(Records::FromDisk).await.error.is_none());
+    let spec: WorkloadSpec = serde_json::from_value(serde_json::json!({
+        "image": "alpine:3.22",
+        "entrypoint": ["/bin/sh", "-c", SERVER],
+        "egress": { "allow": ["example.com"] },
+        "resources": { "memoryMb": 128, "cpuMillis": 500 },
+        "storage": { "mountPath": "/data", "sizeGb": 1 },
+        "stop": { "timeoutSeconds": 10 }
+    }))
+    .unwrap();
+    m.ensure(id("dns"), spec, Precondition::None, None).await.unwrap();
+    m.start(id("dns"), None).await.unwrap();
+    let lookup = |args: &str| {
+        let command = vec!["sh".into(), "-c".into(), format!("nslookup {args} 2>&1; echo exit=$?")];
+        m.exec(id("dns"), ExecRequest { command, timeout_seconds: 20 }, None, None)
+    };
+    // Through Docker's embedded resolver (127.0.0.11), which forwards to the bridge's.
+    let allowed = lookup("example.com").await.unwrap().stdout;
+    assert!(allowed.contains("exit=0") && allowed.contains("Name:"), "the policy's name resolves: {allowed}");
+    let refused = lookup("exfil.attacker.invalid").await.unwrap().stdout;
+    assert!(!refused.contains("exit=0") && !refused.contains("Name:"), "another name doesn't: {refused}");
+    // Straight to a public resolver: redirected to the bridge's, which says why.
+    let direct = lookup("exfil.attacker.invalid 1.1.1.1").await.unwrap().stdout;
+    assert!(direct.contains("REFUSED") && !direct.contains("exit=0"), "{direct}");
+    let direct = lookup("example.com 1.1.1.1").await.unwrap().stdout;
+    assert!(direct.contains("exit=0") && direct.contains("Name:"), "{direct}");
+    cleanup(&m, &["dns"]).await;
+}

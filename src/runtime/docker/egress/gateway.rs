@@ -14,7 +14,7 @@ const CONNECT: Duration = Duration::from_secs(5);
 fn denied() -> io::Error {
     io::ErrorKind::PermissionDenied.into()
 }
-fn allowed(host: &str, policy: &EgressPolicy) -> bool {
+pub(super) fn allowed(host: &str, policy: &EgressPolicy) -> bool {
     fn matches(host: &str, rule: &str) -> bool {
         rule.strip_prefix("*.").map_or(host == rule, |suffix| host.ends_with(&format!(".{suffix}")))
     }

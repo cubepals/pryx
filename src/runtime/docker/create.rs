@@ -4,7 +4,7 @@ use super::*;
 
 pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Result<String, RuntimeError> {
     let mut prepared = spec.clone();
-    runtime.egress.prepare(runtime, &mut prepared).await?;
+    let resolver = runtime.egress.prepare(runtime, &mut prepared).await?;
     let spec = &prepared;
     if spec.internal_network {
         runtime.ensure_internal_network(&spec.network, &spec.labels).await?;
@@ -63,6 +63,11 @@ pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Res
         spec.entrypoint = Some(entrypoint);
     }
     let options = CreateContainerOptionsBuilder::new().name(&spec.name).build();
-    let created = quick("create", runtime.docker()?.create_container(Some(options), body_of(&spec))).await?;
+    let mut body = body_of(&spec);
+    // Docker's embedded resolver forwards to this one, from the container's side of the bridge.
+    if let (Some(resolver), Some(host)) = (resolver, body.host_config.as_mut()) {
+        host.dns = Some(vec![resolver.to_string()]);
+    }
+    let created = quick("create", runtime.docker()?.create_container(Some(options), body)).await?;
     Ok(created.id)
 }
