@@ -1,0 +1,649 @@
+diff --git a/control/src/file-chunks.ts b/control/src/file-chunks.ts
+index a6d9a55..194744c 100644
+--- a/control/src/file-chunks.ts
++++ b/control/src/file-chunks.ts
+@@ -150,6 +150,22 @@ export class FileChunks {
+     const content = Buffer.from(data, 'base64')
+     if (content.length > bytes)
+       throw new SandboxError('invalid_request', 'File chunk exceeds its transfer bound')
++    // Every chunk write to one path takes its turn, across control instances: a positional write
++    // reads, patches and replaces the whole file, so two at once would lose one of them.
++    await this.agents.boxes.locked(JSON.stringify(['file-chunks', id, path]), () =>
++      this.write(id, project, path, offset, content, requestUrl, signal),
++    )
++    return { written: true }
++  }
++  private async write(
++    id: string,
++    project: string,
++    path: string,
++    offset: number,
++    content: Buffer<ArrayBuffer>,
++    requestUrl: string,
++    signal: AbortSignal,
++  ) {
+     if (offset === 0)
+       await (await this.content(id, project, path, requestUrl, content, signal)).body?.cancel()
+     else {
+@@ -172,6 +188,5 @@ export class FileChunks {
+         await rm(temporary, { recursive: true, force: true })
+       }
+     }
+-    return { written: true }
+   }
+ }
+diff --git a/control/src/sandboxes.ts b/control/src/sandboxes.ts
+index fe027e6..7c7e693 100644
+--- a/control/src/sandboxes.ts
++++ b/control/src/sandboxes.ts
+@@ -152,20 +152,24 @@ export class Sandboxes {
+ 
+   /** Waiters release their connection between lock attempts, leaving room for nested intent locks. */
+   async exclusive<T>(id: string, work: () => Promise<T>): Promise<T> {
++    return this.locked(`sandbox:${id}`, work)
++  }
++
++  /** `work` alone across every control instance among holders of `key`, as `exclusive` holds a sandbox. */
++  async locked<T>(key: string, work: () => Promise<T>): Promise<T> {
+     for (;;) {
+       const client = await this.locks.connect()
+       let held = false
+       try {
+         const answer = await client.query<{ held: boolean }>(
+           'SELECT pg_try_advisory_lock(hashtextextended($1, 0)) AS held',
+-          [`sandbox:${id}`],
++          [key],
+         )
+         held = answer.rows[0]?.held === true
+         if (held) return await work()
+       } finally {
+         try {
+-          if (held)
+-            await client.query('SELECT pg_advisory_unlock(hashtextextended($1, 0))', [`sandbox:${id}`])
++          if (held) await client.query('SELECT pg_advisory_unlock(hashtextextended($1, 0))', [key])
+         } finally {
+           client.release()
+         }
+diff --git a/control/test/public-api.test.ts b/control/test/public-api.test.ts
+index a34970f..d067d24 100644
+--- a/control/test/public-api.test.ts
++++ b/control/test/public-api.test.ts
+@@ -267,6 +267,32 @@ test('v1 file envelopes carry agent bytes without executing a sandbox command',
+   }
+ })
+ 
++test('concurrent disjoint file chunks both land', async () => {
++  const ctx = await publicContext()
++  try {
++    const made = (await (await ctx.request('/sandboxes', 'POST', { image: 'alpine:3.22' })).json()) as {
++      id: string
++    }
++    const bytes = SDK_DEFAULTS.fileChunkBytes
++    const chunk = `/sandboxes/${made.id}/file-chunks/racing`
++    const parts = [Buffer.alloc(bytes, 1), Buffer.alloc(bytes, 2), Buffer.from('third')]
++    const put = (index: number) =>
++      ctx.request(chunk, 'PUT', { offset: index * bytes, dataBase64: parts[index]?.toString('base64') })
++    expect((await put(0)).status).toBe(StatusCodes.OK)
++    const statuses = await Promise.all([put(1), put(2)])
++    expect(statuses.map((r) => r.status)).toEqual([StatusCodes.OK, StatusCodes.OK])
++    const response = await ctx.request(`/sandboxes/${made.id}/files/racing`)
++    const value = (await response.json()) as { archiveBase64: string }
++    const files = await new Bun.Archive(Buffer.from(value.archiveBase64, 'base64')).files()
++    const entry = files.get('racing')
++    if (!entry) throw new Error('Missing public tar member')
++    expect(Buffer.from(await entry.arrayBuffer()).equals(Buffer.concat(parts))).toBe(true)
++    await ctx.request(`/sandboxes/${made.id}`, 'DELETE')
++  } finally {
++    await ctx.close()
++  }
++})
++
+ test('a long lifecycle response outlives the HTTP idle timer', async () => {
+   const ctx = await publicContext()
+   try {
+diff --git a/docs/decisions.md b/docs/decisions.md
+index 8be59aa..ffeff61 100644
+--- a/docs/decisions.md
++++ b/docs/decisions.md
+@@ -609,3 +609,5 @@
+ - K16: CI 42365837203 reaches the real Docker OOM-flag branch, then its acknowledgement exec reports NotRunning because the workload has already stopped. Handle only that typed terminal conflict without repeating exec; every other exec error remains fatal. Both the live-supervisor and already-exited paths still require pryx's retained OOMKilled and SIGKILL exit within thirty seconds, with all thirteen cases and the 64 MiB/400 MiB limits preserved. The failed acknowledgement does not count as a completed OOM assertion.
+ - K16: Prefer the allocating child as the OOM victim by raising only its own oom_score_adj to Linux's documented maximum, named once from include/uapi/linux/oom.h because libc exports no named constant. Keep the supervisor's policy and hard cgroup limits unchanged. A local UID-1000, capability-dropped, no-new-privileges, read-only-rootfs probe confirms the upward adjustment is permitted; it does not validate actual OOM enforcement.
+ - K16: The final paired after report and archived 44e0566 report both record dirty=true; the workflow's pinned .agent-before scratch checkout is not ignored. Preserve those flags, correct the report's unqualified clean-source wording, ignore this known checkout alongside the other baselines, and include Git status in future reports. This makes provenance inspectable without changing timing cohorts, samples, budgets or test execution; the older flags alone do not prove which paths differed.
++- K16: An egress policy now holds DNS too. Each policy bridge's gateway serves a small resolver in pryxd (UDP and TCP 19053) that parses the single QNAME by hand, forwards only names the policy allows, unchanged, to the host's first /etc/resolv.conf nameserver, and answers REFUSED otherwise. The firewall redirects every UDP and TCP port 53 packet from the bridge to it, and the container gets the gateway as its --dns, so Docker's embedded resolver at 127.0.0.11 forwards from the container's side through the same resolver instead of from the host's. The ready marker moves to pryx-egress-v2 so a host still on the old rules refuses egress until `pryxd isolate` runs again; containers created before this keep Docker's old upstream until they are recreated.
++- K16: Chunked file writes take a Postgres advisory lock keyed by sandbox and path, through the session-level try-lock loop `exclusive` already uses (now `Sandboxes.locked`), around the whole read-patch-replace, offset 0 included. A separate key from `sandbox:<id>` keeps chunk writes off lifecycle locks; reads stay unlocked.
+diff --git a/src/runtime/docker/create.rs b/src/runtime/docker/create.rs
+index bb7d43d..8857f22 100644
+--- a/src/runtime/docker/create.rs
++++ b/src/runtime/docker/create.rs
+@@ -4,7 +4,7 @@ use super::*;
+ 
+ pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Result<String, RuntimeError> {
+     let mut prepared = spec.clone();
+-    runtime.egress.prepare(runtime, &mut prepared).await?;
++    let resolver = runtime.egress.prepare(runtime, &mut prepared).await?;
+     let spec = &prepared;
+     if spec.internal_network {
+         runtime.ensure_internal_network(&spec.network, &spec.labels).await?;
+@@ -63,6 +63,11 @@ pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Res
+         spec.entrypoint = Some(entrypoint);
+     }
+     let options = CreateContainerOptionsBuilder::new().name(&spec.name).build();
+-    let created = quick("create", runtime.docker()?.create_container(Some(options), body_of(&spec))).await?;
++    let mut body = body_of(&spec);
++    // Docker's embedded resolver forwards to this one, from the container's side of the bridge.
++    if let (Some(resolver), Some(host)) = (resolver, body.host_config.as_mut()) {
++        host.dns = Some(vec![resolver.to_string()]);
++    }
++    let created = quick("create", runtime.docker()?.create_container(Some(options), body)).await?;
+     Ok(created.id)
+ }
+diff --git a/src/runtime/docker/egress.rs b/src/runtime/docker/egress.rs
+index b09d1b1..79a6f3d 100644
+--- a/src/runtime/docker/egress.rs
++++ b/src/runtime/docker/egress.rs
+@@ -1,10 +1,14 @@
+ // SPDX-License-Identifier: FSL-1.1-ALv2
+ //! Host-only hostname egress uses a dedicated bridge per workload. The root-installed firewall
+-//! redirects HTTP/TLS to bounded gateways and drops every other new bridge connection. The
+-//! sandbox cannot opt out with proxy variables, DNS answers, raw IPs or another bridge's gateway.
++//! redirects HTTP/TLS to bounded gateways, redirects DNS (UDP and TCP port 53) to a resolver that
++//! answers only the policy's names, and drops every other new bridge connection. The container's
++//! embedded resolver forwards to that resolver too (`--dns`), so no name leaves the host unchecked.
++//! The sandbox cannot opt out with proxy variables, DNS answers, raw IPs or another bridge's gateway.
+ //!
+ //! Parts (`egress/`):
+ //! - `gateway.rs`: HTTP/TLS forwarding and public DNS pinning.
++//! - `dns.rs`: the policy-checked resolver on the bridge's gateway.
++mod dns;
+ mod gateway;
+ use super::*;
+ use crate::protocol::EgressPolicy;
+@@ -15,22 +19,24 @@ use std::{
+     sync::Arc,
+ };
+ use tokio::{
+-    net::TcpListener,
++    net::{TcpListener, UdpSocket},
+     sync::{Mutex, Semaphore},
+ };
+ use tokio_util::sync::{CancellationToken, DropGuard};
+ const PREFIX: &str = "pye";
+ const TABLE: &str = "pryx_egress";
+-const READY: &str = "/run/pryx-egress-v1";
+-const VERSION: &[u8] = b"pryx-egress-v1\n";
++const READY: &str = "/run/pryx-egress-v2";
++const VERSION: &[u8] = b"pryx-egress-v2\n";
+ const HTTP_PORT: u16 = 19080;
+ const TLS_PORT: u16 = 19443;
++const DNS_PORT: u16 = 19053;
+ const MAX_CONNECTIONS: usize = 64;
+ const POLICY_LABEL: &str = "blocklyd.egress-policy";
+ 
+ pub(crate) fn ruleset() -> String {
++    const DNS: u16 = dns::PORT;
+     format!(
+-        "table inet {TABLE}\ndelete table inet {TABLE}\ntable inet {TABLE} {{\n chain http_redirect {{ type nat hook prerouting priority dstnat - 10; policy accept; iifname \"{PREFIX}*\" tcp dport 80 redirect to :{HTTP_PORT}; iifname \"{PREFIX}*\" tcp dport 443 redirect to :{TLS_PORT}; }}\n chain gateway_input {{ type filter hook input priority filter - 20; policy accept; iifname \"{PREFIX}*\" ct state established,related accept; iifname \"{PREFIX}*\" tcp dport {{ {HTTP_PORT}, {TLS_PORT} }} accept; iifname \"{PREFIX}*\" drop; }}\n chain bridge_forward {{ type filter hook forward priority filter - 20; policy accept; iifname \"{PREFIX}*\" ct state new drop; }}\n}}\n"
++        "table inet {TABLE}\ndelete table inet {TABLE}\ntable inet {TABLE} {{\n chain http_redirect {{ type nat hook prerouting priority dstnat - 10; policy accept; iifname \"{PREFIX}*\" tcp dport 80 redirect to :{HTTP_PORT}; iifname \"{PREFIX}*\" tcp dport 443 redirect to :{TLS_PORT}; iifname \"{PREFIX}*\" udp dport {DNS} redirect to :{DNS_PORT}; iifname \"{PREFIX}*\" tcp dport {DNS} redirect to :{DNS_PORT}; }}\n chain gateway_input {{ type filter hook input priority filter - 20; policy accept; iifname \"{PREFIX}*\" ct state established,related accept; iifname \"{PREFIX}*\" tcp dport {{ {HTTP_PORT}, {TLS_PORT}, {DNS_PORT} }} accept; iifname \"{PREFIX}*\" udp dport {DNS_PORT} accept; iifname \"{PREFIX}*\" drop; }}\n chain bridge_forward {{ type filter hook forward priority filter - 20; policy accept; iifname \"{PREFIX}*\" ct state new drop; }}\n}}\n"
+     )
+ }
+ pub(crate) fn mark_ready() -> std::io::Result<()> {
+@@ -72,11 +78,17 @@ fn error(message: impl std::fmt::Display) -> RuntimeError {
+ }
+ #[derive(Default)]
+ pub(super) struct Egress {
+-    held: Mutex<HashMap<String, (EgressPolicy, DropGuard)>>,
++    held: Mutex<HashMap<String, (EgressPolicy, IpAddr, DropGuard)>>,
+ }
+ impl Egress {
+-    pub(super) async fn prepare(&self, runtime: &DockerRuntime, spec: &mut ContainerSpec) -> Result<(), RuntimeError> {
+-        let Some(policy) = spec.egress.clone() else { return Ok(()) };
++    /// Puts a policy's workload on its own bridge and serves it. Returns the resolver the
++    /// container must be given (`--dns`), if it has a policy.
++    pub(super) async fn prepare(
++        &self,
++        runtime: &DockerRuntime,
++        spec: &mut ContainerSpec,
++    ) -> Result<Option<IpAddr>, RuntimeError> {
++        let Some(policy) = spec.egress.clone() else { return Ok(None) };
+         if !ready() {
+             return Err(error("host firewall has not announced egress-hostnames"));
+         }
+@@ -100,15 +112,21 @@ impl Egress {
+             }
+             Err(e) => return Err(e),
+         }
+-        self.listen(runtime, &network, policy.clone()).await?;
++        let resolver = self.listen(runtime, &network, policy.clone()).await?;
+         spec.network = network;
+         spec.labels.insert(POLICY_LABEL.into(), serde_json::to_string(&policy).map_err(error)?);
+-        Ok(())
++        Ok(Some(resolver))
+     }
+-    async fn listen(&self, runtime: &DockerRuntime, network: &str, policy: EgressPolicy) -> Result<(), RuntimeError> {
++    /// Serves the bridge `network` under `policy`, once; returns its gateway, where its resolver is.
++    async fn listen(
++        &self,
++        runtime: &DockerRuntime,
++        network: &str,
++        policy: EgressPolicy,
++    ) -> Result<IpAddr, RuntimeError> {
+         let mut held = self.held.lock().await;
+-        if let Some((existing, _)) = held.get(network) {
+-            return if existing == &policy { Ok(()) } else { Err(error("bridge has another policy")) };
++        if let Some((existing, gateway, _)) = held.get(network) {
++            return if existing == &policy { Ok(*gateway) } else { Err(error("bridge has another policy")) };
+         }
+         if !ready() {
+             return Err(error("host firewall is unavailable"));
+@@ -136,13 +154,16 @@ impl Egress {
+         let subnet: ipnet::IpNet = config.subnet.ok_or_else(|| error("missing subnet"))?.parse().map_err(error)?;
+         let http = TcpListener::bind((gateway, HTTP_PORT)).await.map_err(error)?;
+         let tls = TcpListener::bind((gateway, TLS_PORT)).await.map_err(error)?;
++        let dns_udp = UdpSocket::bind((gateway, DNS_PORT)).await.map_err(error)?;
++        let dns_tcp = TcpListener::bind((gateway, DNS_PORT)).await.map_err(error)?;
+         let cancel = CancellationToken::new();
+         let guard = cancel.clone().drop_guard();
+         let capacity = Arc::new(Semaphore::new(MAX_CONNECTIONS));
+         gateway::serve(http, false, subnet, policy.clone(), capacity.clone(), cancel.clone());
+-        gateway::serve(tls, true, subnet, policy.clone(), capacity, cancel);
+-        held.insert(network.into(), (policy, guard));
+-        Ok(())
++        gateway::serve(tls, true, subnet, policy.clone(), capacity, cancel.clone());
++        dns::serve(dns_udp, dns_tcp, subnet, policy.clone(), Arc::new(Semaphore::new(MAX_CONNECTIONS)), cancel);
++        held.insert(network.into(), (policy, gateway, guard));
++        Ok(gateway)
+     }
+     pub(super) async fn restore(
+         &self,
+@@ -155,7 +176,7 @@ impl Egress {
+             return Ok(());
+         };
+         let name = info.name.as_deref().ok_or_else(|| error("missing name"))?.trim_start_matches('/');
+-        self.listen(runtime, &self::name(name), serde_json::from_str(encoded).map_err(error)?).await
++        self.listen(runtime, &self::name(name), serde_json::from_str(encoded).map_err(error)?).await.map(|_| ())
+     }
+     pub(super) async fn stop(&self, runtime: &DockerRuntime, container: &str) -> Result<(), RuntimeError> {
+         let name = name(container);
+diff --git a/src/runtime/docker/egress/dns.rs b/src/runtime/docker/egress/dns.rs
+new file mode 100644
+index 0000000..213045a
+--- /dev/null
++++ b/src/runtime/docker/egress/dns.rs
+@@ -0,0 +1,302 @@
++// SPDX-License-Identifier: FSL-1.1-ALv2
++//! The resolver of a hostname-egress bridge. The host firewall redirects every UDP and TCP port 53
++//! packet from the bridge here, and the container's embedded resolver forwards here too, so a name
++//! reaches the host's resolver only when the policy allows it; any other query is answered REFUSED.
++//! Each query's single question is read by hand and the message is forwarded unchanged.
++//!
++//! Not a cache or a recursive resolver: the host's own resolver (`/etc/resolv.conf`) answers, and
++//! the HTTP/TLS gateways still resolve and check every address they dial.
++use super::*;
++use std::{io, net::SocketAddr};
++use tokio::{
++    io::{AsyncReadExt, AsyncWriteExt},
++    net::{TcpStream, UdpSocket},
++};
++
++/// DNS's port, for UDP and TCP (RFC 1035 §4.2).
++pub(super) const PORT: u16 = 53;
++/// The fixed header's length (RFC 1035 §4.1.1).
++const HEADER: usize = 12;
++/// RCODEs of the header (RFC 1035 §4.1.1): no DNS crate is in the tree to export them.
++const FORMERR: u8 = 1;
++const SERVFAIL: u8 = 2;
++const NOTIMP: u8 = 4;
++const REFUSED: u8 = 5;
++/// A name's longest wire form (RFC 1035 §2.3.4).
++const MAX_NAME: usize = 255;
++/// The largest message TCP's two-byte length prefix can frame (RFC 1035 §4.2.2).
++const MAX_MESSAGE: usize = u16::MAX as usize;
++const UPSTREAM: Duration = Duration::from_secs(5);
++const RESOLV_CONF: &str = "/etc/resolv.conf";
++
++/// A query's one question: its name, lowercased and dot-joined, and where the question ends.
++#[derive(Debug, PartialEq)]
++pub(super) struct Question {
++    pub(super) name: String,
++    end: usize,
++}
++
++/// Why a message gets no forwarding: the RCODE to answer with and the question to echo, or no
++/// answer at all (not a query, or too short to carry an id).
++#[derive(Debug, PartialEq)]
++pub(super) enum Refusal {
++    Answer(u8, Option<usize>),
++    Silent,
++}
++
++/// The single question of a standard query. Labels are hostname characters only (letters, digits,
++/// `-` and `_`), so the name the policy matches is the name the upstream resolver is asked.
++pub(super) fn question(message: &[u8]) -> Result<Question, Refusal> {
++    if message.len() < HEADER || message[2] & 0x80 != 0 {
++        return Err(Refusal::Silent);
++    }
++    if (message[2] >> 3) & 0x0f != 0 {
++        return Err(Refusal::Answer(NOTIMP, None));
++    }
++    if u16::from_be_bytes([message[4], message[5]]) != 1 {
++        return Err(Refusal::Answer(FORMERR, None));
++    }
++    let mut at = HEADER;
++    let mut labels = Vec::new();
++    loop {
++        let length = usize::from(*message.get(at).ok_or(Refusal::Answer(FORMERR, None))?);
++        at += 1;
++        if length == 0 {
++            break;
++        }
++        // A pointer or an extended label type: never needed in a query's question.
++        if length & 0xc0 != 0 || at - HEADER + length > MAX_NAME {
++            return Err(Refusal::Answer(FORMERR, None));
++        }
++        let label = message.get(at..at + length).ok_or(Refusal::Answer(FORMERR, None))?;
++        at += length;
++        if !label.iter().all(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_')) {
++            return Err(Refusal::Answer(REFUSED, None));
++        }
++        labels.push(String::from_utf8_lossy(label).to_ascii_lowercase());
++    }
++    let end = at + 4;
++    if message.len() < end {
++        return Err(Refusal::Answer(FORMERR, None));
++    }
++    Ok(Question { name: labels.join("."), end })
++}
++
++/// An answer carrying only `rcode`, the query's id, opcode and RD bit, and its question if known.
++fn refusal(message: &[u8], rcode: u8, end: Option<usize>) -> Option<Vec<u8>> {
++    if message.len() < HEADER {
++        return None;
++    }
++    let mut answer = vec![message[0], message[1], 0x80 | (message[2] & 0x79), rcode, 0, 0, 0, 0, 0, 0, 0, 0];
++    if let Some(end) = end {
++        answer[5] = 1;
++        answer.extend_from_slice(&message[HEADER..end]);
++    }
++    Some(answer)
++}
++
++/// What the sandbox is told for `message`: the host resolver's answer for an allowed name, REFUSED
++/// for any other, SERVFAIL when the host resolver doesn't answer, nothing for a non-query.
++pub(super) async fn answer(message: &[u8], policy: &EgressPolicy, tcp: bool) -> Option<Vec<u8>> {
++    match question(message) {
++        Ok(question) if gateway::allowed(&question.name, policy) => match forward(message, tcp).await {
++            Ok(answer) => Some(answer),
++            Err(_) => refusal(message, SERVFAIL, Some(question.end)),
++        },
++        Ok(question) => refusal(message, REFUSED, Some(question.end)),
++        Err(Refusal::Answer(rcode, end)) => refusal(message, rcode, end),
++        Err(Refusal::Silent) => None,
++    }
++}
++
++/// The host's first nameserver, read for each query so a changed `/etc/resolv.conf` is followed.
++async fn upstream() -> io::Result<SocketAddr> {
++    let text = tokio::fs::read_to_string(RESOLV_CONF).await?;
++    text.lines()
++        .filter_map(|line| line.trim().strip_prefix("nameserver"))
++        .find_map(|rest| rest.trim().parse::<IpAddr>().ok())
++        .map(|ip| SocketAddr::new(ip, PORT))
++        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no nameserver"))
++}
++
++async fn forward(message: &[u8], tcp: bool) -> io::Result<Vec<u8>> {
++    let server = upstream().await?;
++    tokio::time::timeout(UPSTREAM, async {
++        if tcp {
++            let mut stream = TcpStream::connect(server).await?;
++            write_framed(&mut stream, message).await?;
++            return read_framed(&mut stream).await;
++        }
++        let local: SocketAddr = if server.is_ipv4() { ([0, 0, 0, 0], 0).into() } else { ([0u16; 8], 0).into() };
++        let socket = UdpSocket::bind(local).await?;
++        socket.connect(server).await?;
++        socket.send(message).await?;
++        let mut buffer = vec![0; MAX_MESSAGE];
++        loop {
++            let n = socket.recv(&mut buffer).await?;
++            if n >= 2 && buffer[..2] == message[..2] {
++                buffer.truncate(n);
++                return Ok(buffer);
++            }
++        }
++    })
++    .await
++    .map_err(|_| io::Error::from(io::ErrorKind::TimedOut))?
++}
++
++async fn read_framed(stream: &mut TcpStream) -> io::Result<Vec<u8>> {
++    let length = usize::from(stream.read_u16().await?);
++    let mut message = vec![0; length];
++    stream.read_exact(&mut message).await?;
++    Ok(message)
++}
++
++async fn write_framed(stream: &mut TcpStream, message: &[u8]) -> io::Result<()> {
++    let length = u16::try_from(message.len()).map_err(|_| io::Error::from(io::ErrorKind::InvalidData))?;
++    let mut framed = length.to_be_bytes().to_vec();
++    framed.extend_from_slice(message);
++    stream.write_all(&framed).await
++}
++
++/// Answers the bridge's queries on `udp` and `tcp` until `cancel`, from `subnet` only.
++pub(super) fn serve(
++    udp: UdpSocket,
++    tcp: TcpListener,
++    subnet: ipnet::IpNet,
++    policy: EgressPolicy,
++    capacity: Arc<Semaphore>,
++    cancel: CancellationToken,
++) {
++    let udp = Arc::new(udp);
++    let (udp_policy, udp_capacity, udp_cancel) = (policy.clone(), capacity.clone(), cancel.clone());
++    tokio::spawn(async move {
++        let mut buffer = vec![0; MAX_MESSAGE];
++        loop {
++            let received = tokio::select! {()=udp_cancel.cancelled()=>break,result=udp.recv_from(&mut buffer)=>result};
++            let Ok((n, peer)) = received else { continue };
++            if !subnet.contains(&peer.ip()) {
++                continue;
++            }
++            let Ok(permit) = udp_capacity.clone().try_acquire_owned() else { continue };
++            let (udp, policy, message) = (udp.clone(), udp_policy.clone(), buffer[..n].to_vec());
++            tokio::spawn(async move {
++                let _permit = permit;
++                if let Some(answer) = answer(&message, &policy, false).await {
++                    let _ = udp.send_to(&answer, peer).await;
++                }
++            });
++        }
++    });
++    tokio::spawn(async move {
++        loop {
++            let accepted = tokio::select! {()=cancel.cancelled()=>break,result=tcp.accept()=>result};
++            let Ok((mut stream, peer)) = accepted else { break };
++            if !subnet.contains(&peer.ip()) {
++                continue;
++            }
++            let Ok(permit) = capacity.clone().try_acquire_owned() else { continue };
++            let (policy, cancel) = (policy.clone(), cancel.clone());
++            tokio::spawn(async move {
++                let _permit = permit;
++                let work = async {
++                    while let Ok(Ok(message)) = tokio::time::timeout(UPSTREAM, read_framed(&mut stream)).await {
++                        let Some(answer) = answer(&message, &policy, true).await else { break };
++                        if write_framed(&mut stream, &answer).await.is_err() {
++                            break;
++                        }
++                    }
++                };
++                tokio::select! {()=cancel.cancelled()=>{},_=tokio::time::timeout(Duration::from_secs(600),work)=>{}}
++            });
++        }
++    });
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    /// A standard recursive query for `name`, type A, class IN, with an EDNS OPT record after it.
++    fn query(name: &str) -> Vec<u8> {
++        let mut message = vec![0x12, 0x34, 0x01, 0x00, 0, 1, 0, 0, 0, 0, 0, 1];
++        for label in name.split('.').filter(|l| !l.is_empty()) {
++            message.push(label.len() as u8);
++            message.extend_from_slice(label.as_bytes());
++        }
++        message.extend_from_slice(&[0, 0, 1, 0, 1]);
++        message.extend_from_slice(&[0, 0, 41, 4, 0, 0, 0, 0, 0, 0, 0]);
++        message
++    }
++
++    fn policy() -> EgressPolicy {
++        EgressPolicy { allow: vec!["example.com".into(), "*.example.org".into()], deny: vec!["x.example.org".into()] }
++    }
++
++    #[test]
++    fn reads_the_question_name_lowercased_and_where_it_ends() {
++        let message = query("WWW.Example.COM");
++        let question = question(&message).unwrap();
++        assert_eq!(question.name, "www.example.com");
++        assert_eq!(question.end, HEADER + 17 + 4);
++        assert_eq!(super::question(&query("_dns._udp.example.com")).unwrap().name, "_dns._udp.example.com");
++    }
++
++    #[test]
++    fn malformed_and_non_query_messages_are_refused_without_a_panic() {
++        let message = query("example.com");
++        for at in 0..HEADER {
++            assert_eq!(question(&message[..at]), Err(Refusal::Silent));
++        }
++        for at in HEADER..question(&message).unwrap().end {
++            assert_eq!(question(&message[..at]), Err(Refusal::Answer(FORMERR, None)), "cut at {at}");
++        }
++        let mut response = message.clone();
++        response[2] |= 0x80;
++        assert_eq!(question(&response), Err(Refusal::Silent));
++        let mut notify = message.clone();
++        notify[2] = 4 << 3;
++        assert_eq!(question(&notify), Err(Refusal::Answer(NOTIMP, None)));
++        let mut two = message.clone();
++        two[5] = 2;
++        assert_eq!(question(&two), Err(Refusal::Answer(FORMERR, None)));
++        let mut pointer = message.clone();
++        pointer[HEADER] = 0xc0;
++        assert_eq!(question(&pointer), Err(Refusal::Answer(FORMERR, None)));
++        let mut dotted = message.clone();
++        dotted[HEADER + 1 + 3] = b'.';
++        assert_eq!(question(&dotted), Err(Refusal::Answer(REFUSED, None)), "a dot inside a label");
++        let long = query(&vec!["a".repeat(63); 5].join("."));
++        assert_eq!(question(&long), Err(Refusal::Answer(FORMERR, None)), "past 255 bytes");
++        for length in 0..512 {
++            let _ = question(&vec![0; length]);
++            let _ = question(&vec![0x3f; length]);
++        }
++    }
++
++    #[tokio::test]
++    async fn names_outside_the_policy_get_refused_with_their_question() {
++        for name in ["exfil.attacker.test", "example.com.attacker.test", "x.example.org", "example.org"] {
++            let message = query(name);
++            let answer = answer(&message, &policy(), false).await.unwrap();
++            let end = question(&message).unwrap().end;
++            assert_eq!(&answer[..2], &message[..2], "same id");
++            assert_eq!(answer[2], 0x81, "a response, recursion desired kept");
++            assert_eq!(answer[3], REFUSED, "{name}");
++            assert_eq!(&answer[4..12], &[0, 1, 0, 0, 0, 0, 0, 0]);
++            assert_eq!(&answer[HEADER..], &message[HEADER..end]);
++        }
++        let mut response = query("exfil.attacker.test");
++        response[2] |= 0x80;
++        assert_eq!(answer(&response, &policy(), true).await, None, "a response is never answered");
++    }
++
++    #[test]
++    fn the_policy_decides_on_the_parsed_name() {
++        let allowed = |name: &str| gateway::allowed(&question(&query(name)).unwrap().name, &policy());
++        assert!(allowed("Example.com"));
++        assert!(allowed("www.example.org"));
++        assert!(!allowed("x.example.org"));
++        assert!(!allowed("data.example.com"));
++        assert!(!allowed("example.com.evil.test"));
++    }
++}
+diff --git a/src/runtime/docker/egress/gateway.rs b/src/runtime/docker/egress/gateway.rs
+index 1e40432..7634ecc 100644
+--- a/src/runtime/docker/egress/gateway.rs
++++ b/src/runtime/docker/egress/gateway.rs
+@@ -14,7 +14,7 @@ const CONNECT: Duration = Duration::from_secs(5);
+ fn denied() -> io::Error {
+     io::ErrorKind::PermissionDenied.into()
+ }
+-fn allowed(host: &str, policy: &EgressPolicy) -> bool {
++pub(super) fn allowed(host: &str, policy: &EgressPolicy) -> bool {
+     fn matches(host: &str, rule: &str) -> bool {
+         rule.strip_prefix("*.").map_or(host == rule, |suffix| host.ends_with(&format!(".{suffix}")))
+     }
+diff --git a/tests/docker.rs b/tests/docker.rs
+index e3ea0cf..b62d49d 100644
+--- a/tests/docker.rs
++++ b/tests/docker.rs
+@@ -703,3 +703,57 @@ async fn isolation_keeps_a_workload_off_another_s_published_port() {
+     cleanup(&m, &["server", "neighbour"]).await;
+     let _ = std::process::Command::new("docker").args(["network", "rm", &network]).output();
+ }
++
++#[tokio::test]
++#[ignore = "needs Docker, and root for nftables"]
++async fn an_egress_policy_holds_dns_to_its_names() {
++    let had = |table: &str| std::process::Command::new("nft").args(["list", "table", "inet", table]).output();
++    assert!(!had("pryxd").unwrap().status.success(), "runs only where pryxd's own rules aren't installed");
++    let (_host_rules, _egress_rules) = (Rules("pryxd".into()), Rules("pryx_egress".into()));
++    let dir = tempfile::tempdir().unwrap();
++    let dep = deployment();
++    let _cleanup = Cleanup(dep.clone());
++    let config = dir.path().join("pryxd.toml");
++    let low = 44000 + dep[1..4].parse::<u16>().unwrap() * 10;
++    let tls = dir.path().join("tls");
++    let text = format!(
++        "deployment_id = \"{dep}\"\n[api]\nlisten = \"127.0.0.1:7443\"\n[api.tls]\ncert = \"{tls}/node.pem\"\n\
+         key = \"{tls}/node.key\"\nclient_ca = \"{tls}/ca.pem\"\nallowed_clients = [\"{}\"]\n[docker]\n\
+         network = \"blockly-{dep}\"\n[network]\n\
+         port_range = [{low}, {}]\n",
++        support::CLIENT,
++        low + 9,
++        tls = tls.display()
++    );
++    std::fs::write(&config, text).unwrap();
++    // The pryxd table names a bridge of this test's own that never exists; pryx_egress is global.
++    pryxd::isolation::isolate(&config).await.unwrap();
++    let m = daemon(dir.path(), &dep);
++    assert!(m.reconcile(Records::FromDisk).await.error.is_none());
++    let spec: WorkloadSpec = serde_json::from_value(serde_json::json!({
++        "image": "alpine:3.22",
++        "entrypoint": ["/bin/sh", "-c", SERVER],
++        "egress": { "allow": ["example.com"] },
++        "resources": { "memoryMb": 128, "cpuMillis": 500 },
++        "storage": { "mountPath": "/data", "sizeGb": 1 },
++        "stop": { "timeoutSeconds": 10 }
++    }))
++    .unwrap();
++    m.ensure(id("dns"), spec, Precondition::None, None).await.unwrap();
++    m.start(id("dns"), None).await.unwrap();
++    let lookup = |args: &str| {
++        let command = vec!["sh".into(), "-c".into(), format!("nslookup {args} 2>&1; echo exit=$?")];
++        m.exec(id("dns"), ExecRequest { command, timeout_seconds: 20 }, None, None)
++    };
++    // Through Docker's embedded resolver (127.0.0.11), which forwards to the bridge's.
++    let allowed = lookup("example.com").await.unwrap().stdout;
++    assert!(allowed.contains("exit=0") && allowed.contains("Name:"), "the policy's name resolves: {allowed}");
++    let refused = lookup("exfil.attacker.invalid").await.unwrap().stdout;
++    assert!(!refused.contains("exit=0") && !refused.contains("Name:"), "another name doesn't: {refused}");
++    // Straight to a public resolver: redirected to the bridge's, which says why.
++    let direct = lookup("exfil.attacker.invalid 1.1.1.1").await.unwrap().stdout;
++    assert!(direct.contains("REFUSED") && !direct.contains("exit=0"), "{direct}");
++    let direct = lookup("example.com 1.1.1.1").await.unwrap().stdout;
++    assert!(direct.contains("exit=0") && direct.contains("Name:"), "{direct}");
++    cleanup(&m, &["dns"]).await;
++}
