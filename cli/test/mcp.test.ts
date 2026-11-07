@@ -7,12 +7,20 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { StatusCodes } from 'http-status-codes'
+import { THRESHOLDS } from '../../control/src/health.ts'
 import { publicContext } from '../../control/test/public-context.ts'
 import { mcpHttp } from '../src/mcp.ts'
 
 test('reference MCP clients use CLI HTTP and stdio with project authority', async () => {
   const c = await publicContext()
-  const api = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: (request) => c.app.fetch(request) })
+  const api = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    fetch: async (request) => {
+      await c.report()
+      return c.app.fetch(request)
+    },
+  })
   const sdk = new Pryx({ url: api.url.toString(), key: c.credential.key })
   const http = mcpHttp(sdk, 0, c.credential.key)
   try {
@@ -37,6 +45,8 @@ test('reference MCP clients use CLI HTTP and stdio with project authority', asyn
       }),
     ]
     for (const transport of transports) {
+      await c.db.execute(`UPDATE fleet_nodes SET last_heartbeat_at =
+        now() - make_interval(secs => ${2 * THRESHOLDS.unavailableSeconds})`)
       const client = new Client({ name: 'pryx-reference-acceptance', version: '1.0.0' })
       try {
         await client.connect(transport)
@@ -44,7 +54,7 @@ test('reference MCP clients use CLI HTTP and stdio with project authority', asyn
         expect(tools.tools.map((tool) => tool.name)).toContain('project_usage')
         expect(tools.tools).toHaveLength(15)
         const created = await client.callTool({ name: 'sandbox_create', arguments: { image: 'alpine:3.22' } })
-        expect(created.isError).not.toBe(true)
+        expect(created.isError, JSON.stringify(created)).not.toBe(true)
         const content = created.content as { type: string; text: string }[]
         const box = JSON.parse(content[0]?.text ?? '{}') as { id: string }
         expect(box.id).toBeString()

@@ -67,23 +67,26 @@ export async function publicContext(logger?: Logger) {
   })
   const ca = await testCa(),
     node = await enrollNode(fresh.db, ca, 'public-node', { region: 'default' })
-  await heartbeat(
-    fresh.db,
-    registryOptions(),
-    node.id,
-    node.sha,
-    beat(node, 'public', 1, [], {
-      features: [
-        'agent',
-        'files',
-        'placement-epochs',
-        'data-transfer',
-        'local-snapshots',
-        'export-exclude',
-        'execution-lease',
-      ],
-    }),
-  )
+  let sequence = 0
+  const report = () =>
+    heartbeat(
+      fresh.db,
+      registryOptions(),
+      node.id,
+      node.sha,
+      beat(node, 'public', ++sequence, nodes.reports(node.id), {
+        features: [
+          'agent',
+          'files',
+          'placement-epochs',
+          'data-transfer',
+          'local-snapshots',
+          'export-exclude',
+          'execution-lease',
+        ],
+      }),
+    )
+  await report()
   await engine.refreshRegistry()
   const boxes = new Sandboxes(fresh.db, engine, locks, client)
   const api = createPublicApi({ db: fresh.db, boxes, nodes: client, domain: 'sandboxes.test' })
@@ -107,6 +110,7 @@ export async function publicContext(logger?: Logger) {
     peers,
     credential,
     request,
+    report,
     close: async () => {
       proxy.stop(true)
       for (const peer of peers.values()) peer.close()
