@@ -3,6 +3,7 @@
 import { describe, expect, test } from 'bun:test'
 import { sql } from 'drizzle-orm'
 import { StatusCodes } from 'http-status-codes'
+import { CodeTemplates } from '../src/code-templates.ts'
 import { THRESHOLDS } from '../src/health.ts'
 import { createKey } from '../src/keys.ts'
 import { createOperatorApi } from '../src/operator-api.ts'
@@ -14,6 +15,55 @@ import { rows } from '../src/sql.ts'
 import { publicContext } from './public-context.ts'
 
 describe('projects', () => {
+  for (const action of ['freeze', 'remove', 'upkeep'] as const)
+    test(`${action} handles expired template builders without losing retained snapshots`, async () => {
+      const c = await publicContext(),
+        projects = new Projects(c.boxes.projects as ProjectAdmission, c.boxes),
+        templates = new CodeTemplates(c.db, c.boxes)
+      try {
+        await projects.set('default', { maxTtl: 60 })
+        const response = await c.request('/sandboxes', 'POST', { image: 'alpine:3.22' })
+        expect(response.status).toBe(StatusCodes.CREATED)
+        const box = (await response.json()) as { id: string }
+        expect((await c.boxes.record(box.id)).spec.ttl).toBe(60)
+        const capture = await c.request(`/sandboxes/${box.id}/snapshots`, 'POST')
+        expect(capture.status).toBe(StatusCodes.CREATED)
+        const snapshot = (await capture.json()) as { id: string }
+        await templates.register('default', 'retained', { snapshot: snapshot.id, plan: {} })
+        await c.db.execute(sql`UPDATE sandboxes SET expires_at='2000-01-01T00:00:00Z' WHERE id=${box.id}`)
+        await expect(c.boxes.stop(box.id, 'default')).rejects.toMatchObject({ code: 'gone' })
+        await expect(c.boxes.stop(box.id, 'default', true)).rejects.toMatchObject({ code: 'gone' })
+        await expect(c.boxes.delete(box.id)).rejects.toMatchObject({ code: 'forbidden' })
+        if (action === 'upkeep') {
+          await projects.set('default', { expiresAt: '2000-01-01T00:00:00Z' })
+          await projects.upkeep()
+        } else await projects[action]('default')
+        const state = await rows<{ state: string; deleted_at: string | null; quota_running: boolean }>(
+          c.db,
+          sql`SELECT state,deleted_at,quota_running FROM sandboxes WHERE id=${box.id}`,
+        )
+        expect(state[0]?.state).toBe('stopped')
+        expect(state[0]?.quota_running).toBe(false)
+        if (action === 'freeze') {
+          expect(state[0]?.deleted_at).toBeNull()
+          expect((await templates.versions('default', 'retained')).length).toBe(1)
+          expect(
+            await rows(c.db, sql`SELECT deleted_at FROM sandbox_snapshots WHERE id=${snapshot.id}`),
+          ).toEqual([{ deleted_at: null }])
+          expect((await projects.get('default')).state).toBe('frozen')
+          await expect(c.boxes.stop(box.id, 'default')).rejects.toMatchObject({ code: 'gone' })
+        } else {
+          expect(state[0]?.deleted_at).not.toBeNull()
+          expect(await templates.versions('default', 'retained')).toEqual([])
+          expect(await rows(c.db, sql`SELECT id FROM sandbox_snapshots WHERE deleted_at IS NULL`)).toEqual([])
+          expect(await rows(c.db, sql`SELECT state FROM projects WHERE id='default'`)).toEqual([
+            { state: 'deleted' },
+          ])
+        }
+      } finally {
+        await c.close()
+      }
+    })
   test('units round both resources, timer defaults are bounded, and owned delete remains idempotent', async () => {
     const c = await publicContext(),
       projects = new Projects(c.boxes.projects as ProjectAdmission, c.boxes)

@@ -70,7 +70,7 @@ export class Projects {
       this.db,
       sql`SELECT id FROM sandboxes WHERE project=${id} AND deleted_at IS NULL ORDER BY id`,
     ))
-      await this.boxes.stop(box.id).catch(async (error: unknown) => {
+      await this.boxes.stop(box.id, undefined, true).catch(async (error: unknown) => {
         if (error instanceof SandboxError && error.code === 'gone')
           await this.boxes.delete(box.id, undefined, true)
         else throw error

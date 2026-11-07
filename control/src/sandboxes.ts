@@ -178,14 +178,15 @@ export class Sandboxes {
     }
   }
 
-  async record(id: string, project?: string): Promise<SandboxRow> {
+  async record(id: string, project?: string, allowExpired = false): Promise<SandboxRow> {
     const row = await one<SandboxRow>(
       this.db,
       sql`SELECT *, expires_at <= now() AS past_ttl FROM sandboxes WHERE id = ${id}`,
     )
     if (!row || (project !== undefined && row.project !== project))
       throw new SandboxError('not_found', 'No such sandbox')
-    if (row.past_ttl && !row.deleted_at) throw new SandboxError('gone', 'Sandbox TTL elapsed')
+    if (row.past_ttl && !row.deleted_at && !allowExpired)
+      throw new SandboxError('gone', 'Sandbox TTL elapsed')
     if (row.deleted_at)
       throw new SandboxError(
         row.expired ? 'gone' : 'not_found',
@@ -437,14 +438,16 @@ export class Sandboxes {
       }
     })
   }
-  async stop(id: string, project?: string): Promise<Sandbox> {
+  async stop(id: string, project?: string, allowExpired = false): Promise<Sandbox> {
     return this.exclusive(id, async () => {
-      const row = await this.record(id, project)
+      // Project freeze must stop retained builders even after TTL, without deleting their snapshots.
+      const expired = allowExpired && project === undefined
+      const row = await this.record(id, project, expired)
       if (project !== undefined) await this.projects?.write(row.project)
       if (row.handle && row.state !== 'resting') await this.engine.stop(row.handle)
       await this.projects?.stopped(id)
       await this.state(id, row.state === 'resting' ? 'resting' : 'stopped')
-      return this.get(id, row.project)
+      return this.view(await this.record(id, row.project, expired))
     })
   }
   async sleep(id: string, project?: string): Promise<{ sandbox: Sandbox; tier: 'suspended' | 'stopped' }> {
