@@ -53,7 +53,7 @@ async function* frames(response: Response): AsyncGenerator<unknown> {
   }
 }
 
-export class AgentCompat {
+export class AgentForward {
   constructor(readonly agents: Agents) {}
   async exec(
     id: string,

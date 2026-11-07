@@ -11,7 +11,7 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { StatusCodes } from 'http-status-codes'
 import { z } from 'zod'
 import nodeSchema from '../../openapi/node-writes.openapi.json'
-import { AgentCompat } from './agent-compat.ts'
+import { AgentForward } from './agent-forward.ts'
 import { Agents } from './agents.ts'
 import { execSchema, makeSchema, networkSchema, templateSchema } from './api-schemas.ts'
 import type { Db } from './database.ts'
@@ -47,7 +47,7 @@ export function createPublicApi(options: {
     options.publicOrigin,
   )
   const agents = new Agents(boxes, nodes, domain)
-  const io = new SandboxIO(db, boxes, nodes, new AgentCompat(agents))
+  const io = new SandboxIO(db, boxes, nodes, new AgentForward(agents))
   const chunks = new FileChunks(io)
   const app = new Hono<{ Variables: { project: string }; Bindings: { beginStream?: () => void } }>()
   app.use('/v1/*', async (c, next) => {

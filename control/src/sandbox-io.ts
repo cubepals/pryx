@@ -3,7 +3,7 @@
 
 /** Public exec, logs and file transport with feature-gated node attachment; sandbox lifecycle belongs to sandboxes.ts. */
 import type { z } from 'zod'
-import type { AgentCompat } from './agent-compat.ts'
+import type { AgentForward } from './agent-forward.ts'
 import { type Exec, execEvent } from './api-schemas.ts'
 import type { Db } from './database.ts'
 import { SECOND_MS } from './durations.ts'
@@ -22,7 +22,7 @@ export class SandboxIO {
     readonly db: Db,
     readonly boxes: Sandboxes,
     readonly nodes: NodeClient,
-    readonly agents?: AgentCompat,
+    readonly agents?: AgentForward,
   ) {}
   private async home(handle: RuntimeHandle) {
     return this.boxes.engine.home(handle)
