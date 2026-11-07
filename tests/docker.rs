@@ -272,17 +272,22 @@ async fn the_memory_limit_is_hard_and_an_oom_kill_is_reported() {
     let _cleanup = Cleanup(dep.clone());
     let m = daemon(dir.path(), &dep);
     m.reconcile(Records::FromDisk).await;
+    // Linux include/uapi/linux/oom.h: prefer the allocator as the memory controller's victim.
+    const OOM_SCORE_ADJ_MAX: i32 = 1000;
     let mut spec = shell(
-        "sleep 1; mkfifo /tmp/oom-input || exit 1; head -c 400m /dev/zero > /tmp/oom-input & \
-         tail /tmp/oom-input > /dev/null & allocator=$!; wait \"$allocator\"; status=$?; \
-         while [ ! -f /tmp/oom-observed ]; do sleep 0.1; done; exit \"$status\"",
+        &format!(
+            "sleep 1; mkfifo /tmp/oom-input || exit 1; head -c 400m /dev/zero > /tmp/oom-input & \
+             sh -c 'echo {OOM_SCORE_ADJ_MAX} > /proc/self/oom_score_adj || exit 1; exec tail /tmp/oom-input' > /dev/null & \
+             allocator=$!; wait \"$allocator\"; status=$?; \
+             while [ ! -f /tmp/oom-observed ]; do sleep 0.1; done; exit \"$status\""
+        ),
         64,
     );
     spec.restart.max_retries = 0;
     m.ensure(id("oom"), spec, Precondition::None, None).await.unwrap();
     m.start(id("oom"), None).await.unwrap();
-    // Keep PID 1 alive until Docker acknowledges the allocating child's OOM. An immediate main
-    // process death can race Docker's OOM notification; exit only after that flag is retained.
+    // Keep PID 1 alive until Docker acknowledges the allocating child's OOM. The kernel may
+    // also end PID 1 first; either path must retain the OOM flag and the killed allocator's exit.
     let name = m.view(&id("oom")).unwrap().locate.container_name;
     let api = bollard::Docker::connect_with_unix(
         DockerConfig::default().socket.to_str().unwrap(),
@@ -291,13 +296,13 @@ async fn the_memory_limit_is_hard_and_an_oom_kill_is_reported() {
     )
     .unwrap();
     let deadline = Instant::now() + Duration::from_secs(30);
-    let mut released = false;
+    let mut release_attempted = false;
     let mut saw_oom = false;
     while Instant::now() < deadline && !saw_oom {
-        if !released
+        if !release_attempted
             && api.inspect_container(&name, None).await.unwrap().state.is_some_and(|s| s.oom_killed == Some(true))
         {
-            released = true;
+            release_attempted = true;
             let release = m
                 .exec(
                     id("oom"),
@@ -305,9 +310,12 @@ async fn the_memory_limit_is_hard_and_an_oom_kill_is_reported() {
                     None,
                     None,
                 )
-                .await
-                .unwrap();
-            assert_eq!(release.exit_code, Some(0), "the OOM observation is acknowledged once");
+                .await;
+            match release {
+                Ok(release) => assert_eq!(release.exit_code, Some(0), "the OOM observation is acknowledged once"),
+                Err(NodeError::Conflict { code: ConflictCode::NotRunning, .. }) => {}
+                Err(error) => panic!("OOM acknowledgement failed: {error}"),
+            }
         }
         m.stats(&id("oom")).await.ok();
         let view = m.view(&id("oom")).unwrap();
@@ -328,7 +336,7 @@ async fn the_memory_limit_is_hard_and_an_oom_kill_is_reported() {
             .map_err(|e| e.to_string())
             .and_then(|out| out.map_err(|e| e.to_string()))
             .map(|out| format!("{} {}", out.status, String::from_utf8_lossy(&out.stdout)));
-        eprintln!("OOM_DOCKER_STATE released={released} {diagnostic:?}");
+        eprintln!("OOM_DOCKER_STATE release_attempted={release_attempted} {diagnostic:?}");
     }
     assert!(
         saw_oom,

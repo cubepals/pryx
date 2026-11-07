@@ -1,6 +1,6 @@
 {
   "case": "owned supervisor/allocator/acknowledgement smoke, without memory allocation",
-  "source": "a854852c07ca5b81aabc07e07c163135dc8bd037",
+  "source": "cf795166b005d8f4149a2f7901b9aff3db97de01",
   "dirty": true,
   "memoryLimit": false,
   "swapLimit": false,
@@ -29,7 +29,18 @@
     "The real test releases PID 1 only after Docker reports OOM and still requires pryx OOMKilled plus SIGKILL within the existing thirty seconds.",
     "The first local docker-top probe is unavailable; preserve its partial report and use container-local ps."
   ],
-  "beforePs": "PID   PPID  COMMAND\n    1     0 sh\n   38     1 sh\n   39     1 tail\n   40    38 sleep\n   47     0 ps",
+  "failedCiRaw": "2026-11-07T10:27:47.7614942Z OOM_DOCKER_STATE Ok(\"exit status: 0 {\\\"Status\\\":\\\"exited\\\",\\\"Running\\\":false,\\\"Paused\\\":false,\\\"Restarting\\\":false,\\\"OOMKilled\\\":false,\\\"Dead\\\":false,\\\"Pid\\\":0,\\\"ExitCode\\\":137,\\\"Error\\\":\\\"\\\",\\\"StartedAt\\\":\\\"2026-11-07T10:27:13.381398743Z\\\",\\\"FinishedAt\\\":\\\"2026-11-07T10:27:15.799838618Z\\\"} memory=67108864 swap=67108864\\n\")",
+  "followupCiTerminalConflict": {
+    "ciRun": 42365837203,
+    "ciJob": 128383611079,
+    "head": "cf795166b005d8f4149a2f7901b9aff3db97de01",
+    "observation": "The Docker OOM-flag conditional was entered; acknowledgement returned the typed NotRunning conflict before the retained-exit assertions ran.",
+    "excerpt": "2026-11-07T11:01:03.9159967Z ---- the_memory_limit_is_hard_and_an_oom_kill_is_reported stdout ----\n2026-11-07T11:01:03.9160265Z \n2026-11-07T11:01:03.9160755Z thread 'the_memory_limit_is_hard_and_an_oom_kill_is_reported' (7257) panicked at tests/docker.rs:309:18:\n2026-11-07T11:01:03.9161643Z called `Result::unwrap()` on an `Err` value: Conflict { code: NotRunning, message: \"exec needs a running workload\" }\n2026-11-07T11:01:03.9162279Z note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n2026-11-07T11:01:03.9162582Z \n2026-11-07T11:01:03.9162587Z \n2026-11-07T11:01:03.9162683Z failures:\n2026-11-07T11:01:03.9162967Z     the_memory_limit_is_hard_and_an_oom_kill_is_reported\n2026-11-07T11:01:03.9163201Z "
+  },
+  "beforePs": "PID   PPID  COMMAND\n    1     0 sh\n   45     1 sh\n   46     1 tail\n   47    45 sleep\n   48     0 ps",
+  "allocatorOomScoreAdj": 1000,
+  "supervisorOomScoreAdj": 0,
+  "user": "1000",
   "childExitCode": 137,
   "heldState": {
     "Status": "running",
@@ -38,10 +49,10 @@
     "Restarting": false,
     "OOMKilled": false,
     "Dead": false,
-    "Pid": 566518,
+    "Pid": 571202,
     "ExitCode": 0,
     "Error": "",
-    "StartedAt": "2026-11-07T10:39:16.466002538Z",
+    "StartedAt": "2026-11-07T11:12:54.930785733Z",
     "FinishedAt": "0001-01-01T00:00:00Z"
   },
   "releasedExitCode": 137,
@@ -55,9 +66,8 @@
     "Pid": 0,
     "ExitCode": 137,
     "Error": "",
-    "StartedAt": "2026-11-07T10:39:16.466002538Z",
-    "FinishedAt": "2026-11-07T10:39:18.369917178Z"
+    "StartedAt": "2026-11-07T11:12:54.930785733Z",
+    "FinishedAt": "2026-11-07T11:12:56.776830059Z"
   },
-  "coordinationPassed": true,
-  "failedCiRaw": "2026-11-07T10:27:47.7614942Z OOM_DOCKER_STATE Ok(\"exit status: 0 {\\\"Status\\\":\\\"exited\\\",\\\"Running\\\":false,\\\"Paused\\\":false,\\\"Restarting\\\":false,\\\"OOMKilled\\\":false,\\\"Dead\\\":false,\\\"Pid\\\":0,\\\"ExitCode\\\":137,\\\"Error\\\":\\\"\\\",\\\"StartedAt\\\":\\\"2026-11-07T10:27:13.381398743Z\\\",\\\"FinishedAt\\\":\\\"2026-11-07T10:27:15.799838618Z\\\"} memory=67108864 swap=67108864\\n\")"
+  "coordinationPassed": true
 }
