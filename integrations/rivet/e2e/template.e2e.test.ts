@@ -17,7 +17,7 @@ test(
     const boundary = image.includes('@') ? image.indexOf('@') : image.lastIndexOf(':')
     if (boundary <= image.lastIndexOf('/'))
       throw new Error('The fixture image needs an explicit tag or digest')
-    const d = await deployment({ agent: true, allowedImages: [image.slice(0, boundary + 1)] })
+    const d = await deployment({ allowedImages: [image.slice(0, boundary + 1)] })
     const sdk = new Pryx({ url: d.control.apiUrl, key: d.credential.key })
     try {
       const create = Bun.spawn(

@@ -5,6 +5,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Pryx, Sandbox } from '@cubepals/pryx'
+import { download, downloadDir, upload } from '../../sdk/typescript/src/local-files.ts'
 import { copy } from '../src/sandbox-data.ts'
 
 test('recursive downloads cannot traverse local directory symlinks', async () => {
@@ -15,25 +16,35 @@ test('recursive downloads cannot traverse local directory symlinks', async () =>
   mkdirSync(outside)
   writeFileSync(join(outside, 'file'), 'untouched')
   symlinkSync(outside, join(destination, 'link'))
+  const readStream = async () =>
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('replacement'))
+        controller.close()
+      },
+    })
+  const disk = {
+    readStream,
+    stat: async () => ({ kind: 'file', size: 11 }),
+    write: async () => {},
+    mkdir: async () => {},
+  }
   const box = {
     files: {
       stat: async (path: string) => ({ kind: path.endsWith('/file') ? 'file' : 'directory' }),
-      list: async (path: string) => (path === 'source' ? [{ name: 'link' }] : [{ name: 'file' }]),
+      download: (source: string, destination: string) => download(disk, source, destination),
+      downloadDir: async (_source: string, destination: string) => {
+        const bytes = await new Bun.Archive({ 'link/file': 'replacement' }).bytes()
+        return downloadDir(new Blob([bytes]).stream(), destination)
+      },
     },
-    readStream: async () =>
-      new ReadableStream({
-        start(controller) {
-          controller.enqueue(new TextEncoder().encode('replacement'))
-          controller.close()
-        },
-      }),
   } as unknown as Sandbox
   const client = { sandbox: async () => box } as unknown as Pryx
   try {
-    await expect(copy(client, 'box:source', destination)).rejects.toThrow('cp refuses local symlinks')
+    await expect(copy(client, 'box:source', destination)).rejects.toThrow('Local transfers refuse symlinks')
     expect(readFileSync(join(outside, 'file'), 'utf8')).toBe('untouched')
     await expect(copy(client, 'box:source/file', join(destination, 'link/file'))).rejects.toThrow(
-      'cp refuses local symlinks',
+      'Local transfers refuse symlinks',
     )
     expect(readFileSync(join(outside, 'file'), 'utf8')).toBe('untouched')
   } finally {
@@ -50,13 +61,25 @@ test('uploads reject symlink components above the selected file', async () => {
     let written = false
     const client = {
       sandbox: async () => ({
-        write: async () => {
-          written = true
+        files: {
+          upload: (source: string, destination: string) =>
+            upload(
+              {
+                write: async () => {
+                  written = true
+                },
+                readStream: async () => new ReadableStream(),
+                stat: async () => ({ kind: 'file', size: 7 }),
+                mkdir: async () => {},
+              },
+              source,
+              destination,
+            ),
         },
       }),
     } as unknown as Pryx
     await expect(copy(client, join(root, 'link/file'), 'box:file')).rejects.toThrow(
-      'cp refuses local symlinks',
+      'Local transfers refuse symlinks',
     )
     expect(written).toBe(false)
   } finally {

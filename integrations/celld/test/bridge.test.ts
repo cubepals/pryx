@@ -10,8 +10,8 @@ import { containerBridge } from '../src/index.ts'
 test('first use is keyed, private forwarding wakes and never sends the bridge credential', async () => {
   const calls: Request[] = []
   const client = new Pryx({
-    baseUrl: 'http://control',
-    apiKey: 'api-secret',
+    url: 'http://control',
+    key: 'api-secret',
     fetch: (async (input, init) => {
       const request = new Request(input, init)
       calls.push(request)
@@ -46,5 +46,5 @@ test('first use is keyed, private forwarding wakes and never sends the bridge cr
   expect((await first.json()).idle).toBe(60)
   const response = await bridge.request('/containers/sandbox/fetch/path?q=ok', { headers })
   expect(await response.text()).toBe('container')
-  expect(new URL(calls[1]?.url ?? '').pathname).toBe('/v1/sandboxes/sandbox/wake')
+  expect(new URL(calls[2]?.url ?? '').pathname).toBe('/v1/sandboxes/sandbox/wake')
 })

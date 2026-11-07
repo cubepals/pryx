@@ -16,8 +16,10 @@ from ..models.make_request_network import MakeRequestNetwork
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
+    from ..models.make_request_egress import MakeRequestEgress
     from ..models.make_request_env import MakeRequestEnv
     from ..models.make_request_labels import MakeRequestLabels
+    from ..models.make_request_metadata import MakeRequestMetadata
     from ..models.make_request_ports_item import MakeRequestPortsItem
     from ..models.make_request_resources import MakeRequestResources
     from ..models.make_request_restart import MakeRequestRestart
@@ -50,6 +52,12 @@ class MakeRequest:
         isolation (Union[Unset, MakeRequestIsolation]):
         restart (Union[Unset, MakeRequestRestart]):
         labels (Union[Unset, MakeRequestLabels]):
+        name (Union[Unset, str]):
+        metadata (Union[Unset, MakeRequestMetadata]):
+        workdir (Union[Unset, str]):
+        user (Union[Unset, str]):
+        auto_delete (Union[Unset, bool]):
+        egress (Union[Unset, MakeRequestEgress]):
         start (Union[Unset, bool]):  Default: True.
         region (Union[Unset, str]):  Default: 'default'.
     """
@@ -72,6 +80,12 @@ class MakeRequest:
     isolation: Union[Unset, MakeRequestIsolation] = UNSET
     restart: Union[Unset, "MakeRequestRestart"] = UNSET
     labels: Union[Unset, "MakeRequestLabels"] = UNSET
+    name: Union[Unset, str] = UNSET
+    metadata: Union[Unset, "MakeRequestMetadata"] = UNSET
+    workdir: Union[Unset, str] = UNSET
+    user: Union[Unset, str] = UNSET
+    auto_delete: Union[Unset, bool] = UNSET
+    egress: Union[Unset, "MakeRequestEgress"] = UNSET
     start: Union[Unset, bool] = True
     region: Union[Unset, str] = "default"
 
@@ -137,6 +151,22 @@ class MakeRequest:
         if not isinstance(self.labels, Unset):
             labels = self.labels.to_dict()
 
+        name = self.name
+
+        metadata: Union[Unset, dict[str, Any]] = UNSET
+        if not isinstance(self.metadata, Unset):
+            metadata = self.metadata.to_dict()
+
+        workdir = self.workdir
+
+        user = self.user
+
+        auto_delete = self.auto_delete
+
+        egress: Union[Unset, dict[str, Any]] = UNSET
+        if not isinstance(self.egress, Unset):
+            egress = self.egress.to_dict()
+
         start = self.start
 
         region = self.region
@@ -180,6 +210,18 @@ class MakeRequest:
             field_dict["restart"] = restart
         if labels is not UNSET:
             field_dict["labels"] = labels
+        if name is not UNSET:
+            field_dict["name"] = name
+        if metadata is not UNSET:
+            field_dict["metadata"] = metadata
+        if workdir is not UNSET:
+            field_dict["workdir"] = workdir
+        if user is not UNSET:
+            field_dict["user"] = user
+        if auto_delete is not UNSET:
+            field_dict["autoDelete"] = auto_delete
+        if egress is not UNSET:
+            field_dict["egress"] = egress
         if start is not UNSET:
             field_dict["start"] = start
         if region is not UNSET:
@@ -189,8 +231,10 @@ class MakeRequest:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        from ..models.make_request_egress import MakeRequestEgress
         from ..models.make_request_env import MakeRequestEnv
         from ..models.make_request_labels import MakeRequestLabels
+        from ..models.make_request_metadata import MakeRequestMetadata
         from ..models.make_request_ports_item import MakeRequestPortsItem
         from ..models.make_request_resources import MakeRequestResources
         from ..models.make_request_restart import MakeRequestRestart
@@ -279,6 +323,28 @@ class MakeRequest:
         else:
             labels = MakeRequestLabels.from_dict(_labels)
 
+        name = d.pop("name", UNSET)
+
+        _metadata = d.pop("metadata", UNSET)
+        metadata: Union[Unset, MakeRequestMetadata]
+        if isinstance(_metadata, Unset):
+            metadata = UNSET
+        else:
+            metadata = MakeRequestMetadata.from_dict(_metadata)
+
+        workdir = d.pop("workdir", UNSET)
+
+        user = d.pop("user", UNSET)
+
+        auto_delete = d.pop("autoDelete", UNSET)
+
+        _egress = d.pop("egress", UNSET)
+        egress: Union[Unset, MakeRequestEgress]
+        if isinstance(_egress, Unset):
+            egress = UNSET
+        else:
+            egress = MakeRequestEgress.from_dict(_egress)
+
         start = d.pop("start", UNSET)
 
         region = d.pop("region", UNSET)
@@ -302,6 +368,12 @@ class MakeRequest:
             isolation=isolation,
             restart=restart,
             labels=labels,
+            name=name,
+            metadata=metadata,
+            workdir=workdir,
+            user=user,
+            auto_delete=auto_delete,
+            egress=egress,
             start=start,
             region=region,
         )

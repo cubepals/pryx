@@ -14,6 +14,7 @@ import { mcpHttp } from '../src/mcp.ts'
 
 function value(input: unknown) {
   const answer = CallToolResultSchema.parse(input)
+  if (answer.isError) throw new Error('MCP tool refused: ' + JSON.stringify(answer.content))
   expect(answer.isError).not.toBe(true)
   const text = answer.content.find((part) => part.type === 'text')
   if (!text || text.type !== 'text') throw new Error('MCP result omitted text')
@@ -24,7 +25,7 @@ test(
   async () => {
     if (!ready) throw new Error('MCP acceptance requires the real CI deployment')
     const c = await agentDeployment(),
-      http = mcpHttp(c.sdk, 0)
+      http = mcpHttp(c.sdk, 0, c.d.credential.key)
     try {
       for (const transport of [
         new StdioClientTransport({
@@ -83,10 +84,12 @@ test(
             await client.callTool({ name: 'sandbox_fork', arguments: { snapshot: snapshot.id } }),
           )
           value(await client.callTool({ name: 'sandbox_delete', arguments: { id: twin.id } }))
-          await c.sdk.api.deleteSnapshot(id as string, snapshot.id)
+          await (await (await c.sdk.sandbox(id as string, { wake: false })).snapshots())
+            .find((s) => s.id === snapshot.id)
+            ?.delete()
           expect(value(await client.callTool({ name: 'project_usage', arguments: {} })).usage).toBeDefined()
         } finally {
-          if (id) await c.sdk.api.delete(id)
+          if (id) await (await c.sdk.sandbox(id, { wake: false })).delete()
           await client.close()
         }
       }

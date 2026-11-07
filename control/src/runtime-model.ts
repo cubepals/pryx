@@ -39,6 +39,9 @@ export interface RuntimeSpec {
   packages?: readonly string[]
   /** Replaces the image's own entrypoint; absent, the image starts as it was built to. */
   entrypoint?: readonly string[]
+  workdir?: string
+  user?: string
+  egress?: { allow: string[]; deny?: string[] }
   env: Readonly<Record<string, string>>
   secrets: Readonly<Record<string, string>>
   resources: {
@@ -197,12 +200,6 @@ export interface ArchiveTarget {
   inParts(sizeBytes: number, most?: number): Promise<PartsUpload>
 }
 
-export interface ExecResult {
-  exitCode: number
-  stdout: string
-  stderr: string
-}
-
 export interface SandboxRuntime {
   /** Recorded beside each handle it issues, so it is never handed another runtime's. */
   readonly provider: string
@@ -337,9 +334,6 @@ export interface SandboxRuntime {
     snapshot: SnapshotHandle,
     target: ArchiveTarget,
   ): Promise<{ sizeBytes: number; sha256: string }>
-  /** Short maintenance commands inside the running workload. */
-  exec(handle: RuntimeHandle, command: readonly string[], timeoutSeconds: number): Promise<ExecResult>
-
   /** Removes compute and keeps storage and snapshots (soft delete). */
   decommission(handle: RuntimeHandle): Promise<void>
   /**

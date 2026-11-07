@@ -69,6 +69,32 @@ export const makeSchema = z
       })
       .optional(),
     labels: map.default({}),
+    name: z
+      .string()
+      .regex(/^[a-z0-9][a-z0-9-]{0,62}$/)
+      .optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
+    workdir: z
+      .string()
+      .min(1)
+      .max(4096)
+      .refine((v) => v.startsWith('/') && !v.includes('\0'))
+      .optional(),
+    user: z
+      .string()
+      .regex(/^[0-9]+(?::[0-9]+)?$/)
+      .optional(),
+    autoDelete: z.boolean().optional(),
+    egress: z
+      .object({
+        allow: z.array(z.string().regex(/^(?:\*\.)?[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/)).max(128),
+        deny: z
+          .array(z.string().regex(/^(?:\*\.)?[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/))
+          .max(128)
+          .default([]),
+      })
+      .strict()
+      .optional(),
     start: z.boolean().default(true),
     region: z.string().default('default'),
   })
@@ -91,6 +117,13 @@ export const snapshotSchema = z.object({
   at: z.string().optional(),
 })
 export const sandboxSchema = z.object({
+  name: z.string().optional(),
+  labels: map.optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  workdir: z.string().optional(),
+  user: z.string().optional(),
+  idle: z.number().optional(),
+  autoDelete: z.boolean().optional(),
   exit: z
     .object({ code: z.number().int(), oomKilled: z.boolean(), at: z.string().nullable().optional() })
     .optional(),

@@ -1,5 +1,7 @@
 # pryx
 
+Sandboxes on Linux hosts you own. Install on Linux x86_64 with systemd:
+
 ```sh
 curl -fsSL https://github.com/cubepals/pryx/releases/latest/download/install.sh | sh
 sudo pryx up --domain sandboxes.example.com
@@ -7,270 +9,33 @@ pryx run --image alpine:3.22 -- echo hello
 pryx sandbox create --image alpine:3.22 --idle 5m
 ```
 
-On Linux x86_64 with systemd, the installer verifies the release CLI before installing it.
-`up` installs Docker/nftables on Debian/Ubuntu, private Postgres/S3 storage, control, edge and
-the local daemon. It saves the public API credential for the invoking user in an owner-only
-file, so the next commands need no environment setup. It prints the initial key once and ends
-with three environment lines and a next command. Repeated installation preserves state.
+`up` saves your API credential privately. Point sandbox DNS at the edge;
+[operations](docs/operations.md) covers TLS, host policy, upgrades and recovery.
 
-The bootstrap host policy allows official Alpine and Node images; repeat `--allow-image` to choose a different
-policy. The public API stays on loopback until a trusted TLS reverse proxy is configured. Point
-sandbox DNS at the edge. See [operations](docs/operations.md), [architecture](docs/architecture.md),
-[API](docs/api.md), [edge](docs/edge.md), [speed measurements](docs/speed.md),
-[TypeScript SDK](sdk/typescript/README.md) and [Python SDK](sdk/python/README.md).
+Install `@cubepals/pryx` with your package manager, then set the API URL and key:
 
-From GitHub Actions, point at a reachable TLS API and save its key as a repository secret:
-
-```yaml
-steps:
-  - uses: cubepals/pryx/action@v0.1.0
-    with:
-      url: ${{ vars.PRYX_API_URL }}
-      key: ${{ secrets.PRYX_API_KEY }}
-      image: alpine:3.22
-      run: echo hello
-      snapshot: 'true'
+```ts
+import { Pryx } from '@cubepals/pryx'
+const { PRYX_API_URL: url, PRYX_API_KEY: key } = process.env
+if (!url || !key) throw new Error('Set PRYX_API_URL and PRYX_API_KEY')
+const pryx = new Pryx({ url, key })
+const box = await pryx.sandbox({ image: 'node:22', idle: '10m' })
+try {
+  await box.write('hello.js', 'console.log("hello")')
+  const result = await box.run('node /data/hello.js')
+  console.log(result.stdout); if (result.code !== 0) throw new Error('Command failed')
+} finally { await box.delete() }
 ```
 
-The Action verifies the exact tagged release's CLI checksum, runs the command inside the
-sandbox and deletes the temporary sandbox. Its snapshot output retains a separate resting
-sandbox; remove that retaining sandbox when the snapshot is no longer needed. Use from-snapshot
-for a later job. Linux x86_64 is the binary release target.
+Container: Docker isolation and images; choose it for untrusted workloads.
+Process: native processes with host restrictions; no container image required.
+Wasm: agentOS WebAssembly VMs with registry packages; no container image required.
 
+[TypeScript](sdk/typescript/README.md) · [Python](sdk/python/README.md) ·
+[Documentation](docs/README.md) · [Architecture](docs/architecture.md) ·
+[Tier comparison](docs/tiers.md) · [Contributing](CONTRIBUTING.md).
+Raw HTTP access is defined by the [OpenAPI document](control/openapi/pryx.openapi.json).
 
-pryxd is a sandbox node daemon for Linux hosts. It runs containers, restricted native processes
-and agentOS WebAssembly VMs for a control plane
-that chooses where each sandbox belongs, and exposes the workload API in [docs/protocol.md](docs/protocol.md).
+[FSL-1.1-ALv2](LICENSE.md); see [licensing](docs/protocol.md#format-names) for format history.
 
-**What it does:** enrolls with the control plane and proves who it is with its own key; runs,
-stops, updates and deletes workloads idempotently, refusing anything a newer placement superseded;
-keeps each workload's data, snapshots and exports it without ever following a link out of it;
-restores archives safely; restarts what fails under it while it holds a lease, and resumes what was
-running when its host went down; reports everything it holds every few seconds.
-
-**What it isn't:** a scheduler (it never chooses where anything runs), a database of record, a
-provisioning tool (it never buys, powers or deletes machines), or a distributed system (nodes never
-talk to each other). If the control plane goes away, sandboxes keep running.
-
-## Build and test
-
-Rust 1.99.1, as `rust-toolchain.toml` names it for rustup, CI and the Dockerfile; one Cargo package,
-`Cargo.lock` committed and every build `--locked`.
-
-```sh
-cargo build --locked --release                               # target/release/pryxd
-docker build -t pryxd .                                   # static (musl), as hosts run it, and as each
-                                                             # release builds it: the image holds /pryxd,
-                                                             # /openapi, /deploy and /LICENSE.md
-cargo test --locked                                          # unit, API, lifecycle, epochs, reconcile, resume, transfer; no root needed
-sudo cargo test --locked --test docker -- --ignored          # against a real Docker daemon, as root
-cargo test --release --test storage_bench -- --ignored --nocapture   # snapshot/archive costs on this disk
-cargo deny --locked check                                    # advisories, licenses, bans, sources (deny.toml)
-```
-
-The real wasm tests require the verified sidecar distribution. Before running `cargo test`,
-stage it into a new directory and export its path:
-
-```sh
-python3 scripts/fetch-agentos.py /tmp/pryx-agentos-test
-export PRYX_AGENTOS_DISTRIBUTION=/tmp/pryx-agentos-test
-```
-
-The control plane is tested against a real pryxd too: CI's `contract` job builds this checkout
-and runs Cubepals' `apps/control/src/infra/fleet/fleet-runtime.e2e.test.ts` from its `main`
-against it, so a change here that would break the running control plane fails before it merges
-([`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
-
-## Run
-
-On a fleet's host, install the release CLI from the project installer above, then run the
-`pryx node join '<bk1. token>'` command printed by `pryx node token <region>` as root.
-The CLI verifies the fleet CA pin and an independent release-key signature before executing
-bootstrap code; that signed code verifies both daemon and agent bytes before installing them.
-Unsigned development releases refuse remote bootstrap. The command installs Docker, pryxd,
-its configuration and its service, then invokes the daemon's enrollment command:
-
-```sh
-pryxd join <bk1. token> --allow-image ghcr.io/example/               # the fleet CA, checked against the token; the configuration,
-                                         # the token and the unit; doctor --preflight, then starts it. Prints what it
-                                         # worked out (the address, the memory kept) and how to
-                                         # override it. --address <ip> when the host has several.
-                                         # A token for the node this host is enrolls it again,
-                                         # under a new CA if the token names one
-pryxd doctor                                              # is this host ready? says what to fix
-pryxd doctor --fix                                        # on a host with no sandboxes yet: daemon.json,
-                                                             # the state directory; prints how to undo each
-pryxd doctor --json                                       # {checks: [{name, status, detail, fix}]}
-pryxd check-config --config /etc/pryxd/pryxd.toml   # the config check alone
-pryxd isolate                                             # as root: the host's rules that keep workloads
-                                                             # off it and off other sandboxes' ports (the unit
-                                                             # runs it before every start)
-pryxd upgrade                                             # the control plane's pryxd now, and a restart
-                                                             # into it; puts this one back if it doesn't come up
-pryxd serve --config /etc/pryxd/pryxd.toml          # as root, beside Docker; refuses to start
-                                                             # if it can't give data to the workloads' user
-pryxd --version
-```
-
-[`examples/pryxd.toml`](examples/pryxd.toml) lists every setting with its default;
-[`deploy/`](deploy/) has the systemd unit and Docker's `daemon.json`. The unit runs
-`doctor --preflight` before each start: it refuses only an invalid config or a state directory
-pryxd can't own, and logs the rest (Docker down, live-restore off, no reflink) as warnings,
-since pryxd runs through all of them. With a `[fleet]` section the
-node enrolls and takes its identity from the control plane, and upgrades itself when a heartbeat's
-answer offers it a newer pryxd release, signed as every release is ([fleet-operations.md
-§9](https://github.com/cubepals/cubepals/blob/main/docs/fleet-operations.md#9-upgrading-pryxd)); without one it is a standalone daemon
-with certificates you give it (`pryxd dev-certs` makes throwaway ones), which local
-development uses.
-
-## Security model
-
-The container tier provides the network boundary described below. The process tier shares
-the host network: Internet-enabled workloads must be mutually trusted even with separate
-UIDs. Its agent verifies application socket ownership before forwarding, but guest code can
-still dial host and neighboring services directly. Use container or Wasm isolation for
-mutually untrusted workloads; see [process isolation](docs/process-tier.md) and
-[tier capabilities](docs/tiers.md).
-
-- **It is root-equivalent.** It holds Docker's socket and runs as root to hand data directories to
-  the workloads' user. Its API is reachable only with a client certificate from the fleet CA for
-  the control plane's name, over TLS 1.3, on the private network. The ops listener (`/healthz`,
-  `/readyz`, `/metrics`) asks for no certificate, so it binds only loopback (the default) or a
-  private address.
-- **Workloads get less than they ask for, never more.** Policy is the host's (`[workloads]`): a
-  non-root user and data owner (uid 0 or gid 0 is refused), a read-only root filesystem (on by
-  default), no capabilities, no privilege escalation, memory with no swap, a PID limit, an isolated
-  network. A request can't relax any of it; it only picks its sizes, within bounds. CPU is shared
-  by weight, in proportion to memory by default; there is a ceiling only when a request sets
-  `cpuMillis`. Container units retain their quotas. Process and Wasm use admission CPU
-  reservations and refuse explicit hard CPU limits or weights; see [tiers](docs/tiers.md).
-- **Only the edge and the control plane dial a workload.** Docker keeps workloads from reaching
-  each other's own addresses, but not each other's published ports. So before every start, the
-  unit runs `pryxd isolate`, as root, which puts one nftables table in place
-  (`src/isolation.rs`). It drops every new connection a workload opens to the host itself, and to
-  pryxd's port range and API port on private addresses (other nodes' sandboxes and pryxd), and
-  to the link-local metadata address. Without that, a sandbox's own code could join another sandbox
-  without passing the edge, which is what takes out identities and addresses only the edge may
-  forward. The unit doesn't start without the rules.
-- **A workload's data is untrusted.** Snapshots, exports and the measure of its disk use walk it
-  relative to directories already open, with `O_NOFOLLOW` at every step (`src/tree.rs`). Restores
-  from an archive accept regular files and directories only, with bounded size and entry count.
-  Restores from a local snapshot copy it with the same walk, so a symlink comes back as a symlink,
-  never followed. Either way the new data is put together beside the old, within the disk's floor,
-  and swapped in with one atomic exchange: a crash leaves the old data or the new, and what it cut
-  short is settled at startup.
-- **Only a release upgrades it.** It installs a pryxd the control plane offers only with that
-  release's signature: Ed25519, by a key only `release.yml` holds, of the version and the binary's
-  sha256, checked against the keys compiled into it ([`deploy/release-keys.pem`](deploy/release-keys.pem))
-  before anything is downloaded. It never goes back to an older version. Neither the control plane
-  nor its fleet CA can sign, so neither can have hosts run a pryxd of its own
-  ([`src/upgrade/trust.rs`](src/upgrade/trust.rs)).
-- **Its key never leaves the host.** Enrollment and renewal send certificate requests; the files
-  under `/var/lib/pryxd/identity` are switched by one atomic rename. Until enrolled, every attempt
-  asks for one key, kept on disk, so an answer lost on the way can be asked for again.
-- **It trusts one CA**, the fleet CA it was provisioned with (`fleet.ca`): an enrollment or renewal
-  answer naming another is refused.
-- **Supply chain:** dependencies are pinned by the lockfile, checked against RustSec, limited to
-  permissive licenses and crates.io, and OpenSSL is banned (rustls with ring).
-
-## Source
-
-| | |
-|---|---|
-| `main.rs` | CLI, startup (enroll, reconcile, then serve), shutdown |
-| `manager.rs` | every operation, the per-workload lock, epochs, restarts and resumes, the lease, snapshots |
-| `api.rs` | the HTTP API, mutual TLS, errors |
-| `fleet.rs` | enrollment, heartbeats, identity and renewal |
-| `upgrade.rs` | upgrading itself to the control plane's pryxd, and going back if it fails |
-| `runtime.rs` | the container runtime (Docker, and a fake for tests) |
-| `isolation.rs` | the host's rules that keep workloads off it and off other sandboxes' ports |
-| `store.rs` | the state directory: records, snapshots, trash |
-| `tree.rs`, `tarball.rs` | the safe walk, copies (reflink), archives |
-| `reconcile.rs` | the Docker event stream and periodic passes |
-| `protocol.rs`, `ids.rs` | the wire types and identifiers |
-| `http_client.rs`, `tls.rs` | the small HTTPS client, certificates and keys |
-| `config.rs`, `host.rs`, `ports.rs`, `metrics.rs`, `certs.rs`, `labels.rs`, `clock.rs` | the rest |
-
-Where a comment or a message names `docs/fleet.md`, `docs/fleet-operations.md` or
-`bun scripts/fleet.ts`, it means [Cubepals'](https://github.com/cubepals/cubepals): the fleet's
-control plane and its operator tool live there.
-
-## Releases
-
-A pull request that raises `version` in `Cargo.toml` is a release. Once it has merged and CI has
-passed on that commit of `main`, [`release.yml`](.github/workflows/release.yml) tags `v<version>`
-on it and publishes:
-
-- a GitHub Release, immutable, with the static `pryxd` binary (x86_64, musl), `pryxd.sig`,
-  `SHA256SUMS`, `node-reads.openapi.json` and `node-writes.openapi.json`, `deploy/daemon.json`,
-  `deploy/pryxd.service` and `LICENSE.md`, each with a build-provenance attestation;
-- `ghcr.io/cubepals/pryx:<version>`, a `FROM scratch` image of the same files, attested.
-
-`pryxd.sig` is what nodes check before they upgrade: the release key's signature of the version
-and the binary's sha256. The key is the `release` environment's `PRYXD_RELEASE_KEY`, which only
-`main` can use; its public half is in [`deploy/release-keys.pem`](deploy/release-keys.pem), and
-`release.yml` signs nothing with a key that isn't there. To change keys, a release adds the new
-public key to that file, the secret changes after nodes run it, and a later release drops the old
-key. The file also holds a recovery key, which signs nothing day to day. Nodes take only what a key
-they already hold signed, so if the release key is lost or leaks, the recovery key, set as the
-secret for that one release, signs the release that brings a new release key and drops the old.
-
-Cubepals pins one release by digest (`bun scripts/pryxd.ts bump <version>` there) and serves
-that binary to the hosts that join its fleet.
-
-### Verify a release
-
-Every file of a release and the image carry a signed build-provenance attestation that names this
-repository and `release.yml` as the build that made them. With the [GitHub CLI](https://cli.github.com),
-download a release's files and check one against it:
-
-```sh
-gh release download v<version> -R cubepals/pryx
-gh attestation verify pryxd -R cubepals/pryx
-gh attestation verify oci://ghcr.io/cubepals/pryx:<version> -R cubepals/pryx
-```
-
-`--signer-workflow cubepals/pryx/.github/workflows/release.yml` pins the check to the release
-workflow, so a build from any other workflow of this repository fails it. The attestation is of the
-file's SHA-256: the check fails for a file that was changed after the build, and for one this
-workflow never built. `sha256sum -c SHA256SUMS` then checks the rest against the list the
-attestation covers.
-
-The signature checks with OpenSSL against this repository's `deploy/release-keys.pem`, whose first
-key, the one OpenSSL takes, is the release key:
-
-```sh
-printf 'pryxd release\n%s\n%s\n' <version> "$(sha256sum pryxd | cut -d' ' -f1)" > statement
-openssl pkeyutl -verify -pubin -inkey deploy/release-keys.pem -rawin -in statement -sigfile pryxd.sig
-```
-
-Within protocol v1 a release only adds (see [docs/protocol.md](docs/protocol.md)), so a node and
-a control plane one release apart always understand each other.
-
-## License
-
-pryxd 0.1.0 continues blocklyd 0.3.x, published as cubepals/blocklyd under the same licence; 0.2.2 and earlier were published under AGPL-3.0-only as part of cubepals/cubepals.
-
-pryxd is under the [Functional Source License, Version 1.1, ALv2 Future
-License](LICENSE.md) (FSL-1.1-ALv2), from 0.3.0 on. You may use, copy, change and redistribute it
-for any purpose except a Competing Use: offering it, or something built from it, in a commercial
-product or service that substitutes for pryxd or for Cubepals' hosting. Running it for
-yourself, for your organization, for research or teaching is fine. Two years after each version is
-published, that version is also available under the Apache License 2.0.
-
-Versions 0.2.2 and earlier were published under AGPL-3.0-only as part of
-[cubepals/cubepals](https://github.com/cubepals/cubepals), and stay under it for whoever has them.
-
-"Cubepals" and its logo are trademarks the licence doesn't grant. For anything else, write to
-legal@cubepals.com.
-
-The release also runs as one ordinary container, with embedded Postgres and object storage:
-
-```sh
-docker run -p 8080:8080 ghcr.io/cubepals/pryx:0.1.0
-```
-
-Without a Docker socket it selects the lighter process tier. Read [deployment instructions](docs/deploy.md)
-and the [three-tier comparison](docs/tiers.md) before choosing a tier. The same image includes
-agentOS: `PRYX_DEFAULT_TIER=wasm` selects it without a Docker socket or added privileges.
-Its [runtime and persistence limits](docs/agentos.md) differ from the native process tier.
+pryxd 0.1.0 continues blocklyd 0.3.x; 0.2.2 and earlier were AGPL-3.0-only.

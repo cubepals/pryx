@@ -19,14 +19,17 @@ describe.skipIf(!ready)('SDK handles end to end', () => {
     async () => {
       const box = await client.sandbox({ image: 'alpine:3.22', idle: '5m', ttl: '2h' })
       try {
-        const command = box.run('echo ready; while [ ! -f /data/continue ]; do sleep 0.1; done; echo done', {
-          timeout: '10s',
-        })
+        const command = box.stream(
+          'echo ready; while [ ! -f /data/continue ]; do sleep 0.1; done; echo done',
+          {
+            timeout: '10s',
+          },
+        )
         const lines = command.lines()
         expect(await lines.next()).toEqual({ value: 'ready', done: false })
         await box.write('continue', 'go')
         expect(await Array.fromAsync(lines)).toEqual(['done'])
-        expect(await command).toMatchObject({ code: 0, timedOut: false })
+        expect(await command.result()).toMatchObject({ code: 0, timedOut: false })
         const cli = Bun.spawn(
           [
             'bun',

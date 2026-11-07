@@ -28,23 +28,29 @@ export function containerBridge(
     if (typeof cell !== 'string' || !cell || cell.length > 512)
       return c.json({ error: 'invalid cell' }, StatusCodes.UNPROCESSABLE_ENTITY)
     return c.json(
-      await client.make(
-        {
+      (
+        await client.sandbox({
           ...options.spec,
+          idempotencyKey: `celld:${cell}`,
           image: options.image,
           idle: options.idle,
           ports: [{ name: 'http', port: options.port, protocol: 'tcp', audience: 'private' }],
-        },
-        `celld:${cell}`,
-      ),
+        })
+      ).toJSON(),
     )
   })
-  app.post('/containers/:id/sleep', async (c) => c.json(await client.action(c.req.param('id'), 'sleep')))
-  app.delete('/containers/:id', async (c) => c.json(await client.delete(c.req.param('id'))))
+  app.post('/containers/:id/sleep', async (c) =>
+    c.json({ sandbox: await (await client.sandbox(c.req.param('id'), { wake: false })).sleep() }),
+  )
+  app.delete('/containers/:id', async (c) =>
+    c.json(await (await client.sandbox(c.req.param('id'), { wake: false })).delete()),
+  )
   app.all('/containers/:id/fetch/*', async (c) => {
     const id = c.req.param('id')
-    await client.action(id, 'wake')
-    const endpoint = (await client.endpoints(id)).endpoints.find((p) => p.name === 'http')
+    await (await client.sandbox(id, { wake: false })).wake()
+    const endpoint = (await (await client.sandbox(id, { wake: false })).endpoints()).find(
+      (p) => p.name === 'http',
+    )
     if (!endpoint) return c.json({ error: 'no HTTP port' }, StatusCodes.SERVICE_UNAVAILABLE)
     const host = endpoint.host.includes(':') ? `[${endpoint.host}]` : endpoint.host
     const suffix = c.req.path.split('/fetch/').slice(1).join('/fetch/')

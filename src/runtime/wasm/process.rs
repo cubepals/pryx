@@ -37,6 +37,7 @@ enum Handle {
 }
 
 struct Remote {
+    started: tokio::sync::OnceCell<()>,
     vm: AgentOs,
     handle: Handle,
     status: Arc<std::sync::atomic::AtomicU8>,
@@ -106,7 +107,8 @@ impl Backend for Guest {
                 .map_err(error)?;
             (Handle::Process(process.pid), process.pid)
         };
-        let remote = Arc::new(Remote { vm: self.vm.clone(), handle, status: self.status.clone() });
+        let remote =
+            Arc::new(Remote { started: Default::default(), vm: self.vm.clone(), handle, status: self.status.clone() });
         let process = Process::guest(pid, remote.clone());
         let owned = process.clone();
         tokio::spawn(async move { remote.supervise(owned, timeout).await });
@@ -117,6 +119,7 @@ impl Backend for Guest {
 #[async_trait]
 impl Control for Remote {
     async fn write(&self, bytes: &[u8]) -> Result<(), ProcessError> {
+        self.ready().await?;
         let input = StdinInput::Bytes(bytes.to_vec());
         match &self.handle {
             Handle::Process(pid) => self.vm.write_process_stdin_awaited(*pid, input).await.map_err(error),
@@ -125,6 +128,7 @@ impl Control for Remote {
     }
 
     async fn close(&self) -> Result<(), ProcessError> {
+        self.ready().await?;
         match &self.handle {
             Handle::Process(pid) => self.vm.close_process_stdin_awaited(*pid).await.map_err(error),
             Handle::Terminal(_) => self.write(b"\x04").await,
@@ -132,6 +136,7 @@ impl Control for Remote {
     }
 
     async fn signal(&self, signal: i32) -> Result<(), ProcessError> {
+        self.ready().await?;
         let name = match signal {
             libc::SIGTERM => "SIGTERM",
             libc::SIGKILL => "SIGKILL",
@@ -176,6 +181,20 @@ impl Control for Remote {
 }
 
 impl Remote {
+    async fn ready(&self) -> Result<(), ProcessError> {
+        self.started
+            .get_or_try_init(|| async {
+                // Retained replay waits for Execute acknowledgement without consuming output.
+                // Input and signals must never race the sidecar's asynchronous registration.
+                if let Handle::Process(pid) = &self.handle {
+                    self.vm.read_process_output(*pid, None, Some(1), None).await.map_err(error)?;
+                }
+                Ok(())
+            })
+            .await
+            .map(|_| ())
+    }
+
     async fn wait(&self) -> Result<i32, agentos_client::ClientError> {
         match &self.handle {
             Handle::Process(pid) => self.vm.wait_process(*pid).await,

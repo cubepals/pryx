@@ -24,6 +24,8 @@ export function agentContext(sandbox = 'one') {
     stdoutTruncated: false,
     stderrTruncated: false,
   }
+  const requests: { path: string; body: unknown }[] = []
+  const hooks: { start?: () => Promise<Response | undefined>; output?: Promise<void> } = {}
   const calls: string[] = [],
     frames: unknown[] = []
   const output: components['schemas']['AgentEvent'][] = [{ type: 'exit', result }]
@@ -54,17 +56,32 @@ export function agentContext(sandbox = 'one') {
         if (server.upgrade(request, { headers: { 'sec-websocket-protocol': 'pryx' } })) return
         return new Response(null, { status: StatusCodes.BAD_REQUEST })
       }
-      if (path === '/_pryx/processes' && request.method === 'POST')
+      if (path === '/_pryx/processes' && request.method === 'POST') {
+        requests.push({ path, body: await request.json() })
+        const response = await hooks.start?.()
+        if (response) return response
         return Response.json(
           { id: `process-${++processes}`, pid: processes, running: true, result: null },
           { status: StatusCodes.CREATED },
         )
+      }
       if (path === '/_pryx/processes') return Response.json({ processes: [] })
       if (path.endsWith('/wait')) return Response.json(result)
       if (path.endsWith('/output'))
-        return new Response(output.map((event) => `${JSON.stringify(event)}\n`).join(''), {
-          headers: { 'content-type': 'application/x-ndjson' },
-        })
+        return new Response(
+          new ReadableStream({
+            async start(controller) {
+              for (const event of output) {
+                if (event.type === 'exit') await hooks.output
+                controller.enqueue(new TextEncoder().encode(`${JSON.stringify(event)}\n`))
+              }
+              controller.close()
+            },
+          }),
+          {
+            headers: { 'content-type': 'application/x-ndjson' },
+          },
+        )
       if (path === '/_pryx/logs')
         return new Response(logFrames.map((frame) => `${JSON.stringify(frame)}\n`).join(''), {
           headers: { 'content-type': 'application/x-ndjson' },
@@ -144,6 +161,8 @@ export function agentContext(sandbox = 'one') {
   const proxy = new SandboxProxy(table, hold, 5 * SECOND_MS)
   return {
     route,
+    requests,
+    hooks,
     table,
     proxy,
     token,

@@ -72,8 +72,13 @@ export interface EventFields {
 
 /** What the fleet did and saw, for operators; never read back to decide anything. */
 export async function event(q: Queryable, kind: string, fields: EventFields = {}): Promise<void> {
-  await q.execute(sql`
+  await q.execute(sql`WITH recorded AS (
     INSERT INTO fleet_events (kind, node_id, workload, epoch, data)
     VALUES (${kind}, ${fields.node ?? null}, ${fields.workload ?? null}, ${fields.epoch ?? null},
-            ${jsonb(fields.data ?? {})})`)
+            ${jsonb(fields.data ?? {})}) RETURNING id,at,kind,workload)
+    INSERT INTO webhook_deliveries(id,webhook,event,payload)
+    SELECT gen_random_uuid(),w.id,e.id,jsonb_build_object('id',e.id::text,'event',CASE WHEN e.kind='sandbox.expired' THEN 'ttl_expired' ELSE replace(e.kind,'sandbox.','') END,'sandboxId',e.workload,'at',e.at)::text
+    FROM recorded e JOIN sandboxes b ON b.id=e.workload JOIN webhooks w ON w.project=b.project
+    WHERE NOT b.internal AND w.kinds ? (CASE WHEN e.kind='sandbox.expired' THEN 'ttl_expired' ELSE replace(e.kind,'sandbox.','') END)
+    ON CONFLICT(webhook,event) DO NOTHING`)
 }

@@ -8,11 +8,15 @@
 //! workload protocol instead, and fills every container's isolation from host policy.
 //!
 //! Parts (`docker/`):
+//! - `egress.rs`: firewall-gated hostname bridges and gateways.
+//! - `create.rs`: trusted container and agent creation.
 //! - `container.rs`: container construction and observation types.
 //! - `exec.rs`: command attachment and timeout containment.
 //! - `relay.rs`: bounded private ingress to gateway-free internal networks.
 
 mod container;
+mod create;
+pub(crate) mod egress;
 mod exec;
 mod relay;
 use container::{body_of, info_from};
@@ -80,6 +84,7 @@ pub struct DockerRuntime {
     socket: String,
     client: std::sync::Mutex<Option<Docker>>,
     relays: relay::Relays,
+    egress: egress::Egress,
 }
 
 impl DockerRuntime {
@@ -87,7 +92,12 @@ impl DockerRuntime {
     /// client for a socket that doesn't exist yet), and says so until it's back.
     pub fn new(socket: &Path) -> Result<Self, RuntimeError> {
         let socket = socket.to_str().ok_or_else(|| RuntimeError::Other("socket path is not UTF-8".into()))?.to_owned();
-        Ok(Self { socket, client: std::sync::Mutex::new(None), relays: relay::Relays::default() })
+        Ok(Self {
+            socket,
+            client: std::sync::Mutex::new(None),
+            relays: relay::Relays::default(),
+            egress: Default::default(),
+        })
     }
 
     /// Prove the independent cgroup watchdog before enabling the optional host feature.
@@ -204,6 +214,9 @@ fn pull_tag(image: &str) -> Option<&'static str> {
 impl ContainerRuntime for DockerRuntime {
     fn supports_agent(&self) -> bool {
         true
+    }
+    fn supports_hostname_egress(&self) -> bool {
+        egress::ready()
     }
     fn supports_network_policy(&self) -> bool {
         true
@@ -326,65 +339,7 @@ impl ContainerRuntime for DockerRuntime {
     }
 
     async fn create(&self, spec: &ContainerSpec) -> Result<String, RuntimeError> {
-        if spec.internal_network {
-            self.ensure_internal_network(&spec.network, &spec.labels).await?;
-        }
-        let mut spec = spec.clone();
-        if spec.internal_network {
-            spec.labels.insert(
-                crate::labels::LABEL_INTERNAL_BINDINGS.into(),
-                serde_json::to_string(&spec.ports)
-                    .map_err(|_| RuntimeError::Other("Cannot encode private bindings".into()))?,
-            );
-        }
-        if let Some(agent) = &spec.agent {
-            let image = quick("inspect image", self.docker()?.inspect_image(&spec.image)).await?;
-            let config = image.config.unwrap_or_default();
-            let original = if agent.keep_alive {
-                Vec::new()
-            } else {
-                spec.entrypoint.take().unwrap_or_else(|| {
-                    config.entrypoint.unwrap_or_default().into_iter().chain(config.cmd.unwrap_or_default()).collect()
-                })
-            };
-            let mut entrypoint = vec![
-                pryx_agent::contract::BINARY_PATH.into(),
-                "--sandbox".into(),
-                agent.sandbox.clone(),
-                "--epoch".into(),
-                agent.epoch.to_string(),
-                "--data".into(),
-                spec.mount_path.clone(),
-                "--domain".into(),
-                agent.domain.clone(),
-                "--port".into(),
-                agent.agent_port.to_string(),
-                "--secret-env".into(),
-                agent.secret_env.clone(),
-                "--entrypoint-cwd".into(),
-                config.working_dir.filter(|d| !d.is_empty()).unwrap_or_else(|| "/".into()),
-            ];
-            if let Some(origin) = &agent.public_origin {
-                entrypoint.extend(["--public-origin".into(), origin.clone()]);
-            }
-            if !agent.spare_ports.is_empty() {
-                entrypoint.extend([
-                    "--spare-ports".into(),
-                    agent.spare_ports.iter().map(u16::to_string).collect::<Vec<_>>().join(","),
-                ]);
-            }
-            if agent.keep_alive {
-                entrypoint.push("--keep-alive".into());
-            }
-            if !original.is_empty() {
-                entrypoint.push("--".into());
-                entrypoint.extend(original);
-            }
-            spec.entrypoint = Some(entrypoint);
-        }
-        let options = CreateContainerOptionsBuilder::new().name(&spec.name).build();
-        let created = quick("create", self.docker()?.create_container(Some(options), body_of(&spec))).await?;
-        Ok(created.id)
+        create::create(self, spec).await
     }
 
     async fn start(&self, name: &str) -> Result<(), RuntimeError> {
@@ -448,14 +403,15 @@ impl ContainerRuntime for DockerRuntime {
         // workload's data is a bind mount, which removal never touches.
         let options = RemoveContainerOptionsBuilder::new().force(true).v(true).build();
         match quick("remove", self.docker()?.remove_container(name, Some(options))).await {
-            Err(RuntimeError::NotFound(_)) => Ok(()),
-            other => other,
+            Err(RuntimeError::NotFound(_)) | Ok(()) => self.egress.stop(self, name).await,
+            Err(error) => Err(error),
         }
     }
 
     async fn inspect(&self, name: &str) -> Result<Option<ContainerInfo>, RuntimeError> {
         match quick("inspect", self.docker()?.inspect_container(name, None)).await {
             Ok(inspect) => {
+                self.egress.restore(self, &inspect).await?;
                 self.relays.ensure(&inspect).await?;
                 Ok(Some(info_from(inspect)))
             }
@@ -657,6 +613,8 @@ mod tests {
             name: "blockly-test-w".into(),
             image: "alpine:3.22".into(),
             entrypoint: None,
+            workdir: None,
+            egress: None,
             env: Vec::new(),
             labels: BTreeMap::new(),
             user: "1000:1000".into(),

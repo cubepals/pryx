@@ -20,6 +20,8 @@ if TYPE_CHECKING:
     from ..models.sandbox_agent import SandboxAgent
     from ..models.sandbox_endpoints_item import SandboxEndpointsItem
     from ..models.sandbox_exit import SandboxExit
+    from ..models.sandbox_labels import SandboxLabels
+    from ..models.sandbox_metadata import SandboxMetadata
 
 
 T = TypeVar("T", bound="Sandbox")
@@ -40,6 +42,13 @@ class Sandbox:
         created_at (str):
         updated_at (str):
         expires_at (Union[None, str]):
+        name (Union[Unset, str]):
+        labels (Union[Unset, SandboxLabels]):
+        metadata (Union[Unset, SandboxMetadata]):
+        workdir (Union[Unset, str]):
+        user (Union[Unset, str]):
+        idle (Union[Unset, float]):
+        auto_delete (Union[Unset, bool]):
         exit_ (Union[Unset, SandboxExit]):
         isolation (Union[Unset, SandboxIsolation]):
         files (Union[Unset, bool]):
@@ -58,6 +67,13 @@ class Sandbox:
     created_at: str
     updated_at: str
     expires_at: Union[None, str]
+    name: Union[Unset, str] = UNSET
+    labels: Union[Unset, "SandboxLabels"] = UNSET
+    metadata: Union[Unset, "SandboxMetadata"] = UNSET
+    workdir: Union[Unset, str] = UNSET
+    user: Union[Unset, str] = UNSET
+    idle: Union[Unset, float] = UNSET
+    auto_delete: Union[Unset, bool] = UNSET
     exit_: Union[Unset, "SandboxExit"] = UNSET
     isolation: Union[Unset, SandboxIsolation] = UNSET
     files: Union[Unset, bool] = UNSET
@@ -94,6 +110,24 @@ class Sandbox:
         expires_at: Union[None, str]
         expires_at = self.expires_at
 
+        name = self.name
+
+        labels: Union[Unset, dict[str, Any]] = UNSET
+        if not isinstance(self.labels, Unset):
+            labels = self.labels.to_dict()
+
+        metadata: Union[Unset, dict[str, Any]] = UNSET
+        if not isinstance(self.metadata, Unset):
+            metadata = self.metadata.to_dict()
+
+        workdir = self.workdir
+
+        user = self.user
+
+        idle = self.idle
+
+        auto_delete = self.auto_delete
+
         exit_: Union[Unset, dict[str, Any]] = UNSET
         if not isinstance(self.exit_, Unset):
             exit_ = self.exit_.to_dict()
@@ -127,6 +161,20 @@ class Sandbox:
                 "expiresAt": expires_at,
             }
         )
+        if name is not UNSET:
+            field_dict["name"] = name
+        if labels is not UNSET:
+            field_dict["labels"] = labels
+        if metadata is not UNSET:
+            field_dict["metadata"] = metadata
+        if workdir is not UNSET:
+            field_dict["workdir"] = workdir
+        if user is not UNSET:
+            field_dict["user"] = user
+        if idle is not UNSET:
+            field_dict["idle"] = idle
+        if auto_delete is not UNSET:
+            field_dict["autoDelete"] = auto_delete
         if exit_ is not UNSET:
             field_dict["exit"] = exit_
         if isolation is not UNSET:
@@ -145,6 +193,8 @@ class Sandbox:
         from ..models.sandbox_agent import SandboxAgent
         from ..models.sandbox_endpoints_item import SandboxEndpointsItem
         from ..models.sandbox_exit import SandboxExit
+        from ..models.sandbox_labels import SandboxLabels
+        from ..models.sandbox_metadata import SandboxMetadata
 
         d = dict(src_dict)
         id = d.pop("id")
@@ -189,6 +239,30 @@ class Sandbox:
 
         expires_at = _parse_expires_at(d.pop("expiresAt"))
 
+        name = d.pop("name", UNSET)
+
+        _labels = d.pop("labels", UNSET)
+        labels: Union[Unset, SandboxLabels]
+        if isinstance(_labels, Unset):
+            labels = UNSET
+        else:
+            labels = SandboxLabels.from_dict(_labels)
+
+        _metadata = d.pop("metadata", UNSET)
+        metadata: Union[Unset, SandboxMetadata]
+        if isinstance(_metadata, Unset):
+            metadata = UNSET
+        else:
+            metadata = SandboxMetadata.from_dict(_metadata)
+
+        workdir = d.pop("workdir", UNSET)
+
+        user = d.pop("user", UNSET)
+
+        idle = d.pop("idle", UNSET)
+
+        auto_delete = d.pop("autoDelete", UNSET)
+
         _exit_ = d.pop("exit", UNSET)
         exit_: Union[Unset, SandboxExit]
         if isinstance(_exit_, Unset):
@@ -226,6 +300,13 @@ class Sandbox:
             created_at=created_at,
             updated_at=updated_at,
             expires_at=expires_at,
+            name=name,
+            labels=labels,
+            metadata=metadata,
+            workdir=workdir,
+            user=user,
+            idle=idle,
+            auto_delete=auto_delete,
             exit_=exit_,
             isolation=isolation,
             files=files,

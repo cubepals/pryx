@@ -4,6 +4,7 @@
 /** Exercise persisted create recovery and lifecycle callbacks from the real RivetKit definition against SDK HTTP transport. */
 import { expect, test } from 'bun:test'
 import { Pryx } from '@cubepals/pryx'
+import { StatusCodes } from 'http-status-codes'
 import { pryxProvider } from '../src/agentos.ts'
 import { type SessionMemory, sandboxActor } from '../src/index.ts'
 
@@ -11,8 +12,8 @@ test('a lost create reply keeps identity; lifecycle manages its recovered sandbo
   const calls: { path: string; key: string | null; body: unknown }[] = []
   let lose = true
   const client = new Pryx({
-    baseUrl: 'http://fixture',
-    apiKey: 'server-secret',
+    url: 'http://fixture',
+    key: 'server-secret',
     fetch: (async (input, init) => {
       const path = new URL(String(input)).pathname
       calls.push({
@@ -63,14 +64,15 @@ test('a lost create reply keeps identity; lifecycle manages its recovered sandbo
     '/v1/sandboxes/kept',
     '/v1/sandboxes/kept/sleep',
     '/v1/sandboxes/kept',
+    '/v1/sandboxes/kept',
   ])
   expect(JSON.stringify(state)).not.toContain('server-secret')
 })
 test('sandbox-agent provider preserves keys, pauses and handles private IPv6 endpoints', async () => {
   const requests: Request[] = []
   const client = new Pryx({
-    baseUrl: 'http://fixture',
-    apiKey: 'server-secret',
+    url: 'http://fixture',
+    key: 'server-secret',
     fetch: (async (input, init) => {
       const request = new Request(input, init)
       requests.push(request)
@@ -96,8 +98,67 @@ test('sandbox-agent provider preserves keys, pauses and handles private IPv6 end
   await provider.reconnect?.('one')
   await provider.destroy('one')
   expect(requests.slice(2).map((r) => new URL(r.url).pathname)).toEqual([
+    '/v1/sandboxes/one/endpoints',
+    '/v1/sandboxes/one',
     '/v1/sandboxes/one/sleep',
+    '/v1/sandboxes/one',
     '/v1/sandboxes/one/wake',
     '/v1/sandboxes/one',
+    '/v1/sandboxes/one',
   ])
+})
+
+test('provider deletion stays idempotent after lookup reports gone', async () => {
+  let deleted = false,
+    deletes = 0
+  const client = new Pryx({
+    url: 'http://fixture',
+    key: 'secret',
+    fetch: (async (_input, init) => {
+      if (init?.method === 'DELETE') {
+        deletes++
+        deleted = true
+        return Response.json({ existed: true })
+      }
+      return deleted
+        ? Response.json({ error: { code: 'gone', message: 'Deleted' } }, { status: StatusCodes.GONE })
+        : Response.json({ id: 'one', state: 'running', endpoints: [] })
+    }) as typeof fetch,
+  })
+  const provider = pryxProvider(client, { key: 'one', image: 'alpine:3.22' })
+  await provider.destroy('one')
+  await provider.destroy('one')
+  expect(deletes).toBe(1)
+})
+
+test('provider inspection and teardown do not need wake capacity', async () => {
+  const calls: string[] = []
+  let allowWake = false
+  const client = new Pryx({
+    url: 'http://fixture',
+    key: 'secret',
+    fetch: (async (input, init) => {
+      const request = new Request(input, init)
+      const path = new URL(request.url).pathname
+      calls.push(`${request.method} ${path}`)
+      if (path.endsWith('/wake') && !allowWake)
+        return Response.json(
+          { error: { code: 'capacity', message: 'No wake capacity' } },
+          { status: StatusCodes.SERVICE_UNAVAILABLE },
+        )
+      return Response.json(
+        path.endsWith('/endpoints')
+          ? { endpoints: [{ name: 'agent', host: '127.0.0.1', port: 1234 }] }
+          : { id: 'one', state: 'sleeping', endpoints: [] },
+      )
+    }) as typeof fetch,
+  })
+  const provider = pryxProvider(client, { key: 'one', image: 'alpine:3.22' })
+  expect(await provider.getUrl?.('one')).toBe('http://127.0.0.1:1234')
+  await provider.pause?.('one')
+  await provider.destroy('one')
+  expect(calls.some((call) => call.endsWith('/wake'))).toBe(false)
+  allowWake = true
+  await provider.reconnect?.('one')
+  expect(calls.filter((call) => call.endsWith('/wake'))).toHaveLength(1)
 })

@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { sql } from 'drizzle-orm'
 import { StatusCodes } from 'http-status-codes'
+import { SECOND_MS } from '../src/durations.ts'
 import { edgeApi } from '../src/edge-api.ts'
 import { EdgeService } from '../src/edge-service.ts'
 import { one } from '../src/sql.ts'
@@ -33,17 +34,28 @@ describe.skipIf(!hasDatabase)('edge control', () => {
       })
     expect((await app.request('http://c/routes')).status).toBe(StatusCodes.UNAUTHORIZED)
     await ask('/routes')
-    const made = (await (
-      await ctx.request('/sandboxes', 'POST', {
+    let completed = false
+    const creation = Promise.resolve(
+      ctx.request('/sandboxes', 'POST', {
         image: 'alpine:3.22',
         ports: [{ name: 'http', port: 8080, audience: 'public' }],
-      })
-    ).json()) as { id: string; state: string }
-    expect(made.state).toBe('starting')
+      }),
+    ).then(async (response) => {
+      completed = true
+      return (await response.json()) as { id: string; state: string }
+    })
+    let pending: { id: string } | null = null
+    while (!pending) {
+      pending = await one(ctx.db, sql`SELECT id FROM sandboxes WHERE state='running'`)
+      if (!pending) await Bun.sleep(SECOND_MS / 100)
+    }
+    expect(completed).toBe(false)
     const list = await service.routes()
     expect(list.routes[0]?.state).toBeUndefined()
-    expect((await ctx.model.view(made.id, 'default')).state).toBe('starting')
+    expect((await ctx.model.view(pending.id, 'default')).state).toBe('starting')
     await ask('/routes', list.version)
+    const made = await creation
+    expect(made.state).toBe('running')
     expect((await ctx.model.view(made.id, 'default')).state).toBe('running')
     await ctx.boxes.sleep(made.id)
     expect((await service.routes()).routes[0]?.destination).toBe('0.0.0.0:0')
@@ -64,6 +76,7 @@ describe.skipIf(!hasDatabase)('edge control', () => {
     })
     expect(await one(ctx.db, sql`SELECT 1 FROM sandbox_sessions WHERE sandbox=${made.id}`)).toBeNull()
     await ctx.boxes.delete(made.id)
+    await ctx.db.execute(sql`DELETE FROM edges WHERE id='edge'`)
   })
   test('raw port reservations stay quarantined after delete and host collisions are refused', async () => {
     const spec = {

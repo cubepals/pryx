@@ -63,13 +63,6 @@ export class NodeCache {
   get(id: string): CachedNode | undefined {
     return this.#nodes.get(id)
   }
-  supports(feature: string, region: string): boolean | undefined {
-    const nodes = [...this.#nodes.values()].filter(
-      (node) => node.lifecycle === 'active' && node.region === region,
-    )
-    return nodes.length ? nodes.some((node) => node.features.includes(feature)) : undefined
-  }
-
   /** Reads the registry now and every few seconds after, until the returned function is called. */
   async watch(): Promise<() => void> {
     await this.refresh()

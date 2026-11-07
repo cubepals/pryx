@@ -41,6 +41,10 @@ pub struct ContainerSpec {
     #[serde(default)]
     pub(crate) packages: Vec<String>,
     pub(crate) entrypoint: Option<Vec<String>>,
+    #[serde(default)]
+    pub(crate) workdir: Option<String>,
+    #[serde(default)]
+    pub(crate) egress: Option<crate::protocol::EgressPolicy>,
     /// Environment, secrets included. Never logged (see `Debug` below).
     pub env: Vec<(String, String)>,
     pub labels: BTreeMap<String, String>,
@@ -277,6 +281,9 @@ pub trait ContainerRuntime: Send + Sync + 'static {
         Ok(None)
     }
     fn supports_agent(&self) -> bool {
+        false
+    }
+    fn supports_hostname_egress(&self) -> bool {
         false
     }
     fn supports_network_policy(&self) -> bool {

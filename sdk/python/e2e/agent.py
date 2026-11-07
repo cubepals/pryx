@@ -7,33 +7,33 @@ import os
 import unittest
 from urllib.parse import urlparse
 import httpx
-from cubepals_pryx import Pryx, AsyncPryx, PryxError
+from cubepals_pryx import Pryx, PryxError
 
 def creation():
     tier = os.environ.get('PRYX_TEST_TIER', 'container')
     return {'image': 'alpine:pryx-tls'} if tier == 'container' else {'isolation': tier}
 
 def web_command():
-    if os.environ.get('PRYX_TEST_TIER') == 'wasm':
+    if os.environ.get('PRYX_TEST_TIER') in ('wasm','process'):
         return ['node', '-e', "require('node:http').createServer((req,res)=>res.end(require('node:fs').readFileSync('/data/index.html'))).listen(3000,'0.0.0.0')"]
     return ['httpd','-f','-p','3000','-h','/data']
 
 class AgentSync(unittest.TestCase):
     def test_complete_surface(self):
-        with Pryx(os.environ['PRYX_API_URL'], os.environ['PRYX_API_KEY']) as sdk:
+        with Pryx(url=os.environ['PRYX_API_URL'],key=os.environ['PRYX_API_KEY']) as sdk:
             box = sdk.sandbox(**creation(), sparePorts=1, resources={'memoryMb':256})
             try:
-                process = box.start('printf first; read value; printf "%s" "$value"', stdin=True, cwd='/data', env={'CI':'1'})
+                process = box.spawn('printf first; read value; printf "%s" "$value"', stdin=True, cwd='/data', env={'CI':'1'})
                 output = process.stream()
                 self.assertEqual(next(output)['data'], 'first')
-                self.assertTrue(box.agent.process(process.id).view['running'])
+                self.assertGreater(process.pid,0)
                 process.stdin.write('last\n')
                 self.assertEqual(next(output)['data'], 'last')
                 list(output)
                 self.assertEqual(process.wait().code, 0)
                 self.assertEqual(box.run('printf hello').stdout, 'hello')
                 for signal in ('TERM', 'KILL'):
-                    background = box.start('sleep 60')
+                    background = box.spawn('sleep 60')
                     background.kill() if signal == 'KILL' else background.signal(signal)
                     self.assertNotEqual(background.wait().code, 0)
                 terminal = box.terminal(cols=120, rows=40)
@@ -60,7 +60,7 @@ class AgentSync(unittest.TestCase):
                 box.write('large', iter([data[:10],data[10:]]))
                 self.assertEqual(b''.join(box.read_stream('large')), data)
                 box.write('index.html', 'exposed')
-                web = box.start(web_command())
+                web = box.spawn(web_command())
                 url = box.expose(3000)
                 self.assertEqual(httpx.get(os.environ['PRYX_TEST_EDGE_URL'], headers={'host':urlparse(url).hostname}).text, 'exposed')
                 with self.assertRaises(PryxError) as error: box.expose(3001)
@@ -79,20 +79,20 @@ class AgentSync(unittest.TestCase):
 
 class AgentAsync(unittest.IsolatedAsyncioTestCase):
     async def test_complete_surface(self):
-        async with AsyncPryx(os.environ['PRYX_API_URL'], os.environ['PRYX_API_KEY']) as sdk:
+        async with Pryx(url=os.environ['PRYX_API_URL'],key=os.environ['PRYX_API_KEY']) as sdk:
             box = await sdk.sandbox(**creation(), sparePorts=1, resources={'memoryMb':256})
             try:
-                process = await box.start('printf first; read value; printf "%s" "$value"', stdin=True, cwd='/data', env={'CI':'1'})
+                process = await box.spawn('printf first; read value; printf "%s" "$value"', stdin=True, cwd='/data', env={'CI':'1'})
                 output = process.stream()
                 self.assertEqual((await anext(output))['data'], 'first')
-                self.assertTrue((await box.agent.process(process.id)).view['running'])
+                self.assertGreater(process.pid,0)
                 await process.stdin.write('last\n')
                 self.assertEqual((await anext(output))['data'], 'last')
                 async for _ in output: pass
                 self.assertEqual((await process.wait()).code, 0)
                 self.assertEqual((await box.run('printf hello')).stdout, 'hello')
                 for signal in ('TERM', 'KILL'):
-                    background = await box.start('sleep 60')
+                    background = await box.spawn('sleep 60')
                     await background.kill() if signal == 'KILL' else await background.signal(signal)
                     self.assertNotEqual((await background.wait()).code, 0)
                 terminal = await box.terminal(cols=120, rows=40)
@@ -121,7 +121,7 @@ class AgentAsync(unittest.IsolatedAsyncioTestCase):
                 await box.write('large',source())
                 self.assertEqual(b''.join([chunk async for chunk in box.read_stream('large')]),data)
                 await box.write('index.html','exposed')
-                web = await box.start(web_command())
+                web = await box.spawn(web_command())
                 url = await box.expose(3000)
                 async with httpx.AsyncClient() as http: self.assertEqual((await http.get(os.environ['PRYX_TEST_EDGE_URL'],headers={'host':urlparse(url).hostname})).text,'exposed')
                 with self.assertRaises(PryxError) as error: await box.expose(3001)
@@ -142,7 +142,7 @@ class AgentCli(unittest.TestCase):
         import fcntl, json, pathlib, pty, select, signal, struct, subprocess, tempfile, termios, time
         command = ['bun','cli/src/main.ts','sandbox']
         def invoke(*args): return subprocess.run([*command,*args],check=True,capture_output=True,text=True).stdout
-        with Pryx(os.environ['PRYX_API_URL'],os.environ['PRYX_API_KEY']) as sdk:
+        with Pryx(url=os.environ['PRYX_API_URL'],key=os.environ['PRYX_API_KEY']) as sdk:
             box = sdk.sandbox(**creation(),resources={'memoryMb':256})
             try:
                 with tempfile.TemporaryDirectory() as temporary:
@@ -154,7 +154,7 @@ class AgentCli(unittest.TestCase):
                     self.assertEqual((root/'download'/'nested'/'message').read_bytes(),b'cli-file' * 100_000)
                     self.assertTrue((root/'download'/'empty').is_dir())
                 box.write('index.html','cli-app')
-                web=box.start(web_command())
+                web=box.spawn(web_command())
                 url=json.loads(invoke('expose',box.id,'3000'))
                 self.assertEqual(httpx.get(os.environ['PRYX_TEST_EDGE_URL'],headers={'host':urlparse(url).hostname}).text,'cli-app')
                 invoke('unexpose',box.id,'3000');web.kill();web.wait()

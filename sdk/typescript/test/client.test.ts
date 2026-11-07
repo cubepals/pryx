@@ -4,7 +4,8 @@
 /** Exercise streaming UTF-8 boundaries and HTTP errors without a real node. */
 import { expect, test } from 'bun:test'
 import { StatusCodes } from 'http-status-codes'
-import { ndjson, Pryx, PryxError } from '../src/index.ts'
+import { Pryx, PryxError } from '../src/index.ts'
+import { ndjson } from '../src/transport.ts'
 
 test('NDJSON carries split UTF-8, final lines and cancels its source', async () => {
   const bytes = new TextEncoder().encode('{"data":"é"}\n{"last":true}')
@@ -19,8 +20,8 @@ test('NDJSON carries split UTF-8, final lines and cancels its source', async () 
 test('a refused mutation carries its envelope and is sent once', async () => {
   let count = 0
   const client = new Pryx({
-    baseUrl: 'http://example.test',
-    apiKey: 'test',
+    url: 'http://example.test',
+    key: 'test',
     fetch: (async (request, options) => {
       count++
       expect(String(request)).toEndWith('/v1/sandboxes')
@@ -31,6 +32,6 @@ test('a refused mutation carries its envelope and is sent once', async () => {
       )
     }) as typeof fetch,
   })
-  await expect(client.make({ image: 'alpine' })).rejects.toBeInstanceOf(PryxError)
+  await expect(client.sandbox({ image: 'alpine' })).rejects.toBeInstanceOf(PryxError)
   expect(count).toBe(1)
 })

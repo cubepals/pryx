@@ -31,7 +31,10 @@ const mapRegions = (text = ''): Record<string, string> =>
             return [from, to]
           }),
       )
+export const DEFAULT_REPO_IMAGE =
+  'docker.io/alpine/git@sha256:ac6c828f15d82775d204d3d75112e1d34af8945da80ccf922713c9891ba68e7a'
 const schema = z.object({
+  repoImage: z.string().min(1).default(DEFAULT_REPO_IMAGE),
   defaultIsolation: z.enum(ISOLATIONS).default('container'),
   publicOrigin: z.url().optional(),
   database: z.string().min(1),
@@ -42,6 +45,7 @@ const schema = z.object({
   storeLease: z.object({ enabled: z.boolean(), seconds: positive, renewSeconds: positive }),
   providerEnv: z.record(z.string(), z.string()),
   providerSealKey: z.string().min(32),
+  webhookAllowHosts: z.array(z.string()).default([]),
   providerImages: z.array(z.string()),
   autoscale: z.object({
     enabled: z.boolean(),
@@ -99,6 +103,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   const hosts = (env.PRYX_ENDPOINT_HOSTS ?? '127.0.0.1,localhost').split(',').filter(Boolean)
   const config = schema.parse({
     database: env.DATABASE_URL,
+    repoImage: env.PRYX_REPO_IMAGE,
+    webhookAllowHosts: (env.PRYX_WEBHOOK_ALLOW_HOSTS ?? '').split(',').filter(Boolean),
     defaultIsolation: env.PRYX_DEFAULT_ISOLATION,
     publicOrigin: env.PRYX_PUBLIC_URL,
     deployment: env.PRYX_DEPLOYMENT ?? 'pryx',

@@ -3,10 +3,11 @@
 /** The direct sandbox transport caches a scoped capability, never a project key. Every mutation
  * is sent once. Processes and terminals use this transport; lifecycle remains on the public API. */
 import { StatusCodes } from 'http-status-codes'
-import { ndjson, type Pryx, PryxError } from './api.ts'
 import { type Duration, seconds } from './duration.ts'
 import type { components } from './generated/api.ts'
 import { SDK_DEFAULTS } from './generated/defaults.ts'
+import { type LogsOptions, logs } from './logs.ts'
+import { ndjson, PryxError, type Transport } from './transport.ts'
 
 export type AgentStart = components['schemas']['AgentStart']
 export type AgentEvent = components['schemas']['AgentEvent']
@@ -14,49 +15,55 @@ export type AgentResult = components['schemas']['AgentResult']
 export type AgentProcess = components['schemas']['AgentProcess']
 export type AgentExposed = components['schemas']['AgentExposed']
 export type SandboxToken = components['schemas']['SandboxToken']
-export type StartOptions = Omit<Partial<AgentStart>, 'command' | 'timeout'> & {
+export type StartOptions = Omit<Partial<AgentStart>, 'command' | 'timeout' | 'stdin'> & {
   timeout?: Duration
+  stdin?: boolean | string | Uint8Array
   idempotencyKey?: string
 }
 export class Agent {
-  private credential?: SandboxToken
-  private renewing?: Promise<SandboxToken>
-  private generation = 0
+  #credential?: SandboxToken
+  #renewing?: Promise<SandboxToken>
+  #generation = 0
+  #version?: Promise<void>
   constructor(
-    readonly api: Pryx,
+    readonly api: Transport,
     readonly id: string,
   ) {}
   invalidate() {
-    this.generation++
-    this.credential = undefined
-    this.renewing = undefined
+    this.#version = undefined
+    this.#generation++
+    this.#credential = undefined
+    this.#renewing = undefined
   }
   async token() {
     if (
-      this.credential &&
-      this.credential.expiresAt > Date.now() / SDK_DEFAULTS.secondMs + SDK_DEFAULTS.tokenRenewBeforeSeconds
+      this.#credential &&
+      this.#credential.expiresAt > Date.now() / SDK_DEFAULTS.secondMs + SDK_DEFAULTS.tokenRenewBeforeSeconds
     )
-      return this.credential
-    if (!this.renewing) {
-      const generation = this.generation
+      return this.#credential
+    if (!this.#renewing) {
+      const generation = this.#generation
       const pending = this.api
         .request<SandboxToken>(`/v1/sandboxes/${encodeURIComponent(this.id)}/token`, 'POST')
         .then((credential) => {
-          if (generation === this.generation) this.credential = credential
+          if (generation === this.#generation) this.#credential = credential
           return credential
         })
         .finally(() => {
-          if (generation === this.generation) this.renewing = undefined
+          if (generation === this.#generation) this.#renewing = undefined
         })
-      this.renewing = pending
+      this.#renewing = pending
     }
-    return this.renewing
+    return this.#renewing
   }
-  async raw(path: string, method = 'GET', body?: BodyInit, headers: HeadersInit = {}) {
+  async raw(path: string, method = 'GET', body?: BodyInit, headers: HeadersInit = {}, signal?: AbortSignal) {
     const token = await this.token()
     const response = await this.api.fetch(`${token.url.replace(/\/$/, '')}${path}`, {
       method,
+      redirect: 'manual',
+      signal,
       body,
+      ...(body instanceof ReadableStream ? { duplex: 'half' } : {}),
       headers: { ...Object.fromEntries(new Headers(headers)), authorization: `Bearer ${token.token}` },
     })
     if (!response.ok) {
@@ -79,15 +86,68 @@ export class Agent {
     })
     return response.status === StatusCodes.NO_CONTENT ? (undefined as T) : (response.json() as Promise<T>)
   }
+  requireVersion() {
+    this.#version ??= this.request<{ apiVersion?: number }>('/_pryx/health')
+      .then((health) => {
+        if ((health.apiVersion ?? 1) < SDK_DEFAULTS.agentVersion)
+          throw new PryxError(0, 'unsupported', 'This operation requires agent API version 2')
+      })
+      .catch((error) => {
+        this.#version = undefined
+        throw error
+      })
+    return this.#version
+  }
+  async requestV2<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
+    await this.requireVersion()
+    return this.request<T>(path, method, body)
+  }
+  logs(options: LogsOptions = {}, signal?: AbortSignal) {
+    return logs(
+      () =>
+        this.raw(
+          `/_pryx/logs?${new URLSearchParams({ follow: String(options.follow ?? false) })}`,
+          'GET',
+          undefined,
+          {},
+          signal,
+        ),
+      options,
+    )
+  }
   async start(command: string | string[], options: StartOptions = {}) {
-    const { timeout, idempotencyKey, ...body } = options
+    const { timeout, idempotencyKey, stdin, ...body } = options
+    const value = timeout === undefined ? undefined : seconds(timeout)
+    if (value !== undefined && !Number.isInteger(value))
+      throw new TypeError('Process timeout is a whole number of seconds')
     const process = await this.request<AgentProcess>(
       '/_pryx/processes',
       'POST',
-      { ...body, command, ...(timeout === undefined ? {} : { timeout: seconds(timeout) }) },
+      {
+        ...body,
+        command,
+        ...(stdin === undefined ? {} : { stdin: typeof stdin === 'boolean' ? stdin : true }),
+        ...(value === undefined ? {} : { timeout: value }),
+      },
       idempotencyKey ?? crypto.randomUUID(),
     )
-    return new Process(this, process)
+    const handle = new Process(this, process)
+    if (typeof stdin === 'string' || stdin instanceof Uint8Array) {
+      const bytes = typeof stdin === 'string' ? new TextEncoder().encode(stdin) : stdin
+      try {
+        for (let offset = 0; offset < bytes.byteLength; offset += SDK_DEFAULTS.stdinBytes)
+          await handle.stdin.write(bytes.subarray(offset, offset + SDK_DEFAULTS.stdinBytes))
+        await handle.stdin.close()
+      } catch (error) {
+        throw new PryxError(
+          0,
+          'stdin_failed',
+          'Input delivery failed; inspect the process before deciding whether to stop it',
+          { processId: process.id, cause: error instanceof Error ? error.message : String(error) },
+        )
+      }
+    }
+    return handle
   }
   async processes() {
     return (await this.request<{ processes: AgentProcess[] }>('/_pryx/processes')).processes.map(
@@ -176,11 +236,13 @@ export async function* output(events: AsyncIterable<AgentEvent>) {
   }
 }
 export class Process {
+  #agent: Agent
   readonly stdin: { write: (data: string | Uint8Array) => Promise<void>; close: () => Promise<void> }
   constructor(
-    readonly agent: Agent,
+    agent: Agent,
     readonly view: AgentProcess,
   ) {
+    this.#agent = agent
     this.stdin = {
       write: async (data) => {
         await agent.raw(this.path('/stdin'), 'POST', binaryBody(data))
@@ -197,20 +259,49 @@ export class Process {
   private path(suffix = '') {
     return `/_pryx/processes/${encodeURIComponent(this.id)}${suffix}`
   }
+  waitForPort(
+    port: number,
+    options: { mode?: 'http' | 'tcp'; path?: string; status?: number; timeout?: Duration } = {},
+  ) {
+    return this.#agent.requestV2<{ ready: true }>(this.path('/ready'), 'POST', {
+      kind: 'port',
+      port,
+      ...options,
+      timeout: seconds(options.timeout ?? SDK_DEFAULTS.runTimeoutSeconds),
+    })
+  }
+  waitForLog(pattern: string | RegExp, timeout: Duration = SDK_DEFAULTS.runTimeoutSeconds) {
+    if (pattern instanceof RegExp && pattern.flags)
+      throw new TypeError('Pass an unflagged regular expression or use inline regex flags')
+    return this.#agent.requestV2<{ matched: true }>(this.path('/ready'), 'POST', {
+      kind: 'log',
+      pattern: typeof pattern === 'string' ? pattern : pattern.source,
+      timeout: seconds(timeout),
+    })
+  }
+  waitForExit(timeout: Duration = SDK_DEFAULTS.runTimeoutSeconds) {
+    return this.#agent.requestV2<AgentResult>(this.path('/ready'), 'POST', {
+      kind: 'exit',
+      timeout: seconds(timeout),
+    })
+  }
+  logs() {
+    return this.stream()
+  }
   wait() {
-    return this.agent.request<AgentResult>(this.path('/wait'))
+    return this.#agent.request<AgentResult>(this.path('/wait'))
   }
   signal(signal: string) {
-    return this.agent.request<void>(this.path('/signal'), 'POST', { signal })
+    return this.#agent.request<void>(this.path('/signal'), 'POST', { signal })
   }
   kill() {
     return this.signal('KILL')
   }
   resize(cols: number, rows: number) {
-    return this.agent.request<void>(this.path('/resize'), 'POST', { cols, rows })
+    return this.#agent.request<void>(this.path('/resize'), 'POST', { cols, rows })
   }
   async *events() {
-    yield* ndjson<AgentEvent>(await this.agent.raw(this.path('/output')))
+    yield* ndjson<AgentEvent>(await this.#agent.raw(this.path('/output')))
   }
   async *stream() {
     for await (const event of output(this.events()))

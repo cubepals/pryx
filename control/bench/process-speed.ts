@@ -127,7 +127,7 @@ async function operations(sdk: Pryx, origin: string, env: Record<string, string 
     sparePorts: 1,
   })
   try {
-    const view = await sdk.api.get(box.id)
+    const view = box.toJSON()
     if (phase === 'after' && view.isolation !== 'process')
       throw new Error('Sandbox did not report process isolation')
     await box.run('true')
@@ -137,16 +137,16 @@ async function operations(sdk: Pryx, origin: string, env: Record<string, string 
     samples.first_byte = []
     for (let i = 0; i < N; i++) {
       const start = performance.now(),
-        run = box.run('echo hi'),
-        stream = run.stream()
+        run = box.stream('echo hi'),
+        stream = run[Symbol.asyncIterator]()
       if ((await stream.next()).value?.data !== 'hi\n') throw new Error('First byte differs')
       samples.first_byte.push(performance.now() - start)
       while (!(await stream.next()).done) {}
-      if ((await run).code !== 0) throw new Error('Echo did not exit')
+      if ((await run.result()).code !== 0) throw new Error('Echo did not exit')
     }
     await box.write('index.html', 'ready')
     await measure('start_expose_200', async () => {
-      const web = await box.start(
+      const web = await box.spawn(
         phase === 'before'
           ? ['httpd', '-f', '-p', '3000', '-h', '/data']
           : ['python3', '-m', 'http.server', '3000', '--bind', '127.0.0.1', '--directory', '.'],
@@ -167,8 +167,8 @@ async function operations(sdk: Pryx, origin: string, env: Record<string, string 
         }
         if (!success) throw new Error('Exposed HTTP content differs')
       } catch (error) {
-        const current = await box.agent.process(web.id)
-        if (current.view.running) await web.kill()
+        const current = await box.run(['kill', '-0', String(web.pid)])
+        if (current.code === 0) await web.kill()
         const result = await web.wait()
         let output = ''
         for await (const chunk of web.stream()) {
@@ -320,7 +320,7 @@ let close = async () => {},
 try {
   if (phase === 'before') {
     absent.image_start = 'The preceding image contains only the daemon and has no one-image API; n=0'
-    const d = await deployment({ agent: true }),
+    const d = await deployment(),
       edge = await startEdge({
         ...edgeConfig({
           PRYX_CONTROL_URL: d.control.apiUrl,

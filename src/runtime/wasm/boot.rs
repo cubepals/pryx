@@ -22,12 +22,20 @@ pub(super) struct Distribution {
     pub version: String,
     pub binary_sha256: String,
     pub default_packages: Vec<Package>,
+    #[serde(default)]
+    pub optional_packages: Vec<OptionalPackage>,
 }
 
 #[derive(Deserialize)]
 pub(super) struct Package {
     pub name: String,
     pub sha256: String,
+}
+
+#[derive(Deserialize)]
+pub(super) struct OptionalPackage {
+    pub name: String,
+    pub digest: String,
 }
 
 pub(super) fn distribution() -> Result<Distribution, RuntimeError> {
@@ -158,10 +166,22 @@ fn workload_options(options: &mut AgentOsConfig, spec: &ContainerSpec, owner: (u
     Ok(())
 }
 
-pub(super) async fn packages(options: &mut AgentOsConfig, names: &[String]) -> Result<(), RuntimeError> {
+pub(super) async fn packages(options: &mut AgentOsConfig, root: &Path, names: &[String]) -> Result<(), RuntimeError> {
     let distribution = distribution()?;
     for name in names {
         if distribution.default_packages.iter().any(|package| package.name == *name) {
+            continue;
+        }
+        if let Some(package) = distribution.optional_packages.iter().find(|package| package.name == *name) {
+            let path = root.join("agentos-core/dist/optional-software").join(format!("{name}.aospkg"));
+            verify(
+                &path,
+                package
+                    .digest
+                    .strip_prefix("sha256:")
+                    .ok_or_else(|| super::error("Invalid optional package digest"))?,
+            )?;
+            options.packages.push(PackageRef { path: path.to_string_lossy().into_owned() });
             continue;
         }
         let package = agentos_client::resolve_registry_software(name, Some(&distribution.version), None)

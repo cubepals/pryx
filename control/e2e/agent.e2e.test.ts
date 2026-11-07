@@ -21,23 +21,23 @@ test.skipIf(!ready)(
     try {
       const route = await c.route(box.id)
       expect(route.agent).toBeDefined()
-      const process = await box.start('printf first; read value; printf "%s" "$value"', {
+      const process = await box.spawn('printf first; read value; printf "%s" "$value"', {
         stdin: true,
         env: { CI: '1' },
         cwd: '/data',
       })
       const output = process.stream()
       expect((await output.next()).value?.data).toBe('first')
-      expect((await box.agent.process(process.id)).view.running).toBe(true)
+      expect(process.pid).toBeGreaterThan(0)
       await process.stdin.write('last\n')
       expect((await output.next()).value?.data).toBe('last')
       await output.next()
       expect((await process.wait()).code).toBe(0)
       expect((await box.run('printf hello')).stdout).toBe('hello')
-      const long = await box.start('sleep 60')
+      const long = await box.spawn('sleep 60')
       await long.signal('TERM')
       expect((await long.wait()).code).not.toBe(0)
-      const killed = await box.start('sleep 60')
+      const killed = await box.spawn('sleep 60')
       await killed.kill()
       expect((await killed.wait()).code).not.toBe(0)
       const terminal = await box.terminal({ cols: 120, rows: 40 })
@@ -96,7 +96,7 @@ test.skipIf(!ready)(
       expect(await new Response(await box.readStream('large')).bytes()).toEqual(bytes)
       stage = 'ports'
       await box.write('index.html', 'exposed')
-      const web = await box.start(webCommand())
+      const web = await box.spawn(webCommand())
       const url = await box.expose(3000)
       expect(await c.app(url).then((r) => r.text())).toBe('exposed')
       await expect(box.expose(3001)).rejects.toMatchObject({ code: 'no_spare_port' })

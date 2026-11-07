@@ -108,6 +108,33 @@ impl WorkloadSpec {
         let mut problems = Problems::default();
         self.check_image(policy, &mut problems);
         self.check_entrypoint(&mut problems);
+        if self.user.is_some() && (policy.process || policy.wasm) {
+            problems.add("user", "user selection requires the container tier");
+        }
+        if self.workdir.as_ref().is_some_and(|p| !p.starts_with('/') || p.len() > 4096 || !no_nul(p)) {
+            problems.add("workdir", "must be an absolute path without NUL");
+        }
+        if let Some(egress) = &self.egress {
+            if egress.allow.len() > 128
+                || egress.deny.len() > 128
+                || egress.allow.iter().chain(&egress.deny).any(|h| {
+                    let h = h.strip_prefix("*.").unwrap_or(h);
+                    h.is_empty()
+                        || h.len() > 253
+                        || h.split('.').any(|part| {
+                            part.is_empty()
+                                || part.starts_with('-')
+                                || part.ends_with('-')
+                                || !part.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+                        })
+                })
+            {
+                problems.add("egress", "must contain at most 128 valid lowercase hostnames per list");
+            }
+            if policy.process || policy.wasm {
+                problems.add("egress", "hostname egress requires the container tier");
+            }
+        }
         self.check_env(&mut problems);
         self.check_resources(policy, &mut problems);
         self.check_storage(&mut problems);

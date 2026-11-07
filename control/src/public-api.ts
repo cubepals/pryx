@@ -11,9 +11,11 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { StatusCodes } from 'http-status-codes'
 import { z } from 'zod'
 import nodeSchema from '../../openapi/node-writes.openapi.json'
-import { AgentCompat } from './agent-compat.ts'
+import { AgentForward } from './agent-forward.ts'
 import { Agents } from './agents.ts'
 import { execSchema, makeSchema, networkSchema, templateSchema } from './api-schemas.ts'
+import { CodeTemplates, versionSchema } from './code-templates.ts'
+import { DEFAULT_REPO_IMAGE } from './config.ts'
 import type { Db } from './database.ts'
 import { SECOND_MS } from './durations.ts'
 import { events } from './events.ts'
@@ -23,9 +25,10 @@ import { type NodeClient, NodeRefused } from './node-client.ts'
 import { ProjectAdmission, projectRow, projectUsage } from './project-admission.ts'
 import { exceeded, ProjectError } from './project-model.ts'
 import { PublicModel } from './public-model.ts'
-import { SandboxIO } from './sandbox-io.ts'
+import { lifetimeSchema, SandboxLifetime } from './sandbox-lifetime.ts'
 import { SandboxError, type Sandboxes } from './sandboxes.ts'
 import { one, toDate } from './sql.ts'
+import { Webhooks, webhookSchema } from './webhooks.ts'
 
 export function createPublicApi(options: {
   db: Db
@@ -34,6 +37,9 @@ export function createPublicApi(options: {
   domain: string
   defaultIsolation?: import('./isolation.ts').Isolation
   publicOrigin?: string
+  repoImage?: string
+  webhookSealKey?: string
+  webhookAllowHosts?: readonly string[]
   edgePortRange?: readonly [number, number]
 }) {
   const { db, boxes, nodes, domain } = options
@@ -47,8 +53,11 @@ export function createPublicApi(options: {
     options.publicOrigin,
   )
   const agents = new Agents(boxes, nodes, domain)
-  const io = new SandboxIO(db, boxes, nodes, new AgentCompat(agents))
-  const chunks = new FileChunks(io)
+  const codeTemplates = new CodeTemplates(db, boxes)
+  const webhooks = new Webhooks(db, options.webhookSealKey ?? '', options.webhookAllowHosts)
+  const lifetime = new SandboxLifetime(db, boxes)
+  const io = new AgentForward(agents)
+  const chunks = new FileChunks(agents)
   const app = new Hono<{ Variables: { project: string }; Bindings: { beginStream?: () => void } }>()
   app.use('/v1/*', async (c, next) => {
     const auth = c.req.header('authorization') ?? ''
@@ -59,6 +68,8 @@ export function createPublicApi(options: {
         StatusCodes.UNAUTHORIZED,
       )
     c.set('project', identity.project)
+    const writing = !['GET', 'HEAD', 'OPTIONS'].includes(c.req.method)
+    if (writing) c.env?.beginStream?.()
     // Check resource scope before policy, so a frozen project cannot distinguish another's IDs.
     {
       const match = /^\/v1\/sandboxes\/([^/]+)(?:\/|$)/.exec(new URL(c.req.url).pathname)
@@ -77,7 +88,7 @@ export function createPublicApi(options: {
       const expiry = identity.expiresAt ?? boxes.projects?.defaults.expiresAt
       if (identity.expired || (expiry && Date.parse(expiry) <= Date.now()))
         exceeded('expiresAt', expiry ? toDate(expiry).toISOString() : expiry, new Date().toISOString())
-      if (!['GET', 'HEAD', 'OPTIONS'].includes(c.req.method)) await boxes.projects?.write(identity.project)
+      if (writing) await boxes.projects?.write(identity.project)
     }
     await next()
   })
@@ -108,6 +119,7 @@ export function createPublicApi(options: {
       invalid_request: StatusCodes.UNPROCESSABLE_ENTITY,
       idempotency_key_reused: StatusCodes.UNPROCESSABLE_ENTITY,
       not_found: StatusCodes.NOT_FOUND,
+      name_conflict: StatusCodes.CONFLICT,
       gone: StatusCodes.GONE,
       not_running: StatusCodes.CONFLICT,
       not_stopped: StatusCodes.CONFLICT,
@@ -140,6 +152,10 @@ export function createPublicApi(options: {
     c.json({
       ...(await projectRow(db, c.get('project'), boxes.projects?.defaults)),
       usage: await projectUsage(db, c.get('project'), boxes.projects?.unit),
+      defaults: {
+        isolation: options.defaultIsolation ?? 'container',
+        repoImage: options.repoImage ?? DEFAULT_REPO_IMAGE,
+      },
     }),
   )
   app.post('/v1/sandboxes', async (c) => {
@@ -150,14 +166,30 @@ export function createPublicApi(options: {
       StatusCodes.CREATED,
     )
   })
-  app.get('/v1/sandboxes', async (c) =>
-    c.json({
-      sandboxes: await Promise.all(
-        (await boxes.list(c.get('project'))).map((b) => model.view(b.id, c.get('project'))),
+  app.get('/v1/sandboxes', async (c) => {
+    const name = c.req.query('name'),
+      state = c.req.query('state')
+    const raw = c.req.query('labels')
+    const labels = makeSchema.shape.labels.parse(raw ? JSON.parse(raw) : {})
+    const views = await Promise.all(
+      (await boxes.list(c.get('project'), { name, labels })).map((box) =>
+        model.view(box.id, c.get('project')),
       ),
-    }),
-  )
+    )
+    return c.json({ sandboxes: views.filter((view) => !state || view.state === state) })
+  })
   app.get('/v1/sandboxes/:id', async (c) => c.json(await model.view(c.req.param('id'), c.get('project'))))
+  app.post('/v1/sandboxes/:id/lifetime', async (c) => {
+    const body = lifetimeSchema.parse(await c.req.json())
+    await lifetime.change(c.req.param('id'), c.get('project'), body)
+    return c.json(await model.view(c.req.param('id'), c.get('project')))
+  })
+  app.get('/v1/sandboxes/:id/metrics', async (c) => {
+    const since = c.req.query('since')
+    if (since && !Number.isFinite(Date.parse(since)))
+      throw new SandboxError('invalid_request', 'since must be a timestamp')
+    return c.json(await lifetime.metrics(c.req.param('id'), c.get('project'), since))
+  })
   app.post('/v1/sandboxes/:id/token', async (c) =>
     c.json(await agents.token(c.req.param('id'), c.get('project'), c.req.url)),
   )
@@ -166,7 +198,6 @@ export function createPublicApi(options: {
       .object({ network: networkSchema })
       .strict()
       .parse(await c.req.json())
-    c.env?.beginStream?.()
     await boxes.network(c.req.param('id'), c.get('project'), body.network)
     return c.json(await model.view(c.req.param('id'), c.get('project')))
   })
@@ -183,7 +214,6 @@ export function createPublicApi(options: {
       )
     })
   app.put('/v1/sandboxes/:id/data/content', async (c) => {
-    c.env?.beginStream?.()
     return agents.data(
       c.req.param('id'),
       c.get('project'),
@@ -195,15 +225,13 @@ export function createPublicApi(options: {
     )
   })
   app.delete('/v1/sandboxes/:id', async (c) => {
-    c.env?.beginStream?.()
     return c.json(await boxes.delete(c.req.param('id'), c.get('project')))
   })
   for (const verb of ['start', 'wake', 'stop', 'sleep', 'rest'] as const)
     app.post(`/v1/sandboxes/:id/${verb}`, async (c) => {
-      c.env?.beginStream?.()
       const answer = await boxes[verb](c.req.param('id'), c.get('project'))
       let sandbox = await model.view(c.req.param('id'), c.get('project'))
-      while ((verb === 'wake' || verb === 'start') && sandbox.agent && sandbox.state === 'starting') {
+      while ((verb === 'wake' || verb === 'start') && sandbox.state === 'starting') {
         await pause(SECOND_MS / 20)
         sandbox = await model.view(c.req.param('id'), c.get('project'))
       }
@@ -212,9 +240,8 @@ export function createPublicApi(options: {
   app.post('/v1/sandboxes/:id/exec', async (c) => {
     const body = execSchema.parse(await c.req.json())
     await boxes.projects?.exec(c.get('project'), body.timeout)
-    c.env?.beginStream?.()
     const abort = new AbortController()
-    const events = await io.execEvents(
+    const events = await io.exec(
       c.req.param('id'),
       c.get('project'),
       body,
@@ -262,20 +289,25 @@ export function createPublicApi(options: {
   })
   app.get('/v1/sandboxes/:id/files/*', async (c) =>
     c.json(
-      await io.file(
+      await chunks.file(
         c.req.param('id'),
         c.get('project'),
         decodeURIComponent(new URL(c.req.url).pathname.split('/files/')[1] ?? ''),
+        undefined,
+        c.req.url,
+        c.req.raw.signal,
       ),
     ),
   )
   app.put('/v1/sandboxes/:id/files/*', async (c) =>
     c.json(
-      await io.file(
+      await chunks.file(
         c.req.param('id'),
         c.get('project'),
         decodeURIComponent(new URL(c.req.url).pathname.split('/files/')[1] ?? ''),
         z.object({ dataBase64: z.string() }).parse(await c.req.json()).dataBase64,
+        c.req.url,
+        c.req.raw.signal,
       ),
     ),
   )
@@ -286,6 +318,9 @@ export function createPublicApi(options: {
         c.get('project'),
         decodeURIComponent(new URL(c.req.url).pathname.split('/file-chunks/')[1] ?? ''),
         chunkOffset.parse(c.req.query('offset') ?? 0),
+        undefined,
+        c.req.url,
+        c.req.raw.signal,
       ),
     ),
   )
@@ -298,11 +333,12 @@ export function createPublicApi(options: {
         decodeURIComponent(new URL(c.req.url).pathname.split('/file-chunks/')[1] ?? ''),
         body.offset,
         body.dataBase64,
+        c.req.url,
+        c.req.raw.signal,
       ),
     )
   })
   app.post('/v1/sandboxes/:id/snapshots', async (c) => {
-    c.env?.beginStream?.()
     const s = await boxes.snapshot(c.req.param('id'), c.get('project'))
     return c.json({ id: s.id, sizeBytes: s.sizeBytes, at: s.at }, StatusCodes.CREATED)
   })
@@ -316,7 +352,6 @@ export function createPublicApi(options: {
   )
   app.post('/v1/snapshots/:snapshot/sandboxes', async (c) => {
     const body = makeSchema.parse({ ...(await c.req.json()), snapshot: c.req.param('snapshot') })
-    c.env?.beginStream?.()
     return c.json(
       await model.create(c.get('project'), body, c.req.header('idempotency-key')),
       StatusCodes.CREATED,
@@ -330,16 +365,64 @@ export function createPublicApi(options: {
     const since = c.req.query('since')
     if (since && !Number.isFinite(Date.parse(since)))
       throw new SandboxError('invalid_request', 'since must be a timestamp')
+    if (c.req.query('stream') === 'true') {
+      c.env?.beginStream?.()
+      c.header('content-type', 'application/x-ndjson')
+      return stream(c, async (s) => {
+        let aborted = false
+        let after = '0'
+        s.onAbort(() => {
+          aborted = true
+        })
+        do {
+          const page = (await events(db, c.req.param('id'), since, after)) as { id: string | number }[]
+          for (const value of page) {
+            if (aborted) return
+            await s.writeln(JSON.stringify(value))
+            after = String(value.id)
+          }
+          if (page.length < 1000) {
+            if (c.req.query('follow') !== 'true') return
+            await pause(SECOND_MS)
+          }
+        } while (!aborted)
+      })
+    }
     return c.json({ events: await events(db, c.req.param('id'), since) })
   })
+  app.post('/v1/webhooks', async (c) =>
+    c.json(
+      await webhooks.create(c.get('project'), webhookSchema.parse(await c.req.json())),
+      StatusCodes.CREATED,
+    ),
+  )
+  app.get('/v1/webhooks', async (c) => c.json({ webhooks: await webhooks.list(c.get('project')) }))
+  app.delete('/v1/webhooks/:id', async (c) =>
+    c.json(await webhooks.delete(c.get('project'), z.uuid().parse(c.req.param('id')))),
+  )
+  app.get('/v1/webhooks/:id/deadletters', async (c) =>
+    c.json({ deliveries: await webhooks.deadletters(c.get('project'), z.uuid().parse(c.req.param('id'))) }),
+  )
+  app.post('/v1/templates/:name/versions', async (c) => {
+    const name = z
+      .string()
+      .regex(/^[a-z0-9][a-z0-9-]{0,62}$/)
+      .parse(c.req.param('name'))
+    return c.json(
+      await codeTemplates.register(c.get('project'), name, versionSchema.parse(await c.req.json())),
+      StatusCodes.CREATED,
+    )
+  })
+  app.get('/v1/templates/:name/versions', async (c) =>
+    c.json({ versions: await codeTemplates.versions(c.get('project'), c.req.param('name')) }),
+  )
   app.post('/v1/templates', async (c) => {
     const b = templateSchema.parse(await c.req.json())
-    c.env?.beginStream?.()
     return c.json(await model.template(c.get('project'), b.name, b.spec), StatusCodes.CREATED)
   })
   app.get('/v1/templates', async (c) => c.json({ templates: await model.templates(c.get('project')) }))
   app.notFound((c) =>
     c.json({ error: { code: 'not_found', message: 'No such endpoint' } }, StatusCodes.NOT_FOUND),
   )
-  return { app, model, io, agents }
+  return { app, model, io, agents, webhooks }
 }

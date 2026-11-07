@@ -1,0 +1,25 @@
+{
+  "case": "legacy FleetRuntime workload range overlaps host ephemeral ports",
+  "ciRun": 42346328985,
+  "ciJob": 128324794998,
+  "ciHead": "00161b9",
+  "observedFailure": "NodeRefused: 0b6f1f2e-6a47-4c9a-9a39-2f4ac7e51f10: a host port it holds is in use: runtime refused (500): failed to set up container networking: driver failed programming external connectivity on endpoint blockly-e2efe1292-0b6f1f2e-6a47-4c9a-9a39-2f4ac7e51f10 (9f97c548ca394f58765a04c23da249d6c0e3ebedb67111ae6b195c8cbdf031b0): failed to bind host port for 127.0.0.1:49400:172.19.0.2:8080/tcp: address already in use",
+  "localSource": "44e0566b0a10b0ce5faaf0dae9cef58b58dded3a",
+  "afterDirty": true,
+  "localEphemeralRange": [
+    32768,
+    60999
+  ],
+  "before": "bun test v1.4.4 (38afee6c8)\n\ncontrol/test/e2e-ports.test.ts:\n22 |       ...{ low: ephemeralStart },\n23 |       index,\n24 |     })\n25 |     const parsed = Bun.TOML.parse(config) as { network: { port_range: [number, number] } }\n26 |     const [low, high] = parsed.network.port_range\n27 |     expect(low).toBe(nodePortLow(deployment, index))\n                     ^\nerror: expect(received).toBe(expected)\n\nExpected: 24520\nReceived: 32768\n\n      at <anonymous> (/workspace/pryx/control/test/e2e-ports.test.ts:27:17)\n(fail) daemon fixtures derive workload pools below the kernel ephemeral range [1.51ms]\n(pass) fixture listener probes never reuse a port or overlap workload pools [16.35ms]\n\n 1 pass\n 1 fail\n 131 expect() calls\nRan 2 tests across 1 file. [73.00ms]\n",
+  "after": "bun test v1.4.4 (38afee6c8)\n\ncontrol/test/e2e-ports.test.ts:\n(pass) daemon fixtures derive workload pools below the kernel ephemeral range [0.76ms]\n(pass) fixture listener probes never reuse a port or overlap workload pools [11.88ms]\n\n 2 pass\n 0 fail\n 136 expect() calls\nRan 2 tests across 1 file. [44.00ms]\n",
+  "limits": [
+    "This is a configuration regression and sixty-four real bound listener probes, not a privileged Docker restore or a speed cohort.",
+    "The real FleetRuntime restore, upgrade and lifecycle cases remain required in the next full branch CI run."
+  ],
+  "followupCiThresholdFailure": {
+    "ciRun": 42357314956,
+    "ciJob": 128358152180,
+    "ciHead": "2bc0017206625711eebca98f1afc0b6239c6b0eb",
+    "excerpt": "2026-11-07T10:31:07.1529621Z (pass) FleetRuntime against a real pryxd > enrollment pinned the node, without its token on disk [1.91ms]\n2026-11-07T10:31:07.4114232Z 239 |       expect(await exec('cat /data/data/level.dat')).toBe('fresh')\n2026-11-07T10:31:07.4115030Z 240 |       const ref = decodeHandle(handle)\n2026-11-07T10:31:07.4115660Z 241 |       expect(ref.epoch).toBe(1)\n2026-11-07T10:31:07.4116421Z 242 |       const endpoint = runtime.endpoint(handle, 'game', 'edge')\n2026-11-07T10:31:07.4116854Z 243 |       expect(endpoint.host).toBe('127.0.0.1')\n2026-11-07T10:31:07.4117276Z 244 |       expect(endpoint.port).toBeGreaterThan(44_999)\n2026-11-07T10:31:07.4117636Z                                   ^\n2026-11-07T10:31:07.4118000Z error: expect(received).toBeGreaterThan(expected)\n2026-11-07T10:31:07.4118238Z \n2026-11-07T10:31:07.4118348Z Expected: > 44999\n2026-11-07T10:31:07.4118927Z Received: 22320\n2026-11-07T10:31:07.4119116Z \n2026-11-07T10:31:07.4119582Z       at <anonymous> (/home/runner/work/pryx/pryx/control/e2e/fleet-runtime.e2e.test.ts:244:29)\n2026-11-07T10:31:07.4120109Z \n2026-11-07T10:31:07.4150328Z ##[error]Expected: > 44999\nReceived: 22320\n\n      at <anonymous> (/home/runner/work/pryx/pryx/control/e2e/fleet-runtime.e2e.test.ts:244:29)\n2026-11-07T10:31:07.4161226Z (fail) FleetRuntime against a real pryxd > a server is placed, runs, and answers [258.57ms]\n2026-11-07T10:31:08.5923842Z (pass) FleetRuntime against a real pryxd > asleep, it is suspended and wakes where it was; a change made meanwhile lands at its next boot [1180.86ms]"
+  }
+}

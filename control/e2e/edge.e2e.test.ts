@@ -5,18 +5,20 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { request } from 'node:https'
 import { type AddressInfo, connect } from 'node:net'
-import { Pryx } from '@cubepals/pryx'
 import { startEdge } from '../../edge/src/agent.ts'
 import { edgeConfig } from '../../edge/src/config.ts'
+import { type Sandbox as SandboxView, Transport } from '../../sdk/typescript/src/transport.ts'
 import { MINUTE_MS } from '../src/durations.ts'
 import { deployment, ready } from './deployment.ts'
 import { until } from './waits.ts'
 
 describe.skipIf(!ready)('edge through a real pryxd', () => {
-  let d: Awaited<ReturnType<typeof deployment>>, edge: Awaited<ReturnType<typeof startEdge>>, client: Pryx
+  let d: Awaited<ReturnType<typeof deployment>>,
+    edge: Awaited<ReturnType<typeof startEdge>>,
+    client: Transport
   beforeAll(async () => {
     d = await deployment()
-    client = new Pryx({ baseUrl: d.control.apiUrl, apiKey: d.credential.key })
+    client = new Transport({ url: d.control.apiUrl, key: d.credential.key })
     edge = await startEdge({
       ...edgeConfig({
         PRYX_CONTROL_URL: d.control.apiUrl,
@@ -38,16 +40,21 @@ describe.skipIf(!ready)('edge through a real pryxd', () => {
   test(
     'HTTP requests replay after CLI sleep, and a higher route epoch closes the old connection',
     async () => {
-      const made = await client.make({
-        image: 'alpine:pryx-tls',
-        entrypoint: [
-          'sh',
-          '-c',
-          'echo hello > /data/index.html; dd if=/dev/zero of=/data/hold bs=1048576 count=8; exec httpd -f -p 8080 -h /data',
-        ],
-        resources: { memoryMb: 128 },
-        ports: [{ name: 'http', port: 8080, audience: 'public' }],
-      })
+      const made = await client.request<SandboxView>(
+        '/v1/sandboxes',
+        'POST',
+        {
+          image: 'alpine:pryx-tls',
+          entrypoint: [
+            'sh',
+            '-c',
+            'echo hello > /data/index.html; dd if=/dev/zero of=/data/hold bs=1048576 count=8; exec httpd -f -p 8080 -h /data',
+          ],
+          resources: { memoryMb: 128 },
+          ports: [{ name: 'http', port: 8080, audience: 'public' }],
+        },
+        crypto.randomUUID(),
+      )
       try {
         await until('edge holds HTTP', async () => edge.table.held.get(`${made.id}:http`))
         const call = () =>
@@ -87,7 +94,7 @@ describe.skipIf(!ready)('edge through a real pryxd', () => {
         await closed
         expect([...edge.table.connections].some((connection) => connection.sandbox === made.id)).toBe(false)
       } finally {
-        await client.delete(made.id)
+        await client.request<{ existed: boolean }>(`/v1/sandboxes/${encodeURIComponent(made.id)}`, 'DELETE')
       }
     },
     2 * MINUTE_MS,
@@ -98,20 +105,25 @@ describe.skipIf(!ready)('edge through a real pryxd', () => {
       const alias = `tls-${crypto.randomUUID().slice(0, 8)}`,
         hostname = `${alias}.pryx.test`,
         identity = await d.control.ca.identity(hostname, 'server', 1)
-      const made = await client.make({
-        image: 'alpine:pryx-tls',
-        entrypoint: [
-          'sh',
-          '-c',
-          'printf %s "$CERT" | base64 -d > /data/cert.pem; printf %s "$KEY" | base64 -d > /data/key.pem; chmod 600 /data/key.pem; exec openssl s_server -accept 8080 -cert /data/cert.pem -key /data/key.pem -www -quiet',
-        ],
-        secrets: {
-          CERT: Buffer.from(identity.certPem).toString('base64'),
-          KEY: Buffer.from(identity.keyPem).toString('base64'),
+      const made = await client.request<SandboxView>(
+        '/v1/sandboxes',
+        'POST',
+        {
+          image: 'alpine:pryx-tls',
+          entrypoint: [
+            'sh',
+            '-c',
+            'printf %s "$CERT" | base64 -d > /data/cert.pem; printf %s "$KEY" | base64 -d > /data/key.pem; chmod 600 /data/key.pem; exec openssl s_server -accept 8080 -cert /data/cert.pem -key /data/key.pem -www -quiet',
+          ],
+          secrets: {
+            CERT: Buffer.from(identity.certPem).toString('base64'),
+            KEY: Buffer.from(identity.keyPem).toString('base64'),
+          },
+          resources: { memoryMb: 128 },
+          ports: [{ name: 'tls', port: 8080, audience: 'public', front: 'tls', alias }],
         },
-        resources: { memoryMb: 128 },
-        ports: [{ name: 'tls', port: 8080, audience: 'public', front: 'tls', alias }],
-      })
+        crypto.randomUUID(),
+      )
       const call = () =>
         new Promise<string>((resolve, reject) => {
           const req = request(
@@ -136,7 +148,10 @@ describe.skipIf(!ready)('edge through a real pryxd', () => {
       try {
         await until('edge holds TLS', async () => edge.table.held.get(`${made.id}:tls`))
         expect(await call()).toContain('s_server')
-        await client.action(made.id, 'sleep')
+        await client.request<{ sandbox: SandboxView; tier?: string }>(
+          `/v1/sandboxes/${encodeURIComponent(made.id)}/${'sleep'}`,
+          'POST',
+        )
         await until(
           'edge holds TLS asleep',
           async () => edge.table.held.get(`${made.id}:tls`)?.state === 'asleep',
@@ -144,7 +159,7 @@ describe.skipIf(!ready)('edge through a real pryxd', () => {
         expect(await call()).toContain('s_server')
         console.log('HTTPS request woke the sandbox and completed with the test CA')
       } finally {
-        await client.delete(made.id)
+        await client.request<{ existed: boolean }>(`/v1/sandboxes/${encodeURIComponent(made.id)}`, 'DELETE')
       }
     },
     2 * MINUTE_MS,

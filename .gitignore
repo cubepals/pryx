@@ -16,3 +16,8 @@ integrations/*/dist/
 /.benchmark-before/
 /.benchmark-after/
 sdk/python/dist/
+
+/.benchmark-collector/
+/.agent-before/
+
+/.field-before/

@@ -23,7 +23,7 @@ impl WasmRuntime {
             &self.state.pool,
             self.state.owner,
         )?;
-        boot::packages(&mut options, &entry.spec.packages).await?;
+        boot::packages(&mut options, &self.state.distribution, &entry.spec.packages).await?;
         {
             let mut entries = self.state.entries.lock().unwrap();
             let current = entries.get_mut(&entry.id).ok_or_else(|| error("Wasm sandbox disappeared"))?;

@@ -30,6 +30,9 @@ impl Manager {
         if self.agent_binary().is_some() {
             features.push("agent".into());
         }
+        if self.runtime.supports_hostname_egress() {
+            features.push("egress-hostnames".into());
+        }
         if self.runtime.supports_network_policy() {
             features.push("network-policy".into());
         }
