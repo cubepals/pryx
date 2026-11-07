@@ -409,6 +409,88 @@ async fn persistent_shell_keeps_state_and_separates_streams_and_exact_status() {
 }
 
 #[tokio::test]
+async fn queued_shell_timeout_signals_without_waiting_for_the_active_command() {
+    let (dir, agent, token) = fixture().await;
+    let (id, active) = busy_shell(&dir, &agent, &token).await;
+    let process = agent.processes.get(&id).unwrap();
+    let answer = tokio::time::timeout(
+        Duration::from_secs(2),
+        call(
+            &agent,
+            &token,
+            "POST",
+            &format!("/_pryx/shells/{id}/run"),
+            json!({"command":"printf should-not-run","timeout":0.05}),
+        ),
+    )
+    .await;
+    let exited =
+        if answer.is_ok() { tokio::time::timeout(Duration::from_secs(2), process.wait()).await.ok() } else { None };
+    // Also clean up when the response exceeded its guard on the unfixed implementation.
+    if process.view().running {
+        let _ = process.signal_awaited(libc::SIGKILL).await;
+    }
+    tokio::time::timeout(Duration::from_secs(2), active).await.unwrap().unwrap();
+    let (status, response) = answer.expect("a queued command's timeout must not wait for the active command");
+    assert_eq!(status, StatusCode::CONFLICT, "{response}");
+    assert_eq!(response["error"]["code"], "wait_timeout");
+    assert_eq!(exited.expect("timeout must kill the session").code, Some(128 + libc::SIGKILL));
+    assert_eq!(
+        call(&agent, &token, "POST", &format!("/_pryx/shells/{id}/run"), json!({"command":"true","timeout":1})).await.1
+            ["error"]["code"],
+        "not_found"
+    );
+}
+
+#[tokio::test]
+async fn closing_a_busy_shell_signals_without_waiting_for_its_command() {
+    let (dir, agent, token) = fixture().await;
+    let (id, active) = busy_shell(&dir, &agent, &token).await;
+    let process = agent.processes.get(&id).unwrap();
+    let answer = tokio::time::timeout(
+        Duration::from_secs(2),
+        call(&agent, &token, "DELETE", &format!("/_pryx/shells/{id}"), Value::Null),
+    )
+    .await;
+    let exited =
+        if answer.is_ok() { tokio::time::timeout(Duration::from_secs(2), process.wait()).await.ok() } else { None };
+    if process.view().running {
+        let _ = process.signal_awaited(libc::SIGKILL).await;
+    }
+    tokio::time::timeout(Duration::from_secs(2), active).await.unwrap().unwrap();
+    assert_eq!(answer.expect("close must not wait for the active command").0, StatusCode::NO_CONTENT);
+    assert_eq!(exited.expect("close must kill the session").code, Some(128 + libc::SIGKILL));
+    assert_eq!(
+        call(&agent, &token, "DELETE", &format!("/_pryx/shells/{id}"), Value::Null).await.0,
+        StatusCode::NO_CONTENT
+    );
+}
+
+/// Wait for the real command to enter its critical section, rather than racing a timed sleep.
+async fn busy_shell(
+    dir: &tempfile::TempDir,
+    agent: &Arc<Agent>,
+    token: &str,
+) -> (String, tokio::task::JoinHandle<(StatusCode, Value)>) {
+    let (status, shell) = call(agent, token, "POST", "/_pryx/shells", json!({})).await;
+    assert_eq!(status, StatusCode::OK);
+    let id = shell["id"].as_str().unwrap().to_owned();
+    let (own, credential, path) = (agent.clone(), token.to_owned(), format!("/_pryx/shells/{id}/run"));
+    let active = tokio::spawn(async move {
+        call(&own, &credential, "POST", &path, json!({"command":"printf busy > shell-started; sleep 30","timeout":8}))
+            .await
+    });
+    tokio::time::timeout(Duration::from_secs(2), async {
+        while !dir.path().join("shell-started").exists() {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the active command must start");
+    (id, active)
+}
+
+#[tokio::test]
 async fn readiness_distinguishes_exit_and_timeout_and_matches_retained_logs() {
     let (_dir, agent, token) = fixture().await;
     let (_, view) =

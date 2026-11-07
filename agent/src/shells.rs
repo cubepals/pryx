@@ -20,7 +20,7 @@ use std::{
 };
 use tokio::sync::Mutex as AsyncMutex;
 
-use crate::shell_state::Shell;
+use crate::shell_state::{Shell, ShellOutput};
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -70,13 +70,16 @@ async fn open(
     let id = process.id.clone();
     let admitted = {
         let mut held = agent.shells.0.lock().unwrap();
-        held.retain(|_, s| s.try_lock().map_or(true, |s| s.process.view().running));
+        held.retain(|_, s| s.process.view().running);
         if held.len() >= 32 {
             false
         } else {
             held.insert(
                 id.clone(),
-                Arc::new(AsyncMutex::new(Shell { process: process.clone(), replay: replay.into(), live })),
+                Arc::new(Shell {
+                    process: process.clone(),
+                    output: AsyncMutex::new(ShellOutput { replay: replay.into(), live }),
+                }),
             );
             true
         }
@@ -103,7 +106,7 @@ async fn run(
         agent.shells.0.lock().unwrap().get(&id).cloned().ok_or_else(|| failure("not_found", "No such shell"))?;
     let started = Instant::now();
     let work = async {
-        let mut shell = shell.lock().await;
+        let mut output = shell.output.lock().await;
         let nonce = uuid::Uuid::new_v4().simple().to_string();
         let command = format!(
             "{}\ncommand printf '\\036{nonce}:%d\\037' \"$?\"; command printf '\\036{nonce}\\037' >&2\n",
@@ -116,9 +119,9 @@ async fn run(
         let out_marker = format!("\x1e{nonce}:");
         let err_marker = format!("\x1e{nonce}\x1f");
         loop {
-            let event = match shell.replay.pop_front() {
+            let event = match output.replay.pop_front() {
                 Some(e) => Some(e),
-                None => shell.live.recv().await,
+                None => output.live.recv().await,
             };
             match event {
                 Some(Event::Output { stream, bytes }) => {
@@ -162,7 +165,7 @@ async fn run(
         .unwrap_or_else(|_| Err(failure("wait_timeout", "Shell command timed out; session closed")));
     if answer.is_err() {
         agent.shells.0.lock().unwrap().remove(&id);
-        let process = { shell.lock().await.process.clone() };
+        let process = &shell.process;
         if process.view().running {
             let _ = process.signal_awaited(libc::SIGKILL).await;
         }
@@ -172,7 +175,7 @@ async fn run(
 async fn close(State(agent): State<Arc<Agent>>, Path(id): Path<String>) -> Result<StatusCode, Failure> {
     let shell = agent.shells.0.lock().unwrap().remove(&id);
     if let Some(shell) = shell {
-        let process = { shell.lock().await.process.clone() };
+        let process = &shell.process;
         if process.view().running {
             process.signal_awaited(libc::SIGKILL).await?;
         }
