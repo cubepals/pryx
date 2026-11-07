@@ -127,8 +127,17 @@ async fn spare_ports_forward_locally_and_unexpose_closes_connections() {
     let target_port = target.local_addr().unwrap().port();
     let reserve = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let spare = reserve.local_addr().unwrap().port();
-    drop(reserve);
-    let ports = Ports::bind_ports("one".into(), "example.test".into(), 5280, vec![spare]).await.unwrap();
+    let ports = Ports::bind_listeners(
+        "one".into(),
+        "example.test".into(),
+        5280,
+        vec![(spare, vec![reserve])],
+        None,
+        Arc::default(),
+        None,
+    )
+    .await
+    .unwrap();
     assert!(matches!(ports.expose(target_port, 0).await, Err(PortError::NoSparePort)));
     let exposed = ports.expose(target_port, 1).await.unwrap();
     assert_eq!(exposed.url, format!("https://one-{target_port}.example.test"));
@@ -188,11 +197,17 @@ async fn port_assignments_restore_from_an_atomic_checkpoint() {
     .unwrap();
     let reserve = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let spare = reserve.local_addr().unwrap().port();
-    drop(reserve);
-    let ports =
-        Ports::bind_persistent("one".into(), "example.test".into(), 5280, vec![spare], Some(data), Arc::default())
-            .await
-            .unwrap();
+    let ports = Ports::bind_listeners(
+        "one".into(),
+        "example.test".into(),
+        5280,
+        vec![(spare, vec![reserve])],
+        Some(data),
+        Arc::default(),
+        None,
+    )
+    .await
+    .unwrap();
     assert_eq!(ports.revision(), 7);
     assert_eq!(ports.list().await[0].port, 3000);
     ports.unexpose(3000).await.unwrap();
