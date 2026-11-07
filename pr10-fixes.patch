@@ -608,9 +608,9 @@ index e3ea0cf..b62d49d 100644
 +    let tls = dir.path().join("tls");
 +    let text = format!(
 +        "deployment_id = \"{dep}\"\n[api]\nlisten = \"127.0.0.1:7443\"\n[api.tls]\ncert = \"{tls}/node.pem\"\n\
-         key = \"{tls}/node.key\"\nclient_ca = \"{tls}/ca.pem\"\nallowed_clients = [\"{}\"]\n[docker]\n\
-         network = \"blockly-{dep}\"\n[network]\n\
-         port_range = [{low}, {}]\n",
++         key = \"{tls}/node.key\"\nclient_ca = \"{tls}/ca.pem\"\nallowed_clients = [\"{}\"]\n[docker]\n\
++         network = \"blockly-{dep}\"\n[network]\n\
++         port_range = [{low}, {}]\n",
 +        support::CLIENT,
 +        low + 9,
 +        tls = tls.display()
