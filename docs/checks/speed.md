@@ -8,8 +8,8 @@ Run [42015142557](https://github.com/cubepals/pryx/actions/runs/42015142557) com
 paired collector on one two-vCPU AMD EPYC 7763 runner, then failed sleep/wake acceptance.
 It is not a green workflow. Every available path has n=30; missing baseline paths remain n=0.
 The static agent digest and daemon digest are recorded in the
-[before](checks/agent-speed-nodelay-before.json) and
-[after](checks/agent-speed-nodelay-after.json) reports. The before product is b91ee23 and
+[before](agent-speed-nodelay-before.json) and
+[after](agent-speed-nodelay-after.json) reports. The before product is b91ee23 and
 the after product is 008a865. No sample, including the individual slower outliers, is dropped.
 
 | Path | Before p50/p90 ms | After p50/p90 ms | Budget |
@@ -32,7 +32,7 @@ Run [42007702494](https://github.com/cubepals/pryx/actions/runs/42007702494) com
 agent measurements, then failed sleep/wake and scratch-image acceptance. These are initial
 measurements, not a claim of completed acceptance. Both cohorts used the same two-vCPU AMD
 EPYC 9V45 host. Raw samples and daemon identities are retained in
-[before](checks/agent-speed-initial-before.json) and [after](checks/agent-speed-initial-after.json).
+[before](agent-speed-initial-before.json) and [after](agent-speed-initial-after.json).
 The baseline is b91ee23 and the after product is 83c7e2d, using the static release agent.
 
 | Path | Before p50/p90 ms | After p50/p90 ms | Budget |
@@ -56,19 +56,23 @@ CI host. No local Docker/e2e measurement is claimed. The paired comparison is fr
 fe77e673364580efe372a4f685837f219ae7a0a5 and after product
 7cd80e9bff7be320d10993aeadb8e73f3f6f65c8, using the same collector and host. Both measurement
 steps passed; the later Rivet/celld integration step failed, so the workflow is not green.
-[Before](checks/speed-before.json) and [after](checks/speed-after.json) retain every raw sample,
+[Before](speed-before.json) and [after](speed-after.json) retain every raw sample,
 daemon digest and advertised feature list. Only the after daemon advertises exec-stream.
 
 ```sh
 DATABASE_URL=... S3_TEST_ENDPOINT=http://127.0.0.1:9000 PRYXD_SUDO=1 \
-  PRYXD_BIN=$PWD/target/debug/pryxd bun control/bench/speed.ts before speed-before.json
+  PRYXD_BIN=$PWD/target/debug/pryxd bun .benchmark-collector/control/bench/speed.ts before speed-before.json
 ```
+
+Historical collectors are checked out verbatim at c1c9fa13578087d7e657b2d048a7619bef696619
+in `.benchmark-collector`; measured source checkouts remain separately pinned in CI.
+This keeps historical SDK execution exact without retaining those SDK surfaces in current code.
 
 Each path collects 30 samples and reports nearest-rank p50/p90, retaining every raw duration.
 The collector records the commit, kernel, CPU, Bun version, image, exact data size and node-call
 timing. It validates that create/start reach running and that suspended wake actually resumes.
 Cleanup, initial setup and template warming are excluded in the corrected common collector.
-The [initial baseline](checks/speed-initial-before.json) included reference clearing/verification
+The [initial baseline](speed-initial-before.json) included reference clearing/verification
 in its cold timer; the paired rows below exclude it. Snapshot/fork use 100,000,000 zero
 bytes, so data compressibility and the host filesystem's copy behavior matter.
 
@@ -96,8 +100,8 @@ Baseline machine: Linux x86_64, Azure kernel 7.0.0-1017-azure, two AMD EPYC 9V45
 Bun 1.4.4. Public exec (46.04 ms), warm-template creation (154.89 ms) and suspended wake
 (21.38 ms) meet their budgets in this cohort. Public exec remains slower than its paired
 buffered baseline, so this comparison does not show an exec latency improvement. The original
-streaming cohort missed the exec budget at 57.36 ms; its [before](checks/speed-stream-first-before.json)
-and [after](checks/speed-stream-first-after.json) reports remain available. The final change
+streaming cohort missed the exec budget at 57.36 ms; its [before](speed-stream-first-before.json)
+and [after](speed-stream-first-after.json) reports remain available. The final change
 awaits Docker process exit under the command deadline with four-millisecond inspection steps;
 runtime, transport and stream overhead remain for K11 to remove. Node-call timings are in the raw
 report. The after implementation combines durable-operation insert/read and claim/activity
@@ -126,12 +130,12 @@ The after source was uncommitted during collection; its source digest is in the 
 | --- | ---: | --- | ---: | --- |
 | Public create, Postgres and node double | 30 | 47.19 / 89.51 ms | 30 | 47.53 / 99.84 ms |
 
-[Before](checks/projects-before.json) and [after](checks/projects-after.json) use the same
+[Before](projects-before.json) and [after](projects-after.json) use the same
 collector and adjacent runs. The observed median increase is 0.35 ms; p90 increases 10.33 ms.
 This shared development host is not a controlled container-runtime benchmark. K10 specifies no
 latency budget. Initial exploratory samples are retained separately: the
-[initial before](checks/projects-initial-before.json), [first admission implementation](checks/projects-admission-first.json),
-and [optimized trial](checks/projects-optimized-trial.json). A duplicate project transaction on
+[initial before](projects-initial-before.json), [first admission implementation](projects-admission-first.json),
+and [optimized trial](projects-optimized-trial.json). A duplicate project transaction on
 newly reserved creates was removed; an existing intent with a released reservation still
 reacquires quota before starting.
 
@@ -147,10 +151,10 @@ The installed one-box workflow runs `sudo "$(command -v bun)" control/bench/proj
 It records actual node unit capacity, then creates five stopped sandboxes for each of ten
 projects and runs every one, rotating active work within a quota no larger than the measured
 capacity. A sixth admission must return the full 403 maxUnits body, then the group is cleaned.
-It does not relax CPU or memory admission. The [first capacity observation](checks/projects-capacity.json)
+It does not relax CPU or memory admission. The [first capacity observation](projects-capacity.json)
 is 7,932 MiB/two cores: four free units after 2,048 MiB and 1,000 CPU millis of host reservations.
 The first five-active-sandbox fixture hit physical capacity before its project limit. The
-[corrected exercise](checks/projects-one-box.json) passed in CI run 41975259790: all 50 sandboxes
+[corrected exercise](projects-one-box.json) passed in CI run 41975259790: all 50 sandboxes
 ran, with four active at once and ten exact maxUnits refusals. Capacity n=2; completed
 50-sandbox exercise n=1. A physical 16 GiB host is
 unavailable here; the pure capacity tests cover 31 free units for a 16 GiB/8-core reference with
@@ -182,7 +186,7 @@ and no creating of user/mount/PID/network namespaces; changing UID and the requi
 filesystem/network probes succeed. This cohort then fails sandbox admission on available disk,
 before process-operation samples, so it is not successful process acceptance. Raw startup samples,
 image/agent digests and the failure are retained in
-[the initial process report](checks/process-speed-initial-after.json).
+[the initial process report](process-speed-initial-after.json).
 
 ### K11 private-ingress cohort
 
@@ -191,7 +195,7 @@ K11 baseline and d89960e on the same 2-CPU EPYC 7763 runner, n=30 each. This run
 TypeScript and Python agent acceptance, including network none, and the separate two-node
 recovery and lease watchdog suites. Its process-tier admission and edge connection test still
 fail; this is not a claim that the complete workflow passed. Raw
-[before](checks/agent-speed-relay-before.json) and [after](checks/agent-speed-relay-after.json) samples
+[before](agent-speed-relay-before.json) and [after](agent-speed-relay-after.json) samples
 retain all observations.
 
 | operation | before p50 / p90 ms | after p50 / p90 ms | budget p90 |
@@ -211,8 +215,8 @@ cohort on a different runner; it is retained without a causal speedup claim.
 
 Run [42055145022](https://github.com/cubepals/pryx/actions/runs/42055145022), source bbadbde,
 reaches actual Landlock-restricted process compute in the ordinary image. Its paired
-[container](checks/process-speed-compute-before.json) and
-[process](checks/process-speed-compute-after.json) reports retain all samples. Both use the same
+[container](process-speed-compute-before.json) and
+[process](process-speed-compute-after.json) reports retain all samples. Both use the same
 CI host and source. The process cohort stops at its first Python exposed-HTTP check, so later
 operations are absent and the cohort/workflow is not complete.
 
@@ -230,8 +234,8 @@ passes in this run. This does not substitute for the remaining process-image pro
 
 Run [42066544946](https://github.com/cubepals/pryx/actions/runs/42066544946), source 52b03d3,
 completes all 30 operation samples on the same two-core EPYC 9V74 host for both tiers.
-The [container](checks/process-speed-http-before.json) and
-[process](checks/process-speed-http-after.json) reports retain every sample and the failure:
+The [container](process-speed-http-before.json) and
+[process](process-speed-http-after.json) reports retain every sample and the failure:
 CLI image-refusal acceptance fails after measurement, so this is not completed acceptance.
 The one-box job separately passes the literal quickstart, SDK examples and image host installer,
 including repeat installation. Image-start baseline is unavailable on the prior daemon-only image.
@@ -262,8 +266,8 @@ ownership, Node, CLI image refusal, and credentials printed once across restart.
 supervisor guard and SCRAM on both Postgres transports are included. This workflow separately
 fails project rotation on a host port conflict; its full workflow is not green.
 
-The paired [container](checks/process-speed-guard-before.json) and
-[process](checks/process-speed-guard-after.json) reports both complete every operation, n=30
+The paired [container](process-speed-guard-before.json) and
+[process](process-speed-guard-after.json) reports both complete every operation, n=30
 on the same host and source, and retain image/agent digests and all kernel capability facts.
 
 | operation | container p50 / p90 ms | process p50 / p90 ms | budget p90 |
@@ -299,7 +303,7 @@ raw samples, including the retained failed initial cohort and unshipped socket e
 [CI 42082995409](https://github.com/cubepals/pryx/actions/runs/42082995409), source 66230f5,
 passes the corrected one-box installer, both SDK README examples, all ten project groups and
 the image host installer including repeat installation. The
-[complete report](checks/projects-reserved-one-box.json) records 50 acknowledged creations,
+[complete report](projects-reserved-one-box.json) records 50 acknowledged creations,
 50 validated command runs, four active at once and ten exact quota refusals. The kernel reports
 outgoing ephemeral range 32768–60999 and reserved workload range 42000–42999. Counts and partial
 failures are now retained by the collector. This remains an observed 8 GiB-class runner, not a
@@ -313,7 +317,7 @@ concluded with failure, not success.
 [CI 42082995409](https://github.com/cubepals/pryx/actions/runs/42082995409) completes every
 assigned product/test/build job on 66230f5. Its required aggregate has no runner and executes
 no steps because of an account-level Actions restriction; the overall workflow fails. The
-[CI status report](checks/k9-k13-ci.json) preserves this distinction. The release-image job is
+[CI status report](k9-k13-ci.json) preserves this distinction. The release-image job is
 skipped by its pre-existing pull-request-only condition, not by a change to acceptance.
 
 These paired samples use one two-vCPU AMD EPYC 9V45 runner, kernel 7.0.0-1017-azure and Bun
@@ -323,8 +327,8 @@ Comparisons below keep their own baseline definitions; they are not interchangea
 ### Frozen K9 baseline and after source
 
 The common collector on 66230f5 measures fe77e67 before and 7cd80e9 after, with the agent
-disabled, preserving the historical Docker-exec path. Raw [before](checks/final-speed-before.json)
-and [after](checks/final-speed-after.json) reports include node-call timings and cold-image
+disabled, preserving the historical Docker-exec path. Raw [before](final-speed-before.json)
+and [after](final-speed-after.json) reports include node-call timings and cold-image
 semantics: references are removed, while shared layers and OS caches can remain.
 
 | Operation | Before p50 / p90 ms | After p50 / p90 ms | Budget |
@@ -345,7 +349,7 @@ remains slower than the buffered baseline, so this does not show a K9 exec laten
 The earlier 57.36 ms median failure remains recorded above. The current product's agent path
 is measured separately below.
 
-A [local transport diagnostic](checks/legacy-node-tls-probe.json) retains 30 real loopback
+A [local transport diagnostic](legacy-node-tls-probe.json) retains 30 real loopback
 mTLS/Bun HTTPS requests per mode, including cold requests, over a fake exec backend. It does
 not reproduce a sustained 40 ms transport delay and is not a Docker/public-control budget
 measurement. Production transport behavior was left unchanged and the temporary probe removed.
@@ -353,7 +357,7 @@ measurement. Production transport behavior was left unchanged and the temporary 
 ### K11 agent baseline and current product
 
 The pinned b91ee23 baseline and current 66230f5 use the same host. Raw
-[before](checks/final-agent-speed-before.json) and [after](checks/final-agent-speed-after.json)
+[before](final-agent-speed-before.json) and [after](final-agent-speed-after.json)
 reports preserve unavailable agent-only baseline paths as n=0, rather than inventing samples.
 
 | Operation | Before p50 / p90 ms | After p50 / p90 ms | Budget |
@@ -368,8 +372,8 @@ reports preserve unavailable agent-only baseline paths as n=0, rather than inven
 
 ### K12 container and process tiers
 
-The [container](checks/final-process-speed-before.json) and
-[process](checks/final-process-speed-after.json) cohorts use the same 66230f5 source and host,
+The [container](final-process-speed-before.json) and
+[process](final-process-speed-after.json) cohorts use the same 66230f5 source and host,
 including the supervisor guard and descriptor-copy refusal. Both complete every operation.
 The prior daemon-only image has no all-in-one API startup baseline, explicitly n=0.
 
@@ -391,7 +395,7 @@ and network enforcement facts, shared UID probes and image/agent digests remain 
 
 ### K13 native celld repeat
 
-The [complete native report](checks/final-celld-native-measurements.json) uses the same patched
+The [complete native report](final-celld-native-measurements.json) uses the same patched
 celld 0.6.3 binary/profile and unchanged Worker/container example for both engines, n=30 each.
 It repeats the earlier cohort without replacing it.
 
@@ -403,6 +407,6 @@ It repeats the earlier cohort without replacing it.
 
 Native backend start costs more; the lower start-through-first-response includes celld readiness
 and polling, and does not isolate a transport optimization. K13 sets no numeric speed threshold.
-The [unmodified-release socket experiment](checks/final-docker-api-spike.json) explicitly fails
+The [unmodified-release socket experiment](final-docker-api-spike.json) explicitly fails
 unsupported BuildKit operations and remains unshipped, without advertising a docker-api feature.
 See [docker-api.md](docker-api.md) for the native ownership limits and exact experiment scope.

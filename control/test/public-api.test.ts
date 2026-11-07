@@ -7,6 +7,7 @@ import { sql } from 'drizzle-orm'
 import { StatusCodes } from 'http-status-codes'
 import nodeWrites from '../../openapi/node-writes.openapi.json'
 import { SECOND_MS } from '../src/durations.ts'
+import { SDK_DEFAULTS } from '../src/sdk-defaults.ts'
 import { one } from '../src/sql.ts'
 import { hasDatabase, report } from './nodes.ts'
 import { publicContext } from './public-context.ts'
@@ -84,17 +85,13 @@ describe.skipIf(!hasDatabase)('public API', () => {
   })
   test('exec caches its exact bounded answer and refuses uncertain reexecution', async () => {
     const made = (await (await ctx.request('/sandboxes', 'POST', spec)).json()) as { id: string }
-    const result = {
-      stdout: 'hello\n',
-      stderr: '',
-      exitCode: 0,
-      stdoutTruncated: false,
-      stderrTruncated: false,
-      timedOut: false,
-      killed: false,
-      durationMs: 1,
-    }
-    ctx.nodes.once(/POST .*\/exec$/, async () => result)
+    const peer = ctx.peers.get(made.id)
+    if (!peer) throw new Error('Missing agent peer')
+    peer.output.unshift({
+      type: 'output',
+      stream: 'stdout',
+      bytes: Buffer.from('hello\n').toString('base64'),
+    })
     const path = `/sandboxes/${made.id}/exec`,
       body = { command: ['echo', 'hello'], env: { LANG: 'C' } }
     const first = await ctx.request(path, 'POST', body, 'exec-one')
@@ -102,18 +99,12 @@ describe.skipIf(!hasDatabase)('public API', () => {
     const text = await first.text()
     expect(text).toContain('hello')
     expect(await (await ctx.request(path, 'POST', body, 'exec-one')).text()).toBe(text)
-    expect(ctx.nodes.calls.filter((c) => c.path.endsWith('/exec')).length).toBe(1)
-    expect(
-      (ctx.nodes.calls.find((c) => c.path.endsWith('/exec'))?.body as { command: string[] }).command.slice(
-        0,
-        3,
-      ),
-    ).toEqual(['env', '--', 'LANG=C'])
-    ctx.nodes.once(/POST .*\/exec$/, async () => {
-      throw new Error('reply lost')
-    })
-    expect((await ctx.request(path, 'POST', body, 'exec-lost')).status).toBe(StatusCodes.SERVICE_UNAVAILABLE)
+    expect(peer.calls.filter((c) => c === 'POST /_pryx/processes')).toHaveLength(1)
+    expect(peer.requests[0]?.body).toMatchObject({ command: ['echo', 'hello'], env: { LANG: 'C' } })
+    peer.hooks.start = async () => new Response(null, { status: StatusCodes.INTERNAL_SERVER_ERROR })
     expect((await ctx.request(path, 'POST', body, 'exec-lost')).status).toBe(StatusCodes.CONFLICT)
+    expect((await ctx.request(path, 'POST', body, 'exec-lost')).status).toBe(StatusCodes.CONFLICT)
+    expect(peer.calls.filter((c) => c === 'POST /_pryx/processes')).toHaveLength(2)
     expect(
       (await ctx.request(`/sandboxes/${made.id}/files/escape`, 'PUT', { dataBase64: '!bad' })).status,
     ).toBe(StatusCodes.UNPROCESSABLE_ENTITY)
@@ -237,4 +228,51 @@ describe.skipIf(!hasDatabase)('public API', () => {
       await ctx.request(`/sandboxes/${made.id}`, 'DELETE')
     }
   })
+})
+
+test('v1 file envelopes carry agent bytes without executing a sandbox command', async () => {
+  const ctx = await publicContext()
+  try {
+    const made = (await (await ctx.request('/sandboxes', 'POST', { image: 'alpine:3.22' })).json()) as {
+      id: string
+    }
+    const data = Buffer.alloc(100_000, 42)
+    const file = `/sandboxes/${made.id}/files/nested/data`
+    expect((await ctx.request(file, 'PUT', { dataBase64: data.toString('base64') })).status).toBe(
+      StatusCodes.OK,
+    )
+    const read = async (path: string, member: string) => {
+      const response = await ctx.request(path)
+      expect(response.status).toBe(StatusCodes.OK)
+      const value = (await response.json()) as { archiveBase64: string }
+      const files = await new Bun.Archive(Buffer.from(value.archiveBase64, 'base64')).files()
+      const entry = files.get(member)
+      if (!entry) throw new Error('Missing public tar member')
+      return Buffer.from(await entry.arrayBuffer())
+    }
+    expect(await read(file, 'nested/data')).toEqual(data)
+    const bytes = SDK_DEFAULTS.fileChunkBytes
+    const chunk = `/sandboxes/${made.id}/file-chunks/nested/data`
+    expect(await read(`${chunk}?offset=${bytes}`, 'data')).toEqual(data.subarray(bytes, 2 * bytes))
+    expect(await read(`${chunk}?offset=${Math.ceil(data.length / bytes) * bytes}`, 'data')).toHaveLength(0)
+    const first = Buffer.alloc(bytes, 11),
+      last = Buffer.from('last')
+    expect(
+      (await ctx.request(chunk, 'PUT', { offset: 0, dataBase64: first.toString('base64') })).status,
+    ).toBe(StatusCodes.OK)
+    expect(
+      (await ctx.request(chunk, 'PUT', { offset: bytes, dataBase64: last.toString('base64') })).status,
+    ).toBe(StatusCodes.OK)
+    expect(await read(file, 'nested/data')).toEqual(Buffer.concat([first, last]))
+    expect((await ctx.request(`/sandboxes/${made.id}/files/nested%2F..%2Fescape`)).status).toBe(
+      StatusCodes.UNPROCESSABLE_ENTITY,
+    )
+    expect(ctx.nodes.calls.some((c) => c.path.endsWith('/exec') || c.path.endsWith('/exec-stream'))).toBe(
+      false,
+    )
+    expect(ctx.peers.get(made.id)?.calls.some((c) => c === 'POST /_pryx/processes')).toBe(false)
+    await ctx.request(`/sandboxes/${made.id}`, 'DELETE')
+  } finally {
+    await ctx.close()
+  }
 })

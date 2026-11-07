@@ -47,6 +47,7 @@ import { RuntimeFull, runtimeKey } from '../src/runtime-model.ts'
 import { rows } from '../src/sql.ts'
 import { S3ArchiveStore } from '../src/store.ts'
 import { freshDatabase, hasDatabase } from '../test/nodes.ts'
+import { nodeCommand } from './node-command.ts'
 import { createTestBucket } from './test-bucket.ts'
 
 const env = process.env
@@ -166,6 +167,7 @@ interface Node {
 interface TwoNodes {
   db: Db
   runtime: FleetRuntime
+  nodes: NodeClient
   node: Record<'a' | 'b', Node>
   h1: RuntimeHandle
 }
@@ -190,7 +192,7 @@ const ANSWERS: Array<{
   {
     name: "a wake right after another server's stop on a full node starts in place",
     ms: 180_000,
-    run: async ({ db, runtime, node, h1 }) => {
+    run: async ({ db, runtime, nodes, node, h1 }) => {
       const home = nodeOf(h1)
       const away = home === node.a.id ? node.b : node.a
       // The stop's answer frees its memory, before the node beats again.
@@ -214,14 +216,16 @@ const ANSWERS: Array<{
       expect(woken).toBe(h1)
       expect((await movedForRoom(db)).length).toBe(moves)
       await runtime.waitRunning(h1, AbortSignal.timeout(MINUTE_MS))
-      expect((await runtime.exec(h1, ['cat', '/data/data/level.dat'], 10)).stdout.trim()).toBe('slept')
+      expect((await nodeCommand(runtime, nodes, h1, ['cat', '/data/data/level.dat'], 10)).stdout.trim()).toBe(
+        'slept',
+      )
       await runtime.destroy(h3)
     },
   },
   {
     name: 'an apply against a node that went away ends stopped on what it ran, not failed',
     ms: 180_000,
-    run: async ({ db, runtime, node, h1 }) => {
+    run: async ({ db, runtime, nodes, node, h1 }) => {
       const busy = nodeOf(h1) ?? ''
       const gone = busy === node.a.id ? node.b : node.a
       await drain(db, busy, 'e2e')
@@ -287,7 +291,7 @@ describe.skipIf(!ready)('FleetRuntime across two nodes', () => {
   const bootstrapPublic = bootstrapKeys.publicKey.export({ format: 'pem', type: 'spki' }).toString()
 
   const exec = async (handle: RuntimeHandle, command: string) =>
-    (await runtime.exec(handle, ['sh', '-c', command], 10)).stdout.trim()
+    (await nodeCommand(runtime, nodes, handle, ['sh', '-c', command], 10)).stdout.trim()
   const other = (id: string | null) => (id === node.a.id ? node.b : node.a)
   const inner = (n: Node, ...args: string[]) => docker('exec', n.container, 'docker', ...args)
   const uploaded = () =>
@@ -599,7 +603,7 @@ describe.skipIf(!ready)('FleetRuntime across two nodes', () => {
       expect(held.get(home.id)?.allocated.memoryMb).toBe(1984)
       expect(held.get(away.id)?.running.memoryMb).toBe(128)
       // A server that stops on its own gives its memory back once its node reports it stopped.
-      await runtime.exec(h3, ['sh', '-c', 'kill 1'], 10).catch(() => undefined)
+      await nodeCommand(runtime, nodes, h3, ['sh', '-c', 'kill 1'], 10).catch(() => undefined)
       await until('the stopped server to hold no memory', async () => {
         return (await ledger()).get(home.id)?.running.memoryMb === 0
       })
@@ -609,7 +613,7 @@ describe.skipIf(!ready)('FleetRuntime across two nodes', () => {
   )
 
   for (const scenario of ANSWERS)
-    test(scenario.name, () => scenario.run({ db, runtime, node, h1 }), scenario.ms)
+    test(scenario.name, () => scenario.run({ db, runtime, nodes, node, h1 }), scenario.ms)
 
   test(
     'a host lost is rebuilt elsewhere from its last snapshot, never from what it said later',

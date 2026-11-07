@@ -11,8 +11,8 @@ test('a lost create reply keeps identity; lifecycle manages its recovered sandbo
   const calls: { path: string; key: string | null; body: unknown }[] = []
   let lose = true
   const client = new Pryx({
-    baseUrl: 'http://fixture',
-    apiKey: 'server-secret',
+    url: 'http://fixture',
+    key: 'server-secret',
     fetch: (async (input, init) => {
       const path = new URL(String(input)).pathname
       calls.push({
@@ -63,14 +63,15 @@ test('a lost create reply keeps identity; lifecycle manages its recovered sandbo
     '/v1/sandboxes/kept',
     '/v1/sandboxes/kept/sleep',
     '/v1/sandboxes/kept',
+    '/v1/sandboxes/kept',
   ])
   expect(JSON.stringify(state)).not.toContain('server-secret')
 })
 test('sandbox-agent provider preserves keys, pauses and handles private IPv6 endpoints', async () => {
   const requests: Request[] = []
   const client = new Pryx({
-    baseUrl: 'http://fixture',
-    apiKey: 'server-secret',
+    url: 'http://fixture',
+    key: 'server-secret',
     fetch: (async (input, init) => {
       const request = new Request(input, init)
       requests.push(request)
@@ -96,8 +97,12 @@ test('sandbox-agent provider preserves keys, pauses and handles private IPv6 end
   await provider.reconnect?.('one')
   await provider.destroy('one')
   expect(requests.slice(2).map((r) => new URL(r.url).pathname)).toEqual([
+    '/v1/sandboxes/one/endpoints',
+    '/v1/sandboxes/one',
     '/v1/sandboxes/one/sleep',
+    '/v1/sandboxes/one',
     '/v1/sandboxes/one/wake',
+    '/v1/sandboxes/one',
     '/v1/sandboxes/one',
   ])
 })

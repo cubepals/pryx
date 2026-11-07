@@ -5,17 +5,25 @@
 
 import { readFileSync, writeFileSync } from 'node:fs'
 import type { Duration } from '@cubepals/pryx'
-import { type MakeRequest, Pryx, seconds } from '@cubepals/pryx'
+import { type MakeRequest, Pryx } from '@cubepals/pryx'
+import { seconds } from '../../sdk/typescript/src/duration.ts'
 import { SDK_DEFAULTS } from '../../sdk/typescript/src/generated/defaults.ts'
+import { Transport } from '../../sdk/typescript/src/transport.ts'
 import { readClientConfig } from './client-config.ts'
 import { copy, terminal } from './sandbox-data.ts'
 
-export function publicClient() {
+export function publicCredentials() {
   const saved = process.env.PRYX_API_KEY ? undefined : readClientConfig()
   const baseUrl = process.env.PRYX_API_URL ?? saved?.url ?? 'http://127.0.0.1:8082'
   const apiKey = process.env.PRYX_API_KEY ?? (saved?.url === baseUrl ? saved.key : undefined)
   if (!apiKey) throw new Error('Run pryx up or set PRYX_API_URL and PRYX_API_KEY')
-  return new Pryx({ baseUrl, apiKey })
+  return { url: baseUrl, key: apiKey }
+}
+export function publicClient() {
+  return new Pryx(publicCredentials())
+}
+export function publicTransport() {
+  return new Transport(publicCredentials())
 }
 export function option(args: string[], name: string) {
   const at = args.indexOf(name)
@@ -64,31 +72,34 @@ export async function execCommand(
 ) {
   const box = await client.sandbox(id)
   {
-    const run = box.run(command, {
+    const run = box.stream(command, {
       ...(options.timeout === undefined ? {} : { timeout: options.timeout }),
       idempotencyKey: options.key,
     })
-    for await (const chunk of run.stream()) {
+    for await (const chunk of run) {
       const destination = chunk.stream === 'stdout' ? process.stdout : process.stderr
       if (!destination.write(chunk.data))
         await new Promise<void>((resolve) => destination.once('drain', resolve))
     }
-    return (await run).code ?? 1
+    return (await run.result()).code ?? 1
   }
 }
 export async function sandbox(args: string[]): Promise<unknown> {
   const client = publicClient()
   const [verb = 'ls', id, ...rest] = args
   if (verb === 'create')
-    return client.make(makeRequest(args), option(args, '--idempotency-key') ?? crypto.randomUUID())
-  if (verb === 'ls') return client.list()
+    return client.sandbox({
+      ...makeRequest(args),
+      idempotencyKey: option(args, '--idempotency-key') ?? crypto.randomUUID(),
+    })
+  if (verb === 'ls') return { sandboxes: await client.sandboxes() }
   if (verb === 'cp') {
     if (!id || !rest[0]) throw new Error('sandbox cp needs a source and destination')
     await copy(client, id, rest[0])
     return
   }
   if (!id) throw new Error(`sandbox ${verb} needs an id`)
-  if (verb === 'get') return client.get(id)
+  if (verb === 'get') return client.sandbox(id)
   if (verb === 'mcp-url') {
     console.log(await (await client.sandbox(id)).mcpUrl())
     return
@@ -110,13 +121,17 @@ export async function sandbox(args: string[]): Promise<unknown> {
     if (mode !== 'internet' && mode !== 'none') throw new Error('network is internet or none')
     return (await client.sandbox(id)).network(mode)
   }
-  if (verb === 'rm') return client.delete(id)
-  if (verb === 'snapshot') return client.snapshot(id)
-  if (verb === 'fork') return client.fork(id, {}, option(args, '--idempotency-key') ?? crypto.randomUUID())
-  if (verb === 'endpoints') return client.endpoints(id)
-  if (verb === 'events') return client.events(id, option(rest, '--since'))
+  if (verb === 'rm') return (await client.sandbox(id)).delete()
+  if (verb === 'snapshot') return (await client.sandbox(id)).snapshot()
+  if (verb === 'fork')
+    return client.sandbox({
+      snapshot: id,
+      idempotencyKey: option(args, '--idempotency-key') ?? crypto.randomUUID(),
+    })
+  if (verb === 'endpoints') return { endpoints: await (await client.sandbox(id)).endpoints() }
+  if (verb === 'events') return (await client.sandbox(id)).events(option(rest, '--since'))
   if (verb === 'start' || verb === 'stop' || verb === 'sleep' || verb === 'wake' || verb === 'rest')
-    return client.action(id, verb)
+    return { sandbox: await (await client.sandbox(id))[verb]() }
   if (verb === 'exec') {
     const split = rest.indexOf('--')
     const options = split < 0 ? [] : rest.slice(0, split)
@@ -129,7 +144,7 @@ export async function sandbox(args: string[]): Promise<unknown> {
     return
   }
   if (verb === 'logs') {
-    for await (const line of client.logs(id, {
+    for await (const line of (await client.sandbox(id)).logs({
       follow: rest.includes('--follow'),
       ...(option(rest, '--tail') ? { tail: Number(option(rest, '--tail')) } : {}),
     }))
@@ -143,13 +158,11 @@ export async function run(args: string[]) {
   if (split < 0 || split === args.length - 1)
     throw new Error('run [--image <image>] [--isolation container|process|wasm] [--snapshot] -- <command...>')
   const client = publicClient()
-  const made = await client.make(
-    {
-      ...makeRequest(args.slice(0, split)),
-      entrypoint: [...SDK_DEFAULTS.entrypoint],
-    },
-    crypto.randomUUID(),
-  )
+  const made = await client.sandbox({
+    ...makeRequest(args.slice(0, split)),
+    idempotencyKey: crypto.randomUUID(),
+    entrypoint: [...SDK_DEFAULTS.entrypoint],
+  })
   try {
     const timeout = option(args.slice(0, split), '--timeout')
     const code = await execCommand(
@@ -159,16 +172,16 @@ export async function run(args: string[]) {
       timeout ? { timeout: duration(timeout) } : {},
     )
     if (args.slice(0, split).includes('--snapshot')) {
-      const snapshot = await client.snapshot(made.id)
-      const retained = await client.fork(snapshot.id, { start: false })
-      await client.action(retained.id, 'rest')
-      const kept = (await client.snapshots(retained.id)).snapshots[0]
+      const snapshot = await made.snapshot()
+      const retained = await snapshot.fork({ start: false })
+      await retained.rest()
+      const kept = (await retained.snapshots())[0]
       console.error(JSON.stringify({ snapshot: kept?.id, sandbox: retained.id }))
       const output = option(args.slice(0, split), '--snapshot-output')
-      if (output && kept) writeFileSync(output, kept.id + '\n', { mode: 0o600 })
+      if (output && kept) writeFileSync(output, `${kept.id}\n`, { mode: 0o600 })
     }
     process.exitCode = code
   } finally {
-    await client.delete(made.id)
+    await made.delete()
   }
 }

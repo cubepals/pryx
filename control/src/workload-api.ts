@@ -20,7 +20,6 @@ import type { RuntimeSpec } from './runtime-model.ts'
 import type {
   DeleteResponse,
   EnsureResponse,
-  ExecResponse,
   ExportResponse,
   FenceResponse,
   PowerResponse,
@@ -65,7 +64,7 @@ function toWorkloadSpec(spec: RuntimeSpec, features: readonly string[]): Workloa
   return {
     image: spec.image,
     ...(features.includes('wasm-packages') && spec.packages ? { packages: [...spec.packages] } : {}),
-    ...(features.includes('agent') && spec.agent ? { agent: spec.agent, sparePorts: spec.sparePorts } : {}),
+    ...(spec.agent ? { agent: spec.agent, sparePorts: spec.sparePorts } : {}),
     ...(features.includes('network-policy') && spec.network ? { network: spec.network } : {}),
     ...(spec.entrypoint ? { entrypoint: [...spec.entrypoint] } : {}),
     env: { ...spec.env },
@@ -197,20 +196,6 @@ export class WorkloadApi {
       body,
       epoch,
       timeoutMs: TRANSFER_MS,
-    })
-  }
-
-  exec(
-    node: Dialled,
-    key: string,
-    epoch: number,
-    command: readonly string[],
-    timeoutSeconds: number,
-  ): Promise<ExecResponse> {
-    return this.#nodes.call<ExecResponse>(address(node), 'POST', `/v1/workloads/${key}/exec`, {
-      body: { command: [...command], timeoutSeconds },
-      epoch,
-      timeoutMs: (timeoutSeconds + 15) * SECOND_MS,
     })
   }
 

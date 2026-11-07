@@ -48,7 +48,6 @@ import {
   type ArchiveTarget,
   type Audience,
   type Endpoint,
-  type ExecResult,
   type InstallSeed,
   type Placement,
   type ProgressSink,
@@ -191,9 +190,6 @@ export class FleetRuntime implements SandboxRuntime {
 
   refreshRegistry(): Promise<void> {
     return this.#known.refresh()
-  }
-  supportsAgent(region: string) {
-    return this.#known.supports('agent', this.#region(region))
   }
   home(handle: RuntimeHandle) {
     return this.#known.home(handle)
@@ -496,17 +492,6 @@ export class FleetRuntime implements SandboxRuntime {
     from?: SnapshotHandle,
   ): Promise<RuntimeHandle> {
     return this.#rehoming.relocate(handle, this.#region(to.regionKey), spec, progress, from)
-  }
-
-  async exec(handle: RuntimeHandle, command: readonly string[], timeoutSeconds: number): Promise<ExecResult> {
-    const { ref, node } = await this.#ledger.current(handle)
-    const result = await this.#api.exec(node, ref.key, ref.epoch, command, timeoutSeconds)
-    if (result.timedOut) throw new Error('The command timed out')
-    return {
-      exitCode: result.exitCode ?? -1,
-      stdout: result.stdout,
-      stderr: result.stderr,
-    }
   }
 
   // ─── letting go ────────────────────────────────────────────────────────────────────────────

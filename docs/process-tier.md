@@ -89,7 +89,7 @@ untrusted workloads, accounting for the capabilities and shared-worker limits in
 
 Docker acceptance, kernel facts and n=30 measurements are collected in CI. The development
 container rejects the required Landlock policy, so no successful local process-isolation or
-Docker acceptance result is claimed. See [speed.md](speed.md) for recorded cohorts and budgets.
+Docker acceptance result is claimed. See [speed.md](checks/speed.md) for recorded cohorts and budgets.
 
 The public `/etc/mime.types` file is readable for Python HTTP and MIME lookup. This grants no
 read access to the rest of `/etc`; private service credentials remain outside the sandbox rules.

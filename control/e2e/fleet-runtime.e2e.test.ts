@@ -50,6 +50,7 @@ import { rows } from '../src/sql.ts'
 import { S3ArchiveStore } from '../src/store.ts'
 import { freshDatabase, hasDatabase } from '../test/nodes.ts'
 import { BIN, type Daemon, daemon, SUDO } from './fleet-daemon.ts'
+import { nodeCommand } from './node-command.ts'
 import { nodeConfigFor } from './runtime-config.ts'
 import { SUPERVISOR } from './supervisor.ts'
 import { createTestBucket } from './test-bucket.ts'
@@ -138,7 +139,7 @@ describe.skipIf(!ready)('FleetRuntime against a real pryxd', () => {
   const key = runtimeKey('0b6f1f2e-6a47-4c9a-9a39-2f4ac7e51f10')
 
   const exec = async (command: string) =>
-    (await runtime.exec(handle, ['sh', '-c', command], 10)).stdout.trim()
+    (await nodeCommand(runtime, nodes, handle, ['sh', '-c', command], 10)).stdout.trim()
   const containerStarted = () =>
     spawnSync('docker', [
       'inspect',
@@ -424,7 +425,13 @@ describe.skipIf(!ready)('FleetRuntime against a real pryxd', () => {
       await runtime.start(restored)
       await runtime.waitRunning(restored, AbortSignal.timeout(MINUTE_MS))
       console.log('Foreign archive: running')
-      const read = await runtime.exec(restored, ['cat', '/data/data/moved.txt', '/data/data/level.dat'], 30)
+      const read = await nodeCommand(
+        runtime,
+        nodes,
+        restored,
+        ['cat', '/data/data/moved.txt', '/data/data/level.dat'],
+        30,
+      )
       expect(read.stdout.trim().split('\n')).toEqual(['elsewhere', 'resting'])
       await runtime.destroy(restored)
       console.log('Foreign archive: destroyed')

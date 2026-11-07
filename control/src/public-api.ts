@@ -23,7 +23,6 @@ import { type NodeClient, NodeRefused } from './node-client.ts'
 import { ProjectAdmission, projectRow, projectUsage } from './project-admission.ts'
 import { exceeded, ProjectError } from './project-model.ts'
 import { PublicModel } from './public-model.ts'
-import { SandboxIO } from './sandbox-io.ts'
 import { SandboxError, type Sandboxes } from './sandboxes.ts'
 import { one, toDate } from './sql.ts'
 
@@ -47,8 +46,8 @@ export function createPublicApi(options: {
     options.publicOrigin,
   )
   const agents = new Agents(boxes, nodes, domain)
-  const io = new SandboxIO(db, boxes, nodes, new AgentForward(agents))
-  const chunks = new FileChunks(io)
+  const io = new AgentForward(agents)
+  const chunks = new FileChunks(agents)
   const app = new Hono<{ Variables: { project: string }; Bindings: { beginStream?: () => void } }>()
   app.use('/v1/*', async (c, next) => {
     const auth = c.req.header('authorization') ?? ''
@@ -214,7 +213,7 @@ export function createPublicApi(options: {
     await boxes.projects?.exec(c.get('project'), body.timeout)
     c.env?.beginStream?.()
     const abort = new AbortController()
-    const events = await io.execEvents(
+    const events = await io.exec(
       c.req.param('id'),
       c.get('project'),
       body,
@@ -262,20 +261,23 @@ export function createPublicApi(options: {
   })
   app.get('/v1/sandboxes/:id/files/*', async (c) =>
     c.json(
-      await io.file(
+      await chunks.file(
         c.req.param('id'),
         c.get('project'),
         decodeURIComponent(new URL(c.req.url).pathname.split('/files/')[1] ?? ''),
+        undefined,
+        c.req.url,
       ),
     ),
   )
   app.put('/v1/sandboxes/:id/files/*', async (c) =>
     c.json(
-      await io.file(
+      await chunks.file(
         c.req.param('id'),
         c.get('project'),
         decodeURIComponent(new URL(c.req.url).pathname.split('/files/')[1] ?? ''),
         z.object({ dataBase64: z.string() }).parse(await c.req.json()).dataBase64,
+        c.req.url,
       ),
     ),
   )
@@ -286,6 +288,8 @@ export function createPublicApi(options: {
         c.get('project'),
         decodeURIComponent(new URL(c.req.url).pathname.split('/file-chunks/')[1] ?? ''),
         chunkOffset.parse(c.req.query('offset') ?? 0),
+        undefined,
+        c.req.url,
       ),
     ),
   )
@@ -298,6 +302,7 @@ export function createPublicApi(options: {
         decodeURIComponent(new URL(c.req.url).pathname.split('/file-chunks/')[1] ?? ''),
         body.offset,
         body.dataBase64,
+        c.req.url,
       ),
     )
   })

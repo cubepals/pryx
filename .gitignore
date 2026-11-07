@@ -16,3 +16,5 @@ integrations/*/dist/
 /.benchmark-before/
 /.benchmark-after/
 sdk/python/dist/
+
+/.benchmark-collector/

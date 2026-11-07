@@ -38,19 +38,19 @@ export function pryxProvider(
       return made.id
     },
     async destroy(id) {
-      await client.delete(id)
+      await (await client.sandbox(id)).delete()
     },
     async kill(id) {
-      await client.delete(id)
+      await (await client.sandbox(id)).delete()
     },
     async pause(id) {
-      await client.action(id, 'sleep')
+      await (await client.sandbox(id)).sleep()
     },
     async reconnect(id) {
-      await client.action(id, 'wake')
+      await (await client.sandbox(id)).wake()
     },
     async getUrl(id) {
-      const endpoint = (await client.endpoints(id)).endpoints.find((p) => p.name === 'agent')
+      const endpoint = (await (await client.sandbox(id)).endpoints()).find((p) => p.name === 'agent')
       if (!endpoint) throw new Error('Sandbox has no private agent endpoint')
       const host = endpoint.host.includes(':') ? `[${endpoint.host}]` : endpoint.host
       return `http://${host}:${endpoint.port}`

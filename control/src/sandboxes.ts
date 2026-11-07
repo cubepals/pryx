@@ -413,17 +413,6 @@ export class Sandboxes {
       return { sandbox: await this.get(id, row.project), tier }
     })
   }
-  async exec(id: string, command: string[], timeout: number, project?: string) {
-    const row = await this.exclusive(id, async () => {
-      const row = await this.record(id, project)
-      await this.projects?.exec(row.project, timeout)
-      if (row.state !== 'running' || !row.handle)
-        throw new SandboxError('not_running', 'Sandbox is not running')
-      await this.touch(id)
-      return row
-    })
-    return this.engine.exec(row.handle as RuntimeHandle, command, timeout)
-  }
   async touch(id: string): Promise<void> {
     await this.db.execute(
       sql`UPDATE sandboxes SET activity_at = now() WHERE id = ${id} AND deleted_at IS NULL`,

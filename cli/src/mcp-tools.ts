@@ -97,19 +97,18 @@ export function mcpServer(client: Pryx) {
         key: z.string().optional(),
       },
     },
-    ({ key, ...options }) =>
-      answer(async () => client.api.get((await client.sandbox({ ...options, idempotencyKey: key })).id)),
+    ({ key, ...options }) => answer(async () => client.sandbox({ ...options, idempotencyKey: key })),
   )
   registerTool('sandbox_list', { description: 'List sandboxes in this project', inputSchema: {} }, () =>
-    answer(() => client.api.list()),
+    answer(async () => ({ sandboxes: await client.sandboxes() })),
   )
   registerTool('sandbox_get', { description: 'Read sandbox state', inputSchema: { id } }, ({ id }) =>
-    answer(() => client.api.get(id)),
+    answer(() => client.sandbox(id)),
   )
   registerTool(
     'sandbox_delete',
     { description: 'Permanently delete a sandbox and its data', inputSchema: { id } },
-    ({ id }) => answer(() => client.api.delete(id)),
+    ({ id }) => answer(() => (async () => (await client.sandbox(id)).delete())()),
   )
   const run = { id, command, timeout: z.number().int().positive().optional(), key: z.string().optional() }
   registerTool(
@@ -123,7 +122,7 @@ export function mcpServer(client: Pryx) {
     { description: 'Start a background process and return its ID', inputSchema: run },
     ({ id, command, timeout, key }) =>
       answer(
-        async () => (await (await client.sandbox(id)).start(command, { timeout, idempotencyKey: key })).view,
+        async () => (await (await client.sandbox(id)).spawn(command, { timeout, idempotencyKey: key })).view,
       ),
   )
   registerTool(
@@ -142,7 +141,7 @@ export function mcpServer(client: Pryx) {
     ({ id, path }) => answer(async () => (await client.sandbox(id)).files.list(path)),
   )
   registerTool('sandbox_snapshot', { description: 'Snapshot sandbox data', inputSchema: { id } }, ({ id }) =>
-    answer(() => client.api.snapshot(id)),
+    answer(() => (async () => (await client.sandbox(id)).snapshot())()),
   )
   registerTool(
     'sandbox_fork',
@@ -150,11 +149,12 @@ export function mcpServer(client: Pryx) {
       description: 'Fork a snapshot into a new sandbox',
       inputSchema: { snapshot: id, key: z.string().optional() },
     },
-    ({ snapshot, key }) => answer(() => client.api.fork(snapshot, {}, key ?? crypto.randomUUID())),
+    ({ snapshot, key }) =>
+      answer(() => client.sandbox({ snapshot, idempotencyKey: key ?? crypto.randomUUID() })),
   )
   for (const action of ['sleep', 'wake'] as const)
     registerTool(`sandbox_${action}`, { description: `${action} a sandbox`, inputSchema: { id } }, ({ id }) =>
-      answer(() => client.api.action(id, action)),
+      answer(() => (async () => ({ sandbox: await (await client.sandbox(id))[action]() }))()),
     )
   registerTool(
     'sandbox_expose',
@@ -167,7 +167,7 @@ export function mcpServer(client: Pryx) {
   registerTool(
     'project_usage',
     { description: 'Read this project’s usage and limits', inputSchema: {} },
-    () => answer(() => client.api.request('/v1/project')),
+    () => answer(() => client.project()),
   )
   server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({
     resourceTemplates: ['state', 'logs'].map((kind) => ({
@@ -177,7 +177,7 @@ export function mcpServer(client: Pryx) {
     })),
   }))
   server.setRequestHandler(ListResourcesRequestSchema, async () => ({
-    resources: (await client.api.list()).sandboxes.flatMap((box) =>
+    resources: (await client.sandboxes()).flatMap((box) =>
       ['state', 'logs'].map((kind) => ({
         name: `${box.id} ${kind}`,
         uri: `pryx://sandboxes/${box.id}/${kind}`,
@@ -198,8 +198,8 @@ export function mcpServer(client: Pryx) {
           mimeType: 'application/json',
           text: JSON.stringify(
             match[2] === 'state'
-              ? await client.api.get(sandbox)
-              : await Array.fromAsync(client.api.logs(sandbox, { follow: false, tail: 200 })),
+              ? await client.sandbox(sandbox)
+              : await Array.fromAsync((await client.sandbox(sandbox)).logs({ follow: false, tail: 200 })),
           ),
         },
       ],

@@ -53,12 +53,14 @@ test('an exposed spare is public and the SDK terminal keeps initial output and s
           publicKey: c.route.agent?.manifest.publicKey,
           epoch: 1,
         })
+      if (String(input).startsWith('http://control/'))
+        return Response.json({ id: 'one', state: 'running', endpoints: [] })
       return fetch(input, init)
     }) as typeof fetch,
   })
   try {
-    const agent = client.agent('one')
-    expect((await agent.expose(3000)).url).toBe('https://one-3000.sandboxes.test')
+    const agent = await client.sandbox('one')
+    expect(await agent.expose(3000)).toBe('https://one-3000.sandboxes.test')
     const response = await c.proxy.fetch(new Request('http://one-3000.sandboxes.test/'))
     expect(await response?.text()).toBe('exposed-app')
     const alias = await c.proxy.fetch(new Request(`${c.url}/ports/3000/`))

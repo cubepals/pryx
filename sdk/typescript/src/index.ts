@@ -1,27 +1,24 @@
-// SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
-
-/** Public SDK facade composes lifecycle and direct sandbox operations.
- * Parts (`./`):
- * - `transport.ts`: authenticated public transport.
- * - `agent.ts`: direct processes, terminals and tokens.
- * - `handles.ts`: sandbox and snapshot identities.
- * - `run.ts`: command values and output.
- * - `files.ts`: persistent file transports.
- * - `duration.ts`: duration parsing.
+/** Public lifecycle facade with one handle surface.
+ * Parts (`./`): `transport.ts` owns private HTTP; `agent.ts` owns process/terminal capabilities;
+ * `handles.ts` owns sandbox/snapshot identities; `run.ts` owns eager observations; `files.ts`
+ * owns binary files; `logs.ts` owns agent log decoding; `duration.ts` parses durations.
  */
-import { Agent } from './agent.ts'
+
+import type { components } from './generated/api.ts'
 import { makeOptions, Sandbox, type SandboxOptions } from './handles.ts'
 import type { RunOptions } from './run.ts'
-import { Pryx as Api } from './transport.ts'
+import { type Sandbox as SandboxView, Transport } from './transport.ts'
 
 export type { StartOptions } from './agent.ts'
-export { Agent, Process, Terminal } from './agent.ts'
+export { Process, Terminal } from './agent.ts'
 export type { Duration } from './duration.ts'
-export { seconds } from './duration.ts'
+export type { FileData } from './files.ts'
+export { Files } from './files.ts'
 export type { SandboxOptions } from './handles.ts'
 export { Sandbox, Snapshot } from './handles.ts'
-export type { Chunk, RunOptions, RunResult } from './run.ts'
+export type { LogRecord, LogsOptions } from './logs.ts'
+export type { Chunk, CommandStream, RunOptions, RunResult } from './run.ts'
 export type {
   ExecEvent,
   ExecRequest,
@@ -29,29 +26,33 @@ export type {
   Sandbox as SandboxView,
   Snapshot as SnapshotView,
 } from './transport.ts'
-export { ndjson, PryxError } from './transport.ts'
-export class Pryx extends Api {
-  agent(id: string) {
-    return new Agent(this.api, id)
-  }
-  get api(): Api {
-    return this
-  }
-  constructor(
-    options: { url: string; key: string; fetch?: typeof fetch } | ConstructorParameters<typeof Api>[0],
-  ) {
-    super('url' in options ? { baseUrl: options.url, apiKey: options.key, fetch: options.fetch } : options)
+export { PryxError } from './transport.ts'
+export type PryxOptions = { url: string; key: string; fetch?: typeof fetch }
+
+export class Pryx {
+  #http: Transport
+  constructor(options: PryxOptions) {
+    this.#http = new Transport(options)
   }
   async sandbox(options: string | SandboxOptions = {}) {
-    return new Sandbox(
-      this.api,
+    const view =
       typeof options === 'string'
-        ? await this.api.get(options)
-        : await this.api.make(makeOptions(options), options.idempotencyKey ?? crypto.randomUUID()),
-    )
+        ? await this.#http.request<SandboxView>(`/v1/sandboxes/${encodeURIComponent(options)}`)
+        : await this.#http.request<SandboxView>(
+            '/v1/sandboxes',
+            'POST',
+            makeOptions(options),
+            options.idempotencyKey ?? crypto.randomUUID(),
+          )
+    return new Sandbox(this.#http, view)
   }
   async sandboxes() {
-    return (await this.api.list()).sandboxes.map((view) => new Sandbox(this.api, view))
+    return (await this.#http.request<{ sandboxes: SandboxView[] }>('/v1/sandboxes')).sandboxes.map(
+      (view) => new Sandbox(this.#http, view),
+    )
+  }
+  project() {
+    return this.#http.request<components['schemas']['Project']>('/v1/project')
   }
   async run(image: string, command: string | string[], options?: RunOptions) {
     const box = await this.sandbox({ image })

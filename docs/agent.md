@@ -11,7 +11,7 @@ the agent. A Postgres regression counts actual queries: after token warmup, thes
 make zero control calls and zero SQL queries. Token renewal and lifecycle still contact control.
 
 The node announces `agent`, `files` and `network-policy` before control sends their new fields.
-An older node retains its existing exec and file protocol, including K9 `exec-stream`.
+Every supported node runs the agent. The v1 node wire retains its published endpoints.
 
 ## Capabilities and routing
 
@@ -128,4 +128,4 @@ after wake before a user mutation is forwarded.
 Rust tests execute real local processes, PTYs, websocket streams, notifications, safe file walks,
 file capabilities and spare-slot reuse. The Docker acceptance suite exercises the TypeScript,
 synchronous Python and asynchronous Python handles through a real node and edge. Container
-acceptance is run in CI. [speed.md](speed.md) records measured cohorts and their limits.
+acceptance is run in CI. [speed.md](checks/speed.md) records measured cohorts and their limits.

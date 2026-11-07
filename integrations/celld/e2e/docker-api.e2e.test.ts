@@ -63,7 +63,7 @@ test(
       await spike.close()
       writeFileSync(
         process.env.PRYX_DOCKER_SPIKE_REPORT ?? join(tmpdir(), 'pryx-docker-spike.json'),
-        JSON.stringify(result, null, 2) + '\n',
+        `${JSON.stringify(result, null, 2)}\n`,
       )
       rmSync(dir, { recursive: true, force: true })
     }

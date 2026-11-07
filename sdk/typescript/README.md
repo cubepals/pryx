@@ -5,73 +5,89 @@ import { Pryx } from '@cubepals/pryx'
 const { PRYX_API_URL: url, PRYX_API_KEY: key } = process.env
 if (!url || !key) throw new Error('Set PRYX_API_URL and PRYX_API_KEY')
 const pryx = new Pryx({ url, key })
-const box = await pryx.sandbox({ image: 'node:22', idle: '10m', ttl: '2h' })
+const box = await pryx.sandbox({ image: 'node:22', idle: '10m' })
 try {
-  const source = 'console.log("hello")\n'
-  await box.write('src/app.js', source)
-  await box.write('package.json', JSON.stringify({ scripts: { test: 'node src/app.js' } }))
-  const r = await box.run('npm test --prefix /data', { env: { npm_config_cache: '/tmp/npm' } })
-  console.log(r.stdout, r.stderr, r.code, r.timedOut)
-  if (r.code !== 0) throw new Error('Example command failed')
-  await box.run(['node', '/data/src/app.js'], { timeout: '30s', env: { CI: '1' } })
-  for await (const line of box.run('echo first; sleep 1; echo last').lines()) console.log(line)
-  for await (const chunk of box.run('echo chunk').stream()) console.log(chunk.stream, chunk.data)
-  const text = await box.read('src/app.js')
-  const bytes = await box.readBytes('src/app.js')
-  if (text !== source || new TextDecoder().decode(bytes) !== source) throw new Error('File round trip failed')
-  const snap = await box.snapshot()
-  const twin = await snap.fork({ idle: '5m' })
-  try { console.log(twin.id, twin.state) } finally { await twin.delete() }
-  await box.sleep(); await box.wake(); await box.stop(); await box.start(); await box.rest(); await box.wake()
-  console.log((await box.refresh()).state, await box.endpoints(), (await pryx.sandboxes()).length)
-  for await (const entry of box.logs({ follow: false })) console.log(entry)
-  const existing = await pryx.sandbox(box.id)
-  console.log(existing.id)
+  await box.write('hello.js', 'console.log("hello")')
+  const result = await box.run('node /data/hello.js')
+  console.log(result.stdout); if (result.code !== 0) throw new Error('Command failed')
 } finally { await box.delete() }
-console.log((await pryx.run('node:22', 'node -e "console.log(1)"')).stdout)
 ```
 
-Install `@cubepals/pryx`. Durations accept positive seconds or `s`, `m`, `h`, `d` strings.
-Strings passed to `run` use `sh -c` inside the sandbox; argv bypasses its shell. Commands use
-the persistent data directory on agent nodes (`cwd` overrides it); older nodes use the image's
-working directory. File paths are relative to persistent storage (`/data` by default).
+Install `@cubepals/pryx`.
 
-A run is lazy and executes once. Await it for `{stdout, stderr, code, timedOut, killed,
-durationMs, stdoutTruncated, stderrTruncated}` or consume its `lines()` / `stream()` once,
-then await the same run for its result. Lines preserve each output stream's boundaries. Output
-is live through the agent, through `exec-stream` on preceding nodes, and buffered on older nodes. Queues apply
-backpressure; node output remains bounded. Ending a stream does not imply the command stopped.
-A missing terminal result throws `PryxError` with an unknown outcome.
+Durations are positive seconds or `s`, `m`, `h`, `d` strings. String commands use `sh -c`;
+argv bypasses the shell. Commands default to persistent storage; `cwd` overrides it.
+Paths are relative to persistent storage (`/data`). Binary data streams through the agent while
+running and through the node while stopped. No shell tools are required for file operations.
+Commands receive one generated idempotency key per call; no mutation retries automatically.
+Output capture and observation queues are bounded. Overflow is explicit; the result remains
+available. A missing exit is an unknown outcome. Disconnect does not terminate the process.
+`PryxError` preserves status, code and details. Credentials never enter serialized views.
 
-Make and run generate an idempotency key unless `idempotencyKey` is supplied. Nothing retries
-automatically. Keep the run value to await the same result; inspect an uncertain command before
-using a new key. Errors retain HTTP status, code and details as `PryxError`.
+| Method | Behavior |
+| --- | --- |
+| `pryx.sandbox(options \| id)` | Create or look up a sandbox; create keys are generated unless supplied. |
+| `pryx.sandboxes()` | List project sandbox handles. |
+| `pryx.project()` | Project usage and limits. |
+| `pryx.run(image, command, options)` | Create, run and delete in a finally block. |
+| `box.run(command, options)` | Start immediately; return a native promise of the bounded result. |
+| `box.stream(command, options)` | Start immediately; iterate live {stream, data} chunks once. |
+| `stream.lines()` | Iterate complete stdout/stderr lines. |
+| `stream.result()` | Await the same command result without starting it again. |
+| `box.spawn(command, options)` | Start a process and return its handle. |
+| `box.start()` | Start sandbox compute. |
+| `box.stop()` | Stop compute; retain data. |
+| `box.sleep()` | Suspend or stop while retaining data. |
+| `box.wake()` | Resume or recreate compute. |
+| `box.rest()` | Archive data and release compute. |
+| `box.refresh()` | Refresh the view and invalidate its cached capability. |
+| `box.delete()` | Delete sandbox and owned data. |
+| `box.read(path)` | Read UTF-8 persistent data. |
+| `box.readBytes(path)` | Read persistent bytes. |
+| `box.readStream(path)` | Read a byte stream without collecting the file. |
+| `box.write(path, data)` | Write strings, bytes, streams or async iterables. |
+| `box.snapshot()` | Create a snapshot handle. |
+| `box.snapshots()` | List snapshot handles. |
+| `snapshot.fork(options)` | Create a sandbox from the snapshot. |
+| `snapshot.delete()` | Delete the snapshot. |
+| `box.endpoints()` | List assigned application endpoints. |
+| `box.events(since)` | Read lifecycle event records. |
+| `box.logs(options, signal)` | Read or follow agent log history; abort with signal. |
+| `box.terminal(options)` | Open a PTY with optional rows and cols. |
+| `box.mcpUrl()` | Scoped sandbox-local MCP URL. |
+| `box.expose(port)` | Publish a spare port and return its URL. |
+| `box.unexpose(port)` | Release an exposed spare. |
+| `box.network(mode)` | Replace compute with internet or none policy. |
+| `box.toJSON()` | Serialize the public sandbox view. |
+| `process.wait()` | Wait for its terminal status. |
+| `process.events()` | Read agent output/exit frames. |
+| `process.stream()` | Read decoded stdout/stderr chunks. |
+| `process.lines()` | Read complete lines. |
+| `process.stdin.write(data)` | Send string or bytes. |
+| `process.stdin.close()` | Close input. |
+| `process.signal(signal)` | Signal the process. |
+| `process.kill()` | Kill the process. |
+| `process.resize(cols, rows)` | Resize its PTY. |
+| `terminal.stdin.write(data)` | Send terminal input. |
+| `terminal.resize(cols, rows)` | Resize the terminal. |
+| `terminal.signal(signal)` | Signal the terminal process. |
+| `terminal.events()` | Read terminal frames. |
+| `terminal.stream()` | Read terminal output. |
+| `terminal.close()` | Close the terminal. |
+| `files.read(path)` | Read UTF-8 text. |
+| `files.readBytes(path)` | Read bytes. |
+| `files.readStream(path)` | Stream bytes. |
+| `files.write(path, data)` | Write persistent data. |
+| `files.list(path)` | List directory entries. |
+| `files.stat(path)` | Read file metadata. |
+| `files.mkdir(path)` | Create directories. |
+| `files.move(from, to)` | Move a persistent entry. |
+| `files.delete(path)` | Delete a persistent entry. |
+| `files.watch(path)` | Ready frame, then bounded changes. |
+| `files.url(path, method)` | Grant one file operation for at most one minute. |
+| `files.upload(path, url)` | Download an HTTP(S) URL into the sandbox. |
+| `files.download(path, url)` | Upload sandbox content to an HTTP(S) URL. |
 
-`box.write` takes strings or bytes and `box.read` / `readBytes` return strings / bytes without
-a total 48 KiB limit. Agent and stopped-node transfers stream directly; `write` also accepts a
-ReadableStream or async iterable and `readStream` returns a stream. Older nodes use bounded
-exec/tar chunks and require sh, realpath, mkdir, mktemp, dd, tar and base64. Chunked writes are not
-atomic and concurrent writers to one path must be serialized by the caller.
-
-The thin client is `pryx.api`; all previous top-level methods (`make`, `exec`, `putFile`, etc.)
-and the previous `{baseUrl, apiKey}` constructor still work. Raw file routes keep their existing
-base64/tar shapes and bound. `box.logs({follow: true}, signal)` follows until aborted.
-Types/defaults are generated by `bun run openapi:generate`; `bun run openapi:check` detects drift.
-Releases include a bundled ESM entry for Node and TypeScript types, all at the Cargo version.
-
-On agent nodes, `box.start(command, {env, cwd, stdin:true})` returns a process with `id`, `pid`,
-`lines`, `stream`, `stdin.write`, `stdin.close`, `signal`, `kill` and `wait`. Calling `box.start()`
-without a command retains the lifecycle operation. `box.terminal({cols,rows})` opens a PTY with
-`stdin.write`, `resize`, `stream` and `close`. `box.expose(port)` returns a URL; `unexpose` frees
-the reserved slot. `box.network('none')` changes internet policy and replaces compute.
-
-Files provide `list`, `stat`, `mkdir`, `move`, `delete`, `watch`, `upload` and `download`.
-Watch first yields `ready`, then changes. `files.url(path,'GET'|'PUT')` grants that file operation
-for at most one minute. Processes outlive client disconnects; output replay, SDK collection and
-line buffers are bounded and report truncation or overflow. The thin direct client is
-`pryx.agent(id)`. See [agent.md](../../docs/agent.md) for scope, expiry and network details.
-
-Sandbox creation accepts `isolation` as `container`, `process` or `wasm`. On wasm, omit
-`image`; optional `packages` contains agentOS registry names. Processes, terminals and files
-use the same handles. Wasm sleep retains files and recreates compute, so processes and terminals
-end. See [tiers.md](../../docs/tiers.md) for the comparison and runtime limits.
+`Sandbox` exposes `id`, `state`, `isolation`, `units` and `files`. Result and option types are
+exported with `Pryx`, `Sandbox`, `Snapshot`, `Process`, `Terminal`, `Files` and `PryxError`.
+See [agent security](../../docs/agent.md) and [tiers](../../docs/tiers.md).

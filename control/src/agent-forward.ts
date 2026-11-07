@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
 /** Existing public exec and log records are adapted from the direct agent through the edge.
- * Durable exec outcomes remain in control; direct SDK requests bypass this compatibility path. */
+ * Durable exec outcomes remain in control; direct SDK requests bypass control. */
 import { randomUUID } from 'node:crypto'
 import { StringDecoder } from 'node:string_decoder'
 import { StatusCodes } from 'http-status-codes'
@@ -65,6 +65,8 @@ export class AgentForward {
   ): Promise<AsyncIterable<z.infer<typeof execEvent>>> {
     const { boxes } = this.agents,
       db = boxes.db
+    const row = await boxes.record(id, project)
+    if (row.state !== 'running') throw new SandboxError('not_running', 'Sandbox is not running')
     const op = await operation(db, project, `exec:${id}`, key, body)
     if (op.response) return responseEvents(op.response as ExecResponse)
     if (key) await claimExec(db, op.id, id)

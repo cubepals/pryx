@@ -36,19 +36,16 @@ describe.skipIf(!hasDatabase)('public CLI', () => {
       ) as { id: string }
       const row = await ctx.boxes.record(id, 'default')
       expect(row.spec).toMatchObject({ idle: 5 * MINUTE_S, ttl: 2 * HOUR_S })
-      ctx.nodes.once(/POST .*\/exec$/, async () => ({
-        stdout: 'hello\n',
-        stderr: '',
-        exitCode: 0,
-        stdoutTruncated: false,
-        stderrTruncated: false,
-        timedOut: false,
-        killed: false,
-        durationMs: 1,
-      }))
+      const peer = ctx.peers.get(id)
+      if (!peer) throw new Error('Missing agent peer')
+      peer.output.unshift({
+        type: 'output',
+        stream: 'stdout',
+        bytes: Buffer.from('hello\n').toString('base64'),
+      })
       expect(await invoke(['exec', id, '--timeout', '30s', '--', 'echo', 'hello'])).toBe('hello\n')
-      expect(ctx.nodes.calls.findLast((call) => call.path.endsWith('/exec'))?.body).toMatchObject({
-        timeoutSeconds: nodeProtocol.components.schemas.ExecRequest.properties.timeoutSeconds.default,
+      expect(peer.requests.at(-1)?.body).toMatchObject({
+        timeout: nodeProtocol.components.schemas.ExecRequest.properties.timeoutSeconds.default,
       })
       await invoke(['rm', id])
     } finally {
@@ -60,16 +57,18 @@ describe.skipIf(!hasDatabase)('public CLI', () => {
     const ctx = await publicContext()
     const server = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: ctx.app.fetch })
     try {
-      ctx.nodes.once(/POST .*\/exec$/, async () => ({
-        stdout: 'hello\n',
-        stderr: '',
-        exitCode: 7,
-        stdoutTruncated: false,
-        stderrTruncated: false,
-        timedOut: false,
-        killed: false,
-        durationMs: 1,
-      }))
+      ctx.nodes.once(/^PUT /, async (answer) => {
+        const response = answer()
+        const peer = [...ctx.peers.values()].at(-1)
+        if (!peer) throw new Error('Missing agent peer')
+        peer.output.unshift({
+          type: 'output',
+          stream: 'stdout',
+          bytes: Buffer.from('hello\n').toString('base64'),
+        })
+        peer.result.code = 7
+        return response
+      })
       const child = Bun.spawn(
         ['bun', 'cli/src/main.ts', 'run', '--image', 'alpine:3.22', '--', 'echo', '--version'],
         {

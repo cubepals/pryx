@@ -5,8 +5,11 @@
 import { spawnSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
+import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { startEdge } from '../../edge/src/agent.ts'
+import { edgeConfig } from '../../edge/src/config.ts'
 import { FleetCa } from '../src/ca.ts'
 import { loadConfig } from '../src/config.ts'
 import { SECOND_MS } from '../src/durations.ts'
@@ -31,7 +34,6 @@ export async function deployment(
     runtimeEndpoint?: string
     binary?: string
     tier?: import('../src/isolation.ts').Isolation
-    agent?: boolean
   } = {},
 ) {
   const name = `public${randomBytes(4).toString('hex')}`,
@@ -77,6 +79,20 @@ export async function deployment(
     heartbeatSeconds: 1,
     suspend: true,
   })
+  const edge = await startEdge({
+    ...edgeConfig({
+      PRYX_CONTROL_URL: control.apiUrl,
+      PRYX_EDGE_TOKEN: control.config.edgeToken,
+      PRYX_EDGE_HOST: '127.0.0.1',
+      PRYX_EDGE_ID: `${name}-fixture`,
+    }),
+    httpPort: 0,
+    tlsPort: 0,
+    metricsPort: 0,
+  })
+  const edgePort = (edge.listeners.get('http:80')?.address() as AddressInfo).port
+  if (!control.edge.agents) throw new Error('Missing agent capability service')
+  control.edge.agents.localOrigin = `http://127.0.0.1:${edgePort}`
   const count = options.nodes ?? 1
   const children = await spawnNodes({ name, dir, bin: options.binary ?? bin, options, pems, control, config })
   try {
@@ -103,6 +119,7 @@ export async function deployment(
   const credential = await createKey(control.db, 'default', 'e2e')
   return {
     control,
+    edge,
     dir,
     credential,
     children,
@@ -145,6 +162,7 @@ export async function deployment(
         .split(/\s+/)
         .filter(Boolean)
       if (ids.length) spawnSync('docker', ['rm', '-f', ...ids])
+      await edge.stop()
       await control.stop()
       await fresh.drop()
       if (process.env.PRYXD_SUDO === '1') spawnSync('sudo', ['-n', 'rm', '-rf', dir])

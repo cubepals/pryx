@@ -36,7 +36,7 @@ for (const [path, methods] of Object.entries(api.paths))
     )
 lines.push(
   '',
-  'Requests and responses are defined in [the OpenAPI document](../control/openapi/pryx.openapi.json). Exec and logs use application/x-ndjson; exec forwards live stdout/stderr chunks on nodes advertising exec-stream, buffered output on older nodes, a final exit event, and an error event for a failure after headers. File writes take JSON dataBase64; reads return a base64 tar archive. File paths are relative to persistent storage.',
+  'Requests and responses are defined in [the OpenAPI document](../control/openapi/pryx.openapi.json). Exec and logs use application/x-ndjson; exec forwards live agent stdout/stderr chunks, a final exit event, and an error event for a failure after headers. File writes take JSON dataBase64; reads return a base64 tar archive. File paths are relative to persistent storage.',
   '',
   'Use a stable Idempotency-Key for retried create or exec requests. Reusing one for different input is refused. An exec with an uncertain outcome is never replayed automatically. Lifecycle operations return the reached sandbox and, for sleep/wake, its tier.',
   '',
@@ -49,7 +49,7 @@ lines.push(
   '## Direct sandbox operations',
   '',
   'POST /v1/sandboxes/{id}/token returns a short-lived sandbox capability and agent URL. SDKs cache it and send running processes, terminals, streamed files and runtime expose requests through the edge directly to /_pryx/. The project key is never sent to the sandbox. See [the agent API](agent.md) for its contract, file URLs, spare ports and network policy.',
-  'The /data/content, /data/list and /data/stat routes use the node files feature while compute is stopped or sleeping. Raw content streams as application/octet-stream; JSON requests stay bounded. Older nodes retain the existing chunk/archive fallback.',
+  'The /data/content, /data/list and /data/stat routes use the node files feature while compute is stopped or sleeping. Raw content streams as application/octet-stream; JSON requests stay bounded.',
   '',
   '## Projects and limits',
   '',
@@ -95,26 +95,24 @@ lines.push(
   '[agentos.md](agentos.md) describes persistence, software distribution and the agentOS boundary.',
 )
 lines.push(
-  ...[
-    '',
-    '## SDK handles and live commands',
-    '',
-    'The TypeScript and Python SDK READMEs contain executable handle examples. Run values collect',
-    'stdout/stderr and terminal status once, or expose live line/chunk iterators. Make/run generate',
-    'idempotency keys unless supplied and never retry automatically. A stream ending without its',
-    "exit is an unknown outcome. Public exec forwards a feature-capable node's NDJSON; older nodes",
-    'retain their buffered path. Errors after stream headers use an additive error event.',
-    '',
-    '`PUT /v1/sandboxes/{id}/file-chunks/{path}` accepts offset (a 32 KiB boundary) and dataBase64',
-    '(up to 32 KiB decoded); GET with offset returns a bounded base64 tar member named data.',
-    'The SDKs hide this framing, loop to EOF, and create parent directories for writes. Paths are',
-    "relative to persistent storage, without dot segments or symlinks in the write target's walk.",
-    'Chunks run only through container exec and tar; none are extracted on the client or host.',
-    'The existing files endpoints retain their original shapes and bound. Multi-chunk writes',
-    'are not atomic; serialize concurrent writers. Running images need the documented shell tools.',
-  ],
+  '',
+  '## SDK handles and live commands',
+  '',
+  'The TypeScript and Python SDK READMEs contain executable handle examples. Commands start on',
+  'call: run returns a native promise/task or sync result, stream iterates output with lines/result.',
+  'Each command receives one idempotency key; mutations never retry automatically. A stream ending',
+  'without its exit has an unknown outcome. Public exec and logs forward agent frames into their',
+  'published v1 records; failures after exec headers use an error event.',
+  '',
+  '`PUT /v1/sandboxes/{id}/file-chunks/{path}` accepts offset (a 32 KiB boundary) and dataBase64',
+  '(up to 32 KiB decoded); GET returns a base64 tar member named data. These v1 JSON representations',
+  'remain for HTTP callers; SDKs use binary streams directly. Control forwards binary bytes to the',
+  'agent, with stopped data served by the node. Positional JSON writes spool existing bytes to a',
+  'private control temp file before replacement, keeping RAM bounded. Concurrent writers must be',
+  'serialized by callers; multi-request writes are not atomic. No sandbox command or archive',
+  'extraction is involved. Paths remain relative, without dot segments or symlink components.',
 )
-const output = lines.join('\n') + '\n',
+const output = `${lines.join('\n')}\n`,
   path = new URL('docs/api.md', root)
 if (process.argv[2] === 'generate') writeFileSync(path, output)
 else if (readFileSync(path, 'utf8') !== output) throw new Error('API documentation drift')

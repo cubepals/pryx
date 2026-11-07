@@ -24,7 +24,7 @@ test(
       throw new Error('Native celld acceptance requires the patched public source and CI deployment')
     const binary = process.env.CELLD_NATIVE_BIN,
       source = process.env.CELLD_NATIVE_SOURCE
-    const d = await deployment({ agent: true, allowedImages: ['celld-image:'] })
+    const d = await deployment({ allowedImages: ['celld-image:'] })
     const sdk = new Pryx({ url: d.control.apiUrl, key: d.credential.key })
     const result: Record<string, unknown> = {
       commit: '8702f6d186c77698dbfb30cf29e3b1922a88f008',
@@ -99,10 +99,10 @@ test(
             expect(await repeated.text()).toBe(text)
             raw.firstRequestMs.push(performance.now() - first)
             if (backend === 'pryx') {
-              const boxes = (await sdk.list()).sandboxes
+              const boxes = await sdk.sandboxes()
               expect(boxes.length).toBe(1)
               expect(boxes[0]?.isolation).toBe('container')
-              for (const box of boxes) await sdk.delete(box.id)
+              for (const box of boxes) await (await sdk.sandbox(box.id)).delete()
             } else {
               const ids = (await command(['docker', 'ps', '-aq', '--filter', 'label=celld.cell']))
                 .split('\n')
@@ -137,7 +137,7 @@ test(
       throw error
     } finally {
       const path = process.env.PRYX_CELLD_MEASUREMENTS ?? join(tmpdir(), 'celld-native-measurements.json')
-      writeFileSync(path, JSON.stringify(result, null, 2) + '\n')
+      writeFileSync(path, `${JSON.stringify(result, null, 2)}\n`)
       await d.close()
     }
   },

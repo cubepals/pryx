@@ -21,6 +21,8 @@ describe.skipIf(!hasDatabase)('new node I/O', () => {
         node.sha,
         beat(node, 'new-session', 1, [], {
           features: [
+            'agent',
+            'files',
             'placement-epochs',
             'data-transfer',
             'local-snapshots',
@@ -36,16 +38,11 @@ describe.skipIf(!hasDatabase)('new node I/O', () => {
       expect(response.status).toBe(StatusCodes.CREATED)
       const { id } = (await response.json()) as { id: string }
       expect(decodeHandle((await ctx.boxes.record(id, 'default')).handle as string).node).toBe(node.id)
-      ctx.nodes.once(/POST .*\/exec$/, async () => ({
-        stdout: 'first\n',
-        stderr: '',
-        exitCode: 0,
-        stdoutTruncated: false,
-        stderrTruncated: false,
-        timedOut: false,
-        killed: false,
-        durationMs: 1,
-      }))
+      ctx.peers.get(id)?.output.unshift({
+        type: 'output',
+        stream: 'stdout',
+        bytes: Buffer.from('first\n').toString('base64'),
+      })
       const executed = await ctx.request(`/sandboxes/${id}/exec`, 'POST', { command: ['echo', 'first'] })
       expect(executed.status).toBe(StatusCodes.OK)
       expect(await executed.text()).toContain('first')

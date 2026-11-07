@@ -3,15 +3,22 @@
 
 /** Public SDK and compiled CLI through a real daemon, Docker, Postgres and S3; run only in CI. */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { Pryx } from '@cubepals/pryx'
+import {
+  type ExecEvent,
+  ndjson,
+  type Sandbox as SandboxView,
+  type Snapshot as SnapshotView,
+  Transport,
+} from '../../sdk/typescript/src/transport.ts'
 import { MINUTE_MS } from '../src/durations.ts'
+import type { LogRecord } from '../src/wire.ts'
 import { deployment, ready } from './deployment.ts'
 
 describe.skipIf(!ready)('public API end to end', () => {
-  let d: Awaited<ReturnType<typeof deployment>>, client: Pryx
+  let d: Awaited<ReturnType<typeof deployment>>, client: Transport
   beforeAll(async () => {
     d = await deployment()
-    client = new Pryx({ baseUrl: d.control.apiUrl, apiKey: d.credential.key })
+    client = new Transport({ url: d.control.apiUrl, key: d.credential.key })
   }, 2 * MINUTE_MS)
   afterAll(async () => {
     await d?.close()
@@ -19,7 +26,9 @@ describe.skipIf(!ready)('public API end to end', () => {
   test(
     'make, files, exec, logs, snapshot, fork, sleep, wake, rest, delete',
     async () => {
-      const made = await client.make(
+      const made = await client.request<SandboxView>(
+        '/v1/sandboxes',
+        'POST',
         {
           image: 'alpine:3.22',
           entrypoint: ['sh', '-c', 'trap "exit 0" TERM; echo started; while :; do sleep 1; done'],
@@ -28,24 +37,82 @@ describe.skipIf(!ready)('public API end to end', () => {
         crypto.randomUUID(),
       )
       try {
-        await client.putFile(made.id, 'message', Buffer.from('kept').toString('base64'))
-        const answer = await Array.fromAsync(client.exec(made.id, { command: ['cat', '/data/message'] }))
+        await client.request<unknown>(
+          `/v1/sandboxes/${encodeURIComponent(made.id)}/files/${encodeURIComponent('message')}`,
+          'PUT',
+          { dataBase64: Buffer.from('kept').toString('base64') },
+        )
+        const answer = await Array.fromAsync(
+          ndjson<ExecEvent>(
+            await client.raw(
+              `/v1/sandboxes/${encodeURIComponent(made.id)}/exec`,
+              'POST',
+              { command: ['cat', '/data/message'] },
+              crypto.randomUUID(),
+            ),
+          ),
+        )
         expect(answer).toContainEqual(expect.objectContaining({ type: 'stdout', data: 'kept' }))
-        expect((await client.getFile(made.id, 'message')).archiveBase64).not.toBe('')
-        expect(await Array.fromAsync(client.logs(made.id, { follow: false }))).not.toHaveLength(0)
-        const snap = await client.snapshot(made.id),
-          fork = await client.fork(snap.id)
+        expect(
+          (
+            await client.request<{ archiveBase64: string }>(
+              `/v1/sandboxes/${encodeURIComponent(made.id)}/files/${encodeURIComponent('message')}`,
+              'GET',
+            )
+          ).archiveBase64,
+        ).not.toBe('')
+        expect(
+          await Array.fromAsync(
+            ndjson<LogRecord>(
+              await client.raw(
+                `/v1/sandboxes/${encodeURIComponent(made.id)}/logs?${new URLSearchParams(Object.entries({ follow: false }).map(([k, v]) => [k, String(v)]))}`,
+              ),
+            ),
+          ),
+        ).not.toHaveLength(0)
+        const snap = await client.request<SnapshotView>(
+            `/v1/sandboxes/${encodeURIComponent(made.id)}/snapshots`,
+            'POST',
+          ),
+          fork = await client.request<SandboxView>(
+            `/v1/snapshots/${encodeURIComponent(snap.id)}/sandboxes`,
+            'POST',
+            {},
+            crypto.randomUUID(),
+          )
         try {
-          expect((await client.get(fork.id)).state).toBe('running')
+          expect(
+            (await client.request<SandboxView>(`/v1/sandboxes/${encodeURIComponent(fork.id)}`, 'GET')).state,
+          ).toBe('running')
         } finally {
-          await client.delete(fork.id)
+          await client.request<{ existed: boolean }>(`/v1/sandboxes/${encodeURIComponent(fork.id)}`, 'DELETE')
         }
-        await client.action(made.id, 'sleep')
-        expect((await client.action(made.id, 'wake')).sandbox.state).toBe('running')
-        await client.action(made.id, 'rest')
-        expect((await client.action(made.id, 'wake')).tier).toBe('restored')
+        await client.request<{ sandbox: SandboxView; tier?: string }>(
+          `/v1/sandboxes/${encodeURIComponent(made.id)}/${'sleep'}`,
+          'POST',
+        )
+        expect(
+          (
+            await client.request<{ sandbox: SandboxView; tier?: string }>(
+              `/v1/sandboxes/${encodeURIComponent(made.id)}/${'wake'}`,
+              'POST',
+            )
+          ).sandbox.state,
+        ).toBe('running')
+        await client.request<{ sandbox: SandboxView; tier?: string }>(
+          `/v1/sandboxes/${encodeURIComponent(made.id)}/${'rest'}`,
+          'POST',
+        )
+        expect(
+          (
+            await client.request<{ sandbox: SandboxView; tier?: string }>(
+              `/v1/sandboxes/${encodeURIComponent(made.id)}/${'wake'}`,
+              'POST',
+            )
+          ).tier,
+        ).toBe('restored')
       } finally {
-        await client.delete(made.id)
+        await client.request<{ existed: boolean }>(`/v1/sandboxes/${encodeURIComponent(made.id)}`, 'DELETE')
       }
     },
     3 * MINUTE_MS,
@@ -67,11 +134,16 @@ describe.skipIf(!ready)('public API end to end', () => {
         return stdout
       }
       expect(await invoke(['run', '--image', 'alpine:3.22', '--', 'echo', 'hello'])).toBe('hello\n')
-      const made = await client.make({
-        image: 'alpine:3.22',
-        entrypoint: ['sh', '-c', 'trap "exit 0" TERM; while :; do sleep 1; done'],
-        resources: { memoryMb: 128 },
-      })
+      const made = await client.request<SandboxView>(
+        '/v1/sandboxes',
+        'POST',
+        {
+          image: 'alpine:3.22',
+          entrypoint: ['sh', '-c', 'trap "exit 0" TERM; while :; do sleep 1; done'],
+          resources: { memoryMb: 128 },
+        },
+        crypto.randomUUID(),
+      )
       for (const verb of ['ls', 'get', 'logs', 'sleep', 'wake', 'rest', 'wake'])
         await invoke(['sandbox', verb, ...(verb === 'ls' ? [] : [made.id])])
       const snap = JSON.parse(await invoke(['sandbox', 'snapshot', made.id])) as { id: string }

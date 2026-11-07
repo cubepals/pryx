@@ -48,14 +48,14 @@ try {
     creationTimes.push(created - began)
     try {
       if (box.isolation !== tier) throw new Error('Wrong image tier')
-      const run = box.run('echo hello'),
-        stream = run.stream()
+      const run = box.stream('echo hello'),
+        stream = run[Symbol.asyncIterator]()
       if (!(await stream.next()).value?.data) throw new Error('Image emitted no output')
       const first = performance.now()
       firstBytes.push(first - began)
       firstEchoTimes.push(first - created)
       while (!(await stream.next()).done) {}
-      const result = await run
+      const result = await run.result()
       if (result.code !== 0 || result.stdout !== 'hello\n' || result.stderr !== '')
         throw new Error('Image did not print hello')
     } catch (error) {

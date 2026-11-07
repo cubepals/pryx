@@ -7,9 +7,14 @@ import { execFileSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { setTimeout as pause } from 'node:timers/promises'
-import { Pryx } from '@cubepals/pryx'
 import { sql } from 'drizzle-orm'
 import { StatusCodes } from 'http-status-codes'
+import {
+  type ExecEvent,
+  ndjson,
+  type Sandbox as SandboxView,
+  Transport,
+} from '../../sdk/typescript/src/transport.ts'
 import { smallestShape } from '../src/autoscale.ts'
 import { FleetCa } from '../src/ca.ts'
 import { loadConfig } from '../src/config.ts'
@@ -200,19 +205,33 @@ describe.skipIf(!token)('Hetzner live provider', () => {
         )
         await current.runtime.refreshRegistry()
         const key = await createKey(current.db, 'default', 'provider-e2e'),
-          sdk = new Pryx({ baseUrl: current.apiUrl, apiKey: key.key })
-        const box = await sdk.make({
-          region,
-          image: 'alpine:3.22',
-          resources: { memoryMb: 128 },
-          entrypoint: ['sh', '-c', 'trap "exit 0" TERM; while :; do sleep 1; done'],
-        })
+          sdk = new Transport({ url: current.apiUrl, key: key.key })
+        const box = await sdk.request<SandboxView>(
+          '/v1/sandboxes',
+          'POST',
+          {
+            region,
+            image: 'alpine:3.22',
+            resources: { memoryMb: 128 },
+            entrypoint: ['sh', '-c', 'trap "exit 0" TERM; while :; do sleep 1; done'],
+          },
+          crypto.randomUUID(),
+        )
         try {
           expect(
-            await Array.fromAsync(sdk.exec(box.id, { command: ['echo', 'provider-live'] })),
+            await Array.fromAsync(
+              ndjson<ExecEvent>(
+                await sdk.raw(
+                  `/v1/sandboxes/${encodeURIComponent(box.id)}/exec`,
+                  'POST',
+                  { command: ['echo', 'provider-live'] },
+                  crypto.randomUUID(),
+                ),
+              ),
+            ),
           ).toContainEqual(expect.objectContaining({ type: 'stdout', data: 'provider-live\n' }))
         } finally {
-          await sdk.delete(box.id)
+          await sdk.request<{ existed: boolean }>(`/v1/sandboxes/${encodeURIComponent(box.id)}`, 'DELETE')
         }
         expect((await cli(['release', joined.node_id ?? ''])).state).toBe('released')
         expect((await provider.list()).some((h) => h.id === serverId)).toBe(false)

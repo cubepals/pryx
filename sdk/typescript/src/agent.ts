@@ -6,7 +6,8 @@ import { StatusCodes } from 'http-status-codes'
 import { type Duration, seconds } from './duration.ts'
 import type { components } from './generated/api.ts'
 import { SDK_DEFAULTS } from './generated/defaults.ts'
-import { ndjson, type Pryx, PryxError } from './transport.ts'
+import { type LogsOptions, logs } from './logs.ts'
+import { ndjson, PryxError, type Transport } from './transport.ts'
 
 export type AgentStart = components['schemas']['AgentStart']
 export type AgentEvent = components['schemas']['AgentEvent']
@@ -19,43 +20,45 @@ export type StartOptions = Omit<Partial<AgentStart>, 'command' | 'timeout'> & {
   idempotencyKey?: string
 }
 export class Agent {
-  private credential?: SandboxToken
-  private renewing?: Promise<SandboxToken>
-  private generation = 0
+  #credential?: SandboxToken
+  #renewing?: Promise<SandboxToken>
+  #generation = 0
   constructor(
-    readonly api: Pryx,
+    readonly api: Transport,
     readonly id: string,
   ) {}
   invalidate() {
-    this.generation++
-    this.credential = undefined
-    this.renewing = undefined
+    this.#generation++
+    this.#credential = undefined
+    this.#renewing = undefined
   }
   async token() {
     if (
-      this.credential &&
-      this.credential.expiresAt > Date.now() / SDK_DEFAULTS.secondMs + SDK_DEFAULTS.tokenRenewBeforeSeconds
+      this.#credential &&
+      this.#credential.expiresAt > Date.now() / SDK_DEFAULTS.secondMs + SDK_DEFAULTS.tokenRenewBeforeSeconds
     )
-      return this.credential
-    if (!this.renewing) {
-      const generation = this.generation
+      return this.#credential
+    if (!this.#renewing) {
+      const generation = this.#generation
       const pending = this.api
         .request<SandboxToken>(`/v1/sandboxes/${encodeURIComponent(this.id)}/token`, 'POST')
         .then((credential) => {
-          if (generation === this.generation) this.credential = credential
+          if (generation === this.#generation) this.#credential = credential
           return credential
         })
         .finally(() => {
-          if (generation === this.generation) this.renewing = undefined
+          if (generation === this.#generation) this.#renewing = undefined
         })
-      this.renewing = pending
+      this.#renewing = pending
     }
-    return this.renewing
+    return this.#renewing
   }
-  async raw(path: string, method = 'GET', body?: BodyInit, headers: HeadersInit = {}) {
+  async raw(path: string, method = 'GET', body?: BodyInit, headers: HeadersInit = {}, signal?: AbortSignal) {
     const token = await this.token()
     const response = await this.api.fetch(`${token.url.replace(/\/$/, '')}${path}`, {
       method,
+      redirect: 'manual',
+      signal,
       body,
       headers: { ...Object.fromEntries(new Headers(headers)), authorization: `Bearer ${token.token}` },
     })
@@ -79,12 +82,28 @@ export class Agent {
     })
     return response.status === StatusCodes.NO_CONTENT ? (undefined as T) : (response.json() as Promise<T>)
   }
+  logs(options: LogsOptions = {}, signal?: AbortSignal) {
+    return logs(
+      () =>
+        this.raw(
+          `/_pryx/logs?${new URLSearchParams({ follow: String(options.follow ?? false) })}`,
+          'GET',
+          undefined,
+          {},
+          signal,
+        ),
+      options,
+    )
+  }
   async start(command: string | string[], options: StartOptions = {}) {
     const { timeout, idempotencyKey, ...body } = options
+    const value = timeout === undefined ? undefined : seconds(timeout)
+    if (value !== undefined && !Number.isInteger(value))
+      throw new TypeError('Process timeout is a whole number of seconds')
     const process = await this.request<AgentProcess>(
       '/_pryx/processes',
       'POST',
-      { ...body, command, ...(timeout === undefined ? {} : { timeout: seconds(timeout) }) },
+      { ...body, command, ...(value === undefined ? {} : { timeout: value }) },
       idempotencyKey ?? crypto.randomUUID(),
     )
     return new Process(this, process)
@@ -176,11 +195,13 @@ export async function* output(events: AsyncIterable<AgentEvent>) {
   }
 }
 export class Process {
+  #agent: Agent
   readonly stdin: { write: (data: string | Uint8Array) => Promise<void>; close: () => Promise<void> }
   constructor(
-    readonly agent: Agent,
+    agent: Agent,
     readonly view: AgentProcess,
   ) {
+    this.#agent = agent
     this.stdin = {
       write: async (data) => {
         await agent.raw(this.path('/stdin'), 'POST', binaryBody(data))
@@ -198,19 +219,19 @@ export class Process {
     return `/_pryx/processes/${encodeURIComponent(this.id)}${suffix}`
   }
   wait() {
-    return this.agent.request<AgentResult>(this.path('/wait'))
+    return this.#agent.request<AgentResult>(this.path('/wait'))
   }
   signal(signal: string) {
-    return this.agent.request<void>(this.path('/signal'), 'POST', { signal })
+    return this.#agent.request<void>(this.path('/signal'), 'POST', { signal })
   }
   kill() {
     return this.signal('KILL')
   }
   resize(cols: number, rows: number) {
-    return this.agent.request<void>(this.path('/resize'), 'POST', { cols, rows })
+    return this.#agent.request<void>(this.path('/resize'), 'POST', { cols, rows })
   }
   async *events() {
-    yield* ndjson<AgentEvent>(await this.agent.raw(this.path('/output')))
+    yield* ndjson<AgentEvent>(await this.#agent.raw(this.path('/output')))
   }
   async *stream() {
     for await (const event of output(this.events()))

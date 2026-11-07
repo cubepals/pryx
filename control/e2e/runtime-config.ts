@@ -51,7 +51,6 @@ export const nodeConfigFor = (DEPLOYMENT: string) =>
     opsPort: number
     allowedImages?: string[]
     tier?: import('../src/isolation.ts').Isolation
-    agent?: boolean
     storeLease?: boolean
     low: number
   }): string {
@@ -69,7 +68,6 @@ ${process.env.PRYX_TIER_BENCH === '1' ? '' : 'port_quarantine_seconds = 0'}
 [wasm]
 distribution = ${JSON.stringify(process.env.PRYX_AGENTOS_DISTRIBUTION ?? '/usr/local/lib/pryx/agentos')}
 [workloads]
-${at.agent ? '' : 'agent_binary = "/nonexistent/legacy-node-agent"'}
 allowed_images = ${JSON.stringify(at.allowedImages ?? ['alpine:'])}
 min_memory_mb = ${process.env.PRYX_TIER_BENCH === '1' ? TIER_BENCH_UNIT.memoryMb : 64}
 [capacity]

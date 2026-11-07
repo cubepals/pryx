@@ -350,6 +350,15 @@ jobs:
         run: >-
           docker run -d --name pryx-s3 -p 9000:9000 -e RUSTFS_ACCESS_KEY=blockly-test
           -e RUSTFS_SECRET_KEY=blockly-test-secret ghcr.io/rustfs/rustfs:1.0.0 /data
+      - name: Check out the historical speed collector
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: c1c9fa13578087d7e657b2d048a7619bef696619
+          path: .benchmark-collector
+          persist-credentials: false
+      - name: Install historical collector dependencies
+        working-directory: .benchmark-collector
+        run: bun install --frozen-lockfile
       - name: Check out the pinned K9 baseline
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -371,7 +380,7 @@ jobs:
           cargo clean --package pryxd
           cargo build --locked
           bun install --frozen-lockfile
-          PRYX_SPEED_SOURCE="$PWD" PRYXD_BIN="$CARGO_TARGET_DIR/debug/pryxd" bun "$GITHUB_WORKSPACE/control/bench/speed.ts" before "$RUNNER_TEMP/speed-before.json"
+          PRYX_SPEED_SOURCE="$PWD" PRYXD_BIN="$CARGO_TARGET_DIR/debug/pryxd" bun "$GITHUB_WORKSPACE/.benchmark-collector/control/bench/speed.ts" before "$RUNNER_TEMP/speed-before.json"
       - name: Check out the pinned K9 after product
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -386,7 +395,7 @@ jobs:
           cargo clean --package pryxd
           cargo build --locked
           bun install --frozen-lockfile
-          PRYX_SPEED_SOURCE="$PWD" PRYXD_BIN="$CARGO_TARGET_DIR/debug/pryxd" bun "$GITHUB_WORKSPACE/control/bench/speed.ts" after "$RUNNER_TEMP/speed-after.json"
+          PRYX_SPEED_SOURCE="$PWD" PRYXD_BIN="$CARGO_TARGET_DIR/debug/pryxd" bun "$GITHUB_WORKSPACE/.benchmark-collector/control/bench/speed.ts" after "$RUNNER_TEMP/speed-after.json"
       - name: Check out the pinned K11 baseline
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -401,7 +410,7 @@ jobs:
           cargo clean --package pryxd
           cargo build --locked
           bun install --frozen-lockfile
-          PRYX_SPEED_SOURCE="$PWD" PRYXD_BIN="$CARGO_TARGET_DIR/debug/pryxd" bun "$GITHUB_WORKSPACE/control/bench/agent-speed.ts" before "$RUNNER_TEMP/agent-speed-before.json"
+          PRYX_SPEED_SOURCE="$PWD" PRYXD_BIN="$CARGO_TARGET_DIR/debug/pryxd" bun "$GITHUB_WORKSPACE/.benchmark-collector/control/bench/agent-speed.ts" before "$RUNNER_TEMP/agent-speed-before.json"
       - name: Build the current daemon
         run: |
           cargo clean --package pryxd

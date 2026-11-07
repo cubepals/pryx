@@ -14,7 +14,7 @@ test('reference MCP clients use CLI HTTP and stdio with project authority', asyn
   const c = await publicContext()
   const api = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: (request) => c.app.fetch(request) })
   const sdk = new Pryx({ url: api.url.toString(), key: c.credential.key })
-  const http = mcpHttp(sdk, 0)
+  const http = mcpHttp(sdk, 0, c.credential.key)
   try {
     const url = new URL('/mcp', http.url)
     expect((await fetch(url)).status).toBe(StatusCodes.UNAUTHORIZED)

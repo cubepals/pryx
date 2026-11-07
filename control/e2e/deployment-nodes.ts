@@ -19,7 +19,6 @@ export async function spawnNodes(at: {
     tier?: import('../src/isolation.ts').Isolation
     nodes?: number
     allowedImages?: string[]
-    agent?: boolean
     storeLease?: boolean
   }
   pems: Awaited<ReturnType<typeof FleetCa.generate>>
@@ -40,7 +39,6 @@ export async function spawnNodes(at: {
       path,
       nodeConfigFor(name)({
         allowedImages: options.allowedImages,
-        agent: options.agent,
         tier: options.tier,
         storeLease: options.storeLease,
         home: nodeDir,

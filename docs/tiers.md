@@ -91,7 +91,7 @@ did fit all 50 in all 30 waves on each tier. Its
 [raw artifact](https://github.com/cubepals/pryx/actions/runs/42227505210/artifacts/13513821935)
 records the following; memory includes the context and fixed services. This successful run
 does not fill in the missing observations from the failed run.
-Both raw cohorts are retained under [measurements/k14](measurements/k14/).
+Both raw cohorts are retained under [measurements/k14](checks/measurements/k14/).
 
 | One-box tier | Requested per wave | Running per completed wave | Full waves | Refusals observed | Context PSS MiB, p50 / p90 |
 | --- | ---: | ---: | ---: | --- | ---: |
@@ -118,7 +118,7 @@ This partial wave contributes **zero full-50 latency samples**. Its admitted cou
 this observation, rather than establishing a physical memory ceiling or a runner-independent
 maximum. This is one local validation wave, separate from the CI jobs' thirty-wave comparisons.
 
-The [raw report](measurements/k14/local-capacity-9ebc6da/tiers-one-box-wasm.json) records the
+The [raw report](checks/measurements/k14/local-capacity-9ebc6da/tiers-one-box-wasm.json) records the
 host, source, binary hash, unit profile, CPU admission overcommit, exact bytes and refusal.
 The [driver and invocation](checks/pr8-capacity-local-command.txt) use the benchmark collector,
 real SDK/API/Postgres/node/sidecar and unchanged `tier-memory.py`. The workspace has no `sudo`
@@ -135,7 +135,7 @@ ordinary-image failure after the first Wasm wave had admitted all 50 with zero a
 refusals. Its creation time was 66,869.40 ms and pre-cleanup context PSS was 554.99 MiB.
 The simultaneous delete fan-out then returned HTTP 503 `no_room`; the tier remained
 `incomplete` and the job failed. This public error does not identify the underlying host or
-database cause. The [raw report](measurements/k14/42254735382/tiers-image-wasm.json) and
+database cause. The [raw report](checks/measurements/k14/42254735382/tiers-image-wasm.json) and
 [log excerpt](checks/pr8-capacity-image-cleanup-before.txt) retain that failed observation;
 the one recorded wave is not presented as a completed thirty-wave comparison.
 Container, process, normal-default and forced-Wasm hello cohorts from that run retain their
@@ -145,7 +145,7 @@ creation requests still overlap. The actual admission-refusal observation above 
 
 The corresponding [PR run](https://github.com/cubepals/pryx/actions/runs/42254747830)
 instead failed in the container fork cohort after 22 timings: Docker's start response exceeded
-the unchanged 20-second deadline. Its [raw reports](measurements/k14/42254747830/) retain the
+the unchanged 20-second deadline. Its [raw reports](checks/measurements/k14/42254747830/) retain the
 incomplete container result and complete process, Wasm and hello cohorts; the
 [failure log](checks/pr8-container-fork-before.txt) does not establish that container's final state.
 The runtime now inspects once after a start timeout and succeeds only if Docker confirms
@@ -203,7 +203,7 @@ filesystem validation instead.
 
 ## Complete comparison
 
-The tables pin the complete [raw reports from CI 42166712195](measurements/k14/42166712195/),
+The tables pin the complete [raw reports from CI 42166712195](checks/measurements/k14/42166712195/),
 source `becd30a2051e59ecde599a22f3ff5e868bcd59e3`. Every tier completes every requested cohort,
 including thirty verified pip installs, thirty verified npm installs and thirty batches of
 fifty creations. Recomputing nearest-rank percentiles from the raw samples matches every
@@ -348,6 +348,6 @@ the limits apply to the after product.
 
 All specified K9/K11/K12 after budgets pass in this complete checkpoint. K14's distinct cold
 create-to-output goal above remains a documented miss. Historical partial and failed cohorts
-remain under [measurements/k14](measurements/k14/); they are not substituted for these complete
+remain under [measurements/k14](checks/measurements/k14/); they are not substituted for these complete
 samples. The final workflow must pass its tests and repeat the required comparisons before
 the pull request is opened; its exact final commit and run are linked in the pull request.

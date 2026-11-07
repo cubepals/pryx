@@ -168,7 +168,7 @@ Body: `WorkloadSpec`.
 | `resources.memoryMb` | Required. Hard limit with no swap, between `min_memory_mb` and what the host allocates. |
 | `resources.cpuMillis` | Optional CFS ceiling: 100 to cores × 1000. Container only; process and Wasm refuse it. It is also what the JVM counts as its processors. |
 | `resources.cpuWeight` | Optional cgroup weight, 2–262144. Container only; absent means proportional to memory: 1024 per 4 GB. Process and Wasm refuse explicit weights. |
-| `resources.cpuReservationMillis` | Optional admission reservation, 100 to cores × 1000; not an enforced CPU ceiling. Send only after `cpu-reservation` is announced. Unit CPU remains reserved in the control ledger even for an older node lacking this field. |
+| `resources.cpuReservationMillis` | Optional admission reservation, 100 to cores × 1000; not an enforced CPU ceiling. Send only after `cpu-reservation` is announced. Unit CPU remains reserved in the control ledger even for a peer that has not announced this field. |
 | `resources.pidsLimit` | Optional, 64–65536. Absent means the host default (4096). |
 | `storage.mountPath` | Absolute path of plain components, not `/`. |
 | `storage.sizeGb` | 1–4096. Reported against measured use; **not enforced** in v1. |
@@ -809,4 +809,4 @@ Docker output uses 16 KiB payloads with two queues of eight frames, per-stream U
 and backpressure. Output retains the existing per-stream bound and truncation flags. The
 command timeout includes waiting for a queue and still kills the verified container process
 tree. Disconnecting HTTP does not cancel command containment or authorize a second execution.
-Control uses this endpoint only after the node advertises it; older nodes keep buffered exec.
+The v1 wire retains this endpoint. Control and SDK commands use the sandbox agent.
