@@ -267,6 +267,32 @@ test('v1 file envelopes carry agent bytes without executing a sandbox command', 
   }
 })
 
+test('concurrent disjoint file chunks both land', async () => {
+  const ctx = await publicContext()
+  try {
+    const made = (await (await ctx.request('/sandboxes', 'POST', { image: 'alpine:3.22' })).json()) as {
+      id: string
+    }
+    const bytes = SDK_DEFAULTS.fileChunkBytes
+    const chunk = `/sandboxes/${made.id}/file-chunks/racing`
+    const parts = [Buffer.alloc(bytes, 1), Buffer.alloc(bytes, 2), Buffer.from('third')]
+    const put = (index: number) =>
+      ctx.request(chunk, 'PUT', { offset: index * bytes, dataBase64: parts[index]?.toString('base64') })
+    expect((await put(0)).status).toBe(StatusCodes.OK)
+    const statuses = await Promise.all([put(1), put(2)])
+    expect(statuses.map((r) => r.status)).toEqual([StatusCodes.OK, StatusCodes.OK])
+    const response = await ctx.request(`/sandboxes/${made.id}/files/racing`)
+    const value = (await response.json()) as { archiveBase64: string }
+    const files = await new Bun.Archive(Buffer.from(value.archiveBase64, 'base64')).files()
+    const entry = files.get('racing')
+    if (!entry) throw new Error('Missing public tar member')
+    expect(Buffer.from(await entry.arrayBuffer()).equals(Buffer.concat(parts))).toBe(true)
+    await ctx.request(`/sandboxes/${made.id}`, 'DELETE')
+  } finally {
+    await ctx.close()
+  }
+})
+
 test('a long lifecycle response outlives the HTTP idle timer', async () => {
   const ctx = await publicContext()
   try {

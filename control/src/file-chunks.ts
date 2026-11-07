@@ -150,6 +150,22 @@ export class FileChunks {
     const content = Buffer.from(data, 'base64')
     if (content.length > bytes)
       throw new SandboxError('invalid_request', 'File chunk exceeds its transfer bound')
+    // Every chunk write to one path takes its turn, across control instances: a positional write
+    // reads, patches and replaces the whole file, so two at once would lose one of them.
+    await this.agents.boxes.locked(JSON.stringify(['file-chunks', id, path]), () =>
+      this.write(id, project, path, offset, content, requestUrl, signal),
+    )
+    return { written: true }
+  }
+  private async write(
+    id: string,
+    project: string,
+    path: string,
+    offset: number,
+    content: Buffer<ArrayBuffer>,
+    requestUrl: string,
+    signal: AbortSignal,
+  ) {
     if (offset === 0)
       await (await this.content(id, project, path, requestUrl, content, signal)).body?.cancel()
     else {
@@ -172,6 +188,5 @@ export class FileChunks {
         await rm(temporary, { recursive: true, force: true })
       }
     }
-    return { written: true }
   }
 }

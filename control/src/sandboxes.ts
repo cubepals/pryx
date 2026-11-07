@@ -152,20 +152,24 @@ export class Sandboxes {
 
   /** Waiters release their connection between lock attempts, leaving room for nested intent locks. */
   async exclusive<T>(id: string, work: () => Promise<T>): Promise<T> {
+    return this.locked(`sandbox:${id}`, work)
+  }
+
+  /** `work` alone across every control instance among holders of `key`, as `exclusive` holds a sandbox. */
+  async locked<T>(key: string, work: () => Promise<T>): Promise<T> {
     for (;;) {
       const client = await this.locks.connect()
       let held = false
       try {
         const answer = await client.query<{ held: boolean }>(
           'SELECT pg_try_advisory_lock(hashtextextended($1, 0)) AS held',
-          [`sandbox:${id}`],
+          [key],
         )
         held = answer.rows[0]?.held === true
         if (held) return await work()
       } finally {
         try {
-          if (held)
-            await client.query('SELECT pg_advisory_unlock(hashtextextended($1, 0))', [`sandbox:${id}`])
+          if (held) await client.query('SELECT pg_advisory_unlock(hashtextextended($1, 0))', [key])
         } finally {
           client.release()
         }
