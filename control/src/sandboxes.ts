@@ -517,26 +517,27 @@ export class Sandboxes {
     })
   }
   async delete(id: string, project?: string, expired = false): Promise<{ existed: boolean }> {
-    return this.exclusive(id, async () => {
-      const row = await one<SandboxRow>(this.db, sql`SELECT * FROM sandboxes WHERE id = ${id}`)
-      if (!row || row.deleted_at || (project !== undefined && row.project !== project))
-        return { existed: false }
-      if (project !== undefined) await this.projects?.write(row.project)
-      await this.engine.destroy(row.handle ?? runtimeKey(id))
-      await this.db.execute(
-        sql`UPDATE sandboxes SET deleted_at = now(), expired = ${expired}, updated_at = now(), spec = spec - 'secrets' WHERE id = ${id}`,
-      )
-      await this.db.execute(
-        sql`UPDATE sandbox_snapshots SET deleted_at = now(), spec = spec - 'secrets' WHERE sandbox = ${id}`,
-      )
-      await this.db.execute(
-        sql`UPDATE edge_addresses SET retired_at=COALESCE(retired_at,now()) WHERE sandbox=${id}`,
-      )
-      await event(this.db, expired ? 'sandbox.expired' : 'sandbox.deleted', {
-        workload: id,
-      })
-      return { existed: true }
+    return this.exclusive(id, () => this.deleteLocked(id,project,expired))
+  }
+  private async deleteLocked(id:string,project?:string,expired=false):Promise<{existed:boolean}> {
+    const row = await one<SandboxRow>(this.db, sql`SELECT * FROM sandboxes WHERE id = ${id}`)
+    if (!row || row.deleted_at || (project !== undefined && row.project !== project))
+      return { existed: false }
+    if (project !== undefined) await this.projects?.write(row.project)
+    await this.engine.destroy(row.handle ?? runtimeKey(id))
+    await this.db.execute(
+      sql`UPDATE sandboxes SET deleted_at = now(), expired = ${expired}, updated_at = now(), spec = spec - 'secrets' WHERE id = ${id}`,
+    )
+    await this.db.execute(
+      sql`UPDATE sandbox_snapshots SET deleted_at = now(), spec = spec - 'secrets' WHERE sandbox = ${id}`,
+    )
+    await this.db.execute(
+      sql`UPDATE edge_addresses SET retired_at=COALESCE(retired_at,now()) WHERE sandbox=${id}`,
+    )
+    await event(this.db, expired ? 'sandbox.expired' : 'sandbox.deleted', {
+      workload: id,
     })
+    return { existed: true }
   }
   async relocate(id: string): Promise<void> {
     await this.exclusive(id, async () => {
