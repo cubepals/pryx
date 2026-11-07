@@ -46,7 +46,7 @@ class Agent:
     @property
     def http(self): return self._api.http
     def invalidate(self):
-        with self._lock: self._credential = None
+        with self._lock: self._credential = None; self._version=None
     def token(self):
         with self._lock:
             if not self._credential or self._credential['expiresAt'] <= time.time() + SDK_DEFAULTS['tokenRenewBeforeSeconds']:
@@ -62,8 +62,29 @@ class Agent:
     def request(self, path, method='GET', body=None, key=None):
         response = self.raw(path, method, json_body=body, key=key)
         return response.json() if response.content else None
+    def require_version(self):
+        if getattr(self,'_version',None) is None:
+            health=self.request('/_pryx/health')
+            self._version=health.get('apiVersion',1)
+        if self._version<SDK_DEFAULTS['agentVersion']:
+            from ._transport import PryxError
+            raise PryxError(0,{'error':{'code':'unsupported','message':'This operation requires agent API version 2'}})
+    def request_v2(self,path,method='GET',body=None):
+        self.require_version()
+        return self.request(path,method,body)
     def start(self, command, *, key=None, **options):
-        return Process(self, self.request('/_pryx/processes', 'POST', start_body(command, options), key if key is not None else str(uuid4())))
+        stdin=options.get('stdin')
+        if isinstance(stdin,(str,bytes,bytearray,memoryview)):options['stdin']=True
+        process=Process(self,self.request('/_pryx/processes','POST',start_body(command,options),key if key is not None else str(uuid4())))
+        if isinstance(stdin,(str,bytes,bytearray,memoryview)):
+            data=stdin.encode() if isinstance(stdin,str) else bytes(stdin)
+            try:
+                for offset in range(0,len(data),SDK_DEFAULTS['stdinBytes']):
+                    process.stdin.write(data[offset:offset+SDK_DEFAULTS['stdinBytes']])
+                process.stdin.close()
+            except BaseException as error:
+                raise PryxError(0,{'error':{'code':'stdin_failed','message':'Input delivery failed; inspect the process before stopping it','details':{'processId':process.id}}}) from error
+        return process
     def process(self, process): return Process(self, self.request(f'/_pryx/processes/{quote(process, safe="")}'))
     def processes(self): return [Process(self, view) for view in self.request('/_pryx/processes')['processes']]
     def expose(self, port): return self.request('/_pryx/ports', 'POST', {'port': port})['url']
@@ -100,6 +121,17 @@ class Process:
     @property
     def pid(self): return self.view['pid']
     def path(self, suffix=''): return f'/_pryx/processes/{quote(self.id, safe="")}{suffix}'
+    def wait_for_port(self,port,*,mode='tcp',path='/',status=200,timeout=SDK_DEFAULTS['runTimeoutSeconds']):
+        from .duration import seconds
+        return self._agent.request_v2(self.path('/ready'),'POST',{'kind':'port','port':port,'mode':mode,'path':path,'status':status,'timeout':seconds(timeout)})
+    def wait_for_log(self,pattern,timeout=SDK_DEFAULTS['runTimeoutSeconds']):
+        from .duration import seconds
+        return self._agent.request_v2(self.path('/ready'),'POST',{'kind':'log','pattern':pattern,'timeout':seconds(timeout)})
+    def wait_for_exit(self,timeout=SDK_DEFAULTS['runTimeoutSeconds']):
+        from .duration import seconds
+        from .generated.models import AgentResult
+        return AgentResult.from_dict(self._agent.request_v2(self.path('/ready'),'POST',{'kind':'exit','timeout':seconds(timeout)}))
+    def logs(self):return self.stream()
     def wait(self):
         from .generated.models import AgentResult
         return AgentResult.from_dict(self._agent.request(self.path('/wait')))

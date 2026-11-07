@@ -11,7 +11,7 @@ from uuid import uuid4
 from urllib.parse import quote
 from websockets.asyncio.client import connect
 from .agent import start_body
-from ._transport import _checked
+from ._transport import PryxError, _checked
 from .generated.defaults import SDK_DEFAULTS
 
 class AsyncAgent:
@@ -20,7 +20,7 @@ class AsyncAgent:
         self._lock, self._generation = asyncio.Lock(), 0
     @property
     def http(self): return self._api.http
-    def invalidate(self): self._generation += 1; self._credential = None
+    def invalidate(self): self._version=None; self._generation += 1; self._credential = None
     async def token(self):
         async with self._lock:
             if self._credential and self._credential['expiresAt'] > time.time() + SDK_DEFAULTS['tokenRenewBeforeSeconds']: return self._credential
@@ -38,8 +38,29 @@ class AsyncAgent:
     async def request(self, path, method='GET', body=None, key=None):
         response = await self.raw(path, method, json_body=body, key=key)
         return response.json() if response.content else None
+    async def require_version(self):
+        if getattr(self,'_version',None) is None:
+            health=await self.request('/_pryx/health')
+            self._version=health.get('apiVersion',1)
+        if self._version<SDK_DEFAULTS['agentVersion']:
+            from ._transport import PryxError
+            raise PryxError(0,{'error':{'code':'unsupported','message':'This operation requires agent API version 2'}})
+    async def request_v2(self,path,method='GET',body=None):
+        await self.require_version()
+        return await self.request(path,method,body)
     async def start(self, command, *, key=None, **options):
-        return AsyncProcess(self, await self.request('/_pryx/processes', 'POST', start_body(command, options), key if key is not None else str(uuid4())))
+        stdin=options.get('stdin')
+        if isinstance(stdin,(str,bytes,bytearray,memoryview)):options['stdin']=True
+        process=AsyncProcess(self,await self.request('/_pryx/processes','POST',start_body(command,options),key if key is not None else str(uuid4())))
+        if isinstance(stdin,(str,bytes,bytearray,memoryview)):
+            data=stdin.encode() if isinstance(stdin,str) else bytes(stdin)
+            try:
+                for offset in range(0,len(data),SDK_DEFAULTS['stdinBytes']):
+                    await process.stdin.write(data[offset:offset+SDK_DEFAULTS['stdinBytes']])
+                await process.stdin.close()
+            except BaseException as error:
+                raise PryxError(0,{'error':{'code':'stdin_failed','message':'Input delivery failed; inspect the process before stopping it','details':{'processId':process.id}}}) from error
+        return process
     async def process(self, process): return AsyncProcess(self, await self.request(f'/_pryx/processes/{quote(process, safe="")}'))
     async def processes(self): return [AsyncProcess(self, view) for view in (await self.request('/_pryx/processes'))['processes']]
     async def expose(self, port): return (await self.request('/_pryx/ports', 'POST', {'port': port}))['url']
@@ -77,6 +98,17 @@ class AsyncProcess:
     @property
     def pid(self): return self.view['pid']
     def path(self, suffix=''): return f'/_pryx/processes/{quote(self.id, safe="")}{suffix}'
+    async def wait_for_port(self,port,*,mode='tcp',path='/',status=200,timeout=SDK_DEFAULTS['runTimeoutSeconds']):
+        from .duration import seconds
+        return await self._agent.request_v2(self.path('/ready'),'POST',{'kind':'port','port':port,'mode':mode,'path':path,'status':status,'timeout':seconds(timeout)})
+    async def wait_for_log(self,pattern,timeout=SDK_DEFAULTS['runTimeoutSeconds']):
+        from .duration import seconds
+        return await self._agent.request_v2(self.path('/ready'),'POST',{'kind':'log','pattern':pattern,'timeout':seconds(timeout)})
+    async def wait_for_exit(self,timeout=SDK_DEFAULTS['runTimeoutSeconds']):
+        from .duration import seconds
+        from .generated.models import AgentResult
+        return AgentResult.from_dict(await self._agent.request_v2(self.path('/ready'),'POST',{'kind':'exit','timeout':seconds(timeout)}))
+    def logs(self):return self.stream()
     async def wait(self):
         from .generated.models import AgentResult
         return AgentResult.from_dict(await self._agent.request(self.path('/wait')))

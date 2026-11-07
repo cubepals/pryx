@@ -18,3 +18,5 @@ integrations/*/dist/
 sdk/python/dist/
 
 /.benchmark-collector/
+
+/.field-before/

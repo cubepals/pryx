@@ -80,11 +80,13 @@ fn document(title: &str, contract: Contract, add: impl FnOnce(&mut SchemaGenerat
             "cpuLimitProblem": crate::protocol::CPU_LIMIT_PROBLEM
         },
         "x-pryx-network": {"defaultPortRange": crate::protocol::DEFAULT_PORT_RANGE},
-        "x-pryx-wasm": {"imageProblem": crate::protocol::WASM_IMAGE_PROBLEM, "portProblem": crate::protocol::WASM_PORT_PROBLEM, "maxPackages": crate::protocol::MAX_WASM_PACKAGES, "packageNamePattern": crate::protocol::PACKAGE_NAME_PATTERN},
+        "x-pryx-wasm": {"imageProblem": crate::protocol::WASM_IMAGE_PROBLEM, "portProblem": crate::protocol::WASM_PORT_PROBLEM, "maxPackages": crate::protocol::MAX_WASM_PACKAGES,
+            "maxHttpFrameBytes":agentos_sidecar_client::wire::DEFAULT_MAX_FRAME_BYTES, "packageNamePattern": crate::protocol::PACKAGE_NAME_PATTERN},
         "x-pryx-process": {"imageProblem": crate::protocol::PROCESS_IMAGE_PROBLEM},
         "x-pryx-agent": {
             "fileTokenLifetimeSeconds": pryx_agent::auth::FILE_TOKEN_LIFETIME_SECONDS,
             "captureBytes": pryx_agent::contract::CAPTURE_BYTES,
+            "archiveBytes":pryx_agent::contract::ARCHIVE_BYTES,"archiveEntries":pryx_agent::contract::SEARCH_ENTRIES,
             "maxRequestBytes": pryx_agent::contract::MAX_REQUEST_BYTES,
             "defaultBinary": pryx_agent::contract::DEFAULT_BINARY,
             "tokenPrefix": pryx_agent::auth::TOKEN_PREFIX,

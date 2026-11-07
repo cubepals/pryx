@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Binary file operations use the sandbox agent while running and persistent node data while compute is stopped. */
 
+import { StatusCodes } from 'http-status-codes'
 import { type Agent, binaryBody } from './agent.ts'
 import type { components } from './generated/api.ts'
+import type { Progress } from './local-files.ts'
 import type { Sandbox } from './transport.ts'
 import { PryxError, type Transport } from './transport.ts'
 export type FileData = string | Uint8Array | ReadableStream<Uint8Array> | AsyncIterable<Uint8Array>
@@ -102,11 +104,67 @@ export class Files {
   delete(path: string) {
     return this.#direct.agent.request<void>(`/_pryx/files/content?${new URLSearchParams({ path })}`, 'DELETE')
   }
-  upload(path: string, url: string) {
-    return this.#direct.agent.request<void>('/_pryx/files/upload', 'POST', { path, url })
+  async exists(path: string) {
+    try {
+      await this.stat(path)
+      return true
+    } catch (error) {
+      if (error instanceof PryxError && error.status === StatusCodes.NOT_FOUND) return false
+      throw error
+    }
   }
-  download(path: string, url: string) {
-    return this.#direct.agent.request<void>('/_pryx/files/download', 'POST', { path, url })
+  async find(pattern: string) {
+    return (await this.#direct.agent.requestV2<{ paths: string[] }>('/_pryx/files/find', 'POST', { pattern }))
+      .paths
+  }
+  async grep(pattern: string, options: { paths: string[] }) {
+    return (
+      await this.#direct.agent.requestV2<{ matches: { path: string; line: number; text: string }[] }>(
+        '/_pryx/files/grep',
+        'POST',
+        { pattern, ...options },
+      )
+    ).matches
+  }
+  replace(pattern: string, text: string, options: { paths: string[] }) {
+    return this.#direct.agent.requestV2<{ replacements: number }>('/_pryx/files/replace', 'POST', {
+      pattern,
+      text,
+      ...options,
+    })
+  }
+  chmod(path: string, mode: number) {
+    return this.#direct.agent.requestV2<void>('/_pryx/files/chmod', 'POST', { path, mode })
+  }
+  async upload(localPath: string, remote: string, options: { onProgress?: Progress } = {}) {
+    return (await import('./local-files.ts')).upload(this, localPath, remote, options.onProgress)
+  }
+  async download(remote: string, localPath: string, options: { onProgress?: Progress } = {}) {
+    return (await import('./local-files.ts')).download(this, remote, localPath, options.onProgress)
+  }
+  async uploadDir(localDir: string, remote: string, options: { onProgress?: Progress } = {}) {
+    await this.#direct.agent.requireVersion()
+    return (await import('./local-files.ts')).uploadDir(
+      localDir,
+      async (stream) =>
+        this.#direct.agent.raw(
+          `/_pryx/files/archive?${new URLSearchParams({ path: remote })}`,
+          'PUT',
+          dataStream(stream),
+        ),
+      options.onProgress,
+    )
+  }
+  async downloadDir(remote: string, localDir: string, options: { onProgress?: Progress } = {}) {
+    await this.#direct.agent.requireVersion()
+    const response = await this.#direct.agent.raw(
+      `/_pryx/files/archive?${new URLSearchParams({ path: remote })}`,
+    )
+    if (!response.body) throw new PryxError(0, 'file_interrupted', 'Archive has no body')
+    return (await import('./local-files.ts')).downloadDir(response.body, localDir, options.onProgress)
+  }
+  async sync(localDir: string, remoteDir: string) {
+    return (await import('./local-files.ts')).sync(this, localDir, remoteDir)
   }
   async url(path: string, method: 'GET' | 'PUT' = 'GET') {
     const agent = this.#direct.agent

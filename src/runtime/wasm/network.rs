@@ -33,6 +33,35 @@ impl Network {
 
 #[async_trait]
 impl pryx_agent::guest::Forward for Network {
+    async fn probe(&self, port: u16, path: Option<&str>) -> std::io::Result<Option<u16>> {
+        if let Some(path) = path {
+            let head = self
+                .vm
+                .http_request_stream_start(HttpRequest {
+                    port,
+                    path: path.into(),
+                    method: "GET".into(),
+                    headers: Default::default(),
+                    body: None,
+                })
+                .await
+                .map_err(std::io::Error::other)?;
+            self.vm.http_request_stream_cancel(&head.stream_id).await.map_err(std::io::Error::other)?;
+            return Ok(Some(head.status));
+        }
+        let script = format!(
+            r#"node -e 'const s=require("net").connect({port},"127.0.0.1");s.on("connect",()=>{{s.destroy();process.exit(0)}});s.on("error",()=>process.exit(1));setTimeout(()=>process.exit(1),500)'"#
+        );
+        let result = self
+            .vm
+            .exec_process(&script, agentos_client::ExecOptions { capture_stdio: Some(true), ..Default::default() })
+            .await
+            .map_err(std::io::Error::other)?;
+        if result.exit_code != 0 {
+            return Err(std::io::ErrorKind::ConnectionRefused.into());
+        }
+        Ok(None)
+    }
     async fn serve(&self, socket: TcpStream, port: u16, header: Vec<u8>) -> std::io::Result<()> {
         let _permit = self
             .connections

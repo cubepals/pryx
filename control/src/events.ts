@@ -6,10 +6,10 @@ import { sql } from 'drizzle-orm'
 import type { Db } from './database.ts'
 import { rows } from './sql.ts'
 
-export const events = (db: Db, sandbox: string, since?: string) =>
+export const events = (db: Db, sandbox: string, since?: string, after?: string) =>
   rows(
     db,
     sql`
   SELECT id, at, kind, epoch, data FROM fleet_events WHERE workload = ${sandbox}
-  ${since ? sql`AND at > ${since}::timestamptz` : sql``} ORDER BY id LIMIT 1000`,
+  ${since ? sql`AND at > ${since}::timestamptz` : sql``} ${after ? sql`AND id > ${after}::bigint` : sql``} ORDER BY id LIMIT 1000`,
   )

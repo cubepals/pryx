@@ -14,6 +14,7 @@ import { mcpHttp } from '../src/mcp.ts'
 
 function value(input: unknown) {
   const answer = CallToolResultSchema.parse(input)
+  if (answer.isError) throw new Error('MCP tool refused: ' + JSON.stringify(answer.content))
   expect(answer.isError).not.toBe(true)
   const text = answer.content.find((part) => part.type === 'text')
   if (!text || text.type !== 'text') throw new Error('MCP result omitted text')

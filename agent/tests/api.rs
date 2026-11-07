@@ -34,6 +34,8 @@ async fn fixture() -> (tempfile::TempDir, Arc<Agent>, String) {
         })
         .unwrap();
     let agent = Arc::new(Agent {
+        file_tasks: Default::default(),
+        shells: Default::default(),
         logs: Arc::new(pryx_agent::logbook::Logbook::open(dir.path()).unwrap()),
         telemetry: Arc::default(),
         sandbox: "one".into(),
@@ -365,4 +367,202 @@ async fn remote_transfers_cannot_contact_an_owned_loopback_server_or_replace_fil
     assert_eq!(hits.load(Ordering::SeqCst), 0);
     assert_eq!(std::fs::read(dir.path().join("payload")).unwrap(), b"original");
     server.abort();
+}
+
+#[tokio::test]
+async fn persistent_shell_keeps_state_and_separates_streams_and_exact_status() {
+    let (dir, agent, token) = fixture().await;
+    let (_, health) = call(&agent, &token, "GET", "/_pryx/health", Value::Null).await;
+    assert_eq!(health["apiVersion"], 2);
+    std::fs::create_dir(dir.path().join("nested")).unwrap();
+    let (status, shell) = call(&agent, &token, "POST", "/_pryx/shells", json!({})).await;
+    assert_eq!(status, StatusCode::OK);
+    let id = shell["id"].as_str().unwrap();
+    let path = format!("/_pryx/shells/{id}/run");
+    let (status, result) =
+        call(&agent, &token, "POST", &path, json!({"command":"printf out; printf err >&2; false","timeout":2})).await;
+    assert_eq!(status, StatusCode::OK, "{result}");
+    assert_eq!(result["code"], 1);
+    assert_eq!(result["stdout"], "out");
+    assert_eq!(result["stderr"], "err");
+    let (_, result) = call(
+        &agent,
+        &token,
+        "POST",
+        &path,
+        json!({"command":"cd nested; export KEPT=yes; n=3; function_kept() { printf function; }","timeout":2}),
+    )
+    .await;
+    assert_eq!(result["code"], 0);
+    let (_, result) = call(
+        &agent,
+        &token,
+        "POST",
+        &path,
+        json!({"command":"if [ \"$KEPT\" = yes ]; then\n printf '%s:' \"$n\"; function_kept; pwd\nfi","timeout":2}),
+    )
+    .await;
+    assert_eq!(result["stdout"], format!("3:function{}\n", dir.path().join("nested").display()));
+    let (status, _) = call(&agent, &token, "DELETE", &format!("/_pryx/shells/{id}"), Value::Null).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert_eq!(agent.processes.get(id).unwrap().wait().await.code, Some(128 + libc::SIGKILL));
+}
+
+#[tokio::test]
+async fn readiness_distinguishes_exit_and_timeout_and_matches_retained_logs() {
+    let (_dir, agent, token) = fixture().await;
+    let (_, view) =
+        call(&agent, &token, "POST", "/_pryx/processes", json!({"command":"printf 'réady\\n'; sleep 30"})).await;
+    let id = view["id"].as_str().unwrap();
+    let ready = format!("/_pryx/processes/{id}/ready");
+    let (status, result) =
+        call(&agent, &token, "POST", &ready, json!({"kind":"log","pattern":"réady","timeout":2})).await;
+    assert_eq!(status, StatusCode::OK, "{result}");
+    let (status, result) =
+        call(&agent, &token, "POST", &ready, json!({"kind":"log","pattern":"never","timeout":0.01})).await;
+    assert_eq!(status, StatusCode::REQUEST_TIMEOUT);
+    assert_eq!(result["error"]["code"], "wait_timeout");
+    let (_, killed) = call(&agent, &token, "POST", "/_pryx/processes/kill-all", json!({})).await;
+    assert!(killed["killed"].as_array().unwrap().iter().any(|p| p == id));
+    agent.processes.get(id).unwrap().wait().await;
+    let (_, result) = call(&agent, &token, "POST", &ready, json!({"kind":"port","port":12345,"timeout":1})).await;
+    assert_eq!(result["error"]["code"], "process_exited");
+    let (status, result) = call(&agent, &token, "POST", &ready, json!({"kind":"exit","timeout":1})).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(result["code"], 128 + libc::SIGKILL);
+}
+
+#[tokio::test]
+async fn search_replace_and_modes_are_confined_and_bounded() {
+    use std::os::unix::fs::{PermissionsExt, symlink};
+    let (dir, agent, token) = fixture().await;
+    std::fs::write(dir.path().join("known.txt"), "first\nneedle here\nlast\n").unwrap();
+    let (_, found) = call(&agent, &token, "POST", "/_pryx/files/find", json!({"pattern":"**/*.txt"})).await;
+    assert_eq!(found["paths"], json!(["known.txt"]));
+    let (_, found) =
+        call(&agent, &token, "POST", "/_pryx/files/grep", json!({"pattern":"needle","paths":["known.txt"]})).await;
+    assert_eq!(found["matches"][0]["line"], 2);
+    let (_, changed) = call(
+        &agent,
+        &token,
+        "POST",
+        "/_pryx/files/replace",
+        json!({"pattern":"needle","text":"replacement","paths":["known.txt"]}),
+    )
+    .await;
+    assert_eq!(changed["replacements"], 1);
+    assert!(std::fs::read_to_string(dir.path().join("known.txt")).unwrap().contains("replacement here"));
+    let (status, _) =
+        call(&agent, &token, "POST", "/_pryx/files/chmod", json!({"path":"known.txt","mode":0o600})).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert_eq!(std::fs::metadata(dir.path().join("known.txt")).unwrap().permissions().mode() & 0o777, 0o600);
+    let outside = tempfile::tempdir().unwrap();
+    let path = outside.path().join("private");
+    std::fs::write(&path, "untouched").unwrap();
+    symlink(&path, dir.path().join("link")).unwrap();
+    for route in ["grep", "replace"] {
+        let (status, _) = call(
+            &agent,
+            &token,
+            "POST",
+            &format!("/_pryx/files/{route}"),
+            json!({"pattern":"untouched","text":"bad","paths":["link"]}),
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    }
+    assert_eq!(std::fs::read_to_string(path).unwrap(), "untouched");
+    let (status, _) =
+        call(&agent, &token, "POST", "/_pryx/files/chmod", json!({"path":"known.txt","mode":0o4755})).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[tokio::test]
+async fn directory_archives_preserve_empty_dirs_and_refuse_links_and_traversal() {
+    use std::io::Read;
+    use std::os::unix::fs::symlink;
+    let (dir, agent, token) = fixture().await;
+    std::fs::create_dir_all(dir.path().join("tree/empty")).unwrap();
+    std::fs::write(dir.path().join("tree/content"), b"kept").unwrap();
+    let response = router(agent.clone())
+        .oneshot(
+            Request::builder()
+                .uri("/_pryx/files/archive?path=tree")
+                .header("authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    let mut archive = tar::Archive::new(bytes.as_ref());
+    let mut names = Vec::new();
+    for entry in archive.entries().unwrap() {
+        let mut entry = entry.unwrap();
+        let path = entry.path().unwrap().to_string_lossy().into_owned();
+        names.push(path.clone());
+        if path == "content" {
+            let mut text = String::new();
+            entry.read_to_string(&mut text).unwrap();
+            assert_eq!(text, "kept");
+        }
+    }
+    assert!(names.iter().any(|name| name.trim_end_matches('/') == "empty"));
+    let send = |data: Vec<u8>| {
+        router(agent.clone()).oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri("/_pryx/files/archive?path=target")
+                .header("authorization", format!("Bearer {token}"))
+                .body(Body::from(data))
+                .unwrap(),
+        )
+    };
+    assert_eq!(send(bytes.to_vec()).await.unwrap().status(), StatusCode::NO_CONTENT);
+    assert_eq!(std::fs::read(dir.path().join("target/content")).unwrap(), b"kept");
+    assert!(dir.path().join("target/empty").is_dir());
+    let outside = tempfile::tempdir().unwrap();
+    std::fs::write(outside.path().join("private"), b"untouched").unwrap();
+    symlink(outside.path(), dir.path().join("target/link")).unwrap();
+    for (path, kind) in [("link/private", tar::EntryType::Regular), ("escape", tar::EntryType::Symlink)] {
+        let mut builder = tar::Builder::new(Vec::new());
+        let mut header = tar::Header::new_gnu();
+        header.set_entry_type(kind);
+        header.set_mode(0o600);
+        if kind.is_symlink() {
+            header.set_link_name("../../outside").unwrap();
+            header.set_size(0);
+        } else {
+            header.set_size(3);
+        }
+        header.set_cksum();
+        builder.append_data(&mut header, path, if kind.is_symlink() { &b""[..] } else { &b"bad"[..] }).unwrap();
+        assert_eq!(send(builder.into_inner().unwrap()).await.unwrap().status(), StatusCode::UNPROCESSABLE_ENTITY);
+    }
+    let mut malicious = bytes.to_vec();
+    malicious[..100].fill(0);
+    malicious[..10].copy_from_slice(b"../outside");
+    malicious[148..156].fill(b' ');
+    let checksum: usize = malicious[..512].iter().map(|b| *b as usize).sum();
+    malicious[148..156].copy_from_slice(format!("{checksum:06o}\0 ").as_bytes());
+    assert_eq!(send(malicious).await.unwrap().status(), StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(std::fs::read(outside.path().join("private")).unwrap(), b"untouched");
+}
+
+#[tokio::test]
+async fn replacement_refuses_expansion_before_replacing_the_file() {
+    let (dir, agent, token) = fixture().await;
+    let original = "a".repeat(4096);
+    std::fs::write(dir.path().join("bounded"), &original).unwrap();
+    let (status, _) = call(
+        &agent,
+        &token,
+        "POST",
+        "/_pryx/files/replace",
+        json!({"pattern":"a","text":"b".repeat(4096),"paths":["bounded"]}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(std::fs::read_to_string(dir.path().join("bounded")).unwrap(), original);
 }

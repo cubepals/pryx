@@ -45,5 +45,14 @@
       "name": "gzip",
       "sha256": "fc32771962067f57940e6a633a8ca24bab657df76d978095d3ed8121c87da637"
     }
+  ],
+  "softwareRegistry": "https://releases.rivet.dev/agent-os/",
+  "optionalPackages": [
+    {
+      "name": "git",
+      "digest": "sha256:5579d8a23ca9fda8759c7cf255103420878e7a101c2af79bae7793bad1ec1637",
+      "size": 17961114,
+      "path": "packages/git/5579d8a23ca9fda8759c7cf255103420878e7a101c2af79bae7793bad1ec1637.aospkg"
+    }
   ]
 }

@@ -2,6 +2,7 @@
 """Binary files over the agent or stopped sandbox data; no shell, archive or encoded chunks.
 Parts (cubepals_pryx/): _transport.py owns HTTP pools; agent.py owns scoped capabilities.
 """
+from .file_conveniences import FileConveniences,AsyncFileConveniences
 import json
 from urllib.parse import quote,urlencode
 from ._transport import _checked
@@ -23,7 +24,7 @@ async def async_chunks(data):
     else:
         for chunk in data_chunks(data):yield chunk
 
-class Files:
+class Files(FileConveniences):
     def __init__(self,http,sandbox,agent,view):self._http,self._sandbox,self._agent,self._view=http,sandbox,agent,view
     def _running(self):return self._view().state=='running'
     def _path(self,kind,path):return f'/v1/sandboxes/{quote(self._sandbox,safe="")}/data/{kind}?{urlencode({"path":path})}'
@@ -43,8 +44,6 @@ class Files:
     def mkdir(self,path):return self._agent.request('/_pryx/files/mkdir','POST',{'path':path})
     def move(self,source,target):return self._agent.request('/_pryx/files/move','POST',{'from':source,'to':target})
     def delete(self,path):return self._agent.request('/_pryx/files/content?'+urlencode({'path':path}),'DELETE')
-    def upload(self,path,url):return self._agent.request('/_pryx/files/upload','POST',{'path':path,'url':url})
-    def download(self,path,url):return self._agent.request('/_pryx/files/download','POST',{'path':path,'url':url})
     def url(self,path,method='GET'):
         grant=self._agent.request('/_pryx/files/token','POST',{'path':path,'method':method})
         return {**grant,'url':self._agent.token()['url'].rstrip('/')+grant['url']}
@@ -52,7 +51,7 @@ class Files:
         with self._agent.socket('/_pryx/files/watch?'+urlencode({'path':path})) as socket:
             for frame in socket:yield json.loads(frame)
 
-class AsyncFiles(Files):
+class AsyncFiles(AsyncFileConveniences,Files):
     async def write(self,path,data):
         if self._running():await self._agent.raw('/_pryx/files/content?'+urlencode({'path':path}),'PUT',content=async_chunks(data))
         else:await self._http.transfer(self._path('content',path),'PUT',async_chunks(data))
@@ -69,8 +68,6 @@ class AsyncFiles(Files):
     async def mkdir(self,path):return await self._agent.request('/_pryx/files/mkdir','POST',{'path':path})
     async def move(self,source,target):return await self._agent.request('/_pryx/files/move','POST',{'from':source,'to':target})
     async def delete(self,path):return await self._agent.request('/_pryx/files/content?'+urlencode({'path':path}),'DELETE')
-    async def upload(self,path,url):return await self._agent.request('/_pryx/files/upload','POST',{'path':path,'url':url})
-    async def download(self,path,url):return await self._agent.request('/_pryx/files/download','POST',{'path':path,'url':url})
     async def url(self,path,method='GET'):
         grant=await self._agent.request('/_pryx/files/token','POST',{'path':path,'method':method})
         return {**grant,'url':(await self._agent.token())['url'].rstrip('/')+grant['url']}

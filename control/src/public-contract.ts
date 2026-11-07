@@ -15,10 +15,13 @@ import {
   snapshotSchema,
   templateSchema,
 } from './api-schemas.ts'
+import { versionSchema } from './code-templates.ts'
 import { chunkWrite } from './file-chunks.ts'
 import { agentSchema, fileInfoSchema } from './node-contract.ts'
 import { limitsSchema } from './project-model.ts'
+import { lifetimeSchema } from './sandbox-lifetime.ts'
 import { SDK_DEFAULTS } from './sdk-defaults.ts'
+import { webhookCreatedSchema, webhookSchema, webhookViewSchema } from './webhooks.ts'
 
 export function publicContract() {
   const definitions = {
@@ -37,7 +40,15 @@ export function publicContract() {
     Snapshot: snapshotSchema,
     Error: errorSchema,
     TemplateRequest: templateSchema,
+    LifetimeRequest: lifetimeSchema,
+    TemplateVersionRequest: versionSchema,
+    WebhookRequest: webhookSchema,
+    Webhook: webhookViewSchema,
+    WebhookCreated: webhookCreatedSchema,
     Project: z.object({
+      defaults: z
+        .object({ isolation: z.enum(['container', 'process', 'wasm']), repoImage: z.string() })
+        .optional(),
       id: z.string(),
       name: z.string(),
       state: z.enum(['active', 'frozen', 'deleted']),
@@ -161,7 +172,31 @@ export function publicContract() {
     'application/octet-stream',
   )
   operation('post', '/v1/sandboxes', ref('Sandbox'), ref('MakeRequest'), StatusCodes.CREATED)
-  operation('get', '/v1/sandboxes', array('sandboxes', ref('Sandbox')))
+  operation(
+    'get',
+    '/v1/sandboxes',
+    array('sandboxes', ref('Sandbox')),
+    undefined,
+    StatusCodes.OK,
+    'application/json',
+    ['labels', 'state', 'name'],
+  )
+  operation('post', '/v1/sandboxes/{id}/lifetime', ref('Sandbox'), ref('LifetimeRequest'))
+  operation('get', '/v1/sandboxes/{id}/metrics', object, undefined, StatusCodes.OK, 'application/json', [
+    'since',
+  ])
+  operation(
+    'post',
+    '/v1/templates/{name}/versions',
+    object,
+    ref('TemplateVersionRequest'),
+    StatusCodes.CREATED,
+  )
+  operation('get', '/v1/templates/{name}/versions', array('versions', object))
+  operation('post', '/v1/webhooks', ref('WebhookCreated'), ref('WebhookRequest'), StatusCodes.CREATED)
+  operation('get', '/v1/webhooks', array('webhooks', ref('Webhook')))
+  operation('delete', '/v1/webhooks/{id}', existed)
+  operation('get', '/v1/webhooks/{id}/deadletters', array('deliveries', object))
   operation('get', '/v1/sandboxes/{id}', ref('Sandbox'))
   operation('delete', '/v1/sandboxes/{id}', existed)
   for (const verb of ['start', 'stop', 'sleep', 'wake', 'rest'])
@@ -236,7 +271,7 @@ export function publicContract() {
     undefined,
     StatusCodes.OK,
     'application/json',
-    ['since'],
+    ['since', 'stream', 'follow'],
   )
   operation('post', '/v1/templates', object, ref('TemplateRequest'), StatusCodes.CREATED)
   operation('get', '/v1/templates', array('templates', object))

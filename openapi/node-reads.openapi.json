@@ -59,6 +59,29 @@
         ],
         "type": "string"
       },
+      "EgressPolicy": {
+        "additionalProperties": false,
+        "description": "Hostname rules are enforced by the host TCP gateway; deny takes precedence over allow.",
+        "properties": {
+          "allow": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "deny": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "allow"
+        ],
+        "type": "object"
+      },
       "EnrollResponse": {
         "properties": {
           "allowedClients": {
@@ -716,6 +739,16 @@
             ],
             "default": null
           },
+          "egress": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EgressPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "entrypoint": {
             "default": null,
             "description": "Replaces the image's entrypoint; absent, the image starts as it was built to.",
@@ -809,6 +842,18 @@
           },
           "storage": {
             "$ref": "#/components/schemas/Storage"
+          },
+          "user": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "workdir": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -826,6 +871,8 @@
   "openapi": "3.1.0",
   "paths": {},
   "x-pryx-agent": {
+    "archiveBytes": 268435456,
+    "archiveEntries": 100000,
     "captureBytes": 1048576,
     "defaultBinary": "/usr/local/lib/pryx/pryx-agent",
     "fileTokenLifetimeSeconds": 60,
@@ -852,6 +899,7 @@
   },
   "x-pryx-wasm": {
     "imageProblem": "this host runs the wasm tier; images are not available",
+    "maxHttpFrameBytes": 16777216,
     "maxPackages": 32,
     "packageNamePattern": "^[a-z][a-z0-9-]{0,63}$",
     "portProblem": "this host runs the wasm tier; application ports require HTTP over TCP"

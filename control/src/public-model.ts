@@ -75,6 +75,7 @@ export class PublicModel {
     if (body.units !== undefined && body.resources !== undefined)
       throw new SandboxError('invalid_request', 'Choose units or explicit resources')
     let snapshot = body.snapshot
+    let templateStart: string | undefined
     if (body.template) {
       if (
         !(await one(
@@ -83,13 +84,23 @@ export class PublicModel {
         ))
       )
         throw new SandboxError('not_found', 'No such template')
-      const copy = await one<{ snapshot: string }>(
+      const version = await one<{ snapshot: string; start: string | null }>(
         this.db,
-        sql`SELECT c.snapshot FROM template_copies c JOIN templates t ON t.id=c.template WHERE (t.id=${body.template} OR t.name=${body.template}) AND t.project=${project} AND c.snapshot IS NOT NULL ORDER BY c.node LIMIT 1`,
+        sql`SELECT v.snapshot,v.start FROM template_versions v JOIN templates t ON t.id=v.template WHERE (t.id=${body.template} OR t.name=${body.template}) AND t.project=${project} ORDER BY v.version DESC LIMIT 1`,
       )
-      if (!copy) throw new SandboxError('no_room', 'Template has no ready copy')
-      snapshot = copy.snapshot
+      if (version) {
+        snapshot = version.snapshot
+        templateStart = version.start ?? undefined
+      } else {
+        const copy = await one<{ snapshot: string }>(
+          this.db,
+          sql`SELECT c.snapshot FROM template_copies c JOIN templates t ON t.id=c.template WHERE (t.id=${body.template} OR t.name=${body.template}) AND t.project=${project} AND c.snapshot IS NOT NULL ORDER BY c.node LIMIT 1`,
+        )
+        if (!copy) throw new SandboxError('no_room', 'Template has no ready copy')
+        snapshot = copy.snapshot
+      }
     }
+    if (templateStart && !body.entrypoint) body = { ...body, entrypoint: ['sh', '-c', templateStart] }
     const source = snapshot ? (await this.boxes.snapshotRecord(snapshot, project)).spec : null
     let spec: SandboxSpec = {
       ...(source ?? {}),
@@ -107,6 +118,12 @@ export class PublicModel {
       env: { ...source?.env, ...body.env },
       secrets: { ...source?.secrets, ...body.secrets },
       labels: body.labels,
+      name: body.name,
+      metadata: body.metadata,
+      autoDelete: body.autoDelete,
+      workdir: body.workdir ?? source?.workdir,
+      user: body.user ?? source?.user,
+      egress: body.egress ?? source?.egress,
       agent: {
         domain: this.domain,
         keepAlive: JSON.stringify(body.entrypoint) === JSON.stringify(SDK_DEFAULTS.entrypoint),
@@ -139,6 +156,7 @@ export class PublicModel {
       z.object({ packages: z.never({ error: 'packages are available only on the wasm tier' }) }).parse({
         packages: spec.packages,
       })
+    spec = Object.fromEntries(Object.entries(spec).filter(([, value]) => value !== undefined)) as SandboxSpec
     spec = unitSpec(spec, this.boxes.projects?.unit)
     if (spec.isolation !== 'container') {
       for (const field of ['cpuMillis', 'cpuWeight'] as const) {
@@ -150,6 +168,15 @@ export class PublicModel {
           }).parse({ resources: { [field]: spec.resources[field] } })
       }
     }
+    if (body.autoDelete && !body.idle && !this.boxes.projects?.defaults.maxIdle)
+      throw new SandboxError('invalid_request', 'autoDelete requires an idle duration')
+    if (body.user && spec.isolation !== 'container')
+      throw new SandboxError('unsupported', `user selection is unavailable on the ${spec.isolation} tier`)
+    if (body.egress && spec.isolation !== 'container')
+      throw new SandboxError(
+        'unsupported',
+        `egress hostname policy is unavailable on the ${spec.isolation} tier`,
+      )
     const id = options.id ?? op.id
     const result = await this.boxes.make(project, spec, {
       id,
@@ -194,13 +221,13 @@ export class PublicModel {
   async templates(project: string) {
     return rows<{ id: string; name: string; copies: unknown[] }>(
       this.db,
-      sql`SELECT t.id,t.name,COALESCE(jsonb_agg(jsonb_build_object('node',c.node,'ready',c.snapshot IS NOT NULL,'error',c.error)) FILTER(WHERE c.node IS NOT NULL),'[]') AS copies FROM templates t LEFT JOIN template_copies c ON c.template=t.id WHERE t.project=${project} GROUP BY t.id ORDER BY t.created_at`,
+      sql`SELECT t.id,t.name,(SELECT COALESCE(max(v.version),0) FROM template_versions v WHERE v.template=t.id) AS version,COALESCE(jsonb_agg(jsonb_build_object('node',c.node,'ready',c.snapshot IS NOT NULL,'error',c.error)) FILTER(WHERE c.node IS NOT NULL),'[]') AS copies FROM templates t LEFT JOIN template_copies c ON c.template=t.id WHERE t.project=${project} GROUP BY t.id ORDER BY t.created_at`,
     )
   }
   async warmTemplates() {
     const templates = await rows<{ id: string; project: string; spec: Make }>(
       this.db,
-      sql`SELECT t.* FROM templates t JOIN projects p ON p.id=t.project WHERE p.state='active' AND (p.expires_at IS NULL OR p.expires_at>now())`,
+      sql`SELECT t.* FROM templates t JOIN projects p ON p.id=t.project WHERE NOT EXISTS(SELECT 1 FROM template_versions v WHERE v.template=t.id) AND p.state='active' AND (p.expires_at IS NULL OR p.expires_at>now())`,
     )
     const nodes = await rows<{ id: string; region: string; features: string[] }>(
       this.db,

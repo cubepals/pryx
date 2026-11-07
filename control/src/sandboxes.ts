@@ -11,7 +11,7 @@ import { isDeepStrictEqual } from 'node:util'
 import { sql } from 'drizzle-orm'
 import type pg from 'pg'
 import nodeSchema from '../../openapi/node-reads.openapi.json'
-import type { Db, Queryable } from './database.ts'
+import { type Db, type Queryable, UNIQUE_VIOLATION } from './database.ts'
 import { MINUTE_S, SECOND_MS } from './durations.ts'
 import { decodeHandle, decodeSnapshot } from './handle.ts'
 import type { NodeClient } from './node-client.ts'
@@ -35,6 +35,9 @@ export const SESSION_LIVE_SECONDS = 2 * MINUTE_S
 export type SandboxSpec = WorkloadSpec & {
   image: string
   isolation?: import('./isolation.ts').Isolation
+  name?: string
+  metadata?: Record<string, unknown>
+  autoDelete?: boolean
   ttl?: number
   idle?: number
   units?: number
@@ -49,6 +52,13 @@ export type SandboxState =
   | 'restoring'
   | 'failed'
 export interface Sandbox {
+  name?: string
+  labels?: Record<string, string>
+  metadata?: Record<string, unknown>
+  workdir?: string
+  user?: string
+  idle?: number
+  autoDelete?: boolean
   exit?: NonNullable<WorkloadReport['exit']>
   isolation?: import('./isolation.ts').Isolation
   files?: boolean
@@ -99,6 +109,9 @@ export function runtimeSpec(spec: SandboxSpec): RuntimeSpec {
   return {
     image: spec.image,
     packages: spec.packages,
+    ...(spec.workdir ? { workdir: spec.workdir } : {}),
+    ...(spec.user ? { user: spec.user } : {}),
+    ...(spec.egress && spec.network !== 'none' ? { egress: spec.egress } : {}),
     isolation: spec.isolation,
     ...(spec.agent ? { agent: spec.agent } : {}),
     ...(spec.sparePorts === undefined ? {} : { sparePorts: spec.sparePorts }),
@@ -179,12 +192,15 @@ export class Sandboxes {
   async get(id: string, project?: string): Promise<Sandbox> {
     return this.view(await this.record(id, project))
   }
-  async list(project: string): Promise<Sandbox[]> {
+  async list(
+    project: string,
+    filters: { name?: string; labels?: Record<string, string> } = {},
+  ): Promise<Sandbox[]> {
     return Promise.all(
       (
         await rows<SandboxRow>(
           this.db,
-          sql`SELECT * FROM sandboxes WHERE project = ${project} AND NOT internal AND deleted_at IS NULL AND (expires_at IS NULL OR expires_at > now()) ORDER BY created_at`,
+          sql`SELECT * FROM sandboxes WHERE project = ${project} ${filters.name ? sql`AND spec->>'name'=${filters.name}` : sql``} ${filters.labels && Object.keys(filters.labels).length ? sql`AND spec->'labels' @> ${jsonb(filters.labels)}` : sql``} AND NOT internal AND deleted_at IS NULL AND (expires_at IS NULL OR expires_at > now()) ORDER BY created_at`,
         )
       ).map((row) => this.view(row)),
     )
@@ -198,6 +214,13 @@ export class Sandboxes {
         )
       : null
     return {
+      name: row.spec.name,
+      labels: row.spec.labels,
+      metadata: row.spec.metadata,
+      workdir: row.spec.workdir ?? undefined,
+      user: row.spec.user ?? undefined,
+      idle: row.spec.idle,
+      autoDelete: row.spec.autoDelete,
       isolation: row.spec.isolation ?? 'container',
       id: row.id,
       files: row.handle
@@ -259,8 +282,23 @@ export class Sandboxes {
     const id = options.id ?? randomUUID()
     return this.exclusive(id, async () => {
       const insert = async (q: Queryable, prepared: SandboxSpec) => {
-        await q.execute(sql`INSERT INTO sandboxes (id, project, spec, region, expires_at, start_requested, source_snapshot, only_node, internal, public_ports, quota_running)
-        VALUES (${id}, ${project}, ${jsonb(prepared)}, ${options.region ?? 'default'}, CASE WHEN ${prepared.ttl ?? null}::double precision IS NULL THEN NULL ELSE now() + (${prepared.ttl ?? null} * interval '1 second') END, ${options.start !== false}, ${options.snapshot ?? null}, ${options.onlyNode ?? null}, ${options.internal ?? false}, ${jsonb(options.publicPorts ?? [])},${options.start !== false}) ON CONFLICT (id) DO NOTHING`)
+        const inserted = await q
+          .execute(sql`INSERT INTO sandboxes (id, project, spec, region, expires_at, start_requested, source_snapshot, only_node, internal, public_ports, quota_running)
+        VALUES (${id}, ${project}, ${jsonb(prepared)}, ${options.region ?? 'default'}, CASE WHEN ${prepared.ttl ?? null}::double precision IS NULL THEN NULL ELSE now() + (${prepared.ttl ?? null} * interval '1 second') END, ${options.start !== false}, ${options.snapshot ?? null}, ${options.onlyNode ?? null}, ${options.internal ?? false}, ${jsonb(options.publicPorts ?? [])},${options.start !== false}) ON CONFLICT (id) DO NOTHING RETURNING id`)
+          .catch((error: unknown) => {
+            const cause = error instanceof Error && error.cause ? error.cause : error
+            if (
+              cause &&
+              typeof cause === 'object' &&
+              'code' in cause &&
+              cause.code === UNIQUE_VIOLATION &&
+              'constraint' in cause &&
+              cause.constraint === 'sandbox_project_name'
+            )
+              throw new SandboxError('name_conflict', 'Sandbox name is already in use')
+            throw error
+          })
+        if (inserted.rowCount) await event(q, 'sandbox.created', { workload: id })
         await options.admit?.(q)
       }
       if (this.projects)
@@ -377,6 +415,8 @@ export class Sandboxes {
         }
         await this.placement?.succeeded(row.region)
         await this.state(id, 'running', true)
+        if (row.state === 'sleeping' || row.state === 'resting')
+          await event(this.db, 'sandbox.woken', { workload: id })
         return {
           sandbox: await this.get(id, row.project),
           tier: restoring
@@ -484,6 +524,8 @@ export class Sandboxes {
         sql`SELECT sandbox FROM sandbox_snapshots WHERE id = ${snapshot}`,
       )
       if (held?.sandbox !== id) throw new SandboxError('not_found', 'No such snapshot')
+      if (await one(this.db, sql`SELECT 1 FROM template_versions WHERE snapshot=${snapshot}`))
+        throw new SandboxError('forbidden', 'Snapshot is retained by a template version')
       await this.engine.deleteSnapshot(snap.handle)
       await this.db.execute(sql`UPDATE sandbox_snapshots SET deleted_at = now() WHERE id = ${snapshot}`)
       return { existed: true }
@@ -517,13 +559,20 @@ export class Sandboxes {
     })
   }
   async delete(id: string, project?: string, expired = false): Promise<{ existed: boolean }> {
-    return this.exclusive(id, () => this.deleteLocked(id,project,expired))
+    return this.exclusive(id, () => this.deleteLocked(id, project, expired))
   }
-  private async deleteLocked(id:string,project?:string,expired=false):Promise<{existed:boolean}> {
+  private async deleteLocked(id: string, project?: string, expired = false): Promise<{ existed: boolean }> {
     const row = await one<SandboxRow>(this.db, sql`SELECT * FROM sandboxes WHERE id = ${id}`)
     if (!row || row.deleted_at || (project !== undefined && row.project !== project))
       return { existed: false }
     if (project !== undefined) await this.projects?.write(row.project)
+    if (
+      await one(
+        this.db,
+        sql`SELECT 1 FROM template_versions v JOIN sandbox_snapshots s ON s.id=v.snapshot WHERE s.sandbox=${id}`,
+      )
+    )
+      throw new SandboxError('forbidden', 'Sandbox data is retained by a template version')
     await this.engine.destroy(row.handle ?? runtimeKey(id))
     await this.db.execute(
       sql`UPDATE sandboxes SET deleted_at = now(), expired = ${expired}, updated_at = now(), spec = spec - 'secrets' WHERE id = ${id}`,
@@ -580,9 +629,15 @@ export class Sandboxes {
               OR to_timestamp(LEAST(COALESCE((o.report->'agent'->>'activityAt')::double precision,0),EXTRACT(EPOCH FROM now()))) + ((b.spec->>'idle')::double precision*interval '1 second')>now()))`,
       )
       if (!idle) return
+      if (idle.spec.autoDelete) {
+        await this.deleteLocked(id)
+        await event(this.db, 'sandbox.idle_deleted', { workload: id })
+        return
+      }
       const tier = idle.handle ? await this.engine.sleep(idle.handle) : 'stopped'
       if (tier === 'stopped') await this.projects?.stopped(id)
       await this.state(id, 'sleeping')
+      await event(this.db, 'sandbox.idle_slept', { workload: id })
     })
   }
   async upkeep(): Promise<void> {

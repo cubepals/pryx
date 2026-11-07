@@ -62,6 +62,8 @@ export class NodeChoice {
       regionKey: region,
       needs: [
         ...NEEDS,
+        ...(spec.workdir || spec.user ? ['workload-options'] : []),
+        ...(spec.egress ? ['egress-hostnames'] : []),
         ...(spec.isolation === 'wasm' ? ['wasm-tier', 'wasm-packages'] : []),
         ...(spec.packages?.length ? ['wasm-packages'] : []),
         ...(spec.network === 'none' ? ['network-policy'] : []),

@@ -11,6 +11,7 @@ import { SDK_DEFAULTS } from '../../sdk/typescript/src/generated/defaults.ts'
 import { Transport } from '../../sdk/typescript/src/transport.ts'
 import { readClientConfig } from './client-config.ts'
 import { copy, terminal } from './sandbox-data.ts'
+import { field } from './sandbox-field.ts'
 
 export function publicCredentials() {
   const saved = process.env.PRYX_API_KEY ? undefined : readClientConfig()
@@ -50,6 +51,14 @@ function makeRequest(args: string[]): MakeRequest {
     value === '--package' ? [option(args.slice(index), '--package') as string] : [],
   )
   return {
+    ...(option(args, '--name') ? { name: option(args, '--name') } : {}),
+    ...(option(args, '--workdir') ? { workdir: option(args, '--workdir') } : {}),
+    ...(option(args, '--user') ? { user: option(args, '--user') } : {}),
+    ...(args.includes('--auto-delete') ? { autoDelete: true } : {}),
+    ...(option(args, '--env') ? { env: JSON.parse(option(args, '--env') as string) } : {}),
+    ...(option(args, '--labels') ? { labels: JSON.parse(option(args, '--labels') as string) } : {}),
+    ...(option(args, '--metadata') ? { metadata: JSON.parse(option(args, '--metadata') as string) } : {}),
+    ...(option(args, '--egress') ? { egress: JSON.parse(option(args, '--egress') as string) } : {}),
     ...(packages.length ? { packages } : {}),
     ...(image ? { image } : {}),
     ...(option(args, '--isolation')
@@ -68,13 +77,14 @@ export async function execCommand(
   client: Pryx,
   id: string,
   command: string[],
-  options: { timeout?: number; key?: string } = {},
+  options: { timeout?: number; key?: string; stdin?: Uint8Array } = {},
 ) {
   const box = await client.sandbox(id)
   {
     const run = box.stream(command, {
       ...(options.timeout === undefined ? {} : { timeout: options.timeout }),
       idempotencyKey: options.key,
+      stdin: options.stdin,
     })
     for await (const chunk of run) {
       const destination = chunk.stream === 'stdout' ? process.stdout : process.stderr
@@ -92,7 +102,18 @@ export async function sandbox(args: string[]): Promise<unknown> {
       ...makeRequest(args),
       idempotencyKey: option(args, '--idempotency-key') ?? crypto.randomUUID(),
     })
-  if (verb === 'ls') return { sandboxes: await client.sandboxes() }
+  if (verb === 'ls')
+    return {
+      sandboxes: await client.sandboxes({
+        name: option(args, '--name'),
+        state: option(args, '--state') as Parameters<Pryx['sandboxes']>[0] extends infer T
+          ? T extends { state?: infer S }
+            ? S
+            : never
+          : never,
+        labels: option(args, '--labels') ? JSON.parse(option(args, '--labels') as string) : undefined,
+      }),
+    }
   if (verb === 'cp') {
     if (!id || !rest[0]) throw new Error('sandbox cp needs a source and destination')
     await copy(client, id, rest[0])
@@ -129,7 +150,14 @@ export async function sandbox(args: string[]): Promise<unknown> {
       idempotencyKey: option(args, '--idempotency-key') ?? crypto.randomUUID(),
     })
   if (verb === 'endpoints') return { endpoints: await (await client.sandbox(id)).endpoints() }
-  if (verb === 'events') return (await client.sandbox(id)).events(option(rest, '--since'))
+  if (verb === 'events') {
+    for await (const event of (await client.sandbox(id)).events({
+      since: option(rest, '--since'),
+      follow: rest.includes('--follow'),
+    }))
+      console.log(JSON.stringify(event))
+    return
+  }
   if (verb === 'start' || verb === 'stop' || verb === 'sleep' || verb === 'wake' || verb === 'rest')
     return { sandbox: await (await client.sandbox(id))[verb]() }
   if (verb === 'exec') {
@@ -140,6 +168,7 @@ export async function sandbox(args: string[]): Promise<unknown> {
     process.exitCode = await execCommand(client, id, split < 0 ? rest : rest.slice(split + 1), {
       ...(timeout ? { timeout: duration(timeout) } : {}),
       ...(key ? { key } : {}),
+      ...(options.includes('--stdin') ? { stdin: new Uint8Array(await Bun.stdin.arrayBuffer()) } : {}),
     })
     return
   }
@@ -151,6 +180,8 @@ export async function sandbox(args: string[]): Promise<unknown> {
       console.log(JSON.stringify(line))
     return
   }
+  const extra = await field(await client.sandbox(id, { wake: false }), verb, rest)
+  if (extra.handled) return extra.result
   throw new Error(`Unknown sandbox command: ${verb}`)
 }
 export async function run(args: string[]) {
@@ -165,12 +196,12 @@ export async function run(args: string[]) {
   })
   try {
     const timeout = option(args.slice(0, split), '--timeout')
-    const code = await execCommand(
-      client,
-      made.id,
-      args.slice(split + 1),
-      timeout ? { timeout: duration(timeout) } : {},
-    )
+    const code = await execCommand(client, made.id, args.slice(split + 1), {
+      ...(timeout ? { timeout: duration(timeout) } : {}),
+      ...(args.slice(0, split).includes('--stdin')
+        ? { stdin: new Uint8Array(await Bun.stdin.arrayBuffer()) }
+        : {}),
+    })
     if (args.slice(0, split).includes('--snapshot')) {
       const snapshot = await made.snapshot()
       const retained = await snapshot.fork({ start: false })

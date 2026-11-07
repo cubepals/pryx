@@ -26,15 +26,15 @@ available. A missing exit is an unknown outcome. Disconnect does not terminate t
 
 | Method | Behavior |
 | --- | --- |
-| `pryx.sandbox(options \| id)` | Create or look up a sandbox; create keys are generated unless supplied. |
-| `pryx.sandboxes()` | List project sandbox handles. |
+| `pryx.sandbox(options \| id)` | Create with env, labels, name, workdir, user, autoDelete, egress, metadata or repo; name-only looks up; lookup wakes unless wake:false. |
+| `pryx.sandboxes(filters)` | Filter project handles by name, labels and state. |
 | `pryx.project()` | Project usage and limits. |
 | `pryx.run(image, command, options)` | Create, run and delete in a finally block. |
 | `box.run(command, options)` | Start immediately; return a native promise of the bounded result. |
 | `box.stream(command, options)` | Start immediately; iterate live {stream, data} chunks once. |
 | `stream.lines()` | Iterate complete stdout/stderr lines. |
 | `stream.result()` | Await the same command result without starting it again. |
-| `box.spawn(command, options)` | Start a process and return its handle. |
+| `box.spawn(command, options)` | Start a process; stdin accepts one-shot string or bytes. |
 | `box.start()` | Start sandbox compute. |
 | `box.stop()` | Stop compute; retain data. |
 | `box.sleep()` | Suspend or stop while retaining data. |
@@ -51,7 +51,7 @@ available. A missing exit is an unknown outcome. Disconnect does not terminate t
 | `snapshot.fork(options)` | Create a sandbox from the snapshot. |
 | `snapshot.delete()` | Delete the snapshot. |
 | `box.endpoints()` | List assigned application endpoints. |
-| `box.events(since)` | Read lifecycle event records. |
+| `box.events(options)` | Iterate lifecycle records with since and follow. |
 | `box.logs(options, signal)` | Read or follow agent log history; abort with signal. |
 | `box.terminal(options)` | Open a PTY with optional rows and cols. |
 | `box.mcpUrl()` | Scoped sandbox-local MCP URL. |
@@ -85,9 +85,52 @@ available. A missing exit is an unknown outcome. Disconnect does not terminate t
 | `files.delete(path)` | Delete a persistent entry. |
 | `files.watch(path)` | Ready frame, then bounded changes. |
 | `files.url(path, method)` | Grant one file operation for at most one minute. |
-| `files.upload(path, url)` | Download an HTTP(S) URL into the sandbox. |
-| `files.download(path, url)` | Upload sandbox content to an HTTP(S) URL. |
+| `files.upload(local, remote, options)` | Stream caller disk to the sandbox with onProgress. |
+| `files.download(remote, local, options)` | Stream to caller disk with onProgress. |
+| `box.processes()` | List retained process handles. |
+| `box.killAll()` | Signal all running processes once. |
+| `process.waitForPort(port, options)` | Await owned TCP or HTTP readiness; timeout and early exit differ. |
+| `process.waitForLog(pattern, timeout)` | Await a bounded regular expression match in either stream. |
+| `process.waitForExit(timeout)` | Await exit with a deadline. |
+| `process.logs()` | Read retained process stdout/stderr chunks. |
+| `box.shell(options)` | Open a persistent shell with cwd and env. |
+| `shell.run(command, options)` | Run serially with exact separate streams and exit code. |
+| `shell.close()` | Close and terminate that session. |
+| `files.exists(path)` | Test existence without following links. |
+| `files.find(glob)` | Find relative paths within the agent search budget. |
+| `files.grep(pattern, options)` | Return path, line and matching text; paths scope the search. |
+| `files.replace(pattern, text, options)` | Replace literal text at regex matches; preserve modes. |
+| `files.chmod(path, mode)` | Set ordinary permission bits. |
+| `files.uploadDir(local, remote, options)` | Stream a bounded tar; preserve files and empty directories. |
+| `files.downloadDir(remote, local, options)` | Extract a bounded tar; refuse links and traversal. |
+| `box.sync(local, remote)` | Upsert changed content by SHA-256; never delete. |
+| `box.git.clone(url, options)` | Clone public/HTTPS credentials with path, branch and depth. |
+| `box.git.status()` | Parsed clean flag and entries, plus raw result. |
+| `box.git.diff(options)` | Parsed patch, optionally staged, plus raw result. |
+| `box.git.branch(name?)` | List or create branches, plus raw result. |
+| `box.git.checkout(ref, options)` | Checkout or create a branch, plus raw result. |
+| `box.git.add(paths)` | Stage paths without shell interpolation. |
+| `box.git.commit(message, options)` | Commit with optional author; return hash and raw result. |
+| `box.git.push(options)` | Push with an optional one-call token helper. |
+| `box.git.pull()` | Fast-forward pull, plus raw result. |
+| `box.git.log(options)` | Parsed commit records with limit, plus raw result. |
+| `box.keepAlive(duration)` | Extend access and touch activity within project ceilings. |
+| `box.setTtl(duration)` | Set TTL from now within the project ceiling. |
+| `box.setIdle(duration)` | Set the idle timeout within the project ceiling. |
+| `box.metrics(options)` | Latest node sample, or retained minute series with since. |
+| `box.waitUntil(state, timeout)` | Poll the public state until reached or timed out. |
+| `pryx.template(options)` | Build copy/run/ready on a node and publish a snapshot version. |
+| `template.rebuild()` | Build a new immutable version from the same local context. |
+| `pryx.templates()` | List project template versions. |
+| `pryx.webhook(options)` | Register lifecycle delivery and show its secret once. |
+| `pryx.webhooks()` | List registrations without secrets. |
+| `webhook.delete()` | Delete this registration. |
+| `webhook.deadletters()` | Inspect exhausted deliveries. |
 
 `Sandbox` exposes `id`, `state`, `isolation`, `units` and `files`. Result and option types are
 exported with `Pryx`, `Sandbox`, `Snapshot`, `Process`, `Terminal`, `Files` and `PryxError`.
 See [agent security](../../docs/agent.md) and [tiers](../../docs/tiers.md).
+
+Git defaults to `repo`; clone changes that handle’s path. Tokens use a one-call credential helper, never a credential file. Public clone requires permitted internet and Git in the image/userland (the wasm Git package is staged on demand).
+Shells use serialized pipes with independent stdout/stderr markers; [measured latency](../../docs/checks/k16.md) includes fresh processes and persistent sessions. Search/tar budgets and link refusals are in [agent security](../../docs/agent.md).
+Container hostname egress requires the advertised host firewall feature; process and wasm refuse it with the tier named. Webhook signatures and retry limits are in [the API reference](../../docs/api.md).

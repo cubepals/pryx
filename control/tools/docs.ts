@@ -112,6 +112,33 @@ lines.push(
   'serialized by callers; multi-request writes are not atomic. Decoded JSON file reads use the node-owned JSON memory bound; binary streams and chunk reads have no total file bound. No sandbox command or archive',
   'extraction is involved. Paths remain relative, without dot segments or symlink components.',
 )
+
+lines.push(
+  '',
+  '## Field surface',
+  '',
+  'Create accepts env, labels, project-unique name, metadata as a JSON object, absolute workdir, numeric user, idle and autoDelete. The requested user must equal the operator container UID policy; process/wasm refuse user selection. autoDelete requires idle and deletes after idle instead of retaining compute/data. GET sandboxes filters by name, label subset and state. Names remain reserved until deletion. SDK id/name lookup wakes sleeping/resting data unless wake:false.',
+  '',
+  'POST /v1/sandboxes/{id}/lifetime takes exactly one positive keepAlive, ttl or idle in seconds, bounded by project ceilings and expiry. keepAlive extends access and touches activity; ttl replaces the deadline from now. GET /metrics returns the last node CPU, memory, disk and network sample without polling; since returns at most one day of minute samples. Unavailable counters are null. SDK waitUntil polls public state; events uses NDJSON with stream=true, optional since cursor and follow=true. Plain v1 events still returns its published JSON shape.',
+  '',
+  'The SDK process handle adds waitForPort (HTTP or TCP, path/status/timeout), waitForLog, waitForExit and logs. A deadline is wait_timeout; exit before readiness is process_exited. run/spawn accept one-shot stdin text or bytes. Sandbox processes and killAll inspect/stop owned processes. shell opens a serialized stateful pipe session with separate stderr and exact exit codes; close ends it. See agent.md for all versioned routes and budgets.',
+  '',
+  'Files add exists, find glob, grep and literal replacement at regex matches, chmod, caller-disk upload/download with onProgress, tar uploadDir/downloadDir and SHA-256 upsert sync. CLI cp uses these methods. Git clone/status/diff/branch/checkout/add/commit/push/pull/log return parsed values with raw output. Clone supports path/branch/depth/token; commit supports author, diff supports staged, log supports limit. Tokens use an HTTPS host-scoped one-call credential helper, never a persisted credential file. Repo creation clones before returning and retains the sandbox identity if preparation fails.',
+  '',
+  'pryx.template builds from image/isolation with copy pairs, env/workdir, run commands and ready; only a successful ready publishes a snapshot version. start runs when creating from that version. POST /v1/templates/{name}/versions registers an owned completed snapshot and start/plan; GET lists immutable versions. A referenced snapshot and hidden builder cannot be deleted while versions use them. SDK rebuild uses the same local context. CLI templates lists; template build -f pryx.template.ts imports its default plan.',
+  '',
+  'Container egress:{allow:[hosts],deny:[hosts]} requires the announced egress-hostnames node feature and root-installed firewall. Deny overrides allow; a wildcard matches only subdomains. The bridge redirects HTTP/TLS to host gateways, resolves and pins public destinations at connect time, refuses raw IPs/non-public answers and blocks other new outbound protocols. TLS passes through with certificate checks intact. Process/wasm refuse this policy with the tier named. The request cannot configure firewall readiness or relax host policy.',
+  '',
+  '## Lifecycle webhooks',
+  '',
+  'POST /v1/webhooks takes url and kinds; GET lists, DELETE /{id} removes, GET /{id}/deadletters inspects exhausted delivery. Kinds are created, running, sleeping, woken, resting, deleted, failed, ttl_expired and idle_slept. Creation returns secret once; listing never does. Payload is {id,event,sandboxId,at}, with no sandbox env, metadata or secret values. A lifecycle transaction enqueues delivery atomically.',
+  '',
+  'Verify pryx-signature as v1= plus lowercase hex HMAC-SHA256 using the full UTF-8 creation secret over pryx-timestamp + a literal dot + the exact raw body bytes. Compare in constant time, reject stale timestamps, and deduplicate pryx-id across retries. The timestamp is Unix seconds. Delivery resolves all addresses once, refuses non-public DNS, pins the chosen destination with original HTTPS SNI/Host, verifies TLS and never follows redirects. An operator may explicitly allow an owned private receiver with PRYX_WEBHOOK_ALLOW_HOSTS; projects cannot.',
+  '',
+  'Delivery has a ten-second DNS/connect/response deadline, five total attempts, one/two/four/eight-minute delays, durable leases and dead letters. Delivery IDs remain stable and each attempt gets a fresh timestamp/signature. Receivers should return 2xx after durable acceptance. CLI webhook create URL --kinds created,deleted, webhook ls, webhook rm ID and webhook deadletters ID operate on the same scoped registrations.',
+  '',
+  'CLI sandbox adds ps, spawn, kill-all, wait-port, wait-log, wait-exit, shell (interactive or --command), exists, find, grep, replace, chmod, sync, git and keep-alive/ttl/idle/metrics/wait. exec/run/spawn --stdin read caller input once. Create flags include --name, --labels, --metadata, --env, --workdir, --user, --auto-delete and --egress, or --spec JSON. sandbox ls accepts --name/--labels/--state and events accepts --since/--follow. Git uses repo by default; clone --path changes only that SDK handle.',
+)
 const output = `${lines.join('\n')}\n`,
   path = new URL('docs/api.md', root)
 if (process.argv[2] === 'generate') writeFileSync(path, output)

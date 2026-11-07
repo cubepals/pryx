@@ -2,6 +2,9 @@
 """One lifecycle and eager-command surface, with private HTTP and capability transports."""
 from urllib.parse import quote, urlencode
 from uuid import uuid4
+from .git import Git,AsyncGit
+from .shell import Shell,AsyncShell
+from .duration import seconds
 from .agent import Agent
 from .async_agent import AsyncAgent
 from .duration import make_options
@@ -24,6 +27,7 @@ class Sandbox:
     def __init__(self,http,view):
         self._http,self._view=http,view
         self._agent=Agent(http,self.id)
+        self.git=Git(self.run,self.spawn,self.isolation)
         self.files=Files(http,self.id,self._agent,lambda:self._view)
     @property
     def id(self):return self._view.id
@@ -33,9 +37,12 @@ class Sandbox:
     def isolation(self):return None if isinstance(self._view.isolation,Unset) else self._view.isolation
     @property
     def units(self):return None if isinstance(self._view.units,Unset) else self._view.units
+    def _command_options(self,options):
+        cwd=getattr(self._view,'workdir',None)
+        return ({'cwd':cwd,**options} if cwd is not None and not isinstance(cwd,Unset) else options)
     def _path(self,suffix=''):return f'/v1/sandboxes/{quote(self.id,safe="")}{suffix}'
     def refresh(self):self._view=SandboxView.from_dict(self._http.request(self._path()));self._agent.invalidate();return self
-    def spawn(self,command,**options):return self._agent.start(command,**options)
+    def spawn(self,command,**options):return self._agent.start(command,**self._command_options(options))
     def run(self,command,**options):return CommandStream(self.spawn(command,**{'timeout':SDK_DEFAULTS['runTimeoutSeconds'],**options}),False).result()
     def stream(self,command,**options):return CommandStream(self.spawn(command,**{'timeout':SDK_DEFAULTS['runTimeoutSeconds'],**options}))
     def write(self,path,data):return self.files.write(path,data)
@@ -59,7 +66,33 @@ class Sandbox:
     def rest(self):return self._action('rest')
     def delete(self):self._agent.invalidate();return self._http.request(self._path(),'DELETE')
     def endpoints(self):return self._http.request(self._path('/endpoints'))['endpoints']
-    def events(self,since=None):return self._http.request(self._path('/events')+('?' + urlencode({'since':since}) if since else ''))
+    def processes(self):return self._agent.processes()
+    def kill_all(self):return self._agent.request_v2('/_pryx/processes/kill-all','POST')
+    def shell(self,**options):return Shell(self._agent,self._agent.request_v2('/_pryx/shells','POST',self._command_options(options))['id'])
+    def sync(self,local_dir,remote_dir):return self.files.sync(local_dir,remote_dir)
+    def _lifetime(self,**body):self._view=SandboxView.from_dict(self._http.request(self._path('/lifetime'),'POST',body));return self
+    def keep_alive(self,duration):return self._lifetime(keepAlive=seconds(duration))
+    def set_ttl(self,duration):return self._lifetime(ttl=seconds(duration))
+    def set_idle(self,duration):return self._lifetime(idle=seconds(duration))
+    def metrics(self,*,since=None):return self._http.request(self._path('/metrics')+('?' + urlencode({'since':since}) if since else ''))
+    def wait_until(self,state,timeout=SDK_DEFAULTS['runTimeoutSeconds']):
+        import time
+        from ._transport import PryxError
+        deadline=time.monotonic()+seconds(timeout)
+        while time.monotonic()<deadline:
+            self.refresh()
+            if self.state==state:return self
+            if self.state=='failed':raise PryxError(0,{'error':{'code':'sandbox_failed','message':'Sandbox entered failed state'}})
+            time.sleep(0.1)
+        raise PryxError(0,{'error':{'code':'wait_timeout','message':f'Sandbox did not reach {state}'}})
+    def events(self,since=None,*,follow=False):
+        import json
+        from ._transport import _checked
+        query=urlencode({'stream':'true','follow':str(follow).lower(),**({'since':since} if since else {})})
+        with self._http.http.stream('GET',self._path('/events')+'?'+query) as response:
+            if not response.is_success:response.read();_checked(response)
+            for line in response.iter_lines():
+                if line:yield json.loads(line)
     def logs(self,**options):return self._agent.logs(**options)
 
 class AsyncSnapshot(Snapshot):
@@ -72,9 +105,10 @@ class AsyncSandbox(Sandbox):
     def __init__(self,http,view):
         self._http,self._view=http,view
         self._agent=AsyncAgent(http,self.id)
+        self.git=AsyncGit(self.run,self.spawn,self.isolation)
         self.files=AsyncFiles(http,self.id,self._agent,lambda:self._view)
     async def refresh(self):self._view=SandboxView.from_dict(await self._http.request(self._path()));self._agent.invalidate();return self
-    async def spawn(self,command,**options):return await self._agent.start(command,**options)
+    async def spawn(self,command,**options):return await self._agent.start(command,**self._command_options(options))
     def run(self,command,**options):return AsyncCommandStream(self.spawn(command,**{'timeout':SDK_DEFAULTS['runTimeoutSeconds'],**options}),False)._task
     def stream(self,command,**options):return AsyncCommandStream(self.spawn(command,**{'timeout':SDK_DEFAULTS['runTimeoutSeconds'],**options}))
     async def write(self,path,data):return await self.files.write(path,data)
@@ -98,4 +132,30 @@ class AsyncSandbox(Sandbox):
     async def rest(self):return await self._action('rest')
     async def delete(self):self._agent.invalidate();return await self._http.request(self._path(),'DELETE')
     async def endpoints(self):return (await self._http.request(self._path('/endpoints')))['endpoints']
-    async def events(self,since=None):return await self._http.request(self._path('/events')+('?' + urlencode({'since':since}) if since else ''))
+    async def processes(self):return await self._agent.processes()
+    async def kill_all(self):return await self._agent.request_v2('/_pryx/processes/kill-all','POST')
+    async def shell(self,**options):return AsyncShell(self._agent,(await self._agent.request_v2('/_pryx/shells','POST',self._command_options(options)))['id'])
+    async def sync(self,local_dir,remote_dir):return await self.files.sync(local_dir,remote_dir)
+    async def _lifetime(self,**body):self._view=SandboxView.from_dict(await self._http.request(self._path('/lifetime'),'POST',body));return self
+    async def keep_alive(self,duration):return await self._lifetime(keepAlive=seconds(duration))
+    async def set_ttl(self,duration):return await self._lifetime(ttl=seconds(duration))
+    async def set_idle(self,duration):return await self._lifetime(idle=seconds(duration))
+    async def metrics(self,*,since=None):return await self._http.request(self._path('/metrics')+('?' + urlencode({'since':since}) if since else ''))
+    async def wait_until(self,state,timeout=SDK_DEFAULTS['runTimeoutSeconds']):
+        import asyncio
+        from ._transport import PryxError
+        deadline=asyncio.get_running_loop().time()+seconds(timeout)
+        while asyncio.get_running_loop().time()<deadline:
+            await self.refresh()
+            if self.state==state:return self
+            if self.state=='failed':raise PryxError(0,{'error':{'code':'sandbox_failed','message':'Sandbox entered failed state'}})
+            await asyncio.sleep(0.1)
+        raise PryxError(0,{'error':{'code':'wait_timeout','message':f'Sandbox did not reach {state}'}})
+    async def events(self,since=None,*,follow=False):
+        import json
+        from ._transport import _checked
+        query=urlencode({'stream':'true','follow':str(follow).lower(),**({'since':since} if since else {})})
+        async with self._http.http.stream('GET',self._path('/events')+'?'+query) as response:
+            if not response.is_success:await response.aread();_checked(response)
+            async for line in response.aiter_lines():
+                if line:yield json.loads(line)

@@ -19,6 +19,8 @@ export const migrationsFolder = process.env.PRYX_ASSET_DIR
   : fileURLToPath(new URL('./schema/migrations', import.meta.url))
 // PostgreSQL SQLSTATE, lock_not_available: https://www.postgresql.org/docs/current/errcodes-appendix.html
 export const LOCK_NOT_AVAILABLE = '55P03'
+// PostgreSQL SQLSTATE unique_violation, from the same error-code registry.
+export const UNIQUE_VIOLATION = '23505'
 export const createPool = (connectionString: string, max = 10) => {
   const pool = new pg.Pool({
     connectionString,

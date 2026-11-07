@@ -218,7 +218,7 @@ jobs:
           docker tag mirror.gcr.io/library/alpine:3.22 alpine:3.22
       - name: Build the TLS sandbox fixture
         run: |
-          printf 'FROM mirror.gcr.io/library/alpine:3.22\nRUN apk add --no-cache openssl busybox-extras\n' > "$RUNNER_TEMP/tls.Dockerfile"
+          printf 'FROM mirror.gcr.io/library/alpine:3.22\nRUN apk add --no-cache openssl busybox-extras ca-certificates git curl\n' > "$RUNNER_TEMP/tls.Dockerfile"
           docker build -t alpine:pryx-tls -f "$RUNNER_TEMP/tls.Dockerfile" "$RUNNER_TEMP"
       - name: Start an S3 store
         run: >-
@@ -344,7 +344,7 @@ jobs:
           docker build -t alpine:pryx-empty -f "$RUNNER_TEMP/empty.Dockerfile" "$RUNNER_TEMP"
       - name: Build the TLS sandbox fixture
         run: |
-          printf 'FROM mirror.gcr.io/library/alpine:3.22\nRUN apk add --no-cache openssl busybox-extras\n' > "$RUNNER_TEMP/tls.Dockerfile"
+          printf 'FROM mirror.gcr.io/library/alpine:3.22\nRUN apk add --no-cache openssl busybox-extras ca-certificates git curl\n' > "$RUNNER_TEMP/tls.Dockerfile"
           docker build -t alpine:pryx-tls -f "$RUNNER_TEMP/tls.Dockerfile" "$RUNNER_TEMP"
       - name: Start an S3 store
         run: >-
@@ -441,6 +441,27 @@ jobs:
           sudo install -D -m 0755 "$RUNNER_TEMP/pryx-agent" /usr/local/lib/pryx/pryx-agent
           docker builder prune --all --force
           df -h .
+      - name: Check out the K15 shell baseline
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ce22bc9e077d1f4bb32b8b54184f92de0f81f829
+          path: .field-before
+          persist-credentials: false
+      - name: Measure K15 and K16 shell paths on this host
+        run: |
+          cp target/debug/pryxd "$RUNNER_TEMP/pryxd-k16-after"
+          cp -a .field-before "$RUNNER_TEMP/pryx-field-before"
+          cd "$RUNNER_TEMP/pryx-field-before"
+          export CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target"
+          cargo clean --package pryxd
+          cargo build --locked
+          bun install --frozen-lockfile
+          PRYX_FIELD_SOURCE_ROOT="$PWD" PRYXD_BIN="$CARGO_TARGET_DIR/debug/pryxd" bun "$GITHUB_WORKSPACE/control/bench/field-speed.ts" before "$RUNNER_TEMP/field-speed-before.json"
+          cd "$GITHUB_WORKSPACE"
+          rm target/debug/pryxd
+          cp "$RUNNER_TEMP/pryxd-k16-after" target/debug/pryxd
+          PRYXD_BIN="$GITHUB_WORKSPACE/target/debug/pryxd" bun control/bench/field-speed.ts after "$RUNNER_TEMP/field-speed-after.json"
+          bun control/tools/field-summary.ts "$RUNNER_TEMP/field-speed-before.json" "$RUNNER_TEMP/field-speed-after.json"
       - name: Measure the K11 agent on this host
         run: |
           PRYXD_BIN="$GITHUB_WORKSPACE/target/debug/pryxd" bun control/bench/agent-speed.ts after "$RUNNER_TEMP/agent-speed-after.json"
@@ -479,6 +500,8 @@ jobs:
           path: |
             ${{ runner.temp }}/speed-before.json
             ${{ runner.temp }}/speed-after.json
+            ${{ runner.temp }}/field-speed-before.json
+            ${{ runner.temp }}/field-speed-after.json
             ${{ runner.temp }}/agent-speed-before.json
             ${{ runner.temp }}/agent-speed-after.json
             ${{ runner.temp }}/process-speed-before.json
@@ -499,7 +522,7 @@ jobs:
 
       - name: K11 agent suite on the wasm tier
         if: ${{ !cancelled() && steps.static.outcome == 'success' }}
-        run: bun test control/e2e/agent.e2e.test.ts control/e2e/wasm.e2e.test.ts
+        run: bun test control/e2e/agent.e2e.test.ts control/e2e/wasm.e2e.test.ts control/e2e/field.e2e.test.ts
         env:
           PRYX_TEST_TIER: wasm
           PRYXD_SUDO: '0'

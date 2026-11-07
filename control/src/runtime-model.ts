@@ -39,6 +39,9 @@ export interface RuntimeSpec {
   packages?: readonly string[]
   /** Replaces the image's own entrypoint; absent, the image starts as it was built to. */
   entrypoint?: readonly string[]
+  workdir?: string
+  user?: string
+  egress?: { allow: string[]; deny?: string[] }
   env: Readonly<Record<string, string>>
   secrets: Readonly<Record<string, string>>
   resources: {

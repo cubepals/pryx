@@ -460,6 +460,9 @@ pub(crate) mod tests {
                 network: Default::default(),
                 image: "alpine:3.22".into(),
                 entrypoint: None,
+                workdir: None,
+                egress: None,
+                user: None,
                 env: Default::default(),
                 secret_names: vec![],
                 resources: Resources {

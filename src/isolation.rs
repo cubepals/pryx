@@ -130,7 +130,12 @@ pub async fn isolate(path: &Path) -> anyhow::Result<String> {
         "invalid internal bridge name"
     );
     let from = format!("iifname {{ \"{bridge}\", \"{internal_bridge}\" }}");
-    apply(&rules_from(TABLE, &from, &(low..=high), config.api.listen.port()))?;
+    apply(&format!(
+        "{}{}",
+        rules_from(TABLE, &from, &(low..=high), config.api.listen.port()),
+        crate::runtime::docker::egress::ruleset()
+    ))?;
+    crate::runtime::docker::egress::mark_ready()?;
     Ok(format!(
         "Workloads on {network} ({bridge}) can't open connections to this host, to ports {low}-{high} or {} on \
          private addresses, or to the metadata address (nft list table inet {TABLE}).\n",

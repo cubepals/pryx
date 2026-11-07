@@ -9,6 +9,7 @@ export type RunOptions = {
   timeout?: Duration
   env?: Record<string, string>
   cwd?: string
+  stdin?: string | Uint8Array
   idempotencyKey?: string
 }
 export type RunResult = {

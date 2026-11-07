@@ -100,3 +100,32 @@ test('project accounting counts CPU reservations on records without unit metadat
     await c.close()
   }
 })
+
+test('workload options and hostname egress require separate feature announcements', async () => {
+  let body: unknown
+  const api = new WorkloadApi({
+    async call<T>(_node: unknown, _method: string, _path: string, options?: CallOptions): Promise<T> {
+      body = options?.body
+      return {} as T
+    },
+  })
+  for (const features of [
+    [],
+    ['workload-options'],
+    ['egress-hostnames'],
+    ['workload-options', 'egress-hostnames'],
+  ]) {
+    await api.put(
+      { id: 'node', api_address: 'https://node.test', features },
+      'box',
+      { ...spec, workdir: '/data/work', user: '65532:65532', egress: { allow: ['example.com'], deny: [] } },
+      1,
+    )
+    const sent = body as Record<string, unknown>
+    expect(sent.workdir).toBe(features.includes('workload-options') ? '/data/work' : undefined)
+    expect(sent.user).toBe(features.includes('workload-options') ? '65532:65532' : undefined)
+    expect(sent.egress).toEqual(
+      features.includes('egress-hostnames') ? { allow: ['example.com'], deny: [] } : undefined,
+    )
+  }
+})

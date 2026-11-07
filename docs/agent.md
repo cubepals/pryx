@@ -98,12 +98,11 @@ and active streams; the sandbox's absolute TTL still applies.
 `network: 'none'` uses an internal Docker bridge with inter-container communication disabled;
 agent access from the node and edge remains available. `box.network('internet' | 'none')`
 changes the policy while retaining persistent data. It replaces compute, so running processes
-and terminals end. The SDK invalidates the old capability. Per-host custom egress rules are
-outside this interface.
+and terminals end. The SDK invalidates the old capability. Hostname policy is described below.
 
 The node's file feature supplies read, write, list and stat while compute is stopped or sleeping.
 The SDK selects that path automatically. Interactive operations use the agent and may wake a
-sleeping sandbox. MCP is reserved for the following milestone.
+sleeping sandbox. MCP uses the same capability boundary.
 
 ## Validation and measurements
 
@@ -129,3 +128,45 @@ Rust tests execute real local processes, PTYs, websocket streams, notifications,
 file capabilities and spare-slot reuse. The Docker acceptance suite exercises the TypeScript,
 synchronous Python and asynchronous Python handles through a real node and edge. Container
 acceptance is run in CI. [speed.md](checks/speed.md) records measured cohorts and their limits.
+
+## Field API version 2
+
+Authenticated health announces `apiVersion: 2`. SDKs check it before every new route family,
+cache that answer per capability and invalidate it after lifecycle changes. New routes are:
+
+| Operation | Path |
+| --- | --- |
+| Readiness: kind port/log/exit, timeout seconds | `POST /processes/{id}/ready` |
+| Kill every running owned process | `POST /processes/kill-all` |
+| Open a cwd/env shell session | `POST /shells` |
+| Run a command with timeout | `POST /shells/{id}/run` |
+| Close the shell | `DELETE /shells/{id}` |
+| Glob find, regex grep/replace, chmod | `POST /files/find`, `/grep`, `/replace`, `/chmod` |
+| Stream a directory tar | `GET` or `PUT /files/archive?path=PATH` |
+
+Readiness never selects an outside address. Process listeners must belong to the supervisor;
+VM probes use that VM network. Log waits search bytes per stream, including split UTF-8,
+with a 1 MiB capture bound. Timeout and early exit have distinct structured codes. One-shot
+SDK stdin writes bounded chunks then closes once; partial delivery is an uncertain mutation.
+
+Shells use one pipe-driven read/eval process, serialize commands, encode each frame and capture
+independent random stdout/stderr sentinels. This preserves cwd, env, functions, exact exit codes
+and separate streams. Thirty-sample measurements compare fresh commands and persistent sessions
+in [K16 evidence](checks/k16.md). There are at most 32 sessions; output is bounded to 1 MiB per
+stream. A timeout or framing failure closes the session. Intentional exit returns its real code.
+
+Searches refuse links/special files, scan at most 100,000 entries and 64 MiB total, with 1 MiB
+per text file and response. Regexes have a linear-time engine and a 1 MiB compile bound.
+Replace treats replacement text literally and retains ordinary file modes. Tar transfers preserve
+files and empty directories, refuse links/devices/traversal and special permission bits, cap
+packed and expanded bytes at 256 MiB and entries at 100,000. Two archive slots bound anonymous
+on-disk spools; download retains its slot until the body ends. Blocking file work is tracked and
+drained before VM stop/snapshot. Local SDK disk walks also hold no-follow parent descriptors.
+Sync hashes content and upserts changes; it never deletes remote data.
+
+Git tokens stay in the one-call process environment and a host-scoped helper, never a URL or
+credential file. Hooks, global/system config, redirects and trace environment settings are
+disabled for helper calls; results redact the token and refuse incomplete parsed stdout.
+On wasm, a transient loopback bridge adapts Git HTTP to the VM fetch stack, retains the original
+HTTPS remote and terminates after the call. VM network policy and upstream TLS remain in force.
+Container hostname egress is enforced by the host bridge; process and wasm refuse it explicitly.

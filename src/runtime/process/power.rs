@@ -108,7 +108,7 @@ impl ProcessRuntime {
             "--secret-env",
             &agent.secret_env,
             "--entrypoint-cwd",
-            &spec.data_dir.to_string_lossy(),
+            spec.workdir.as_deref().unwrap_or(&spec.data_dir.to_string_lossy()),
         ]);
         if !spares.is_empty() {
             command.args(["--spare-ports", &spares.join(",")]);

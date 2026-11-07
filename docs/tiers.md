@@ -351,3 +351,15 @@ create-to-output goal above remains a documented miss. Historical partial and fa
 remain under [measurements/k14](checks/measurements/k14/); they are not substituted for these complete
 samples. The final workflow must pass its tests and repeat the required comparisons before
 the pull request is opened; its exact final commit and run are linked in the pull request.
+
+## K16 policy and convenience tools
+
+Hostname egress allow/deny is available only on container nodes that announce
+`egress-hostnames` after root firewall installation. Each such sandbox has a dedicated bridge
+and HTTP/TLS gateways; no sandbox proxy setting can bypass the firewall. Process and wasm
+return an explicit tier refusal. `network:none` remains the all-tiers network boundary.
+Workdir uses the `workload-options` feature; user selection is restricted to the operator
+container user. Metrics use cached tier counters and preserve null where unavailable.
+Git requires an image/userland installation on native tiers. The verified optional wasm Git
+package is staged with the distribution and loaded only on request. Stateful shells use pipes
+on every tier; [K16 measurements](checks/k16.md) retain the before/after raw samples.

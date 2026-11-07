@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { sql } from 'drizzle-orm'
 import { StatusCodes } from 'http-status-codes'
 import nodeWrites from '../../openapi/node-writes.openapi.json'
+import { CodeTemplates } from '../src/code-templates.ts'
 import { SECOND_MS } from '../src/durations.ts'
 import { SDK_DEFAULTS } from '../src/sdk-defaults.ts'
 import { one } from '../src/sql.ts'
@@ -303,6 +304,113 @@ test('a long lifecycle response outlives the HTTP idle timer', async () => {
       ctx.boxes.delete = original
       project.write = write
       server.stop(true)
+    }
+  } finally {
+    await ctx.close()
+  }
+})
+
+test('names, labels and lifetime controls preserve project scope and ceilings', async () => {
+  const ctx = await publicContext()
+  try {
+    const response = await ctx.request('/sandboxes', 'POST', {
+      image: 'alpine:3.22',
+      name: 'named-owned',
+      labels: { suite: 'field', extra: 'yes' },
+      metadata: { nested: [1, true] },
+      ttl: 60,
+      idle: 30,
+      autoDelete: true,
+    })
+    expect(response.status).toBe(StatusCodes.CREATED)
+    const made = (await response.json()) as { id: string; expiresAt: string }
+    expect(
+      (await ctx.request('/sandboxes', 'POST', { image: 'alpine:3.22', name: 'named-owned' })).status,
+    ).toBe(StatusCodes.CONFLICT)
+    const listed = (await (
+      await ctx.request(
+        '/sandboxes?name=named-owned&labels=' + encodeURIComponent(JSON.stringify({ suite: 'field' })),
+      )
+    ).json()) as { sandboxes: { id: string }[] }
+    expect(listed.sandboxes.map((box) => box.id)).toEqual([made.id])
+    expect(
+      (
+        (await (
+          await ctx.request(
+            '/sandboxes?name=named-owned&labels=' + encodeURIComponent(JSON.stringify({ suite: 'other' })),
+          )
+        ).json()) as { sandboxes: unknown[] }
+      ).sandboxes,
+    ).toEqual([])
+    expect(
+      (await ctx.request('/sandboxes/' + made.id + '/lifetime', 'POST', { keepAlive: 120 })).status,
+    ).toBe(StatusCodes.OK)
+    const row = await ctx.boxes.record(made.id, 'default')
+    expect(Date.parse(row.expires_at as string)).toBeGreaterThan(Date.parse(made.expiresAt))
+    expect((await ctx.request('/sandboxes/' + made.id + '/lifetime', 'POST', { ttl: 20 })).status).toBe(
+      StatusCodes.OK,
+    )
+    expect((await ctx.request('/sandboxes/' + made.id + '/lifetime', 'POST', { idle: 10 })).status).toBe(
+      StatusCodes.OK,
+    )
+    expect(
+      (await ctx.request('/sandboxes/' + made.id + '/lifetime', 'POST', { idle: 10, ttl: 20 })).status,
+    ).toBe(StatusCodes.UNPROCESSABLE_ENTITY)
+    expect((await ctx.request('/sandboxes/' + made.id + '/metrics')).status).toBe(StatusCodes.OK)
+    expect((await ctx.request('/sandboxes', 'POST', { image: 'alpine:3.22', autoDelete: true })).status).toBe(
+      StatusCodes.UNPROCESSABLE_ENTITY,
+    )
+    await ctx.request('/sandboxes/' + made.id, 'DELETE')
+    expect(
+      (await ctx.request('/sandboxes', 'POST', { image: 'alpine:3.22', name: 'named-owned' })).status,
+    ).toBe(StatusCodes.CREATED)
+  } finally {
+    await ctx.close()
+  }
+})
+
+test('code-template versions retain their owned completed snapshot', async () => {
+  const ctx = await publicContext()
+  try {
+    const response = await ctx.request('/sandboxes', 'POST', { image: 'alpine:3.22' })
+    expect(response.status).toBe(StatusCodes.CREATED)
+    const box = (await response.json()) as { id: string }
+    const snapshot = (await (await ctx.request('/sandboxes/' + box.id + '/snapshots', 'POST')).json()) as {
+      id: string
+    }
+    const templates = new CodeTemplates(ctx.db, ctx.boxes)
+    const first = await templates.register('default', 'versioned', {
+      snapshot: snapshot.id,
+      start: 'printf ready',
+      plan: { run: ['true'] },
+    })
+    expect(first.version).toBe(1)
+    expect(
+      (await templates.register('default', 'versioned', { snapshot: snapshot.id, plan: {} })).version,
+    ).toBe(2)
+    expect((await templates.versions('default', 'versioned')).length).toBe(2)
+    expect((await ctx.request('/sandboxes/' + box.id + '/snapshots/' + snapshot.id, 'DELETE')).status).toBe(
+      StatusCodes.FORBIDDEN,
+    )
+    expect((await ctx.request('/sandboxes/' + box.id, 'DELETE')).status).toBe(StatusCodes.FORBIDDEN)
+    await expect(
+      templates.register('other', 'foreign', { snapshot: snapshot.id, plan: {} }),
+    ).rejects.toMatchObject({ code: 'not_found' })
+  } finally {
+    await ctx.close()
+  }
+})
+
+test('hostname egress refuses tiers without host enforcement', async () => {
+  const ctx = await publicContext()
+  try {
+    for (const isolation of ['process', 'wasm']) {
+      const response = await ctx.request('/sandboxes', 'POST', {
+        isolation,
+        egress: { allow: ['example.com'] },
+      })
+      expect(response.status).toBe(StatusCodes.NOT_IMPLEMENTED)
+      expect(JSON.stringify(await response.json())).toContain(isolation)
     }
   } finally {
     await ctx.close()

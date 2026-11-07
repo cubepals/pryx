@@ -210,6 +210,16 @@ impl DataDir {
         Ok(())
     }
 
+    pub fn chmod(&self, path: &str, mode: u32) -> io::Result<()> {
+        if mode > 0o777 {
+            return Err(io::ErrorKind::InvalidInput.into());
+        }
+        let info = self.stat(path)?;
+        let file = if info.kind == "directory" { self.directory_file(path)? } else { self.read(path)? };
+        fs::fchmod(&file, Mode::from_raw_mode(mode))?;
+        Ok(())
+    }
+
     pub fn directory_file(&self, path: &str) -> io::Result<File> {
         Ok(File::from(self.directory(&components(path)?, false)?))
     }

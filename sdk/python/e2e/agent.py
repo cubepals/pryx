@@ -14,7 +14,7 @@ def creation():
     return {'image': 'alpine:pryx-tls'} if tier == 'container' else {'isolation': tier}
 
 def web_command():
-    if os.environ.get('PRYX_TEST_TIER') == 'wasm':
+    if os.environ.get('PRYX_TEST_TIER') in ('wasm','process'):
         return ['node', '-e', "require('node:http').createServer((req,res)=>res.end(require('node:fs').readFileSync('/data/index.html'))).listen(3000,'0.0.0.0')"]
     return ['httpd','-f','-p','3000','-h','/data']
 

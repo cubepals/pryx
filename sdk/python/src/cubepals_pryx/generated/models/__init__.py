@@ -4,9 +4,11 @@
 
 from .agent_result import AgentResult
 from .make_request import MakeRequest
+from .make_request_egress import MakeRequestEgress
 from .make_request_env import MakeRequestEnv
 from .make_request_isolation import MakeRequestIsolation
 from .make_request_labels import MakeRequestLabels
+from .make_request_metadata import MakeRequestMetadata
 from .make_request_network import MakeRequestNetwork
 from .make_request_ports_item import MakeRequestPortsItem
 from .make_request_ports_item_audience import MakeRequestPortsItemAudience
@@ -22,15 +24,19 @@ from .sandbox_agent import SandboxAgent
 from .sandbox_endpoints_item import SandboxEndpointsItem
 from .sandbox_exit import SandboxExit
 from .sandbox_isolation import SandboxIsolation
+from .sandbox_labels import SandboxLabels
+from .sandbox_metadata import SandboxMetadata
 from .sandbox_state import SandboxState
 from .snapshot import Snapshot
 
 __all__ = (
     "AgentResult",
     "MakeRequest",
+    "MakeRequestEgress",
     "MakeRequestEnv",
     "MakeRequestIsolation",
     "MakeRequestLabels",
+    "MakeRequestMetadata",
     "MakeRequestNetwork",
     "MakeRequestPortsItem",
     "MakeRequestPortsItemAudience",
@@ -46,6 +52,8 @@ __all__ = (
     "SandboxEndpointsItem",
     "SandboxExit",
     "SandboxIsolation",
+    "SandboxLabels",
+    "SandboxMetadata",
     "SandboxState",
     "Snapshot",
 )

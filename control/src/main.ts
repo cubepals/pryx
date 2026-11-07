@@ -145,6 +145,9 @@ export async function startControl(
     nodes,
     domain: config.publicDomain,
     edgePortRange: config.edgePortRange,
+    repoImage: config.repoImage,
+    webhookSealKey: config.providerSealKey,
+    webhookAllowHosts: config.webhookAllowHosts,
   })
   const edge = new EdgeService(db, sandboxes, config.publicDomain, config.edgePortRange, api.agents)
   api.app.route('/edge/v1', edgeApi(edge, config.edgeToken))
@@ -173,6 +176,7 @@ export async function startControl(
         await scaling.tick()
         await sandboxes.upkeep()
         await api.model.warmTemplates()
+        await api.webhooks.tick()
       })
       .catch((error) => console.error('upkeep failed', error instanceof Error ? error.name : 'error'))
       .finally(() => {

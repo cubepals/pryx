@@ -8,13 +8,15 @@
 //! workload protocol instead, and fills every container's isolation from host policy.
 //!
 //! Parts (`docker/`):
+//! - `egress.rs`: firewall-gated hostname bridges and gateways.
 //! - `create.rs`: trusted container and agent creation.
 //! - `container.rs`: container construction and observation types.
 //! - `exec.rs`: command attachment and timeout containment.
 //! - `relay.rs`: bounded private ingress to gateway-free internal networks.
 
-mod create;
 mod container;
+mod create;
+pub(crate) mod egress;
 mod exec;
 mod relay;
 use container::{body_of, info_from};
@@ -82,6 +84,7 @@ pub struct DockerRuntime {
     socket: String,
     client: std::sync::Mutex<Option<Docker>>,
     relays: relay::Relays,
+    egress: egress::Egress,
 }
 
 impl DockerRuntime {
@@ -89,7 +92,12 @@ impl DockerRuntime {
     /// client for a socket that doesn't exist yet), and says so until it's back.
     pub fn new(socket: &Path) -> Result<Self, RuntimeError> {
         let socket = socket.to_str().ok_or_else(|| RuntimeError::Other("socket path is not UTF-8".into()))?.to_owned();
-        Ok(Self { socket, client: std::sync::Mutex::new(None), relays: relay::Relays::default() })
+        Ok(Self {
+            socket,
+            client: std::sync::Mutex::new(None),
+            relays: relay::Relays::default(),
+            egress: Default::default(),
+        })
     }
 
     /// Prove the independent cgroup watchdog before enabling the optional host feature.
@@ -206,6 +214,9 @@ fn pull_tag(image: &str) -> Option<&'static str> {
 impl ContainerRuntime for DockerRuntime {
     fn supports_agent(&self) -> bool {
         true
+    }
+    fn supports_hostname_egress(&self) -> bool {
+        egress::ready()
     }
     fn supports_network_policy(&self) -> bool {
         true
@@ -327,7 +338,9 @@ impl ContainerRuntime for DockerRuntime {
         }
     }
 
-    async fn create(&self,spec:&ContainerSpec)->Result<String,RuntimeError> {create::create(self,spec).await}
+    async fn create(&self, spec: &ContainerSpec) -> Result<String, RuntimeError> {
+        create::create(self, spec).await
+    }
 
     async fn start(&self, name: &str) -> Result<(), RuntimeError> {
         if let Err(error) = quick("start", self.docker()?.start_container(name, None)).await {
@@ -390,14 +403,15 @@ impl ContainerRuntime for DockerRuntime {
         // workload's data is a bind mount, which removal never touches.
         let options = RemoveContainerOptionsBuilder::new().force(true).v(true).build();
         match quick("remove", self.docker()?.remove_container(name, Some(options))).await {
-            Err(RuntimeError::NotFound(_)) => Ok(()),
-            other => other,
+            Err(RuntimeError::NotFound(_)) | Ok(()) => self.egress.stop(self, name).await,
+            Err(error) => Err(error),
         }
     }
 
     async fn inspect(&self, name: &str) -> Result<Option<ContainerInfo>, RuntimeError> {
         match quick("inspect", self.docker()?.inspect_container(name, None)).await {
             Ok(inspect) => {
+                self.egress.restore(self, &inspect).await?;
                 self.relays.ensure(&inspect).await?;
                 Ok(Some(info_from(inspect)))
             }
@@ -599,6 +613,8 @@ mod tests {
             name: "blockly-test-w".into(),
             image: "alpine:3.22".into(),
             entrypoint: None,
+            workdir: None,
+            egress: None,
             env: Vec::new(),
             labels: BTreeMap::new(),
             user: "1000:1000".into(),

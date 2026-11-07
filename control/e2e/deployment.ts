@@ -28,6 +28,8 @@ export const ready = Boolean(
 export const LEASE_TEST = { seconds: 10, renewSeconds: 3 }
 export async function deployment(
   options: {
+    webhookAllowHosts?: string[]
+    egressPolicy?: boolean
     allowedImages?: string[]
     storeLease?: boolean
     nodes?: number
@@ -70,6 +72,7 @@ export async function deployment(
     S3_BUCKET: s3.bucket,
     S3_ACCESS_KEY: s3.accessKeyId,
     S3_SECRET_KEY: s3.secretAccessKey,
+    PRYX_WEBHOOK_ALLOW_HOSTS: options.webhookAllowHosts?.join(','),
     PRYX_PUBLIC_DOMAIN: 'pryx.test',
   })
   const control = await startControl({

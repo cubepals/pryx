@@ -3,6 +3,7 @@
 
 /** Public SDK and compiled CLI through a real daemon, Docker, Postgres and S3; run only in CI. */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { sql } from 'drizzle-orm'
 import {
   type ExecEvent,
   ndjson,
@@ -11,13 +12,27 @@ import {
   Transport,
 } from '../../sdk/typescript/src/transport.ts'
 import { MINUTE_MS } from '../src/durations.ts'
+import { rows } from '../src/sql.ts'
 import type { LogRecord } from '../src/wire.ts'
 import { deployment, ready } from './deployment.ts'
+import { deploymentDiagnostics } from './diagnostics.ts'
 
 describe.skipIf(!ready)('public API end to end', () => {
   let d: Awaited<ReturnType<typeof deployment>>, client: Transport
   beforeAll(async () => {
     d = await deployment()
+    const wake = d.control.sandboxes.wake.bind(d.control.sandboxes)
+    d.control.sandboxes.wake = async (...args) => {
+      try {
+        return await wake(...args)
+      } catch (error) {
+        console.error(
+          'OWNED_WAKE_FAILURE',
+          error instanceof Error ? { name: error.name, message: error.message } : String(error),
+        )
+        throw error
+      }
+    }
     client = new Transport({ url: d.control.apiUrl, key: d.credential.key })
   }, 2 * MINUTE_MS)
   afterAll(async () => {
@@ -130,7 +145,20 @@ describe.skipIf(!ready)('public API end to end', () => {
         const p = Bun.spawn([cli, ...args], { env: d.env, stdout: 'pipe', stderr: 'pipe' })
         const stdout = await new Response(p.stdout).text(),
           stderr = await new Response(p.stderr).text()
-        expect({ exit: await p.exited, stderr }).toEqual({ exit: 0, stderr: '' })
+        const exit = await p.exited
+        if (exit !== 0) {
+          deploymentDiagnostics(d)
+          console.error(
+            'CLI_LIFECYCLE_REFUSAL',
+            args[0],
+            args[1],
+            await rows(
+              d.control.db,
+              sql`SELECT kind,data FROM fleet_events WHERE kind IN ('placement.refused','workload.failed') ORDER BY id DESC LIMIT 5`,
+            ),
+          )
+        }
+        expect({ exit, stderr }).toEqual({ exit: 0, stderr: '' })
         return stdout
       }
       expect(await invoke(['run', '--image', 'alpine:3.22', '--', 'echo', 'hello'])).toBe('hello\n')
