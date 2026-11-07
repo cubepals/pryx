@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-/** Lifecycle-bound capabilities and data fallback. Running agent requests never call this service. */
+/** Lifecycle-bound capabilities and stopped sandbox data. Running agent requests never call this service. */
 import { setTimeout as pause } from 'node:timers/promises'
 import { z } from 'zod'
 import nodeSchema from '../../openapi/node-writes.openapi.json'
@@ -44,8 +44,7 @@ export class Agents {
     const row = await this.boxes.record(id, project)
     if (!row.handle) throw new SandboxError('not_running', 'Sandbox data has no local node')
     const node = await this.boxes.engine.home(row.handle)
-    if (!node?.features?.includes('files'))
-      throw new SandboxError('unsupported', 'This node has no files feature')
+    if (!node) throw new SandboxError('not_running', 'Sandbox data has no local node')
     return this.nodes.transfer(
       node,
       method,
@@ -63,8 +62,7 @@ export class Agents {
     // until the current route is acknowledged; ready agent operations never enter this path.
     while (await routesPending(this.boxes.db, id)) await pause(SECOND_MS / 20)
     const node = await this.boxes.engine.home(row.handle)
-    if (!node?.features?.includes('agent'))
-      throw new SandboxError('unsupported', 'This node has no agent feature')
+    if (!node) throw new SandboxError('not_running', 'Sandbox has no local node')
     const policy = await projectRow(this.boxes.db, project, this.boxes.projects?.defaults)
     const expiry = [row.expires_at, policy.limits.expiresAt]
       .filter((v): v is string => typeof v === 'string')

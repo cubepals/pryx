@@ -15,3 +15,15 @@ pub const FORWARD_HEADER: &str = "x-pryx-target-port";
 pub const CAPTURE_BYTES: usize = 1024 * 1024;
 pub const MAX_REQUEST_BYTES: usize = 1024 * 1024;
 pub const STATE_DIRECTORY: &str = ".pryx-agent";
+
+/// Convenience routes require this version in the authenticated health response.
+pub const API_VERSION: u16 = 2;
+
+/// Bounded convenience operations retain no more than these filesystem resources.
+pub const ARCHIVE_BYTES: u64 = 256 * 1024 * 1024;
+pub const SEARCH_BYTES: u64 = 64 * 1024 * 1024;
+pub const SEARCH_ENTRIES: usize = 100_000;
+pub const ARCHIVE_CONCURRENCY: usize = 2;
+
+/// Maximum client wait bounds detached readiness and shell response work.
+pub const MAX_WAIT: std::time::Duration = std::time::Duration::from_hours(1);

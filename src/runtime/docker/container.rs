@@ -125,6 +125,7 @@ pub(super) fn body_of(spec: &ContainerSpec) -> ContainerCreateBody {
     };
     ContainerCreateBody {
         image: Some(spec.image.clone()),
+        working_dir: spec.workdir.clone(),
         entrypoint: spec.entrypoint.clone(),
         // An explicit argv is complete; do not append the image's default CMD.
         cmd: spec.entrypoint.as_ref().map(|_| Vec::new()),

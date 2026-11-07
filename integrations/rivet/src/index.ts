@@ -3,6 +3,7 @@
 
 /** A RivetKit actor owns session memory and one sandbox; credentials live in the server closure, never actor state. */
 import type { ExecRequest, MakeRequest, Pryx } from '@cubepals/pryx'
+import { StatusCodes } from 'http-status-codes'
 import { actor } from 'rivetkit'
 
 export interface SessionMemory {
@@ -12,21 +13,28 @@ export interface SessionMemory {
   notes: string[]
 }
 export function sandboxActor(client: Pryx, options: { sleepGracePeriod?: number } = {}) {
+  async function remove(id: string) {
+    try {
+      await (await client.sandbox(id, { wake: false })).delete()
+    } catch (error) {
+      if (!(error instanceof Error && 'status' in error && error.status === StatusCodes.GONE)) throw error
+    }
+  }
   return actor({
     state: { sandbox: null, pending: null, generation: 0, notes: [] } as SessionMemory,
     options,
     onWake: async (c) => {
-      if (c.state.sandbox) await (await client.sandbox(c.state.sandbox)).wake()
+      if (c.state.sandbox) await (await client.sandbox(c.state.sandbox, { wake: false })).wake()
     },
     onSleep: async (c) => {
-      if (c.state.sandbox) await (await client.sandbox(c.state.sandbox)).sleep()
+      if (c.state.sandbox) await (await client.sandbox(c.state.sandbox, { wake: false })).sleep()
     },
     onDestroy: async (c) => {
-      if (c.state.sandbox) await client.delete(c.state.sandbox)
+      if (c.state.sandbox) await remove(c.state.sandbox)
       // A create reply can be lost before state receives its id. Recover the same keyed identity.
       else if (c.state.pending) {
-        const made = await client.make(c.state.pending.body, c.state.pending.key)
-        await client.delete(made.id)
+        const made = await client.sandbox({ ...c.state.pending.body, idempotencyKey: c.state.pending.key })
+        await made.delete()
       }
     },
     actions: {
@@ -38,7 +46,7 @@ export function sandboxActor(client: Pryx, options: { sleepGracePeriod?: number 
         c.state.notes.push(note)
       },
       make: async (c, body: MakeRequest) => {
-        if (c.state.sandbox) return client.get(c.state.sandbox)
+        if (c.state.sandbox) return (await client.sandbox(c.state.sandbox, { wake: false })).toJSON()
         if (Object.keys(body.secrets ?? {}).length)
           throw new Error(
             'Actor make does not persist secret-bearing requests; provision through a server-owned template',
@@ -47,46 +55,52 @@ export function sandboxActor(client: Pryx, options: { sleepGracePeriod?: number 
           c.state.pending = { key: `rivet:${c.id}:${c.state.generation}`, body }
           await c.saveState({ immediate: true })
         }
-        const made = await client.make(c.state.pending.body, c.state.pending.key)
+        const made = await client.sandbox({ ...c.state.pending.body, idempotencyKey: c.state.pending.key })
         c.state.sandbox = made.id
         c.state.pending = null
         await c.saveState({ immediate: true })
-        return made
+        return made.toJSON()
       },
       exec: async (c, request: ExecRequest, key: string) => {
         if (!c.state.sandbox) throw new Error('Make a sandbox first')
         if (!key) throw new Error('Exec needs a durable caller key')
         const box = await client.sandbox(c.state.sandbox)
-        const run = box.run(request.command, {
+        const run = box.stream(request.command, {
           env: request.env,
           timeout: request.timeout,
           idempotencyKey: key,
         })
         const events: unknown[] = []
-        for await (const chunk of run.stream())
-          events.push({ type: chunk.stream, data: chunk.data, truncated: false })
-        events.push({ type: 'exit', ...(await run) })
+        for await (const chunk of run) events.push({ type: chunk.stream, data: chunk.data, truncated: false })
+        events.push({ type: 'exit', ...(await run.result()) })
         return events
       },
       snapshot: async (c) => {
         if (!c.state.sandbox) throw new Error('Make a sandbox first')
-        return (await (await client.sandbox(c.state.sandbox)).snapshot()).view
+        return (await (await client.sandbox(c.state.sandbox, { wake: false })).snapshot()).view
       },
       fork: async (
         _c,
         snapshot: string,
         body: Omit<MakeRequest, 'image' | 'snapshot' | 'template'>,
         key: string,
-      ) => client.fork(snapshot, body, key),
+      ) => client.sandbox({ ...body, snapshot, idempotencyKey: key }).then((box) => box.toJSON()),
       sleep: async (c) => {
-        if (c.state.sandbox) await (await client.sandbox(c.state.sandbox)).sleep()
+        if (c.state.sandbox) await (await client.sandbox(c.state.sandbox, { wake: false })).sleep()
         c.sleep()
       },
-      wake: async (c) => (c.state.sandbox ? client.action(c.state.sandbox, 'wake') : null),
+      wake: async (c) =>
+        c.state.sandbox
+          ? (await client.sandbox(c.state.sandbox, { wake: false }))
+              .wake()
+              .then((box) => ({ sandbox: box.toJSON() }))
+          : null,
       delete: async (c) => {
-        if (c.state.sandbox) await client.delete(c.state.sandbox)
+        if (c.state.sandbox) await remove(c.state.sandbox)
         else if (c.state.pending)
-          await client.delete((await client.make(c.state.pending.body, c.state.pending.key)).id)
+          await (
+            await client.sandbox({ ...c.state.pending.body, idempotencyKey: c.state.pending.key })
+          ).delete()
         c.state.sandbox = null
         c.state.pending = null
         c.state.generation++

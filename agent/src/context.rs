@@ -22,6 +22,8 @@ pub struct Agent {
     pub key: SigningKey,
     pub public_key: String,
     pub processes: Processes,
+    pub file_tasks: tokio_util::task::TaskTracker,
+    pub shells: crate::shell_state::Shells,
     pub data: DataDir,
     pub ports: Arc<Ports>,
     pub telemetry: Arc<crate::telemetry::Telemetry>,

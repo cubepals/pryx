@@ -6,9 +6,15 @@ import { expect, test } from 'bun:test'
 import { spawnSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { constants } from 'node:os'
-import { Pryx } from '@cubepals/pryx'
 import { sql } from 'drizzle-orm'
 import { StatusCodes } from 'http-status-codes'
+import {
+  type ExecEvent,
+  ndjson,
+  type Sandbox as SandboxView,
+  type Snapshot as SnapshotView,
+  Transport,
+} from '../../sdk/typescript/src/transport.ts'
 import { HOUR_MS, MINUTE_MS, SECOND_MS } from '../src/durations.ts'
 import { decodeHandle } from '../src/handle.ts'
 import { one } from '../src/sql.ts'
@@ -65,26 +71,34 @@ test.skipIf(!enabled)(
     })
     const rule = storeRule(proxy.port ?? 0)
     const d = await deployment({ storeLease: true, nodes: 2, runtimeEndpoint: proxy.url.toString() }),
-      sdk = new Pryx({ baseUrl: d.control.apiUrl, apiKey: d.credential.key })
+      sdk = new Transport({ url: d.control.apiUrl, key: d.credential.key })
     const samples: number[] = []
     const costs: { observedMs: number; requests: number; normalizedPerHour: number }[] = []
     const bucket = new S3LeaseBucket(d.control.config.s3)
     let cut = false
     try {
       for (let index = 0; index < 3; index++) {
-        const made = await sdk.make({
-          image: 'alpine:3.22',
-          resources: { memoryMb: 128 },
-          entrypoint: [
-            'sh',
-            '-c',
-            'trap "exit 0" TERM; echo lease-data > /data/message; while :; do sleep 1; done',
-          ],
-        })
+        const made = await sdk.request<SandboxView>(
+          '/v1/sandboxes',
+          'POST',
+          {
+            image: 'alpine:3.22',
+            resources: { memoryMb: 128 },
+            entrypoint: [
+              'sh',
+              '-c',
+              'trap "exit 0" TERM; echo lease-data > /data/message; while :; do sleep 1; done',
+            ],
+          },
+          crypto.randomUUID(),
+        )
         try {
           const row = await d.control.sandboxes.record(made.id),
             ref = decodeHandle(row.handle as string)
-          const snapshot = await sdk.snapshot(made.id)
+          const snapshot = await sdk.request<SnapshotView>(
+            `/v1/sandboxes/${encodeURIComponent(made.id)}/snapshots`,
+            'POST',
+          )
           await d.control.runtime.upload(snapshot.id)
           const before = requests,
             windowStart = performance.now()
@@ -143,14 +157,23 @@ test.skipIf(!enabled)(
           expect(recovered.epoch).toBeGreaterThan(ref.epoch)
           expect(recovered.node).not.toBe(ref.node)
           expect(
-            await Array.fromAsync(sdk.exec(made.id, { command: ['cat', '/data/message'] })),
+            await Array.fromAsync(
+              ndjson<ExecEvent>(
+                await sdk.raw(
+                  `/v1/sandboxes/${encodeURIComponent(made.id)}/exec`,
+                  'POST',
+                  { command: ['cat', '/data/message'] },
+                  crypto.randomUUID(),
+                ),
+              ),
+            ),
           ).toContainEqual(expect.objectContaining({ type: 'stdout', data: 'lease-data\n' }))
         } finally {
           if (cut) {
             root('iptables', '-D', ...rule)
             cut = false
           }
-          await sdk.delete(made.id)
+          await sdk.request<{ existed: boolean }>(`/v1/sandboxes/${encodeURIComponent(made.id)}`, 'DELETE')
         }
       }
       const sorted = [...samples].sort((a, b) => a - b)
@@ -182,14 +205,19 @@ test.skipIf(!enabled)(
   'a stopped daemon cannot stop its independent lease watchdog',
   async () => {
     const d = await deployment({ storeLease: true }),
-      sdk = new Pryx({ baseUrl: d.control.apiUrl, apiKey: d.credential.key })
+      sdk = new Transport({ url: d.control.apiUrl, key: d.credential.key })
     let pid: string | undefined
     try {
-      const made = await sdk.make({
-        image: 'alpine:3.22',
-        resources: { memoryMb: 128 },
-        entrypoint: ['sh', '-c', 'trap "exit 0" TERM; while :; do sleep 1; done'],
-      })
+      const made = await sdk.request<SandboxView>(
+        '/v1/sandboxes',
+        'POST',
+        {
+          image: 'alpine:3.22',
+          resources: { memoryMb: 128 },
+          entrypoint: ['sh', '-c', 'trap "exit 0" TERM; while :; do sleep 1; done'],
+        },
+        crypto.randomUUID(),
+      )
       const ids = root('docker', 'ps', '-q', '--filter', `label=blocklyd.workload=${made.id}`)
         .split(/\s+/)
         .filter(Boolean)

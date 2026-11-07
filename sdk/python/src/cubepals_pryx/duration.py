@@ -14,11 +14,3 @@ def make_options(options):
         if name in body: body[name] = seconds(body[name])
     if body.get("image") and "entrypoint" not in body: body["entrypoint"] = list(SDK_DEFAULTS["entrypoint"])
     return body
-def run_options(command, options):
-    body = dict(options)
-    if "timeout" in body:
-        body["timeout"] = seconds(body["timeout"])
-        if not float(body["timeout"]).is_integer(): raise ValueError("Exec timeout is a whole number of seconds")
-        body["timeout"] = int(body["timeout"])
-    body["command"] = ["sh", "-c", command] if isinstance(command, str) else command
-    return body

@@ -64,6 +64,27 @@ def unpack(source, destination):
             target.chmod(0o644)
 
 
+def software(lock, item, staged):
+    target = staged / "agentos-core/dist/optional-software" / (item["name"] + ".aospkg")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    url = lock["softwareRegistry"] + lock["version"] + "/software/" + item["path"]
+    digest = hashlib.sha256()
+    count = 0
+    request=urllib.request.Request(url,headers={"User-Agent":"pryx-distribution-fetch"})
+    with urllib.request.urlopen(request, timeout=60) as response, target.open("xb") as output:
+        if not response.url.startswith("https://"):
+            raise ValueError("agentOS software redirect must retain HTTPS")
+        while chunk := response.read(CHUNK_BYTES):
+            count += len(chunk)
+            if count > item["size"] or count > MAX_ARCHIVE_BYTES:
+                raise ValueError("agentOS software exceeds its pinned size")
+            digest.update(chunk)
+            output.write(chunk)
+    if count != item["size"] or "sha256:" + digest.hexdigest() != item["digest"]:
+        raise ValueError("agentOS optional software checksum mismatch")
+    target.chmod(0o644)
+
+
 def stage(output):
     lock = json.loads((REPOSITORY / "deploy/agentos.json").read_text())
     if output.exists() or output.is_symlink():
@@ -84,6 +105,8 @@ def stage(output):
             if hashlib.file_digest(content, "sha256").hexdigest() != lock["binarySha256"]:
                 raise ValueError("agentOS sidecar binary checksum mismatch")
         binary.chmod(0o755)
+        for item in lock.get("optionalPackages", []):
+            software(lock, item, staged)
         licenses = staged / "licenses"
         licenses.mkdir()
         shutil.copyfile(REPOSITORY / "LICENSES/Apache-2.0.txt", licenses / "Apache-2.0.txt")

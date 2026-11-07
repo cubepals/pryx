@@ -23,6 +23,10 @@
 //! - `transfer_target.rs`: public-address validation and pinned transfer DNS.
 //! - `logbook.rs`: bounded persistent entrypoint output.
 //! - `mcp.rs`: optional authenticated sandbox MCP tools and resources.
+//! - `field_process.rs`: bounded readiness waits and process supervision conveniences.
+//! - `shell_state.rs`: persistent shell registry without router dependencies.
+//! - `shells.rs`: serialized persistent pipe shells with exact stream markers.
+//! - `file_search.rs`: confined bounded searches and archive transfers.
 //! - `ports.rs`: preallocated forward slots.
 //! - `main.rs`: PID 1 bootstrap and embedded shell.
 //! - `bootstrap.rs`: entrypoint supervision and termination.
@@ -67,9 +71,19 @@ pub mod telemetry;
 mod transfers;
 
 #[cfg(feature = "server")]
-mod transfer_target;
+pub mod transfer_target;
 
 #[cfg(feature = "server")]
 pub mod process_forward;
 #[cfg(feature = "server")]
 mod process_peer;
+
+#[cfg(feature = "server")]
+pub mod field_process;
+#[cfg(feature = "server")]
+mod file_search;
+#[cfg(feature = "server")]
+pub mod shells;
+
+#[cfg(feature = "server")]
+pub mod shell_state;

@@ -87,6 +87,8 @@ pub(crate) const FEATURES: &[&str] = &[
     "exec-stream",
     "files",
     "cpu-reservation",
+    "workload-options",
+    "workload-metrics",
 ];
 
 impl ProtocolVersions {

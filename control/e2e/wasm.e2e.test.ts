@@ -3,6 +3,7 @@
  * shared K11 suite separately covers both SDKs' complete agent surface on this same backend. */
 import { expect, test } from 'bun:test'
 import { StatusCodes } from 'http-status-codes'
+import { Transport } from '../../sdk/typescript/src/transport.ts'
 import { MINUTE_MS } from '../src/durations.ts'
 import { agentDeployment } from './agent-context.ts'
 import { until } from './waits.ts'
@@ -31,7 +32,7 @@ test(
       expect((await box.run('cat /data/from-api')).stdout).toBe('owned')
       expect((await box.run('printf guest-updated > /data/from-api')).code).toBe(0)
       expect(await box.read('from-api')).toBe('guest-updated')
-      const endpoint = (await c.sdk.api.get(box.id)).endpoints.find((port) => port.name === 'web')
+      const endpoint = (await box.endpoints()).find((port) => port.name === 'web')
       if (!endpoint?.hostname) throw new Error('Declared port has no public address')
       await until('declared wasm HTTP ingress', async () => {
         const response = await c.app(`http://${endpoint.hostname}`)
@@ -40,10 +41,14 @@ test(
       await expect(c.sdk.sandbox({ image: 'alpine:3.22', isolation: 'wasm' })).rejects.toMatchObject({
         status: StatusCodes.UNPROCESSABLE_ENTITY,
       })
-      const template = await c.sdk.api.template({
-        name: 'wasm-prepared',
-        spec: { isolation: 'wasm', packages: ['coreutils'] },
-      })
+      const template = await new Transport({ url: c.d.control.apiUrl, key: c.d.credential.key }).request(
+        '/v1/templates',
+        'POST',
+        {
+          name: 'wasm-prepared',
+          spec: { isolation: 'wasm', packages: ['coreutils'] },
+        },
+      )
       const prepared = template as { id: string; copies: Array<{ ready: boolean }> }
       expect(prepared.copies.some((copy) => copy.ready)).toBe(true)
       const fork = await c.sdk.sandbox({ template: prepared.id })

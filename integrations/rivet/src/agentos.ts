@@ -5,6 +5,7 @@
 
 import type { MakeRequest, Pryx } from '@cubepals/pryx'
 import type { AgentOsSandboxClient, AgentOsSandboxProvider } from '@rivet-dev/agentos-core'
+import { StatusCodes } from 'http-status-codes'
 import { SandboxAgent, type SandboxProvider } from 'sandbox-agent'
 import { SANDBOX_AGENT_PORT, SANDBOX_AGENT_TEMPLATE } from './template.ts'
 
@@ -18,6 +19,14 @@ export function pryxProvider(
     spec?: Omit<MakeRequest, 'image' | 'ports' | 'entrypoint' | 'start'>
   },
 ): SandboxProvider {
+  async function remove(id: string) {
+    try {
+      await (await client.sandbox(id, { wake: false })).delete()
+    } catch (error) {
+      if (!(error instanceof Error && 'status' in error && error.status === StatusCodes.GONE)) throw error
+    }
+  }
+
   if (options.image && options.template) throw new Error('Choose image or template')
   const port = options.agentPort ?? SANDBOX_AGENT_PORT
   return {
@@ -38,19 +47,21 @@ export function pryxProvider(
       return made.id
     },
     async destroy(id) {
-      await client.delete(id)
+      await remove(id)
     },
     async kill(id) {
-      await client.delete(id)
+      await remove(id)
     },
     async pause(id) {
-      await client.action(id, 'sleep')
+      await (await client.sandbox(id, { wake: false })).sleep()
     },
     async reconnect(id) {
-      await client.action(id, 'wake')
+      await (await client.sandbox(id, { wake: false })).wake()
     },
     async getUrl(id) {
-      const endpoint = (await client.endpoints(id)).endpoints.find((p) => p.name === 'agent')
+      const endpoint = (await (await client.sandbox(id, { wake: false })).endpoints()).find(
+        (p) => p.name === 'agent',
+      )
       if (!endpoint) throw new Error('Sandbox has no private agent endpoint')
       const host = endpoint.host.includes(':') ? `[${endpoint.host}]` : endpoint.host
       return `http://${host}:${endpoint.port}`

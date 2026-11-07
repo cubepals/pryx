@@ -23,7 +23,7 @@ test.skipIf(!ready)(
       stdout: 'inherit',
       stderr: 'inherit',
     })
-    const sdk = new Pryx({ baseUrl: d.control.apiUrl, apiKey: d.credential.key })
+    const sdk = new Pryx({ url: d.control.apiUrl, key: d.credential.key })
     const client = createClient<typeof registry>({ endpoint: `http://127.0.0.1:${enginePort}` })
     try {
       await until('Rivet engine health', async () => {
@@ -44,16 +44,19 @@ test.skipIf(!ready)(
       )
       expect((await agent.memory()).notes).toContain('session memory')
       await agent.sleep()
-      await until('sandbox sleeps with actor', async () => (await sdk.get(box.id)).state === 'sleeping')
+      await until(
+        'sandbox sleeps with actor',
+        async () => (await sdk.sandbox(box.id, { wake: false })).state === 'sleeping',
+      )
       expect((await agent.memory()).sandbox).toBe(box.id)
-      expect((await sdk.get(box.id)).state).toBe('running')
+      expect((await sdk.sandbox(box.id, { wake: false })).state).toBe('running')
       const snapshot = await agent.snapshot()
       const fork = await agent.fork(snapshot.id, { start: false }, crypto.randomUUID())
-      await sdk.delete(fork.id)
+      await (await sdk.sandbox(fork.id, { wake: false })).delete()
       await agent.destroyActor()
       await until(
         'actor destruction deletes sandbox',
-        async () => !(await sdk.list()).sandboxes.some((b) => b.id === box.id),
+        async () => !(await sdk.sandboxes()).some((b) => b.id === box.id),
       )
     } catch (error) {
       deploymentDiagnostics(d)
@@ -73,7 +76,7 @@ test.skipIf(!ready)(
   'agentOS external sandbox backend runs a real process',
   async () => {
     const d = await deployment({ allowedImages: ['rivetdev/sandbox-agent:'] })
-    const client = new Pryx({ baseUrl: d.control.apiUrl, apiKey: d.credential.key })
+    const client = new Pryx({ url: d.control.apiUrl, key: d.credential.key })
     try {
       if (!process.env.PRYX_PATCH_AGENTOS) throw new Error('The public agentOS patch must be built first')
       const patched = (await import(process.env.PRYX_PATCH_AGENTOS)) as {

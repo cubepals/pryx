@@ -1,0 +1,157 @@
+{
+  "scope": "Local in-VM Git protocol and guest metadata; no public endpoint contacted",
+  "n": 1,
+  "sourceBase": "455470cdcacc368a2ef50da7733e77a2bf74c7c5",
+  "worktree": "Uncommitted Git metadata and tracing corrections",
+  "diagnosticTimeoutSeconds": 120,
+  "stopStartVerified": true,
+  "snapshotCaseRan": false,
+  "results": {
+    "clone": {
+      "value": {
+        "path": "repo"
+      },
+      "raw": {
+        "stdout": "",
+        "stderr": "Cloning into 'repo'...\nwarning: templates not found in /home/runner/share/git-core/templates\n",
+        "code": 0,
+        "timedOut": false,
+        "killed": false,
+        "durationMs": 48462,
+        "stdoutTruncated": false,
+        "stderrTruncated": false
+      }
+    },
+    "clean": {
+      "value": {
+        "clean": true,
+        "entries": []
+      },
+      "raw": {
+        "stdout": "",
+        "stderr": "",
+        "code": 0,
+        "timedOut": false,
+        "killed": false,
+        "durationMs": 2159,
+        "stdoutTruncated": false,
+        "stderrTruncated": false
+      }
+    },
+    "diff": {
+      "value": {
+        "patch": "diff --git a/added b/added\nnew file mode 100644\nindex 0000000..6b584e8\n--- /dev/null\n+++ b/added\n@@ -0,0 +1 @@\n+content\n\\ No newline at end of file\n"
+      },
+      "raw": {
+        "stdout": "diff --git a/added b/added\nnew file mode 100644\nindex 0000000..6b584e8\n--- /dev/null\n+++ b/added\n@@ -0,0 +1 @@\n+content\n\\ No newline at end of file\n",
+        "stderr": "",
+        "code": 0,
+        "timedOut": false,
+        "killed": false,
+        "durationMs": 1467,
+        "stdoutTruncated": false,
+        "stderrTruncated": false
+      }
+    },
+    "commit": {
+      "value": {
+        "hash": "7ca072f6df7897e3a5b3def5ab70efd944d3a1ab"
+      },
+      "raw": {
+        "stdout": "[field 7ca072f] field commit\n 1 file changed, 1 insertion(+)\n create mode 100644 added\n",
+        "stderr": "",
+        "code": 0,
+        "timedOut": false,
+        "killed": false,
+        "durationMs": 3298,
+        "stdoutTruncated": false,
+        "stderrTruncated": false
+      }
+    },
+    "log": {
+      "value": [
+        {
+          "hash": "7ca072f6df7897e3a5b3def5ab70efd944d3a1ab",
+          "author": {
+            "name": "Field Test",
+            "email": "field@example.test"
+          },
+          "at": "2026-11-07T04:47:09Z",
+          "subject": "field commit"
+        }
+      ],
+      "raw": {
+        "stdout": "7ca072f6df7897e3a5b3def5ab70efd944d3a1ab\u0000Field Test\u0000field@example.test\u00002026-11-07T04:47:09Z\u0000field commit\u0000\n",
+        "stderr": "",
+        "code": 0,
+        "timedOut": false,
+        "killed": false,
+        "durationMs": 1499,
+        "stdoutTruncated": false,
+        "stderrTruncated": false
+      }
+    },
+    "push": {
+      "value": {
+        "pushed": true
+      },
+      "raw": {
+        "stdout": "",
+        "stderr": "remote: fatal: fork failed: Function not implemented        \nTo /tmp/field-local.git\n * [new branch]      field -> field\n",
+        "code": 0,
+        "timedOut": false,
+        "killed": false,
+        "durationMs": 49656,
+        "stdoutTruncated": false,
+        "stderrTruncated": false
+      }
+    },
+    "pull": {
+      "value": {
+        "pulled": true
+      },
+      "raw": {
+        "stdout": "Already up to date.\n",
+        "stderr": "",
+        "code": 0,
+        "timedOut": false,
+        "killed": false,
+        "durationMs": 13856,
+        "stdoutTruncated": false,
+        "stderrTruncated": false
+      }
+    },
+    "final": {
+      "value": {
+        "clean": true,
+        "entries": []
+      },
+      "raw": {
+        "stdout": "",
+        "stderr": "",
+        "code": 0,
+        "timedOut": false,
+        "killed": false,
+        "durationMs": 1879,
+        "stdoutTruncated": false,
+        "stderrTruncated": false
+      }
+    },
+    "restored": {
+      "value": {
+        "clean": true,
+        "entries": []
+      },
+      "raw": {
+        "stdout": "",
+        "stderr": "",
+        "code": 0,
+        "timedOut": false,
+        "killed": false,
+        "durationMs": 13494,
+        "stdoutTruncated": false,
+        "stderrTruncated": false
+      }
+    }
+  }
+}

@@ -37,6 +37,8 @@ interface Call {
 
 /** pryxd as the runtime calls it: one PUT carries any archive here, so nothing goes in parts. */
 export class Nodes {
+  agent?: (id: string) => NonNullable<WorkloadView['agent']>
+  agentToken?: (id: string) => unknown
   readonly calls: Call[] = []
   readonly copies = new Map<string, Copy>()
   readonly #store: MemoryStore
@@ -105,6 +107,7 @@ export class Nodes {
         workload: this.#view(workload, copy),
       }
     }
+    if (method === 'POST' && rest === '/agent-token') return this.agentToken?.(workload)
     if (method === 'GET' && rest === '') return this.#view(workload, copy)
     if (method === 'PUT') {
       const made = {
@@ -177,6 +180,7 @@ export class Nodes {
       throw new NodeRefused(StatusCodes.NOT_FOUND, 'not_found', 'no such workload', null)
     return {
       id: workload,
+      ...(this.agent ? { agent: this.agent(workload) } : {}),
       generation: 1,
       epoch: copy.epoch,
       supersededBy: null,

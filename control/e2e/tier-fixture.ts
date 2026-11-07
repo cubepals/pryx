@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Equivalent software fixtures; all K11 agent assertions and SDK transports remain shared. */
 export function webCommand(): string[] {
-  return process.env.PRYX_TEST_TIER === 'wasm'
+  return ['wasm', 'process'].includes(process.env.PRYX_TEST_TIER ?? 'container')
     ? [
         'node',
         '-e',

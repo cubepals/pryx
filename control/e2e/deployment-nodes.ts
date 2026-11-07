@@ -7,7 +7,7 @@ import type { FleetCa } from '../src/ca.ts'
 import type { loadConfig } from '../src/config.ts'
 import type { startControl } from '../src/main.ts'
 import { createToken } from '../src/registry.ts'
-import { nodeConfigFor, nodePortLow } from './runtime-config.ts'
+import { nodeConfigFor } from './runtime-config.ts'
 import { freePort } from './waits.ts'
 
 export async function spawnNodes(at: {
@@ -15,11 +15,11 @@ export async function spawnNodes(at: {
   dir: string
   bin: string
   options: {
+    egressPolicy?: boolean
     binary?: string
     tier?: import('../src/isolation.ts').Isolation
     nodes?: number
     allowedImages?: string[]
-    agent?: boolean
     storeLease?: boolean
   }
   pems: Awaited<ReturnType<typeof FleetCa.generate>>
@@ -40,7 +40,6 @@ export async function spawnNodes(at: {
       path,
       nodeConfigFor(name)({
         allowedImages: options.allowedImages,
-        agent: options.agent,
         tier: options.tier,
         storeLease: options.storeLease,
         home: nodeDir,
@@ -48,9 +47,18 @@ export async function spawnNodes(at: {
         dir: nodeDir,
         apiPort: await freePort(),
         opsPort: await freePort(),
-        low: nodePortLow(name, index),
+        index,
       }),
     )
+    if (options.egressPolicy) {
+      const args = [bin, 'isolate', '--config', path]
+      const install = Bun.spawn(process.env.PRYXD_SUDO === '1' ? ['sudo', '-n', ...args] : args, {
+        stdout: 'pipe',
+        stderr: 'pipe',
+      })
+      const [code, error] = await Promise.all([install.exited, new Response(install.stderr).text()])
+      if (code !== 0) throw new Error(`Host egress firewall setup failed: ${error}`)
+    }
     const args = [bin, 'serve', '--config', path, '--log-format', 'pretty'],
       log = openSync(join(nodeDir, 'pryxd.log'), 'a')
     const child = Bun.spawn(process.env.PRYXD_SUDO === '1' ? ['sudo', '-n', ...args] : args, {

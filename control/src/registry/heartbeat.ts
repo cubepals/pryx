@@ -305,6 +305,9 @@ async function observe(t: Queryable, node: NodeRow, reported: WorkloadReport[]):
                         (fleet_observations.report->>'changedAt')::timestamptz, true))
         RETURNING workload, (xmax = 0) AS inserted`,
   )
+  await t.execute(
+    sql`INSERT INTO sandbox_metrics(sandbox,at,metrics) SELECT p.workload,date_trunc('minute',now()),r->'metrics' FROM jsonb_array_elements(${jsonb(reported)}) r JOIN fleet_placements p ON p.workload=r->>'id' AND p.node_id=${node.id} AND p.epoch=(r->>'epoch')::bigint WHERE r->'metrics' IS NOT NULL ON CONFLICT(sandbox,at) DO UPDATE SET metrics=EXCLUDED.metrics`,
+  )
   const changed = new Set(written.map((w) => w.workload))
   const withEpochs = reported.filter((r) => r.epoch !== null)
   if (withEpochs.length === 0) return

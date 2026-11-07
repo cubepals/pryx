@@ -8,6 +8,13 @@
 use super::*;
 
 impl Manager {
+    pub(crate) fn cached_metrics(&self, id: &WorkloadId) -> Option<serde_json::Value> {
+        let state = self.state.lock().unwrap();
+        let sample = state.stats.get(id)?;
+        Some(
+            serde_json::json!({"at":sample.measured_at,"cpuCores":sample.cores,"memoryBytes":sample.raw.memory_usage,"memoryWorkingSetBytes":sample.working_set(),"memoryLimitBytes":sample.raw.memory_limit,"networkRxBytes":sample.raw.rx_bytes,"networkTxBytes":sample.raw.tx_bytes,"dataUsedBytes":state.disk.get(id).map(|(bytes,_)|bytes)}),
+        )
+    }
     // ─── observation ───────────────────────────────────────────────────────────────────────
 
     pub async fn stats(self: &Arc<Self>, id: &WorkloadId) -> Result<StatsView, NodeError> {
@@ -58,7 +65,8 @@ impl Manager {
             let (now_ns, then_ns) = (raw.cpu_total_ns?, prev.raw.cpu_total_ns?);
             (dt >= 0.5 && now_ns >= then_ns).then(|| (now_ns - then_ns) as f64 / 1e9 / dt)
         });
-        let sample = StatsSample { at, raw, cores: cores.or(state.stats.get(id).and_then(|p| p.cores)) };
+        let sample =
+            StatsSample { measured_at: now_str(), at, raw, cores: cores.or(state.stats.get(id).and_then(|p| p.cores)) };
         state.stats.insert(id.clone(), sample.clone());
         sample
     }

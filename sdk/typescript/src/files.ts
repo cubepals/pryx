@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
-/** Bounded file chunks over the public exec/tar transport. Archives are read in memory, never extracted on the client filesystem. */
+/** Binary file operations use the sandbox agent while running and persistent node data while compute is stopped. */
 
+import { StatusCodes } from 'http-status-codes'
 import { type Agent, binaryBody } from './agent.ts'
-import type { Sandbox } from './api.ts'
-import { type Pryx, PryxError } from './api.ts'
 import type { components } from './generated/api.ts'
-import { SDK_DEFAULTS } from './generated/defaults.ts'
+import type { Progress } from './local-files.ts'
+import type { Sandbox } from './transport.ts'
+import { PryxError, type Transport } from './transport.ts'
 export type FileData = string | Uint8Array | ReadableStream<Uint8Array> | AsyncIterable<Uint8Array>
 type FileInfo = components['schemas']['FileInfo']
 
@@ -33,193 +34,154 @@ function dataStream(data: FileData): ReadableStream<Uint8Array> {
   })
 }
 
-function archiveData(encoded: string): Uint8Array {
-  const tar = Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0))
-  const text = (start: number, length: number) =>
-    new TextDecoder()
-      .decode(tar.subarray(start, start + length))
-      .replace(/\0.*$/s, '')
-      .trim()
-  const size = Number.parseInt(text(124, 12), 8)
-  const checksum = Number.parseInt(text(148, 8), 8)
-  let sum = 0
-  for (let index = 0; index < 512; index++) sum += index >= 148 && index < 156 ? 32 : (tar[index] ?? 0)
-  if (
-    text(0, 100) !== 'data' ||
-    !['', '0'].includes(text(156, 1)) ||
-    !Number.isSafeInteger(size) ||
-    size < 0 ||
-    size > SDK_DEFAULTS.fileChunkBytes ||
-    tar.length < 512 + size ||
-    sum !== checksum
-  )
-    throw new PryxError(0, 'invalid_archive', 'Invalid file chunk archive')
-  return tar.slice(512, 512 + size)
-}
 export class Files {
-  constructor(
-    private api: Pryx,
-    private id: string,
-    private direct?: { agent: Agent; view: () => Sandbox },
-  ) {}
-  private path(path: string) {
-    return `/v1/sandboxes/${encodeURIComponent(this.id)}/file-chunks/${path.split('/').map(encodeURIComponent).join('/')}`
+  #api: Transport
+  #id: string
+  #direct: { agent: Agent; view: () => Sandbox }
+  constructor(api: Transport, id: string, direct: { agent: Agent; view: () => Sandbox }) {
+    this.#api = api
+    this.#id = id
+    this.#direct = direct
   }
   async write(path: string, data: FileData): Promise<void> {
-    if (this.direct?.view().agent && this.direct.view().state === 'running') {
-      await this.direct.agent.raw(
+    if (this.#direct.view().state === 'running') {
+      await this.#direct.agent.raw(
         `/_pryx/files/content?${new URLSearchParams({ path })}`,
         'PUT',
         typeof data === 'string' || data instanceof Uint8Array ? binaryBody(data) : dataStream(data),
       )
       return
     }
-    if (this.direct?.view().files) {
-      await this.api.transfer(
-        this.nodePath('content', path),
-        'PUT',
-        typeof data === 'string' || data instanceof Uint8Array ? binaryBody(data) : dataStream(data),
-      )
-      return
-    }
-    if (typeof data !== 'string' && !(data instanceof Uint8Array)) {
-      let pending = new Uint8Array(SDK_DEFAULTS.fileChunkBytes),
-        held = 0,
-        offset = 0
-      const flush = async () => {
-        await this.chunk(path, offset, pending.subarray(0, held))
-        offset += held
-        pending = new Uint8Array(SDK_DEFAULTS.fileChunkBytes)
-        held = 0
-      }
-      for await (const bytes of dataStream(data)) {
-        for (let at = 0; at < bytes.length; ) {
-          const n = Math.min(bytes.length - at, pending.length - held)
-          pending.set(bytes.subarray(at, at + n), held)
-          held += n
-          at += n
-          if (held === pending.length) await flush()
-        }
-      }
-      if (held || offset === 0) await flush()
-      return
-    }
-    const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : data
-    for (let offset = 0; offset < bytes.length || offset === 0; offset += SDK_DEFAULTS.fileChunkBytes) {
-      const chunk = bytes.subarray(offset, offset + SDK_DEFAULTS.fileChunkBytes)
-      await this.chunk(path, offset, chunk)
-    }
+    await this.#api.transfer(
+      this.nodePath('content', path),
+      'PUT',
+      typeof data === 'string' || data instanceof Uint8Array ? binaryBody(data) : dataStream(data),
+    )
+    return
   }
   async readBytes(path: string): Promise<Uint8Array> {
-    if ((this.direct?.view().agent && this.direct.view().state === 'running') || this.direct?.view().files)
-      return new Uint8Array(await new Response(await this.readStream(path)).arrayBuffer())
-    const chunks: Uint8Array[] = []
-    let offset = 0
-    while (true) {
-      const response = await this.api.request<{ archiveBase64: string }>(
-        `${this.path(path)}?offset=${offset}`,
-      )
-      const chunk = archiveData(response.archiveBase64)
-      chunks.push(chunk)
-      offset += chunk.length
-      if (chunk.length < SDK_DEFAULTS.fileChunkBytes) break
-    }
-    const result = new Uint8Array(offset)
-    let at = 0
-    for (const chunk of chunks) {
-      result.set(chunk, at)
-      at += chunk.length
-    }
-    return result
+    return new Uint8Array(await new Response(await this.readStream(path)).arrayBuffer())
   }
   async read(path: string) {
     return new TextDecoder().decode(await this.readBytes(path))
   }
   private nodePath(operation: string, path: string) {
-    return `/v1/sandboxes/${encodeURIComponent(this.id)}/data/${operation}?${new URLSearchParams({ path })}`
-  }
-  private chunk(path: string, offset: number, bytes: Uint8Array) {
-    return this.api.request(this.path(path), 'PUT', {
-      offset,
-      dataBase64: btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join('')),
-    })
+    return `/v1/sandboxes/${encodeURIComponent(this.#id)}/data/${operation}?${new URLSearchParams({ path })}`
   }
   async readStream(path: string): Promise<ReadableStream<Uint8Array>> {
-    if (this.direct?.view().agent && this.direct.view().state === 'running') {
-      const response = await this.direct.agent.raw(`/_pryx/files/content?${new URLSearchParams({ path })}`)
+    if (this.#direct.view().state === 'running') {
+      const response = await this.#direct.agent.raw(`/_pryx/files/content?${new URLSearchParams({ path })}`)
       if (!response.body) throw new PryxError(0, 'file_interrupted', 'File response has no body')
       return response.body
     }
-    if (this.direct?.view().files) {
-      const response = await this.api.transfer(this.nodePath('content', path))
+    {
+      const response = await this.#api.transfer(this.nodePath('content', path))
       if (!response.body) throw new PryxError(0, 'file_interrupted', 'File response has no body')
       return response.body
     }
-    let offset = 0
-    return new ReadableStream({
-      pull: async (controller) => {
-        try {
-          const response = await this.api.request<{ archiveBase64: string }>(
-            `${this.path(path)}?offset=${offset}`,
-          )
-          const bytes = archiveData(response.archiveBase64)
-          offset += bytes.length
-          if (bytes.length) controller.enqueue(bytes)
-          if (bytes.length < SDK_DEFAULTS.fileChunkBytes) controller.close()
-        } catch (error) {
-          controller.error(error)
-        }
-      },
-    })
   }
   async list(path = '.') {
-    if (this.direct?.view().agent && this.direct.view().state === 'running')
+    if (this.#direct.view().state === 'running')
       return (
-        await this.direct.agent.request<{ files: FileInfo[] }>(
+        await this.#direct.agent.request<{ files: FileInfo[] }>(
           `/_pryx/files/list?${new URLSearchParams({ path })}`,
         )
       ).files
-    return ((await (await this.api.transfer(this.nodePath('list', path))).json()) as { files: FileInfo[] })
+    return ((await (await this.#api.transfer(this.nodePath('list', path))).json()) as { files: FileInfo[] })
       .files
   }
   async stat(path: string): Promise<FileInfo> {
-    if (this.direct?.view().agent && this.direct.view().state === 'running')
-      return this.direct.agent.request(`/_pryx/files/stat?${new URLSearchParams({ path })}`)
-    return (await this.api.transfer(this.nodePath('stat', path))).json() as Promise<FileInfo>
+    if (this.#direct.view().state === 'running')
+      return this.#direct.agent.request(`/_pryx/files/stat?${new URLSearchParams({ path })}`)
+    return (await this.#api.transfer(this.nodePath('stat', path))).json() as Promise<FileInfo>
   }
   mkdir(path: string) {
-    return this.needAgent().request<void>('/_pryx/files/mkdir', 'POST', { path })
+    return this.#direct.agent.request<void>('/_pryx/files/mkdir', 'POST', { path })
   }
   move(from: string, to: string) {
-    return this.needAgent().request<void>('/_pryx/files/move', 'POST', { from, to })
+    return this.#direct.agent.request<void>('/_pryx/files/move', 'POST', { from, to })
   }
   delete(path: string) {
-    return this.needAgent().request<void>(`/_pryx/files/content?${new URLSearchParams({ path })}`, 'DELETE')
+    return this.#direct.agent.request<void>(`/_pryx/files/content?${new URLSearchParams({ path })}`, 'DELETE')
   }
-  upload(path: string, url: string) {
-    return this.needAgent().request<void>('/_pryx/files/upload', 'POST', { path, url })
+  async exists(path: string) {
+    try {
+      await this.stat(path)
+      return true
+    } catch (error) {
+      if (error instanceof PryxError && error.status === StatusCodes.NOT_FOUND) return false
+      throw error
+    }
   }
-  download(path: string, url: string) {
-    return this.needAgent().request<void>('/_pryx/files/download', 'POST', { path, url })
+  async find(pattern: string) {
+    return (await this.#direct.agent.requestV2<{ paths: string[] }>('/_pryx/files/find', 'POST', { pattern }))
+      .paths
+  }
+  async grep(pattern: string, options: { paths: string[] }) {
+    return (
+      await this.#direct.agent.requestV2<{ matches: { path: string; line: number; text: string }[] }>(
+        '/_pryx/files/grep',
+        'POST',
+        { pattern, ...options },
+      )
+    ).matches
+  }
+  replace(pattern: string, text: string, options: { paths: string[] }) {
+    return this.#direct.agent.requestV2<{ replacements: number }>('/_pryx/files/replace', 'POST', {
+      pattern,
+      text,
+      ...options,
+    })
+  }
+  chmod(path: string, mode: number) {
+    return this.#direct.agent.requestV2<void>('/_pryx/files/chmod', 'POST', { path, mode })
+  }
+  async upload(localPath: string, remote: string, options: { onProgress?: Progress } = {}) {
+    return (await import('./local-files.ts')).upload(this, localPath, remote, options.onProgress)
+  }
+  async download(remote: string, localPath: string, options: { onProgress?: Progress } = {}) {
+    return (await import('./local-files.ts')).download(this, remote, localPath, options.onProgress)
+  }
+  async uploadDir(localDir: string, remote: string, options: { onProgress?: Progress } = {}) {
+    await this.#direct.agent.requireVersion()
+    return (await import('./local-files.ts')).uploadDir(
+      localDir,
+      async (stream) =>
+        this.#direct.agent.raw(
+          `/_pryx/files/archive?${new URLSearchParams({ path: remote })}`,
+          'PUT',
+          dataStream(stream),
+        ),
+      options.onProgress,
+    )
+  }
+  async downloadDir(remote: string, localDir: string, options: { onProgress?: Progress } = {}) {
+    if (this.#direct.view().state !== 'running')
+      return (await import('./local-files.ts')).downloadTree(this, remote, localDir, options.onProgress)
+    await this.#direct.agent.requireVersion()
+    const response = await this.#direct.agent.raw(
+      `/_pryx/files/archive?${new URLSearchParams({ path: remote })}`,
+    )
+    if (!response.body) throw new PryxError(0, 'file_interrupted', 'Archive has no body')
+    return (await import('./local-files.ts')).downloadDir(response.body, localDir, options.onProgress)
+  }
+  async sync(localDir: string, remoteDir: string) {
+    return (await import('./local-files.ts')).sync(this, localDir, remoteDir)
   }
   async url(path: string, method: 'GET' | 'PUT' = 'GET') {
-    const agent = this.needAgent()
+    const agent = this.#direct.agent
     const grant = await agent.request<{ url: string; expiresAt: number }>('/_pryx/files/token', 'POST', {
       path,
       method,
     })
     return { ...grant, url: `${(await agent.token()).url.replace(/\/$/, '')}${grant.url}` }
   }
-  private needAgent() {
-    if (!this.direct?.view().agent) throw new PryxError(0, 'unsupported', 'This sandbox has no agent')
-    return this.direct.agent
-  }
   async *watch(path: string) {
     const pending: unknown[] = []
     let ended = false,
       wake: (() => void) | undefined,
       failure: Error | undefined
-    const socket = await this.needAgent().socket(
+    const socket = await this.#direct.agent.socket(
       `/_pryx/files/watch?${new URLSearchParams({ path })}`,
       (socket) => {
         socket.addEventListener('message', (event) => {

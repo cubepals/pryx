@@ -51,6 +51,12 @@ pub struct WorkloadSpec {
     /// Replaces the image's entrypoint; absent, the image starts as it was built to.
     #[serde(default)]
     pub(crate) entrypoint: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) workdir: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) user: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) egress: Option<EgressPolicy>,
     #[serde(default)]
     pub(crate) env: BTreeMap<String, String>,
     /// Environment the workload needs but nobody else may see.
@@ -225,6 +231,9 @@ impl WorkloadSpec {
             image: self.image.clone(),
             packages: self.packages.clone(),
             entrypoint: self.entrypoint.clone(),
+            workdir: self.workdir.clone(),
+            user: self.user.clone(),
+            egress: self.egress.clone(),
             env: self.env.clone(),
             secret_names: self.secrets.keys().cloned().collect(),
             resources: self.resources.clone(),
@@ -263,6 +272,12 @@ pub struct SpecRecord {
     pub(crate) network: super::NetworkMode,
     pub(crate) image: String,
     pub(crate) entrypoint: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) workdir: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) user: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) egress: Option<EgressPolicy>,
     pub(crate) env: BTreeMap<String, String>,
     pub(crate) secret_names: Vec<String>,
     pub(crate) resources: Resources,
@@ -291,6 +306,9 @@ impl SpecRecord {
             image: self.image.clone(),
             packages: self.packages.clone(),
             entrypoint: self.entrypoint.clone(),
+            workdir: self.workdir.clone(),
+            user: self.user.clone(),
+            egress: self.egress.clone(),
             env: self.env.clone(),
             secrets,
             resources: self.resources.clone(),
@@ -439,4 +457,14 @@ mod tests {
             assert_eq!(spec.digest(), expected);
         }
     }
+}
+
+/// Hostname rules are enforced by the host TCP gateway; deny takes precedence over allow.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct EgressPolicy {
+    pub(crate) allow: Vec<String>,
+    #[serde(default)]
+    pub(crate) deny: Vec<String>,
 }

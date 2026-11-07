@@ -7,7 +7,7 @@
 
 use std::fs::File;
 use std::io;
-use std::os::fd::OwnedFd;
+use std::os::fd::{AsRawFd, OwnedFd};
 use std::path::{Component, Path};
 
 use rustix::fs::{self, AtFlags, Dir, FileType, Mode, OFlags};
@@ -16,6 +16,8 @@ use serde::Serialize;
 const DIRECTORY: OFlags = OFlags::RDONLY.union(OFlags::DIRECTORY).union(OFlags::NOFOLLOW).union(OFlags::CLOEXEC);
 const MAX_COMPONENTS: usize = 128;
 const MAX_LIST: usize = 100_000;
+/// Linux's links to this process's open descriptors, documented by proc_pid_fd(5).
+const DESCRIPTORS: &str = "/proc/self/fd";
 
 pub struct DataDir(OwnedFd, Option<(rustix::process::Uid, rustix::process::Gid)>);
 
@@ -210,6 +212,28 @@ impl DataDir {
         Ok(())
     }
 
+    pub fn chmod(&self, path: &str, mode: u32) -> io::Result<()> {
+        if mode > 0o777 {
+            return Err(io::ErrorKind::InvalidInput.into());
+        }
+        let parts = components(path)?;
+        if parts.is_empty() {
+            fs::fchmod(&self.0, Mode::from_raw_mode(mode))?;
+            return Ok(());
+        }
+        let (parent, name) = self.parent(&parts, false)?;
+        let target = fs::openat(parent, name, OFlags::PATH | OFlags::NOFOLLOW | OFlags::CLOEXEC, Mode::empty())?;
+        if !matches!(FileType::from_raw_mode(fs::fstat(&target)?.st_mode), FileType::RegularFile | FileType::Directory)
+        {
+            return Err(io::ErrorKind::PermissionDenied.into());
+        }
+        // O_PATH needs no read access. Following its proc link addresses the pinned inode,
+        // never a user path that could have been replaced since openat, on older kernels too.
+        let pinned = format!("{DESCRIPTORS}/{}", target.as_raw_fd());
+        fs::chmodat(fs::CWD, pinned.as_str(), Mode::from_raw_mode(mode), AtFlags::empty())?;
+        Ok(())
+    }
+
     pub fn directory_file(&self, path: &str) -> io::Result<File> {
         Ok(File::from(self.directory(&components(path)?, false)?))
     }
@@ -274,5 +298,43 @@ mod tests {
         let data = DataDir::open(dir.path()).unwrap();
         assert!(data.read("fifo").is_err());
         assert!(data.write("fifo").is_err());
+    }
+
+    #[test]
+    fn chmod_restores_unreadable_files_and_directories() {
+        let dir = tempfile::tempdir().unwrap();
+        let data = DataDir::open(dir.path()).unwrap();
+        let file = data.write("file").unwrap();
+        data.mkdir("directory").unwrap();
+        let directory = data.directory_file("directory").unwrap();
+        for (name, descriptor) in [("file", file), ("directory", directory)] {
+            for restricted in [0o000, 0o200] {
+                data.chmod(name, restricted).unwrap();
+                let restored = data.chmod(name, 0o644);
+                let mode = fs::fstat(&descriptor).unwrap().st_mode & 0o777;
+                // Keep failed pre-fix attempts removable without repairing the observed result.
+                fs::fchmod(&descriptor, Mode::from_raw_mode(0o755)).unwrap();
+                restored.unwrap();
+                assert_eq!(mode, 0o644, "{name} after {restricted:o}");
+            }
+        }
+    }
+
+    #[test]
+    fn chmod_refuses_links_and_special_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let target = outside.path().join("file");
+        std::fs::write(&target, b"outside").unwrap();
+        let original = fs::statat(fs::CWD, &target, AtFlags::empty()).unwrap().st_mode;
+        symlink(&target, dir.path().join("link")).unwrap();
+        symlink(outside.path(), dir.path().join("escape")).unwrap();
+        fs::mknodat(fs::CWD, dir.path().join("fifo"), FileType::Fifo, Mode::from_raw_mode(0o600), 0).unwrap();
+        let data = DataDir::open(dir.path()).unwrap();
+        for path in ["link", "escape", "escape/file", "fifo"] {
+            assert!(data.chmod(path, 0o600).is_err(), "{path}");
+        }
+        assert_eq!(fs::statat(fs::CWD, &target, AtFlags::empty()).unwrap().st_mode, original);
+        assert_eq!(std::fs::read(&target).unwrap(), b"outside");
     }
 }

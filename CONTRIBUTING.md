@@ -26,7 +26,8 @@ in CI.
 
 The structure rules are Cubepals' `scripts/check-structure.ts`, run here against
 `structure-baseline.json`; CI's `Structure` step shows how to run it. CI's `contract` job runs
-Cubepals' control plane against your build. The README's "Build and test" has the rest.
+Cubepals' control plane against your build. `bun install --frozen-lockfile` and `bun run check` check every TypeScript workspace;
+`bun run e2e` uses real Docker, Postgres and S3, as detailed in AGENTS.md.
 
 ## How changes land
 
@@ -46,8 +47,7 @@ A change to the protocol only adds within v1 (a new field, a new endpoint, annou
 `features`), so a control plane one release behind keeps working. Regenerate the specs with
 `PRYXD_WRITE_SCHEMA=1 cargo test --lib protocol::schema` and commit `openapi/`.
 
-A release is a pull request that raises `version` in `Cargo.toml`; the README's "Releases" says
-what happens when it merges.
+A release is a pull request that raises `version` in `Cargo.toml`; [AGENTS.md](AGENTS.md#releases) describes publication after it merges.
 
 ## Your contribution's licence
 

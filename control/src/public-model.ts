@@ -39,15 +39,11 @@ export class PublicModel {
     const assigned = await addresses(this.db, id, metadata?.public_ports ?? [], this.domain, this.portRange)
     return {
       ...sandbox,
-      ...(sandbox.agent
-        ? {
-            agent: {
-              url: this.publicOrigin
-                ? `${this.publicOrigin.replace(/\/$/, '')}/sandboxes/${id}`
-                : `https://${id}.${this.domain}`,
-            },
-          }
-        : { agent: undefined }),
+      agent: {
+        url: this.publicOrigin
+          ? `${this.publicOrigin.replace(/\/$/, '')}/sandboxes/${id}`
+          : `https://${id}.${this.domain}`,
+      },
       state: await shownState(this.db, id, sandbox.state),
       endpoints: sandbox.endpoints.map((e) => {
         const p = metadata?.public_ports.find((p) => p.name === e.name)
@@ -79,6 +75,7 @@ export class PublicModel {
     if (body.units !== undefined && body.resources !== undefined)
       throw new SandboxError('invalid_request', 'Choose units or explicit resources')
     let snapshot = body.snapshot
+    let templateStart: string | undefined
     if (body.template) {
       if (
         !(await one(
@@ -87,41 +84,58 @@ export class PublicModel {
         ))
       )
         throw new SandboxError('not_found', 'No such template')
-      const copy = await one<{ snapshot: string }>(
+      const version = await one<{ snapshot: string; start: string | null }>(
         this.db,
-        sql`SELECT c.snapshot FROM template_copies c JOIN templates t ON t.id=c.template WHERE (t.id=${body.template} OR t.name=${body.template}) AND t.project=${project} AND c.snapshot IS NOT NULL ORDER BY c.node LIMIT 1`,
+        sql`SELECT v.snapshot,v.start FROM template_versions v JOIN templates t ON t.id=v.template WHERE (t.id=${body.template} OR t.name=${body.template}) AND t.project=${project} ORDER BY v.version DESC LIMIT 1`,
       )
-      if (!copy) throw new SandboxError('no_room', 'Template has no ready copy')
-      snapshot = copy.snapshot
+      if (version) {
+        snapshot = version.snapshot
+        templateStart = version.start ?? undefined
+      } else {
+        const copy = await one<{ snapshot: string }>(
+          this.db,
+          sql`SELECT c.snapshot FROM template_copies c JOIN templates t ON t.id=c.template WHERE (t.id=${body.template} OR t.name=${body.template}) AND t.project=${project} AND c.snapshot IS NOT NULL ORDER BY c.node LIMIT 1`,
+        )
+        if (!copy) throw new SandboxError('no_room', 'Template has no ready copy')
+        snapshot = copy.snapshot
+      }
     }
+    const templateEntrypoint = templateStart && !body.entrypoint ? ['sh', '-c', templateStart] : undefined
+    if (templateEntrypoint) body = { ...body, entrypoint: templateEntrypoint }
     const source = snapshot ? (await this.boxes.snapshotRecord(snapshot, project)).spec : null
-    if (this.boxes.engine.supportsAgent(body.region) === undefined) await this.boxes.engine.refreshRegistry()
-    const agentAvailable = this.boxes.engine.supportsAgent(body.region)
+    const isolation = body.isolation ?? source?.isolation ?? this.defaultIsolation
+    const storage = body.storage ?? source?.storage ?? { mountPath: '/data', sizeGb: 1 }
     let spec: SandboxSpec = {
       ...(source ?? {}),
       image: body.image ?? source?.image ?? '',
       ...((body.packages ?? source?.packages) === undefined
         ? {}
         : { packages: body.packages ?? source?.packages }),
-      isolation: body.isolation ?? source?.isolation ?? this.defaultIsolation,
+      isolation,
       resources: body.resources ??
         (body.units === undefined ? source?.resources : undefined) ?? {
           memoryMb: this.boxes.projects?.unit.memoryMb ?? UNIT_DEFAULTS.memoryMb,
         },
       units: body.units ?? (body.resources === undefined ? source?.units : undefined),
-      storage: body.storage ?? source?.storage ?? { mountPath: '/data', sizeGb: 1 },
+      storage,
       env: { ...source?.env, ...body.env },
       secrets: { ...source?.secrets, ...body.secrets },
       labels: body.labels,
-      ...(agentAvailable
-        ? {
-            agent: {
-              domain: this.domain,
-              keepAlive: JSON.stringify(body.entrypoint) === JSON.stringify(SDK_DEFAULTS.entrypoint),
-            },
-          }
-        : {}),
-      sparePorts: body.sparePorts ?? (agentAvailable ? SDK_DEFAULTS.sparePorts : 0),
+      name: body.name,
+      metadata: body.metadata,
+      autoDelete: body.autoDelete,
+      // Code-template start uses the same default cwd as agent build commands.
+      workdir:
+        body.workdir ??
+        source?.workdir ??
+        (templateEntrypoint && isolation === 'container' ? storage.mountPath : undefined),
+      user: body.user ?? source?.user,
+      egress: body.egress ?? source?.egress,
+      agent: {
+        domain: this.domain,
+        keepAlive: JSON.stringify(body.entrypoint) === JSON.stringify(SDK_DEFAULTS.entrypoint),
+      },
+      sparePorts: body.sparePorts ?? SDK_DEFAULTS.sparePorts,
       network: body.network,
       ...(body.entrypoint ? { entrypoint: body.entrypoint } : {}),
       ...(body.restart ? { restart: body.restart } : {}),
@@ -149,6 +163,7 @@ export class PublicModel {
       z.object({ packages: z.never({ error: 'packages are available only on the wasm tier' }) }).parse({
         packages: spec.packages,
       })
+    spec = Object.fromEntries(Object.entries(spec).filter(([, value]) => value !== undefined)) as SandboxSpec
     spec = unitSpec(spec, this.boxes.projects?.unit)
     if (spec.isolation !== 'container') {
       for (const field of ['cpuMillis', 'cpuWeight'] as const) {
@@ -160,6 +175,13 @@ export class PublicModel {
           }).parse({ resources: { [field]: spec.resources[field] } })
       }
     }
+    if (body.user && spec.isolation !== 'container')
+      throw new SandboxError('unsupported', `user selection is unavailable on the ${spec.isolation} tier`)
+    if (body.egress && spec.isolation !== 'container')
+      throw new SandboxError(
+        'unsupported',
+        `egress hostname policy is unavailable on the ${spec.isolation} tier`,
+      )
     const id = options.id ?? op.id
     const result = await this.boxes.make(project, spec, {
       id,
@@ -174,7 +196,7 @@ export class PublicModel {
     let view = await this.view(result.id, project)
     // Agent-only routes are new to otherwise synchronous create/fork calls. Wait for the
     // counted edge to acknowledge them before caching a successful creation response.
-    while (spec.agent && view.state === 'starting') {
+    while (view.state === 'starting') {
       await pause(SECOND_MS / 20)
       view = await this.view(result.id, project)
     }
@@ -204,13 +226,13 @@ export class PublicModel {
   async templates(project: string) {
     return rows<{ id: string; name: string; copies: unknown[] }>(
       this.db,
-      sql`SELECT t.id,t.name,COALESCE(jsonb_agg(jsonb_build_object('node',c.node,'ready',c.snapshot IS NOT NULL,'error',c.error)) FILTER(WHERE c.node IS NOT NULL),'[]') AS copies FROM templates t LEFT JOIN template_copies c ON c.template=t.id WHERE t.project=${project} GROUP BY t.id ORDER BY t.created_at`,
+      sql`SELECT t.id,t.name,(SELECT COALESCE(max(v.version),0) FROM template_versions v WHERE v.template=t.id) AS version,COALESCE(jsonb_agg(jsonb_build_object('node',c.node,'ready',c.snapshot IS NOT NULL,'error',c.error)) FILTER(WHERE c.node IS NOT NULL),'[]') AS copies FROM templates t LEFT JOIN template_copies c ON c.template=t.id WHERE t.project=${project} GROUP BY t.id ORDER BY t.created_at`,
     )
   }
   async warmTemplates() {
     const templates = await rows<{ id: string; project: string; spec: Make }>(
       this.db,
-      sql`SELECT t.* FROM templates t JOIN projects p ON p.id=t.project WHERE p.state='active' AND (p.expires_at IS NULL OR p.expires_at>now())`,
+      sql`SELECT t.* FROM templates t JOIN projects p ON p.id=t.project WHERE NOT EXISTS(SELECT 1 FROM template_versions v WHERE v.template=t.id) AND p.state='active' AND (p.expires_at IS NULL OR p.expires_at>now())`,
     )
     const nodes = await rows<{ id: string; region: string; features: string[] }>(
       this.db,

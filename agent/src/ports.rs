@@ -37,6 +37,7 @@ struct Slot {
 }
 
 pub struct Ports {
+    pub(crate) forward: Option<Arc<dyn crate::guest::Forward>>,
     public_origin: std::sync::RwLock<Option<String>>,
     held: Mutex<Vec<Slot>>,
     sandbox: String,
@@ -141,6 +142,7 @@ impl Ports {
             slots.push(Slot { port, target });
         }
         Ok(Arc::new(Self {
+            forward,
             public_origin: std::sync::RwLock::new(None),
             held: Mutex::new(slots),
             sandbox,

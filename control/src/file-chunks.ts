@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
-/** Additive chunk transport inside containers. Each request is bounded, paths stay relative to persistent storage, and no client archive is unpacked on the host. */
+/** Public v1 JSON file envelopes over binary agent data. SDKs use binary streams directly.
+ * Temporary positional-write staging is private control storage; no sandbox shell is involved. */
+
+import { mkdtemp, open, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { z } from 'zod'
-import type { SandboxIO } from './sandbox-io.ts'
+import nodeSchema from '../../openapi/node-writes.openapi.json'
+import type { Agents } from './agents.ts'
 import { SandboxError } from './sandboxes.ts'
 import { SDK_DEFAULTS } from './sdk-defaults.ts'
 
@@ -22,9 +28,15 @@ export const chunkWrite = z
   })
   .strict()
 export class FileChunks {
-  constructor(private io: SandboxIO) {}
-  async transfer(id: string, project: string, path: string, offset: number, data?: string) {
-    const row = await this.io.boxes.record(id, project)
+  constructor(private agents: Agents) {}
+  private async content(
+    id: string,
+    project: string,
+    path: string,
+    requestUrl: string,
+    body: BodyInit | undefined,
+    signal: AbortSignal,
+  ) {
     if (
       !path ||
       path.startsWith('/') ||
@@ -32,36 +44,149 @@ export class FileChunks {
       path.split('/').some((p) => !p || p === '.' || p === '..')
     )
       throw new SandboxError('invalid_request', 'File paths are relative without dot segments')
-    if (data !== undefined && Buffer.from(data, 'base64').length > bytes)
-      throw new SandboxError('invalid_request', 'File chunk exceeds the transfer bound')
-    // All substitutions are inside the sandbox's shell; path and payload are argv, never source.
-    const guard =
-      `base=$(realpath "$1") || exit; rel="$2"; parent="$base"; while [ "\${rel#*/}" != "$rel" ]; do part=\${rel%%/*}; rel=\${rel#*/}; parent="$parent/$part"; [ ! -L "$parent" ] || exit 1; ` +
-      (data === undefined ? '[ -d "$parent" ] || exit 1; ' : 'mkdir -p -- "$parent" || exit; ') +
-      'done; target="$parent/$rel"; [ ! -L "$target" ] || exit 1; '
-    const script =
-      data === undefined
-        ? `${guard} [ -f "$target" ] || exit 1; tmp=$(mktemp -d) || exit; trap 'rm -rf -- "$tmp"' EXIT; dd if="$target" of="$tmp/data" bs=${bytes} skip="$3" count=1 2>/dev/null || exit; tar -C "$tmp" -cf - data | base64`
-        : `${guard} if [ "$3" = 0 ]; then : > "$target" || exit; else [ -f "$target" ] || exit 1; fi; printf %s "$4" | base64 -d | dd of="$target" bs=${bytes} seek="$3" conv=notrunc 2>/dev/null`
-    const result = await this.io.exec(id, project, {
-      command: [
-        'sh',
-        '-c',
-        script,
-        'pryx-chunk',
-        row.spec.storage.mountPath,
+    const row = await this.agents.boxes.record(id, project)
+    if (row.state !== 'running')
+      return this.agents.data(
+        id,
+        project,
+        'content',
+        body === undefined ? 'GET' : 'PUT',
         path,
-        String(offset / bytes),
-        ...(data === undefined ? [] : [data]),
-      ],
-      timeout: 30,
-      env: {},
-    })
-    if (result.exitCode !== 0 || result.stdoutTruncated || result.stderrTruncated)
-      throw new SandboxError(
-        'invalid_request',
-        'File chunk failed; image needs sh, realpath, mkdir, mktemp, dd, tar and base64',
+        signal,
+        body === undefined ? undefined : (new Response(body).body ?? undefined),
       )
-    return data === undefined ? { archiveBase64: result.stdout.replaceAll(/\s/g, '') } : { written: true }
+    const token = await this.agents.token(id, project, requestUrl)
+    const response = await fetch(`${token.url}/_pryx/files/content?${new URLSearchParams({ path })}`, {
+      method: body === undefined ? 'GET' : 'PUT',
+      body,
+      redirect: 'manual',
+      signal,
+      headers: { authorization: `Bearer ${token.token}` },
+    })
+    if (!response.ok) {
+      await response.body?.cancel()
+      throw new SandboxError('invalid_request', 'Agent file request refused')
+    }
+    return response
+  }
+  async file(
+    id: string,
+    project: string,
+    path: string,
+    data: string | undefined,
+    requestUrl: string,
+    signal: AbortSignal,
+  ) {
+    if (data !== undefined) {
+      if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(data))
+        throw new SandboxError('invalid_request', 'File data must be base64')
+      await (
+        await this.content(id, project, path, requestUrl, Buffer.from(data, 'base64'), signal)
+      ).body?.cancel()
+      return { written: true }
+    }
+    const response = await this.content(id, project, path, requestUrl, undefined, signal)
+    const limit = nodeSchema['x-pryx-agent'].maxRequestBytes
+    const reader = response.body?.getReader()
+    const pieces: Uint8Array[] = []
+    let size = 0
+    try {
+      while (reader) {
+        const part = await reader.read()
+        if (part.done) break
+        size += part.value.length
+        if (size > limit)
+          throw new SandboxError(
+            'invalid_request',
+            'Use binary /data/content or file-chunks for files larger than the JSON limit',
+          )
+        pieces.push(part.value)
+      }
+    } finally {
+      await reader?.cancel()
+    }
+    const content = Buffer.concat(pieces, size)
+    return {
+      archiveBase64: Buffer.from(await new Bun.Archive({ [path]: new Uint8Array(content) }).bytes()).toString(
+        'base64',
+      ),
+    }
+  }
+  async transfer(
+    id: string,
+    project: string,
+    path: string,
+    offset: number,
+    data: string | undefined,
+    requestUrl: string,
+    signal: AbortSignal,
+  ) {
+    if (data === undefined) {
+      const response = await this.content(id, project, path, requestUrl, undefined, signal)
+      const reader = response.body?.getReader()
+      let skipped = 0,
+        size = 0
+      const chunks: Uint8Array[] = []
+      try {
+        while (reader && size < bytes) {
+          const part = await reader.read()
+          if (part.done) break
+          const start = Math.max(0, offset - skipped)
+          skipped += part.value.length
+          const chunk = part.value.subarray(start, start + bytes - size)
+          if (chunk.length) {
+            chunks.push(chunk)
+            size += chunk.length
+          }
+        }
+      } finally {
+        await reader?.cancel()
+      }
+      const content = Buffer.concat(chunks, size)
+      return {
+        archiveBase64: Buffer.from(await new Bun.Archive({ data: content }).bytes()).toString('base64'),
+      }
+    }
+    const content = Buffer.from(data, 'base64')
+    if (content.length > bytes)
+      throw new SandboxError('invalid_request', 'File chunk exceeds its transfer bound')
+    // Every chunk write to one path takes its turn, across control instances: a positional write
+    // reads, patches and replaces the whole file, so two at once would lose one of them.
+    await this.agents.boxes.locked(JSON.stringify(['file-chunks', id, path]), () =>
+      this.write(id, project, path, offset, content, requestUrl, signal),
+    )
+    return { written: true }
+  }
+  private async write(
+    id: string,
+    project: string,
+    path: string,
+    offset: number,
+    content: Buffer<ArrayBuffer>,
+    requestUrl: string,
+    signal: AbortSignal,
+  ) {
+    if (offset === 0)
+      await (await this.content(id, project, path, requestUrl, content, signal)).body?.cancel()
+    else {
+      // v1's JSON chunk envelope requires a positional write. Spool bytes to a private control
+      // temp file before replacing the agent file, keeping memory bounded and never using exec.
+      const temporary = await mkdtemp(join(tmpdir(), 'pryx-file-'))
+      const local = join(temporary, 'data')
+      try {
+        await Bun.write(local, await this.content(id, project, path, requestUrl, undefined, signal))
+        const file = await open(local, 'r+')
+        try {
+          await file.write(content, 0, content.length, offset)
+        } finally {
+          await file.close()
+        }
+        await (
+          await this.content(id, project, path, requestUrl, Bun.file(local).stream(), signal)
+        ).body?.cancel()
+      } finally {
+        await rm(temporary, { recursive: true, force: true })
+      }
+    }
   }
 }

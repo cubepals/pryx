@@ -3,11 +3,7 @@
 
 /** Interactive terminals and streamed recursive copies use the public SDK. Local symlinks are
  * refused, and remote directory entries must be single names before joining local paths. */
-import { constants, createReadStream, createWriteStream, openSync } from 'node:fs'
-import { lstat, mkdir, readdir } from 'node:fs/promises'
-import { basename, dirname, join, parse, resolve, sep } from 'node:path'
-import { Readable } from 'node:stream'
-import { pipeline } from 'node:stream/promises'
+import { lstat } from 'node:fs/promises'
 import type { Pryx, Sandbox } from '@cubepals/pryx'
 
 export async function terminal(box: Sandbox) {
@@ -39,76 +35,14 @@ export async function copy(client: Pryx, source: string, destination: string) {
     to = remote.exec(destination)
   if (Boolean(from) === Boolean(to)) throw new Error('cp needs one sandbox:path and one local path')
   const match = (from ?? to) as RegExpExecArray
-  const box = await client.sandbox(match[1] as string)
+  const box = await client.sandbox(match[1] as string, { wake: false })
   const path = match[2] || '.'
-  if (from) await download(box, path, destination)
-  else await upload(box, source, path)
-}
-
-async function upload(box: Sandbox, source: string, destination: string): Promise<void> {
-  source = await localPath(source)
-  const info = await lstat(source)
-  if (info.isSymbolicLink()) throw new Error('cp refuses local symlinks')
-  if (info.isDirectory()) {
-    await box.files.mkdir(destination)
-    for (const entry of await readdir(source))
-      await upload(box, join(source, entry), `${destination}/${entry}`)
-  } else if (info.isFile()) {
-    const input = createReadStream(source, {
-      fd: openSync(source, constants.O_RDONLY | constants.O_NOFOLLOW),
-      autoClose: true,
-    })
-    try {
-      await box.write(destination, input)
-    } finally {
-      input.destroy()
-    }
-  } else throw new Error('cp accepts regular files and directories')
-}
-
-async function download(box: Sandbox, source: string, destination: string): Promise<void> {
-  destination = await localPath(destination)
-  const info = await box.files.stat(source)
-  if (info.kind === 'directory') {
-    await mkdir(destination, { recursive: true })
-    for (const entry of await box.files.list(source)) {
-      if (basename(entry.name) !== entry.name || ['.', '..'].includes(entry.name))
-        throw new Error('Invalid remote filename')
-      await download(box, `${source}/${entry.name}`, join(destination, entry.name))
-    }
-  } else if (info.kind === 'file') {
-    await mkdir(dirname(destination), { recursive: true })
-    const existing = await lstat(destination).catch((error: NodeJS.ErrnoException) => {
-      if (error.code !== 'ENOENT') throw error
-      return null
-    })
-    if (existing?.isSymbolicLink()) throw new Error('cp refuses local symlinks')
-    await pipeline(
-      Readable.from(await box.readStream(source)),
-      createWriteStream(destination, {
-        fd: openSync(
-          destination,
-          constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW,
-          0o600,
-        ),
-        autoClose: true,
-      }),
-    )
-  } else throw new Error('cp accepts regular files and directories')
-}
-
-async function localPath(path: string) {
-  const absolute = resolve(path),
-    root = parse(absolute).root
-  let current = root
-  for (const component of absolute.slice(root.length).split(sep).filter(Boolean)) {
-    current = join(current, component)
-    const info = await lstat(current).catch((error: NodeJS.ErrnoException) => {
-      if (error.code !== 'ENOENT') throw error
-      return null
-    })
-    if (!info) break
-    if (info.isSymbolicLink()) throw new Error('cp refuses local symlinks')
-  }
-  return absolute
+  if (from)
+    await ((await box.files.stat(path)).kind === 'directory'
+      ? box.files.downloadDir(path, destination)
+      : box.files.download(path, destination))
+  else
+    await ((await lstat(source)).isDirectory()
+      ? box.files.uploadDir(source, path)
+      : box.files.upload(source, path))
 }

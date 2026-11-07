@@ -61,6 +61,8 @@ pub(super) async fn start(
     let status = Arc::new(std::sync::atomic::AtomicU8::new(super::VM_RUNNING));
     let guest = Arc::new(super::process::Guest::new(vm.clone(), environment, spec.mount_path.clone(), status.clone()));
     let agent = Arc::new(Agent {
+        file_tasks: Default::default(),
+        shells: Default::default(),
         public_key: key.public_key(),
         key,
         sandbox: boot.sandbox.clone(),
@@ -95,7 +97,7 @@ pub(super) async fn start(
                 Start {
                     command: Command::Argv(argv.clone()),
                     env: Default::default(),
-                    cwd: Some(spec.mount_path.clone()),
+                    cwd: Some(spec.workdir.clone().unwrap_or_else(|| spec.mount_path.clone())),
                     stdin: false,
                     pty: false,
                     cols: None,
@@ -163,6 +165,8 @@ impl Live {
         for server in servers {
             server.shutdown().await?;
         }
+        self.agent.file_tasks.close();
+        self.agent.file_tasks.wait().await;
         let tasks = std::mem::take(&mut *self.tasks.lock().unwrap());
         for task in &tasks {
             task.abort();

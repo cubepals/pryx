@@ -30,7 +30,7 @@ export async function cold(c: Context, tier: Isolation, samples: Samples) {
       samples.idle_pss_bytes?.push(idle)
       samples.idle_increment_pss_bytes?.push(idle - baseline)
       const marker = 'shell-ready'
-      const shell = await box.start(['sh', '-c', `printf ${marker}; read value`], {
+      const shell = await box.spawn(['sh', '-c', `printf ${marker}; read value`], {
         stdin: true,
         timeout: '30s',
       })
@@ -59,12 +59,12 @@ export async function hot(box: Sandbox, samples: Samples) {
   samples.first_byte_echo_ms = []
   for (let i = 0; i < REPETITIONS; i++) {
     const start = performance.now(),
-      run = box.run('echo hi'),
-      stream = run.stream()
+      run = box.stream('echo hi'),
+      stream = run[Symbol.asyncIterator]()
     if (!(await stream.next()).value?.data) throw new Error('Echo emitted no first byte')
     samples.first_byte_echo_ms.push(performance.now() - start)
     while (!(await stream.next()).done) {}
-    const result = await run
+    const result = await run.result()
     if (result.code !== 0 || result.stdout !== 'hi\n' || result.stderr !== '') throw new Error('Echo failed')
   }
   await box.write('sleep-marker', 'persisted')

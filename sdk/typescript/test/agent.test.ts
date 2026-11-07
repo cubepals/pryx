@@ -65,15 +65,15 @@ test('agent run is live, caches its token and keeps the project key off sandbox 
     }) as typeof fetch,
   })
   const box = await client.sandbox({ image: 'scratch' })
-  const run = box.run('printf first', { idempotencyKey: 'run-key', env: { CI: '1' } })
+  const run = box.stream('printf first', { idempotencyKey: 'run-key', env: { CI: '1' } })
   const iterator = run.lines()
   expect(await iterator.next()).toEqual({ done: false, value: 'first' })
   expect(calls.filter((c) => c.path === '/_pryx/processes')).toHaveLength(1)
   finish()
   expect(await iterator.next()).toEqual({ done: false, value: 'last' })
   await iterator.next()
-  expect((await run).code).toBe(0)
-  await box.start(['echo', 'again'])
+  expect((await run.result()).code).toBe(0)
+  await box.spawn(['echo', 'again'])
   expect(calls.filter((c) => c.path.endsWith('/token'))).toHaveLength(1)
   const starts = calls.filter((c) => c.path === '/_pryx/processes')
   expect(starts[0]?.key).toBe('run-key')
@@ -103,6 +103,8 @@ test('agent mutations are sent once and preserve structured refusal', async () =
           epoch: 1,
           publicKey: 'key',
         })
+      if (String(input).includes('/v1/sandboxes/'))
+        return Response.json({ id: 'one', state: 'running', endpoints: [] })
       starts++
       return Response.json(
         { error: { code: 'no_spare_port', message: 'No spare port' } },
@@ -110,7 +112,7 @@ test('agent mutations are sent once and preserve structured refusal', async () =
       )
     }) as typeof fetch,
   })
-  await expect(client.agent('one').expose(3000)).rejects.toBeInstanceOf(PryxError)
+  await expect((await client.sandbox('one')).expose(3000)).rejects.toBeInstanceOf(PryxError)
   expect(starts).toBe(1)
 })
 

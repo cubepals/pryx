@@ -7,5 +7,6 @@ use tokio::net::TcpStream;
 
 #[async_trait]
 pub trait Forward: Send + Sync {
+    async fn probe(&self, port: u16, path: Option<&str>) -> std::io::Result<Option<u16>>;
     async fn serve(&self, stream: TcpStream, port: u16, header: Vec<u8>) -> std::io::Result<()>;
 }

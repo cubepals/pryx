@@ -8,7 +8,7 @@ import time
 import unittest
 from http import HTTPStatus
 import httpx
-from cubepals_pryx import Pryx, AsyncPryx, PryxError
+from cubepals_pryx import Pryx, PryxError
 from cubepals_pryx.generated.defaults import SDK_DEFAULTS
 
 class Peer:
@@ -43,7 +43,10 @@ class DirectSync(unittest.TestCase):
             self.assertEqual(box.run('printf hello',cwd='/data',env={'CI':'1'}).stdout,'héllo\n')
             self.assertEqual(peer.command['command'],'printf hello')
             self.assertEqual(peer.command['cwd'],'/data')
-            self.assertEqual(box.start('true').wait().code,0)
+            process=box.spawn('cat',stdin=True)
+            process.stdin.write(b'input');process.stdin.close()
+            self.assertEqual(process.wait().code,0)
+            self.assertEqual(len([c for c in peer.calls if c[1].endswith('/stdin')]),2)
             box.write('large',iter([b'a'*50_000,b'b'*50_000]))
             self.assertEqual(b''.join(box.read_stream('large')),b'a'*50_000+b'b'*50_000)
             with self.assertRaises(PryxError) as error: box.expose(3000)
@@ -55,16 +58,19 @@ class DirectSync(unittest.TestCase):
             box.stop();box.write('stopped',b'node-data')
             self.assertEqual(box.read_bytes('stopped'),b'node-data')
             self.assertEqual(peer.calls[-1][0],'control.test')
-            box.start();box.run('true').wait()
+            box.start();box.run('true')
             self.assertEqual(len([c for c in peer.calls if c[1].endswith('/token')]),2)
 
 class DirectAsync(unittest.IsolatedAsyncioTestCase):
     async def test_capabilities_streams_and_node_fallback(self):
         peer=Peer()
-        async with AsyncPryx('http://control.test','project-secret',transport=httpx.MockTransport(peer.handle)) as sdk:
+        async with Pryx(url='http://control.test',key='project-secret',transport=httpx.MockTransport(peer.handle)) as sdk:
             box=await sdk.sandbox('one')
             self.assertEqual((await box.run('printf hello',cwd='/data')).stdout,'héllo\n')
-            self.assertEqual((await (await box.start('true')).wait()).code,0)
+            process=await box.spawn('cat',stdin=True)
+            await process.stdin.write(b'input');await process.stdin.close()
+            self.assertEqual((await process.wait()).code,0)
+            self.assertEqual(len([c for c in peer.calls if c[1].endswith('/stdin')]),2)
             async def chunks(): yield b'a'*50_000; yield b'b'*50_000
             await box.write('large',chunks())
             self.assertEqual(b''.join([chunk async for chunk in box.read_stream('large')]),b'a'*50_000+b'b'*50_000)

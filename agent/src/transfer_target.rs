@@ -38,7 +38,7 @@ const SPECIAL_V6: &[(u128, u32)] = &[
     (0x3fff_u128 << 112, 20),
 ];
 
-fn public(ip: IpAddr) -> bool {
+pub fn public_address(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(ip) => {
             !ip.is_loopback()
@@ -53,7 +53,7 @@ fn public(ip: IpAddr) -> bool {
         }
         IpAddr::V6(ip) => {
             if let Some(ip) = ip.to_ipv4() {
-                return public(IpAddr::V4(ip));
+                return public_address(IpAddr::V4(ip));
             }
             let address = u128::from(ip);
             !ip.is_loopback()
@@ -84,7 +84,7 @@ struct Pinned {
 }
 impl Pinned {
     fn new(host: String, addresses: Vec<SocketAddr>) -> Result<Self, Failure> {
-        if addresses.is_empty() || addresses.iter().any(|a| !public(a.ip())) {
+        if addresses.is_empty() || addresses.iter().any(|a| !public_address(a.ip())) {
             return Err(invalid());
         }
         Ok(Self { host, addresses })

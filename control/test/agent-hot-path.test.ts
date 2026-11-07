@@ -53,12 +53,12 @@ test('run, start, terminal, files and expose issue zero control queries after to
       }) as typeof fetch,
     })
     const box = await sdk.sandbox(made.id)
-    await box.agent.token()
+    await box.files.list('.')
     expect(queries).toBeGreaterThan(0)
     queries = 0
     controlCalls = 0
     expect((await box.run('true')).code).toBe(0)
-    const process = await box.start('cat', { stdin: true })
+    const process = await box.spawn('cat', { stdin: true })
     await process.stdin.write('hello\n')
     await process.stdin.close()
     expect((await process.wait()).code).toBe(0)

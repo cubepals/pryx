@@ -26,6 +26,20 @@ impl Manager {
                 problem: "the host has no trusted agent executable".into(),
             }]));
         }
+        if spec.egress.is_some()
+            && (!self.runtime.supports_hostname_egress() || spec.network == crate::protocol::NetworkMode::None)
+        {
+            return Err(NodeError::Invalid(vec![crate::protocol::FieldError {
+                field: "egress".into(),
+                problem: "hostname egress requires an announced container host firewall and network internet".into(),
+            }]));
+        }
+        if spec.user.as_ref().is_some_and(|user| user != &self.config.workloads.user.to_string()) {
+            return Err(NodeError::Invalid(vec![crate::protocol::FieldError {
+                field: "user".into(),
+                problem: "user must match the host workload user policy".into(),
+            }]));
+        }
         if spec.network == crate::protocol::NetworkMode::None && !self.runtime.supports_network_policy() {
             return Err(NodeError::Invalid(vec![FieldError {
                 field: "network".into(),
@@ -202,6 +216,8 @@ impl Manager {
             name: record.container_name.clone(),
             image: spec.image.clone(),
             entrypoint: spec.entrypoint.clone(),
+            workdir: spec.workdir.clone(),
+            egress: spec.egress.clone(),
             env,
             labels,
             user: self.config.workloads.user.to_string(),

@@ -35,6 +35,8 @@ tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
 bytes = "1"
 httpdate = "1.0.3"
+ipnet = "2"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-no-provider", "stream"] }
 
 # TLS: rustls with the ring provider (no C/cmake toolchain beyond cc), mutual authentication.
 rustls = { version = "0.23.45", default-features = false, features = ["ring", "std", "logging", "tls12"] }

@@ -49,6 +49,10 @@ export class FleetUpkeep {
    */
   async upkeep(): Promise<void> {
     const tasks: Array<[string, () => Promise<unknown>]> = [
+      [
+        'metrics retention',
+        () => this.#o.db.execute(sql`DELETE FROM sandbox_metrics WHERE at<now()-interval '1 day'`),
+      ],
       ['health', () => recordHealth(this.#o.db, this.#o.thresholds)],
       ['probe', () => this.probeSilent()],
       ['finish', () => this.finishReported()],

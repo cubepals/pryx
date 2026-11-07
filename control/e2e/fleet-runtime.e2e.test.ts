@@ -31,6 +31,7 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { stripVTControlCharacters } from 'node:util'
 import { sql } from 'drizzle-orm'
 import { StatusCodes } from 'http-status-codes'
 import { FleetStore } from '../src/archive-transport.ts'
@@ -39,7 +40,7 @@ import type { Db } from '../src/database.ts'
 import { MINUTE_MS } from '../src/durations.ts'
 import { decodeHandle } from '../src/handle.ts'
 import { joinToken } from '../src/join-token.ts'
-import { NodeClient } from '../src/node-client.ts'
+import type { NodeClient } from '../src/node-client.ts'
 import { createOperatorApi } from '../src/operator-api.ts'
 import { DEFAULTS } from '../src/placement.ts'
 import { confirmLost, createToken, nodeSummaries, reinstate } from '../src/registry.ts'
@@ -49,8 +50,10 @@ import { runtimeKey } from '../src/runtime-model.ts'
 import { rows } from '../src/sql.ts'
 import { S3ArchiveStore } from '../src/store.ts'
 import { freshDatabase, hasDatabase } from '../test/nodes.ts'
+import { FleetClient } from './fleet-client.ts'
 import { BIN, type Daemon, daemon, SUDO } from './fleet-daemon.ts'
-import { nodeConfigFor } from './runtime-config.ts'
+import { nodeCommand } from './node-command.ts'
+import { nodeConfigFor, nodePortLow, TEST_NODE_PORTS } from './runtime-config.ts'
 import { SUPERVISOR } from './supervisor.ts'
 import { createTestBucket } from './test-bucket.ts'
 import { freePort, until } from './waits.ts'
@@ -138,7 +141,7 @@ describe.skipIf(!ready)('FleetRuntime against a real pryxd', () => {
   const key = runtimeKey('0b6f1f2e-6a47-4c9a-9a39-2f4ac7e51f10')
 
   const exec = async (command: string) =>
-    (await runtime.exec(handle, ['sh', '-c', command], 10)).stdout.trim()
+    (await nodeCommand(runtime, nodes, handle, ['sh', '-c', command], 10)).stdout.trim()
   const containerStarted = () =>
     spawnSync('docker', [
       'inspect',
@@ -162,7 +165,7 @@ describe.skipIf(!ready)('FleetRuntime against a real pryxd', () => {
     endpointUrl = `https://127.0.0.1:${endpointPort}`
     endpoint = await startEndpoint(join(dir, 'ca.pem'), join(dir, 'ca.key'), endpointUrl, database)
     const client = await ca.identity(controlPlaneName(DEPLOYMENT), 'client', 1)
-    nodes = new NodeClient({ caPem: ca.pem, certPem: client.certPem, keyPem: client.keyPem }, DEPLOYMENT)
+    nodes = new FleetClient({ caPem: ca.pem, certPem: client.certPem, keyPem: client.keyPem }, DEPLOYMENT)
     runtime = new FleetRuntime({
       db,
       nodes,
@@ -188,9 +191,8 @@ describe.skipIf(!ready)('FleetRuntime against a real pryxd', () => {
     writeFileSync(join(home, 'token'), token)
     const apiPort = await freePort()
     const opsPort = await freePort()
-    const low = 45_000 + (Number.parseInt(DEPLOYMENT.slice(3), 16) % 90) * 50
     const config = join(home, 'pryxd.toml')
-    writeFileSync(config, nodeConfig({ home, endpointUrl, dir, apiPort, opsPort, low }))
+    writeFileSync(config, nodeConfig({ home, endpointUrl, dir, apiPort, opsPort }))
     node = daemon(home, config, opsPort)
     node.start()
     await until('the node to enroll and beat', async () => {
@@ -202,11 +204,20 @@ describe.skipIf(!ready)('FleetRuntime against a real pryxd', () => {
 
   afterAll(async () => {
     if (!foreignCompleted && node && existsSync(node.log)) {
-      const status = readFileSync(node.log, 'utf8')
+      const status = stripVTControlCharacters(readFileSync(node.log, 'utf8'))
         .split('\n')
         .filter((line) => line.includes('status='))
         .slice(-80)
       console.error(`Fleet node request status at failure:\n${status.join('\n')}`)
+      console.error(
+        'Fleet archive state at failure:',
+        await rows(
+          db,
+          sql`
+        SELECT id, status, attempts, upload_started_at, error
+        FROM fleet_archives ORDER BY captured_at DESC LIMIT 5`,
+        ),
+      )
     }
     node?.kill('KILL')
     const ids = spawnSync('docker', ['ps', '-aq', '--filter', `label=blocklyd.deployment=${DEPLOYMENT}`])
@@ -241,7 +252,9 @@ describe.skipIf(!ready)('FleetRuntime against a real pryxd', () => {
       expect(ref.epoch).toBe(1)
       const endpoint = runtime.endpoint(handle, 'game', 'edge')
       expect(endpoint.host).toBe('127.0.0.1')
-      expect(endpoint.port).toBeGreaterThan(44_999)
+      const low = nodePortLow(DEPLOYMENT, 0)
+      expect(endpoint.port).toBeGreaterThanOrEqual(low)
+      expect(endpoint.port).toBeLessThan(low + TEST_NODE_PORTS)
       await until('a running observation', async () => (await runtime.observe(handle)).state === 'running')
       // Calling it again converges on what is there.
       const again = await runtime.ensureProvisioned(key, { regionKey: 'eu' }, SPEC, progress)
@@ -405,31 +418,40 @@ describe.skipIf(!ready)('FleetRuntime against a real pryxd', () => {
       expect(held.machines[0]?.sandboxes).toBe(1)
       await exec('echo elsewhere > /data/data/moved.txt')
       await runtime.stop(handle)
-      const taken = await runtime.snapshot(handle)
-      console.log('Foreign archive: captured')
-      const archives = archiveStore()
-      const keyName = `moved/${DEPLOYMENT}.tar.gz`
-      await runtime.exportSnapshot(taken.snapshot, await archives.archiveTarget(keyName, 600, 'runtime'))
-      console.log('Foreign archive: exported')
-      const other = runtimeKey(randomUUID())
-      const adopted = await runtime.adopt(other, { regionKey: 'eu' }, SPEC)
-      console.log('Foreign archive: adopted')
-      expect(runtime.owns(adopted)).toBe(true)
-      expect(decodeHandle(adopted).node).toBeNull()
-      expect(await runtime.adopt(other, { regionKey: 'eu' }, SPEC)).toBe(adopted)
-      const download = await archives.presignGet(keyName, 600, 'runtime')
-      const restored = await runtime.restore(adopted, { kind: 'archive', download }, SPEC, progress)
-      console.log('Foreign archive: restored')
-      expect(decodeHandle(restored).node).not.toBeNull()
-      await runtime.start(restored)
-      await runtime.waitRunning(restored, AbortSignal.timeout(MINUTE_MS))
-      console.log('Foreign archive: running')
-      const read = await runtime.exec(restored, ['cat', '/data/data/moved.txt', '/data/data/level.dat'], 30)
-      expect(read.stdout.trim().split('\n')).toEqual(['elsewhere', 'resting'])
-      await runtime.destroy(restored)
-      console.log('Foreign archive: destroyed')
-      await runtime.start(handle)
-      await runtime.waitRunning(handle, AbortSignal.timeout(MINUTE_MS))
+      try {
+        const taken = await runtime.snapshot(handle)
+        console.log('Foreign archive: captured')
+        const archives = archiveStore()
+        const keyName = `moved/${DEPLOYMENT}.tar.gz`
+        await runtime.exportSnapshot(taken.snapshot, await archives.archiveTarget(keyName, 600, 'runtime'))
+        console.log('Foreign archive: exported')
+        const other = runtimeKey(randomUUID())
+        const adopted = await runtime.adopt(other, { regionKey: 'eu' }, SPEC)
+        console.log('Foreign archive: adopted')
+        expect(runtime.owns(adopted)).toBe(true)
+        expect(decodeHandle(adopted).node).toBeNull()
+        expect(await runtime.adopt(other, { regionKey: 'eu' }, SPEC)).toBe(adopted)
+        const download = await archives.presignGet(keyName, 600, 'runtime')
+        const restored = await runtime.restore(adopted, { kind: 'archive', download }, SPEC, progress)
+        console.log('Foreign archive: restored')
+        expect(decodeHandle(restored).node).not.toBeNull()
+        await runtime.start(restored)
+        await runtime.waitRunning(restored, AbortSignal.timeout(MINUTE_MS))
+        console.log('Foreign archive: running')
+        const read = await nodeCommand(
+          runtime,
+          nodes,
+          restored,
+          ['cat', '/data/data/moved.txt', '/data/data/level.dat'],
+          30,
+        )
+        expect(read.stdout.trim().split('\n')).toEqual(['elsewhere', 'resting'])
+        await runtime.destroy(restored)
+        console.log('Foreign archive: destroyed')
+      } finally {
+        await runtime.start(handle)
+        await runtime.waitRunning(handle, AbortSignal.timeout(MINUTE_MS))
+      }
       foreignCompleted = true
     },
     3 * MINUTE_MS,
@@ -680,7 +702,7 @@ describe.skipIf(!ready)('pryxd upgrading itself to the pryxd the node endpoint s
       createdBy: 'e2e',
     })
     writeFileSync(join(dir, 'token'), token)
-    const low = 47_500 + (Number.parseInt(DEPLOYMENT.slice(3), 16) % 90) * 20
+    const low = nodePortLow(DEPLOYMENT, 1)
     writeFileSync(
       config,
       `deployment_id = "${DEPLOYMENT}"\nstate_dir = "${join(dir, 'state')}"\n` +

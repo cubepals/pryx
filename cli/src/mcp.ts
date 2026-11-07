@@ -7,10 +7,10 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { StatusCodes } from 'http-status-codes'
 import { mcpServer } from './mcp-tools.ts'
-import { option, publicClient } from './sandbox.ts'
+import { option, publicClient, publicCredentials } from './sandbox.ts'
 
-export function mcpHttp(client: Pryx, port: number) {
-  const expected = Buffer.from(`Bearer ${client.options.apiKey}`)
+export function mcpHttp(client: Pryx, port: number, key: string) {
+  const expected = Buffer.from(`Bearer ${key}`)
   return Bun.serve({
     hostname: '127.0.0.1',
     port,
@@ -50,7 +50,7 @@ export async function mcp(args: string[]) {
   if (http !== undefined) {
     const port = Number(http)
     if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('--http needs a TCP port')
-    const server = mcpHttp(client, port)
+    const server = mcpHttp(client, port, publicCredentials().key)
     console.error(`pryx MCP listening on http://127.0.0.1:${server.port}/mcp`)
   } else {
     await mcpServer(client).connect(new StdioServerTransport())

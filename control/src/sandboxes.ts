@@ -11,7 +11,7 @@ import { isDeepStrictEqual } from 'node:util'
 import { sql } from 'drizzle-orm'
 import type pg from 'pg'
 import nodeSchema from '../../openapi/node-reads.openapi.json'
-import type { Db, Queryable } from './database.ts'
+import { type Db, type Queryable, UNIQUE_VIOLATION } from './database.ts'
 import { MINUTE_S, SECOND_MS } from './durations.ts'
 import { decodeHandle, decodeSnapshot } from './handle.ts'
 import type { NodeClient } from './node-client.ts'
@@ -35,6 +35,9 @@ export const SESSION_LIVE_SECONDS = 2 * MINUTE_S
 export type SandboxSpec = WorkloadSpec & {
   image: string
   isolation?: import('./isolation.ts').Isolation
+  name?: string
+  metadata?: Record<string, unknown>
+  autoDelete?: boolean
   ttl?: number
   idle?: number
   units?: number
@@ -49,6 +52,13 @@ export type SandboxState =
   | 'restoring'
   | 'failed'
 export interface Sandbox {
+  name?: string
+  labels?: Record<string, string>
+  metadata?: Record<string, unknown>
+  workdir?: string
+  user?: string
+  idle?: number
+  autoDelete?: boolean
   exit?: NonNullable<WorkloadReport['exit']>
   isolation?: import('./isolation.ts').Isolation
   files?: boolean
@@ -99,6 +109,9 @@ export function runtimeSpec(spec: SandboxSpec): RuntimeSpec {
   return {
     image: spec.image,
     packages: spec.packages,
+    ...(spec.workdir ? { workdir: spec.workdir } : {}),
+    ...(spec.user ? { user: spec.user } : {}),
+    ...(spec.egress && spec.network !== 'none' ? { egress: spec.egress } : {}),
     isolation: spec.isolation,
     ...(spec.agent ? { agent: spec.agent } : {}),
     ...(spec.sparePorts === undefined ? {} : { sparePorts: spec.sparePorts }),
@@ -139,20 +152,24 @@ export class Sandboxes {
 
   /** Waiters release their connection between lock attempts, leaving room for nested intent locks. */
   async exclusive<T>(id: string, work: () => Promise<T>): Promise<T> {
+    return this.locked(`sandbox:${id}`, work)
+  }
+
+  /** `work` alone across every control instance among holders of `key`, as `exclusive` holds a sandbox. */
+  async locked<T>(key: string, work: () => Promise<T>): Promise<T> {
     for (;;) {
       const client = await this.locks.connect()
       let held = false
       try {
         const answer = await client.query<{ held: boolean }>(
           'SELECT pg_try_advisory_lock(hashtextextended($1, 0)) AS held',
-          [`sandbox:${id}`],
+          [key],
         )
         held = answer.rows[0]?.held === true
         if (held) return await work()
       } finally {
         try {
-          if (held)
-            await client.query('SELECT pg_advisory_unlock(hashtextextended($1, 0))', [`sandbox:${id}`])
+          if (held) await client.query('SELECT pg_advisory_unlock(hashtextextended($1, 0))', [key])
         } finally {
           client.release()
         }
@@ -161,14 +178,15 @@ export class Sandboxes {
     }
   }
 
-  async record(id: string, project?: string): Promise<SandboxRow> {
+  async record(id: string, project?: string, allowExpired = false): Promise<SandboxRow> {
     const row = await one<SandboxRow>(
       this.db,
       sql`SELECT *, expires_at <= now() AS past_ttl FROM sandboxes WHERE id = ${id}`,
     )
     if (!row || (project !== undefined && row.project !== project))
       throw new SandboxError('not_found', 'No such sandbox')
-    if (row.past_ttl && !row.deleted_at) throw new SandboxError('gone', 'Sandbox TTL elapsed')
+    if (row.past_ttl && !row.deleted_at && !allowExpired)
+      throw new SandboxError('gone', 'Sandbox TTL elapsed')
     if (row.deleted_at)
       throw new SandboxError(
         row.expired ? 'gone' : 'not_found',
@@ -179,12 +197,15 @@ export class Sandboxes {
   async get(id: string, project?: string): Promise<Sandbox> {
     return this.view(await this.record(id, project))
   }
-  async list(project: string): Promise<Sandbox[]> {
+  async list(
+    project: string,
+    filters: { name?: string; labels?: Record<string, string> } = {},
+  ): Promise<Sandbox[]> {
     return Promise.all(
       (
         await rows<SandboxRow>(
           this.db,
-          sql`SELECT * FROM sandboxes WHERE project = ${project} AND NOT internal AND deleted_at IS NULL AND (expires_at IS NULL OR expires_at > now()) ORDER BY created_at`,
+          sql`SELECT * FROM sandboxes WHERE project = ${project} ${filters.name ? sql`AND spec->>'name'=${filters.name}` : sql``} ${filters.labels && Object.keys(filters.labels).length ? sql`AND spec->'labels' @> ${jsonb(filters.labels)}` : sql``} AND NOT internal AND deleted_at IS NULL AND (expires_at IS NULL OR expires_at > now()) ORDER BY created_at`,
         )
       ).map((row) => this.view(row)),
     )
@@ -198,6 +219,13 @@ export class Sandboxes {
         )
       : null
     return {
+      name: row.spec.name,
+      labels: row.spec.labels,
+      metadata: row.spec.metadata,
+      workdir: row.spec.workdir ?? undefined,
+      user: row.spec.user ?? undefined,
+      idle: row.spec.idle,
+      autoDelete: row.spec.autoDelete,
       isolation: row.spec.isolation ?? 'container',
       id: row.id,
       files: row.handle
@@ -259,8 +287,25 @@ export class Sandboxes {
     const id = options.id ?? randomUUID()
     return this.exclusive(id, async () => {
       const insert = async (q: Queryable, prepared: SandboxSpec) => {
-        await q.execute(sql`INSERT INTO sandboxes (id, project, spec, region, expires_at, start_requested, source_snapshot, only_node, internal, public_ports, quota_running)
-        VALUES (${id}, ${project}, ${jsonb(prepared)}, ${options.region ?? 'default'}, CASE WHEN ${prepared.ttl ?? null}::double precision IS NULL THEN NULL ELSE now() + (${prepared.ttl ?? null} * interval '1 second') END, ${options.start !== false}, ${options.snapshot ?? null}, ${options.onlyNode ?? null}, ${options.internal ?? false}, ${jsonb(options.publicPorts ?? [])},${options.start !== false}) ON CONFLICT (id) DO NOTHING`)
+        if (prepared.autoDelete && !prepared.idle)
+          throw new SandboxError('invalid_request', 'autoDelete requires an idle duration')
+        const inserted = await q
+          .execute(sql`INSERT INTO sandboxes (id, project, spec, region, expires_at, start_requested, source_snapshot, only_node, internal, public_ports, quota_running)
+        VALUES (${id}, ${project}, ${jsonb(prepared)}, ${options.region ?? 'default'}, CASE WHEN ${prepared.ttl ?? null}::double precision IS NULL THEN NULL ELSE now() + (${prepared.ttl ?? null} * interval '1 second') END, ${options.start !== false}, ${options.snapshot ?? null}, ${options.onlyNode ?? null}, ${options.internal ?? false}, ${jsonb(options.publicPorts ?? [])},${options.start !== false}) ON CONFLICT (id) DO NOTHING RETURNING id`)
+          .catch((error: unknown) => {
+            const cause = error instanceof Error && error.cause ? error.cause : error
+            if (
+              cause &&
+              typeof cause === 'object' &&
+              'code' in cause &&
+              cause.code === UNIQUE_VIOLATION &&
+              'constraint' in cause &&
+              cause.constraint === 'sandbox_project_name'
+            )
+              throw new SandboxError('name_conflict', 'Sandbox name is already in use')
+            throw error
+          })
+        if (inserted.rowCount) await event(q, 'sandbox.created', { workload: id })
         await options.admit?.(q)
       }
       if (this.projects)
@@ -377,6 +422,8 @@ export class Sandboxes {
         }
         await this.placement?.succeeded(row.region)
         await this.state(id, 'running', true)
+        if (row.state === 'sleeping' || row.state === 'resting')
+          await event(this.db, 'sandbox.woken', { workload: id })
         return {
           sandbox: await this.get(id, row.project),
           tier: restoring
@@ -393,14 +440,16 @@ export class Sandboxes {
       }
     })
   }
-  async stop(id: string, project?: string): Promise<Sandbox> {
+  async stop(id: string, project?: string, allowExpired = false): Promise<Sandbox> {
     return this.exclusive(id, async () => {
-      const row = await this.record(id, project)
+      // Project freeze must stop retained builders even after TTL, without deleting their snapshots.
+      const expired = allowExpired && project === undefined
+      const row = await this.record(id, project, expired)
       if (project !== undefined) await this.projects?.write(row.project)
       if (row.handle && row.state !== 'resting') await this.engine.stop(row.handle)
       await this.projects?.stopped(id)
       await this.state(id, row.state === 'resting' ? 'resting' : 'stopped')
-      return this.get(id, row.project)
+      return this.view(await this.record(id, row.project, expired))
     })
   }
   async sleep(id: string, project?: string): Promise<{ sandbox: Sandbox; tier: 'suspended' | 'stopped' }> {
@@ -412,17 +461,6 @@ export class Sandboxes {
       await this.state(id, row.state === 'resting' ? 'resting' : 'sleeping')
       return { sandbox: await this.get(id, row.project), tier }
     })
-  }
-  async exec(id: string, command: string[], timeout: number, project?: string) {
-    const row = await this.exclusive(id, async () => {
-      const row = await this.record(id, project)
-      await this.projects?.exec(row.project, timeout)
-      if (row.state !== 'running' || !row.handle)
-        throw new SandboxError('not_running', 'Sandbox is not running')
-      await this.touch(id)
-      return row
-    })
-    return this.engine.exec(row.handle as RuntimeHandle, command, timeout)
   }
   async touch(id: string): Promise<void> {
     await this.db.execute(
@@ -495,6 +533,8 @@ export class Sandboxes {
         sql`SELECT sandbox FROM sandbox_snapshots WHERE id = ${snapshot}`,
       )
       if (held?.sandbox !== id) throw new SandboxError('not_found', 'No such snapshot')
+      if (await one(this.db, sql`SELECT 1 FROM template_versions WHERE snapshot=${snapshot}`))
+        throw new SandboxError('forbidden', 'Snapshot is retained by a template version')
       await this.engine.deleteSnapshot(snap.handle)
       await this.db.execute(sql`UPDATE sandbox_snapshots SET deleted_at = now() WHERE id = ${snapshot}`)
       return { existed: true }
@@ -528,26 +568,34 @@ export class Sandboxes {
     })
   }
   async delete(id: string, project?: string, expired = false): Promise<{ existed: boolean }> {
-    return this.exclusive(id, async () => {
-      const row = await one<SandboxRow>(this.db, sql`SELECT * FROM sandboxes WHERE id = ${id}`)
-      if (!row || row.deleted_at || (project !== undefined && row.project !== project))
-        return { existed: false }
-      if (project !== undefined) await this.projects?.write(row.project)
-      await this.engine.destroy(row.handle ?? runtimeKey(id))
-      await this.db.execute(
-        sql`UPDATE sandboxes SET deleted_at = now(), expired = ${expired}, updated_at = now(), spec = spec - 'secrets' WHERE id = ${id}`,
+    return this.exclusive(id, () => this.deleteLocked(id, project, expired))
+  }
+  private async deleteLocked(id: string, project?: string, expired = false): Promise<{ existed: boolean }> {
+    const row = await one<SandboxRow>(this.db, sql`SELECT * FROM sandboxes WHERE id = ${id}`)
+    if (!row || row.deleted_at || (project !== undefined && row.project !== project))
+      return { existed: false }
+    if (project !== undefined) await this.projects?.write(row.project)
+    if (
+      await one(
+        this.db,
+        sql`SELECT 1 FROM template_versions v JOIN sandbox_snapshots s ON s.id=v.snapshot WHERE s.sandbox=${id}`,
       )
-      await this.db.execute(
-        sql`UPDATE sandbox_snapshots SET deleted_at = now(), spec = spec - 'secrets' WHERE sandbox = ${id}`,
-      )
-      await this.db.execute(
-        sql`UPDATE edge_addresses SET retired_at=COALESCE(retired_at,now()) WHERE sandbox=${id}`,
-      )
-      await event(this.db, expired ? 'sandbox.expired' : 'sandbox.deleted', {
-        workload: id,
-      })
-      return { existed: true }
+    )
+      throw new SandboxError('forbidden', 'Sandbox data is retained by a template version')
+    await this.engine.destroy(row.handle ?? runtimeKey(id))
+    await this.db.execute(
+      sql`UPDATE sandboxes SET deleted_at = now(), expired = ${expired}, updated_at = now(), spec = spec - 'secrets' WHERE id = ${id}`,
+    )
+    await this.db.execute(
+      sql`UPDATE sandbox_snapshots SET deleted_at = now(), spec = spec - 'secrets' WHERE sandbox = ${id}`,
+    )
+    await this.db.execute(
+      sql`UPDATE edge_addresses SET retired_at=COALESCE(retired_at,now()) WHERE sandbox=${id}`,
+    )
+    await event(this.db, expired ? 'sandbox.expired' : 'sandbox.deleted', {
+      workload: id,
     })
+    return { existed: true }
   }
   async relocate(id: string): Promise<void> {
     await this.exclusive(id, async () => {
@@ -590,9 +638,15 @@ export class Sandboxes {
               OR to_timestamp(LEAST(COALESCE((o.report->'agent'->>'activityAt')::double precision,0),EXTRACT(EPOCH FROM now()))) + ((b.spec->>'idle')::double precision*interval '1 second')>now()))`,
       )
       if (!idle) return
+      if (idle.spec.autoDelete) {
+        await this.deleteLocked(id)
+        await event(this.db, 'sandbox.idle_deleted', { workload: id })
+        return
+      }
       const tier = idle.handle ? await this.engine.sleep(idle.handle) : 'stopped'
       if (tier === 'stopped') await this.projects?.stopped(id)
       await this.state(id, 'sleeping')
+      await event(this.db, 'sandbox.idle_slept', { workload: id })
     })
   }
   async upkeep(): Promise<void> {
@@ -648,9 +702,15 @@ export class Sandboxes {
       sql`SELECT id FROM sandboxes WHERE expires_at <= now() AND deleted_at IS NULL`,
     )
     for (const row of expired)
-      await this.delete(row.id, undefined, true).catch((error) =>
-        console.error('TTL cleanup failed', row.id, error instanceof Error ? error.name : 'error'),
-      )
+      await this.delete(row.id, undefined, true)
+        .catch(async (error: unknown) => {
+          if (error instanceof SandboxError && error.code === 'forbidden')
+            await this.stop(row.id, undefined, true)
+          else throw error
+        })
+        .catch((error) =>
+          console.error('TTL cleanup failed', row.id, error instanceof Error ? error.name : 'error'),
+        )
     const idle = await rows<{ id: string }>(
       this.db,
       sql`SELECT b.id FROM sandboxes b WHERE b.deleted_at IS NULL AND b.state = 'running' AND b.spec->>'idle' IS NOT NULL AND b.activity_at + ((b.spec->>'idle')::double precision * interval '1 second') < now() AND NOT EXISTS (SELECT 1 FROM sandbox_sessions s WHERE s.sandbox = b.id AND s.seen_at > now() - (${SESSION_LIVE_SECONDS}*interval '1 second'))`,

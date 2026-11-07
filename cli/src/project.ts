@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Operator project commands use the private HTTP API; policy stays in control. */
-import { type Duration, seconds } from '@cubepals/pryx'
+
 import { SECOND_MS } from '../../control/src/durations.ts'
 import { LIMIT_COLUMNS } from '../../control/src/project-model.ts'
+import { type Duration, seconds } from '../../sdk/typescript/src/duration.ts'
 import { option } from './sandbox.ts'
 
 export function projectOptions(args: string[]) {

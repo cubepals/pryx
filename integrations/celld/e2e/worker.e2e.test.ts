@@ -18,7 +18,7 @@ test.skipIf(!ready || !process.env.CELLD_BIN)(
     const d = await deployment(),
       dir = mkdtempSync(`${tmpdir()}/pryx-celld-`),
       port = await freePort()
-    const client = new Pryx({ baseUrl: d.control.apiUrl, apiKey: d.credential.key }),
+    const client = new Pryx({ url: d.control.apiUrl, key: d.credential.key }),
       token = crypto.randomUUID()
     const bridge = containerBridge(client, {
       token,
@@ -54,12 +54,12 @@ test.skipIf(!ready || !process.env.CELLD_BIN)(
         async () => (await (await fetch(url)).text()).includes('celld-on-pryx'),
         2 * MINUTE_MS,
       )
-      const box = (await client.list()).sandboxes[0]
+      const box = (await client.sandboxes())[0]
       if (!box) throw new Error('Worker did not create a sandbox')
       expect((await fetch(`${url}/sleep`)).ok).toBe(true)
-      expect((await client.get(box.id)).state).toBe('sleeping')
+      expect((await client.sandbox(box.id, { wake: false })).state).toBe('sleeping')
       expect(await (await fetch(url)).text()).toContain('celld-on-pryx')
-      expect((await client.get(box.id)).state).toBe('running')
+      expect((await client.sandbox(box.id, { wake: false })).state).toBe('running')
       expect((await fetch(`${url}/delete`)).ok).toBe(true)
     } catch (error) {
       deploymentDiagnostics(d)

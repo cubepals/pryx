@@ -70,7 +70,7 @@ export class Projects {
       this.db,
       sql`SELECT id FROM sandboxes WHERE project=${id} AND deleted_at IS NULL ORDER BY id`,
     ))
-      await this.boxes.stop(box.id).catch(async (error: unknown) => {
+      await this.boxes.stop(box.id, undefined, true).catch(async (error: unknown) => {
         if (error instanceof SandboxError && error.code === 'gone')
           await this.boxes.delete(box.id, undefined, true)
         else throw error
@@ -90,6 +90,10 @@ export class Projects {
   async remove(id: string) {
     return this.boxes.exclusive(`project-lifecycle:${id}`, async () => {
       await this.freezeWork(id)
+      await this.db.execute(
+        sql`DELETE FROM template_versions WHERE template IN (SELECT id FROM templates WHERE project=${id})`,
+      )
+      await this.db.execute(sql`DELETE FROM webhooks WHERE project=${id}`)
       await this.db.execute(sql`UPDATE keys SET revoked_at=COALESCE(revoked_at,now()) WHERE project=${id}`)
       for (const box of await rows<{ id: string }>(
         this.db,

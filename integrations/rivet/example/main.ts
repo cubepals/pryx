@@ -9,7 +9,7 @@ const baseUrl = process.env.PRYX_API_URL,
   apiKey = process.env.PRYX_API_KEY
 if (!baseUrl || !apiKey) throw new Error('Set PRYX_API_URL and PRYX_API_KEY on the actor server')
 export const registry = setup({
-  use: { codingAgent: sandboxActor(new Pryx({ baseUrl, apiKey })) },
+  use: { codingAgent: sandboxActor(new Pryx({ url: baseUrl, key: apiKey })) },
   startEngine: true,
   startServices: false,
   httpHost: '127.0.0.1',

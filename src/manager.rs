@@ -145,6 +145,7 @@ struct Observed {
 
 #[derive(Clone, Debug)]
 struct StatsSample {
+    measured_at: String,
     at: Instant,
     raw: RawStats,
     cores: Option<f64>,
