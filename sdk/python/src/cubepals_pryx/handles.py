@@ -86,13 +86,8 @@ class Sandbox:
             time.sleep(0.1)
         raise PryxError(0,{'error':{'code':'wait_timeout','message':f'Sandbox did not reach {state}'}})
     def events(self,since=None,*,follow=False):
-        import json
-        from ._transport import _checked
         query=urlencode({'stream':'true','follow':str(follow).lower(),**({'since':since} if since else {})})
-        with self._http.http.stream('GET',self._path('/events')+'?'+query) as response:
-            if not response.is_success:response.read();_checked(response)
-            for line in response.iter_lines():
-                if line:yield json.loads(line)
+        yield from self._http.lines(self._path('/events')+'?'+query)
     def logs(self,**options):return self._agent.logs(**options)
 
 class AsyncSnapshot(Snapshot):
@@ -152,10 +147,5 @@ class AsyncSandbox(Sandbox):
             await asyncio.sleep(0.1)
         raise PryxError(0,{'error':{'code':'wait_timeout','message':f'Sandbox did not reach {state}'}})
     async def events(self,since=None,*,follow=False):
-        import json
-        from ._transport import _checked
         query=urlencode({'stream':'true','follow':str(follow).lower(),**({'since':since} if since else {})})
-        async with self._http.http.stream('GET',self._path('/events')+'?'+query) as response:
-            if not response.is_success:await response.aread();_checked(response)
-            async for line in response.aiter_lines():
-                if line:yield json.loads(line)
+        async for event in self._http.lines(self._path('/events')+'?'+query):yield event

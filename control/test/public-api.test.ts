@@ -416,3 +416,37 @@ test('hostname egress refuses tiers without host enforcement', async () => {
     await ctx.close()
   }
 })
+
+test('code-template start uses its data directory unless workdir is explicit', async () => {
+  const ctx = await publicContext()
+  try {
+    await ctx.db.execute(sql`UPDATE fleet_nodes SET features=features || '["workload-options"]'::jsonb`)
+    const source = (await (
+      await ctx.request('/sandboxes', 'POST', {
+        image: 'alpine:3.22',
+        storage: { mountPath: '/workspace', sizeGb: 1 },
+      })
+    ).json()) as { id: string }
+    const snapshot = (await (await ctx.request(`/sandboxes/${source.id}/snapshots`, 'POST')).json()) as {
+      id: string
+    }
+    await new CodeTemplates(ctx.db, ctx.boxes).register('default', 'working-directory', {
+      snapshot: snapshot.id,
+      start: 'printf started > marker',
+      plan: {},
+    })
+    for (const [options, workdir] of [
+      [{}, '/workspace'],
+      [{ workdir: '/workspace/explicit' }, '/workspace/explicit'],
+      [{ entrypoint: ['sh', '-c', 'printf custom'] }, undefined],
+    ] as const) {
+      const response = await ctx.request('/sandboxes', 'POST', { template: 'working-directory', ...options })
+      expect(response.status).toBe(StatusCodes.CREATED)
+      const child = (await response.json()) as { id: string }
+      expect((await ctx.boxes.record(child.id, 'default')).spec.workdir).toBe(workdir)
+      await ctx.request(`/sandboxes/${child.id}`, 'DELETE')
+    }
+  } finally {
+    await ctx.close()
+  }
+})

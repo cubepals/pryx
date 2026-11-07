@@ -19,6 +19,7 @@ class Peer:
         path=request.url.path;method=request.method;body=json.loads(request.content) if request.content and request.headers.get('content-type')=='application/json' else {}
         self.calls.append((path,method,body,request.content))
         if path.startswith('/_pryx/'):assert request.headers['authorization']=='Bearer scoped'
+        if path.startswith('/v1/'):assert request.headers.get('authorization')=='Bearer project-secret'
         def response(value,status=HTTPStatus.OK):return httpx.Response(status,json=value)
         if path.endswith('/token'):return response(dict(url='http://agent.test',token='scoped',expiresAt=9999999999,epoch=1))
         if path=='/_pryx/health':return response(dict(status='ok',apiVersion=self.version))

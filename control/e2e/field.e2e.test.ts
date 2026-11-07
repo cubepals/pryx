@@ -123,6 +123,13 @@ test(
         ['init', '--bare', tier === 'wasm' ? '/tmp/field-local.git' : 'local.git'],
         [
           '-C',
+          tier === 'wasm' ? '/tmp/field-local.git' : 'local.git',
+          'config',
+          'receive.shallowUpdate',
+          'true',
+        ],
+        [
+          '-C',
           'repo',
           'remote',
           'set-url',
@@ -130,6 +137,7 @@ test(
           tier === 'wasm' ? '/tmp/field-local.git' : '../local.git',
         ],
         ['-C', 'repo', 'config', 'push.default', 'current'],
+        ['-C', 'repo', 'config', 'remote.origin.fetch', '+refs/heads/*:refs/remotes/origin/*'],
         ['-C', 'repo', 'config', 'branch.field.remote', 'origin'],
         ['-C', 'repo', 'config', 'branch.field.merge', 'refs/heads/field'],
       ])

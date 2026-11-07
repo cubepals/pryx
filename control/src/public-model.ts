@@ -100,28 +100,35 @@ export class PublicModel {
         snapshot = copy.snapshot
       }
     }
-    if (templateStart && !body.entrypoint) body = { ...body, entrypoint: ['sh', '-c', templateStart] }
+    const templateEntrypoint = templateStart && !body.entrypoint ? ['sh', '-c', templateStart] : undefined
+    if (templateEntrypoint) body = { ...body, entrypoint: templateEntrypoint }
     const source = snapshot ? (await this.boxes.snapshotRecord(snapshot, project)).spec : null
+    const isolation = body.isolation ?? source?.isolation ?? this.defaultIsolation
+    const storage = body.storage ?? source?.storage ?? { mountPath: '/data', sizeGb: 1 }
     let spec: SandboxSpec = {
       ...(source ?? {}),
       image: body.image ?? source?.image ?? '',
       ...((body.packages ?? source?.packages) === undefined
         ? {}
         : { packages: body.packages ?? source?.packages }),
-      isolation: body.isolation ?? source?.isolation ?? this.defaultIsolation,
+      isolation,
       resources: body.resources ??
         (body.units === undefined ? source?.resources : undefined) ?? {
           memoryMb: this.boxes.projects?.unit.memoryMb ?? UNIT_DEFAULTS.memoryMb,
         },
       units: body.units ?? (body.resources === undefined ? source?.units : undefined),
-      storage: body.storage ?? source?.storage ?? { mountPath: '/data', sizeGb: 1 },
+      storage,
       env: { ...source?.env, ...body.env },
       secrets: { ...source?.secrets, ...body.secrets },
       labels: body.labels,
       name: body.name,
       metadata: body.metadata,
       autoDelete: body.autoDelete,
-      workdir: body.workdir ?? source?.workdir,
+      // Code-template start uses the same default cwd as agent build commands.
+      workdir:
+        body.workdir ??
+        source?.workdir ??
+        (templateEntrypoint && isolation === 'container' ? storage.mountPath : undefined),
       user: body.user ?? source?.user,
       egress: body.egress ?? source?.egress,
       agent: {
