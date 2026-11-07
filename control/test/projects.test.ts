@@ -15,6 +15,40 @@ import { rows } from '../src/sql.ts'
 import { publicContext } from './public-context.ts'
 
 describe('projects', () => {
+  for (const source of ['project', 'snapshot', 'template'] as const)
+    test(`auto-delete uses the effective idle duration from ${source}`, async () => {
+      const c = await publicContext(),
+        projects = new Projects(c.boxes.projects as ProjectAdmission, c.boxes)
+      try {
+        let body: object
+        if (source === 'project') {
+          await projects.set('default', { maxIdle: 30 })
+          body = { image: 'alpine:3.22', autoDelete: true }
+        } else {
+          const box = (await (
+            await c.request('/sandboxes', 'POST', { image: 'alpine:3.22', idle: 30 })
+          ).json()) as { id: string }
+          const snapshot = (await (await c.request(`/sandboxes/${box.id}/snapshots`, 'POST')).json()) as {
+            id: string
+          }
+          if (source === 'template')
+            await new CodeTemplates(c.db, c.boxes).register('default', 'idle-template', {
+              snapshot: snapshot.id,
+              plan: {},
+            })
+          body = { [source]: source === 'template' ? 'idle-template' : snapshot.id, autoDelete: true }
+        }
+        const response = await c.request('/sandboxes', 'POST', body)
+        expect(response.status).toBe(StatusCodes.CREATED)
+        const box = (await response.json()) as { id: string }
+        expect((await c.boxes.record(box.id)).spec).toMatchObject({ autoDelete: true, idle: 30 })
+        await projects.set('default', { maxIdle: 10 })
+        const refused = await c.request('/sandboxes', 'POST', { ...body, idle: 30 })
+        expect(refused.status).toBe(StatusCodes.FORBIDDEN)
+      } finally {
+        await c.close()
+      }
+    })
   for (const action of ['freeze', 'remove', 'upkeep', 'ttl'] as const)
     test(`${action} handles expired template builders without losing retained snapshots`, async () => {
       const c = await publicContext(),

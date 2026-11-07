@@ -287,6 +287,8 @@ export class Sandboxes {
     const id = options.id ?? randomUUID()
     return this.exclusive(id, async () => {
       const insert = async (q: Queryable, prepared: SandboxSpec) => {
+        if (prepared.autoDelete && !prepared.idle)
+          throw new SandboxError('invalid_request', 'autoDelete requires an idle duration')
         const inserted = await q
           .execute(sql`INSERT INTO sandboxes (id, project, spec, region, expires_at, start_requested, source_snapshot, only_node, internal, public_ports, quota_running)
         VALUES (${id}, ${project}, ${jsonb(prepared)}, ${options.region ?? 'default'}, CASE WHEN ${prepared.ttl ?? null}::double precision IS NULL THEN NULL ELSE now() + (${prepared.ttl ?? null} * interval '1 second') END, ${options.start !== false}, ${options.snapshot ?? null}, ${options.onlyNode ?? null}, ${options.internal ?? false}, ${jsonb(options.publicPorts ?? [])},${options.start !== false}) ON CONFLICT (id) DO NOTHING RETURNING id`)

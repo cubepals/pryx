@@ -175,8 +175,6 @@ export class PublicModel {
           }).parse({ resources: { [field]: spec.resources[field] } })
       }
     }
-    if (body.autoDelete && !body.idle && !this.boxes.projects?.defaults.maxIdle)
-      throw new SandboxError('invalid_request', 'autoDelete requires an idle duration')
     if (body.user && spec.isolation !== 'container')
       throw new SandboxError('unsupported', `user selection is unavailable on the ${spec.isolation} tier`)
     if (body.egress && spec.isolation !== 'container')
