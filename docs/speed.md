@@ -47,26 +47,42 @@ and elapsed time; those refusal latencies are not successful tool measurements.
 The native deployment suite collects 30 warm-template create-to-first-PNG samples
 for desktop and browser at four default units (one CPU core, 2 GiB). Browser time
 also includes starting its local deterministic page server. CI uploads the raw
-`native-tools-measurements` report and prints p50/p90 in the job summary. The
-post-change deployment measurements are pending that run and are not represented
-by local X11 or standalone Chromium smoke checks.
+`native-tools-measurements` report and prints p50/p90 in the job summary.
+CI run [42461834578](https://github.com/cubepals/pryx/actions/runs/42461834578)
+measured commit `625ec23` through the real control and edge:
 
-## Corrected interpreter deployment cohort
+| Operation | Before K18 | n | K18 p50 ms | K18 p90 ms |
+| --- | --- | --- | --- | --- |
+| Desktop warm create to first PNG | Route unavailable (404) | 30 | 751.7 | 774.9 |
+| Browser warm create to rendered-page PNG | Route unavailable (404) | 30 | 1859.6 | 2000.3 |
 
-CI run [42442495526](https://github.com/cubepals/pryx/actions/runs/42442495526)
-measured commit `fc13ecc` with the documented four units for the loopback sandbox
+[Every native sample](checks/measurements/k18-ci-native-625ec23.json) is retained.
+These are end-to-end observations, not local X11 or standalone Chromium smoke timings.
+The browser samples include page-server startup and rendering. The brief sets no absolute
+native-image latency budget. The same deployment case passes desktop input/noVNC, raw SSH
+wake and revocation, real Mountpoint and rclone read/write, read-only refusal, browser CDP,
+ordinary-command chroot denial, and both SDKs. All
+[111 comparison links](checks/measurements/k18-ci-compare-625ec23.json) resolve.
+[Acceptance provenance](checks/measurements/k18-ci-acceptance-625ec23.json) records the
+source commit, artifact IDs and passing case.
+
+## Interpreter deployment cohort
+
+CI run [42461834578](https://github.com/cubepals/pryx/actions/runs/42461834578)
+measured commit `625ec23` with the documented four units for the loopback sandbox
 as well as the clone cohort. Both execution budgets pass in this report:
 
 | Operation | n | p50 ms | p90 ms |
 | --- | --- | --- | --- |
-| First run after `python()` on a warm-template clone | 30 | 5.9 | 6.5 |
-| Trivial `1+1`, loopback | 30 | 4.7 | 5.2 |
-| PNG chart, loopback | 30 | 135.6 | 139.5 |
-| Restart and ready handshake, loopback | 30 | 1500.5 | 1523.8 |
+| First run after `python()` on a warm-template clone | 30 | 5.8 | 6.2 |
+| Trivial `1+1`, loopback | 30 | 5.1 | 5.7 |
+| PNG chart, loopback | 30 | 156.4 | 162.0 |
+| Restart and ready handshake, loopback | 30 | 1621.3 | 1651.6 |
 
-[Every sample](checks/measurements/k17-ci-interpreter-fc13ecc.json) is retained.
+[Every sample](checks/measurements/k17-ci-interpreter-625ec23.json) is retained.
+The [earlier corrected report](checks/measurements/k17-ci-interpreter-fc13ecc.json)
+also passes and remains available separately.
 The first-run timer starts after `python()` opens the warmed kernel; it does not
 measure sandbox creation. These CI results are separate from the workspace's
 paired before/after measurements above. The earlier single-unit budget failure
 remains recorded; changing the CPU allocation is not presented as a code speedup.
-The overall workflow still needs its native-tool fixes and complete green run.

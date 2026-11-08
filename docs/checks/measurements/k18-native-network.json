@@ -42,7 +42,12 @@
     "proxyStrategy": "not adopted; rootless host and published probe both refused connections and did not establish a rootful path"
   },
   "fix": "Give native fixture deployments explicit distinct ICC-disabled Docker networks and clean their owned bridge after other resources. Production networking and firewall rules stay unchanged. Check fixture HTTP health from the native sandbox before mounting, with no credentials in diagnostics.",
-  "fullAfterCi": "pending",
+  "fullAfterCi": {
+    "run": "https://github.com/cubepals/pryx/actions/runs/42461834578",
+    "commit": "625ec233fcb134a31c65deea77fd348882ceeb87",
+    "nativeCasePassed": true,
+    "artifactId": 13609929224
+  },
   "implementationFiles": [
     "control/e2e/runtime-config.ts",
     "control/e2e/deployment.ts",
