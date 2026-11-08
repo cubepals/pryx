@@ -1,3 +1,3 @@
 <?xml version="1.0"?>
 <!-- SPDX-License-Identifier: FSL-1.1-ALv2 -->
-<JWM><RootMenu onroot="12"><Program label="Shell">/bin/sh</Program></RootMenu><Desktops width="1" height="1"><Background type="solid">#1b2430</Background></Desktops></JWM>
+<JWM><RootMenu onroot="12"><Program label="Shell">urxvt -fn "xft:DejaVu Sans Mono:size=10"</Program></RootMenu><Desktops width="1" height="1"><Background type="solid">#1b2430</Background></Desktops></JWM>

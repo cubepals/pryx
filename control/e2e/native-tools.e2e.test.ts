@@ -57,9 +57,37 @@ test(
       box = await c.sdk.sandbox({ template: 'desktop', units: 2, idle: '10m' })
       await c.route(box.id)
       png(await box.desktop.screenshot())
-      await box.desktop.click(20, 20)
-      await box.desktop.type('hello')
+      const desktopBox = box
+      await desktopBox.spawn(['urxvt', '-fn', 'xft:DejaVu Sans Mono:size=10', '-title', 'pryx-desktop-check'])
+      const window = await until('desktop terminal appears', async () => {
+        const result = await desktopBox.run(['xdotool', 'search', '--name', 'pryx-desktop-check'])
+        return result.code === 0 ? result.stdout.trim().split(/\s+/)[0] : undefined
+      })
+      expect(
+        (
+          await desktopBox.run([
+            'xdotool',
+            'windowmove',
+            window,
+            '100',
+            '100',
+            'windowsize',
+            window,
+            '640',
+            '480',
+            'windowactivate',
+            '--sync',
+            window,
+          ])
+        ).code,
+      ).toBe(0)
+      await box.desktop.click(150, 150)
+      await box.desktop.type('printf desktop-input-ok > /data/desktop-input')
       await box.desktop.key('Return')
+      await until(
+        'desktop input reaches its shell',
+        async () => (await desktopBox.read('desktop-input')) === 'desktop-input-ok',
+      )
       const desktop = await box.desktop(),
         page = new URL(desktop.url)
       expect((await fetch(page)).status).toBe(StatusCodes.OK)
