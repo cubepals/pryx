@@ -245,11 +245,22 @@ pub struct Processes {
     pub data: PathBuf,
     pub secret_env: String,
     backend: Option<Arc<dyn Backend>>,
+    pub(crate) kernels: crate::kernel_slots::KernelSlots,
 }
 
 impl Processes {
     pub fn new(data: PathBuf, secret_env: String) -> Self {
-        Self { held: Mutex::new(HashMap::new()), data, secret_env, backend: None }
+        Self { held: Mutex::new(HashMap::new()), data, secret_env, backend: None, kernels: Default::default() }
+    }
+
+    pub(crate) fn kernel_unsupported_tier(&self) -> Option<&'static str> {
+        if self.backend.is_some() {
+            Some("wasm")
+        } else if std::env::var_os(crate::process_policy::POLICY_ENV).is_some() {
+            Some("process")
+        } else {
+            None
+        }
     }
 
     pub fn get(&self, id: &str) -> Result<Arc<Process>, ProcessError> {

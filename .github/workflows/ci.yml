@@ -511,6 +511,10 @@ jobs:
         run: |
           python3 -m venv .venv-agent-python
           .venv-agent-python/bin/pip install -e sdk/python
+      - name: Build the interpreter templates
+        run: |
+          docker build -t alpine:pryx-python-interpreter templates/python-interpreter
+          docker build -t alpine:pryx-node-interpreter templates/node-interpreter
       - run: bun run e2e
         if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         env:
@@ -518,6 +522,20 @@ jobs:
           PRYX_MCP_CLI: ${{ runner.temp }}/pryx-cli
           PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
           PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
+          PRYX_INTERPRETER_MEASUREMENTS: ${{ runner.temp }}/interpreter-measurements.json
+      - name: Save interpreter measurements
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: interpreter-measurements
+          path: ${{ runner.temp }}/interpreter-measurements.json
+          if-no-files-found: error
+      - name: Summarize interpreter measurements
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/interpreter-measurements.json" ]; then
+            jq '.summary' "$RUNNER_TEMP/interpreter-measurements.json" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
 
       - name: K11 agent suite on the wasm tier

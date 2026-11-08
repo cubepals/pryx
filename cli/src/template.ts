@@ -4,6 +4,7 @@
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { SANDBOX_AGENT_TEMPLATE, sandboxAgentTemplate } from '../../integrations/rivet/src/template.ts'
+import { builtinTemplate } from './builtin-template.ts'
 import { option, publicClient, publicTransport } from './sandbox.ts'
 
 export async function template(args: string[]) {
@@ -14,6 +15,8 @@ export async function template(args: string[]) {
     return publicClient().template(module.default)
   }
   if (args[0] === 'ls') return publicTransport().request('/v1/templates')
+  const builtin = builtinTemplate(args[1] ?? '', option(args, '--image'))
+  if (args[0] === 'create' && builtin) return publicClient().template(builtin)
   if (args[0] !== 'create' || args[1] !== SANDBOX_AGENT_TEMPLATE)
     throw new Error('usage: pryx template create sandbox-agent [--image reference] | template ls')
   const result = await publicTransport().request<{ id: string; copies: { ready: boolean }[] }>(

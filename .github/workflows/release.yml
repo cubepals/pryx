@@ -147,6 +147,13 @@ jobs:
           docker push -q "$TEMPLATE_IMAGE:$version"
           digest=$(docker inspect --format '{{index .RepoDigests 0}}' "$TEMPLATE_IMAGE:$version" | cut -d@ -f2)
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
+      - name: Build and publish the interpreter templates
+        run: |
+          for template in python-interpreter node-interpreter; do
+            image="ghcr.io/cubepals/pryx-$template:$version"
+            docker build -t "$image" "templates/$template"
+            docker push -q "$image"
+          done
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-name: ${{ env.TEMPLATE_IMAGE }}

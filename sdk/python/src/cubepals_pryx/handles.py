@@ -6,6 +6,7 @@ from .git import Git,AsyncGit
 from .shell import Shell,AsyncShell
 from .duration import seconds
 from .agent import Agent
+from .kernels import Kernel, AsyncKernel
 from .async_agent import AsyncAgent
 from .duration import make_options
 from .files import Files, AsyncFiles
@@ -31,6 +32,12 @@ class Sandbox:
         self.files=Files(http,self.id,self._agent,lambda:self._view)
     @property
     def id(self):return self._view.id
+    def python(self, *, context=''): return Kernel.open(self._agent, 'python', context)
+    def javascript(self, *, context=''): return Kernel.open(self._agent, 'javascript', context)
+    def kernels(self):
+        from .generated.kernels import KERNEL_DEFAULTS
+        self._agent.require_kernels(KERNEL_DEFAULTS['version'])
+        return self._agent.request('/_pryx/kernels')['kernels']
     @property
     def state(self):return self._view.state
     @property
@@ -104,6 +111,12 @@ class AsyncSandbox(Sandbox):
         self.files=AsyncFiles(http,self.id,self._agent,lambda:self._view)
     async def refresh(self):self._view=SandboxView.from_dict(await self._http.request(self._path()));self._agent.invalidate();return self
     async def spawn(self,command,**options):return await self._agent.start(command,**self._command_options(options))
+    async def python(self, *, context=''): return await AsyncKernel.open(self._agent, 'python', context)
+    async def javascript(self, *, context=''): return await AsyncKernel.open(self._agent, 'javascript', context)
+    async def kernels(self):
+        from .generated.kernels import KERNEL_DEFAULTS
+        await self._agent.require_kernels(KERNEL_DEFAULTS['version'])
+        return (await self._agent.request('/_pryx/kernels'))['kernels']
     def run(self,command,**options):return AsyncCommandStream(self.spawn(command,**{'timeout':SDK_DEFAULTS['runTimeoutSeconds'],**options}),False)._task
     def stream(self,command,**options):return AsyncCommandStream(self.spawn(command,**{'timeout':SDK_DEFAULTS['runTimeoutSeconds'],**options}))
     async def write(self,path,data):return await self.files.write(path,data)

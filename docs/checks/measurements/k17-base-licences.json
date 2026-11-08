@@ -1,0 +1,2661 @@
+{
+  "python": {
+    "image": "mirror.gcr.io/library/python:3.12.14-slim-bookworm",
+    "digests": [
+      "mirror.gcr.io/library/python@sha256:392307d22300de8b5986851a12d9176dfc0fc073e65bf6523ebd7dcbeb23564e"
+    ],
+    "packages": [
+      {
+        "Package": "adduser",
+        "Version": "3.134",
+        "licences": [
+          "GPL-2+"
+        ],
+        "copyrightFile": "/usr/share/doc/adduser/copyright",
+        "sourceUrl": "https://sources.debian.org/src/adduser/3.134/"
+      },
+      {
+        "Package": "apt",
+        "Version": "2.6.1",
+        "licences": [
+          "BSD-3-clause",
+          "Expat",
+          "GPL-2",
+          "GPL-2+"
+        ],
+        "copyrightFile": "/usr/share/doc/apt/copyright",
+        "sourceUrl": "https://sources.debian.org/src/apt/2.6.1/"
+      },
+      {
+        "Package": "base-files",
+        "Version": "12.4+deb12u15",
+        "licences": [
+          "GPL-2.0-or-later; included common licence texts retain their own terms"
+        ],
+        "copyrightFile": "/usr/share/doc/base-files/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/base-files/12.4%2Bdeb12u15/"
+      },
+      {
+        "Package": "base-passwd",
+        "Version": "3.6.1",
+        "licences": [
+          "GPL-2",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/base-passwd/copyright",
+        "sourceUrl": "https://sources.debian.org/src/base-passwd/3.6.1/"
+      },
+      {
+        "Package": "bash",
+        "Version": "5.2.15-2+b13",
+        "licences": [
+          "BSD-4-clause-UC",
+          "BSD-4-clause-UC and MIT-like",
+          "GFDL-NIV-1.3",
+          "GPL-2+",
+          "GPL-3+",
+          "GPL-3+ with Bison exception",
+          "Latex2e",
+          "MIT-like",
+          "permissive"
+        ],
+        "copyrightFile": "/usr/share/doc/bash/copyright",
+        "sourceUrl": "https://sources.debian.org/src/bash/5.2.15-2/"
+      },
+      {
+        "Package": "bsdutils",
+        "Version": "1:2.38.1-5+deb12u3",
+        "licences": [
+          "BSD-3-clause",
+          "BSD-4-clause",
+          "BSLA",
+          "GPL-2",
+          "GPL-2+",
+          "GPL-3+",
+          "LGPL",
+          "LGPL-2+",
+          "LGPL-2.1+",
+          "LGPL-3+",
+          "MIT",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/bsdutils/copyright",
+        "sourceUrl": "https://sources.debian.org/src/util-linux/2.38.1-5%2Bdeb12u3/"
+      },
+      {
+        "Package": "ca-certificates",
+        "Version": "20250419~deb12u1",
+        "licences": [
+          "GPL-2+",
+          "MPL-2.0"
+        ],
+        "copyrightFile": "/usr/share/doc/ca-certificates/copyright",
+        "sourceUrl": "https://sources.debian.org/src/ca-certificates/20250419~deb12u1/"
+      },
+      {
+        "Package": "coreutils",
+        "Version": "9.1-1",
+        "licences": [
+          "BSD-4-clause-UC",
+          "FSFULLR",
+          "GFDL-NIV-1.3",
+          "GPL-3+",
+          "GPL-3+ and BSD-4-clause-UC",
+          "GPL-3+ and ISC",
+          "ISC"
+        ],
+        "copyrightFile": "/usr/share/doc/coreutils/copyright",
+        "sourceUrl": "https://sources.debian.org/src/coreutils/9.1-1/"
+      },
+      {
+        "Package": "dash",
+        "Version": "0.5.12-2",
+        "licences": [
+          "BSD-3-Clause",
+          "BSD-3-clause",
+          "GPL-2+",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/dash/copyright",
+        "sourceUrl": "https://sources.debian.org/src/dash/0.5.12-2/"
+      },
+      {
+        "Package": "debconf",
+        "Version": "1.5.82",
+        "licences": [
+          "BSD-2-clause"
+        ],
+        "copyrightFile": "/usr/share/doc/debconf/copyright",
+        "sourceUrl": "https://sources.debian.org/src/debconf/1.5.82/"
+      },
+      {
+        "Package": "debian-archive-keyring",
+        "Version": "2023.3+deb12u2",
+        "licences": [
+          "Public-domain keys; GPL-2.0-or-later Debian support files"
+        ],
+        "copyrightFile": "/usr/share/doc/debian-archive-keyring/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/debian-archive-keyring/2023.3%2Bdeb12u2/"
+      },
+      {
+        "Package": "debianutils",
+        "Version": "5.7-0.5~deb12u1",
+        "licences": [
+          "GPL-2+",
+          "SMAIL-GPL",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/debianutils/copyright",
+        "sourceUrl": "https://sources.debian.org/src/debianutils/5.7-0.5~deb12u1/"
+      },
+      {
+        "Package": "diffutils",
+        "Version": "1:3.8-4",
+        "licences": [
+          "FSFAP",
+          "FSFULLR",
+          "GFDL-NIV-1.3",
+          "GPL-2+",
+          "GPL-3+",
+          "GPL-3+ and FSFULLR",
+          "GPL-3+ with autoconf exception",
+          "GPL-3+ with texinfo exception",
+          "LGPL-2.0+",
+          "LGPL-2.1+",
+          "LGPL-3.0+",
+          "LGPL-3.0+ or GPL-2+",
+          "X11",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/diffutils/copyright",
+        "sourceUrl": "https://sources.debian.org/src/diffutils/1%3A3.8-4/"
+      },
+      {
+        "Package": "dpkg",
+        "Version": "1.21.23",
+        "licences": [
+          "BSD-2-clause",
+          "GPL-2",
+          "GPL-2+",
+          "public-domain-s-s-d"
+        ],
+        "copyrightFile": "/usr/share/doc/dpkg/copyright",
+        "sourceUrl": "https://sources.debian.org/src/dpkg/1.21.23/"
+      },
+      {
+        "Package": "e2fsprogs",
+        "Version": "1.47.0-2+b2",
+        "licences": [
+          "Apache-2",
+          "BSD-3-Clause",
+          "GPL or MIT-US-export",
+          "GPL-2",
+          "GPL-2+ with Texinfo exception",
+          "ISC",
+          "Kazlib",
+          "LGPL-2",
+          "Latex2e"
+        ],
+        "copyrightFile": "/usr/share/doc/e2fsprogs/copyright",
+        "sourceUrl": "https://sources.debian.org/src/e2fsprogs/1.47.0-2/"
+      },
+      {
+        "Package": "findutils",
+        "Version": "4.9.0-4",
+        "licences": [
+          "BSD-3-clause",
+          "BSD-3-clause and/or GPL-3+",
+          "FSFAP",
+          "FSFULLR",
+          "GFDL-NIV-1.3+",
+          "GPL with automake exception",
+          "GPL-2+",
+          "GPL-2+ with Autoconf-data exception",
+          "GPL-3+",
+          "GPL-3+ with Autoconf-data exception",
+          "GPL-3+ with Bison-2.2 exception",
+          "ISC",
+          "ISC and/or LGPL-2.1+",
+          "LGPL-2+",
+          "LGPL-2.1+",
+          "LGPL-3",
+          "LGPL-3+",
+          "X11",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/findutils/copyright",
+        "sourceUrl": "https://sources.debian.org/src/findutils/4.9.0-4/"
+      },
+      {
+        "Package": "gcc-12-base",
+        "Version": "12.2.0-14+deb12u1",
+        "licences": [
+          "GPL-3.0-or-later; GCC runtime exception 3.1 for runtime libraries; per-file permissive notices retained"
+        ],
+        "copyrightFile": "/usr/share/doc/gcc-12-base/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/gcc-12/12.2.0-14%2Bdeb12u1/"
+      },
+      {
+        "Package": "gpgv",
+        "Version": "2.2.40-1.1+deb12u2",
+        "licences": [
+          "BSD-3-clause",
+          "CC0-1.0",
+          "Expat",
+          "GPL-3+",
+          "GPL-3+ or BSD-3-clause",
+          "LGPL-2.1+",
+          "LGPL-3+",
+          "RFC-Reference",
+          "TinySCHEME",
+          "permissive"
+        ],
+        "copyrightFile": "/usr/share/doc/gpgv/copyright",
+        "sourceUrl": "https://sources.debian.org/src/gnupg2/2.2.40-1.1%2Bdeb12u2/"
+      },
+      {
+        "Package": "grep",
+        "Version": "3.8-5",
+        "licences": [
+          "GPL-3+"
+        ],
+        "copyrightFile": "/usr/share/doc/grep/copyright",
+        "sourceUrl": "https://sources.debian.org/src/grep/3.8-5/"
+      },
+      {
+        "Package": "gzip",
+        "Version": "1.12-1",
+        "licences": [
+          "FSF-manpages",
+          "GFDL-1.3+-no-invariant",
+          "GPL-3+"
+        ],
+        "copyrightFile": "/usr/share/doc/gzip/copyright",
+        "sourceUrl": "https://sources.debian.org/src/gzip/1.12-1/"
+      },
+      {
+        "Package": "hostname",
+        "Version": "3.23+nmu1",
+        "licences": [
+          "GPL-2"
+        ],
+        "copyrightFile": "/usr/share/doc/hostname/copyright",
+        "sourceUrl": "https://sources.debian.org/src/hostname/3.23%2Bnmu1/"
+      },
+      {
+        "Package": "init-system-helpers",
+        "Version": "1.65.2+deb12u1",
+        "licences": [
+          "BSD-3-clause",
+          "GPL-2+"
+        ],
+        "copyrightFile": "/usr/share/doc/init-system-helpers/copyright",
+        "sourceUrl": "https://sources.debian.org/src/init-system-helpers/1.65.2%2Bdeb12u1/"
+      },
+      {
+        "Package": "libacl1",
+        "Version": "2.3.1-3",
+        "licences": [
+          "GPL-2+",
+          "LGPL-2+"
+        ],
+        "copyrightFile": "/usr/share/doc/libacl1/copyright",
+        "sourceUrl": "https://sources.debian.org/src/acl/2.3.1-3/"
+      },
+      {
+        "Package": "libapt-pkg6.0",
+        "Version": "2.6.1",
+        "licences": [
+          "BSD-3-clause",
+          "Expat",
+          "GPL-2",
+          "GPL-2+"
+        ],
+        "copyrightFile": "/usr/share/doc/libapt-pkg6.0/copyright",
+        "sourceUrl": "https://sources.debian.org/src/apt/2.6.1/"
+      },
+      {
+        "Package": "libattr1",
+        "Version": "1:2.5.1-4",
+        "licences": [
+          "GPL-2+",
+          "LGPL-2+"
+        ],
+        "copyrightFile": "/usr/share/doc/libattr1/copyright",
+        "sourceUrl": "https://sources.debian.org/src/attr/1%3A2.5.1-4/"
+      },
+      {
+        "Package": "libaudit-common",
+        "Version": "1:3.0.9-1",
+        "licences": [
+          "GPL-2",
+          "LGPL-2.1"
+        ],
+        "copyrightFile": "/usr/share/doc/libaudit-common/copyright",
+        "sourceUrl": "https://sources.debian.org/src/audit/1%3A3.0.9-1/"
+      },
+      {
+        "Package": "libaudit1",
+        "Version": "1:3.0.9-1",
+        "licences": [
+          "GPL-2",
+          "LGPL-2.1"
+        ],
+        "copyrightFile": "/usr/share/doc/libaudit1/copyright",
+        "sourceUrl": "https://sources.debian.org/src/audit/1%3A3.0.9-1/"
+      },
+      {
+        "Package": "libblkid1",
+        "Version": "2.38.1-5+deb12u3",
+        "licences": [
+          "BSD-3-clause",
+          "BSD-4-clause",
+          "BSLA",
+          "GPL-2",
+          "GPL-2+",
+          "GPL-3+",
+          "LGPL",
+          "LGPL-2+",
+          "LGPL-2.1+",
+          "LGPL-3+",
+          "MIT",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/libblkid1/copyright",
+        "sourceUrl": "https://sources.debian.org/src/util-linux/2.38.1-5%2Bdeb12u3/"
+      },
+      {
+        "Package": "libbz2-1.0",
+        "Version": "1.0.8-5+b1",
+        "licences": [
+          "BSD-variant",
+          "GPL-2"
+        ],
+        "copyrightFile": "/usr/share/doc/libbz2-1.0/copyright",
+        "sourceUrl": "https://sources.debian.org/src/bzip2/1.0.8-5/"
+      },
+      {
+        "Package": "libc-bin",
+        "Version": "2.36-9+deb12u14",
+        "licences": [
+          "LGPL-2.1-or-later GNU C library; GPL-2.0-or-later utilities; BSD/ISC/per-file notices retained"
+        ],
+        "copyrightFile": "/usr/share/doc/libc-bin/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/glibc/2.36-9%2Bdeb12u14/"
+      },
+      {
+        "Package": "libc6",
+        "Version": "2.36-9+deb12u14",
+        "licences": [
+          "LGPL-2.1-or-later GNU C library; BSD/ISC/per-file notices retained"
+        ],
+        "copyrightFile": "/usr/share/doc/libc6/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/glibc/2.36-9%2Bdeb12u14/"
+      },
+      {
+        "Package": "libcap-ng0",
+        "Version": "0.8.3-1+b3",
+        "licences": [
+          "GPL-2+",
+          "GPL-3",
+          "LGPL-2.1+"
+        ],
+        "copyrightFile": "/usr/share/doc/libcap-ng0/copyright",
+        "sourceUrl": "https://sources.debian.org/src/libcap-ng/0.8.3-1/"
+      },
+      {
+        "Package": "libcap2",
+        "Version": "1:2.66-4+deb12u3+b1",
+        "licences": [
+          "BSD-3-clause",
+          "BSD-3-clause or GPL-2",
+          "BSD-3-clause or GPL-2+",
+          "GPL-2",
+          "GPL-2+"
+        ],
+        "copyrightFile": "/usr/share/doc/libcap2/copyright",
+        "sourceUrl": "https://sources.debian.org/src/libcap2/1%3A2.66-4%2Bdeb12u3/"
+      },
+      {
+        "Package": "libcom-err2",
+        "Version": "1.47.0-2+b2",
+        "licences": [
+          "Apache-2",
+          "BSD-3-Clause",
+          "GPL or MIT-US-export",
+          "GPL-2",
+          "GPL-2+ with Texinfo exception",
+          "ISC",
+          "Kazlib",
+          "LGPL-2",
+          "Latex2e"
+        ],
+        "copyrightFile": "/usr/share/doc/libcom-err2/copyright",
+        "sourceUrl": "https://sources.debian.org/src/e2fsprogs/1.47.0-2/"
+      },
+      {
+        "Package": "libcrypt1",
+        "Version": "1:4.4.33-2",
+        "licences": [
+          "LGPL-2.1-or-later; BSD-3-Clause/BSD-2-Clause/0BSD/public-domain and FSF permissive components"
+        ],
+        "copyrightFile": "/usr/share/doc/libcrypt1/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/libxcrypt/1%3A4.4.33-2/"
+      },
+      {
+        "Package": "libdb5.3",
+        "Version": "5.3.28+dfsg2-1",
+        "licences": [
+          "Artistic or BSD-3-clause",
+          "BSD-3-clause",
+          "BSD-3-clause-fjord",
+          "GPL",
+          "GPL or Artistic",
+          "GPL-3",
+          "MIT-old",
+          "Ms-PL",
+          "Sleepycat",
+          "Sleepycat and BSD-3-clause",
+          "TCL-like",
+          "X11",
+          "zlib"
+        ],
+        "copyrightFile": "/usr/share/doc/libdb5.3/copyright",
+        "sourceUrl": "https://sources.debian.org/src/db5.3/5.3.28%2Bdfsg2-1/"
+      },
+      {
+        "Package": "libdebconfclient0",
+        "Version": "0.270",
+        "licences": [
+          "BSD-2-Clause",
+          "BSD-2-clause",
+          "GPL-2+"
+        ],
+        "copyrightFile": "/usr/share/doc/libdebconfclient0/copyright",
+        "sourceUrl": "https://sources.debian.org/src/cdebconf/0.270/"
+      },
+      {
+        "Package": "libext2fs2",
+        "Version": "1.47.0-2+b2",
+        "licences": [
+          "Apache-2",
+          "BSD-3-Clause",
+          "GPL or MIT-US-export",
+          "GPL-2",
+          "GPL-2+ with Texinfo exception",
+          "ISC",
+          "Kazlib",
+          "LGPL-2",
+          "Latex2e"
+        ],
+        "copyrightFile": "/usr/share/doc/libext2fs2/copyright",
+        "sourceUrl": "https://sources.debian.org/src/e2fsprogs/1.47.0-2/"
+      },
+      {
+        "Package": "libffi8",
+        "Version": "3.4.4-1",
+        "licences": [
+          "Expat",
+          "GPL",
+          "GPL-2+",
+          "GPL-3+",
+          "MPL-1.1 or GPL-2+ or LGPL-2.1+",
+          "X11",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/libffi8/copyright",
+        "sourceUrl": "https://sources.debian.org/src/libffi/3.4.4-1/"
+      },
+      {
+        "Package": "libgcc-s1",
+        "Version": "12.2.0-14+deb12u1",
+        "licences": [
+          "GPL-3.0-or-later WITH GCC-exception-3.1; additional per-file notices retained"
+        ],
+        "copyrightFile": "/usr/share/doc/libgcc-s1/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/gcc-12/12.2.0-14%2Bdeb12u1/"
+      },
+      {
+        "Package": "libgcrypt20",
+        "Version": "1.10.1-3+deb12u1",
+        "licences": [
+          "LGPL-2.1-or-later library; GPL-2.0-or-later utilities and per-file notices retained"
+        ],
+        "copyrightFile": "/usr/share/doc/libgcrypt20/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/libgcrypt20/1.10.1-3%2Bdeb12u1/"
+      },
+      {
+        "Package": "libgdbm6",
+        "Version": "1.23-3",
+        "licences": [
+          "GFDL-NIV-1.3+",
+          "GPL-2+",
+          "GPL-3+"
+        ],
+        "copyrightFile": "/usr/share/doc/libgdbm6/copyright",
+        "sourceUrl": "https://sources.debian.org/src/gdbm/1.23-3/"
+      },
+      {
+        "Package": "libgmp10",
+        "Version": "2:6.2.1+dfsg1-1.1",
+        "licences": [
+          "GPL-2+",
+          "GPL-2+ or LGPL-3+",
+          "GPL-3+",
+          "GPL-3+ with Bison exception",
+          "LGPL-3+"
+        ],
+        "copyrightFile": "/usr/share/doc/libgmp10/copyright",
+        "sourceUrl": "https://sources.debian.org/src/gmp/2%3A6.2.1%2Bdfsg1-1.1/"
+      },
+      {
+        "Package": "libgnutls30",
+        "Version": "3.7.9-2+deb12u7",
+        "licences": [
+          "Apache-2.0",
+          "BSD-3-Clause",
+          "CC0 license",
+          "Expat",
+          "GPLv3+",
+          "LGPLv2.1+",
+          "LGPLv3+_or_GPLv2+",
+          "The main library is licensed under GNU Lesser"
+        ],
+        "copyrightFile": "/usr/share/doc/libgnutls30/copyright",
+        "sourceUrl": "https://sources.debian.org/src/gnutls28/3.7.9-2%2Bdeb12u7/"
+      },
+      {
+        "Package": "libgpg-error0",
+        "Version": "1.46-1",
+        "licences": [
+          "BSD-3-clause",
+          "GPL-3+",
+          "LGPL-2.1+",
+          "LGPL-2.1+ or BSD-3-clause",
+          "g10-permissive"
+        ],
+        "copyrightFile": "/usr/share/doc/libgpg-error0/copyright",
+        "sourceUrl": "https://sources.debian.org/src/libgpg-error/1.46-1/"
+      },
+      {
+        "Package": "libgssapi-krb5-2",
+        "Version": "1.20.1-2+deb12u5",
+        "licences": [
+          "MIT/BSD-style Kerberos and per-file permissive notices; CC-BY-SA-3.0 documentation"
+        ],
+        "copyrightFile": "/usr/share/doc/libgssapi-krb5-2/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/krb5/1.20.1-2%2Bdeb12u5/"
+      },
+      {
+        "Package": "libhogweed6",
+        "Version": "3.8.1-2",
+        "licences": [
+          "Expat",
+          "GAP",
+          "GPL-2",
+          "GPL-2+",
+          "GPL-3+",
+          "GPL-3+ with Autoconf exception",
+          "LGPL-2+",
+          "LGPL-3+",
+          "LGPL-3+ or GPL-2+",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/libhogweed6/copyright",
+        "sourceUrl": "https://sources.debian.org/src/nettle/3.8.1-2/"
+      },
+      {
+        "Package": "libidn2-0",
+        "Version": "2.3.3-1+b1",
+        "licences": [
+          "GPL-2+",
+          "GPL-3+",
+          "LGPL-3+",
+          "LGPL-3+ or GPL-2+",
+          "Unicode"
+        ],
+        "copyrightFile": "/usr/share/doc/libidn2-0/copyright",
+        "sourceUrl": "https://sources.debian.org/src/libidn2/2.3.3-1/"
+      },
+      {
+        "Package": "libk5crypto3",
+        "Version": "1.20.1-2+deb12u5",
+        "licences": [
+          "MIT/BSD-style Kerberos and per-file permissive notices; CC-BY-SA-3.0 documentation"
+        ],
+        "copyrightFile": "/usr/share/doc/libk5crypto3/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/krb5/1.20.1-2%2Bdeb12u5/"
+      },
+      {
+        "Package": "libkeyutils1",
+        "Version": "1.6.3-2",
+        "licences": [
+          "GPL-2+",
+          "LGPL-2+"
+        ],
+        "copyrightFile": "/usr/share/doc/libkeyutils1/copyright",
+        "sourceUrl": "https://sources.debian.org/src/keyutils/1.6.3-2/"
+      },
+      {
+        "Package": "libkrb5-3",
+        "Version": "1.20.1-2+deb12u5",
+        "licences": [
+          "MIT/BSD-style Kerberos and per-file permissive notices; CC-BY-SA-3.0 documentation"
+        ],
+        "copyrightFile": "/usr/share/doc/libkrb5-3/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/krb5/1.20.1-2%2Bdeb12u5/"
+      },
+      {
+        "Package": "libkrb5support0",
+        "Version": "1.20.1-2+deb12u5",
+        "licences": [
+          "MIT/BSD-style Kerberos and per-file permissive notices; CC-BY-SA-3.0 documentation"
+        ],
+        "copyrightFile": "/usr/share/doc/libkrb5support0/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/krb5/1.20.1-2%2Bdeb12u5/"
+      },
+      {
+        "Package": "liblz4-1",
+        "Version": "1.9.4-1",
+        "licences": [
+          "BSD-2-clause",
+          "GPL-2+",
+          "GPL-2+ or BSD-2-clause"
+        ],
+        "copyrightFile": "/usr/share/doc/liblz4-1/copyright",
+        "sourceUrl": "https://sources.debian.org/src/lz4/1.9.4-1/"
+      },
+      {
+        "Package": "liblzma5",
+        "Version": "5.4.1-1+deb12u2",
+        "licences": [
+          "Autoconf",
+          "GPL-2",
+          "GPL-2+",
+          "LGPL-2.1+",
+          "PD",
+          "PD-debian",
+          "config-h",
+          "noderivs",
+          "none",
+          "permissive-fsf",
+          "permissive-nowarranty",
+          "probably-PD"
+        ],
+        "copyrightFile": "/usr/share/doc/liblzma5/copyright",
+        "sourceUrl": "https://sources.debian.org/src/xz-utils/5.4.1-1%2Bdeb12u2/"
+      },
+      {
+        "Package": "libmd0",
+        "Version": "1.0.4-2",
+        "licences": [
+          "BSD-2-clause",
+          "BSD-2-clause-NetBSD",
+          "BSD-3-clause",
+          "BSD-3-clause-Aaron-D-Gifford",
+          "Beerware",
+          "ISC",
+          "public-domain-md4",
+          "public-domain-md5",
+          "public-domain-sha1"
+        ],
+        "copyrightFile": "/usr/share/doc/libmd0/copyright",
+        "sourceUrl": "https://sources.debian.org/src/libmd/1.0.4-2/"
+      },
+      {
+        "Package": "libmount1",
+        "Version": "2.38.1-5+deb12u3",
+        "licences": [
+          "BSD-3-clause",
+          "BSD-4-clause",
+          "BSLA",
+          "GPL-2",
+          "GPL-2+",
+          "GPL-3+",
+          "LGPL",
+          "LGPL-2+",
+          "LGPL-2.1+",
+          "LGPL-3+",
+          "MIT",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/libmount1/copyright",
+        "sourceUrl": "https://sources.debian.org/src/util-linux/2.38.1-5%2Bdeb12u3/"
+      },
+      {
+        "Package": "libncursesw6",
+        "Version": "6.4-4",
+        "licences": [
+          "BSD-3-clause",
+          "MIT/X11",
+          "X11"
+        ],
+        "copyrightFile": "/usr/share/doc/libncursesw6/copyright",
+        "sourceUrl": "https://sources.debian.org/src/ncurses/6.4-4/"
+      },
+      {
+        "Package": "libnettle8",
+        "Version": "3.8.1-2",
+        "licences": [
+          "Expat",
+          "GAP",
+          "GPL-2",
+          "GPL-2+",
+          "GPL-3+",
+          "GPL-3+ with Autoconf exception",
+          "LGPL-2+",
+          "LGPL-3+",
+          "LGPL-3+ or GPL-2+",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/libnettle8/copyright",
+        "sourceUrl": "https://sources.debian.org/src/nettle/3.8.1-2/"
+      },
+      {
+        "Package": "libnsl2",
+        "Version": "1.3.0-2",
+        "licences": [
+          "BSD-3-clause",
+          "GPL-2+-autoconf-exception",
+          "GPL-2+-libtool-exception",
+          "GPL-3+-autoconf-exception",
+          "LGPL-2.1",
+          "LGPL-2.1+",
+          "MIT",
+          "permissive-autoconf-m4",
+          "permissive-autoconf-m4-no-warranty",
+          "permissive-configure",
+          "permissive-fsf",
+          "permissive-makefile-in"
+        ],
+        "copyrightFile": "/usr/share/doc/libnsl2/copyright",
+        "sourceUrl": "https://sources.debian.org/src/libnsl/1.3.0-2/"
+      },
+      {
+        "Package": "libp11-kit0",
+        "Version": "0.24.1-2",
+        "licences": [
+          "Apache-2.0",
+          "BSD-3-Clause",
+          "ISC",
+          "ISC+IBM",
+          "LGPL-2.1+",
+          "permissive-like-automake-output",
+          "same-as-rest-of-p11kit"
+        ],
+        "copyrightFile": "/usr/share/doc/libp11-kit0/copyright",
+        "sourceUrl": "https://sources.debian.org/src/p11-kit/0.24.1-2/"
+      },
+      {
+        "Package": "libpam-modules",
+        "Version": "1.5.2-6+deb12u2",
+        "licences": [
+          "BSD-3-clause or GPL",
+          "BSD-tcp_wrappers",
+          "Beerware",
+          "GPL-2",
+          "GPL-2+",
+          "GPL-3",
+          "GPL-3+ with Bison exception",
+          "LGPL-2+",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/libpam-modules/copyright",
+        "sourceUrl": "https://sources.debian.org/src/pam/1.5.2-6%2Bdeb12u2/"
+      },
+      {
+        "Package": "libpam-modules-bin",
+        "Version": "1.5.2-6+deb12u2",
+        "licences": [
+          "BSD-3-clause or GPL",
+          "BSD-tcp_wrappers",
+          "Beerware",
+          "GPL-2",
+          "GPL-2+",
+          "GPL-3",
+          "GPL-3+ with Bison exception",
+          "LGPL-2+",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/libpam-modules-bin/copyright",
+        "sourceUrl": "https://sources.debian.org/src/pam/1.5.2-6%2Bdeb12u2/"
+      },
+      {
+        "Package": "libpam-runtime",
+        "Version": "1.5.2-6+deb12u2",
+        "licences": [
+          "BSD-3-clause or GPL",
+          "BSD-tcp_wrappers",
+          "Beerware",
+          "GPL-2",
+          "GPL-2+",
+          "GPL-3",
+          "GPL-3+ with Bison exception",
+          "LGPL-2+",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/libpam-runtime/copyright",
+        "sourceUrl": "https://sources.debian.org/src/pam/1.5.2-6%2Bdeb12u2/"
+      },
+      {
+        "Package": "libpam0g",
+        "Version": "1.5.2-6+deb12u2",
+        "licences": [
+          "BSD-3-clause or GPL",
+          "BSD-tcp_wrappers",
+          "Beerware",
+          "GPL-2",
+          "GPL-2+",
+          "GPL-3",
+          "GPL-3+ with Bison exception",
+          "LGPL-2+",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/libpam0g/copyright",
+        "sourceUrl": "https://sources.debian.org/src/pam/1.5.2-6%2Bdeb12u2/"
+      },
+      {
+        "Package": "libpcre2-8-0",
+        "Version": "10.42-1+deb12u1",
+        "licences": [
+          "BSD-2-clause",
+          "BSD-3-clause",
+          "BSD-3-clause-Cambridge with BINARY LIBRARY-LIKE PACKAGES exception",
+          "X11",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/libpcre2-8-0/copyright",
+        "sourceUrl": "https://sources.debian.org/src/pcre2/10.42-1%2Bdeb12u1/"
+      },
+      {
+        "Package": "libreadline8",
+        "Version": "8.2-1.3",
+        "licences": [
+          "GFDL-NIV-1.3+",
+          "GPL-2+",
+          "GPL-3",
+          "GPL-3+",
+          "ISC-no-attribution"
+        ],
+        "copyrightFile": "/usr/share/doc/libreadline8/copyright",
+        "sourceUrl": "https://sources.debian.org/src/readline/8.2-1.3/"
+      },
+      {
+        "Package": "libseccomp2",
+        "Version": "2.5.4-1+deb12u1",
+        "licences": [
+          "LGPL-2.1"
+        ],
+        "copyrightFile": "/usr/share/doc/libseccomp2/copyright",
+        "sourceUrl": "https://sources.debian.org/src/libseccomp/2.5.4-1%2Bdeb12u1/"
+      },
+      {
+        "Package": "libselinux1",
+        "Version": "3.4-1+b6",
+        "licences": [
+          "Public-domain library; GPL-2.0 and LGPL-2.1-or-later subcomponents retained"
+        ],
+        "copyrightFile": "/usr/share/doc/libselinux1/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/libselinux/3.4-1/"
+      },
+      {
+        "Package": "libsemanage-common",
+        "Version": "3.4-1",
+        "licences": [
+          "LGPL-2.1-or-later library; GPL-2.0 utilities"
+        ],
+        "copyrightFile": "/usr/share/doc/libsemanage-common/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/libsemanage/3.4-1/"
+      },
+      {
+        "Package": "libsemanage2",
+        "Version": "3.4-1+b5",
+        "licences": [
+          "LGPL-2.1-or-later library; GPL-2.0 utilities"
+        ],
+        "copyrightFile": "/usr/share/doc/libsemanage2/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/libsemanage/3.4-1/"
+      },
+      {
+        "Package": "libsepol2",
+        "Version": "3.4-2.1",
+        "licences": [
+          "GPL-2",
+          "GPL-2+",
+          "LGPL-2.1+",
+          "Zlib"
+        ],
+        "copyrightFile": "/usr/share/doc/libsepol2/copyright",
+        "sourceUrl": "https://sources.debian.org/src/libsepol/3.4-2.1/"
+      },
+      {
+        "Package": "libsmartcols1",
+        "Version": "2.38.1-5+deb12u3",
+        "licences": [
+          "BSD-3-clause",
+          "BSD-4-clause",
+          "BSLA",
+          "GPL-2",
+          "GPL-2+",
+          "GPL-3+",
+          "LGPL",
+          "LGPL-2+",
+          "LGPL-2.1+",
+          "LGPL-3+",
+          "MIT",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/libsmartcols1/copyright",
+        "sourceUrl": "https://sources.debian.org/src/util-linux/2.38.1-5%2Bdeb12u3/"
+      },
+      {
+        "Package": "libsqlite3-0",
+        "Version": "3.40.1-2+deb12u2",
+        "licences": [
+          "GPL-2+",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/libsqlite3-0/copyright",
+        "sourceUrl": "https://sources.debian.org/src/sqlite3/3.40.1-2%2Bdeb12u2/"
+      },
+      {
+        "Package": "libss2",
+        "Version": "1.47.0-2+b2",
+        "licences": [
+          "Apache-2",
+          "BSD-3-Clause",
+          "GPL or MIT-US-export",
+          "GPL-2",
+          "GPL-2+ with Texinfo exception",
+          "ISC",
+          "Kazlib",
+          "LGPL-2",
+          "Latex2e"
+        ],
+        "copyrightFile": "/usr/share/doc/libss2/copyright",
+        "sourceUrl": "https://sources.debian.org/src/e2fsprogs/1.47.0-2/"
+      },
+      {
+        "Package": "libssl3",
+        "Version": "3.0.20-1~deb12u2",
+        "licences": [
+          "Apache-2.0",
+          "Artistic",
+          "Artistic or GPL-1+",
+          "GPL-1+"
+        ],
+        "copyrightFile": "/usr/share/doc/libssl3/copyright",
+        "sourceUrl": "https://sources.debian.org/src/openssl/3.0.20-1~deb12u2/"
+      },
+      {
+        "Package": "libstdc++6",
+        "Version": "12.2.0-14+deb12u1",
+        "licences": [
+          "GPL-3.0-or-later WITH GCC-exception-3.1; additional per-file notices retained"
+        ],
+        "copyrightFile": "/usr/share/doc/libstdc++6/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/gcc-12/12.2.0-14%2Bdeb12u1/"
+      },
+      {
+        "Package": "libsystemd0",
+        "Version": "252.39-1~deb12u2",
+        "licences": [
+          "CC0-1.0",
+          "Expat",
+          "GPL-2 with Linux-syscall-note exception",
+          "GPL-2+",
+          "LGPL-2.1+",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/libsystemd0/copyright",
+        "sourceUrl": "https://sources.debian.org/src/systemd/252.39-1~deb12u2/"
+      },
+      {
+        "Package": "libtasn1-6",
+        "Version": "4.19.0-2+deb12u1",
+        "licences": [
+          "LGPL-2.1-or-later library; GPL-3.0-or-later tools; GFDL-1.3 documentation"
+        ],
+        "copyrightFile": "/usr/share/doc/libtasn1-6/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/libtasn1-6/4.19.0-2%2Bdeb12u1/"
+      },
+      {
+        "Package": "libtinfo6",
+        "Version": "6.4-4",
+        "licences": [
+          "BSD-3-clause",
+          "MIT/X11",
+          "X11"
+        ],
+        "copyrightFile": "/usr/share/doc/libtinfo6/copyright",
+        "sourceUrl": "https://sources.debian.org/src/ncurses/6.4-4/"
+      },
+      {
+        "Package": "libtirpc-common",
+        "Version": "1.3.3+ds-1",
+        "licences": [
+          "  BSD-2-Clause",
+          "  BSD-3-Clause",
+          "  BSD-4-Clause",
+          "  LGPL-2.1+",
+          "  PERMISSIVE",
+          "  __AUTO_PERMISSIVE__",
+          "BSD-3-Clause",
+          "GPL-2"
+        ],
+        "copyrightFile": "/usr/share/doc/libtirpc-common/copyright",
+        "sourceUrl": "https://sources.debian.org/src/libtirpc/1.3.3%2Bds-1/"
+      },
+      {
+        "Package": "libtirpc3",
+        "Version": "1.3.3+ds-1",
+        "licences": [
+          "  BSD-2-Clause",
+          "  BSD-3-Clause",
+          "  BSD-4-Clause",
+          "  LGPL-2.1+",
+          "  PERMISSIVE",
+          "  __AUTO_PERMISSIVE__",
+          "BSD-3-Clause",
+          "GPL-2"
+        ],
+        "copyrightFile": "/usr/share/doc/libtirpc3/copyright",
+        "sourceUrl": "https://sources.debian.org/src/libtirpc/1.3.3%2Bds-1/"
+      },
+      {
+        "Package": "libudev1",
+        "Version": "252.39-1~deb12u2",
+        "licences": [
+          "CC0-1.0",
+          "Expat",
+          "GPL-2 with Linux-syscall-note exception",
+          "GPL-2+",
+          "LGPL-2.1+",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/libudev1/copyright",
+        "sourceUrl": "https://sources.debian.org/src/systemd/252.39-1~deb12u2/"
+      },
+      {
+        "Package": "libunistring2",
+        "Version": "1.0-2",
+        "licences": [
+          "FreeSoftware",
+          "GFDL-1.2+",
+          "GPL-2+",
+          "GPL-2+ with distribution exception",
+          "GPL-3+",
+          "GPL-3+ or GFDL-1.2+",
+          "LGPL-3+",
+          "LGPL-3+ or GPL-2+",
+          "MIT"
+        ],
+        "copyrightFile": "/usr/share/doc/libunistring2/copyright",
+        "sourceUrl": "https://sources.debian.org/src/libunistring/1.0-2/"
+      },
+      {
+        "Package": "libuuid1",
+        "Version": "2.38.1-5+deb12u3",
+        "licences": [
+          "BSD-3-clause",
+          "BSD-4-clause",
+          "BSLA",
+          "GPL-2",
+          "GPL-2+",
+          "GPL-3+",
+          "LGPL",
+          "LGPL-2+",
+          "LGPL-2.1+",
+          "LGPL-3+",
+          "MIT",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/libuuid1/copyright",
+        "sourceUrl": "https://sources.debian.org/src/util-linux/2.38.1-5%2Bdeb12u3/"
+      },
+      {
+        "Package": "libxxhash0",
+        "Version": "0.8.1-1",
+        "licences": [
+          "BSD-2-clause",
+          "GPL-2"
+        ],
+        "copyrightFile": "/usr/share/doc/libxxhash0/copyright",
+        "sourceUrl": "https://sources.debian.org/src/xxhash/0.8.1-1/"
+      },
+      {
+        "Package": "libzstd1",
+        "Version": "1.5.4+dfsg2-5",
+        "licences": [
+          "BSD-3-clause",
+          "BSD-3-clause or GPL-2",
+          "Expat",
+          "GPL-2",
+          "zlib"
+        ],
+        "copyrightFile": "/usr/share/doc/libzstd1/copyright",
+        "sourceUrl": "https://sources.debian.org/src/libzstd/1.5.4%2Bdfsg2-5/"
+      },
+      {
+        "Package": "login",
+        "Version": "1:4.13+dfsg1-1+deb12u2",
+        "licences": [
+          "BSD-3-clause",
+          "GPL-1",
+          "GPL-2+",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/login/copyright",
+        "sourceUrl": "https://sources.debian.org/src/shadow/1%3A4.13%2Bdfsg1-1%2Bdeb12u2/"
+      },
+      {
+        "Package": "logsave",
+        "Version": "1.47.0-2+b2",
+        "licences": [
+          "Apache-2",
+          "BSD-3-Clause",
+          "GPL or MIT-US-export",
+          "GPL-2",
+          "GPL-2+ with Texinfo exception",
+          "ISC",
+          "Kazlib",
+          "LGPL-2",
+          "Latex2e"
+        ],
+        "copyrightFile": "/usr/share/doc/logsave/copyright",
+        "sourceUrl": "https://sources.debian.org/src/e2fsprogs/1.47.0-2/"
+      },
+      {
+        "Package": "mawk",
+        "Version": "1.3.4.20200120-3.1",
+        "licences": [
+          "CC-BY-3.0",
+          "GPL-2",
+          "X11"
+        ],
+        "copyrightFile": "/usr/share/doc/mawk/copyright",
+        "sourceUrl": "https://sources.debian.org/src/mawk/1.3.4.20200120-3.1/"
+      },
+      {
+        "Package": "mount",
+        "Version": "2.38.1-5+deb12u3",
+        "licences": [
+          "BSD-3-clause",
+          "BSD-4-clause",
+          "BSLA",
+          "GPL-2",
+          "GPL-2+",
+          "GPL-3+",
+          "LGPL",
+          "LGPL-2+",
+          "LGPL-2.1+",
+          "LGPL-3+",
+          "MIT",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/mount/copyright",
+        "sourceUrl": "https://sources.debian.org/src/util-linux/2.38.1-5%2Bdeb12u3/"
+      },
+      {
+        "Package": "ncurses-base",
+        "Version": "6.4-4",
+        "licences": [
+          "BSD-3-clause",
+          "MIT/X11",
+          "X11"
+        ],
+        "copyrightFile": "/usr/share/doc/ncurses-base/copyright",
+        "sourceUrl": "https://sources.debian.org/src/ncurses/6.4-4/"
+      },
+      {
+        "Package": "ncurses-bin",
+        "Version": "6.4-4",
+        "licences": [
+          "BSD-3-clause",
+          "MIT/X11",
+          "X11"
+        ],
+        "copyrightFile": "/usr/share/doc/ncurses-bin/copyright",
+        "sourceUrl": "https://sources.debian.org/src/ncurses/6.4-4/"
+      },
+      {
+        "Package": "netbase",
+        "Version": "6.4",
+        "licences": [
+          "GPL-2"
+        ],
+        "copyrightFile": "/usr/share/doc/netbase/copyright",
+        "sourceUrl": "https://sources.debian.org/src/netbase/6.4/"
+      },
+      {
+        "Package": "openssl",
+        "Version": "3.0.20-1~deb12u2",
+        "licences": [
+          "Apache-2.0",
+          "Artistic",
+          "Artistic or GPL-1+",
+          "GPL-1+"
+        ],
+        "copyrightFile": "/usr/share/doc/openssl/copyright",
+        "sourceUrl": "https://sources.debian.org/src/openssl/3.0.20-1~deb12u2/"
+      },
+      {
+        "Package": "passwd",
+        "Version": "1:4.13+dfsg1-1+deb12u2",
+        "licences": [
+          "BSD-3-clause",
+          "GPL-1",
+          "GPL-2+",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/passwd/copyright",
+        "sourceUrl": "https://sources.debian.org/src/shadow/1%3A4.13%2Bdfsg1-1%2Bdeb12u2/"
+      },
+      {
+        "Package": "perl-base",
+        "Version": "5.36.0-7+deb12u3",
+        "licences": [
+          " CC0-1.0",
+          "Artistic",
+          "Artistic or GPL-1+ or Artistic-dist",
+          "Artistic-2",
+          "Artistic-dist",
+          "BSD-3-clause",
+          "BSD-3-clause-GENERIC",
+          "BSD-3-clause-with-weird-numbering",
+          "BSD-4-clause-POWERDOG",
+          "BZIP",
+          "DONT-CHANGE-THE-GPL",
+          "Expat",
+          "Expat or GPL-1+ or Artistic",
+          "GPL-1+",
+          "GPL-1+ or Artistic",
+          "GPL-1+ or Artistic or Artistic-dist",
+          "GPL-1+ or Artistic, and BSD-3-clause-GENERIC",
+          "GPL-1+ or Artistic, and BSD-4-clause-POWERDOG",
+          "GPL-1+ or Artistic, and Expat",
+          "GPL-1+ or Artistic, and Unicode",
+          "GPL-2+",
+          "GPL-2+ or Artistic",
+          "GPL-3+-WITH-BISON-EXCEPTION",
+          "HSIEH-BSD",
+          "HSIEH-DERIVATIVE",
+          "LGPL-2.1",
+          "REGCOMP",
+          "REGCOMP, and GPL-1+ or Artistic",
+          "RRA-KEEP-THIS-NOTICE",
+          "SDBM-PUBLIC-DOMAIN",
+          "TEXT-TABS",
+          "Unicode",
+          "ZLIB"
+        ],
+        "copyrightFile": "/usr/share/doc/perl-base/copyright",
+        "sourceUrl": "https://sources.debian.org/src/perl/5.36.0-7%2Bdeb12u3/"
+      },
+      {
+        "Package": "readline-common",
+        "Version": "8.2-1.3",
+        "licences": [
+          "GFDL-NIV-1.3+",
+          "GPL-2+",
+          "GPL-3",
+          "GPL-3+",
+          "ISC-no-attribution"
+        ],
+        "copyrightFile": "/usr/share/doc/readline-common/copyright",
+        "sourceUrl": "https://sources.debian.org/src/readline/8.2-1.3/"
+      },
+      {
+        "Package": "sed",
+        "Version": "4.9-1+deb12u1",
+        "licences": [
+          "BSD-4-clause-UC",
+          "BSL-1",
+          "GFDL-NIV-1.3+",
+          "GPL-3+",
+          "GPL-3+ and ISC",
+          "ISC",
+          "X11",
+          "pcre"
+        ],
+        "copyrightFile": "/usr/share/doc/sed/copyright",
+        "sourceUrl": "https://sources.debian.org/src/sed/4.9-1%2Bdeb12u1/"
+      },
+      {
+        "Package": "sysvinit-utils",
+        "Version": "3.06-4",
+        "licences": [
+          "GPL-2.0",
+          "GPL-2.0+",
+          "GPL-3.0"
+        ],
+        "copyrightFile": "/usr/share/doc/sysvinit-utils/copyright",
+        "sourceUrl": "https://sources.debian.org/src/sysvinit/3.06-4/"
+      },
+      {
+        "Package": "tar",
+        "Version": "1.34+dfsg-1.2+deb12u1",
+        "licences": [
+          "GPL-2+",
+          "GPL-3+",
+          "GPL-3+ with Bison exception",
+          "LGPL-3+"
+        ],
+        "copyrightFile": "/usr/share/doc/tar/copyright",
+        "sourceUrl": "https://sources.debian.org/src/tar/1.34%2Bdfsg-1.2%2Bdeb12u1/"
+      },
+      {
+        "Package": "tzdata",
+        "Version": "2026b-0+deb12u1",
+        "licences": [
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/tzdata/copyright",
+        "sourceUrl": "https://sources.debian.org/src/tzdata/2026b-0%2Bdeb12u1/"
+      },
+      {
+        "Package": "usr-is-merged",
+        "Version": "37~deb12u1",
+        "licences": [
+          "GPL-2+"
+        ],
+        "copyrightFile": "/usr/share/doc/usr-is-merged/copyright",
+        "sourceUrl": "https://sources.debian.org/src/usrmerge/37~deb12u1/"
+      },
+      {
+        "Package": "util-linux",
+        "Version": "2.38.1-5+deb12u3",
+        "licences": [
+          "BSD-3-clause",
+          "BSD-4-clause",
+          "BSLA",
+          "GPL-2",
+          "GPL-2+",
+          "GPL-3+",
+          "LGPL",
+          "LGPL-2+",
+          "LGPL-2.1+",
+          "LGPL-3+",
+          "MIT",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/util-linux/copyright",
+        "sourceUrl": "https://sources.debian.org/src/util-linux/2.38.1-5%2Bdeb12u3/"
+      },
+      {
+        "Package": "util-linux-extra",
+        "Version": "2.38.1-5+deb12u3",
+        "licences": [
+          "BSD-3-clause",
+          "BSD-4-clause",
+          "BSLA",
+          "GPL-2",
+          "GPL-2+",
+          "GPL-3+",
+          "LGPL",
+          "LGPL-2+",
+          "LGPL-2.1+",
+          "LGPL-3+",
+          "MIT",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/util-linux-extra/copyright",
+        "sourceUrl": "https://sources.debian.org/src/util-linux/2.38.1-5%2Bdeb12u3/"
+      },
+      {
+        "Package": "zlib1g",
+        "Version": "1:1.2.13.dfsg-1",
+        "licences": [
+          "Zlib"
+        ],
+        "copyrightFile": "/usr/share/doc/zlib1g/copyright",
+        "sourceUrl": "https://sources.debian.org/src/zlib/1%3A1.2.13.dfsg-1/"
+      }
+    ]
+  },
+  "node": {
+    "image": "mirror.gcr.io/library/node:24.22.1-bookworm-slim",
+    "digests": [
+      "mirror.gcr.io/library/node@sha256:be8204d4bd327363357f532187b752ff62759c31bedf98e9e18fc08c9cbd605c"
+    ],
+    "packages": [
+      {
+        "Package": "adduser",
+        "Version": "3.134",
+        "licences": [
+          "GPL-2+"
+        ],
+        "copyrightFile": "/usr/share/doc/adduser/copyright",
+        "sourceUrl": "https://sources.debian.org/src/adduser/3.134/"
+      },
+      {
+        "Package": "apt",
+        "Version": "2.6.1",
+        "licences": [
+          "BSD-3-clause",
+          "Expat",
+          "GPL-2",
+          "GPL-2+"
+        ],
+        "copyrightFile": "/usr/share/doc/apt/copyright",
+        "sourceUrl": "https://sources.debian.org/src/apt/2.6.1/"
+      },
+      {
+        "Package": "base-files",
+        "Version": "12.4+deb12u15",
+        "licences": [
+          "GPL-2.0-or-later; included common licence texts retain their own terms"
+        ],
+        "copyrightFile": "/usr/share/doc/base-files/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/base-files/12.4%2Bdeb12u15/"
+      },
+      {
+        "Package": "base-passwd",
+        "Version": "3.6.1",
+        "licences": [
+          "GPL-2",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/base-passwd/copyright",
+        "sourceUrl": "https://sources.debian.org/src/base-passwd/3.6.1/"
+      },
+      {
+        "Package": "bash",
+        "Version": "5.2.15-2+b13",
+        "licences": [
+          "BSD-4-clause-UC",
+          "BSD-4-clause-UC and MIT-like",
+          "GFDL-NIV-1.3",
+          "GPL-2+",
+          "GPL-3+",
+          "GPL-3+ with Bison exception",
+          "Latex2e",
+          "MIT-like",
+          "permissive"
+        ],
+        "copyrightFile": "/usr/share/doc/bash/copyright",
+        "sourceUrl": "https://sources.debian.org/src/bash/5.2.15-2/"
+      },
+      {
+        "Package": "bsdutils",
+        "Version": "1:2.38.1-5+deb12u3",
+        "licences": [
+          "BSD-3-clause",
+          "BSD-4-clause",
+          "BSLA",
+          "GPL-2",
+          "GPL-2+",
+          "GPL-3+",
+          "LGPL",
+          "LGPL-2+",
+          "LGPL-2.1+",
+          "LGPL-3+",
+          "MIT",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/bsdutils/copyright",
+        "sourceUrl": "https://sources.debian.org/src/util-linux/2.38.1-5%2Bdeb12u3/"
+      },
+      {
+        "Package": "coreutils",
+        "Version": "9.1-1",
+        "licences": [
+          "BSD-4-clause-UC",
+          "FSFULLR",
+          "GFDL-NIV-1.3",
+          "GPL-3+",
+          "GPL-3+ and BSD-4-clause-UC",
+          "GPL-3+ and ISC",
+          "ISC"
+        ],
+        "copyrightFile": "/usr/share/doc/coreutils/copyright",
+        "sourceUrl": "https://sources.debian.org/src/coreutils/9.1-1/"
+      },
+      {
+        "Package": "dash",
+        "Version": "0.5.12-2",
+        "licences": [
+          "BSD-3-Clause",
+          "BSD-3-clause",
+          "GPL-2+",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/dash/copyright",
+        "sourceUrl": "https://sources.debian.org/src/dash/0.5.12-2/"
+      },
+      {
+        "Package": "debconf",
+        "Version": "1.5.82",
+        "licences": [
+          "BSD-2-clause"
+        ],
+        "copyrightFile": "/usr/share/doc/debconf/copyright",
+        "sourceUrl": "https://sources.debian.org/src/debconf/1.5.82/"
+      },
+      {
+        "Package": "debian-archive-keyring",
+        "Version": "2023.3+deb12u2",
+        "licences": [
+          "Public-domain keys; GPL-2.0-or-later Debian support files"
+        ],
+        "copyrightFile": "/usr/share/doc/debian-archive-keyring/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/debian-archive-keyring/2023.3%2Bdeb12u2/"
+      },
+      {
+        "Package": "debianutils",
+        "Version": "5.7-0.5~deb12u1",
+        "licences": [
+          "GPL-2+",
+          "SMAIL-GPL",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/debianutils/copyright",
+        "sourceUrl": "https://sources.debian.org/src/debianutils/5.7-0.5~deb12u1/"
+      },
+      {
+        "Package": "diffutils",
+        "Version": "1:3.8-4",
+        "licences": [
+          "FSFAP",
+          "FSFULLR",
+          "GFDL-NIV-1.3",
+          "GPL-2+",
+          "GPL-3+",
+          "GPL-3+ and FSFULLR",
+          "GPL-3+ with autoconf exception",
+          "GPL-3+ with texinfo exception",
+          "LGPL-2.0+",
+          "LGPL-2.1+",
+          "LGPL-3.0+",
+          "LGPL-3.0+ or GPL-2+",
+          "X11",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/diffutils/copyright",
+        "sourceUrl": "https://sources.debian.org/src/diffutils/1%3A3.8-4/"
+      },
+      {
+        "Package": "dpkg",
+        "Version": "1.21.23",
+        "licences": [
+          "BSD-2-clause",
+          "GPL-2",
+          "GPL-2+",
+          "public-domain-s-s-d"
+        ],
+        "copyrightFile": "/usr/share/doc/dpkg/copyright",
+        "sourceUrl": "https://sources.debian.org/src/dpkg/1.21.23/"
+      },
+      {
+        "Package": "e2fsprogs",
+        "Version": "1.47.0-2+b2",
+        "licences": [
+          "Apache-2",
+          "BSD-3-Clause",
+          "GPL or MIT-US-export",
+          "GPL-2",
+          "GPL-2+ with Texinfo exception",
+          "ISC",
+          "Kazlib",
+          "LGPL-2",
+          "Latex2e"
+        ],
+        "copyrightFile": "/usr/share/doc/e2fsprogs/copyright",
+        "sourceUrl": "https://sources.debian.org/src/e2fsprogs/1.47.0-2/"
+      },
+      {
+        "Package": "findutils",
+        "Version": "4.9.0-4",
+        "licences": [
+          "BSD-3-clause",
+          "BSD-3-clause and/or GPL-3+",
+          "FSFAP",
+          "FSFULLR",
+          "GFDL-NIV-1.3+",
+          "GPL with automake exception",
+          "GPL-2+",
+          "GPL-2+ with Autoconf-data exception",
+          "GPL-3+",
+          "GPL-3+ with Autoconf-data exception",
+          "GPL-3+ with Bison-2.2 exception",
+          "ISC",
+          "ISC and/or LGPL-2.1+",
+          "LGPL-2+",
+          "LGPL-2.1+",
+          "LGPL-3",
+          "LGPL-3+",
+          "X11",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/findutils/copyright",
+        "sourceUrl": "https://sources.debian.org/src/findutils/4.9.0-4/"
+      },
+      {
+        "Package": "gcc-12-base",
+        "Version": "12.2.0-14+deb12u1",
+        "licences": [
+          "GPL-3.0-or-later; GCC runtime exception 3.1 for runtime libraries; per-file permissive notices retained"
+        ],
+        "copyrightFile": "/usr/share/doc/gcc-12-base/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/gcc-12/12.2.0-14%2Bdeb12u1/"
+      },
+      {
+        "Package": "gpgv",
+        "Version": "2.2.40-1.1+deb12u2",
+        "licences": [
+          "BSD-3-clause",
+          "CC0-1.0",
+          "Expat",
+          "GPL-3+",
+          "GPL-3+ or BSD-3-clause",
+          "LGPL-2.1+",
+          "LGPL-3+",
+          "RFC-Reference",
+          "TinySCHEME",
+          "permissive"
+        ],
+        "copyrightFile": "/usr/share/doc/gpgv/copyright",
+        "sourceUrl": "https://sources.debian.org/src/gnupg2/2.2.40-1.1%2Bdeb12u2/"
+      },
+      {
+        "Package": "grep",
+        "Version": "3.8-5",
+        "licences": [
+          "GPL-3+"
+        ],
+        "copyrightFile": "/usr/share/doc/grep/copyright",
+        "sourceUrl": "https://sources.debian.org/src/grep/3.8-5/"
+      },
+      {
+        "Package": "gzip",
+        "Version": "1.12-1",
+        "licences": [
+          "FSF-manpages",
+          "GFDL-1.3+-no-invariant",
+          "GPL-3+"
+        ],
+        "copyrightFile": "/usr/share/doc/gzip/copyright",
+        "sourceUrl": "https://sources.debian.org/src/gzip/1.12-1/"
+      },
+      {
+        "Package": "hostname",
+        "Version": "3.23+nmu1",
+        "licences": [
+          "GPL-2"
+        ],
+        "copyrightFile": "/usr/share/doc/hostname/copyright",
+        "sourceUrl": "https://sources.debian.org/src/hostname/3.23%2Bnmu1/"
+      },
+      {
+        "Package": "init-system-helpers",
+        "Version": "1.65.2+deb12u1",
+        "licences": [
+          "BSD-3-clause",
+          "GPL-2+"
+        ],
+        "copyrightFile": "/usr/share/doc/init-system-helpers/copyright",
+        "sourceUrl": "https://sources.debian.org/src/init-system-helpers/1.65.2%2Bdeb12u1/"
+      },
+      {
+        "Package": "libacl1",
+        "Version": "2.3.1-3",
+        "licences": [
+          "GPL-2+",
+          "LGPL-2+"
+        ],
+        "copyrightFile": "/usr/share/doc/libacl1/copyright",
+        "sourceUrl": "https://sources.debian.org/src/acl/2.3.1-3/"
+      },
+      {
+        "Package": "libapt-pkg6.0",
+        "Version": "2.6.1",
+        "licences": [
+          "BSD-3-clause",
+          "Expat",
+          "GPL-2",
+          "GPL-2+"
+        ],
+        "copyrightFile": "/usr/share/doc/libapt-pkg6.0/copyright",
+        "sourceUrl": "https://sources.debian.org/src/apt/2.6.1/"
+      },
+      {
+        "Package": "libattr1",
+        "Version": "1:2.5.1-4",
+        "licences": [
+          "GPL-2+",
+          "LGPL-2+"
+        ],
+        "copyrightFile": "/usr/share/doc/libattr1/copyright",
+        "sourceUrl": "https://sources.debian.org/src/attr/1%3A2.5.1-4/"
+      },
+      {
+        "Package": "libaudit-common",
+        "Version": "1:3.0.9-1",
+        "licences": [
+          "GPL-2",
+          "LGPL-2.1"
+        ],
+        "copyrightFile": "/usr/share/doc/libaudit-common/copyright",
+        "sourceUrl": "https://sources.debian.org/src/audit/1%3A3.0.9-1/"
+      },
+      {
+        "Package": "libaudit1",
+        "Version": "1:3.0.9-1",
+        "licences": [
+          "GPL-2",
+          "LGPL-2.1"
+        ],
+        "copyrightFile": "/usr/share/doc/libaudit1/copyright",
+        "sourceUrl": "https://sources.debian.org/src/audit/1%3A3.0.9-1/"
+      },
+      {
+        "Package": "libblkid1",
+        "Version": "2.38.1-5+deb12u3",
+        "licences": [
+          "BSD-3-clause",
+          "BSD-4-clause",
+          "BSLA",
+          "GPL-2",
+          "GPL-2+",
+          "GPL-3+",
+          "LGPL",
+          "LGPL-2+",
+          "LGPL-2.1+",
+          "LGPL-3+",
+          "MIT",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/libblkid1/copyright",
+        "sourceUrl": "https://sources.debian.org/src/util-linux/2.38.1-5%2Bdeb12u3/"
+      },
+      {
+        "Package": "libbz2-1.0",
+        "Version": "1.0.8-5+b1",
+        "licences": [
+          "BSD-variant",
+          "GPL-2"
+        ],
+        "copyrightFile": "/usr/share/doc/libbz2-1.0/copyright",
+        "sourceUrl": "https://sources.debian.org/src/bzip2/1.0.8-5/"
+      },
+      {
+        "Package": "libc-bin",
+        "Version": "2.36-9+deb12u14",
+        "licences": [
+          "LGPL-2.1-or-later GNU C library; GPL-2.0-or-later utilities; BSD/ISC/per-file notices retained"
+        ],
+        "copyrightFile": "/usr/share/doc/libc-bin/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/glibc/2.36-9%2Bdeb12u14/"
+      },
+      {
+        "Package": "libc6",
+        "Version": "2.36-9+deb12u14",
+        "licences": [
+          "LGPL-2.1-or-later GNU C library; BSD/ISC/per-file notices retained"
+        ],
+        "copyrightFile": "/usr/share/doc/libc6/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/glibc/2.36-9%2Bdeb12u14/"
+      },
+      {
+        "Package": "libcap-ng0",
+        "Version": "0.8.3-1+b3",
+        "licences": [
+          "GPL-2+",
+          "GPL-3",
+          "LGPL-2.1+"
+        ],
+        "copyrightFile": "/usr/share/doc/libcap-ng0/copyright",
+        "sourceUrl": "https://sources.debian.org/src/libcap-ng/0.8.3-1/"
+      },
+      {
+        "Package": "libcap2",
+        "Version": "1:2.66-4+deb12u3+b1",
+        "licences": [
+          "BSD-3-clause",
+          "BSD-3-clause or GPL-2",
+          "BSD-3-clause or GPL-2+",
+          "GPL-2",
+          "GPL-2+"
+        ],
+        "copyrightFile": "/usr/share/doc/libcap2/copyright",
+        "sourceUrl": "https://sources.debian.org/src/libcap2/1%3A2.66-4%2Bdeb12u3/"
+      },
+      {
+        "Package": "libcom-err2",
+        "Version": "1.47.0-2+b2",
+        "licences": [
+          "Apache-2",
+          "BSD-3-Clause",
+          "GPL or MIT-US-export",
+          "GPL-2",
+          "GPL-2+ with Texinfo exception",
+          "ISC",
+          "Kazlib",
+          "LGPL-2",
+          "Latex2e"
+        ],
+        "copyrightFile": "/usr/share/doc/libcom-err2/copyright",
+        "sourceUrl": "https://sources.debian.org/src/e2fsprogs/1.47.0-2/"
+      },
+      {
+        "Package": "libcrypt1",
+        "Version": "1:4.4.33-2",
+        "licences": [
+          "LGPL-2.1-or-later; BSD-3-Clause/BSD-2-Clause/0BSD/public-domain and FSF permissive components"
+        ],
+        "copyrightFile": "/usr/share/doc/libcrypt1/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/libxcrypt/1%3A4.4.33-2/"
+      },
+      {
+        "Package": "libdb5.3",
+        "Version": "5.3.28+dfsg2-1",
+        "licences": [
+          "Artistic or BSD-3-clause",
+          "BSD-3-clause",
+          "BSD-3-clause-fjord",
+          "GPL",
+          "GPL or Artistic",
+          "GPL-3",
+          "MIT-old",
+          "Ms-PL",
+          "Sleepycat",
+          "Sleepycat and BSD-3-clause",
+          "TCL-like",
+          "X11",
+          "zlib"
+        ],
+        "copyrightFile": "/usr/share/doc/libdb5.3/copyright",
+        "sourceUrl": "https://sources.debian.org/src/db5.3/5.3.28%2Bdfsg2-1/"
+      },
+      {
+        "Package": "libdebconfclient0",
+        "Version": "0.270",
+        "licences": [
+          "BSD-2-Clause",
+          "BSD-2-clause",
+          "GPL-2+"
+        ],
+        "copyrightFile": "/usr/share/doc/libdebconfclient0/copyright",
+        "sourceUrl": "https://sources.debian.org/src/cdebconf/0.270/"
+      },
+      {
+        "Package": "libext2fs2",
+        "Version": "1.47.0-2+b2",
+        "licences": [
+          "Apache-2",
+          "BSD-3-Clause",
+          "GPL or MIT-US-export",
+          "GPL-2",
+          "GPL-2+ with Texinfo exception",
+          "ISC",
+          "Kazlib",
+          "LGPL-2",
+          "Latex2e"
+        ],
+        "copyrightFile": "/usr/share/doc/libext2fs2/copyright",
+        "sourceUrl": "https://sources.debian.org/src/e2fsprogs/1.47.0-2/"
+      },
+      {
+        "Package": "libffi8",
+        "Version": "3.4.4-1",
+        "licences": [
+          "Expat",
+          "GPL",
+          "GPL-2+",
+          "GPL-3+",
+          "MPL-1.1 or GPL-2+ or LGPL-2.1+",
+          "X11",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/libffi8/copyright",
+        "sourceUrl": "https://sources.debian.org/src/libffi/3.4.4-1/"
+      },
+      {
+        "Package": "libgcc-s1",
+        "Version": "12.2.0-14+deb12u1",
+        "licences": [
+          "GPL-3.0-or-later WITH GCC-exception-3.1; additional per-file notices retained"
+        ],
+        "copyrightFile": "/usr/share/doc/libgcc-s1/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/gcc-12/12.2.0-14%2Bdeb12u1/"
+      },
+      {
+        "Package": "libgcrypt20",
+        "Version": "1.10.1-3+deb12u1",
+        "licences": [
+          "LGPL-2.1-or-later library; GPL-2.0-or-later utilities and per-file notices retained"
+        ],
+        "copyrightFile": "/usr/share/doc/libgcrypt20/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/libgcrypt20/1.10.1-3%2Bdeb12u1/"
+      },
+      {
+        "Package": "libgmp10",
+        "Version": "2:6.2.1+dfsg1-1.1",
+        "licences": [
+          "GPL-2+",
+          "GPL-2+ or LGPL-3+",
+          "GPL-3+",
+          "GPL-3+ with Bison exception",
+          "LGPL-3+"
+        ],
+        "copyrightFile": "/usr/share/doc/libgmp10/copyright",
+        "sourceUrl": "https://sources.debian.org/src/gmp/2%3A6.2.1%2Bdfsg1-1.1/"
+      },
+      {
+        "Package": "libgnutls30",
+        "Version": "3.7.9-2+deb12u7",
+        "licences": [
+          "Apache-2.0",
+          "BSD-3-Clause",
+          "CC0 license",
+          "Expat",
+          "GPLv3+",
+          "LGPLv2.1+",
+          "LGPLv3+_or_GPLv2+",
+          "The main library is licensed under GNU Lesser"
+        ],
+        "copyrightFile": "/usr/share/doc/libgnutls30/copyright",
+        "sourceUrl": "https://sources.debian.org/src/gnutls28/3.7.9-2%2Bdeb12u7/"
+      },
+      {
+        "Package": "libgpg-error0",
+        "Version": "1.46-1",
+        "licences": [
+          "BSD-3-clause",
+          "GPL-3+",
+          "LGPL-2.1+",
+          "LGPL-2.1+ or BSD-3-clause",
+          "g10-permissive"
+        ],
+        "copyrightFile": "/usr/share/doc/libgpg-error0/copyright",
+        "sourceUrl": "https://sources.debian.org/src/libgpg-error/1.46-1/"
+      },
+      {
+        "Package": "libhogweed6",
+        "Version": "3.8.1-2",
+        "licences": [
+          "Expat",
+          "GAP",
+          "GPL-2",
+          "GPL-2+",
+          "GPL-3+",
+          "GPL-3+ with Autoconf exception",
+          "LGPL-2+",
+          "LGPL-3+",
+          "LGPL-3+ or GPL-2+",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/libhogweed6/copyright",
+        "sourceUrl": "https://sources.debian.org/src/nettle/3.8.1-2/"
+      },
+      {
+        "Package": "libidn2-0",
+        "Version": "2.3.3-1+b1",
+        "licences": [
+          "GPL-2+",
+          "GPL-3+",
+          "LGPL-3+",
+          "LGPL-3+ or GPL-2+",
+          "Unicode"
+        ],
+        "copyrightFile": "/usr/share/doc/libidn2-0/copyright",
+        "sourceUrl": "https://sources.debian.org/src/libidn2/2.3.3-1/"
+      },
+      {
+        "Package": "liblz4-1",
+        "Version": "1.9.4-1",
+        "licences": [
+          "BSD-2-clause",
+          "GPL-2+",
+          "GPL-2+ or BSD-2-clause"
+        ],
+        "copyrightFile": "/usr/share/doc/liblz4-1/copyright",
+        "sourceUrl": "https://sources.debian.org/src/lz4/1.9.4-1/"
+      },
+      {
+        "Package": "liblzma5",
+        "Version": "5.4.1-1+deb12u2",
+        "licences": [
+          "Autoconf",
+          "GPL-2",
+          "GPL-2+",
+          "LGPL-2.1+",
+          "PD",
+          "PD-debian",
+          "config-h",
+          "noderivs",
+          "none",
+          "permissive-fsf",
+          "permissive-nowarranty",
+          "probably-PD"
+        ],
+        "copyrightFile": "/usr/share/doc/liblzma5/copyright",
+        "sourceUrl": "https://sources.debian.org/src/xz-utils/5.4.1-1%2Bdeb12u2/"
+      },
+      {
+        "Package": "libmd0",
+        "Version": "1.0.4-2",
+        "licences": [
+          "BSD-2-clause",
+          "BSD-2-clause-NetBSD",
+          "BSD-3-clause",
+          "BSD-3-clause-Aaron-D-Gifford",
+          "Beerware",
+          "ISC",
+          "public-domain-md4",
+          "public-domain-md5",
+          "public-domain-sha1"
+        ],
+        "copyrightFile": "/usr/share/doc/libmd0/copyright",
+        "sourceUrl": "https://sources.debian.org/src/libmd/1.0.4-2/"
+      },
+      {
+        "Package": "libmount1",
+        "Version": "2.38.1-5+deb12u3",
+        "licences": [
+          "BSD-3-clause",
+          "BSD-4-clause",
+          "BSLA",
+          "GPL-2",
+          "GPL-2+",
+          "GPL-3+",
+          "LGPL",
+          "LGPL-2+",
+          "LGPL-2.1+",
+          "LGPL-3+",
+          "MIT",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/libmount1/copyright",
+        "sourceUrl": "https://sources.debian.org/src/util-linux/2.38.1-5%2Bdeb12u3/"
+      },
+      {
+        "Package": "libnettle8",
+        "Version": "3.8.1-2",
+        "licences": [
+          "Expat",
+          "GAP",
+          "GPL-2",
+          "GPL-2+",
+          "GPL-3+",
+          "GPL-3+ with Autoconf exception",
+          "LGPL-2+",
+          "LGPL-3+",
+          "LGPL-3+ or GPL-2+",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/libnettle8/copyright",
+        "sourceUrl": "https://sources.debian.org/src/nettle/3.8.1-2/"
+      },
+      {
+        "Package": "libp11-kit0",
+        "Version": "0.24.1-2",
+        "licences": [
+          "Apache-2.0",
+          "BSD-3-Clause",
+          "ISC",
+          "ISC+IBM",
+          "LGPL-2.1+",
+          "permissive-like-automake-output",
+          "same-as-rest-of-p11kit"
+        ],
+        "copyrightFile": "/usr/share/doc/libp11-kit0/copyright",
+        "sourceUrl": "https://sources.debian.org/src/p11-kit/0.24.1-2/"
+      },
+      {
+        "Package": "libpam-modules",
+        "Version": "1.5.2-6+deb12u2",
+        "licences": [
+          "BSD-3-clause or GPL",
+          "BSD-tcp_wrappers",
+          "Beerware",
+          "GPL-2",
+          "GPL-2+",
+          "GPL-3",
+          "GPL-3+ with Bison exception",
+          "LGPL-2+",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/libpam-modules/copyright",
+        "sourceUrl": "https://sources.debian.org/src/pam/1.5.2-6%2Bdeb12u2/"
+      },
+      {
+        "Package": "libpam-modules-bin",
+        "Version": "1.5.2-6+deb12u2",
+        "licences": [
+          "BSD-3-clause or GPL",
+          "BSD-tcp_wrappers",
+          "Beerware",
+          "GPL-2",
+          "GPL-2+",
+          "GPL-3",
+          "GPL-3+ with Bison exception",
+          "LGPL-2+",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/libpam-modules-bin/copyright",
+        "sourceUrl": "https://sources.debian.org/src/pam/1.5.2-6%2Bdeb12u2/"
+      },
+      {
+        "Package": "libpam-runtime",
+        "Version": "1.5.2-6+deb12u2",
+        "licences": [
+          "BSD-3-clause or GPL",
+          "BSD-tcp_wrappers",
+          "Beerware",
+          "GPL-2",
+          "GPL-2+",
+          "GPL-3",
+          "GPL-3+ with Bison exception",
+          "LGPL-2+",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/libpam-runtime/copyright",
+        "sourceUrl": "https://sources.debian.org/src/pam/1.5.2-6%2Bdeb12u2/"
+      },
+      {
+        "Package": "libpam0g",
+        "Version": "1.5.2-6+deb12u2",
+        "licences": [
+          "BSD-3-clause or GPL",
+          "BSD-tcp_wrappers",
+          "Beerware",
+          "GPL-2",
+          "GPL-2+",
+          "GPL-3",
+          "GPL-3+ with Bison exception",
+          "LGPL-2+",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/libpam0g/copyright",
+        "sourceUrl": "https://sources.debian.org/src/pam/1.5.2-6%2Bdeb12u2/"
+      },
+      {
+        "Package": "libpcre2-8-0",
+        "Version": "10.42-1+deb12u2",
+        "licences": [
+          "BSD-2-clause",
+          "BSD-3-clause",
+          "BSD-3-clause-Cambridge with BINARY LIBRARY-LIKE PACKAGES exception",
+          "X11",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/libpcre2-8-0/copyright",
+        "sourceUrl": "https://sources.debian.org/src/pcre2/10.42-1%2Bdeb12u2/"
+      },
+      {
+        "Package": "libseccomp2",
+        "Version": "2.5.4-1+deb12u1",
+        "licences": [
+          "LGPL-2.1"
+        ],
+        "copyrightFile": "/usr/share/doc/libseccomp2/copyright",
+        "sourceUrl": "https://sources.debian.org/src/libseccomp/2.5.4-1%2Bdeb12u1/"
+      },
+      {
+        "Package": "libselinux1",
+        "Version": "3.4-1+b6",
+        "licences": [
+          "Public-domain library; GPL-2.0 and LGPL-2.1-or-later subcomponents retained"
+        ],
+        "copyrightFile": "/usr/share/doc/libselinux1/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/libselinux/3.4-1/"
+      },
+      {
+        "Package": "libsemanage-common",
+        "Version": "3.4-1",
+        "licences": [
+          "LGPL-2.1-or-later library; GPL-2.0 utilities"
+        ],
+        "copyrightFile": "/usr/share/doc/libsemanage-common/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/libsemanage/3.4-1/"
+      },
+      {
+        "Package": "libsemanage2",
+        "Version": "3.4-1+b5",
+        "licences": [
+          "LGPL-2.1-or-later library; GPL-2.0 utilities"
+        ],
+        "copyrightFile": "/usr/share/doc/libsemanage2/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/libsemanage/3.4-1/"
+      },
+      {
+        "Package": "libsepol2",
+        "Version": "3.4-2.1",
+        "licences": [
+          "GPL-2",
+          "GPL-2+",
+          "LGPL-2.1+",
+          "Zlib"
+        ],
+        "copyrightFile": "/usr/share/doc/libsepol2/copyright",
+        "sourceUrl": "https://sources.debian.org/src/libsepol/3.4-2.1/"
+      },
+      {
+        "Package": "libsmartcols1",
+        "Version": "2.38.1-5+deb12u3",
+        "licences": [
+          "BSD-3-clause",
+          "BSD-4-clause",
+          "BSLA",
+          "GPL-2",
+          "GPL-2+",
+          "GPL-3+",
+          "LGPL",
+          "LGPL-2+",
+          "LGPL-2.1+",
+          "LGPL-3+",
+          "MIT",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/libsmartcols1/copyright",
+        "sourceUrl": "https://sources.debian.org/src/util-linux/2.38.1-5%2Bdeb12u3/"
+      },
+      {
+        "Package": "libss2",
+        "Version": "1.47.0-2+b2",
+        "licences": [
+          "Apache-2",
+          "BSD-3-Clause",
+          "GPL or MIT-US-export",
+          "GPL-2",
+          "GPL-2+ with Texinfo exception",
+          "ISC",
+          "Kazlib",
+          "LGPL-2",
+          "Latex2e"
+        ],
+        "copyrightFile": "/usr/share/doc/libss2/copyright",
+        "sourceUrl": "https://sources.debian.org/src/e2fsprogs/1.47.0-2/"
+      },
+      {
+        "Package": "libstdc++6",
+        "Version": "12.2.0-14+deb12u1",
+        "licences": [
+          "GPL-3.0-or-later WITH GCC-exception-3.1; additional per-file notices retained"
+        ],
+        "copyrightFile": "/usr/share/doc/libstdc++6/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/gcc-12/12.2.0-14%2Bdeb12u1/"
+      },
+      {
+        "Package": "libsystemd0",
+        "Version": "252.39-1~deb12u2",
+        "licences": [
+          "CC0-1.0",
+          "Expat",
+          "GPL-2 with Linux-syscall-note exception",
+          "GPL-2+",
+          "LGPL-2.1+",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/libsystemd0/copyright",
+        "sourceUrl": "https://sources.debian.org/src/systemd/252.39-1~deb12u2/"
+      },
+      {
+        "Package": "libtasn1-6",
+        "Version": "4.19.0-2+deb12u1",
+        "licences": [
+          "LGPL-2.1-or-later library; GPL-3.0-or-later tools; GFDL-1.3 documentation"
+        ],
+        "copyrightFile": "/usr/share/doc/libtasn1-6/copyright",
+        "licenceReview": "Read non-machine-readable copyright text; preserve all per-file terms in image",
+        "sourceUrl": "https://sources.debian.org/src/libtasn1-6/4.19.0-2%2Bdeb12u1/"
+      },
+      {
+        "Package": "libtinfo6",
+        "Version": "6.4-4",
+        "licences": [
+          "BSD-3-clause",
+          "MIT/X11",
+          "X11"
+        ],
+        "copyrightFile": "/usr/share/doc/libtinfo6/copyright",
+        "sourceUrl": "https://sources.debian.org/src/ncurses/6.4-4/"
+      },
+      {
+        "Package": "libudev1",
+        "Version": "252.39-1~deb12u2",
+        "licences": [
+          "CC0-1.0",
+          "Expat",
+          "GPL-2 with Linux-syscall-note exception",
+          "GPL-2+",
+          "LGPL-2.1+",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/libudev1/copyright",
+        "sourceUrl": "https://sources.debian.org/src/systemd/252.39-1~deb12u2/"
+      },
+      {
+        "Package": "libunistring2",
+        "Version": "1.0-2",
+        "licences": [
+          "FreeSoftware",
+          "GFDL-1.2+",
+          "GPL-2+",
+          "GPL-2+ with distribution exception",
+          "GPL-3+",
+          "GPL-3+ or GFDL-1.2+",
+          "LGPL-3+",
+          "LGPL-3+ or GPL-2+",
+          "MIT"
+        ],
+        "copyrightFile": "/usr/share/doc/libunistring2/copyright",
+        "sourceUrl": "https://sources.debian.org/src/libunistring/1.0-2/"
+      },
+      {
+        "Package": "libuuid1",
+        "Version": "2.38.1-5+deb12u3",
+        "licences": [
+          "BSD-3-clause",
+          "BSD-4-clause",
+          "BSLA",
+          "GPL-2",
+          "GPL-2+",
+          "GPL-3+",
+          "LGPL",
+          "LGPL-2+",
+          "LGPL-2.1+",
+          "LGPL-3+",
+          "MIT",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/libuuid1/copyright",
+        "sourceUrl": "https://sources.debian.org/src/util-linux/2.38.1-5%2Bdeb12u3/"
+      },
+      {
+        "Package": "libxxhash0",
+        "Version": "0.8.1-1",
+        "licences": [
+          "BSD-2-clause",
+          "GPL-2"
+        ],
+        "copyrightFile": "/usr/share/doc/libxxhash0/copyright",
+        "sourceUrl": "https://sources.debian.org/src/xxhash/0.8.1-1/"
+      },
+      {
+        "Package": "libzstd1",
+        "Version": "1.5.4+dfsg2-5",
+        "licences": [
+          "BSD-3-clause",
+          "BSD-3-clause or GPL-2",
+          "Expat",
+          "GPL-2",
+          "zlib"
+        ],
+        "copyrightFile": "/usr/share/doc/libzstd1/copyright",
+        "sourceUrl": "https://sources.debian.org/src/libzstd/1.5.4%2Bdfsg2-5/"
+      },
+      {
+        "Package": "login",
+        "Version": "1:4.13+dfsg1-1+deb12u2",
+        "licences": [
+          "BSD-3-clause",
+          "GPL-1",
+          "GPL-2+",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/login/copyright",
+        "sourceUrl": "https://sources.debian.org/src/shadow/1%3A4.13%2Bdfsg1-1%2Bdeb12u2/"
+      },
+      {
+        "Package": "logsave",
+        "Version": "1.47.0-2+b2",
+        "licences": [
+          "Apache-2",
+          "BSD-3-Clause",
+          "GPL or MIT-US-export",
+          "GPL-2",
+          "GPL-2+ with Texinfo exception",
+          "ISC",
+          "Kazlib",
+          "LGPL-2",
+          "Latex2e"
+        ],
+        "copyrightFile": "/usr/share/doc/logsave/copyright",
+        "sourceUrl": "https://sources.debian.org/src/e2fsprogs/1.47.0-2/"
+      },
+      {
+        "Package": "mawk",
+        "Version": "1.3.4.20200120-3.1",
+        "licences": [
+          "CC-BY-3.0",
+          "GPL-2",
+          "X11"
+        ],
+        "copyrightFile": "/usr/share/doc/mawk/copyright",
+        "sourceUrl": "https://sources.debian.org/src/mawk/1.3.4.20200120-3.1/"
+      },
+      {
+        "Package": "mount",
+        "Version": "2.38.1-5+deb12u3",
+        "licences": [
+          "BSD-3-clause",
+          "BSD-4-clause",
+          "BSLA",
+          "GPL-2",
+          "GPL-2+",
+          "GPL-3+",
+          "LGPL",
+          "LGPL-2+",
+          "LGPL-2.1+",
+          "LGPL-3+",
+          "MIT",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/mount/copyright",
+        "sourceUrl": "https://sources.debian.org/src/util-linux/2.38.1-5%2Bdeb12u3/"
+      },
+      {
+        "Package": "ncurses-base",
+        "Version": "6.4-4",
+        "licences": [
+          "BSD-3-clause",
+          "MIT/X11",
+          "X11"
+        ],
+        "copyrightFile": "/usr/share/doc/ncurses-base/copyright",
+        "sourceUrl": "https://sources.debian.org/src/ncurses/6.4-4/"
+      },
+      {
+        "Package": "ncurses-bin",
+        "Version": "6.4-4",
+        "licences": [
+          "BSD-3-clause",
+          "MIT/X11",
+          "X11"
+        ],
+        "copyrightFile": "/usr/share/doc/ncurses-bin/copyright",
+        "sourceUrl": "https://sources.debian.org/src/ncurses/6.4-4/"
+      },
+      {
+        "Package": "passwd",
+        "Version": "1:4.13+dfsg1-1+deb12u2",
+        "licences": [
+          "BSD-3-clause",
+          "GPL-1",
+          "GPL-2+",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/passwd/copyright",
+        "sourceUrl": "https://sources.debian.org/src/shadow/1%3A4.13%2Bdfsg1-1%2Bdeb12u2/"
+      },
+      {
+        "Package": "perl-base",
+        "Version": "5.36.0-7+deb12u4",
+        "licences": [
+          " CC0-1.0",
+          "Artistic",
+          "Artistic or GPL-1+ or Artistic-dist",
+          "Artistic-2",
+          "Artistic-dist",
+          "BSD-3-clause",
+          "BSD-3-clause-GENERIC",
+          "BSD-3-clause-with-weird-numbering",
+          "BSD-4-clause-POWERDOG",
+          "BZIP",
+          "DONT-CHANGE-THE-GPL",
+          "Expat",
+          "Expat or GPL-1+ or Artistic",
+          "GPL-1+",
+          "GPL-1+ or Artistic",
+          "GPL-1+ or Artistic or Artistic-dist",
+          "GPL-1+ or Artistic, and BSD-3-clause-GENERIC",
+          "GPL-1+ or Artistic, and BSD-4-clause-POWERDOG",
+          "GPL-1+ or Artistic, and Expat",
+          "GPL-1+ or Artistic, and Unicode",
+          "GPL-2+",
+          "GPL-2+ or Artistic",
+          "GPL-3+-WITH-BISON-EXCEPTION",
+          "HSIEH-BSD",
+          "HSIEH-DERIVATIVE",
+          "LGPL-2.1",
+          "REGCOMP",
+          "REGCOMP, and GPL-1+ or Artistic",
+          "RRA-KEEP-THIS-NOTICE",
+          "SDBM-PUBLIC-DOMAIN",
+          "TEXT-TABS",
+          "Unicode",
+          "ZLIB"
+        ],
+        "copyrightFile": "/usr/share/doc/perl-base/copyright",
+        "sourceUrl": "https://sources.debian.org/src/perl/5.36.0-7%2Bdeb12u4/"
+      },
+      {
+        "Package": "sed",
+        "Version": "4.9-1+deb12u1",
+        "licences": [
+          "BSD-4-clause-UC",
+          "BSL-1",
+          "GFDL-NIV-1.3+",
+          "GPL-3+",
+          "GPL-3+ and ISC",
+          "ISC",
+          "X11",
+          "pcre"
+        ],
+        "copyrightFile": "/usr/share/doc/sed/copyright",
+        "sourceUrl": "https://sources.debian.org/src/sed/4.9-1%2Bdeb12u1/"
+      },
+      {
+        "Package": "sysvinit-utils",
+        "Version": "3.06-4",
+        "licences": [
+          "GPL-2.0",
+          "GPL-2.0+",
+          "GPL-3.0"
+        ],
+        "copyrightFile": "/usr/share/doc/sysvinit-utils/copyright",
+        "sourceUrl": "https://sources.debian.org/src/sysvinit/3.06-4/"
+      },
+      {
+        "Package": "tar",
+        "Version": "1.34+dfsg-1.2+deb12u1",
+        "licences": [
+          "GPL-2+",
+          "GPL-3+",
+          "GPL-3+ with Bison exception",
+          "LGPL-3+"
+        ],
+        "copyrightFile": "/usr/share/doc/tar/copyright",
+        "sourceUrl": "https://sources.debian.org/src/tar/1.34%2Bdfsg-1.2%2Bdeb12u1/"
+      },
+      {
+        "Package": "tzdata",
+        "Version": "2026e-0+deb12u1",
+        "licences": [
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/tzdata/copyright",
+        "sourceUrl": "https://sources.debian.org/src/tzdata/2026e-0%2Bdeb12u1/"
+      },
+      {
+        "Package": "usr-is-merged",
+        "Version": "37~deb12u1",
+        "licences": [
+          "GPL-2+"
+        ],
+        "copyrightFile": "/usr/share/doc/usr-is-merged/copyright",
+        "sourceUrl": "https://sources.debian.org/src/usrmerge/37~deb12u1/"
+      },
+      {
+        "Package": "util-linux",
+        "Version": "2.38.1-5+deb12u3",
+        "licences": [
+          "BSD-3-clause",
+          "BSD-4-clause",
+          "BSLA",
+          "GPL-2",
+          "GPL-2+",
+          "GPL-3+",
+          "LGPL",
+          "LGPL-2+",
+          "LGPL-2.1+",
+          "LGPL-3+",
+          "MIT",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/util-linux/copyright",
+        "sourceUrl": "https://sources.debian.org/src/util-linux/2.38.1-5%2Bdeb12u3/"
+      },
+      {
+        "Package": "util-linux-extra",
+        "Version": "2.38.1-5+deb12u3",
+        "licences": [
+          "BSD-3-clause",
+          "BSD-4-clause",
+          "BSLA",
+          "GPL-2",
+          "GPL-2+",
+          "GPL-3+",
+          "LGPL",
+          "LGPL-2+",
+          "LGPL-2.1+",
+          "LGPL-3+",
+          "MIT",
+          "public-domain"
+        ],
+        "copyrightFile": "/usr/share/doc/util-linux-extra/copyright",
+        "sourceUrl": "https://sources.debian.org/src/util-linux/2.38.1-5%2Bdeb12u3/"
+      },
+      {
+        "Package": "zlib1g",
+        "Version": "1:1.2.13.dfsg-1",
+        "licences": [
+          "Zlib"
+        ],
+        "copyrightFile": "/usr/share/doc/zlib1g/copyright",
+        "sourceUrl": "https://sources.debian.org/src/zlib/1%3A1.2.13.dfsg-1/"
+      }
+    ]
+  }
+}

@@ -182,11 +182,21 @@ pub async fn serve(
             _ => std::future::pending::<i32>().await,
         }
     };
-    let code = tokio::select! {
-        code = exited => code,
-        _ = term.recv() => { terminate(&agent, libc::SIGTERM).await; 0 },
-        _ = interrupt.recv() => { terminate(&agent, libc::SIGINT).await; 0 },
+    // Serve scoped health while scientific imports warm. Kernel open/reuse waits on its own
+    // readiness, so a CPU-limited import cannot consume the control token's health deadline.
+    let warming = async {
+        crate::kernels::prestart(&agent).await.map_err(|_| "Prestarted language kernel failed")?;
+        std::future::pending::<Result<i32, Box<dyn std::error::Error>>>().await
     };
+    let result = tokio::select! {
+        code = exited => Ok(code),
+        result = warming => result,
+        _ = term.recv() => { terminate(&agent, libc::SIGTERM).await; Ok(0) },
+        _ = interrupt.recv() => { terminate(&agent, libc::SIGINT).await; Ok(0) },
+    };
+    if result.is_err() {
+        terminate(&agent, libc::SIGKILL).await;
+    }
     for server in servers {
         server.abort();
     }
@@ -194,7 +204,7 @@ pub async fn serve(
     if let Some(logs) = logs {
         let _ = tokio::time::timeout(std::time::Duration::from_secs(1), logs).await;
     }
-    Ok(code)
+    result
 }
 
 async fn log_output(event: Event, logbook: &crate::logbook::Logbook) {

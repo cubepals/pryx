@@ -5,7 +5,9 @@ import { Agent, type Process, type StartOptions } from './agent.ts'
 import { type Duration, seconds } from './duration.ts'
 import { type FileData, Files } from './files.ts'
 import { SDK_DEFAULTS } from './generated/defaults.ts'
+import { KERNEL_DEFAULTS } from './generated/kernels.ts'
 import { Git } from './git.ts'
+import { Kernel, type KernelOptions, type KernelView } from './kernels.ts'
 import { CommandStream, type RunOptions } from './run.ts'
 import { Shell } from './shell.ts'
 import type { MakeRequest, Sandbox as SandboxView, Snapshot as SnapshotView, Transport } from './transport.ts'
@@ -135,6 +137,16 @@ export class Sandbox {
   }
   killAll() {
     return this.#agent.requestV2<{ killed: string[] }>('/_pryx/processes/kill-all', 'POST')
+  }
+  python(options: KernelOptions = {}) {
+    return Kernel.open(this.#agent, 'python', options)
+  }
+  javascript(options: KernelOptions = {}) {
+    return Kernel.open(this.#agent, 'javascript', options)
+  }
+  async kernels() {
+    await this.#agent.requireKernels(KERNEL_DEFAULTS.version)
+    return (await this.#agent.request<{ kernels: KernelView[] }>('/_pryx/kernels')).kernels
   }
   async shell(options: { cwd?: string; env?: Record<string, string> } = {}) {
     const view = await this.#agent.requestV2<{ id: string }>('/_pryx/shells', 'POST', {

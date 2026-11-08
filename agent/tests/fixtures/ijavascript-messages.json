@@ -1,0 +1,489 @@
+[
+  {
+    "header": {
+      "msg_id": "e3b39240-092c-4d77-b42c-53f122d12a30",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "msg_type": "status",
+      "version": "5.4",
+      "date": "2026-11-08 00:41:39.590367+00:00"
+    },
+    "msg_id": "e3b39240-092c-4d77-b42c-53f122d12a30",
+    "msg_type": "status",
+    "parent_header": {
+      "msg_id": "aaec571d-98d28070f3c45d1338915eac_638401_1",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "date": "2026-11-08 00:41:39.587540+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "execution_state": "busy"
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "1b8b1594-910e-4624-b645-57e0e4dbc2d1",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "msg_type": "execute_input",
+      "version": "5.4",
+      "date": "2026-11-08 00:41:39.590665+00:00"
+    },
+    "msg_id": "1b8b1594-910e-4624-b645-57e0e4dbc2d1",
+    "msg_type": "execute_input",
+    "parent_header": {
+      "msg_id": "aaec571d-98d28070f3c45d1338915eac_638401_1",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "date": "2026-11-08 00:41:39.587540+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "execution_count": 1,
+      "code": "console.log('recorded stdout'); console.error('recorded stderr'); 2+2"
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "858a2073-99dd-4599-ba5f-0f43ab9deee6",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "msg_type": "stream",
+      "version": "5.4",
+      "date": "2026-11-08 00:41:39.592890+00:00"
+    },
+    "msg_id": "858a2073-99dd-4599-ba5f-0f43ab9deee6",
+    "msg_type": "stream",
+    "parent_header": {
+      "msg_id": "aaec571d-98d28070f3c45d1338915eac_638401_1",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "date": "2026-11-08 00:41:39.587540+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "name": "stdout",
+      "text": "recorded stdout\n"
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "817bf4f6-1b54-4f60-bc52-f3e27f4e0af0",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "msg_type": "stream",
+      "version": "5.4",
+      "date": "2026-11-08 00:41:39.593266+00:00"
+    },
+    "msg_id": "817bf4f6-1b54-4f60-bc52-f3e27f4e0af0",
+    "msg_type": "stream",
+    "parent_header": {
+      "msg_id": "aaec571d-98d28070f3c45d1338915eac_638401_1",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "date": "2026-11-08 00:41:39.587540+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "name": "stderr",
+      "text": "recorded stderr\n"
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "b7b4bb55-a014-4d14-8d2e-bb62e586167e",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "msg_type": "execute_result",
+      "version": "5.4",
+      "date": "2026-11-08 00:41:39.594669+00:00"
+    },
+    "msg_id": "b7b4bb55-a014-4d14-8d2e-bb62e586167e",
+    "msg_type": "execute_result",
+    "parent_header": {
+      "msg_id": "aaec571d-98d28070f3c45d1338915eac_638401_1",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "date": "2026-11-08 00:41:39.587540+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "execution_count": 1,
+      "data": {
+        "text/plain": "4"
+      },
+      "metadata": {}
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "ba1bf46a-121f-4d37-8937-a302bad1a38f",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "msg_type": "status",
+      "version": "5.4",
+      "date": "2026-11-08 00:41:39.595006+00:00"
+    },
+    "msg_id": "ba1bf46a-121f-4d37-8937-a302bad1a38f",
+    "msg_type": "status",
+    "parent_header": {
+      "msg_id": "aaec571d-98d28070f3c45d1338915eac_638401_1",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "date": "2026-11-08 00:41:39.587540+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "execution_state": "idle"
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "03c0f0df-2209-4369-961d-4b649fe435e8",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "msg_type": "execute_reply",
+      "version": "5.4",
+      "date": "2026-11-08 00:41:39.595124+00:00"
+    },
+    "msg_id": "03c0f0df-2209-4369-961d-4b649fe435e8",
+    "msg_type": "execute_reply",
+    "parent_header": {
+      "msg_id": "aaec571d-98d28070f3c45d1338915eac_638401_1",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "date": "2026-11-08 00:41:39.587540+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "status": "ok",
+      "execution_count": 1,
+      "payload": [],
+      "user_expressions": {}
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "ffd58e0f-0b90-4f05-bcd0-532af1a3d93f",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "msg_type": "status",
+      "version": "5.4",
+      "date": "2026-11-08 00:41:39.596065+00:00"
+    },
+    "msg_id": "ffd58e0f-0b90-4f05-bcd0-532af1a3d93f",
+    "msg_type": "status",
+    "parent_header": {
+      "msg_id": "aaec571d-98d28070f3c45d1338915eac_638401_2",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "date": "2026-11-08 00:41:39.595159+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "execution_state": "busy"
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "f44a1722-12ca-4f34-97ea-86d9317b78e5",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "msg_type": "execute_input",
+      "version": "5.4",
+      "date": "2026-11-08 00:41:39.598287+00:00"
+    },
+    "msg_id": "f44a1722-12ca-4f34-97ea-86d9317b78e5",
+    "msg_type": "execute_input",
+    "parent_header": {
+      "msg_id": "aaec571d-98d28070f3c45d1338915eac_638401_2",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "date": "2026-11-08 00:41:39.595159+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "execution_count": 2,
+      "code": "$$.mime({'text/plain':'plain','text/html':'<b>rich</b>','application/json':{'answer':4}})"
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "480aec3f-e704-4619-9440-b6554222478f",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "msg_type": "execute_result",
+      "version": "5.4",
+      "date": "2026-11-08 00:41:39.598461+00:00"
+    },
+    "msg_id": "480aec3f-e704-4619-9440-b6554222478f",
+    "msg_type": "execute_result",
+    "parent_header": {
+      "msg_id": "aaec571d-98d28070f3c45d1338915eac_638401_2",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "date": "2026-11-08 00:41:39.595159+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "execution_count": 2,
+      "data": {
+        "text/plain": "plain",
+        "text/html": "<b>rich</b>",
+        "application/json": {
+          "answer": 4
+        }
+      },
+      "metadata": {}
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "b728ec1b-c179-47af-87e2-614aaf4488d3",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "msg_type": "status",
+      "version": "5.4",
+      "date": "2026-11-08 00:41:39.598553+00:00"
+    },
+    "msg_id": "b728ec1b-c179-47af-87e2-614aaf4488d3",
+    "msg_type": "status",
+    "parent_header": {
+      "msg_id": "aaec571d-98d28070f3c45d1338915eac_638401_2",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "date": "2026-11-08 00:41:39.595159+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "execution_state": "idle"
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "e4123341-0b30-46ee-ada3-e4cb08f39d9c",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "msg_type": "execute_reply",
+      "version": "5.4",
+      "date": "2026-11-08 00:41:39.598714+00:00"
+    },
+    "msg_id": "e4123341-0b30-46ee-ada3-e4cb08f39d9c",
+    "msg_type": "execute_reply",
+    "parent_header": {
+      "msg_id": "aaec571d-98d28070f3c45d1338915eac_638401_2",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "date": "2026-11-08 00:41:39.595159+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "status": "ok",
+      "execution_count": 2,
+      "payload": [],
+      "user_expressions": {}
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "cdb6e22c-facb-4d4f-bde8-ed422dc903ca",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "msg_type": "status",
+      "version": "5.4",
+      "date": "2026-11-08 00:41:39.603621+00:00"
+    },
+    "msg_id": "cdb6e22c-facb-4d4f-bde8-ed422dc903ca",
+    "msg_type": "status",
+    "parent_header": {
+      "msg_id": "aaec571d-98d28070f3c45d1338915eac_638401_3",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "date": "2026-11-08 00:41:39.598740+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "execution_state": "busy"
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "14d1862a-bca8-4042-8ca9-4f4cf23e6e43",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "msg_type": "execute_input",
+      "version": "5.4",
+      "date": "2026-11-08 00:41:39.603892+00:00"
+    },
+    "msg_id": "14d1862a-bca8-4042-8ca9-4f4cf23e6e43",
+    "msg_type": "execute_input",
+    "parent_header": {
+      "msg_id": "aaec571d-98d28070f3c45d1338915eac_638401_3",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "date": "2026-11-08 00:41:39.598740+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "execution_count": 3,
+      "code": "throw new Error('recorded error')"
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "1ed934b4-848e-402b-a052-57ea70dd2a90",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "msg_type": "error",
+      "version": "5.4",
+      "date": "2026-11-08 00:41:39.606419+00:00"
+    },
+    "msg_id": "1ed934b4-848e-402b-a052-57ea70dd2a90",
+    "msg_type": "error",
+    "parent_header": {
+      "msg_id": "aaec571d-98d28070f3c45d1338915eac_638401_3",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "date": "2026-11-08 00:41:39.598740+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "execution_count": 3,
+      "ename": "Error",
+      "evalue": "recorded error",
+      "traceback": [
+        "evalmachine.<anonymous>:1",
+        "throw new Error('recorded error')",
+        "^",
+        "",
+        "Error: recorded error",
+        "    at evalmachine.<anonymous>:1:7",
+        "    at sigintHandlersWrap (node:vm:280:12)",
+        "    at Script.runInThisContext (node:vm:135:14)",
+        "    at Object.runInThisContext (node:vm:317:38)",
+        "    at vm.runInThisContext (/workspace/pryx/templates/node-interpreter/interrupt.cjs:7:14)",
+        "    at run ([eval]:1020:15)",
+        "    at onRunRequest ([eval]:864:18)",
+        "    at onMessage ([eval]:828:13)",
+        "    at process.emit (node:events:514:28)",
+        "    at emit (node:internal/child_process:1020:14)"
+      ]
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "8f854753-9687-45f4-bd76-472e22b455db",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "msg_type": "status",
+      "version": "5.4",
+      "date": "2026-11-08 00:41:39.606679+00:00"
+    },
+    "msg_id": "8f854753-9687-45f4-bd76-472e22b455db",
+    "msg_type": "status",
+    "parent_header": {
+      "msg_id": "aaec571d-98d28070f3c45d1338915eac_638401_3",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "date": "2026-11-08 00:41:39.598740+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "execution_state": "idle"
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "9d8db0e3-f12d-49fa-91e5-c71575409bf7",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "msg_type": "execute_reply",
+      "version": "5.4",
+      "date": "2026-11-08 00:41:39.606777+00:00"
+    },
+    "msg_id": "9d8db0e3-f12d-49fa-91e5-c71575409bf7",
+    "msg_type": "execute_reply",
+    "parent_header": {
+      "msg_id": "aaec571d-98d28070f3c45d1338915eac_638401_3",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "aaec571d-98d28070f3c45d1338915eac",
+      "date": "2026-11-08 00:41:39.598740+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "status": "error",
+      "execution_count": 3,
+      "ename": "Error",
+      "evalue": "recorded error",
+      "traceback": [
+        "evalmachine.<anonymous>:1",
+        "throw new Error('recorded error')",
+        "^",
+        "",
+        "Error: recorded error",
+        "    at evalmachine.<anonymous>:1:7",
+        "    at sigintHandlersWrap (node:vm:280:12)",
+        "    at Script.runInThisContext (node:vm:135:14)",
+        "    at Object.runInThisContext (node:vm:317:38)",
+        "    at vm.runInThisContext (/workspace/pryx/templates/node-interpreter/interrupt.cjs:7:14)",
+        "    at run ([eval]:1020:15)",
+        "    at onRunRequest ([eval]:864:18)",
+        "    at onMessage ([eval]:828:13)",
+        "    at process.emit (node:events:514:28)",
+        "    at emit (node:internal/child_process:1020:14)"
+      ]
+    },
+    "buffers": []
+  }
+]

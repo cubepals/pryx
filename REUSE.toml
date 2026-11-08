@@ -8,3 +8,13 @@ path = "**"
 precedence = "closest"
 SPDX-FileCopyrightText = "2026 The Cubepals Authors"
 SPDX-License-Identifier = "FSL-1.1-ALv2"
+
+[[annotations]]
+path = "templates/node-interpreter/notices/canvas.txt"
+SPDX-FileCopyrightText = ["2020 LongYinan", "2015 The Chromium Authors"]
+SPDX-License-Identifier = "MIT AND BSD-3-Clause"
+
+[[annotations]]
+path = "templates/node-interpreter/notices/skia.txt"
+SPDX-FileCopyrightText = "2011 Google Inc."
+SPDX-License-Identifier = "BSD-3-Clause"

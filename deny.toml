@@ -45,6 +45,12 @@ allow = ["WTFPL"]
 crate = "webpki-roots@1.0.11"
 allow = ["CDLA-Permissive-2.0"]
 
+# The Jupyter client's unmodified directory-discovery dependency is file-level copyleft.
+# Its upstream source and licence are linked in docs/interpreter.md; no source is vendored.
+[[licenses.exceptions]]
+crate = "option-ext@0.2.0"
+allow = ["MPL-2.0"]
+
 [licenses.private]
 # pryxd itself (FSL-1.1-ALv2, LICENSE.md; publish = false) isn't checked against the list above.
 ignore = true

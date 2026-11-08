@@ -4,6 +4,7 @@
  * `handles.ts` owns sandbox/snapshot identities; `run.ts` owns eager observations; `files.ts`
  * owns binary files; `git.ts`, `shell.ts`, `template.ts`, `webhook.ts` own convenience handles;
  * `git-proxy.ts` owns the transient wasm bridge; `local-files.ts` owns caller disk streaming; `logs.ts` owns agent log decoding; `duration.ts` parses durations.
+ * `kernels.ts` owns persistent language contexts and rich result collection.
  */
 
 import { StatusCodes } from 'http-status-codes'
@@ -22,6 +23,15 @@ export { Files } from './files.ts'
 export type { GitResult } from './git.ts'
 export type { SandboxOptions } from './handles.ts'
 export { Sandbox, Snapshot } from './handles.ts'
+export type {
+  Kernel,
+  KernelError,
+  KernelEvent,
+  KernelOptions,
+  KernelResult,
+  KernelRunOptions,
+  KernelView,
+} from './kernels.ts'
 export type { LogRecord, LogsOptions } from './logs.ts'
 export type { Chunk, CommandStream, RunOptions, RunResult } from './run.ts'
 export type { TemplateOptions, TemplateView } from './template.ts'

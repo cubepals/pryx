@@ -97,6 +97,7 @@ export async function execCommand(
 export async function sandbox(args: string[]): Promise<unknown> {
   const client = publicClient()
   const [verb = 'ls', id, ...rest] = args
+  if (verb === 'python') return (await import('./sandbox-kernel.ts')).python(client, args.slice(1))
   if (verb === 'create')
     return client.sandbox({
       ...makeRequest(args),

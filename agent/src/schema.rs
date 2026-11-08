@@ -25,17 +25,24 @@ pub fn document() -> serde_json::Value {
     requests.subschema_for::<crate::file_search::Search>();
     requests.subschema_for::<crate::file_search::Path>();
     requests.subschema_for::<crate::file_search::Mode>();
+    requests.subschema_for::<crate::kernels::events::KernelOpen>();
+    requests.subschema_for::<crate::kernels::events::KernelRun>();
+    requests.subschema_for::<crate::kernels::events::KernelComplete>();
     generator.subschema_for::<crate::process::View>();
     generator.subschema_for::<crate::process::ResultView>();
     generator.subschema_for::<crate::process::Event>();
     generator.subschema_for::<crate::ports::Exposed>();
     generator.subschema_for::<crate::paths::FileInfo>();
     generator.subschema_for::<crate::logbook::Frame>();
+    generator.subschema_for::<crate::kernels::events::KernelView>();
+    generator.subschema_for::<crate::kernels::events::KernelEvent>();
     let mut definitions = generator.take_definitions(true);
     definitions.extend(requests.take_definitions(true));
     let mut document = serde_json::json!({
         "openapi":"3.1.0", "info":{"title":"pryx sandbox agent", "version":env!("CARGO_PKG_VERSION")},
         "x-pryx-agent-version":crate::contract::API_VERSION,
+        "x-pryx-kernels-version":crate::kernels::VERSION,
+        "x-pryx-kernels":{"version":crate::kernels::VERSION,"prestartEnv":crate::kernels::PRESTART_ENV,"defaultTimeoutSeconds":crate::kernels::DEFAULT_RUN.as_secs()},
         "paths":{}, "components":{"schemas":definitions}
     });
     for (method, path, schema) in [
@@ -50,10 +57,23 @@ pub fn document() -> serde_json::Value {
         ("post", "/_pryx/files/chmod", Some("Mode")),
         ("get", "/_pryx/files/archive", None),
         ("put", "/_pryx/files/archive", None),
+        ("get", "/_pryx/kernels", None),
+        ("post", "/_pryx/kernels", Some("KernelOpen")),
+        ("delete", "/_pryx/kernels/{id}", None),
+        ("post", "/_pryx/kernels/{id}/execute", Some("KernelRun")),
+        ("post", "/_pryx/kernels/{id}/interrupt", None),
+        ("post", "/_pryx/kernels/{id}/restart", None),
+        ("post", "/_pryx/kernels/{id}/complete", Some("KernelComplete")),
     ] {
         let mut operation = serde_json::json!({"x-pryx-agent-version":crate::contract::API_VERSION,"responses":{"200":{"description":"Completed"},"204":{"description":"Completed without content"}}});
         if let Some(schema) = schema {
             operation["requestBody"] = serde_json::json!({"required":true,"content":{"application/json":{"schema":{"$ref":format!("#/components/schemas/{schema}")}}}});
+        }
+        if path.starts_with("/_pryx/kernels") {
+            operation["x-pryx-kernels-version"] = serde_json::json!(crate::kernels::VERSION);
+            if path.ends_with("/execute") {
+                operation["responses"]["200"] = serde_json::json!({"description":"One kernel event per NDJSON line, through done", "content":{"application/x-ndjson":{"schema":{"$ref":"#/components/schemas/KernelEvent"}}}});
+            }
         }
         let mut parameters = Vec::new();
         if path.contains("{id}") {

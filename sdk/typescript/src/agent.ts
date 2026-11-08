@@ -25,12 +25,14 @@ export class Agent {
   #renewing?: Promise<SandboxToken>
   #generation = 0
   #version?: Promise<void>
+  #kernels?: Promise<void>
   constructor(
     readonly api: Transport,
     readonly id: string,
   ) {}
   invalidate() {
     this.#version = undefined
+    this.#kernels = undefined
     this.#generation++
     this.#credential = undefined
     this.#renewing = undefined
@@ -97,6 +99,18 @@ export class Agent {
         throw error
       })
     return this.#version
+  }
+  requireKernels(version: number) {
+    this.#kernels ??= this.request<{ kernelsVersion?: number }>('/_pryx/health')
+      .then((health) => {
+        if ((health.kernelsVersion ?? 0) < version)
+          throw new PryxError(0, 'unsupported', 'This agent does not provide language kernels')
+      })
+      .catch((error) => {
+        this.#kernels = undefined
+        throw error
+      })
+    return this.#kernels
   }
   async requestV2<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
     await this.requireVersion()

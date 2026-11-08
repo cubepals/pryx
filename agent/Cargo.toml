@@ -35,6 +35,8 @@ httparse = { version = "1", optional = true }
 landlock = { version = "0.4.7", optional = true }
 seccompiler = { version = "0.5.0", optional = true }
 
+jupyter-zmq-client = { version = "=3.0.1", default-features = false, features = ["tokio-runtime", "ring"], optional = true }
+jupyter-protocol = { version = "=2.0.3", optional = true }
 regex = { version = "1", optional = true }
 globset = { version = "0.4", optional = true }
 tar = { version = "0.4", optional = true }
@@ -45,7 +47,7 @@ default = ["server", "mcp"]
 mcp = ["server"]
 fs = ["dep:rustix", "dep:landlock", "dep:tokio"]
 schema = ["dep:schemars"]
-server = ["dep:regex", "dep:globset", "dep:tar", "dep:tempfile", "dep:async-trait", "fs", "dep:axum", "dep:tokio", "dep:tokio-util", "dep:futures-util", "dep:bytes", "dep:uuid", "dep:portable-pty", "dep:notify", "dep:procfs", "dep:brush-core", "dep:brush-builtins", "dep:reqwest", "dep:libc", "dep:clap", "dep:rustls", "dep:httparse", "dep:landlock", "dep:seccompiler"]
+server = ["dep:jupyter-zmq-client", "dep:jupyter-protocol", "dep:regex", "dep:globset", "dep:tar", "dep:tempfile", "dep:async-trait", "fs", "dep:axum", "dep:tokio", "dep:tokio-util", "dep:futures-util", "dep:bytes", "dep:uuid", "dep:portable-pty", "dep:notify", "dep:procfs", "dep:brush-core", "dep:brush-builtins", "dep:reqwest", "dep:libc", "dep:clap", "dep:rustls", "dep:httparse", "dep:landlock", "dep:seccompiler"]
 
 [[bin]]
 name = "pryx-agent"

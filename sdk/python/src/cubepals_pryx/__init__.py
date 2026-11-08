@@ -3,7 +3,7 @@
 Parts (cubepals_pryx/): _transport.py owns private HTTP; handles.py owns identities; agent.py and
 async_agent.py own capabilities; files.py owns binary data; run.py owns eager observation;
 git.py and git_proxy.py own Git; shell.py owns sessions; template.py owns builds/webhooks;
-file_conveniences.py and local_files.py own caller disk operations; duration.py parses durations; logs.py decodes framed history; generated/ owns option and result models.
+file_conveniences.py and local_files.py own caller disk operations; duration.py parses durations; logs.py decodes framed history; kernels.py owns language contexts; generated/ owns option and result models.
 """
 import asyncio as _asyncio
 from uuid import uuid4 as _uuid4

@@ -46,7 +46,7 @@ class Agent:
     @property
     def http(self): return self._api.http
     def invalidate(self):
-        with self._lock: self._credential = None; self._version=None
+        with self._lock: self._credential = None; self._version=None; self._kernel_version=None
     def token(self):
         with self._lock:
             if not self._credential or self._credential['expiresAt'] <= time.time() + SDK_DEFAULTS['tokenRenewBeforeSeconds']:
@@ -72,6 +72,11 @@ class Agent:
     def request_v2(self,path,method='GET',body=None):
         self.require_version()
         return self.request(path,method,body)
+    def require_kernels(self, version):
+        if getattr(self, '_kernel_version', None) is None:
+            self._kernel_version = self.request('/_pryx/health').get('kernelsVersion', 0)
+        if self._kernel_version < version:
+            raise PryxError(0, {'error': {'code': 'unsupported', 'message': 'This agent does not provide language kernels'}})
     def start(self, command, *, key=None, **options):
         stdin=options.get('stdin')
         if isinstance(stdin,(str,bytes,bytearray,memoryview)):options['stdin']=True

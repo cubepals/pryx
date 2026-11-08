@@ -189,6 +189,230 @@
           }
         ]
       },
+      "KernelComplete": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "type": "object"
+      },
+      "KernelEvent": {
+        "oneOf": [
+          {
+            "properties": {
+              "stream": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "type": {
+                "const": "stream",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "stream",
+              "text"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "data": true,
+              "executionCount": {
+                "format": "uint",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "metadata": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "type": {
+                "const": "result",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "data",
+              "metadata",
+              "executionCount"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "data": true,
+              "displayId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "metadata": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "type": {
+                "const": "display",
+                "type": "string"
+              },
+              "update": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "type",
+              "data",
+              "metadata",
+              "displayId",
+              "update"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "traceback": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "type": {
+                "const": "error",
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "name",
+              "value",
+              "traceback"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "executionCount": {
+                "format": "uint",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "status": {
+                "type": "string"
+              },
+              "type": {
+                "const": "done",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "executionCount",
+              "status"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "KernelOpen": {
+        "additionalProperties": false,
+        "properties": {
+          "context": {
+            "default": "",
+            "type": "string"
+          },
+          "language": {
+            "$ref": "#/components/schemas/Language"
+          }
+        },
+        "required": [
+          "language"
+        ],
+        "type": "object"
+      },
+      "KernelRun": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "timeout": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "type": "object"
+      },
+      "KernelView": {
+        "properties": {
+          "context": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "language": {
+            "$ref": "#/components/schemas/Language"
+          },
+          "pid": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "processId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "language",
+          "context",
+          "processId",
+          "pid",
+          "state"
+        ],
+        "type": "object"
+      },
+      "Language": {
+        "enum": [
+          "python",
+          "javascript"
+        ],
+        "type": "string"
+      },
       "Mode": {
         "additionalProperties": false,
         "properties": {
@@ -615,6 +839,189 @@
         "x-pryx-agent-version": 2
       }
     },
+    "/_pryx/kernels": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Completed"
+          },
+          "204": {
+            "description": "Completed without content"
+          }
+        },
+        "x-pryx-agent-version": 2,
+        "x-pryx-kernels-version": 1
+      },
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KernelOpen"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Completed"
+          },
+          "204": {
+            "description": "Completed without content"
+          }
+        },
+        "x-pryx-agent-version": 2,
+        "x-pryx-kernels-version": 1
+      }
+    },
+    "/_pryx/kernels/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Completed"
+          },
+          "204": {
+            "description": "Completed without content"
+          }
+        },
+        "x-pryx-agent-version": 2,
+        "x-pryx-kernels-version": 1
+      }
+    },
+    "/_pryx/kernels/{id}/complete": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KernelComplete"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Completed"
+          },
+          "204": {
+            "description": "Completed without content"
+          }
+        },
+        "x-pryx-agent-version": 2,
+        "x-pryx-kernels-version": 1
+      }
+    },
+    "/_pryx/kernels/{id}/execute": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KernelRun"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/x-ndjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/KernelEvent"
+                }
+              }
+            },
+            "description": "One kernel event per NDJSON line, through done"
+          },
+          "204": {
+            "description": "Completed without content"
+          }
+        },
+        "x-pryx-agent-version": 2,
+        "x-pryx-kernels-version": 1
+      }
+    },
+    "/_pryx/kernels/{id}/interrupt": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Completed"
+          },
+          "204": {
+            "description": "Completed without content"
+          }
+        },
+        "x-pryx-agent-version": 2,
+        "x-pryx-kernels-version": 1
+      }
+    },
+    "/_pryx/kernels/{id}/restart": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Completed"
+          },
+          "204": {
+            "description": "Completed without content"
+          }
+        },
+        "x-pryx-agent-version": 2,
+        "x-pryx-kernels-version": 1
+      }
+    },
     "/_pryx/processes/kill-all": {
       "post": {
         "responses": {
@@ -741,5 +1148,11 @@
       }
     }
   },
-  "x-pryx-agent-version": 2
+  "x-pryx-agent-version": 2,
+  "x-pryx-kernels": {
+    "defaultTimeoutSeconds": 30,
+    "prestartEnv": "PRYX_KERNEL_PRESTART",
+    "version": 1
+  },
+  "x-pryx-kernels-version": 1
 }
