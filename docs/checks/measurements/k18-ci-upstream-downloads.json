@@ -13,7 +13,7 @@
     "retryWindowSeconds": 180,
     "connectTimeoutSeconds": 10,
     "attemptTimeoutSeconds": 45,
-    "scope": "CURL_HOME in private job-temporary directory; original URLs/versions/checksum/tests unchanged"
+    "scope": "private CURL_HOME selected only by external GET download/build steps; other test commands keep their normal curl behavior"
   },
   "validation": {
     "celldFlagInvocation": {
@@ -32,7 +32,23 @@
       "attempts": 3,
       "notFoundFailsImmediately": true
     },
-    "mirrorProbe": "HTTP 404; not adopted"
+    "mirrorProbe": "HTTP 404; not adopted",
+    "configuredCurlWithoutFailArgument": {
+      "two504ThenSuccess": true,
+      "404ExitCode": 22,
+      "404AttemptCount": 1
+    },
+    "realActionlintInstaller": {
+      "version": "1.7.12",
+      "downloadedAndRan": true,
+      "workflowParse": "passed"
+    }
   },
-  "dependency": "Existing curl and existing MIT rusty_v8 152.1.0; upstream versioned licence reread, no source copied and no new binary version introduced"
+  "dependency": "Existing curl and existing MIT rusty_v8 152.1.0; upstream versioned licence reread, no source copied and no new binary version introduced",
+  "actionlintFailure": {
+    "run": "https://github.com/cubepals/pryx/actions/runs/42465686990",
+    "job": 128684564425,
+    "downloadedBytes": 92,
+    "error": "gzip: stdin: not in gzip format; installer attempted to extract a 92-byte response that was not an archive; HTTP status was not retained"
+  }
 }
