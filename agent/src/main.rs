@@ -10,12 +10,14 @@ use std::io::{self, BufRead, Write};
 use std::os::unix::process::CommandExt;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let arguments = std::env::args().skip(1).collect::<Vec<_>>();
+    let native_bootstrap = arguments.first().is_some_and(|a| a.starts_with("--") && a != "--version");
+    let mappings = if native_bootstrap { pryx_agent::fuse_namespace::prepare()? } else { None };
     // Images run as the same sandbox user. Prevent their processes from reading the agent's
     // bootstrap environment or memory through ptrace/procfs, without adding a privilege.
     rustix::process::set_dumpable_behavior(rustix::process::DumpableBehavior::NotDumpable)?;
     rustix::process::set_child_subreaper(rustix::process::Pid::from_raw(1))?;
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let arguments = std::env::args().skip(1).collect::<Vec<_>>();
     if matches!(arguments.first().map(String::as_str), Some("tool-child" | "mount-child")) {
         let mount = arguments[0] == "mount-child";
         pryx_agent::fuse_namespace::child(mount)?;
@@ -69,7 +71,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     if !matches!(arguments.first().map(String::as_str), Some("shell" | "--version")) {
-        pryx_agent::fuse_namespace::enter()?;
+        pryx_agent::fuse_namespace::enter(mappings)?;
     }
     let runtime = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build()?;
     if arguments.first().is_some_and(|a| a == "shell") {

@@ -1,0 +1,52 @@
+{
+  "scope": "local real agent probes; not full control/edge or both-SDK deployment acceptance",
+  "baseCommit": "fc13ecc",
+  "changes": "pinned namespace mapping descriptors and descriptor-anchored FUSE helper working directory",
+  "timeUtc": "2026-11-08T03:40:41.807684+00:00",
+  "ssh": {
+    "withoutFuse": "pass",
+    "withNestedFuseNamespace": "pass",
+    "checks": [
+      "per-call Ed25519 authentication",
+      "real OpenSSH command",
+      "explicit revocation"
+    ]
+  },
+  "s3": {
+    "pairs": 5,
+    "backends": [
+      "Mountpoint S3 1.24.0",
+      "rclone 1.76.0"
+    ],
+    "checks": [
+      "read seeded bytes from real S3",
+      "set -e write through FUSE",
+      "independent S3 GET validates remote bytes before teardown",
+      "ordinary command effective capabilities zero"
+    ],
+    "outcome": "all five fresh pairs pass"
+  },
+  "browser": {
+    "implementation": "Playwright 1.65.0 with audited Chromium headless shell 1254",
+    "sandboxEnabled": true,
+    "checks": [
+      "real authenticated CDP client",
+      "PNG from HTTP page",
+      "missing capability refused",
+      "expired capability refused"
+    ],
+    "outcome": "pass"
+  },
+  "limitations": [
+    "Enforcing host AppArmor remains a CI check",
+    "Raw edge SSH wake remains a CI check",
+    "Warm-template measurements remain a separate 30-sample CI cohort"
+  ],
+  "preservedFailures": [
+    "namespace mapping EACCES",
+    "rclone proc descriptor helper refusal",
+    "rclone prepared bind mount refusal",
+    "standalone fixture/library/response-shape errors",
+    "probe shell missing set -e and early S3 observer failure"
+  ]
+}

@@ -6,13 +6,37 @@ use nix::{
     unistd::{getgid, getuid},
 };
 use rustix::thread::{CapabilitySet, CapabilitySets};
-use std::{fs, io};
+use std::{fs, io, io::Write};
+
+pub struct Mappings {
+    groups: fs::File,
+    uid: fs::File,
+    gid: fs::File,
+}
+
+/// Pin only our own kernel mapping files before the initial non-dumpable transition.
+/// Their descriptors remain private and close on exec; dumpability is never re-enabled.
+pub fn prepare() -> io::Result<Option<Mappings>> {
+    if !enabled() {
+        return Ok(None);
+    }
+    let open = |name| {
+        rustix::fs::open(name, rustix::fs::OFlags::PATH | rustix::fs::OFlags::CLOEXEC, rustix::fs::Mode::empty())
+            .map(fs::File::from)
+            .map_err(|e| io::Error::other(format!("Pin private native namespace mapping {name}: {e}")))
+    };
+    Ok(Some(Mappings {
+        groups: open("/proc/self/setgroups")?,
+        uid: open("/proc/self/uid_map")?,
+        gid: open("/proc/self/gid_map")?,
+    }))
+}
 
 pub fn enabled() -> bool {
     std::env::var_os(crate::contract::FUSE_ENV).as_deref() == Some(std::ffi::OsStr::new("1"))
 }
 
-pub fn enter() -> io::Result<()> {
+pub fn enter(mappings: Option<Mappings>) -> io::Result<()> {
     if !enabled() {
         return Ok(());
     }
@@ -28,14 +52,26 @@ pub fn enter() -> io::Result<()> {
     }
     let uid = getuid().as_raw();
     let gid = getgid().as_raw();
-    unshare(CloneFlags::CLONE_NEWUSER | CloneFlags::CLONE_NEWNS).map_err(io::Error::from)?;
-    fs::write("/proc/self/setgroups", "deny")?;
-    fs::write("/proc/self/uid_map", format!("{uid} {uid} 1"))?;
-    fs::write("/proc/self/gid_map", format!("{gid} {gid} 1"))?;
+    let mappings = mappings.ok_or_else(|| io::Error::other("Missing private native namespace mappings"))?;
+    unshare(CloneFlags::CLONE_NEWUSER | CloneFlags::CLONE_NEWNS)
+        .map_err(|e| io::Error::other(format!("Create native mount namespace: {e}")))?;
+    use std::os::fd::AsRawFd;
+    let reopen =
+        |file: &fs::File| fs::OpenOptions::new().write(true).open(format!("/proc/self/fd/{}", file.as_raw_fd()));
+    reopen(&mappings.groups)?
+        .write_all(b"deny")
+        .map_err(|e| io::Error::other(format!("Deny native namespace setgroups: {e}")))?;
+    reopen(&mappings.uid)?
+        .write_all(format!("{uid} {uid} 1").as_bytes())
+        .map_err(|e| io::Error::other(format!("Map native namespace uid: {e}")))?;
+    reopen(&mappings.gid)?
+        .write_all(format!("{gid} {gid} 1").as_bytes())
+        .map_err(|e| io::Error::other(format!("Map native namespace gid: {e}")))?;
     rustix::mount::mount_change(
         "/",
         rustix::mount::MountPropagationFlags::PRIVATE | rustix::mount::MountPropagationFlags::REC,
-    )?;
+    )
+    .map_err(|e| io::Error::other(format!("Make native mount namespace private: {e}")))?;
     // This capability belongs only to the new user namespace. The Docker namespace keeps ALL dropped.
     rustix::thread::set_capabilities(
         None,
@@ -64,7 +100,7 @@ pub fn child(keep_mount: bool) -> io::Result<()> {
 /// agent's executable/procfs or join its mount namespace, even if its image is hostile.
 pub fn worker(argv: &mut [String]) -> io::Result<std::fs::File> {
     use seccompiler::{BpfProgram, SeccompAction, SeccompFilter};
-    use std::os::{fd::AsRawFd, unix::fs::MetadataExt};
+    use std::os::unix::fs::MetadataExt;
     unshare(CloneFlags::CLONE_NEWNS).map_err(io::Error::from)?;
     let filter = SeccompFilter::new(
         std::collections::BTreeMap::from([(libc::SYS_setns, Vec::new())]),
@@ -93,7 +129,9 @@ pub fn worker(argv: &mut [String]) -> io::Result<std::fs::File> {
     if original.dev() != child.dev() || original.ino() != child.ino() {
         return Err(io::Error::other("Mount target changed before worker isolation"));
     }
-    rustix::io::fcntl_setfd(&file, rustix::io::FdFlags::empty())?;
-    argv[at] = format!("/proc/self/fd/{}", file.as_raw_fd());
+    // FUSE helpers may close inherited descriptors or refuse another process's procfs links.
+    // The working directory pins the verified target across those helper execs as well.
+    rustix::process::fchdir(&file)?;
+    argv[at] = ".".into();
     Ok(file)
 }

@@ -228,6 +228,8 @@ pub(crate) async fn initialize(agent: &Agent, specs: Vec<MountSpec>) -> Result<V
                     target,
                     "--config".into(),
                     "/dev/null".into(),
+                    // The approved shared bind mount already occupies this verified target.
+                    "--allow-non-empty".into(),
                     "--vfs-cache-mode".into(),
                     "writes".into(),
                     "--vfs-write-back".into(),
