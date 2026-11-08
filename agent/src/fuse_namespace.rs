@@ -44,6 +44,8 @@ pub fn prepare() -> io::Result<Option<Mappings>> {
 
 pub fn enabled() -> bool {
     std::env::var_os(crate::contract::FUSE_ENV).as_deref() == Some(std::ffi::OsStr::new("1"))
+        && (std::env::var_os(crate::contract::TOOL_KIND_ENV).is_some()
+            || std::env::var_os(crate::contract::MOUNTS_ENV).is_some())
 }
 
 pub fn enter(mappings: Option<Mappings>) -> io::Result<()> {

@@ -45,6 +45,10 @@ test(
     let box: Sandbox | undefined
     const samples: Record<string, number[]> = {}
     try {
+      box = await c.sdk.sandbox({ image: 'alpine:3.22' })
+      expect((await box.run(['printf', 'ordinary-image-ok'])).stdout).toBe('ordinary-image-ok')
+      await box.delete()
+      box = undefined
       for (const [name, image] of [
         ['desktop', 'alpine:pryx-desktop'],
         ['browser', 'alpine:pryx-browser'],

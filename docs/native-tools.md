@@ -45,7 +45,9 @@ mount/unmount syscalls. FUSE uses a nested user/mount namespace; the sandbox nev
 SYS_ADMIN in the host or original Docker namespace. Only a mount worker retains that capability
 inside its own namespace, sharing just the approved target. Ordinary commands/PTYs drop it.
 A bounded 16-MiB private `/mnt` tmpfs holds mountpoint metadata while the image root stays read-only.
-FUSE hosts require a non-root sandbox user. The default remains UID 1000. Default hosts keep
+Native FUSE requires a non-root sandbox user; the prepared native templates use UID 1000.
+Namespace setup runs only for native templates or creates with mounts. Ordinary images,
+including root images, keep their normal bootstrap on a host that approves FUSE. Default hosts keep
 all capabilities dropped, read-only root, no-new-privileges and their existing seccomp policy.
 A request cannot select a host profile or a device. Hosts without this opt-in do not advertise
 `native-fuse-mounts`, so placement refuses mounted requests before starting compute.
