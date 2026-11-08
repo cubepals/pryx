@@ -5,6 +5,7 @@
 import { z } from 'zod'
 import { agentViewSchema } from './node-contract.ts'
 export const EdgeRoute = z.object({
+  ssh: z.object({ targetPort: z.number().int().min(1).max(65535), session: z.uuid() }).optional(),
   agent: z.object({ manifest: agentViewSchema, routeToken: z.string().optional() }).optional(),
   id: z.string(),
   sandbox: z.string(),

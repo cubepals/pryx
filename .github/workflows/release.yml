@@ -154,6 +154,15 @@ jobs:
             docker build -t "$image" "templates/$template"
             docker push -q "$image"
           done
+      - name: Build and publish native tool templates
+        run: |
+          image="ghcr.io/cubepals/pryx-tools:$version"
+          docker build -t "$image" -f templates/native-tools/Dockerfile .
+          docker push -q "$image"
+          docker build -t "ghcr.io/cubepals/pryx-desktop:$version" --build-arg "NATIVE_IMAGE=$image" templates/desktop
+          docker push -q "ghcr.io/cubepals/pryx-desktop:$version"
+          docker build -t "ghcr.io/cubepals/pryx-browser:$version" templates/browser
+          docker push -q "ghcr.io/cubepals/pryx-browser:$version"
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-name: ${{ env.TEMPLATE_IMAGE }}

@@ -1,0 +1,230 @@
+[
+  {
+    "name": "base16ct",
+    "version": "0.2.0",
+    "licence": "Apache-2.0 OR MIT",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "base64ct",
+    "version": "1.8.3",
+    "licence": "Apache-2.0 OR MIT",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "cipher",
+    "version": "0.4.4",
+    "licence": "MIT OR Apache-2.0",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "const-oid",
+    "version": "0.9.6",
+    "licence": "Apache-2.0 OR MIT",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "crypto-bigint",
+    "version": "0.5.5",
+    "licence": "Apache-2.0 OR MIT",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "curve25519-dalek",
+    "version": "4.1.3",
+    "licence": "BSD-3-Clause",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "curve25519-dalek-derive",
+    "version": "0.1.1",
+    "licence": "MIT/Apache-2.0",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "der",
+    "version": "0.7.10",
+    "licence": "Apache-2.0 OR MIT",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "ecdsa",
+    "version": "0.16.9",
+    "licence": "Apache-2.0 OR MIT",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "ed25519",
+    "version": "2.2.3",
+    "licence": "Apache-2.0 OR MIT",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "ed25519-dalek",
+    "version": "2.2.0",
+    "licence": "BSD-3-Clause",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "elliptic-curve",
+    "version": "0.13.8",
+    "licence": "Apache-2.0 OR MIT",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "ff",
+    "version": "0.13.1",
+    "licence": "MIT/Apache-2.0",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "fiat-crypto",
+    "version": "0.2.9",
+    "licence": "MIT OR Apache-2.0 OR BSD-1-Clause",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "group",
+    "version": "0.13.0",
+    "licence": "MIT/Apache-2.0",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "hmac",
+    "version": "0.12.1",
+    "licence": "MIT OR Apache-2.0",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "inout",
+    "version": "0.1.4",
+    "licence": "MIT OR Apache-2.0",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "num-bigint-dig",
+    "version": "0.8.6",
+    "licence": "MIT/Apache-2.0",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "num-iter",
+    "version": "0.1.46",
+    "licence": "MIT OR Apache-2.0",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "p256",
+    "version": "0.13.2",
+    "licence": "Apache-2.0 OR MIT",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "p384",
+    "version": "0.13.1",
+    "licence": "Apache-2.0 OR MIT",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "p521",
+    "version": "0.13.3",
+    "licence": "Apache-2.0 OR MIT",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "pem-rfc7468",
+    "version": "0.7.0",
+    "licence": "Apache-2.0 OR MIT",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "pkcs1",
+    "version": "0.7.5",
+    "licence": "Apache-2.0 OR MIT",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "pkcs8",
+    "version": "0.10.2",
+    "licence": "Apache-2.0 OR MIT",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "primeorder",
+    "version": "0.13.6",
+    "licence": "Apache-2.0 OR MIT",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "rand_chacha",
+    "version": "0.3.1",
+    "licence": "MIT OR Apache-2.0",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "rfc6979",
+    "version": "0.4.0",
+    "licence": "Apache-2.0 OR MIT",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "rsa",
+    "version": "0.9.10",
+    "licence": "MIT OR Apache-2.0",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "rustc_version",
+    "version": "0.4.1",
+    "licence": "MIT OR Apache-2.0",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "sec1",
+    "version": "0.7.3",
+    "licence": "Apache-2.0 OR MIT",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "semver",
+    "version": "1.0.28",
+    "licence": "MIT OR Apache-2.0",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "signature",
+    "version": "2.2.0",
+    "licence": "Apache-2.0 OR MIT",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "spin",
+    "version": "0.9.9",
+    "licence": "MIT",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "spki",
+    "version": "0.7.3",
+    "licence": "Apache-2.0 OR MIT",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "ssh-cipher",
+    "version": "0.2.0",
+    "licence": "Apache-2.0 OR MIT",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "ssh-encoding",
+    "version": "0.2.0",
+    "licence": "Apache-2.0 OR MIT",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  },
+  {
+    "name": "ssh-key",
+    "version": "0.6.7",
+    "licence": "Apache-2.0 OR MIT",
+    "source": "registry+https://github.com/rust-lang/crates.io-index"
+  }
+]

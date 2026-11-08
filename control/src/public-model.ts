@@ -6,6 +6,8 @@ import { randomUUID } from 'node:crypto'
 import { setTimeout as pause } from 'node:timers/promises'
 import { sql } from 'drizzle-orm'
 import { z } from 'zod'
+
+import agentContract from '../../agent/openapi.json'
 import nodeSchema from '../../openapi/node-writes.openapi.json'
 import type { Make, PublicPort } from './api-schemas.ts'
 import { makeSchema } from './api-schemas.ts'
@@ -13,8 +15,9 @@ import type { Db } from './database.ts'
 import { SECOND_MS } from './durations.ts'
 import { addresses, DEFAULT_EDGE_PORT_RANGE } from './edge-addresses.ts'
 import { shownState } from './edge-routed.ts'
-
+import { PRYX_VERSION } from './generated/release.ts'
 import { nodeIsolation } from './isolation.ts'
+import type { MountSpec, NativeMounts } from './native-mounts.ts'
 import { complete, fingerprint, operation } from './operations.ts'
 import { UNIT_DEFAULTS, unitSpec } from './project-model.ts'
 import { SandboxError, type Sandboxes, type SandboxSpec } from './sandboxes.ts'
@@ -22,6 +25,8 @@ import { SDK_DEFAULTS } from './sdk-defaults.ts'
 import { jsonb, one, rows } from './sql.ts'
 
 export class PublicModel {
+  mounts?: NativeMounts
+  mountReady?: (id: string, project: string) => Promise<unknown>
   constructor(
     readonly db: Db,
     readonly boxes: Sandboxes,
@@ -69,6 +74,22 @@ export class PublicModel {
   ) {
     const op = await operation(this.db, project, 'create', key, body)
     if (op.response) return op.response as Awaited<ReturnType<PublicModel['view']>>
+    if (body.mounts?.length) {
+      if ((body.isolation ?? this.defaultIsolation) !== 'container')
+        throw new SandboxError(
+          'unsupported',
+          `Bucket mounts are unsupported on the ${body.isolation ?? this.defaultIsolation} tier`,
+        )
+      if (!body.start) throw new SandboxError('invalid_request', 'Initial mounts require start:true')
+      if (!this.mounts || !this.mountReady)
+        throw new SandboxError('unsupported', 'Mount initialization is not configured')
+      if (!body.image && !body.snapshot && !body.template)
+        body = {
+          ...body,
+          image: `ghcr.io/cubepals/pryx-tools:${PRYX_VERSION}`,
+          entrypoint: [...SDK_DEFAULTS.entrypoint],
+        }
+    }
     const sources = [body.image, body.snapshot, body.template].filter(Boolean).length
     if (sources > 1 || (sources === 0 && (body.isolation ?? this.defaultIsolation) === 'container'))
       throw new SandboxError('invalid_request', 'Choose exactly one of image, snapshot or template')
@@ -103,6 +124,11 @@ export class PublicModel {
     const templateEntrypoint = templateStart && !body.entrypoint ? ['sh', '-c', templateStart] : undefined
     if (templateEntrypoint) body = { ...body, entrypoint: templateEntrypoint }
     const source = snapshot ? (await this.boxes.snapshotRecord(snapshot, project)).spec : null
+    if (source?.fuseMounts && !body.mounts?.length)
+      throw new SandboxError(
+        'invalid_request',
+        'A mounted snapshot must be forked with explicit mount credentials',
+      )
     const isolation = body.isolation ?? source?.isolation ?? this.defaultIsolation
     const storage = body.storage ?? source?.storage ?? { mountPath: '/data', sizeGb: 1 }
     let spec: SandboxSpec = {
@@ -118,7 +144,12 @@ export class PublicModel {
         },
       units: body.units ?? (body.resources === undefined ? source?.units : undefined),
       storage,
-      env: { ...source?.env, ...body.env },
+      ...(body.mounts?.length ? { fuseMounts: true } : {}),
+      env: {
+        ...source?.env,
+        ...body.env,
+        ...(body.mounts?.length ? { [agentContract['x-pryx-tools'].mountsEnv]: 'required' } : {}),
+      },
       secrets: { ...source?.secrets, ...body.secrets },
       labels: body.labels,
       name: body.name,
@@ -183,16 +214,29 @@ export class PublicModel {
         `egress hostname policy is unavailable on the ${spec.isolation} tier`,
       )
     const id = options.id ?? op.id
-    const result = await this.boxes.make(project, spec, {
-      id,
-      region: body.region,
-      start: body.start,
-      snapshot,
-      publicPorts: body.ports,
-      admit: options.internal ? undefined : (q) => addresses(q, id, body.ports, this.domain, this.portRange),
-      autoSpares: body.sparePorts === undefined,
-      ...options,
-    })
+    let result: Awaited<ReturnType<Sandboxes['make']>>
+    try {
+      if (body.mounts?.length) await this.mounts?.save(id, project, body.mounts as MountSpec[])
+      result = await this.boxes.make(project, spec, {
+        id,
+        region: body.region,
+        start: body.start,
+        snapshot,
+        publicPorts: body.ports,
+        admit: options.internal
+          ? undefined
+          : (q) => addresses(q, id, body.ports, this.domain, this.portRange),
+        autoSpares: body.sparePorts === undefined,
+        ...options,
+      })
+      if (body.mounts?.length) await this.mountReady?.(result.id, project)
+    } catch (error) {
+      if (body.mounts?.length) {
+        await this.boxes.delete(id, project)
+        await this.mounts?.remove(id)
+      }
+      throw error
+    }
     let view = await this.view(result.id, project)
     // Agent-only routes are new to otherwise synchronous create/fork calls. Wait for the
     // counted edge to acknowledge them before caching a successful creation response.

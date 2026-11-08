@@ -157,7 +157,12 @@ test(
         await box.delete()
         box = undefined
       }
-      box = await c.sdk.sandbox({ template: 'python-interpreter', isolation: 'container', idle: '10m' })
+      box = await c.sdk.sandbox({
+        template: 'python-interpreter',
+        isolation: 'container',
+        idle: '10m',
+        units: 4,
+      })
       await until('edge holds interpreter', async () =>
         c.edge.table.held.get(`${box?.id}:${AGENT_ROUTE_PORT}`),
       )

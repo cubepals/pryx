@@ -28,7 +28,9 @@ export class RouteTable {
             (c.route === route.id &&
               (c.destination !== route.destination ||
                 route.state !== undefined ||
-                previous?.agent?.manifest.publicKey !== route.agent?.manifest.publicKey)))
+                previous?.agent?.manifest.publicKey !== route.agent?.manifest.publicKey ||
+                previous?.ssh?.session !== route.ssh?.session ||
+                previous?.ssh?.targetPort !== route.ssh?.targetPort)))
         ) {
           this.stale()
           c.close()

@@ -4,6 +4,7 @@
 /** Lifecycle-bound capabilities and stopped sandbox data. Running agent requests never call this service. */
 import { setTimeout as pause } from 'node:timers/promises'
 import { z } from 'zod'
+import agentContract from '../../agent/openapi.json'
 import nodeSchema from '../../openapi/node-writes.openapi.json'
 import { SECOND_MS } from './durations.ts'
 import { routesPending } from './edge-routed.ts'
@@ -22,6 +23,11 @@ export const sandboxTokenSchema = z.object({
 })
 export class Agents {
   localOrigin?: string
+  initializeMounts?: (
+    id: string,
+    project: string,
+    credential: z.infer<typeof sandboxTokenSchema>,
+  ) => Promise<void>
   capabilityVersion() {
     const policy = nodeSchema['x-pryx-agent']
     return Math.floor(Date.now() / ((policy.tokenLifetimeSeconds - policy.tokenClockSkewSeconds) * SECOND_MS))
@@ -94,6 +100,7 @@ export class Agents {
           ? `http://${host}/sandboxes/${id}`
           : `https://${id}.${this.domain}`,
     }
+    let mountsPending = false
     if (row.state === 'running') {
       const deadline = Date.now() + 5 * SECOND_MS
       let ready = false
@@ -106,12 +113,18 @@ export class Agents {
             redirect: 'manual',
           })
           last = String(response.status)
-          await response.body?.cancel()
+          if (response.ok && row.spec.fuseMounts) {
+            const health = (await response.json()) as { toolsVersion?: number; mountsPending?: boolean }
+            if ((health.toolsVersion ?? 0) < agentContract['x-pryx-tools'].version)
+              throw new SandboxError('unsupported', 'This agent cannot initialize native mounts')
+            mountsPending = health.mountsPending === true
+          } else await response.body?.cancel()
           if (response.ok) {
             ready = true
             break
           }
         } catch (error) {
+          if (error instanceof SandboxError && error.code === 'unsupported') throw error
           last = error instanceof Error ? error.name : 'transport failure'
         }
         await pause(SECOND_MS / 100)
@@ -126,6 +139,7 @@ export class Agents {
         throw new SandboxError('not_running', `Agent route did not become ready (${last})`)
       }
     }
+    if (mountsPending) await this.initializeMounts?.(id, project, credential)
     return credential
   }
 

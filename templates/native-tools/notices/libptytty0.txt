@@ -1,0 +1,67 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: libptytty
+Upstream-Contact: Marc Lehmann <schmorpforge@schmorp.de>.
+Source: http://software.schmorp.de/pkg/libptytty.html
+
+Files: *
+Copyright:
+ 1992      John Bovey <jdb@ukc.ac.uk>
+ 1993      Brian Stempien <stempien@cs.wmich.edu>
+ 1993      lipka
+ 1995      Piet W. Plomp <piet@idefix.icce.rug.nl>
+ 1995-1997 Raul Garcia Garcia <rgg@tid.es>
+ 1998-2001 Geoff Wing <gcw@pobox.com>
+ 1999      D J Hawkey Jr <hawkeyd@visi.com>
+ 2004-2006 Marc Lehmann <schmorp@schmorp.de>
+ 2006-2021 Emanuele Giaquinta <emanuele.giaquinta@gmail.com>
+License: GPL-2.0+
+
+Files:
+ src/ecb.h
+Copyright:
+ 2009-2021 Marc Alexander Lehmann <libecb@schmorp.de>
+ 2011      Emanuele Giaquinta
+License: GPL-2.0+ or BSD-2-clause
+
+Files: debian/*
+Copyright: 2021 Ryan Kavanagh <rak@debian.org>
+License: GPL-2.0+
+
+License: BSD-2-clause
+ Redistribution and use in source and binary forms, with or without modifica-
+ tion, are permitted provided that the following conditions are met:
+ .
+   1.  Redistributions of source code must retain the above copyright notice,
+       this list of conditions and the following disclaimer.
+ .
+   2.  Redistributions in binary form must reproduce the above copyright
+       notice, this list of conditions and the following disclaimer in the
+       documentation and/or other materials provided with the distribution.
+ .
+ THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED
+ WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MER-
+ CHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO
+ EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPE-
+ CIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+ OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTH-
+ ERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ OF THE POSSIBILITY OF SUCH DAMAGE.
+
+License: GPL-2.0+
+ This package is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+ .
+ This package is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ .
+ You should have received a copy of the GNU General Public License
+ along with this program. If not, see <https://www.gnu.org/licenses/>
+ .
+ On Debian systems, the complete text of the GNU General
+ Public License version 2 can be found in "/usr/share/common-licenses/GPL-2".

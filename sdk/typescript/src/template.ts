@@ -11,6 +11,7 @@ export type TemplateOptions = {
   isolation?: SandboxOptions['isolation']
   copy?: [string, string][]
   run?: string[]
+  sparePorts?: number
   env?: Record<string, string>
   workdir?: string
   ready?: string
@@ -44,6 +45,7 @@ export async function buildTemplate(
     image: options.from,
     isolation: options.isolation,
     env: options.env,
+    sparePorts: options.sparePorts,
     workdir: options.workdir,
   })
   let registered = false

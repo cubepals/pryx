@@ -306,6 +306,11 @@ export interface components {
             [key: string]: unknown;
         };
         EdgeRoute: {
+            ssh?: {
+                targetPort: number;
+                /** Format: uuid */
+                session: string;
+            };
             agent?: {
                 manifest: {
                     /** @default 0 */
@@ -355,6 +360,11 @@ export interface components {
         };
         EdgeRoutes: {
             routes: {
+                ssh?: {
+                    targetPort: number;
+                    /** Format: uuid */
+                    session: string;
+                };
                 agent?: {
                     manifest: {
                         /** @default 0 */

@@ -1,6 +1,8 @@
 # pryx
 
-Sandboxes on Linux hosts you own. Install on Linux x86_64 with systemd:
+Sandboxes on Linux hosts you own. [Compare capabilities and licences](docs/compare.md).
+
+Install on Linux x86_64 with systemd:
 
 ```sh
 curl -fsSL https://github.com/cubepals/pryx/releases/latest/download/install.sh | sh

@@ -123,6 +123,226 @@
         }
       }
     },
+    "/v1/sandboxes/{id}/ssh": {
+      "post": {
+        "operationId": "post__v1_sandboxes_id_ssh",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SshRegister"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SshAddress"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Request refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "delete__v1_sandboxes_id_ssh",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "revoked": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "revoked"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Request refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/sandboxes/{id}/token": {
       "post": {
         "operationId": "post__v1_sandboxes_id_token",
@@ -4429,6 +4649,57 @@
   },
   "components": {
     "schemas": {
+      "SshRegister": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      },
+      "SshAddress": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "host": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "user": {
+            "type": "string"
+          },
+          "hostKey": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "id",
+          "host",
+          "port",
+          "user",
+          "hostKey",
+          "expiresAt"
+        ]
+      },
       "Sandbox": {
         "type": "object",
         "properties": {
@@ -5076,6 +5347,66 @@
       "MakeRequest": {
         "type": "object",
         "properties": {
+          "mounts": {
+            "minItems": 1,
+            "maxItems": 16,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "bucket": {
+                  "type": "string"
+                },
+                "credentials": {
+                  "type": "object",
+                  "properties": {
+                    "accessKeyId": {
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "region": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "secretAccessKey": {
+                      "type": "string"
+                    },
+                    "sessionToken": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "accessKeyId",
+                    "secretAccessKey"
+                  ],
+                  "additionalProperties": false
+                },
+                "path": {
+                  "type": "string"
+                },
+                "readOnly": {
+                  "default": false,
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "bucket",
+                "credentials",
+                "path"
+              ],
+              "additionalProperties": false
+            }
+          },
           "image": {
             "type": "string",
             "minLength": 1
@@ -5577,6 +5908,66 @@
           "spec": {
             "type": "object",
             "properties": {
+              "mounts": {
+                "minItems": 1,
+                "maxItems": 16,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "bucket": {
+                      "type": "string"
+                    },
+                    "credentials": {
+                      "type": "object",
+                      "properties": {
+                        "accessKeyId": {
+                          "type": "string"
+                        },
+                        "endpoint": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "region": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "secretAccessKey": {
+                          "type": "string"
+                        },
+                        "sessionToken": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "accessKeyId",
+                        "secretAccessKey"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "readOnly": {
+                      "default": false,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "bucket",
+                    "credentials",
+                    "path"
+                  ],
+                  "additionalProperties": false
+                }
+              },
               "image": {
                 "type": "string",
                 "minLength": 1

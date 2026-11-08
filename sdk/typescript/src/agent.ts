@@ -26,12 +26,14 @@ export class Agent {
   #generation = 0
   #version?: Promise<void>
   #kernels?: Promise<void>
+  #tools?: Promise<void>
   constructor(
     readonly api: Transport,
     readonly id: string,
   ) {}
   invalidate() {
     this.#version = undefined
+    this.#tools = undefined
     this.#kernels = undefined
     this.#generation++
     this.#credential = undefined
@@ -111,6 +113,18 @@ export class Agent {
         throw error
       })
     return this.#kernels
+  }
+  requireTools(version: number) {
+    this.#tools ??= this.request<{ toolsVersion?: number }>('/_pryx/health')
+      .then((health) => {
+        if ((health.toolsVersion ?? 0) < version)
+          throw new PryxError(0, 'unsupported', 'This agent does not provide native tools')
+      })
+      .catch((error) => {
+        this.#tools = undefined
+        throw error
+      })
+    return this.#tools
   }
   async requestV2<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
     await this.requireVersion()

@@ -160,3 +160,5 @@ export class Pryx {
     }
   }
 }
+
+export type { Mount, SshAccess, SshAddress, ToolAccess } from './tools.ts'

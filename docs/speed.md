@@ -26,7 +26,27 @@ real bootstrap. The corrected collector uses that same setting; no sample is dis
 Warm-template **create then first run** measurements are a separate deployment cohort in
 [the end-to-end suite](../control/e2e/interpreter.e2e.test.ts). CI uploads all 30 first-run,
 loopback, chart and restart observations as `interpreter-measurements` and prints p50/p90 in the
-job summary. Local loopback context reuse above is not labelled as template creation. The
-measured CI results will be recorded here after that workflow completes.
+job summary. Local loopback context reuse above is not labelled as template creation. The first CI report at `4938c93` is preserved in
+[its raw artifact](checks/measurements/k17-ci-interpreter-4938c93.json): warm first
+run 6.1 / 6.8 ms, trivial loopback 5.1 / 81.6 ms, chart 687.6 / 693.5 ms, restart
+6492.6 / 6588.2 ms (p50 / p90, n=30 each). The trivial p90 fails the 50 ms budget.
+That loopback sandbox accidentally used the default single unit, while the clone
+cohort requested four. The corrected loopback allocation must be measured again;
+this first report remains evidence of the failed budget, not a passing result.
 
 The CI loopback budget cohort requests four default units (one CPU core, 2 GiB); the first-run clone cohort uses the template default. These resource settings are explicit in the collector so the budgets are not attributed to an unspecified CPU quota.
+
+## Native tools baseline
+
+Before K18, the agent at commit `8bfb636` does not support desktop screenshots,
+browser screenshots, SSH leases or mounts. The authenticated baseline collector
+sent 30 requests to each new route and received 404 on every request. The
+[raw before report](checks/measurements/k18-before.json) preserves every response
+and elapsed time; those refusal latencies are not successful tool measurements.
+
+The native deployment suite collects 30 warm-template create-to-first-PNG samples
+for desktop and browser at four default units (one CPU core, 2 GiB). Browser time
+also includes starting its local deterministic page server. CI uploads the raw
+`native-tools-measurements` report and prints p50/p90 in the job summary. The
+post-change deployment measurements are pending that run and are not represented
+by local X11 or standalone Chromium smoke checks.

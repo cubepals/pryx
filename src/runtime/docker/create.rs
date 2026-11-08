@@ -64,6 +64,7 @@ pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Res
     }
     let options = CreateContainerOptionsBuilder::new().name(&spec.name).build();
     let mut body = body_of(&spec);
+    runtime.native_tools.apply(&mut body);
     // Docker's embedded resolver forwards to this one, from the container's side of the bridge.
     if let (Some(resolver), Some(host)) = (resolver, body.host_config.as_mut()) {
         host.dns = Some(vec![resolver.to_string()]);

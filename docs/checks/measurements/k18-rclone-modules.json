@@ -1,0 +1,2805 @@
+[
+  {
+    "module": "bazil.org/fuse",
+    "version": "v0.0.0-20230120002735-62a210ff1fd5",
+    "licences": [
+      "BSD-style",
+      "ISC"
+    ],
+    "notices": [
+      "vendor/bazil.org/fuse/LICENSE"
+    ]
+  },
+  {
+    "module": "cloud.google.com/go/auth",
+    "version": "v0.24.1-0.20261001053825-dbc26066f70a",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/cloud.google.com/go/auth/LICENSE",
+      "vendor/cloud.google.com/go/auth/oauth2adapt/LICENSE"
+    ]
+  },
+  {
+    "module": "cloud.google.com/go/auth/oauth2adapt",
+    "version": "v0.3.0",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/cloud.google.com/go/auth/oauth2adapt/LICENSE"
+    ]
+  },
+  {
+    "module": "cloud.google.com/go/compute/metadata",
+    "version": "v0.10.0",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/cloud.google.com/go/compute/metadata/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/Azure/azure-sdk-for-go/sdk/azcore",
+    "version": "v1.23.3",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/Azure/azure-sdk-for-go/sdk/azcore/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/Azure/azure-sdk-for-go/sdk/azidentity",
+    "version": "v1.15.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/Azure/azure-sdk-for-go/sdk/azidentity/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/Azure/azure-sdk-for-go/sdk/internal",
+    "version": "v1.13.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/Azure/azure-sdk-for-go/sdk/internal/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/Azure/azure-sdk-for-go/sdk/storage/azblob",
+    "version": "v1.8.2",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/Azure/azure-sdk-for-go/sdk/storage/azfile",
+    "version": "v1.7.1",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/Azure/azure-sdk-for-go/sdk/storage/azfile/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/Azure/azure-sdk-for-go/sdk/storage/internal",
+    "version": "v0.1.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/Azure/azure-sdk-for-go/sdk/storage/internal/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/Azure/go-ntlmssp",
+    "version": "v0.1.1",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/Azure/go-ntlmssp/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/AzureAD/microsoft-authentication-library-for-go",
+    "version": "v1.10.1",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/AzureAD/microsoft-authentication-library-for-go/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/FilenCloudDienste/filen-sdk-go",
+    "version": "v0.0.39",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/FilenCloudDienste/filen-sdk-go/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/Files-com/files-sdk-go/v3",
+    "version": "v3.3.194",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/Files-com/files-sdk-go/v3/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/IBM/go-sdk-core/v5",
+    "version": "v5.25.1",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/IBM/go-sdk-core/v5/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/Max-Sum/base32768",
+    "version": "v0.0.0-20230304063302-18e6ce5945fd",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/Max-Sum/base32768/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/Microsoft/go-winio",
+    "version": "v0.6.2",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/Microsoft/go-winio/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/ProtonMail/bcrypt",
+    "version": "v0.0.0-20211005172633-e235017c1baf",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/ProtonMail/bcrypt/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/ProtonMail/gluon",
+    "version": "v0.17.1-0.20230724134000-308be39be96e",
+    "licences": [
+      "BSD-style",
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/ProtonMail/gluon/LICENSE",
+      "vendor/github.com/ProtonMail/gluon/COPYING_NOTES.md"
+    ]
+  },
+  {
+    "module": "github.com/ProtonMail/go-crypto",
+    "version": "v1.5.2",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/ProtonMail/go-crypto/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/ProtonMail/go-srp",
+    "version": "v0.0.7",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/ProtonMail/go-srp/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/ProtonMail/gopenpgp/v3",
+    "version": "v3.4.1",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/ProtonMail/gopenpgp/v3/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/PuerkitoBio/goquery",
+    "version": "v1.12.0",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/PuerkitoBio/goquery/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/STARRY-S/zip",
+    "version": "v0.2.3",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/STARRY-S/zip/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/a1ex3/zstd-seekable-format-go/pkg",
+    "version": "v0.10.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/a1ex3/zstd-seekable-format-go/pkg/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/a8m/tree",
+    "version": "v0.0.0-20240104212747-2c8764a5f17e",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/a8m/tree/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/aalpar/deheap",
+    "version": "v1.1.2",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/aalpar/deheap/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/adrg/xdg",
+    "version": "v0.5.3",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/adrg/xdg/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/akavel/rsrc",
+    "version": "v0.10.2",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/akavel/rsrc/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/anacrolix/dms",
+    "version": "v1.8.0",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/anacrolix/dms/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/anchore/go-lzo",
+    "version": "v0.1.1",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/anchore/go-lzo/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/andybalholm/brotli",
+    "version": "v1.2.7",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/andybalholm/brotli/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/andybalholm/cascadia",
+    "version": "v1.3.4",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/andybalholm/cascadia/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/apache/arrow-go/v18",
+    "version": "v18.7.0",
+    "licences": [
+      "Apache-2.0",
+      "BSD-style",
+      "MIT",
+      "Retained upstream notice (see path and hash)"
+    ],
+    "notices": [
+      "vendor/github.com/apache/arrow-go/v18/NOTICE.txt",
+      "vendor/github.com/apache/arrow-go/v18/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/appscode/go-querystring",
+    "version": "v0.0.0-20170504095604-0126cfb3f1dc",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/appscode/go-querystring/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/atotto/clipboard",
+    "version": "v0.1.4",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/atotto/clipboard/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/aws/aws-sdk-go-v2",
+    "version": "v1.47.3",
+    "licences": [
+      "Apache-2.0",
+      "BSD-style",
+      "Retained upstream notice (see path and hash)"
+    ],
+    "notices": [
+      "vendor/github.com/aws/aws-sdk-go-v2/feature/ec2/imds/LICENSE.txt",
+      "vendor/github.com/aws/aws-sdk-go-v2/feature/s3/manager/LICENSE.txt",
+      "vendor/github.com/aws/aws-sdk-go-v2/service/sso/LICENSE.txt",
+      "vendor/github.com/aws/aws-sdk-go-v2/service/sts/LICENSE.txt",
+      "vendor/github.com/aws/aws-sdk-go-v2/service/signin/LICENSE.txt",
+      "vendor/github.com/aws/aws-sdk-go-v2/service/internal/checksum/LICENSE.txt",
+      "vendor/github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding/LICENSE.txt",
+      "vendor/github.com/aws/aws-sdk-go-v2/service/internal/s3shared/LICENSE.txt",
+      "vendor/github.com/aws/aws-sdk-go-v2/service/internal/presigned-url/LICENSE.txt",
+      "vendor/github.com/aws/aws-sdk-go-v2/service/ssooidc/LICENSE.txt",
+      "vendor/github.com/aws/aws-sdk-go-v2/service/s3/LICENSE.txt",
+      "vendor/github.com/aws/aws-sdk-go-v2/NOTICE.txt",
+      "vendor/github.com/aws/aws-sdk-go-v2/internal/endpoints/v2/LICENSE.txt",
+      "vendor/github.com/aws/aws-sdk-go-v2/internal/configsources/LICENSE.txt",
+      "vendor/github.com/aws/aws-sdk-go-v2/internal/v4a/LICENSE.txt",
+      "vendor/github.com/aws/aws-sdk-go-v2/internal/sync/singleflight/LICENSE",
+      "vendor/github.com/aws/aws-sdk-go-v2/LICENSE.txt",
+      "vendor/github.com/aws/aws-sdk-go-v2/credentials/LICENSE.txt",
+      "vendor/github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream/LICENSE.txt",
+      "vendor/github.com/aws/aws-sdk-go-v2/config/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream",
+    "version": "v1.7.22",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/aws/aws-sdk-go-v2/config",
+    "version": "v1.33.9",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/aws/aws-sdk-go-v2/config/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/aws/aws-sdk-go-v2/credentials",
+    "version": "v1.20.9",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/aws/aws-sdk-go-v2/credentials/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/aws/aws-sdk-go-v2/feature/ec2/imds",
+    "version": "v1.20.3",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/aws/aws-sdk-go-v2/feature/ec2/imds/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/aws/aws-sdk-go-v2/feature/s3/manager",
+    "version": "v1.23.14",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/aws/aws-sdk-go-v2/feature/s3/manager/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/aws/aws-sdk-go-v2/internal/configsources",
+    "version": "v1.5.6",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/aws/aws-sdk-go-v2/internal/configsources/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/aws/aws-sdk-go-v2/internal/endpoints/v2",
+    "version": "v2.8.6",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/aws/aws-sdk-go-v2/internal/endpoints/v2/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/aws/aws-sdk-go-v2/internal/v4a",
+    "version": "v1.5.6",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/aws/aws-sdk-go-v2/internal/v4a/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding",
+    "version": "v1.13.21",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/aws/aws-sdk-go-v2/service/internal/checksum",
+    "version": "v1.11.7",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/aws/aws-sdk-go-v2/service/internal/checksum/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/aws/aws-sdk-go-v2/service/internal/presigned-url",
+    "version": "v1.14.6",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/aws/aws-sdk-go-v2/service/internal/presigned-url/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/aws/aws-sdk-go-v2/service/internal/s3shared",
+    "version": "v1.20.6",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/aws/aws-sdk-go-v2/service/internal/s3shared/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/aws/aws-sdk-go-v2/service/s3",
+    "version": "v1.114.3",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/aws/aws-sdk-go-v2/service/s3/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/aws/aws-sdk-go-v2/service/signin",
+    "version": "v1.10.4",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/aws/aws-sdk-go-v2/service/signin/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/aws/aws-sdk-go-v2/service/sso",
+    "version": "v1.38.4",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/aws/aws-sdk-go-v2/service/sso/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/aws/aws-sdk-go-v2/service/ssooidc",
+    "version": "v1.43.4",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/aws/aws-sdk-go-v2/service/ssooidc/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/aws/aws-sdk-go-v2/service/sts",
+    "version": "v1.51.4",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/aws/aws-sdk-go-v2/service/sts/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/aws/smithy-go",
+    "version": "v1.28.5",
+    "licences": [
+      "Apache-2.0",
+      "BSD-style",
+      "Retained upstream notice (see path and hash)"
+    ],
+    "notices": [
+      "vendor/github.com/aws/smithy-go/internal/sync/singleflight/LICENSE",
+      "vendor/github.com/aws/smithy-go/LICENSE",
+      "vendor/github.com/aws/smithy-go/NOTICE"
+    ]
+  },
+  {
+    "module": "github.com/bahlo/generic-list-go",
+    "version": "v0.2.0",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/bahlo/generic-list-go/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/beorn7/perks",
+    "version": "v1.0.1",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/beorn7/perks/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/bodgit/plumbing",
+    "version": "v1.3.0",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/bodgit/plumbing/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/bodgit/sevenzip",
+    "version": "v1.6.5",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/bodgit/sevenzip/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/bodgit/windows",
+    "version": "v1.0.1",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/bodgit/windows/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/boombuler/barcode",
+    "version": "v1.1.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/boombuler/barcode/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/bradenaw/juniper",
+    "version": "v0.15.3",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/bradenaw/juniper/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/buengese/sgzip",
+    "version": "v0.1.1",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/buengese/sgzip/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/buger/jsonparser",
+    "version": "v1.2.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/buger/jsonparser/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/calebcase/tmpfile",
+    "version": "v1.0.3",
+    "licences": [
+      "BSD-style",
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/calebcase/tmpfile/LICENSE.golang",
+      "vendor/github.com/calebcase/tmpfile/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/cespare/xxhash/v2",
+    "version": "v2.3.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/cespare/xxhash/v2/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/chilts/sid",
+    "version": "v0.0.0-20190607042430-660e94789ec9",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/chilts/sid/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/clipperhouse/displaywidth",
+    "version": "v0.11.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/clipperhouse/displaywidth/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/clipperhouse/uax29/v2",
+    "version": "v2.7.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/clipperhouse/uax29/v2/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/cloudflare/circl",
+    "version": "v1.6.4",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/cloudflare/circl/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/cloudinary/cloudinary-go/v2",
+    "version": "v2.16.1",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/cloudinary/cloudinary-go/v2/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/cloudsoda/go-smb2",
+    "version": "v0.0.0-20260918041005-0c5d69b69701",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/cloudsoda/go-smb2/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/cloudsoda/sddl",
+    "version": "v0.0.0-20250224235906-926454e91efc",
+    "licences": [
+      "GPL",
+      "LGPL"
+    ],
+    "notices": [
+      "vendor/github.com/cloudsoda/sddl/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/colinmarc/hdfs/v2",
+    "version": "v2.4.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/colinmarc/hdfs/v2/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/coreos/go-semver",
+    "version": "v0.3.1",
+    "licences": [
+      "Apache-2.0",
+      "Retained upstream notice (see path and hash)"
+    ],
+    "notices": [
+      "vendor/github.com/coreos/go-semver/LICENSE",
+      "vendor/github.com/coreos/go-semver/NOTICE"
+    ]
+  },
+  {
+    "module": "github.com/coreos/go-systemd/v22",
+    "version": "v22.6.0",
+    "licences": [
+      "Apache-2.0",
+      "Retained upstream notice (see path and hash)"
+    ],
+    "notices": [
+      "vendor/github.com/coreos/go-systemd/v22/LICENSE",
+      "vendor/github.com/coreos/go-systemd/v22/NOTICE"
+    ]
+  },
+  {
+    "module": "github.com/cpuguy83/go-md2man/v2",
+    "version": "v2.0.7",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/cpuguy83/go-md2man/v2/LICENSE.md"
+    ]
+  },
+  {
+    "module": "github.com/creasty/defaults",
+    "version": "v1.8.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/creasty/defaults/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/cronokirby/saferith",
+    "version": "v0.33.1-0.20250226174546-1f11f94ce488",
+    "licences": [
+      "BSD-style",
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/cronokirby/saferith/LICENSE",
+      "vendor/github.com/cronokirby/saferith/LICENSE_go"
+    ]
+  },
+  {
+    "module": "github.com/diskfs/go-diskfs",
+    "version": "v1.9.4",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/diskfs/go-diskfs/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/dop251/scsu",
+    "version": "v0.0.0-20220106150536-84ac88021d00",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/dop251/scsu/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/dromara/dongle",
+    "version": "v1.0.1",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/dromara/dongle/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/dropbox/dropbox-sdk-go-unofficial/v6",
+    "version": "v6.6.2",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/dropbox/dropbox-sdk-go-unofficial/v6/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/dsnet/compress",
+    "version": "v0.0.2-0.20230904184137-39efe44ab707",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/dsnet/compress/LICENSE.md"
+    ]
+  },
+  {
+    "module": "github.com/dustin/go-humanize",
+    "version": "v1.0.1",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/dustin/go-humanize/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/ebitengine/purego",
+    "version": "v0.11.1",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/ebitengine/purego/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/emersion/go-message",
+    "version": "v0.18.2",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/emersion/go-message/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/emersion/go-vcard",
+    "version": "v0.0.0-20260618161152-d854b7e0e2d3",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/emersion/go-vcard/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/felixge/httpsnoop",
+    "version": "v1.1.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/felixge/httpsnoop/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/flynn/noise",
+    "version": "v1.1.0",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/flynn/noise/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/gabriel-vasile/mimetype",
+    "version": "v1.4.15",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/gabriel-vasile/mimetype/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/gdamore/encoding",
+    "version": "v1.0.1",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/gdamore/encoding/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/gdamore/tcell/v3",
+    "version": "v3.6.0",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/gdamore/tcell/v3/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/geoffgarside/ber",
+    "version": "v1.2.0",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/geoffgarside/ber/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/go-chi/chi/v5",
+    "version": "v5.5.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/go-chi/chi/v5/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/go-darwin/apfs",
+    "version": "v0.0.0-20211011131704-f84b94dbf348",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/go-darwin/apfs/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/go-git/go-billy/v5",
+    "version": "v5.9.2",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/go-git/go-billy/v5/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/go-logr/logr",
+    "version": "v1.4.4",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/go-logr/logr/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/go-logr/stdr",
+    "version": "v1.2.2",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/go-logr/stdr/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/go-ole/go-ole",
+    "version": "v1.3.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/go-ole/go-ole/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/go-openapi/errors",
+    "version": "v0.22.9",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/go-openapi/errors/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/go-openapi/strfmt",
+    "version": "v0.27.3",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/go-openapi/strfmt/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/go-playground/locales",
+    "version": "v0.14.2",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/go-playground/locales/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/go-playground/universal-translator",
+    "version": "v0.18.2",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/go-playground/universal-translator/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/go-playground/validator/v10",
+    "version": "v10.30.5",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/go-playground/validator/v10/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/go-resty/resty/v2",
+    "version": "v2.17.2",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/go-resty/resty/v2/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/go-viper/mapstructure/v2",
+    "version": "v2.5.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/go-viper/mapstructure/v2/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/goccy/go-json",
+    "version": "v0.10.6",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/goccy/go-json/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/gofrs/flock",
+    "version": "v0.13.1",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/gofrs/flock/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/gogo/protobuf",
+    "version": "v1.3.2",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/gogo/protobuf/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/golang-jwt/jwt/v5",
+    "version": "v5.3.1",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/golang-jwt/jwt/v5/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/google/btree",
+    "version": "v1.1.3",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/google/btree/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/google/flatbuffers",
+    "version": "v25.12.19+incompatible",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/google/flatbuffers/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/google/s2a-go",
+    "version": "v0.1.11",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/google/s2a-go/LICENSE.md"
+    ]
+  },
+  {
+    "module": "github.com/google/uuid",
+    "version": "v1.6.0",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/google/uuid/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/googleapis/enterprise-certificate-proxy",
+    "version": "v0.3.23",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/googleapis/enterprise-certificate-proxy/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/googleapis/gax-go/v2",
+    "version": "v2.26.2",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/googleapis/gax-go/v2/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/gorilla/schema",
+    "version": "v1.4.1",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/gorilla/schema/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/hanwen/go-fuse/v2",
+    "version": "v2.11.0",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/hanwen/go-fuse/v2/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/hashicorp/go-cleanhttp",
+    "version": "v0.5.2",
+    "licences": [
+      "GPL",
+      "MPL"
+    ],
+    "notices": [
+      "vendor/github.com/hashicorp/go-cleanhttp/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/hashicorp/go-retryablehttp",
+    "version": "v0.7.8",
+    "licences": [
+      "GPL",
+      "MPL"
+    ],
+    "notices": [
+      "vendor/github.com/hashicorp/go-retryablehttp/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/hashicorp/go-uuid",
+    "version": "v1.0.3",
+    "licences": [
+      "GPL",
+      "MPL"
+    ],
+    "notices": [
+      "vendor/github.com/hashicorp/go-uuid/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/hashicorp/golang-lru/v2",
+    "version": "v2.0.7",
+    "licences": [
+      "BSD-style",
+      "GPL",
+      "MPL"
+    ],
+    "notices": [
+      "vendor/github.com/hashicorp/golang-lru/v2/simplelru/LICENSE_list",
+      "vendor/github.com/hashicorp/golang-lru/v2/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/inconshreveable/mousetrap",
+    "version": "v1.1.0",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/inconshreveable/mousetrap/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/internxt/rclone-adapter",
+    "version": "v0.1.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/internxt/rclone-adapter/internal/bip39/LICENSE",
+      "vendor/github.com/internxt/rclone-adapter/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/jcmturner/aescts/v2",
+    "version": "v2.0.0",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/jcmturner/aescts/v2/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/jcmturner/dnsutils/v2",
+    "version": "v2.0.0",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/jcmturner/dnsutils/v2/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/jcmturner/gofork",
+    "version": "v1.7.6",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/jcmturner/gofork/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/jcmturner/goidentity/v6",
+    "version": "v6.0.1",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/jcmturner/goidentity/v6/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/jcmturner/gokrb5/v8",
+    "version": "v8.4.4",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/jcmturner/gokrb5/v8/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/jcmturner/rpc/v2",
+    "version": "v2.0.3",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/jcmturner/rpc/v2/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/jlaffaye/ftp",
+    "version": "v0.2.4",
+    "licences": [
+      "BSD-style",
+      "ISC"
+    ],
+    "notices": [
+      "vendor/github.com/jlaffaye/ftp/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/josephspurrier/goversioninfo",
+    "version": "v1.7.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/josephspurrier/goversioninfo/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/jtolio/noiseconn",
+    "version": "v0.0.0-20231127013910-f6d9ecbf1de7",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/jtolio/noiseconn/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/jzelinskie/whirlpool",
+    "version": "v0.0.0-20201016144138-0675e54bb004",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/jzelinskie/whirlpool/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/klauspost/compress",
+    "version": "v1.20.3",
+    "licences": [
+      "Apache-2.0",
+      "BSD-style",
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/klauspost/compress/s2/LICENSE",
+      "vendor/github.com/klauspost/compress/internal/snapref/LICENSE",
+      "vendor/github.com/klauspost/compress/zstd/internal/xxhash/LICENSE.txt",
+      "vendor/github.com/klauspost/compress/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/klauspost/cpuid/v2",
+    "version": "v2.4.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/klauspost/cpuid/v2/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/klauspost/crc32",
+    "version": "v1.3.0",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/klauspost/crc32/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/klauspost/pgzip",
+    "version": "v1.2.6",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/klauspost/pgzip/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/koofr/go-httpclient",
+    "version": "v0.0.0-20240520111329-e20f8f203988",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/koofr/go-httpclient/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/koofr/go-koofrclient",
+    "version": "v0.0.0-20221207135200-cbd7fc9ad6a6",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/koofr/go-koofrclient/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/kr/fs",
+    "version": "v0.1.0",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/kr/fs/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/kylelemons/godebug",
+    "version": "v1.1.0",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/kylelemons/godebug/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/lanrat/extsort",
+    "version": "v1.5.0",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/lanrat/extsort/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/leodido/go-urn",
+    "version": "v1.5.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/leodido/go-urn/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/lpar/calendar",
+    "version": "v0.2.0",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/lpar/calendar/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/lucasb-eyer/go-colorful",
+    "version": "v1.4.1",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/lucasb-eyer/go-colorful/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/lufia/plan9stats",
+    "version": "v0.0.0-20260627054121-477a66015f15",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/lufia/plan9stats/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/mailru/easyjson",
+    "version": "v0.9.2",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/mailru/easyjson/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/mattn/go-colorable",
+    "version": "v0.1.16",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/mattn/go-colorable/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/mattn/go-isatty",
+    "version": "v0.0.23",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/mattn/go-isatty/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/mattn/go-runewidth",
+    "version": "v0.0.31",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/mattn/go-runewidth/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/mholt/archives",
+    "version": "v0.1.5",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/mholt/archives/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/mikelolasagasti/xz",
+    "version": "v1.0.1",
+    "licences": [
+      "ISC"
+    ],
+    "notices": [
+      "vendor/github.com/mikelolasagasti/xz/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/minio/crc64nvme",
+    "version": "v1.1.1",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/minio/crc64nvme/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/minio/md5-simd",
+    "version": "v1.1.2",
+    "licences": [
+      "Apache-2.0",
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/minio/md5-simd/LICENSE.Golang",
+      "vendor/github.com/minio/md5-simd/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/minio/minio-go/v7",
+    "version": "v7.4.1",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/minio/minio-go/v7/LICENSE",
+      "vendor/github.com/minio/minio-go/v7/NOTICE"
+    ]
+  },
+  {
+    "module": "github.com/minio/minlz",
+    "version": "v1.2.0",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/minio/minlz/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/minio/xxml",
+    "version": "v0.0.3",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/minio/xxml/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/mitchellh/go-homedir",
+    "version": "v1.1.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/mitchellh/go-homedir/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/moby/sys/mountinfo",
+    "version": "v0.7.2",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/moby/sys/mountinfo/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/muesli/reflow",
+    "version": "v0.3.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/muesli/reflow/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/munnerz/goautoneg",
+    "version": "v0.0.0-20191010083416-a7dc8b61c822",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/munnerz/goautoneg/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/ncw/swift/v2",
+    "version": "v2.0.5",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/ncw/swift/v2/COPYING"
+    ]
+  },
+  {
+    "module": "github.com/nwaples/rardecode/v2",
+    "version": "v2.2.5",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/nwaples/rardecode/v2/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/oklog/ulid/v2",
+    "version": "v2.1.2",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/oklog/ulid/v2/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/onsi/ginkgo",
+    "version": "v1.16.5",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "metadata-0.txt"
+    ],
+    "upstreamNoticeSha256": "ee10304cfdc04c758fb7cc8160bbf1b883f2cfc4f216fa641b2a4c183c058523",
+    "note": "Module metadata retained by Go vendoring without a source licence file; upstream tag licence inspected separately"
+  },
+  {
+    "module": "github.com/oracle/oci-go-sdk/v65",
+    "version": "v65.127.0",
+    "licences": [
+      "Apache-2.0",
+      "Retained upstream notice (see path and hash)"
+    ],
+    "notices": [
+      "vendor/github.com/oracle/oci-go-sdk/v65/NOTICE.txt",
+      "vendor/github.com/oracle/oci-go-sdk/v65/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/panjf2000/ants/v2",
+    "version": "v2.12.1",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/panjf2000/ants/v2/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/patrickmn/go-cache",
+    "version": "v2.1.0+incompatible",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/patrickmn/go-cache/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/pengsrc/go-shared",
+    "version": "v0.2.1-0.20190131101655-1999055a4a14",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/pengsrc/go-shared/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/peterh/liner",
+    "version": "v1.2.3",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/peterh/liner/COPYING"
+    ]
+  },
+  {
+    "module": "github.com/philhofer/fwd",
+    "version": "v1.2.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/philhofer/fwd/LICENSE.md"
+    ]
+  },
+  {
+    "module": "github.com/pierrec/lz4/v4",
+    "version": "v4.1.28",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/pierrec/lz4/v4/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/pkg/browser",
+    "version": "v0.0.0-20240102092130-5ac0b6a4141c",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/pkg/browser/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/pkg/errors",
+    "version": "v0.9.1",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/pkg/errors/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/pkg/sftp",
+    "version": "v1.13.11",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/pkg/sftp/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/pkg/xattr",
+    "version": "v0.4.12",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/pkg/xattr/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/pmezard/go-difflib",
+    "version": "v1.0.1-0.20181226105442-5d4384ee4fb2",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/pmezard/go-difflib/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/power-devops/perfstat",
+    "version": "v0.0.0-20260805114148-88456608a4f6",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/power-devops/perfstat/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/pquerna/otp",
+    "version": "v1.5.0",
+    "licences": [
+      "Apache-2.0",
+      "Retained upstream notice (see path and hash)"
+    ],
+    "notices": [
+      "vendor/github.com/pquerna/otp/LICENSE",
+      "vendor/github.com/pquerna/otp/NOTICE"
+    ]
+  },
+  {
+    "module": "github.com/prometheus/client_golang",
+    "version": "v1.25.0",
+    "licences": [
+      "Apache-2.0",
+      "BSD-style",
+      "Retained upstream notice (see path and hash)"
+    ],
+    "notices": [
+      "vendor/github.com/prometheus/client_golang/internal/github.com/golang/gddo/LICENSE",
+      "vendor/github.com/prometheus/client_golang/LICENSE",
+      "vendor/github.com/prometheus/client_golang/NOTICE"
+    ]
+  },
+  {
+    "module": "github.com/prometheus/client_model",
+    "version": "v0.6.3",
+    "licences": [
+      "Apache-2.0",
+      "Retained upstream notice (see path and hash)"
+    ],
+    "notices": [
+      "vendor/github.com/prometheus/client_model/LICENSE",
+      "vendor/github.com/prometheus/client_model/NOTICE"
+    ]
+  },
+  {
+    "module": "github.com/prometheus/common",
+    "version": "v0.72.0",
+    "licences": [
+      "Apache-2.0",
+      "Retained upstream notice (see path and hash)"
+    ],
+    "notices": [
+      "vendor/github.com/prometheus/common/LICENSE",
+      "vendor/github.com/prometheus/common/NOTICE"
+    ]
+  },
+  {
+    "module": "github.com/prometheus/procfs",
+    "version": "v0.22.0",
+    "licences": [
+      "Apache-2.0",
+      "Retained upstream notice (see path and hash)"
+    ],
+    "notices": [
+      "vendor/github.com/prometheus/procfs/LICENSE",
+      "vendor/github.com/prometheus/procfs/NOTICE"
+    ]
+  },
+  {
+    "module": "github.com/putdotio/go-putio/putio",
+    "version": "v0.0.0-20200123120452-16d982cac2b8",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/putdotio/go-putio/putio/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/quasilyte/go-ruleguard/dsl",
+    "version": "v0.3.23",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/quasilyte/go-ruleguard/dsl/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/rasky/go-xdr",
+    "version": "v0.0.0-20170124162913-1a41d1a06c93",
+    "licences": [
+      "ISC"
+    ],
+    "notices": [
+      "vendor/github.com/rasky/go-xdr/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/rclone/Proton-API-Bridge",
+    "version": "v1.0.5",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/rclone/Proton-API-Bridge/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/rclone/go-proton-api",
+    "version": "v1.0.4",
+    "licences": [
+      "BSD-style",
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/rclone/go-proton-api/LICENSE",
+      "vendor/github.com/rclone/go-proton-api/COPYING_NOTES.md"
+    ]
+  },
+  {
+    "module": "github.com/rclone/gofakes3",
+    "version": "v0.0.12",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/rclone/gofakes3/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/relvacode/iso8601",
+    "version": "v1.7.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/relvacode/iso8601/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/rfjakob/eme",
+    "version": "v1.2.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/rfjakob/eme/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/rivo/uniseg",
+    "version": "v0.4.7",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/rivo/uniseg/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/rogpeppe/go-internal",
+    "version": "v1.16.0",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/rogpeppe/go-internal/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/rs/xid",
+    "version": "v1.6.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/rs/xid/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/russross/blackfriday/v2",
+    "version": "v2.1.0",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/russross/blackfriday/v2/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/ryszard/goskiplist",
+    "version": "v0.0.0-20150312221310-2dfbae5fcf46",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/ryszard/goskiplist/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/sabhiram/go-gitignore",
+    "version": "v0.0.0-20210923224102-525f6e181f06",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/sabhiram/go-gitignore/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/samber/lo",
+    "version": "v1.53.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/samber/lo/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/shabbyrobe/gocovmerge",
+    "version": "v0.0.0-20230507112040-c3350d9342df",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/shabbyrobe/gocovmerge/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/shirou/gopsutil/v4",
+    "version": "v4.26.9",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/shirou/gopsutil/v4/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/sirupsen/logrus",
+    "version": "v1.10.2",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/sirupsen/logrus/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/skratchdot/open-golang",
+    "version": "v0.0.0-20200116055534-eef842397966",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/skratchdot/open-golang/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/smartystreets/goconvey",
+    "version": "v1.8.1",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "metadata-1.txt"
+    ],
+    "upstreamNoticeSha256": "b495e5cbad56f14b1cb089825a07c606857274b53cdc2b9a13a60f43fc204956",
+    "note": "Module metadata retained by Go vendoring without a source licence file; upstream tag licence inspected separately"
+  },
+  {
+    "module": "github.com/sony/gobreaker/v2",
+    "version": "v2.4.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/sony/gobreaker/v2/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/sorairolake/lzip-go",
+    "version": "v0.3.8",
+    "licences": [
+      "Apache-2.0",
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/sorairolake/lzip-go/LICENSE-APACHE",
+      "vendor/github.com/sorairolake/lzip-go/LICENSE-MIT"
+    ]
+  },
+  {
+    "module": "github.com/spacemonkeygo/monkit/v3",
+    "version": "v3.0.25-0.20251022131615-eb24eb109368",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/spacemonkeygo/monkit/v3/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/spf13/afero",
+    "version": "v1.15.0",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/spf13/afero/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/spf13/cobra",
+    "version": "v1.10.2",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/spf13/cobra/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/spf13/pflag",
+    "version": "v1.0.10",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/spf13/pflag/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/stangelandcl/ppmd",
+    "version": "v0.1.1",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/stangelandcl/ppmd/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/stretchr/testify",
+    "version": "v1.12.1",
+    "licences": [
+      "BSD-style",
+      "ISC",
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/stretchr/testify/internal/spew/LICENSE",
+      "vendor/github.com/stretchr/testify/internal/difflib/LICENSE",
+      "vendor/github.com/stretchr/testify/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/t3rm1n4l/go-mega",
+    "version": "v0.0.0-20260717075258-c6acd6a5bd04",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/t3rm1n4l/go-mega/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/tinylib/msgp",
+    "version": "v1.6.4",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/tinylib/msgp/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/tklauser/go-sysconf",
+    "version": "v0.4.0",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/tklauser/go-sysconf/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/tklauser/numcpus",
+    "version": "v0.12.0",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/tklauser/numcpus/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/ulikunitz/xz",
+    "version": "v0.5.15",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/ulikunitz/xz/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/unknwon/goconfig",
+    "version": "v1.0.0",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/unknwon/goconfig/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/willscott/go-nfs",
+    "version": "v0.0.4",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/willscott/go-nfs/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/willscott/go-nfs-client",
+    "version": "v0.0.0-20251022144359-801f10d98886",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/willscott/go-nfs-client/NOTICE.txt",
+      "vendor/github.com/willscott/go-nfs-client/LICENSE_BSD-2.txt"
+    ]
+  },
+  {
+    "module": "github.com/winfsp/cgofuse",
+    "version": "v1.6.1-0.20260531120352-2fa812d1bdc7",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/winfsp/cgofuse/LICENSE.txt"
+    ]
+  },
+  {
+    "module": "github.com/wk8/go-ordered-map/v2",
+    "version": "v2.1.8",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/wk8/go-ordered-map/v2/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/xanzy/ssh-agent",
+    "version": "v0.3.3",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/xanzy/ssh-agent/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/youmark/pkcs8",
+    "version": "v0.0.0-20240726163527-a2c0da244d78",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/youmark/pkcs8/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/yunify/qingstor-sdk-go/v3",
+    "version": "v3.2.0",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/github.com/yunify/qingstor-sdk-go/v3/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/yusufpapurcu/wmi",
+    "version": "v1.2.4",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/yusufpapurcu/wmi/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/zeebo/blake3",
+    "version": "v0.2.4",
+    "licences": [
+      "public-domain"
+    ],
+    "notices": [
+      "vendor/github.com/zeebo/blake3/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/zeebo/errs",
+    "version": "v1.4.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/github.com/zeebo/errs/LICENSE"
+    ]
+  },
+  {
+    "module": "github.com/zeebo/xxh3",
+    "version": "v1.1.0",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/github.com/zeebo/xxh3/LICENSE"
+    ]
+  },
+  {
+    "module": "go.etcd.io/bbolt",
+    "version": "v1.5.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/go.etcd.io/bbolt/LICENSE"
+    ]
+  },
+  {
+    "module": "go.opentelemetry.io/auto/sdk",
+    "version": "v1.2.1",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/go.opentelemetry.io/auto/sdk/LICENSE"
+    ]
+  },
+  {
+    "module": "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp",
+    "version": "v0.70.0",
+    "licences": [
+      "Apache-2.0",
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/LICENSE"
+    ]
+  },
+  {
+    "module": "go.opentelemetry.io/otel",
+    "version": "v1.45.0",
+    "licences": [
+      "Apache-2.0",
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/go.opentelemetry.io/otel/trace/LICENSE",
+      "vendor/go.opentelemetry.io/otel/LICENSE",
+      "vendor/go.opentelemetry.io/otel/metric/LICENSE"
+    ]
+  },
+  {
+    "module": "go.opentelemetry.io/otel/metric",
+    "version": "v1.45.0",
+    "licences": [
+      "Apache-2.0",
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/go.opentelemetry.io/otel/metric/LICENSE"
+    ]
+  },
+  {
+    "module": "go.opentelemetry.io/otel/trace",
+    "version": "v1.45.0",
+    "licences": [
+      "Apache-2.0",
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/go.opentelemetry.io/otel/trace/LICENSE"
+    ]
+  },
+  {
+    "module": "go.yaml.in/yaml/v2",
+    "version": "v2.4.4",
+    "licences": [
+      "Apache-2.0",
+      "MIT"
+    ],
+    "notices": [
+      "vendor/go.yaml.in/yaml/v2/LICENSE.libyaml",
+      "vendor/go.yaml.in/yaml/v2/LICENSE",
+      "vendor/go.yaml.in/yaml/v2/NOTICE"
+    ]
+  },
+  {
+    "module": "go.yaml.in/yaml/v3",
+    "version": "v3.0.5",
+    "licences": [
+      "Apache-2.0",
+      "MIT"
+    ],
+    "notices": [
+      "vendor/go.yaml.in/yaml/v3/LICENSE",
+      "vendor/go.yaml.in/yaml/v3/NOTICE"
+    ]
+  },
+  {
+    "module": "go4.org",
+    "version": "v0.0.0-20260112195520-a5071408f32f",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/go4.org/LICENSE"
+    ]
+  },
+  {
+    "module": "goftp.io/server/v2",
+    "version": "v2.0.3",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/goftp.io/server/v2/LICENSE"
+    ]
+  },
+  {
+    "module": "golang.org/x/crypto",
+    "version": "v0.58.0",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/golang.org/x/crypto/LICENSE"
+    ]
+  },
+  {
+    "module": "golang.org/x/exp",
+    "version": "v0.0.0-20260813180055-c1d0aacb2297",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/golang.org/x/exp/LICENSE"
+    ]
+  },
+  {
+    "module": "golang.org/x/image",
+    "version": "v0.47.0",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/golang.org/x/image/LICENSE"
+    ]
+  },
+  {
+    "module": "golang.org/x/mobile",
+    "version": "v0.0.0-20261011034528-197770444867",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/golang.org/x/mobile/LICENSE"
+    ]
+  },
+  {
+    "module": "golang.org/x/net",
+    "version": "v0.62.0",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/golang.org/x/net/LICENSE"
+    ]
+  },
+  {
+    "module": "golang.org/x/oauth2",
+    "version": "v0.37.0",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/golang.org/x/oauth2/LICENSE"
+    ]
+  },
+  {
+    "module": "golang.org/x/sync",
+    "version": "v0.24.0",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/golang.org/x/sync/LICENSE"
+    ]
+  },
+  {
+    "module": "golang.org/x/sys",
+    "version": "v0.49.0",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/golang.org/x/sys/LICENSE"
+    ]
+  },
+  {
+    "module": "golang.org/x/term",
+    "version": "v0.47.0",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/golang.org/x/term/LICENSE"
+    ]
+  },
+  {
+    "module": "golang.org/x/text",
+    "version": "v0.43.0",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/golang.org/x/text/LICENSE"
+    ]
+  },
+  {
+    "module": "golang.org/x/time",
+    "version": "v0.16.0",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/golang.org/x/time/LICENSE"
+    ]
+  },
+  {
+    "module": "golang.org/x/tools",
+    "version": "v0.52.0",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/golang.org/x/tools/LICENSE"
+    ]
+  },
+  {
+    "module": "google.golang.org/api",
+    "version": "v0.304.0",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/google.golang.org/api/internal/third_party/uritemplates/LICENSE",
+      "vendor/google.golang.org/api/LICENSE"
+    ]
+  },
+  {
+    "module": "google.golang.org/genproto/googleapis/rpc",
+    "version": "v0.0.0-20261005182115-fad411399dd8",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/google.golang.org/genproto/googleapis/rpc/LICENSE"
+    ]
+  },
+  {
+    "module": "google.golang.org/grpc",
+    "version": "v1.84.0",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/google.golang.org/grpc/NOTICE.txt",
+      "vendor/google.golang.org/grpc/LICENSE"
+    ]
+  },
+  {
+    "module": "google.golang.org/protobuf",
+    "version": "v1.36.12",
+    "licences": [
+      "BSD-style"
+    ],
+    "notices": [
+      "vendor/google.golang.org/protobuf/LICENSE"
+    ]
+  },
+  {
+    "module": "gopkg.in/ini.v1",
+    "version": "v1.67.3",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/gopkg.in/ini.v1/LICENSE"
+    ]
+  },
+  {
+    "module": "gopkg.in/natefinch/lumberjack.v2",
+    "version": "v2.2.1",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/gopkg.in/natefinch/lumberjack.v2/LICENSE"
+    ]
+  },
+  {
+    "module": "gopkg.in/validator.v2",
+    "version": "v2.0.1",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "notices": [
+      "vendor/gopkg.in/validator.v2/LICENSE"
+    ]
+  },
+  {
+    "module": "gopkg.in/yaml.v2",
+    "version": "v2.4.0",
+    "licences": [
+      "Apache-2.0",
+      "MIT"
+    ],
+    "notices": [
+      "vendor/gopkg.in/yaml.v2/LICENSE.libyaml",
+      "vendor/gopkg.in/yaml.v2/LICENSE",
+      "vendor/gopkg.in/yaml.v2/NOTICE"
+    ]
+  },
+  {
+    "module": "gopkg.in/yaml.v3",
+    "version": "v3.0.1",
+    "licences": [
+      "Apache-2.0",
+      "MIT"
+    ],
+    "notices": [
+      "vendor/gopkg.in/yaml.v3/LICENSE",
+      "vendor/gopkg.in/yaml.v3/NOTICE"
+    ]
+  },
+  {
+    "module": "moul.io/http2curl/v2",
+    "version": "v2.3.0",
+    "licences": [
+      "Apache-2.0",
+      "MIT"
+    ],
+    "notices": [
+      "vendor/moul.io/http2curl/v2/LICENSE-APACHE",
+      "vendor/moul.io/http2curl/v2/LICENSE-MIT",
+      "vendor/moul.io/http2curl/v2/COPYRIGHT"
+    ]
+  },
+  {
+    "module": "sigs.k8s.io/yaml",
+    "version": "v1.6.0",
+    "licences": [
+      "Apache-2.0",
+      "BSD-style",
+      "MIT"
+    ],
+    "notices": [
+      "vendor/sigs.k8s.io/yaml/LICENSE"
+    ]
+  },
+  {
+    "module": "storj.io/common",
+    "version": "v0.0.0-20260818140313-d38275a3768b",
+    "licences": [
+      "ISC",
+      "MIT"
+    ],
+    "notices": [
+      "vendor/storj.io/common/LICENSE",
+      "vendor/storj.io/common/base58/LICENSE"
+    ]
+  },
+  {
+    "module": "storj.io/drpc",
+    "version": "v1.0.0",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/storj.io/drpc/LICENSE"
+    ]
+  },
+  {
+    "module": "storj.io/eventkit",
+    "version": "v0.0.0-20260716074419-6861a92e2aa5",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/storj.io/eventkit/LICENSE"
+    ]
+  },
+  {
+    "module": "storj.io/infectious",
+    "version": "v1.0.1",
+    "licences": [
+      "BSD-style",
+      "MIT"
+    ],
+    "notices": [
+      "vendor/storj.io/infectious/LICENSE"
+    ]
+  },
+  {
+    "module": "storj.io/picobuf",
+    "version": "v0.0.4",
+    "licences": [
+      "BSD-style",
+      "MIT"
+    ],
+    "notices": [
+      "vendor/storj.io/picobuf/internal/protowire/LICENSE",
+      "vendor/storj.io/picobuf/LICENSE"
+    ]
+  },
+  {
+    "module": "storj.io/uplink",
+    "version": "v1.14.5",
+    "licences": [
+      "MIT"
+    ],
+    "notices": [
+      "vendor/storj.io/uplink/LICENSE"
+    ]
+  }
+]

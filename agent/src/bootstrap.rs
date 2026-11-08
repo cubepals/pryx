@@ -123,6 +123,7 @@ pub async fn serve(
         telemetry,
         logs: logbook.clone(),
     });
+    crate::tools::prepare(&agent).map_err(|_| "Native tool runtime directory failed")?;
     let mut servers = Vec::new();
     for listener in listeners {
         let listener = listener.tap_io(|socket| {
@@ -132,6 +133,18 @@ pub async fn serve(
     }
     let mut term = signal(SignalKind::terminate())?;
     let mut interrupt = signal(SignalKind::interrupt())?;
+    let mount_gate = tokio::select! {
+        result=crate::tools::wait_mounts(&agent)=>result.map_err(|_|"Initial sandbox mounts failed"),
+        _=term.recv()=>Err("Terminated while preparing mounts"),
+        _=interrupt.recv()=>Err("Interrupted while preparing mounts"),
+    };
+    if let Err(error) = mount_gate {
+        terminate(&agent, libc::SIGKILL).await;
+        for server in servers {
+            server.abort()
+        }
+        return Err(error.into());
+    }
     let entrypoint = if args.entrypoint.is_empty() {
         None
     } else {

@@ -18,3 +18,21 @@ SPDX-License-Identifier = "MIT AND BSD-3-Clause"
 path = "templates/node-interpreter/notices/skia.txt"
 SPDX-FileCopyrightText = "2011 Google Inc."
 SPDX-License-Identifier = "BSD-3-Clause"
+
+[[annotations]]
+path = "templates/native-tools/notices/**"
+precedence = "override"
+SPDX-FileCopyrightText = "Upstream contributors (see each retained notice)"
+SPDX-License-Identifier = "LicenseRef-Third-Party-Notices"
+
+[[annotations]]
+path = "deploy/native-tools-seccomp.json"
+precedence = "override"
+SPDX-FileCopyrightText = "Microsoft Corporation and Docker contributors"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = "deploy/pryx-native-tools.apparmor"
+precedence = "override"
+SPDX-FileCopyrightText = "The Moby Authors"
+SPDX-License-Identifier = "Apache-2.0"

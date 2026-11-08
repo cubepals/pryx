@@ -12,12 +12,14 @@
 //! - `create.rs`: trusted container and agent creation.
 //! - `container.rs`: container construction and observation types.
 //! - `exec.rs`: command attachment and timeout containment.
+//! - `native_tools.rs`: explicit host-only seccomp and FUSE device policy.
 //! - `relay.rs`: bounded private ingress to gateway-free internal networks.
 
 mod container;
 mod create;
 pub(crate) mod egress;
 mod exec;
+mod native_tools;
 mod relay;
 use container::{body_of, info_from};
 
@@ -85,6 +87,7 @@ pub struct DockerRuntime {
     client: std::sync::Mutex<Option<Docker>>,
     relays: relay::Relays,
     egress: egress::Egress,
+    native_tools: native_tools::Policy,
 }
 
 impl DockerRuntime {
@@ -97,7 +100,18 @@ impl DockerRuntime {
             client: std::sync::Mutex::new(None),
             relays: relay::Relays::default(),
             egress: Default::default(),
+            native_tools: Default::default(),
         })
+    }
+
+    pub fn with_native_tools(
+        mut self,
+        profile: Option<&Path>,
+        fuse: bool,
+        apparmor: Option<&str>,
+    ) -> Result<Self, RuntimeError> {
+        self.native_tools = native_tools::Policy::load(profile, fuse, apparmor)?;
+        Ok(self)
     }
 
     /// Prove the independent cgroup watchdog before enabling the optional host feature.
@@ -214,6 +228,9 @@ fn pull_tag(image: &str) -> Option<&'static str> {
 impl ContainerRuntime for DockerRuntime {
     fn supports_agent(&self) -> bool {
         true
+    }
+    fn supports_native_fuse(&self) -> bool {
+        self.native_tools.fuse()
     }
     fn supports_hostname_egress(&self) -> bool {
         egress::ready()

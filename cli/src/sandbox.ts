@@ -97,6 +97,10 @@ export async function execCommand(
 export async function sandbox(args: string[]): Promise<unknown> {
   const client = publicClient()
   const [verb = 'ls', id, ...rest] = args
+  if (verb === 'ssh') {
+    if (!id) throw new Error('sandbox ssh needs an id')
+    return (await import('./sandbox-ssh.ts')).ssh(client, id, rest)
+  }
   if (verb === 'python') return (await import('./sandbox-kernel.ts')).python(client, args.slice(1))
   if (verb === 'create')
     return client.sandbox({

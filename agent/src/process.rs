@@ -246,11 +246,19 @@ pub struct Processes {
     pub secret_env: String,
     backend: Option<Arc<dyn Backend>>,
     pub(crate) kernels: crate::kernel_slots::KernelSlots,
+    pub(crate) tools: crate::tool_slots::ToolSlots,
 }
 
 impl Processes {
     pub fn new(data: PathBuf, secret_env: String) -> Self {
-        Self { held: Mutex::new(HashMap::new()), data, secret_env, backend: None, kernels: Default::default() }
+        Self {
+            held: Mutex::new(HashMap::new()),
+            data,
+            secret_env,
+            backend: None,
+            kernels: Default::default(),
+            tools: Default::default(),
+        }
     }
 
     pub(crate) fn kernel_unsupported_tier(&self) -> Option<&'static str> {
@@ -293,7 +301,26 @@ impl Processes {
     }
 
     pub fn start(&self, request: Start, key: &str, max_timeout: Option<u32>) -> Result<Arc<Process>, ProcessError> {
-        let fingerprint = serde_json::to_vec(&request).expect("Start serializes");
+        self.start_with(request, key, max_timeout, false)
+    }
+
+    pub(crate) fn start_mount(
+        &self,
+        request: Start,
+        key: &str,
+        max_timeout: Option<u32>,
+    ) -> Result<Arc<Process>, ProcessError> {
+        self.start_with(request, key, max_timeout, true)
+    }
+
+    fn start_with(
+        &self,
+        request: Start,
+        key: &str,
+        max_timeout: Option<u32>,
+        mount: bool,
+    ) -> Result<Arc<Process>, ProcessError> {
+        let fingerprint = serde_json::to_vec(&(mount, &request)).expect("Start serializes");
         if key.is_empty() || key.len() > 128 || fingerprint.len() > crate::contract::MAX_REQUEST_BYTES {
             return Err(ProcessError::Invalid("idempotency key or request size"));
         }
@@ -313,16 +340,29 @@ impl Processes {
         if timeout == Some(0) || max_timeout.is_some_and(|max| timeout.is_some_and(|t| t > max)) {
             return Err(ProcessError::Invalid("exec timeout exceeds token policy"));
         }
-        let process = self.spawn(request, timeout)?;
+        let process = self.spawn(request, timeout, mount)?;
         held.insert(process.id.clone(), Entry { process: process.clone(), key: key.into(), fingerprint });
         Ok(process)
     }
 
-    fn spawn(&self, request: Start, timeout: Option<u32>) -> Result<Arc<Process>, ProcessError> {
+    fn spawn(&self, mut request: Start, timeout: Option<u32>, mount: bool) -> Result<Arc<Process>, ProcessError> {
+        let mut env = self.tools.environment.read().unwrap().clone();
+        env.extend(request.env);
+        request.env = env;
         if let Some(backend) = &self.backend {
             return backend.spawn(request, timeout);
         }
-        let argv = crate::process_policy::wrap(argv(&request.command)?)?;
+        let mut argv = crate::process_policy::wrap(argv(&request.command)?)?;
+        if crate::fuse_namespace::enabled() {
+            let mut wrapped = vec![
+                std::env::current_exe()?.to_string_lossy().into_owned(),
+                if mount { "mount-child".into() } else { "tool-child".into() },
+            ];
+            wrapped.extend(argv);
+            argv = wrapped;
+        } else if mount {
+            return Err(ProcessError::Invalid("Host-approved FUSE is unavailable"));
+        }
         let cwd = request.cwd.as_ref().map(PathBuf::from).unwrap_or_else(|| self.data.clone());
         if request.pty {
             let spawned = crate::pty::spawn(
@@ -340,6 +380,7 @@ impl Processes {
             .args(&argv[1..])
             .envs(&request.env)
             .env_remove(&self.secret_env)
+            .env_remove(crate::contract::MOUNTS_ENV)
             .env_remove(crate::process_policy::POLICY_ENV)
             .current_dir(cwd);
         command.stdin(if request.stdin { Stdio::piped() } else { Stdio::null() });

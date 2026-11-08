@@ -17,6 +17,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/sandboxes/{id}/ssh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["post__v1_sandboxes_id_ssh"];
+        delete: operations["delete__v1_sandboxes_id_ssh"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/sandboxes/{id}/token": {
         parameters: {
             query?: never;
@@ -469,6 +485,19 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        SshRegister: {
+            /** Format: uuid */
+            id: string;
+        };
+        SshAddress: {
+            /** Format: uuid */
+            id: string;
+            host: string;
+            port: number;
+            user: string;
+            hostKey: string;
+            expiresAt: number;
+        };
         Sandbox: {
             name?: string;
             labels?: {
@@ -636,6 +665,19 @@ export interface components {
             [key: string]: unknown;
         });
         MakeRequest: {
+            mounts?: {
+                bucket: string;
+                credentials: {
+                    accessKeyId: string;
+                    endpoint?: string | null;
+                    region?: string | null;
+                    secretAccessKey: string;
+                    sessionToken?: string | null;
+                };
+                path: string;
+                /** @default false */
+                readOnly?: boolean;
+            }[];
             image?: string;
             packages?: string[];
             snapshot?: string;
@@ -789,6 +831,19 @@ export interface components {
         TemplateRequest: {
             name: string;
             spec: {
+                mounts?: {
+                    bucket: string;
+                    credentials: {
+                        accessKeyId: string;
+                        endpoint?: string | null;
+                        region?: string | null;
+                        secretAccessKey: string;
+                        sessionToken?: string | null;
+                    };
+                    path: string;
+                    /** @default false */
+                    readOnly?: boolean;
+                }[];
                 image?: string;
                 packages?: string[];
                 snapshot?: string;
@@ -988,6 +1043,182 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Project"];
+                };
+            };
+            /** @description Request refused */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request refused */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request refused */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request refused */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request refused */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request refused */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request refused */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post__v1_sandboxes_id_ssh: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SshRegister"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SshAddress"];
+                };
+            };
+            /** @description Request refused */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request refused */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request refused */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request refused */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request refused */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request refused */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request refused */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    delete__v1_sandboxes_id_ssh: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        revoked: boolean;
+                    };
                 };
             };
             /** @description Request refused */

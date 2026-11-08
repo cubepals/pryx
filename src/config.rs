@@ -180,6 +180,12 @@ impl Default for OpsConfig {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct DockerConfig {
+    /// Host-owned seccomp profile for native browser/FUSE tools; callers cannot set it.
+    pub native_tools_seccomp: Option<PathBuf>,
+    /// Optional preloaded enforcing AppArmor profile, selected only by the host.
+    pub native_tools_apparmor: Option<String>,
+    /// Pass the FUSE device only when the host also selected a seccomp profile.
+    pub native_fuse: bool,
     pub socket: PathBuf,
     /// The bridge network workloads join. Made with inter-container traffic off.
     pub(crate) network: String,
@@ -190,6 +196,9 @@ impl Default for DockerConfig {
     fn default() -> Self {
         Self {
             // dockerd's own default (`--host`); bollard keeps its copy private.
+            native_tools_seccomp: None,
+            native_tools_apparmor: None,
+            native_fuse: false,
             socket: PathBuf::from("/var/run/docker.sock"),
             network: "blockly-workloads".into(),
             pull_timeout_seconds: Duration::from_mins(20).as_secs(),

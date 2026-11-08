@@ -71,7 +71,7 @@ pub fn router(agent: Arc<Agent>) -> Router {
     let router = Router::new()
         .route(
             "/_pryx/health",
-            get(|| async { Json(serde_json::json!({"status":"ok","apiVersion":crate::contract::API_VERSION,"kernelsVersion":crate::kernels::VERSION})) }),
+            get(|State(agent):State<Arc<Agent>>| async move { Json(serde_json::json!({"status":"ok","apiVersion":crate::contract::API_VERSION,"kernelsVersion":crate::kernels::VERSION,"toolsVersion":crate::tools::VERSION,"mountsPending":crate::tools::mounts_pending(&agent)})) }),
         )
         .route("/_pryx/logs", get(logs))
         .route("/_pryx/processes", get(list).post(start))
@@ -89,6 +89,7 @@ pub fn router(agent: Arc<Agent>) -> Router {
         .merge(crate::field_process::routes())
         .merge(crate::shells::routes())
         .merge(crate::kernels::routes())
+        .merge(crate::tools::routes())
         .merge(crate::file_search::routes());
     #[cfg(feature = "mcp")]
     let router = router.merge(crate::mcp::routes());

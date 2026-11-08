@@ -22,6 +22,15 @@ pub(super) fn catalog() -> Value {
     let text = json!({"type":"string"});
     let process = json!({"command":{"oneOf":[{"type":"string"},{"type":"array","items":{"type":"string"},"minItems":1}]},"timeout":{"type":"integer","minimum":1},"cwd":text,"env":{"type":"object","additionalProperties":{"type":"string"}},"key":text});
     for (name, description, properties, required) in [
+        ("screenshot", "Capture desktop or browser PNG", json!({"url":text}), vec![]),
+        (
+            "click",
+            "Click desktop coordinates",
+            json!({"x":{"type":"integer","minimum":0},"y":{"type":"integer","minimum":0}}),
+            vec!["x", "y"],
+        ),
+        ("type", "Type into the desktop", json!({"text":text}), vec!["text"]),
+        ("key", "Press an X11 key combination", json!({"combo":text}), vec!["combo"]),
         ("run", "Run a command with bounded collected output", process.clone(), vec!["command"]),
         ("start", "Start a background process", process, vec!["command"]),
         ("processes", "List supervised processes", json!({}), vec![]),
@@ -123,6 +132,10 @@ async fn process(agent: &Agent, claims: &Claims, name: &str, args: &Value) -> Re
     }
 }
 pub(super) async fn result(agent: &Agent, claims: &Claims, params: &Value) -> Result<Value, Failure> {
+    if let Some(name @ ("screenshot" | "click" | "type" | "key")) = params["name"].as_str() {
+        return crate::tools::mcp(agent, claims, name, &params.get("arguments").cloned().unwrap_or_else(|| json!({})))
+            .await;
+    }
     let language = match params["name"].as_str() {
         Some("run_python") => Some(crate::kernels::events::Language::Python),
         Some("run_javascript") => Some(crate::kernels::events::Language::Javascript),

@@ -30,6 +30,7 @@ export async function deployment(
   options: {
     webhookAllowHosts?: string[]
     egressPolicy?: boolean
+    nativeTools?: boolean
     allowedImages?: string[]
     storeLease?: boolean
     nodes?: number
@@ -56,6 +57,7 @@ export async function deployment(
     DATABASE_URL: fresh.url,
     PRYX_DEPLOYMENT: name,
     PRYX_DEFAULT_ISOLATION: options.tier,
+    ...(options.nativeTools ? { PRYX_EDGE_PORT_RANGE: `${await freePort()}-${65500}` } : {}),
     PRYX_UNIT_MEMORY_MB: process.env.PRYX_TIER_BENCH === '1' ? String(TIER_BENCH_UNIT.memoryMb) : undefined,
     PRYX_UNIT_CPU_MILLIS: process.env.PRYX_TIER_BENCH === '1' ? String(TIER_BENCH_UNIT.cpuMillis) : undefined,
     PRYX_CPU_OVERCOMMIT: process.env.PRYX_TIER_BENCH === '1' ? String(TIER_BENCH_CPU_OVERCOMMIT) : undefined,
@@ -97,7 +99,18 @@ export async function deployment(
   if (!control.edge.agents) throw new Error('Missing agent capability service')
   control.edge.agents.localOrigin = `http://127.0.0.1:${edgePort}`
   const count = options.nodes ?? 1
-  const children = await spawnNodes({ name, dir, bin: options.binary ?? bin, options, pems, control, config })
+  const children = await spawnNodes({
+    name,
+    dir,
+    bin: options.binary ?? bin,
+    options: {
+      ...options,
+      ...(options.nativeTools ? { agentPublicOrigin: `http://127.0.0.1:${edgePort}` } : {}),
+    },
+    pems,
+    control,
+    config,
+  })
   try {
     await until('public node healthy', async () => {
       const nodes = await nodeSummaries(control.db, { suspectSeconds: 15, unavailableSeconds: 45 })

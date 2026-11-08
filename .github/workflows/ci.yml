@@ -462,6 +462,75 @@ jobs:
           cp "$RUNNER_TEMP/pryxd-k16-after" target/debug/pryxd
           PRYXD_BIN="$GITHUB_WORKSPACE/target/debug/pryxd" bun control/bench/field-speed.ts after "$RUNNER_TEMP/field-speed-after.json"
           bun control/tools/field-summary.ts "$RUNNER_TEMP/field-speed-before.json" "$RUNNER_TEMP/field-speed-after.json"
+      - name: Prepare Python agent acceptance
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: |
+          python3 -m venv .venv-agent-python
+          .venv-agent-python/bin/pip install -e sdk/python
+      - name: Prepare native tool host policy
+        run: |
+          sudo modprobe fuse
+          if [ -r /sys/module/apparmor/parameters/enabled ] && [ "$(cat /sys/module/apparmor/parameters/enabled)" = Y ]; then
+            if ! command -v apparmor_parser > /dev/null; then
+              sudo apt-get update
+              sudo apt-get install -y apparmor
+            fi
+            sudo apparmor_parser -r deploy/pryx-native-tools.apparmor
+            echo 'PRYX_NATIVE_TOOLS_APPARMOR=pryx-native-tools' >> "$GITHUB_ENV"
+          fi
+          sudo install -m 600 deploy/native-tools-seccomp.json /usr/local/lib/pryx/native-tools-seccomp.json
+          npm ci --ignore-scripts --prefix templates/browser
+      - name: Build native tool templates
+        run: |
+          docker build -t alpine:pryx-native-tools -f templates/native-tools/Dockerfile .
+          docker build -t alpine:pryx-desktop --build-arg NATIVE_IMAGE=alpine:pryx-native-tools templates/desktop
+          docker build -t alpine:pryx-rclone-tools --build-arg NATIVE_IMAGE=alpine:pryx-native-tools -f templates/native-tools/rclone.Dockerfile templates/native-tools
+          docker build -t alpine:pryx-browser templates/browser
+      - name: Build the interpreter templates
+        run: |
+          docker build -t alpine:pryx-python-interpreter templates/python-interpreter
+          docker build -t alpine:pryx-node-interpreter templates/node-interpreter
+      - run: bun run e2e
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        env:
+          PRYX_PYTHON: ${{ github.workspace }}/.venv-agent-python/bin/python
+          PRYX_MCP_CLI: ${{ runner.temp }}/pryx-cli
+          PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
+          PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
+          PRYX_INTERPRETER_MEASUREMENTS: ${{ runner.temp }}/interpreter-measurements.json
+          PRYX_NATIVE_MEASUREMENTS: ${{ runner.temp }}/native-tools-measurements.json
+          PRYX_COMPARE_LINKS: ${{ runner.temp }}/compare-links.json
+          PRYX_NATIVE_TOOLS_SECCOMP: /usr/local/lib/pryx/native-tools-seccomp.json
+      - name: Save native tool measurements and citations
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-tools-measurements
+          path: |
+            ${{ runner.temp }}/native-tools-measurements.json
+            ${{ runner.temp }}/compare-links.json
+          if-no-files-found: error
+      - name: Summarize native tool measurements
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/native-tools-measurements.json" ]; then
+            jq '.after.summary' "$RUNNER_TEMP/native-tools-measurements.json" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Save interpreter measurements
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: interpreter-measurements
+          path: ${{ runner.temp }}/interpreter-measurements.json
+          if-no-files-found: error
+      - name: Summarize interpreter measurements
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/interpreter-measurements.json" ]; then
+            jq '.summary' "$RUNNER_TEMP/interpreter-measurements.json" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+
       - name: Measure the K11 agent on this host
         run: |
           PRYXD_BIN="$GITHUB_WORKSPACE/target/debug/pryxd" bun control/bench/agent-speed.ts after "$RUNNER_TEMP/agent-speed-after.json"
@@ -506,38 +575,6 @@ jobs:
             ${{ runner.temp }}/agent-speed-after.json
             ${{ runner.temp }}/process-speed-before.json
             ${{ runner.temp }}/process-speed-after.json
-      - name: Prepare Python agent acceptance
-        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
-        run: |
-          python3 -m venv .venv-agent-python
-          .venv-agent-python/bin/pip install -e sdk/python
-      - name: Build the interpreter templates
-        run: |
-          docker build -t alpine:pryx-python-interpreter templates/python-interpreter
-          docker build -t alpine:pryx-node-interpreter templates/node-interpreter
-      - run: bun run e2e
-        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
-        env:
-          PRYX_PYTHON: ${{ github.workspace }}/.venv-agent-python/bin/python
-          PRYX_MCP_CLI: ${{ runner.temp }}/pryx-cli
-          PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
-          PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
-          PRYX_INTERPRETER_MEASUREMENTS: ${{ runner.temp }}/interpreter-measurements.json
-      - name: Save interpreter measurements
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: interpreter-measurements
-          path: ${{ runner.temp }}/interpreter-measurements.json
-          if-no-files-found: error
-      - name: Summarize interpreter measurements
-        if: always()
-        run: |
-          if [ -f "$RUNNER_TEMP/interpreter-measurements.json" ]; then
-            jq '.summary' "$RUNNER_TEMP/interpreter-measurements.json" >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-
       - name: K11 agent suite on the wasm tier
         if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         run: bun test control/e2e/agent.e2e.test.ts control/e2e/wasm.e2e.test.ts control/e2e/field.e2e.test.ts

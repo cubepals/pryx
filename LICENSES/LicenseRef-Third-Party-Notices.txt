@@ -1,0 +1,7 @@
+Third-party legal notices
+
+Files covered by this identifier are retained copyright, licence and attribution notices,
+not program implementations. Each file reproduces its upstream terms verbatim; those terms
+and the authors identified in the file apply. This identifier does not relicense them under
+FSL or create additional permissions. The versioned inventories in docs/checks/measurements
+identify the source packages, licence summaries, notice hashes and corresponding source URLs.

@@ -16,6 +16,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     rustix::process::set_child_subreaper(rustix::process::Pid::from_raw(1))?;
     let _ = rustls::crypto::ring::default_provider().install_default();
     let arguments = std::env::args().skip(1).collect::<Vec<_>>();
+    if matches!(arguments.first().map(String::as_str), Some("tool-child" | "mount-child")) {
+        let mount = arguments[0] == "mount-child";
+        pryx_agent::fuse_namespace::child(mount)?;
+        let mut command = arguments[1..].to_vec();
+        let _directory = if mount { Some(pryx_agent::fuse_namespace::worker(&mut command)?) } else { None };
+        let executable = command.first().ok_or("Missing tool command")?;
+        return Err(std::process::Command::new(executable).args(&command[1..]).exec().into());
+    }
     if arguments.first().is_some_and(|a| a == "process-probe") {
         println!("{}", serde_json::to_string(&pryx_agent::process_capabilities::probe())?);
         return Ok(());
@@ -59,6 +67,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if arguments.first().is_some_and(|a| a == "--version") {
         println!("pryx-agent {}", env!("CARGO_PKG_VERSION"));
         return Ok(());
+    }
+    if !matches!(arguments.first().map(String::as_str), Some("shell" | "--version")) {
+        pryx_agent::fuse_namespace::enter()?;
     }
     let runtime = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build()?;
     if arguments.first().is_some_and(|a| a == "shell") {

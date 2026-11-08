@@ -12,6 +12,8 @@ import { addresses, DEFAULT_EDGE_PORT_RANGE } from './edge-addresses.ts'
 import { AGENT_ROUTE_PORT, HTTP_FRONT_PORT } from './edge-headers.ts'
 import type { EdgeRoute, EdgeRoutes, SessionEvent, WakeResult } from './edge-schemas.ts'
 import { decodeHandle } from './handle.ts'
+
+import { sshRoutes } from './native-ssh.ts'
 import { agentViewSchema } from './node-contract.ts'
 import { fingerprint } from './operations.ts'
 import type { Sandboxes, SandboxRow } from './sandboxes.ts'
@@ -57,7 +59,10 @@ export class EdgeService {
           ...(running ? {} : { state: 'asleep' as const }),
         })
       }
-      for (const a of await addresses(this.db, b.id, b.public_ports, this.domain, this.portRange)) {
+      routes.push(...(await sshRoutes(this.db, b)))
+      for (const a of (await addresses(this.db, b.id, b.public_ports, this.domain, this.portRange)).filter(
+        (a) => !a.name.startsWith('ssh-'),
+      )) {
         const running = b.state === 'running' && ref?.node
         const endpoint = running
           ? this.boxes.engine.endpoint(b.handle as NonNullable<SandboxRow['handle']>, a.name, 'edge')

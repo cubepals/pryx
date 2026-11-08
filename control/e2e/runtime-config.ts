@@ -52,6 +52,8 @@ export const nodeConfigFor = (DEPLOYMENT: string) =>
     allowedImages?: string[]
     tier?: import('../src/isolation.ts').Isolation
     storeLease?: boolean
+    nativeTools?: boolean
+    agentPublicOrigin?: string
     index?: number
   }): string {
     const { home, endpointUrl, dir, apiPort, opsPort } = at
@@ -59,6 +61,7 @@ export const nodeConfigFor = (DEPLOYMENT: string) =>
     return `deployment_id = "${DEPLOYMENT}"
 runtime = "${at.tier ?? 'container'}"
 state_dir = "${join(home, 'state')}"
+${at.nativeTools ? `[docker]\nnative_tools_seccomp = ${JSON.stringify(process.env.PRYX_NATIVE_TOOLS_SECCOMP ?? new URL('../../deploy/native-tools-seccomp.json', import.meta.url).pathname)}\nnative_fuse = true\n${process.env.PRYX_NATIVE_TOOLS_APPARMOR ? `native_tools_apparmor = ${JSON.stringify(process.env.PRYX_NATIVE_TOOLS_APPARMOR)}\n` : ''}` : ''}
 [api]
 listen = "127.0.0.1:${apiPort}"
 [ops]
@@ -69,6 +72,7 @@ ${process.env.PRYX_TIER_BENCH === '1' ? '' : 'port_quarantine_seconds = 0'}
 [wasm]
 distribution = ${JSON.stringify(process.env.PRYX_AGENTOS_DISTRIBUTION ?? '/usr/local/lib/pryx/agentos')}
 [workloads]
+${at.agentPublicOrigin ? `agent_public_origin = ${JSON.stringify(at.agentPublicOrigin)}` : ''}
 ${process.env.PRYX_AGENT_BIN ? `agent_binary = ${JSON.stringify(process.env.PRYX_AGENT_BIN)}` : ''}
 allowed_images = ${JSON.stringify(at.allowedImages ?? ['alpine:'])}
 min_memory_mb = ${process.env.PRYX_TIER_BENCH === '1' ? TIER_BENCH_UNIT.memoryMb : 64}

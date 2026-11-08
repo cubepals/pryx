@@ -10,6 +10,7 @@ import { Git } from './git.ts'
 import { Kernel, type KernelOptions, type KernelView } from './kernels.ts'
 import { CommandStream, type RunOptions } from './run.ts'
 import { Shell } from './shell.ts'
+import { nativeTools } from './tools.ts'
 import type { MakeRequest, Sandbox as SandboxView, Snapshot as SnapshotView, Transport } from './transport.ts'
 import { ndjson, PryxError } from './transport.ts'
 export type SandboxOptions = Omit<MakeRequest, 'idle' | 'ttl'> & {
@@ -74,6 +75,10 @@ export class Snapshot {
 }
 export class Sandbox {
   #agent: Agent
+  readonly desktop: ReturnType<typeof nativeTools>['desktop']
+  readonly browser: ReturnType<typeof nativeTools>['browser']
+  readonly ssh: ReturnType<typeof nativeTools>['ssh']
+  readonly mounts: ReturnType<typeof nativeTools>['mounts']
   readonly files: Files
   readonly git: Git
   #api: Transport
@@ -83,6 +88,11 @@ export class Sandbox {
   ) {
     this.#api = api
     this.#agent = new Agent(api, view.id)
+    const tools = nativeTools(this.#agent, api, view.id)
+    this.desktop = tools.desktop
+    this.browser = tools.browser
+    this.ssh = tools.ssh
+    this.mounts = tools.mounts
     this.git = new Git(
       (command, options) => this.run(command, options),
       (command, options) => this.spawn(command, options),
@@ -272,7 +282,7 @@ export class Sandbox {
       ...(options.since ? { since: options.since } : {}),
     })
     yield* ndjson<{ id: string | number; kind: string; at: string; data: unknown }>(
-      await this.#api.raw(this.path('/events') + `?${query}`, 'GET', undefined, undefined, options.signal),
+      await this.#api.raw(`${this.path('/events')}?${query}`, 'GET', undefined, undefined, options.signal),
     )
   }
 }

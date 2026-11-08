@@ -2,6 +2,7 @@
 """One lifecycle and eager-command surface, with private HTTP and capability transports."""
 from urllib.parse import quote, urlencode
 from uuid import uuid4
+from .tools import Desktop,Browser,Ssh,AsyncDesktop,AsyncBrowser,AsyncSsh
 from .git import Git,AsyncGit
 from .shell import Shell,AsyncShell
 from .duration import seconds
@@ -28,12 +29,14 @@ class Sandbox:
     def __init__(self,http,view):
         self._http,self._view=http,view
         self._agent=Agent(http,self.id)
+        self.desktop,self.browser,self.ssh=Desktop(self._agent),Browser(self._agent),Ssh(self._agent,http,self.id)
         self.git=Git(self.run,self.spawn,self.isolation)
         self.files=Files(http,self.id,self._agent,lambda:self._view)
     @property
     def id(self):return self._view.id
     def python(self, *, context=''): return Kernel.open(self._agent, 'python', context)
     def javascript(self, *, context=''): return Kernel.open(self._agent, 'javascript', context)
+    def mounts(self):return self._agent.request('/_pryx/mounts')['mounts']
     def kernels(self):
         from .generated.kernels import KERNEL_DEFAULTS
         self._agent.require_kernels(KERNEL_DEFAULTS['version'])
@@ -107,12 +110,14 @@ class AsyncSandbox(Sandbox):
     def __init__(self,http,view):
         self._http,self._view=http,view
         self._agent=AsyncAgent(http,self.id)
+        self.desktop,self.browser,self.ssh=AsyncDesktop(self._agent),AsyncBrowser(self._agent),AsyncSsh(self._agent,http,self.id)
         self.git=AsyncGit(self.run,self.spawn,self.isolation)
         self.files=AsyncFiles(http,self.id,self._agent,lambda:self._view)
     async def refresh(self):self._view=SandboxView.from_dict(await self._http.request(self._path()));self._agent.invalidate();return self
     async def spawn(self,command,**options):return await self._agent.start(command,**self._command_options(options))
     async def python(self, *, context=''): return await AsyncKernel.open(self._agent, 'python', context)
     async def javascript(self, *, context=''): return await AsyncKernel.open(self._agent, 'javascript', context)
+    async def mounts(self):return (await self._agent.request('/_pryx/mounts'))['mounts']
     async def kernels(self):
         from .generated.kernels import KERNEL_DEFAULTS
         await self._agent.require_kernels(KERNEL_DEFAULTS['version'])

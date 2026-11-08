@@ -31,6 +31,7 @@ interface PortSpec {
 }
 
 export interface RuntimeSpec {
+  fuseMounts?: boolean
   isolation?: import('./isolation.ts').Isolation
   agent?: import('./wire.ts').WorkloadSpec['agent']
   sparePorts?: number | null

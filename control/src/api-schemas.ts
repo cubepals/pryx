@@ -5,8 +5,8 @@
 import { z } from 'zod'
 import node from '../../openapi/node-reads.openapi.json'
 import writes from '../../openapi/node-writes.openapi.json'
-
 import { ISOLATIONS } from './isolation.ts'
+import { agentSchema } from './node-contract.ts'
 import type { WorkloadSpec } from './wire.ts'
 
 const map = z.record(z.string(), z.string())
@@ -36,6 +36,7 @@ export const port = z
   .strict()
 export const makeSchema = z
   .object({
+    mounts: z.array(agentSchema('MountSpec')).min(1).max(16).optional(),
     image: z.string().min(1).optional(),
     packages: z
       .array(z.string().regex(new RegExp(writes['x-pryx-wasm'].packageNamePattern)))
