@@ -98,10 +98,10 @@ export class NativeSsh {
       if (!address) throw new SandboxError('no_room', 'SSH address was not allocated')
       return address
     })
-    const incoming = new URL(requestUrl).hostname
+    const incoming = new URL(requestUrl).hostname.replace(/^\[|\]$/g, '')
     return {
       id: body.id,
-      host: ['127.0.0.1', 'localhost', '[::1]'].includes(incoming) ? incoming : address.hostname,
+      host: ['127.0.0.1', 'localhost', '::1'].includes(incoming) ? incoming : address.hostname,
       port: address.public_port,
       user: view.user,
       hostKey: view.hostKey,
