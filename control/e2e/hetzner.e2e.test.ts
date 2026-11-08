@@ -1,14 +1,16 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-/** Token-only live rental test. Temporary network/firewall/SSH resources and strict tunnels isolate the CI control plane. */
+/**
+ * Token-only live rental test. Temporary network/firewall/SSH resources and strict tunnels isolate the CI
+ * control plane. On failure it prints the rented box's and control's own account before cleanup, and the
+ * first error stays the one thrown (hetzner-evidence.ts).
+ */
 import { describe, expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { setTimeout as pause } from 'node:timers/promises'
 import { sql } from 'drizzle-orm'
-import { StatusCodes } from 'http-status-codes'
 import {
   type ExecEvent,
   ndjson,
@@ -18,7 +20,7 @@ import {
 import { smallestShape } from '../src/autoscale.ts'
 import { FleetCa } from '../src/ca.ts'
 import { loadConfig } from '../src/config.ts'
-import { MINUTE_MS, SECOND_MS } from '../src/durations.ts'
+import { MINUTE_MS } from '../src/durations.ts'
 import { createKey } from '../src/keys.ts'
 import { startControl } from '../src/main.ts'
 import { ProviderClient } from '../src/providers/client.ts'
@@ -26,6 +28,16 @@ import type { paths } from '../src/providers/generated/hetzner.ts'
 import { HetznerProvider } from '../src/providers/hetzner.ts'
 import { one } from '../src/sql.ts'
 import { freshDatabase } from '../test/nodes.ts'
+import {
+  boxEvidence,
+  controlEvidence,
+  deleteServer,
+  deleteWhenFree,
+  preflight,
+  progress,
+  tunnelEvidence,
+  wait,
+} from './hetzner-evidence.ts'
 import { createTestBucket } from './test-bucket.ts'
 
 type Created<P extends keyof paths> = paths[P] extends {
@@ -46,22 +58,31 @@ describe.skipIf(!token)('Hetzner live provider', () => {
         pems = await FleetCa.generate(name)
       let control: Awaited<ReturnType<typeof startControl>> | undefined, tunnel: Bun.Subprocess | undefined
       let network: number | undefined, firewall: number | undefined, sshKey: number | undefined
-      let acquisition: string | undefined, serverId: string | undefined
+      let acquisition: string | undefined, serverId: string | undefined, ip: string | undefined
+      let provider: HetznerProvider | undefined,
+        failed = false,
+        failure: unknown
       const region = 'fsn1' // Test location's network zone is eu-central, per Hetzner's location catalog.
-      const wait = async <T>(label: string, run: () => Promise<T | null>, minutes = 10): Promise<T> => {
-        const deadline = performance.now() + minutes * MINUTE_MS
-        while (performance.now() < deadline) {
-          const result = await run()
-          if (result) return result
-          await pause(SECOND_MS)
-        }
-        throw new Error(`Timed out: ${label}`)
-      }
+      const tunnelLog = `${dir}/tunnel.log`
+      const ssh = [
+        'ssh',
+        '-i',
+        `${dir}/client`,
+        '-o',
+        'BatchMode=yes',
+        '-o',
+        'StrictHostKeyChecking=yes',
+        '-o',
+        `UserKnownHostsFile=${dir}/known_hosts`,
+        '-o',
+        'ConnectTimeout=5',
+      ]
       try {
         for (const key of ['client', 'host'])
           execFileSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-C', name, '-f', `${dir}/${key}`])
         const runnerIp = (await (await fetch('https://api.ipify.org')).text()).trim()
         if (!/^\d+\.\d+\.\d+\.\d+$/.test(runnerIp)) throw new Error('CI public IPv4 unavailable')
+        progress('runner address', runnerIp)
         const n = await api.request<Created<'/networks'>>('/networks', 'POST', {
           name,
           ip_range: '10.83.0.0/16',
@@ -80,9 +101,13 @@ describe.skipIf(!token)('Hetzner live provider', () => {
           public_key: readFileSync(`${dir}/client.pub`, 'utf8'),
         })
         sshKey = k.ssh_key.id
+        progress(
+          'made',
+          `network ${network}, firewall ${firewall} (tcp 22 from ${runnerIp}), ssh key ${sshKey}`,
+        )
         const hostKey = readFileSync(`${dir}/host`, 'utf8'),
           hostPublic = readFileSync(`${dir}/host.pub`, 'utf8').trim()
-        const provider = new HetznerProvider({
+        provider = new HetznerProvider({
           token: token ?? '',
           deployment: name,
           network,
@@ -120,6 +145,8 @@ describe.skipIf(!token)('Hetzner live provider', () => {
           { providers: new Map([['hetzner', provider]]) },
         )
         const current = control
+        progress('control started', `node endpoint ${config.joinUrl}`)
+        await preflight(current, pems.certPem)
         const cli = async (args: string[]) => {
           const child = Bun.spawn(['bun', 'cli/src/main.ts', 'node', ...args], {
             env: {
@@ -149,31 +176,45 @@ describe.skipIf(!token)('Hetzner live provider', () => {
           name,
         ])
         acquisition = made.id
-        const host = await wait('provider id', async () => (await current.hosts.record(made.id)).host)
+        progress('acquisition', `${made.id}, shape ${shape.name} in ${region}`)
+        let seen = ''
+        const observe = async () => {
+          const a = await current.hosts.record(made.id)
+          const now = `${a.state}${a.host ? ` host ${a.host.id}` : ''}${a.node_id ? ` node ${a.node_id}` : ''}${a.error ? ` (${a.error})` : ''}`
+          if (now !== seen) {
+            seen = now
+            progress('acquisition state', now)
+          }
+          return a
+        }
+        const host = await wait(
+          'provider id',
+          async () => (await observe()).host,
+          10,
+          () => seen,
+        )
         serverId = host.id
         const server = await api.request<
           paths['/servers/{id}']['get']['responses'][200]['content']['application/json']
         >(`/servers/${serverId}`)
-        const ip = server.server?.public_net.ipv4?.ip
-        if (!ip) throw new Error('No SSH address')
-        writeFileSync(`${dir}/known_hosts`, `${ip} ${hostPublic}\n`, { mode: 0o600 })
-        const ssh = [
-          'ssh',
-          '-i',
-          `${dir}/client`,
-          '-o',
-          'BatchMode=yes',
-          '-o',
-          'StrictHostKeyChecking=yes',
-          '-o',
-          `UserKnownHostsFile=${dir}/known_hosts`,
-          '-o',
-          'ConnectTimeout=5',
-        ]
-        await wait('SSH', async () => {
-          const p = Bun.spawn([...ssh, `root@${ip}`, 'true'], { stdout: 'ignore', stderr: 'ignore' })
-          return (await p.exited) === 0 ? true : null
-        })
+        ip = server.server?.public_net.ipv4?.ip
+        if (!ip) throw new Error(`Server ${serverId} has no public IPv4 for SSH`)
+        const address = ip
+        progress('server', `${serverId} at ${address}, status ${server.server?.status}`)
+        writeFileSync(`${dir}/known_hosts`, `${address} ${hostPublic}\n`, { mode: 0o600 })
+        let sshSaid = ''
+        // StrictHostKeyChecking passes only once user_data has installed the host key, just before the join loop.
+        await wait(
+          'SSH',
+          async () => {
+            const p = Bun.spawn([...ssh, `root@${address}`, 'true'], { stdout: 'ignore', stderr: 'pipe' })
+            const [code, said] = await Promise.all([p.exited, new Response(p.stderr).text()])
+            sshSaid = said.trim().split('\n').at(-1) ?? ''
+            return code === 0 ? true : null
+          },
+          10,
+          () => `root@${address} port 22 answered: ${sshSaid || 'nothing'}`,
+        )
         tunnel = Bun.spawn(
           [
             ...ssh,
@@ -188,14 +229,27 @@ describe.skipIf(!token)('Hetzner live provider', () => {
             '127.0.0.1:9000:127.0.0.1:9000',
             '-L',
             '127.0.0.1:7443:127.0.0.1:7443',
-            `root@${ip}`,
+            `root@${address}`,
           ],
-          { stdout: 'ignore', stderr: 'ignore' },
+          { stdout: 'ignore', stderr: Bun.file(tunnelLog) },
         )
-        const joined = await wait('first healthy heartbeat', async () => {
-          const a = await current.hosts.record(made.id)
-          return a.ready_at && a.node_id ? a : null
-        })
+        const opened = tunnel
+        const rentedFrom = provider
+        progress(
+          'tunnel opened',
+          'box 127.0.0.1:8443 and :9000 to this runner, runner 127.0.0.1:7443 to the box',
+        )
+        const joined = await wait(
+          'first healthy heartbeat',
+          async () => {
+            if (opened.exitCode !== null)
+              throw new Error(`The SSH tunnel exited ${opened.exitCode} before the box joined`)
+            const a = await observe()
+            return a.ready_at && a.node_id ? a : null
+          },
+          10,
+          () => seen,
+        )
         const measurement = await one<{ seconds: number }>(
           current.db,
           sql`SELECT extract(epoch FROM ready_at-requested_at)::float8 AS seconds FROM provider_acquisitions WHERE id=${made.id}`,
@@ -203,6 +257,7 @@ describe.skipIf(!token)('Hetzner live provider', () => {
         console.info(
           JSON.stringify({ provider: 'hetzner', n: 1, acquireToHealthySeconds: measurement?.seconds }),
         )
+        progress('healthy', `node ${joined.node_id} after ${measurement?.seconds} s from request`)
         await current.runtime.refreshRegistry()
         const key = await createKey(current.db, 'default', 'provider-e2e'),
           sdk = new Transport({ url: current.apiUrl, key: key.key })
@@ -217,6 +272,7 @@ describe.skipIf(!token)('Hetzner live provider', () => {
           },
           crypto.randomUUID(),
         )
+        progress('sandbox placed', box.id)
         try {
           expect(
             await Array.fromAsync(
@@ -230,45 +286,67 @@ describe.skipIf(!token)('Hetzner live provider', () => {
               ),
             ),
           ).toContainEqual(expect.objectContaining({ type: 'stdout', data: 'provider-live\n' }))
+          progress('exec answered', box.id)
         } finally {
           await sdk.request<{ existed: boolean }>(`/v1/sandboxes/${encodeURIComponent(box.id)}`, 'DELETE')
         }
         expect((await cli(['release', joined.node_id ?? ''])).state).toBe('released')
-        expect((await provider.list()).some((h) => h.id === serverId)).toBe(false)
+        expect((await rentedFrom.list()).some((h) => h.id === serverId)).toBe(false)
+        progress('released', `node ${joined.node_id}, server ${serverId}`)
         serverId = undefined
-      } finally {
-        // Only test-created resources are removed. A failed bootstrap must not leak a paid server.
-        if (control && acquisition) {
-          const record = await control.hosts.record(acquisition).catch(() => null)
-          serverId ??= record?.host?.id
-        }
-        if (serverId) {
-          await api.request(`/servers/${serverId}`, 'DELETE')
-          await wait(
-            'cleanup delete',
-            async () => {
-              try {
-                await api.request(`/servers/${serverId}`)
-                return null
-              } catch (error) {
-                return (error as { status?: number }).status === StatusCodes.NOT_FOUND ? true : null
-              }
-            },
-            3,
+      } catch (error) {
+        failed = true
+        failure = error
+        console.error('FAILED:', error)
+        // Evidence is taken while the box still exists.
+        if (ip) boxEvidence(ssh, ip)
+        else console.error('BOX had no known address, so SSH was not tried')
+        tunnelEvidence(tunnel, tunnelLog)
+        if (control && acquisition)
+          await controlEvidence(control, acquisition).catch((e) =>
+            console.error('CONTROL evidence unavailable:', e),
           )
-        }
-        tunnel?.kill()
-        if (tunnel) await tunnel.exited
-        await control?.stop()
-        for (const [path, id] of [
-          ['firewalls', firewall],
-          ['networks', network],
-          ['ssh_keys', sshKey],
-        ] as const)
-          if (id) await api.request(`/${path}/${id}`, 'DELETE')
-        await fresh.drop()
-        rmSync(dir, { recursive: true, force: true })
+        console.error('CONTROL logs to this process, so its lines, if any, are above')
       }
+      // Only test-created resources are removed. A failed bootstrap must not leak a paid server.
+      const cleanup: unknown[] = []
+      const step = async (what: string, run: () => Promise<unknown>) => {
+        try {
+          await run()
+        } catch (error) {
+          cleanup.push(error)
+          console.error(`CLEANUP ${what} failed:`, error)
+        }
+      }
+      await step('finding the server', async () => {
+        if (control && acquisition) serverId ??= (await control.hosts.record(acquisition)).host?.id
+        // A create whose answer was lost leaves no host on the record, only the labelled server.
+        if (provider && acquisition && !serverId)
+          serverId = (await provider.list()).find((h) => h.requestKey === acquisition)?.id
+      })
+      const rented = serverId
+      if (rented) await step(`deleting server ${rented} (delete it by hand)`, () => deleteServer(api, rented))
+      await step('closing the tunnel', async () => {
+        tunnel?.kill()
+        await tunnel?.exited
+      })
+      await step('stopping control', async () => control?.stop())
+      for (const [path, id] of [
+        ['firewalls', firewall],
+        ['networks', network],
+        ['ssh_keys', sshKey],
+      ] as const)
+        if (id) await deleteWhenFree(api, path, id)
+      await step('dropping the database', () => fresh.drop())
+      rmSync(dir, { recursive: true, force: true })
+      const said = (e: unknown) => (e instanceof Error ? e.message : String(e))
+      if (failed && cleanup.length)
+        throw new AggregateError(
+          [failure, ...cleanup],
+          `${said(failure)} (cleanup also failed: ${cleanup.map(said).join('; ')})`,
+        )
+      if (failed) throw failure
+      if (cleanup.length) throw new AggregateError(cleanup, `Cleanup failed: ${cleanup.map(said).join('; ')}`)
     },
     20 * MINUTE_MS,
   )
