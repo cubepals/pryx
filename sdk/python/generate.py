@@ -49,10 +49,14 @@ with tempfile.TemporaryDirectory(prefix='pryx-python-') as tmp:
     (output/'git_proxy.py').write_bytes(wanted['git_proxy.py'])
     wanted['defaults.py']=defaults
     (output/'defaults.py').write_bytes(defaults)
+    # Agent-family defaults have a separate Rust-schema generator.
+    agent_files=('kernels.py', 'tools.py')
+    preserved={name:(target/name).read_bytes() for name in agent_files if (target/name).exists()}
     if mode=='generate':
         if target.exists(): shutil.rmtree(target)
         shutil.copytree(output,target,ignore=shutil.ignore_patterns('.ruff_cache','__pycache__'))
+        for name,content in preserved.items(): (target/name).write_bytes(content)
     elif mode=='check':
-        actual={str(f.relative_to(target)):f.read_bytes() for f in target.rglob('*.py')}
+        actual={str(f.relative_to(target)):f.read_bytes() for f in target.rglob('*.py') if str(f.relative_to(target)) not in agent_files}
         if actual!=wanted:sys.exit('Python API generation drift')
     else:sys.exit('generate.py generate|check')
