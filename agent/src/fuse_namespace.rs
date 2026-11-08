@@ -8,7 +8,16 @@ use nix::{
 use rustix::thread::{CapabilitySet, CapabilitySets};
 use std::{fs, io, io::Write};
 
+static EXECUTABLE: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+
+/// A bind-mounted executable's procfs link can resolve to the mount root after cloning its
+/// mount namespace. Keep the kernel-resolved path from before that transition.
+pub fn executable() -> io::Result<std::path::PathBuf> {
+    EXECUTABLE.get().cloned().map(Ok).unwrap_or_else(std::env::current_exe)
+}
+
 pub struct Mappings {
+    executable: std::path::PathBuf,
     groups: fs::File,
     uid: fs::File,
     gid: fs::File,
@@ -26,6 +35,7 @@ pub fn prepare() -> io::Result<Option<Mappings>> {
             .map_err(|e| io::Error::other(format!("Pin private native namespace mapping {name}: {e}")))
     };
     Ok(Some(Mappings {
+        executable: std::env::current_exe()?,
         groups: open("/proc/self/setgroups")?,
         uid: open("/proc/self/uid_map")?,
         gid: open("/proc/self/gid_map")?,
@@ -53,6 +63,9 @@ pub fn enter(mappings: Option<Mappings>) -> io::Result<()> {
     let uid = getuid().as_raw();
     let gid = getgid().as_raw();
     let mappings = mappings.ok_or_else(|| io::Error::other("Missing private native namespace mappings"))?;
+    EXECUTABLE
+        .set(mappings.executable.clone())
+        .map_err(|_| io::Error::other("Native namespace launcher was already initialized"))?;
     unshare(CloneFlags::CLONE_NEWUSER | CloneFlags::CLONE_NEWNS)
         .map_err(|e| io::Error::other(format!("Create native mount namespace: {e}")))?;
     use std::os::fd::AsRawFd;

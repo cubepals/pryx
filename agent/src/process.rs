@@ -355,7 +355,7 @@ impl Processes {
         let mut argv = crate::process_policy::wrap(argv(&request.command)?)?;
         if crate::fuse_namespace::enabled() {
             let mut wrapped = vec![
-                std::env::current_exe()?.to_string_lossy().into_owned(),
+                crate::fuse_namespace::executable()?.to_string_lossy().into_owned(),
                 if mount { "mount-child".into() } else { "tool-child".into() },
             ];
             wrapped.extend(argv);
@@ -451,7 +451,7 @@ pub fn argv(command: &Command) -> Result<Vec<String>, ProcessError> {
             if PathBuf::from("/bin/sh").is_file() {
                 Ok(vec!["/bin/sh".into(), "-c".into(), script.clone()])
             } else {
-                Ok(vec![std::env::current_exe()?.to_string_lossy().into(), "shell".into(), script.clone()])
+                Ok(vec![crate::fuse_namespace::executable()?.to_string_lossy().into(), "shell".into(), script.clone()])
             }
         }
         _ => Err(ProcessError::Invalid("empty command")),
@@ -503,7 +503,7 @@ impl Processes {
         } else if PathBuf::from("/bin/sh").is_file() {
             Ok(Command::Argv(vec!["/bin/sh".into()]))
         } else {
-            Ok(Command::Argv(vec![std::env::current_exe()?.to_string_lossy().into(), "shell".into()]))
+            Ok(Command::Argv(vec![crate::fuse_namespace::executable()?.to_string_lossy().into(), "shell".into()]))
         }
     }
 }

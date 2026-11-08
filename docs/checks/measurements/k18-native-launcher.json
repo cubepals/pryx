@@ -1,0 +1,36 @@
+{
+  "scope": "real local Docker launcher regression; not full deployment acceptance or a speed-budget cohort",
+  "baseCommit": "916ed81",
+  "sourceDirty": true,
+  "implementationDiffSha256": "5125aa53e27030d608d1b140445efbf6f168bd1ef32b7d9df15ea93e4d996da6",
+  "recordedUtc": "2026-11-08T04:48:10.986405+00:00",
+  "policy": {
+    "user": "1000:1000",
+    "capDrop": "ALL",
+    "readOnlyRoot": true,
+    "noNewPrivileges": true,
+    "seccomp": "deploy/native-tools-seccomp.json",
+    "nativeFuse": true
+  },
+  "before": [
+    "SPAWN / False {\"error\":{\"code\":\"process_failed\",\"message\":\"Process operation failed: Spawn supervised command: Permission denied (os error 13)\"}}",
+    "SPAWN / True {\"error\":{\"code\":\"process_failed\",\"message\":\"Process operation failed: Unable to spawn / because it is a directory\"}}",
+    "SPAWN /tmp False {\"error\":{\"code\":\"process_failed\",\"message\":\"Process operation failed: Spawn supervised command: Permission denied (os error 13)\"}}",
+    "SPAWN /tmp True {\"error\":{\"code\":\"process_failed\",\"message\":\"Process operation failed: Unable to spawn / because it is a directory\"}}",
+    "SPAWN /data False {\"error\":{\"code\":\"process_failed\",\"message\":\"Process operation failed: Spawn supervised command: Permission denied (os error 13)\"}}",
+    "SPAWN /data True {\"error\":{\"code\":\"process_failed\",\"message\":\"Process operation failed: Unable to spawn / because it is a directory\"}}"
+  ],
+  "after": [
+    "RESULT / False {'code': 0, 'timedOut': False, 'killed': False, 'durationMs': 4, 'stdoutTruncated': False, 'stderrTruncated': False}",
+    "RESULT / True {'code': 0, 'timedOut': False, 'killed': False, 'durationMs': 4, 'stdoutTruncated': False, 'stderrTruncated': False}",
+    "RESULT /tmp False {'code': 0, 'timedOut': False, 'killed': False, 'durationMs': 4, 'stdoutTruncated': False, 'stderrTruncated': False}",
+    "RESULT /tmp True {'code': 0, 'timedOut': False, 'killed': False, 'durationMs': 4, 'stdoutTruncated': False, 'stderrTruncated': False}",
+    "RESULT /data False {'code': 0, 'timedOut': False, 'killed': False, 'durationMs': 6, 'stdoutTruncated': False, 'stderrTruncated': False}",
+    "RESULT /data True {'code': 0, 'timedOut': False, 'killed': False, 'durationMs': 5, 'stdoutTruncated': False, 'stderrTruncated': False}"
+  ],
+  "ordinaryChild": {
+    "capEff": "0000000000000000",
+    "noNewPrivileges": true
+  },
+  "note": "GNU debug agent with already installed LGPL glibc libraries bound read-only into the bookworm diagnostic container; CI/release use the static musl agent"
+}
