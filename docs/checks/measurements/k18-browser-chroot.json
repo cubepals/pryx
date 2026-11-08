@@ -1,0 +1,65 @@
+{
+  "scope": "failed first-browser deployment operation, not passing native measurements",
+  "commit": "02636e6681fce6f8abe927a4e2522621aadffcac",
+  "run": "https://github.com/cubepals/pryx/actions/runs/42459390876",
+  "artifactId": 13609656398,
+  "cases": [
+    {
+      "test": {
+        "name": "desktop, SSH wake, real S3 FUSE and browser work through both clients",
+        "classname": "",
+        "time": "54.402246",
+        "file": "control/e2e/native-tools.e2e.test.ts",
+        "line": "60",
+        "assertions": "79"
+      },
+      "failures": [
+        {
+          "attributes": {
+            "type": "PryxError",
+            "message": "Bad Gateway"
+          },
+          "text": "PryxError: Bad Gateway\n      at raw (sdk/typescript/src/agent.ts:77:13)\n      at async png (sdk/typescript/src/tools.ts:60:34)\n      at control/e2e/native-tools.e2e.test.ts:302:35\n"
+        }
+      ]
+    }
+  ],
+  "comparisonLinks": {
+    "checked": 111,
+    "failed": 0
+  },
+  "baseCommit": "02636e6681fce6f8abe927a4e2522621aadffcac",
+  "sourceDirty": true,
+  "implementationFiles": [
+    "deploy/native-tools-seccomp.json",
+    "control/e2e/native-tools.e2e.test.ts",
+    "docs/native-tools.md"
+  ],
+  "implementationDiffSha256": "9ff445ace25ac69b649b0f5ad0cf56a4b766c860df486415c4a132044692d409",
+  "recordedUtc": "2026-11-08T08:08:37.903473+00:00",
+  "diagnosticImage": "sha256:13384a942c8e520d74d01eeda0fb00a5e7f4da6251e4f14334b2d727ee112a83",
+  "localBefore": {
+    "missingLibrarySetupFailure": "libnspr4.so missing in the first native-image diagnostic; not a CI cause",
+    "browserFailure": "Zygote process exited prematurely with exit code -1 (namespace sandbox)",
+    "screenshotResponse": {
+      "code": "tool_not_ready",
+      "message": "Template service did not become ready; check host tool requirements"
+    }
+  },
+  "localAfter": {
+    "onlySeccompChange": "allow chroot syscall; kernel namespace CAP_SYS_CHROOT check remains",
+    "ordinaryCommandChroot": "PermissionError errno.EPERM",
+    "ordinaryCommandCapEff": "0000000000000000",
+    "ordinaryCommandNoNewPrivs": 1,
+    "validatedPngBytes": [
+      11025,
+      11025
+    ],
+    "chromiumSandbox": true,
+    "readOnlyRoot": true,
+    "capDrop": [
+      "ALL"
+    ]
+  },
+  "diagnosticNote": "Audited Chromium/Playwright/Node with read-only host-library binds documented separately; not the official CI browser image and not a deployment speed report. Full official-image control/edge acceptance remains required."
+}

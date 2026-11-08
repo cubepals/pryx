@@ -52,6 +52,14 @@
   "syscalls": [
     {
       "names": [
+        "chroot"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [],
+      "comment": "Chromium chroots inside its own user namespace; the kernel still requires namespace CAP_SYS_CHROOT"
+    },
+    {
+      "names": [
         "mount",
         "umount2"
       ],

@@ -41,7 +41,9 @@ enforcing mode; `unconfined` and complain-mode profiles are refused. On hosts wi
 omit `native_tools_apparmor`. The default policy is unchanged.
 
 The host seccomp profile wraps Playwright 1.65.0's Apache-2.0 seccomp profile and explicitly permits
-mount/unmount syscalls. FUSE uses a nested user/mount namespace; the sandbox never receives
+mount/unmount and chroot syscalls. Chromium chroots inside its own user namespace; the kernel
+still requires that namespace's CAP_SYS_CHROOT, which ordinary commands do not have.
+FUSE uses a nested user/mount namespace; the sandbox never receives
 SYS_ADMIN in the host or original Docker namespace. Only a mount worker retains that capability
 inside its own namespace, sharing just the approved target. Ordinary commands/PTYs drop it.
 A bounded 16-MiB private `/mnt` tmpfs holds mountpoint metadata while the image root stays read-only.

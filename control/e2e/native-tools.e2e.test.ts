@@ -302,6 +302,15 @@ test(
             png(await box.browser.screenshot('http://127.0.0.1:3000'))
             measured = performance.now() - started
             if (i === 0) {
+              expect(
+                (
+                  await box.run([
+                    'python3',
+                    '-c',
+                    'import errno, os;\ntry: os.chroot(".")\nexcept PermissionError as error: assert error.errno == errno.EPERM\nelse: raise AssertionError("ordinary command acquired chroot authority")',
+                  ])
+                ).code,
+              ).toBe(0)
               const browser = await box.browser()
               const refused = await fetch(browser.url.replace(/\?.*$/, ''))
               expect(refused.status).toBe(StatusCodes.FORBIDDEN)
