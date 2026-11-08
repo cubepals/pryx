@@ -416,6 +416,12 @@ jobs:
           npm ci --ignore-scripts --prefix templates/browser
       - name: Build native tool templates
         run: |
+          mkdir -p templates/native-tools/cache
+          while IFS=$'\t' read -r name url digest; do
+            archive="templates/native-tools/cache/$name.download"
+            curl --config .github/download.curlrc -fsSL "$url" -o "$archive"
+            printf '%s  %s\n' "$digest" "$archive" | sha256sum -c -
+          done < <(jq -r '.[] | [.name, .url, .sha256] | @tsv' templates/native-tools/artifacts.json)
           docker build -t alpine:pryx-native-tools -f templates/native-tools/Dockerfile .
           docker build -t alpine:pryx-desktop --build-arg NATIVE_IMAGE=alpine:pryx-native-tools templates/desktop
           docker build -t alpine:pryx-rclone-tools --build-arg NATIVE_IMAGE=alpine:pryx-native-tools -f templates/native-tools/rclone.Dockerfile templates/native-tools

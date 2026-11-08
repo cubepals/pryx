@@ -8,7 +8,7 @@
     "missingArtifact": "dependent public-release integration command could not run"
   },
   "policy": {
-    "curlRetries": 5,
+    "curlRetries": 12,
     "retryDelaySeconds": 2,
     "retryWindowSeconds": 180,
     "connectTimeoutSeconds": 10,
@@ -42,6 +42,59 @@
       "version": "1.7.12",
       "downloadedAndRan": true,
       "workflowParse": "passed"
+    },
+    "earlierPolicyRetryCount": 5,
+    "boundedExhaustion": {
+      "exitCode": 22,
+      "attempts": 13,
+      "retryCount": 12
+    },
+    "localNativePrefetchBefore": {
+      "mountpoint": "hash verified",
+      "rcloneGithubGet": "six HTTP 504 responses then exit 22",
+      "githubHeadProbe": "200; a different request, retained separately"
+    },
+    "nativePrefetchAfter": [
+      {
+        "name": "mountpoint",
+        "url": "https://s3.amazonaws.com/mountpoint-s3-release/1.24.0/x86_64/mount-s3-1.24.0-x86_64.deb",
+        "sha256": "410e9e1cf25d45d0b26cb19fa53475ba22f179ae46b636d0345a3cd08a4d4a3b",
+        "bytes": 13641226
+      },
+      {
+        "name": "rclone",
+        "url": "https://downloads.rclone.org/v1.76.0/rclone-v1.76.0-linux-amd64.zip",
+        "sha256": "b00f00b3266c3764413afe599d3ec316f6f43b3e0ea8a0bc1d186d2133e46df7",
+        "bytes": 32194302
+      },
+      {
+        "name": "novnc",
+        "url": "https://github.com/novnc/noVNC/archive/refs/tags/v1.7.0.tar.gz",
+        "sha256": "b1003a11b6e6e8d8f7f5e5586daae7f8ca651d8aee0aa155ff9ac841c48f52c6",
+        "bytes": 726728
+      }
+    ],
+    "nativeImageBuild": {
+      "image": "sha256:39b385c8c1e03a7f57f782d5c40652b3a3e1b031784fcd1ca8c20a1e4d99b08d",
+      "passed": true,
+      "freshHashVerifiedArtifacts": true,
+      "scope": "rootless Docker image build, not full deployment acceptance"
+    },
+    "citationBeforeFailedUrls": [
+      "https://github.com/cloudflare/sandbox-sdk/blob/main/LICENSE",
+      "https://github.com/e2b-dev/E2B/blob/main/LICENSE",
+      "https://github.com/e2b-dev/infra"
+    ],
+    "citationAfter": {
+      "checked": 111,
+      "failed": 0,
+      "assertions": 169,
+      "report": "k18-citations-download-policy.json"
+    },
+    "bunCheck": {
+      "passed": 364,
+      "failed": 0,
+      "assertions": 8049
     }
   },
   "dependency": "Existing curl and existing MIT rusty_v8 152.1.0; upstream versioned licence reread, no source copied and no new binary version introduced",
@@ -50,5 +103,16 @@
     "job": 128684564425,
     "downloadedBytes": 92,
     "error": "gzip: stdin: not in gzip format; installer attempted to extract a 92-byte response that was not an archive; HTTP status was not retained"
-  }
+  },
+  "nativeImageFailure": {
+    "run": "https://github.com/cubepals/pryx/actions/runs/42464020672",
+    "job": 128679286973,
+    "location": "artifacts.py line 16 urllib.request.urlopen",
+    "error": "HTTP 504",
+    "archiveName": "not logged"
+  },
+  "sourceBaseCommit": "c09448bfc324299cdc9f1bbd514b9ee24f811e29",
+  "sourceDirty": true,
+  "recordedUtc": "2026-11-08T09:28:06.005289+00:00",
+  "sourceDiffSha256": "3349018867182f57040a27fdd4088c9d21fd1e8176d6bce4465cf08992021cee"
 }

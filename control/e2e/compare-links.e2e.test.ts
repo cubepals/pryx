@@ -23,16 +23,12 @@ test(
             const child = Bun.spawn(
               [
                 '/usr/bin/curl',
+                '--config',
+                '.github/download.curlrc',
                 '--fail',
                 '--silent',
                 '--show-error',
                 '--location',
-                '--max-time',
-                '30',
-                '--retry',
-                '3',
-                '--retry-delay',
-                '1',
                 '--output',
                 '/dev/null',
                 url,
