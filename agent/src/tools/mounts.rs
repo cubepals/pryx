@@ -280,6 +280,14 @@ async fn mounted(process: &Arc<Process>, path: &Path) -> Result<(), Failure> {
                 .and_then(|p| p.mountinfo())
                 .map_err(|_| state::failure("mount_failed", "Cannot verify FUSE mount"))?;
             if mounts.iter().any(|m| m.mount_point == path && m.fs_type.starts_with("fuse")) {
+                // A mount-table entry can precede FUSE root attributes. Complete a real
+                // metadata handshake before callers create files on the fresh mount.
+                let root = tokio::fs::symlink_metadata(path)
+                    .await
+                    .map_err(|_| state::failure("mount_failed", "FUSE root metadata is unavailable"))?;
+                if !root.is_dir() {
+                    return Err(state::failure("mount_target_changed", "FUSE root is no longer a directory"));
+                }
                 return Ok(());
             }
             if !process.view().running {
