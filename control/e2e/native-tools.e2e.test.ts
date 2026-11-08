@@ -182,7 +182,7 @@ test(
           endpoint: process.env.S3_TEST_ENDPOINT,
           region: 'us-east-1',
           forcePathStyle: true,
-          credentials,
+          credentials: { ...credentials },
         })
       await s3.send(new PutObjectCommand({ Bucket: bucket, Key: 'native/seed', Body: 'seed' }))
       box = await c.sdk.sandbox({
