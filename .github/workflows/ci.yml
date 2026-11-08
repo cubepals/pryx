@@ -481,6 +481,17 @@ jobs:
         if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         id: celld
         run: |
+          export CURL_HOME="$RUNNER_TEMP/pryx-upstream-curl"
+          install -d -m 700 "$CURL_HOME"
+          cat > "$CURL_HOME/.curlrc" <<'CURL'
+          retry = 5
+          retry-delay = 2
+          retry-max-time = 180
+          retry-connrefused
+          connect-timeout = 10
+          max-time = 45
+          CURL
+          printf 'CURL_HOME=%s\n' "$CURL_HOME" >> "$GITHUB_ENV"
           curl -fsSL https://github.com/denoland/celld/releases/download/v0.6.3/celld-x86_64-unknown-linux-gnu.gz -o "$RUNNER_TEMP/celld.gz"
           printf '%s  %s\n' 5084a083472cf036551a7eac63fa24d22bb9a56323c517f63205724c12783047 "$RUNNER_TEMP/celld.gz" | sha256sum -c -
           gzip -dc "$RUNNER_TEMP/celld.gz" > "$RUNNER_TEMP/celld"

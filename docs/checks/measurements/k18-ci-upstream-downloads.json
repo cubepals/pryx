@@ -1,0 +1,38 @@
+{
+  "scope": "transient upstream-download policy only; not passing full CI",
+  "failedRun": "https://github.com/cubepals/pryx/actions/runs/42461834578",
+  "failedJob": 128672608614,
+  "ciCauses": {
+    "publicCelld": "HTTP 504, curl exit 22",
+    "rustyV8": "four HTTP 504 responses; Python backoff exhausted and unconfigured curl fallback failed",
+    "missingArtifact": "dependent public-release integration command could not run"
+  },
+  "policy": {
+    "curlRetries": 5,
+    "retryDelaySeconds": 2,
+    "retryWindowSeconds": 180,
+    "connectTimeoutSeconds": 10,
+    "attemptTimeoutSeconds": 45,
+    "scope": "CURL_HOME in private job-temporary directory; original URLs/versions/checksum/tests unchanged"
+  },
+  "validation": {
+    "celldFlagInvocation": {
+      "transient504Responses": 2,
+      "sha256": "5084a083472cf036551a7eac63fa24d22bb9a56323c517f63205724c12783047",
+      "matchesExistingPin": true
+    },
+    "rustyV8ConfiguredUpstreamInvocation": {
+      "sha256": "56b3d9c1eaf6008345deb3f7c96aad2217e91c65d8b78bfe550f52c3a8dbb50f",
+      "matchesOwnerReleaseDigest": true,
+      "assetBytes": 39771142
+    },
+    "celldConfiguredFollowup": "exit 22 after retry exhaustion; the exact silent upstream curl arguments did not retain the final HTTP status",
+    "controlledRealCurl": {
+      "transient504ThenSuccess": true,
+      "attempts": 3,
+      "notFoundFailsImmediately": true
+    },
+    "mirrorProbe": "HTTP 404; not adopted"
+  },
+  "dependency": "Existing curl and existing MIT rusty_v8 152.1.0; upstream versioned licence reread, no source copied and no new binary version introduced"
+}
