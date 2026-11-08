@@ -37,6 +37,25 @@ async function python(env: Record<string, string | undefined>, box: Sandbox, kin
     PRYX_TOOLS_KIND: kind,
   })
 }
+async function pythonMounts(
+  env: Record<string, string | undefined>,
+  box: Sandbox,
+  s3: S3Client,
+  bucket: string,
+) {
+  await python(env, box, 'mount')
+  for (const mode of ['sync', 'async'])
+    await until(`Python ${mode} mount write reached S3`, async () => {
+      try {
+        const object = await s3.send(
+          new GetObjectCommand({ Bucket: bucket, Key: `native/python-${mode}-${box.id}` }),
+        )
+        return (await object.Body?.transformToString()) === mode
+      } catch {
+        return false
+      }
+    })
+}
 test(
   'desktop, SSH wake, real S3 FUSE and browser work through both clients',
   async () => {
@@ -214,7 +233,7 @@ test(
         ).Body?.transformToString(),
       ).toBe('ts')
       expect((await box.run(['sh', '-c', "grep '^CapEff:' /proc/self/status"])).stdout).toMatch(/0{16}/)
-      await python(c.d.env, box, 'mount')
+      await pythonMounts(c.d.env, box, s3, bucket)
       await box.delete()
       box = undefined
       box = await c.sdk.sandbox({
@@ -244,7 +263,7 @@ test(
           return false
         }
       })
-      await python(c.d.env, box, 'mount')
+      await pythonMounts(c.d.env, box, s3, bucket)
       await box.delete()
       box = undefined
 
