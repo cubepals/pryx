@@ -171,6 +171,13 @@ test(
       }[]
       const gateway = Object.values(info[0]?.NetworkSettings.Networks ?? {})[0]?.Gateway
       if (!gateway) throw new Error('No sandbox gateway for S3 fixture')
+      const store = await box.run([
+        'python3',
+        '-c',
+        `from http import HTTPStatus; from urllib.request import build_opener, ProxyHandler; response = build_opener(ProxyHandler({})).open(${JSON.stringify(`http://${gateway}:9000/health`)}, timeout=5); assert response.status == HTTPStatus.OK`,
+      ])
+      if (store.code !== 0)
+        throw new Error(`S3 fixture is unreachable from the native bridge: ${store.stderr.slice(-1000)}`)
       await box.delete()
       box = undefined
       const credentials = {

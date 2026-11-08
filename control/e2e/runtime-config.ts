@@ -29,6 +29,7 @@ export function nativeEdgePortRange(): readonly [number, number] {
   return [end + 1, maximum]
 }
 export const TEST_NODE_PORTS = 50
+export const nativeNetworkName = (deployment: string) => `${deployment}-native`
 // More than 1,500 concurrent-cohort creations plus scalar cohorts can rest without reuse.
 export const TIER_BENCH_NODE_PORTS = 2048
 
@@ -70,7 +71,7 @@ export const nodeConfigFor = (DEPLOYMENT: string) =>
     return `deployment_id = "${DEPLOYMENT}"
 runtime = "${at.tier ?? 'container'}"
 state_dir = "${join(home, 'state')}"
-${at.nativeTools ? `[docker]\nnative_tools_seccomp = ${JSON.stringify(process.env.PRYX_NATIVE_TOOLS_SECCOMP ?? new URL('../../deploy/native-tools-seccomp.json', import.meta.url).pathname)}\nnative_fuse = true\n${process.env.PRYX_NATIVE_TOOLS_APPARMOR ? `native_tools_apparmor = ${JSON.stringify(process.env.PRYX_NATIVE_TOOLS_APPARMOR)}\n` : ''}` : ''}
+${at.nativeTools ? `[docker]\nnetwork = ${JSON.stringify(nativeNetworkName(DEPLOYMENT))}\nnative_tools_seccomp = ${JSON.stringify(process.env.PRYX_NATIVE_TOOLS_SECCOMP ?? new URL('../../deploy/native-tools-seccomp.json', import.meta.url).pathname)}\nnative_fuse = true\n${process.env.PRYX_NATIVE_TOOLS_APPARMOR ? `native_tools_apparmor = ${JSON.stringify(process.env.PRYX_NATIVE_TOOLS_APPARMOR)}\n` : ''}` : ''}
 [api]
 listen = "127.0.0.1:${apiPort}"
 [ops]

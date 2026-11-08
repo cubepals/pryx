@@ -18,7 +18,12 @@ import { startControl } from '../src/main.ts'
 import { nodeSummaries } from '../src/registry.ts'
 import { freshDatabase, hasDatabase } from '../test/nodes.ts'
 import { spawnNodes } from './deployment-nodes.ts'
-import { nativeEdgePortRange, TIER_BENCH_CPU_OVERCOMMIT, TIER_BENCH_UNIT } from './runtime-config.ts'
+import {
+  nativeEdgePortRange,
+  nativeNetworkName,
+  TIER_BENCH_CPU_OVERCOMMIT,
+  TIER_BENCH_UNIT,
+} from './runtime-config.ts'
 import { createTestBucket } from './test-bucket.ts'
 import { freePort, until } from './waits.ts'
 export const bin = process.env.PRYXD_BIN ?? new URL('../../target/debug/pryxd', import.meta.url).pathname
@@ -183,6 +188,10 @@ export async function deployment(
       await fresh.drop()
       if (process.env.PRYXD_SUDO === '1') spawnSync('sudo', ['-n', 'rm', '-rf', dir])
       else rmSync(dir, { recursive: true, force: true })
+      if (options.nativeTools) {
+        const removed = spawnSync('docker', ['network', 'rm', nativeNetworkName(name)])
+        if (removed.status !== 0) throw new Error('Native fixture bridge cleanup failed')
+      }
     },
   }
 }

@@ -42,6 +42,23 @@ test('daemon fixtures derive workload pools below the kernel ephemeral range', (
   }
 })
 
+test('native fixture deployments have distinct explicit Docker networks', () => {
+  const networks = ['publicaaa', 'publicbbb'].map((deployment) => {
+    const config = nodeConfigFor(deployment)({
+      home: '/tmp/fixture',
+      dir: '/tmp/fixture',
+      endpointUrl: 'https://node.test',
+      apiPort: 1001,
+      opsPort: 1002,
+      nativeTools: true,
+    })
+    const parsed = Bun.TOML.parse(config) as { docker: { network?: string } }
+    expect(parsed.docker.network).toBeTypeOf('string')
+    return parsed.docker.network
+  })
+  expect(new Set(networks).size).toBe(networks.length)
+})
+
 test('fixture listener probes never reuse a port or overlap workload pools', async () => {
   const ports = await Promise.all(Array.from({ length: 64 }, () => freePort()))
   expect(new Set(ports).size).toBe(ports.length)
