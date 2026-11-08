@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Tool-family metadata is owned here and emitted into the agent schema for SDK/template use.
 pub const VERSION: u16 = 1;
-pub const KIND_ENV: &str = "PRYX_TOOL_TEMPLATE";
+pub use crate::contract::TOOL_KIND_ENV as KIND_ENV;
 pub const DIRECTORY_ENV: &str = "PRYX_TOOL_DIRECTORY";
 // Conventional noVNC/VNC/CDP ports stay inside the private sandbox network namespace.
 pub const DESKTOP_PORT: u16 = 6080;
