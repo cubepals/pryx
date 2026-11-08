@@ -23,7 +23,7 @@ The [initial collector run](checks/measurements/k17-loopback-before-http-tuning.
 78.3 ms trivial p90 because its HTTP fixture lacked the TCP_NODELAY setting already used in the
 real bootstrap. The corrected collector uses that same setting; no sample is discarded.
 
-Warm-template **create then first run** measurements are a separate deployment cohort in
+Warm-template **first run after `python()`** measurements are a separate deployment cohort in
 [the end-to-end suite](../control/e2e/interpreter.e2e.test.ts). CI uploads all 30 first-run,
 loopback, chart and restart observations as `interpreter-measurements` and prints p50/p90 in the
 job summary. Local loopback context reuse above is not labelled as template creation. The first CI report at `4938c93` is preserved in
@@ -34,7 +34,7 @@ That loopback sandbox accidentally used the default single unit, while the clone
 cohort requested four. The corrected loopback allocation is measured in the deployment cohort below;
 this first report remains evidence of the failed budget, not a passing result.
 
-The CI loopback budget cohort requests four default units (one CPU core, 2 GiB); the first-run clone cohort uses the template default. These resource settings are explicit in the collector so the budgets are not attributed to an unspecified CPU quota.
+Both the CI loopback budget cohort and first-run clone cohort request four default units (one CPU core, 2 GiB). These resource settings are explicit in the collector so the budgets are not attributed to an unspecified CPU quota.
 
 ## Native tools baseline
 

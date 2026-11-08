@@ -1,0 +1,27 @@
+{
+  "commit": "0c0be4ac622ff9bbc8b131e11c52b383f259e76f",
+  "run": "https://github.com/cubepals/pryx/actions/runs/42448435701",
+  "artifactId": 13605187733,
+  "scope": "retained failed deployment acceptance, not passing native measurements",
+  "cases": [
+    {
+      "test": {
+        "name": "desktop, SSH wake, real S3 FUSE and browser work through both clients",
+        "classname": "",
+        "time": "14.253698",
+        "file": "control/e2e/native-tools.e2e.test.ts",
+        "line": "41",
+        "assertions": "11"
+      },
+      "failures": [
+        {
+          "attributes": {
+            "type": "Error",
+            "message": "Native tool check exited 255: ssh: connect to host 127.0.0.1 port 61001: Connection refused\r\n"
+          },
+          "text": "Error: Native tool check exited 255: ssh: connect to host 127.0.0.1 port 61001: Connection refused\r\n\n      at command (control/e2e/native-tools.e2e.test.ts:30:29)\n      at control/e2e/native-tools.e2e.test.ts:149:13\n"
+        }
+      ]
+    }
+  ]
+}

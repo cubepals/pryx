@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** SSH registration proves the per-call agent lease before allocating an edge address. Only
  * public metadata is durable; the client private key never traverses this control service. */
+
+import { setTimeout as pause } from 'node:timers/promises'
 import { sql } from 'drizzle-orm'
 import { z } from 'zod'
 import type { Agents } from './agents.ts'
@@ -8,6 +10,7 @@ import type { PublicPort } from './api-schemas.ts'
 import type { Db, Queryable } from './database.ts'
 import { SECOND_MS } from './durations.ts'
 import { addresses, DEFAULT_EDGE_PORT_RANGE } from './edge-addresses.ts'
+import { routesPending } from './edge-routed.ts'
 import type { EdgeRoute } from './edge-schemas.ts'
 import { decodeHandle } from './handle.ts'
 import { agentSchema } from './node-contract.ts'
@@ -96,8 +99,15 @@ export class NativeSsh {
       const assigned = await addresses(t, id, [port], this.domain, this.range)
       const address = assigned.find((a) => a.name === port.name)
       if (!address) throw new SandboxError('no_room', 'SSH address was not allocated')
+      await t.execute(
+        sql`UPDATE sandboxes SET route_listed_version=NULL,updated_at=clock_timestamp() WHERE id=${id} AND handle=${box.handle}`,
+      )
       return address
     })
+    // A fresh port listener exists only after an edge applies and acknowledges this route list.
+    while (await routesPending(this.db, id)) await pause(SECOND_MS / 20)
+    if ((await this.boxes.record(id, project)).handle !== box.handle)
+      throw new SandboxError('gone', 'Sandbox placement changed during SSH registration')
     const incoming = new URL(requestUrl).hostname.replace(/^\[|\]$/g, '')
     return {
       id: body.id,

@@ -28,9 +28,11 @@ export class EdgeService {
     readonly agents?: Agents,
   ) {}
   async routes(includeAgents = false): Promise<EdgeRoutes & { version: number; digest: string }> {
-    const all = await rows<SandboxRow & { public_ports: PublicPort[]; observed_agent: unknown }>(
+    const all = await rows<
+      SandboxRow & { public_ports: PublicPort[]; observed_agent: unknown; route_updated_at: string }
+    >(
       this.db,
-      sql`SELECT b.*, o.report->'agent' AS observed_agent FROM sandboxes b
+      sql`SELECT b.*, b.updated_at::text AS route_updated_at, o.report->'agent' AS observed_agent FROM sandboxes b
         LEFT JOIN fleet_placements p ON p.workload=b.id
         LEFT JOIN fleet_observations o ON o.workload=p.workload AND o.node_id=p.node_id AND o.epoch=p.epoch
         WHERE b.deleted_at IS NULL AND NOT b.internal AND (b.expires_at IS NULL OR b.expires_at > now()) AND b.state <> 'failed' ORDER BY b.id`,
@@ -108,7 +110,7 @@ export class EdgeService {
       if (!latest) throw new Error('Route version was not written')
       for (const b of all.filter((b) => routes.some((r) => r.sandbox === b.id)))
         await t.execute(
-          sql`UPDATE sandboxes SET route_listed_version=COALESCE(route_listed_version,${latest.version}::bigint) WHERE id=${b.id} AND state=${b.state} AND handle=${b.handle}`,
+          sql`UPDATE sandboxes SET route_listed_version=COALESCE(route_listed_version,${latest.version}::bigint) WHERE id=${b.id} AND state=${b.state} AND handle=${b.handle} AND updated_at=${b.route_updated_at}::timestamptz`,
         )
       return Number(latest.version)
     })
