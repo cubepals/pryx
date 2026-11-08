@@ -490,12 +490,19 @@ jobs:
       - name: Install the pinned celld public release
         if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         id: celld
+        env:
+          PRYX_ASSET_API_TOKEN: ${{ github.token }}
         run: |
           export CURL_HOME="$RUNNER_TEMP/pryx-upstream-curl"
           install -d -m 700 "$CURL_HOME"
           install -m 600 .github/download.curlrc "$CURL_HOME/.curlrc"
-          curl -fsSL https://github.com/denoland/celld/releases/download/v0.6.3/celld-x86_64-unknown-linux-gnu.gz -o "$RUNNER_TEMP/celld.gz"
-          printf '%s  %s\n' 5084a083472cf036551a7eac63fa24d22bb9a56323c517f63205724c12783047 "$RUNNER_TEMP/celld.gz" | sha256sum -c -
+          while IFS=$'\t' read -r name url digest; do
+            archive="$RUNNER_TEMP/$name.gz"
+            curl -sSL -H 'Accept: application/octet-stream' \
+              -H "Authorization: Bearer $PRYX_ASSET_API_TOKEN" "$url" -o "$archive"
+            printf '%s  %s\n' "$digest" "$archive" | sha256sum -c -
+          done < <(jq -r '.[] | [.name, .url, .sha256] | @tsv' integrations/celld/upstream/releases.json)
+          unset PRYX_ASSET_API_TOKEN
           gzip -dc "$RUNNER_TEMP/celld.gz" > "$RUNNER_TEMP/celld"
           chmod +x "$RUNNER_TEMP/celld"
           "$RUNNER_TEMP/celld" --version
@@ -509,6 +516,7 @@ jobs:
         if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         env:
           CURL_HOME: ${{ runner.temp }}/pryx-upstream-curl
+          RUSTY_V8_ARCHIVE: ${{ runner.temp }}/rusty-v8.gz
         run: bun integrations/celld/upstream/check.ts "$RUNNER_TEMP/pryx-celld-patch"
       - name: Rivet self-hosted actor and celld Worker
         if: ${{ !cancelled() && steps.celld.outcome == 'success' }}

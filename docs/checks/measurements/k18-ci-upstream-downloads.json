@@ -13,7 +13,8 @@
     "retryWindowSeconds": 180,
     "connectTimeoutSeconds": 10,
     "attemptTimeoutSeconds": 45,
-    "scope": "private CURL_HOME selected only by external GET download/build steps; other test commands keep their normal curl behavior"
+    "scope": "private CURL_HOME selected only by external GET download/build steps; other test commands keep their normal curl behavior",
+    "assetDelivery": "immutable upstream API IDs and pinned hashes; V8 local archive scoped only to its public build"
   },
   "validation": {
     "celldFlagInvocation": {
@@ -95,7 +96,23 @@
       "passed": 364,
       "failed": 0,
       "assertions": 8049
-    }
+    },
+    "assetApi": [
+      {
+        "name": "celld",
+        "url": "https://api.github.com/repos/denoland/celld/releases/assets/663757286",
+        "sha256": "5084a083472cf036551a7eac63fa24d22bb9a56323c517f63205724c12783047",
+        "anonymousFetchPassed": true
+      },
+      {
+        "name": "rusty-v8",
+        "url": "https://api.github.com/repos/denoland/rusty_v8/releases/assets/505789905",
+        "sha256": "56b3d9c1eaf6008345deb3f7c96aad2217e91c65d8b78bfe550f52c3a8dbb50f",
+        "anonymousFetchPassed": true
+      }
+    ],
+    "publicCelldApiVersion": "0.6.3",
+    "patchedCelldBuildLocal": "not run: compilation space unavailable; required in CI"
   },
   "dependency": "Existing curl and existing MIT rusty_v8 152.1.0; upstream versioned licence reread, no source copied and no new binary version introduced",
   "actionlintFailure": {
@@ -114,5 +131,12 @@
   "sourceBaseCommit": "c09448bfc324299cdc9f1bbd514b9ee24f811e29",
   "sourceDirty": true,
   "recordedUtc": "2026-11-08T09:28:06.005289+00:00",
-  "sourceDiffSha256": "3349018867182f57040a27fdd4088c9d21fd1e8176d6bce4465cf08992021cee"
+  "sourceDiffSha256": "3349018867182f57040a27fdd4088c9d21fd1e8176d6bce4465cf08992021cee",
+  "subsequentFailure": {
+    "run": "https://github.com/cubepals/pryx/actions/runs/42467307533",
+    "job": 128689725201,
+    "celldHttp504Attempts": 13,
+    "outcome": "download exit 22; V8 download and dependent artifact also fail",
+    "k17k18Acceptance": "passed, including all cohorts and 111 links"
+  }
 }
