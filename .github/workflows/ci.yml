@@ -326,15 +326,6 @@ jobs:
               sleep "$wait"
             done
           done
-          # The mirror can return unknown blobs or exhaust its upstream quota. Keep the same
-          # official registry image available through its upstream, with bounded attempts.
-          for registry_source in mirror.gcr.io/library/registry:3 docker.io/library/registry:3; do
-            if docker pull -q "$registry_source"; then
-              docker tag "$registry_source" pryx-speed-registry:local
-              break
-            fi
-          done
-          docker image inspect pryx-speed-registry:local > /dev/null
           docker tag mirror.gcr.io/library/alpine:3.22 alpine:3.22
           docker tag mirror.gcr.io/library/docker:29-dind docker:29-dind
           docker tag mirror.gcr.io/rivetdev/sandbox-agent:0.5.5-full rivetdev/sandbox-agent:0.5.5-full
@@ -350,67 +341,6 @@ jobs:
         run: >-
           docker run -d --name pryx-s3 -p 9000:9000 -e RUSTFS_ACCESS_KEY=blockly-test
           -e RUSTFS_SECRET_KEY=blockly-test-secret ghcr.io/rustfs/rustfs:1.0.0 /data
-      - name: Check out the historical speed collector
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: c1c9fa13578087d7e657b2d048a7619bef696619
-          path: .benchmark-collector
-          persist-credentials: false
-      - name: Install historical collector dependencies
-        working-directory: .benchmark-collector
-        run: bun install --frozen-lockfile
-      - name: Check out the pinned K9 baseline
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: fe77e673364580efe372a4f685837f219ae7a0a5
-          path: .benchmark-before
-          persist-credentials: false
-      - name: Cache the cold-reference image locally
-        run: |
-          docker run -d --rm --name pryx-speed-registry -p 127.0.0.1:5001:5000 pryx-speed-registry:local
-          curl --retry 5 --retry-all-errors --retry-connrefused --retry-delay 1 -fsS http://127.0.0.1:5001/v2/
-          docker tag mirror.gcr.io/library/alpine:3.22 localhost:5001/pryx/alpine:3.22
-          docker push localhost:5001/pryx/alpine:3.22
-          echo 'PRYX_SPEED_COLD_IMAGE=localhost:5001/pryx/alpine:3.22' >> "$GITHUB_ENV"
-      - name: Measure the baseline on the same host
-        run: |
-          cp -a .benchmark-before "$RUNNER_TEMP/pryx-before"
-          cd "$RUNNER_TEMP/pryx-before"
-          export CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target"
-          cargo clean --package pryxd
-          cargo build --locked
-          bun install --frozen-lockfile
-          PRYX_SPEED_SOURCE="$PWD" PRYXD_BIN="$CARGO_TARGET_DIR/debug/pryxd" bun "$GITHUB_WORKSPACE/.benchmark-collector/control/bench/speed.ts" before "$RUNNER_TEMP/speed-before.json"
-      - name: Check out the pinned K9 after product
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: 7cd80e9bff7be320d10993aeadb8e73f3f6f65c8
-          path: .benchmark-after
-          persist-credentials: false
-      - name: Measure the K9 after product on the same host
-        run: |
-          cp -a .benchmark-after "$RUNNER_TEMP/pryx-k9-after"
-          cd "$RUNNER_TEMP/pryx-k9-after"
-          export CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target"
-          cargo clean --package pryxd
-          cargo build --locked
-          bun install --frozen-lockfile
-          PRYX_SPEED_SOURCE="$PWD" PRYXD_BIN="$CARGO_TARGET_DIR/debug/pryxd" bun "$GITHUB_WORKSPACE/.benchmark-collector/control/bench/speed.ts" after "$RUNNER_TEMP/speed-after.json"
-      - name: Check out the pinned K11 baseline
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: b91ee23c0212d219080a9e40fb30f5d1c9b62e65
-          path: .agent-before
-          persist-credentials: false
-      - name: Measure the K11 baseline on this host
-        run: |
-          cp -a .agent-before "$RUNNER_TEMP/pryx-agent-before"
-          cd "$RUNNER_TEMP/pryx-agent-before"
-          export CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target"
-          cargo clean --package pryxd
-          cargo build --locked
-          bun install --frozen-lockfile
-          PRYX_SPEED_SOURCE="$PWD" PRYXD_BIN="$CARGO_TARGET_DIR/debug/pryxd" bun "$GITHUB_WORKSPACE/.benchmark-collector/control/bench/agent-speed.ts" before "$RUNNER_TEMP/agent-speed-before.json"
       - name: Build the current daemon
         run: |
           cargo clean --package pryxd
@@ -441,71 +371,27 @@ jobs:
           sudo install -D -m 0755 "$RUNNER_TEMP/pryx-agent" /usr/local/lib/pryx/pryx-agent
           docker builder prune --all --force
           df -h .
-      - name: Check out the K15 shell baseline
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ce22bc9e077d1f4bb32b8b54184f92de0f81f829
-          path: .field-before
-          persist-credentials: false
-      - name: Measure K15 and K16 shell paths on this host
+      - name: Check live provider credentials
+        # Live infrastructure credentials are only read by a trusted main push. Do not use
+        # a prior step's mutable environment flag as the trust decision.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          HETZNER_TOKEN: ${{ secrets.PRYX_HETZNER_TOKEN }}
         run: |
-          cp target/debug/pryxd "$RUNNER_TEMP/pryxd-k16-after"
-          cp -a .field-before "$RUNNER_TEMP/pryx-field-before"
-          cd "$RUNNER_TEMP/pryx-field-before"
-          export CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target"
-          cargo clean --package pryxd
-          cargo build --locked
-          bun install --frozen-lockfile
-          PRYX_FIELD_SOURCE_ROOT="$PWD" PRYXD_BIN="$CARGO_TARGET_DIR/debug/pryxd" bun "$GITHUB_WORKSPACE/control/bench/field-speed.ts" before "$RUNNER_TEMP/field-speed-before.json"
-          cd "$GITHUB_WORKSPACE"
-          rm target/debug/pryxd
-          cp "$RUNNER_TEMP/pryxd-k16-after" target/debug/pryxd
-          PRYXD_BIN="$GITHUB_WORKSPACE/target/debug/pryxd" bun control/bench/field-speed.ts after "$RUNNER_TEMP/field-speed-after.json"
-          bun control/tools/field-summary.ts "$RUNNER_TEMP/field-speed-before.json" "$RUNNER_TEMP/field-speed-after.json"
-      - name: Measure the K11 agent on this host
-        run: |
-          PRYXD_BIN="$GITHUB_WORKSPACE/target/debug/pryxd" bun control/bench/agent-speed.ts after "$RUNNER_TEMP/agent-speed-after.json"
-      - name: Measure the container tier before the process tier
-        run: PRYXD_BIN="$GITHUB_WORKSPACE/target/debug/pryxd" bun control/bench/process-speed.ts before "$RUNNER_TEMP/process-speed-before.json"
-      - name: Measure and prove the ordinary process image
-        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
-        run: PRYXD_BIN="$GITHUB_WORKSPACE/target/debug/pryxd" bun control/bench/process-speed.ts after "$RUNNER_TEMP/process-speed-after.json"
-      - name: Compare all three tiers in ordinary images
-        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
-        run: PRYXD_BIN="$RUNNER_TEMP/pryxd" bun control/bench/tiers.ts image "$RUNNER_TEMP/tiers-image"
-      - name: Measure the wasm image create-to-output path
-        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
-        run: PRYX_MCP_CLI="$RUNNER_TEMP/pryx-cli" bun control/bench/tiers-default.ts "$RUNNER_TEMP/tiers-image-wasm-hello.json" wasm
-      - name: Measure the image default through SDK and CLI
-        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
-        run: PRYX_MCP_CLI="$RUNNER_TEMP/pryx-cli" bun control/bench/tiers-default.ts "$RUNNER_TEMP/tiers-image-default.json"
-      - name: Save the three-tier image comparison
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: tiers-image
-          path: ${{ runner.temp }}/tiers-image-*.json
-          if-no-files-found: error
-      - name: Summarize three-tier image capacity
-        if: always()
-        run: bun control/tools/tiers-summary.ts "$RUNNER_TEMP"/tiers-image-*.json >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$HETZNER_TOKEN" ]; then
+            echo 'HAS_HETZNER=true' >> "$GITHUB_ENV"
+          else
+            echo '::notice::Skipping Hetzner live provisioning because PRYX_HETZNER_TOKEN is absent'
+          fi
+      - name: Hetzner acquire, sandbox and release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_HETZNER == 'true'
+        env:
+          PRYX_HETZNER_TOKEN: ${{ secrets.PRYX_HETZNER_TOKEN }}
+          PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
+        run: bun test control/e2e/hetzner.e2e.test.ts
       - name: Compose service and persistent credentials
         if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         run: bun control/bench/compose-image.ts
-      - name: Save paired speed measurements
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: paired-speed-measurements
-          path: |
-            ${{ runner.temp }}/speed-before.json
-            ${{ runner.temp }}/speed-after.json
-            ${{ runner.temp }}/field-speed-before.json
-            ${{ runner.temp }}/field-speed-after.json
-            ${{ runner.temp }}/agent-speed-before.json
-            ${{ runner.temp }}/agent-speed-after.json
-            ${{ runner.temp }}/process-speed-before.json
-            ${{ runner.temp }}/process-speed-after.json
       - name: Prepare Python agent acceptance
         if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         run: |
@@ -518,8 +404,6 @@ jobs:
           PRYX_MCP_CLI: ${{ runner.temp }}/pryx-cli
           PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
           PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
-
-
       - name: K11 agent suite on the wasm tier
         if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         run: bun test control/e2e/agent.e2e.test.ts control/e2e/wasm.e2e.test.ts control/e2e/field.e2e.test.ts
@@ -572,26 +456,6 @@ jobs:
             ${{ runner.temp }}/celld-native-measurements.json
             ${{ runner.temp }}/docker-api-spike.json
           if-no-files-found: error
-
-      - name: Check live provider credentials
-        # Live infrastructure credentials are only read by a trusted main push. Do not use
-        # a prior step's mutable environment flag as the trust decision.
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        env:
-          HETZNER_TOKEN: ${{ secrets.PRYX_HETZNER_TOKEN }}
-        run: |
-          if [ -n "$HETZNER_TOKEN" ]; then
-            echo 'HAS_HETZNER=true' >> "$GITHUB_ENV"
-          else
-            echo '::notice::Skipping Hetzner live provisioning because PRYX_HETZNER_TOKEN is absent'
-          fi
-      - name: Hetzner acquire, sandbox and release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_HETZNER == 'true'
-        env:
-          PRYX_HETZNER_TOKEN: ${{ secrets.PRYX_HETZNER_TOKEN }}
-          PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
-        run: bun test control/e2e/hetzner.e2e.test.ts
-
 
       - name: Configure the isolated lease test host
         if: ${{ !cancelled() && steps.static.outcome == 'success' }}
@@ -727,30 +591,6 @@ jobs:
           .venv-python/bin/python sdk/python/e2e/handles.py
           bun control/tools/readme-example.ts sdk/typescript/README.md ts bun -
           bun control/tools/readme-example.ts sdk/python/README.md python .venv-python/bin/python -
-      - name: Measure projects and host units
-        run: sudo "$(command -v bun)" control/bench/projects-one-box.ts "$RUNNER_TEMP/projects-one-box.json"
-      - name: Save measured project admission
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: projects-one-box
-          path: ${{ runner.temp }}/projects-one-box.json
-          if-no-files-found: error
-
-      - name: Compare all three tiers on one box
-        run: |
-          gzip -dc "$RUNNER_TEMP/pryx-one-box-image.tar.gz" | docker load
-          sudo env "PATH=$PATH" "PRYXD_BIN=$RUNNER_TEMP/pryxd-k14" PRYX_AGENTOS_DISTRIBUTION=/usr/local/lib/pryx/agentos PRYX_IMAGE_TEST=pryx-one-box-release "$(command -v bun)" control/bench/tiers-one-box.ts "$RUNNER_TEMP/tiers-one-box"
-      - name: Save the one-box three-tier comparison
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: tiers-one-box
-          path: ${{ runner.temp }}/tiers-one-box-*.json
-          if-no-files-found: error
-      - name: Summarize one-box three-tier capacity
-        if: always()
-        run: bun control/tools/tiers-summary.ts "$RUNNER_TEMP"/tiers-one-box-*.json >> "$GITHUB_STEP_SUMMARY"
 
       - name: Install and repeat the release image on the host
         if: ${{ !cancelled() && steps.up.outcome == 'success' }}

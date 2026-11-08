@@ -1,0 +1,333 @@
+name: Measure
+
+# The speed and capacity cohorts: historical baselines checked out at their pinned commits and
+# measured on the same runner as the current build, the three-tier comparisons and the one-box
+# project admission. They take hours, so they run nightly and on demand rather than on every push
+# or pull request; ci.yml runs the tests. The budgets they assert still fail the run, and the
+# artifacts keep the names docs/checks/speed.md and docs/tiers.md read them by.
+on:
+  schedule:
+    - cron: '41 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  e2e:
+    name: Measure control end to end
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    services:
+      postgres:
+        image: mirror.gcr.io/library/postgres:17-alpine
+        env:
+          POSTGRES_USER: pryx
+          POSTGRES_PASSWORD: pryx-test
+          POSTGRES_DB: pryx
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U pryx"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://pryx:pryx-test@127.0.0.1:5432/pryx
+      PRYX_SANDBOX_AGENT_IMAGE: pryx-sandbox-agent-test:local
+      S3_TEST_ENDPOINT: http://127.0.0.1:9000
+      S3_TEST_CONTAINER: pryx-s3
+      PRYXD_SUDO: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.23.2
+      - run: rustup toolchain install
+      - run: bun install --frozen-lockfile
+      - name: Pull the test images
+        run: |
+          for image in ghcr.io/rustfs/rustfs:1.0.0 mirror.gcr.io/library/alpine:3.22; do
+            for wait in 2 5 10 20 40 0; do
+              docker pull -q "$image" && break
+              [ "$wait" = 0 ] && exit 1
+              sleep "$wait"
+            done
+          done
+          # The mirror can return unknown blobs or exhaust its upstream quota. Keep the same
+          # official registry image available through its upstream, with bounded attempts.
+          for registry_source in mirror.gcr.io/library/registry:3 docker.io/library/registry:3; do
+            if docker pull -q "$registry_source"; then
+              docker tag "$registry_source" pryx-speed-registry:local
+              break
+            fi
+          done
+          docker image inspect pryx-speed-registry:local > /dev/null
+          docker tag mirror.gcr.io/library/alpine:3.22 alpine:3.22
+      - name: Build the TLS sandbox fixture
+        run: |
+          printf 'FROM mirror.gcr.io/library/alpine:3.22\nRUN apk add --no-cache openssl busybox-extras ca-certificates git curl\n' > "$RUNNER_TEMP/tls.Dockerfile"
+          docker build -t alpine:pryx-tls -f "$RUNNER_TEMP/tls.Dockerfile" "$RUNNER_TEMP"
+      - name: Start an S3 store
+        run: >-
+          docker run -d --name pryx-s3 -p 9000:9000 -e RUSTFS_ACCESS_KEY=blockly-test
+          -e RUSTFS_SECRET_KEY=blockly-test-secret ghcr.io/rustfs/rustfs:1.0.0 /data
+      - name: Check out the historical speed collector
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: c1c9fa13578087d7e657b2d048a7619bef696619
+          path: .benchmark-collector
+          persist-credentials: false
+      - name: Install historical collector dependencies
+        working-directory: .benchmark-collector
+        run: bun install --frozen-lockfile
+      - name: Check out the pinned K9 baseline
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fe77e673364580efe372a4f685837f219ae7a0a5
+          path: .benchmark-before
+          persist-credentials: false
+      - name: Cache the cold-reference image locally
+        run: |
+          docker run -d --rm --name pryx-speed-registry -p 127.0.0.1:5001:5000 pryx-speed-registry:local
+          curl --retry 5 --retry-all-errors --retry-connrefused --retry-delay 1 -fsS http://127.0.0.1:5001/v2/
+          docker tag mirror.gcr.io/library/alpine:3.22 localhost:5001/pryx/alpine:3.22
+          docker push localhost:5001/pryx/alpine:3.22
+          echo 'PRYX_SPEED_COLD_IMAGE=localhost:5001/pryx/alpine:3.22' >> "$GITHUB_ENV"
+      - name: Measure the baseline on the same host
+        run: |
+          cp -a .benchmark-before "$RUNNER_TEMP/pryx-before"
+          cd "$RUNNER_TEMP/pryx-before"
+          export CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target"
+          cargo clean --package pryxd
+          cargo build --locked
+          bun install --frozen-lockfile
+          PRYX_SPEED_SOURCE="$PWD" PRYXD_BIN="$CARGO_TARGET_DIR/debug/pryxd" bun "$GITHUB_WORKSPACE/.benchmark-collector/control/bench/speed.ts" before "$RUNNER_TEMP/speed-before.json"
+      - name: Check out the pinned K9 after product
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: 7cd80e9bff7be320d10993aeadb8e73f3f6f65c8
+          path: .benchmark-after
+          persist-credentials: false
+      - name: Measure the K9 after product on the same host
+        run: |
+          cp -a .benchmark-after "$RUNNER_TEMP/pryx-k9-after"
+          cd "$RUNNER_TEMP/pryx-k9-after"
+          export CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target"
+          cargo clean --package pryxd
+          cargo build --locked
+          bun install --frozen-lockfile
+          PRYX_SPEED_SOURCE="$PWD" PRYXD_BIN="$CARGO_TARGET_DIR/debug/pryxd" bun "$GITHUB_WORKSPACE/.benchmark-collector/control/bench/speed.ts" after "$RUNNER_TEMP/speed-after.json"
+      - name: Check out the pinned K11 baseline
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: b91ee23c0212d219080a9e40fb30f5d1c9b62e65
+          path: .agent-before
+          persist-credentials: false
+      - name: Measure the K11 baseline on this host
+        run: |
+          cp -a .agent-before "$RUNNER_TEMP/pryx-agent-before"
+          cd "$RUNNER_TEMP/pryx-agent-before"
+          export CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target"
+          cargo clean --package pryxd
+          cargo build --locked
+          bun install --frozen-lockfile
+          PRYX_SPEED_SOURCE="$PWD" PRYXD_BIN="$CARGO_TARGET_DIR/debug/pryxd" bun "$GITHUB_WORKSPACE/.benchmark-collector/control/bench/agent-speed.ts" before "$RUNNER_TEMP/agent-speed-before.json"
+      - name: Build the current daemon
+        run: |
+          cargo clean --package pryxd
+          cargo build --locked
+      - name: Release compilation space before the image build
+        run: |
+          cp target/debug/pryxd "$RUNNER_TEMP/pryxd-debug"
+          cargo clean
+          mkdir -p target/debug
+          cp "$RUNNER_TEMP/pryxd-debug" target/debug/pryxd
+          docker builder prune --all --force
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          df -h .
+      - name: Build a static daemon for isolated nodes
+        id: static
+        run: |
+          docker build -t pryx-static-test .
+          id=$(docker create pryx-static-test)
+          docker cp "$id:/pryxd" "$RUNNER_TEMP/pryxd"
+          docker cp "$id:/usr/local/bin/pryx" "$RUNNER_TEMP/pryx-cli"
+          docker cp "$id:/usr/local/lib/pryx/pryx-agent" "$RUNNER_TEMP/pryx-agent"
+          docker cp "$id:/usr/local/lib/pryx/agentos" "$RUNNER_TEMP/agentos"
+          sudo install -d -m 0755 /usr/local/lib/pryx
+          sudo mv "$RUNNER_TEMP/agentos" /usr/local/lib/pryx/agentos
+          sudo chown -R root:root /usr/local/lib/pryx/agentos
+          echo "PRYX_AGENTOS_DISTRIBUTION=/usr/local/lib/pryx/agentos" >> "$GITHUB_ENV"
+          docker rm "$id"
+          sudo install -D -m 0755 "$RUNNER_TEMP/pryx-agent" /usr/local/lib/pryx/pryx-agent
+          docker builder prune --all --force
+          df -h .
+      - name: Check out the K15 shell baseline
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ce22bc9e077d1f4bb32b8b54184f92de0f81f829
+          path: .field-before
+          persist-credentials: false
+      - name: Measure K15 and K16 shell paths on this host
+        run: |
+          cp target/debug/pryxd "$RUNNER_TEMP/pryxd-k16-after"
+          cp -a .field-before "$RUNNER_TEMP/pryx-field-before"
+          cd "$RUNNER_TEMP/pryx-field-before"
+          export CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target"
+          cargo clean --package pryxd
+          cargo build --locked
+          bun install --frozen-lockfile
+          PRYX_FIELD_SOURCE_ROOT="$PWD" PRYXD_BIN="$CARGO_TARGET_DIR/debug/pryxd" bun "$GITHUB_WORKSPACE/control/bench/field-speed.ts" before "$RUNNER_TEMP/field-speed-before.json"
+          cd "$GITHUB_WORKSPACE"
+          rm target/debug/pryxd
+          cp "$RUNNER_TEMP/pryxd-k16-after" target/debug/pryxd
+          PRYXD_BIN="$GITHUB_WORKSPACE/target/debug/pryxd" bun control/bench/field-speed.ts after "$RUNNER_TEMP/field-speed-after.json"
+          bun control/tools/field-summary.ts "$RUNNER_TEMP/field-speed-before.json" "$RUNNER_TEMP/field-speed-after.json"
+      - name: Measure the K11 agent on this host
+        run: |
+          PRYXD_BIN="$GITHUB_WORKSPACE/target/debug/pryxd" bun control/bench/agent-speed.ts after "$RUNNER_TEMP/agent-speed-after.json"
+      - name: Measure the container tier before the process tier
+        run: PRYXD_BIN="$GITHUB_WORKSPACE/target/debug/pryxd" bun control/bench/process-speed.ts before "$RUNNER_TEMP/process-speed-before.json"
+      - name: Measure and prove the ordinary process image
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: PRYXD_BIN="$GITHUB_WORKSPACE/target/debug/pryxd" bun control/bench/process-speed.ts after "$RUNNER_TEMP/process-speed-after.json"
+      - name: Compare all three tiers in ordinary images
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: PRYXD_BIN="$RUNNER_TEMP/pryxd" bun control/bench/tiers.ts image "$RUNNER_TEMP/tiers-image"
+      - name: Measure the wasm image create-to-output path
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: PRYX_MCP_CLI="$RUNNER_TEMP/pryx-cli" bun control/bench/tiers-default.ts "$RUNNER_TEMP/tiers-image-wasm-hello.json" wasm
+      - name: Measure the image default through SDK and CLI
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: PRYX_MCP_CLI="$RUNNER_TEMP/pryx-cli" bun control/bench/tiers-default.ts "$RUNNER_TEMP/tiers-image-default.json"
+      - name: Save the three-tier image comparison
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tiers-image
+          path: ${{ runner.temp }}/tiers-image-*.json
+          if-no-files-found: error
+      - name: Summarize three-tier image capacity
+        if: always()
+        run: bun control/tools/tiers-summary.ts "$RUNNER_TEMP"/tiers-image-*.json >> "$GITHUB_STEP_SUMMARY"
+      - name: Save paired speed measurements
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: paired-speed-measurements
+          path: |
+            ${{ runner.temp }}/speed-before.json
+            ${{ runner.temp }}/speed-after.json
+            ${{ runner.temp }}/field-speed-before.json
+            ${{ runner.temp }}/field-speed-after.json
+            ${{ runner.temp }}/agent-speed-before.json
+            ${{ runner.temp }}/agent-speed-after.json
+            ${{ runner.temp }}/process-speed-before.json
+            ${{ runner.temp }}/process-speed-after.json
+
+  one-box:
+    name: Measure one box
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - run: rustup toolchain install
+      - run: cargo build --locked
+      - run: bun install --frozen-lockfile
+      - run: bun run release:build
+      - name: Preserve the daemon and release compiler space
+        run: |
+          cp target/debug/pryxd dist/pryxd
+          cargo clean
+          df -h .
+      - name: Build the static agent release asset
+        run: |
+          docker build -t pryx-one-box-release .
+          id=$(docker create pryx-one-box-release)
+          docker cp "$id:/usr/local/lib/pryx/pryx-agent" dist/pryx-agent
+          docker cp "$id:/pryxd" "$RUNNER_TEMP/pryxd-k14"
+          docker cp "$id:/usr/local/lib/pryx/agentos" "$RUNNER_TEMP/agentos"
+          sudo install -d -m 0755 /usr/local/lib/pryx
+          sudo mv "$RUNNER_TEMP/agentos" /usr/local/lib/pryx/agentos
+          sudo chown -R root:root /usr/local/lib/pryx/agentos
+          echo "PRYX_AGENTOS_DISTRIBUTION=/usr/local/lib/pryx/agentos" >> "$GITHUB_ENV"
+          docker rm -v "$id"
+          docker save pryx-one-box-release | gzip -1 > "$RUNNER_TEMP/pryx-one-box-image.tar.gz"
+          docker image rm pryx-one-box-release
+      - name: Prepare the unreleased build artifacts
+        run: |
+          # The installed daemon is now in dist; placement still needs real disk above its host floor.
+          rm -rf target/debug
+          docker builder prune --all --force
+          # The image archive and SDK fixtures coexist with the host's five GiB disk reserve.
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          df -h .
+          head -c 64 /dev/zero > dist/pryxd.sig
+          head -c 64 /dev/zero > dist/pryxd.bootstrap.sig
+          (cd dist && sha256sum pryxd pryx-agent pryxd.sig pryxd.bootstrap.sig pryx pryx-control pryx-edge pryx-control-assets.tar.gz install.sh > SHA256SUMS)
+          docker pull -q mirror.gcr.io/library/alpine:3.22
+          docker tag mirror.gcr.io/library/alpine:3.22 alpine:3.22
+          docker pull -q mirror.gcr.io/library/node:22
+          docker tag mirror.gcr.io/library/node:22 node:22
+          python3 -m http.server 9876 --bind 127.0.0.1 --directory dist > "$RUNNER_TEMP/artifact-server.log" 2>&1 &
+          printf 'Defaults env_keep += "PRYX_RELEASE_BASE_URL"\n' | sudo tee /etc/sudoers.d/pryx-ci-artifacts >/dev/null
+      - name: Four-command quickstart and repeat install
+        id: up
+        run: |
+          started=$(date +%s)
+          export PRYX_RELEASE_BASE_URL=http://127.0.0.1:9876
+          # Only the download origin is replaced for this unreleased build.
+          curl --retry 5 --retry-connrefused -fsSL "$PRYX_RELEASE_BASE_URL/install.sh" | sh
+          output=$(sudo pryx up --domain sandboxes.example.com)
+          key=$(printf '%s\n' "$output" | sed -n 's/^export PRYX_API_KEY=//p')
+          [ -n "$key" ]
+          printf '::add-mask::%s\n' "$key"
+          printf 'key=%s\n' "$key" >> "$GITHUB_OUTPUT"
+          [ "$(pryx run --image alpine:3.22 -- echo hello)" = hello ]
+          made=$(pryx sandbox create --image alpine:3.22 --idle 5m)
+          id=$(printf '%s' "$made" | jq -r .id)
+          pryx sandbox rm "$id"
+          [ "$(printf '%s\n' "$output" | grep -c '^export PRYX_')" = 3 ]
+          second=$(sudo pryx up --domain sandboxes.example.com)
+          if printf '%s\n' "$second" | grep -Fq "$key"; then echo 'Repeated the initial key'; exit 1; fi
+          [ "$(printf '%s\n' "$second" | grep -c '^export PRYX_')" = 3 ]
+          echo "One-box elapsed: $(($(date +%s)-started)) seconds" >> "$GITHUB_STEP_SUMMARY"
+      - name: Measure projects and host units
+        run: sudo "$(command -v bun)" control/bench/projects-one-box.ts "$RUNNER_TEMP/projects-one-box.json"
+      - name: Save measured project admission
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: projects-one-box
+          path: ${{ runner.temp }}/projects-one-box.json
+          if-no-files-found: error
+
+      - name: Compare all three tiers on one box
+        run: |
+          gzip -dc "$RUNNER_TEMP/pryx-one-box-image.tar.gz" | docker load
+          sudo env "PATH=$PATH" "PRYXD_BIN=$RUNNER_TEMP/pryxd-k14" PRYX_AGENTOS_DISTRIBUTION=/usr/local/lib/pryx/agentos PRYX_IMAGE_TEST=pryx-one-box-release "$(command -v bun)" control/bench/tiers-one-box.ts "$RUNNER_TEMP/tiers-one-box"
+      - name: Save the one-box three-tier comparison
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tiers-one-box
+          path: ${{ runner.temp }}/tiers-one-box-*.json
+          if-no-files-found: error
+      - name: Summarize one-box three-tier capacity
+        if: always()
+        run: bun control/tools/tiers-summary.ts "$RUNNER_TEMP"/tiers-one-box-*.json >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Service journals on failure
+        if: failure()
+        run: sudo journalctl -u pryx-control -u pryx-edge -u pryx-postgres -u pryx-store -u pryxd --no-pager -n 150
