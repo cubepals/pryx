@@ -112,7 +112,14 @@
       }
     ],
     "publicCelldApiVersion": "0.6.3",
-    "patchedCelldBuildLocal": "not run: compilation space unavailable; required in CI"
+    "patchedCelldBuildLocal": "not run: compilation space unavailable; required in CI",
+    "actionlintAssetApi": {
+      "url": "https://api.github.com/repos/rhysd/actionlint/releases/assets/384924896",
+      "sha256": "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8",
+      "anonymousDigestVerified": true,
+      "binaryVersion": "1.7.12",
+      "workflowAndShellcheckPassedLocally": true
+    }
   },
   "dependency": "Existing curl and existing MIT rusty_v8 152.1.0; upstream versioned licence reread, no source copied and no new binary version introduced",
   "actionlintFailure": {
@@ -138,5 +145,21 @@
     "celldHttp504Attempts": 13,
     "outcome": "download exit 22; V8 download and dependent artifact also fail",
     "k17k18Acceptance": "passed, including all cohorts and 111 links"
+  },
+  "actionlintRetryFailure": {
+    "run": "https://github.com/cubepals/pryx/actions/runs/42470825513",
+    "job": 128700967453,
+    "http504Attempts": 13,
+    "outcome": "retry exhaustion; check failed"
+  },
+  "assetApiProvenance": {
+    "baseCommit": "5543441b34b49cabd130735f0b087e3ab61ae2ca",
+    "sourceDirty": true,
+    "validatedUtc": "2026-11-08T10:25:33.248917+00:00",
+    "files": {
+      ".github/workflows/ci.yml": "917347429554bc9191ac3e33e74c5f39fc412022191da867baa1bf2fc12d279f",
+      ".github/actionlint-release.json": "54fa2c7b019a22aee0f903067b9809e0efa04651125d836e827a50031a167cf0",
+      "integrations/celld/upstream/releases.json": "8fa386391924f6929e1da61dfa0cac21ffb36de0491c1ab27e8bd1e57859c2d5"
+    }
   }
 }

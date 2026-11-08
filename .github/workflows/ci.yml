@@ -94,11 +94,20 @@ jobs:
       - name: Workflows parse and their scripts pass shellcheck
         env:
           CURL_HOME: ${{ runner.temp }}/pryx-upstream-curl
+          PRYX_ASSET_API_TOKEN: ${{ github.token }}
         run: |
           install -d -m 700 "$CURL_HOME"
           install -m 600 .github/download.curlrc "$CURL_HOME/.curlrc"
-          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash) 1.7.12
-          ./actionlint -color
+          archive="$RUNNER_TEMP/actionlint.tar.gz"
+          url=$(jq -r .url .github/actionlint-release.json)
+          digest=$(jq -r .sha256 .github/actionlint-release.json)
+          curl -sSL -H 'Accept: application/octet-stream' \
+            -H "Authorization: Bearer $PRYX_ASSET_API_TOKEN" "$url" -o "$archive"
+          printf '%s  %s\n' "$digest" "$archive" | sha256sum -c -
+          unset PRYX_ASSET_API_TOKEN
+          install -d -m 700 "$RUNNER_TEMP/pryx-actionlint"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/pryx-actionlint" actionlint LICENSE.txt
+          "$RUNNER_TEMP/pryx-actionlint/actionlint" -color
       # Every file says whose it is and under what license, by its own SPDX lines or REUSE.toml.
       - name: Licenses
         run: pipx run reuse==6.2.0 lint
