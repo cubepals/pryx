@@ -420,7 +420,7 @@ jobs:
         run: |
           docker build -t alpine:pryx-python-interpreter templates/python-interpreter
           docker build -t alpine:pryx-node-interpreter templates/node-interpreter
-      - run: bun run e2e
+      - run: bun run e2e --reporter=junit --reporter-outfile "$RUNNER_TEMP/e2e.xml"
         if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         env:
           PRYX_PYTHON: ${{ github.workspace }}/.venv-agent-python/bin/python
@@ -439,6 +439,7 @@ jobs:
           path: |
             ${{ runner.temp }}/native-tools-measurements.json
             ${{ runner.temp }}/compare-links.json
+            ${{ runner.temp }}/e2e.xml
           if-no-files-found: error
       - name: Summarize native tool measurements
         if: always()
