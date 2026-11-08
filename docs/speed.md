@@ -31,7 +31,7 @@ job summary. Local loopback context reuse above is not labelled as template crea
 run 6.1 / 6.8 ms, trivial loopback 5.1 / 81.6 ms, chart 687.6 / 693.5 ms, restart
 6492.6 / 6588.2 ms (p50 / p90, n=30 each). The trivial p90 fails the 50 ms budget.
 That loopback sandbox accidentally used the default single unit, while the clone
-cohort requested four. The corrected loopback allocation must be measured again;
+cohort requested four. The corrected loopback allocation is measured in the deployment cohort below;
 this first report remains evidence of the failed budget, not a passing result.
 
 The CI loopback budget cohort requests four default units (one CPU core, 2 GiB); the first-run clone cohort uses the template default. These resource settings are explicit in the collector so the budgets are not attributed to an unspecified CPU quota.
@@ -50,3 +50,23 @@ also includes starting its local deterministic page server. CI uploads the raw
 `native-tools-measurements` report and prints p50/p90 in the job summary. The
 post-change deployment measurements are pending that run and are not represented
 by local X11 or standalone Chromium smoke checks.
+
+## Corrected interpreter deployment cohort
+
+CI run [42442495526](https://github.com/cubepals/pryx/actions/runs/42442495526)
+measured commit `fc13ecc` with the documented four units for the loopback sandbox
+as well as the clone cohort. Both execution budgets pass in this report:
+
+| Operation | n | p50 ms | p90 ms |
+| --- | --- | --- | --- |
+| First run after `python()` on a warm-template clone | 30 | 5.9 | 6.5 |
+| Trivial `1+1`, loopback | 30 | 4.7 | 5.2 |
+| PNG chart, loopback | 30 | 135.6 | 139.5 |
+| Restart and ready handshake, loopback | 30 | 1500.5 | 1523.8 |
+
+[Every sample](checks/measurements/k17-ci-interpreter-fc13ecc.json) is retained.
+The first-run timer starts after `python()` opens the warmed kernel; it does not
+measure sandbox creation. These CI results are separate from the workspace's
+paired before/after measurements above. The earlier single-unit budget failure
+remains recorded; changing the CPU allocation is not presented as a code speedup.
+The overall workflow still needs its native-tool fixes and complete green run.

@@ -19,6 +19,15 @@ export const TIER_BENCH_LARGE_UNIT = {
   memoryMb: TIER_BENCH_UNIT.memoryMb * TIER_BENCH_LARGE_UNITS,
   cpuMillis: TIER_BENCH_UNIT.cpuMillis * TIER_BENCH_LARGE_UNITS,
 }
+
+// Keep the edge's raw SSH listeners outside both outbound ephemeral ports and node pools.
+export function nativeEdgePortRange(): readonly [number, number] {
+  const end = Number(readFileSync('/proc/sys/net/ipv4/ip_local_port_range', 'utf8').trim().split(/\s+/)[1])
+  const maximum = nodeSchema.components.schemas.PortSpec.properties.containerPort.maximum
+  if (!Number.isInteger(end) || end >= maximum)
+    throw new Error('Kernel leaves no external native edge port range')
+  return [end + 1, maximum]
+}
 export const TEST_NODE_PORTS = 50
 // More than 1,500 concurrent-cohort creations plus scalar cohorts can rest without reuse.
 export const TIER_BENCH_NODE_PORTS = 2048

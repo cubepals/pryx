@@ -60,7 +60,10 @@ pub(crate) fn get(agent: &Agent) -> Result<Arc<State>, Failure> {
     Ok(state)
 }
 pub(crate) fn prepare(agent: &Agent) -> Result<(), Failure> {
-    if agent.processes.kernel_unsupported_tier().is_some() {
+    if agent.processes.kernel_unsupported_tier().is_some()
+        || (std::env::var_os(super::defaults::KIND_ENV).is_none()
+            && std::env::var_os(crate::contract::MOUNTS_ENV).is_none())
+    {
         return Ok(());
     }
     let state = get(agent)?;

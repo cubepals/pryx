@@ -3,8 +3,20 @@
 import { expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { createServer } from 'node:net'
-import { nodeConfigFor, nodePortLow, TEST_NODE_PORTS } from '../e2e/runtime-config.ts'
+import nodeSchema from '../../openapi/node-reads.openapi.json'
+import { nativeEdgePortRange, nodeConfigFor, nodePortLow, TEST_NODE_PORTS } from '../e2e/runtime-config.ts'
 import { freePort } from '../e2e/waits.ts'
+
+test('native raw edge ports are above every ephemeral and workload allocation', () => {
+  const ephemeralEnd = Number(
+    readFileSync('/proc/sys/net/ipv4/ip_local_port_range', 'utf8').trim().split(/\s+/)[1],
+  )
+  const [low, high] = nativeEdgePortRange()
+  expect(low).toBeGreaterThan(ephemeralEnd)
+  expect(low).toBeGreaterThan(nodePortLow('e2efe1292', 1) + TEST_NODE_PORTS)
+  expect(high).toBe(nodeSchema.components.schemas.PortSpec.properties.containerPort.maximum)
+  expect(high - low).toBeGreaterThan(4)
+})
 
 test('daemon fixtures derive workload pools below the kernel ephemeral range', () => {
   const ephemeralStart = Number(
