@@ -9,6 +9,9 @@ import { bootstrapHash } from '../../control/src/join-bootstrap.ts'
 import { pinnedJoinDownloads } from './join-download.ts'
 import { joinTarget, verifyBootstrapOffer } from './join-trust.ts'
 
+/** The most a bootstrap offer (`bootstrap.json`) may be. */
+export const BOOTSTRAP_OFFER_BYTES = 16 * 1024
+
 export async function joinHost(
   token: string,
   options: {
@@ -20,7 +23,7 @@ export async function joinHost(
 ) {
   const target = joinTarget(token)
   const downloads = await pinnedJoinDownloads(target.url, target.hash)
-  const metadata = JSON.parse((await downloads.get('bootstrap.json', 16 * 1024)).toString())
+  const metadata = JSON.parse((await downloads.get('bootstrap.json', BOOTSTRAP_OFFER_BYTES)).toString())
   const offer = verifyBootstrapOffer(metadata, options.trustedKeys)
   const script = await downloads.get('bootstrap.sh', 256 * 1024)
   if (bootstrapHash(script) !== offer.sha256) throw new Error('Bootstrap digest verification failed')
