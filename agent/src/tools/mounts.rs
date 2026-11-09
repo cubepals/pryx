@@ -384,7 +384,7 @@ mod tests {
                     helper_argv(mount_s3, &s, &bucket, &prefix, "/proc/self/fd/3".into(), Path::new("/state"));
                 let joined = argv.join(" ");
                 for secret in ["AKIA-ARGV-KEY", "ARGV-SECRET-ACCESS-KEY", "ARGV-SESSION-TOKEN"] {
-                    assert!(!joined.contains(secret), "{secret} in {joined}");
+                    assert!(!joined.contains(secret), "a credential reached the helper command line");
                 }
             }
         }
