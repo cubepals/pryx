@@ -429,13 +429,13 @@ jobs:
       # the Dockerfiles name them by digest, so the build then finds every base local.
       - name: Pull the template base images
         run: |
-          for image in $(sed -n 's/^FROM \([^ ]*[.][^ ]*\).*/\1/p' templates/*/Dockerfile | sort -u); do
+          while read -r image; do
             for wait in 2 5 10 20 40 0; do
               docker pull -q "$image" && break
               [ "$wait" = 0 ] && exit 1
               sleep "$wait"
             done
-          done
+          done < <(sed -n 's/^FROM \([^ ]*[.][^ ]*\).*/\1/p' templates/*/Dockerfile | sort -u)
       - name: Build native tool templates
         run: |
           mkdir -p templates/native-tools/cache
