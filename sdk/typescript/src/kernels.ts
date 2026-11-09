@@ -123,10 +123,11 @@ export class Kernel {
     return `/_pryx/kernels/${encodeURIComponent(this.id)}${suffix}`
   }
   stream(code: string, options: KernelRunOptions = {}): AsyncIterable<KernelEvent> {
+    // An omitted timeout is the agent's to choose: its default, bounded by the token's ceiling.
     const started = this.agent.raw(
       this.path('/execute'),
       'POST',
-      JSON.stringify({ code, timeout: seconds(options.timeout ?? KERNEL_DEFAULTS.defaultTimeoutSeconds) }),
+      JSON.stringify(options.timeout === undefined ? { code } : { code, timeout: seconds(options.timeout) }),
       { 'content-type': 'application/json' },
     )
     void started.catch(() => {})

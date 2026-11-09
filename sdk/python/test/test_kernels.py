@@ -7,9 +7,10 @@ from cubepals_pryx import Pryx, PryxError
 from cubepals_pryx.generated.kernels import KERNEL_DEFAULTS
 
 class Peer:
-    def __init__(self, events): self.events, self.calls = events, []
+    def __init__(self, events): self.events, self.calls, self.bodies = events, [], []
     def handle(self, request):
         path=request.url.path; self.calls.append((path,request.headers.get('authorization')))
+        if path.endswith('/execute'): self.bodies.append(json.loads(request.content))
         if path.endswith('/token'): value={'url':'http://agent.test','token':'scoped','expiresAt':time.time()+300,'epoch':1}
         elif path.endswith('/health'): value={'kernelsVersion':KERNEL_DEFAULTS['version']}
         elif path.endswith('/execute'): return httpx.Response(HTTPStatus.OK,text=''.join(json.dumps(e)+'\n' for e in self.events))
@@ -26,7 +27,9 @@ class Kernels(unittest.TestCase):
             result=await take(py.run('4'))
             self.assertEqual(result.json,4);self.assertEqual(result.text,'4');self.assertEqual(result.png,b'\x89PNG\r\n\x1a\n');self.assertEqual(result.stdout,'hello');self.assertEqual(result.html,'<b>four</b>')
             peer.events=[{'type':'error','name':'ValueError','value':'bad','traceback':['frame']},{'type':'done','executionCount':2,'status':'error'}]
-            self.assertEqual((await take(py.run('bad'))).error['traceback'],['frame'])
+            self.assertEqual((await take(py.run('bad',timeout='5s'))).error['traceback'],['frame'])
+            # The agent picks the timeout within the token's ceiling unless the caller names one.
+            self.assertEqual(peer.bodies[:2],[{'code':'4'},{'code':'bad','timeout':5}])
             peer.events=[]
             with self.assertRaises(PryxError):await take(py.run('mutate()'))
             self.assertEqual(len([call for call in peer.calls if call[0].endswith('/execute')]),3)

@@ -65,7 +65,9 @@ Language errors are result data. Missing completion or a broken transport is an 
 neither SDK retries code. A dead context stays dead until explicitly restarted. Executions are
 serialized per context; interrupt/close do not wait on the execution mutex. Queues and capture
 are bounded, timeouts enforce capability limits, and timeout kills the kernel instead of
-allowing its code to continue silently. The default is 30 seconds and 16 contexts per sandbox.
+allowing its code to continue silently. The default is 30 seconds, or the token's lower ceiling
+when a project sets one; the SDKs send a timeout only when the caller names it, so the agent's
+default applies otherwise. Each sandbox holds at most 16 contexts.
 MCP tools `run_python` and `run_javascript` use these same owners and return image MIME output
 as MCP image content, alongside text events.
 

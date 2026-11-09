@@ -14,6 +14,10 @@ from .generated.kernels import KERNEL_DEFAULTS
 
 def invalid(message): return PryxError(0, {'error': {'code': 'agent_protocol', 'message': message}})
 
+def execution(code, timeout):
+    """An omitted timeout is the agent's to choose: its default, bounded by the token's ceiling."""
+    return {'code': code} if timeout is None else {'code': code, 'timeout': seconds(timeout)}
+
 def checked(event):
     if not isinstance(event, dict): raise invalid('Invalid kernel event')
     kind = event.get('type')
@@ -102,10 +106,10 @@ class Kernel:
     @property
     def context(self): return self._view['context']
     def _path(self, suffix=''): return '/_pryx/kernels/' + quote(self.id, safe='') + suffix
-    def stream(self, code, *, timeout=KERNEL_DEFAULTS['defaultTimeoutSeconds']):
+    def stream(self, code, *, timeout=None):
         url, headers = self._agent.target(self._path('/execute'))
         parser, done = Lines(), False
-        with self._agent.http.stream('POST', url, headers=headers, json={'code': code, 'timeout': seconds(timeout)}) as response:
+        with self._agent.http.stream('POST', url, headers=headers, json=execution(code, timeout)) as response:
             if not response.is_success: response.read(); _checked(response)
             for chunk in response.iter_bytes():
                 for event in parser.feed(chunk):
@@ -131,10 +135,10 @@ class AsyncKernel(Kernel):
     async def open(cls, agent, language, context=''):
         await agent.require_kernels(KERNEL_DEFAULTS['version'])
         return cls(agent, await agent.request('/_pryx/kernels', 'POST', {'language': language, 'context': context}))
-    async def stream(self, code, *, timeout=KERNEL_DEFAULTS['defaultTimeoutSeconds']):
+    async def stream(self, code, *, timeout=None):
         url, headers = await self._agent.target(self._path('/execute'))
         parser, done = Lines(), False
-        async with self._agent.http.stream('POST', url, headers=headers, json={'code': code, 'timeout': seconds(timeout)}) as response:
+        async with self._agent.http.stream('POST', url, headers=headers, json=execution(code, timeout)) as response:
             if not response.is_success: await response.aread(); _checked(response)
             async for chunk in response.aiter_bytes():
                 for event in parser.feed(chunk):

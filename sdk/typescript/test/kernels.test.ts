@@ -74,6 +74,10 @@ test('rich results preserve every MIME and image bytes separately from output', 
     language: 'python',
     context: 'analysis',
   })
+  // The agent picks the timeout within the token's ceiling unless the caller names one.
+  expect(calls.find((call) => call.path.endsWith('/execute'))?.body).toEqual({ code: '4' })
+  await py.run('4', { timeout: '5s' })
+  expect(calls.filter((call) => call.path.endsWith('/execute'))[1]?.body).toEqual({ code: '4', timeout: 5 })
   expect(
     calls.filter((call) => call.path.startsWith('/_pryx/')).every((call) => call.auth === 'Bearer scoped'),
   ).toBe(true)
