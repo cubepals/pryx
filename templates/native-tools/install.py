@@ -36,4 +36,5 @@ with tempfile.TemporaryDirectory(prefix="pryx-debs-") as temporary:
     pathlib.Path("/mnt").chmod(0o777)
     subprocess.run(["useradd", "--uid", "1000", "--home-dir", "/data", "--shell", "/bin/sh", "--password", "x", "pryx"], check=True)
     # Nested user namespaces supply mount authority; a setuid transition would discard ambient caps.
-    pathlib.Path("/bin/fusermount3").chmod(0o755)
+    # Execute-only, as the mount helpers that run it with their credentials in its environment.
+    pathlib.Path("/bin/fusermount3").chmod(0o111)

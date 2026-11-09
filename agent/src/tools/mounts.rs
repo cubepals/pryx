@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! S3 mounts run unmodified Mountpoint S3 or rclone. FUSE exists only under host-approved
 //! nested namespaces; this adapter never substitutes a directory mirror or writes credentials.
+//! Credentials reach the helper only through its environment, never its argv, which
+//! /proc/<pid>/cmdline shows to anyone. The image installs each helper execute-only, so the kernel
+//! leaves it non-dumpable after exec and same-uid sandbox commands, which hold no capability,
+//! cannot read its /proc environ or memory; a worker refuses a readable helper. This does not
+//! hold against a same-uid process with CAP_SYS_PTRACE, which no sandbox command is given.
 use super::{
     command,
     state::{self, MountEntry},
@@ -19,7 +24,7 @@ use std::{
 };
 
 fn executable(name: &str) -> bool {
-    std::env::var_os("PATH").is_some_and(|paths| std::env::split_paths(&paths).any(|path| path.join(name).is_file()))
+    crate::fuse_namespace::helper(name).is_some()
 }
 fn normalize(agent: &Agent, path: &str) -> Result<String, Failure> {
     let path = Path::new(path);
@@ -186,26 +191,14 @@ pub(crate) async fn initialize(agent: &Agent, specs: Vec<MountSpec>) -> Result<V
         let directory = target(agent, &path)?;
         env.insert("HOME".into(), state.directory.path().to_string_lossy().into_owned());
         let target = format!("/proc/self/fd/{}", directory.as_raw_fd());
-        let (backend, mut argv) = if executable("mount-s3") {
-            let mut argv = vec![
-                "mount-s3".into(),
-                bucket.clone(),
-                target,
-                "--foreground".into(),
-                "--log-directory".into(),
-                state.directory.path().join("mount-logs").to_string_lossy().into_owned(),
-            ];
-            if !prefix.is_empty() {
-                argv.extend(["--prefix".into(), prefix.clone()]);
-            }
-            if let Some(endpoint) = &spec.credentials.endpoint {
-                argv.extend(["--endpoint-url".into(), endpoint.clone(), "--force-path-style".into()]);
-            }
-            if let Some(region) = &spec.credentials.region {
-                argv.extend(["--region".into(), region.clone()]);
-            }
-            ("mountpoint-s3", argv)
-        } else if executable("rclone") {
+        let mount_s3 = executable("mount-s3");
+        if !mount_s3 && !executable("rclone") {
+            return Err(state::failure(
+                "tool_unavailable",
+                "Install Mountpoint S3 or rclone in the native tools image",
+            ));
+        }
+        if !mount_s3 {
             env.extend(BTreeMap::from([
                 ("RCLONE_CONFIG_PRYX_TYPE".into(), "s3".into()),
                 ("RCLONE_CONFIG_PRYX_PROVIDER".into(), "Other".into()),
@@ -219,40 +212,8 @@ pub(crate) async fn initialize(agent: &Agent, specs: Vec<MountSpec>) -> Result<V
             if let Some(region) = &spec.credentials.region {
                 env.insert("RCLONE_CONFIG_PRYX_REGION".into(), region.clone());
             }
-            (
-                "rclone",
-                vec![
-                    "rclone".into(),
-                    "mount".into(),
-                    format!("pryx:{bucket}/{prefix}"),
-                    target,
-                    "--config".into(),
-                    "/dev/null".into(),
-                    // The approved shared bind mount already occupies this verified target.
-                    "--allow-non-empty".into(),
-                    "--vfs-cache-mode".into(),
-                    "writes".into(),
-                    "--vfs-write-back".into(),
-                    "0s".into(),
-                    "--vfs-cache-max-size".into(),
-                    "64M".into(),
-                    "--cache-dir".into(),
-                    state.directory.path().join("rclone-cache").to_string_lossy().into_owned(),
-                    "--log-level".into(),
-                    "ERROR".into(),
-                ],
-            )
-        } else {
-            return Err(state::failure(
-                "tool_unavailable",
-                "Install Mountpoint S3 or rclone in the native tools image",
-            ));
-        };
-        if spec.read_only {
-            argv.push("--read-only".into());
-        } else if backend == "mountpoint-s3" {
-            argv.extend(["--allow-overwrite".into(), "--allow-delete".into()]);
         }
+        let (backend, argv) = helper_argv(mount_s3, &spec, &bucket, &prefix, target, state.directory.path());
         let process = command::start(agent, argv, env, None, true)?;
         let mut starting = command::Starting(Some(process.clone()));
         mounted(&process, Path::new(&path)).await?;
@@ -273,6 +234,67 @@ pub(crate) async fn initialize(agent: &Agent, specs: Vec<MountSpec>) -> Result<V
     state.mounts_ready.store(true, std::sync::atomic::Ordering::Release);
     Ok(entries.iter().map(|e| e.view.clone()).collect())
 }
+/// The helper's command line. It carries no credential: /proc/<pid>/cmdline is readable by
+/// every same-uid process whatever the helper's dumpability.
+fn helper_argv(
+    mount_s3: bool,
+    spec: &MountSpec,
+    bucket: &str,
+    prefix: &str,
+    target: String,
+    directory: &Path,
+) -> (&'static str, Vec<String>) {
+    let (backend, mut argv) = if mount_s3 {
+        let mut argv = vec![
+            "mount-s3".into(),
+            bucket.into(),
+            target,
+            "--foreground".into(),
+            "--log-directory".into(),
+            directory.join("mount-logs").to_string_lossy().into_owned(),
+        ];
+        if !prefix.is_empty() {
+            argv.extend(["--prefix".into(), prefix.into()]);
+        }
+        if let Some(endpoint) = &spec.credentials.endpoint {
+            argv.extend(["--endpoint-url".into(), endpoint.clone(), "--force-path-style".into()]);
+        }
+        if let Some(region) = &spec.credentials.region {
+            argv.extend(["--region".into(), region.clone()]);
+        }
+        ("mountpoint-s3", argv)
+    } else {
+        (
+            "rclone",
+            vec![
+                "rclone".into(),
+                "mount".into(),
+                format!("pryx:{bucket}/{prefix}"),
+                target,
+                "--config".into(),
+                "/dev/null".into(),
+                // The approved shared bind mount already occupies this verified target.
+                "--allow-non-empty".into(),
+                "--vfs-cache-mode".into(),
+                "writes".into(),
+                "--vfs-write-back".into(),
+                "0s".into(),
+                "--vfs-cache-max-size".into(),
+                "64M".into(),
+                "--cache-dir".into(),
+                directory.join("rclone-cache").to_string_lossy().into_owned(),
+                "--log-level".into(),
+                "ERROR".into(),
+            ],
+        )
+    };
+    if spec.read_only {
+        argv.push("--read-only".into());
+    } else if mount_s3 {
+        argv.extend(["--allow-overwrite".into(), "--allow-delete".into()]);
+    }
+    (backend, argv)
+}
 async fn mounted(process: &Arc<Process>, path: &Path) -> Result<(), Failure> {
     let work = async {
         loop {
@@ -290,10 +312,14 @@ async fn mounted(process: &Arc<Process>, path: &Path) -> Result<(), Failure> {
                 }
                 return Ok(());
             }
-            if !process.view().running {
+            if let Some(result) = process.view().result {
                 return Err(state::failure(
                     "mount_failed",
-                    "FUSE worker refused this mount; check endpoint and host policy",
+                    if result.code == Some(crate::fuse_namespace::READABLE_HELPER) {
+                        "FUSE worker refused a readable mount helper; the image must install it execute-only"
+                    } else {
+                        "FUSE worker refused this mount; check endpoint and host policy"
+                    },
                 ));
             }
             tokio::time::sleep(Duration::from_millis(25)).await;
@@ -343,5 +369,24 @@ mod tests {
             state: "mounted".into(),
         };
         assert!(!serde_json::to_string(&view).unwrap().contains("secret"));
+    }
+    #[test]
+    fn helper_argv_carries_no_credential() {
+        for read_only in [true, false] {
+            let mut s = spec();
+            s.read_only = read_only;
+            s.credentials.access_key_id = "AKIA-ARGV-KEY".into();
+            s.credentials.secret_access_key = "ARGV-SECRET-ACCESS-KEY".into();
+            s.credentials.session_token = Some("ARGV-SESSION-TOKEN".into());
+            let (bucket, prefix) = source(&s).unwrap_or_else(|_| panic!("valid S3 source"));
+            for mount_s3 in [true, false] {
+                let (_, argv) =
+                    helper_argv(mount_s3, &s, &bucket, &prefix, "/proc/self/fd/3".into(), Path::new("/state"));
+                let joined = argv.join(" ");
+                for secret in ["AKIA-ARGV-KEY", "ARGV-SECRET-ACCESS-KEY", "ARGV-SESSION-TOKEN"] {
+                    assert!(!joined.contains(secret), "{secret} in {joined}");
+                }
+            }
+        }
     }
 }

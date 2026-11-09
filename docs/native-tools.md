@@ -137,6 +137,14 @@ worker is reported and requires an explicit restart, never an implicit remount. 
 agent restarts. Ready agents receive no repeated credential delivery. Mounted snapshots require explicit credentials
 to fork. Deletion erases sealed credentials. Preserve the operator seal key across control restarts.
 
+Mount workers run as the sandbox's own uid, so the image installs `mount-s3`, `rclone` and
+`fusermount3` execute-only (mode 0111). The kernel then leaves a worker non-dumpable after exec,
+and sandbox commands, which hold no capability, cannot read its `/proc` environment or memory or
+trace it; the credentials never appear in its command line. A worker refuses to start a readable
+helper, so a custom image that installs one readable fails its mount instead of exposing the
+credentials. This does not hold against a same-uid process with `CAP_SYS_PTRACE`, which no sandbox
+command is given.
+
 Python exposes the same callable handles in sync and async clients: `box.desktop()`,
 `box.desktop.screenshot()`, `box.browser()`, `box.browser.screenshot(url)`, `box.ssh()`,
 `box.ssh.revoke()` and `box.mounts()`; await them in an async context. Credentials use the public

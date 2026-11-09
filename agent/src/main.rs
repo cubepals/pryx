@@ -23,6 +23,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         pryx_agent::fuse_namespace::child(mount)?;
         let mut command = arguments[1..].to_vec();
         let _directory = if mount { Some(pryx_agent::fuse_namespace::worker(&mut command)?) } else { None };
+        if mount {
+            let name = command.first().ok_or("Missing mount helper")?;
+            let path = pryx_agent::fuse_namespace::helper(name).ok_or("Mount helper is not installed")?;
+            if pryx_agent::fuse_namespace::readable(&path) {
+                eprintln!(
+                    "mount helper {} is readable; it must be execute-only so its credentials stay out of /proc",
+                    path.display()
+                );
+                std::process::exit(pryx_agent::fuse_namespace::READABLE_HELPER);
+            }
+            command[0] = path.to_string_lossy().into_owned();
+        }
         let executable = command.first().ok_or("Missing tool command")?;
         return Err(std::process::Command::new(executable).args(&command[1..]).exec().into());
     }

@@ -56,6 +56,29 @@ async function pythonMounts(
       }
     })
 }
+// The mount helper's /proc environ holds its credentials; sandbox code of the same uid must not
+// read it. The secret travels in argv here, which the scan of environ files never sees.
+const SEALED_HELPER = `
+import glob, json, os, sys
+secret = sys.argv[1].encode()
+def read(path):
+    try:
+        with open(path, 'rb') as f:
+            return f.read()
+    except OSError:
+        return None
+procs = [p for p in glob.glob('/proc/[0-9]*') if p != f'/proc/{os.getpid()}']
+helpers = [p for p in procs if any(n in (read(p + '/cmdline') or b'') for n in (b'mount-s3', b'rclone\\0mount'))]
+print(json.dumps({
+    'helpers': len(helpers),
+    'readable': [p for p in helpers if read(p + '/environ') is not None],
+    'leaked': [p for p in procs if secret in (read(p + '/environ') or b'')],
+}))
+`
+async function sealedHelper(box: Sandbox, secret: string) {
+  const scan = await box.run(['python3', '-c', SEALED_HELPER, secret])
+  expect(JSON.parse(scan.stdout)).toEqual({ helpers: 1, readable: [], leaked: [] })
+}
 test(
   'desktop, SSH wake, real S3 FUSE and browser work through both clients',
   async () => {
@@ -233,6 +256,7 @@ test(
         ).Body?.transformToString(),
       ).toBe('ts')
       expect((await box.run(['sh', '-c', "grep '^CapEff:' /proc/self/status"])).stdout).toMatch(/0{16}/)
+      await sealedHelper(box, credentials.secretAccessKey)
       await pythonMounts(c.d.env, box, s3, bucket)
       await box.delete()
       box = undefined
@@ -249,6 +273,7 @@ test(
         ],
       })
       expect((await box.mounts())[0]?.backend).toBe('rclone')
+      await sealedHelper(box, credentials.secretAccessKey)
       expect(
         (await box.run(['sh', '-c', 'cat /mnt/data/seed && printf rclone > /mnt/data/rclone-object'])).stdout,
       ).toBe('seed')

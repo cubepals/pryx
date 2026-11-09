@@ -25,12 +25,16 @@ for artifact in json.loads((root / "artifacts.json").read_text()):
             subprocess.run(["dpkg-deb", "--extract", archive.name, "/"], check=True)
             pathlib.Path("/usr/local/bin/mount-s3").symlink_to("/opt/aws/mountpoint-s3/bin/mount-s3")
             pathlib.Path("/usr/local/bin/fusermount").symlink_to("/bin/fusermount3")
+            # Execute-only keeps the helper non-dumpable after exec, so sandbox commands of the
+            # same uid cannot read the credentials in its /proc environ; pryx refuses it readable.
+            pathlib.Path("/opt/aws/mountpoint-s3/bin/mount-s3").chmod(0o111)
         elif artifact["name"] == "rclone":
             with zipfile.ZipFile(archive.name) as zipped:
                 binary = zipped.read("rclone-v1.76.0-linux-amd64/rclone")
             target = pathlib.Path("/usr/local/bin/rclone")
             target.write_bytes(binary)
-            target.chmod(0o755)
+            # Execute-only, like mount-s3: its /proc environ holds the mount's credentials.
+            target.chmod(0o111)
         else:
             target = pathlib.Path("/opt/pryx/novnc")
             target.mkdir(parents=True, exist_ok=True)

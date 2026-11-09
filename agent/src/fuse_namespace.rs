@@ -42,6 +42,29 @@ pub fn prepare() -> io::Result<Option<Mappings>> {
     }))
 }
 
+/// The exit status of a mount worker that refused a readable helper: sysexits.h's EX_CONFIG.
+pub const READABLE_HELPER: i32 = 78;
+
+/// Resolves a mount helper the way exec's PATH search would, to an executable regular file.
+/// Relative PATH entries are skipped: a worker's working directory is the mount target.
+pub fn helper(name: &str) -> Option<std::path::PathBuf> {
+    use std::os::unix::fs::PermissionsExt;
+    let runnable =
+        |path: &std::path::Path| fs::metadata(path).is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0);
+    if name.contains('/') {
+        return Some(std::path::PathBuf::from(name)).filter(|p| runnable(p));
+    }
+    let paths = std::env::var_os("PATH")?;
+    std::env::split_paths(&paths).filter(|dir| dir.is_absolute()).map(|dir| dir.join(name)).find(|p| runnable(p))
+}
+
+/// The kernel leaves a process dumpable after exec only when the caller may read the file, and a
+/// dumpable helper's /proc/<pid>/environ, which holds its bucket credentials, is open to every
+/// same-uid sandbox command. An execute-only helper is not dumpable, so its environment is not.
+pub fn readable(path: &std::path::Path) -> bool {
+    rustix::fs::access(path, rustix::fs::Access::READ_OK).is_ok()
+}
+
 pub fn enabled() -> bool {
     std::env::var_os(crate::contract::FUSE_ENV).as_deref() == Some(std::ffi::OsStr::new("1"))
         && (std::env::var_os(crate::contract::TOOL_KIND_ENV).is_some()
