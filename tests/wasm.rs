@@ -11,6 +11,13 @@ use pryxd::runtime::ContainerRuntime;
 use pryxd::runtime::wasm::WasmRuntime;
 use std::sync::Arc;
 
+/// The real host binds the ports the allocator hands out, so the allocator must skip ports another
+/// process on this machine holds, as pryxd's does; the always-free probe that suits the fake
+/// runtime would hand out a taken port and the host's bind would fail.
+fn probe() -> pryxd::ports::Probe {
+    pryxd::ports::bind_probe(vec![std::net::Ipv4Addr::LOCALHOST.into()])
+}
+
 #[tokio::test]
 async fn real_wasm_files_processes_sleep_stop_and_isolation() {
     let _ = tracing_subscriber::fmt().with_env_filter("pryxd::runtime::wasm=warn").try_init();
@@ -28,7 +35,7 @@ async fn real_wasm_files_processes_sleep_stop_and_isolation() {
     std::fs::create_dir_all(&config.state_dir).unwrap();
     let runtime = Arc::new(WasmRuntime::new(&config.state_dir, &config.wasm).await.unwrap());
     eprintln!("real wasm host ready in {:?}", began.elapsed());
-    let manager = support::manager_on(directory.path(), runtime.clone(), "runtime = 'wasm'");
+    let manager = support::manager_probed(directory.path(), runtime.clone(), "runtime = 'wasm'", probe());
     let reconciled = manager.reconcile(Records::FromDisk).await;
     assert!(reconciled.error.is_none(), "{reconciled:?}");
     let mut spec = support::spec_json();
@@ -139,7 +146,7 @@ async fn restart(
     drop(manager);
     drop(runtime);
     let recovered = Arc::new(WasmRuntime::new(&config.state_dir, &config.wasm).await.unwrap());
-    let manager = support::manager_on(directory, recovered.clone(), "runtime = 'wasm'");
+    let manager = support::manager_probed(directory, recovered.clone(), "runtime = 'wasm'", probe());
     assert!(manager.reconcile(Records::FromDisk).await.error.is_none());
     manager.ensure(support::id("wasm-one"), spec, Precondition::None, None).await.unwrap();
     manager.start(support::id("wasm-one"), None).await.unwrap();
