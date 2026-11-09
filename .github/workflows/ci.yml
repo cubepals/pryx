@@ -423,6 +423,19 @@ jobs:
           fi
           sudo install -m 600 deploy/native-tools-seccomp.json /usr/local/lib/pryx/native-tools-seccomp.json
           npm ci --ignore-scripts --prefix templates/browser
+      # The templates' base images come from registries that refuse a pull now and then (a mirror
+      # under a burst, Microsoft's registry answering 503), and a build that fails on its FROM
+      # line fails the whole suite. Each base is pulled first, with the same retries as above;
+      # the Dockerfiles name them by digest, so the build then finds every base local.
+      - name: Pull the template base images
+        run: |
+          for image in $(sed -n 's/^FROM \([^ ]*[.][^ ]*\).*/\1/p' templates/*/Dockerfile | sort -u); do
+            for wait in 2 5 10 20 40 0; do
+              docker pull -q "$image" && break
+              [ "$wait" = 0 ] && exit 1
+              sleep "$wait"
+            done
+          done
       - name: Build native tool templates
         run: |
           mkdir -p templates/native-tools/cache
