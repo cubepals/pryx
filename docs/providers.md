@@ -63,4 +63,9 @@ creates temporary network, firewall and
 SSH keys, restricts public ingress to the runner's SSH address, and uses strict known-host tunnels
 for bootstrap, node API and snapshot storage. It invokes the operator CLI for acquire/release and
 the public SDK for a real sandbox. Cleanup deletes only test-created resources. The step visibly
-skips when the secret is absent. The full Docker/e2e suite belongs to CI and was not run locally.
+skips when the secret is absent. The rented box installs the released CLI and joins only on a
+release-signed bootstrap offer, so the step hands control the current release's pryxd, pryx-agent
+and bootstrap signature rather than the run's own build; a change to the join script or
+daemon.json needs a new release before the live step passes again. A commit that bumps the version
+has no release yet, since the release follows its own CI, so the live step skips with a notice and
+runs on the next push to main. The full Docker/e2e suite belongs to CI and was not run locally.

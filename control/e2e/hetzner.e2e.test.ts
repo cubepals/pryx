@@ -135,6 +135,7 @@ describe.skipIf(!token)('Hetzner live provider', () => {
             PRYX_PROVIDER_ALLOW_IMAGES: 'alpine:',
             PRYX_REGION_MIN_NODES: '0',
             PRYX_PRYXD_BIN: process.env.PRYXD_STATIC_BIN,
+            PRYX_AGENT_BIN: process.env.PRYX_AGENT_BIN,
             S3_ENDPOINT: s3.endpoint,
             S3_BUCKET: name,
             S3_ACCESS_KEY: s3.accessKeyId,
