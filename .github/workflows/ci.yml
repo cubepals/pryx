@@ -396,11 +396,26 @@ jobs:
           else
             echo '::notice::Skipping Hetzner live provisioning because PRYX_HETZNER_TOKEN is absent'
           fi
+      # The box installs the released CLI and joins only on a release-signed bootstrap offer, so
+      # control hands it the release's own pryxd and pryx-agent with their signature, not this
+      # run's build. join.sh and daemon.json are this checkout's: a change to either needs a new
+      # release before the live step can pass again.
+      - name: Fetch the release-signed bootstrap
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_HETZNER == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)
+          gh release download "v$version" -R "$GITHUB_REPOSITORY" -D "$RUNNER_TEMP/release" \
+            -p pryxd -p pryx-agent -p pryxd.bootstrap.sig -p SHA256SUMS
+          (cd "$RUNNER_TEMP/release" && sha256sum -c --ignore-missing --quiet SHA256SUMS)
+          chmod 0755 "$RUNNER_TEMP/release/pryxd" "$RUNNER_TEMP/release/pryx-agent"
       - name: Hetzner acquire, sandbox and release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_HETZNER == 'true'
         env:
           PRYX_HETZNER_TOKEN: ${{ secrets.PRYX_HETZNER_TOKEN }}
-          PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
+          PRYXD_STATIC_BIN: ${{ runner.temp }}/release/pryxd
+          PRYX_AGENT_BIN: ${{ runner.temp }}/release/pryx-agent
         run: bun test control/e2e/hetzner.e2e.test.ts
       - name: Compose service and persistent credentials
         if: ${{ !cancelled() && steps.static.outcome == 'success' }}
@@ -410,7 +425,10 @@ jobs:
         run: |
           python3 -m venv .venv-agent-python
           .venv-agent-python/bin/pip install -e sdk/python
+      # These carry the same condition as the suite they feed: a live Hetzner failure above must
+      # not skip them, or the suite runs without its images and fails for the wrong reason.
       - name: Prepare native tool host policy
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         run: |
           sudo modprobe fuse
           if [ -r /sys/module/apparmor/parameters/enabled ] && [ "$(cat /sys/module/apparmor/parameters/enabled)" = Y ]; then
@@ -428,6 +446,7 @@ jobs:
       # line fails the whole suite. Each base is pulled first, with the same retries as above;
       # the Dockerfiles name them by digest, so the build then finds every base local.
       - name: Pull the template base images
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         run: |
           while read -r image; do
             for wait in 2 5 10 20 40 0; do
@@ -437,6 +456,7 @@ jobs:
             done
           done < <(sed -n 's/^FROM \([^ ]*[.][^ ]*\).*/\1/p' templates/*/Dockerfile | sort -u)
       - name: Build native tool templates
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         run: |
           mkdir -p templates/native-tools/cache
           while IFS=$'\t' read -r name url digest; do
@@ -449,6 +469,7 @@ jobs:
           docker build -t alpine:pryx-rclone-tools --build-arg NATIVE_IMAGE=alpine:pryx-native-tools -f templates/native-tools/rclone.Dockerfile templates/native-tools
           docker build -t alpine:pryx-browser templates/browser
       - name: Build the interpreter templates
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         run: |
           docker build -t alpine:pryx-python-interpreter templates/python-interpreter
           docker build -t alpine:pryx-node-interpreter templates/node-interpreter
