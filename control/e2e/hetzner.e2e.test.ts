@@ -4,10 +4,12 @@
 /**
  * Token-only live rental test. Temporary network/firewall/SSH resources and strict tunnels isolate the CI
  * control plane. On failure it prints the rented box's and control's own account before cleanup, and the
- * first error stays the one thrown (hetzner-evidence.ts).
+ * first error stays the one thrown (hetzner-evidence.ts). An edge on the runner serves the sandbox's agent
+ * through a forward added to the tunnel once the sandbox is placed (hetzner-tunnel.ts).
  */
 import { describe, expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
+import { randomBytes } from 'node:crypto'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { sql } from 'drizzle-orm'
@@ -38,6 +40,7 @@ import {
   tunnelEvidence,
   wait,
 } from './hetzner-evidence.ts'
+import { agentEvidence, forwardAgent, startRunnerEdge, tunnelMaster } from './hetzner-tunnel.ts'
 import { createTestBucket } from './test-bucket.ts'
 
 type Created<P extends keyof paths> = paths[P] extends {
@@ -57,6 +60,7 @@ describe.skipIf(!token)('Hetzner live provider', () => {
       const fresh = await freshDatabase(),
         pems = await FleetCa.generate(name)
       let control: Awaited<ReturnType<typeof startControl>> | undefined, tunnel: Bun.Subprocess | undefined
+      let edge: Awaited<ReturnType<typeof startRunnerEdge>> | undefined, sandbox: string | undefined
       let network: number | undefined, firewall: number | undefined, sshKey: number | undefined
       let acquisition: string | undefined, serverId: string | undefined, ip: string | undefined
       let provider: HetznerProvider | undefined,
@@ -131,6 +135,8 @@ describe.skipIf(!token)('Hetzner live provider', () => {
             PRYX_CA_CERT: pems.certPem,
             PRYX_CA_KEY: pems.keyPem,
             PRYX_OPERATOR_TOKEN: op,
+            PRYX_EDGE_TOKEN: randomBytes(32).toString('hex'),
+            PRYX_PUBLIC_DOMAIN: 'pryx.test',
             PRYX_NODE_LISTEN: '127.0.0.1:8443',
             PRYX_PROVIDER_ALLOW_IMAGES: 'alpine:',
             PRYX_REGION_MIN_NODES: '0',
@@ -146,6 +152,8 @@ describe.skipIf(!token)('Hetzner live provider', () => {
           { providers: new Map([['hetzner', provider]]) },
         )
         const current = control
+        const runnerEdge = await startRunnerEdge(current, name)
+        edge = runnerEdge
         progress('control started', `node endpoint ${config.joinUrl}`)
         await preflight(current, pems.certPem)
         const cli = async (args: string[]) => {
@@ -220,6 +228,7 @@ describe.skipIf(!token)('Hetzner live provider', () => {
           [
             ...ssh,
             '-N',
+            ...tunnelMaster(dir),
             '-o',
             'ExitOnForwardFailure=yes',
             '-o',
@@ -274,7 +283,9 @@ describe.skipIf(!token)('Hetzner live provider', () => {
           crypto.randomUUID(),
         )
         progress('sandbox placed', box.id)
+        sandbox = box.id
         try {
+          await forwardAgent(current, runnerEdge, box.id, ssh, dir, address)
           expect(
             await Array.fromAsync(
               ndjson<ExecEvent>(
@@ -307,6 +318,10 @@ describe.skipIf(!token)('Hetzner live provider', () => {
           await controlEvidence(control, acquisition).catch((e) =>
             console.error('CONTROL evidence unavailable:', e),
           )
+        if (control && sandbox)
+          await agentEvidence(control, sandbox).catch((e) =>
+            console.error('CONTROL agent route unavailable:', e),
+          )
         console.error('CONTROL logs to this process, so its lines, if any, are above')
       }
       // Only test-created resources are removed. A failed bootstrap must not leak a paid server.
@@ -331,6 +346,7 @@ describe.skipIf(!token)('Hetzner live provider', () => {
         tunnel?.kill()
         await tunnel?.exited
       })
+      await step('stopping the edge', async () => edge?.stop())
       await step('stopping control', async () => control?.stop())
       for (const [path, id] of [
         ['firewalls', firewall],

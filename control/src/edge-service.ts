@@ -18,6 +18,8 @@ import { agentViewSchema } from './node-contract.ts'
 import { fingerprint } from './operations.ts'
 import type { Sandboxes, SandboxRow } from './sandboxes.ts'
 import { event, jsonb, lock, one, rows } from './sql.ts'
+/** A route's destination while its sandbox has no endpoint to dial. */
+export const NO_DESTINATION = '0.0.0.0:0'
 export class EdgeService {
   readonly wakes = new Map<string, Promise<unknown>>()
   constructor(
@@ -56,7 +58,7 @@ export class EdgeService {
           front: 'http',
           publicPort: HTTP_FRONT_PORT,
           epoch: ref.epoch,
-          destination: ref.agent.port.endpoints[0] ?? '0.0.0.0:0',
+          destination: ref.agent.port.endpoints[0] ?? NO_DESTINATION,
           agent: { manifest: ref.agent },
           ...(running ? {} : { state: 'asleep' as const }),
         })
@@ -79,7 +81,7 @@ export class EdgeService {
           publicPort: a.public_port,
           destination: endpoint
             ? `${endpoint.host.includes(':') ? `[${endpoint.host}]` : endpoint.host}:${endpoint.port}`
-            : '0.0.0.0:0',
+            : NO_DESTINATION,
           epoch: ref?.epoch ?? 0,
           ...(running
             ? {}
