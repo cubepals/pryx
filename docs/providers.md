@@ -62,7 +62,9 @@ and pull requests run the other suites without receiving provider credentials. T
 creates temporary network, firewall and
 SSH keys, restricts public ingress to the runner's SSH address, and uses strict known-host tunnels
 for bootstrap, node API and snapshot storage. It invokes the operator CLI for acquire/release and
-the public SDK for a real sandbox. Cleanup deletes only test-created resources. The step visibly
+the public SDK for a real sandbox. It runs an edge on the runner and, once the sandbox is placed,
+forwards the sandbox's agent port through the SSH tunnel, so the exec goes the way a user's
+would. Cleanup deletes only test-created resources. The step visibly
 skips when the secret is absent. The rented box installs the released CLI and joins only on a
 release-signed bootstrap offer, so the step hands control the current release's pryxd, pryx-agent
 and bootstrap signature rather than the run's own build; a change to the join script or

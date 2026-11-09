@@ -32,7 +32,8 @@ const BOX_COMMANDS = [
   'journalctl -u pryxd --no-pager -n 100',
   'systemctl status pryxd --no-pager --full',
 ]
-const redact = (text: string) =>
+/** Join tokens in text, replaced so none is printed. */
+export const redact = (text: string) =>
   text.replace(
     new RegExp(`${JOIN_TOKEN_PREFIX.replace('.', '\\.')}[A-Za-z0-9_-]+`, 'g'),
     `${JOIN_TOKEN_PREFIX}<redacted>`,
