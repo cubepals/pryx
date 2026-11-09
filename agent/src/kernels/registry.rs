@@ -76,9 +76,22 @@ impl Registry {
             return Err(failure("kernel_closed", "Kernel is closing"));
         }
         if kernel.running.read().unwrap().is_none() {
-            let session = tokio::select! {
-                result = Session::start(owner, language) => result?,
+            let started = tokio::select! {
+                result = Session::start(owner, language) => result,
                 _ = kernel.closed.cancelled() => return Err(failure("kernel_closed", "Kernel was closed during startup")),
+            };
+            let session = match started {
+                Ok(session) => session,
+                Err(error) => {
+                    // A context whose first start failed holds no process and would otherwise keep
+                    // one of MAX_CONTEXTS slots; concurrent openers waiting on it fail as closed.
+                    kernel.closed.cancel();
+                    self.0
+                        .lock()
+                        .unwrap()
+                        .retain(|_, value| value.downcast_ref::<Kernel>().is_none_or(|value| value.id != kernel.id));
+                    return Err(error);
+                }
             };
             *kernel.running.write().unwrap() = Some(session);
         }
