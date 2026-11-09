@@ -301,9 +301,12 @@ export class PublicModel {
           )
           if (current?.snapshot) return
           try {
+            // A template never carries mounts (templateSchema); a row from before that rule
+            // is warmed without them, so stored credentials never reach a sandbox.
+            const { mounts: _, ...spec } = t.spec
             await this.create(
               t.project,
-              makeSchema.parse({ ...t.spec, region: n.region, start: true }),
+              makeSchema.parse({ ...spec, region: n.region, start: true }),
               undefined,
               { id: copy.sandbox, onlyNode: n.id, internal: true },
             )

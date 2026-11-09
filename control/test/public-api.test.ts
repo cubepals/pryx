@@ -97,6 +97,33 @@ describe.skipIf(!hasDatabase)('public API', () => {
     expect(made.status).toBe(StatusCodes.CREATED)
     await ctx.request(`/sandboxes/${((await made.json()) as { id: string }).id}`, 'DELETE')
   })
+  test('templates refuse mounts and store nothing', async () => {
+    const mount = {
+      bucket: 's3://fixture/prefix',
+      path: '/mnt/data',
+      readOnly: false,
+      credentials: {
+        accessKeyId: 'template-access',
+        secretAccessKey: 'template-secret',
+        sessionToken: 'template-token',
+        endpoint: 'http://storage.invalid:9000',
+        region: 'test',
+      },
+    }
+    const response = await ctx.request('/templates', 'POST', {
+      name: 'mounted',
+      spec: { ...spec, mounts: [mount] },
+    })
+    expect(response.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY)
+    const body = (await response.json()) as { error: { code: string; details: Array<{ field: string }> } }
+    expect(body.error.code).toBe('invalid_request')
+    expect(body.error.details.map((d) => d.field)).toContain('spec.mounts')
+    expect(JSON.stringify(body)).not.toContain('template-secret')
+    expect(await one(ctx.db, sql`SELECT 1 FROM templates WHERE name='mounted'`)).toBeNull()
+    expect(
+      await one(ctx.db, sql`SELECT 1 FROM templates WHERE spec::text LIKE '%template-secret%'`),
+    ).toBeNull()
+  })
   test('container templates do not warm copies on process nodes', async () => {
     const node = await one<{ id: string; features: string[] }>(
       ctx.db,
