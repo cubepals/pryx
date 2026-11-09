@@ -399,19 +399,30 @@ jobs:
       # The box installs the released CLI and joins only on a release-signed bootstrap offer, so
       # control hands it the release's own pryxd and pryx-agent with their signature, not this
       # run's build. join.sh and daemon.json are this checkout's: a change to either needs a new
-      # release before the live step can pass again.
+      # release before the live step can pass again. The release of this version is published
+      # only after this run passes (release.yml), so a commit that bumps the version has no
+      # release yet: the live step skips, visibly, and the next push to main runs it on the
+      # release. Requiring it here would block the release that unblocks it.
       - name: Fetch the release-signed bootstrap
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_HETZNER == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)
-          gh release download "v$version" -R "$GITHUB_REPOSITORY" -D "$RUNNER_TEMP/release" \
-            -p pryxd -p pryx-agent -p pryxd.bootstrap.sig -p SHA256SUMS
-          (cd "$RUNNER_TEMP/release" && sha256sum -c --ignore-missing --quiet SHA256SUMS)
-          chmod 0755 "$RUNNER_TEMP/release/pryxd" "$RUNNER_TEMP/release/pryx-agent"
+          if gh release view "v$version" -R "$GITHUB_REPOSITORY" > /dev/null 2> "$RUNNER_TEMP/release.err"; then
+            gh release download "v$version" -R "$GITHUB_REPOSITORY" -D "$RUNNER_TEMP/release" \
+              -p pryxd -p pryx-agent -p pryxd.bootstrap.sig -p SHA256SUMS
+            (cd "$RUNNER_TEMP/release" && sha256sum -c --ignore-missing --quiet SHA256SUMS)
+            chmod 0755 "$RUNNER_TEMP/release/pryxd" "$RUNNER_TEMP/release/pryx-agent"
+            echo 'HAS_RELEASE_BOOTSTRAP=true' >> "$GITHUB_ENV"
+          elif grep -q 'release not found' "$RUNNER_TEMP/release.err"; then
+            echo "::notice::Skipping Hetzner live provisioning because v$version isn't released yet; its release follows this run, and the next push to main runs the live step on it"
+          else
+            cat "$RUNNER_TEMP/release.err"
+            exit 1
+          fi
       - name: Hetzner acquire, sandbox and release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_HETZNER == 'true'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_HETZNER == 'true' && env.HAS_RELEASE_BOOTSTRAP == 'true'
         env:
           PRYX_HETZNER_TOKEN: ${{ secrets.PRYX_HETZNER_TOKEN }}
           PRYXD_STATIC_BIN: ${{ runner.temp }}/release/pryxd
