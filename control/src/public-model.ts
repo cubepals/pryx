@@ -75,11 +75,6 @@ export class PublicModel {
     const op = await operation(this.db, project, 'create', key, body)
     if (op.response) return op.response as Awaited<ReturnType<PublicModel['view']>>
     if (body.mounts?.length) {
-      if ((body.isolation ?? this.defaultIsolation) !== 'container')
-        throw new SandboxError(
-          'unsupported',
-          `Bucket mounts are unsupported on the ${body.isolation ?? this.defaultIsolation} tier`,
-        )
       if (!body.start) throw new SandboxError('invalid_request', 'Initial mounts require start:true')
       if (!this.mounts || !this.mountReady)
         throw new SandboxError('unsupported', 'Mount initialization is not configured')
@@ -130,6 +125,10 @@ export class PublicModel {
         'A mounted snapshot must be forked with explicit mount credentials',
       )
     const isolation = body.isolation ?? source?.isolation ?? this.defaultIsolation
+    // The tier a snapshot or template carries counts, so a container template stays mountable on
+    // a deployment whose default tier is another.
+    if (body.mounts?.length && isolation !== 'container')
+      throw new SandboxError('unsupported', `Bucket mounts are unsupported on the ${isolation} tier`)
     const storage = body.storage ?? source?.storage ?? { mountPath: '/data', sizeGb: 1 }
     let spec: SandboxSpec = {
       ...(source ?? {}),
