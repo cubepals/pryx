@@ -82,7 +82,7 @@ export class PublicModel {
         body = {
           ...body,
           image: `ghcr.io/cubepals/pryx-tools:${PRYX_VERSION}`,
-          entrypoint: [...SDK_DEFAULTS.entrypoint],
+          entrypoint: body.entrypoint ?? [...SDK_DEFAULTS.entrypoint],
         }
     }
     const sources = [body.image, body.snapshot, body.template].filter(Boolean).length
