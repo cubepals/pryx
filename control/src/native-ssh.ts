@@ -125,7 +125,7 @@ export class NativeSsh {
         sql`UPDATE sandbox_ssh SET revoked_at=now() WHERE sandbox=${id} AND project=${project} AND revoked_at IS NULL`,
       )
       await t.execute(
-        sql`UPDATE edge_addresses SET retired_at=now() WHERE sandbox=${id} AND name LIKE 'ssh-%' AND retired_at IS NULL`,
+        sql`UPDATE edge_addresses SET retired_at=now() WHERE sandbox=${id} AND name IN (SELECT 'ssh-'||s.id::text FROM sandbox_ssh s WHERE s.sandbox=${id}) AND retired_at IS NULL`,
       )
     })
     // Retiring the edge route closes active sessions even when the sandbox is stopped.
@@ -148,21 +148,35 @@ export class NativeSsh {
     return { revoked: true }
   }
 }
-export async function sshRoutes(db: Queryable, box: SandboxRow): Promise<EdgeRoute[]> {
-  if (!box.handle) return []
-  const ref = decodeHandle(box.handle)
+/**
+ * A sandbox's SSH lease routes and the names of every unretired address its leases hold. One
+ * statement also retires the addresses of leases that expired or belong to an older epoch, so
+ * their public ports reach the allocator's quarantine cleanup like revoked ones.
+ */
+export async function sshLeases(
+  db: Queryable,
+  box: SandboxRow,
+): Promise<{ routes: EdgeRoute[]; addresses: Set<string> }> {
+  const ref = box.handle ? decodeHandle(box.handle) : null,
+    epoch = ref?.epoch ?? null
   const leases = await rows<{
     id: string
     slot: number
     target_port: number
     hostname: string
     public_port: number
+    live: boolean
   }>(
     db,
-    sql`SELECT s.id,s.slot,s.target_port,a.hostname,a.public_port FROM sandbox_ssh s JOIN edge_addresses a ON a.sandbox=s.sandbox AND a.name='ssh-'||s.id::text WHERE s.sandbox=${box.id} AND s.epoch=${ref.epoch} AND s.revoked_at IS NULL AND s.expires_at>now() AND a.retired_at IS NULL`,
+    sql`WITH lapsed AS (UPDATE edge_addresses a SET retired_at=now() FROM sandbox_ssh s WHERE s.sandbox=${box.id} AND a.sandbox=s.sandbox AND a.name='ssh-'||s.id::text AND a.retired_at IS NULL AND s.revoked_at IS NULL AND (s.expires_at<=now() OR s.epoch<${epoch}::bigint) RETURNING a.name)
+      SELECT s.id,s.slot,s.target_port,a.hostname,a.public_port,COALESCE(s.epoch=${epoch}::bigint AND s.revoked_at IS NULL AND s.expires_at>now(),false) AS live FROM sandbox_ssh s JOIN edge_addresses a ON a.sandbox=s.sandbox AND a.name='ssh-'||s.id::text WHERE s.sandbox=${box.id} AND a.retired_at IS NULL`,
   )
-  return leases.flatMap((lease) => {
-    const endpoint = ref.agent?.spares.find((s) => s.port === lease.slot)?.endpoints[0]
+  const addresses = new Set(leases.map((lease) => `ssh-${lease.id}`))
+  if (!ref) return { routes: [], addresses }
+  const routes = leases.flatMap((lease) => {
+    const endpoint = lease.live
+      ? ref.agent?.spares.find((s) => s.port === lease.slot)?.endpoints[0]
+      : undefined
     if (!endpoint) return []
     return [
       {
@@ -179,4 +193,8 @@ export async function sshRoutes(db: Queryable, box: SandboxRow): Promise<EdgeRou
       },
     ]
   })
+  return { routes, addresses }
+}
+export async function sshRoutes(db: Queryable, box: SandboxRow): Promise<EdgeRoute[]> {
+  return (await sshLeases(db, box)).routes
 }

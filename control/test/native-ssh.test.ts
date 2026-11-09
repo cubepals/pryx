@@ -6,14 +6,101 @@ import { randomUUID } from 'node:crypto'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { sql } from 'drizzle-orm'
 import { StatusCodes } from 'http-status-codes'
 import { requestToken, sandboxToken } from '../../edge/src/sandbox-token.ts'
-import { SECOND_MS } from '../src/durations.ts'
+import type { PublicPort } from '../src/api-schemas.ts'
+import { MINUTE_S, SECOND_MS } from '../src/durations.ts'
+import { addresses } from '../src/edge-addresses.ts'
 import { sawEdge } from '../src/edge-routed.ts'
 import { EdgeService } from '../src/edge-service.ts'
+import { decodeHandle } from '../src/handle.ts'
 import { NativeSsh, sshRoutes } from '../src/native-ssh.ts'
-import { lock } from '../src/sql.ts'
+import { lock, rows } from '../src/sql.ts'
 import { publicContext } from './public-context.ts'
+
+type Context = Awaited<ReturnType<typeof publicContext>>
+
+/** A lease row and its reserved address, as registration writes them, without the agent round trip. */
+async function lease(c: Context, sandbox: string, range: readonly [number, number], epochOffset = 0) {
+  const box = await c.boxes.record(sandbox, 'default')
+  if (!box.handle) throw new Error('Sandbox has no handle')
+  const ref = decodeHandle(box.handle),
+    slot = ref.agent?.spares[0]?.port,
+    id = randomUUID()
+  if (slot === undefined) throw new Error('Missing spare slot')
+  await c.db.execute(
+    sql`INSERT INTO sandbox_ssh(id,sandbox,project,epoch,slot,target_port,username,host_key,expires_at) VALUES(${id},${sandbox},'default',${ref.epoch + epochOffset},${slot},2222,'pryx','ssh-ed25519 AAAA',now()+(${MINUTE_S}*interval '1 second'))`,
+  )
+  const port: PublicPort = {
+    name: `ssh-${id}`,
+    port: slot,
+    protocol: 'tcp',
+    audience: 'public',
+    front: 'port',
+  }
+  const assigned = (await addresses(c.db, sandbox, [port], 'sandboxes.test', range)).find(
+    (a) => a.name === port.name,
+  )
+  if (!assigned) throw new Error('SSH address was not allocated')
+  return { id, publicPort: assigned.public_port }
+}
+
+test('an expired or older-epoch SSH lease frees its public port after quarantine', async () => {
+  const c = await publicContext()
+  try {
+    const made = await c.request('/sandboxes', 'POST', { image: 'alpine:3.22', idle: 60 })
+    expect(made.status).toBe(StatusCodes.CREATED)
+    const { id: sandbox } = (await made.json()) as { id: string }
+    const range: readonly [number, number] = [20000, 20001]
+    const expired = await lease(c, sandbox, range),
+      obsolete = await lease(c, sandbox, range, -1)
+    expect([expired.publicPort, obsolete.publicPort].sort()).toEqual([20000, 20001])
+    await c.db.execute(sql`UPDATE sandbox_ssh SET expires_at=now() WHERE id=${expired.id}`)
+    expect(await sshRoutes(c.db, await c.boxes.record(sandbox, 'default'))).toEqual([])
+    const retired = await rows<{ name: string }>(
+      c.db,
+      sql`SELECT name FROM edge_addresses WHERE sandbox=${sandbox} AND retired_at IS NOT NULL ORDER BY name`,
+    )
+    expect(retired.map((r) => r.name).sort()).toEqual([`ssh-${expired.id}`, `ssh-${obsolete.id}`].sort())
+    // The ports stay quarantined until the cleanup's ten minutes have passed.
+    await expect(lease(c, sandbox, range)).rejects.toThrow('exhausted')
+    await c.db.execute(
+      sql`UPDATE edge_addresses SET retired_at=retired_at-(${10 * MINUTE_S + 1}*interval '1 second') WHERE sandbox=${sandbox} AND retired_at IS NOT NULL`,
+    )
+    const next = await lease(c, sandbox, range)
+    expect(range).toContain(next.publicPort)
+    expect(await sshRoutes(c.db, await c.boxes.record(sandbox, 'default'))).toHaveLength(1)
+  } finally {
+    await c.close()
+  }
+})
+
+test('a user port named like an SSH address keeps its route beside a lease', async () => {
+  const c = await publicContext()
+  try {
+    const made = await c.request('/sandboxes', 'POST', {
+      image: 'alpine:3.22',
+      idle: 60,
+      ports: [{ name: 'ssh-app', port: 8080, audience: 'public' }],
+    })
+    expect(made.status).toBe(StatusCodes.CREATED)
+    const { id: sandbox } = (await made.json()) as { id: string }
+    const held = await lease(c, sandbox, [20000, 20100])
+    const listed = (await new EdgeService(c.db, c.boxes, 'sandboxes.test').routes()).routes
+      .filter((r) => r.sandbox === sandbox)
+      .map((r) => ({ id: r.id, ssh: Boolean(r.ssh) }))
+    expect(listed).toHaveLength(2)
+    expect(listed).toEqual(
+      expect.arrayContaining([
+        { id: `${sandbox}:ssh-${held.id}`, ssh: true },
+        { id: `${sandbox}:ssh-app`, ssh: false },
+      ]),
+    )
+  } finally {
+    await c.close()
+  }
+})
 
 test('SSH registration returns a bare IPv6 host and revocation removes its route', async () => {
   let reachedRouteLock: (() => void) | undefined
