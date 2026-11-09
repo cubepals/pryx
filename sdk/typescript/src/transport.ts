@@ -69,7 +69,7 @@ export class Transport {
     return (await (await this.raw(path, method, body, key)).json()) as T
   }
 }
-export async function* ndjson<T>(response: Response): AsyncGenerator<T> {
+export async function* ndjson<T>(response: Response, maxLine?: number): AsyncGenerator<T> {
   if (!response.body) return
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
@@ -80,11 +80,15 @@ export async function* ndjson<T>(response: Response): AsyncGenerator<T> {
       rest += decoder.decode(value, { stream: !done })
       let at = rest.indexOf('\n')
       while (at >= 0) {
+        if (maxLine !== undefined && at > maxLine)
+          throw new PryxError(0, 'output_overflow', 'Agent event exceeded its line budget')
         const line = rest.slice(0, at)
         rest = rest.slice(at + 1)
         if (line.trim()) yield JSON.parse(line) as T
         at = rest.indexOf('\n')
       }
+      if (maxLine !== undefined && rest.length > maxLine)
+        throw new PryxError(0, 'output_overflow', 'Agent event exceeded its line budget')
       if (done) break
     }
     if (rest.trim()) yield JSON.parse(rest) as T

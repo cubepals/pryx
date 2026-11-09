@@ -1,0 +1,57 @@
+{
+  "scope": "native test fixture bridge ownership; not passing deployment measurements",
+  "failedCi": {
+    "commit": "f2d0718ead9522d95204b5ad2a6d3f7180d723c5",
+    "run": "https://github.com/cubepals/pryx/actions/runs/42453267327",
+    "artifactId": 13607605092,
+    "cases": [
+      {
+        "test": {
+          "name": "desktop, SSH wake, real S3 FUSE and browser work through both clients",
+          "classname": "",
+          "time": "48.046922",
+          "file": "control/e2e/native-tools.e2e.test.ts",
+          "line": "41",
+          "assertions": "12"
+        },
+        "failures": [
+          {
+            "attributes": {
+              "type": "PryxError",
+              "message": "The container tier refused an initial FUSE mount; check the endpoint and host native-tools policy"
+            },
+            "text": "PryxError: The container tier refused an initial FUSE mount; check the endpoint and host native-tools policy\n      at checked (sdk/typescript/src/transport.ts:49:13)\n"
+          }
+        ]
+      }
+    ]
+  },
+  "baseCommit": "f2d0718ead9522d95204b5ad2a6d3f7180d723c5",
+  "sourceDirty": true,
+  "implementationDiffSha256": "cf5bf855e85dbebb1ef2ae4a7ceec5549044bdc21ec0396cc46b1800602b64c3",
+  "recordedUtc": "2026-11-08T06:52:20.366205+00:00",
+  "causeFromCode": {
+    "sharedDaemonDefaultBridge": "blockly-workloads",
+    "priorEgressFixture": "pryxd isolate installs input-hook drop for the same bridge; its rules remain after that fixture closes",
+    "nativeStoreEndpoint": "host-published S3 on the sandbox gateway is blocked by that input hook"
+  },
+  "beforeRegression": "bun test v1.4.4 (38afee6c8)\n\ncontrol/test/e2e-ports.test.ts:\n(pass) native raw edge ports are above every ephemeral and workload allocation [0.62ms]\n(pass) daemon fixtures derive workload pools below the kernel ephemeral range [1.00ms]\n51 |       apiPort: 1001,\n52 |       opsPort: 1002,\n53 |       nativeTools: true,\n54 |     })\n55 |     const parsed = Bun.TOML.parse(config) as { docker: { network?: string } }\n56 |     expect(parsed.docker.network).toBeTypeOf('string')\n                                       ^\nerror: expect(received).toBeTypeOf()\n\nExpected type: \"string\"\nReceived type: \"undefined\"\nReceived value: undefined\n\n      at <anonymous> (/workspace/pryx/control/test/e2e-ports.test.ts:56:35)\n      at map (1:11)\n      at <anonymous> (/workspace/pryx/control/test/e2e-ports.test.ts:46:47)\n(fail) native fixture deployments have distinct explicit Docker networks [1.88ms]\n(pass) fixture listener probes never reuse a port or overlap workload pools [26.79ms]\n\n 3 pass\n 1 fail\n 141 expect() calls\nRan 4 tests across 1 file. [102.00ms]\n",
+  "afterRegression": "bun test v1.4.4 (38afee6c8)\n\ncontrol/test/e2e-ports.test.ts:\n(pass) native raw edge ports are above every ephemeral and workload allocation [0.29ms]\n(pass) daemon fixtures derive workload pools below the kernel ephemeral range [0.88ms]\n(pass) native fixture deployments have distinct explicit Docker networks [0.45ms]\n(pass) fixture listener probes never reuse a port or overlap workload pools [38.23ms]\n\n 4 pass\n 0 fail\n 143 expect() calls\nRan 4 tests across 1 file. [97.00ms]\n",
+  "discardedDiagnostics": {
+    "rootlessRouteProbe": "S3 published binding [{'HostIp': '127.0.0.1', 'HostPort': '9000'}]\nhttp://172.20.0.1:9000 URLError <urlopen error [Errno 111] Connection refused>\nhttp://172.17.0.3:9000 URLError <urlopen error timed out>\n \n",
+    "proxyStrategy": "not adopted; rootless host and published probe both refused connections and did not establish a rootful path"
+  },
+  "fix": "Give native fixture deployments explicit distinct ICC-disabled Docker networks and clean their owned bridge after other resources. Production networking and firewall rules stay unchanged. Check fixture HTTP health from the native sandbox before mounting, with no credentials in diagnostics.",
+  "fullAfterCi": {
+    "run": "https://github.com/cubepals/pryx/actions/runs/42461834578",
+    "commit": "625ec233fcb134a31c65deea77fd348882ceeb87",
+    "nativeCasePassed": true,
+    "artifactId": 13609929224
+  },
+  "implementationFiles": [
+    "control/e2e/runtime-config.ts",
+    "control/e2e/deployment.ts",
+    "control/test/e2e-ports.test.ts",
+    "control/e2e/native-tools.e2e.test.ts"
+  ]
+}

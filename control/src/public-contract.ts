@@ -17,6 +17,8 @@ import {
 } from './api-schemas.ts'
 import { versionSchema } from './code-templates.ts'
 import { chunkWrite } from './file-chunks.ts'
+
+import { sshAddress, sshRequest } from './native-ssh.ts'
 import { agentSchema, fileInfoSchema } from './node-contract.ts'
 import { limitsSchema } from './project-model.ts'
 import { lifetimeSchema } from './sandbox-lifetime.ts'
@@ -25,6 +27,8 @@ import { webhookCreatedSchema, webhookSchema, webhookViewSchema } from './webhoo
 
 export function publicContract() {
   const definitions = {
+    SshRegister: sshRequest,
+    SshAddress: sshAddress,
     Sandbox: sandboxSchema,
     SandboxToken: sandboxTokenSchema,
     FileInfo: fileInfoSchema,
@@ -127,6 +131,12 @@ export function publicContract() {
   const object = { type: 'object', additionalProperties: true }
   const existed = { type: 'object', required: ['existed'], properties: { existed: { type: 'boolean' } } }
   operation('get', '/v1/project', ref('Project'))
+  operation('post', '/v1/sandboxes/{id}/ssh', ref('SshAddress'), ref('SshRegister'))
+  operation('delete', '/v1/sandboxes/{id}/ssh', {
+    type: 'object',
+    properties: { revoked: { type: 'boolean' } },
+    required: ['revoked'],
+  })
   operation('post', '/v1/sandboxes/{id}/token', ref('SandboxToken'))
   operation(
     'post',

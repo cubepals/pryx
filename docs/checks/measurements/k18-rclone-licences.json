@@ -1,0 +1,2489 @@
+[
+  {
+    "path": "vendor/google.golang.org/grpc/NOTICE.txt",
+    "sha256": "693ff28ec216d5112ac1bbfe64ef539005867d1c7bd427b57d579683293b947f",
+    "summary": "Copyright 2014 gRPC authors.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www.apach",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/google.golang.org/grpc/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/google.golang.org/protobuf/LICENSE",
+    "sha256": "4835612df0098ca95f8e7d9e3bffcb02358d435dbb38057c844c99d7f725eb20",
+    "summary": "Copyright (c) 2018 The Go Authors. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistribution",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/google.golang.org/genproto/googleapis/rpc/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/google.golang.org/api/internal/third_party/uritemplates/LICENSE",
+    "sha256": "fc0a2f71df4e8f047902da53d1f85301be43e0f360fc167057a2d04658ed2ba9",
+    "summary": "Copyright (c) 2013 Joshua Tacoma. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistributions",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/google.golang.org/api/LICENSE",
+    "sha256": "110244b02140866ee37d17fa7449436a377ec3b85a481fbb208f4c87964382de",
+    "summary": "Copyright (c) 2011 Google Inc. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistributions of",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/gopkg.in/ini.v1/LICENSE",
+    "sha256": "f6918bd93ffe07f4b2c61b8287c32cb3122e08aed0be50f1c7d0eddc87877a8f",
+    "summary": "Apache License\nVersion 2.0, January 2004\nhttp://www.apache.org/licenses/\n\nTERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION\n\n1. Definitions.\n\n\"License\" shall mean the terms and conditions for use, reproduction",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/gopkg.in/validator.v2/LICENSE",
+    "sha256": "6dc0e068dcf3a5bc8e054205b85b7720e1d49265bbc64bf515d2cf79197df69a",
+    "summary": "Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION\n\n   1. Definitions.\n\n      \"Lic",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/gopkg.in/natefinch/lumberjack.v2/LICENSE",
+    "sha256": "9622cbfd055d92991dcf523a256840424cc6356eab93beb4a93a973dec046492",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2014 Nate Finch \n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Sof",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/gopkg.in/yaml.v2/LICENSE.libyaml",
+    "sha256": "a94710b55e03b5285f77d048c5ba61bb9d6ee04a06c0eb90e68821e11b0c707a",
+    "summary": "The following files were ported to Go from C files of libyaml, and thus\nare still covered by their original copyright and license:\n\n    apic.go\n    emitterc.go\n    parserc.go\n    readerc.go\n    scannerc.go\n    writerc.go",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/gopkg.in/yaml.v2/LICENSE",
+    "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
+    "summary": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTIO",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/gopkg.in/yaml.v2/NOTICE",
+    "sha256": "f6c2dd3a67b576eafb89b80200b8b1627230bf3821a0c14cb99a22ac19107d00",
+    "summary": "Copyright 2011-2016 Canonical Ltd.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/gopkg.in/yaml.v3/LICENSE",
+    "sha256": "d18f6323b71b0b768bb5e9616e36da390fbd39369a81807cca352de4e4e6aa0b",
+    "summary": "\nThis project is covered by two different licenses: MIT and Apache.\n\n#### MIT License ####\n\nThe following files were ported to Go from C files of libyaml, and thus\nare still covered by their original MIT license, with th",
+    "licences": [
+      "Apache-2.0",
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/gopkg.in/yaml.v3/NOTICE",
+    "sha256": "f6c2dd3a67b576eafb89b80200b8b1627230bf3821a0c14cb99a22ac19107d00",
+    "summary": "Copyright 2011-2016 Canonical Ltd.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/go4.org/LICENSE",
+    "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08",
+    "summary": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTIO",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/storj.io/drpc/LICENSE",
+    "sha256": "72a550fd10f968b40c0b8364701b5f5f5dde56613e47bfcc3f9d69fbe8abd518",
+    "summary": "Copyright (c) 2020 Storj Labs, Inc.\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without rest",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/storj.io/common/LICENSE",
+    "sha256": "72a550fd10f968b40c0b8364701b5f5f5dde56613e47bfcc3f9d69fbe8abd518",
+    "summary": "Copyright (c) 2020 Storj Labs, Inc.\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without rest",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/storj.io/common/base58/LICENSE",
+    "sha256": "e1c5f3cd7e6fc7534021fe569150f46b2f63f172ff658aef4b9d81e438e38f47",
+    "summary": "ISC License\n\nCopyright (c) 2013-2017 The btcsuite developers\nCopyright (c) 2016-2017 The Lightning Network Developers\n\nPermission to use, copy, modify, and distribute this software for any\npurpose with or without fee is ",
+    "licences": [
+      "ISC"
+    ]
+  },
+  {
+    "path": "vendor/storj.io/uplink/LICENSE",
+    "sha256": "72a550fd10f968b40c0b8364701b5f5f5dde56613e47bfcc3f9d69fbe8abd518",
+    "summary": "Copyright (c) 2020 Storj Labs, Inc.\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without rest",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/storj.io/infectious/LICENSE",
+    "sha256": "b46eabe2b771e0f345dc6ded565e1710a3a72d2c4a117eb6862ebdb398ebd87d",
+    "summary": "/////////////////\n// Copyright notices\n/////////////////\n\nCopyright (C) 2018-2023 Storj Labs, Inc.\nCopyright (C) 2016-2017 Vivint, Inc.\nCopyright (c) 2015 Klaus Post\nCopyright (c) 2015 Backblaze\nCopyright (C) 2011 Billy ",
+    "licences": [
+      "MIT",
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/storj.io/picobuf/internal/protowire/LICENSE",
+    "sha256": "4835612df0098ca95f8e7d9e3bffcb02358d435dbb38057c844c99d7f725eb20",
+    "summary": "Copyright (c) 2018 The Go Authors. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistribution",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/storj.io/picobuf/LICENSE",
+    "sha256": "f7c96770e06815cec494577f089c6bf2363da543f8e5fec0feabe3df8f90cc3a",
+    "summary": "Copyright (c) 2021 Storj Labs, Inc.\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without rest",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/storj.io/eventkit/LICENSE",
+    "sha256": "ecc3b7a02226b9fae06d65a00363822d3bee44b19bbe219d8e47792acad68f50",
+    "summary": "MIT License\n\nCopyright (c) 2022 JT Olio\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without ",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/goftp.io/server/v2/LICENSE",
+    "sha256": "b283cb4c679f7d14cf4245ec7d6cdb78c340064328c86c596b2f6be09cd61670",
+    "summary": "Copyright (c) 2018 Goftp Authors\n\nPermission is hereby granted, free of charge, to any person obtaining\na copy of this software and associated documentation files (the\n\"Software\"), to deal in the Software without restric",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/bazil.org/fuse/LICENSE",
+    "sha256": "b0310b2546ffbf6433751c452c66e5548460e49d1a4fc8260ba3ba93c81b18d7",
+    "summary": "Copyright (c) 2013-2019 Tommi Virtanen.\nCopyright (c) 2009, 2011, 2012 The Go Authors.\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that th",
+    "licences": [
+      "BSD-style",
+      "ISC"
+    ]
+  },
+  {
+    "path": "vendor/go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/LICENSE",
+    "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40",
+    "summary": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTIO",
+    "licences": [
+      "Apache-2.0",
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/go.opentelemetry.io/otel/trace/LICENSE",
+    "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40",
+    "summary": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTIO",
+    "licences": [
+      "Apache-2.0",
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/go.opentelemetry.io/otel/LICENSE",
+    "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40",
+    "summary": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTIO",
+    "licences": [
+      "Apache-2.0",
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/go.opentelemetry.io/otel/metric/LICENSE",
+    "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40",
+    "summary": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTIO",
+    "licences": [
+      "Apache-2.0",
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/go.opentelemetry.io/auto/sdk/LICENSE",
+    "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+    "summary": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTIO",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/sigs.k8s.io/yaml/LICENSE",
+    "sha256": "5dc79da695aea39a47245008a168e3f7d461b686da8bec299fd55fee0393cbcc",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2014 Sam Ghods\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Softw",
+    "licences": [
+      "Apache-2.0",
+      "MIT",
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/mikelolasagasti/xz/LICENSE",
+    "sha256": "545b0a754bb40ce2fcf293ef90c869c85c7f75c83f0d5a1f6506c613bf7bed3d",
+    "summary": "Copyright (C) 2015-2017 Michael Cross <https://github.com/xi2>\n\nPermission to use, copy, modify, and/or distribute this software for any\npurpose with or without fee is hereby granted.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\" AN",
+    "licences": [
+      "ISC"
+    ]
+  },
+  {
+    "path": "vendor/github.com/youmark/pkcs8/LICENSE",
+    "sha256": "6d13d89b6c33df37f92553cc95cec278d8770ddc78c9de84620cc16dfb48cef6",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2014 youmark\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Softwar",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/dsnet/compress/LICENSE.md",
+    "sha256": "9e09d454c08e049297536ef33801bd13590f39d91beb7ec86fbf30aa529706a7",
+    "summary": "Copyright \u00a9 2015, Joe Tsai and The Go Authors. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are met:\n\n* Redis",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/anchore/go-lzo/LICENSE",
+    "sha256": "08fe5bad51f49efda971e7b602e5b3442fc31ee6c8f85b5248749ca916213d76",
+    "summary": "MIT License\n\nCopyright (c) 2025 Anchore, Inc\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software wit",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/oklog/ulid/v2/LICENSE",
+    "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+    "summary": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTIO",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/moby/sys/mountinfo/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/go-ole/go-ole/LICENSE",
+    "sha256": "d883dbca28769ff23dd4368a8edb7ad9f9f23a8f86adde2875c6e41a828aac62",
+    "summary": "The MIT License (MIT)\n\nCopyright \u00a9 2013-2017 Yasuhiro Matsumoto, <mattn.jp@gmail.com>\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of\nthis software and associated documentation files (the",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/rivo/uniseg/LICENSE.txt",
+    "sha256": "a59885f5f0f3b3c07cf9444db5fe399b6f0791eac82055f7b85cc65500551039",
+    "summary": "MIT License\n\nCopyright (c) 2019 Oliver Kuederle\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software ",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/prometheus/client_golang/internal/github.com/golang/gddo/LICENSE",
+    "sha256": "dfffb9ec737eaba985243e95a549bd8c3a4d462032cfe603e2a6704c346427b6",
+    "summary": "Copyright (c) 2013 The Go Authors. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistribution",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/prometheus/client_golang/LICENSE",
+    "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+    "summary": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTIO",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/prometheus/client_golang/NOTICE",
+    "sha256": "8548bfb2bc1913396df38c548a6ec60b8dbcac3b0800485a40569c8bdd184471",
+    "summary": "Prometheus instrumentation library for Go applications\nCopyright 2012-2015 The Prometheus Authors\n\nThis product includes software developed at\nSoundCloud Ltd. (http://soundcloud.com/).\n\n\nThe following components are incl",
+    "licences": [
+      "Retained upstream notice (see path and hash)"
+    ]
+  },
+  {
+    "path": "vendor/github.com/prometheus/common/LICENSE",
+    "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+    "summary": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTIO",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/prometheus/common/NOTICE",
+    "sha256": "600244c8052c8c1d307043fafacbc83b429c171dd8e08f5a537c0a54014585ee",
+    "summary": "Common libraries shared by Prometheus Go components.\nCopyright 2015 The Prometheus Authors\n\nThis product includes software developed at\nSoundCloud Ltd. (http://soundcloud.com/).\n",
+    "licences": [
+      "Retained upstream notice (see path and hash)"
+    ]
+  },
+  {
+    "path": "vendor/github.com/prometheus/procfs/LICENSE",
+    "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+    "summary": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTIO",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/prometheus/procfs/NOTICE",
+    "sha256": "497fcdb9fae55924c12f55f05cbe83a096662e5c591d79b74e4a8f23bab5ffee",
+    "summary": "procfs provides functions to retrieve system, kernel and process\nmetrics from the pseudo-filesystem proc.\n\nCopyright 2014-2015 The Prometheus Authors\n\nThis product includes software developed at\nSoundCloud Ltd. (http://s",
+    "licences": [
+      "Retained upstream notice (see path and hash)"
+    ]
+  },
+  {
+    "path": "vendor/github.com/prometheus/client_model/LICENSE",
+    "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+    "summary": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTIO",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/prometheus/client_model/NOTICE",
+    "sha256": "6c79faa15168885fb88a316ae0df18f486deafddefdc16826cdc56dfbd421e24",
+    "summary": "Data model artifacts for Prometheus.\nCopyright 2012-2015 The Prometheus Authors\n\nThis product includes software developed at\nSoundCloud Ltd. (http://soundcloud.com/).\n",
+    "licences": [
+      "Retained upstream notice (see path and hash)"
+    ]
+  },
+  {
+    "path": "vendor/github.com/rasky/go-xdr/LICENSE",
+    "sha256": "e51e2af28262ea8963b53afb6ecac98f70ac1bba56307e75c601d40d46b46678",
+    "summary": "Copyright (c) 2012-2014 Dave Collins <dave@davec.name>\n\nPermission to use, copy, modify, and distribute this software for any\npurpose with or without fee is hereby granted, provided that the above\ncopyright notice and th",
+    "licences": [
+      "ISC"
+    ]
+  },
+  {
+    "path": "vendor/github.com/FilenCloudDienste/filen-sdk-go/LICENSE",
+    "sha256": "e7b6a2e7656591b4c0cdac18a27fd7d9f2545c29e924b924e22e6494b3d02ef0",
+    "summary": "Copyright (C) 2025 by Filen Cloud Dienste UG (haftungsbeschr\u00e4nkt)\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to dea",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/jtolio/noiseconn/LICENSE",
+    "sha256": "ecc3b7a02226b9fae06d65a00363822d3bee44b19bbe219d8e47792acad68f50",
+    "summary": "MIT License\n\nCopyright (c) 2022 JT Olio\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without ",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/mattn/go-colorable/LICENSE",
+    "sha256": "88a2379b3ca34bf5c57127aff9dcb802bbb60ece0805cdbda65b3bd115f971d9",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2016 Yasuhiro Matsumoto\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin ",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/mattn/go-runewidth/LICENSE",
+    "sha256": "88a2379b3ca34bf5c57127aff9dcb802bbb60ece0805cdbda65b3bd115f971d9",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2016 Yasuhiro Matsumoto\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin ",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/mattn/go-isatty/LICENSE",
+    "sha256": "08eab1118c80885fa1fa6a6dd7303f65a379fcb3733e063d20d1bbc2c76e6fa1",
+    "summary": "Copyright (c) Yasuhiro MATSUMOTO <mattn.jp@gmail.com>\n\nMIT License (Expat)\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the \"Software\"",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/mholt/archives/LICENSE",
+    "sha256": "bca179578a47d06783913f6663766f184d8b128621a94a9899449cded377142c",
+    "summary": "MIT License\n\nCopyright (c) 2016 Matthew Holt\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software wit",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/panjf2000/ants/v2/LICENSE",
+    "sha256": "fcffa16d146c16e2be3c4f4373cb0998b043842d8a6822d201eb8b13a9339778",
+    "summary": "MIT License\n\nCopyright (c) 2018 Andy Pan\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/rfjakob/eme/LICENSE",
+    "sha256": "322a7e3b02cf18e38b7e6b18cafefb773df8676c65634b34e8a2beb931294a4b",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2015 Jakob Unterwurzacher\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\ni",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/cronokirby/saferith/LICENSE",
+    "sha256": "6d18204bd2f491153e8ad86767bdccedaf238e2a7bc2a1fee592888dfcfe2735",
+    "summary": "Copyright (c) 2021 L\u00fac\u00e1s Meier\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restricti",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/cronokirby/saferith/LICENSE_go",
+    "sha256": "2d36597f7117c38b006835ae7f537487207d8ec407aa9d9980794b2030cbc067",
+    "summary": "Copyright (c) 2009 The Go Authors. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistribution",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/sorairolake/lzip-go/LICENSE-APACHE",
+    "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+    "summary": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTIO",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/sorairolake/lzip-go/LICENSE-MIT",
+    "sha256": "d68066ca6d8f1f57458a85ec9cc09c08d7954f8d21e2cf0fa9f9ad426825f3a9",
+    "summary": "MIT License\n\nCopyright (c) 2024 Shun Sakai\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software witho",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/bahlo/generic-list-go/LICENSE",
+    "sha256": "2d36597f7117c38b006835ae7f537487207d8ec407aa9d9980794b2030cbc067",
+    "summary": "Copyright (c) 2009 The Go Authors. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistribution",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/rs/xid/LICENSE",
+    "sha256": "c480873f0ff2b7e2c539bdd84fb4da4178d8d02479c94924f7bffeafb7add358",
+    "summary": "Copyright (c) 2015 Olivier Poitrey <rs@dailymotion.com>\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the S",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/STARRY-S/zip/LICENSE",
+    "sha256": "77e8c16777464f63ea745177f60a21d8eec3529f28a34d73dd718852e30cc640",
+    "summary": "BSD 3-Clause License\n\nCopyright (c) 2023, Starry\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are met:\n\n1. Redistributions of sour",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/patrickmn/go-cache/LICENSE",
+    "sha256": "0070a164e0fc28e82739a764c37b38c56de796f9a8d1862b4413eb6978cd4e04",
+    "summary": "Copyright (c) 2012-2017 Patrick Mylund Nielsen and the go-cache contributors\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Softwar",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/calebcase/tmpfile/LICENSE.golang",
+    "sha256": "2d36597f7117c38b006835ae7f537487207d8ec407aa9d9980794b2030cbc067",
+    "summary": "Copyright (c) 2009 The Go Authors. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistribution",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/calebcase/tmpfile/LICENSE",
+    "sha256": "66097a61cd19a290e2651deee10bba4d67155f2e270dd874c7fbe46156a45bd1",
+    "summary": "Copyright 2019 Caleb Case <calebcase@gmail.com>\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of\nthis software and associated documentation files (the \"Software\"), to deal in\nthe Software ",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/bodgit/plumbing/LICENSE",
+    "sha256": "5c74848524ad9ff97892be1d05418853eab0ea95e7f59545ba44153ef2017425",
+    "summary": "BSD 3-Clause License\n\nCopyright (c) 2019, Matt Dainty\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are met:\n\n",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/bodgit/windows/LICENSE",
+    "sha256": "8e937a4f1e8d29fb77b8433044b21906774513e307153a53c68bd638c87a1b09",
+    "summary": "BSD 3-Clause License\n\nCopyright (c) 2020, Matt Dainty\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are met:\n\n",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/bodgit/sevenzip/LICENSE",
+    "sha256": "4135898ee98985c6084e6d8304930b010dec1b395083074ae455ae20ca207d9a",
+    "summary": "BSD 3-Clause License\n\nCopyright (c) 2020, Matt Dainty\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are met:\n\n",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/atotto/clipboard/LICENSE",
+    "sha256": "2c4bac8e2a97180d6e7758c37de85d1cda1859aaf85b56da15d935d2d9a5564f",
+    "summary": "Copyright (c) 2013 Ato Araki. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistributions of ",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/inconshreveable/mousetrap/LICENSE",
+    "sha256": "4819582701f150b28a563a6cd8ed0bf5a754e3c67b90ad38d78ba4131bf77795",
+    "summary": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTIO",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/skratchdot/open-golang/LICENSE",
+    "sha256": "04b3a5b262b48be9feddc28611dd9c28f05d6b23df569ed5b8fb1f33ef6c8102",
+    "summary": "Copyright (c) 2013 skratchdot\n\nPermission is hereby granted, free of charge, to any person\nobtaining a copy of this software and associated documentation\nfiles (the \"Software\"), to deal in the Software without\nrestrictio",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/clipperhouse/displaywidth/LICENSE",
+    "sha256": "fcdcc889a11c39c73d36019b838af41b418eb7811af12b746ace40c3074bb96c",
+    "summary": "MIT License\n\nCopyright (c) 2025 Matt Sherman\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software wit",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/clipperhouse/uax29/v2/LICENSE",
+    "sha256": "07e9e3daaccc707c9b7d535ed1405a65d37919fdd42197fe55e68820e974688c",
+    "summary": "MIT License\n\nCopyright (c) 2020 Matt Sherman\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software wit",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/lucasb-eyer/go-colorful/LICENSE",
+    "sha256": "1e4cf2a117516ec1b54041d68ed4f5d331878b04de3386f4790e7b5b9c04e1ec",
+    "summary": "Copyright (c) 2013 Lucas Beyer\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the \"Software\"), to deal in the Software without restricti",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/ryszard/goskiplist/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/IBM/go-sdk-core/v5/LICENSE",
+    "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+    "summary": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTIO",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/muesli/reflow/LICENSE",
+    "sha256": "233e8cf9a812999ccee4d3edb270b0f11ab3539658e680bcb873604915ca5038",
+    "summary": "MIT License\n\nCopyright (c) 2019 Christian Muehlhaeuser\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the So",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/shabbyrobe/gocovmerge/LICENSE",
+    "sha256": "72e2aee5375213f43644fefbf3cf2c31969b29bf9f0121a4cccde9e917db806d",
+    "summary": "Copyright (c) 2015, Wade Simmons\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are met:\n\n1. Redistributions of",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/golang-jwt/jwt/v5/LICENSE",
+    "sha256": "fe26ca41577b9b2b4448050a24b25e5753af66b5d5945d5d36094e7790bfcb2f",
+    "summary": "Copyright (c) 2012 Dave Grijalva\nCopyright (c) 2021 golang-jwt maintainers\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the \"Software\"",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/winfsp/cgofuse/LICENSE.txt",
+    "sha256": "70c711eb4017ba311cf59812744cb9605b73faddda61ae63b580aef863bea1d3",
+    "summary": "MIT License\n\nCopyright (c) 2017-2022 Bill Zissimopoulos\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the S",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/lufia/plan9stats/LICENSE",
+    "sha256": "879acfe02d3790e0bcdd1ee2299fd8576995eaa94c7e14d1a94ee3e018ad7bc2",
+    "summary": "BSD 3-Clause License\n\nCopyright (c) 2019, KADOTA, Kyohei\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are met",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/klauspost/pgzip/LICENSE",
+    "sha256": "7709cc030f078b17809884f92f33a2016944e1180312dc3f1371b02313d313ed",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2014 Klaus Post\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Soft",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/klauspost/crc32/LICENSE",
+    "sha256": "dd26a7abddd02e2d0aba97805b31f248ef7835d9e10da289b22e3b8ab78b324d",
+    "summary": "Copyright (c) 2012 The Go Authors. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistribution",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/klauspost/compress/s2/LICENSE",
+    "sha256": "08683b14bda8ae3538abf19e1879e853a39e3b8276a8d673363b529d15a61c1a",
+    "summary": "Copyright (c) 2011 The Snappy-Go Authors. All rights reserved.\nCopyright (c) 2019 Klaus Post. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided ",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/klauspost/compress/internal/snapref/LICENSE",
+    "sha256": "f69f157b0be75da373605dbc8bbf142e8924ee82d8f44f11bcaf351335bf98cf",
+    "summary": "Copyright (c) 2011 The Snappy-Go Authors. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistr",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/klauspost/compress/zstd/internal/xxhash/LICENSE.txt",
+    "sha256": "f566a9f97bacdaf00d9f21dd991e81dc11201c4e016c86b470799429a1c9a79c",
+    "summary": "Copyright (c) 2016 Caleb Spare\n\nMIT License\n\nPermission is hereby granted, free of charge, to any person obtaining\na copy of this software and associated documentation files (the\n\"Software\"), to deal in the Software with",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/klauspost/compress/LICENSE",
+    "sha256": "0d9e582ee4bff57bf1189c9e514e6da7ce277f9cd3bc2d488b22fbb39a6d87cf",
+    "summary": "Copyright (c) 2012 The Go Authors. All rights reserved.\nCopyright (c) 2019 Klaus Post. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that th",
+    "licences": [
+      "Apache-2.0",
+      "MIT",
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/klauspost/cpuid/v2/LICENSE",
+    "sha256": "5d966570d7a442d4e969892860a914e542c97f262c873baee8f0aa48e1f40212",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2015 Klaus Post\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Soft",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/zeebo/xxh3/LICENSE",
+    "sha256": "f19854b341534d1f2314c0c70d9cd2bb4fa1f7c86fffdc4444ca33cccce412ba",
+    "summary": "BSD 2-Clause License\n\nCopyright (c) 2012-2014, Yann Collet\nCopyright (c) 2019, Jeff Wendling\nAll rights reserved.\n\nxxHash Library\n\nRedistribution and use in source and binary forms, with or without modification,\nare perm",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/zeebo/blake3/LICENSE",
+    "sha256": "0589f544f68ffc436e6e21efec2cf7cc2dbb2ac09ce6cb8a8cdb75ab74489716",
+    "summary": "This work is released into the public domain with CC0 1.0.\n\n-------------------------------------------------------------------------------\n\nCreative Commons Legal Code\n\nCC0 1.0 Universal\n\n    CREATIVE COMMONS CORPORATIO",
+    "licences": [
+      "public-domain"
+    ]
+  },
+  {
+    "path": "vendor/github.com/zeebo/errs/LICENSE",
+    "sha256": "c5c82acbbb56f625b57a5a15c83662b444caca8be37323c7e56e06b7e06fa293",
+    "summary": "MIT License\n\nCopyright (c) 2017 The Authors\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software with",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/Files-com/files-sdk-go/v3/LICENSE",
+    "sha256": "ce200d97d3930fee7e884f1760864d9ba218043c4e087c10fa6761722ee535ec",
+    "summary": "The MIT License\n\nCopyright (c) 2019- Action Verb, LLC (https://www.files.com)\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Softwa",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/dop251/scsu/LICENSE",
+    "sha256": "c3111d7107f79599d83b95f5221651b573fdb584fd1d672273942f82acfdceab",
+    "summary": "Copyright (c) 2020 Dmitry Panov\nCopyright \u00a9 1996-1997 Unicode, Inc.. All Rights Reserved.\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and associated\ndocumentation files ",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/unknwon/goconfig/LICENSE",
+    "sha256": "9ff562631a04b8cb1030c53fdf461bd749c9af0655d86e4f17eb270e935a7fe2",
+    "summary": "Apache License\nVersion 2.0, January 2004\nhttp://www.apache.org/licenses/\n\nTERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION\n\n1. Definitions.\n\n\"License\" shall mean the terms and conditions for use, reproduction",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/tklauser/numcpus/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/tklauser/go-sysconf/LICENSE",
+    "sha256": "fdaaa923d83d44f8b2ed1185600c5aa8c10673f11fba9feb78bd2816786fd6be",
+    "summary": "BSD 3-Clause License\n\nCopyright (c) 2018-2022, Tobias Klauser\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions ar",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/goccy/go-json/LICENSE",
+    "sha256": "a707cd425201945d57500566c47c74dc9fb8cd02ef91b9a761abddeb2401e6a7",
+    "summary": "MIT License\n\nCopyright (c) 2020 Masaaki Goshima\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software ",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/ncw/swift/v2/COPYING",
+    "sha256": "8cd2e9e750b90a04b7d82dbbca3930c696ae0309d7c10464f90a44f45754cd04",
+    "summary": "Copyright (C) 2012 by Nick Craig-Wood http://www.craig-wood.com/nick/\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/aalpar/deheap/LICENSE",
+    "sha256": "b0074d9f08d0e1c07b30afe41c6f003ceb381d4634ca599dc08e61e13c78de08",
+    "summary": "Copyright 2019-2026 Aaron H. Alpar\n\nPermission is hereby granted, free of charge, to any person obtaining\na copy of this software and associated documentation files\n(the \"Software\"), to deal in the Software without restr",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/go-openapi/errors/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/go-openapi/strfmt/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/anacrolix/dms/LICENSE",
+    "sha256": "6ec86587b013d32561e7aed8b9557755c140f2ee0463eb65110b231e223a419a",
+    "summary": "Copyright (c) 2012, Matt Joiner <anacrolix@gmail.com>.\r\nAll rights reserved.\r\n\r\nRedistribution and use in source and binary forms, with or without\r\nmodification, are permitted provided that the following conditions are m",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/t3rm1n4l/go-mega/LICENSE",
+    "sha256": "59ac8e15ce8d22c1e5e1375785e25fbced80c49972fbf8b9ef72e933ba09d057",
+    "summary": "MIT License\n\nCopyright (c) 2019 Sarath Lakshman\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software ",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/go-darwin/apfs/LICENSE",
+    "sha256": "2d22eede4c5bf098969a53894205663f8567e967b39efeaeb59aa08cb3226902",
+    "summary": "BSD 3-Clause License\n\nCopyright (c) 2017, The go-darwin Authors.\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/lanrat/extsort/LICENSE",
+    "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+    "summary": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTIO",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/minio/xxml/LICENSE",
+    "sha256": "2d36597f7117c38b006835ae7f537487207d8ec407aa9d9980794b2030cbc067",
+    "summary": "Copyright (c) 2009 The Go Authors. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistribution",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/minio/minio-go/v7/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/minio/minio-go/v7/NOTICE",
+    "sha256": "570af5b6ac7fc91a78459073098200036e63d60a98ec92db5ed97d22d714d09e",
+    "summary": "MinIO Cloud Storage, (C) 2014-2020 MinIO, Inc.\n\nThis product includes software developed at MinIO, Inc.\n(https://min.io/).\n\nThe MinIO project contains unmodified/modified subcomponents too with\nseparate copyright notices",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/minio/minlz/LICENSE",
+    "sha256": "b3f014ba15f4ae418959bce8b4d487ecd0a1880c3e8904f805e7c3c59b8c2a36",
+    "summary": "\r\n                                 Apache License\r\n                           Version 2.0, January 2004\r\n                        http://www.apache.org/licenses/\r\n\r\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTR",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/minio/crc64nvme/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/minio/md5-simd/LICENSE.Golang",
+    "sha256": "2d36597f7117c38b006835ae7f537487207d8ec407aa9d9980794b2030cbc067",
+    "summary": "Copyright (c) 2009 The Go Authors. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistribution",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/minio/md5-simd/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/bradenaw/juniper/LICENSE",
+    "sha256": "6a8117b0742675882bab3331251c8505f1f9f147222d27dcd06ee2944b7d3e1f",
+    "summary": "MIT License\n\nCopyright (c) 2021 Braden Walker\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software wi",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/go-logr/logr/LICENSE",
+    "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
+    "summary": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTIO",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/go-logr/stdr/LICENSE",
+    "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+    "summary": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTIO",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/pengsrc/go-shared/LICENSE",
+    "sha256": "c9238bb05345b8c0d8ba25f77774b9a8dd4b7d2903d642920705feab64355c29",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/sony/gobreaker/v2/LICENSE",
+    "sha256": "bf90fa34643c84cc710affe629ae194c5fdf1392c3f1496406c68bece41e6160",
+    "summary": "The MIT License (MIT)\n\nCopyright 2015 Sony Corporation\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the So",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/gdamore/encoding/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/gdamore/tcell/v3/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/kylelemons/godebug/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/wk8/go-ordered-map/v2/LICENSE",
+    "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
+    "summary": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTIO",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/hashicorp/go-uuid/LICENSE",
+    "sha256": "87b250b11ffadc5f872cb676caa219e2871e454ddd562d9e532d52d5c9b7520d",
+    "summary": "Copyright \u00a9 2015-2022 HashiCorp, Inc.\n\nMozilla Public License, version 2.0\n\n1. Definitions\n\n1.1. \"Contributor\"\n\n     means each individual or legal entity that creates, contributes to the\n     creation of, or owns Covere",
+    "licences": [
+      "GPL",
+      "MPL"
+    ]
+  },
+  {
+    "path": "vendor/github.com/hashicorp/go-retryablehttp/LICENSE",
+    "sha256": "d6b1a865f1c8c697d343bd4e0ce61025f91898486a1f00d727f32e8644af77d3",
+    "summary": "Copyright (c) 2015 HashiCorp, Inc.\n\nMozilla Public License, version 2.0\n\n1. Definitions\n\n1.1. \"Contributor\"\n\n     means each individual or legal entity that creates, contributes to the\n     creation of, or owns Covered S",
+    "licences": [
+      "GPL",
+      "MPL"
+    ]
+  },
+  {
+    "path": "vendor/github.com/hashicorp/golang-lru/v2/simplelru/LICENSE_list",
+    "sha256": "6d462371baa8649492b06f51f154dba9b25d2ac9548369b8b4fdbbbb85f2f75d",
+    "summary": "This license applies to simplelru/list.go\n\nCopyright (c) 2009 The Go Authors. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the followi",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/hashicorp/golang-lru/v2/LICENSE",
+    "sha256": "6c7088eb877b5d7e6e0e9d27e822ea25fcda2e83f9eba59bb5f1418a656796e0",
+    "summary": "Copyright (c) 2014 HashiCorp, Inc.\n\nMozilla Public License, version 2.0\n\n1. Definitions\n\n1.1. \"Contributor\"\n\n     means each individual or legal entity that creates, contributes to the\n     creation of, or owns Covered S",
+    "licences": [
+      "GPL",
+      "MPL"
+    ]
+  },
+  {
+    "path": "vendor/github.com/hashicorp/go-cleanhttp/LICENSE",
+    "sha256": "60222c28c1a7f6a92c7df98e5c5f4459e624e6e285e0b9b94467af5f6ab3343d",
+    "summary": "Mozilla Public License, version 2.0\n\n1. Definitions\n\n1.1. \"Contributor\"\n\n     means each individual or legal entity that creates, contributes to the\n     creation of, or owns Covered Software.\n\n1.2. \"Contributor Version\"",
+    "licences": [
+      "GPL",
+      "MPL"
+    ]
+  },
+  {
+    "path": "vendor/github.com/go-viper/mapstructure/v2/LICENSE",
+    "sha256": "22adc4abdece712a737573672f082fd61ac2b21df878efb87ffcff4354a07f26",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2013 Mitchell Hashimoto\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin ",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/gabriel-vasile/mimetype/LICENSE",
+    "sha256": "b5a867655833aca9e27c97e28e43dcfc62be0ba0e84f24157afedf8fdaaa2fc1",
+    "summary": "MIT License\n\nCopyright (c) 2018 Gabriel Vasile\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software w",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/tinylib/msgp/LICENSE",
+    "sha256": "17df22e31ef6a84f70909eed5185f41443a03dd05b14e8dec319d5c2bd7d7b3b",
+    "summary": "Copyright (c) 2014 Philip Hofer\nPortions Copyright (c) 2009 The Go Authors (license at http://golang.org) where indicated\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/russross/blackfriday/v2/LICENSE.txt",
+    "sha256": "75e1ca97a84a9da6051dee0114333388216f2c4a5a028296b882ff3d57274735",
+    "summary": "Blackfriday is distributed under the Simplified BSD License:\n\n> Copyright \u00a9 2011 Russ Ross\n> All rights reserved.\n>\n> Redistribution and use in source and binary forms, with or without\n> modification, are permitted provi",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/sabhiram/go-gitignore/LICENSE",
+    "sha256": "55bff76239ca79b99d2e6b986d67c17e125cf7afa2d4d22eda54c02b791460a1",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2015 Shaba Abhiram\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the S",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/xanzy/ssh-agent/LICENSE",
+    "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08",
+    "summary": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTIO",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/rogpeppe/go-internal/LICENSE",
+    "sha256": "4835612df0098ca95f8e7d9e3bffcb02358d435dbb38057c844c99d7f725eb20",
+    "summary": "Copyright (c) 2018 The Go Authors. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistribution",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/spacemonkeygo/monkit/v3/LICENSE",
+    "sha256": "73ba74dfaa520b49a401b5d21459a8523a146f3b7518a833eea5efa85130bf68",
+    "summary": "Apache License\nVersion 2.0, January 2004\nhttp://www.apache.org/licenses/\n\nTERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION\n\n1. Definitions.\n\n\"License\" shall mean the terms and conditions for use, reproduction",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/nwaples/rardecode/v2/LICENSE",
+    "sha256": "a853785796b4bd072bbc63afd3a510c8918198b4f778351b5a6ed71a3448f1e1",
+    "summary": "Copyright (c) 2015, Nicholas Waples\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are met:\n\n* Redistributions ",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/internxt/rclone-adapter/internal/bip39/LICENSE",
+    "sha256": "2661267837e120229b88baaef827d11f7a58f6395bc7701332691d887d76b306",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2014-2018 Tyler Smith and contributors\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/internxt/rclone-adapter/LICENSE",
+    "sha256": "7d9666e68f406c884fa0c66dc37a0606e674d55dca9ff9f1a137ea6a7f330f89",
+    "summary": "MIT License\n\nCopyright (c) 2025 StarHack https://github.com/StarHack/\nCopyright (c) 2025 Internxt\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentatio",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/oracle/oci-go-sdk/v65/NOTICE.txt",
+    "sha256": "49f452832d8d3cce9465305442782c141ebe1ffdffae7dd43c6034d8a1b21038",
+    "summary": "Copyright (c) 2016, 2018, 2026, Oracle and/or its affiliates.",
+    "licences": [
+      "Retained upstream notice (see path and hash)"
+    ]
+  },
+  {
+    "path": "vendor/github.com/oracle/oci-go-sdk/v65/LICENSE.txt",
+    "sha256": "d0db4f36cf05a8687e18525db16f178143eee58818d49d99d178c73675eb248a",
+    "summary": "Copyright (c) 2016, 2026, Oracle and/or its affiliates.  All rights reserved.\nThis software is dual-licensed to you under the Universal Permissive License (UPL) 1.0 as shown at https://oss.oracle.com/licenses/upl\nor Apac",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/ProtonMail/gluon/LICENSE",
+    "sha256": "e1fea9b3cff961684fb9c181da304fa2e0e08dbf60c4a6338868265c87898d01",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2020 James Houlahan\nCopyright (c) 2021 Proton AG\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/ProtonMail/gluon/COPYING_NOTES.md",
+    "sha256": "d11b3a5b0e352687585d1b1e60c07598ddb36b7ec827d2e7ea043a94d0e144b5",
+    "summary": "# Copying\nThe MIT License (MIT)\n\nCopyright (c) 2020 James Houlahan\nCopyright (c) 2021 Proton AG\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation ",
+    "licences": [
+      "MIT",
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/ProtonMail/bcrypt/LICENSE",
+    "sha256": "da4b77ea67eea3548aac445741cd70cfbd87e2a5bcbb03a2bb85abda0e2fa3c1",
+    "summary": "Copyright (c) 2011 James Keane <james.keane@gmail.com>. All rights reserved.\nCopyright (c) 2006 Damien Miller <djm@mindrot.org>.\nCopyright (c) 2011 ZooWar.com, All rights reserved.\n\nRedistribution and use in source and b",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/ProtonMail/go-crypto/LICENSE",
+    "sha256": "2d36597f7117c38b006835ae7f537487207d8ec407aa9d9980794b2030cbc067",
+    "summary": "Copyright (c) 2009 The Go Authors. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistribution",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/ProtonMail/go-srp/LICENSE.txt",
+    "sha256": "7b3f092184869028bb9706f902c60e45fe53bbad504fa8fefa54e9119d0571a0",
+    "summary": "The MIT License\n\nCopyright (c) 2019 Proton Technologies AG\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin th",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/ProtonMail/gopenpgp/v3/LICENSE",
+    "sha256": "503bdcb689e2033376caa35eb66f170920221e96706da77be941804bc4f36422",
+    "summary": "(The MIT License)\n\nCopyright (c) 2019 Proton Technologies AG\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to\ndeal in ",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/go-chi/chi/v5/LICENSE",
+    "sha256": "a2d51b7515acfaff2f7a88688650f2fc4fd99561383e72bba2305e3db59a1647",
+    "summary": "Copyright (c) 2015-present Peter Kieltyka (https://github.com/pkieltyka), Google Inc.\n\nMIT License\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of\nthis software and associated documentati",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/leodido/go-urn/LICENSE",
+    "sha256": "fe81a9072afbfe0fe32b0bc99a852d697d14fbbca99b0b1878ac8f5dcbdd6ee6",
+    "summary": "MIT License\n\nCopyright (c) 2018 Leonardo Di Donato\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Softwa",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/cloudsoda/go-smb2/LICENSE",
+    "sha256": "8b532d93b35ab59ae9b9ccc08aae66f003c1449b1f7a2d12f5900b008dda1415",
+    "summary": "Copyright (c) 2016 Hiroshi Ioka. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistributions ",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/cloudsoda/sddl/LICENSE",
+    "sha256": "e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118",
+    "summary": "                   GNU LESSER GENERAL PUBLIC LICENSE\n                       Version 3, 29 June 2007\n\n Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>\n Everyone is permitted to copy and distribute ver",
+    "licences": [
+      "LGPL",
+      "GPL"
+    ]
+  },
+  {
+    "path": "vendor/github.com/colinmarc/hdfs/v2/LICENSE.txt",
+    "sha256": "8900f7361a2860cdeca7194ff689e97a0e23ed5a5aa382d995cfbb37e5f8e330",
+    "summary": "Copyright (c) 2014 Colin Marc (colinmarc@gmail.com)\n\nMIT License\n\nPermission is hereby granted, free of charge, to any person obtaining\na copy of this software and associated documentation files (the\n\"Software\"), to deal",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/cpuguy83/go-md2man/v2/LICENSE.md",
+    "sha256": "a55959c4e3e8917bfa857359bb641115336276a6cc97408fd8197e079fb18470",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2014 Brian Goff\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Soft",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/felixge/httpsnoop/LICENSE.txt",
+    "sha256": "8108e14b5cb2b6bcd51583d3849ef0c2b5c4de61758256c20308bc70d1775dbb",
+    "summary": "Copyright (c) 2016 Felix Geisend\u00f6rfer (felix@debuggable.com)\n\n Permission is hereby granted, free of charge, to any person obtaining a copy\n of this software and associated documentation files (the \"Software\"), to deal\n ",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/rclone/go-proton-api/LICENSE",
+    "sha256": "ff31460366f4c8d6b49eb1fa5a61b3d1ffd238a8e6a1a5dd85393a7e4227eeae",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2020 James Houlahan\nCopyright (c) 2022 Proton AG\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/rclone/go-proton-api/COPYING_NOTES.md",
+    "sha256": "31b09bc305753ae32cb7c3b18a532ca19e4e23382d985d5c5a7d6b3f20ea8492",
+    "summary": "# Copying\nThe MIT License (MIT)\n\nCopyright (c) 2020 James Houlahan\nCopyright (c) 2022 Proton AG\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation ",
+    "licences": [
+      "MIT",
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/rclone/gofakes3/LICENSE",
+    "sha256": "6d969794c2c6ac75038c5ca49db319e8dbaf525b2655345cb4474d7d88045726",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2016 Johannes Boyne\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the ",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/rclone/Proton-API-Bridge/LICENSE",
+    "sha256": "4314f9009002647afe17e9385f38d9f74896e210d384bf8441cb0f6a7382185c",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2023 Chun-Hung Tseng\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/kr/fs/LICENSE",
+    "sha256": "dd26a7abddd02e2d0aba97805b31f248ef7835d9e10da289b22e3b8ab78b324d",
+    "summary": "Copyright (c) 2012 The Go Authors. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistribution",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/beorn7/perks/LICENSE",
+    "sha256": "0db7c9ebb3717e526f34f87dd1ee8bc77d36846e29cb0cec9246f7138fbe962b",
+    "summary": "Copyright (C) 2013 Blake Mizerany\n\nPermission is hereby granted, free of charge, to any person obtaining\na copy of this software and associated documentation files (the\n\"Software\"), to deal in the Software without restri",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/jlaffaye/ftp/LICENSE",
+    "sha256": "3f03e059ab1d387cb83d7c65831fad4d5db3fdb619b9e2c19cb7246b9044d12e",
+    "summary": "Copyright (c) 2011-2013, Julien Laffaye <jlaffaye@FreeBSD.org>\n\nPermission to use, copy, modify, and/or distribute this software for any\npurpose with or without fee is hereby granted, provided that the above\ncopyright no",
+    "licences": [
+      "BSD-style",
+      "ISC"
+    ]
+  },
+  {
+    "path": "vendor/github.com/sirupsen/logrus/LICENSE",
+    "sha256": "51a0c9ec7f8b7634181b8d4c03e5b5d204ac21d6e72f46c313973424664b2e6b",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2014 Simon Eskildsen\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/dromara/dongle/LICENSE",
+    "sha256": "f821aafd8e060ccc3a755dca7b4081ec1ba54aca5f5c3a54c0a7d6579d8e9560",
+    "summary": "MIT License\n\nCopyright (c) 2023 gouguoyin\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software withou",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/gorilla/schema/LICENSE",
+    "sha256": "0b77fdea862f869ef4f201ac5649bdbd38ccb055c7f6454dffae9e2adb4941c1",
+    "summary": "Copyright (c) 2023 The Gorilla Authors. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n\t * Redistribu",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/josephspurrier/goversioninfo/LICENSE",
+    "sha256": "3187ab3952dee0610c639999e90ec6056ac2f1bd80c57522d2ae43555e60ca28",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2016 Joseph Spurrier\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/willscott/go-nfs-client/NOTICE.txt",
+    "sha256": "047324a8e19d86acd958a98ba9be3a07caf8491b1162b0059d5083490faab8ed",
+    "summary": "Go-nfs-client version 0.1\r\n\r\nCopyright (c) 2017 VMware, Inc. All Rights Reserved. \r\n\r\nThis product is licensed to you under the BSD-2 license (the \"License\").  You may not use this product except in compliance with the B",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/willscott/go-nfs-client/LICENSE_BSD-2.txt",
+    "sha256": "e9d4f7fd42739bcba5d79f3dad0aa6e1e813987c2e5de1546467070a88bdce63",
+    "summary": "Go-nfs-client version 0.1\r\n\r\nCopyright \ufffd 2017 VMware, Inc.  All rights reserved\t\t\t\t\r\n\r\nThe BSD-2 license (the \ufffdLicense\ufffd) set forth below applies to all parts of the Go-nfs-client\r\nproject.  You may not use this file exce",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/willscott/go-nfs/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/relvacode/iso8601/LICENSE",
+    "sha256": "63a4451c1063039a41326856426add10eeba360222921e8536bd6b4ff90fb508",
+    "summary": "MIT License\n\nCopyright (c) 2017-2020 Jason Kingsbury\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Soft",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/dustin/go-humanize/LICENSE",
+    "sha256": "a973b4498c13eb74baa2a8e5c351426a6826f2fcdd909916dbe53ee2e755fd71",
+    "summary": "Copyright (c) 2005-2008  Dustin Sallings <dustin@spy.net>\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/google/s2a-go/LICENSE.md",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/google/btree/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/google/uuid/LICENSE",
+    "sha256": "0a8d61ed3cbfd5312326e8126c31ce9c627a283adc99131b56896d29ada04b2d",
+    "summary": "Copyright (c) 2009,2014 Google Inc. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistributio",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/google/flatbuffers/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/yusufpapurcu/wmi/LICENSE",
+    "sha256": "66e24ffb77bdafac86bd5c47ea1c3d44e2d7546ca9caa219ee66a110584864e7",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2013 Stack Exchange\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of\nthis software and associated documentation files (the \"Software\"), to deal in\nthe ",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/koofr/go-koofrclient/LICENSE",
+    "sha256": "dfdcd24a451865020af7a700dccc92b7c05df84d884a1d647612c33033a325a4",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2014 Koofr\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software ",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/koofr/go-httpclient/LICENSE",
+    "sha256": "dfdcd24a451865020af7a700dccc92b7c05df84d884a1d647612c33033a325a4",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2014 Koofr\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software ",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/go-resty/resty/v2/LICENSE",
+    "sha256": "07089ee111422e78fad17058c12115728ded901c06185125836594d521b10967",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2015-2024 Jeevanandam M., https://myjeeva.com <jeeva@myjeeva.com>\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documen",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/ebitengine/purego/LICENSE",
+    "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
+    "summary": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTIO",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/pmezard/go-difflib/LICENSE",
+    "sha256": "2eb550be6801c1ea434feba53bf6d12e7c71c90253e0a9de4a4f46cf88b56477",
+    "summary": "Copyright (c) 2013, Patrick Mezard\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n    Redistributions",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/spf13/cobra/LICENSE.txt",
+    "sha256": "5e3400b93bbb099e83e52bab885e7441750673c21f97988ca3f1240639b63283",
+    "summary": "                                Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/spf13/pflag/LICENSE",
+    "sha256": "b8514c577c1c4b46cee454d5a882b15fa411e72c5bd7f801f241591789fce61a",
+    "summary": "Copyright (c) 2012 Alex Ogier. All rights reserved.\nCopyright (c) 2012 The Go Authors. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that th",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/spf13/afero/LICENSE.txt",
+    "sha256": "5e3400b93bbb099e83e52bab885e7441750673c21f97988ca3f1240639b63283",
+    "summary": "                                Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/ulikunitz/xz/LICENSE",
+    "sha256": "701cbcc144a7c865b072f27547e66ddbf17ac44a3bd21f71149ace02518f107c",
+    "summary": "Copyright (c) 2014-2022  Ulrich Kunitz\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are met:\n\n* Redistributio",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/gofrs/flock/LICENSE",
+    "sha256": "f4c7b0fbdba9660126feab6388ceed10ff744b2c772a63132f64f9ab2ee5fa29",
+    "summary": "Copyright (c) 2018-2025, The Gofrs\nCopyright (c) 2015-2020, Tim Heckman\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following con",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/dropbox/dropbox-sdk-go-unofficial/v6/LICENSE",
+    "sha256": "57c85325423961435800aad7f1569c72d8c50ce376f1aa6885706a5361799910",
+    "summary": "Copyright (c) 2009-2016 Dropbox Inc., http://www.dropbox.com/\n\nPermission is hereby granted, free of charge, to any person obtaining\na copy of this software and associated documentation files (the\n\"Software\"), to deal in",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/geoffgarside/ber/LICENSE",
+    "sha256": "2d36597f7117c38b006835ae7f537487207d8ec407aa9d9980794b2030cbc067",
+    "summary": "Copyright (c) 2009 The Go Authors. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistribution",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/googleapis/enterprise-certificate-proxy/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/googleapis/gax-go/v2/LICENSE",
+    "sha256": "b95218cd9607855a6536384c0262922b30a0c2bf56e4ced790240f3a3bac4722",
+    "summary": "Copyright 2016, Google Inc.\nAll rights reserved.\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistributions of sou",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/boombuler/barcode/LICENSE",
+    "sha256": "36d2e94c565d51a5146d729e6be6a3d26168d473d97c94011b13700e82c622e4",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2014 Florian Sundermann\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin ",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/go-git/go-billy/v5/LICENSE",
+    "sha256": "4d324e3ccdba05b20e3ed1b9547f70f10da14e095ea2af32a895e8858b28a396",
+    "summary": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTIO",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/PuerkitoBio/goquery/LICENSE",
+    "sha256": "ab79785bfa235ac1c5e16f75e0f85eb7ce0402fb72f4667fffa0729e694579b8",
+    "summary": "Copyright (c) 2012-2021, Martin Angers & Contributors\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:\n\n",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/AzureAD/microsoft-authentication-library-for-go/LICENSE",
+    "sha256": "9906940f61b1f0b533fa7d99baf55178b2808fbe113ea51dfbfad8572ccd5f2b",
+    "summary": "    MIT License\r\n\r\n    Copyright (c) Microsoft Corporation.\r\n\r\n    Permission is hereby granted, free of charge, to any person obtaining a copy\r\n    of this software and associated documentation files (the \"Software\"), t",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/flynn/noise/LICENSE",
+    "sha256": "42d4cb1b0c67fe32f716fca52b3d7148406b09c8024e3844ac0595707557da49",
+    "summary": "Flynn\u00ae is a trademark of Prime Directive, Inc.\n\nCopyright (c) 2015 Prime Directive, Inc. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that ",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/jzelinskie/whirlpool/LICENSE",
+    "sha256": "b985b1162daa4eb2059ba6d434a73f5a160370506d49f1c7e426ed1c554efb35",
+    "summary": "Copyright (c) 2012, Jimmy Zelinskie\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are met:\n    * Redistributio",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/buger/jsonparser/LICENSE",
+    "sha256": "632b59709152e1b5bfd3e2794848bcd2f4c70e3e175646726dbf53439ea1dbe1",
+    "summary": "MIT License\n\nCopyright (c) 2016 Leonid Bugaev\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software wi",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/munnerz/goautoneg/LICENSE",
+    "sha256": "aa1376b9bc5dea6f30cdefde40c176a254f247d2814d0a9929395138631b2ae0",
+    "summary": "Copyright (c) 2011, Open Knowledge Foundation Ltd.\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   ",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/cespare/xxhash/v2/LICENSE.txt",
+    "sha256": "f566a9f97bacdaf00d9f21dd991e81dc11201c4e016c86b470799429a1c9a79c",
+    "summary": "Copyright (c) 2016 Caleb Spare\n\nMIT License\n\nPermission is hereby granted, free of charge, to any person obtaining\na copy of this software and associated documentation files (the\n\"Software\"), to deal in the Software with",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/gogo/protobuf/LICENSE",
+    "sha256": "3f571768c0ba2f330e5fee90de89bfe5141f48c1939be8008fa61461c30ca07f",
+    "summary": "Copyright (c) 2013, The GoGo Authors. All rights reserved.\n\nProtocol Buffers for Go with Gadgets\n\nGo support for Protocol Buffers - Google's data interchange format\n\nCopyright 2010 The Go Authors.  All rights reserved.\nh",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/buengese/sgzip/LICENSE",
+    "sha256": "6d2de1cde19c4d2bd8bcd9aaa1d581f4cfa3db9cf71896140330eaa2f2687685",
+    "summary": "MIT License\n\nCopyright (c) 2014 Klaus Post\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software witho",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/adrg/xdg/LICENSE",
+    "sha256": "fb119fabde05e05b70b07f445b3f41863b22326c0ebb5b7bee9f0309112d3640",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2014 Adrian-George Bostan <adrg@epistack.com>\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"S",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/stangelandcl/ppmd/LICENSE",
+    "sha256": "9bdaf6c691adeb560c86a43c26b9dd4f8a52c8d9965229e356e545e5894c3ab1",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2022 Clayton Stangeland\nCopyright (c) 2014 Adam Hathcock\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation fi",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/jcmturner/aescts/v2/LICENSE",
+    "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
+    "summary": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTIO",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/jcmturner/gokrb5/v8/LICENSE",
+    "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
+    "summary": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTIO",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/jcmturner/dnsutils/v2/LICENSE",
+    "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+    "summary": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTIO",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/jcmturner/goidentity/v6/LICENSE",
+    "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
+    "summary": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTIO",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/jcmturner/rpc/v2/LICENSE",
+    "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+    "summary": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTIO",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/jcmturner/gofork/LICENSE",
+    "sha256": "2d36597f7117c38b006835ae7f537487207d8ec407aa9d9980794b2030cbc067",
+    "summary": "Copyright (c) 2009 The Go Authors. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistribution",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/philhofer/fwd/LICENSE.md",
+    "sha256": "430da36bd967b28fc662f05e9245306da10941e93911052114a20ef10e4410f8",
+    "summary": "Copyright (c) 2014-2015, Philip Hofer\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the \"Software\"), to deal in the Software without re",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/chilts/sid/LICENSE",
+    "sha256": "04e1ba4de79ca1a519cc406ed54c5d0d8e78e2f8484a03832d93fbd346d9ee31",
+    "summary": "MIT License\n\nCopyright (c) 2017 Andrew Chilton <andychilton@gmail.com>\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), t",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/putdotio/go-putio/putio/LICENSE",
+    "sha256": "eeeb93c15e7cc13700eca4d919f7d3c5904d15c3165e7a5f6271f6da2cd3ea11",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2016 H. \u0130brahim G\u00fcng\u00f6r\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin t",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/stretchr/testify/internal/spew/LICENSE",
+    "sha256": "1b93a317849ee09d3d7e4f1d20c2b78ddb230b4becb12d7c224c927b9d470251",
+    "summary": "ISC License\n\nCopyright (c) 2012-2016 Dave Collins <dave@davec.name>\n\nPermission to use, copy, modify, and/or distribute this software for any\npurpose with or without fee is hereby granted, provided that the above\ncopyrig",
+    "licences": [
+      "ISC"
+    ]
+  },
+  {
+    "path": "vendor/github.com/stretchr/testify/internal/difflib/LICENSE",
+    "sha256": "c615fb76b7891c9b36b0e352c111d5a2fe77c0111e4129a23659b25b26c3fdd2",
+    "summary": "Copyright (c) 2013, Patrick Mezard\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n    Redistributions",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/stretchr/testify/LICENSE",
+    "sha256": "f8e536c1c7b695810427095dc85f5f80d44ff7c10535e8a9486cf393e2599189",
+    "summary": "MIT License\n\nCopyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors.\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Softw",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/aws/smithy-go/internal/sync/singleflight/LICENSE",
+    "sha256": "f5122de47ce62d57dcd3e57cdf778ceacc3a847645de3332fea58903def93ecb",
+    "summary": "Copyright (c) 2009 The Go Authors. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistribution",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/aws/smithy-go/LICENSE",
+    "sha256": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/aws/smithy-go/NOTICE",
+    "sha256": "d4290ed64c2edd0fce1d84e3f9dfb2881240fe534def76b8cd29ed6af683e287",
+    "summary": "Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.\n",
+    "licences": [
+      "Retained upstream notice (see path and hash)"
+    ]
+  },
+  {
+    "path": "vendor/github.com/aws/aws-sdk-go-v2/feature/ec2/imds/LICENSE.txt",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/aws/aws-sdk-go-v2/feature/s3/manager/LICENSE.txt",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/aws/aws-sdk-go-v2/service/sso/LICENSE.txt",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/aws/aws-sdk-go-v2/service/sts/LICENSE.txt",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/aws/aws-sdk-go-v2/service/signin/LICENSE.txt",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/aws/aws-sdk-go-v2/service/internal/checksum/LICENSE.txt",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding/LICENSE.txt",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/aws/aws-sdk-go-v2/service/internal/s3shared/LICENSE.txt",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/aws/aws-sdk-go-v2/service/internal/presigned-url/LICENSE.txt",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/aws/aws-sdk-go-v2/service/ssooidc/LICENSE.txt",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/aws/aws-sdk-go-v2/service/s3/LICENSE.txt",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/aws/aws-sdk-go-v2/NOTICE.txt",
+    "sha256": "a6e830174d62dafad3a718384772ea1f4c0e27989f050932dc442a5e3ddad080",
+    "summary": "AWS SDK for Go\nCopyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved.\nCopyright 2014-2015 Stripe, Inc.\n",
+    "licences": [
+      "Retained upstream notice (see path and hash)"
+    ]
+  },
+  {
+    "path": "vendor/github.com/aws/aws-sdk-go-v2/internal/endpoints/v2/LICENSE.txt",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/aws/aws-sdk-go-v2/internal/configsources/LICENSE.txt",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/aws/aws-sdk-go-v2/internal/v4a/LICENSE.txt",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/aws/aws-sdk-go-v2/internal/sync/singleflight/LICENSE",
+    "sha256": "f5122de47ce62d57dcd3e57cdf778ceacc3a847645de3332fea58903def93ecb",
+    "summary": "Copyright (c) 2009 The Go Authors. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistribution",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/aws/aws-sdk-go-v2/LICENSE.txt",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/aws/aws-sdk-go-v2/credentials/LICENSE.txt",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream/LICENSE.txt",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/aws/aws-sdk-go-v2/config/LICENSE.txt",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/Azure/go-ntlmssp/LICENSE",
+    "sha256": "7b7c80bf1253f5dabfe692633bd7908b6a44d1caba1ab2a776911b224e93f0fd",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2016 Microsoft\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Softw",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/Azure/azure-sdk-for-go/sdk/storage/internal/LICENSE.txt",
+    "sha256": "a096a435e19bb6b631da46992c011a39be563e97ce7366879ad516c772904632",
+    "summary": "    MIT License\n\n    Copyright (c) Microsoft Corporation. All rights reserved.\n\n    Permission is hereby granted, free of charge, to any person obtaining a copy\n    of this software and associated documentation files (th",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/LICENSE.txt",
+    "sha256": "a096a435e19bb6b631da46992c011a39be563e97ce7366879ad516c772904632",
+    "summary": "    MIT License\n\n    Copyright (c) Microsoft Corporation. All rights reserved.\n\n    Permission is hereby granted, free of charge, to any person obtaining a copy\n    of this software and associated documentation files (th",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/Azure/azure-sdk-for-go/sdk/storage/azfile/LICENSE.txt",
+    "sha256": "a096a435e19bb6b631da46992c011a39be563e97ce7366879ad516c772904632",
+    "summary": "    MIT License\n\n    Copyright (c) Microsoft Corporation. All rights reserved.\n\n    Permission is hereby granted, free of charge, to any person obtaining a copy\n    of this software and associated documentation files (th",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/Azure/azure-sdk-for-go/sdk/internal/LICENSE.txt",
+    "sha256": "646f8936b8ddcd14e13e578ff6857e368780b0d1a4f6066bee89211923a373e2",
+    "summary": "MIT License\n\nCopyright (c) Microsoft Corporation.\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Softwar",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/Azure/azure-sdk-for-go/sdk/azcore/LICENSE.txt",
+    "sha256": "646f8936b8ddcd14e13e578ff6857e368780b0d1a4f6066bee89211923a373e2",
+    "summary": "MIT License\n\nCopyright (c) Microsoft Corporation.\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Softwar",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/Azure/azure-sdk-for-go/sdk/azidentity/LICENSE.txt",
+    "sha256": "646f8936b8ddcd14e13e578ff6857e368780b0d1a4f6066bee89211923a373e2",
+    "summary": "MIT License\n\nCopyright (c) Microsoft Corporation.\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Softwar",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/pquerna/otp/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/pquerna/otp/NOTICE",
+    "sha256": "6aa75b508da9d9d1686352aa5f36bb5f926958c826cfccdf64ad721de4d125c1",
+    "summary": "otp\nCopyright (c) 2014, Paul Querna\n\nThis product includes software developed by \nPaul Querna (http://paul.querna.org/).\n",
+    "licences": [
+      "Retained upstream notice (see path and hash)"
+    ]
+  },
+  {
+    "path": "vendor/github.com/diskfs/go-diskfs/LICENSE",
+    "sha256": "22fcc7885cdba5aeac7c0e983fe2d7f3323629aae1ad0b99bab5ebc52a2f3485",
+    "summary": "MIT License\n\nCopyright (c) 2017 Avi Deitcher\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software wit",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/Max-Sum/base32768/LICENSE",
+    "sha256": "824bddfe33ae618571aa62e069abddb08335d7b47efc1b3ed610d85f6c95306d",
+    "summary": "MIT License\n\nCopyright (c) 2019 Max Sum\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without ",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/hanwen/go-fuse/v2/LICENSE",
+    "sha256": "00b227761c515a5bddcd08489f97bcff2e56166df27729f25c8611902ceaf665",
+    "summary": "New BSD License\n\nCopyright (c) 2010 the Go-FUSE Authors. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/emersion/go-message/LICENSE",
+    "sha256": "9e84a70e67cb6d9e79df2612bd111d5c505b40422ce146afe8477bb1af83155a",
+    "summary": "MIT License\n\nCopyright (c) 2016 emersion\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/emersion/go-vcard/LICENSE",
+    "sha256": "f6a0bb70539f38556b1ed03c35a965fda1db9feeaceb63138843258ca0ca9709",
+    "summary": "MIT License\n\nCopyright (c) 2017 emersion\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/akavel/rsrc/LICENSE.txt",
+    "sha256": "0c2f900f9fed482de306f8e66fc2f2d1cf52e0e49218237bdcde6f68fad228e6",
+    "summary": "The MIT License (MIT)\r\n\r\nCopyright (c) 2013-2017 The rsrc Authors.\r\n\r\nPermission is hereby granted, free of charge, to any person obtaining a copy\r\nof this software and associated documentation files (the \"Software\"), to",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/mitchellh/go-homedir/LICENSE",
+    "sha256": "22adc4abdece712a737573672f082fd61ac2b21df878efb87ffcff4354a07f26",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2013 Mitchell Hashimoto\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin ",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/creasty/defaults/LICENSE",
+    "sha256": "d3643168484d9cfebc76129ae6ed22605035cab9d6308b069caeb025f5870fcb",
+    "summary": "Copyright (c) 2017-present Yuki Iwanaga\n\nMIT License\n\nPermission is hereby granted, free of charge, to any person obtaining\na copy of this software and associated documentation files (the\n\"Software\"), to deal in the Soft",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/andybalholm/cascadia/LICENSE",
+    "sha256": "04a8e475337d6b9959a8c47956bf713dd3362d3aadf839e74b376afb07487167",
+    "summary": "Copyright (c) 2011 Andy Balholm. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistributions ",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/andybalholm/brotli/LICENSE",
+    "sha256": "3d180008e36922a4e8daec11c34c7af264fed5962d07924aea928c38e8663c94",
+    "summary": "Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors.\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin th",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/yunify/qingstor-sdk-go/v3/LICENSE",
+    "sha256": "5d4b2ef03f2bbd2cb444d0ed99c13a955a1e13a6df395748e2ab9fc99a6edbc0",
+    "summary": "Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION\n\n   1. Definitions.\n\n      \"Lic",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/coreos/go-systemd/v22/LICENSE",
+    "sha256": "73ba74dfaa520b49a401b5d21459a8523a146f3b7518a833eea5efa85130bf68",
+    "summary": "Apache License\nVersion 2.0, January 2004\nhttp://www.apache.org/licenses/\n\nTERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION\n\n1. Definitions.\n\n\"License\" shall mean the terms and conditions for use, reproduction",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/coreos/go-systemd/v22/NOTICE",
+    "sha256": "572b159624f1898b40e9f09c9e4cfb65a595044960982aa95126bc28f7d1e6c0",
+    "summary": "CoreOS Project\nCopyright 2018 CoreOS, Inc\n\nThis product includes software developed at CoreOS, Inc.\n(http://www.coreos.com/).\n",
+    "licences": [
+      "Retained upstream notice (see path and hash)"
+    ]
+  },
+  {
+    "path": "vendor/github.com/coreos/go-semver/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/github.com/coreos/go-semver/NOTICE",
+    "sha256": "572b159624f1898b40e9f09c9e4cfb65a595044960982aa95126bc28f7d1e6c0",
+    "summary": "CoreOS Project\nCopyright 2018 CoreOS, Inc\n\nThis product includes software developed at CoreOS, Inc.\n(http://www.coreos.com/).\n",
+    "licences": [
+      "Retained upstream notice (see path and hash)"
+    ]
+  },
+  {
+    "path": "vendor/github.com/a8m/tree/LICENSE",
+    "sha256": "65b4928022cb281674cdf1871a95ac06821371baa7705bbb0c73dcbbeae8d04b",
+    "summary": "MIT License\n\nCopyright (c) 2015-2017 Ariel Mashraki\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Softw",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/power-devops/perfstat/LICENSE",
+    "sha256": "d2568033889c7eb3666ef1cb1f47f84bd49d25847aaad5dd87f18df384238079",
+    "summary": "MIT License\n\nCopyright (c) 2020 Power DevOps\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software wit",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/pierrec/lz4/v4/LICENSE",
+    "sha256": "6a358d2540ca14048f02d366f23787c0a480157e58f058113f0e27168dd4e447",
+    "summary": "Copyright (c) 2015, Pierre Curto\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are met:\n\n* Redistributions of ",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/cloudflare/circl/LICENSE",
+    "sha256": "b0da1764fe4d13d610b695536fc3f2ebc362482d053a1cd258e36975bc6b97a7",
+    "summary": "Copyright (c) 2019 Cloudflare. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistributions of",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/cloudinary/cloudinary-go/v2/LICENSE",
+    "sha256": "1bf4216ffbed2282cd82b875b6298d96c5b771c6414de4a5ff2a1a7f48a519ff",
+    "summary": "MIT License\n\nCopyright (c) 2021 Cloudinary\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software witho",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/mailru/easyjson/LICENSE",
+    "sha256": "87baa92c3100cf37441761262d622db99492ee386a063460d4676143db49af57",
+    "summary": "Copyright (c) 2016 Mail.Ru Group\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the \"Software\"), to deal in the Software without restric",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/shirou/gopsutil/v4/LICENSE",
+    "sha256": "ad1e64b82c04fb2ee6bfe521bff01266971ffaa70500024d4ac767c6033aafb9",
+    "summary": "gopsutil is distributed under BSD license reproduced below.\n\nCopyright (c) 2014, WAKAYAMA Shirou\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without modification,\nare permitted provid",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/go-playground/universal-translator/LICENSE",
+    "sha256": "a55d0c6e1a35ee6cf13afb4bbc3c8801cc570d7ac8edcd5e4503892f1c7ff4f7",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2016 Go Playground\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the S",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/go-playground/validator/v10/LICENSE",
+    "sha256": "9e321f6a1db81616a6c344d3aefddf9834fef23bdd913eae0db283dfa6753dff",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2015 Dean Karn\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Softw",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/go-playground/locales/LICENSE",
+    "sha256": "a1a5ca382f9e8c646fa05240a74a6554bbc3084b5675f84c9eaafd3d95686612",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2016 Go Playground\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the S",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/appscode/go-querystring/LICENSE",
+    "sha256": "d906c9396b6805d16bbaaa8844c58a44c46159bfe494443c1e4cfbc791103dcc",
+    "summary": "Copyright (c) 2013 Google. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistributions of sou",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/apache/arrow-go/v18/NOTICE.txt",
+    "sha256": "c02e3dc1587f49e4876c8b75ae9e534739a00e834b609395cc2bb2fd24452dfe",
+    "summary": "Apache Arrow Go\nCopyright 2016-2025 The Apache Software Foundation\n\nThis product includes software developed at\nThe Apache Software Foundation (http://www.apache.org/).\n",
+    "licences": [
+      "Retained upstream notice (see path and hash)"
+    ]
+  },
+  {
+    "path": "vendor/github.com/apache/arrow-go/v18/LICENSE.txt",
+    "sha256": "ff2fe52b8dfd2574c6ea7f0c407948c857f62672c2a3a9a17083ee10af8067ef",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0",
+      "MIT",
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/quasilyte/go-ruleguard/dsl/LICENSE",
+    "sha256": "5438f63bc326b1cd70dbc99fefbc592b685c31282d620d020ae3d2c85facc968",
+    "summary": "BSD 3-Clause License\n\nCopyright (c) 2022, Iskander (Alex) Sharipov / quasilyte\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the follow",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/Microsoft/go-winio/LICENSE",
+    "sha256": "cf248820bf1178370bb4f1670a59f8748d46bc96d0f64080cd631511c6046409",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2015 Microsoft\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Softw",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/a1ex3/zstd-seekable-format-go/pkg/LICENSE",
+    "sha256": "9b6d8d29cce5b2922e3788136f068846b00f276d573840b703fe01eacfdf5353",
+    "summary": "MIT License\n\nCopyright (c) 2022 Alexey Ivanov\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software wi",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/pkg/errors/LICENSE",
+    "sha256": "8d427fd87bc9579ea368fde3d49f9ca22eac857f91a9dec7e3004bdfab7dee86",
+    "summary": "Copyright (c) 2015, Dave Cheney <dave@cheney.net>\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are met:\n\n* Re",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/pkg/browser/LICENSE",
+    "sha256": "4801bb0c5d70b980b3e1f63d1d2df8d84fec22548e3d73f03a68df1fb808791f",
+    "summary": "Copyright (c) 2014, Dave Cheney <dave@cheney.net>\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are met:\n\n* Re",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/pkg/xattr/LICENSE",
+    "sha256": "2c71fbccf236906a9961d375625a08dc696c112a7ebcfbfd32900e80f8ecaa51",
+    "summary": "Copyright (c) 2012 Dave Cheney. All rights reserved.\nCopyright (c) 2014 Kuba Podg\u00f3rski. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that t",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/pkg/sftp/LICENSE",
+    "sha256": "f5b5087b8e596d015cfea7db26527fe67a196c18ca37415c288dd2534ff74c37",
+    "summary": "Copyright (c) 2013, Dave Cheney\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:\n\n * Redistributions of ",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/lpar/calendar/LICENSE",
+    "sha256": "a7e49a16176944cd385e3019293263707bcfd192c331c07e347c96dc5a333fb7",
+    "summary": "Copyright (c) 2019, IBM Corp. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are met:\n\n* Redistributions of sou",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/github.com/samber/lo/LICENSE",
+    "sha256": "adb3ac2e3e382989de6befdd489f4714785af8aca47c01193a9892e8b26b3860",
+    "summary": "MIT License\n\nCopyright (c) 2022-2025 Samuel Berthe\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Softwa",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/github.com/peterh/liner/COPYING",
+    "sha256": "f941d86a7e3e2d58c4e6467b81298def48917bbf6773de80ef59a7431b8c3c74",
+    "summary": "Copyright \u00a9 2012 Peter Harris\n\nPermission is hereby granted, free of charge, to any person obtaining a\ncopy of this software and associated documentation files (the \"Software\"),\nto deal in the Software without restrictio",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/golang.org/x/exp/LICENSE",
+    "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+    "summary": "Copyright 2009 The Go Authors.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistributions of source code must ret",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/golang.org/x/mobile/LICENSE",
+    "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+    "summary": "Copyright 2009 The Go Authors.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistributions of source code must ret",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/golang.org/x/tools/LICENSE",
+    "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+    "summary": "Copyright 2009 The Go Authors.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistributions of source code must ret",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/golang.org/x/text/LICENSE",
+    "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+    "summary": "Copyright 2009 The Go Authors.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistributions of source code must ret",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/golang.org/x/term/LICENSE",
+    "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+    "summary": "Copyright 2009 The Go Authors.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistributions of source code must ret",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/golang.org/x/image/LICENSE",
+    "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+    "summary": "Copyright 2009 The Go Authors.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistributions of source code must ret",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/golang.org/x/oauth2/LICENSE",
+    "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+    "summary": "Copyright 2009 The Go Authors.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistributions of source code must ret",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/golang.org/x/sys/LICENSE",
+    "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+    "summary": "Copyright 2009 The Go Authors.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistributions of source code must ret",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/golang.org/x/time/LICENSE",
+    "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+    "summary": "Copyright 2009 The Go Authors.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistributions of source code must ret",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/golang.org/x/crypto/LICENSE",
+    "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+    "summary": "Copyright 2009 The Go Authors.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistributions of source code must ret",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/golang.org/x/sync/LICENSE",
+    "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+    "summary": "Copyright 2009 The Go Authors.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistributions of source code must ret",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/golang.org/x/net/LICENSE",
+    "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+    "summary": "Copyright 2009 The Go Authors.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n   * Redistributions of source code must ret",
+    "licences": [
+      "BSD-style"
+    ]
+  },
+  {
+    "path": "vendor/cloud.google.com/go/compute/metadata/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/cloud.google.com/go/auth/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/cloud.google.com/go/auth/oauth2adapt/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "summary": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTI",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/go.etcd.io/bbolt/LICENSE",
+    "sha256": "c15d721c37e277a11584547de6d618541501f7aa10c4e32a945a4f9ff36cb0f6",
+    "summary": "The MIT License (MIT)\n\nCopyright (c) 2013 Ben Johnson\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of\nthis software and associated documentation files (the \"Software\"), to deal in\nthe Sof",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/moul.io/http2curl/v2/LICENSE-APACHE",
+    "sha256": "98a7468a8cdd7c010b2b09ebf87459695dc65a55e608fc2f6fcb10636174706a",
+    "summary": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTIO",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/moul.io/http2curl/v2/LICENSE-MIT",
+    "sha256": "ded78f83bdbffcdff5f79462cc9d655d9a1b1fcf5bba6359583ac9a1cf4fb980",
+    "summary": "Copyright (c) 2015-2021 Manfred Touron <oss@moul.io> (manfred.life)\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to d",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/moul.io/http2curl/v2/COPYRIGHT",
+    "sha256": "d05838dda4db5364992305df1d441704bb668108c2dda4c7e79f2bce4db1a39a",
+    "summary": "Copyright 2015-2021 Manfred Touron and other http2curl Developers.\n\nIntellectual Property Notice\n----------------------------\n\nhttp2curl is licensed under the Apache License, Version 2.0\n(see LICENSE-APACHE or http://www",
+    "licences": [
+      "Apache-2.0",
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/go.yaml.in/yaml/v3/LICENSE",
+    "sha256": "d18f6323b71b0b768bb5e9616e36da390fbd39369a81807cca352de4e4e6aa0b",
+    "summary": "\nThis project is covered by two different licenses: MIT and Apache.\n\n#### MIT License ####\n\nThe following files were ported to Go from C files of libyaml, and thus\nare still covered by their original MIT license, with th",
+    "licences": [
+      "Apache-2.0",
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/go.yaml.in/yaml/v3/NOTICE",
+    "sha256": "f6c2dd3a67b576eafb89b80200b8b1627230bf3821a0c14cb99a22ac19107d00",
+    "summary": "Copyright 2011-2016 Canonical Ltd.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/go.yaml.in/yaml/v2/LICENSE.libyaml",
+    "sha256": "a94710b55e03b5285f77d048c5ba61bb9d6ee04a06c0eb90e68821e11b0c707a",
+    "summary": "The following files were ported to Go from C files of libyaml, and thus\nare still covered by their original copyright and license:\n\n    apic.go\n    emitterc.go\n    parserc.go\n    readerc.go\n    scannerc.go\n    writerc.go",
+    "licences": [
+      "MIT"
+    ]
+  },
+  {
+    "path": "vendor/go.yaml.in/yaml/v2/LICENSE",
+    "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
+    "summary": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTIO",
+    "licences": [
+      "Apache-2.0"
+    ]
+  },
+  {
+    "path": "vendor/go.yaml.in/yaml/v2/NOTICE",
+    "sha256": "f6c2dd3a67b576eafb89b80200b8b1627230bf3821a0c14cb99a22ac19107d00",
+    "summary": "Copyright 2011-2016 Canonical Ltd.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www",
+    "licences": [
+      "Apache-2.0"
+    ]
+  }
+]

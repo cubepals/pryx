@@ -27,3 +27,10 @@ pub const ARCHIVE_CONCURRENCY: usize = 2;
 
 /// Maximum client wait bounds detached readiness and shell response work.
 pub const MAX_WAIT: std::time::Duration = std::time::Duration::from_hours(1);
+
+/// Set only by the native host's opt-in FUSE policy; never grants a host-namespace capability.
+pub const FUSE_ENV: &str = "PRYX_NATIVE_FUSE";
+pub const FUSE_FEATURE: &str = "native-fuse-mounts";
+pub const MOUNTS_ENV: &str = "PRYX_BOOTSTRAP_MOUNTS";
+pub const TOOL_KIND_ENV: &str = "PRYX_TOOL_TEMPLATE";
+pub const SSH_FORWARD_HEADER: &str = "x-pryx-ssh-session";

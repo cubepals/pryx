@@ -123,6 +123,7 @@ pub async fn serve(
         telemetry,
         logs: logbook.clone(),
     });
+    crate::tools::prepare(&agent).map_err(|_| "Native tool runtime directory failed")?;
     let mut servers = Vec::new();
     for listener in listeners {
         let listener = listener.tap_io(|socket| {
@@ -132,6 +133,18 @@ pub async fn serve(
     }
     let mut term = signal(SignalKind::terminate())?;
     let mut interrupt = signal(SignalKind::interrupt())?;
+    let mount_gate = tokio::select! {
+        result=crate::tools::wait_mounts(&agent)=>result.map_err(|_|"Initial sandbox mounts failed"),
+        _=term.recv()=>Err("Terminated while preparing mounts"),
+        _=interrupt.recv()=>Err("Interrupted while preparing mounts"),
+    };
+    if let Err(error) = mount_gate {
+        terminate(&agent, libc::SIGKILL).await;
+        for server in servers {
+            server.abort()
+        }
+        return Err(error.into());
+    }
     let entrypoint = if args.entrypoint.is_empty() {
         None
     } else {
@@ -182,11 +195,21 @@ pub async fn serve(
             _ => std::future::pending::<i32>().await,
         }
     };
-    let code = tokio::select! {
-        code = exited => code,
-        _ = term.recv() => { terminate(&agent, libc::SIGTERM).await; 0 },
-        _ = interrupt.recv() => { terminate(&agent, libc::SIGINT).await; 0 },
+    // Serve scoped health while scientific imports warm. Kernel open/reuse waits on its own
+    // readiness, so a CPU-limited import cannot consume the control token's health deadline.
+    let warming = async {
+        crate::kernels::prestart(&agent).await.map_err(|_| "Prestarted language kernel failed")?;
+        std::future::pending::<Result<i32, Box<dyn std::error::Error>>>().await
     };
+    let result = tokio::select! {
+        code = exited => Ok(code),
+        result = warming => result,
+        _ = term.recv() => { terminate(&agent, libc::SIGTERM).await; Ok(0) },
+        _ = interrupt.recv() => { terminate(&agent, libc::SIGINT).await; Ok(0) },
+    };
+    if result.is_err() {
+        terminate(&agent, libc::SIGKILL).await;
+    }
     for server in servers {
         server.abort();
     }
@@ -194,7 +217,7 @@ pub async fn serve(
     if let Some(logs) = logs {
         let _ = tokio::time::timeout(std::time::Duration::from_secs(1), logs).await;
     }
-    Ok(code)
+    result
 }
 
 async fn log_output(event: Event, logbook: &crate::logbook::Logbook) {
@@ -204,10 +227,16 @@ async fn log_output(event: Event, logbook: &crate::logbook::Logbook) {
         if logbook.record(stream, &bytes).is_err() {
             eprintln!("Entrypoint log persistence failed");
         }
+        // Tokio's standard streams hand bytes to a blocking writer; flushing makes them reach the
+        // descriptor before an entrypoint's exit ends the process.
         if stream == "stdout" {
-            let _ = tokio::io::stdout().write_all(&decoded).await;
+            let mut out = tokio::io::stdout();
+            let _ = out.write_all(&decoded).await;
+            let _ = out.flush().await;
         } else {
-            let _ = tokio::io::stderr().write_all(&decoded).await;
+            let mut err = tokio::io::stderr();
+            let _ = err.write_all(&decoded).await;
+            let _ = err.flush().await;
         }
     }
 }

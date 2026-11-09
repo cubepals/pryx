@@ -22,6 +22,15 @@ pub(super) fn catalog() -> Value {
     let text = json!({"type":"string"});
     let process = json!({"command":{"oneOf":[{"type":"string"},{"type":"array","items":{"type":"string"},"minItems":1}]},"timeout":{"type":"integer","minimum":1},"cwd":text,"env":{"type":"object","additionalProperties":{"type":"string"}},"key":text});
     for (name, description, properties, required) in [
+        ("screenshot", "Capture desktop or browser PNG", json!({"url":text}), vec![]),
+        (
+            "click",
+            "Click desktop coordinates",
+            json!({"x":{"type":"integer","minimum":0},"y":{"type":"integer","minimum":0}}),
+            vec!["x", "y"],
+        ),
+        ("type", "Type into the desktop", json!({"text":text}), vec!["text"]),
+        ("key", "Press an X11 key combination", json!({"combo":text}), vec!["combo"]),
         ("run", "Run a command with bounded collected output", process.clone(), vec!["command"]),
         ("start", "Start a background process", process, vec!["command"]),
         ("processes", "List supervised processes", json!({}), vec![]),
@@ -53,6 +62,18 @@ pub(super) fn catalog() -> Value {
             vec!["port"],
         ),
         ("ports", "List exposed application ports", json!({}), vec![]),
+        (
+            "run_python",
+            "Run Python in a persistent kernel and return rich images and values",
+            json!({"code":text,"context":text,"timeout":{"type":"number","exclusiveMinimum":0}}),
+            vec!["code"],
+        ),
+        (
+            "run_javascript",
+            "Run JavaScript in a persistent kernel and return rich images and values",
+            json!({"code":text,"context":text,"timeout":{"type":"number","exclusiveMinimum":0}}),
+            vec!["code"],
+        ),
     ] {
         tools.push(json!({"name":name,"description":description,"inputSchema":{"type":"object","properties":properties,"required":required,"additionalProperties":false}}));
     }
@@ -110,7 +131,24 @@ async fn process(agent: &Agent, claims: &Claims, name: &str, args: &Value) -> Re
         _ => Err(invalid("Unknown process tool")),
     }
 }
-pub(super) async fn call(agent: &Agent, claims: &Claims, params: &Value) -> Result<Value, Failure> {
+pub(super) async fn result(agent: &Agent, claims: &Claims, params: &Value) -> Result<Value, Failure> {
+    if let Some(name @ ("screenshot" | "click" | "type" | "key")) = params["name"].as_str() {
+        return crate::tools::mcp(agent, claims, name, &params.get("arguments").cloned().unwrap_or_else(|| json!({})))
+            .await;
+    }
+    let language = match params["name"].as_str() {
+        Some("run_python") => Some(crate::kernels::events::Language::Python),
+        Some("run_javascript") => Some(crate::kernels::events::Language::Javascript),
+        _ => None,
+    };
+    if let Some(language) = language {
+        return crate::kernels::mcp(agent, claims, language, &params["arguments"]).await;
+    }
+    let value = call(agent, claims, params).await?;
+    Ok(json!({"content":[{"type":"text","text":value.to_string()}]}))
+}
+
+async fn call(agent: &Agent, claims: &Claims, params: &Value) -> Result<Value, Failure> {
     let name = string(params, "name")?;
     let args = params.get("arguments").cloned().unwrap_or_else(|| json!({}));
     if matches!(

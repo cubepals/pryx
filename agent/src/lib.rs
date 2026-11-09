@@ -25,6 +25,11 @@
 //! - `mcp.rs`: optional authenticated sandbox MCP tools and resources.
 //! - `field_process.rs`: bounded readiness waits and process supervision conveniences.
 //! - `shell_state.rs`: persistent shell registry without router dependencies.
+//! - `kernels.rs`: managed Jupyter language kernels and event streaming.
+//! - `kernel_slots.rs`: opaque kernel storage owned by the process supervisor.
+//! - `tool_slots.rs`: native tool state and non-secret child environment.
+//! - `fuse_namespace.rs`: host-approved nested namespaces and mount-only capabilities.
+//! - `tools.rs`: established desktop, browser, SSH and object-store adapters.
 //! - `shells.rs`: serialized persistent pipe shells with exact stream markers.
 //! - `file_search.rs`: confined bounded searches and archive transfers.
 //! - `ports.rs`: preallocated forward slots.
@@ -87,3 +92,14 @@ pub mod shells;
 
 #[cfg(feature = "server")]
 pub mod shell_state;
+
+#[cfg(feature = "server")]
+pub mod fuse_namespace;
+#[cfg(feature = "server")]
+mod kernel_slots;
+#[cfg(feature = "server")]
+pub mod kernels;
+#[cfg(feature = "server")]
+mod tool_slots;
+#[cfg(feature = "server")]
+pub mod tools;

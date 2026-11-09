@@ -20,7 +20,7 @@ class AsyncAgent:
         self._lock, self._generation = asyncio.Lock(), 0
     @property
     def http(self): return self._api.http
-    def invalidate(self): self._version=None; self._generation += 1; self._credential = None
+    def invalidate(self): self._version=None; self._kernel_version=None; self._generation += 1; self._credential = None
     async def token(self):
         async with self._lock:
             if self._credential and self._credential['expiresAt'] > time.time() + SDK_DEFAULTS['tokenRenewBeforeSeconds']: return self._credential
@@ -48,6 +48,11 @@ class AsyncAgent:
     async def request_v2(self,path,method='GET',body=None):
         await self.require_version()
         return await self.request(path,method,body)
+    async def require_kernels(self, version):
+        if getattr(self, '_kernel_version', None) is None:
+            self._kernel_version = (await self.request('/_pryx/health')).get('kernelsVersion', 0)
+        if self._kernel_version < version:
+            raise PryxError(0, {'error': {'code': 'unsupported', 'message': 'This agent does not provide language kernels'}})
     async def start(self, command, *, key=None, **options):
         stdin=options.get('stdin')
         if isinstance(stdin,(str,bytes,bytearray,memoryview)):options['stdin']=True

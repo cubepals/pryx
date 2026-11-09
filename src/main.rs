@@ -272,7 +272,13 @@ fn facts(config: &Config, fleet: &FleetConfig) -> pryxd::protocol::wire::NodeFac
         machine_id_sha256: pryxd::fleet::enroll::machine_id_sha256(),
         daemon_version: pryxd::upgrade::daemon_version(),
         protocol: pryxd::protocol::ProtocolVersions::ours(),
-        features: pryxd::protocol::features(),
+        features: {
+            let mut features = pryxd::protocol::features();
+            if config.runtime == RuntimeKind::Container && config.docker.native_fuse {
+                features.push(pryx_agent::contract::FUSE_FEATURE.into());
+            }
+            features
+        },
         api_address: fleet.api_address.unwrap_or(config.api.listen),
         edge_ips: config.network.edge_ips.clone(),
         control_ips: config.network.control_ips.clone(),
@@ -316,7 +322,11 @@ async fn container_runtime(config: &Config) -> anyhow::Result<Arc<dyn ContainerR
     } else if config.runtime == RuntimeKind::Process {
         Arc::new(pryxd::runtime::process::ProcessRuntime::new(&config.state_dir, config.process.clone())?)
     } else {
-        let docker = DockerRuntime::new(&config.docker.socket)?;
+        let docker = DockerRuntime::new(&config.docker.socket)?.with_native_tools(
+            config.docker.native_tools_seccomp.as_deref(),
+            config.docker.native_fuse,
+            config.docker.native_tools_apparmor.as_deref(),
+        )?;
         if config.store_lease.enabled {
             docker.check_store_lease().await?;
             pryxd::store_lease::check_policy(&config.state_dir, true)?;

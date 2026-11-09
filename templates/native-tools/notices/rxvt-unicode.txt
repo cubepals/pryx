@@ -1,0 +1,105 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: rxvt-unicode
+Source: http://dist.schmorp.de/rxvt-unicode/
+
+Files: *
+Copyright:
+    2003-2021 Marc Alexander Lehmann <schmorp@schmorp.de>
+              Wolfgang Pietsch
+    1992      John Bovey <jdb@ukc.ac.uk>
+    1992-1994 Robert Nation <nation@rocket.sanders.lockheed.com>
+    1995      Garrett D'Amore <garrett@netcom.com>
+    1995      Jakub Jelinek <jj@gnu.ai.mit.edu>
+    1995      Steven Hirsch <hirsch@emba.uvm.edu>
+    1995-1997 Raul Garcia Garcia <rgg@tid.es>
+    1996      Chuck Blake <cblake@BBN.COM>
+    1996-1998 mj olesen <olesen@me.queensu.ca>
+    1997-1998 Oezguer Kesim <kesim@math.fu-berlin.de>
+    1997-2001 Geoff Wing <gcw@pobox.com>
+    1998      Alfredo K. Kojima <kojima@windowmaker.org>
+    2001      Marius Gedminas
+    2003      Rob McMullen <robm@flipturn.org>
+    2005      WU Fengguang
+    2006-2015 Emanuele Giaquinta <e.giaquinta@glauco.it>
+    2011      Ryan Kavanagh <ryanakca@kubuntu.org>
+License: GPL-2.0+
+
+Files: libev/*
+Copyright:
+    2009-2020 Marc Alexander Lehmann <libecb@schmorp.de>
+    2011 Emanuele Giaquinta
+License: BSD-2-clause or GPL-2.0+
+
+Files: debian/*
+Copyright:
+    2004-2006  Eduard Bloch <blade@debian.org>
+    2006-2011  Decklin Foster <decklin@red-bean.com>
+    2011-2021  Ryan Kavanagh <rak@debian.org>
+License: GPL-2.0+
+
+Files: debian/extensions/urxvt-font-size/*
+Copyright:
+    2008      David O'Neill
+    2009-2012 Simon Lundström <simmel@soy.se>
+    2012      Noah K. Tilton <noahktilton@gmail.com>
+    2012-2016 Jan Larres <jan@majutsushi.net>
+Comment: Downloaded from https://github.com/majutsushi/urxvt-font-size
+License: Expat
+
+License: BSD-2-clause
+ Redistribution and use in source and binary forms, with or without modifica-
+ tion, are permitted provided that the following conditions are met:
+ .
+   1.  Redistributions of source code must retain the above copyright notice,
+       this list of conditions and the following disclaimer.
+ .
+   2.  Redistributions in binary form must reproduce the above copyright
+       notice, this list of conditions and the following disclaimer in the
+       documentation and/or other materials provided with the distribution.
+ .
+ THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED
+ WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MER-
+ CHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO
+ EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPE-
+ CIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+ OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTH-
+ ERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ OF THE POSSIBILITY OF SUCH DAMAGE.
+
+License: Expat
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to
+ deal in the Software without restriction, including without limitation the
+ rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+ sell copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+ .
+ The above copyright notice and this permission notice shall be included in
+ all copies or substantial portions of the Software.
+ .
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ IN THE SOFTWARE.
+
+License: GPL-2.0+
+ This package is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+ .
+ This package is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ .
+ You should have received a copy of the GNU General Public License
+ along with this program. If not, see <https://www.gnu.org/licenses/>
+ .
+ On Debian systems, the complete text of the GNU General
+ Public License version 2 can be found in "/usr/share/common-licenses/GPL-2".

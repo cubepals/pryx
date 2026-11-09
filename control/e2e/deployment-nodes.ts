@@ -16,6 +16,8 @@ export async function spawnNodes(at: {
   bin: string
   options: {
     egressPolicy?: boolean
+    nativeTools?: boolean
+    agentPublicOrigin?: string
     binary?: string
     tier?: import('../src/isolation.ts').Isolation
     nodes?: number
@@ -42,6 +44,8 @@ export async function spawnNodes(at: {
         allowedImages: options.allowedImages,
         tier: options.tier,
         storeLease: options.storeLease,
+        nativeTools: options.nativeTools,
+        agentPublicOrigin: options.agentPublicOrigin,
         home: nodeDir,
         endpointUrl: config.joinUrl,
         dir: nodeDir,

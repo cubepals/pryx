@@ -1,0 +1,580 @@
+[
+  {
+    "header": {
+      "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_14",
+      "msg_type": "status",
+      "username": "agent",
+      "session": "a6e2f43a-5fd6448feb5f6bfcc8b2613c",
+      "date": "2026-11-08 00:14:52.369331+00:00",
+      "version": "5.4"
+    },
+    "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_14",
+    "msg_type": "status",
+    "parent_header": {
+      "msg_id": "b0e8d7f5-f01091b2dba4800309c8948f_622041_2",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "b0e8d7f5-f01091b2dba4800309c8948f",
+      "date": "2026-11-08 00:14:52.364073+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "execution_state": "busy"
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_15",
+      "msg_type": "execute_input",
+      "username": "agent",
+      "session": "a6e2f43a-5fd6448feb5f6bfcc8b2613c",
+      "date": "2026-11-08 00:14:52.370610+00:00",
+      "version": "5.4"
+    },
+    "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_15",
+    "msg_type": "execute_input",
+    "parent_header": {
+      "msg_id": "b0e8d7f5-f01091b2dba4800309c8948f_622041_2",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "b0e8d7f5-f01091b2dba4800309c8948f",
+      "date": "2026-11-08 00:14:52.364073+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "code": "print('recorded stdout'); import sys; print('recorded stderr',file=sys.stderr); 2+2",
+      "execution_count": 1
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_17",
+      "msg_type": "stream",
+      "username": "agent",
+      "session": "a6e2f43a-5fd6448feb5f6bfcc8b2613c",
+      "date": "2026-11-08 00:14:52.373309+00:00",
+      "version": "5.4"
+    },
+    "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_17",
+    "msg_type": "stream",
+    "parent_header": {
+      "username": "agent",
+      "session": "b0e8d7f5-f01091b2dba4800309c8948f",
+      "date": "2026-11-08 00:14:52.364073+00:00",
+      "version": "5.4",
+      "msg_id": "b0e8d7f5-f01091b2dba4800309c8948f_622041_2",
+      "msg_type": "execute_request"
+    },
+    "metadata": {},
+    "content": {
+      "name": "stdout",
+      "text": "recorded stdout\n"
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_18",
+      "msg_type": "stream",
+      "username": "agent",
+      "session": "a6e2f43a-5fd6448feb5f6bfcc8b2613c",
+      "date": "2026-11-08 00:14:52.374370+00:00",
+      "version": "5.4"
+    },
+    "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_18",
+    "msg_type": "stream",
+    "parent_header": {
+      "username": "agent",
+      "session": "b0e8d7f5-f01091b2dba4800309c8948f",
+      "date": "2026-11-08 00:14:52.364073+00:00",
+      "version": "5.4",
+      "msg_id": "b0e8d7f5-f01091b2dba4800309c8948f_622041_2",
+      "msg_type": "execute_request"
+    },
+    "metadata": {},
+    "content": {
+      "name": "stderr",
+      "text": "recorded stderr\n"
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_16",
+      "msg_type": "execute_result",
+      "username": "agent",
+      "session": "a6e2f43a-5fd6448feb5f6bfcc8b2613c",
+      "date": "2026-11-08 00:14:52.372342+00:00",
+      "version": "5.4"
+    },
+    "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_16",
+    "msg_type": "execute_result",
+    "parent_header": {
+      "msg_id": "b0e8d7f5-f01091b2dba4800309c8948f_622041_2",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "b0e8d7f5-f01091b2dba4800309c8948f",
+      "date": "2026-11-08 00:14:52.364073+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "data": {
+        "text/plain": "4",
+        "application/json": 4
+      },
+      "metadata": {},
+      "execution_count": 1
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_20",
+      "msg_type": "status",
+      "username": "agent",
+      "session": "a6e2f43a-5fd6448feb5f6bfcc8b2613c",
+      "date": "2026-11-08 00:14:52.376637+00:00",
+      "version": "5.4"
+    },
+    "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_20",
+    "msg_type": "status",
+    "parent_header": {
+      "msg_id": "b0e8d7f5-f01091b2dba4800309c8948f_622041_2",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "b0e8d7f5-f01091b2dba4800309c8948f",
+      "date": "2026-11-08 00:14:52.364073+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "execution_state": "idle"
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_19",
+      "msg_type": "execute_reply",
+      "username": "agent",
+      "session": "a6e2f43a-5fd6448feb5f6bfcc8b2613c",
+      "date": "2026-11-08 00:14:52.376012+00:00",
+      "version": "5.4"
+    },
+    "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_19",
+    "msg_type": "execute_reply",
+    "parent_header": {
+      "msg_id": "b0e8d7f5-f01091b2dba4800309c8948f_622041_2",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "b0e8d7f5-f01091b2dba4800309c8948f",
+      "date": "2026-11-08 00:14:52.364073+00:00",
+      "version": "5.4"
+    },
+    "metadata": {
+      "started": "2026-11-08T00:14:52.369653Z",
+      "dependencies_met": true,
+      "engine": "ebe7589b-537f-4f62-a232-0e3d7c76fb10",
+      "status": "ok"
+    },
+    "content": {
+      "status": "ok",
+      "execution_count": 1,
+      "user_expressions": {},
+      "payload": []
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_21",
+      "msg_type": "status",
+      "username": "agent",
+      "session": "a6e2f43a-5fd6448feb5f6bfcc8b2613c",
+      "date": "2026-11-08 00:14:52.378735+00:00",
+      "version": "5.4"
+    },
+    "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_21",
+    "msg_type": "status",
+    "parent_header": {
+      "msg_id": "b0e8d7f5-f01091b2dba4800309c8948f_622041_3",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "b0e8d7f5-f01091b2dba4800309c8948f",
+      "date": "2026-11-08 00:14:52.377787+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "execution_state": "busy"
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_22",
+      "msg_type": "execute_input",
+      "username": "agent",
+      "session": "a6e2f43a-5fd6448feb5f6bfcc8b2613c",
+      "date": "2026-11-08 00:14:52.378973+00:00",
+      "version": "5.4"
+    },
+    "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_22",
+    "msg_type": "execute_input",
+    "parent_header": {
+      "msg_id": "b0e8d7f5-f01091b2dba4800309c8948f_622041_3",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "b0e8d7f5-f01091b2dba4800309c8948f",
+      "date": "2026-11-08 00:14:52.377787+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "code": "from IPython.display import display; display({'text/plain':'plain','text/html':'<b>rich</b>','application/json':{'answer':4}}, raw=True); display('first',display_id='one'); display('second',display_id='one',update=True)",
+      "execution_count": 2
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_23",
+      "msg_type": "display_data",
+      "username": "agent",
+      "session": "a6e2f43a-5fd6448feb5f6bfcc8b2613c",
+      "date": "2026-11-08 00:14:52.380828+00:00",
+      "version": "5.4"
+    },
+    "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_23",
+    "msg_type": "display_data",
+    "parent_header": {
+      "msg_id": "b0e8d7f5-f01091b2dba4800309c8948f_622041_3",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "b0e8d7f5-f01091b2dba4800309c8948f",
+      "date": "2026-11-08 00:14:52.377787+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "data": {
+        "text/plain": "plain",
+        "text/html": "<b>rich</b>",
+        "application/json": {
+          "answer": 4
+        }
+      },
+      "metadata": {},
+      "transient": {}
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_24",
+      "msg_type": "display_data",
+      "username": "agent",
+      "session": "a6e2f43a-5fd6448feb5f6bfcc8b2613c",
+      "date": "2026-11-08 00:14:52.381883+00:00",
+      "version": "5.4"
+    },
+    "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_24",
+    "msg_type": "display_data",
+    "parent_header": {
+      "msg_id": "b0e8d7f5-f01091b2dba4800309c8948f_622041_3",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "b0e8d7f5-f01091b2dba4800309c8948f",
+      "date": "2026-11-08 00:14:52.377787+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "data": {
+        "text/plain": "'first'"
+      },
+      "metadata": {},
+      "transient": {
+        "display_id": "one"
+      }
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_25",
+      "msg_type": "update_display_data",
+      "username": "agent",
+      "session": "a6e2f43a-5fd6448feb5f6bfcc8b2613c",
+      "date": "2026-11-08 00:14:52.382705+00:00",
+      "version": "5.4"
+    },
+    "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_25",
+    "msg_type": "update_display_data",
+    "parent_header": {
+      "msg_id": "b0e8d7f5-f01091b2dba4800309c8948f_622041_3",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "b0e8d7f5-f01091b2dba4800309c8948f",
+      "date": "2026-11-08 00:14:52.377787+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "data": {
+        "text/plain": "'second'"
+      },
+      "metadata": {},
+      "transient": {
+        "display_id": "one"
+      }
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_26",
+      "msg_type": "execute_result",
+      "username": "agent",
+      "session": "a6e2f43a-5fd6448feb5f6bfcc8b2613c",
+      "date": "2026-11-08 00:14:52.382850+00:00",
+      "version": "5.4"
+    },
+    "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_26",
+    "msg_type": "execute_result",
+    "parent_header": {
+      "msg_id": "b0e8d7f5-f01091b2dba4800309c8948f_622041_3",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "b0e8d7f5-f01091b2dba4800309c8948f",
+      "date": "2026-11-08 00:14:52.377787+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "data": {
+        "text/plain": "<DisplayHandle display_id=one>"
+      },
+      "metadata": {},
+      "execution_count": 2
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_28",
+      "msg_type": "status",
+      "username": "agent",
+      "session": "a6e2f43a-5fd6448feb5f6bfcc8b2613c",
+      "date": "2026-11-08 00:14:52.385286+00:00",
+      "version": "5.4"
+    },
+    "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_28",
+    "msg_type": "status",
+    "parent_header": {
+      "msg_id": "b0e8d7f5-f01091b2dba4800309c8948f_622041_3",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "b0e8d7f5-f01091b2dba4800309c8948f",
+      "date": "2026-11-08 00:14:52.377787+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "execution_state": "idle"
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_27",
+      "msg_type": "execute_reply",
+      "username": "agent",
+      "session": "a6e2f43a-5fd6448feb5f6bfcc8b2613c",
+      "date": "2026-11-08 00:14:52.384557+00:00",
+      "version": "5.4"
+    },
+    "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_27",
+    "msg_type": "execute_reply",
+    "parent_header": {
+      "msg_id": "b0e8d7f5-f01091b2dba4800309c8948f_622041_3",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "b0e8d7f5-f01091b2dba4800309c8948f",
+      "date": "2026-11-08 00:14:52.377787+00:00",
+      "version": "5.4"
+    },
+    "metadata": {
+      "started": "2026-11-08T00:14:52.378957Z",
+      "dependencies_met": true,
+      "engine": "ebe7589b-537f-4f62-a232-0e3d7c76fb10",
+      "status": "ok"
+    },
+    "content": {
+      "status": "ok",
+      "execution_count": 2,
+      "user_expressions": {},
+      "payload": []
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_29",
+      "msg_type": "status",
+      "username": "agent",
+      "session": "a6e2f43a-5fd6448feb5f6bfcc8b2613c",
+      "date": "2026-11-08 00:14:52.387436+00:00",
+      "version": "5.4"
+    },
+    "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_29",
+    "msg_type": "status",
+    "parent_header": {
+      "msg_id": "b0e8d7f5-f01091b2dba4800309c8948f_622041_4",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "b0e8d7f5-f01091b2dba4800309c8948f",
+      "date": "2026-11-08 00:14:52.386098+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "execution_state": "busy"
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_30",
+      "msg_type": "execute_input",
+      "username": "agent",
+      "session": "a6e2f43a-5fd6448feb5f6bfcc8b2613c",
+      "date": "2026-11-08 00:14:52.387622+00:00",
+      "version": "5.4"
+    },
+    "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_30",
+    "msg_type": "execute_input",
+    "parent_header": {
+      "msg_id": "b0e8d7f5-f01091b2dba4800309c8948f_622041_4",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "b0e8d7f5-f01091b2dba4800309c8948f",
+      "date": "2026-11-08 00:14:52.386098+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "code": "raise ValueError('recorded error')",
+      "execution_count": 3
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_31",
+      "msg_type": "error",
+      "username": "agent",
+      "session": "a6e2f43a-5fd6448feb5f6bfcc8b2613c",
+      "date": "2026-11-08 00:14:52.394472+00:00",
+      "version": "5.4"
+    },
+    "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_31",
+    "msg_type": "error",
+    "parent_header": {
+      "msg_id": "b0e8d7f5-f01091b2dba4800309c8948f_622041_4",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "b0e8d7f5-f01091b2dba4800309c8948f",
+      "date": "2026-11-08 00:14:52.386098+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "traceback": [
+        "\u001b[31m---------------------------------------------------------------------------\u001b[39m",
+        "\u001b[31mValueError\u001b[39m                                Traceback (most recent call last)",
+        "\u001b[36mCell\u001b[39m\u001b[36m \u001b[39m\u001b[32mIn[3]\u001b[39m\u001b[32m, line 1\u001b[39m\n\u001b[32m----> \u001b[39m\u001b[32m1\u001b[39m \u001b[38;5;28;01mraise\u001b[39;00m ValueError(\u001b[33m'recorded error'\u001b[39m)\n",
+        "\u001b[31mValueError\u001b[39m: recorded error"
+      ],
+      "ename": "ValueError",
+      "evalue": "recorded error"
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_33",
+      "msg_type": "status",
+      "username": "agent",
+      "session": "a6e2f43a-5fd6448feb5f6bfcc8b2613c",
+      "date": "2026-11-08 00:14:52.400048+00:00",
+      "version": "5.4"
+    },
+    "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_33",
+    "msg_type": "status",
+    "parent_header": {
+      "msg_id": "b0e8d7f5-f01091b2dba4800309c8948f_622041_4",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "b0e8d7f5-f01091b2dba4800309c8948f",
+      "date": "2026-11-08 00:14:52.386098+00:00",
+      "version": "5.4"
+    },
+    "metadata": {},
+    "content": {
+      "execution_state": "idle"
+    },
+    "buffers": []
+  },
+  {
+    "header": {
+      "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_32",
+      "msg_type": "execute_reply",
+      "username": "agent",
+      "session": "a6e2f43a-5fd6448feb5f6bfcc8b2613c",
+      "date": "2026-11-08 00:14:52.399426+00:00",
+      "version": "5.4"
+    },
+    "msg_id": "a6e2f43a-5fd6448feb5f6bfcc8b2613c_622043_32",
+    "msg_type": "execute_reply",
+    "parent_header": {
+      "msg_id": "b0e8d7f5-f01091b2dba4800309c8948f_622041_4",
+      "msg_type": "execute_request",
+      "username": "agent",
+      "session": "b0e8d7f5-f01091b2dba4800309c8948f",
+      "date": "2026-11-08 00:14:52.386098+00:00",
+      "version": "5.4"
+    },
+    "metadata": {
+      "started": "2026-11-08T00:14:52.387608Z",
+      "dependencies_met": true,
+      "engine": "ebe7589b-537f-4f62-a232-0e3d7c76fb10",
+      "status": "error"
+    },
+    "content": {
+      "status": "error",
+      "traceback": [
+        "\u001b[31m---------------------------------------------------------------------------\u001b[39m",
+        "\u001b[31mValueError\u001b[39m                                Traceback (most recent call last)",
+        "\u001b[36mCell\u001b[39m\u001b[36m \u001b[39m\u001b[32mIn[3]\u001b[39m\u001b[32m, line 1\u001b[39m\n\u001b[32m----> \u001b[39m\u001b[32m1\u001b[39m \u001b[38;5;28;01mraise\u001b[39;00m ValueError(\u001b[33m'recorded error'\u001b[39m)\n",
+        "\u001b[31mValueError\u001b[39m: recorded error"
+      ],
+      "ename": "ValueError",
+      "evalue": "recorded error",
+      "engine_info": {
+        "engine_uuid": "ebe7589b-537f-4f62-a232-0e3d7c76fb10",
+        "engine_id": -1,
+        "method": "execute"
+      },
+      "execution_count": 3,
+      "user_expressions": {},
+      "payload": []
+    },
+    "buffers": []
+  }
+]

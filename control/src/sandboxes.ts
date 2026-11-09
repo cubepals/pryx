@@ -35,6 +35,7 @@ export const SESSION_LIVE_SECONDS = 2 * MINUTE_S
 export type SandboxSpec = WorkloadSpec & {
   image: string
   isolation?: import('./isolation.ts').Isolation
+  fuseMounts?: boolean
   name?: string
   metadata?: Record<string, unknown>
   autoDelete?: boolean
@@ -108,6 +109,7 @@ export function runtimeSpec(spec: SandboxSpec): RuntimeSpec {
   const defaults = nodeSchema.components.schemas.WorkloadSpec.properties
   return {
     image: spec.image,
+    ...(spec.fuseMounts ? { fuseMounts: true } : {}),
     packages: spec.packages,
     ...(spec.workdir ? { workdir: spec.workdir } : {}),
     ...(spec.user ? { user: spec.user } : {}),
@@ -138,6 +140,7 @@ export function runtimeSpec(spec: SandboxSpec): RuntimeSpec {
 }
 
 export class Sandboxes {
+  afterRunning?: (id: string, project: string) => Promise<unknown>
   projects?: ProjectAdmission
   placement?: {
     refused: (region: string, spec: SandboxSpec) => Promise<void>
@@ -264,9 +267,11 @@ export class Sandboxes {
     }
   }
   private async state(id: string, state: SandboxState, activity = false): Promise<void> {
-    await this.db.execute(
-      sql`UPDATE sandboxes SET route_listed_version = CASE WHEN state <> ${state} THEN NULL ELSE route_listed_version END, state = ${state}, updated_at = now(), activity_at = CASE WHEN ${activity} THEN now() ELSE activity_at END WHERE id = ${id}`,
+    const changed = await one<{ project: string; mounted: boolean }>(
+      this.db,
+      sql`UPDATE sandboxes SET route_listed_version = CASE WHEN state <> ${state} THEN NULL ELSE route_listed_version END, state = ${state}, updated_at = now(), activity_at = CASE WHEN ${activity} THEN now() ELSE activity_at END WHERE id = ${id} RETURNING project,COALESCE((spec->>'fuseMounts')::boolean,false) AS mounted`,
     )
+    if (state === 'running' && changed?.mounted) await this.afterRunning?.(id, changed.project)
     await event(this.db, `sandbox.${state}`, { workload: id })
   }
   async make(
@@ -591,6 +596,10 @@ export class Sandboxes {
     )
     await this.db.execute(
       sql`UPDATE edge_addresses SET retired_at=COALESCE(retired_at,now()) WHERE sandbox=${id}`,
+    )
+    await this.db.execute(sql`DELETE FROM sandbox_mounts WHERE sandbox=${id}`)
+    await this.db.execute(
+      sql`UPDATE sandbox_ssh SET revoked_at=COALESCE(revoked_at,now()) WHERE sandbox=${id}`,
     )
     await event(this.db, expired ? 'sandbox.expired' : 'sandbox.deleted', {
       workload: id,

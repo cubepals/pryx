@@ -3,8 +3,20 @@
 import { expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { createServer } from 'node:net'
-import { nodeConfigFor, nodePortLow, TEST_NODE_PORTS } from '../e2e/runtime-config.ts'
+import nodeSchema from '../../openapi/node-reads.openapi.json'
+import { nativeEdgePortRange, nodeConfigFor, nodePortLow, TEST_NODE_PORTS } from '../e2e/runtime-config.ts'
 import { freePort } from '../e2e/waits.ts'
+
+test('native raw edge ports are above every ephemeral and workload allocation', () => {
+  const ephemeralEnd = Number(
+    readFileSync('/proc/sys/net/ipv4/ip_local_port_range', 'utf8').trim().split(/\s+/)[1],
+  )
+  const [low, high] = nativeEdgePortRange()
+  expect(low).toBeGreaterThan(ephemeralEnd)
+  expect(low).toBeGreaterThan(nodePortLow('e2efe1292', 1) + TEST_NODE_PORTS)
+  expect(high).toBe(nodeSchema.components.schemas.PortSpec.properties.containerPort.maximum)
+  expect(high - low).toBeGreaterThan(4)
+})
 
 test('daemon fixtures derive workload pools below the kernel ephemeral range', () => {
   const ephemeralStart = Number(
@@ -28,6 +40,23 @@ test('daemon fixtures derive workload pools below the kernel ephemeral range', (
     expect(high - low + 1).toBe(TEST_NODE_PORTS)
     expect(high).toBeLessThan(ephemeralStart)
   }
+})
+
+test('native fixture deployments have distinct explicit Docker networks', () => {
+  const networks = ['publicaaa', 'publicbbb'].map((deployment) => {
+    const config = nodeConfigFor(deployment)({
+      home: '/tmp/fixture',
+      dir: '/tmp/fixture',
+      endpointUrl: 'https://node.test',
+      apiPort: 1001,
+      opsPort: 1002,
+      nativeTools: true,
+    })
+    const parsed = Bun.TOML.parse(config) as { docker: { network?: string } }
+    expect(parsed.docker.network).toBeTypeOf('string')
+    return parsed.docker.network
+  })
+  expect(new Set(networks).size).toBe(networks.length)
 })
 
 test('fixture listener probes never reuse a port or overlap workload pools', async () => {

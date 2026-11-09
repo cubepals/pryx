@@ -33,7 +33,12 @@ pub struct Exposed {
 
 struct Slot {
     port: u16,
-    target: watch::Sender<Option<u16>>,
+    target: watch::Sender<Option<Target>>,
+}
+#[derive(Clone)]
+struct Target {
+    port: u16,
+    session: Option<String>,
 }
 
 pub struct Ports {
@@ -135,7 +140,10 @@ impl Ports {
         let mut slots = Vec::new();
         let mut tasks = Vec::new();
         for (index, (port, listeners)) in listeners.into_iter().enumerate() {
-            let target = watch::channel(restored.targets.get(index).copied().flatten()).0;
+            let target = watch::channel(
+                restored.targets.get(index).copied().flatten().map(|port| Target { port, session: None }),
+            )
+            .0;
             for listener in listeners {
                 tasks.push(tokio::spawn(serve(listener, target.subscribe(), telemetry.clone(), forward.clone())));
             }
@@ -168,7 +176,12 @@ impl Ports {
             return Err(PortError::Persistence);
         }
         if let Some(data) = &self.checkpoint {
-            let mut targets: Vec<_> = held.iter().map(|s| *s.target.borrow()).collect();
+            // SSH assignments are ephemeral and never become unauthenticated HTTP previews
+            // after a stop/restart. A paused container keeps them in memory with its SSH keys.
+            let mut targets: Vec<_> = held
+                .iter()
+                .map(|s| s.target.borrow().as_ref().and_then(|t| t.session.is_none().then_some(t.port)))
+                .collect();
             targets[changed] = value;
             state::write(data, PORTS_PATH, &PortState { revision, targets }, true)
                 .map_err(|_| PortError::Persistence)?;
@@ -187,15 +200,27 @@ impl Ports {
     }
 
     pub async fn list(&self) -> Vec<Exposed> {
-        self.held.lock().await.iter().filter_map(|s| s.target.borrow().map(|t| self.view(s, t))).collect()
+        self.held
+            .lock()
+            .await
+            .iter()
+            .filter_map(|s| s.target.borrow().as_ref().filter(|t| t.session.is_none()).map(|t| self.view(s, t.port)))
+            .collect()
     }
 
     pub async fn expose(&self, target: u16, allowed: u16) -> Result<Exposed, PortError> {
         let held = self.held.lock().await;
-        if target == 0 || target == self.agent_port || held.iter().any(|s| s.port == target) {
+        if target == 0
+            || target == self.agent_port
+            || held.iter().any(|s| {
+                s.port == target || s.target.borrow().as_ref().is_some_and(|t| t.port == target && t.session.is_some())
+            })
+        {
             return Err(PortError::Invalid);
         }
-        if let Some(slot) = held.iter().find(|s| *s.target.borrow() == Some(target)) {
+        if let Some(slot) =
+            held.iter().find(|s| s.target.borrow().as_ref().is_some_and(|t| t.port == target && t.session.is_none()))
+        {
             return Ok(self.view(slot, target));
         }
         if held.iter().filter(|s| s.target.borrow().is_some()).count() >= usize::from(allowed) {
@@ -204,7 +229,7 @@ impl Ports {
         let index = held.iter().position(|s| s.target.borrow().is_none()).ok_or(PortError::NoSparePort)?;
         self.persist(&held, index, Some(target))?;
         let slot = &held[index];
-        slot.target.send_replace(Some(target));
+        slot.target.send_replace(Some(Target { port: target, session: None }));
         Ok(self.view(slot, target))
     }
 
@@ -219,7 +244,40 @@ impl Ports {
 
     pub async fn unexpose(&self, target: u16) -> Result<(), PortError> {
         let held = self.held.lock().await;
-        if let Some(index) = held.iter().position(|s| *s.target.borrow() == Some(target)) {
+        if held.iter().any(|s| s.target.borrow().as_ref().is_some_and(|t| t.port == target && t.session.is_some())) {
+            return Err(PortError::Invalid);
+        }
+        if let Some(index) = held.iter().position(|s| s.target.borrow().as_ref().is_some_and(|t| t.port == target)) {
+            self.persist(&held, index, None)?;
+            held[index].target.send_replace(None);
+        }
+        Ok(())
+    }
+
+    pub(crate) async fn expose_ssh(&self, target: u16, session: &str, allowed: u16) -> Result<u16, PortError> {
+        let held = self.held.lock().await;
+        if target == 0
+            || target == self.agent_port
+            || held
+                .iter()
+                .any(|slot| slot.port == target || slot.target.borrow().as_ref().is_some_and(|t| t.port == target))
+        {
+            return Err(PortError::Invalid);
+        }
+        if held.iter().filter(|slot| slot.target.borrow().is_some()).count() >= usize::from(allowed) {
+            return Err(PortError::NoSparePort);
+        }
+        let index = held.iter().position(|slot| slot.target.borrow().is_none()).ok_or(PortError::NoSparePort)?;
+        self.persist(&held, index, None)?;
+        held[index].target.send_replace(Some(Target { port: target, session: Some(session.into()) }));
+        Ok(held[index].port)
+    }
+    pub(crate) async fn unexpose_ssh(&self, session: &str) -> Result<(), PortError> {
+        let held = self.held.lock().await;
+        if let Some(index) = held
+            .iter()
+            .position(|slot| slot.target.borrow().as_ref().is_some_and(|t| t.session.as_deref() == Some(session)))
+        {
             self.persist(&held, index, None)?;
             held[index].target.send_replace(None);
         }
@@ -237,19 +295,24 @@ impl Drop for Ports {
 
 async fn serve(
     listener: TcpListener,
-    target: watch::Receiver<Option<u16>>,
+    target: watch::Receiver<Option<Target>>,
     telemetry: Arc<Telemetry>,
     forward: Option<Arc<dyn crate::guest::Forward>>,
 ) {
     while let Ok((mut downstream, _)) = listener.accept().await {
         let _ = downstream.set_nodelay(true);
         let mut assigned = target.clone();
-        let port = *assigned.borrow_and_update();
-        if let Some(port) = port {
+        let target = assigned.borrow_and_update().clone();
+        if let Some(target) = target {
+            let port = target.port;
             let telemetry = telemetry.clone();
             let forward = forward.clone();
             tokio::spawn(async move {
-                let header = tokio::time::timeout(Duration::from_secs(3), forward_header(&mut downstream, port)).await;
+                let header = tokio::time::timeout(
+                    Duration::from_secs(3),
+                    forward_header(&mut downstream, port, target.session.as_deref()),
+                )
+                .await;
                 let Ok(Ok(header)) = header else { return };
                 if assigned.has_changed().unwrap_or(true) {
                     return;
@@ -281,7 +344,7 @@ async fn serve(
     }
 }
 
-async fn forward_header(stream: &mut TcpStream, target: u16) -> std::io::Result<Vec<u8>> {
+async fn forward_header(stream: &mut TcpStream, target: u16, session: Option<&str>) -> std::io::Result<Vec<u8>> {
     // A reused spare must never send an old hostname to its new target. The edge names the
     // logical target in this bounded HTTP preface, which is stripped before reaching the app.
     const MAX_HEADER: usize = 64 * 1024;
@@ -315,6 +378,17 @@ async fn forward_header(stream: &mut TcpStream, target: u16) -> std::io::Result<
     if assigned != Some(target) {
         return Err(std::io::ErrorKind::PermissionDenied.into());
     }
+    if let Some(session) = session {
+        let requested = request
+            .headers
+            .iter()
+            .find(|h| h.name.eq_ignore_ascii_case(crate::contract::SSH_FORWARD_HEADER))
+            .and_then(|h| std::str::from_utf8(h.value).ok());
+        if request.method != Some("CONNECT") || requested != Some(session) {
+            return Err(std::io::ErrorKind::PermissionDenied.into());
+        }
+        return Ok(input[length..].to_vec());
+    }
     let line = input.windows(2).position(|p| p == b"\r\n").ok_or(std::io::ErrorKind::InvalidInput)?;
     let mut forwarded = input[..line + 2].to_vec();
     for header in request.headers.iter().filter(|h| !h.name.eq_ignore_ascii_case(crate::contract::FORWARD_HEADER)) {
@@ -326,4 +400,64 @@ async fn forward_header(stream: &mut TcpStream, target: u16) -> std::io::Result<
     forwarded.extend_from_slice(b"\r\n");
     forwarded.extend_from_slice(&input[length..]);
     Ok(forwarded)
+}
+
+#[cfg(test)]
+mod ssh_tests {
+    use super::*;
+    async fn preface(session: Option<&str>, input: Vec<u8>) -> std::io::Result<Vec<u8>> {
+        let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await?;
+        let address = listener.local_addr()?;
+        let sender = tokio::spawn(async move {
+            let mut socket = TcpStream::connect(address).await.unwrap();
+            socket.write_all(&input).await.unwrap();
+            socket.shutdown().await.unwrap()
+        });
+        let (mut socket, _) = listener.accept().await?;
+        let result = forward_header(&mut socket, 2222, session).await;
+        sender.await.unwrap();
+        result
+    }
+    #[tokio::test]
+    async fn ssh_preface_is_removed_and_session_is_bound() {
+        let header = format!(
+            "CONNECT / HTTP/1.1\r\n{}: 2222\r\n{}: lease-one\r\n\r\nSSH-2.0-client\r\n",
+            crate::contract::FORWARD_HEADER,
+            crate::contract::SSH_FORWARD_HEADER
+        );
+        assert_eq!(preface(Some("lease-one"), header.as_bytes().to_vec()).await.unwrap(), b"SSH-2.0-client\r\n");
+        assert_eq!(
+            preface(Some("lease-two"), header.as_bytes().to_vec()).await.unwrap_err().kind(),
+            std::io::ErrorKind::PermissionDenied
+        );
+        assert!(preface(Some("lease-one"), header.replace("2222", "2223").into_bytes()).await.is_err());
+        assert!(preface(Some("lease-one"), header.replace("CONNECT", "GET").into_bytes()).await.is_err());
+    }
+    #[tokio::test]
+    async fn raw_ssh_slots_are_not_http_assignments_or_restored_state() {
+        let directory = tempfile::tempdir().unwrap();
+        let data = DataDir::open(directory.path()).unwrap();
+        let (target, _) = watch::channel(None);
+        let ports = Ports {
+            forward: None,
+            public_origin: Default::default(),
+            held: Mutex::new(vec![Slot { port: AGENT_PORT + 1, target }]),
+            sandbox: "one".into(),
+            domain: "example.test".into(),
+            agent_port: AGENT_PORT,
+            revision: AtomicU64::new(0),
+            checkpoint: Some(DataDir::open(directory.path()).unwrap()),
+            telemetry: Arc::default(),
+            tasks: Vec::new(),
+        };
+        assert_eq!(ports.expose_ssh(AGENT_PORT + 2, "lease", 1).await.unwrap(), AGENT_PORT + 1);
+        assert!(ports.list().await.is_empty());
+        assert!(matches!(ports.expose(AGENT_PORT + 2, 1).await, Err(PortError::Invalid)));
+        assert!(matches!(ports.unexpose(AGENT_PORT + 2).await, Err(PortError::Invalid)));
+        let saved: PortState = state::read(&data, PORTS_PATH).unwrap();
+        assert_eq!(saved.targets, vec![None]);
+        ports.unexpose_ssh("lease").await.unwrap();
+        ports.expose(AGENT_PORT + 2, 1).await.unwrap();
+        assert_eq!(ports.list().await.len(), 1);
+    }
 }

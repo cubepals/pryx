@@ -283,6 +283,9 @@ pub trait ContainerRuntime: Send + Sync + 'static {
     fn supports_agent(&self) -> bool {
         false
     }
+    fn supports_native_fuse(&self) -> bool {
+        false
+    }
     fn supports_hostname_egress(&self) -> bool {
         false
     }

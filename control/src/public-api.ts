@@ -21,6 +21,8 @@ import { SECOND_MS } from './durations.ts'
 import { events } from './events.ts'
 import { chunkOffset, chunkWrite, FileChunks } from './file-chunks.ts'
 import { authenticate } from './keys.ts'
+import { NativeMounts } from './native-mounts.ts'
+import { NativeSsh } from './native-ssh.ts'
 import { type NodeClient, NodeRefused } from './node-client.ts'
 import { ProjectAdmission, projectRow, projectUsage } from './project-admission.ts'
 import { exceeded, ProjectError } from './project-model.ts'
@@ -53,6 +55,13 @@ export function createPublicApi(options: {
     options.publicOrigin,
   )
   const agents = new Agents(boxes, nodes, domain)
+  const mounts = new NativeMounts(db, options.webhookSealKey ?? '')
+  agents.initializeMounts = (id, project, credential) => mounts.initialize(id, project, credential)
+  model.mounts = mounts
+  model.mountReady = (id, project) =>
+    agents.token(id, project, options.publicOrigin ?? 'https://pryx.invalid')
+  boxes.afterRunning = (id, project) => model.mountReady?.(id, project) ?? Promise.resolve()
+  const ssh = new NativeSsh(db, boxes, agents, domain, options.edgePortRange)
   const codeTemplates = new CodeTemplates(db, boxes)
   const webhooks = new Webhooks(db, options.webhookSealKey ?? '', options.webhookAllowHosts)
   const lifetime = new SandboxLifetime(db, boxes)
@@ -92,6 +101,12 @@ export function createPublicApi(options: {
     }
     await next()
   })
+  app.post('/v1/sandboxes/:id/ssh', async (c) =>
+    c.json(await ssh.register(c.req.param('id'), c.get('project'), await c.req.json(), c.req.url)),
+  )
+  app.delete('/v1/sandboxes/:id/ssh', async (c) =>
+    c.json(await ssh.revoke(c.req.param('id'), c.get('project'), c.req.url)),
+  )
   app.onError((error, c) => {
     if (error instanceof ProjectError)
       return c.json(
@@ -424,5 +439,5 @@ export function createPublicApi(options: {
   app.notFound((c) =>
     c.json({ error: { code: 'not_found', message: 'No such endpoint' } }, StatusCodes.NOT_FOUND),
   )
-  return { app, model, io, agents, webhooks }
+  return { app, model, io, agents, webhooks, mounts }
 }

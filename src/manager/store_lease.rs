@@ -36,6 +36,9 @@ impl Manager {
         if self.runtime.supports_network_policy() {
             features.push("network-policy".into());
         }
+        if self.runtime.supports_native_fuse() {
+            features.push(pryx_agent::contract::FUSE_FEATURE.into());
+        }
         if self.config.store_lease.enabled {
             features.push("store-lease".into());
         }

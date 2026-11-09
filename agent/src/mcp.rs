@@ -72,8 +72,8 @@ async fn handle(
         }
         "ping" => json!({}),
         "tools/list" => tools::catalog(),
-        "tools/call" => match tools::call(&agent, &claims, params).await {
-            Ok(value) => json!({"content":[{"type":"text","text":value.to_string()}]}),
+        "tools/call" => match tools::result(&agent, &claims, params).await {
+            Ok(value) => value,
             Err(Failure(_, code, message)) => {
                 json!({"isError":true,"content":[{"type":"text","text":json!({"code":code,"message":message}).to_string()}]})
             }

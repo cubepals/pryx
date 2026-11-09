@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from ..models.make_request_env import MakeRequestEnv
     from ..models.make_request_labels import MakeRequestLabels
     from ..models.make_request_metadata import MakeRequestMetadata
+    from ..models.make_request_mounts_item import MakeRequestMountsItem
     from ..models.make_request_ports_item import MakeRequestPortsItem
     from ..models.make_request_resources import MakeRequestResources
     from ..models.make_request_restart import MakeRequestRestart
@@ -34,6 +35,7 @@ T = TypeVar("T", bound="MakeRequest")
 class MakeRequest:
     """
     Attributes:
+        mounts (Union[Unset, list['MakeRequestMountsItem']]):
         image (Union[Unset, str]):
         packages (Union[Unset, list[str]]):
         snapshot (Union[Unset, str]):
@@ -62,6 +64,7 @@ class MakeRequest:
         region (Union[Unset, str]):  Default: 'default'.
     """
 
+    mounts: Union[Unset, list["MakeRequestMountsItem"]] = UNSET
     image: Union[Unset, str] = UNSET
     packages: Union[Unset, list[str]] = UNSET
     snapshot: Union[Unset, str] = UNSET
@@ -90,6 +93,13 @@ class MakeRequest:
     region: Union[Unset, str] = "default"
 
     def to_dict(self) -> dict[str, Any]:
+        mounts: Union[Unset, list[dict[str, Any]]] = UNSET
+        if not isinstance(self.mounts, Unset):
+            mounts = []
+            for mounts_item_data in self.mounts:
+                mounts_item = mounts_item_data.to_dict()
+                mounts.append(mounts_item)
+
         image = self.image
 
         packages: Union[Unset, list[str]] = UNSET
@@ -174,6 +184,8 @@ class MakeRequest:
         field_dict: dict[str, Any] = {}
 
         field_dict.update({})
+        if mounts is not UNSET:
+            field_dict["mounts"] = mounts
         if image is not UNSET:
             field_dict["image"] = image
         if packages is not UNSET:
@@ -235,6 +247,7 @@ class MakeRequest:
         from ..models.make_request_env import MakeRequestEnv
         from ..models.make_request_labels import MakeRequestLabels
         from ..models.make_request_metadata import MakeRequestMetadata
+        from ..models.make_request_mounts_item import MakeRequestMountsItem
         from ..models.make_request_ports_item import MakeRequestPortsItem
         from ..models.make_request_resources import MakeRequestResources
         from ..models.make_request_restart import MakeRequestRestart
@@ -242,6 +255,13 @@ class MakeRequest:
         from ..models.make_request_storage import MakeRequestStorage
 
         d = dict(src_dict)
+        mounts = []
+        _mounts = d.pop("mounts", UNSET)
+        for mounts_item_data in _mounts or []:
+            mounts_item = MakeRequestMountsItem.from_dict(mounts_item_data)
+
+            mounts.append(mounts_item)
+
         image = d.pop("image", UNSET)
 
         packages = cast(list[str], d.pop("packages", UNSET))
@@ -350,6 +370,7 @@ class MakeRequest:
         region = d.pop("region", UNSET)
 
         make_request = cls(
+            mounts=mounts,
             image=image,
             packages=packages,
             snapshot=snapshot,

@@ -4,6 +4,8 @@
 /** TCP front and relay with bounded greetings/holds, backpressure, session reporting and stale-epoch closes. */
 import { connect, createServer, type Socket } from 'node:net'
 import { setTimeout as pause } from 'node:timers/promises'
+
+import agentContract from '../../agent/openapi.json'
 import { SECOND_MS } from '../../control/src/durations.ts'
 import { httpHost, tlsSni } from './greeters.ts'
 import type { Hold } from './hold.ts'
@@ -222,6 +224,10 @@ async function arrival(client: Socket, o: FrontOptions) {
         o.session(sessionId, { ...route, epoch: target.epoch }, 'connect')
       }
       upstream.once('close', () => client.destroy())
+      if (route.ssh)
+        upstream.write(
+          `CONNECT / HTTP/1.1\r\n${agentContract['x-pryx-tools'].forwardHeader}: ${route.ssh.targetPort}\r\n${agentContract['x-pryx-tools'].sshForwardHeader}: ${route.ssh.session}\r\n\r\n`,
+        )
       upstream.write(bytes)
       bytes = Buffer.alloc(0)
       clearTimeout(deadline)

@@ -10,12 +10,34 @@ use std::io::{self, BufRead, Write};
 use std::os::unix::process::CommandExt;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let arguments = std::env::args().skip(1).collect::<Vec<_>>();
+    let native_bootstrap = arguments.first().is_some_and(|a| a.starts_with("--") && a != "--version");
+    let mappings = if native_bootstrap { pryx_agent::fuse_namespace::prepare()? } else { None };
     // Images run as the same sandbox user. Prevent their processes from reading the agent's
     // bootstrap environment or memory through ptrace/procfs, without adding a privilege.
     rustix::process::set_dumpable_behavior(rustix::process::DumpableBehavior::NotDumpable)?;
     rustix::process::set_child_subreaper(rustix::process::Pid::from_raw(1))?;
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let arguments = std::env::args().skip(1).collect::<Vec<_>>();
+    if matches!(arguments.first().map(String::as_str), Some("tool-child" | "mount-child")) {
+        let mount = arguments[0] == "mount-child";
+        pryx_agent::fuse_namespace::child(mount)?;
+        let mut command = arguments[1..].to_vec();
+        let _directory = if mount { Some(pryx_agent::fuse_namespace::worker(&mut command)?) } else { None };
+        if mount {
+            let name = command.first().ok_or("Missing mount helper")?;
+            let path = pryx_agent::fuse_namespace::helper(name).ok_or("Mount helper is not installed")?;
+            if pryx_agent::fuse_namespace::readable(&path) {
+                eprintln!(
+                    "mount helper {} is readable; it must be execute-only so its credentials stay out of /proc",
+                    path.display()
+                );
+                std::process::exit(pryx_agent::fuse_namespace::READABLE_HELPER);
+            }
+            command[0] = path.to_string_lossy().into_owned();
+        }
+        let executable = command.first().ok_or("Missing tool command")?;
+        return Err(std::process::Command::new(executable).args(&command[1..]).exec().into());
+    }
     if arguments.first().is_some_and(|a| a == "process-probe") {
         println!("{}", serde_json::to_string(&pryx_agent::process_capabilities::probe())?);
         return Ok(());
@@ -59,6 +81,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if arguments.first().is_some_and(|a| a == "--version") {
         println!("pryx-agent {}", env!("CARGO_PKG_VERSION"));
         return Ok(());
+    }
+    if !matches!(arguments.first().map(String::as_str), Some("shell" | "--version")) {
+        pryx_agent::fuse_namespace::enter(mappings)?;
     }
     let runtime = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build()?;
     if arguments.first().is_some_and(|a| a == "shell") {

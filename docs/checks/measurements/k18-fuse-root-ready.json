@@ -1,0 +1,36 @@
+{
+  "scope": "fresh local hardened-container FUSE regression, not a speed-budget cohort or full control/edge acceptance",
+  "baseCommit": "302985270209c22eecd2e05baa2db528fd0346e6",
+  "sourceDirty": true,
+  "implementationDiffSha256": "6239f963beba721eeca17cce98b0d2e951589901e8f7fbf56d98c07197516a22",
+  "recordedUtc": "2026-11-08T05:29:06.107647+00:00",
+  "policy": {
+    "user": "1000:1000",
+    "capDrop": "ALL",
+    "readOnlyRoot": true,
+    "noNewPrivileges": true,
+    "seccomp": "deploy/native-tools-seccomp.json",
+    "nativeFuse": true
+  },
+  "before": {
+    "backend": "rclone",
+    "mountTableReady": true,
+    "readSeed": "from-store",
+    "freshWrite": "Permission denied",
+    "repeatWrites": "all three retries also denied",
+    "metadataDiagnostic": "An explicit stat of the FUSE root before the first write makes an independent unique-object read/write verification pass"
+  },
+  "after": {
+    "readiness": "A no-follow metadata handshake on the FUSE root completes before mounted is returned",
+    "freshContainerChecks": [
+      "PASS hardened-container rclone real S3 read/write independently verified, ordinary command capabilities zero",
+      "PASS hardened-container rclone real S3 read/write independently verified, ordinary command capabilities zero",
+      "PASS hardened-container rclone real S3 read/write independently verified, ordinary command capabilities zero",
+      "PASS hardened-container mountpoint real S3 read/write independently verified, ordinary command capabilities zero"
+    ],
+    "uniqueObjectPerAttempt": true,
+    "independentS3ReadBeforeTeardown": true,
+    "ordinaryChildCapabilities": "0000000000000000"
+  },
+  "diagnosticEnvironment": "Already audited GNU debug agent/glibc bindings; NO_PROXY/no_proxy contains only the internal S3 fixture IP; CI uses the static musl agent without these diagnostic bindings; the local fallback case masks mount-s3 with /dev/null, while the dedicated CI fallback image removes that binary"
+}

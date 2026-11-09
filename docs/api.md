@@ -5,6 +5,8 @@ Authenticate with `Authorization: Bearer <key>`. Create, list and revoke keys wi
 | Method | Endpoint | Request schema | Success |
 | --- | --- | --- | --- |
 | GET | /v1/project | — | 200 |
+| POST | /v1/sandboxes/{id}/ssh | SshRegister | 200 |
+| DELETE | /v1/sandboxes/{id}/ssh | — | 200 |
 | POST | /v1/sandboxes/{id}/token | — | 200 |
 | POST | /v1/sandboxes/{id}/network | — | 200 |
 | GET | /v1/sandboxes/{id}/data/content | — | 200 |

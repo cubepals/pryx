@@ -9,6 +9,8 @@ from .make_request_env import MakeRequestEnv
 from .make_request_isolation import MakeRequestIsolation
 from .make_request_labels import MakeRequestLabels
 from .make_request_metadata import MakeRequestMetadata
+from .make_request_mounts_item import MakeRequestMountsItem
+from .make_request_mounts_item_credentials import MakeRequestMountsItemCredentials
 from .make_request_network import MakeRequestNetwork
 from .make_request_ports_item import MakeRequestPortsItem
 from .make_request_ports_item_audience import MakeRequestPortsItemAudience
@@ -37,6 +39,8 @@ __all__ = (
     "MakeRequestIsolation",
     "MakeRequestLabels",
     "MakeRequestMetadata",
+    "MakeRequestMountsItem",
+    "MakeRequestMountsItemCredentials",
     "MakeRequestNetwork",
     "MakeRequestPortsItem",
     "MakeRequestPortsItemAudience",

@@ -10,6 +10,7 @@
  * Claiming the room it finds is `admission.ts`'s; the rules that judge a node are placement's own.
  */
 
+import agentContract from '../../agent/openapi.json'
 import type { Queryable } from './database.ts'
 import type { Thresholds } from './health.ts'
 import {
@@ -62,6 +63,7 @@ export class NodeChoice {
       regionKey: region,
       needs: [
         ...NEEDS,
+        ...(spec.fuseMounts ? [agentContract['x-pryx-tools'].fuseFeature] : []),
         ...(spec.workdir || spec.user ? ['workload-options'] : []),
         ...(spec.egress ? ['egress-hostnames'] : []),
         ...(spec.isolation === 'wasm' ? ['wasm-tier', 'wasm-packages'] : []),

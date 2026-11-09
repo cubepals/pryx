@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! The real agent protects its bootstrap material against another unprivileged process of the
-//! same user. No environment bytes enter diagnostics even if the regression fails.
+//! The real agent protects bootstrap material and preserves ordinary image namespaces.
+//! No environment bytes enter diagnostics even if a regression fails.
 
 use pryx_agent::auth::{Claims, Scope, SigningKey};
 use std::process::{Child, Command, Stdio};
@@ -28,6 +28,45 @@ fn embedded_printf_does_not_depend_on_external_utilities() {
         .unwrap();
     assert!(output.status.success(), "Embedded command failed: {}", String::from_utf8_lossy(&output.stderr));
     assert_eq!(output.stdout, b"shell-ready");
+}
+
+#[test]
+fn host_fuse_approval_keeps_ordinary_images_in_their_user_namespace() {
+    let dir = tempfile::tempdir().unwrap();
+    let held = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = held.local_addr().unwrap().port();
+    drop(held);
+    let (_, encoded) = SigningKey::generate().unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_pryx-agent"))
+        .args([
+            "--sandbox",
+            "ordinary",
+            "--epoch",
+            "1",
+            "--data",
+            dir.path().to_str().unwrap(),
+            "--domain",
+            "example.test",
+            "--port",
+            &port.to_string(),
+            "--secret-env",
+            "TEST_ORDINARY_SECRET",
+            "--",
+            "readlink",
+            "/proc/self/ns/user",
+        ])
+        .env("TEST_ORDINARY_SECRET", encoded)
+        .env(pryx_agent::contract::FUSE_ENV, "1")
+        .env_remove(pryx_agent::contract::MOUNTS_ENV)
+        .env_remove(pryx_agent::tools::defaults::KIND_ENV)
+        .env_remove(pryx_agent::process_policy::POLICY_ENV)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "Ordinary bootstrap failed: {}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap().trim(),
+        std::fs::read_link("/proc/self/ns/user").unwrap().to_string_lossy()
+    );
 }
 
 #[tokio::test]

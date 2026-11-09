@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: FSL-1.1-ALv2
+# Only external GET download steps select this configuration through CURL_HOME.
+fail
+retry = 12
+retry-delay = 2
+retry-max-time = 180
+retry-connrefused
+connect-timeout = 10
+max-time = 45

@@ -5,8 +5,8 @@
 import { z } from 'zod'
 import node from '../../openapi/node-reads.openapi.json'
 import writes from '../../openapi/node-writes.openapi.json'
-
 import { ISOLATIONS } from './isolation.ts'
+import { agentSchema } from './node-contract.ts'
 import type { WorkloadSpec } from './wire.ts'
 
 const map = z.record(z.string(), z.string())
@@ -36,6 +36,7 @@ export const port = z
   .strict()
 export const makeSchema = z
   .object({
+    mounts: z.array(agentSchema('MountSpec')).min(1).max(16).optional(),
     image: z.string().min(1).optional(),
     packages: z
       .array(z.string().regex(new RegExp(writes['x-pryx-wasm'].packageNamePattern)))
@@ -167,10 +168,18 @@ export const execEvent = z.union([
   }),
   z.object({ type: z.literal('error'), error: errorSchema.shape.error }),
 ])
-export const templateSchema = z.object({
-  name: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/),
-  spec: makeSchema,
-})
+/** A template is a prepared image: mounts carry runtime credentials, so a caller passes them
+ * when creating a sandbox and a template's stored spec never holds them. */
+const templateMounts = 'Mounts are passed when a sandbox is created, never kept in a template'
+export const templateSchema = z
+  .object({
+    name: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/),
+    spec: makeSchema,
+  })
+  .superRefine((t, ctx) => {
+    if (t.spec.mounts !== undefined)
+      ctx.addIssue({ code: 'custom', path: ['spec', 'mounts'], message: templateMounts })
+  })
 export type Make = z.infer<typeof makeSchema>
 export type Exec = z.infer<typeof execSchema>
 export type PublicPort = z.infer<typeof port>

@@ -1,0 +1,7 @@
+**
+!templates
+!templates/native-tools
+!templates/native-tools/**
+!templates/desktop
+!templates/desktop/**
+templates/**/__pycache__

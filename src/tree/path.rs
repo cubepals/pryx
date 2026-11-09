@@ -58,6 +58,10 @@ fn info(name: &str, stat: fs::Stat) -> FileInfo {
 }
 
 impl DataDir {
+    /// A directory reached through the same no-follow walk, for native in-sandbox mount tools.
+    pub fn directory_handle(&self, path: &str, create: bool) -> io::Result<File> {
+        Ok(self.directory(&components(path)?, create)?.into())
+    }
     pub fn open(path: &Path) -> io::Result<Self> {
         Ok(Self(fs::open(path, DIRECTORY, Mode::empty())?, None))
     }

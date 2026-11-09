@@ -1,0 +1,30 @@
+{
+  "scope": "ordinary-image namespace regression and local hardened-root-container probe, not a native speed cohort",
+  "baseCommit": "94f3c42bd6d1a04f181c9d7f3bb82601e98ececf",
+  "sourceDirty": true,
+  "implementationDiffSha256": "12ef26f40e728e2ba6671ae810d44d5d2cb339393019a74ecb8fef21c5ce3c2f",
+  "recordedUtc": "2026-11-08T05:45:26.465186+00:00",
+  "before": {
+    "ordinaryNonRootBootstrap": "fails the user-namespace identity assertion with host FUSE approval and no native intent",
+    "failureNamespaceValues": [
+      "user:[4026532423]",
+      "user:[4026531837]"
+    ],
+    "rootFinding": "code refuses root after entering the native setup path; the old root-container case was not executed here"
+  },
+  "after": {
+    "bootstrapRegression": "passes, preserving the caller user namespace",
+    "rootContainer": {
+      "user": "0:0",
+      "readOnlyRoot": true,
+      "capDrop": "ALL",
+      "noNewPrivileges": true,
+      "hostFuseApproved": true,
+      "nativeIntent": false,
+      "processExitCode": 0,
+      "processDurationMs": 3,
+      "ordinaryChildStdout": "spawnedCapEff:\t0000000000000000\nNoNewPrivs:\t1\n"
+    }
+  },
+  "diagnosticNote": "Previously audited local GNU debug agent/glibc read-only bindings; full rootful deployment regression is in CI; the container probe precedes the environment-constant relocation, which preserves its value; the complete bootstrap regression passes again after relocation"
+}

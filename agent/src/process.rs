@@ -245,11 +245,30 @@ pub struct Processes {
     pub data: PathBuf,
     pub secret_env: String,
     backend: Option<Arc<dyn Backend>>,
+    pub(crate) kernels: crate::kernel_slots::KernelSlots,
+    pub(crate) tools: crate::tool_slots::ToolSlots,
 }
 
 impl Processes {
     pub fn new(data: PathBuf, secret_env: String) -> Self {
-        Self { held: Mutex::new(HashMap::new()), data, secret_env, backend: None }
+        Self {
+            held: Mutex::new(HashMap::new()),
+            data,
+            secret_env,
+            backend: None,
+            kernels: Default::default(),
+            tools: Default::default(),
+        }
+    }
+
+    pub(crate) fn kernel_unsupported_tier(&self) -> Option<&'static str> {
+        if self.backend.is_some() {
+            Some("wasm")
+        } else if std::env::var_os(crate::process_policy::POLICY_ENV).is_some() {
+            Some("process")
+        } else {
+            None
+        }
     }
 
     pub fn get(&self, id: &str) -> Result<Arc<Process>, ProcessError> {
@@ -258,6 +277,16 @@ impl Processes {
 
     pub fn list(&self) -> Vec<View> {
         self.held.lock().unwrap().values().map(|e| e.process.view()).collect()
+    }
+
+    /// Drops a finished process from the table at once rather than after RETAIN. Internal tool
+    /// invocations have no caller to replay to, so a desktop session's clicks and screenshots
+    /// would otherwise fill MAX_PROCESSES within the retention window. A running process stays.
+    pub fn release(&self, id: &str) {
+        let mut held = self.held.lock().unwrap();
+        if held.get(id).is_some_and(|e| !e.process.view().running) {
+            held.remove(id);
+        }
     }
 
     pub fn reap_orphans(&self) {
@@ -282,7 +311,26 @@ impl Processes {
     }
 
     pub fn start(&self, request: Start, key: &str, max_timeout: Option<u32>) -> Result<Arc<Process>, ProcessError> {
-        let fingerprint = serde_json::to_vec(&request).expect("Start serializes");
+        self.start_with(request, key, max_timeout, false)
+    }
+
+    pub(crate) fn start_mount(
+        &self,
+        request: Start,
+        key: &str,
+        max_timeout: Option<u32>,
+    ) -> Result<Arc<Process>, ProcessError> {
+        self.start_with(request, key, max_timeout, true)
+    }
+
+    fn start_with(
+        &self,
+        request: Start,
+        key: &str,
+        max_timeout: Option<u32>,
+        mount: bool,
+    ) -> Result<Arc<Process>, ProcessError> {
+        let fingerprint = serde_json::to_vec(&(mount, &request)).expect("Start serializes");
         if key.is_empty() || key.len() > 128 || fingerprint.len() > crate::contract::MAX_REQUEST_BYTES {
             return Err(ProcessError::Invalid("idempotency key or request size"));
         }
@@ -302,16 +350,39 @@ impl Processes {
         if timeout == Some(0) || max_timeout.is_some_and(|max| timeout.is_some_and(|t| t > max)) {
             return Err(ProcessError::Invalid("exec timeout exceeds token policy"));
         }
-        let process = self.spawn(request, timeout)?;
+        let process = self.spawn(request, timeout, mount)?;
         held.insert(process.id.clone(), Entry { process: process.clone(), key: key.into(), fingerprint });
         Ok(process)
     }
 
-    fn spawn(&self, request: Start, timeout: Option<u32>) -> Result<Arc<Process>, ProcessError> {
+    fn spawn(&self, mut request: Start, timeout: Option<u32>, mount: bool) -> Result<Arc<Process>, ProcessError> {
+        let mut env = self.tools.environment.read().unwrap().clone();
+        env.extend(request.env);
+        request.env = env;
         if let Some(backend) = &self.backend {
             return backend.spawn(request, timeout);
         }
-        let argv = crate::process_policy::wrap(argv(&request.command)?)?;
+        let mut argv = crate::process_policy::wrap(argv(&request.command)?)?;
+        // A mount worker's environment holds bucket credentials, so it is exec'd from a sealed,
+        // execute-only copy and is never dumpable. The copy is held until the spawn below returns,
+        // after the child's exec has resolved it; mounts never use a pty, but it is held across
+        // that branch too. There is no fallback to the readable file: the mount fails instead.
+        let mut _sealed = None;
+        if crate::fuse_namespace::enabled() {
+            let executable = if mount {
+                let fd = crate::fuse_namespace::sealed_executable()?;
+                let path = format!("/proc/self/fd/{}", std::os::fd::AsRawFd::as_raw_fd(&fd));
+                _sealed = Some(fd);
+                path
+            } else {
+                crate::fuse_namespace::executable()?.to_string_lossy().into_owned()
+            };
+            let mut wrapped = vec![executable, if mount { "mount-child".into() } else { "tool-child".into() }];
+            wrapped.extend(argv);
+            argv = wrapped;
+        } else if mount {
+            return Err(ProcessError::Invalid("Host-approved FUSE is unavailable"));
+        }
         let cwd = request.cwd.as_ref().map(PathBuf::from).unwrap_or_else(|| self.data.clone());
         if request.pty {
             let spawned = crate::pty::spawn(
@@ -329,6 +400,7 @@ impl Processes {
             .args(&argv[1..])
             .envs(&request.env)
             .env_remove(&self.secret_env)
+            .env_remove(crate::contract::MOUNTS_ENV)
             .env_remove(crate::process_policy::POLICY_ENV)
             .current_dir(cwd);
         command.stdin(if request.stdin { Stdio::piped() } else { Stdio::null() });
@@ -399,7 +471,7 @@ pub fn argv(command: &Command) -> Result<Vec<String>, ProcessError> {
             if PathBuf::from("/bin/sh").is_file() {
                 Ok(vec!["/bin/sh".into(), "-c".into(), script.clone()])
             } else {
-                Ok(vec![std::env::current_exe()?.to_string_lossy().into(), "shell".into(), script.clone()])
+                Ok(vec![crate::fuse_namespace::executable()?.to_string_lossy().into(), "shell".into(), script.clone()])
             }
         }
         _ => Err(ProcessError::Invalid("empty command")),
@@ -451,7 +523,7 @@ impl Processes {
         } else if PathBuf::from("/bin/sh").is_file() {
             Ok(Command::Argv(vec!["/bin/sh".into()]))
         } else {
-            Ok(Command::Argv(vec![std::env::current_exe()?.to_string_lossy().into(), "shell".into()]))
+            Ok(Command::Argv(vec![crate::fuse_namespace::executable()?.to_string_lossy().into(), "shell".into()]))
         }
     }
 }

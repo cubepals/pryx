@@ -1,0 +1,2463 @@
+[
+  {
+    "package": "fontconfig-config",
+    "version": "2.14.1-4",
+    "url": "https://deb.debian.org/debian/pool/main/f/fontconfig/fontconfig-config_2.14.1-4_amd64.deb",
+    "sha256": "281c66e46b95f045a0282a6c7a03b33de0e9a08d016897a759aaf4a04adfddbe",
+    "licences": [
+      "MIT-style (fontconfig notice)"
+    ],
+    "source": "https://sources.debian.org/src/fontconfig/2.14.1-4/",
+    "archive": "fontconfig-config_2.14.1-4_amd64.deb"
+  },
+  {
+    "package": "fontconfig",
+    "version": "2.14.1-4",
+    "url": "https://deb.debian.org/debian/pool/main/f/fontconfig/fontconfig_2.14.1-4_amd64.deb",
+    "sha256": "010e57c24a983eecc39aab8a84219a716c10901e03bacd1927331388656f890f",
+    "licences": [
+      "MIT-style (fontconfig notice)"
+    ],
+    "source": "https://sources.debian.org/src/fontconfig/2.14.1-4/",
+    "archive": "fontconfig_2.14.1-4_amd64.deb"
+  },
+  {
+    "package": "fonts-dejavu-core",
+    "version": "2.37-6",
+    "url": "https://deb.debian.org/debian/pool/main/f/fonts-dejavu/fonts-dejavu-core_2.37-6_all.deb",
+    "sha256": "8892669e51aab4dc56682c8e39d8ddb7d70fad83c369344e1e240bf3ca22bb76",
+    "licences": [
+      "GPL-2+",
+      "bitstream-vera"
+    ],
+    "source": "https://sources.debian.org/src/fonts-dejavu/2.37-6/",
+    "archive": "fonts-dejavu-core_2.37-6_all.deb"
+  },
+  {
+    "package": "fonts-urw-base35",
+    "version": "20200910-7",
+    "url": "https://deb.debian.org/debian/pool/main/f/fonts-urw-base35/fonts-urw-base35_20200910-7_all.deb",
+    "sha256": "93e4997c99c4c31ea88c5d37e2259af0a0c826b9358931d5a69f794f7f0c73ac",
+    "licences": [
+      "AGPL-3",
+      "AGPL-3 with Font exception",
+      "CC-BY-4.0",
+      "GPL-2+"
+    ],
+    "source": "https://sources.debian.org/src/fonts-urw-base35/20200910-7/",
+    "archive": "fonts-urw-base35_20200910-7_all.deb"
+  },
+  {
+    "package": "fuse3",
+    "version": "3.14.0-4",
+    "url": "https://deb.debian.org/debian/pool/main/f/fuse3/fuse3_3.14.0-4_amd64.deb",
+    "sha256": "63b97d9b9acf9e8346ba59e87aa36a47205f05050808f8e9087dca603fd07ab8",
+    "licences": [
+      "GPL-2",
+      "GPL-2+",
+      "LGPL-2.1"
+    ],
+    "source": "https://sources.debian.org/src/fuse3/3.14.0-4/",
+    "archive": "fuse3_3.14.0-4_amd64.deb"
+  },
+  {
+    "package": "jwm",
+    "version": "2.4.3-1",
+    "url": "https://deb.debian.org/debian/pool/main/j/jwm/jwm_2.4.3-1_amd64.deb",
+    "sha256": "5751e03e513063c3cf3a163082cc8f0af04670c589978a2c2d3908205b2f9fa5",
+    "licences": [
+      "Expat",
+      "GPL-2+"
+    ],
+    "source": "https://sources.debian.org/src/jwm/2.4.3-1/",
+    "archive": "jwm_2.4.3-1_amd64.deb"
+  },
+  {
+    "package": "libaom3",
+    "version": "3.6.0-1+deb12u3",
+    "url": "https://deb.debian.org/debian-security/pool/updates/main/a/aom/libaom3_3.6.0-1+deb12u3_amd64.deb",
+    "sha256": "0d306f250a365d5309f0f616c5327ebe7cb80cc48332dd3a7fe18c036056f874",
+    "licences": [
+      "BSD-2-Clause",
+      "BSD-2-clause",
+      "BSD-3-clause",
+      "Expat",
+      "ISC",
+      "public-domain-md5"
+    ],
+    "source": "https://sources.debian.org/src/aom/3.6.0-1%2Bdeb12u3/",
+    "archive": "libaom3_3.6.0-1+deb12u3_amd64.deb"
+  },
+  {
+    "package": "libavahi-client3",
+    "version": "0.8-10+deb12u1",
+    "url": "https://deb.debian.org/debian/pool/main/a/avahi/libavahi-client3_0.8-10+deb12u1_amd64.deb",
+    "sha256": "a99d635f07a49cfbd24de151155c4f815a5adf867855e7ba13ecc3b25ffa52b9",
+    "licences": [
+      "LGPL-2.1-or-later",
+      "GPL-2.0-or-later (packaging)"
+    ],
+    "source": "https://sources.debian.org/src/avahi/0.8-10%2Bdeb12u1/",
+    "archive": "libavahi-client3_0.8-10+deb12u1_amd64.deb"
+  },
+  {
+    "package": "libavahi-common-data",
+    "version": "0.8-10+deb12u1",
+    "url": "https://deb.debian.org/debian/pool/main/a/avahi/libavahi-common-data_0.8-10+deb12u1_amd64.deb",
+    "sha256": "b21e33c3797c834e9a9ce0f1085e6d3f721db496d550505ab2f364d52097fe6f",
+    "licences": [
+      "LGPL-2.1-or-later",
+      "GPL-2.0-or-later (packaging)"
+    ],
+    "source": "https://sources.debian.org/src/avahi/0.8-10%2Bdeb12u1/",
+    "archive": "libavahi-common-data_0.8-10+deb12u1_amd64.deb"
+  },
+  {
+    "package": "libavahi-common3",
+    "version": "0.8-10+deb12u1",
+    "url": "https://deb.debian.org/debian/pool/main/a/avahi/libavahi-common3_0.8-10+deb12u1_amd64.deb",
+    "sha256": "0c12791afe1be09d8362161244d7a51e82a67a55f3909f4c29ee3dd424c3a5f1",
+    "licences": [
+      "LGPL-2.1-or-later",
+      "GPL-2.0-or-later (packaging)"
+    ],
+    "source": "https://sources.debian.org/src/avahi/0.8-10%2Bdeb12u1/",
+    "archive": "libavahi-common3_0.8-10+deb12u1_amd64.deb"
+  },
+  {
+    "package": "libbrotli1",
+    "version": "1.0.9-2+deb12u1",
+    "url": "https://deb.debian.org/debian-security/pool/updates/main/b/brotli/libbrotli1_1.0.9-2+deb12u1_amd64.deb",
+    "sha256": "e27b3d655fa6fadd7a56f706687e94573c0af68b7d6df394a32a381a3a6c6d8b",
+    "licences": [
+      "MIT"
+    ],
+    "source": "https://sources.debian.org/src/brotli/1.0.9-2%2Bdeb12u1/",
+    "archive": "libbrotli1_1.0.9-2+deb12u1_amd64.deb"
+  },
+  {
+    "package": "libbsd0",
+    "version": "0.11.7-2",
+    "url": "https://deb.debian.org/debian/pool/main/libb/libbsd/libbsd0_0.11.7-2_amd64.deb",
+    "sha256": "bb31cc8b40f962a85b2cec970f7f79cc704a1ae4bad24257a822055404b2c60b",
+    "licences": [
+      "BSD-2-clause",
+      "BSD-2-clause-NetBSD",
+      "BSD-2-clause-author",
+      "BSD-2-clause-verbatim",
+      "BSD-3-clause",
+      "BSD-3-clause-John-Birrell",
+      "BSD-3-clause-Regents",
+      "BSD-3-clause-Regents and BSD-2-clause-NetBSD",
+      "BSD-3-clause-author",
+      "BSD-4-clause-Niels-Provos",
+      "Beerware",
+      "Expat",
+      "ISC",
+      "ISC-Original",
+      "libutil-David-Nugent",
+      "public-domain"
+    ],
+    "source": "https://sources.debian.org/src/libbsd/0.11.7-2/",
+    "archive": "libbsd0_0.11.7-2_amd64.deb"
+  },
+  {
+    "package": "libcairo-gobject2",
+    "version": "1.16.0-7",
+    "url": "https://deb.debian.org/debian/pool/main/c/cairo/libcairo-gobject2_1.16.0-7_amd64.deb",
+    "sha256": "5898b4c1093ff40bade7acb92affc4a5b5b76a1737cd41cfa2a09cdc2d864d4c",
+    "licences": [
+      "LGPL-2.1-only OR MPL-1.1",
+      "MIT-style (per-file notices)"
+    ],
+    "source": "https://sources.debian.org/src/cairo/1.16.0-7/",
+    "archive": "libcairo-gobject2_1.16.0-7_amd64.deb"
+  },
+  {
+    "package": "libcairo2",
+    "version": "1.16.0-7",
+    "url": "https://deb.debian.org/debian/pool/main/c/cairo/libcairo2_1.16.0-7_amd64.deb",
+    "sha256": "927fa059f8b5791d0cd744d4e3a8c57fa872ef849ce14434dc2222ac8a076a69",
+    "licences": [
+      "LGPL-2.1-only OR MPL-1.1",
+      "MIT-style (per-file notices)"
+    ],
+    "source": "https://sources.debian.org/src/cairo/1.16.0-7/",
+    "archive": "libcairo2_1.16.0-7_amd64.deb"
+  },
+  {
+    "package": "libcbor0.8",
+    "version": "0.8.0-2+b1",
+    "url": "https://deb.debian.org/debian/pool/main/libc/libcbor/libcbor0.8_0.8.0-2+b1_amd64.deb",
+    "sha256": "8cbd111e1ad1c1357afb18f916c88c7ebb8cc860b8fac04ccc66a9eefe5a53af",
+    "licences": [
+      "Expat"
+    ],
+    "source": "https://sources.debian.org/src/libcbor/0.8.0-2/",
+    "archive": "libcbor0.8_0.8.0-2+b1_amd64.deb"
+  },
+  {
+    "package": "libcups2",
+    "version": "2.4.2-3+deb12u9",
+    "url": "https://deb.debian.org/debian/pool/main/c/cups/libcups2_2.4.2-3+deb12u9_amd64.deb",
+    "sha256": "8dbfd3b7cd81166a2d79bb7e3898b0203fec05c7e927f60e207122a1e36b95c8",
+    "licences": [
+      "Apache-2.0",
+      "Apache-2.0-with-GPL2-LGPL2-Exception",
+      "Apache-2.0-with-GPL2-LGPL2-Exception or BSD-2-clause",
+      "BSD-2-Clause",
+      "FSFUL",
+      "Zlib"
+    ],
+    "source": "https://sources.debian.org/src/cups/2.4.2-3%2Bdeb12u9/",
+    "archive": "libcups2_2.4.2-3+deb12u9_amd64.deb"
+  },
+  {
+    "package": "libdatrie1",
+    "version": "0.2.13-2+b1",
+    "url": "https://deb.debian.org/debian/pool/main/libd/libdatrie/libdatrie1_0.2.13-2+b1_amd64.deb",
+    "sha256": "f021f193384929989b2dfd19f606a8cebe54b5f209fe387fc40683e810e01ebe",
+    "licences": [
+      "GPL-2+",
+      "LGPL-2.1+"
+    ],
+    "source": "https://sources.debian.org/src/libdatrie/0.2.13-2/",
+    "archive": "libdatrie1_0.2.13-2+b1_amd64.deb"
+  },
+  {
+    "package": "libdav1d6",
+    "version": "1.0.0-2+deb12u1",
+    "url": "https://deb.debian.org/debian/pool/main/d/dav1d/libdav1d6_1.0.0-2+deb12u1_amd64.deb",
+    "sha256": "197f08108242177aeae4c04aac11825c39b7d18598191ab769f910687ccb387f",
+    "licences": [
+      "BSD-2-clause",
+      "ISC",
+      "ISC and BSD-2-clause",
+      "public-domain"
+    ],
+    "source": "https://sources.debian.org/src/dav1d/1.0.0-2%2Bdeb12u1/",
+    "archive": "libdav1d6_1.0.0-2+deb12u1_amd64.deb"
+  },
+  {
+    "package": "libdbus-1-3",
+    "version": "1.14.10-1~deb12u1",
+    "url": "https://deb.debian.org/debian/pool/main/d/dbus/libdbus-1-3_1.14.10-1~deb12u1_amd64.deb",
+    "sha256": "18ee0ce5fab9f7b671e87da1e9fa18660e36e04a3402f24bdb8635e0ba1d35f6",
+    "licences": [
+      "AFL-2.1",
+      "BSD-3-clause",
+      "BSD-3-clause and BSD-3-clause-generic",
+      "BSD-3-clause-generic",
+      "Expat",
+      "FSF-unlimited-permission",
+      "GPL-2+",
+      "GPL-2+ or AFL-2.1, and Expat and Tcl-BSDish",
+      "GPL-2+ with Autoconf exception",
+      "LGPL-2.1+",
+      "Tcl-BSDish",
+      "autoconf-archive-permissive",
+      "g10-permissive"
+    ],
+    "source": "https://sources.debian.org/src/dbus/1.14.10-1~deb12u1/",
+    "archive": "libdbus-1-3_1.14.10-1~deb12u1_amd64.deb"
+  },
+  {
+    "package": "libde265-0",
+    "version": "1.0.11-1+deb12u3",
+    "url": "https://deb.debian.org/debian-security/pool/updates/main/libd/libde265/libde265-0_1.0.11-1+deb12u3_amd64.deb",
+    "sha256": "72c3edb400c3494974181e9ca75a11d859c715c9685c38fb251783c7c8841afe",
+    "licences": [
+      "BSD-4-clause",
+      "GPL-3+",
+      "LGPL-3+",
+      "other-1",
+      "public-domain-1"
+    ],
+    "source": "https://sources.debian.org/src/libde265/1.0.11-1%2Bdeb12u3/",
+    "archive": "libde265-0_1.0.11-1+deb12u3_amd64.deb"
+  },
+  {
+    "package": "libdeflate0",
+    "version": "1.14-1",
+    "url": "https://deb.debian.org/debian/pool/main/libd/libdeflate/libdeflate0_1.14-1_amd64.deb",
+    "sha256": "3d4b39f94317b64a860db8a7a8b581b555124cd461fe07ec0d347edbdb9f6683",
+    "licences": [
+      "Expat"
+    ],
+    "source": "https://sources.debian.org/src/libdeflate/1.14-1/",
+    "archive": "libdeflate0_1.14-1_amd64.deb"
+  },
+  {
+    "package": "libdrm-amdgpu1",
+    "version": "2.4.114-1+b1",
+    "url": "https://deb.debian.org/debian/pool/main/libd/libdrm/libdrm-amdgpu1_2.4.114-1+b1_amd64.deb",
+    "sha256": "b75a71e96f1faac0f131ac657e09efcbe8968eef62cc34b8abfcff2ff9f0cccd",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libdrm/2.4.114-1/",
+    "archive": "libdrm-amdgpu1_2.4.114-1+b1_amd64.deb"
+  },
+  {
+    "package": "libdrm-common",
+    "version": "2.4.114-1",
+    "url": "https://deb.debian.org/debian/pool/main/libd/libdrm/libdrm-common_2.4.114-1_all.deb",
+    "sha256": "32f9664138b38b224383c6986457d5ad2ec8efd559b1a0ce7749405f7a451aad",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libdrm/2.4.114-1/",
+    "archive": "libdrm-common_2.4.114-1_all.deb"
+  },
+  {
+    "package": "libdrm-intel1",
+    "version": "2.4.114-1+b1",
+    "url": "https://deb.debian.org/debian/pool/main/libd/libdrm/libdrm-intel1_2.4.114-1+b1_amd64.deb",
+    "sha256": "b0e39318d14c07f4d85668b6da7f66a1341addf87a47d785c34d5a8b393f544c",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libdrm/2.4.114-1/",
+    "archive": "libdrm-intel1_2.4.114-1+b1_amd64.deb"
+  },
+  {
+    "package": "libdrm-nouveau2",
+    "version": "2.4.114-1+b1",
+    "url": "https://deb.debian.org/debian/pool/main/libd/libdrm/libdrm-nouveau2_2.4.114-1+b1_amd64.deb",
+    "sha256": "ba59bb9ec6e1baf59fc4d4eb095a524e40d045af2413dad9d28df517005388b6",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libdrm/2.4.114-1/",
+    "archive": "libdrm-nouveau2_2.4.114-1+b1_amd64.deb"
+  },
+  {
+    "package": "libdrm-radeon1",
+    "version": "2.4.114-1+b1",
+    "url": "https://deb.debian.org/debian/pool/main/libd/libdrm/libdrm-radeon1_2.4.114-1+b1_amd64.deb",
+    "sha256": "2da3a9233187f995ad5a3e6db3d37252ea7209f0ca9605484d03478ebcc15feb",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libdrm/2.4.114-1/",
+    "archive": "libdrm-radeon1_2.4.114-1+b1_amd64.deb"
+  },
+  {
+    "package": "libdrm2",
+    "version": "2.4.114-1+b1",
+    "url": "https://deb.debian.org/debian/pool/main/libd/libdrm/libdrm2_2.4.114-1+b1_amd64.deb",
+    "sha256": "be18fb670797ba32da9628cf3e8acd83160d8db8c8dd842501dd8e401c3b5371",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libdrm/2.4.114-1/",
+    "archive": "libdrm2_2.4.114-1+b1_amd64.deb"
+  },
+  {
+    "package": "libedit2",
+    "version": "3.1-20221030-2",
+    "url": "https://deb.debian.org/debian/pool/main/libe/libedit/libedit2_3.1-20221030-2_amd64.deb",
+    "sha256": "1cf14abf2716d3279db12d0657a5737cf70074a1e71d3bdf73206625e3c89ce6",
+    "licences": [
+      "BSD-3-clause"
+    ],
+    "source": "https://sources.debian.org/src/libedit/3.1-20221030-2/",
+    "archive": "libedit2_3.1-20221030-2_amd64.deb"
+  },
+  {
+    "package": "libelf1",
+    "version": "0.188-2.1",
+    "url": "https://deb.debian.org/debian/pool/main/e/elfutils/libelf1_0.188-2.1_amd64.deb",
+    "sha256": "619add379c606b3ac6c1a175853b918e6939598a83d8ebadf3bdfd50d10b3c8c",
+    "licences": [
+      "BSD-2-clause",
+      "GFDL-NIV-1.3",
+      "GPL-3+",
+      "GPL-3+ with Bison exception",
+      "LGPL-2.1+",
+      "LGPL-3+ or GPL-2+"
+    ],
+    "source": "https://sources.debian.org/src/elfutils/0.188-2.1/",
+    "archive": "libelf1_0.188-2.1_amd64.deb"
+  },
+  {
+    "package": "libexpat1",
+    "version": "2.5.0-1+deb12u5",
+    "url": "https://deb.debian.org/debian-security/pool/updates/main/e/expat/libexpat1_2.5.0-1+deb12u5_amd64.deb",
+    "sha256": "cae5ded666d8573dd33060bc66fbac21eea8b101a6b56e2af8bd590fcfa65d79",
+    "licences": [
+      "MIT"
+    ],
+    "source": "https://sources.debian.org/src/expat/2.5.0-1%2Bdeb12u5/",
+    "archive": "libexpat1_2.5.0-1+deb12u5_amd64.deb"
+  },
+  {
+    "package": "libfido2-1",
+    "version": "1.12.0-2+b1",
+    "url": "https://deb.debian.org/debian/pool/main/libf/libfido2/libfido2-1_1.12.0-2+b1_amd64.deb",
+    "sha256": "dba89cd91adcb886ce1972122e55768aa3652cb562a6b26c5983c2d482a30a1e",
+    "licences": [
+      "BSD-2-clause",
+      "ISC",
+      "ISC and BSD-2-clause",
+      "public-domain"
+    ],
+    "source": "https://sources.debian.org/src/libfido2/1.12.0-2/",
+    "archive": "libfido2-1_1.12.0-2+b1_amd64.deb"
+  },
+  {
+    "package": "libfontconfig1",
+    "version": "2.14.1-4",
+    "url": "https://deb.debian.org/debian/pool/main/f/fontconfig/libfontconfig1_2.14.1-4_amd64.deb",
+    "sha256": "16ee38d374e064f534116dc442b086ef26f9831f1c0af7e5fb4fe4512e700649",
+    "licences": [
+      "MIT-style (fontconfig notice)"
+    ],
+    "source": "https://sources.debian.org/src/fontconfig/2.14.1-4/",
+    "archive": "libfontconfig1_2.14.1-4_amd64.deb"
+  },
+  {
+    "package": "libfontenc1",
+    "version": "1:1.1.4-1",
+    "url": "https://deb.debian.org/debian/pool/main/libf/libfontenc/libfontenc1_1.1.4-1_amd64.deb",
+    "sha256": "1d0aa6ea16a34a8de1ea170360c4cb699f3239aeddb292df2d2c4eb6e835de4b",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libfontenc/1%3A1.1.4-1/",
+    "archive": "libfontenc1_1%3a1.1.4-1_amd64.deb"
+  },
+  {
+    "package": "libfreetype6",
+    "version": "2.12.1+dfsg-5+deb12u4",
+    "url": "https://deb.debian.org/debian/pool/main/f/freetype/libfreetype6_2.12.1+dfsg-5+deb12u4_amd64.deb",
+    "sha256": "8043e479f73f29992d652e3f9dfe8b17f9780c7ea6330afe379ec5f9f188ac44",
+    "licences": [
+      "BSD-3-Clause",
+      "BSL-1.0",
+      "FSFAP",
+      "FTL",
+      "FTL and MIT",
+      "GPL-2+",
+      "GPL-3+",
+      "MIT",
+      "OpenGroup-BSD-like",
+      "Public-Domain",
+      "Zlib"
+    ],
+    "source": "https://sources.debian.org/src/freetype/2.12.1%2Bdfsg-5%2Bdeb12u4/",
+    "archive": "libfreetype6_2.12.1+dfsg-5+deb12u4_amd64.deb"
+  },
+  {
+    "package": "libfribidi0",
+    "version": "1.0.8-2.1",
+    "url": "https://deb.debian.org/debian/pool/main/f/fribidi/libfribidi0_1.0.8-2.1_amd64.deb",
+    "sha256": "87fce56627aab7b2968501d370aa3ed6d1c792119efa765e71a690bdfe570e62",
+    "licences": [
+      "LGPL-2.1+"
+    ],
+    "source": "https://sources.debian.org/src/fribidi/1.0.8-2.1/",
+    "archive": "libfribidi0_1.0.8-2.1_amd64.deb"
+  },
+  {
+    "package": "libfuse2",
+    "version": "2.9.9-6+b1",
+    "url": "https://deb.debian.org/debian/pool/main/f/fuse/libfuse2_2.9.9-6+b1_amd64.deb",
+    "sha256": "df32b8f65d819f854e096896890d6ad632b6e520977bb120bb3143b4c66e2fcd",
+    "licences": [
+      "GPL-2",
+      "GPL-2+",
+      "LGPL-2"
+    ],
+    "source": "https://sources.debian.org/src/fuse/2.9.9-6/",
+    "archive": "libfuse2_2.9.9-6+b1_amd64.deb"
+  },
+  {
+    "package": "libfuse3-3",
+    "version": "3.14.0-4",
+    "url": "https://deb.debian.org/debian/pool/main/f/fuse3/libfuse3-3_3.14.0-4_amd64.deb",
+    "sha256": "bf535cec5e965823fd03199b4029f9e9f3952111eb12824b5d2b96c8cca1a918",
+    "licences": [
+      "GPL-2",
+      "GPL-2+",
+      "LGPL-2.1"
+    ],
+    "source": "https://sources.debian.org/src/fuse3/3.14.0-4/",
+    "archive": "libfuse3-3_3.14.0-4_amd64.deb"
+  },
+  {
+    "package": "libgdbm-compat4",
+    "version": "1.23-3",
+    "url": "https://deb.debian.org/debian/pool/main/g/gdbm/libgdbm-compat4_1.23-3_amd64.deb",
+    "sha256": "4af36a590b68d415a78d9238b932b6a4579f515ec8a8016597498acff5b515a4",
+    "licences": [
+      "GFDL-NIV-1.3+",
+      "GPL-2+",
+      "GPL-3+"
+    ],
+    "source": "https://sources.debian.org/src/gdbm/1.23-3/",
+    "archive": "libgdbm-compat4_1.23-3_amd64.deb"
+  },
+  {
+    "package": "libgdk-pixbuf-2.0-0",
+    "version": "2.42.10+dfsg-1+deb12u4",
+    "url": "https://deb.debian.org/debian/pool/main/g/gdk-pixbuf/libgdk-pixbuf-2.0-0_2.42.10+dfsg-1+deb12u4_amd64.deb",
+    "sha256": "19673127f2530deb7cf637c688a4e16384e6887627296e16b8169038928cadc3",
+    "licences": [
+      "CC0-1.0",
+      "GPL-2+",
+      "LGPL-2+",
+      "LGPL-2+ and LGPL-2.1+ and CC0-1.0",
+      "LGPL-2.1+"
+    ],
+    "source": "https://sources.debian.org/src/gdk-pixbuf/2.42.10%2Bdfsg-1%2Bdeb12u4/",
+    "archive": "libgdk-pixbuf-2.0-0_2.42.10+dfsg-1+deb12u4_amd64.deb"
+  },
+  {
+    "package": "libgdk-pixbuf2.0-common",
+    "version": "2.42.10+dfsg-1+deb12u4",
+    "url": "https://deb.debian.org/debian/pool/main/g/gdk-pixbuf/libgdk-pixbuf2.0-common_2.42.10+dfsg-1+deb12u4_all.deb",
+    "sha256": "0f3df073ca7eed5564ea3faceff819d94932d924c56474f1e42799a8017a2d30",
+    "licences": [
+      "CC0-1.0",
+      "GPL-2+",
+      "LGPL-2+",
+      "LGPL-2+ and LGPL-2.1+ and CC0-1.0",
+      "LGPL-2.1+"
+    ],
+    "source": "https://sources.debian.org/src/gdk-pixbuf/2.42.10%2Bdfsg-1%2Bdeb12u4/",
+    "archive": "libgdk-pixbuf2.0-common_2.42.10+dfsg-1+deb12u4_all.deb"
+  },
+  {
+    "package": "libgif7",
+    "version": "5.2.1-2.5+deb12u1",
+    "url": "https://deb.debian.org/debian/pool/main/g/giflib/libgif7_5.2.1-2.5+deb12u1_amd64.deb",
+    "sha256": "9131bc6c90b3d9695c8b1811ca2f42a65f3611aaba10d71a5c7ad14f04a3ab71",
+    "licences": [
+      "ISC",
+      "MIT"
+    ],
+    "source": "https://sources.debian.org/src/giflib/5.2.1-2.5%2Bdeb12u1/",
+    "archive": "libgif7_5.2.1-2.5+deb12u1_amd64.deb"
+  },
+  {
+    "package": "libgl1-mesa-dri",
+    "version": "22.3.6-1+deb12u2",
+    "url": "https://deb.debian.org/debian/pool/main/m/mesa/libgl1-mesa-dri_22.3.6-1+deb12u2_amd64.deb",
+    "sha256": "350e4263aaacd521f6f757951262b57c003930edaf0419508f2c5675317577fe",
+    "licences": [
+      "Apache-2.0",
+      "BSD-2-clause",
+      "BSD-3-google",
+      "BSL",
+      "GPL",
+      "Khronos",
+      "MIT",
+      "MLAA",
+      "SGI"
+    ],
+    "source": "https://sources.debian.org/src/mesa/22.3.6-1%2Bdeb12u2/",
+    "archive": "libgl1-mesa-dri_22.3.6-1+deb12u2_amd64.deb"
+  },
+  {
+    "package": "libgl1",
+    "version": "1.6.0-1",
+    "url": "https://deb.debian.org/debian/pool/main/libg/libglvnd/libgl1_1.6.0-1_amd64.deb",
+    "sha256": "6f89b1702c48e9a2437bb3c1ffac8e1ab2d828fc28b3d14b2eecd4cc19b2c790",
+    "licences": [
+      "Apache-2.0",
+      "BSD-1-clause",
+      "GPL",
+      "GPL-3+",
+      "MIT"
+    ],
+    "source": "https://sources.debian.org/src/libglvnd/1.6.0-1/",
+    "archive": "libgl1_1.6.0-1_amd64.deb"
+  },
+  {
+    "package": "libglapi-mesa",
+    "version": "22.3.6-1+deb12u2",
+    "url": "https://deb.debian.org/debian/pool/main/m/mesa/libglapi-mesa_22.3.6-1+deb12u2_amd64.deb",
+    "sha256": "2db5b13a6b7f4042f9a417ad7fa4338b6c47528dc64d7f89cfd5e53d07d76bc4",
+    "licences": [
+      "Apache-2.0",
+      "BSD-2-clause",
+      "BSD-3-google",
+      "BSL",
+      "GPL",
+      "Khronos",
+      "MIT",
+      "MLAA",
+      "SGI"
+    ],
+    "source": "https://sources.debian.org/src/mesa/22.3.6-1%2Bdeb12u2/",
+    "archive": "libglapi-mesa_22.3.6-1+deb12u2_amd64.deb"
+  },
+  {
+    "package": "libglib2.0-0",
+    "version": "2.74.6-2+deb12u9",
+    "url": "https://deb.debian.org/debian/pool/main/g/glib2.0/libglib2.0-0_2.74.6-2+deb12u9_amd64.deb",
+    "sha256": "7ff85197685d89e150e342b29a59aab1beee400050ba7da73de81cd999ffee5a",
+    "licences": [
+      "AFL-2.0",
+      "AFL-2.0 or LGPL-2.1+",
+      "Apache-2.0 with LLVM exception",
+      "BSD-3-clause-pcre",
+      "CC-BY-SA-3.0",
+      "CC0-1.0",
+      "Expat",
+      "FSFULLR",
+      "GPL-2+",
+      "GPL-2+ with Autoconf exception",
+      "Iconv-PD",
+      "Janik-permissive",
+      "Kuchling-PD",
+      "LGPL-2+",
+      "LGPL-2+ and LGPL-2.1+ and FSFULLR and CC0-1.0 and Janik-permissive and Iconv-PD and Mingw-PD and Old-GLib-Tests-permissive",
+      "LGPL-2.1+",
+      "LGPL-2.1+ and BSD-3-clause-pcre",
+      "LGPL-2.1+ and Expat",
+      "LGPL-2.1+ and Kuchling-PD and Plumb-PD",
+      "LGPL-3+",
+      "Mingw-PD",
+      "Old-GLib-Tests-permissive",
+      "Plumb-PD",
+      "Unicode-DFS-2016",
+      "bzip2-1.0.6"
+    ],
+    "source": "https://sources.debian.org/src/glib2.0/2.74.6-2%2Bdeb12u9/",
+    "archive": "libglib2.0-0_2.74.6-2+deb12u9_amd64.deb"
+  },
+  {
+    "package": "libglvnd0",
+    "version": "1.6.0-1",
+    "url": "https://deb.debian.org/debian/pool/main/libg/libglvnd/libglvnd0_1.6.0-1_amd64.deb",
+    "sha256": "b6da5b153dd62d8b5e5fbe25242db1fc05c068707c365db49abda8c2427c75f8",
+    "licences": [
+      "Apache-2.0",
+      "BSD-1-clause",
+      "GPL",
+      "GPL-3+",
+      "MIT"
+    ],
+    "source": "https://sources.debian.org/src/libglvnd/1.6.0-1/",
+    "archive": "libglvnd0_1.6.0-1_amd64.deb"
+  },
+  {
+    "package": "libglx-mesa0",
+    "version": "22.3.6-1+deb12u2",
+    "url": "https://deb.debian.org/debian/pool/main/m/mesa/libglx-mesa0_22.3.6-1+deb12u2_amd64.deb",
+    "sha256": "88e7ffa61f1a0a86c30736ad7657ab4774c9b711bbaff76cef0bd32ffb85ec90",
+    "licences": [
+      "Apache-2.0",
+      "BSD-2-clause",
+      "BSD-3-google",
+      "BSL",
+      "GPL",
+      "Khronos",
+      "MIT",
+      "MLAA",
+      "SGI"
+    ],
+    "source": "https://sources.debian.org/src/mesa/22.3.6-1%2Bdeb12u2/",
+    "archive": "libglx-mesa0_22.3.6-1+deb12u2_amd64.deb"
+  },
+  {
+    "package": "libglx0",
+    "version": "1.6.0-1",
+    "url": "https://deb.debian.org/debian/pool/main/libg/libglvnd/libglx0_1.6.0-1_amd64.deb",
+    "sha256": "95f568df73dedf43ae66834a75502112e0d4f3ad7124f3dbfa790b739383b896",
+    "licences": [
+      "Apache-2.0",
+      "BSD-1-clause",
+      "GPL",
+      "GPL-3+",
+      "MIT"
+    ],
+    "source": "https://sources.debian.org/src/libglvnd/1.6.0-1/",
+    "archive": "libglx0_1.6.0-1_amd64.deb"
+  },
+  {
+    "package": "libgraphite2-3",
+    "version": "1.3.14-1+deb12u1",
+    "url": "https://deb.debian.org/debian/pool/main/g/graphite2/libgraphite2-3_1.3.14-1+deb12u1_amd64.deb",
+    "sha256": "c19a7f6ba9298db7eef041ae27b08985f2c02009e418063f8bccdb5bc5e858dc",
+    "licences": [
+      "Artistic",
+      "Artistic or GPL-1+",
+      "GPL-1+",
+      "GPL-2+",
+      "LGPL-2.1+",
+      "LGPL-2.1+ or GPL-2+ or MPL-1.1",
+      "LGPL-2.1+ or MPL-1.1 or GPL-2+",
+      "MPL-1.1",
+      "custom-sil-open-font-license",
+      "public-domain"
+    ],
+    "source": "https://sources.debian.org/src/graphite2/1.3.14-1%2Bdeb12u1/",
+    "archive": "libgraphite2-3_1.3.14-1+deb12u1_amd64.deb"
+  },
+  {
+    "package": "libgs-common",
+    "version": "10.0.0~dfsg-11+deb12u8",
+    "url": "https://deb.debian.org/debian/pool/main/g/ghostscript/libgs-common_10.0.0~dfsg-11+deb12u8_all.deb",
+    "sha256": "83153b66f36858644a9583342967e83e6c35555cafd4e38b94e8e13551392271",
+    "licences": [
+      "AGPL-3",
+      "AGPL-3+",
+      "AGPL-3+ and FTL",
+      "AGPL-3+ and custom",
+      "AGPL-3+ with font exception",
+      "Apache-2.0",
+      "BSD-3-Clause",
+      "BSD-3-Clause~Adobe",
+      "Expat",
+      "Expat~Ghostgum",
+      "Expat~SunSoft",
+      "Expat~SunSoft with SunSoft exception",
+      "FTL",
+      "GAP~configure",
+      "GPL-1+",
+      "GPL-2+",
+      "GPL-3+",
+      "GPL-3+ with Autoconf exception",
+      "ISC",
+      "LGPL-2.1",
+      "MIT-Open-Group",
+      "NTP~Lucent",
+      "NTP~WSU",
+      "X11",
+      "ZLIB",
+      "none",
+      "public-domain"
+    ],
+    "source": "https://sources.debian.org/src/ghostscript/10.0.0~dfsg-11%2Bdeb12u8/",
+    "archive": "libgs-common_10.0.0~dfsg-11+deb12u8_all.deb"
+  },
+  {
+    "package": "libgs10-common",
+    "version": "10.0.0~dfsg-11+deb12u8",
+    "url": "https://deb.debian.org/debian/pool/main/g/ghostscript/libgs10-common_10.0.0~dfsg-11+deb12u8_all.deb",
+    "sha256": "9117502e04a1e028f7cedc238e8cb2a7e1787a3436faa9a77054ee9e30b9b100",
+    "licences": [
+      "AGPL-3",
+      "AGPL-3+",
+      "AGPL-3+ and FTL",
+      "AGPL-3+ and custom",
+      "AGPL-3+ with font exception",
+      "Apache-2.0",
+      "BSD-3-Clause",
+      "BSD-3-Clause~Adobe",
+      "Expat",
+      "Expat~Ghostgum",
+      "Expat~SunSoft",
+      "Expat~SunSoft with SunSoft exception",
+      "FTL",
+      "GAP~configure",
+      "GPL-1+",
+      "GPL-2+",
+      "GPL-3+",
+      "GPL-3+ with Autoconf exception",
+      "ISC",
+      "LGPL-2.1",
+      "MIT-Open-Group",
+      "NTP~Lucent",
+      "NTP~WSU",
+      "X11",
+      "ZLIB",
+      "none",
+      "public-domain"
+    ],
+    "source": "https://sources.debian.org/src/ghostscript/10.0.0~dfsg-11%2Bdeb12u8/",
+    "archive": "libgs10-common_10.0.0~dfsg-11+deb12u8_all.deb"
+  },
+  {
+    "package": "libgs10",
+    "version": "10.0.0~dfsg-11+deb12u8",
+    "url": "https://deb.debian.org/debian/pool/main/g/ghostscript/libgs10_10.0.0~dfsg-11+deb12u8_amd64.deb",
+    "sha256": "13e8badaeb678cffd7c6a203e4a4ab6d275cb78b2c2a582021b722386d09069b",
+    "licences": [
+      "AGPL-3",
+      "AGPL-3+",
+      "AGPL-3+ and FTL",
+      "AGPL-3+ and custom",
+      "AGPL-3+ with font exception",
+      "Apache-2.0",
+      "BSD-3-Clause",
+      "BSD-3-Clause~Adobe",
+      "Expat",
+      "Expat~Ghostgum",
+      "Expat~SunSoft",
+      "Expat~SunSoft with SunSoft exception",
+      "FTL",
+      "GAP~configure",
+      "GPL-1+",
+      "GPL-2+",
+      "GPL-3+",
+      "GPL-3+ with Autoconf exception",
+      "ISC",
+      "LGPL-2.1",
+      "MIT-Open-Group",
+      "NTP~Lucent",
+      "NTP~WSU",
+      "X11",
+      "ZLIB",
+      "none",
+      "public-domain"
+    ],
+    "source": "https://sources.debian.org/src/ghostscript/10.0.0~dfsg-11%2Bdeb12u8/",
+    "archive": "libgs10_10.0.0~dfsg-11+deb12u8_amd64.deb"
+  },
+  {
+    "package": "libharfbuzz0b",
+    "version": "6.0.0+dfsg-3",
+    "url": "https://deb.debian.org/debian/pool/main/h/harfbuzz/libharfbuzz0b_6.0.0+dfsg-3_amd64.deb",
+    "sha256": "bfce132b7ee67b9c2d2166075b1936a25c8cc6866b6a049f99b8e94baa916e71",
+    "licences": [
+      "Apache-2.0",
+      "CC0-1.0",
+      "Expat",
+      "FSFAP",
+      "FSFUL",
+      "FSFULLR",
+      "GPL-2+ with AutoConf exception",
+      "GPL-2+ with Font exception",
+      "GPL-2+ with LibTool exception",
+      "GPL-3+",
+      "GPL-3+ with AutoConf exception",
+      "ISC",
+      "LGPL-2.1+",
+      "MIT",
+      "Monotype",
+      "OFL-1.1",
+      "UFL-1.0",
+      "Unicode"
+    ],
+    "source": "https://sources.debian.org/src/harfbuzz/6.0.0%2Bdfsg-3/",
+    "archive": "libharfbuzz0b_6.0.0+dfsg-3_amd64.deb"
+  },
+  {
+    "package": "libheif1",
+    "version": "1.15.1-1+deb12u1",
+    "url": "https://deb.debian.org/debian/pool/main/libh/libheif/libheif1_1.15.1-1+deb12u1_amd64.deb",
+    "sha256": "13a0a3a6e22ddf5eb891b7c7873ace79f13f2c96473576e5f7da2ae3228a2113",
+    "licences": [
+      "BOOST-1.0",
+      "BSD-3-clause",
+      "BSD-4-clause",
+      "GPL-3+",
+      "LGPL-3+",
+      "MIT"
+    ],
+    "source": "https://sources.debian.org/src/libheif/1.15.1-1%2Bdeb12u1/",
+    "archive": "libheif1_1.15.1-1+deb12u1_amd64.deb"
+  },
+  {
+    "package": "libhwy1",
+    "version": "1.0.3-3+deb12u1",
+    "url": "https://deb.debian.org/debian/pool/main/h/highway/libhwy1_1.0.3-3+deb12u1_amd64.deb",
+    "sha256": "58db3098074f192d32784cf2d070f82d4e26b10d54bc723830a6b9a43be5013b",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "source": "https://sources.debian.org/src/highway/1.0.3-3%2Bdeb12u1/",
+    "archive": "libhwy1_1.0.3-3+deb12u1_amd64.deb"
+  },
+  {
+    "package": "libice6",
+    "version": "2:1.0.10-1",
+    "url": "https://deb.debian.org/debian/pool/main/libi/libice/libice6_1.0.10-1_amd64.deb",
+    "sha256": "452796e565c9d42386bd59990000ae9c37d85e142e00ee2b14df0787e2bbf970",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libice/2%3A1.0.10-1/",
+    "archive": "libice6_2%3a1.0.10-1_amd64.deb"
+  },
+  {
+    "package": "libicu72",
+    "version": "72.1-3+deb12u1",
+    "url": "https://deb.debian.org/debian/pool/main/i/icu/libicu72_72.1-3+deb12u1_amd64.deb",
+    "sha256": "f7f6f99c6d7b025914df2447fc93e11d22c44c0c8bdd8b6f36691c9e7ddcef88",
+    "licences": [
+      "GPL-3",
+      "MIT"
+    ],
+    "source": "https://sources.debian.org/src/icu/72.1-3%2Bdeb12u1/",
+    "archive": "libicu72_72.1-3+deb12u1_amd64.deb"
+  },
+  {
+    "package": "libid3tag0",
+    "version": "0.15.1b-14",
+    "url": "https://deb.debian.org/debian/pool/main/libi/libid3tag/libid3tag0_0.15.1b-14_amd64.deb",
+    "sha256": "ec32a6fdee67a56e479137dc03d5fd019a7aec9ca0c8310b900a4989fed81e5a",
+    "licences": [
+      "GPL-2.0-or-later"
+    ],
+    "source": "https://sources.debian.org/src/libid3tag/0.15.1b-14/",
+    "archive": "libid3tag0_0.15.1b-14_amd64.deb"
+  },
+  {
+    "package": "libidn12",
+    "version": "1.41-1",
+    "url": "https://deb.debian.org/debian/pool/main/libi/libidn/libidn12_1.41-1_amd64.deb",
+    "sha256": "42b89a25fadc6ba31cbb70d6e60fbda0adf1494025f8a434209fe9929e2d7df8",
+    "licences": [
+      "GAP",
+      "GFDL-NIV-1.3+",
+      "GPL-2+",
+      "GPL-3+",
+      "LGPL-2.1+",
+      "LGPL-3+",
+      "LGPL-3+ or GPL-2+"
+    ],
+    "source": "https://sources.debian.org/src/libidn/1.41-1/",
+    "archive": "libidn12_1.41-1_amd64.deb"
+  },
+  {
+    "package": "libijs-0.35",
+    "version": "0.35-15",
+    "url": "https://deb.debian.org/debian/pool/main/i/ijs/libijs-0.35_0.35-15_amd64.deb",
+    "sha256": "00730820dbaee9945772231898f53a555204f7c34855b65dac7e6e6b5f37bb1f",
+    "licences": [
+      "Expat",
+      "Expat~X",
+      "Expat~X with X exception",
+      "GAP",
+      "GAP~Makefile.in",
+      "GAP~configure",
+      "GPL-2+",
+      "GPL-2+ with Autoconf exception"
+    ],
+    "source": "https://sources.debian.org/src/ijs/0.35-15/",
+    "archive": "libijs-0.35_0.35-15_amd64.deb"
+  },
+  {
+    "package": "libimlib2",
+    "version": "1.10.0-4+deb12u1",
+    "url": "https://deb.debian.org/debian/pool/main/i/imlib2/libimlib2_1.10.0-4+deb12u1_amd64.deb",
+    "sha256": "4b18daab857da56f3dfbaa89e54473542dd6003d3c956bfe694beddac0507abf",
+    "licences": [
+      "imlib2-license"
+    ],
+    "source": "https://sources.debian.org/src/imlib2/1.10.0-4%2Bdeb12u1/",
+    "archive": "libimlib2_1.10.0-4+deb12u1_amd64.deb"
+  },
+  {
+    "package": "libjbig0",
+    "version": "2.1-6.1",
+    "url": "https://deb.debian.org/debian/pool/main/j/jbigkit/libjbig0_2.1-6.1_amd64.deb",
+    "sha256": "6b07c77b700a615642888a82ba92a7e7c429d04b9c8669c62b2263f15c4c4059",
+    "licences": [
+      "GPL-2+"
+    ],
+    "source": "https://sources.debian.org/src/jbigkit/2.1-6.1/",
+    "archive": "libjbig0_2.1-6.1_amd64.deb"
+  },
+  {
+    "package": "libjbig2dec0",
+    "version": "0.19-3+deb12u1",
+    "url": "https://deb.debian.org/debian-security/pool/updates/main/j/jbig2dec/libjbig2dec0_0.19-3+deb12u1_amd64.deb",
+    "sha256": "526bd9c14d4bc9511671d5d771c283477da33cae2095b4a8133c8a326ed79cbb",
+    "licences": [
+      "AGPL-3+",
+      "BSD-2-clause",
+      "GPL-3+",
+      "LGPL-2.1+",
+      "pubic-domain",
+      "public-domain"
+    ],
+    "source": "https://sources.debian.org/src/jbig2dec/0.19-3%2Bdeb12u1/",
+    "archive": "libjbig2dec0_0.19-3+deb12u1_amd64.deb"
+  },
+  {
+    "package": "libjpeg62-turbo",
+    "version": "1:2.1.5-2",
+    "url": "https://deb.debian.org/debian/pool/main/libj/libjpeg-turbo/libjpeg62-turbo_2.1.5-2_amd64.deb",
+    "sha256": "95ec30140789a342add8f8371ed018924de51b539056522b66f207b25cba9cad",
+    "licences": [
+      "BSD-3-clause",
+      "BSD-BY-LC-NE",
+      "Expat",
+      "NTP",
+      "Zlib"
+    ],
+    "source": "https://sources.debian.org/src/libjpeg-turbo/1%3A2.1.5-2/",
+    "archive": "libjpeg62-turbo_1%3a2.1.5-2_amd64.deb"
+  },
+  {
+    "package": "libjxl0.7",
+    "version": "0.7.0-10+deb12u1",
+    "url": "https://deb.debian.org/debian/pool/main/j/jpeg-xl/libjxl0.7_0.7.0-10+deb12u1_amd64.deb",
+    "sha256": "19e747c8b509af924d5d2b1602e9eb68ff60a93576e07e0dfd55ca1f857fdf65",
+    "licences": [
+      "BSD-3-clause-Google",
+      "ISC-License"
+    ],
+    "source": "https://sources.debian.org/src/jpeg-xl/0.7.0-10%2Bdeb12u1/",
+    "archive": "libjxl0.7_0.7.0-10+deb12u1_amd64.deb"
+  },
+  {
+    "package": "liblcms2-2",
+    "version": "2.14-2+deb12u1",
+    "url": "https://deb.debian.org/debian/pool/main/l/lcms2/liblcms2-2_2.14-2+deb12u1_amd64.deb",
+    "sha256": "333efe13d165b8a98194d95e72fd10b502ebbee4dc2eb43fc2ab83e2b53e5f17",
+    "licences": [
+      "GPL-2+",
+      "GPL-3",
+      "IJG",
+      "MIT"
+    ],
+    "source": "https://sources.debian.org/src/lcms2/2.14-2%2Bdeb12u1/",
+    "archive": "liblcms2-2_2.14-2+deb12u1_amd64.deb"
+  },
+  {
+    "package": "liblerc4",
+    "version": "4.0.0+ds-2",
+    "url": "https://deb.debian.org/debian/pool/main/l/lerc/liblerc4_4.0.0+ds-2_amd64.deb",
+    "sha256": "771f5c47ca69f24ca61e4be0c98c5912b182ce442f921697d17a472f3ded5c9c",
+    "licences": [
+      "Apache-2.0"
+    ],
+    "source": "https://sources.debian.org/src/lerc/4.0.0%2Bds-2/",
+    "archive": "liblerc4_4.0.0+ds-2_amd64.deb"
+  },
+  {
+    "package": "libllvm15",
+    "version": "1:15.0.6-4+b1",
+    "url": "https://deb.debian.org/debian/pool/main/l/llvm-toolchain-15/libllvm15_15.0.6-4+b1_amd64.deb",
+    "sha256": "9f0751109ba89e65b1313a4f3e34a29977a0db6fa30ed475e2c6bd555fa9e866",
+    "licences": [
+      "APACHE-2-LLVM-EXCEPTIONS",
+      "BSD-3-Clause",
+      "BSD-3-clause",
+      "MIT",
+      "Python",
+      "solar-public-domain"
+    ],
+    "source": "https://sources.debian.org/src/llvm-toolchain-15/1%3A15.0.6-4/",
+    "archive": "libllvm15_1%3a15.0.6-4+b1_amd64.deb"
+  },
+  {
+    "package": "liblzo2-2",
+    "version": "2.10-2",
+    "url": "https://deb.debian.org/debian/pool/main/l/lzo2/liblzo2-2_2.10-2_amd64.deb",
+    "sha256": "4f08e092c76e425295a498cd547dc9b8f6a595473f3020ab8c96309b29872636",
+    "licences": [
+      "GPL-2+"
+    ],
+    "source": "https://sources.debian.org/src/lzo2/2.10-2/",
+    "archive": "liblzo2-2_2.10-2_amd64.deb"
+  },
+  {
+    "package": "libnuma1",
+    "version": "2.0.16-1",
+    "url": "https://deb.debian.org/debian/pool/main/n/numactl/libnuma1_2.0.16-1_amd64.deb",
+    "sha256": "639e1ab6bd66ead40db8a22c332d7199679fa22db261cac34444eb8eb4c17dda",
+    "licences": [
+      "LGPL-2.1-only (library)",
+      "GPL-2.0-or-later (tools/notices)"
+    ],
+    "source": "https://sources.debian.org/src/numactl/2.0.16-1/",
+    "archive": "libnuma1_2.0.16-1_amd64.deb"
+  },
+  {
+    "package": "libopenjp2-7",
+    "version": "2.5.0-2+deb12u3",
+    "url": "https://deb.debian.org/debian/pool/main/o/openjpeg2/libopenjp2-7_2.5.0-2+deb12u3_amd64.deb",
+    "sha256": "a127e2f1741d66bdddb6393a718e3cbec327d53f88c89b859b1f8d73f64cf635",
+    "licences": [
+      "BSD-2",
+      "BSD-3",
+      "LIBPNG",
+      "LIBTIFF",
+      "LIBTIFF-GLARSON",
+      "LIBTIFF-PIXAR",
+      "MIT",
+      "ZLIB",
+      "public-domain"
+    ],
+    "source": "https://sources.debian.org/src/openjpeg2/2.5.0-2%2Bdeb12u3/",
+    "archive": "libopenjp2-7_2.5.0-2+deb12u3_amd64.deb"
+  },
+  {
+    "package": "libpango-1.0-0",
+    "version": "1.50.12+ds-1",
+    "url": "https://deb.debian.org/debian/pool/main/p/pango1.0/libpango-1.0-0_1.50.12+ds-1_amd64.deb",
+    "sha256": "851720de07441ae6bb6a7f51fc0f2edb4db7aa6f25b5bf1bf7b72dcab8947b7f",
+    "licences": [
+      "  Unicode",
+      "Apache-2",
+      "Apache-2 and Bitstream-Vera and OFL-1.1",
+      "Bitstream-Vera",
+      "CC0-1.0",
+      "Chromium-BSD-style",
+      "Example",
+      "GPL-2+",
+      "ICU",
+      "LGPL-2+",
+      "LGPL-2+ and ICU",
+      "LGPL-2+ and LGPL-2.1+",
+      "LGPL-2+ and TCL",
+      "LGPL-2.1+",
+      "OFL-1.1",
+      "TCL",
+      "Unicode"
+    ],
+    "source": "https://sources.debian.org/src/pango1.0/1.50.12%2Bds-1/",
+    "archive": "libpango-1.0-0_1.50.12+ds-1_amd64.deb"
+  },
+  {
+    "package": "libpangocairo-1.0-0",
+    "version": "1.50.12+ds-1",
+    "url": "https://deb.debian.org/debian/pool/main/p/pango1.0/libpangocairo-1.0-0_1.50.12+ds-1_amd64.deb",
+    "sha256": "96695f9cdd3bf346e3555cf0aa158e23a36114d6dec203b00ab4e93f1b77aab9",
+    "licences": [
+      "  Unicode",
+      "Apache-2",
+      "Apache-2 and Bitstream-Vera and OFL-1.1",
+      "Bitstream-Vera",
+      "CC0-1.0",
+      "Chromium-BSD-style",
+      "Example",
+      "GPL-2+",
+      "ICU",
+      "LGPL-2+",
+      "LGPL-2+ and ICU",
+      "LGPL-2+ and LGPL-2.1+",
+      "LGPL-2+ and TCL",
+      "LGPL-2.1+",
+      "OFL-1.1",
+      "TCL",
+      "Unicode"
+    ],
+    "source": "https://sources.debian.org/src/pango1.0/1.50.12%2Bds-1/",
+    "archive": "libpangocairo-1.0-0_1.50.12+ds-1_amd64.deb"
+  },
+  {
+    "package": "libpangoft2-1.0-0",
+    "version": "1.50.12+ds-1",
+    "url": "https://deb.debian.org/debian/pool/main/p/pango1.0/libpangoft2-1.0-0_1.50.12+ds-1_amd64.deb",
+    "sha256": "78da3f494109f6e7a39c4626aaae7571c600c5854cecda0bc0c902224986a63b",
+    "licences": [
+      "  Unicode",
+      "Apache-2",
+      "Apache-2 and Bitstream-Vera and OFL-1.1",
+      "Bitstream-Vera",
+      "CC0-1.0",
+      "Chromium-BSD-style",
+      "Example",
+      "GPL-2+",
+      "ICU",
+      "LGPL-2+",
+      "LGPL-2+ and ICU",
+      "LGPL-2+ and LGPL-2.1+",
+      "LGPL-2+ and TCL",
+      "LGPL-2.1+",
+      "OFL-1.1",
+      "TCL",
+      "Unicode"
+    ],
+    "source": "https://sources.debian.org/src/pango1.0/1.50.12%2Bds-1/",
+    "archive": "libpangoft2-1.0-0_1.50.12+ds-1_amd64.deb"
+  },
+  {
+    "package": "libpangoxft-1.0-0",
+    "version": "1.50.12+ds-1",
+    "url": "https://deb.debian.org/debian/pool/main/p/pango1.0/libpangoxft-1.0-0_1.50.12+ds-1_amd64.deb",
+    "sha256": "308f29b69af61f105c84c5944b7b22720bd526420ff649a20d34212269dc4b3b",
+    "licences": [
+      "  Unicode",
+      "Apache-2",
+      "Apache-2 and Bitstream-Vera and OFL-1.1",
+      "Bitstream-Vera",
+      "CC0-1.0",
+      "Chromium-BSD-style",
+      "Example",
+      "GPL-2+",
+      "ICU",
+      "LGPL-2+",
+      "LGPL-2+ and ICU",
+      "LGPL-2+ and LGPL-2.1+",
+      "LGPL-2+ and TCL",
+      "LGPL-2.1+",
+      "OFL-1.1",
+      "TCL",
+      "Unicode"
+    ],
+    "source": "https://sources.debian.org/src/pango1.0/1.50.12%2Bds-1/",
+    "archive": "libpangoxft-1.0-0_1.50.12+ds-1_amd64.deb"
+  },
+  {
+    "package": "libpaper1",
+    "version": "1.1.29",
+    "url": "https://deb.debian.org/debian/pool/main/libp/libpaper/libpaper1_1.1.29_amd64.deb",
+    "sha256": "4735ccb9e891f6ac7d91254e929213786ed0835536a930a8ff36a50c6a291a1d",
+    "licences": [
+      "GPL-2.0-only"
+    ],
+    "source": "https://sources.debian.org/src/libpaper/1.1.29/",
+    "archive": "libpaper1_1.1.29_amd64.deb"
+  },
+  {
+    "package": "libpciaccess0",
+    "version": "0.17-2",
+    "url": "https://deb.debian.org/debian/pool/main/libp/libpciaccess/libpciaccess0_0.17-2_amd64.deb",
+    "sha256": "4025f3608cf431c163efb94fdc553e7b93e16b8f0d741ea87762e19025ffc80e",
+    "licences": [
+      "MIT",
+      "GPL-2.0-or-later (packaging)"
+    ],
+    "source": "https://sources.debian.org/src/libpciaccess/0.17-2/",
+    "archive": "libpciaccess0_0.17-2_amd64.deb"
+  },
+  {
+    "package": "libperl5.36",
+    "version": "5.36.0-7+deb12u4",
+    "url": "https://deb.debian.org/debian-security/pool/updates/main/p/perl/libperl5.36_5.36.0-7+deb12u4_amd64.deb",
+    "sha256": "ed8480b621ad574c25aea30d36194d0133ea74093756ecbe3dff157d0510ef7f",
+    "licences": [
+      " CC0-1.0",
+      "Artistic",
+      "Artistic or GPL-1+ or Artistic-dist",
+      "Artistic-2",
+      "Artistic-dist",
+      "BSD-3-clause",
+      "BSD-3-clause-GENERIC",
+      "BSD-3-clause-with-weird-numbering",
+      "BSD-4-clause-POWERDOG",
+      "BZIP",
+      "DONT-CHANGE-THE-GPL",
+      "Expat",
+      "Expat or GPL-1+ or Artistic",
+      "GPL-1+",
+      "GPL-1+ or Artistic",
+      "GPL-1+ or Artistic or Artistic-dist",
+      "GPL-1+ or Artistic, and BSD-3-clause-GENERIC",
+      "GPL-1+ or Artistic, and BSD-4-clause-POWERDOG",
+      "GPL-1+ or Artistic, and Expat",
+      "GPL-1+ or Artistic, and Unicode",
+      "GPL-2+",
+      "GPL-2+ or Artistic",
+      "GPL-3+-WITH-BISON-EXCEPTION",
+      "HSIEH-BSD",
+      "HSIEH-DERIVATIVE",
+      "LGPL-2.1",
+      "REGCOMP",
+      "REGCOMP, and GPL-1+ or Artistic",
+      "RRA-KEEP-THIS-NOTICE",
+      "SDBM-PUBLIC-DOMAIN",
+      "TEXT-TABS",
+      "Unicode",
+      "ZLIB"
+    ],
+    "source": "https://sources.debian.org/src/perl/5.36.0-7%2Bdeb12u4/",
+    "archive": "libperl5.36_5.36.0-7+deb12u4_amd64.deb"
+  },
+  {
+    "package": "libpixman-1-0",
+    "version": "0.42.2-1",
+    "url": "https://deb.debian.org/debian/pool/main/p/pixman/libpixman-1-0_0.42.2-1_amd64.deb",
+    "sha256": "9ed75ef81b6b1eba9e1357f8b0ce01d31112b0e07b2b685bee2cf627a8932892",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/pixman/0.42.2-1/",
+    "archive": "libpixman-1-0_0.42.2-1_amd64.deb"
+  },
+  {
+    "package": "libpng16-16",
+    "version": "1.6.39-2+deb12u6",
+    "url": "https://deb.debian.org/debian-security/pool/updates/main/libp/libpng1.6/libpng16-16_1.6.39-2+deb12u6_amd64.deb",
+    "sha256": "940b91d40d51c825de7f7aa133aecff1ffa25a91f12cb6aa6926c9ad55cd640c",
+    "licences": [
+      "Apache-2.0",
+      "BSD-3-clause",
+      "BSD-like-with-advertising-clause",
+      "GPL-2+",
+      "GPL-2+ or BSD-like-with-advertising-clause",
+      "expat",
+      "libpng",
+      "libpng OR Apache-2.0 OR BSD-3-clause"
+    ],
+    "source": "https://sources.debian.org/src/libpng1.6/1.6.39-2%2Bdeb12u6/",
+    "archive": "libpng16-16_1.6.39-2+deb12u6_amd64.deb"
+  },
+  {
+    "package": "libproc2-0",
+    "version": "2:4.0.2-3",
+    "url": "https://deb.debian.org/debian/pool/main/p/procps/libproc2-0_4.0.2-3_amd64.deb",
+    "sha256": "e82ba5d01929eafb8b9954606a3c38b0332a987c2b3432388b4ee7365e54deae",
+    "licences": [
+      "GPL-2.0+",
+      "LGPL-2.0+",
+      "LGPL-2.1+"
+    ],
+    "source": "https://sources.debian.org/src/procps/2%3A4.0.2-3/",
+    "archive": "libproc2-0_2%3a4.0.2-3_amd64.deb"
+  },
+  {
+    "package": "libptytty0",
+    "version": "2.0-1+b1",
+    "url": "https://deb.debian.org/debian/pool/main/libp/libptytty/libptytty0_2.0-1+b1_amd64.deb",
+    "sha256": "fa1b07f4934fb28a9eca821577b6f60226b6ede0c13030bcafac067a1da7dd39",
+    "licences": [
+      "BSD-2-clause",
+      "GPL-2.0+",
+      "GPL-2.0+ or BSD-2-clause"
+    ],
+    "source": "https://sources.debian.org/src/libptytty/2.0-1/",
+    "archive": "libptytty0_2.0-1+b1_amd64.deb"
+  },
+  {
+    "package": "librsvg2-2",
+    "version": "2.54.7+dfsg-1~deb12u1",
+    "url": "https://deb.debian.org/debian/pool/main/libr/librsvg/librsvg2-2_2.54.7+dfsg-1~deb12u1_amd64.deb",
+    "sha256": "090f2ffbedb57727ee9b264e6ea6e66fe09773629739dd406931264b1bf14dc8",
+    "licences": [
+      "0BSD",
+      "Apache-2.0",
+      "Apache-2.0, and BSD-2-clause, and BSD-3-clause, and Expat, and Apache-2.0 or Expat or 0BSD, and Apache-2.0 or Boost-1.0, and Apache-2.0 or Expat, and Expat or Unlicense, and MPL-2.0, and Sun-permissive, and zlib",
+      "BSD-2-clause",
+      "BSD-3-clause",
+      "Boost-1.0",
+      "CC-BY-3.0",
+      "CC-zero-waive-1.0-us",
+      "Expat",
+      "FSFAP",
+      "LGPL-2+",
+      "MPL-2.0",
+      "OFL-1.1",
+      "Sun-permissive",
+      "Unlicense",
+      "zlib"
+    ],
+    "source": "https://sources.debian.org/src/librsvg/2.54.7%2Bdfsg-1~deb12u1/",
+    "archive": "librsvg2-2_2.54.7+dfsg-1~deb12u1_amd64.deb"
+  },
+  {
+    "package": "libsasl2-2",
+    "version": "2.1.28+dfsg-10+deb12u1",
+    "url": "https://deb.debian.org/debian-security/pool/updates/main/c/cyrus-sasl2/libsasl2-2_2.1.28+dfsg-10+deb12u1_amd64.deb",
+    "sha256": "d6f20408e2be92ebd9f5e3b1c1935b075efb3f03abb5f48f7b991a0ad3e2d6a5",
+    "licences": [
+      "BSD-2-clause",
+      "BSD-2-clause and MIT-CMU",
+      "BSD-2.2-clause",
+      "BSD-3-clause",
+      "BSD-3-clause-JANET",
+      "BSD-3-clause-JANET and BSD-4-clause",
+      "BSD-3-clause-PADL",
+      "BSD-3-clause-PADL and MIT-OpenVision",
+      "BSD-4-clause",
+      "BSD-4-clause and BSD-4-clause-KTH",
+      "BSD-4-clause and IBM-as-is",
+      "BSD-4-clause and MIT-Export",
+      "BSD-4-clause-KTH",
+      "BSD-4-clause-UC",
+      "FSFULLR",
+      "FSFULLR and MIT-CMU",
+      "GPL-3",
+      "GPL-3+",
+      "IBM-as-is",
+      "MIT-CMU",
+      "MIT-Export",
+      "MIT-OpenVision",
+      "OpenLDAP",
+      "OpenSSL",
+      "OpenSSL and SSLeay",
+      "RSA-MD",
+      "SSLeay"
+    ],
+    "source": "https://sources.debian.org/src/cyrus-sasl2/2.1.28%2Bdfsg-10%2Bdeb12u1/",
+    "archive": "libsasl2-2_2.1.28+dfsg-10+deb12u1_amd64.deb"
+  },
+  {
+    "package": "libsasl2-modules-db",
+    "version": "2.1.28+dfsg-10+deb12u1",
+    "url": "https://deb.debian.org/debian-security/pool/updates/main/c/cyrus-sasl2/libsasl2-modules-db_2.1.28+dfsg-10+deb12u1_amd64.deb",
+    "sha256": "6c86ca8fe9a7d652e618874b8753b4b6ec6b42ed7649b3f388e38d0a99047ba5",
+    "licences": [
+      "BSD-2-clause",
+      "BSD-2-clause and MIT-CMU",
+      "BSD-2.2-clause",
+      "BSD-3-clause",
+      "BSD-3-clause-JANET",
+      "BSD-3-clause-JANET and BSD-4-clause",
+      "BSD-3-clause-PADL",
+      "BSD-3-clause-PADL and MIT-OpenVision",
+      "BSD-4-clause",
+      "BSD-4-clause and BSD-4-clause-KTH",
+      "BSD-4-clause and IBM-as-is",
+      "BSD-4-clause and MIT-Export",
+      "BSD-4-clause-KTH",
+      "BSD-4-clause-UC",
+      "FSFULLR",
+      "FSFULLR and MIT-CMU",
+      "GPL-3",
+      "GPL-3+",
+      "IBM-as-is",
+      "MIT-CMU",
+      "MIT-Export",
+      "MIT-OpenVision",
+      "OpenLDAP",
+      "OpenSSL",
+      "OpenSSL and SSLeay",
+      "RSA-MD",
+      "SSLeay"
+    ],
+    "source": "https://sources.debian.org/src/cyrus-sasl2/2.1.28%2Bdfsg-10%2Bdeb12u1/",
+    "archive": "libsasl2-modules-db_2.1.28+dfsg-10+deb12u1_amd64.deb"
+  },
+  {
+    "package": "libsensors-config",
+    "version": "1:3.6.0-7.1",
+    "url": "https://deb.debian.org/debian/pool/main/l/lm-sensors/libsensors-config_3.6.0-7.1_all.deb",
+    "sha256": "7f3c9fbd822858a9e30335e4a7f66c9468962eb26cd375b93bc8b789660bf02f",
+    "licences": [
+      "LGPL-2.1-or-later (library)",
+      "GPL-2.0-or-later (tools/notices)"
+    ],
+    "source": "https://sources.debian.org/src/lm-sensors/1%3A3.6.0-7.1/",
+    "archive": "libsensors-config_1%3a3.6.0-7.1_all.deb"
+  },
+  {
+    "package": "libsensors5",
+    "version": "1:3.6.0-7.1",
+    "url": "https://deb.debian.org/debian/pool/main/l/lm-sensors/libsensors5_3.6.0-7.1_amd64.deb",
+    "sha256": "b7eb91dce728fbb9203aec8b22637303b29821c3384e5f78a8ff348b4e44efe3",
+    "licences": [
+      "LGPL-2.1-or-later (library)",
+      "GPL-2.0-or-later (tools/notices)"
+    ],
+    "source": "https://sources.debian.org/src/lm-sensors/1%3A3.6.0-7.1/",
+    "archive": "libsensors5_1%3a3.6.0-7.1_amd64.deb"
+  },
+  {
+    "package": "libsm6",
+    "version": "2:1.2.3-1",
+    "url": "https://deb.debian.org/debian/pool/main/libs/libsm/libsm6_1.2.3-1_amd64.deb",
+    "sha256": "22a420890489023346f30fecef14ea900a0788e7bf959ef826aabb83944fccfb",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libsm/2%3A1.2.3-1/",
+    "archive": "libsm6_2%3a1.2.3-1_amd64.deb"
+  },
+  {
+    "package": "libspectre1",
+    "version": "0.2.12-1",
+    "url": "https://deb.debian.org/debian/pool/main/libs/libspectre/libspectre1_0.2.12-1_amd64.deb",
+    "sha256": "29d5422175800136cd44e107ae2af83ad6d4cae2de025c4e2ef320fd828686b4",
+    "licences": [
+      "GPL-2+"
+    ],
+    "source": "https://sources.debian.org/src/libspectre/0.2.12-1/",
+    "archive": "libspectre1_0.2.12-1_amd64.deb"
+  },
+  {
+    "package": "libstartup-notification0",
+    "version": "0.12-6+b1",
+    "url": "https://deb.debian.org/debian/pool/main/s/startup-notification/libstartup-notification0_0.12-6+b1_amd64.deb",
+    "sha256": "b84ed4fd6bf6b1fbd711951c9d9911d78504778a145f6e96eab1b75307293655",
+    "licences": [
+      "part MIT, part LGPL, see below."
+    ],
+    "source": "https://sources.debian.org/src/startup-notification/0.12-6/",
+    "archive": "libstartup-notification0_0.12-6+b1_amd64.deb"
+  },
+  {
+    "package": "libtcl8.6",
+    "version": "8.6.13+dfsg-2",
+    "url": "https://deb.debian.org/debian/pool/main/t/tcl8.6/libtcl8.6_8.6.13+dfsg-2_amd64.deb",
+    "sha256": "976c4235b816635e1756016f3adbabb634e8b97a9f6b97cf901be099e4fd2487",
+    "licences": [
+      "TCL (BSD-style)",
+      "per-file notices"
+    ],
+    "source": "https://sources.debian.org/src/tcl8.6/8.6.13%2Bdfsg-2/",
+    "archive": "libtcl8.6_8.6.13+dfsg-2_amd64.deb"
+  },
+  {
+    "package": "libthai-data",
+    "version": "0.1.29-1",
+    "url": "https://deb.debian.org/debian/pool/main/libt/libthai/libthai-data_0.1.29-1_all.deb",
+    "sha256": "eed65a75269411e47d7b393d82bc30471da5c499e9f311abbfd8c54ca1a42d9e",
+    "licences": [
+      "GPL-2+",
+      "LGPL-2.1+"
+    ],
+    "source": "https://sources.debian.org/src/libthai/0.1.29-1/",
+    "archive": "libthai-data_0.1.29-1_all.deb"
+  },
+  {
+    "package": "libthai0",
+    "version": "0.1.29-1",
+    "url": "https://deb.debian.org/debian/pool/main/libt/libthai/libthai0_0.1.29-1_amd64.deb",
+    "sha256": "37cd66bef851ea0e4af807797ba3ad14d43226f7c4954c1d0a19478e11815bae",
+    "licences": [
+      "GPL-2+",
+      "LGPL-2.1+"
+    ],
+    "source": "https://sources.debian.org/src/libthai/0.1.29-1/",
+    "archive": "libthai0_0.1.29-1_amd64.deb"
+  },
+  {
+    "package": "libtiff6",
+    "version": "4.5.0-6+deb12u4",
+    "url": "https://deb.debian.org/debian/pool/main/t/tiff/libtiff6_4.5.0-6+deb12u4_amd64.deb",
+    "sha256": "255cd1d9f204355c366638ee21756234a8d43c03a3de18a5af6cdd94765b5053",
+    "licences": [
+      "Hylafax"
+    ],
+    "source": "https://sources.debian.org/src/tiff/4.5.0-6%2Bdeb12u4/",
+    "archive": "libtiff6_4.5.0-6+deb12u4_amd64.deb"
+  },
+  {
+    "package": "libtk8.6",
+    "version": "8.6.13-2",
+    "url": "https://deb.debian.org/debian/pool/main/t/tk8.6/libtk8.6_8.6.13-2_amd64.deb",
+    "sha256": "b1c4042e5357d37170f210a106f3910c3eac21ae3ad9304d685d1f42dfd18d2e",
+    "licences": [
+      "TCL (BSD-style)",
+      "per-file notices"
+    ],
+    "source": "https://sources.debian.org/src/tk8.6/8.6.13-2/",
+    "archive": "libtk8.6_8.6.13-2_amd64.deb"
+  },
+  {
+    "package": "libunwind8",
+    "version": "1.6.2-3",
+    "url": "https://deb.debian.org/debian/pool/main/libu/libunwind/libunwind8_1.6.2-3_amd64.deb",
+    "sha256": "7b297868682836e4c87be349f17e4a56bc287586e3576503e84a5cb5485ce925",
+    "licences": [
+      "Expat",
+      "GPL-2+"
+    ],
+    "source": "https://sources.debian.org/src/libunwind/1.6.2-3/",
+    "archive": "libunwind8_1.6.2-3_amd64.deb"
+  },
+  {
+    "package": "libvncclient1",
+    "version": "0.9.14+dfsg-1+deb12u2",
+    "url": "https://deb.debian.org/debian/pool/main/libv/libvncserver/libvncclient1_0.9.14+dfsg-1+deb12u2_amd64.deb",
+    "sha256": "1af5703a6f535428f8287600ea35e4b5d4cbe788071cbb09ec556f232a18e77f",
+    "licences": [
+      "AT&T",
+      "BSD-3",
+      "Expat",
+      "GPL-2",
+      "GPL-2+",
+      "GPL-3",
+      "X-Consortium",
+      "wxWin"
+    ],
+    "source": "https://sources.debian.org/src/libvncserver/0.9.14%2Bdfsg-1%2Bdeb12u2/",
+    "archive": "libvncclient1_0.9.14+dfsg-1+deb12u2_amd64.deb"
+  },
+  {
+    "package": "libvncserver1",
+    "version": "0.9.14+dfsg-1+deb12u2",
+    "url": "https://deb.debian.org/debian/pool/main/libv/libvncserver/libvncserver1_0.9.14+dfsg-1+deb12u2_amd64.deb",
+    "sha256": "9a09b592a8351e4bec19de71a283980ae6fc616f7015075ad1b33d15c560a377",
+    "licences": [
+      "AT&T",
+      "BSD-3",
+      "Expat",
+      "GPL-2",
+      "GPL-2+",
+      "GPL-3",
+      "X-Consortium",
+      "wxWin"
+    ],
+    "source": "https://sources.debian.org/src/libvncserver/0.9.14%2Bdfsg-1%2Bdeb12u2/",
+    "archive": "libvncserver1_0.9.14+dfsg-1+deb12u2_amd64.deb"
+  },
+  {
+    "package": "libwebp7",
+    "version": "1.2.4-0.2+deb12u1",
+    "url": "https://deb.debian.org/debian/pool/main/libw/libwebp/libwebp7_1.2.4-0.2+deb12u1_amd64.deb",
+    "sha256": "7259b7ce46444694ce536360ad53acb68eb3b47a7ff81d7b1b8a3939b2ac9918",
+    "licences": [
+      "BSD-3-Clause",
+      "GPL-2.0-or-later (packaging)"
+    ],
+    "source": "https://sources.debian.org/src/libwebp/1.2.4-0.2%2Bdeb12u1/",
+    "archive": "libwebp7_1.2.4-0.2+deb12u1_amd64.deb"
+  },
+  {
+    "package": "libwebpdemux2",
+    "version": "1.2.4-0.2+deb12u1",
+    "url": "https://deb.debian.org/debian/pool/main/libw/libwebp/libwebpdemux2_1.2.4-0.2+deb12u1_amd64.deb",
+    "sha256": "7d622d3cd1413fe55a2d3baaa32e0dfeba88bc511b1058dbe64562e2a9d7c176",
+    "licences": [
+      "BSD-3-Clause",
+      "GPL-2.0-or-later (packaging)"
+    ],
+    "source": "https://sources.debian.org/src/libwebp/1.2.4-0.2%2Bdeb12u1/",
+    "archive": "libwebpdemux2_1.2.4-0.2+deb12u1_amd64.deb"
+  },
+  {
+    "package": "libwrap0",
+    "version": "7.6.q-32",
+    "url": "https://deb.debian.org/debian/pool/main/t/tcp-wrappers/libwrap0_7.6.q-32_amd64.deb",
+    "sha256": "cbce2669a3ba4d74cfdc52b14f38014893e23d85a33d109a3422c342eefc55f8",
+    "licences": [
+      "BSD-3-clause",
+      "SSH",
+      "TCP-wrappers"
+    ],
+    "source": "https://sources.debian.org/src/tcp-wrappers/7.6.q-32/",
+    "archive": "libwrap0_7.6.q-32_amd64.deb"
+  },
+  {
+    "package": "libx11-6",
+    "version": "2:1.8.4-2+deb12u2",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libx11/libx11-6_1.8.4-2+deb12u2_amd64.deb",
+    "sha256": "d88c973e79fd9b65838d77624142952757e47a6eb1a58602acf0911cf35989f4",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libx11/2%3A1.8.4-2%2Bdeb12u2/",
+    "archive": "libx11-6_2%3a1.8.4-2+deb12u2_amd64.deb"
+  },
+  {
+    "package": "libx11-data",
+    "version": "2:1.8.4-2+deb12u2",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libx11/libx11-data_1.8.4-2+deb12u2_all.deb",
+    "sha256": "987a848aeb1c358e4186368871b0526f10bb14c6b53214ab3bf8b69abb830191",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libx11/2%3A1.8.4-2%2Bdeb12u2/",
+    "archive": "libx11-data_2%3a1.8.4-2+deb12u2_all.deb"
+  },
+  {
+    "package": "libx11-xcb1",
+    "version": "2:1.8.4-2+deb12u2",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libx11/libx11-xcb1_1.8.4-2+deb12u2_amd64.deb",
+    "sha256": "f5da45e1d881a793250a96613f28c471a248877f1a0f18a5c90e2a620a76c898",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libx11/2%3A1.8.4-2%2Bdeb12u2/",
+    "archive": "libx11-xcb1_2%3a1.8.4-2+deb12u2_amd64.deb"
+  },
+  {
+    "package": "libx265-199",
+    "version": "3.5-2+b1",
+    "url": "https://deb.debian.org/debian/pool/main/x/x265/libx265-199_3.5-2+b1_amd64.deb",
+    "sha256": "9cd87d1b0c56f34f51bcbe8bdb55ebb45dd08ce6c0c6ff2dc77378bac3f64cc0",
+    "licences": [
+      "Expat",
+      "GPL-2+",
+      "ISC",
+      "LGPL-2.1+"
+    ],
+    "source": "https://sources.debian.org/src/x265/3.5-2/",
+    "archive": "libx265-199_3.5-2+b1_amd64.deb"
+  },
+  {
+    "package": "libxau6",
+    "version": "1:1.0.9-1",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxau/libxau6_1.0.9-1_amd64.deb",
+    "sha256": "679db1c4579ec7c61079adeaae8528adeb2e4bf5465baa6c56233b995d714750",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxau/1%3A1.0.9-1/",
+    "archive": "libxau6_1%3a1.0.9-1_amd64.deb"
+  },
+  {
+    "package": "libxaw7",
+    "version": "2:1.0.14-1",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxaw/libxaw7_1.0.14-1_amd64.deb",
+    "sha256": "b208ae00c4ce66f0ef59a23ddaf9f9a84127c412e9f10a3817e34a095be6b72a",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxaw/2%3A1.0.14-1/",
+    "archive": "libxaw7_2%3a1.0.14-1_amd64.deb"
+  },
+  {
+    "package": "libxcb-dri2-0",
+    "version": "1.15-1",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxcb/libxcb-dri2-0_1.15-1_amd64.deb",
+    "sha256": "ef4959aa9e09a0d38d1de432e747585129d5d2dc1d84c8b6b3d2ffc3708b5805",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxcb/1.15-1/",
+    "archive": "libxcb-dri2-0_1.15-1_amd64.deb"
+  },
+  {
+    "package": "libxcb-dri3-0",
+    "version": "1.15-1",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxcb/libxcb-dri3-0_1.15-1_amd64.deb",
+    "sha256": "02699b144b9467de8636d27a76984b8f4e7b66e2d25d96df2b9677be86ee9a29",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxcb/1.15-1/",
+    "archive": "libxcb-dri3-0_1.15-1_amd64.deb"
+  },
+  {
+    "package": "libxcb-glx0",
+    "version": "1.15-1",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxcb/libxcb-glx0_1.15-1_amd64.deb",
+    "sha256": "1bce55fc292d93fa5f7fa50f84cef99ec29be70d0ffe98e86b8008e59f4a34fa",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxcb/1.15-1/",
+    "archive": "libxcb-glx0_1.15-1_amd64.deb"
+  },
+  {
+    "package": "libxcb-present0",
+    "version": "1.15-1",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxcb/libxcb-present0_1.15-1_amd64.deb",
+    "sha256": "89383e627a4d17b9390d609b2459481bfd2029566367b43068586769e418b6e5",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxcb/1.15-1/",
+    "archive": "libxcb-present0_1.15-1_amd64.deb"
+  },
+  {
+    "package": "libxcb-randr0",
+    "version": "1.15-1",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxcb/libxcb-randr0_1.15-1_amd64.deb",
+    "sha256": "f86e3d8ff8622871008833e9d064919b7a6237399c903c59fc330ff00f199ff5",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxcb/1.15-1/",
+    "archive": "libxcb-randr0_1.15-1_amd64.deb"
+  },
+  {
+    "package": "libxcb-render0",
+    "version": "1.15-1",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxcb/libxcb-render0_1.15-1_amd64.deb",
+    "sha256": "29c32cc76be9393f409378be79a0f534b9f07dea06ae52fa80a7f27e298de239",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxcb/1.15-1/",
+    "archive": "libxcb-render0_1.15-1_amd64.deb"
+  },
+  {
+    "package": "libxcb-shm0",
+    "version": "1.15-1",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxcb/libxcb-shm0_1.15-1_amd64.deb",
+    "sha256": "c1afcef29dc78b95c475159b181b28b1dedaf1d5aa06efd2fa6d90c73bfbe0e5",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxcb/1.15-1/",
+    "archive": "libxcb-shm0_1.15-1_amd64.deb"
+  },
+  {
+    "package": "libxcb-sync1",
+    "version": "1.15-1",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxcb/libxcb-sync1_1.15-1_amd64.deb",
+    "sha256": "3366ce715220d38dd0148b78a8e738137bade25ef7eec0698850c6f66800844f",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxcb/1.15-1/",
+    "archive": "libxcb-sync1_1.15-1_amd64.deb"
+  },
+  {
+    "package": "libxcb-util1",
+    "version": "0.4.0-1+b1",
+    "url": "https://deb.debian.org/debian/pool/main/x/xcb-util/libxcb-util1_0.4.0-1+b1_amd64.deb",
+    "sha256": "4c48af51fb2ac1be0490067e7450aeda27bf6c6c395165de02199eee4835336f",
+    "licences": [
+      "GPL-2+",
+      "MIT"
+    ],
+    "source": "https://sources.debian.org/src/xcb-util/0.4.0-1/",
+    "archive": "libxcb-util1_0.4.0-1+b1_amd64.deb"
+  },
+  {
+    "package": "libxcb-xfixes0",
+    "version": "1.15-1",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxcb/libxcb-xfixes0_1.15-1_amd64.deb",
+    "sha256": "d744a7ebad2cbcf301c96cd6a1ab3ee856e436fc7be5cff5b7c28ac2ac181a64",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxcb/1.15-1/",
+    "archive": "libxcb-xfixes0_1.15-1_amd64.deb"
+  },
+  {
+    "package": "libxcb1",
+    "version": "1.15-1",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxcb/libxcb1_1.15-1_amd64.deb",
+    "sha256": "fdc61332a3892168f3cc9cfa1fe9cf11a91dc3e0acacbc47cbc50ebaa234cc71",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxcb/1.15-1/",
+    "archive": "libxcb1_1.15-1_amd64.deb"
+  },
+  {
+    "package": "libxcomposite1",
+    "version": "1:0.4.5-1",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxcomposite/libxcomposite1_0.4.5-1_amd64.deb",
+    "sha256": "4c26ebf519d2ebc22fc1416dee45e12c4c4ef68aa9b2ed890356830df42b652a",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxcomposite/1%3A0.4.5-1/",
+    "archive": "libxcomposite1_1%3a0.4.5-1_amd64.deb"
+  },
+  {
+    "package": "libxdamage1",
+    "version": "1:1.1.6-1",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxdamage/libxdamage1_1.1.6-1_amd64.deb",
+    "sha256": "fcdf7e4c29b307ba8711c864e1e646d76315a8f55121198143653e56592fa8a7",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxdamage/1%3A1.1.6-1/",
+    "archive": "libxdamage1_1%3a1.1.6-1_amd64.deb"
+  },
+  {
+    "package": "libxdmcp6",
+    "version": "1:1.1.2-3",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxdmcp/libxdmcp6_1.1.2-3_amd64.deb",
+    "sha256": "ecb8536f5fb34543b55bb9dc5f5b14c9dbb4150a7bddb3f2287b7cab6e9d25ef",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxdmcp/1%3A1.1.2-3/",
+    "archive": "libxdmcp6_1%3a1.1.2-3_amd64.deb"
+  },
+  {
+    "package": "libxdo3",
+    "version": "1:3.20160805.1-5",
+    "url": "https://deb.debian.org/debian/pool/main/x/xdotool/libxdo3_3.20160805.1-5_amd64.deb",
+    "sha256": "c47096b186fc848d8677b1f307c2e76cd1490b2470b30b3bde6f31ed4a64297a",
+    "licences": [
+      "BSD-3-clause"
+    ],
+    "source": "https://sources.debian.org/src/xdotool/1%3A3.20160805.1-5/",
+    "archive": "libxdo3_1%3a3.20160805.1-5_amd64.deb"
+  },
+  {
+    "package": "libxext6",
+    "version": "2:1.3.4-1+b1",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxext/libxext6_1.3.4-1+b1_amd64.deb",
+    "sha256": "504b7be9d7df4f6f4519e8dd4d6f9d03a9fb911a78530fa23a692fba3058cba6",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxext/2%3A1.3.4-1/",
+    "archive": "libxext6_2%3a1.3.4-1+b1_amd64.deb"
+  },
+  {
+    "package": "libxfixes3",
+    "version": "1:6.0.0-2",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxfixes/libxfixes3_6.0.0-2_amd64.deb",
+    "sha256": "1cd616396ff2ecae77e6e8b5b7695d414f0146de2d147837a2a02165f99e1a2c",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxfixes/1%3A6.0.0-2/",
+    "archive": "libxfixes3_1%3a6.0.0-2_amd64.deb"
+  },
+  {
+    "package": "libxfont2",
+    "version": "1:2.0.6-1+deb12u1",
+    "url": "https://deb.debian.org/debian-security/pool/updates/main/libx/libxfont/libxfont2_2.0.6-1+deb12u1_amd64.deb",
+    "sha256": "96ca8e9e1d913dd9855f46f1f09d0e0aec964b70d428da9f032250fc7a400419",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxfont/1%3A2.0.6-1%2Bdeb12u1/",
+    "archive": "libxfont2_1%3a2.0.6-1+deb12u1_amd64.deb"
+  },
+  {
+    "package": "libxft2",
+    "version": "2.3.6-1",
+    "url": "https://deb.debian.org/debian/pool/main/x/xft/libxft2_2.3.6-1_amd64.deb",
+    "sha256": "cedaedf108a8c18e9d9ae8d773801db7c7f9a70b50ecd7723c607d549dacccee",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/xft/2.3.6-1/",
+    "archive": "libxft2_2.3.6-1_amd64.deb"
+  },
+  {
+    "package": "libxi6",
+    "version": "2:1.8-1+b1",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxi/libxi6_1.8-1+b1_amd64.deb",
+    "sha256": "6c2fb5f241b311788990122c6e693915867cd8ed9d6da2e3524aec7ed3cdb4c0",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxi/2%3A1.8-1/",
+    "archive": "libxi6_2%3a1.8-1+b1_amd64.deb"
+  },
+  {
+    "package": "libxinerama1",
+    "version": "2:1.1.4-3",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxinerama/libxinerama1_1.1.4-3_amd64.deb",
+    "sha256": "8dde8f74d2fc001f306fb1295a86850145e93191d35c983c7f52eb21b0a7f8cb",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxinerama/2%3A1.1.4-3/",
+    "archive": "libxinerama1_2%3a1.1.4-3_amd64.deb"
+  },
+  {
+    "package": "libxkbcommon0",
+    "version": "1.5.0-1",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxkbcommon/libxkbcommon0_1.5.0-1_amd64.deb",
+    "sha256": "e3fe045b9a33a101de1c5a912a4a10928db055c3f68930f47eccbb44d7c7d54e",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxkbcommon/1.5.0-1/",
+    "archive": "libxkbcommon0_1.5.0-1_amd64.deb"
+  },
+  {
+    "package": "libxkbfile1",
+    "version": "1:1.1.0-1",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxkbfile/libxkbfile1_1.1.0-1_amd64.deb",
+    "sha256": "7c58d9986f918b71568ad83dbb6f4ab22c185f243461d41acee920cc5e13d347",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxkbfile/1%3A1.1.0-1/",
+    "archive": "libxkbfile1_1%3a1.1.0-1_amd64.deb"
+  },
+  {
+    "package": "libxml2",
+    "version": "2.9.14+dfsg-1.3~deb12u6",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxml2/libxml2_2.9.14+dfsg-1.3~deb12u6_amd64.deb",
+    "sha256": "4460e39dda10a815881374217cde08474747cfa018358cd8612c14b390eff53b",
+    "licences": [
+      "ISC",
+      "MIT-1"
+    ],
+    "source": "https://sources.debian.org/src/libxml2/2.9.14%2Bdfsg-1.3~deb12u6/",
+    "archive": "libxml2_2.9.14+dfsg-1.3~deb12u6_amd64.deb"
+  },
+  {
+    "package": "libxmu6",
+    "version": "2:1.1.3-3",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxmu/libxmu6_1.1.3-3_amd64.deb",
+    "sha256": "821e1cdd50bb64cf7429802f709f5d063c71ba745f12b4c7fcbcf022403fb0b0",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxmu/2%3A1.1.3-3/",
+    "archive": "libxmu6_2%3a1.1.3-3_amd64.deb"
+  },
+  {
+    "package": "libxmuu1",
+    "version": "2:1.1.3-3",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxmu/libxmuu1_1.1.3-3_amd64.deb",
+    "sha256": "983ca41d506fa159536cd584118855748763f5f5a3b5949206bee4a62ec0cbf9",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxmu/2%3A1.1.3-3/",
+    "archive": "libxmuu1_2%3a1.1.3-3_amd64.deb"
+  },
+  {
+    "package": "libxpm4",
+    "version": "1:3.5.12-1.1+deb12u1",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxpm/libxpm4_3.5.12-1.1+deb12u1_amd64.deb",
+    "sha256": "505400598dcda712380f2e4a73b09b015a3fedf78bd874f6429622c448e249f9",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxpm/1%3A3.5.12-1.1%2Bdeb12u1/",
+    "archive": "libxpm4_1%3a3.5.12-1.1+deb12u1_amd64.deb"
+  },
+  {
+    "package": "libxrandr2",
+    "version": "2:1.5.2-2+b1",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxrandr/libxrandr2_1.5.2-2+b1_amd64.deb",
+    "sha256": "e2e10b672085ddf1d294cd689ed21bde5899325fd13626c2614b7d7b2d49a808",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxrandr/2%3A1.5.2-2/",
+    "archive": "libxrandr2_2%3a1.5.2-2+b1_amd64.deb"
+  },
+  {
+    "package": "libxrender1",
+    "version": "1:0.9.10-1.1",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxrender/libxrender1_0.9.10-1.1_amd64.deb",
+    "sha256": "b2a6d160578f359220101947c8d67059b44704a251e688de1d0b744fefedfd1a",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxrender/1%3A0.9.10-1.1/",
+    "archive": "libxrender1_1%3a0.9.10-1.1_amd64.deb"
+  },
+  {
+    "package": "libxshmfence1",
+    "version": "1.3-1",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxshmfence/libxshmfence1_1.3-1_amd64.deb",
+    "sha256": "1a38142e40e3d32dc4f9a326bf5617363b7d9b4bb762fdcdd262f2192092024d",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxshmfence/1.3-1/",
+    "archive": "libxshmfence1_1.3-1_amd64.deb"
+  },
+  {
+    "package": "libxss1",
+    "version": "1:1.2.3-1",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxss/libxss1_1.2.3-1_amd64.deb",
+    "sha256": "85cce16368f08a878fa892fbc54520fc654d00769cde6d300b8b802734a993c0",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxss/1%3A1.2.3-1/",
+    "archive": "libxss1_1%3a1.2.3-1_amd64.deb"
+  },
+  {
+    "package": "libxt6",
+    "version": "1:1.2.1-1.1",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxt/libxt6_1.2.1-1.1_amd64.deb",
+    "sha256": "f736fe003286af34935460662f52d32267703d6a1931580ca01641aedf00e8dd",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxt/1%3A1.2.1-1.1/",
+    "archive": "libxt6_1%3a1.2.1-1.1_amd64.deb"
+  },
+  {
+    "package": "libxtst6",
+    "version": "2:1.2.3-1.1",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxtst/libxtst6_1.2.3-1.1_amd64.deb",
+    "sha256": "be67f1efe7cd3dbe9dc0d717e0a8c0959cc663950aa15a42636ab90b134f9cb5",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxtst/2%3A1.2.3-1.1/",
+    "archive": "libxtst6_2%3a1.2.3-1.1_amd64.deb"
+  },
+  {
+    "package": "libxxf86vm1",
+    "version": "1:1.1.4-1+b2",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxxf86vm/libxxf86vm1_1.1.4-1+b2_amd64.deb",
+    "sha256": "6f4ca916aaec26d7000fa7f58de3f71119309ab7590ce1f517abfe1825a676c7",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxxf86vm/1%3A1.1.4-1/",
+    "archive": "libxxf86vm1_1%3a1.1.4-1+b2_amd64.deb"
+  },
+  {
+    "package": "libz3-4",
+    "version": "4.8.12-3.1",
+    "url": "https://deb.debian.org/debian/pool/main/z/z3/libz3-4_4.8.12-3.1_amd64.deb",
+    "sha256": "6221ca25ad5abcfbe1965801029d85a88b4775320384b4b716de8fab7a4d2f7a",
+    "licences": [
+      "Expat",
+      "GPL-2+"
+    ],
+    "source": "https://sources.debian.org/src/z3/4.8.12-3.1/",
+    "archive": "libz3-4_4.8.12-3.1_amd64.deb"
+  },
+  {
+    "package": "openssh-client",
+    "version": "1:9.2p1-2+deb12u10",
+    "url": "https://deb.debian.org/debian/pool/main/o/openssh/openssh-client_9.2p1-2+deb12u10_amd64.deb",
+    "sha256": "42c250b8b9110382488c53c066a960bc564ddac2cb9e449f47b6cdbb5fc1cb60",
+    "licences": [
+      "BSD-2-clause",
+      "BSD-3-clause",
+      "Expat-with-advertising-restriction",
+      "Mazieres-BSD-style",
+      "OpenSSH",
+      "Powell-BSD-style",
+      "public-domain"
+    ],
+    "source": "https://sources.debian.org/src/openssh/1%3A9.2p1-2%2Bdeb12u10/",
+    "archive": "openssh-client_1%3a9.2p1-2+deb12u10_amd64.deb"
+  },
+  {
+    "package": "openssh-server",
+    "version": "1:9.2p1-2+deb12u10",
+    "url": "https://deb.debian.org/debian/pool/main/o/openssh/openssh-server_9.2p1-2+deb12u10_amd64.deb",
+    "sha256": "933cd92a2329f9bf26d22660a834ae18ebdbe8df9c6127e4d9fcb098dac9cf72",
+    "licences": [
+      "BSD-2-clause",
+      "BSD-3-clause",
+      "Expat-with-advertising-restriction",
+      "Mazieres-BSD-style",
+      "OpenSSH",
+      "Powell-BSD-style",
+      "public-domain"
+    ],
+    "source": "https://sources.debian.org/src/openssh/1%3A9.2p1-2%2Bdeb12u10/",
+    "archive": "openssh-server_1%3a9.2p1-2+deb12u10_amd64.deb"
+  },
+  {
+    "package": "openssh-sftp-server",
+    "version": "1:9.2p1-2+deb12u10",
+    "url": "https://deb.debian.org/debian/pool/main/o/openssh/openssh-sftp-server_9.2p1-2+deb12u10_amd64.deb",
+    "sha256": "18d7ef7873861272b43b764295cbd8c04f439108fc3a4cecb3fe6e095f8ee2a8",
+    "licences": [
+      "BSD-2-clause",
+      "BSD-3-clause",
+      "Expat-with-advertising-restriction",
+      "Mazieres-BSD-style",
+      "OpenSSH",
+      "Powell-BSD-style",
+      "public-domain"
+    ],
+    "source": "https://sources.debian.org/src/openssh/1%3A9.2p1-2%2Bdeb12u10/",
+    "archive": "openssh-sftp-server_1%3a9.2p1-2+deb12u10_amd64.deb"
+  },
+  {
+    "package": "perl-base",
+    "version": "5.36.0-7+deb12u4",
+    "url": "https://deb.debian.org/debian-security/pool/updates/main/p/perl/perl-base_5.36.0-7+deb12u4_amd64.deb",
+    "sha256": "d7d1943aec9597629bf73075efcc5ef6dc9bda96d78e80d843156ecd448478b8",
+    "licences": [
+      " CC0-1.0",
+      "Artistic",
+      "Artistic or GPL-1+ or Artistic-dist",
+      "Artistic-2",
+      "Artistic-dist",
+      "BSD-3-clause",
+      "BSD-3-clause-GENERIC",
+      "BSD-3-clause-with-weird-numbering",
+      "BSD-4-clause-POWERDOG",
+      "BZIP",
+      "DONT-CHANGE-THE-GPL",
+      "Expat",
+      "Expat or GPL-1+ or Artistic",
+      "GPL-1+",
+      "GPL-1+ or Artistic",
+      "GPL-1+ or Artistic or Artistic-dist",
+      "GPL-1+ or Artistic, and BSD-3-clause-GENERIC",
+      "GPL-1+ or Artistic, and BSD-4-clause-POWERDOG",
+      "GPL-1+ or Artistic, and Expat",
+      "GPL-1+ or Artistic, and Unicode",
+      "GPL-2+",
+      "GPL-2+ or Artistic",
+      "GPL-3+-WITH-BISON-EXCEPTION",
+      "HSIEH-BSD",
+      "HSIEH-DERIVATIVE",
+      "LGPL-2.1",
+      "REGCOMP",
+      "REGCOMP, and GPL-1+ or Artistic",
+      "RRA-KEEP-THIS-NOTICE",
+      "SDBM-PUBLIC-DOMAIN",
+      "TEXT-TABS",
+      "Unicode",
+      "ZLIB"
+    ],
+    "source": "https://sources.debian.org/src/perl/5.36.0-7%2Bdeb12u4/",
+    "archive": "perl-base_5.36.0-7+deb12u4_amd64.deb"
+  },
+  {
+    "package": "perl-modules-5.36",
+    "version": "5.36.0-7+deb12u4",
+    "url": "https://deb.debian.org/debian-security/pool/updates/main/p/perl/perl-modules-5.36_5.36.0-7+deb12u4_all.deb",
+    "sha256": "3ed38ffa8320e9bf7597cefa01b6a6ace4a08ccc77cdfd15ef7d8b711dea7166",
+    "licences": [
+      " CC0-1.0",
+      "Artistic",
+      "Artistic or GPL-1+ or Artistic-dist",
+      "Artistic-2",
+      "Artistic-dist",
+      "BSD-3-clause",
+      "BSD-3-clause-GENERIC",
+      "BSD-3-clause-with-weird-numbering",
+      "BSD-4-clause-POWERDOG",
+      "BZIP",
+      "DONT-CHANGE-THE-GPL",
+      "Expat",
+      "Expat or GPL-1+ or Artistic",
+      "GPL-1+",
+      "GPL-1+ or Artistic",
+      "GPL-1+ or Artistic or Artistic-dist",
+      "GPL-1+ or Artistic, and BSD-3-clause-GENERIC",
+      "GPL-1+ or Artistic, and BSD-4-clause-POWERDOG",
+      "GPL-1+ or Artistic, and Expat",
+      "GPL-1+ or Artistic, and Unicode",
+      "GPL-2+",
+      "GPL-2+ or Artistic",
+      "GPL-3+-WITH-BISON-EXCEPTION",
+      "HSIEH-BSD",
+      "HSIEH-DERIVATIVE",
+      "LGPL-2.1",
+      "REGCOMP",
+      "REGCOMP, and GPL-1+ or Artistic",
+      "RRA-KEEP-THIS-NOTICE",
+      "SDBM-PUBLIC-DOMAIN",
+      "TEXT-TABS",
+      "Unicode",
+      "ZLIB"
+    ],
+    "source": "https://sources.debian.org/src/perl/5.36.0-7%2Bdeb12u4/",
+    "archive": "perl-modules-5.36_5.36.0-7+deb12u4_all.deb"
+  },
+  {
+    "package": "poppler-data",
+    "version": "0.4.12-1",
+    "url": "https://deb.debian.org/debian/pool/main/p/poppler-data/poppler-data_0.4.12-1_all.deb",
+    "sha256": "7951512a24fc4ea05c246a0f9891dd1ec9844a886de6550ebd8c50e57db5441d",
+    "licences": [
+      "AGPL-3+",
+      "BSD-3-cluase",
+      "GPL-2",
+      "MIT"
+    ],
+    "source": "https://sources.debian.org/src/poppler-data/0.4.12-1/",
+    "archive": "poppler-data_0.4.12-1_all.deb"
+  },
+  {
+    "package": "procps",
+    "version": "2:4.0.2-3",
+    "url": "https://deb.debian.org/debian/pool/main/p/procps/procps_4.0.2-3_amd64.deb",
+    "sha256": "d9d0e75779cb79af869181f17b93c5c263a2b89cac6a0193c436160a4483ddc1",
+    "licences": [
+      "GPL-2.0+",
+      "LGPL-2.0+",
+      "LGPL-2.1+"
+    ],
+    "source": "https://sources.debian.org/src/procps/2%3A4.0.2-3/",
+    "archive": "procps_2%3a4.0.2-3_amd64.deb"
+  },
+  {
+    "package": "runit-helper",
+    "version": "2.15.2",
+    "url": "https://deb.debian.org/debian/pool/main/d/dh-runit/runit-helper_2.15.2_all.deb",
+    "sha256": "fd08121947a1ea340d07e1b523591035419552ac151dfe6e241e8a748e15c36b",
+    "licences": [
+      "GPL-3+"
+    ],
+    "source": "https://sources.debian.org/src/dh-runit/2.15.2/",
+    "archive": "runit-helper_2.15.2_all.deb"
+  },
+  {
+    "package": "rxvt-unicode",
+    "version": "9.30-2+b4",
+    "url": "https://deb.debian.org/debian/pool/main/r/rxvt-unicode/rxvt-unicode_9.30-2+b4_amd64.deb",
+    "sha256": "49009997f88531f1635a681acab88fdca8264e1a0b55aede31967af350114334",
+    "licences": [
+      "BSD-2-clause",
+      "BSD-2-clause or GPL-2.0+",
+      "Expat",
+      "GPL-2.0+"
+    ],
+    "source": "https://sources.debian.org/src/rxvt-unicode/9.30-2/",
+    "archive": "rxvt-unicode_9.30-2+b4_amd64.deb"
+  },
+  {
+    "package": "scrot",
+    "version": "1.8.1-1",
+    "url": "https://deb.debian.org/debian/pool/main/s/scrot/scrot_1.8.1-1_amd64.deb",
+    "sha256": "add2c552d6e38c8851c2c707c8f875d377a1eb32ed67cf29331128f616408b8e",
+    "licences": [
+      "BSD-3-Clause",
+      "MIT-advertising"
+    ],
+    "source": "https://sources.debian.org/src/scrot/1.8.1-1/",
+    "archive": "scrot_1.8.1-1_amd64.deb"
+  },
+  {
+    "package": "sensible-utils",
+    "version": "0.0.17+nmu1",
+    "url": "https://deb.debian.org/debian/pool/main/s/sensible-utils/sensible-utils_0.0.17+nmu1_all.deb",
+    "sha256": "e0e66f783996ec4670ed5041c446160ec671c723d4be47d3bc27af93c2958a76",
+    "licences": [
+      "All-permissive",
+      "GPL-2+",
+      "configure",
+      "installsh"
+    ],
+    "source": "https://sources.debian.org/src/sensible-utils/0.0.17%2Bnmu1/",
+    "archive": "sensible-utils_0.0.17+nmu1_all.deb"
+  },
+  {
+    "package": "shared-mime-info",
+    "version": "2.2-1",
+    "url": "https://deb.debian.org/debian/pool/main/s/shared-mime-info/shared-mime-info_2.2-1_amd64.deb",
+    "sha256": "dd026add873483566faefebbd8779a1e5e14ab2e44682ebfe238c3828a2b936b",
+    "licences": [
+      "GPL-2.0-or-later"
+    ],
+    "source": "https://sources.debian.org/src/shared-mime-info/2.2-1/",
+    "archive": "shared-mime-info_2.2-1_amd64.deb"
+  },
+  {
+    "package": "tcl8.6",
+    "version": "8.6.13+dfsg-2",
+    "url": "https://deb.debian.org/debian/pool/main/t/tcl8.6/tcl8.6_8.6.13+dfsg-2_amd64.deb",
+    "sha256": "4d539bdd459ea9fd5be25bf46c3c928ae5eb9cfdb5a1bf7ca25cacc596327d9d",
+    "licences": [
+      "TCL (BSD-style)",
+      "per-file notices"
+    ],
+    "source": "https://sources.debian.org/src/tcl8.6/8.6.13%2Bdfsg-2/",
+    "archive": "tcl8.6_8.6.13+dfsg-2_amd64.deb"
+  },
+  {
+    "package": "tcl",
+    "version": "8.6.13",
+    "url": "https://deb.debian.org/debian/pool/main/t/tcltk-defaults/tcl_8.6.13_amd64.deb",
+    "sha256": "6a55a7404963c27f4690edcd2ae923e26857e77cf5c2f70911ba11666232ce5a",
+    "licences": [
+      "TCL (BSD-style)"
+    ],
+    "source": "https://sources.debian.org/src/tcltk-defaults/8.6.13/",
+    "archive": "tcl_8.6.13_amd64.deb"
+  },
+  {
+    "package": "tk8.6",
+    "version": "8.6.13-2",
+    "url": "https://deb.debian.org/debian/pool/main/t/tk8.6/tk8.6_8.6.13-2_amd64.deb",
+    "sha256": "b083ff9f90271906a8347465a85c401c750a831fa72a5105ff599f029986447b",
+    "licences": [
+      "TCL (BSD-style)",
+      "per-file notices"
+    ],
+    "source": "https://sources.debian.org/src/tk8.6/8.6.13-2/",
+    "archive": "tk8.6_8.6.13-2_amd64.deb"
+  },
+  {
+    "package": "tk",
+    "version": "8.6.13",
+    "url": "https://deb.debian.org/debian/pool/main/t/tcltk-defaults/tk_8.6.13_amd64.deb",
+    "sha256": "8c3a35069e9023b8b814173da669ca05754b1712d1aa981cfb316d2934689b1c",
+    "licences": [
+      "TCL (BSD-style)"
+    ],
+    "source": "https://sources.debian.org/src/tcltk-defaults/8.6.13/",
+    "archive": "tk_8.6.13_amd64.deb"
+  },
+  {
+    "package": "ucf",
+    "version": "3.0043+nmu1+deb12u1",
+    "url": "https://deb.debian.org/debian/pool/main/u/ucf/ucf_3.0043+nmu1+deb12u1_all.deb",
+    "sha256": "928f2d5d327ef0f8d1b9c03a506134f56564cd2acf3e9f041df3dbdc68b00525",
+    "licences": [
+      "GPL-2"
+    ],
+    "source": "https://sources.debian.org/src/ucf/3.0043%2Bnmu1%2Bdeb12u1/",
+    "archive": "ucf_3.0043+nmu1+deb12u1_all.deb"
+  },
+  {
+    "package": "x11-common",
+    "version": "1:7.7+23",
+    "url": "https://deb.debian.org/debian/pool/main/x/xorg/x11-common_7.7+23_all.deb",
+    "sha256": "fc97c2f4495eb33a77501c7960928c0d2001e5c4b2aa438f1713e2082c23bacd",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/xorg/1%3A7.7%2B23/",
+    "archive": "x11-common_1%3a7.7+23_all.deb"
+  },
+  {
+    "package": "x11-xkb-utils",
+    "version": "7.7+7",
+    "url": "https://deb.debian.org/debian/pool/main/x/x11-xkb-utils/x11-xkb-utils_7.7+7_amd64.deb",
+    "sha256": "b25970e444fadf4717e5624bc2a2eecef785d09d731b571da8d43f5297b43b12",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/x11-xkb-utils/7.7%2B7/",
+    "archive": "x11-xkb-utils_7.7+7_amd64.deb"
+  },
+  {
+    "package": "x11vnc",
+    "version": "0.9.16-9",
+    "url": "https://deb.debian.org/debian/pool/main/x/x11vnc/x11vnc_0.9.16-9_amd64.deb",
+    "sha256": "60ff2c43b4c5e3e839a60f2cf004ce10302a29b12310bd3e2b273e7f577ac6e4",
+    "licences": [
+      "GPL-2.0"
+    ],
+    "source": "https://sources.debian.org/src/x11vnc/0.9.16-9/",
+    "archive": "x11vnc_0.9.16-9_amd64.deb"
+  },
+  {
+    "package": "xauth",
+    "version": "1:1.1.2-1",
+    "url": "https://deb.debian.org/debian/pool/main/x/xauth/xauth_1.1.2-1_amd64.deb",
+    "sha256": "57d6348f392c77ccc3fdc5874c527df18df8be702814b13d1151352b28e29145",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/xauth/1%3A1.1.2-1/",
+    "archive": "xauth_1%3a1.1.2-1_amd64.deb"
+  },
+  {
+    "package": "xdotool",
+    "version": "1:3.20160805.1-5",
+    "url": "https://deb.debian.org/debian/pool/main/x/xdotool/xdotool_3.20160805.1-5_amd64.deb",
+    "sha256": "baf0f340e8272e9313848f820ec962aaf843f17ee5737fe256c970f8f5f152b5",
+    "licences": [
+      "BSD-3-clause"
+    ],
+    "source": "https://sources.debian.org/src/xdotool/1%3A3.20160805.1-5/",
+    "archive": "xdotool_1%3a3.20160805.1-5_amd64.deb"
+  },
+  {
+    "package": "xfonts-encodings",
+    "version": "1:1.0.4-2.2",
+    "url": "https://deb.debian.org/debian/pool/main/x/xfonts-encodings/xfonts-encodings_1.0.4-2.2_all.deb",
+    "sha256": "56143f317d241b6dee0275aa1066df936a776810d3bb83fe58563965d9bbe3d3",
+    "licences": [
+      "public-domain"
+    ],
+    "source": "https://sources.debian.org/src/xfonts-encodings/1%3A1.0.4-2.2/",
+    "archive": "xfonts-encodings_1%3a1.0.4-2.2_all.deb"
+  },
+  {
+    "package": "xfonts-utils",
+    "version": "1:7.7+6",
+    "url": "https://deb.debian.org/debian/pool/main/x/xfonts-utils/xfonts-utils_7.7+6_amd64.deb",
+    "sha256": "20b290277caff5bae41298c4e171fb81c29560294f60f5eeb47ef50863efc0d7",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/xfonts-utils/1%3A7.7%2B6/",
+    "archive": "xfonts-utils_1%3a7.7+6_amd64.deb"
+  },
+  {
+    "package": "xkb-data",
+    "version": "2.35.1-1",
+    "url": "https://deb.debian.org/debian/pool/main/x/xkeyboard-config/xkb-data_2.35.1-1_all.deb",
+    "sha256": "28a79c61b785f403da93af58c39aed13c022032935e3e54362c6707169cfe982",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/xkeyboard-config/2.35.1-1/",
+    "archive": "xkb-data_2.35.1-1_all.deb"
+  },
+  {
+    "package": "xserver-common",
+    "version": "2:21.1.7-3+deb12u13",
+    "url": "https://deb.debian.org/debian-security/pool/updates/main/x/xorg-server/xserver-common_21.1.7-3+deb12u13_all.deb",
+    "sha256": "90849288bd60f8dc013b16030323f509eab658f1861d9f61da8b9760dd790c8b",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/xorg-server/2%3A21.1.7-3%2Bdeb12u13/",
+    "archive": "xserver-common_2%3a21.1.7-3+deb12u13_all.deb"
+  },
+  {
+    "package": "xvfb",
+    "version": "2:21.1.7-3+deb12u13",
+    "url": "https://deb.debian.org/debian-security/pool/updates/main/x/xorg-server/xvfb_21.1.7-3+deb12u13_amd64.deb",
+    "sha256": "975440b40f6d44cbc806134c624a22ef1cd9a4ba9f7ad2706faf9ae96185eac3",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/xorg-server/2%3A21.1.7-3%2Bdeb12u13/",
+    "archive": "xvfb_2%3a21.1.7-3+deb12u13_amd64.deb"
+  }
+]

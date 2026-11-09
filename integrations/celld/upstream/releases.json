@@ -1,0 +1,18 @@
+[
+  {
+    "name": "celld",
+    "tag": "v0.6.3",
+    "asset": "celld-x86_64-unknown-linux-gnu.gz",
+    "url": "https://api.github.com/repos/denoland/celld/releases/assets/663757286",
+    "sha256": "5084a083472cf036551a7eac63fa24d22bb9a56323c517f63205724c12783047",
+    "source": "https://github.com/denoland/celld/releases/download/v0.6.3/celld-x86_64-unknown-linux-gnu.gz"
+  },
+  {
+    "name": "rusty-v8",
+    "tag": "v152.1.0",
+    "asset": "librusty_v8_release_x86_64-unknown-linux-gnu.a.gz",
+    "url": "https://api.github.com/repos/denoland/rusty_v8/releases/assets/505789905",
+    "sha256": "56b3d9c1eaf6008345deb3f7c96aad2217e91c65d8b78bfe550f52c3a8dbb50f",
+    "source": "https://github.com/denoland/rusty_v8/releases/download/v152.1.0/librusty_v8_release_x86_64-unknown-linux-gnu.a.gz"
+  }
+]

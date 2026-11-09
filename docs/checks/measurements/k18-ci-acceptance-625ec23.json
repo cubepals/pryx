@@ -1,0 +1,61 @@
+{
+  "scope": "completed first control/edge deployment suite; later end-to-end stages run separately",
+  "commit": "625ec233fcb134a31c65deea77fd348882ceeb87",
+  "run": "https://github.com/cubepals/pryx/actions/runs/42461834578",
+  "artifacts": {
+    "native": 13609929224,
+    "interpreter": 13609989215
+  },
+  "junit": {
+    "cases": 46,
+    "passed": 31,
+    "skippedByExistingTierSelection": 15,
+    "failed": 0,
+    "nativeCase": {
+      "name": "desktop, SSH wake, real S3 FUSE and browser work through both clients",
+      "classname": "",
+      "time": "120.77283",
+      "file": "control/e2e/native-tools.e2e.test.ts",
+      "line": "60",
+      "assertions": "141"
+    }
+  },
+  "comparisonLinks": {
+    "checked": 111,
+    "failed": 0
+  },
+  "native": {
+    "desktop_create_to_first_image": {
+      "n": 30,
+      "p50Ms": 751.7026629999746,
+      "p90Ms": 774.9249629999977
+    },
+    "browser_create_to_first_image": {
+      "n": 30,
+      "p50Ms": 1859.5684020000044,
+      "p90Ms": 2000.2672149999999
+    }
+  },
+  "interpreter": {
+    "first_run_warm_template": {
+      "n": 30,
+      "p50Ms": 5.837524000002304,
+      "p90Ms": 6.224614000006113
+    },
+    "trivial_loopback": {
+      "n": 30,
+      "p50Ms": 5.118780999997398,
+      "p90Ms": 5.65500100000645
+    },
+    "chart_loopback": {
+      "n": 30,
+      "p50Ms": 156.42778899997938,
+      "p90Ms": 162.03439899999648
+    },
+    "restart_loopback": {
+      "n": 30,
+      "p50Ms": 1621.2660669999896,
+      "p90Ms": 1651.6042699999816
+    }
+  }
+}

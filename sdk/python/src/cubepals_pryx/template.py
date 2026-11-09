@@ -13,7 +13,7 @@ class Template:
     def version(self):return self.view['version']
     def rebuild(self):return self._rebuild()
 def build(client,options):
-    box=client.sandbox(**{key:options[source] for key,source in [('image','from'),('isolation','isolation'),('env','env'),('workdir','workdir')] if source in options});registered=False
+    box=client.sandbox(**{key:options[source] for key,source in [('image','from'),('isolation','isolation'),('env','env'),('workdir','workdir'),('spare_ports','sparePorts')] if source in options});registered=False
     try:
         for local,remote in options.get('copy',[]):
             if Path(local).is_dir():box.files.upload_dir(local,remote)
@@ -27,7 +27,7 @@ def build(client,options):
     finally:
         if not registered:box.delete()
 async def async_build(client,options):
-    box=await client.sandbox(**{key:options[source] for key,source in [('image','from'),('isolation','isolation'),('env','env'),('workdir','workdir')] if source in options});registered=False
+    box=await client.sandbox(**{key:options[source] for key,source in [('image','from'),('isolation','isolation'),('env','env'),('workdir','workdir'),('spare_ports','sparePorts')] if source in options});registered=False
     try:
         for local,remote in options.get('copy',[]):
             if Path(local).is_dir():await box.files.upload_dir(local,remote)
