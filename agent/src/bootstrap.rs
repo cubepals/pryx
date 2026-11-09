@@ -227,10 +227,16 @@ async fn log_output(event: Event, logbook: &crate::logbook::Logbook) {
         if logbook.record(stream, &bytes).is_err() {
             eprintln!("Entrypoint log persistence failed");
         }
+        // Tokio's standard streams hand bytes to a blocking writer; flushing makes them reach the
+        // descriptor before an entrypoint's exit ends the process.
         if stream == "stdout" {
-            let _ = tokio::io::stdout().write_all(&decoded).await;
+            let mut out = tokio::io::stdout();
+            let _ = out.write_all(&decoded).await;
+            let _ = out.flush().await;
         } else {
-            let _ = tokio::io::stderr().write_all(&decoded).await;
+            let mut err = tokio::io::stderr();
+            let _ = err.write_all(&decoded).await;
+            let _ = err.flush().await;
         }
     }
 }
