@@ -4,6 +4,15 @@ pryxd is the node daemon of [Cubepals](https://github.com/cubepals/cubepals), de
 the codename Blockly. [AGENTS.md](AGENTS.md) holds the rules every change follows, for people and
 agents alike; this page is how to work on it.
 
+## What every change keeps
+
+[How pryx decides](AGENTS.md#how-pryx-decides) is short and comes before any feature. In one
+breath: installing stays one command that asks nothing; hosts differ by preset, not by options; a
+capability works as an ordinary user first, and root, Docker and KVM only add to it; a request
+never gets a weaker isolation than it named without being told; and pryx wraps maintained
+open-source software, with its licence recorded, before anyone writes a replacement. A pull
+request that breaks one of these says so in its description and why nothing else worked.
+
 ## Setup and tests
 
 The Rust `rust-toolchain.toml` names, which rustup installs, on Linux (pryxd uses Linux-only

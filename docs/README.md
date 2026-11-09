@@ -6,4 +6,6 @@
 [Tiers](tiers.md) · [Process](process-tier.md) · [agentOS](agentos.md) ·
 [MCP](mcp.md) · [Providers](providers.md) · [Decisions](decisions.md).
 
+[Any Linux host: research and plan](any-host.md), built by `PLAN-K19.md` to `PLAN-K27.md`.
+
 [Speed cohorts, measurements and check reports](checks/speed.md) · [All checks](checks/).
