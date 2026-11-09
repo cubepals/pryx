@@ -648,3 +648,20 @@ async fn replacement_refuses_expansion_before_replacing_the_file() {
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
     assert_eq!(std::fs::read_to_string(dir.path().join("bounded")).unwrap(), original);
 }
+
+#[tokio::test]
+async fn released_tool_commands_leave_the_table_while_running_ones_stay() {
+    let (_dir, agent, _) = fixture().await;
+    let done = agent.processes.start(request("true"), "released", Some(5)).unwrap();
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    while done.view().running && std::time::Instant::now() < deadline {
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    assert!(!done.view().running);
+    agent.processes.release(&done.id);
+    assert!(agent.processes.get(&done.id).is_err());
+    let kept = agent.processes.start(request("sleep 5"), "kept", Some(5)).unwrap();
+    agent.processes.release(&kept.id);
+    assert!(agent.processes.get(&kept.id).is_ok());
+    kept.signal(libc::SIGKILL).unwrap();
+}

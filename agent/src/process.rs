@@ -279,6 +279,16 @@ impl Processes {
         self.held.lock().unwrap().values().map(|e| e.process.view()).collect()
     }
 
+    /// Drops a finished process from the table at once rather than after RETAIN. Internal tool
+    /// invocations have no caller to replay to, so a desktop session's clicks and screenshots
+    /// would otherwise fill MAX_PROCESSES within the retention window. A running process stays.
+    pub fn release(&self, id: &str) {
+        let mut held = self.held.lock().unwrap();
+        if held.get(id).is_some_and(|e| !e.process.view().running) {
+            held.remove(id);
+        }
+    }
+
     pub fn reap_orphans(&self) {
         if self.backend.is_some() {
             return;

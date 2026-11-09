@@ -89,6 +89,8 @@ pub(crate) async fn run(
                 out.extend(bytes);
             }
             Some(Event::Exit { result }) => {
+                // The output is consumed here; nothing replays it, so the entry need not be kept.
+                agent.processes.release(&process.id);
                 if result.code != Some(0) || result.timed_out {
                     return Err(failure("tool_failed", "Native tool failed; check template and host requirements"));
                 }
