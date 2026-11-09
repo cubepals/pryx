@@ -140,7 +140,9 @@ to fork. Deletion erases sealed credentials. Preserve the operator seal key acro
 Mount workers run as the sandbox's own uid, so the image installs `mount-s3`, `rclone` and
 `fusermount3` execute-only (mode 0111). The kernel then leaves a worker non-dumpable after exec,
 and sandbox commands, which hold no capability, cannot read its `/proc` environment or memory or
-trace it; the credentials never appear in its command line. A worker refuses to start a readable
+trace it; the credentials never appear in its command line. The agent execs each worker from a
+sealed, execute-only copy of itself in memory, so the worker is not dumpable from its first
+instruction either, while `/.pryx-agent` stays readable. A worker refuses to start a readable
 helper, so a custom image that installs one readable fails its mount instead of exposing the
 credentials. This does not hold against a same-uid process with `CAP_SYS_PTRACE`, which no sandbox
 command is given.

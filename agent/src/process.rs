@@ -363,11 +363,21 @@ impl Processes {
             return backend.spawn(request, timeout);
         }
         let mut argv = crate::process_policy::wrap(argv(&request.command)?)?;
+        // A mount worker's environment holds bucket credentials, so it is exec'd from a sealed,
+        // execute-only copy and is never dumpable. The copy is held until the spawn below returns,
+        // after the child's exec has resolved it; mounts never use a pty, but it is held across
+        // that branch too. There is no fallback to the readable file: the mount fails instead.
+        let mut _sealed = None;
         if crate::fuse_namespace::enabled() {
-            let mut wrapped = vec![
-                crate::fuse_namespace::executable()?.to_string_lossy().into_owned(),
-                if mount { "mount-child".into() } else { "tool-child".into() },
-            ];
+            let executable = if mount {
+                let fd = crate::fuse_namespace::sealed_executable()?;
+                let path = format!("/proc/self/fd/{}", std::os::fd::AsRawFd::as_raw_fd(&fd));
+                _sealed = Some(fd);
+                path
+            } else {
+                crate::fuse_namespace::executable()?.to_string_lossy().into_owned()
+            };
+            let mut wrapped = vec![executable, if mount { "mount-child".into() } else { "tool-child".into() }];
             wrapped.extend(argv);
             argv = wrapped;
         } else if mount {

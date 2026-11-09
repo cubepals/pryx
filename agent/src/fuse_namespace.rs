@@ -16,6 +16,32 @@ pub fn executable() -> io::Result<std::path::PathBuf> {
     EXECUTABLE.get().cloned().map(Ok).unwrap_or_else(std::env::current_exe)
 }
 
+/// A sealed, execute-only copy of the agent binary, for the exec of a mount worker.
+///
+/// The kernel leaves a process dumpable after exec only when the caller may read the executed
+/// file. The agent's own file stays readable, since the fleet hands the same file out, so a worker
+/// exec'd from it would be dumpable until its `main` turned that off, and in that window a same-uid
+/// sandbox command could read its `/proc` environment, which holds the bucket credentials, or
+/// trace it. This copy lives in memory that only the agent holds, is mode 0111 so the worker is
+/// never dumpable from exec onward, and is sealed so nothing can alter it after the copy. The
+/// caller execs it as `/proc/self/fd/<fd>` and drops it once the spawn returns.
+pub fn sealed_executable() -> io::Result<std::os::fd::OwnedFd> {
+    use rustix::fs::{MemfdFlags, Mode, SealFlags};
+    let mut source = fs::File::open(executable()?)?;
+    let flags = MemfdFlags::CLOEXEC | MemfdFlags::ALLOW_SEALING;
+    // Kernels before 6.3 refuse MFD_EXEC with EINVAL; their memfds are executable by default.
+    let memfd = match rustix::fs::memfd_create("pryx-agent", flags | MemfdFlags::EXEC) {
+        Err(rustix::io::Errno::INVAL) => rustix::fs::memfd_create("pryx-agent", flags),
+        other => other,
+    }
+    .map_err(|e| io::Error::other(format!("Create sealed agent copy: {e}")))?;
+    let mut copy = fs::File::from(memfd);
+    io::copy(&mut source, &mut copy)?;
+    rustix::fs::fchmod(&copy, Mode::XUSR | Mode::XGRP | Mode::XOTH)?;
+    rustix::fs::fcntl_add_seals(&copy, SealFlags::SHRINK | SealFlags::GROW | SealFlags::WRITE | SealFlags::SEAL)?;
+    Ok(copy.into())
+}
+
 pub struct Mappings {
     executable: std::path::PathBuf,
     groups: fs::File,
@@ -172,4 +198,69 @@ pub fn worker(argv: &mut [String]) -> io::Result<std::fs::File> {
     rustix::process::fchdir(&file)?;
     argv[at] = ".".into();
     Ok(file)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::fd::AsRawFd;
+    use std::os::unix::fs::MetadataExt;
+
+    fn path(fd: &std::os::fd::OwnedFd) -> String {
+        format!("/proc/self/fd/{}", fd.as_raw_fd())
+    }
+
+    #[test]
+    fn sealed_executable_is_execute_only_and_sealed() {
+        let fd = sealed_executable().unwrap();
+        let mode = rustix::fs::fstat(&fd).unwrap().st_mode & 0o7777;
+        assert_eq!(mode, 0o111);
+        if getuid().is_root() {
+            eprintln!("note: running as root, which may read any file; the readable() check needs a non-root user");
+        } else {
+            assert!(!readable(std::path::Path::new(&path(&fd))));
+        }
+        assert_eq!(rustix::io::write(&fd, b"x"), Err(rustix::io::Errno::PERM));
+        assert_eq!(rustix::fs::ftruncate(&fd, 0), Err(rustix::io::Errno::PERM));
+        let status =
+            std::process::Command::new(path(&fd)).arg("--list").stdout(std::process::Stdio::null()).status().unwrap();
+        assert!(status.success());
+    }
+
+    /// Runs only when the probe below execs this harness, to keep a child alive while it looks.
+    #[test]
+    #[ignore = "a long-running child for sealed_executable_child_is_not_dumpable"]
+    fn sleeps_for_sealed_probe() {
+        std::thread::sleep(std::time::Duration::from_secs(2));
+    }
+
+    #[test]
+    fn sealed_executable_child_is_not_dumpable() {
+        let spawn = |program: &str| {
+            std::process::Command::new(program)
+                .args(["--ignored", "--exact", "fuse_namespace::tests::sleeps_for_sealed_probe"])
+                .stdin(std::process::Stdio::piped())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .spawn()
+                .unwrap()
+        };
+        let owner = |child: &std::process::Child| fs::metadata(format!("/proc/{}/status", child.id())).unwrap().uid();
+        let fd = sealed_executable().unwrap();
+        let mut sealed = spawn(&path(&fd));
+        drop(fd);
+        let mut readable = spawn(executable().unwrap().to_str().unwrap());
+        let (sealed_owner, readable_owner) = (owner(&sealed), owner(&readable));
+        for child in [&mut sealed, &mut readable] {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+        if getuid().is_root() {
+            eprintln!("note: running as root; procfs ownership cannot tell a non-dumpable child apart");
+            return;
+        }
+        // procfs gives a non-dumpable task's entries to root, and a dumpable one's to its owner.
+        assert_eq!(sealed_owner, 0);
+        assert_eq!(readable_owner, getuid().as_raw());
+    }
 }
