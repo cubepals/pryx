@@ -281,15 +281,15 @@ jobs:
           docker pull -q mirror.gcr.io/library/node:22
           docker tag mirror.gcr.io/library/node:22 node:22
           python3 -m http.server 9876 --bind 127.0.0.1 --directory dist > "$RUNNER_TEMP/artifact-server.log" 2>&1 &
-          printf 'Defaults env_keep += "PRYX_RELEASE_BASE_URL"\n' | sudo tee /etc/sudoers.d/pryx-ci-artifacts >/dev/null
-      - name: Four-command quickstart and repeat install
+          printf 'Defaults env_keep += "PRYX_RELEASE_BASE_URL PRYX_DOMAIN"\n' | sudo tee /etc/sudoers.d/pryx-ci-artifacts >/dev/null
+      - name: One-command quickstart and repeat install
         id: up
         run: |
           started=$(date +%s)
           export PRYX_RELEASE_BASE_URL=http://127.0.0.1:9876
+          export PRYX_DOMAIN=sandboxes.example.com
           # Only the download origin is replaced for this unreleased build.
-          curl --retry 5 --retry-connrefused -fsSL "$PRYX_RELEASE_BASE_URL/install.sh" | sh
-          output=$(sudo pryx up --domain sandboxes.example.com)
+          output=$(curl --retry 5 --retry-connrefused -fsSL "$PRYX_RELEASE_BASE_URL/install.sh" | sudo sh)
           key=$(printf '%s\n' "$output" | sed -n 's/^export PRYX_API_KEY=//p')
           [ -n "$key" ]
           printf '::add-mask::%s\n' "$key"
