@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Activate only an authenticated release. Bootstrap shortcuts are atomic files pointing at
  * immutable bundles; sandbox state and older releases remain available across upgrades. */
-import { chmodSync, existsSync, mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { capabilitySummary, hostProbe } from '../../deploy/host-probe.ts'
 import { createPrivateFile } from '../../deploy/image-state.ts'
@@ -25,12 +25,14 @@ export function localDirectories(paths: LocalPaths) {
 }
 export function activateCli(record: LocalInstallation) {
   const executable = join(record.paths.bootstrap, 'bin/pryx')
+  const launcher = join(record.paths.bootstrap, 'bin/pryxd')
+  mkdirSync(dirname(launcher), { recursive: true, mode: 0o700 })
+  createPrivateFile(launcher, readFileSync(join(record.bundle, 'bin/pryxd')), true, 0o755)
   const target = join(record.bundle, 'bin/pryx')
   const text = `#!/bin/sh\n# Managed pryx installation\nexec ${shellQuote(target)} "$@"\n`
   for (const path of [executable, record.paths.cli]) {
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
-    createPrivateFile(path, text, true)
-    chmodSync(path, 0o755)
+    createPrivateFile(path, text, true, 0o755)
   }
 }
 export async function localSummary(record: LocalInstallation, action: string) {

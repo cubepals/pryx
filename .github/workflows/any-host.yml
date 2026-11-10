@@ -136,6 +136,9 @@ jobs:
           - distro: Alpine with Landlock denied
             image: mirror.gcr.io/library/alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf
             mode: unsupported
+          - distro: Ubuntu with Landlock denied
+            image: mirror.gcr.io/library/ubuntu:24.04@sha256:78d4744ead1f5b19b04d0df558ab182a5300903900755e515b2ca4d10eb2044d
+            mode: wasm
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -159,14 +162,16 @@ jobs:
           TEST_MODE: ${{ matrix.mode || 'default' }}
         run: |
           profile=()
-          if [ "$TEST_MODE" = unsupported ]; then
+          if [ "$TEST_MODE" != default ]; then
             python3 - <<'PY' > unsupported-profile.json
           import errno, json
           print(json.dumps({'defaultAction': 'SCMP_ACT_ALLOW', 'syscalls': [{
             'names': ['landlock_create_ruleset', 'landlock_add_rule', 'landlock_restrict_self'],
             'action': 'SCMP_ACT_ERRNO', 'errnoRet': errno.EPERM}]}))
           PY
-            profile=(--security-opt "seccomp=$PWD/unsupported-profile.json" -e PRYX_UNSUPPORTED=1)
+            profile=(--security-opt "seccomp=$PWD/unsupported-profile.json")
+            if [ "$TEST_MODE" = unsupported ]; then profile+=(-e PRYX_UNSUPPORTED=1)
+            else profile+=(-e PRYX_EXPECT_WASM=1); fi
           fi
           docker run --rm "${profile[@]}" \
             --mount "type=bind,source=$PWD/host-artifacts,target=/artifacts,readonly" \

@@ -11,6 +11,11 @@ sudo iptables -I DOCKER-USER -i incusbr0 -j ACCEPT
 sudo iptables -I DOCKER-USER -o incusbr0 -j ACCEPT
 sudo incus launch "images:$image" pryx --config security.nesting=true
 trap 'sudo incus delete --force pryx' EXIT
+pryx_network_deadline=$((SECONDS + 60))
+until sudo incus query /1.0/instances/pryx/state | jq -e '.network.eth0.addresses[] | select(.family == "inet" and .scope == "global")' >/dev/null; do
+  if ((SECONDS >= pryx_network_deadline)); then echo 'The booted test system did not acquire an IPv4 address' >&2; exit 1; fi
+  sleep 1
+done
 sudo incus info pryx
 sudo incus config get pryx volatile.base_image | tee -a "$GITHUB_STEP_SUMMARY"
 # The test archive is public preview data; the signing key stays on the build runner.

@@ -32,12 +32,17 @@ function serviceIds() {
   return embeddedUser()
 }
 const secret = () => randomBytes(32).toString('hex')
-export function createPrivateFile(path: string, contents: string, replace = false) {
+export function createPrivateFile(
+  path: string,
+  contents: string | Uint8Array,
+  replace = false,
+  mode = 0o600,
+) {
   const temporary = `${path}.next-${randomUUID()}`
   const fd = openSync(
     temporary,
     constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
-    0o600,
+    mode,
   )
   try {
     writeFileSync(fd, contents)

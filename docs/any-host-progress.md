@@ -252,3 +252,26 @@ job when publication is authorized. That job has not run in this task.
   format; the fresh signed static-daemon install is now running. It has not reached
   hello yet. Repair of the previous fixture's bad launcher link and explicit host-owned
   launcher override were test cleanup only, never a production launcher-policy change.
+- The fresh signed static-daemon bundle now passes actual local user startup,
+  `pryx run -- echo hello`, read-only check and repeated-key suppression. It selects
+  Wasm automatically because this workspace cannot enforce process confinement.
+  This is a modified preview fixture built from current source, not the CI release
+  bundle or default-process acceptance. Its first absolute-root file write refuses
+  permission; the relative agent path used by existing Wasm acceptance succeeds.
+- Keep all file-byte assertions across upgrades. A deliberate down stops compute;
+  after restart, Wasm needs control's fresh ensure/wake before agent file access.
+  Test that explicit wake, retaining its bytes, and finish actual purge. The stable
+  launcher change avoids path mismatches across immutable bundle replacement while
+  preserving the existing launcher checks. Current complete Bun validation passes
+  382 tests, one existing skip, 8,135 assertions, plus structure/typecheck/actionlint.
+- Read every completed first booted failure in Any host 42805352411: Debian
+  129801314044 and Fedora 129801314232 reach ordinary-user preflight then report a
+  probe failure without its underlying stderr. Alpine 129801314158 starts with only
+  link-local IPv6 and its package indexes fail DNS lookup. Preserve these logs; add
+  bounded probe diagnostics and wait for actual IPv4 acquisition before setup.
+  The first Debian/Alpine Docker logs in that run instead fail the fixture HTTP
+  server race, now guarded by an actual curl readiness check. Fedora still lacks
+  su in that old source. None of these UI-green Docker jobs proves installation.
+- Add one GNU-host denied-Landlock cell for automatic Wasm fallback, estimated
+  3–8 free hosted minutes after the shared build (20-minute ceiling), with no PR gate
+  cost. The four ordinary default-profile Docker cells remain unchanged in coverage.

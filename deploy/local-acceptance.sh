@@ -31,6 +31,9 @@ ready() {
 }
 ready "$HOME/install.log"
 python3 -c 'import json,pathlib; r=json.loads((pathlib.Path.home()/".config/pryx/installation.json").read_text()); print("user_unit="+str(r["userUnit"])+" enabled_linger="+str(r["enabledLinger"]))'
+if [ "${PRYX_EXPECT_WASM:-0}" = 1 ]; then
+  python3 -c 'import json,pathlib; assert json.loads((pathlib.Path.home()/".config/pryx/installation.json").read_text())["tier"] == "wasm"'
+fi
 [ "$(pryx run -- echo hello)" = hello ]
 echo "seconds_to_hello=$(($(date +%s)-started))"
 # Check never generates credentials, rewrites configuration or starts another supervisor.
@@ -43,13 +46,14 @@ if grep -q '"apiKey"' "$HOME/repeated.log"; then echo 'Repeated the first key' >
 key_before=$(pryx config key | sha256sum)
 box=$(pryx sandbox create --idle 5m | python3 -c 'import json,sys;print(json.load(sys.stdin)["id"])')
 printf 'state survives upgrade\n' > "$HOME/kept"
-pryx sandbox cp "$HOME/kept" "$box:/kept"
+pryx sandbox cp "$HOME/kept" "$box:kept"
 pryx upgrade > "$HOME/upgrade.log" 2>&1 &
 upgrade_pid=$!
 ready "$HOME/upgrade.log"
 [ "$(pryx config key | sha256sum)" = "$key_before" ]
 if grep -q '"apiKey"' "$HOME/upgrade.log"; then echo 'Upgrade repeated the first key' >&2; exit 1; fi
-pryx sandbox cp "$box:/kept" "$HOME/restored"
+pryx sandbox start "$box" > "$HOME/restarted-box.json"
+pryx sandbox cp "$box:kept" "$HOME/restored"
 cmp "$HOME/kept" "$HOME/restored"
 [ "$(pryx run -- echo hello)" = hello ]
 # Leave the real retained workload for purge to stop, rather than deleting it through the API.

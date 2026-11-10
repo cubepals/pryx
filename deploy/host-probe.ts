@@ -31,12 +31,15 @@ export async function hostProbe(binary: string, env = process.env): Promise<Host
   })
   const timer = setTimeout(() => child.kill('SIGKILL'), 30 * SECOND_MS)
   try {
-    const [stdout, , exit] = await Promise.all([
+    const [stdout, stderr, exit] = await Promise.all([
       new Response(child.stdout).text(),
       new Response(child.stderr).text(),
       child.exited,
     ])
-    if (exit) throw new Error('Host probe failed; check executable and host permissions')
+    if (exit)
+      throw new Error(
+        `Host probe failed (exit ${exit}): ${stderr.trim().slice(-2048) || 'no diagnostic output'}; check executable and host permissions`,
+      )
     return JSON.parse(stdout) as HostProbe
   } finally {
     clearTimeout(timer)

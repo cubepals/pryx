@@ -190,6 +190,7 @@ heartbeat_seconds = 1
 ${tier !== 'container' ? `[capacity]\nreserved_memory_mb = ${reservedMemory}\nreserved_cpu_millis = ${reservedCpu}` : ''}
 [wasm]
 distribution = ${JSON.stringify(layout.agentos)}
+${layout.local && process.env.PRYX_LOCAL_LAUNCHER ? `launcher_executable = ${JSON.stringify(process.env.PRYX_LOCAL_LAUNCHER)}` : ''}
 [workloads]
 agent_binary = ${JSON.stringify(layout.agent)}
 agent_public_origin = ${JSON.stringify(origin)}
