@@ -19,6 +19,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from 'node:fs'
+import { constants as osConstants } from 'node:os'
 import { dirname, join } from 'node:path'
 import { FleetCa } from '../control/src/ca.ts'
 import { SECOND_MS } from '../control/src/durations.ts'
@@ -64,7 +65,7 @@ export async function credentials(root: string) {
   const rootInfo = lstatSync(root)
   if (!rootInfo.isDirectory() || rootInfo.uid !== process.getuid?.())
     throw Object.assign(new Error('Unsafe state directory'), { code: 'UNSAFE_STATE' })
-  chmodSync(root, 0o711)
+  chmodSync(root, process.env.PRYX_LOCAL_PRESET && process.getuid?.() !== 0 ? 0o700 : 0o711)
   const privateDir = privateDirectory(root)
   mkdirSync(privateDir, { recursive: true, mode: 0o700 })
   const privateInfo = lstatSync(privateDir)
@@ -116,17 +117,25 @@ export async function until(label: string, work: () => Promise<boolean>, seconds
   } while (Date.now() < deadline)
   throw new Error(`${label} did not become ready`)
 }
-export function serviceCommand(args: string[]) {
-  return process.getuid?.() === 0
-    ? [
-        bundleBinary('setpriv', 'setpriv'),
-        `--reuid=${serviceIds().uid}`,
-        `--regid=${serviceIds().gid}`,
-        '--clear-groups',
-        ...args,
-      ]
+export function supervisedCommand(args: string[]) {
+  return process.env.PRYX_LOCAL_PRESET
+    ? [bundleBinary('tini', 'tini'), '-s', '-g', '-p', String(osConstants.signals.SIGTERM), '--', ...args]
     : args
 }
+export function serviceCommand(args: string[]) {
+  const command =
+    process.getuid?.() === 0
+      ? [
+          bundleBinary('setpriv', 'setpriv'),
+          `--reuid=${serviceIds().uid}`,
+          `--regid=${serviceIds().gid}`,
+          '--clear-groups',
+          ...args,
+        ]
+      : args
+  return supervisedCommand(command)
+}
+
 export function privateLog(root: string, name: string) {
   const fd = openSync(
     join(privateDirectory(root), `${name}.log`),
@@ -177,6 +186,7 @@ export async function embedded(
     }
     const log = privateLog(root, 'postgres')
     if (!existsSync(join(data, 'PG_VERSION'))) {
+      const initialized = options.local ? join(directory, `data-next-${randomUUID()}`) : data
       const password = join(directory, 'password')
       writeFileSync(password, values.password, { mode: 0o600 })
       if (process.getuid?.() === 0) chownSync(password, serviceIds().uid, serviceIds().gid)
@@ -184,7 +194,7 @@ export async function embedded(
         serviceCommand([
           postgresBinary('initdb'),
           '-D',
-          data,
+          initialized,
           '-U',
           'pryx',
           '--auth=scram-sha-256',
@@ -195,6 +205,7 @@ export async function embedded(
         { env: environment, stdout: log, stderr: log },
       )
       if (await init.exited) throw new Error('Embedded Postgres initialization failed')
+      if (options.local) renameSync(initialized, data)
     }
     const postgres = Bun.spawn(
       serviceCommand([

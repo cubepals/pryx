@@ -22,8 +22,13 @@ export function probeBinary() {
     ].find((path): path is string => Boolean(path && existsSync(path)))
   )
 }
-export async function hostProbe(binary: string): Promise<HostProbe> {
-  const child = Bun.spawn([binary, 'probe', '--json'], { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' })
+export async function hostProbe(binary: string, env = process.env): Promise<HostProbe> {
+  const child = Bun.spawn([binary, 'probe', '--json'], {
+    env,
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'pipe',
+  })
   const timer = setTimeout(() => child.kill('SIGKILL'), 30 * SECOND_MS)
   try {
     const [stdout, , exit] = await Promise.all([

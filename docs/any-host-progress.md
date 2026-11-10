@@ -145,3 +145,23 @@ job summary before claiming the final release cost.
   package-name syntax; the notices requirement remains unchanged. Local Python
   compilation and actual installed-loader package/copyright lookup pass after
   the correction. No archive or relocation smoke pass is claimed yet.
+- The corrected bundle at 580f4426 passes Any host run 42788562263 and the
+  complete existing CI run 42788562041. Real Debian and default-profile Alpine
+  run the relocated programs, ordinary-user CLI and PostgreSQL initialization,
+  query and shutdown; uid-zero initialization refuses before creating a cluster.
+  This is bundle smoke proof, not the unfinished one-command installation matrix.
+- The factory-only Rust move f3945f44 passes 421 local tests (16 existing ignored),
+  strict all-target Clippy, fmt and the exact Rust structure gate. Its Any host run
+  42796115098 is green; existing CI 42796115176 is still running.
+- Local lifecycle foundation passes the complete Bun check: 382 tests, one existing
+  skip, 8,135 assertions, plus structure, typecheck and actionlint. A competing-process
+  test first exposed SQLite connection collection releasing an exclusive lock. A
+  strong connection registry fixes it; the test now forces collection before proving
+  contention and proves reacquisition after owner death. Preserve that failed run.
+  An earlier invocation without DATABASE_URL also failed database tests; repeating
+  with the actual local PostgreSQL and its configured URL produces the result above.
+- The 601,694,541-byte combined preview artifact exceeds the GitHub connector's
+  512-MiB download limit; native artifact redirects also return 403. Split transport
+  into independently checksummed 256-MiB parts, retaining the original archive bytes
+  and both runtime smokes. This adds no PR gate; actual elapsed cost remains to be
+  measured. Installer dispatch and lifecycle commands remain unfinished.

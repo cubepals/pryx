@@ -13,6 +13,12 @@ upstream JavaScriptCore, third-party and rebuild notices in
 licenses/host-runtime/bun-runtime.txt.
 https://github.com/oven-sh/bun/tree/bun-v1.4.4
 
+SQLite 3.53.4 is embedded in Bun and dedicated to the public domain.
+https://www.sqlite.org/copyright.html
+
+Tini 0.19.0: MIT, licenses/host-runtime/tini.txt.
+https://github.com/krallin/tini/tree/v0.19.0
+
 agentOS 0.4.7: Apache-2.0 and the bundled packages' individual licences.
 See agentos/NOTICE, agentos/licenses and its unmodified package archives.
 

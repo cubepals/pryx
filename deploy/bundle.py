@@ -153,7 +153,10 @@ def main():
                 ('/opt/pryx/pryx-image', 'pryx-image'),
                 ('/usr/local/bin/rustfs', 'rustfs'),
                 ('/usr/bin/setpriv', 'setpriv'),
-                ('/usr/bin/flock', 'flock')]:
+                ('/usr/sbin/nft', 'nft'),
+                ('/usr/bin/docker', 'docker'),
+                ('/usr/bin/flock', 'flock'),
+                ('/usr/bin/tini', 'tini')]:
             bundle.executable(source, 'bin/' + target)
         bundle.library('/usr/lib/x86_64-linux-gnu/libnss_wrapper.so')
         bundle.closure('/usr/lib/x86_64-linux-gnu/libnss_wrapper.so')
@@ -171,7 +174,7 @@ def main():
         pack(bundle.root, destination / 'pryx-bundle-linux-x64.tar.gz')
         bootstrap = Path(temporary) / 'bootstrap'
         (bootstrap / 'bin').mkdir(parents=True)
-        for name in ['pryx', 'pryx.real', 'pryxd', 'pryx-agent']:
+        for name in ['pryx', 'pryx.real', 'pryxd', 'pryx-agent', 'nft', 'nft.real']:
             shutil.copy2(bundle.root / 'bin' / name, bootstrap / 'bin' / name)
         shutil.copytree(bundle.root / 'lib', bootstrap / 'lib')
         shutil.copytree(bundle.root / 'licenses', bootstrap / 'licenses')

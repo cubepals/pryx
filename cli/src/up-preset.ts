@@ -27,12 +27,17 @@ export function selectPreset(
     'Root without a container or systemd cannot start embedded PostgreSQL. Run this command as an ordinary user for the user preset',
   )
 }
-export function localProblem(preset: Preset, probe: HostProbe, filesystem: boolean): string | undefined {
+export function localProblem(
+  preset: Preset,
+  probe: HostProbe,
+  filesystem: boolean,
+  tier = 'process',
+): string | undefined {
   if (process.platform !== 'linux') return 'Linux is required; run pryx on a Linux host'
   if (probe.architecture !== 'x86_64') return `This release needs x86_64; detected ${probe.architecture}`
   if (preset === 'user' && process.getuid?.() === 0)
     return 'The user preset needs an ordinary user; run this command without sudo'
-  if (!filesystem)
+  if (tier === 'process' && !filesystem)
     return 'Process tier requires fully enforceable Landlock ABI 3; enable Landlock in the kernel and permit its syscalls, or run pryx on a host that provides it'
   if (process.getuid?.() === 0 && probe.capabilities['separate-users']?.state !== 'on')
     return 'Embedded PostgreSQL cannot run as root: allow SETUID and SETGID for the container service user, or run this command as an ordinary user'

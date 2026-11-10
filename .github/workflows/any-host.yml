@@ -31,8 +31,8 @@ jobs:
           docker cp "$id:/bundle/." host-artifacts/
           docker rm -v "$id"
           (cd host-artifacts && sha256sum -- * > SHA256SUMS)
-          du -h host-artifacts/* >> "$GITHUB_STEP_SUMMARY"
-          echo "Bundle build: $(($(date +%s)-started)) seconds" >> "$GITHUB_STEP_SUMMARY"
+          du -h host-artifacts/* | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "Bundle build: $(($(date +%s)-started)) seconds" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Relocation in the image userland
         run: |
           docker run --rm --entrypoint /bin/sh \
@@ -45,9 +45,53 @@ jobs:
             --mount "type=bind,source=$PWD/host-artifacts,target=/artifacts,readonly" \
             --mount "type=bind,source=$PWD/deploy/bundle-smoke.sh,target=/bundle-smoke.sh,readonly" \
             mirror.gcr.io/library/alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf /bundle-smoke.sh
+      - name: Split transport below the connector download limit
+        id: transport
+        run: |
+          mkdir host-parts
+          tar -cf host-transport.tar -C host-artifacts .
+          split --bytes=256M --numeric-suffixes --suffix-length=1 host-transport.tar host-parts/part
+          (cd host-parts && sha256sum part* > PARTS.sha256)
+          sha256sum host-transport.tar > host-parts/TRANSPORT.sha256
+          count=$(find host-parts -name 'part*' -type f | wc -l)
+          test "$count" -le 4
+          echo "count=$count" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: host-bundle-preview
-          path: host-artifacts/*
+          name: host-bundle-preview-0
+          path: |
+            host-parts/part0
+            host-parts/*.sha256
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: fromJSON(steps.transport.outputs.count) > 1
+        with:
+          name: host-bundle-preview-1
+          path: |
+            host-parts/part1
+            host-parts/*.sha256
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: fromJSON(steps.transport.outputs.count) > 2
+        with:
+          name: host-bundle-preview-2
+          path: |
+            host-parts/part2
+            host-parts/*.sha256
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: fromJSON(steps.transport.outputs.count) > 3
+        with:
+          name: host-bundle-preview-3
+          path: |
+            host-parts/part3
+            host-parts/*.sha256
+          compression-level: 0
           if-no-files-found: error
           retention-days: 7

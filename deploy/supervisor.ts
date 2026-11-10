@@ -29,10 +29,12 @@ import {
   embedded,
   IMAGE_NODE_CONFIG,
   privateLog,
+  supervisedCommand,
   until,
 } from './image-state.ts'
 import { imageTier } from './image-tier.ts'
 import { bundleBinary, localLayout } from './local-layout.ts'
+import { processStart } from './supervisor-process.ts'
 
 let startupStage = 'configuration',
   diagnosticRoot: string | undefined
@@ -91,12 +93,21 @@ async function serve() {
     }
   }
   cleanup = stopChildren
-  if (layout.local)
-    createPrivateFile(
-      join(layout.runtime, 'supervisor.json'),
-      JSON.stringify({ pid: process.pid, bundle: process.env.PRYX_BUNDLE_DIR, state: root }),
-      true,
-    )
+  const recordProcess = (ready: boolean) => {
+    if (layout.local)
+      createPrivateFile(
+        join(layout.runtime, 'supervisor.json'),
+        JSON.stringify({
+          pid: process.pid,
+          start: processStart(process.pid),
+          bundle: process.env.PRYX_BUNDLE_DIR,
+          state: root,
+          ready,
+        }),
+        true,
+      )
+  }
+  recordProcess(false)
   let stop = stopChildren
   let stopping = false
   const shutdown = async (code: number) => {
@@ -193,7 +204,12 @@ control_ips = ["127.0.0.1"]
   )
   startupStage = 'enrollment'
   const log = privateLog(root, 'node')
-  children.push(Bun.spawn([layout.pryxd, 'serve', '--config', nodeConfig], { stdout: log, stderr: log }))
+  children.push(
+    Bun.spawn(supervisedCommand([layout.pryxd, 'serve', '--config', nodeConfig]), {
+      stdout: log,
+      stderr: log,
+    }),
+  )
   await until('Local node', async () => {
     const nodes = await nodeSummaries(control.db, { suspectSeconds: 15, unavailableSeconds: 45 })
     return nodes.some((node) => node.derivedHealth === 'healthy')
@@ -264,21 +280,19 @@ control_ips = ["127.0.0.1"]
           ? 'per-sandbox UIDs'
           : 'shared UID'
   console.log(`pryx listening on ${publicPort}; isolation=${tier}; ${boundary}`)
+  recordProcess(true)
   if (layout.local && process.env.PRYX_CLIENT_CONFIG)
     writeClientConfig({ url: origin, key: values.key }, process.env.PRYX_CLIENT_CONFIG)
-  console.log(
-    JSON.stringify({
-      apiUrl: origin,
-      tiers: [tier],
-      capabilities: capabilitySummary(probe),
-    }),
-  )
-  if (process.env.PRYX_LOCAL_PRESET === 'user')
+  if (!layout.local)
     console.log(
-      "Sandboxes share a user and have no kernel-enforced memory or CPU limits; use this for one person's work, not for strangers' code.",
+      JSON.stringify({
+        apiUrl: origin,
+        tiers: [tier],
+        capabilities: capabilitySummary(probe),
+      }),
     )
   const printed = join(layout.private, 'key-printed')
-  if (!existsSync(printed)) {
+  if (!layout.local && !existsSync(printed)) {
     createPrivateFile(printed, 'printed\n')
     console.log(JSON.stringify({ apiUrl: origin, apiKey: values.key }))
   }
