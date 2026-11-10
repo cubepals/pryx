@@ -82,11 +82,12 @@ access. See [deployment](deploy.md) for Render, external stores and image tiers.
 ## Node joining a fleet
 
 ```sh
-PRYX_PRESET=node PRYX_JOIN_TOKEN='<fleet token>' sh -c 'curl -fsSL https://github.com/cubepals/pryx/releases/latest/download/install.sh | sh'
+sudo env PRYX_PRESET=node PRYX_JOIN_TOKEN='<fleet token>' sh -c 'curl -fsSL https://github.com/cubepals/pryx/releases/latest/download/install.sh | sh'
 ```
 
-The node preset installs the verifier and uses the supplied fleet token. It
-verifies the signed daemon/agent bootstrap independently of the fleet before joining.
+The node preset uses the existing root/systemd fleet join. It installs the verifier
+and uses the supplied fleet token, verifying the signed daemon/agent bootstrap
+independently of the fleet before joining.
 The token is an operator credential: keep it out of shell history and CI output.
 See [operations](operations.md) for issuing a token and node policy.
 

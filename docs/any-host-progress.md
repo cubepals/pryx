@@ -7,7 +7,7 @@ Only recorded CI evidence establishes completion; a local pass alone does not.
 | Milestone | Status | Finishing commit | CI proof | Ran | Did not run | Parked and why | Left |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | K19 | done | `b535d24b95ab2046aa6178fdc1d2683640ce2544` | [42777018303](https://github.com/cubepals/pryx/actions/runs/42777018303), green including aggregate | Real hosted KVM, full Rust and Docker suites, CLI doctor, default-profile image probes, non-root API refusal, full end-to-end attacks, one-box/Action/Python, Wasm, two-node, upstream integrations and recovery; local checks below | Live paid-provider provisioning and publication; neither is authorized | None | None |
-| K20 | in progress | — | Any host 42822883979 and 42825207287 green; normal CI 42820324770 green; latest verification pending | All 13 host cells including booted user units, root PostgreSQL UID, upgrade/key/data/purge, Wasm fallback, refusal, sudo; local 389 Bun and 421 Rust tests | Full workflows on atomic-key and artifact-read corrections; production release prohibited | None | Verify bounded artifact acquisition and finish current complete CI |
+| K20 | done | `54bd364` | Normal CI 42832474233 and Any host 42832474296, both green | All 13 host jobs: 8 user distro contexts, root container/PG UID, fallback, refusal, sudo, relocation; full normal CI including real Docker/KVM, one-box/Action, Wasm, 2-node, Rivet/celld and recovery | Production main/release prohibited; unchanged credentialed cloud/bootstrap cases skipped | None | Complete; proceed to K21 |
 | K21 | not started | — | — | — | All | — | Complete brief after K20 |
 | K22 | not started | — | — | — | All | — | Complete brief after K21 |
 | K23 | not started | — | — | — | All | — | Complete brief after K22 |
@@ -440,3 +440,28 @@ job when publication is authorized. That job has not run in this task.
 - Read b1037a7's aggregate failure 129875204433: it reports the already recorded
   Docker OOM job failure; its other jobs complete. The corrected FIFO source passes
   that same real Docker assertion without a test, limit or deadline reduction.
+- Any host 42832474296 is completely green at 54bd364 with the authenticated
+  per-part reader: all thirteen jobs pass, including all eight ordinary-user distro
+  contexts, the root-container PostgreSQL UID/port/upgrade case, GNU Wasm fallback,
+  unchanged unsupported-host refusal, domainless sudo and bundle relocation. No
+  download checksum, signature, retained-byte assertion or install action was skipped.
+- At that same source, the normal CI Rust/Docker, contract, workspace and one-box/
+  Action jobs pass. Its end-to-end job 129885926157 remains in progress. Keep K20
+  in progress until the complete current-source workflow is green.
+- Size/timing evidence from the fully successful b1037a7 bundle job 129852581747:
+  approximately 531 MiB runtime and 71 MiB bootstrap (about 602 MiB additional release
+  assets), 632s for the full preview build, and 126.4s for the packaging stage itself.
+  The earlier 58 MiB bootstrap omitted a static executable payload and is not the
+  final size. Production release execution remains prohibited; its actual packaging
+  and publication duration has not been measured. The configured pack step reuses
+  the built release image, with an approximately 2–3 minute packaging estimate.
+- Final documentation review corrects the node one-command example to use sudo env
+  and state its existing root/systemd fleet-join prerequisite. The verified bootstrap
+  and Rust join already require root; the example now matches that actual behavior.
+- K20 is complete at implementation source 54bd364: normal CI 42832474233 and
+  Any host 42832474296 both finish green. All required host contexts, normal
+  compatibility/security/recovery checks and the corrected real Docker OOM assertion
+  pass together. No parked piece remains. The unchanged credentialed cloud and
+  release-signed remote-bootstrap cases are skipped without configured credentials;
+  production main/release execution remains forbidden. This documentation checkpoint
+  records the validated source rather than claiming its own future CI result.
