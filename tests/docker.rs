@@ -276,16 +276,17 @@ async fn the_memory_limit_is_hard_and_an_oom_kill_is_reported() {
     const OOM_SCORE_ADJ_MAX: i32 = 1000;
     let mut spec = shell(
         &format!(
-            "sleep 1; mkfifo /tmp/oom-input || exit 1; head -c 400m /dev/zero > /tmp/oom-input & \
+            "sleep 1; mkfifo /tmp/oom-input /tmp/oom-observed || exit 1; head -c 400m /dev/zero > /tmp/oom-input & \
              sh -c 'echo {OOM_SCORE_ADJ_MAX} > /proc/self/oom_score_adj || exit 1; exec tail /tmp/oom-input' > /dev/null & \
              allocator=$!; wait \"$allocator\"; status=$?; \
-             while [ ! -f /tmp/oom-observed ]; do sleep 0.1; done; exit \"$status\""
+             read -r observed < /tmp/oom-observed || exit 1; exit \"$status\""
         ),
         64,
     );
     spec.restart.max_retries = 0;
     m.ensure(id("oom"), spec, Precondition::None, None).await.unwrap();
     m.start(id("oom"), None).await.unwrap();
+    // Block without forking after allocation: spawning sleeps under pressure can also kill PID 1.
     // Keep PID 1 alive until Docker acknowledges the allocating child's OOM. The kernel may
     // also end PID 1 first; either path must retain the OOM flag and the killed allocator's exit.
     let name = m.view(&id("oom")).unwrap().locate.container_name;
@@ -306,7 +307,10 @@ async fn the_memory_limit_is_hard_and_an_oom_kill_is_reported() {
             let release = m
                 .exec(
                     id("oom"),
-                    ExecRequest { command: vec!["touch".into(), "/tmp/oom-observed".into()], timeout_seconds: 2 },
+                    ExecRequest {
+                        command: vec!["sh".into(), "-c".into(), "printf 'observed\\n' > /tmp/oom-observed".into()],
+                        timeout_seconds: 2,
+                    },
                     None,
                     None,
                 )

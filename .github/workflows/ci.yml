@@ -159,7 +159,10 @@ jobs:
         if: failure()
         run: |
           sudo journalctl -u docker --since '-10 min' --no-pager -n 80
-          sudo dmesg --ctime | tail -80
+          docker version
+          docker info --format '{{json .CgroupVersion}} {{json .CgroupDriver}}'
+          timeout 15s docker events --format '{{.TimeNano}} {{.Action}} {{.Actor.ID}}' --since 10m --until "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --filter type=container --filter event=oom
+          sudo dmesg --ctime | tail -240
 
   supply-chain:
     name: Dependency licences and advisories

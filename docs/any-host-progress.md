@@ -373,3 +373,26 @@ job when publication is authorized. That job has not run in this task.
   or rerun. The root cell in that run is still executing; b1037a7's matrix is still
   building. Normal CI 42820324770 has passed its K11 Wasm agent suite and is testing
   Rivet/celld; it is not yet a complete green run.
+- Hosted root Docker 129857119053 at 5447657 passes the full upgrade/purge flow,
+  reaches hello in 37s and verifies the actual nonzero PostgreSQL UID. Normal CI
+  42820324770 at e976866 is completely green, including Wasm, Rivet/celld, recovery,
+  one-box/Action, actual KVM and the real Docker suite.
+- Normal CI 42822883955 at b1037a7 fails Docker job 129854093639 in the existing OOM
+  assertion. All other thirteen Docker cases pass. Kernel diagnostics show the
+  64 MiB cgroup killed its supervisor shell, while Docker retains SIGKILL exit but
+  OOMKilled=false. Preserve this mismatch; no job replay or OOM assertion weakening.
+- Replace the fixture's repeated post-allocation sleep forks with a blocking FIFO
+  acknowledgement, retaining every memory/input/deadline and OOM/exit assertion.
+  Failure-only diagnostics now include bounded engine/cgroup details, OOM event
+  IDs without labels, and 240 kernel lines. This removes avoidable post-OOM fork
+  pressure; whether it resolves the reporting race still requires hosted proof.
+- A real hardened local container verifies the blocking FIFO keeps the chosen child
+  exit and native ps shows no children while the supervisor waits. The first attempt
+  to enumerate children through an optional proc file could not read that file and
+  did not prove the process-count assertion; native ps supplies that actual check.
+  The local rootless engine cannot enforce memory limits, so this is no OOM proof.
+- The FIFO candidate passes all 421 local Rust tests (16 existing ignored cases),
+  strict all-target Clippy, fmt, the unchanged Rust structure ratchet, actionlint/
+  ShellCheck and whitespace validation. Existing complete Bun validation remains
+  388 passing tests, one existing skip and 8,159 assertions; no TypeScript changed
+  in this candidate. The real hard-memory Docker case remains a CI requirement.
