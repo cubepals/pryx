@@ -350,3 +350,26 @@ job when publication is authorized. That job has not run in this task.
 - The corrected user unit passes native systemd verification and complete local Bun
   validation: 388 tests, one existing skip, 8,159 assertions. No service-unit
   hardening was removed. Its real booted-system acceptance must still pass in CI.
+- Local root-container acceptance now completes the entire signed one-command flow:
+  hello, new-login PATH, read-only check, repeated-key suppression, authenticated
+  upgrade, retained key and exact file bytes, then complete purge. Its printed
+  PostgreSQL ownership assertion passes. The modified fixture uses current compiled
+  CLI/supervisor plus the preserved static daemon and original artifact modes; it
+  remains local rootless-engine/Wasm evidence, not default-profile hosted proof.
+- Any host 42820324687 at e976866 passes all four complete default-profile Docker
+  cells: Fedora 129851728789 (30s to hello), Alpine 129851728878 (52s), Debian
+  129851728888 (41s), Ubuntu 129851729183 (36s). Each also verifies repeat, readonly
+  check, future-login PATH, upgrade, retained key/file bytes and purge. Booted Alpine
+  129851728721 passes the same flow (47s); denied-Landlock GNU automatic Wasm
+  129851728829 passes (43s). Domainless sudo and unsupported-host refusal pass too.
+- Read all four failures in that run: booted Fedora 129851728629, Debian
+  129851728696 and Ubuntu 129851728831 show systemd's fatal quoted WorkingDirectory
+  setting; root Docker 129851728974 shows the independently reproduced initdb path
+  permission denial. These are corrected in 5447657 and b1037a7 respectively for
+  permissions and the unit setting. Those revisions still await their hosted proof.
+- Read the three completed systemd failures in Any host 42822045954 at 5447657:
+  Debian 129857118959, Fedora 129857118868 and Ubuntu 129857118909 all identify the
+  same invalid quoted WorkingDirectory setting. No additional failure is concealed
+  or rerun. The root cell in that run is still executing; b1037a7's matrix is still
+  building. Normal CI 42820324770 has passed its K11 Wasm agent suite and is testing
+  Rivet/celld; it is not yet a complete green run.
