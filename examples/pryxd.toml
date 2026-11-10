@@ -34,7 +34,7 @@ network = "blockly-workloads"                  # created with inter-container tr
 pull_timeout_seconds = 1200
 
 [wasm]
-# Used only with runtime = "wasm"; install the pinned release distribution here.
+# Used by Wasm in explicit or auto mode; install the pinned release distribution here.
 distribution = "/usr/local/lib/pryx/agentos"
 # A root daemon drops its worker to these reserved IDs; keep them consistent across the fleet.
 worker_uid = 60000

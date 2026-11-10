@@ -81,8 +81,10 @@ export async function mixedTierAcceptance(
       for (const guarantee of GUARANTEES)
         if (box.guarantees?.[guarantee] !== expected[isolation]?.includes(guarantee))
           throw new Error(`${isolation} guarantee differs: ${guarantee}`)
-      const output = await box.run(['sh', '-c', 'printf mixed; printf saved > /data/mixed-tier-proof'])
+      const output = await box.run(['sh', '-c', 'printf mixed'])
       if (output.code !== 0 || output.stdout !== 'mixed') throw new Error(`${isolation} command differs`)
+      await box.write('mixed-tier-proof', 'saved')
+      if ((await box.read('mixed-tier-proof')) !== 'saved') throw new Error(`${isolation} data differs`)
     }
     const unnamed = await sdk.sandbox({ image: 'alpine:3.22' })
     held.push(unnamed)
