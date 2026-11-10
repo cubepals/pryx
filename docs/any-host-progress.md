@@ -23,6 +23,8 @@ K19 adds KVM permission setup and one real guest probe to the existing Rust job
 doctor invocation in that job (estimated under one minute), an ordinary-image probe to existing
 Compose acceptance (estimated under one minute), and failure-only Docker/kernel
 diagnostics (under one minute on failure). No new required job is added.
+The real shared-uid image case adds up to one further minute to the existing
+Compose acceptance step; it starts one non-root image and uses its public API.
 
 ## Evidence and handoff
 
@@ -83,3 +85,13 @@ diagnostics (under one minute on failure). No new required job is added.
   All 421 Rust tests pass with the verified distribution (16 existing ignored), strict
   all-target Clippy and the exact Rust structure check pass. Rootless-engine CI belongs
   to K22; no local hard-limit pass is claimed for the cgroup-less engine.
+- Source `d6a8420d7700316365f032024d90082c8d8fa0b2`, CI
+  https://github.com/cubepals/pryx/actions/runs/42774643808: core is green, including
+  actual KVM HLT exits, CLI doctor and every Docker case. Control, dependency and
+  upstream contract jobs are green; full deployment completion is still pending.
+- Add a real shared-uid process-node requirement/refusal check to existing Compose
+  acceptance. The new script passes lint, typecheck and structure; the full control
+  suite passes 372 tests with the existing compiled-assets skip and 8,098 assertions.
+  Final generated-type checks also pass. The actual non-root image case has not run
+  locally because this workspace cannot enforce the required Landlock policy; require
+  its hosted CI result. No complete milestone result is inferred from these local checks.

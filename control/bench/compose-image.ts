@@ -4,6 +4,7 @@
 import { resolve } from 'node:path'
 import { SECOND_MS } from '../src/durations.ts'
 import { PRYX_VERSION } from '../src/generated/release.ts'
+import { sharedUidAcceptance } from './shared-uid.ts'
 
 const project = `pryx-ci-compose-${process.pid}`
 const prefix = ['docker', 'compose', '-p', project, '-f', resolve('docker-compose.yml')]
@@ -92,3 +93,4 @@ try {
 } finally {
   await command([...prefix, 'down', '--volumes', '--remove-orphans'])
 }
+await sharedUidAcceptance(process.env.PRYX_IMAGE_TEST ?? 'pryx-static-test', command, initialKeys)
