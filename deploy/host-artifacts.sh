@@ -17,6 +17,7 @@ download_host_parts() {
     for delay in 0 2 5 10 20 30; do
       (( SECONDS < deadline )) || break
       if ((delay)); then sleep "$delay"; fi
+      (( SECONDS < deadline )) || break
       stage="$work/download-$piece-$delay"
       mkdir "$stage"
       if timeout 30s "$cli" run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" \
