@@ -12,7 +12,7 @@ download_host_parts() {
   test ! -e "$destination" || return 1
   mkdir "$work/verified"
   for ((piece=0; piece<count; piece++)); do
-    deadline=$((SECONDS + 120))
+    deadline=$((SECONDS + 180))
     valid=false
     for delay in 0 2 5 10 20 30; do
       (( SECONDS < deadline )) || break
@@ -20,7 +20,7 @@ download_host_parts() {
       (( SECONDS < deadline )) || break
       stage="$work/download-$piece-$delay"
       mkdir "$stage"
-      if timeout 30s "$cli" run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+      if timeout --verbose 60s "$cli" run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" \
           --name "host-bundle-preview-$piece" --dir "$stage" >"$work/download.log" 2>&1 &&
         (cd "$stage" &&
           printf '%s  PARTS.sha256\n' "$manifest" | sha256sum -c - &&
