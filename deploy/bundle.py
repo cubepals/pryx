@@ -65,11 +65,12 @@ class Bundle:
             executable_format = stream.read(4)
         if executable_format != b'\x7fELF':
             return
-        self.closure(target)
-        dynamic = subprocess.run(['ldd', str(target)], capture_output=True, text=True,
-                                 check=False).returncode == 0
-        if not dynamic:
+        # ELF gABI PT_INTERP is the interpreter header. A static PIE can still have
+        # DYNAMIC and make ldd exit successfully; it must retain direct kernel exec.
+        headers = command('readelf', '--program-headers', '--wide', str(target))
+        if not re.search(r'^\s*INTERP\s', headers, re.M):
             return
+        self.closure(target)
         target.rename(str(target) + '.real')
         parent = '../..' if postgres else '..'
         preload = '''if [ -n "${NSS_WRAPPER_PASSWD:-}" ]; then
@@ -177,8 +178,11 @@ def main():
         pack(bundle.root, destination / 'pryx-bundle-linux-x64.tar.gz')
         bootstrap = Path(temporary) / 'bootstrap'
         (bootstrap / 'bin').mkdir(parents=True)
-        for name in ['pryx', 'pryx.real', 'pryxd', 'pryx-agent', 'nft', 'nft.real']:
+        for name in ['pryx', 'pryxd', 'pryx-agent', 'nft']:
             shutil.copy2(bundle.root / 'bin' / name, bootstrap / 'bin' / name)
+            payload = bundle.root / 'bin' / (name + '.real')
+            if payload.exists():
+                shutil.copy2(payload, bootstrap / 'bin' / payload.name)
         shutil.copytree(bundle.root / 'lib', bootstrap / 'lib')
         shutil.copytree(bundle.root / 'licenses', bootstrap / 'licenses')
         pack(bootstrap, destination / 'pryx-bootstrap-linux-x64.tar.gz')

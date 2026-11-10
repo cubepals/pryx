@@ -16,6 +16,11 @@ bundle="$temporary/bundle"
 "$bundle/bin/pryx-edge" --version
 "$bundle/bin/pryx-image" --version
 "$bundle/bin/setpriv" --reuid=1001 --regid=1001 --clear-groups "$bundle/bin/pryx" --version
+mkdir "$temporary/bootstrap"
+tar -xzf /artifacts/pryx-bootstrap-linux-x64.tar.gz -C "$temporary/bootstrap"
+"$bundle/bin/setpriv" --reuid=1001 --regid=1001 --clear-groups "$temporary/bootstrap/bin/pryxd" probe --json > "$temporary/bootstrap-probe.json"
+"$bundle/bin/setpriv" --reuid=1001 --regid=1001 --clear-groups "$temporary/bootstrap/bin/pryx-agent" process-probe > "$temporary/agent-probe.json"
+"$bundle/bin/setpriv" --reuid=1001 --regid=1001 --clear-groups "$temporary/bootstrap/bin/pryx" --version
 if "$bundle/postgres/bin/initdb" -D "$temporary/root-data" > "$temporary/root-refusal" 2>&1; then
   echo 'PostgreSQL unexpectedly initialized as uid 0' >&2
   exit 1

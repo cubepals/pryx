@@ -275,3 +275,26 @@ job when publication is authorized. That job has not run in this task.
 - Add one GNU-host denied-Landlock cell for automatic Wasm fallback, estimated
   3–8 free hosted minutes after the shared build (20-minute ceiling), with no PR gate
   cost. The four ordinary default-profile Docker cells remain unchanged in coverage.
+- Actual local static-bundle stop/restart, explicit control wake, file-byte recovery and
+  purge all pass; nine managed paths are removed. The later full curl/sh bootstrap
+  test then exposes the packaging root cause behind the CI probe failures: GNU ldd
+  returns zero for static PIE, so bundle.py wrapped static pryxd and pryx-agent and
+  bootstrap copying omitted their .real payloads. Directly inspecting the ELF shows
+  DYNAMIC but no INTERP. This also means the earlier loader/current_exe failure was
+  not confined to the manually substituted GNU fixture; the original packer could
+  wrap the production static PIE too. Correct that earlier incomplete attribution.
+- GNU readelf 2.44 now identifies PT_INTERP explicitly. A real current static daemon
+  remains ELF with no wrapper and successfully probes after packaging; a real dynamic
+  printf retains its loader wrapper and runs from the relocated closure. Bootstrap
+  copying includes every actual payload, and both runtime smoke cells now execute
+  its real unprivileged daemon/agent probes and CLI. Python compilation, standalone
+  ShellCheck, actionlint and whitespace checks pass. Full installation after this
+  root-cause correction is still pending.
+- Prevent the release's second checksum-generation step from hashing its own old
+  SHA256SUMS by removing that staging manifest before expanding the asset glob.
+  No release is published and no release key is accessed.
+- Every completed failure through runs 42805352411, 42807401129 and the completed
+  cells of 42807721973 has been read. Old sources repeat the now-identified missing
+  bootstrap payload, missing Fedora su, fixture-server race and early Alpine DNS
+  failures. The explicit-bash run correctly fails its cells instead of hiding those
+  failures. Preserve those results; no whole-job replay or test weakening is used.

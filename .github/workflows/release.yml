@@ -148,6 +148,7 @@ jobs:
           digest=$(sha256sum dist/pryx-bundle-linux-x64.tar.gz | cut -d' ' -f1)
           printf 'pryx host bundle\n%s\n%s\n' "$version" "$digest" > "$RUNNER_TEMP/host-bundle.statement"
           openssl pkeyutl -verify -pubin -inkey release-key.pub -rawin -in "$RUNNER_TEMP/host-bundle.statement" -sigfile dist/pryx-bundle-linux-x64.tar.gz.sig
+          rm -f dist/SHA256SUMS
           (cd dist && sha256sum -- * > SHA256SUMS)
           du -h dist/pryx-*-linux-x64.tar.gz | tee -a "$GITHUB_STEP_SUMMARY"
           echo "Additional host bundle packaging: $(($(date +%s)-started)) seconds" | tee -a "$GITHUB_STEP_SUMMARY"
