@@ -18,18 +18,22 @@ pub(super) async fn read(report: &mut Report) {
         ("user-session", runtime.join("systemd/private")),
         ("linger", PathBuf::from(format!("/var/lib/systemd/linger/{}", username(uid)))),
     ] {
-        let capability = match path.try_exists() {
-            Ok(true) => Capability::on(format!("{} exists", path.display())),
-            Ok(false) => Capability::new(
-                State::Off,
-                format!("{} is absent", path.display()),
-                if name == "linger" {
-                    "Run loginctl enable-linger for this user"
-                } else {
-                    "Start a systemd user session"
-                },
-            ),
-            Err(error) => Capability::error(error, "Check the user's systemd session"),
+        let capability = if name == "user-session" {
+            user_session(&path).await
+        } else {
+            match path.try_exists() {
+                Ok(true) => Capability::on(format!("{} exists", path.display())),
+                Ok(false) => Capability::new(
+                    State::Off,
+                    format!("{} is absent", path.display()),
+                    if name == "linger" {
+                        "Run loginctl enable-linger for this user"
+                    } else {
+                        "Start a systemd user session"
+                    },
+                ),
+                Err(error) => Capability::error(error, "Check the user's systemd session"),
+            }
         };
         report.capabilities.insert(name.into(), capability);
     }
@@ -59,13 +63,28 @@ pub(super) async fn read(report: &mut Report) {
                 info.security_options.join(", ")
             )),
             Ok(Err(error)) => Capability::new(
-                if socket.exists() { State::Unknown } else { State::Off },
+                socket_state(&socket),
                 error.to_string(),
                 "Start a Docker-compatible engine and grant this user socket access",
             ),
             Err(_) => Capability::new(State::Unknown, "Engine info exceeded two seconds", "Check the engine service"),
         };
         report.capabilities.insert(name.into(), capability);
+    }
+}
+
+fn socket_state(socket: &std::path::Path) -> State {
+    match socket.try_exists() {
+        Ok(false) => State::Off,
+        _ => State::Unknown,
+    }
+}
+
+async fn user_session(path: &std::path::Path) -> Capability {
+    match tokio::time::timeout(Duration::from_secs(2), tokio::net::UnixStream::connect(path)).await {
+        Ok(Ok(_)) => Capability::on(format!("{} accepted a connection", path.display())),
+        Ok(Err(error)) => Capability::error(error, "Start a systemd user session"),
+        Err(_) => Capability::new(State::Unknown, "User session socket did not answer", "Start a systemd user session"),
     }
 }
 
@@ -110,5 +129,24 @@ pub(crate) fn firewall() -> Capability {
             "Run pryxd isolate as root and permit read-only firewall inspection",
         ),
         Err(error) => Capability::error(error, "Install nftables and run pryxd isolate as root"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[tokio::test]
+    async fn inaccessible_paths_and_dead_session_sockets_are_not_absence() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("session");
+        assert_eq!(socket_state(&path), State::Off);
+        assert_eq!(user_session(&path).await.state, State::Off);
+        let listener = std::os::unix::net::UnixListener::bind(&path).unwrap();
+        assert_eq!(user_session(&path).await.state, State::On);
+        drop(listener);
+        assert_eq!(user_session(&path).await.state, State::Unknown);
+        let cycle = root.path().join("cycle");
+        std::os::unix::fs::symlink(&cycle, &cycle).unwrap();
+        assert_eq!(socket_state(&cycle), State::Unknown);
     }
 }

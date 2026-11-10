@@ -6,7 +6,7 @@ Only recorded CI evidence establishes completion; a local pass alone does not.
 
 | Milestone | Status | Finishing commit | CI proof | Ran | Did not run | Parked and why | Left |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| K19 | in progress | — | Bootstrap run below; implementation CI pending | Rust: 420 pass, 16 existing ignored; full control check: 372 pass, 1 existing skip; Python: 23 tests, 1 existing skip; both strict Clippy modes, fmt, generators, structure, actionlint/ShellCheck | Hosted KVM, ordinary-image and new end-to-end attacks | None | Push implementation, diagnose and complete CI |
+| K19 | in progress | — | Implementation runs below; current head CI pending | Rust: 421 pass, 16 existing ignored; full control check: 372 pass, 1 existing skip; Python: 23 tests, 1 existing skip; strict Clippy, fmt, generators, both structure checks, actionlint/ShellCheck | Hosted KVM, ordinary-image and new end-to-end attacks | None | Complete host acceptance and current-head CI |
 | K20 | not started | — | — | — | All | — | Complete brief after K19 |
 | K21 | not started | — | — | — | All | — | Complete brief after K20 |
 | K22 | not started | — | — | — | All | — | Complete brief after K21 |
@@ -27,7 +27,7 @@ diagnostics (under one minute on failure). No new required job is added.
 ## Evidence and handoff
 
 - Started from `origin/main`; the original environment checkout predates this plan.
-- No milestone implementation or acceptance result is claimed yet.
+- No milestone completion is claimed yet.
 - Bootstrap CI: https://github.com/cubepals/pryx/actions/runs/42768042942 at
   `03e4affe3f1adfda46d70b126ad5177935716168`. Core and control checks pass;
   Docker integration fails the existing OOM-reporting case: Docker reports exit 137
@@ -49,3 +49,18 @@ diagnostics (under one minute on failure). No new required job is added.
   instead of zero. The cause is unknown; retain it separately from the earlier complete
   passing run. The final current-source Rust run passes 420 tests, with 16 existing
   ignored cases; both strict Clippy modes and fmt pass. No test was skipped or loosened.
+- Implementation commit `38e4efc8deedfcb6f1605343f1ad610665cc0ee3`, CI
+  https://github.com/cubepals/pryx/actions/runs/42772099448: control workspace,
+  dependency and upstream contract jobs pass. Core stops at the Rust structure check:
+  `main` is 102 lines against its 100-line limit, so its KVM and Docker cases did not run.
+  The separate move-only commit `37b83aa78607504815409450e9513fd7dd4f6bdb`
+  extracts the unchanged command; CI is
+  https://github.com/cubepals/pryx/actions/runs/42772998503. The exact pinned CI Rust
+  structure checker now passes locally. Do not use the expanded TypeScript wrapper
+  with `--rust`: CI invokes that wrapper without the Rust flag and the original pinned
+  checker with it, which have different source scopes.
+- Follow-up socket correction: inaccessible engine paths remain unknown and a user-session
+  socket must accept a connection. Real socket/symlink-loop regression and full Rust suite
+  pass (421 tests, 16 existing ignored), preserving all previous acceptance assertions.
+  The bootstrap run completed before cancellation was requested; its end-to-end and
+  one-box jobs pass, and its aggregate fails only because of the recorded Docker OOM case.
