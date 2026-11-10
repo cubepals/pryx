@@ -10,6 +10,8 @@ started=$(date +%s)
 installer_pid=
 upgrade_pid=
 cleanup() {
+  result=$?
+  if [ "$result" != 0 ]; then python3 /local-diagnostics.py; fi
   if [ -x "$HOME/.local/bin/pryx" ]; then pryx down --purge > "$HOME/cleanup.log" 2>&1 || true; fi
   if [ -n "$installer_pid" ]; then kill "$installer_pid" 2>/dev/null || true; fi
   if [ -n "$upgrade_pid" ]; then kill "$upgrade_pid" 2>/dev/null || true; fi
@@ -28,6 +30,7 @@ ready() {
   exit 1
 }
 ready "$HOME/install.log"
+python3 -c 'import json,pathlib; r=json.loads((pathlib.Path.home()/".config/pryx/installation.json").read_text()); print("user_unit="+str(r["userUnit"])+" enabled_linger="+str(r["enabledLinger"]))'
 [ "$(pryx run -- echo hello)" = hello ]
 echo "seconds_to_hello=$(($(date +%s)-started))"
 # Check never generates credentials, rewrites configuration or starts another supervisor.

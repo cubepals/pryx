@@ -14,6 +14,7 @@ else
   echo 'Test preparation needs a supported distribution package manager' >&2; exit 1
 fi
 useradd -m -u 1001 -s /bin/sh pryxtest
+if [ "${PRYX_PREPARE_ONLY:-0}" = 1 ]; then exit 0; fi
 python3 -m http.server 9876 --bind 127.0.0.1 --directory /artifacts > /tmp/artifact-server.log 2>&1 &
 server=$!
 trap 'kill "$server"' EXIT HUP INT TERM

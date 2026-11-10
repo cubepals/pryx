@@ -198,3 +198,16 @@ bootstrap and add read-only preflight/probe work, estimated under one minute.
 Production release packaging reuses its already built signed image; its measured
 archive sizes and actual additional packaging time will be reported by the release
 job when publication is authorized. That job has not run in this task.
+- Added the four booted-system cells using the pinned Ubuntu Incus package. Package
+  metadata from both noble and noble-updates confirms the exact version before use.
+  Systemd distributions run the installer as a fresh ordinary user in a PAM login
+  session; Alpine uses its own foreground path. Each cell records its image fingerprint,
+  supervision mode and seconds to hello, and repeats upgrade/state/purge acceptance.
+  No booted cell has run yet. Failure diagnostics redact credentials before printing
+  bounded logs; a real Python fixture verifies password/encoded-value suppression.
+  Actionlint, standalone ShellCheck, Python compilation and whitespace checks pass.
+- Booted CI costs four additional free hosted jobs with 25-minute ceilings, estimated
+  5–12 minutes per cell after the shared bundle build, weekly and on any-host pushes.
+  These add zero minutes to a pull request's ordinary gate. Current implementation
+  source 0b6b0e18 is under existing CI 42804826909 and Any host 42804827105;
+  neither current run is claimed green before completion.
