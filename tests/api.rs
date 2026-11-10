@@ -228,6 +228,23 @@ async fn refused_handshakes_never_flood_the_log() {
 }
 
 #[tokio::test]
+async fn an_explicit_tier_is_served_or_refused_by_name() {
+    let e = env().await;
+    for tier in ["process", "wasm"] {
+        let mut spec = spec_json();
+        spec["isolation"] = tier.into();
+        let response = e.call("PUT", "/v1/workloads/tier", Some(spec)).await;
+        assert_eq!(response.status, StatusCode::UNPROCESSABLE_ENTITY);
+        let fields = response.json()["error"]["details"]["fields"].clone();
+        assert_eq!(fields[0]["field"], "isolation");
+        assert!(fields[0]["problem"].as_str().unwrap().contains(tier));
+    }
+    let mut spec = spec_json();
+    spec["isolation"] = "container".into();
+    assert_eq!(e.call("PUT", "/v1/workloads/tier", Some(spec)).await.status, StatusCode::CREATED);
+}
+
+#[tokio::test]
 async fn malformed_requests_get_the_protocols_errors() {
     let e = env().await;
     let path = "/v1/workloads/w1";

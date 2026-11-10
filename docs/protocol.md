@@ -810,3 +810,11 @@ and backpressure. Output retains the existing per-stream bound and truncation fl
 command timeout includes waiting for a queue and still kills the verified container process
 tree. Disconnecting HTTP does not cancel command containment or authorize a second execution.
 The v1 wire retains this endpoint. Control and SDK commands use the sandbox agent.
+
+### Isolation selection
+
+A node announcing `multi-tier` accepts the optional workload-spec field `isolation`
+(`container`, `process` or `wasm`). Clients send it only after seeing that feature.
+An omitted field uses the node's configured default. An explicit unsupported tier is
+refused with field `isolation` and the tier's name; it is never replaced by another tier.
+Omitting the field keeps the existing spec record and digest unchanged.

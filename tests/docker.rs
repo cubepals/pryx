@@ -276,9 +276,9 @@ async fn the_memory_limit_is_hard_and_an_oom_kill_is_reported() {
     const OOM_SCORE_ADJ_MAX: i32 = 1000;
     let mut spec = shell(
         &format!(
-            "sleep 1; mkfifo /tmp/oom-input /tmp/oom-observed || exit 1; head -c 400m /dev/zero > /tmp/oom-input & \
+            "sleep 1; mkfifo /tmp/oom-input /tmp/oom-observed || exit 1; head -c 400m /dev/zero > /tmp/oom-input & producer=$!; \
              sh -c 'echo {OOM_SCORE_ADJ_MAX} > /proc/self/oom_score_adj || exit 1; exec tail /tmp/oom-input' > /dev/null & \
-             allocator=$!; wait \"$allocator\"; status=$?; \
+             allocator=$!; wait \"$allocator\"; status=$?; wait \"$producer\"; \
              read -r observed < /tmp/oom-observed || exit 1; exit \"$status\""
         ),
         64,

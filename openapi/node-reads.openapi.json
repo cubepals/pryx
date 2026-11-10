@@ -283,6 +283,15 @@
         ],
         "type": "object"
       },
+      "Isolation": {
+        "description": "The backend a workload asks for. An omitted choice retains the host's default.",
+        "enum": [
+          "container",
+          "process",
+          "wasm"
+        ],
+        "type": "string"
+      },
       "NetworkMode": {
         "enum": [
           "internet",
@@ -771,6 +780,18 @@
             "default": "",
             "description": "An image reference. Must match the host's `allowed_images` prefixes.",
             "type": "string"
+          },
+          "isolation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Isolation"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Sent only after the node announces multi-tier."
           },
           "labels": {
             "additionalProperties": {

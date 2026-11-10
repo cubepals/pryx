@@ -8,7 +8,7 @@ Only recorded CI evidence establishes completion; a local pass alone does not.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | K19 | done | `b535d24b95ab2046aa6178fdc1d2683640ce2544` | [42777018303](https://github.com/cubepals/pryx/actions/runs/42777018303), green including aggregate | Real hosted KVM, full Rust and Docker suites, CLI doctor, default-profile image probes, non-root API refusal, full end-to-end attacks, one-box/Action/Python, Wasm, two-node, upstream integrations and recovery; local checks below | Live paid-provider provisioning and publication; neither is authorized | None | None |
 | K20 | done | `54bd364` | Normal CI 42832474233 and Any host 42832474296, both green | All 13 host jobs: 8 user distro contexts, root container/PG UID, fallback, refusal, sudo, relocation; full normal CI including real Docker/KVM, one-box/Action, Wasm, 2-node, Rivet/celld and recovery | Production main/release prohibited; unchanged credentialed cloud/bootstrap cases skipped | None | Complete; proceed to K21 |
-| K21 | not started | — | — | — | All | — | Complete brief after K20 |
+| K21 | in progress | — | — | Context and routing/contract design | Mixed-tier implementation and acceptance | None | Build router, placement, doctors and real mixed-tier acceptance |
 | K22 | not started | — | — | — | All | — | Complete brief after K21 |
 | K23 | not started | — | — | — | All | — | Complete brief after K22 |
 | K24 | not started | — | — | — | All | — | Complete brief after K23 |
@@ -465,3 +465,6 @@ job when publication is authorized. That job has not run in this task.
   release-signed remote-bootstrap cases are skipped without configured credentials;
   production main/release execution remains forbidden. This documentation checkpoint
   records the validated source rather than claiming its own future CI result.
+
+- K20 documentation checkpoint eb16949: all 13 Any host jobs in 42840518448 pass; normal CI 42840518632 core job 129914265051 fails the preserved Docker OOM exit assertion (OOM true, exit 1 instead of SIGKILL). Kernel evidence identifies the allocating tail as the victim. Investigate the remaining FIFO producer SIGCHLD/read interruption; no full-job rerun or relaxed assertion. K21 contract work is in progress while this cause is corrected.
+- K21 first contract step: optional tier selection, named single-tier refusal and generated node reads are implemented; legacy spec/record digest fixtures still pass. Full local Rust: 423 pass, 16 existing ignored. Full Bun: 389 pass, one existing skip, 8,162 assertions. Strict Clippy, Rust/TypeScript structure and formatting pass. A real Alpine FIFO transport probe preserves allocator SIGKILL status 137 after producer reaping; this is not hard-memory proof on the local cgroup-less engine. Router and mixed-tier CI acceptance remain open.

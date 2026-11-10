@@ -19,6 +19,14 @@ impl Manager {
         precondition: Precondition,
         epoch: Option<u64>,
     ) -> Result<EnsureResponse, NodeError> {
+        if let Some(tier) = spec.isolation
+            && tier.as_str() != self.runtime.isolation()
+        {
+            return Err(NodeError::Invalid(vec![FieldError {
+                field: "isolation".into(),
+                problem: format!("this host does not serve the {} tier", tier.as_str()),
+            }]));
+        }
         spec.validate(&self.spec_policy()).map_err(NodeError::Invalid)?;
         if (spec.agent.is_some() || spec.spare_ports.is_some()) && self.agent_binary().is_none() {
             return Err(NodeError::Invalid(vec![FieldError {

@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
-// Generated from openapi/node-reads.openapi.json; sha256 7f7c811b3d6ef61f25c80dc3f057cff9ac6597c550dc2513a2b58d4889902dab.
+// Generated from openapi/node-reads.openapi.json; sha256 15d638d678bd70caf9aa09230749a02772c6857ca507a38ba45cd145c87e970b.
 export type paths = Record<string, never>;
 export type webhooks = Record<string, never>;
 export interface components {
@@ -137,6 +137,11 @@ export interface components {
              */
             upgrade?: components["schemas"]["UpgradeOffer"] | null;
         };
+        /**
+         * @description The backend a workload asks for. An omitted choice retains the host's default.
+         * @enum {string}
+         */
+        Isolation: "container" | "process" | "wasm";
         /** @enum {string} */
         NetworkMode: "internet" | "none";
         /**
@@ -357,6 +362,11 @@ export interface components {
              * @default
              */
             image?: string;
+            /**
+             * @description Sent only after the node announces multi-tier.
+             * @default null
+             */
+            isolation?: components["schemas"]["Isolation"] | null;
             /** @default {} */
             labels?: {
                 [key: string]: string;

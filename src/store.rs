@@ -454,6 +454,7 @@ pub(crate) mod tests {
             generation: 1,
             phase: Phase::Active,
             spec: SpecRecord {
+                isolation: None,
                 packages: Vec::new(),
                 agent: None,
                 spare_ports: None,

@@ -92,6 +92,7 @@ pub(crate) const FEATURES: &[&str] = &[
     "cpu-reservation",
     "workload-options",
     "workload-metrics",
+    "multi-tier",
 ];
 
 impl ProtocolVersions {
