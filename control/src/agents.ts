@@ -103,6 +103,7 @@ export class Agents {
     let mountsPending = false
     if (row.state === 'running') {
       const deadline = Date.now() + 5 * SECOND_MS
+      let retryMs = SECOND_MS / 100
       let ready = false
       let last = 'no response'
       while (Date.now() < deadline) {
@@ -127,7 +128,9 @@ export class Agents {
           if (error instanceof SandboxError && error.code === 'unsupported') throw error
           last = error instanceof Error ? error.name : 'transport failure'
         }
-        await pause(SECOND_MS / 100)
+        // A cold route must not spend the edge's connection allowance before its client arrives.
+        await pause(Math.min(retryMs, Math.max(0, deadline - Date.now())))
+        retryMs = Math.min(retryMs * 2, SECOND_MS)
       }
       if (!ready) {
         console.error('Agent token readiness failed', {

@@ -767,7 +767,20 @@ jobs:
 
       - name: Service journals on failure
         if: failure()
-        run: sudo journalctl -u pryx-control -u pryx-edge -u pryx-postgres -u pryx-store -u pryxd --no-pager -n 150
+        run: |
+          sudo journalctl -u pryx-control -u pryx-edge -u pryx-postgres -u pryx-store -u pryxd --no-pager -n 150
+          bun -e '
+            import { edgeConfig } from "./edge/src/config.ts"
+            import { SECOND_MS } from "./control/src/durations.ts"
+            const config = edgeConfig({ PRYX_EDGE_TOKEN: "diagnostics".repeat(4) })
+            try {
+              const response = await fetch("http://" + config.metricsHost + ":" + config.metricsPort + "/metrics", {
+                signal: AbortSignal.timeout(5 * SECOND_MS),
+              })
+              if (!response.ok) throw new Error("Metrics unavailable")
+              console.log(await response.text())
+            } catch { console.log("Edge metrics unavailable") }
+          '
 
   image:
     name: Release image builds
