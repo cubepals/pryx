@@ -22,17 +22,32 @@ jobs:
           persist-credentials: false
       - name: Release compilation space
         run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+      - name: Create an isolated preview signing identity
+        run: |
+          openssl genpkey -algorithm ED25519 -out "$RUNNER_TEMP/preview.key"
+          openssl pkey -in "$RUNNER_TEMP/preview.key" -pubout -out "$RUNNER_TEMP/preview.pub"
       - name: Build the same programs as the release image
         run: |
           started=$(date +%s)
-          docker build --target bundle -t pryx-host-bundle .
+          docker build --target bundle --build-arg "PRYX_PREVIEW_PUBLIC_KEY=$(cat "$RUNNER_TEMP/preview.pub")" -t pryx-host-bundle .
           mkdir host-artifacts
           id=$(docker create pryx-host-bundle)
           docker cp "$id:/bundle/." host-artifacts/
           docker rm -v "$id"
+          docker run --rm --entrypoint /bin/sh pryx-host-bundle -c 'cat /source/deploy/postgresql.json' > host-artifacts/postgresql.json
+          docker run --rm --entrypoint /usr/local/bin/pryx pryx-host-bundle --version
+          echo "Bundle build: $(($(date +%s)-started)) seconds" | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile
+      - name: Sign the preview archive and finish its manifest
+        run: |
+          bun control/tools/bundle-sign.ts host-artifacts "$RUNNER_TEMP/preview.key"
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)
+          sed "s/__PRYX_VERSION__/$version/g" deploy/install.sh > host-artifacts/install.sh
           (cd host-artifacts && sha256sum -- * > SHA256SUMS)
           du -h host-artifacts/* | tee -a "$GITHUB_STEP_SUMMARY"
-          echo "Bundle build: $(($(date +%s)-started)) seconds" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Relocation in the image userland
         run: |
           docker run --rm --entrypoint /bin/sh \
@@ -95,3 +110,49 @@ jobs:
           compression-level: 0
           if-no-files-found: error
           retention-days: 7
+
+
+  containers:
+    name: Ordinary user in ${{ matrix.distro }} Docker
+    needs: bundle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: Debian
+            image: debian:trixie-slim@sha256:7378260c0a098d27ac206225db5e7d92b8c7c84ea7afccc86eeb513756bbd392
+          - distro: Ubuntu
+            image: mirror.gcr.io/library/ubuntu:24.04@sha256:78d4744ead1f5b19b04d0df558ab182a5300903900755e515b2ca4d10eb2044d
+          - distro: Fedora
+            image: registry.fedoraproject.org/fedora:44@sha256:acb5e2218545b173cb73206435c64cb43d493df508b9d875c2dff1c44c82867f
+          - distro: Alpine
+            image: mirror.gcr.io/library/alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: host-bundle-preview-*
+          merge-multiple: true
+          path: host-parts
+      - name: Verify and reconstruct the release transport
+        run: |
+          (cd host-parts && sha256sum -c PARTS.sha256)
+          cat host-parts/part? > host-transport.tar
+          sha256sum -c host-parts/TRANSPORT.sha256
+          mkdir host-artifacts
+          tar -xf host-transport.tar -C host-artifacts
+          (cd host-artifacts && sha256sum -c SHA256SUMS)
+      - name: One command, hello, repeat, upgrade and purge
+        env:
+          TEST_IMAGE: ${{ matrix.image }}
+        run: |
+          docker run --rm \
+            --mount "type=bind,source=$PWD/host-artifacts,target=/artifacts,readonly" \
+            --mount "type=bind,source=$PWD/deploy/container-acceptance.sh,target=/container-acceptance.sh,readonly" \
+            --mount "type=bind,source=$PWD/deploy/local-acceptance.sh,target=/local-acceptance.sh,readonly" \
+            "$TEST_IMAGE" sh /container-acceptance.sh | tee acceptance.txt
+          cat acceptance.txt >> "$GITHUB_STEP_SUMMARY"

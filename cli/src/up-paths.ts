@@ -16,6 +16,7 @@ export type LocalPaths = {
   bootstrap: string
   unit: string
   client: string
+  operation: string
 }
 export function ownedPath(path: string, home: string, uid = process.getuid?.()) {
   const below = relative(home, resolve(path))
@@ -61,6 +62,7 @@ export function userPaths(env = process.env, home = realpathSync(homedir())): Lo
     bootstrap: join(home, '.local/share/pryx-cli'),
     unit: join(base('XDG_CONFIG_HOME', '.config'), 'systemd/user/pryx.service'),
     client: env.PRYX_CONFIG ?? join(base('XDG_CONFIG_HOME', '.config'), 'pryx/client.json'),
+    operation: join(home, '.pryx-operation.sqlite'),
   }
   for (const path of Object.values(paths)) ownedPath(path, home)
   return paths
@@ -77,5 +79,6 @@ export function containerPaths(): LocalPaths {
     bootstrap: '/opt/pryx/cli',
     unit: '/etc/pryx-local/no-user-unit',
     client: process.env.PRYX_CONFIG ?? join(homedir(), '.config/pryx/client.json'),
+    operation: '/opt/pryx/operation.sqlite',
   }
 }

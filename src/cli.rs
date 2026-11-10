@@ -9,11 +9,13 @@
 //! - `join.rs`: makes a host a node of the fleet a pasted token names, from the token alone.
 //! - `reenroll.rs`: swaps an enrolled node's identity, and its fleet CA, for one under the same id.
 //! - `port_reservation.rs`: reserves configured host ports from outgoing ephemeral allocation.
+//! - `local_stop.rs`: authenticated local compute cleanup after the node stops.
 //! - `service.rs`: what join asks of systemd, and of the pryxd it starts.
 //! - `upgrade.rs`: `pryxd upgrade`, the control plane's pryxd at once; the upgrade itself is
 //!   `crate::upgrade`.
 
 pub mod join;
+pub mod local_stop;
 pub mod port_reservation;
 pub(crate) mod reenroll;
 pub(crate) mod service;

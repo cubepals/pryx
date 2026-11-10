@@ -9,6 +9,7 @@ import { PRYX_VERSION } from '../../control/src/generated/release.ts'
 import { BOOTSTRAP_SIGNATURE_ASSET, BOOTSTRAP_SIGNATURE_SUFFIX } from '../../control/src/join-bootstrap.ts'
 import type { OperatorToken } from '../../control/src/operator-api.ts'
 import { ensureBucket } from '../../control/src/store-bootstrap.ts'
+import { capabilitySummary, hostProbe } from '../../deploy/host-probe.ts'
 import nodeSchema from '../../openapi/node-writes.openapi.json'
 import { callerHomeAndDropPrivileges, writeClientConfig } from './client-config.ts'
 import { option } from './sandbox.ts'
@@ -70,7 +71,8 @@ async function until(work: () => Promise<boolean>, what: string) {
 }
 export async function up(args: string[]) {
   const saved = args.includes('--check') ? {} : readEnvironment('/etc/pryx/control.env')
-  const domain = option(args, '--domain') ?? saved.PRYX_PUBLIC_DOMAIN ?? 'localhost'
+  const domain =
+    option(args, '--domain') ?? saved.PRYX_PUBLIC_DOMAIN ?? process.env.PRYX_DOMAIN ?? 'localhost'
   if (saved.PRYX_PUBLIC_DOMAIN && saved.PRYX_PUBLIC_DOMAIN !== domain)
     throw new Error('The existing domain is immutable; migrate public address assignments before changing it')
   if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]*$/.test(domain)) throw new Error('--domain is a DNS hostname')
@@ -253,7 +255,7 @@ export async function up(args: string[]) {
   const report = {
     version: PRYX_VERSION,
     domain,
-    api: 'http://127.0.0.1:8082',
+    api: control.PRYX_PUBLIC_URL ?? 'http://127.0.0.1:8082',
     units: ['pryx-postgres', 'pryx-store', 'pryx-control', 'pryx-edge', 'pryxd'],
     undo: [
       'systemctl disable --now pryx-edge pryx-control pryxd pryx-store pryx-postgres',
@@ -263,6 +265,8 @@ export async function up(args: string[]) {
       'Docker and nftables remain installed; Docker daemon.json remains configured',
     ],
   }
+  const probe = await hostProbe('/usr/local/bin/pryxd')
+  console.log(JSON.stringify({ tiers: ['container'], capabilities: capabilitySummary(probe) }, null, 2))
   const home = callerHomeAndDropPrivileges()
   const credentialPath = writeClientConfig(
     { url: report.api, key: control.PRYX_BOOTSTRAP_API_KEY as string },

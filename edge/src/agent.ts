@@ -68,6 +68,7 @@ export async function startEdge(config: EdgeConfig = edgeConfig()) {
     return result
   })
   const agents = new SandboxProxy(table, hold, config.holdMs)
+  if (config.publicOrigin) agents.useControl(config.control)
   if (config.agentTlsCert && config.agentTlsKey) {
     const [cert, key] = await Promise.all([
       readFile(config.agentTlsCert, 'utf8'),
@@ -94,6 +95,15 @@ export async function startEdge(config: EdgeConfig = edgeConfig()) {
         bufferBytes: config.bufferBytes,
         metrics,
         session: report,
+        ...(kind === 'http' && config.publicOrigin
+          ? {
+              control: {
+                destination: agents.destination() as string,
+                paths: /^\//,
+                hostname: new URL(config.publicOrigin).hostname,
+              },
+            }
+          : {}),
       }),
     )
   }

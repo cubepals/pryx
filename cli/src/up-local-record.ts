@@ -80,7 +80,13 @@ export function supervisor(record: LocalInstallation) {
     identity.state !== record.paths.state
   )
     return
-  const argv = readFileSync(`/proc/${identity.pid}/cmdline`, 'utf8').split('\0')
+  let argv: string[]
+  try {
+    argv = readFileSync(`/proc/${identity.pid}/cmdline`, 'utf8').split('\0')
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+    throw error
+  }
   if (!argv.includes(join(record.bundle, 'bin/pryx-image.real')))
     throw new Error('Supervisor process identity differs; no signal was sent')
   return identity

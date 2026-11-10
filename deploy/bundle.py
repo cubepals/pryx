@@ -159,6 +159,9 @@ def main():
                 ('/usr/bin/tini', 'tini')]:
             bundle.executable(source, 'bin/' + target)
         bundle.library('/usr/lib/x86_64-linux-gnu/libnss_wrapper.so')
+        for name in ['pryxd.sig', 'pryxd.bootstrap.sig']:
+            if Path('/' + name).exists():
+                shutil.copy2('/' + name, bundle.root / 'bin' / name)
         bundle.closure('/usr/lib/x86_64-linux-gnu/libnss_wrapper.so')
         shutil.copytree('/usr/local/lib/pryx/agentos', bundle.root / 'agentos')
         shutil.copytree('/opt/pryx/control', bundle.root / 'control')

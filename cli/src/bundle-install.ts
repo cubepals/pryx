@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Privately stage a signature-verified host release, then move it into its digest directory.
  * State, credentials and the active installation record are not changed here. */
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync } from 'node:fs'
+import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { PRYX_VERSION } from '../../control/src/generated/release.ts'
 import { bundleFiles } from './bundle-download.ts'
@@ -78,7 +78,19 @@ export function retainBundle(paths: LocalPaths, staged: Awaited<ReturnType<typeo
   mkdirSync(directory, { recursive: true, mode })
   // Every staging operation has a new directory even when a preview reuses the release version.
   const bundle = join(directory, `${staged.digest}-${crypto.randomUUID()}`)
-  renameSync(staged.unpacked, bundle)
+  try {
+    renameSync(staged.unpacked, bundle)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EXDEV') throw error
+    // The cache and data XDG directories may live on different filesystems.
+    const next = `${bundle}.next`
+    try {
+      cpSync(staged.unpacked, next, { recursive: true, errorOnExist: true, force: false })
+      renameSync(next, bundle)
+    } finally {
+      rmSync(next, { recursive: true, force: true })
+    }
+  }
   chmodSync(bundle, mode)
   rmSync(staged.temporary, { recursive: true, force: true })
   return bundle

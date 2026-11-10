@@ -15,7 +15,7 @@ without an engine or added privileges. A usable Docker socket selects container 
 provided tier with `isolation`; they cannot enable a missing host runtime. Wasm refuses an image
 and accepts optional `packages` registry names instead. See [tiers.md](tiers.md) for the measured
 default and capabilities and [agentos.md](agentos.md) for persistence and ingress limits.
-The existing host installer and four-command README quickstart remain available.
+The [one-command installer](install.md) runs the same supervisor as an ordinary user or provisions a systemd server as root.
 
 Docker creates the image's state volume automatically. For a named persistent volume:
 

@@ -41,7 +41,15 @@ WantedBy=default.target
 `
 }
 async function command(args: string[]) {
-  const child = Bun.spawn(args, { stdin: 'ignore', stdout: 'ignore', stderr: 'pipe' })
+  const child = Bun.spawn(args, {
+    env: {
+      ...process.env,
+      XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR ?? `/run/user/${process.getuid?.()}`,
+    },
+    stdin: 'ignore',
+    stdout: 'ignore',
+    stderr: 'pipe',
+  })
   const timer = setTimeout(() => child.kill('SIGKILL'), MINUTE_MS / 2)
   try {
     const [stderr, code] = await Promise.all([new Response(child.stderr).text(), child.exited])
@@ -50,7 +58,7 @@ async function command(args: string[]) {
     clearTimeout(timer)
   }
 }
-export async function startUserUnit(paths: LocalPaths, probe: HostProbe, previousLinger = false) {
+export async function prepareUserUnit(paths: LocalPaths, probe: HostProbe, previousLinger = false) {
   if (probe.capabilities['user-session']?.state !== 'on' || !Bun.which('systemctl'))
     return {
       enabled: false,
@@ -95,10 +103,7 @@ export async function startUserUnit(paths: LocalPaths, probe: HostProbe, previou
   mkdirSync(dirname(paths.unit), { recursive: true, mode: 0o700 })
   createPrivateFile(paths.unit, userUnit(paths), true)
   const reload = await command(['systemctl', '--user', '--no-ask-password', 'daemon-reload'])
-  const started =
-    reload.ok &&
-    (await command(['systemctl', '--user', '--no-ask-password', 'enable', '--now', paths.unit])).ok
-  if (!started)
+  if (!reload.ok)
     return {
       enabled: false,
       enabledLinger,
@@ -106,6 +111,9 @@ export async function startUserUnit(paths: LocalPaths, probe: HostProbe, previou
         'The user unit could not start; inspect systemctl --user status pryx. Keep the foreground supervisor running',
     }
   return { enabled: true, enabledLinger, action: 'systemctl --user status pryx' }
+}
+export async function startUserUnit(paths: LocalPaths) {
+  return (await command(['systemctl', '--user', '--no-ask-password', 'enable', '--now', paths.unit])).ok
 }
 export async function stopUserUnit(paths: LocalPaths, removeLinger: boolean) {
   const stopped = await command([

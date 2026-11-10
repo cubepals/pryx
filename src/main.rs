@@ -42,6 +42,13 @@ enum LogFormat {
 
 #[derive(Subcommand)]
 enum Command {
+    #[command(hide = true)]
+    LocalStop {
+        #[arg(long)]
+        config: PathBuf,
+        #[arg(long)]
+        purge: bool,
+    },
     /// Report measured host capabilities without modifying host configuration.
     Probe {
         #[arg(long)]
@@ -191,6 +198,7 @@ fn main() -> ExitCode {
     }
     let cli = Cli::parse();
     let result = match cli.command {
+        Command::LocalStop { config, purge } => pryxd::cli::local_stop::command(&config, purge),
         Command::ProbeUserNamespace => pryxd::probe::user_namespace_child(),
         Command::ProbeKvm => pryxd::probe::kvm_child(),
         Command::ProbeSeparateUsers => pryxd::probe::separate_users_child(),

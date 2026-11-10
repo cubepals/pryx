@@ -2,7 +2,7 @@
 /** Bounded release downloads and digest checks. An authenticated archive is still staged
  * privately; this module never activates a bundle or opens a public listener. */
 import { createHash } from 'node:crypto'
-import { createWriteStream, readFileSync } from 'node:fs'
+import { createWriteStream, existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import { HOST_BUNDLE } from '../../control/src/bundle-release.ts'
@@ -14,6 +14,23 @@ const MAX_BUNDLE_BYTES = 1024 ** 3
 const MAX_MANIFEST_BYTES = 64 * 1024
 export const releaseBase = () =>
   process.env.PRYX_RELEASE_BASE_URL ?? `https://github.com/cubepals/pryx/releases/download/v${PRYX_VERSION}`
+export async function selectedRelease(upgrading: boolean, source?: string) {
+  if (source || !upgrading || process.env.PRYX_RELEASE_BASE_URL) {
+    const file = source && join(source, 'VERSION')
+    const version = file && existsSync(file) ? readFileSync(file, 'utf8').trim() : PRYX_VERSION
+    if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Invalid release version')
+    return { version, base: releaseBase() }
+  }
+  const response = await fetch('https://api.github.com/repos/cubepals/pryx/releases/latest', {
+    headers: { accept: 'application/vnd.github+json' },
+    signal: AbortSignal.timeout(MINUTE_MS),
+  })
+  if (!response.ok) throw new Error('The latest release could not be resolved; current state was kept')
+  const release = (await response.json()) as { tag_name?: string }
+  const version = /^v(\d+\.\d+\.\d+)$/.exec(release.tag_name ?? '')?.[1]
+  if (!version) throw new Error('The latest release has an unsupported version; current state was kept')
+  return { version, base: `https://github.com/cubepals/pryx/releases/download/v${version}` }
+}
 function secure(url: URL, loopback: boolean) {
   return (
     !url.username &&

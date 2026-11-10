@@ -18,6 +18,7 @@ RUN cargo build --locked --release \
  && file target/release/pryxd | grep -q 'static' || { file target/release/pryxd; exit 1; }
 
 FROM oven/bun:1.4.4@sha256:3f23864d3e8c923975c61971cabe67ee3d5a728f1e25a559256b95af719a3478 AS javascript
+ARG PRYX_PREVIEW_PUBLIC_KEY
 WORKDIR /src
 COPY package.json bun.lock ./
 COPY control control

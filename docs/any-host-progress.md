@@ -165,3 +165,36 @@ job summary before claiming the final release cost.
   into independently checksummed 256-MiB parts, retaining the original archive bytes
   and both runtime smokes. This adds no PR gate; actual elapsed cost remains to be
   measured. Installer dispatch and lifecycle commands remain unfinished.
+- Factory-move source f3945f44 now has full green existing CI 42796115176.
+  Lifecycle foundation fb0f6ca3 has green Any host 42801855499; its actual bundle
+  build takes 790 seconds and produces a 531-MiB runtime plus 58-MiB bootstrap.
+  The split preview artifacts download through the connector; the first transported
+  ZIP is also streamed locally and matches GitHub's artifact SHA-256. Preserve the
+  earlier oversize and native redirect failures.
+- K20 installer dispatch is connected: user/container bundle setup, optional user
+  manager/linger, foreground supervision, authenticated upgrades, owned-process stop
+  and backend compute cleanup before purge. install.sh preflights then starts up,
+  never escalating an ordinary account; PRYX_NO_UP installs only the CLI. Production
+  release packaging/signing is configured without accessing a release secret or
+  publishing anything. Preview builds compile an isolated public fixture key.
+- The README and install guide use one-command installation. Domainless servers
+  reuse edge path aliases on loopback; server placement retains enforced namespace
+  and CPU/memory requirements without relaxing daemon unit hardening. Existing
+  domain-based one-box assertions remain and now run the sudo one-command bootstrap.
+- Local dispatch implementation passes 382 Bun tests, one existing skip and 8,135
+  assertions, complete Rust tests (421 passed, 16 existing ignored), strict all-target
+  Clippy, fmt, both structure gates, actual CLI compilation/version, documentation,
+  release generation, Python compilation, actionlint and standalone ShellCheck.
+  These do not establish distribution acceptance. The new four-cell ordinary-user
+  Docker matrix checks the real one command, hello, read-only check, repeat key
+  suppression, state/credential retention across upgrade, and purge. Its result is
+  pending. The booted-system/user-unit matrix and remaining hardening are unfinished.
+
+K20 added CI cost at this checkpoint: four separate free hosted matrix cells have
+20-minute ceilings, estimated 3–8 minutes each after the shared bundle build. They
+run weekly and on any-host pushes, adding zero minutes to a pull request's ordinary
+gate. Existing one-box changes replace its two installer commands with one sudo
+bootstrap and add read-only preflight/probe work, estimated under one minute.
+Production release packaging reuses its already built signed image; its measured
+archive sizes and actual additional packaging time will be reported by the release
+job when publication is authorized. That job has not run in this task.

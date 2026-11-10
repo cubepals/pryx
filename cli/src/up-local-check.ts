@@ -23,9 +23,9 @@ export async function inspectLocal(preset: Preset, bundle = process.env.PRYX_BUN
       'The release agent could not probe filesystem confinement; check its executable and host permissions',
     )
   const filesystem = (JSON.parse(result.stdout.toString()) as { filesystem: boolean }).filesystem === true
-  const engine = probe.capabilities.docker?.state === 'on'
-  const firewall = probe.capabilities['host-firewall']?.state
-  const canContainer = preset === 'container' && engine && (firewall === 'on' || firewall === 'off')
+  // A mounted engine socket alone cannot prove that its bind paths and network belong
+  // to this container. Keep image workloads refused until that relationship is measured.
+  const canContainer = false
   if (process.env.PRYX_DEFAULT_TIER === 'container' && !canContainer)
     throw new Error(
       'Container tier needs the engine and host firewall permissions; run the server preset on the host or select the process tier',
@@ -43,7 +43,7 @@ export async function inspectLocal(preset: Preset, bundle = process.env.PRYX_BUN
         `deployment_id = "pryx"\nruntime = "wasm"\nstate_dir = ${JSON.stringify(join(temporary, 'node'))}\n[wasm]\ndistribution = ${JSON.stringify(join(bundle, 'agentos'))}\n`,
         { mode: 0o600, flag: 'wx' },
       )
-      const doctor = Bun.spawnSync([binary, 'doctor', '--config', config], {
+      const doctor = Bun.spawnSync([binary, 'doctor', '--preflight', '--config', config], {
         env,
         stdin: 'ignore',
         stdout: 'pipe',

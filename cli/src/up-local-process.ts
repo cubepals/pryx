@@ -54,7 +54,11 @@ export async function localReady(record: LocalInstallation, child?: Bun.Subproce
     if (
       identity?.ready &&
       readClientConfig(record.clientConfig) &&
-      (await fetch(`${record.apiUrl}/healthz`).catch(() => undefined))?.ok
+      (
+        await fetch(`${record.apiUrl}/healthz`, { signal: AbortSignal.timeout(2 * SECOND_MS) }).catch(
+          () => undefined,
+        )
+      )?.ok
     )
       return
     await Bun.sleep(SECOND_MS / 10)
