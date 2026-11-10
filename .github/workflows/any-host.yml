@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 defaults:
   run:
@@ -20,12 +21,18 @@ jobs:
     name: Bundle runtime acceptance
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    outputs:
+      parts: ${{ steps.transport.outputs.count }}
+      manifest: ${{ steps.transport.outputs.manifest }}
+      transport: ${{ steps.transport.outputs.transport }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Release compilation space
         run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+      - name: Artifact acquisition rejects incomplete reads
+        run: bash deploy/host-artifacts.test.sh
       - name: Create an isolated preview signing identity
         run: |
           openssl genpkey -algorithm ED25519 -out "$RUNNER_TEMP/preview.key"
@@ -74,7 +81,11 @@ jobs:
           sha256sum host-transport.tar > host-parts/TRANSPORT.sha256
           count=$(find host-parts -name 'part*' -type f | wc -l)
           test "$count" -le 4
-          echo "count=$count" >> "$GITHUB_OUTPUT"
+          {
+            echo "count=$count"
+            echo "manifest=$(sha256sum host-parts/PARTS.sha256 | cut -d ' ' -f1)"
+            echo "transport=$(sha256sum host-transport.tar | cut -d ' ' -f1)"
+          } >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: host-bundle-preview-0
@@ -146,11 +157,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          pattern: host-bundle-preview-*
-          merge-multiple: true
-          path: host-parts
+      - name: Fetch every producing-job archive part
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRYX_EXPECTED_PARTS: ${{ needs.bundle.outputs.parts }}
+          PRYX_PARTS_MANIFEST: ${{ needs.bundle.outputs.manifest }}
+          PRYX_TRANSPORT_DIGEST: ${{ needs.bundle.outputs.transport }}
+        run: bash deploy/host-artifacts.sh
       - name: Verify and reconstruct the release transport
         run: |
           (cd host-parts && sha256sum -c PARTS.sha256)
@@ -207,11 +220,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          pattern: host-bundle-preview-*
-          merge-multiple: true
-          path: host-parts
+      - name: Fetch every producing-job archive part
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRYX_EXPECTED_PARTS: ${{ needs.bundle.outputs.parts }}
+          PRYX_PARTS_MANIFEST: ${{ needs.bundle.outputs.manifest }}
+          PRYX_TRANSPORT_DIGEST: ${{ needs.bundle.outputs.transport }}
+        run: bash deploy/host-artifacts.sh
       - name: Verify and reconstruct the release transport
         run: |
           (cd host-parts && sha256sum -c PARTS.sha256)
@@ -234,11 +249,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          pattern: host-bundle-preview-*
-          merge-multiple: true
-          path: host-parts
+      - name: Fetch every producing-job archive part
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRYX_EXPECTED_PARTS: ${{ needs.bundle.outputs.parts }}
+          PRYX_PARTS_MANIFEST: ${{ needs.bundle.outputs.manifest }}
+          PRYX_TRANSPORT_DIGEST: ${{ needs.bundle.outputs.transport }}
+        run: bash deploy/host-artifacts.sh
       - name: Verify and reconstruct the release transport
         run: |
           (cd host-parts && sha256sum -c PARTS.sha256)

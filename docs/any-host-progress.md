@@ -7,7 +7,7 @@ Only recorded CI evidence establishes completion; a local pass alone does not.
 | Milestone | Status | Finishing commit | CI proof | Ran | Did not run | Parked and why | Left |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | K19 | done | `b535d24b95ab2046aa6178fdc1d2683640ce2544` | [42777018303](https://github.com/cubepals/pryx/actions/runs/42777018303), green including aggregate | Real hosted KVM, full Rust and Docker suites, CLI doctor, default-profile image probes, non-root API refusal, full end-to-end attacks, one-box/Action/Python, Wasm, two-node, upstream integrations and recovery; local checks below | Live paid-provider provisioning and publication; neither is authorized | None | None |
-| K20 | in progress | — | Normal CI 42812398328 green; Any host 42812398279 partial | Signed relocatable bundle/bootstrap, four Docker hellos, GNU Wasm fallback, domainless sudo, unchanged unsupported host, local upgrade/purge | Complete booted/user-unit, matrix upgrade/purge and root-container checks; production release prohibited | None | Prove readiness/PATH/policy corrections and all current matrix cells |
+| K20 | in progress | — | Any host 42822883979 and 42825207287 green; normal CI 42820324770 green; latest verification pending | All 13 host cells including booted user units, root PostgreSQL UID, upgrade/key/data/purge, Wasm fallback, refusal, sudo; local 389 Bun and 421 Rust tests | Full workflows on atomic-key and artifact-read corrections; production release prohibited | None | Verify bounded artifact acquisition and finish current complete CI |
 | K21 | not started | — | — | — | All | — | Complete brief after K20 |
 | K22 | not started | — | — | — | All | — | Complete brief after K21 |
 | K23 | not started | — | — | — | All | — | Complete brief after K22 |
@@ -416,3 +416,27 @@ job when publication is authorized. That job has not run in this task.
   existing skip, 8,162 assertions, generated contracts/docs/release checks, typecheck
   and unchanged TypeScript structure. All implementation changes remain on any-host;
   no production release, key, tag, version or repository setting was changed.
+- Any host 42826946692 exposes an artifact-service availability race before eight
+  cells can run: the action lists all three IDs then cannot fetch some IDs, or
+  reports success after downloading only part 0. Root hashes reject missing parts.
+  Read every failure: jobs 129876514110, 129876514137, 129876514208, 129876514227,
+  129876514257, 129876514280, 129876514337 and 129876514368. Do not count those cells
+  as installer failures or passes, and do not replay whole jobs to hide the outage.
+- Fetch exact expected artifact names through pinned GitHub CLI's maintained REST
+  client, with bounded read backoff and fresh staging per attempt. Producing-job
+  outputs pin the part count, manifest digest and transport digest; all original
+  reconstruction, archive and installation checks remain. Only artifacts and their
+  source hashes are retried, never installation or another mutating operation.
+- Native fixture checks reject a successful but incomplete download, retry missing
+  artifacts and corrupted bytes, and never publish a bad transport after the retry
+  budget. The official GitHub CLI 2.103.3 archive is downloaded, its owner-published
+  SHA-256 verified, and its real executable reports the pinned version. REST artifact
+  acquisition with the workflow token still requires hosted proof.
+- ShellCheck, actionlint and whitespace checks pass for the new helper and workflow.
+  It adds an approximately one-second fixture check and 5–15 seconds per successful
+  matrix cell for the pinned CLI/read setup, with bounded outage backoff (a 120s
+  per-part deadline plus one in-flight 30s read). It adds no ordinary PR minutes or
+  required job; standard free hosted job ceilings remain 20/25 minutes.
+- Read b1037a7's aggregate failure 129875204433: it reports the already recorded
+  Docker OOM job failure; its other jobs complete. The corrected FIFO source passes
+  that same real Docker assertion without a test, limit or deadline reduction.
