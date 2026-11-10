@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Launch and stop a managed supervisor. Readiness needs its owned identity record after
  * gateway binding, so an unrelated listener cannot impersonate a successful startup. */
-import { constants as osConstants } from 'node:os'
 import { join } from 'node:path'
 import { MINUTE_MS, SECOND_MS } from '../../control/src/durations.ts'
+import { PARENT_DEATH_SIGNAL } from '../../deploy/image-state.ts'
 import { readClientConfig } from './client-config.ts'
 import { type LocalInstallation, supervisor } from './up-local-record.ts'
 
@@ -38,7 +38,7 @@ export function launchLocal(record: LocalInstallation) {
       '-s',
       '-g',
       '-p',
-      String(osConstants.signals.SIGTERM),
+      PARENT_DEATH_SIGNAL,
       '--',
       join(record.bundle, 'bin/pryx-image'),
     ],

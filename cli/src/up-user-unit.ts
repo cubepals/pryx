@@ -58,7 +58,12 @@ async function command(args: string[]) {
     clearTimeout(timer)
   }
 }
-export async function prepareUserUnit(paths: LocalPaths, probe: HostProbe, previousLinger = false) {
+export async function prepareUserUnit(
+  paths: LocalPaths,
+  probe: HostProbe,
+  previousLinger = false,
+  onLinger?: () => void,
+) {
   if (probe.capabilities['user-session']?.state !== 'on' || !Bun.which('systemctl'))
     return {
       enabled: false,
@@ -98,6 +103,7 @@ export async function prepareUserUnit(paths: LocalPaths, probe: HostProbe, previ
           'Linger was refused; an administrator can run loginctl enable-linger for this user. Keep the foreground supervisor running',
       }
     enabledLinger = true
+    onLinger?.()
   }
   // createPrivateFile renames atomically and never follows a destination link.
   mkdirSync(dirname(paths.unit), { recursive: true, mode: 0o700 })
@@ -126,7 +132,10 @@ export async function stopUserUnit(paths: LocalPaths, removeLinger: boolean) {
   ])
   if (!stopped.ok) throw new Error('Could not stop the pryx user unit; inspect systemctl --user status pryx')
   if (removeLinger) {
-    const linger = await command(['loginctl', '--no-ask-password', 'disable-linger'])
-    if (!linger.ok) throw new Error('Could not remove pryx-enabled linger; inspect loginctl before purging')
+    await disableUserLinger()
   }
+}
+export async function disableUserLinger() {
+  const linger = await command(['loginctl', '--no-ask-password', 'disable-linger'])
+  if (!linger.ok) throw new Error('Could not remove pryx-enabled linger; inspect loginctl before purging')
 }

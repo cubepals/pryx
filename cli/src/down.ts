@@ -9,7 +9,7 @@ import { acquireLifecycle } from './up-local-lock.ts'
 import { localEnvironment, stopLocal } from './up-local-process.ts'
 import { readInstallation, readOwnedText } from './up-local-record.ts'
 import { selectPreset } from './up-preset.ts'
-import { stopUserUnit } from './up-user-unit.ts'
+import { disableUserLinger, stopUserUnit } from './up-user-unit.ts'
 
 export async function down(args: string[]) {
   const preset = selectPreset(option(args, '--preset'))
@@ -26,6 +26,7 @@ export async function down(args: string[]) {
     if (!record) return { stopped: true, removed }
     const purge = args.includes('--purge')
     if (record.userUnit) await stopUserUnit(paths, purge && record.enabledLinger)
+    else if (purge && record.enabledLinger) await disableUserLinger()
     await stopLocal(record)
     const config = join(paths.config, 'pryxd.toml')
     if (existsSync(config)) {

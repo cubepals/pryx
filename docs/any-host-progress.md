@@ -211,3 +211,19 @@ job when publication is authorized. That job has not run in this task.
   These add zero minutes to a pull request's ordinary gate. Current implementation
   source 0b6b0e18 is under existing CI 42804826909 and Any host 42804827105;
   neither current run is claimed green before completion.
+- Local signed-fixture acceptance reaches real staging, authenticates a separately
+  compiled preview key, and verifies the real staged Wasm distribution with doctor.
+  Its initial temporary doctor configuration lacked api and then standalone node_id;
+  both real failures are retained and the complete ephemeral TLS configuration passes.
+- The actual local Tini 0.19.0 rejects numeric -p 15. Correct both launch paths to its
+  documented SIGTERM name. The next run initializes and starts PostgreSQL 17.11 and
+  RustFS, then fails node enrollment because the local fixture replaced the release's
+  static daemon with a GNU build run through the loader: current_exe names the loader,
+  so Wasm's launcher copies the wrong executable. This is a fixture-format failure,
+  not a pass or a production static-daemon conclusion. Rebuild the real pinned musl
+  format before repeating it; do not change launcher hardening to hide the failure.
+- The incomplete local installation purges successfully before the next attempt.
+  Both complete Bun checks pass after the fallback/Tini corrections: 382 tests,
+  one existing skip, 8,135 assertions. Typecheck, structure, actionlint and whitespace
+  checks pass. A real occupied listener verifies default-port fallback and an explicit
+  privileged-port refusal. No full local install/hello pass is claimed yet.

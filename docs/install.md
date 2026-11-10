@@ -19,8 +19,8 @@ agent. Data, configuration, state and runtime sockets follow absolute XDG paths
 below home; defaults are `~/.local/share/pryx`, `~/.config/pryx`,
 `~/.local/state/pryx` and `~/.cache/pryx-runtime/pryx`. An XDG path escaping home
 is refused; the runtime falls back below home when `/run/user` is outside it.
-The service listens on loopback port 7331. Sandboxes use authenticated path aliases;
-a domain is optional. Process isolation requires enforceable Landlock ABI 3.
+The service listens on loopback port 7331, or another free unprivileged port when it is busy. Sandboxes use authenticated path aliases;
+a domain is optional. Process isolation requires enforceable Landlock ABI 3. On compatible GNU hosts without it, the user preset selects and reports Wasm instead; explicitly selected unsupported backends are refused.
 
 Where the systemd user manager and noninteractive linger authorization work, pryx
 installs `~/.config/systemd/user/pryx.service` and starts it. Otherwise the command

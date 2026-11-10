@@ -19,7 +19,6 @@ import {
   unlinkSync,
   writeFileSync,
 } from 'node:fs'
-import { constants as osConstants } from 'node:os'
 import { dirname, join } from 'node:path'
 import { FleetCa } from '../control/src/ca.ts'
 import { SECOND_MS } from '../control/src/durations.ts'
@@ -27,6 +26,8 @@ import { ensureBucket } from '../control/src/store-bootstrap.ts'
 import { bundleBinary, embeddedUser, postgresBinary, privateDirectory } from './local-layout.ts'
 
 export const IMAGE_NODE_CONFIG = 'pryxd.toml'
+// Tini 0.19.0's -p option accepts a signal name, as its --help documents.
+export const PARENT_DEATH_SIGNAL = 'SIGTERM' satisfies NodeJS.Signals
 function serviceIds() {
   return embeddedUser()
 }
@@ -119,7 +120,7 @@ export async function until(label: string, work: () => Promise<boolean>, seconds
 }
 export function supervisedCommand(args: string[]) {
   return process.env.PRYX_LOCAL_PRESET
-    ? [bundleBinary('tini', 'tini'), '-s', '-g', '-p', String(osConstants.signals.SIGTERM), '--', ...args]
+    ? [bundleBinary('tini', 'tini'), '-s', '-g', '-p', PARENT_DEATH_SIGNAL, '--', ...args]
     : args
 }
 export function serviceCommand(args: string[]) {

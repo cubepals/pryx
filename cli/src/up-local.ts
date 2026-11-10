@@ -9,6 +9,7 @@ import { option } from './sandbox.ts'
 import { activateCli, localDirectories, localSummary } from './up-local-activate.ts'
 import { inspectLocal } from './up-local-check.ts'
 import { acquireLifecycle } from './up-local-lock.ts'
+import { configuredPort, localPort } from './up-local-network.ts'
 import { followLocal, launchLocal, localReady, stopLocal } from './up-local-process.ts'
 import { type LocalInstallation, readInstallation, supervisor, writeInstallation } from './up-local-record.ts'
 import { containerPaths, userPaths } from './up-paths.ts'
@@ -41,6 +42,7 @@ export async function runInstalled(preset: Preset) {
 }
 export async function upLocal(args: string[], preset: 'user' | 'container', upgrading = false) {
   const paths = localPaths(preset)
+  const port = configuredPort()
   const initial = await inspectLocal(preset)
   // This probe and all path checks finish before the first persistent mutation.
   mkdirSync(paths.home, { recursive: true, mode: 0o755 })
@@ -76,7 +78,7 @@ export async function upLocal(args: string[], preset: 'user' | 'container', upgr
           bundle,
           preset,
           tier: checked.tier,
-          apiUrl: previous?.apiUrl ?? `http://127.0.0.1:${process.env.PORT ?? '7331'}`,
+          apiUrl: previous?.apiUrl ?? `http://127.0.0.1:${await localPort(port)}`,
           clientConfig: paths.client,
           paths,
           userUnit: false,
@@ -92,8 +94,13 @@ export async function upLocal(args: string[], preset: 'user' | 'container', upgr
       await localSummary(record, record.userUnit ? 'systemctl --user status pryx' : action)
       return
     }
+    writeInstallation(record)
     if (preset === 'user') {
-      const unit = await prepareUserUnit(paths, initial.probe, record.enabledLinger)
+      const current = record
+      const unit = await prepareUserUnit(paths, initial.probe, record.enabledLinger, () => {
+        current.enabledLinger = true
+        writeInstallation(current)
+      })
       record.userUnit = unit.enabled
       record.enabledLinger = unit.enabledLinger
       action = unit.action
