@@ -7,11 +7,13 @@
 //! microVM backend would be a third, and the protocol would not change.
 //!
 //! Parts (`runtime/`):
+//! - `configured.rs`: construction from host-owned backend settings.
 //! - `docker.rs`: the Docker Engine API, over the local unix socket.
 //! - `fake.rs`: an in-memory runtime for tests, with the Docker behaviour pryxd depends on.
 //! - `wasm.rs`: virtual agentOS VMs through a separately verified sidecar.
 //! - `process.rs`: namespace-free process tier and private runtime journal.
 
+pub mod configured;
 pub mod docker;
 #[cfg(any(test, feature = "fake"))]
 pub mod fake;

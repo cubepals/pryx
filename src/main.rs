@@ -22,8 +22,6 @@ use pryxd::config::{Config, FleetConfig, Mode, RuntimeKind, TlsConfig};
 use pryxd::fleet::identity::{Credentials, Identity};
 use pryxd::manager::{Manager, Records};
 use pryxd::metrics::Metrics;
-use pryxd::runtime::ContainerRuntime;
-use pryxd::runtime::docker::DockerRuntime;
 use pryxd::store::Store;
 use pryxd::upgrade::Upgrader;
 use pryxd::upgrade::backstop::Backstop;
@@ -345,26 +343,6 @@ fn publish_addresses(config: &Config) -> Vec<IpAddr> {
     publish
 }
 
-async fn container_runtime(config: &Config) -> anyhow::Result<Arc<dyn ContainerRuntime>> {
-    let runtime: Arc<dyn ContainerRuntime> = if config.runtime == RuntimeKind::Wasm {
-        Arc::new(pryxd::runtime::wasm::WasmRuntime::new(&config.state_dir, &config.wasm).await?)
-    } else if config.runtime == RuntimeKind::Process {
-        Arc::new(pryxd::runtime::process::ProcessRuntime::new(&config.state_dir, config.process.clone())?)
-    } else {
-        let docker = DockerRuntime::new(&config.docker.socket)?.with_native_tools(
-            config.docker.native_tools_seccomp.as_deref(),
-            config.docker.native_fuse,
-            config.docker.native_tools_apparmor.as_deref(),
-        )?;
-        if config.store_lease.enabled {
-            docker.check_store_lease().await?;
-            pryxd::store_lease::check_policy(&config.state_dir, true)?;
-        }
-        Arc::new(docker)
-    };
-    Ok(runtime)
-}
-
 async fn serve(path: &Path) -> anyhow::Result<()> {
     let boot = Instant::now();
     let mut config = Config::load(path)?;
@@ -407,7 +385,7 @@ async fn serve(path: &Path) -> anyhow::Result<()> {
     if !config.store_lease.enabled {
         pryxd::store_lease::check_policy(&config.state_dir, false)?;
     }
-    let runtime = container_runtime(&config).await?;
+    let runtime = pryxd::runtime::configured::create(&config).await?;
     let publish = publish_addresses(&config);
     let manager = Manager::new(config.clone(), runtime, store, Arc::new(Metrics::new()), ports::bind_probe(publish));
     manager.refresh_host_probe().await;
