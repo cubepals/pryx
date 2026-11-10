@@ -337,3 +337,16 @@ job when publication is authorized. That job has not run in this task.
   differs from the original signed artifact's modes. Restore those modes directly
   from the original archive before retesting; no production archive check is relaxed.
   Hosted root-container acceptance at e976866 has not finished.
+- Native systemd-analyze 257.13 reproduces the booted user-unit failure independently:
+  the generated quoted WorkingDirectory value is rejected as non-absolute and the
+  unit has a fatal setting error. Remove that redundant setting, retaining systemd's
+  user-service default directory; the corrected generated unit passes real --user
+  verification. Full validation and hosted startup remain pending for this correction.
+- With original artifact modes restored, the local root-container test reaches
+  authenticated readiness and hello in 126s, proves its actual PostgreSQL process UID
+  matches the bundle's nonzero service UID, and runs the future-login PATH check.
+  Upgrade and purge are still running; this rootless-engine workspace is local
+  evidence only and uses Wasm because its process confinement probe is unavailable.
+- The corrected user unit passes native systemd verification and complete local Bun
+  validation: 388 tests, one existing skip, 8,159 assertions. No service-unit
+  hardening was removed. Its real booted-system acceptance must still pass in CI.

@@ -27,7 +27,6 @@ export function userUnit(paths: LocalPaths) {
 Description=pryx personal sandbox service
 [Service]
 ExecStart=${quote(join(paths.bootstrap, 'bin/pryx'), true)} up --preset user --run-installed
-WorkingDirectory=${quote(paths.home)}
 ${Object.entries(environment)
   .map(([key, value]) => `Environment=${quote(`${key}=${value}`)}`)
   .join('\n')}
