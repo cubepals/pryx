@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Activate only an authenticated release. Bootstrap shortcuts are atomic files pointing at
  * immutable bundles; sandbox state and older releases remain available across upgrades. */
-import { existsSync, mkdirSync, readFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { capabilitySummary, hostProbe } from '../../deploy/host-probe.ts'
 import { createPrivateFile } from '../../deploy/image-state.ts'
@@ -12,16 +12,16 @@ import type { LocalPaths } from './up-paths.ts'
 
 const shellQuote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`
 export function localDirectories(paths: LocalPaths) {
-  for (const path of [paths.data, paths.config, paths.state, paths.cache, paths.runtime])
-    mkdirSync(path, {
-      recursive: true,
-      mode:
-        process.getuid?.() === 0 && path === paths.data
-          ? 0o755
-          : process.getuid?.() === 0 && path === paths.runtime
-            ? 0o711
-            : 0o700,
-    })
+  for (const path of [paths.data, paths.config, paths.state, paths.cache, paths.runtime]) {
+    const mode =
+      process.getuid?.() === 0 && path === paths.data
+        ? 0o755
+        : process.getuid?.() === 0 && path === paths.runtime
+          ? 0o711
+          : 0o700
+    mkdirSync(path, { recursive: true, mode })
+    if (process.getuid?.() === 0) chmodSync(path, mode)
+  }
 }
 export function activateCli(record: LocalInstallation) {
   const executable = join(record.paths.bootstrap, 'bin/pryx')

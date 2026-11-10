@@ -76,6 +76,7 @@ export function retainBundle(paths: LocalPaths, staged: Awaited<ReturnType<typeo
   if (process.getuid?.() !== 0) ownedPath(directory, paths.home)
   const mode = process.getuid?.() === 0 ? 0o755 : 0o700
   mkdirSync(directory, { recursive: true, mode })
+  if (process.getuid?.() === 0) chmodSync(directory, mode)
   // Every staging operation has a new directory even when a preview reuses the release version.
   const bundle = join(directory, `${staged.digest}-${crypto.randomUUID()}`)
   try {

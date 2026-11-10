@@ -327,3 +327,13 @@ job when publication is authorized. That job has not run in this task.
   assertions, plus typecheck, generated contracts/docs, TypeScript structure,
   actionlint/ShellCheck and whitespace checks. The real registry restart regression
   passes against PostgreSQL; no source is declared hosted-green before its next run.
+- Local root-container acceptance exposes initdb permission denial. Inspecting actual
+  installed paths shows the inherited private umask reduced intended public release
+  and service traversal directories to 0700. Explicitly set the managed root data/
+  release parents to 0755 and runtime parent to 0711; private paths remain 0700.
+  Full Bun validation passes 388 tests, one existing skip, 8,159 assertions.
+- The second local root test also identifies a fixture error: its earlier unprivileged
+  extraction applied umask 077 to PostgreSQL wrappers and library directories. This
+  differs from the original signed artifact's modes. Restore those modes directly
+  from the original archive before retesting; no production archive check is relaxed.
+  Hosted root-container acceptance at e976866 has not finished.

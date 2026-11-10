@@ -31,15 +31,20 @@ trap cleanup EXIT HUP INT TERM
 installer_pid=$!
 ready() {
   log=$1
+  parent=$2
   deadline=$(($(date +%s) + 180))
   while [ "$(date +%s)" -lt "$deadline" ]; do
     if grep -q '"apiUrl"' "$log" && [ -x "$cli" ]; then return; fi
+    if ! kill -0 "$parent" 2>/dev/null; then
+      echo "The installer exited before authenticated readiness during $phase" >&2
+      exit 1
+    fi
     sleep 1
   done
   echo 'The installer did not reach authenticated readiness; private logs retained in the test account' >&2
   exit 1
 }
-ready "$HOME/install.log"
+ready "$HOME/install.log" "$installer_pid"
 python3 - "$config/installation.json" <<'PY'
 import json, os, pathlib, sys
 r = json.loads(pathlib.Path(sys.argv[1]).read_text())
@@ -74,7 +79,7 @@ pryx sandbox cp "$HOME/kept" "$box:kept"
 phase=upgrade
 pryx upgrade > "$HOME/upgrade.log" 2>&1 &
 upgrade_pid=$!
-ready "$HOME/upgrade.log"
+ready "$HOME/upgrade.log" "$upgrade_pid"
 [ "$(pryx config key | sha256sum)" = "$key_before" ]
 if grep -q '"apiKey"' "$HOME/upgrade.log"; then echo 'Upgrade repeated the first key' >&2; exit 1; fi
 phase=restore
