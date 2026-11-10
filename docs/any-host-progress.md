@@ -62,5 +62,11 @@ diagnostics (under one minute on failure). No new required job is added.
 - Follow-up socket correction: inaccessible engine paths remain unknown and a user-session
   socket must accept a connection. Real socket/symlink-loop regression and full Rust suite
   pass (421 tests, 16 existing ignored), preserving all previous acceptance assertions.
-  The bootstrap run completed before cancellation was requested; its end-to-end and
+  The bootstrap run completed without cancellation; its end-to-end and
   one-box jobs pass, and its aggregate fails only because of the recorded Docker OOM case.
+- CI at `61115513b4bac6b8ab962035bb5e21d903ef4d54`, run
+  https://github.com/cubepals/pryx/actions/runs/42773196810, stops at the existing
+  comment-attribution grep because a progress-note sentence matches it. Reword the
+  sentence without changing the gate. The move commit's run already passes real KVM
+  permission setup, the complete Rust suite and the real CLI doctor check; remaining
+  Docker/image acceptance is still required.
