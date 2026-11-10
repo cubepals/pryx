@@ -10,6 +10,38 @@ parts: `pryxd`, the daemon on each host (`src/`, Rust); the control service (`co
 TypeScript on Bun, Postgres); and the edge (`edge/`, TypeScript on Bun). A node never decides what
 should run; control does. Control never touches a host but through `pryxd`'s API.
 
+## How pryx decides
+
+pryx adapts to the host. The host never has to adapt to pryx. These rules come before any
+feature, and [docs/any-host.md](docs/any-host.md) is the plan that follows from them.
+
+- **One command.** Installing pryx is one command that asks nothing, on every host pryx supports.
+  The installer finds out where it is and takes the preset for it. A change that adds a step, a
+  question or a required flag to installing is refused unless nothing else can work.
+- **Presets, not options.** What differs between hosts is a named preset with one command in the
+  documentation: an ordinary user with no root, a container, a server with root, a host with KVM,
+  a node joining a fleet. A person names a preset only to overrule what was detected. A new
+  setting takes its value from the host and stays off the first screen.
+- **Rootless first.** A capability is built first to run as an ordinary user. Root, Docker, KVM
+  and other host features turn on more: stronger isolation, images, virtual machines. None of
+  them is needed for pryx to start.
+- **Everything, by tier.** pryx aims to be the most complete sandbox platform: processes,
+  containers, WebAssembly and virtual machines; shells, files, ports, browsers, desktops, SSH,
+  mounts and interpreters. What a host can't give is off on that host alone, and pryx says which
+  capability, why, and what would turn it on.
+- **Never a weaker guarantee in silence.** A request that names an isolation or a capability gets
+  it, or a refusal that names what is missing. pryx chooses a backend only when the request left
+  the choice open, and says which it chose.
+- **Wrap, don't hand-roll.** A browser, a virtual machine monitor, a desktop server, a container
+  runtime, a language kernel: pryx wraps a maintained open-source one, at a pinned version, with
+  its licence recorded in `docs/decisions.md` before it is used. Copyleft software runs as a
+  separate program and is never linked or copied in. Writing our own needs a reason that no
+  existing project answers, written in the same file.
+- **Decide, record, go on.** Whoever makes a change takes the engineering decisions these rules
+  leave open, records each in `docs/decisions.md` (one line: the choice and why) and continues. A
+  maintainer is asked only about money, a licence that changes what pryx may ship, and anything
+  that can't be undone.
+
 ## The protocol only adds
 
 - **The Rust types are the node protocol.** `openapi/` is generated from them
@@ -140,5 +172,9 @@ Only what was checked against the code and is wrong:
 ### The rules above
 - A protocol change that renames or removes within v1, or a new request field sent before it is
   announced in `features`. Cubepals' code linked. A business number in the code.
+- A step, a question or a required flag added to installing. Root, Docker or KVM made a condition
+  of pryx starting. A requested isolation or capability replaced by a weaker one without a
+  refusal. Something hand-written that a maintained open-source project already does, or a
+  dependency used before its licence is recorded.
 
 Never: praise, a summary of the diff, style, or anything CI already reports.
