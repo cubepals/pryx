@@ -39,6 +39,7 @@ pub struct FakeContainer {
 }
 
 pub struct FakeRuntime {
+    isolation: crate::protocol::Isolation,
     containers: Mutex<HashMap<String, FakeContainer>>,
     available: AtomicBool,
     next_id: AtomicU64,
@@ -69,6 +70,7 @@ impl Default for FakeRuntime {
 impl FakeRuntime {
     pub fn new() -> Self {
         Self {
+            isolation: crate::protocol::Isolation::Container,
             containers: Mutex::new(HashMap::new()),
             available: AtomicBool::new(true),
             next_id: AtomicU64::new(1),
@@ -82,6 +84,11 @@ impl FakeRuntime {
             follows: std::sync::Arc::new(()),
             hang_unpause: AtomicBool::new(false),
         }
+    }
+
+    pub fn with_isolation(mut self, isolation: crate::protocol::Isolation) -> Self {
+        self.isolation = isolation;
+        self
     }
 
     pub fn set_available(&self, up: bool) {
@@ -166,6 +173,16 @@ impl FakeRuntime {
 
 #[async_trait]
 impl ContainerRuntime for FakeRuntime {
+    fn isolation(&self) -> &'static str {
+        self.isolation.as_str()
+    }
+    fn is_process(&self) -> bool {
+        self.isolation == crate::protocol::Isolation::Process
+    }
+    fn is_wasm(&self) -> bool {
+        self.isolation == crate::protocol::Isolation::Wasm
+    }
+
     async fn info(&self) -> Result<RuntimeInfo, RuntimeError> {
         self.up()?;
         Ok(self.runtime_info.lock().unwrap().clone())
@@ -204,7 +221,12 @@ impl ContainerRuntime for FakeRuntime {
         if all.contains_key(&spec.name) {
             return Err(RuntimeError::Conflict(format!("the name {} is in use", spec.name)));
         }
-        let id = format!("{:064x}", self.next_id.fetch_add(1, Ordering::SeqCst));
+        let sequence = self.next_id.fetch_add(1, Ordering::SeqCst);
+        let id = if self.isolation == crate::protocol::Isolation::Container {
+            format!("{sequence:064x}")
+        } else {
+            format!("{}-{sequence:064x}", self.isolation.as_str())
+        };
         let container = FakeContainer {
             id: id.clone(),
             spec: spec.clone(),

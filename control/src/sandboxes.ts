@@ -228,7 +228,7 @@ export class Sandboxes {
     const node = ref?.node ? await getNode(this.db, ref.node) : null
     return {
       name: row.spec.name,
-      guarantees: guarantees(node?.features ?? []),
+      guarantees: guarantees(node?.features ?? [], row.spec.isolation ?? 'container'),
       labels: row.spec.labels,
       metadata: row.spec.metadata,
       workdir: row.spec.workdir ?? undefined,

@@ -41,3 +41,40 @@ test('policy fields cannot disappear on a node lacking their feature', async () 
   await api.put(node, 'box', spec, 1)
   await api.put(node, 'box', { ...spec, network: 'internet' }, 1)
 })
+
+test('tier selection reaches only announcing nodes and cannot inherit another tier guarantees', async () => {
+  const bodies: Record<string, unknown>[] = []
+  const api = new WorkloadApi({
+    async call<T>(...args: unknown[]): Promise<T> {
+      bodies.push((args[3] as { body: Record<string, unknown> }).body)
+      return {} as T
+    },
+  })
+  const node = { id: 'node', api_address: 'https://node.test', features: [] as string[] }
+  await api.put(node, 'box', { ...spec, isolation: 'container' }, 1)
+  expect(bodies[0]).not.toHaveProperty('isolation')
+  await api.put(
+    { ...node, features: ['process-tier'] },
+    'box',
+    { ...spec, isolation: 'process', image: '' },
+    1,
+  )
+  expect(bodies[1]).not.toHaveProperty('isolation')
+  const features = ['multi-tier', 'tier-container', 'tier-process', 'cpu-limit', 'tier-container:cpu-limit']
+  await api.put({ ...node, features }, 'box', { ...spec, isolation: 'process', image: '' }, 1)
+  expect(bodies[2]?.isolation).toBe('process')
+  await expect(
+    api.put(
+      { ...node, features },
+      'box',
+      {
+        ...spec,
+        isolation: 'process',
+        image: '',
+        require: ['cpu-limit'],
+      },
+      1,
+    ),
+  ).rejects.toThrow('cpu-limit')
+  expect(bodies).toHaveLength(3)
+})

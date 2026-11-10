@@ -8,8 +8,9 @@
  * node's reason, so a refusal can say why and a decision can be replayed from its inputs.
  */
 
+import { guarantees as tierGuarantees } from './guarantees.ts'
 import type { Health } from './health.ts'
-import { CPU_LIMIT_PROBLEM, nodeIsolation } from './isolation.ts'
+import { CPU_LIMIT_PROBLEM, nodeIsolations } from './isolation.ts'
 import type { RuntimeSpec } from './runtime-model.ts'
 
 type Policy = 'balanced' | 'binpack' | 'spread'
@@ -123,11 +124,14 @@ function refusal(node: NodeView, request: PlacementRequest, options: PlacementOp
   if (node.quarantined) return 'quarantined: duplicate identity'
   if (node.health !== 'healthy') return `health ${node.health}`
   if (node.regionKey !== request.regionKey) return `region ${node.regionKey}`
-  const guarantees = request.require?.filter((name) => !node.features.includes(name)) ?? []
+  const guarantees =
+    request.require?.filter(
+      (name) => !tierGuarantees(node.features, request.isolation ?? 'container')[name],
+    ) ?? []
   if (guarantees.length) return `lacks required guarantees: ${guarantees.join(', ')}`
-  if ((request.isolation ?? 'container') !== nodeIsolation(node.features))
-    return 'isolation tier does not match'
-  if (request.cpuLimits && nodeIsolation(node.features) !== 'container') return CPU_LIMIT_PROBLEM
+  if (!nodeIsolations(node.features).includes(request.isolation ?? 'container'))
+    return `isolation tier ${request.isolation ?? 'container'} does not match`
+  if (request.cpuLimits && (request.isolation ?? 'container') !== 'container') return CPU_LIMIT_PROBLEM
   const missing = request.needs.filter((f) => !node.features.includes(f))
   if (missing.length > 0) return `lacks ${missing.join(', ')}`
   const memoryFree = node.capacity.allocatableMemoryMb - node.running.memoryMb - options.headroomMb
@@ -232,7 +236,9 @@ export function selectNode(
   const fits: Fit[] = []
   for (const node of nodes) {
     const why = refusal(node, request, options)
-    const missingGuarantees = request.require?.filter((name) => !node.features.includes(name))
+    const missingGuarantees = request.require?.filter(
+      (name) => !tierGuarantees(node.features, request.isolation ?? 'container')[name],
+    )
     considered.push({
       node: node.id,
       name: node.name,

@@ -327,9 +327,12 @@ export class FleetRuntime implements SandboxRuntime {
         workload: key,
         data: { considered: chosen.considered },
       })
-      throw new RuntimeFull(this.provider, describe(chosen.considered), [
-        ...new Set(chosen.considered.flatMap((node) => node.missingGuarantees ?? [])),
-      ])
+      throw new RuntimeFull(
+        this.provider,
+        describe(chosen.considered),
+        [...new Set(chosen.considered.flatMap((node) => node.missingGuarantees ?? []))],
+        spec.isolation,
+      )
     }
     if (chosen.unfinished) {
       const moved = await this.#rehoming.finish(chosen.row, spec, progress)

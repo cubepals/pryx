@@ -818,3 +818,10 @@ A node announcing `multi-tier` accepts the optional workload-spec field `isolati
 An omitted field uses the node's configured default. An explicit unsupported tier is
 refused with field `isolation` and the tier's name; it is never replaced by another tier.
 Omitting the field keeps the existing spec record and digest unchanged.
+
+Nodes advertise `tier-container`, `tier-process` and/or `tier-wasm` for the tiers
+they serve. A mixed node retains its legacy default marker (`process-tier` or
+`wasm-tier`) and qualifies enforcement features as `tier-<isolation>:<guarantee>`.
+New control planes use these scoped features for both placement and sandbox views.
+The optional record and recovery-label field `isolation` pins the backend across
+restarts, including when the original spec omitted its choice.

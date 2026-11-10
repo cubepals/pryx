@@ -65,6 +65,7 @@ function toWorkloadSpec(spec: RuntimeSpec, features: readonly string[]): Workloa
   const { cpuReservationMillis, ...resources } = spec.resources
   return {
     image: spec.image,
+    ...(features.includes('multi-tier') && spec.isolation ? { isolation: spec.isolation } : {}),
     ...(features.includes('wasm-packages') && spec.packages ? { packages: [...spec.packages] } : {}),
     ...(spec.agent ? { agent: spec.agent, sparePorts: spec.sparePorts } : {}),
     ...(features.includes('network-policy') && spec.network ? { network: spec.network } : {}),

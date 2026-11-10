@@ -114,7 +114,7 @@ impl Manager {
                 spec
             }
         };
-        if let Err(problems) = spec.validate(&self.spec_policy()) {
+        if let Err(problems) = spec.validate(&self.spec_policy(self.record_runtime(record).ok()?.as_ref())) {
             tracing::warn!(
                 workload = %record.id,
                 deferred = %pending.spec_digest,

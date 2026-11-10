@@ -16,7 +16,7 @@ import { SECOND_MS } from './durations.ts'
 import { addresses, DEFAULT_EDGE_PORT_RANGE } from './edge-addresses.ts'
 import { shownState } from './edge-routed.ts'
 import { PRYX_VERSION } from './generated/release.ts'
-import { nodeIsolation } from './isolation.ts'
+import { nodeIsolations } from './isolation.ts'
 import type { MountSpec, NativeMounts } from './native-mounts.ts'
 import { complete, fingerprint, operation } from './operations.ts'
 import { UNIT_DEFAULTS, unitSpec } from './project-model.ts'
@@ -285,7 +285,7 @@ export class PublicModel {
     )
     for (const t of templates)
       for (const n of nodes) {
-        if ((t.spec.isolation ?? this.defaultIsolation) !== nodeIsolation(n.features)) continue
+        if (!nodeIsolations(n.features).includes(t.spec.isolation ?? this.defaultIsolation)) continue
         const id = randomUUID()
         await this.db.execute(
           sql`INSERT INTO template_copies(template,node,sandbox) VALUES(${t.id},${n.id},${id}) ON CONFLICT DO NOTHING`,

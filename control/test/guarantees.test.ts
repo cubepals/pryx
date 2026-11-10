@@ -40,3 +40,18 @@ test('public create names a missing guarantee and leaves compute untouched', asy
     await c.close()
   }
 })
+
+test('an unavailable named tier is refused by name without contacting compute', async () => {
+  const c = await publicContext()
+  try {
+    const before = c.nodes.calls.length
+    const response = await c.request('/sandboxes', 'POST', { isolation: 'wasm' })
+    expect(response.status).toBe(StatusCodes.SERVICE_UNAVAILABLE)
+    const body = await response.json()
+    expect(body.error.code).toBe('no_room')
+    expect(body.error.message).toContain('wasm')
+    expect(c.nodes.calls.length).toBe(before)
+  } finally {
+    await c.close()
+  }
+})

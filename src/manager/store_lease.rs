@@ -31,7 +31,7 @@ impl Manager {
                 .map(String::from),
             );
         }
-        if self.agent_binary().is_some() {
+        if self.agent_binary(self.runtime.as_ref()).is_some() {
             features.push("agent".into());
         }
         if self.runtime.supports_hostname_egress() {
@@ -43,8 +43,27 @@ impl Manager {
         if self.runtime.supports_native_fuse() {
             features.push(pryx_agent::contract::FUSE_FEATURE.into());
         }
-        if self.config.store_lease.enabled {
+        if self.config.store_lease.enabled && self.runtime.tiers().contains(&"container") {
             features.push("store-lease".into());
+        }
+        for tier in self.runtime.tiers() {
+            features.push(format!("tier-{tier}"));
+            features.extend(
+                self.tier_guarantees(tier)
+                    .into_iter()
+                    .filter(|(_, on)| *on)
+                    .map(|(guarantee, _)| format!("tier-{tier}:{}", guarantee.feature())),
+            );
+            if tier == "wasm" && !features.iter().any(|feature| feature == "wasm-packages") {
+                features.push("wasm-packages".into());
+            }
+            if !features.iter().any(|feature| feature == "agent")
+                && let Some(tier) = crate::protocol::Isolation::from_name(tier)
+                && let Ok(runtime) = self.runtime_for(Some(tier))
+                && self.agent_binary(runtime.as_ref()).is_some()
+            {
+                features.push("agent".into());
+            }
         }
         features
     }
@@ -61,15 +80,20 @@ impl Manager {
     }
 
     pub(crate) fn guarantees(&self) -> BTreeMap<crate::protocol::Guarantee, bool> {
+        self.tier_guarantees(self.runtime.isolation())
+    }
+    pub(super) fn tier_guarantees(&self, tier: &str) -> BTreeMap<crate::protocol::Guarantee, bool> {
         use crate::protocol::Guarantee as G;
         let probe = self.host_probe.lock().unwrap();
         let info = self.runtime_info.lock().unwrap();
-        let container = self.runtime.isolation() == "container";
+        let tier_info = self.runtime.tier_info(tier);
+        let info = if self.runtime.multi_tier() { tier_info.as_ref() } else { info.as_ref() };
+        let container = tier == "container";
         G::ALL
             .into_iter()
             .map(|guarantee| {
                 let on = match guarantee {
-                    G::SeparateUsers => self.runtime.is_process() && probe.on("separate-users"),
+                    G::SeparateUsers => tier == "process" && probe.on("separate-users"),
                     G::MemoryLimit => container && info.as_ref().is_some_and(|info| info.memory_limit),
                     G::CpuLimit => container && info.as_ref().is_some_and(|info| info.cpu_limit),
                     G::PrivateNetwork | G::PrivatePids => container,
@@ -77,7 +101,7 @@ impl Manager {
                         container && info.as_ref().is_some_and(|info| !info.rootless) && probe.on("host-firewall")
                     }
                     G::MemorySleep => {
-                        !self.runtime.is_wasm()
+                        tier != "wasm"
                             && (!container || info.as_ref().is_some_and(|info| !info.rootless && info.memory_limit))
                     }
                     G::BrowserSandbox => {
@@ -90,7 +114,7 @@ impl Manager {
             .collect()
     }
     pub(super) fn require_store_lease(&self, record: &WorkloadRecord) -> Result<(), NodeError> {
-        if !self.config.store_lease.enabled {
+        if !self.uses_store_lease(record) {
             return Ok(());
         }
         let parent = crate::store_lease::guard::docker_parent(record.id.as_str(), record.epoch.unwrap_or_default());
@@ -128,7 +152,14 @@ impl Manager {
                 message: "Store lease is disabled on this host".into(),
             });
         }
-        check_epoch(&self.record(id)?, epoch, EpochRule::Exact)?;
+        let record = self.record(id)?;
+        if !self.uses_store_lease(&record) {
+            return Err(NodeError::Invalid(vec![FieldError {
+                field: "storeLease".into(),
+                problem: "store leases require container isolation".into(),
+            }]));
+        }
+        check_epoch(&record, epoch, EpochRule::Exact)?;
         Ok(StoreLeaseIdentity { session: self.store_lease_session.clone() })
     }
     pub(crate) async fn grant_store_lease(
@@ -190,6 +221,12 @@ impl Manager {
         let _guard = lock.lock().await;
         let record = self.record(&id)?;
         check_epoch(&record, epoch, EpochRule::Exact)?;
+        if !self.uses_store_lease(&record) {
+            return Err(NodeError::Invalid(vec![FieldError {
+                field: "storeLease".into(),
+                problem: "store leases require container isolation".into(),
+            }]));
+        }
         let epoch = record.epoch.ok_or_else(|| NodeError::Internal("Store leases require placement epochs".into()))?;
         let parent = crate::store_lease::guard::docker_parent(id.as_str(), epoch);
         if self
@@ -230,14 +267,16 @@ impl Manager {
             return Ok(());
         }
         for view in self.list(None) {
-            if matches!(view.state, WorkloadState::Running | WorkloadState::Suspended | WorkloadState::Restarting) {
+            if self.uses_store_lease(&self.record(&view.id)?)
+                && matches!(view.state, WorkloadState::Running | WorkloadState::Suspended | WorkloadState::Restarting)
+            {
                 self.kill(view.id, view.epoch).await?;
             }
         }
         Ok(())
     }
     pub(super) fn store_lease_issue(&self, record: &WorkloadRecord) -> Option<Issue> {
-        if !self.config.store_lease.enabled {
+        if !self.uses_store_lease(record) {
             return None;
         }
         self.store_leases

@@ -17,11 +17,11 @@ use crate::protocol::{
 use crate::runtime::AgentBoot;
 
 impl Manager {
-    pub(super) fn agent_binary(&self) -> Option<PathBuf> {
-        if !self.runtime.supports_agent() {
+    pub(super) fn agent_binary(&self, runtime: &dyn ContainerRuntime) -> Option<PathBuf> {
+        if !runtime.supports_agent() {
             return None;
         }
-        if self.runtime.is_wasm() {
+        if runtime.is_wasm() {
             return std::env::current_exe().ok();
         }
         let path = &self.config.workloads.agent_binary;
@@ -29,8 +29,7 @@ impl Manager {
         if !metadata.is_file()
             || metadata.mode() & 0o022 != 0
             || metadata.mode() & 0o111 == 0
-            || (metadata.uid() != rustix::process::geteuid().as_raw()
-                && !(self.runtime.is_process() && metadata.uid() == 0))
+            || (metadata.uid() != rustix::process::geteuid().as_raw() && !(runtime.is_process() && metadata.uid() == 0))
         {
             return None;
         }
@@ -40,7 +39,7 @@ impl Manager {
             if !metadata.is_dir()
                 || metadata.mode() & 0o022 != 0
                 || (metadata.uid() != rustix::process::geteuid().as_raw()
-                    && !(self.runtime.is_process() && metadata.uid() == 0))
+                    && !(runtime.is_process() && metadata.uid() == 0))
             {
                 return None;
             }
@@ -48,9 +47,9 @@ impl Manager {
         Some(path.clone())
     }
 
-    pub(super) fn requested_ports(&self, spec: &WorkloadSpec) -> Vec<PortSpec> {
+    pub(super) fn requested_ports(&self, spec: &WorkloadSpec, runtime: &dyn ContainerRuntime) -> Vec<PortSpec> {
         let mut ports = spec.ports.clone();
-        if self.agent_binary().is_some() {
+        if self.agent_binary(runtime).is_some() {
             let mut candidate = pryx_agent::contract::AGENT_PORT;
             for slot in 0..=self.spare_count(spec) {
                 while ports.iter().any(|p| p.protocol == Proto::Tcp && p.container_port == candidate) {
@@ -80,10 +79,11 @@ impl Manager {
         record: &WorkloadRecord,
         spec: &WorkloadSpec,
     ) -> Result<Option<(AgentBoot, String)>, NodeError> {
-        let Some(binary) = self.agent_binary() else { return Ok(None) };
+        let runtime = self.record_runtime(record)?;
+        let Some(binary) = self.agent_binary(runtime.as_ref()) else { return Ok(None) };
         let encoded = super::agent_keys::load(&self.config.state_dir, &record.id, record.epoch.unwrap_or_default())
             .map_err(|source| NodeError::Io { what: "sandbox signing material".into(), source })?;
-        let ports = self.requested_ports(spec);
+        let ports = self.requested_ports(spec, runtime.as_ref());
         let agent_port = ports
             .iter()
             .find(|p| p.name == AGENT_PORT_NAME)
@@ -112,14 +112,15 @@ impl Manager {
 
     pub(super) fn agent_view(&self, record: &WorkloadRecord, info: Option<&ContainerInfo>) -> Option<AgentView> {
         let info = info?;
+        let runtime = self.record_runtime(record).ok()?;
         let key_name = info.labels.get(KEY_LABEL)?;
         let key = SigningKey::from_encoded(info.env.get(key_name)?).ok()?;
         let port = |p: &AllocatedPort| AgentPort {
-            port: if self.runtime.uses_host_ports() { p.host_port } else { p.container_port },
+            port: if runtime.uses_host_ports() { p.host_port } else { p.container_port },
             host_port: p.host_port,
             endpoints: self.config.network.edge_ips.iter().map(|ip| endpoint(ip, p.host_port)).collect(),
         };
-        let data = pryx_agent::paths::DataDir::open(&self.runtime.data_path(&self.store.data_dir(&record.id))).ok();
+        let data = pryx_agent::paths::DataDir::open(&runtime.data_path(&self.store.data_dir(&record.id))).ok();
         let ports: pryx_agent::state::PortState = data
             .as_ref()
             .and_then(|d| pryx_agent::state::read(d, pryx_agent::state::PORTS_PATH).ok())

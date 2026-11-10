@@ -12,6 +12,8 @@ use crate::store::{AllocatedPort, RECORD_VERSION, WorkloadRecord};
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LabelRecord {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub isolation: Option<crate::protocol::Isolation>,
     pub version: u32,
     pub generation: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -25,6 +27,7 @@ pub struct LabelRecord {
 impl LabelRecord {
     pub(super) fn of(record: &WorkloadRecord) -> Self {
         Self {
+            isolation: record.isolation,
             version: RECORD_VERSION,
             generation: record.generation,
             epoch: record.epoch,

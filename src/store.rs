@@ -79,6 +79,9 @@ pub struct AllocatedPort {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkloadRecord {
+    /// Chosen once on mixed nodes; absent records retain the configured legacy backend.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub isolation: Option<crate::protocol::Isolation>,
     pub version: u32,
     pub id: WorkloadId,
     pub generation: u64,
@@ -449,6 +452,7 @@ pub(crate) mod tests {
 
     pub(crate) fn record(id: &str) -> WorkloadRecord {
         WorkloadRecord {
+            isolation: None,
             version: RECORD_VERSION,
             id: WorkloadId::parse(id).unwrap(),
             generation: 1,

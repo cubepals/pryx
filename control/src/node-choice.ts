@@ -67,7 +67,7 @@ export class NodeChoice {
         ...NEEDS,
         ...(spec.fuseMounts ? [agentContract['x-pryx-tools'].fuseFeature] : []),
         ...workloadFeatures(spec),
-        ...(spec.isolation === 'wasm' ? ['wasm-tier', 'wasm-packages'] : []),
+        ...(spec.isolation === 'wasm' ? ['wasm-packages'] : []),
         ...(spec.agent || (spec.sparePorts ?? 0) > 0 ? ['agent'] : []),
       ],
       avoid,

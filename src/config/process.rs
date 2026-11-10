@@ -8,6 +8,7 @@ use serde::Deserialize;
 pub enum RuntimeKind {
     #[default]
     Container,
+    Auto,
     Process,
     Wasm,
 }

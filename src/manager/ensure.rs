@@ -19,23 +19,18 @@ impl Manager {
         precondition: Precondition,
         epoch: Option<u64>,
     ) -> Result<EnsureResponse, NodeError> {
-        if let Some(tier) = spec.isolation
-            && tier.as_str() != self.runtime.isolation()
-        {
-            return Err(NodeError::Invalid(vec![FieldError {
-                field: "isolation".into(),
-                problem: format!("this host does not serve the {} tier", tier.as_str()),
-            }]));
-        }
-        spec.validate(&self.spec_policy()).map_err(NodeError::Invalid)?;
-        if (spec.agent.is_some() || spec.spare_ports.is_some()) && self.agent_binary().is_none() {
+        let lock = self.lock_for(&id);
+        let _guard = lock.lock().await;
+        let runtime = self.spec_runtime(&id, &spec)?;
+        spec.validate(&self.spec_policy(runtime.as_ref())).map_err(NodeError::Invalid)?;
+        if (spec.agent.is_some() || spec.spare_ports.is_some()) && self.agent_binary(runtime.as_ref()).is_none() {
             return Err(NodeError::Invalid(vec![FieldError {
                 field: "agent".into(),
                 problem: "the host has no trusted agent executable".into(),
             }]));
         }
         if spec.egress.is_some()
-            && (!self.runtime.supports_hostname_egress() || spec.network == crate::protocol::NetworkMode::None)
+            && (!runtime.supports_hostname_egress() || spec.network == crate::protocol::NetworkMode::None)
         {
             return Err(NodeError::Invalid(vec![crate::protocol::FieldError {
                 field: "egress".into(),
@@ -48,14 +43,12 @@ impl Manager {
                 problem: "user must match the host workload user policy".into(),
             }]));
         }
-        if spec.network == crate::protocol::NetworkMode::None && !self.runtime.supports_network_policy() {
+        if spec.network == crate::protocol::NetworkMode::None && !runtime.supports_network_policy() {
             return Err(NodeError::Invalid(vec![FieldError {
                 field: "network".into(),
                 problem: "the host has no network-policy feature".into(),
             }]));
         }
-        let lock = self.lock_for(&id);
-        let _guard = lock.lock().await;
         let started = Instant::now();
         let result = self.ensure_locked(&id, spec, precondition, epoch).await;
         self.metrics.operation("ensure", &result, started.elapsed());
@@ -98,7 +91,7 @@ impl Manager {
                     && info.as_ref().is_some_and(|i| {
                         i.labels.get(LABEL_DIGEST) == Some(&digest)
                             && secrets_match(i, &spec)
-                            && (!self.config.store_lease.enabled
+                            && (!self.uses_store_lease(&record)
                                 || i.cgroup_parent.as_deref()
                                     == Some(
                                         crate::store_lease::guard::docker_parent(
@@ -156,10 +149,11 @@ impl Manager {
         spec: &WorkloadSpec,
         keep: &[AllocatedPort],
     ) -> Result<Vec<AllocatedPort>, NodeError> {
+        let runtime = self.spec_runtime(id, spec)?;
         let mut state = self.state.lock().unwrap();
         let mut out = Vec::new();
         let mut fresh = Vec::new();
-        for p in &self.requested_ports(spec) {
+        for p in &self.requested_ports(spec, runtime.as_ref()) {
             let reused = keep.iter().find(|k| k.name == p.name && k.protocol == p.protocol).map(|k| k.host_port);
             let host_port = match reused {
                 Some(port) => port,
@@ -195,6 +189,7 @@ impl Manager {
     }
 
     fn container_spec(&self, record: &WorkloadRecord, spec: &WorkloadSpec) -> Result<ContainerSpec, NodeError> {
+        let runtime = self.record_runtime(record)?;
         let r = &spec.resources;
         let (min_weight, max_weight) = (i64::from(*CPU_WEIGHTS.start()), i64::from(*CPU_WEIGHTS.end()));
         let mut labels = spec.labels.clone();
@@ -218,7 +213,7 @@ impl Manager {
         Ok(ContainerSpec {
             packages: spec.packages.clone(),
             agent,
-            cgroup_parent: self.config.store_lease.enabled.then(|| {
+            cgroup_parent: self.uses_store_lease(record).then(|| {
                 crate::store_lease::guard::docker_parent(record.id.as_str(), record.epoch.unwrap_or_default())
             }),
             name: record.container_name.clone(),
@@ -246,7 +241,7 @@ impl Manager {
                 .iter()
                 .map(|p| {
                     let audience = self
-                        .requested_ports(spec)
+                        .requested_ports(spec, runtime.as_ref())
                         .iter()
                         .find(|s| s.name == p.name)
                         .map(|s| s.audience.clone())
@@ -278,8 +273,8 @@ impl Manager {
     /// generation, removed first.
     async fn make_container(&self, record: &WorkloadRecord, spec: &WorkloadSpec) -> Result<String, NodeError> {
         let pull = Duration::from_secs(self.config.docker.pull_timeout_seconds);
-        self.note(self.runtime.ensure_image(&spec.image, pull).await)?;
-        if self.config.store_lease.enabled {
+        self.note(self.record_runtime(record)?.ensure_image(&spec.image, pull).await)?;
+        if self.uses_store_lease(record) {
             crate::store_lease::guard::prepare(record.id.as_str(), record.epoch.unwrap_or_default())
                 .map_err(|_| NodeError::Internal("Cannot prepare lease cgroup".into()))?;
         }
@@ -321,6 +316,9 @@ impl Manager {
         let ports = self.allocate_ports(id, &spec, &[])?;
         let at = now_str();
         let mut record = WorkloadRecord {
+            isolation: Some(
+                crate::protocol::Isolation::from_name(self.spec_runtime(id, &spec)?.isolation()).expect("known tier"),
+            ),
             version: RECORD_VERSION,
             id: id.clone(),
             generation: 1,
@@ -345,7 +343,8 @@ impl Manager {
         };
         // Persisted before the container exists: a crash from here on leaves a record, which the
         // next PUT or reconciliation finishes or reports. Never an unfindable container.
-        if let Err(e) = self.store.ensure_data_dir(id, self.data_owner(id)?).map_err(NodeError::from) {
+        self.bind_record(&record)?;
+        if let Err(e) = self.store.ensure_data_dir(id, self.record_data_owner(&record)?).map_err(NodeError::from) {
             undo(self);
             return Err(e);
         }
@@ -399,7 +398,7 @@ impl Manager {
         }
         // Pull first: if the new image can't be had, the running workload is left untouched.
         let pull = Duration::from_secs(self.config.docker.pull_timeout_seconds);
-        self.note(self.runtime.ensure_image(&spec.image, pull).await)?;
+        self.note(self.record_runtime(&record)?.ensure_image(&spec.image, pull).await)?;
         let old_ports = record.ports.clone();
         let ports = self.allocate_ports(&id, &spec, &old_ports)?;
         self.persist_resting_ports().await;

@@ -152,11 +152,13 @@ export function createPublicApi(options: {
           message:
             error instanceof RuntimeFull && error.missingGuarantees.length
               ? `No node provides required guarantees: ${error.missingGuarantees.join(', ')}`
-              : error instanceof SandboxError
-                ? error.message
-                : code === 'no_room'
-                  ? 'No node can complete this request'
-                  : 'Node refused the operation',
+              : error instanceof RuntimeFull && error.missingIsolation
+                ? `No node can serve the ${error.missingIsolation} tier for this request`
+                : error instanceof SandboxError
+                  ? error.message
+                  : code === 'no_room'
+                    ? 'No node can complete this request'
+                    : 'Node refused the operation',
         },
       },
       status,

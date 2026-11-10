@@ -56,11 +56,11 @@ test('CPU reservations are sent only to nodes announcing the additive field', as
       return {} as T
     },
   })
-  for (const features of [[], ['cpu-reservation']]) {
+  for (const features of [['process-tier'], ['process-tier', 'cpu-reservation']]) {
     await api.put({ id: 'node', api_address: 'https://node.test', features }, 'box', spec, 1)
     expect((body as { resources: object }).resources).toEqual({
       memoryMb: 512,
-      ...(features.length ? { cpuReservationMillis: 250 } : {}),
+      ...(features.includes('cpu-reservation') ? { cpuReservationMillis: 250 } : {}),
     })
   }
 })
@@ -118,7 +118,13 @@ test('workload options and hostname egress require separate feature announcement
     const put = api.put(
       { id: 'node', api_address: 'https://node.test', features },
       'box',
-      { ...spec, workdir: '/data/work', user: '65532:65532', egress: { allow: ['example.com'], deny: [] } },
+      {
+        ...spec,
+        isolation: 'container',
+        workdir: '/data/work',
+        user: '65532:65532',
+        egress: { allow: ['example.com'], deny: [] },
+      },
       1,
     )
     if (features.length < 2) await expect(put).rejects.toThrow('Node lacks required features')

@@ -141,7 +141,9 @@ describe.skipIf(!hasDatabase)('tier comparison capacity', () => {
     ])
     expect(markdown).toContain('full 50: 0')
     expect(markdown).toContain('| 1 | 50 | 0 | 50 | 1.00 | 0.00 |')
-    expect(markdown).toContain('50× no_room (HTTP 503): No node can complete this request')
+    expect(markdown).toContain(
+      '50× no_room (HTTP 503): No node can serve the container tier for this request',
+    )
   })
 
   test('teardown deletes each admitted sandbox once without a second concurrent load', async () => {

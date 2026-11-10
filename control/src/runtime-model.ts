@@ -507,6 +507,7 @@ export class RuntimeFull extends Error {
     provider: string,
     detail: string,
     readonly missingGuarantees: readonly import('./guarantees.ts').Guarantee[] = [],
+    readonly missingIsolation?: import('./isolation.ts').Isolation,
   ) {
     super(`The ${provider} runtime has no room: ${detail}`)
     this.name = 'RuntimeFull'

@@ -9,3 +9,9 @@ export function nodeIsolation(features: readonly string[]): Isolation {
   if (features.includes('wasm-tier')) return 'wasm'
   return features.includes('process-tier') ? 'process' : 'container'
 }
+
+/** Tier announcements do not change the legacy default markers. */
+export function nodeIsolations(features: readonly string[]): readonly Isolation[] {
+  const announced = ISOLATIONS.filter((tier) => features.includes(`tier-${tier}`))
+  return features.includes('multi-tier') && announced.length ? announced : [nodeIsolation(features)]
+}

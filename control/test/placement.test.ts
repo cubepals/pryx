@@ -309,3 +309,32 @@ describe('selectNode', () => {
     expect(cpuRequest(1024, 500)).toBe(500)
   })
 })
+
+test('mixed tiers share capacity and keep enforcement scoped to the requested tier', () => {
+  const mixed = node('mixed', {
+    features: [
+      'placement-epochs',
+      'multi-tier',
+      'tier-container',
+      'tier-process',
+      'tier-wasm',
+      'private-network',
+      'tier-container:private-network',
+      'tier-container:cpu-limit',
+    ],
+  })
+  for (const isolation of ['container', 'process', 'wasm'] as const)
+    expect(selectNode(request({ isolation }), [mixed]).node?.id).toBe('mixed')
+  expect(
+    selectNode(request({ isolation: 'container', require: ['private-network'] }), [mixed]).node?.id,
+  ).toBe('mixed')
+  for (const isolation of ['process', 'wasm'] as const) {
+    const denied = selectNode(request({ isolation, require: ['private-network'] }), [mixed])
+    expect(denied.node).toBeNull()
+    expect(denied.considered[0]?.missingGuarantees).toEqual(['private-network'])
+    expect(selectNode(request({ isolation, cpuLimits: true }), [mixed]).node).toBeNull()
+  }
+  mixed.running.memoryMb = mixed.capacity.allocatableMemoryMb
+  for (const isolation of ['container', 'process', 'wasm'] as const)
+    expect(selectNode(request({ isolation }), [mixed]).node).toBeNull()
+})

@@ -7,6 +7,7 @@
 //! microVM backend would be a third, and the protocol would not change.
 //!
 //! Parts (`runtime/`):
+//! - `router.rs`: immutable workload routes over the available backends.
 //! - `configured.rs`: construction from host-owned backend settings.
 //! - `docker.rs`: the Docker Engine API, over the local unix socket.
 //! - `fake.rs`: an in-memory runtime for tests, with the Docker behaviour pryxd depends on.
@@ -18,6 +19,7 @@ pub mod docker;
 #[cfg(any(test, feature = "fake"))]
 pub mod fake;
 pub mod process;
+pub mod router;
 pub mod wasm;
 
 use std::collections::BTreeMap;
@@ -263,6 +265,22 @@ impl RuntimeError {
 
 #[async_trait]
 pub trait ContainerRuntime: Send + Sync + 'static {
+    fn multi_tier(&self) -> bool {
+        false
+    }
+    fn backend(&self, _tier: &str) -> Option<std::sync::Arc<dyn ContainerRuntime>> {
+        None
+    }
+    fn tiers(&self) -> Vec<&'static str> {
+        vec![self.isolation()]
+    }
+    fn tier_info(&self, _tier: &str) -> Option<RuntimeInfo> {
+        None
+    }
+    fn bind(&self, _name: &str, _id: Option<&str>, _tier: &str) -> Result<(), RuntimeError> {
+        Ok(())
+    }
+
     fn is_wasm(&self) -> bool {
         false
     }

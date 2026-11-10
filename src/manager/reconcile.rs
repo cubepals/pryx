@@ -277,6 +277,7 @@ impl Manager {
             return Ok(Err(issue));
         };
         let record = WorkloadRecord {
+            isolation: label.isolation,
             version: RECORD_VERSION,
             id: id.clone(),
             generation: label.generation,
@@ -296,7 +297,7 @@ impl Manager {
             created_at: label.created_at,
             updated_at: now_str(),
         };
-        self.store.ensure_data_dir(id, self.data_owner(id)?)?;
+        self.store.ensure_data_dir(id, self.record_data_owner(&record)?)?;
         self.save_record(&record).await?;
         self.remember(id, Some(c)).await;
         Ok(Ok(Issue::new(
@@ -309,11 +310,19 @@ impl Manager {
     /// what a crash left is settled. Returns the host's issues: records it couldn't read, and what
     /// it left for a human.
     async fn load_from_disk(&self, issues: &mut HashMap<WorkloadId, Vec<Issue>>) -> Result<Vec<Issue>, NodeError> {
-        let (records, bad) = self.store.load_all()?;
+        let (mut records, bad) = self.store.load_all()?;
         let mut host_issues: Vec<Issue> = bad
             .into_iter()
             .map(|b| Issue::new(IssueCode::UnreadableRecord, format!("{}: {}", b.path.display(), b.problem)))
             .collect();
+        for record in &mut records {
+            if record.isolation.is_none() {
+                record.isolation = crate::protocol::Isolation::from_name(self.runtime.isolation());
+                self.save_record(record).await?;
+            } else {
+                self.bind_record(record)?;
+            }
+        }
         // What a crash left is settled before anything uses the data.
         host_issues.extend(self.settle_leftovers(&records, issues).await);
         let resting = self.store.load_resting_ports();

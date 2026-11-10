@@ -48,6 +48,15 @@ pub enum Isolation {
     Wasm,
 }
 impl Isolation {
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "container" => Some(Self::Container),
+            "process" => Some(Self::Process),
+            "wasm" => Some(Self::Wasm),
+            _ => None,
+        }
+    }
+
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Container => "container",

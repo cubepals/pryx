@@ -34,6 +34,7 @@
 //! - `agent_keys.rs`: epoch-scoped private signing material outside sandbox data.
 //! - `files.rs`: guarded access to persistent data without running compute.
 //! - `logs.rs`: reads a workload's log.
+//! - `tiers.rs`: persisted workload tier selection and backend policy.
 //! - `stats.rs`: samples what workloads use.
 //! - `fleet.rs`: the node's standing with its control plane.
 //! - `node.rs`: what the node reports about itself as a whole.
@@ -102,6 +103,7 @@ mod room;
 mod snapshots;
 mod stats;
 mod store_lease;
+mod tiers;
 mod view;
 mod workload_state;
 
@@ -484,10 +486,10 @@ impl Manager {
         self.config.capacity.allocatable_mb(self.memory_total_mb)
     }
 
-    pub(crate) fn spec_policy(&self) -> SpecPolicy {
+    pub(crate) fn spec_policy(&self, runtime: &dyn ContainerRuntime) -> SpecPolicy {
         SpecPolicy {
-            process: self.runtime.is_process(),
-            wasm: self.runtime.is_wasm(),
+            process: runtime.is_process(),
+            wasm: runtime.is_wasm(),
             allowed_images: self.config.workloads.allowed_images.clone(),
             min_memory_mb: self.config.workloads.min_memory_mb,
             max_memory_mb: u32::try_from(self.allocatable_memory_mb()).unwrap_or(u32::MAX),

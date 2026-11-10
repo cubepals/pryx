@@ -76,8 +76,8 @@ impl Manager {
         let (used, measured) =
             state.disk.get(&record.id).map(|(b, at)| (Some(*b), Some(format_time(*at)))).unwrap_or_default();
         WorkloadView {
-            guarantees: self.guarantees(),
-            isolation: (self.runtime.isolation() != "container").then(|| self.runtime.isolation().into()),
+            guarantees: self.tier_guarantees(self.record_tier(record)),
+            isolation: (self.record_tier(record) != "container").then(|| self.record_tier(record).into()),
             agent: self.agent_view(record, info),
             id: record.id.clone(),
             generation: record.generation,

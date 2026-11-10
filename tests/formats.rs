@@ -97,6 +97,7 @@ fn survival() -> WorkloadId {
 #[test]
 fn a_workload_record_with_every_field_set() {
     let record = WorkloadRecord {
+        isolation: None,
         version: 1,
         id: survival(),
         generation: 3,
@@ -121,6 +122,7 @@ fn a_workload_record_with_every_field_set() {
 #[test]
 fn a_workload_record_with_nothing_optional() {
     let record = WorkloadRecord {
+        isolation: None,
         version: 1,
         id: WorkloadId::parse("w1").unwrap(),
         generation: 1,
@@ -199,6 +201,7 @@ fn an_upgrade_on_trial_and_one_given_up_on() {
 #[test]
 fn the_record_a_container_carries_in_its_label() {
     let label = LabelRecord {
+        isolation: None,
         version: 1,
         generation: 3,
         epoch: Some(7),
