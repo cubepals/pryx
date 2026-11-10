@@ -107,3 +107,32 @@ Compose acceptance step; it starts one non-root image and uses its public API.
   release/main steps stay configured but unexecuted: this task forbids main pushes,
   version changes, tags and release-key changes. Preview acceptance must use an
   independently compiled fixture trust key and never the release secret.
+
+- K20 foundation: the pure entrypoint move passes the complete local Bun check
+  (372 tests, one existing skip, 8,098 assertions) and structure. The subsequent
+  signed-archive/path/layout foundation passes 378 tests, one existing skip and
+  8,123 assertions, plus typecheck, structure, actionlint, standalone ShellCheck
+  and Python compilation. Six new tests exercise real tar files and Ed25519 keys,
+  forged-checksum rejection, signed-link refusal, transport policy and home escape.
+  The installer dispatch, user service lifecycle, upgrade/removal, one-line bootstrap,
+  release signing and full distribution matrix are still unfinished.
+- The real PostgreSQL 17.11.0 archive matches its published SHA-256 and runs locally.
+  Direct loader invocation also runs a real Bun-compiled CLI successfully; Bun's
+  process.execPath then names the loader, so bundle-aware discovery must use the
+  explicit bundle directory. No new binary patcher is needed.
+- Local bundle build attempt 1 fails Python TLS verification against the managed
+  proxy. Attempt 2 mounts the provided combined CA only during build commands and
+  preserves verification, then fails because the local VFS storage fills this
+  workspace while copying the image. Reclaim only this task's unused build cache;
+  keep its running test database. Neither attempt is a successful bundle build.
+- The new Any host workflow starts on any-host pushes before manual dispatch is
+  available on main, and weekly thereafter. Its first job builds the real bundle,
+  runs its programs and a real non-root PostgreSQL in Debian and default-profile
+  Alpine, and uploads the artifacts. Its result is pending. The full booted and
+  ordinary-container one-command matrix remains to be added.
+
+K20 CI cost so far: the separate weekly/any-host workflow has one free hosted job
+with a 60-minute ceiling; the initial estimate is 15–30 minutes for compilation
+and under two minutes for the two runtime smoke cells. It adds zero minutes to
+a pull request's ordinary gate. Record actual build/archive measurements in its
+job summary before claiming the final release cost.

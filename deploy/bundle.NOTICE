@@ -1,0 +1,23 @@
+Host bundle components retain their own licences. No third-party implementation
+is incorporated into pryx's source by this packaging step.
+
+PostgreSQL 17.11.0: PostgreSQL licence, postgres/COPYRIGHT.
+https://github.com/theseus-rs/postgresql-binaries/tree/17.11.0
+https://www.postgresql.org/ftp/source/v17.11/
+
+RustFS 1.0.0: Apache-2.0, licenses/Apache-2.0.txt.
+https://github.com/rustfs/rustfs/tree/1.0.0
+
+Bun 1.4.4 and its compiled runtime: MIT (licenses/MIT.txt), with the retained
+upstream JavaScriptCore, third-party and rebuild notices in
+licenses/host-runtime/bun-runtime.txt.
+https://github.com/oven-sh/bun/tree/bun-v1.4.4
+
+agentOS 0.4.7: Apache-2.0 and the bundled packages' individual licences.
+See agentos/NOTICE, agentos/licenses and its unmodified package archives.
+
+The runtime loader, C/C++ runtime, setpriv and their library dependencies are
+unmodified separate Debian programs/libraries. Their exact binary/source package
+versions, complete copyright notices and source locations are retained under
+licenses/runtime. Copyleft programs are executed separately, never linked into
+pryx. Their interfaces and library files remain replaceable within this directory.

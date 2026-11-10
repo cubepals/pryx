@@ -1,0 +1,53 @@
+name: Any host
+
+on:
+  schedule:
+    - cron: '41 4 * * 2'
+  workflow_dispatch:
+  # A new workflow cannot be dispatched before main has it. Branch pushes prove this build now.
+  push:
+    branches: [any-host]
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    name: Bundle runtime acceptance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Release compilation space
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+      - name: Build the same programs as the release image
+        run: |
+          started=$(date +%s)
+          docker build --target bundle -t pryx-host-bundle .
+          mkdir host-artifacts
+          id=$(docker create pryx-host-bundle)
+          docker cp "$id:/bundle/." host-artifacts/
+          docker rm -v "$id"
+          (cd host-artifacts && sha256sum -- * > SHA256SUMS)
+          du -h host-artifacts/* >> "$GITHUB_STEP_SUMMARY"
+          echo "Bundle build: $(($(date +%s)-started)) seconds" >> "$GITHUB_STEP_SUMMARY"
+      - name: Relocation in the image userland
+        run: |
+          docker run --rm --entrypoint /bin/sh \
+            --mount "type=bind,source=$PWD/host-artifacts,target=/artifacts,readonly" \
+            --mount "type=bind,source=$PWD/deploy/bundle-smoke.sh,target=/bundle-smoke.sh,readonly" \
+            pryx-host-bundle /bundle-smoke.sh
+      - name: Relocation in Alpine with the default profile
+        run: |
+          docker run --rm --entrypoint /bin/sh \
+            --mount "type=bind,source=$PWD/host-artifacts,target=/artifacts,readonly" \
+            --mount "type=bind,source=$PWD/deploy/bundle-smoke.sh,target=/bundle-smoke.sh,readonly" \
+            mirror.gcr.io/library/alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf /bundle-smoke.sh
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: host-bundle-preview
+          path: host-artifacts/*
+          if-no-files-found: error
+          retention-days: 7

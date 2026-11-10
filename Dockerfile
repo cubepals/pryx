@@ -45,7 +45,7 @@ RUN python3 scripts/fetch-agentos.py /agentos
 
 FROM node:24-bookworm-slim@sha256:c0a93797ee78814ae6d32fcca2561fdbbe423149c3f5389aad32d86e9fd85bd4 AS node-userland
 FROM ghcr.io/rustfs/rustfs:1.0.0@sha256:8cc9801755448b71a786705ce76692c77e14936cccd87cf2fc31842e58f4d1ff AS object-store
-FROM debian:trixie-slim@sha256:7378260c0a098d27ac206225db5e7d92b8c7c84ea7afccc86eeb513756bbd392
+FROM debian:trixie-slim@sha256:7378260c0a098d27ac206225db5e7d92b8c7c84ea7afccc86eeb513756bbd392 AS runtime
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates coreutils git curl python3 python3-pip build-essential postgresql-17 libnss-wrapper util-linux nftables docker-cli tini \
  && docker --version \
@@ -68,7 +68,11 @@ COPY deploy/daemon.json deploy/pryxd.service /deploy/
 COPY deploy/process-facts.py /opt/pryx/process-facts.py
 COPY LICENSE.md /LICENSE.md
 COPY LICENSES/CDLA-Permissive-2.0.txt /licenses/CDLA-Permissive-2.0.txt
+COPY LICENSES/Apache-2.0.txt /licenses/Apache-2.0.txt
+COPY LICENSES/MIT.txt /licenses/MIT.txt
 COPY deploy/webpki-roots.NOTICE /licenses/webpki-roots.NOTICE
+COPY deploy/bundle.NOTICE /licenses/host-bundle.NOTICE
+COPY deploy/notices/ /licenses/host-runtime/
 ENV PRYX_ASSET_DIR=/opt/pryx/control PRYX_STATE_DIR=/var/lib/pryx PRYX_PRYXD_BIN=/pryxd
 EXPOSE 8080
 RUN install -d -m 1777 /var/lib/pryx
@@ -77,3 +81,10 @@ LABEL org.opencontainers.image.source=https://github.com/cubepals/pryx \
       org.opencontainers.image.licenses=FSL-1.1-ALv2 \
       org.opencontainers.image.description="pryx control, edge and sandbox runtimes"
 ENTRYPOINT ["/usr/bin/tini", "--", "/opt/pryx/pryx-image"]
+
+# Optional release artifact target; the default image keeps its original entrypoint and layers.
+FROM runtime AS bundle
+COPY deploy/bundle.py deploy/postgresql.json /source/deploy/
+RUN python3 /source/deploy/bundle.py /bundle
+
+FROM runtime AS release

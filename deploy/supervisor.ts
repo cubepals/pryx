@@ -1,9 +1,18 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** One-image supervisor. Control remains the lifecycle owner, edge owns ingress and pryxd owns
  * workloads. Embedded services listen on loopback; the gateway is the only public listener. */
-import { closeSync, existsSync, ftruncateSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  closeSync,
+  existsSync,
+  ftruncateSync,
+  mkdirSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { availableParallelism, totalmem } from 'node:os'
 import { join } from 'node:path'
+import { writeClientConfig } from '../cli/src/client-config.ts'
 import { loadConfig } from '../control/src/config.ts'
 import { SECOND_MS } from '../control/src/durations.ts'
 import { HTTP_FRONT_PORT } from '../control/src/edge-headers.ts'
@@ -12,6 +21,7 @@ import { createToken, nodeSummaries } from '../control/src/registry.ts'
 import { startEdge } from '../edge/src/agent.ts'
 import { edgeConfig } from '../edge/src/config.ts'
 import { front } from '../edge/src/front.ts'
+import { capabilitySummary, hostProbe } from './host-probe.ts'
 import { imagePortRange } from './image-network.ts'
 import {
   createPrivateFile,
@@ -22,12 +32,14 @@ import {
   until,
 } from './image-state.ts'
 import { imageTier } from './image-tier.ts'
+import { bundleBinary, localLayout } from './local-layout.ts'
 
 let startupStage = 'configuration',
   diagnosticRoot: string | undefined
+let cleanup = async () => {}
 async function serve() {
-  const base = process.env.PRYX_STATE_DIR ?? '/var/lib/pryx'
-  const root = process.getuid?.() === 0 ? base : join(base, `uid-${process.getuid?.()}`)
+  const layout = await localLayout()
+  const root = layout.root
   const publicPort = Number(process.env.PORT ?? 8080)
   const origin =
     process.env.PRYX_PUBLIC_URL ?? process.env.RENDER_EXTERNAL_URL ?? `http://127.0.0.1:${publicPort}`
@@ -66,10 +78,25 @@ async function serve() {
     process.env.PRYX_RESERVED_CPU_MILLIS ?? Math.min(1000, Math.floor((availableParallelism() * 1000) / 4)),
   )
   const stopChildren = async () => {
-    for (const child of children.toReversed()) child.kill('SIGTERM')
+    for (const child of children.toReversed()) if (child.exitCode === null) child.kill('SIGTERM')
     await Promise.race([Promise.all(children.map((child) => child.exited)), Bun.sleep(10 * SECOND_MS)])
     for (const child of children) if (child.exitCode === null) child.kill('SIGKILL')
+    await Promise.allSettled(children.map((child) => child.exited))
+    if (layout.local) {
+      try {
+        unlinkSync(join(layout.runtime, 'supervisor.json'))
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      }
+    }
   }
+  cleanup = stopChildren
+  if (layout.local)
+    createPrivateFile(
+      join(layout.runtime, 'supervisor.json'),
+      JSON.stringify({ pid: process.pid, bundle: process.env.PRYX_BUNDLE_DIR, state: root }),
+      true,
+    )
   let stop = stopChildren
   let stopping = false
   const shutdown = async (code: number) => {
@@ -85,7 +112,11 @@ async function serve() {
     void shutdown(0)
   })
   startupStage = 'storage'
-  const storage = await embedded(root, values, children)
+  const storage = await embedded(root, values, children, {
+    runtime: layout.runtime,
+    storePort: layout.ports.store,
+    local: layout.local,
+  })
   startupStage = 'control'
   const config = loadConfig({
     ...process.env,
@@ -98,9 +129,9 @@ async function serve() {
     PRYX_DEFAULT_ISOLATION: tier,
     PRYX_PUBLIC_URL: origin,
     PRYX_DEPLOYMENT: 'pryx',
-    PRYX_NODE_LISTEN: '127.0.0.1:8443',
-    PRYX_OPERATOR_LISTEN: '127.0.0.1:8081',
-    PRYX_API_LISTEN: '127.0.0.1:8082',
+    PRYX_NODE_LISTEN: `127.0.0.1:${layout.ports.fleet}`,
+    PRYX_OPERATOR_LISTEN: `127.0.0.1:${layout.ports.operator}`,
+    PRYX_API_LISTEN: `127.0.0.1:${layout.ports.control}`,
     PRYX_HEARTBEAT_SECONDS: '1',
     PRYX_SUSPEND: 'on',
     S3_ENDPOINT: storage.s3.endpoint,
@@ -117,7 +148,7 @@ async function serve() {
       }),
   })
   const nodeRoot = join(root, 'node'),
-    identity = join(root, 'private', 'fleet')
+    identity = join(layout.private, 'fleet')
   mkdirSync(nodeRoot, { recursive: true, mode: 0o711 })
   mkdirSync(identity, { recursive: true, mode: 0o700 })
   writeFileSync(join(identity, 'ca.pem'), values.caCert, { mode: 0o600 })
@@ -126,7 +157,7 @@ async function serve() {
     const token = await createToken(control.db, { regionKey: 'default', ttlSeconds: 600, createdBy: 'image' })
     writeFileSync(tokenPath, token.token, { mode: 0o600 })
   }
-  const nodeConfig = join(root, 'private', IMAGE_NODE_CONFIG)
+  const nodeConfig = join(layout.private, IMAGE_NODE_CONFIG)
   const user =
     process.getuid?.() === 0
       ? '1000:1000'
@@ -137,18 +168,19 @@ async function serve() {
 runtime = "${tier}"
 state_dir = ${JSON.stringify(nodeRoot)}
 [api]
-listen = "127.0.0.1:7443"
+listen = "127.0.0.1:${layout.ports.node}"
 [ops]
-listen = "127.0.0.1:7070"
+listen = "127.0.0.1:${layout.ports.ops}"
 [fleet]
-url = "https://127.0.0.1:8443"
+url = "https://127.0.0.1:${layout.ports.fleet}"
 ca = ${JSON.stringify(join(identity, 'ca.pem'))}
 enrollment_token_file = ${JSON.stringify(tokenPath)}
 heartbeat_seconds = 1
 ${tier !== 'container' ? `[capacity]\nreserved_memory_mb = ${reservedMemory}\nreserved_cpu_millis = ${reservedCpu}` : ''}
 [wasm]
-distribution = ${JSON.stringify(process.env.PRYX_AGENTOS_DISTRIBUTION ?? '/usr/local/lib/pryx/agentos')}
+distribution = ${JSON.stringify(layout.agentos)}
 [workloads]
+agent_binary = ${JSON.stringify(layout.agent)}
 agent_public_origin = ${JSON.stringify(origin)}
 user = "${user}"
 allowed_images = ["alpine:", "ghcr.io/", "docker.io/", "mirror.gcr.io/"]
@@ -161,13 +193,13 @@ control_ips = ["127.0.0.1"]
   )
   startupStage = 'enrollment'
   const log = privateLog(root, 'node')
-  children.push(Bun.spawn(['/pryxd', 'serve', '--config', nodeConfig], { stdout: log, stderr: log }))
+  children.push(Bun.spawn([layout.pryxd, 'serve', '--config', nodeConfig], { stdout: log, stderr: log }))
   await until('Local node', async () => {
     const nodes = await nodeSummaries(control.db, { suspectSeconds: 15, unavailableSeconds: 45 })
     return nodes.some((node) => node.derivedHealth === 'healthy')
   })
   if (tier === 'container') {
-    const isolate = Bun.spawn(['/pryxd', 'isolate', '--config', nodeConfig], {
+    const isolate = Bun.spawn([layout.pryxd, 'isolate', '--config', nodeConfig], {
       stdout: 'ignore',
       stderr: privateLog(root, 'isolate'),
     })
@@ -189,9 +221,10 @@ control_ips = ["127.0.0.1"]
   })
   if (control.edge.agents) control.edge.agents.localOrigin = origin
   edge.agents.useControl(control.apiUrl)
+  const probe = await hostProbe(layout.pryxd)
   startupStage = 'gateway'
   const gateway = await front({
-    host: '0.0.0.0',
+    host: layout.host,
     port: publicPort,
     kind: 'http',
     routePort: HTTP_FRONT_PORT,
@@ -217,6 +250,7 @@ control_ips = ["127.0.0.1"]
     await control.stop()
     await stopChildren()
   }
+  cleanup = stop
   for (const child of children)
     void child.exited.then(() => {
       if (!stopping) void shutdown(1)
@@ -230,21 +264,35 @@ control_ips = ["127.0.0.1"]
           ? 'per-sandbox UIDs'
           : 'shared UID'
   console.log(`pryx listening on ${publicPort}; isolation=${tier}; ${boundary}`)
-  const printed = join(root, 'private', 'key-printed')
+  if (layout.local && process.env.PRYX_CLIENT_CONFIG)
+    writeClientConfig({ url: origin, key: values.key }, process.env.PRYX_CLIENT_CONFIG)
+  console.log(
+    JSON.stringify({
+      apiUrl: origin,
+      tiers: [tier],
+      capabilities: capabilitySummary(probe),
+    }),
+  )
+  if (process.env.PRYX_LOCAL_PRESET === 'user')
+    console.log(
+      "Sandboxes share a user and have no kernel-enforced memory or CPU limits; use this for one person's work, not for strangers' code.",
+    )
+  const printed = join(layout.private, 'key-printed')
   if (!existsSync(printed)) {
     createPrivateFile(printed, 'printed\n')
     console.log(JSON.stringify({ apiUrl: origin, apiKey: values.key }))
   }
 }
 if (process.argv.length > 2) {
-  const child = Bun.spawn(['/pryxd', ...process.argv.slice(2)], {
+  const child = Bun.spawn([bundleBinary('pryxd', '/pryxd'), ...process.argv.slice(2)], {
     stdin: 'inherit',
     stdout: 'inherit',
     stderr: 'inherit',
   })
   process.exit(await child.exited)
 }
-await serve().catch((error: unknown) => {
+await serve().catch(async (error: unknown) => {
+  await cleanup()
   if (diagnosticRoot) {
     try {
       const fd = privateLog(diagnosticRoot, 'startup')

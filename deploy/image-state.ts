@@ -23,15 +23,11 @@ import { dirname, join } from 'node:path'
 import { FleetCa } from '../control/src/ca.ts'
 import { SECOND_MS } from '../control/src/durations.ts'
 import { ensureBucket } from '../control/src/store-bootstrap.ts'
+import { bundleBinary, embeddedUser, postgresBinary, privateDirectory } from './local-layout.ts'
 
 export const IMAGE_NODE_CONFIG = 'pryxd.toml'
 function serviceIds() {
-  const entry = readFileSync('/etc/passwd', 'utf8')
-    .split('\n')
-    .find((line) => line.startsWith('postgres:'))
-  if (!entry) throw new Error('The embedded service user is missing')
-  const fields = entry.split(':')
-  return { uid: Number(fields[2]), gid: Number(fields[3]) }
+  return embeddedUser()
 }
 const secret = () => randomBytes(32).toString('hex')
 export function createPrivateFile(path: string, contents: string, replace = false) {
@@ -69,7 +65,7 @@ export async function credentials(root: string) {
   if (!rootInfo.isDirectory() || rootInfo.uid !== process.getuid?.())
     throw Object.assign(new Error('Unsafe state directory'), { code: 'UNSAFE_STATE' })
   chmodSync(root, 0o711)
-  const privateDir = join(root, 'private')
+  const privateDir = privateDirectory(root)
   mkdirSync(privateDir, { recursive: true, mode: 0o700 })
   const privateInfo = lstatSync(privateDir)
   if (!privateInfo.isDirectory() || privateInfo.uid !== process.getuid?.() || privateInfo.mode & 0o077)
@@ -122,12 +118,18 @@ export async function until(label: string, work: () => Promise<boolean>, seconds
 }
 export function serviceCommand(args: string[]) {
   return process.getuid?.() === 0
-    ? ['setpriv', `--reuid=${serviceIds().uid}`, `--regid=${serviceIds().gid}`, '--clear-groups', ...args]
+    ? [
+        bundleBinary('setpriv', 'setpriv'),
+        `--reuid=${serviceIds().uid}`,
+        `--regid=${serviceIds().gid}`,
+        '--clear-groups',
+        ...args,
+      ]
     : args
 }
 export function privateLog(root: string, name: string) {
   const fd = openSync(
-    join(root, 'private', `${name}.log`),
+    join(privateDirectory(root), `${name}.log`),
     constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT | constants.O_NOFOLLOW,
     0o600,
   )
@@ -142,6 +144,7 @@ export async function embedded(
   root: string,
   values: Awaited<ReturnType<typeof credentials>>,
   children: Bun.Subprocess[],
+  options = { runtime: root, storePort: 9000, local: false },
 ) {
   let database = process.env.DATABASE_URL
   if (!database) {
@@ -149,18 +152,25 @@ export async function embedded(
     mkdirSync(directory, { recursive: true, mode: 0o700 })
     if (process.getuid?.() === 0) chownSync(directory, serviceIds().uid, serviceIds().gid)
     const data = join(directory, 'data')
+    const socket = options.local ? join(options.runtime, 'postgres') : directory
+    mkdirSync(socket, { recursive: true, mode: 0o700 })
+    if (process.getuid?.() === 0) chownSync(socket, serviceIds().uid, serviceIds().gid)
     const environment = { ...process.env }
-    if (process.getuid?.() !== 0) {
-      const passwd = join(root, 'private', 'passwd'),
-        group = join(root, 'private', 'group')
-      writeFileSync(
-        passwd,
-        `pryx:x:${process.getuid?.()}:${process.getgid?.()}:pryx:${directory}:/bin/sh\n`,
-        { mode: 0o600 },
-      )
-      writeFileSync(group, `pryx:x:${process.getgid?.()}:\n`, { mode: 0o600 })
+    if (process.getuid?.() !== 0 || options.local) {
+      const ids =
+        process.getuid?.() === 0 ? serviceIds() : { uid: process.getuid?.(), gid: process.getgid?.() }
+      const passwd = join(options.local ? directory : privateDirectory(root), 'passwd'),
+        group = join(options.local ? directory : privateDirectory(root), 'group')
+      writeFileSync(passwd, `pryx:x:${ids.uid}:${ids.gid}:pryx:${directory}:/bin/sh\n`, { mode: 0o600 })
+      writeFileSync(group, `pryx:x:${ids.gid}:\n`, { mode: 0o600 })
+      if (process.getuid?.() === 0) {
+        chownSync(passwd, serviceIds().uid, serviceIds().gid)
+        chownSync(group, serviceIds().uid, serviceIds().gid)
+      }
       Object.assign(environment, {
-        LD_PRELOAD: '/usr/lib/x86_64-linux-gnu/libnss_wrapper.so',
+        ...(!process.env.PRYX_BUNDLE_DIR
+          ? { LD_PRELOAD: '/usr/lib/x86_64-linux-gnu/libnss_wrapper.so' }
+          : {}),
         NSS_WRAPPER_PASSWD: passwd,
         NSS_WRAPPER_GROUP: group,
       })
@@ -172,7 +182,7 @@ export async function embedded(
       if (process.getuid?.() === 0) chownSync(password, serviceIds().uid, serviceIds().gid)
       const init = Bun.spawn(
         serviceCommand([
-          '/usr/lib/postgresql/17/bin/initdb',
+          postgresBinary('initdb'),
           '-D',
           data,
           '-U',
@@ -180,6 +190,7 @@ export async function embedded(
           '--auth=scram-sha-256',
           `--pwfile=${password}`,
           '--no-instructions',
+          ...(options.local ? ['--locale=C', '--encoding=UTF8'] : []),
         ]),
         { env: environment, stdout: log, stderr: log },
       )
@@ -187,15 +198,15 @@ export async function embedded(
     }
     const postgres = Bun.spawn(
       serviceCommand([
-        '/usr/lib/postgresql/17/bin/postgres',
+        postgresBinary('postgres'),
         '-D',
         data,
         '-h',
-        '127.0.0.1',
+        options.local ? '' : '127.0.0.1',
         '-p',
         '5432',
         '-k',
-        directory,
+        socket,
       ]),
       { env: environment, stdout: log, stderr: log },
     )
@@ -204,22 +215,39 @@ export async function embedded(
       'Embedded Postgres',
       async () =>
         Bun.spawnSync(
-          ['/usr/lib/postgresql/17/bin/pg_isready', '-h', '127.0.0.1', '-p', '5432', '-U', 'pryx'],
+          [
+            postgresBinary('pg_isready'),
+            '-h',
+            options.local ? socket : '127.0.0.1',
+            '-p',
+            '5432',
+            '-U',
+            'pryx',
+          ],
           { stdout: 'ignore', stderr: 'ignore' },
         ).exitCode === 0,
     )
     const created = Bun.spawn(
-      serviceCommand(['/usr/lib/postgresql/17/bin/createdb', '-h', '127.0.0.1', '-U', 'pryx', 'pryx']),
+      serviceCommand([
+        postgresBinary('createdb'),
+        '-h',
+        options.local ? socket : '127.0.0.1',
+        '-U',
+        'pryx',
+        'pryx',
+      ]),
       { env: { ...environment, PGPASSWORD: values.password }, stdout: log, stderr: log },
     )
     // Existing databases are normal on restart. A subsequent authenticated control connection
     // must succeed; no startup credential is written to a command line.
     await created.exited
-    database = `postgres://pryx:${values.password}@127.0.0.1:5432/pryx`
+    database = options.local
+      ? `postgres://pryx:${values.password}@localhost/pryx?host=${encodeURIComponent(socket)}`
+      : `postgres://pryx:${values.password}@127.0.0.1:5432/pryx`
   }
   const external = Boolean(process.env.S3_ENDPOINT)
   const s3 = {
-    endpoint: process.env.S3_ENDPOINT ?? 'http://127.0.0.1:9000',
+    endpoint: process.env.S3_ENDPOINT ?? `http://127.0.0.1:${options.storePort}`,
     bucket: process.env.S3_BUCKET ?? 'pryx-snapshots',
     accessKeyId: process.env.S3_ACCESS_KEY ?? values.access,
     secretAccessKey: process.env.S3_SECRET_KEY ?? values.storeSecret,
@@ -230,10 +258,10 @@ export async function embedded(
     if (process.getuid?.() === 0) chownSync(directory, serviceIds().uid, serviceIds().gid)
     const log = privateLog(root, 'store')
     children.push(
-      Bun.spawn(serviceCommand(['/usr/local/bin/rustfs', directory]), {
+      Bun.spawn(serviceCommand([bundleBinary('rustfs', '/usr/local/bin/rustfs'), directory]), {
         env: {
           ...process.env,
-          RUSTFS_ADDRESS: '127.0.0.1:9000',
+          RUSTFS_ADDRESS: `127.0.0.1:${options.storePort}`,
           RUSTFS_CONSOLE_ENABLE: 'false',
           RUSTFS_ACCESS_KEY: s3.accessKeyId,
           RUSTFS_SECRET_KEY: s3.secretAccessKey,
