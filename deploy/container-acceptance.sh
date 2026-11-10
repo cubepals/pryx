@@ -8,7 +8,7 @@ if command -v apt-get >/dev/null; then
 elif command -v apk >/dev/null; then
   apk add --no-cache curl ca-certificates python3 shadow tar
 elif command -v dnf >/dev/null; then
-  dnf install -y python3 shadow-utils tar gzip
+  dnf install -y python3 shadow-utils util-linux tar gzip
   command -v curl >/dev/null || dnf install -y curl-minimal
 else
   echo 'Test preparation needs a supported distribution package manager' >&2; exit 1

@@ -227,3 +227,10 @@ job when publication is authorized. That job has not run in this task.
   one existing skip, 8,135 assertions. Typecheck, structure, actionlint and whitespace
   checks pass. A real occupied listener verifies default-port fallback and an explicit
   privileged-port refusal. No full local install/hello pass is claimed yet.
+- Any host 42804827105 builds and relocates the signed preview bundle successfully.
+  Its Fedora job 129799556332 reports success, but its actual log ends with
+  `/container-acceptance.sh: line 20: su: command not found`. The surrounding tee
+  masked Docker's failure because the workflow used the default unspecified shell.
+  This is not installation proof. Select explicit bash (GitHub adds pipefail) for
+  every Any host run step and install util-linux in Fedora's test preparation.
+  Preserve the original log; require every real acceptance command to complete.
