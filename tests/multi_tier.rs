@@ -4,7 +4,7 @@
 mod support;
 use pryxd::manager::{Precondition, Records};
 use pryxd::protocol::Isolation;
-use pryxd::runtime::{ContainerRuntime, fake::FakeRuntime, router::Router};
+use pryxd::runtime::{ContainerRuntime, RuntimeError, fake::FakeRuntime, router::Router};
 use std::sync::Arc;
 
 fn spec(tier: Option<&str>) -> pryxd::protocol::WorkloadSpec {
@@ -183,4 +183,61 @@ async fn legacy_records_use_their_actual_backend_and_refuse_ambiguous_resting_st
     assert!(second.start(resting, None).await.is_err());
     assert_eq!(container.count_calls("create "), 0);
     assert_eq!(container.count_calls("start "), 0);
+}
+
+struct SameName {
+    _directories: [tempfile::TempDir; 2],
+    container: Arc<FakeRuntime>,
+    process: Arc<FakeRuntime>,
+    record: pryxd::store::WorkloadRecord,
+}
+
+async fn same_name_backends() -> SameName {
+    let directories = [tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap()];
+    let container = Arc::new(FakeRuntime::new());
+    let process = Arc::new(FakeRuntime::new().with_isolation(Isolation::Process));
+    let first = support::manager_on(directories[0].path(), container.clone(), "runtime = 'container'");
+    let second = support::manager_on(directories[1].path(), process.clone(), "runtime = 'process'");
+    first.reconcile(Records::FromDisk).await;
+    second.reconcile(Records::FromDisk).await;
+    first.ensure(support::id("same-name"), spec(Some("container")), Precondition::None, None).await.unwrap();
+    second.ensure(support::id("same-name"), spec(Some("process")), Precondition::None, None).await.unwrap();
+    let record = first.store.load_all().unwrap().0.pop().unwrap();
+    assert!(process.container(&record.container_name).is_some());
+    SameName { _directories: directories, container, process, record }
+}
+
+#[tokio::test]
+async fn inspection_discovery_failure_cannot_publish_a_partial_route() {
+    let f = same_name_backends().await;
+    let router = Router::new(vec![f.container.clone(), f.process.clone()]).unwrap();
+    let inspected = router.inspect(&f.record.container_name).await;
+    let _ = router.start(&f.record.container_name).await;
+    assert_eq!(f.container.count_calls("start "), 0);
+    assert_eq!(f.process.count_calls("start "), 0);
+    assert!(matches!(inspected, Err(RuntimeError::Conflict(_))));
+}
+
+#[tokio::test]
+async fn list_discovery_failure_cannot_publish_a_partial_route() {
+    let f = same_name_backends().await;
+    let router = Router::new(vec![f.container.clone(), f.process.clone()]).unwrap();
+    let listed = router.list(&[]).await;
+    let _ = router.start(&f.record.container_name).await;
+    assert_eq!(f.container.count_calls("start "), 0);
+    assert_eq!(f.process.count_calls("start "), 0);
+    assert!(matches!(listed, Err(RuntimeError::Conflict(_))));
+}
+
+#[tokio::test]
+async fn list_discovery_cannot_redirect_a_recorded_tier_to_another_backend() {
+    let f = same_name_backends().await;
+    f.container.vanish(&f.record.container_name);
+    let router = Router::new(vec![f.container.clone(), f.process.clone()]).unwrap();
+    router.bind(&f.record.container_name, f.record.container_id.as_deref(), "container").unwrap();
+    let listed = router.list(&[]).await;
+    let _ = router.start(&f.record.container_name).await;
+    assert_eq!(f.process.count_calls("start "), 0);
+    assert!(matches!(listed, Err(RuntimeError::Conflict(_))));
+    assert_eq!(router.bound_isolation(&f.record.container_name), Some("container"));
 }

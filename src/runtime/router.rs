@@ -44,8 +44,25 @@ impl Router {
             .ok_or_else(|| RuntimeError::NotFound(format!("no owned runtime route for {name}")))?;
         self.backend(&tier).ok_or_else(|| RuntimeError::Unavailable(format!("{tier} tier is unavailable")))
     }
-    fn remember(&self, tier: &str, info: &ContainerInfo) -> Result<(), RuntimeError> {
-        self.bind(&info.name, Some(&info.id), tier)
+    fn remember<'a>(
+        &self,
+        discovered: impl IntoIterator<Item = (&'a str, &'a ContainerInfo)>,
+    ) -> Result<(), RuntimeError> {
+        let mut routes = self.routes.lock().unwrap();
+        let mut pending = BTreeMap::new();
+        for (tier, info) in discovered {
+            for identity in [&info.name, &info.id] {
+                if routes.get(identity).is_some_and(|previous| previous != tier)
+                    || pending.get(identity).is_some_and(|previous| *previous != tier)
+                {
+                    return Err(RuntimeError::Conflict(format!("ambiguous runtime identity {identity}")));
+                }
+                pending.insert(identity, tier);
+            }
+        }
+        // Discovery is read-only until the complete result is consistent with owned routes.
+        routes.extend(pending.into_iter().map(|(identity, tier)| (identity.clone(), tier.into())));
+        Ok(())
     }
 }
 
@@ -197,11 +214,15 @@ impl ContainerRuntime for Router {
                 if found.is_some() {
                     return Err(RuntimeError::Conflict(format!("ambiguous runtime identity {name}")));
                 }
-                self.remember(backend.isolation(), &info)?;
-                found = Some(info);
+                found = Some((backend.isolation(), info));
             }
         }
-        Ok(found)
+        if let Some((tier, info)) = found {
+            self.remember(std::iter::once((tier, &info)))?;
+            Ok(Some(info))
+        } else {
+            Ok(None)
+        }
     }
     async fn list(&self, labels: &[String]) -> Result<Vec<ContainerInfo>, RuntimeError> {
         for tier in self.routes.lock().unwrap().values() {
@@ -216,11 +237,11 @@ impl ContainerRuntime for Router {
                 if !names.insert(info.name.clone()) {
                     return Err(RuntimeError::Conflict(format!("ambiguous runtime identity {}", info.name)));
                 }
-                self.remember(backend.isolation(), &info)?;
-                all.push(info);
+                all.push((backend.isolation(), info));
             }
         }
-        Ok(all)
+        self.remember(all.iter().map(|(tier, info)| (*tier, info)))?;
+        Ok(all.into_iter().map(|(_, info)| info).collect())
     }
     async fn exec(
         &self,
