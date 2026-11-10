@@ -6,8 +6,8 @@ Only recorded CI evidence establishes completion; a local pass alone does not.
 
 | Milestone | Status | Finishing commit | CI proof | Ran | Did not run | Parked and why | Left |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| K19 | in progress | — | Implementation runs below; current head CI pending | Rust: 421 pass, 16 existing ignored; full control check: 372 pass, 1 existing skip; Python: 23 tests, 1 existing skip; strict Clippy, fmt, generators, both structure checks, actionlint/ShellCheck | Hosted KVM, ordinary-image and new end-to-end attacks | None | Complete host acceptance and current-head CI |
-| K20 | not started | — | — | — | All | — | Complete brief after K19 |
+| K19 | done | `b535d24b95ab2046aa6178fdc1d2683640ce2544` | [42777018303](https://github.com/cubepals/pryx/actions/runs/42777018303), green including aggregate | Real hosted KVM, full Rust and Docker suites, CLI doctor, default-profile image probes, non-root API refusal, full end-to-end attacks, one-box/Action/Python, Wasm, two-node, upstream integrations and recovery; local checks below | Live paid-provider provisioning and publication; neither is authorized | None | None |
+| K20 | in progress | — | Pending implementation | Read the brief, current installer/supervisor/release paths and versioned dependency licences | User bundle and distribution matrix | None | Presets, signed relocatable bundle, shared supervision, upgrade/removal, docs and real-host CI |
 | K21 | not started | — | — | — | All | — | Complete brief after K20 |
 | K22 | not started | — | — | — | All | — | Complete brief after K21 |
 | K23 | not started | — | — | — | All | — | Complete brief after K22 |
@@ -29,7 +29,7 @@ Compose acceptance step; it starts one non-root image and uses its public API.
 ## Evidence and handoff
 
 - Started from `origin/main`; the original environment checkout predates this plan.
-- No milestone completion is claimed yet.
+- K19 is complete at the tested implementation commit above. Later documentation checkpoints cite that source without claiming their own future CI results.
 - Bootstrap CI: https://github.com/cubepals/pryx/actions/runs/42768042942 at
   `03e4affe3f1adfda46d70b126ad5177935716168`. Core and control checks pass;
   Docker integration fails the existing OOM-reporting case: Docker reports exit 137
@@ -95,3 +95,15 @@ Compose acceptance step; it starts one non-root image and uses its public API.
   Final generated-type checks also pass. The actual non-root image case has not run
   locally because this workspace cannot enforce the required Landlock policy; require
   its hosted CI result. No complete milestone result is inferred from these local checks.
+
+- K19 final proof: run 42777018303 at b535d24 passes every required job and
+  aggregate check 129717858784. Core 129697829486 proves the KVM guest, probe and
+  full Docker suite; end-to-end 129697829488 proves ordinary-image facts, the real
+  non-root refusal and the declared boundary attacks; one-box 129697829727 proves
+  the installer, Action, SDKs and repeated image installation. Wasm, isolated nodes,
+  public Rivet/celld and store-loss recovery also pass. Earlier runs 42773837666
+  and 42774643808 finish green too. Preserve all earlier failures above.
+- K20 begins only after that current-source aggregate success. The production
+  release/main steps stay configured but unexecuted: this task forbids main pushes,
+  version changes, tags and release-key changes. Preview acceptance must use an
+  independently compiled fixture trust key and never the release secret.
