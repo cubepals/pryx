@@ -62,10 +62,13 @@ export function embeddedUser() {
   const fields = entry.split(':')
   return { uid: Number(fields[2]), gid: Number(fields[3]) }
 }
+export function stateRoot(base: string, local: boolean, uid = process.getuid?.()) {
+  return local || uid === 0 ? base : join(base, `uid-${uid}`)
+}
 export async function localLayout() {
   const local = Boolean(process.env.PRYX_LOCAL_PRESET)
   const base = process.env.PRYX_STATE_DIR ?? '/var/lib/pryx'
-  const root = local || process.getuid?.() === 0 ? base : join(base, `uid-${process.getuid?.()}`)
+  const root = stateRoot(base, local)
   return {
     local,
     root,

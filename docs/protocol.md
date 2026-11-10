@@ -825,3 +825,8 @@ they serve. A mixed node retains its legacy default marker (`process-tier` or
 New control planes use these scoped features for both placement and sandbox views.
 The optional record and recovery-label field `isolation` pins the backend across
 restarts, including when the original spec omitted its choice.
+
+The local host document preserves its capability fields and adds `tiers`, each with state,
+evidence and action. `pryxd probe --config <file>` applies that configuration’s tier selection
+without starting compute. `pryx doctor` discovers an owned managed configuration and uses
+this additive flag when supported; an older daemon keeps its existing host-only report.

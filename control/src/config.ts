@@ -10,7 +10,7 @@ import { AUTOSCALE_DEFAULTS } from './autoscale.ts'
 import { DEFAULT_EDGE_PORT_RANGE } from './edge-addresses.ts'
 import { GUARANTEES } from './guarantees.ts'
 import { THRESHOLDS } from './health.ts'
-import { ISOLATIONS } from './isolation.ts'
+import { DEFAULT_ISOLATION_ORDER, ISOLATIONS } from './isolation.ts'
 import { splitAddress } from './node-client.ts'
 import { DEFAULTS } from './placement.ts'
 import { limitsSchema, projectDefaults, UNIT_DEFAULTS } from './project-model.ts'
@@ -36,7 +36,15 @@ export const DEFAULT_REPO_IMAGE =
   'docker.io/alpine/git@sha256:ac6c828f15d82775d204d3d75112e1d34af8945da80ccf922713c9891ba68e7a'
 const schema = z.object({
   repoImage: z.string().min(1).default(DEFAULT_REPO_IMAGE),
-  defaultIsolation: z.enum(ISOLATIONS).default('container'),
+  defaultIsolation: z
+    .preprocess(
+      (value) =>
+        typeof value === 'string' && value.includes(',')
+          ? value.split(',').map((tier) => tier.trim())
+          : value,
+      z.union([z.enum(ISOLATIONS), z.array(z.enum(ISOLATIONS)).min(1)]),
+    )
+    .default([...DEFAULT_ISOLATION_ORDER]),
   require: z.array(z.enum(GUARANTEES)).default([]),
   publicOrigin: z.url().optional(),
   database: z.string().min(1),

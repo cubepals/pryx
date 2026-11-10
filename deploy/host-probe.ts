@@ -9,6 +9,7 @@ export type HostProbe = {
   architecture: string
   cLibrary: string
   landlockAbi: number | null
+  tiers?: Record<string, { state: 'on' | 'off' | 'unknown'; evidence: string; action: string }>
   capabilities: Record<string, { state: 'on' | 'off' | 'unknown'; evidence: string; action: string }>
 }
 export function probeBinary() {
@@ -22,8 +23,8 @@ export function probeBinary() {
     ].find((path): path is string => Boolean(path && existsSync(path)))
   )
 }
-export async function hostProbe(binary: string, env = process.env): Promise<HostProbe> {
-  const child = Bun.spawn([binary, 'probe', '--json'], {
+export async function hostProbe(binary: string, env = process.env, config?: string): Promise<HostProbe> {
+  const child = Bun.spawn([binary, 'probe', '--json', ...(config ? ['--config', config] : [])], {
     env,
     stdin: 'ignore',
     stdout: 'pipe',

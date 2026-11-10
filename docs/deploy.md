@@ -9,10 +9,11 @@ The first successful start prints the initial API key once. Set PRYX_API_URL to
 `http://localhost:8080` and PRYX_API_KEY to that key in the CLI or SDK environment.
 `pryx run -- echo hello` uses the bundled userland. `pryx run --image alpine:3.22 -- echo hello`
 is refused on the process tier with the image error documented in [process-tier.md](process-tier.md).
-The image also contains agentOS VMs. Set `PRYX_DEFAULT_TIER=wasm` at image startup to use them
-without an engine or added privileges. A usable Docker socket selects container automatically;
-`PRYX_DEFAULT_TIER=container|process|wasm` overrides that choice. Sandbox requests select a
-provided tier with `isolation`; they cannot enable a missing host runtime. Wasm refuses an image
+The image serves process and agentOS VMs together where their probes succeed, and container
+workloads where the host engine is usable. Control chooses an eligible tier for an unnamed
+request and reports the result. A request with `isolation` fixes its tier; a missing runtime is
+refused by name. `pryx doctor` lists what this host supports and why a tier is off. Advanced
+priority and single-backend overrides are documented in [tiers.md](tiers.md). Wasm refuses an image
 and accepts optional `packages` registry names instead. See [tiers.md](tiers.md) for the measured
 default and capabilities and [agentos.md](agentos.md) for persistence and ingress limits.
 The [one-command installer](install.md) runs the same supervisor as an ordinary user or provisions a systemd server as root.

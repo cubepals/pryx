@@ -18,6 +18,7 @@
 //! - `docker.rs`: whether Docker is reachable and configured the way pryxd expects.
 //! - `state.rs`: whether the state directory can be owned, locked, cloned into and has room.
 //! - `network.rs`: whether the public ports are free and the listeners stay off public addresses.
+//! - `tiers.rs`: configured tier availability and off reasons.
 //! - `host.rs`: whether the host has a machine id and a synchronised clock.
 //! - `fix.rs`: the safe fixes `--fix` applies on a host with no workloads yet.
 //!
@@ -31,6 +32,7 @@ mod fix;
 mod host;
 mod network;
 mod state;
+mod tiers;
 
 use std::path::{Path, PathBuf};
 
@@ -125,16 +127,25 @@ pub async fn run(options: &Options) -> Report {
         let report = Report { checks: vec![config_check], fixed };
         return if options.preflight { report.for_preflight() } else { report };
     };
-    let runtime: Option<Box<dyn ContainerRuntime>> = (config.runtime == crate::config::RuntimeKind::Container)
-        .then(|| DockerRuntime::new(&config.docker.socket).ok().map(|r| Box::new(r) as Box<dyn ContainerRuntime>))
-        .flatten();
+    let runtime: Option<Box<dyn ContainerRuntime>> = (config.docker.enabled
+        && matches!(config.runtime, crate::config::RuntimeKind::Container | crate::config::RuntimeKind::Auto))
+    .then(|| DockerRuntime::new(&config.docker.socket).ok().map(|r| Box::new(r) as Box<dyn ContainerRuntime>))
+    .flatten();
     let daemon_json = Path::new(DAEMON_JSON);
     let fixed = match (options.fix, &runtime) {
         (true, Some(runtime)) => Some(fix::apply(&config, runtime.as_ref(), daemon_json).await),
         _ => None,
     };
     let mut checks = vec![config_check];
+    checks.extend(tiers::checks(&config).await);
     match (&config.runtime, &runtime) {
+        (crate::config::RuntimeKind::Auto, runtime) => {
+            if let Some(runtime) = runtime
+                && runtime.info().await.is_ok()
+            {
+                checks.extend(docker::checks(runtime.as_ref(), &config.docker.network, daemon_json).await);
+            }
+        }
         (crate::config::RuntimeKind::Process, _) => {
             checks.push(if pryx_agent::process_capabilities::probe().filesystem {
                 Check::pass("process.landlock", "Landlock ABI 3 filesystem confinement is enforceable")

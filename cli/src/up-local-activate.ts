@@ -53,7 +53,12 @@ export async function localSummary(record: LocalInstallation, action: string) {
         version: record.version,
         preset: record.preset,
         apiUrl: record.apiUrl,
-        tiers: [record.tier],
+        tiers:
+          record.runtime === 'auto'
+            ? Object.entries(probe.tiers ?? {})
+                .filter(([tier, value]) => tier !== 'container' && value.state === 'on')
+                .map(([tier]) => tier)
+            : [record.tier],
         require: record.require ?? [],
         capabilities: capabilitySummary(probe),
         credentialPath: record.clientConfig,

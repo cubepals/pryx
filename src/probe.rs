@@ -7,10 +7,12 @@
 //! Parts (`probe/`):
 //! - `kernel.rs`: kernel ABI, namespaces, devices and the current cgroup.
 //! - `kvm.rs`: a bounded child runs a halt instruction and measures the exit.
+//! - `tiers.rs`: tier prerequisites and off reasons without starting compute.
 //! - `services.rs`: engine sockets, firewall, systemd and user sessions.
 mod kernel;
 mod kvm;
 mod services;
+mod tiers;
 
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, path::Path};
@@ -25,6 +27,8 @@ pub struct Report {
     pub c_library: String,
     pub capabilities: BTreeMap<String, Capability>,
     pub landlock_abi: Option<u32>,
+    #[serde(default)]
+    pub tiers: BTreeMap<String, Capability>,
 }
 impl Report {
     pub fn on(&self, name: &str) -> bool {
@@ -32,6 +36,14 @@ impl Report {
     }
     pub fn text(&self) -> String {
         let mut text = format!("{} / {}\n", self.architecture, self.c_library);
+        for (name, capability) in &self.tiers {
+            let state = match capability.state {
+                State::On => "on",
+                State::Off => "off",
+                State::Unknown => "unknown",
+            };
+            text.push_str(&format!("tier {name}: {state} — {}; {}\n", capability.evidence, capability.action));
+        }
         for (name, capability) in &self.capabilities {
             let state = match capability.state {
                 State::On => "on",
@@ -61,6 +73,40 @@ pub async fn run() -> Report {
     let kvm = if report.on("kvm-device") { child("probe-kvm") } else { report.capabilities["kvm-device"].clone() };
     report.capabilities.insert("kvm".into(), kvm);
     services::read(&mut report).await;
+    report
+}
+
+/// Detailed standalone tier prerequisites, including distribution integrity.
+pub async fn tier_report() -> Report {
+    let mut report = run().await;
+    tiers::read(&mut report);
+    report
+}
+
+/// The same host evidence, with configured backend selection and preset restrictions applied.
+pub async fn for_config(config: &crate::config::Config) -> Report {
+    let mut report = run().await;
+    let available = crate::runtime::configured::availability(config).await;
+    let selected = match config.runtime {
+        crate::config::RuntimeKind::Auto => None,
+        crate::config::RuntimeKind::Container => Some("container"),
+        crate::config::RuntimeKind::Process => Some("process"),
+        crate::config::RuntimeKind::Wasm => Some("wasm"),
+    };
+    for (tier, reason) in available {
+        let capability = if let Some(selected) = selected.filter(|selected| *selected != tier) {
+            Capability::new(
+                State::Off,
+                format!("configuration selects the {selected} tier"),
+                "Set runtime = auto to serve every supported tier",
+            )
+        } else if let Some(reason) = reason {
+            Capability::new(State::Off, reason, "Inspect the host capability or distribution requirement")
+        } else {
+            Capability::on("The configured tier's prerequisites are available")
+        };
+        report.tiers.insert(tier.into(), capability);
+    }
     report
 }
 

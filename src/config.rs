@@ -180,6 +180,8 @@ impl Default for OpsConfig {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct DockerConfig {
+    /// Presets can withhold an engine whose host paths/network are not available here.
+    pub enabled: bool,
     /// Host-owned seccomp profile for native browser/FUSE tools; callers cannot set it.
     pub native_tools_seccomp: Option<PathBuf>,
     /// Optional preloaded enforcing AppArmor profile, selected only by the host.
@@ -196,6 +198,7 @@ impl Default for DockerConfig {
     fn default() -> Self {
         Self {
             // dockerd's own default (`--host`); bollard keeps its copy private.
+            enabled: true,
             native_tools_seccomp: None,
             native_tools_apparmor: None,
             native_fuse: false,

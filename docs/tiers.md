@@ -2,10 +2,20 @@
 
 # Sandbox tiers
 
-The image contains container, process and wasm runtimes. A usable Docker socket selects
-container; `PRYX_DEFAULT_TIER=container|process|wasm` is an operator override. The no-engine
-selection is **process**, the measured winner for this workload. Wasm remains available through
-`PRYX_DEFAULT_TIER=wasm` or explicit placement. The complete measurements and limits follow.
+A node with `runtime = "auto"` serves every backend its measured host capabilities permit.
+Container, process and Wasm workloads can coexist under one capacity and reservation ledger.
+Each workload keeps its chosen tier for its lifetime and reports that tier's guarantees.
+A named unavailable tier is refused; it is never substituted.
+
+For an unnamed request, control chooses container, then process, then Wasm among healthy nodes
+that meet `require`. VM joins that order between container and process when available in K25.
+`PRYX_DEFAULT_ISOLATION=process` fixes one tier; a comma-separated list changes the priority.
+The image and new local installations use auto mode. Without an engine, the usual first choice
+remains **process**, with Wasm available alongside it. `PRYX_DEFAULT_TIER` remains a legacy
+single-backend override. Explicit `runtime` settings and older installation records retain their
+single backend. Both doctors list enabled tiers and reasons for those that are off.
+
+The complete measurements below retain their original contexts, samples and budgets.
 
 ## Comparison method
 

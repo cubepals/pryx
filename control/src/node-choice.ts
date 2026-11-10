@@ -12,7 +12,9 @@
 
 import agentContract from '../../agent/openapi.json'
 import type { Queryable } from './database.ts'
+import { type Guarantee, guarantees } from './guarantees.ts'
 import type { Thresholds } from './health.ts'
+import { type Isolation, nodeIsolations } from './isolation.ts'
 import {
   type Considered,
   type Decision,
@@ -35,12 +37,14 @@ export const describe = (considered: readonly Considered[]) =>
 
 export class NodeChoice {
   readonly #o: {
+    regionMap?: Readonly<Record<string, string>>
     cpuMillisPerGb: number
     thresholds: Thresholds
     placement: PlacementOptions
   }
 
   constructor(options: {
+    regionMap?: Readonly<Record<string, string>>
     cpuMillisPerGb: number
     thresholds: Thresholds
     placement: PlacementOptions
@@ -73,6 +77,30 @@ export class NodeChoice {
       avoid,
       ...(only === null ? {} : { only }),
     }
+  }
+
+  /** Choose only for a request that left its tier open; capacity is still claimed once later. */
+  async firstIsolation(
+    q: Queryable,
+    order: readonly Isolation[],
+    required: readonly Guarantee[],
+    region?: string,
+    only?: string,
+  ): Promise<Isolation | undefined> {
+    const nodes = await this.#views(q)
+    const mapped = region === undefined ? undefined : (this.#o.regionMap?.[region] ?? region)
+    return order.find((tier) =>
+      nodes.some(
+        (node) =>
+          node.health === 'healthy' &&
+          node.lifecycle === 'active' &&
+          !node.quarantined &&
+          (mapped === undefined || node.regionKey === mapped) &&
+          (only === undefined || node.id === only) &&
+          nodeIsolations(node.features).includes(tier) &&
+          required.every((name) => guarantees(node.features, tier)[name]),
+      ),
+    )
   }
 
   /** The node placement would choose now, read in `q` (the caller's transaction, where it has one). */

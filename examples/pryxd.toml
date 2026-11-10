@@ -7,8 +7,8 @@ node_id = "fra-box-1"
 # The Blockly deployment this host serves. Containers of another deployment are never adopted.
 deployment_id = "staging"
 state_dir = "/var/lib/pryxd"
-# container, process or wasm; each node provides its configured runtime.
-runtime = "container"
+# auto serves every supported tier; container, process or wasm selects exactly one.
+runtime = "auto"
 
 [api]
 # The mTLS workload API. Bind the private or WireGuard address, never a public one.

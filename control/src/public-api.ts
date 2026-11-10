@@ -38,7 +38,7 @@ export function createPublicApi(options: {
   boxes: Sandboxes
   nodes: NodeClient
   domain: string
-  defaultIsolation?: import('./isolation.ts').Isolation
+  defaultIsolation?: import('./isolation.ts').IsolationDefault
   require?: import('./guarantees.ts').Guarantee[]
   publicOrigin?: string
   repoImage?: string
@@ -175,7 +175,7 @@ export function createPublicApi(options: {
       ...(await projectRow(db, c.get('project'), boxes.projects?.defaults)),
       usage: await projectUsage(db, c.get('project'), boxes.projects?.unit),
       defaults: {
-        isolation: options.defaultIsolation ?? 'container',
+        isolation: await model.defaultIsolationView(),
         repoImage: options.repoImage ?? DEFAULT_REPO_IMAGE,
       },
     }),

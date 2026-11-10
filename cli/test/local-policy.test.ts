@@ -47,3 +47,24 @@ test('a worker receives persisted requirements and an empty override cannot eras
 test('an unknown deployment requirement refuses before service configuration', () => {
   expect(() => localRequirements([], 'private-netwrok')).toThrow('Unknown deployment requirement')
 })
+
+test('a new auto installation serves several tiers while old records stay explicit', () => {
+  const paths = userPaths({}, '/home/fixture')
+  const record: LocalInstallation = {
+    version: PRYX_VERSION,
+    digest: 'a'.repeat(64),
+    bundle: '/bundle',
+    preset: 'user',
+    tier: 'process',
+    apiUrl: 'http://127.0.0.1:7331',
+    clientConfig: paths.client,
+    paths,
+    userUnit: false,
+    enabledLinger: false,
+  }
+  expect(localEnvironment(record).PRYX_RUNTIME).toBe('process')
+  expect(localEnvironment(record).PRYX_DEFAULT_TIER).toBe('process')
+  const auto = localEnvironment({ ...record, runtime: 'auto' })
+  expect(auto.PRYX_RUNTIME).toBe('auto')
+  expect(auto.PRYX_DEFAULT_TIER).toBeUndefined()
+})

@@ -211,7 +211,7 @@ fn configuration(token: &JoinToken, address: Option<IpAddr>, allow_images: &[Str
         "# Written by `pryxd join`. Every key left out has a default or is worked out from this host\n\
          # at each start, as `pryxd doctor` lists; a key set here wins.\n\
          # https://github.com/cubepals/pryx/blob/main/examples/pryxd.toml lists every key.\n\
-         deployment_id = {}\n",
+         deployment_id = {}\nruntime = \"auto\"\n",
         quoted(&token.deployment_id)
     );
     if let Some(ip) = address {

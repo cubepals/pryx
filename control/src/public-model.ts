@@ -16,7 +16,7 @@ import { SECOND_MS } from './durations.ts'
 import { addresses, DEFAULT_EDGE_PORT_RANGE } from './edge-addresses.ts'
 import { shownState } from './edge-routed.ts'
 import { PRYX_VERSION } from './generated/release.ts'
-import { nodeIsolations } from './isolation.ts'
+import { DEFAULT_ISOLATION_ORDER, type IsolationDefault, nodeIsolations } from './isolation.ts'
 import type { MountSpec, NativeMounts } from './native-mounts.ts'
 import { complete, fingerprint, operation } from './operations.ts'
 import { UNIT_DEFAULTS, unitSpec } from './project-model.ts'
@@ -32,10 +32,41 @@ export class PublicModel {
     readonly boxes: Sandboxes,
     readonly domain: string,
     readonly portRange: readonly [number, number] = DEFAULT_EDGE_PORT_RANGE,
-    readonly defaultIsolation: import('./isolation.ts').Isolation = 'container',
+    readonly defaultIsolation: IsolationDefault = DEFAULT_ISOLATION_ORDER,
     readonly publicOrigin?: string,
     readonly require: import('./guarantees.ts').Guarantee[] = [],
   ) {}
+  private async defaultTier(
+    required: readonly import('./guarantees.ts').Guarantee[],
+    region?: string,
+    only?: string,
+  ): Promise<import('./isolation.ts').Isolation> {
+    if (typeof this.defaultIsolation === 'string') return this.defaultIsolation
+    const tier = await this.boxes.engine.isolationChoice.firstIsolation(
+      this.db,
+      this.defaultIsolation,
+      required,
+      region,
+      only,
+    )
+    if (tier) return tier
+    throw new SandboxError(
+      'no_room',
+      `No healthy node serves an eligible tier (${this.defaultIsolation.join(', ')})${required.length ? ` with required guarantees: ${required.join(', ')}` : ''}`,
+    )
+  }
+  async defaultIsolationView(): Promise<import('./isolation.ts').Isolation> {
+    if (typeof this.defaultIsolation === 'string') return this.defaultIsolation
+    return (
+      (await this.boxes.engine.isolationChoice.firstIsolation(
+        this.db,
+        this.defaultIsolation,
+        this.require,
+      )) ??
+      this.defaultIsolation[0] ??
+      'container'
+    )
+  }
   async view(id: string, project: string) {
     const sandbox = await this.boxes.get(id, project)
     const metadata = await one<{ public_ports: PublicPort[] }>(
@@ -87,7 +118,7 @@ export class PublicModel {
         }
     }
     const sources = [body.image, body.snapshot, body.template].filter(Boolean).length
-    if (sources > 1 || (sources === 0 && (body.isolation ?? this.defaultIsolation) === 'container'))
+    if (sources > 1)
       throw new SandboxError('invalid_request', 'Choose exactly one of image, snapshot or template')
     if (body.units !== undefined && body.resources !== undefined)
       throw new SandboxError('invalid_request', 'Choose units or explicit resources')
@@ -125,7 +156,16 @@ export class PublicModel {
         'invalid_request',
         'A mounted snapshot must be forked with explicit mount credentials',
       )
-    const isolation = body.isolation ?? source?.isolation ?? this.defaultIsolation
+    const isolation =
+      body.isolation ??
+      source?.isolation ??
+      (await this.defaultTier(
+        [...this.require, ...(body.require ?? source?.require ?? [])],
+        body.region,
+        options.onlyNode,
+      ))
+    if (sources === 0 && isolation === 'container')
+      throw new SandboxError('invalid_request', 'Choose exactly one of image, snapshot or template')
     // The tier a snapshot or template carries counts, so a container template stays mountable on
     // a deployment whose default tier is another.
     if (body.mounts?.length && isolation !== 'container')
@@ -250,11 +290,19 @@ export class PublicModel {
   }
   async template(project: string, name: string, body: Make) {
     await this.boxes.projects?.write(project)
-    if (
-      (!body.image && (body.isolation ?? this.defaultIsolation) === 'container') ||
-      body.snapshot ||
-      body.template
+    const prior = await one<{ spec: Make }>(
+      this.db,
+      sql`SELECT spec FROM templates WHERE project=${project} AND name=${name}`,
     )
+    const priorTier = prior?.spec.isolation ?? (prior?.spec.image ? 'container' : undefined)
+    body = {
+      ...body,
+      isolation:
+        body.isolation ??
+        priorTier ??
+        (await this.defaultTier([...this.require, ...(body.require ?? [])], body.region)),
+    }
+    if ((!body.image && body.isolation === 'container') || body.snapshot || body.template)
       throw new SandboxError('invalid_request', 'A template starts from a tier-native specification')
     await this.db.execute(
       sql`INSERT INTO templates(id,project,name,spec) VALUES (${randomUUID()},${project},${name},${jsonb(body)}) ON CONFLICT(project,name) DO NOTHING`,
@@ -263,7 +311,11 @@ export class PublicModel {
       this.db,
       sql`SELECT spec FROM templates WHERE project=${project} AND name=${name}`,
     )
-    if (existing && fingerprint(existing.spec) !== fingerprint(body))
+    if (
+      existing &&
+      fingerprint({ ...existing.spec, isolation: existing.spec.isolation ?? priorTier ?? body.isolation }) !==
+        fingerprint(body)
+    )
       throw new SandboxError('idempotency_key_reused', 'Template name has another spec')
     await this.warmTemplates()
     return (await this.templates(project)).find((t) => t.name === name)
@@ -283,9 +335,13 @@ export class PublicModel {
       this.db,
       sql`SELECT id,region_key AS region,features FROM fleet_nodes WHERE lifecycle='active' AND duplicate_seen_at IS NULL`,
     )
-    for (const t of templates)
+    for (const t of templates) {
+      const isolation =
+        t.spec.isolation ??
+        (t.spec.image ? 'container' : undefined) ??
+        (await this.defaultTier([...this.require, ...(t.spec.require ?? [])], t.spec.region))
       for (const n of nodes) {
-        if (!nodeIsolations(n.features).includes(t.spec.isolation ?? this.defaultIsolation)) continue
+        if (!nodeIsolations(n.features).includes(isolation)) continue
         const id = randomUUID()
         await this.db.execute(
           sql`INSERT INTO template_copies(template,node,sandbox) VALUES(${t.id},${n.id},${id}) ON CONFLICT DO NOTHING`,
@@ -307,7 +363,7 @@ export class PublicModel {
             const { mounts: _, ...spec } = t.spec
             await this.create(
               t.project,
-              makeSchema.parse({ ...spec, region: n.region, start: true }),
+              makeSchema.parse({ ...spec, isolation, region: n.region, start: true }),
               undefined,
               { id: copy.sandbox, onlyNode: n.id, internal: true },
             )
@@ -323,5 +379,6 @@ export class PublicModel {
           }
         })
       }
+    }
   }
 }

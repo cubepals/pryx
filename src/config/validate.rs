@@ -33,7 +33,15 @@ impl Config {
         Ok(())
     }
 
+    fn validate_backend_selection(&self) -> Result<(), ConfigError> {
+        if self.runtime == super::RuntimeKind::Container && !self.docker.enabled {
+            return Err(ConfigError::Invalid("the container tier is disabled by this host preset".into()));
+        }
+        Ok(())
+    }
+
     pub fn validate(&self) -> Result<(), ConfigError> {
+        self.validate_backend_selection()?;
         if matches!(self.runtime, super::RuntimeKind::Wasm | super::RuntimeKind::Auto) {
             self.validate_wasm()?;
         }

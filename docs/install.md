@@ -94,3 +94,9 @@ See [operations](operations.md) for issuing a token and node policy.
 Set `PRYX_NO_UP=1` on the installer process to install only the CLI. No production
 release is published by branch acceptance; preview builds use an isolated fixture
 signing identity and cannot replace production release keys.
+
+New local installations enable every supported local tier together. Workloads keep their
+chosen tier across upgrades, and older installations retain their existing explicit backend.
+The local preset keeps container images off until host engine bind paths and networking can
+be established; the server preset supplies that host context. `pryx doctor` and `pryxd doctor`
+show enabled tiers and each unavailable tier’s reason.

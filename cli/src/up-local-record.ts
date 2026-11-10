@@ -15,6 +15,7 @@ export type LocalInstallation = {
   bundle: string
   preset: 'user' | 'container'
   tier: 'process' | 'wasm' | 'container'
+  runtime?: 'auto'
   apiUrl: string
   clientConfig: string
   paths: LocalPaths
@@ -56,6 +57,7 @@ export function readInstallation(paths: LocalPaths) {
     isAbsolute(below) ||
     !['user', 'container'].includes(record.preset) ||
     !['process', 'wasm', 'container'].includes(record.tier) ||
+    (record.runtime !== undefined && record.runtime !== 'auto') ||
     !/^[a-f0-9]{64}$/.test(record.digest) ||
     !/^\d+\.\d+\.\d+$/.test(record.version) ||
     JSON.stringify(record.paths) !== JSON.stringify(paths) ||

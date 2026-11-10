@@ -99,6 +99,9 @@ export async function upLocal(args: string[], preset: 'user' | 'container', upgr
           bundle,
           preset,
           tier: checked.tier,
+          runtime:
+            previous?.runtime ??
+            (!previous && !process.env.PRYX_DEFAULT_TIER && checked.probe.tiers ? 'auto' : undefined),
           apiUrl: previous?.apiUrl ?? `http://127.0.0.1:${await localPort(port)}`,
           clientConfig: paths.client,
           paths,

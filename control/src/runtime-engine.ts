@@ -123,6 +123,7 @@ export class FleetRuntime implements SandboxRuntime {
     this.#choice = new NodeChoice({
       cpuMillisPerGb: options.cpuMillisPerGb,
       thresholds: options.thresholds,
+      regionMap: options.regionMap,
       placement: options.placement,
     })
     this.#ledger = new Ledger({
@@ -236,6 +237,10 @@ export class FleetRuntime implements SandboxRuntime {
       avoid: [],
     }
     return (await this.#choice.choose(this.#o.db, request)).node !== null
+  }
+
+  get isolationChoice() {
+    return this.#choice
   }
 
   /**

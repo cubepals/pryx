@@ -53,6 +53,9 @@ enum Command {
     Probe {
         #[arg(long)]
         json: bool,
+        /// Apply this node's configured tier selection to the host report.
+        #[arg(long)]
+        config: Option<PathBuf>,
     },
     #[command(hide = true)]
     ProbeUserNamespace,
@@ -172,10 +175,14 @@ fn init_tracing(format: LogFormat) {
     }
 }
 
-fn print_probe(json: bool) -> anyhow::Result<()> {
+fn print_probe(json: bool, config: Option<&std::path::Path>) -> anyhow::Result<()> {
     tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(anyhow::Error::from).and_then(
         |runtime| {
-            let report = runtime.block_on(pryxd::probe::run());
+            let report = if let Some(path) = config {
+                runtime.block_on(pryxd::probe::for_config(&Config::load(path)?))
+            } else {
+                runtime.block_on(pryxd::probe::tier_report())
+            };
             if json {
                 println!("{}", serde_json::to_string_pretty(&report)?);
             } else {
@@ -202,7 +209,7 @@ fn main() -> ExitCode {
         Command::ProbeUserNamespace => pryxd::probe::user_namespace_child(),
         Command::ProbeKvm => pryxd::probe::kvm_child(),
         Command::ProbeSeparateUsers => pryxd::probe::separate_users_child(),
-        Command::Probe { json } => print_probe(json),
+        Command::Probe { json, config } => print_probe(json, config.as_deref()),
         Command::LeaseWatchdog { group, deadline } => {
             pryxd::store_lease::guard::run(&group, deadline).map_err(Into::into)
         }

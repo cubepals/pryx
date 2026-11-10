@@ -17,6 +17,7 @@ import { loadConfig } from '../control/src/config.ts'
 import { MINUTE_MS, SECOND_MS } from '../control/src/durations.ts'
 import { HTTP_FRONT_PORT } from '../control/src/edge-headers.ts'
 import { THRESHOLDS } from '../control/src/health.ts'
+import { type Isolation, nodeIsolations } from '../control/src/isolation.ts'
 import { startControl } from '../control/src/main.ts'
 import { createToken, heldBack, nodeSummaries } from '../control/src/registry.ts'
 import { startEdge } from '../edge/src/agent.ts'
@@ -33,7 +34,7 @@ import {
   supervisedCommand,
   until,
 } from './image-state.ts'
-import { imageTier } from './image-tier.ts'
+import { imageRuntime } from './image-tier.ts'
 import { bundleBinary, localLayout } from './local-layout.ts'
 import { processStart } from './supervisor-process.ts'
 
@@ -61,13 +62,17 @@ async function serve() {
     children: Bun.Subprocess[] = []
   diagnosticRoot = root
   startupStage = 'runtime'
-  const docker =
-    existsSync('/var/run/docker.sock') &&
-    Bun.spawnSync(['docker', 'version', '--format', '{{.Server.Version}}'], {
-      stdout: 'ignore',
-      stderr: 'ignore',
-    }).exitCode === 0
-  const tier = imageTier(docker, process.env.PRYX_DEFAULT_TIER)
+  const tier = imageRuntime(process.env.PRYX_RUNTIME ?? process.env.PRYX_DEFAULT_TIER)
+  let servedTiers: readonly Isolation[] = tier === 'auto' ? [] : [tier]
+  if (tier !== 'auto') {
+    const measured = await hostProbe(layout.pryxd, {
+      ...process.env,
+      PRYX_AGENTOS_DISTRIBUTION: layout.agentos,
+    })
+    const capability = measured.tiers?.[tier]
+    if (capability && capability.state !== 'on')
+      throw new Error(`${tier} tier is off: ${capability.evidence}; ${capability.action}`)
+  }
   let memory = totalmem()
   try {
     const limit = Number(readFileSync('/sys/fs/cgroup/memory.max', 'utf8').trim())
@@ -138,7 +143,7 @@ async function serve() {
     PRYX_OPERATOR_TOKEN: values.operator,
     PRYX_EDGE_TOKEN: values.edge,
     PRYX_BOOTSTRAP_API_KEY: values.key,
-    PRYX_DEFAULT_ISOLATION: tier,
+    PRYX_DEFAULT_ISOLATION: process.env.PRYX_DEFAULT_ISOLATION ?? (tier === 'auto' ? undefined : tier),
     PRYX_PUBLIC_URL: origin,
     PRYX_DEPLOYMENT: 'pryx',
     PRYX_NODE_LISTEN: `127.0.0.1:${layout.ports.fleet}`,
@@ -155,7 +160,8 @@ async function serve() {
     gatewayHealth: () =>
       Response.json({
         status: 'ok',
-        isolation: tier,
+        isolation: servedTiers[0] ?? tier,
+        tiers: servedTiers,
         sharedUid: tier === 'wasm' || process.getuid?.() !== 0,
       }),
   })
@@ -189,6 +195,7 @@ ca = ${JSON.stringify(join(identity, 'ca.pem'))}
 enrollment_token_file = ${JSON.stringify(tokenPath)}
 heartbeat_seconds = 1
 ${tier !== 'container' ? `[capacity]\nreserved_memory_mb = ${reservedMemory}\nreserved_cpu_millis = ${reservedCpu}` : ''}
+${layout.local ? '[docker]\nenabled = false' : ''}
 [wasm]
 distribution = ${JSON.stringify(layout.agentos)}
 ${layout.local && process.env.PRYX_LOCAL_LAUNCHER ? `launcher_executable = ${JSON.stringify(process.env.PRYX_LOCAL_LAUNCHER)}` : ''}
@@ -230,12 +237,19 @@ control_ips = ["127.0.0.1"]
     },
     (2 * MINUTE_MS) / SECOND_MS,
   )
-  if (tier === 'container') {
+  const enrolled = await nodeSummaries(control.db, THRESHOLDS)
+  servedTiers = nodeIsolations(
+    enrolled.find((node) => node.api_address === `127.0.0.1:${layout.ports.node}`)?.features ?? [],
+  )
+  if (servedTiers.includes('container')) {
     const isolate = Bun.spawn([layout.pryxd, 'isolate', '--config', nodeConfig], {
       stdout: 'ignore',
       stderr: privateLog(root, 'isolate'),
     })
-    if (await isolate.exited) throw new Error('Container tier host firewall policy could not be installed')
+    if (await isolate.exited) {
+      if (tier !== 'auto') throw new Error('Container tier host firewall policy could not be installed')
+      console.log('host-firewall is off; requests requiring host-firewall are refused')
+    }
   }
   await control.runtime.refreshRegistry()
   const ingress = edgeConfig({
@@ -253,7 +267,7 @@ control_ips = ["127.0.0.1"]
   })
   if (control.edge.agents) control.edge.agents.localOrigin = origin
   edge.agents.useControl(control.apiUrl)
-  const probe = await hostProbe(layout.pryxd)
+  const probe = await hostProbe(layout.pryxd, process.env, nodeConfig)
   startupStage = 'gateway'
   const gateway = await front({
     host: layout.host,
@@ -295,7 +309,9 @@ control_ips = ["127.0.0.1"]
         : process.getuid?.() === 0
           ? 'per-sandbox UIDs'
           : 'shared UID'
-  console.log(`pryx listening on ${publicPort}; isolation=${tier}; ${boundary}`)
+  console.log(
+    `pryx listening on ${publicPort}; tiers=${servedTiers.join(',')}; ${tier === 'auto' ? 'per-sandbox isolation and guarantees' : boundary}`,
+  )
   recordProcess(true)
   if (layout.local && process.env.PRYX_CLIENT_CONFIG)
     writeClientConfig({ url: origin, key: values.key }, process.env.PRYX_CLIENT_CONFIG)
@@ -303,7 +319,7 @@ control_ips = ["127.0.0.1"]
     console.log(
       JSON.stringify({
         apiUrl: origin,
-        tiers: [tier],
+        tiers: servedTiers,
         capabilities: capabilitySummary(probe),
       }),
     )
