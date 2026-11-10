@@ -70,3 +70,16 @@ diagnostics (under one minute on failure). No new required job is added.
   sentence without changing the gate. The move commit's run already passes real KVM
   permission setup, the complete Rust suite and the real CLI doctor check; remaining
   Docker/image acceptance is still required.
+- `c64b1d1d133ebb6387d1b25db3d28df389bda662`, CI
+  https://github.com/cubepals/pryx/actions/runs/42773837666, fixes only that progress-note
+  wording. Its control, dependency and upstream contract jobs pass; core and deployment
+  acceptance are running. Runs 42772099448 and 42773196810 were canceled after their
+  completed failures were retained. Their interrupted deployment work is not a pass.
+- Run 42772998503 at the move commit passes the real KVM guest, CLI doctor and all Docker
+  integration cases, including the existing hard-memory/OOM assertion. This proves those
+  checks on that source; it does not make a later head or interrupted deployment green.
+- Conservative firewall follow-up requires a rootful engine before the loaded host table
+  can establish host-firewall. The rootless user network does not traverse that bridge.
+  All 421 Rust tests pass with the verified distribution (16 existing ignored), strict
+  all-target Clippy and the exact Rust structure check pass. Rootless-engine CI belongs
+  to K22; no local hard-limit pass is claimed for the cgroup-less engine.

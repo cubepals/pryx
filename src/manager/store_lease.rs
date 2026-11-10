@@ -73,7 +73,9 @@ impl Manager {
                     G::MemoryLimit => container && info.as_ref().is_some_and(|info| info.memory_limit),
                     G::CpuLimit => container && info.as_ref().is_some_and(|info| info.cpu_limit),
                     G::PrivateNetwork | G::PrivatePids => container,
-                    G::HostFirewall => container && probe.on("host-firewall"),
+                    G::HostFirewall => {
+                        container && info.as_ref().is_some_and(|info| !info.rootless) && probe.on("host-firewall")
+                    }
                     G::MemorySleep => {
                         !self.runtime.is_wasm()
                             && (!container || info.as_ref().is_some_and(|info| !info.rootless && info.memory_limit))

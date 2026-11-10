@@ -28,7 +28,7 @@ The view reads the latest node announcement. A resting sandbox with no node repo
 | `memory-limit` | Container engine info reports kernel memory limits and a cgroup driver |
 | `cpu-limit` | Engine info reports CPU quota and weights and a cgroup driver |
 | `private-network` | The container backend's separate network namespace |
-| `host-firewall` | The node can read its installed nftables table; refreshed before heartbeats |
+| `host-firewall` | Rootful engine with a readable installed nftables table; refreshed before heartbeats |
 | `own-kernel` | False until the virtual-machine tier exists |
 | `memory-sleep` | Process suspension or a rootful container engine with cgroup enforcement; false on Wasm and rootless engines |
 | `browser-sandbox` | Usable user namespaces and the host's native-tool seccomp policy on a container node |
