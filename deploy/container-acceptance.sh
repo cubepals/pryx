@@ -18,4 +18,9 @@ if [ "${PRYX_PREPARE_ONLY:-0}" = 1 ]; then exit 0; fi
 python3 -m http.server 9876 --bind 127.0.0.1 --directory /artifacts > /tmp/artifact-server.log 2>&1 &
 server=$!
 trap 'kill "$server"' EXIT HUP INT TERM
-su -s /bin/sh pryxtest -c 'sh /local-acceptance.sh'
+curl --retry 5 --retry-connrefused --retry-delay 1 --max-time 10 -fsS http://127.0.0.1:9876/install.sh -o /dev/null
+if [ "${PRYX_UNSUPPORTED:-0}" = 1 ]; then
+  su -s /bin/sh pryxtest -c 'python3 /unsupported-acceptance.py'
+else
+  su -s /bin/sh pryxtest -c 'sh /local-acceptance.sh'
+fi

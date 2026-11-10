@@ -234,3 +234,21 @@ job when publication is authorized. That job has not run in this task.
   This is not installation proof. Select explicit bash (GitHub adds pipefail) for
   every Any host run step and install util-linux in Fedora's test preparation.
   Preserve the original log; require every real acceptance command to complete.
+- The other three first container jobs also report success while their actual logs
+  end in readiness timeout: Debian 129799556266, Alpine 129799556353 and Ubuntu
+  129799557321. Run 42804827105 is therefore not installer acceptance despite its
+  aggregate green UI. The later explicit-bash correction propagates these failures;
+  the earlier logs are retained. Redacted failure excerpts in later cells identify
+  the actual installer fault rather than hiding it behind timeout alone.
+- Add one real unsupported Alpine cell with denied Landlock syscalls and an unchanged
+  home snapshot, preserving all four default-profile cells. Add a fresh domainless
+  sudo-server cell that proves alias hello and repeated credential stability; the
+  existing domain-based one-box suite remains intact. Neither new cell has run yet.
+  Their free hosted ceilings are 20 and 25 minutes, estimated 1–3 and 4–10 minutes
+  after the shared bundle build; they add no minutes to ordinary pull-request CI.
+  Actionlint/ShellCheck, Python compilation and whitespace validation pass.
+- The current Rust source builds and runs in the exact pinned Alpine/musl compiler
+  image and file reports static PIE. This corrects the local GNU fixture's executable
+  format; the fresh signed static-daemon install is now running. It has not reached
+  hello yet. Repair of the previous fixture's bad launcher link and explicit host-owned
+  launcher override were test cleanup only, never a production launcher-policy change.

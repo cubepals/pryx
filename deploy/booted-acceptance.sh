@@ -30,6 +30,7 @@ sudo incus exec pryx -- sh -c '
       fedora) dnf install -y systemd-pam dbus-broker polkit ;;
     esac
     python3 -m http.server 9876 --bind 127.0.0.1 --directory /artifacts >/tmp/artifact-server.log 2>&1 &
+    curl --retry 5 --retry-connrefused --retry-delay 1 --max-time 10 -fsS http://127.0.0.1:9876/install.sh -o /dev/null
     systemd-run --quiet --wait --collect --pipe --unit=pryx-acceptance \
       --property=User=pryxtest --property=PAMName=login \
       --setenv=HOME=/home/pryxtest --setenv=XDG_RUNTIME_DIR=/run/user/1001 \
