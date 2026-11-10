@@ -167,6 +167,20 @@ fn init_tracing(format: LogFormat) {
     }
 }
 
+fn print_probe(json: bool) -> anyhow::Result<()> {
+    tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(anyhow::Error::from).and_then(
+        |runtime| {
+            let report = runtime.block_on(pryxd::probe::run());
+            if json {
+                println!("{}", serde_json::to_string_pretty(&report)?);
+            } else {
+                print!("{}", report.text());
+            }
+            Ok(())
+        },
+    )
+}
+
 fn main() -> ExitCode {
     if let Some(error) = pryxd::runtime::wasm::dispatch_sidecar() {
         eprintln!("agentOS launcher refused: {error}");
@@ -182,19 +196,7 @@ fn main() -> ExitCode {
         Command::ProbeUserNamespace => pryxd::probe::user_namespace_child(),
         Command::ProbeKvm => pryxd::probe::kvm_child(),
         Command::ProbeSeparateUsers => pryxd::probe::separate_users_child(),
-        Command::Probe { json } => {
-            tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(anyhow::Error::from).and_then(
-                |runtime| {
-                    let report = runtime.block_on(pryxd::probe::run());
-                    if json {
-                        println!("{}", serde_json::to_string_pretty(&report)?);
-                    } else {
-                        print!("{}", report.text());
-                    }
-                    Ok(())
-                },
-            )
-        }
+        Command::Probe { json } => print_probe(json),
         Command::LeaseWatchdog { group, deadline } => {
             pryxd::store_lease::guard::run(&group, deadline).map_err(Into::into)
         }
