@@ -10,6 +10,7 @@ import { seconds } from '../../sdk/typescript/src/duration.ts'
 import { SDK_DEFAULTS } from '../../sdk/typescript/src/generated/defaults.ts'
 import { Transport } from '../../sdk/typescript/src/transport.ts'
 import { readClientConfig } from './client-config.ts'
+import { diagnosticFetch } from './http-diagnostics.ts'
 import { copy, terminal } from './sandbox-data.ts'
 import { field } from './sandbox-field.ts'
 
@@ -21,7 +22,12 @@ export function publicCredentials() {
   return { url: baseUrl, key: apiKey }
 }
 export function publicClient() {
-  return new Pryx(publicCredentials())
+  return new Pryx({
+    ...publicCredentials(),
+    ...(process.env.PRYX_HTTP_DIAGNOSTICS === '1'
+      ? { fetch: diagnosticFetch((event) => console.error(JSON.stringify(event))) }
+      : {}),
+  })
 }
 export function publicTransport() {
   return new Transport(publicCredentials())

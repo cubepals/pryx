@@ -649,6 +649,8 @@ jobs:
 
   one-box:
     name: One box and Action
+    env:
+      PRYX_HTTP_DIAGNOSTICS: '1'
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-24.04
