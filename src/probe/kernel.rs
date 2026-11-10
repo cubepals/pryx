@@ -4,6 +4,7 @@
 //! Kernel-owned facts, with fixture roots for cgroup and device observations. Capability use
 //! runs only inside the private child, never inside the multithreaded daemon.
 use super::{Capability, Report, State};
+use crate::capability::c_library;
 use std::{
     fs,
     path::{Component, Path},
@@ -25,19 +26,6 @@ pub(super) fn read(root: &Path) -> Report {
     }
     report.capabilities.insert("cgroup-controllers".into(), cgroup(root));
     report
-}
-
-fn c_library() -> String {
-    for (command, args) in [("getconf", vec!["GNU_LIBC_VERSION"]), ("ldd", vec!["--version"])] {
-        if let Ok(output) = std::process::Command::new(command).args(args).output() {
-            let bytes = if output.stdout.is_empty() { output.stderr } else { output.stdout };
-            let text = String::from_utf8_lossy(&bytes);
-            if !text.trim().is_empty() && (output.status.success() || command == "ldd") {
-                return text.lines().take(2).collect::<Vec<_>>().join("; ");
-            }
-        }
-    }
-    "unknown: neither getconf nor ldd could identify the host C library".into()
 }
 
 fn cgroup(root: &Path) -> Capability {

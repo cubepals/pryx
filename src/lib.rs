@@ -10,6 +10,7 @@
 //! `pub(crate)`, and `unreachable_pub` (Cargo.toml's `[lints]`) keeps it that way.
 
 pub mod api;
+mod capability;
 pub mod certs;
 pub mod cli;
 pub(crate) mod clock;
