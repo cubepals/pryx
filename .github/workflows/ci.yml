@@ -150,6 +150,7 @@ jobs:
           bun install --frozen-lockfile
           PRYX_PRYXD_BIN="$PWD/target/debug/pryxd" bun cli/src/main.ts doctor --json > "$RUNNER_TEMP/host-probe.json"
           jq -e '.capabilities.kvm.state == "on"' "$RUNNER_TEMP/host-probe.json"
+          jq -e '.tiers | has("container") and has("process") and has("wasm")' "$RUNNER_TEMP/host-probe.json"
       # Against the runner's own Docker daemon: hardening, limits, the OOM killer, isolation,
       # restarts. They chown data directories, so Cargo's runner starts the test binary as root;
       # Cargo itself, and so target/, stays the runner's.

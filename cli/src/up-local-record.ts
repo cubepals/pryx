@@ -4,6 +4,7 @@
 import { closeSync, constants, fstatSync, openSync, readFileSync } from 'node:fs'
 import { isAbsolute, join, relative, sep } from 'node:path'
 import { GUARANTEES, type Guarantee } from '../../control/src/guarantees.ts'
+import { type IsolationDefault, isIsolationDefault } from '../../control/src/isolation.ts'
 import { createPrivateFile } from '../../deploy/image-state.ts'
 import { processStart } from '../../deploy/supervisor-process.ts'
 import { type ProfileRecord, validProfile } from './up-local-profile.ts'
@@ -16,6 +17,7 @@ export type LocalInstallation = {
   preset: 'user' | 'container'
   tier: 'process' | 'wasm' | 'container'
   runtime?: 'auto'
+  defaultIsolation?: IsolationDefault
   apiUrl: string
   clientConfig: string
   paths: LocalPaths
@@ -58,6 +60,7 @@ export function readInstallation(paths: LocalPaths) {
     !['user', 'container'].includes(record.preset) ||
     !['process', 'wasm', 'container'].includes(record.tier) ||
     (record.runtime !== undefined && record.runtime !== 'auto') ||
+    (record.defaultIsolation !== undefined && !isIsolationDefault(record.defaultIsolation)) ||
     !/^[a-f0-9]{64}$/.test(record.digest) ||
     !/^\d+\.\d+\.\d+$/.test(record.version) ||
     JSON.stringify(record.paths) !== JSON.stringify(paths) ||

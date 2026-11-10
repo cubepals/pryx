@@ -20,3 +20,9 @@ export function nodeIsolations(features: readonly string[]): readonly Isolation[
   const announced = ISOLATIONS.filter((tier) => features.includes(`tier-${tier}`))
   return features.includes('multi-tier') && announced.length ? announced : [nodeIsolation(features)]
 }
+
+export function isIsolationDefault(value: unknown): value is IsolationDefault {
+  return typeof value === 'string'
+    ? ISOLATIONS.includes(value as Isolation)
+    : Array.isArray(value) && value.length > 0 && value.every((tier) => ISOLATIONS.includes(tier))
+}

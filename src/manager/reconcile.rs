@@ -277,7 +277,9 @@ impl Manager {
             return Ok(Err(issue));
         };
         let record = WorkloadRecord {
-            isolation: label.isolation,
+            isolation: label
+                .isolation
+                .or_else(|| self.runtime.bound_isolation(&c.name).and_then(crate::protocol::Isolation::from_name)),
             version: RECORD_VERSION,
             id: id.clone(),
             generation: label.generation,
@@ -317,7 +319,7 @@ impl Manager {
             .collect();
         for record in &mut records {
             if record.isolation.is_none() {
-                record.isolation = crate::protocol::Isolation::from_name(self.runtime.isolation());
+                record.isolation = self.legacy_isolation(record).await?;
                 self.save_record(record).await?;
             } else {
                 self.bind_record(record)?;
@@ -335,6 +337,23 @@ impl Manager {
                 .map(|p| (p.protocol, p.port, Duration::from_secs((now_unix - p.released_at_unix).max(0) as u64))),
         );
         Ok(host_issues)
+    }
+
+    async fn legacy_isolation(&self, record: &WorkloadRecord) -> Result<Option<crate::protocol::Isolation>, NodeError> {
+        if !self.runtime.multi_tier() {
+            return Ok(crate::protocol::Isolation::from_name(self.runtime.isolation()));
+        }
+        // Read every backend through the router before binding an older record. Its current
+        // default is not evidence of which backend owns existing compute.
+        if self.runtime.inspect(&record.container_name).await?.is_some() {
+            return Ok(self
+                .runtime
+                .bound_isolation(&record.container_name)
+                .and_then(crate::protocol::Isolation::from_name));
+        }
+        // Images have always been exclusive to containers. A resting image-free legacy record
+        // has no evidence distinguishing process from Wasm, so leave it refused, not guessed.
+        Ok((!record.spec.image.is_empty()).then_some(crate::protocol::Isolation::Container))
     }
 
     /// Settles what a crash left on disk: each record's restore that didn't get to finish

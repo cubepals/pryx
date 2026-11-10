@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Exercise the shipped Compose service graph with the already-built release image. The CI
  * Docker build separately proves its identical build context; this avoids compiling it twice. */
+
 import { resolve } from 'node:path'
+import { StatusCodes } from 'http-status-codes'
+import type { components } from '../../sdk/typescript/src/generated/api.ts'
 import { SECOND_MS } from '../src/durations.ts'
 import { PRYX_VERSION } from '../src/generated/release.ts'
+import { mixedTierAcceptance } from './mixed-tiers.ts'
 import { sharedUidAcceptance } from './shared-uid.ts'
 
 const project = `pryx-ci-compose-${process.pid}`
@@ -84,6 +88,18 @@ try {
   const keys = initialKeys(await command([...prefix, 'logs', '--no-log-prefix', '--no-color', 'pryx']))
   if (keys.length !== 1 || !keys[0]) throw new Error('Compose initial key differs')
   await hello(keys[0])
+  const unavailable = await fetch('http://127.0.0.1:8080/v1/sandboxes', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${keys[0]}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ isolation: 'container', image: 'alpine:3.22' }),
+  })
+  const refusal = (await unavailable.json()) as components['schemas']['Error']
+  if (
+    unavailable.status !== StatusCodes.SERVICE_UNAVAILABLE ||
+    refusal.error?.code !== 'no_room' ||
+    !refusal.error.message.includes('container')
+  )
+    throw new Error('Ordinary no-engine image did not name the unavailable container tier')
   await command([...prefix, 'restart'])
   await healthy()
   await hello(keys[0])
@@ -94,3 +110,5 @@ try {
   await command([...prefix, 'down', '--volumes', '--remove-orphans'])
 }
 await sharedUidAcceptance(process.env.PRYX_IMAGE_TEST ?? 'pryx-static-test', command, initialKeys)
+
+await mixedTierAcceptance(process.env.PRYX_IMAGE_TEST ?? 'pryx-static-test', command, initialKeys)

@@ -277,6 +277,9 @@ pub trait ContainerRuntime: Send + Sync + 'static {
     fn tier_info(&self, _tier: &str) -> Option<RuntimeInfo> {
         None
     }
+    fn bound_isolation(&self, _name: &str) -> Option<&'static str> {
+        Some(self.isolation())
+    }
     fn bind(&self, _name: &str, _id: Option<&str>, _tier: &str) -> Result<(), RuntimeError> {
         Ok(())
     }

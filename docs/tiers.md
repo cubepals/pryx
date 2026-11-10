@@ -10,10 +10,14 @@ A named unavailable tier is refused; it is never substituted.
 For an unnamed request, control chooses container, then process, then Wasm among healthy nodes
 that meet `require`. VM joins that order between container and process when available in K25.
 `PRYX_DEFAULT_ISOLATION=process` fixes one tier; a comma-separated list changes the priority.
+Local installations retain this preference across user-manager restarts and upgrades.
 The image and new local installations use auto mode. Without an engine, the usual first choice
 remains **process**, with Wasm available alongside it. `PRYX_DEFAULT_TIER` remains a legacy
 single-backend override. Explicit `runtime` settings and older installation records retain their
 single backend. Both doctors list enabled tiers and reasons for those that are off.
+Before switching an older configuration to auto, start it once with its previous explicit
+runtime to save existing workloads' tiers. Auto can identify existing compute and container
+images; it refuses a resting legacy record whose process/Wasm identity cannot be established.
 
 The complete measurements below retain their original contexts, samples and budgets.
 

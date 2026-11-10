@@ -24,6 +24,10 @@ export function localEnvironment(record: LocalInstallation): NodeJS.ProcessEnv {
     PRYX_CLIENT_CONFIG: record.clientConfig,
     PRYX_PUBLIC_URL: record.apiUrl,
     PRYX_RUNTIME: record.runtime ?? record.tier,
+    PRYX_DEFAULT_ISOLATION:
+      typeof record.defaultIsolation === 'string'
+        ? record.defaultIsolation
+        : (record.defaultIsolation?.join(',') ?? process.env.PRYX_DEFAULT_ISOLATION),
     PRYX_DEFAULT_TIER: record.runtime ? undefined : record.tier,
     PRYX_REQUIRE: localRequirements(record.require).join(','),
     PORT: new URL(record.apiUrl).port || String(HTTP_FRONT_PORT),

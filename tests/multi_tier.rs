@@ -118,3 +118,69 @@ async fn a_backend_outage_and_identity_collision_cannot_redirect_a_mutation() {
     assert_eq!(container.count_calls("kill "), 1);
     assert_eq!(process.count_calls("kill "), 0);
 }
+
+#[tokio::test]
+async fn changing_to_a_single_backend_cannot_redirect_saved_workloads() {
+    let dir = tempfile::tempdir().unwrap();
+    let process = Arc::new(FakeRuntime::new().with_isolation(Isolation::Process));
+    let first = support::manager_on(dir.path(), process.clone(), "runtime = 'process'");
+    first.reconcile(Records::FromDisk).await;
+    let id = support::id("saved-process");
+    first.ensure(id.clone(), spec(Some("process")), Precondition::None, None).await.unwrap();
+    first.start(id.clone(), None).await.unwrap();
+    drop(first);
+    let container = Arc::new(FakeRuntime::new());
+    let second = support::manager_on(dir.path(), container.clone(), "runtime = 'container'");
+    let report = second.reconcile(Records::FromDisk).await;
+    assert!(report.error.as_deref().unwrap().contains("process"));
+    assert!(second.start(id.clone(), None).await.is_err());
+    assert!(second.kill(id.clone(), None).await.is_err());
+    assert!(
+        second.delete(id.clone(), pryxd::protocol::DataDisposition::Delete, Some(id.to_string()), None).await.is_err()
+    );
+    tier_refusal(second.ensure(id, spec(None), Precondition::None, None).await.unwrap_err(), "process");
+    for verb in ["create ", "start ", "kill ", "remove "] {
+        assert_eq!(container.count_calls(verb), 0);
+    }
+    assert_eq!(process.count_calls("kill "), 0);
+    assert_eq!(process.count_calls("remove "), 0);
+}
+
+#[tokio::test]
+async fn legacy_records_use_their_actual_backend_and_refuse_ambiguous_resting_state() {
+    let dir = tempfile::tempdir().unwrap();
+    let process = Arc::new(FakeRuntime::new().with_isolation(Isolation::Process));
+    let first = support::manager_on(dir.path(), process.clone(), "runtime = 'process'");
+    first.reconcile(Records::FromDisk).await;
+    let mut value = support::spec_json();
+    value["image"] = "".into();
+    value["resources"] = serde_json::json!({"memoryMb": 128});
+    let legacy: pryxd::protocol::WorkloadSpec = serde_json::from_value(value).unwrap();
+    for name in ["legacy-running", "legacy-resting"] {
+        let id = support::id(name);
+        first.ensure(id.clone(), legacy.clone(), Precondition::None, None).await.unwrap();
+        if name == "legacy-running" {
+            first.start(id.clone(), None).await.unwrap();
+        } else {
+            first.delete(id.clone(), pryxd::protocol::DataDisposition::Keep, None, None).await.unwrap();
+        }
+        let path = first.store.workload_dir(&id).join("workload.json");
+        let mut record: serde_json::Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        record.as_object_mut().unwrap().remove("isolation");
+        std::fs::write(path, serde_json::to_vec(&record).unwrap()).unwrap();
+    }
+    drop(first);
+    let container = Arc::new(FakeRuntime::new());
+    let router = Arc::new(Router::new(vec![container.clone(), process.clone()]).unwrap());
+    let second = support::manager_on(dir.path(), router, "runtime = 'auto'");
+    let report = second.reconcile(Records::FromDisk).await;
+    assert!(report.error.as_deref().unwrap().contains("unresolved"));
+    let running = support::id("legacy-running");
+    assert_eq!(serde_json::to_value(second.view(&running).unwrap()).unwrap()["isolation"], "process");
+    second.start(running, None).await.unwrap();
+    let resting = support::id("legacy-resting");
+    tier_refusal(second.ensure(resting.clone(), legacy, Precondition::None, None).await.unwrap_err(), "unresolved");
+    assert!(second.start(resting, None).await.is_err());
+    assert_eq!(container.count_calls("create "), 0);
+    assert_eq!(container.count_calls("start "), 0);
+}

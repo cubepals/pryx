@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PRYX_VERSION } from '../../control/src/generated/release.ts'
 import type { Guarantee } from '../../control/src/guarantees.ts'
-import { localRequirements } from '../src/up-local-policy.ts'
+import { localIsolation, localRequirements } from '../src/up-local-policy.ts'
 import { localEnvironment } from '../src/up-local-process.ts'
 import type { LocalInstallation } from '../src/up-local-record.ts'
 import { userPaths } from '../src/up-paths.ts'
@@ -67,4 +67,35 @@ test('a new auto installation serves several tiers while old records stay explic
   const auto = localEnvironment({ ...record, runtime: 'auto' })
   expect(auto.PRYX_RUNTIME).toBe('auto')
   expect(auto.PRYX_DEFAULT_TIER).toBeUndefined()
+})
+
+test('the saved default isolation order reaches workers and survives an absent shell override', async () => {
+  const paths = userPaths({}, '/home/fixture')
+  const saved = ['wasm', 'process'] as const
+  expect(localIsolation(saved, undefined)).toEqual(saved)
+  expect(localIsolation(saved, 'process')).toBe('process')
+  expect(() => localIsolation(saved, '')).toThrow('isolation')
+  expect(() => localIsolation(saved, 'unknown')).toThrow('isolation')
+  const record: LocalInstallation = {
+    version: PRYX_VERSION,
+    digest: 'a'.repeat(64),
+    bundle: '/bundle',
+    preset: 'user',
+    tier: 'process',
+    runtime: 'auto',
+    defaultIsolation: saved,
+    apiUrl: 'http://127.0.0.1:7331',
+    clientConfig: paths.client,
+    paths,
+    userUnit: true,
+    enabledLinger: false,
+  }
+  const child = Bun.spawn([process.execPath, '-e', 'console.log(process.env.PRYX_DEFAULT_ISOLATION)'], {
+    env: localEnvironment(record),
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'pipe',
+  })
+  expect(await new Response(child.stdout).text()).toBe('wasm,process\n')
+  expect(await child.exited).toBe(0)
 })

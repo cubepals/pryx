@@ -11,7 +11,7 @@ import { activateCli, localDirectories, localSummary } from './up-local-activate
 import { inspectLocal } from './up-local-check.ts'
 import { acquireLifecycle } from './up-local-lock.ts'
 import { configuredPort, localPort } from './up-local-network.ts'
-import { localRequirements } from './up-local-policy.ts'
+import { localIsolation, localRequirements } from './up-local-policy.ts'
 import { followLocal, launchLocal, localReady, stopLocal } from './up-local-process.ts'
 import { installProfiles } from './up-local-profile.ts'
 import { type LocalInstallation, readInstallation, supervisor, writeInstallation } from './up-local-record.ts'
@@ -47,6 +47,7 @@ export async function upLocal(args: string[], preset: 'user' | 'container', upgr
   const paths = localPaths(preset)
   const port = configuredPort()
   localRequirements()
+  localIsolation()
   const initial = await inspectLocal(preset)
   // This probe and all path checks finish before the first persistent mutation.
   mkdirSync(paths.home, { recursive: true, mode: 0o755 })
@@ -60,14 +61,18 @@ export async function upLocal(args: string[], preset: 'user' | 'container', upgr
     if (previous && port !== undefined && port !== Number(new URL(previous.apiUrl).port || HTTP_FRONT_PORT))
       throw new Error('The existing gateway port is immutable; migrate public API origins before changing it')
     const require = localRequirements(previous?.require)
+    const defaultIsolation = localIsolation(previous?.defaultIsolation)
     if (previous && process.env.PRYX_DEFAULT_TIER && previous.tier !== process.env.PRYX_DEFAULT_TIER)
       throw new Error(
         `The existing ${previous.tier} backend owns sandbox state; migrate its data before changing backends`,
       )
     if (upgrading && !previous) throw new Error('No managed installation; run pryx up first')
     if (previous && !upgrading) {
-      record = { ...previous, require }
-      if (JSON.stringify(previous.require ?? []) !== JSON.stringify(require)) {
+      record = { ...previous, require, defaultIsolation }
+      if (
+        JSON.stringify(previous.require ?? []) !== JSON.stringify(require) ||
+        JSON.stringify(previous.defaultIsolation) !== JSON.stringify(defaultIsolation)
+      ) {
         if (previous.userUnit) await stopUserUnit(paths, false)
         await stopLocal(previous)
       }
@@ -109,6 +114,7 @@ export async function upLocal(args: string[], preset: 'user' | 'container', upgr
           enabledLinger: previous?.enabledLinger ?? false,
           profiles: previous?.profiles,
           require,
+          defaultIsolation,
         }
       } finally {
         rmSync(staged.temporary, { recursive: true, force: true })

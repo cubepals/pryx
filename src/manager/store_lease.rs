@@ -101,7 +101,7 @@ impl Manager {
                         container && info.as_ref().is_some_and(|info| !info.rootless) && probe.on("host-firewall")
                     }
                     G::MemorySleep => {
-                        tier != "wasm"
+                        matches!(tier, "container" | "process")
                             && (!container || info.as_ref().is_some_and(|info| !info.rootless && info.memory_limit))
                     }
                     G::BrowserSandbox => {

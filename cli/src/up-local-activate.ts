@@ -60,6 +60,7 @@ export async function localSummary(record: LocalInstallation, action: string) {
                 .map(([tier]) => tier)
             : [record.tier],
         require: record.require ?? [],
+        ...(record.defaultIsolation ? { defaultIsolation: record.defaultIsolation } : {}),
         capabilities: capabilitySummary(probe),
         credentialPath: record.clientConfig,
         supervision: action,

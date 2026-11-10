@@ -19,9 +19,18 @@ impl Manager {
         }]))
     }
     pub(super) fn record_tier(&self, record: &WorkloadRecord) -> &'static str {
-        record.isolation.map(Isolation::as_str).unwrap_or(self.runtime.isolation())
+        record
+            .isolation
+            .map(Isolation::as_str)
+            .unwrap_or_else(|| if self.runtime.multi_tier() { "unresolved" } else { self.runtime.isolation() })
     }
     pub(super) fn record_runtime(&self, record: &WorkloadRecord) -> Result<Arc<dyn ContainerRuntime>, NodeError> {
+        if record.isolation.is_none() && self.runtime.multi_tier() {
+            return Err(NodeError::Invalid(vec![FieldError {
+                field: "isolation".into(),
+                problem: "this legacy workload's tier is unresolved; use its previous explicit runtime configuration once before enabling auto".into(),
+            }]));
+        }
         self.runtime_for(record.isolation)
     }
     pub(super) fn spec_runtime(

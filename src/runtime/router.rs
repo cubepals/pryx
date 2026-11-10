@@ -7,9 +7,19 @@ use std::sync::{Arc, Mutex};
 
 pub struct Router {
     backends: Vec<Arc<dyn ContainerRuntime>>,
+    multiple: bool,
     routes: Mutex<BTreeMap<String, String>>,
     info: Mutex<BTreeMap<String, RuntimeInfo>>,
 }
+pub(crate) fn for_manager(runtime: Arc<dyn ContainerRuntime>) -> Arc<dyn ContainerRuntime> {
+    if runtime.multi_tier() || runtime.backend(runtime.isolation()).is_some() {
+        return runtime;
+    }
+    let mut router = Router::new(vec![runtime]).expect("one runtime is a nonempty tier set");
+    router.multiple = false;
+    Arc::new(router)
+}
+
 impl Router {
     pub fn new(backends: Vec<Arc<dyn ContainerRuntime>>) -> Result<Self, RuntimeError> {
         if backends.is_empty() {
@@ -19,7 +29,7 @@ impl Router {
         if tiers.len() != backends.len() {
             return Err(RuntimeError::Other("duplicate isolation backend".into()));
         }
-        Ok(Self { backends, routes: Mutex::new(BTreeMap::new()), info: Mutex::new(BTreeMap::new()) })
+        Ok(Self { backends, multiple: true, routes: Mutex::new(BTreeMap::new()), info: Mutex::new(BTreeMap::new()) })
     }
     fn default(&self) -> &dyn ContainerRuntime {
         self.backends[0].as_ref()
@@ -42,7 +52,7 @@ impl Router {
 #[async_trait]
 impl ContainerRuntime for Router {
     fn multi_tier(&self) -> bool {
-        true
+        self.multiple
     }
     fn backend(&self, tier: &str) -> Option<Arc<dyn ContainerRuntime>> {
         self.backends.iter().find(|r| r.isolation() == tier).cloned()
@@ -52,6 +62,10 @@ impl ContainerRuntime for Router {
     }
     fn tier_info(&self, tier: &str) -> Option<RuntimeInfo> {
         self.info.lock().unwrap().get(tier).cloned()
+    }
+    fn bound_isolation(&self, name: &str) -> Option<&'static str> {
+        let tier = self.routes.lock().unwrap().get(name).cloned()?;
+        self.backends.iter().find(|backend| backend.isolation() == tier).map(|backend| backend.isolation())
     }
     fn bind(&self, name: &str, id: Option<&str>, tier: &str) -> Result<(), RuntimeError> {
         let mut routes = self.routes.lock().unwrap();
@@ -92,6 +106,9 @@ impl ContainerRuntime for Router {
         self.default().supports_network_policy()
     }
     async fn info(&self) -> Result<RuntimeInfo, RuntimeError> {
+        if !self.multiple {
+            return self.default().info().await;
+        }
         let mut first = None;
         let mut failure = None;
         for backend in &self.backends {
@@ -187,6 +204,11 @@ impl ContainerRuntime for Router {
         Ok(found)
     }
     async fn list(&self, labels: &[String]) -> Result<Vec<ContainerInfo>, RuntimeError> {
+        for tier in self.routes.lock().unwrap().values() {
+            if self.backend(tier).is_none() {
+                return Err(RuntimeError::Unavailable(format!("the recorded {tier} tier is unavailable")));
+            }
+        }
         let mut all = Vec::new();
         let mut names = std::collections::BTreeSet::new();
         for backend in &self.backends {

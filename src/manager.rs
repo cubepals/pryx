@@ -370,6 +370,7 @@ impl Manager {
         probe: Probe,
         boot_id: Option<String>,
     ) -> Arc<Self> {
+        let runtime = crate::runtime::router::for_manager(runtime);
         let [low, high] = config.network.port_range;
         let ports = PortAllocator::new(low..=high, Duration::from_secs(config.network.port_quarantine_seconds), probe);
         let facts = config.host_facts();
