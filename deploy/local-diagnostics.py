@@ -8,9 +8,11 @@ import json
 import os
 from pathlib import Path
 import re
+import sys
 
 home = Path.home()
-private = Path('/etc/pryx-local') if os.getuid() == 0 else home / '.config/pryx'
+private = Path(sys.argv[1]) if len(sys.argv) == 2 else (
+    Path('/etc/pryx-local') if os.getuid() == 0 else home / '.config/pryx')
 secrets = set()
 
 
@@ -29,7 +31,10 @@ for name in ['credentials.json', 'client.json']:
         collect(json.loads((private / name).read_text()))
     except (FileNotFoundError, ValueError):
         pass
-for path in [home / 'install.log', home / 'upgrade.log', home / 'unit.log', *private.glob('*.log')]:
+logs = list(private.glob('*.log'))
+if len(sys.argv) == 1:
+    logs[:0] = [home / 'install.log', home / 'upgrade.log', home / 'unit.log']
+for path in logs:
     if not path.is_file():
         continue
     text = path.read_text(errors='replace')[-16 * 1024:]

@@ -36,6 +36,7 @@ export async function mixedTierAcceptance(
   }
   try {
     if (!storage.S3_ENDPOINT) throw new Error('S3_TEST_ENDPOINT is required for mixed-tier acceptance')
+    await command(['sudo', 'chown', 'root:root', root])
     await command([
       'docker',
       'run',
@@ -166,6 +167,14 @@ export async function mixedTierAcceptance(
     let logs = await command(['docker', 'logs', name])
     for (const key of initialKeys(logs)) logs = logs.replaceAll(key, '[redacted]')
     console.error(logs.slice(-8192))
+    console.error(
+      await command([
+        'sudo',
+        'python3',
+        new URL('../../deploy/local-diagnostics.py', import.meta.url).pathname,
+        privateDirectory(root),
+      ]).catch(() => 'Mixed-tier private diagnostics unavailable'),
+    )
     throw error
   } finally {
     const running = (await command(['docker', 'ps', '-aq', '--filter', `name=^${name}$`])).trim()

@@ -14,9 +14,12 @@ const project = `pryx-ci-compose-${process.pid}`
 const prefix = ['docker', 'compose', '-p', project, '-f', resolve('docker-compose.yml')]
 async function command(args: string[], env = process.env) {
   const child = Bun.spawn(args, { env, stdout: 'pipe', stderr: 'pipe' })
-  const [stdout] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text()])
+  const [stdout, stderr] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ])
   if (await child.exited) throw new Error(`${args[0]} failed during Compose acceptance`)
-  return stdout
+  return args[0] === 'docker' && args[1] === 'logs' ? stdout + stderr : stdout
 }
 async function healthy() {
   const end = Date.now() + 30 * SECOND_MS
