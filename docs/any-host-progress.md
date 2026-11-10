@@ -136,3 +136,12 @@ with a 60-minute ceiling; the initial estimate is 15–30 minutes for compilatio
 and under two minutes for the two runtime smoke cells. It adds zero minutes to
 a pull request's ordinary gate. Record actual build/archive measurements in its
 job summary before claiming the final release cost.
+
+- Bundle foundation source fb748708d6539cde91c2e75cab6d8d6f5220ce77, Any host
+  run https://github.com/cubepals/pryx/actions/runs/42786925009, job 129730388593:
+  real image and PostgreSQL download/build finish, then the mandatory licence
+  inventory fails because dpkg-query's libc diversion diagnostic is treated as
+  a package name. Keep the failed build and fix owner-record parsing using Debian
+  package-name syntax; the notices requirement remains unchanged. Local Python
+  compilation and actual installed-loader package/copyright lookup pass after
+  the correction. No archive or relocation smoke pass is claimed yet.

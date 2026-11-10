@@ -36,9 +36,15 @@ class Bundle:
         for candidate in [source, source.resolve()]:
             found = subprocess.run(['dpkg-query', '-S', str(candidate)], text=True,
                                    capture_output=True, check=False)
+            owners = set()
             for line in found.stdout.splitlines():
-                self.packages.add(line.rsplit(': ', 1)[0])
-            if found.returncode == 0:
+                # Debian Policy 5.6.1 package names, optionally qualified by architecture.
+                # dpkg-query also emits diversion diagnostics; those are not owner records.
+                for owner in line.rsplit(': ', 1)[0].split(', '):
+                    if re.fullmatch(r'[a-z0-9][a-z0-9+.-]*(?::[a-z0-9-]+)?', owner):
+                        owners.add(owner)
+            self.packages.update(owners)
+            if owners:
                 break
 
     def closure(self, binary):
