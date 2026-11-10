@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Stop a managed local installation before optional deletion. Runtime cleanup is delegated
  * to the node backend while its exclusive store lock prevents a concurrent daemon restart. */
-import { existsSync, readFileSync, rmSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, readdirSync, readFileSync, rmdirSync, rmSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { option } from './sandbox.ts'
 import { localPaths } from './up-local.ts'
 import { acquireLifecycle } from './up-local-lock.ts'
 import { localEnvironment, stopLocal } from './up-local-process.ts'
+import { removeProfiles } from './up-local-profile.ts'
 import { readInstallation, readOwnedText } from './up-local-record.ts'
 import { selectPreset } from './up-preset.ts'
 import { disableUserLinger, stopUserUnit } from './up-user-unit.ts'
@@ -39,6 +40,7 @@ export async function down(args: string[]) {
         throw new Error(`Compute cleanup refused; state was kept: ${detail.slice(-2048)}`)
     }
     if (!purge) return { stopped: true, state: paths.state, removed }
+    removed.push(...removeProfiles(paths, record.profiles ?? []))
     const shortcut = existsSync(paths.cli) ? readFileSync(paths.cli, 'utf8') : ''
     if (shortcut && !shortcut.includes('# Managed pryx installation'))
       throw new Error('CLI shortcut was replaced; no installation files were removed')
@@ -62,6 +64,16 @@ export async function down(args: string[]) {
         rmSync(path, { recursive: true, force: true })
         removed.push(path)
       }
+    }
+    const fallbackRuntime = join(paths.home, '.cache/pryx-runtime')
+    if (
+      preset === 'user' &&
+      dirname(paths.runtime) === fallbackRuntime &&
+      existsSync(fallbackRuntime) &&
+      readdirSync(fallbackRuntime).length === 0
+    ) {
+      rmdirSync(fallbackRuntime)
+      removed.push(fallbackRuntime)
     }
     // Last mutation while still holding the old inode: no replacement lock can race deletion.
     rmSync(paths.operation)

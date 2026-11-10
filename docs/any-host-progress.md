@@ -7,7 +7,7 @@ Only recorded CI evidence establishes completion; a local pass alone does not.
 | Milestone | Status | Finishing commit | CI proof | Ran | Did not run | Parked and why | Left |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | K19 | done | `b535d24b95ab2046aa6178fdc1d2683640ce2544` | [42777018303](https://github.com/cubepals/pryx/actions/runs/42777018303), green including aggregate | Real hosted KVM, full Rust and Docker suites, CLI doctor, default-profile image probes, non-root API refusal, full end-to-end attacks, one-box/Action/Python, Wasm, two-node, upstream integrations and recovery; local checks below | Live paid-provider provisioning and publication; neither is authorized | None | None |
-| K20 | in progress | — | Pending implementation | Read the brief, current installer/supervisor/release paths and versioned dependency licences | User bundle and distribution matrix | None | Presets, signed relocatable bundle, shared supervision, upgrade/removal, docs and real-host CI |
+| K20 | in progress | — | Normal CI 42812398328 green; Any host 42812398279 partial | Signed relocatable bundle/bootstrap, four Docker hellos, GNU Wasm fallback, domainless sudo, unchanged unsupported host, local upgrade/purge | Complete booted/user-unit, matrix upgrade/purge and root-container checks; production release prohibited | None | Prove readiness/PATH/policy corrections and all current matrix cells |
 | K21 | not started | — | — | — | All | — | Complete brief after K20 |
 | K22 | not started | — | — | — | All | — | Complete brief after K21 |
 | K23 | not started | — | — | — | All | — | Complete brief after K22 |
@@ -298,3 +298,32 @@ job when publication is authorized. That job has not run in this task.
   bootstrap payload, missing Fedora su, fixture-server race and early Alpine DNS
   failures. The explicit-bash run correctly fails its cells instead of hiding those
   failures. Preserve those results; no whole-job replay or test weakening is used.
+- Source 8725e3a1 passes the complete normal CI run 42812398328, including the
+  preserved one-box, Docker, KVM and end-to-end suites. Any host 42812398279 passes
+  bundle/bootstrap relocation, actual unchanged-host refusal, and domainless sudo
+  installation. Its four default Docker cells reach hello (Fedora 28s, Debian 40s,
+  Ubuntu 34s, Alpine 56s); denied-Landlock GNU fallback reaches hello in 36s.
+  These are partial results: Fedora then lacks cmp, the other foreground cells
+  expose stale-session readiness across upgrade, and the systemd distributions
+  fail user-unit startup without enough diagnostics. K20 remains in progress.
+- Fix restart readiness to require the replacement daemon's session and API endpoint
+  after the unchanged registry fencing hold. Add a real-PostgreSQL regression for
+  that hold and endpoint transition. Add failure-phase and redacted user-journal
+  diagnostics; preserve every upgrade byte comparison through Python filecmp.
+- Exercise future-login PATH integration, retained deployment policy and root-container
+  PostgreSQL ownership in the existing acceptance suite; add the dedicated root
+  Docker cell (estimated 2–5 free hosted minutes after build, 20-minute ceiling,
+  no ordinary PR cost). Retain all existing default-profile and booted cells.
+- Read all remaining failures in runs 42807721973, 42808509316 and 42810213406:
+  the older bootstrap probes lack their .real payload, both old domainless jobs
+  report release-binary version mismatch from that same wrapped static executable,
+  Alpine's old booted cell lacks DHCP/DNS, and unsupported-host tests see the probe
+  failure instead of the expected Landlock refusal. The new source's successful
+  refusal/domainless cells verify the packaging correction; no rerun hides them.
+- Local signed curl/sh installation, same-version immutable-bundle upgrade, retained
+  key, explicit control wake, exact file-byte recovery and purge pass with the static
+  preview fixture. These are local checks, not hosted matrix acceptance.
+- Current local validation passes all 388 Bun tests, one existing skip, 8,159
+  assertions, plus typecheck, generated contracts/docs, TypeScript structure,
+  actionlint/ShellCheck and whitespace checks. The real registry restart regression
+  passes against PostgreSQL; no source is declared hosted-green before its next run.

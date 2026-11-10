@@ -48,6 +48,7 @@ export async function localSummary(record: LocalInstallation, action: string) {
         preset: record.preset,
         apiUrl: record.apiUrl,
         tiers: [record.tier],
+        require: record.require ?? [],
         capabilities: capabilitySummary(probe),
         credentialPath: record.clientConfig,
         supervision: action,
@@ -62,5 +63,5 @@ export async function localSummary(record: LocalInstallation, action: string) {
     console.log(
       "User sandboxes share your user and have no enforced resource limits; use them for one person's work, not strangers' code.",
     )
-  console.log(`${record.paths.cli} run -- echo hello`)
+  console.log(`${shellQuote(record.paths.cli)} run -- echo hello`)
 }

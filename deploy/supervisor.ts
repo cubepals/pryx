@@ -14,10 +14,11 @@ import { availableParallelism, totalmem } from 'node:os'
 import { join } from 'node:path'
 import { writeClientConfig } from '../cli/src/client-config.ts'
 import { loadConfig } from '../control/src/config.ts'
-import { SECOND_MS } from '../control/src/durations.ts'
+import { MINUTE_MS, SECOND_MS } from '../control/src/durations.ts'
 import { HTTP_FRONT_PORT } from '../control/src/edge-headers.ts'
+import { THRESHOLDS } from '../control/src/health.ts'
 import { startControl } from '../control/src/main.ts'
-import { createToken, nodeSummaries } from '../control/src/registry.ts'
+import { createToken, heldBack, nodeSummaries } from '../control/src/registry.ts'
 import { startEdge } from '../edge/src/agent.ts'
 import { edgeConfig } from '../edge/src/config.ts'
 import { front } from '../edge/src/front.ts'
@@ -204,6 +205,9 @@ control_ips = ["127.0.0.1"]
     true,
   )
   startupStage = 'enrollment'
+  const previousSessions = new Set(
+    (await nodeSummaries(control.db, THRESHOLDS)).map((node) => node.session_id),
+  )
   const log = privateLog(root, 'node')
   children.push(
     Bun.spawn(supervisedCommand([layout.pryxd, 'serve', '--config', nodeConfig]), {
@@ -211,10 +215,21 @@ control_ips = ["127.0.0.1"]
       stderr: log,
     }),
   )
-  await until('Local node', async () => {
-    const nodes = await nodeSummaries(control.db, { suspectSeconds: 15, unavailableSeconds: 45 })
-    return nodes.some((node) => node.derivedHealth === 'healthy')
-  })
+  await until(
+    'Local node',
+    async () => {
+      const nodes = await nodeSummaries(control.db, THRESHOLDS)
+      return nodes.some(
+        (node) =>
+          node.derivedHealth === 'healthy' &&
+          node.session_id !== null &&
+          !previousSessions.has(node.session_id) &&
+          node.api_address === `127.0.0.1:${layout.ports.node}` &&
+          !heldBack(node, false, config.heartbeatSeconds),
+      )
+    },
+    (2 * MINUTE_MS) / SECOND_MS,
+  )
   if (tier === 'container') {
     const isolate = Bun.spawn([layout.pryxd, 'isolate', '--config', nodeConfig], {
       stdout: 'ignore',

@@ -139,6 +139,9 @@ jobs:
           - distro: Ubuntu with Landlock denied
             image: mirror.gcr.io/library/ubuntu:24.04@sha256:78d4744ead1f5b19b04d0df558ab182a5300903900755e515b2ca4d10eb2044d
             mode: wasm
+          - distro: Debian root preset
+            image: debian:trixie-slim@sha256:7378260c0a098d27ac206225db5e7d92b8c7c84ea7afccc86eeb513756bbd392
+            mode: root
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -162,7 +165,7 @@ jobs:
           TEST_MODE: ${{ matrix.mode || 'default' }}
         run: |
           profile=()
-          if [ "$TEST_MODE" != default ]; then
+          if [ "$TEST_MODE" = unsupported ] || [ "$TEST_MODE" = wasm ]; then
             python3 - <<'PY' > unsupported-profile.json
           import errno, json
           print(json.dumps({'defaultAction': 'SCMP_ACT_ALLOW', 'syscalls': [{
@@ -173,6 +176,7 @@ jobs:
             if [ "$TEST_MODE" = unsupported ]; then profile+=(-e PRYX_UNSUPPORTED=1)
             else profile+=(-e PRYX_EXPECT_WASM=1); fi
           fi
+          if [ "$TEST_MODE" = root ]; then profile+=(-e PRYX_TEST_ROOT_MODE=1 -e PORT=80); fi
           docker run --rm "${profile[@]}" \
             --mount "type=bind,source=$PWD/host-artifacts,target=/artifacts,readonly" \
             --mount "type=bind,source=$PWD/deploy/container-acceptance.sh,target=/container-acceptance.sh,readonly" \

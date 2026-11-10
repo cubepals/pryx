@@ -5,11 +5,12 @@ Only log files are displayed; configuration, private keys and environment files 
 never dumped. This is a CI failure tool, not part of the installed runtime.
 """
 import json
+import os
 from pathlib import Path
 import re
 
 home = Path.home()
-private = home / '.config/pryx'
+private = Path('/etc/pryx-local') if os.getuid() == 0 else home / '.config/pryx'
 secrets = set()
 
 
@@ -28,7 +29,7 @@ for name in ['credentials.json', 'client.json']:
         collect(json.loads((private / name).read_text()))
     except (FileNotFoundError, ValueError):
         pass
-for path in [home / 'install.log', home / 'upgrade.log', *private.glob('*.log')]:
+for path in [home / 'install.log', home / 'upgrade.log', home / 'unit.log', *private.glob('*.log')]:
     if not path.is_file():
         continue
     text = path.read_text(errors='replace')[-16 * 1024:]

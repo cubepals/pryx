@@ -119,7 +119,8 @@ export async function prepareUserUnit(
   return { enabled: true, enabledLinger, action: 'systemctl --user status pryx' }
 }
 export async function startUserUnit(paths: LocalPaths) {
-  return (await command(['systemctl', '--user', '--no-ask-password', 'enable', '--now', paths.unit])).ok
+  const result = await command(['systemctl', '--user', '--no-ask-password', 'enable', '--now', paths.unit])
+  if (!result.ok) throw new Error(`Could not start the user unit: ${result.detail}`)
 }
 export async function stopUserUnit(paths: LocalPaths, removeLinger: boolean) {
   const stopped = await command([

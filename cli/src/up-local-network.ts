@@ -16,8 +16,9 @@ async function available(port: number) {
 export function configuredPort() {
   if (process.env.PORT === undefined) return
   const port = Number(process.env.PORT)
-  if (!Number.isInteger(port) || port <= 1024 || port > 65535)
-    throw new Error('The local gateway PORT must be an integer above 1024 and at most 65535')
+  const minimum = process.getuid?.() === 0 ? 1 : 1025
+  if (!Number.isInteger(port) || port < minimum || port > 65535)
+    throw new Error(`The local gateway PORT must be an integer from ${minimum} to 65535`)
   return port
 }
 export async function localPort(explicit?: number) {

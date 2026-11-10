@@ -19,7 +19,7 @@
  */
 
 export { createToken, enroll } from './registry/enrollment.ts'
-export { heartbeat, sessionOf } from './registry/heartbeat.ts'
+export { heartbeat, heldBack, sessionOf } from './registry/heartbeat.ts'
 export {
   clearQuarantine,
   confirmLost,

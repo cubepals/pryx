@@ -68,7 +68,7 @@ export function userPaths(env = process.env, home = realpathSync(homedir())): Lo
   return paths
 }
 export function containerPaths(): LocalPaths {
-  return {
+  const paths = {
     home: '/opt/pryx',
     data: '/opt/pryx/local',
     config: '/etc/pryx-local',
@@ -81,4 +81,6 @@ export function containerPaths(): LocalPaths {
     client: process.env.PRYX_CONFIG ?? join(homedir(), '.config/pryx/client.json'),
     operation: '/opt/pryx/operation.sqlite',
   }
+  for (const path of Object.values(paths)) ownedPath(path, '/', 0)
+  return paths
 }

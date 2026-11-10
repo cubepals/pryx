@@ -121,11 +121,7 @@ export async function heartbeat(
           next_cert_sha256 = NULL, next_cert_expires_at = NULL WHERE id = ${node.id}`)
         await event(t, 'node.certificate_renewed', { node: node.id })
       }
-      const held = heldBack(
-        node,
-        session === 'switched',
-        LATE_BEAT_SECONDS + options.heartbeatSeconds + BEAT_MARGIN_SECONDS,
-      )
+      const held = heldBack(node, session === 'switched', options.heartbeatSeconds)
       const upgrade =
         session === 'stale'
           ? undefined
@@ -175,15 +171,16 @@ export function sessionOf(
 /**
  * Whether a beat must not resume anything, move the node's addresses or change its copies. A new
  * session while the previous one may still beat could be a second host booted from a copy of this
- * one's disk: it is held for `holdSeconds`, long enough that the previous session's next beat
- * after its in-flight window arrives while it still is, and quarantines the pair. A real reboot's
+ * one's disk: it is held past the next heartbeat and in-flight window. A previous session's
+ * beat arriving during that hold quarantines the pair. A real reboot's
  * resumes wait as long. A quarantined node waits for an operator.
  */
-function heldBack(
+export function heldBack(
   node: Pick<NodeRow, 'session_id' | 'previous_session_id' | 'session_age' | 'duplicate_seen_at'>,
   switched: boolean,
-  holdSeconds: number,
+  heartbeatSeconds: number,
 ): boolean {
+  const holdSeconds = LATE_BEAT_SECONDS + heartbeatSeconds + BEAT_MARGIN_SECONDS
   if (node.duplicate_seen_at !== null) return true
   if (switched) return node.session_id !== null
   return node.previous_session_id !== null && (node.session_age ?? Number.POSITIVE_INFINITY) < holdSeconds

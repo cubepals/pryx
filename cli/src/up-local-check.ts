@@ -11,7 +11,12 @@ import { verifyLocalWasm } from './up-local-wasm.ts'
 import type { Preset } from './up-preset.ts'
 import { localProblem } from './up-preset.ts'
 
-export async function inspectLocal(preset: Preset, bundle = process.env.PRYX_BUNDLE_DIR, temporary?: string) {
+export async function inspectLocal(
+  preset: Preset,
+  bundle = process.env.PRYX_BUNDLE_DIR,
+  temporary?: string,
+  requested = process.env.PRYX_DEFAULT_TIER,
+) {
   configuredPort()
   const binary = bundle ? join(bundle, 'bin/pryxd') : probeBinary()
   if (!binary) throw new Error('The bundled pryxd is missing; reinstall with the one-line pryx installer')
@@ -36,11 +41,10 @@ export async function inspectLocal(preset: Preset, bundle = process.env.PRYX_BUN
   // A mounted engine socket alone cannot prove that its bind paths and network belong
   // to this container. Keep image workloads refused until that relationship is measured.
   const canContainer = false
-  if (process.env.PRYX_DEFAULT_TIER === 'container' && !canContainer)
+  if (requested === 'container' && !canContainer)
     throw new Error(
       'Container tier needs the engine and host firewall permissions; run the server preset on the host or select the process tier',
     )
-  const requested = process.env.PRYX_DEFAULT_TIER
   const gnu = /glibc|gnu libc|gnu c library/i.test(probe.cLibrary)
   const tier = imageTier(canContainer, requested ?? (!filesystem && gnu ? 'wasm' : undefined))
   const problem = localProblem(preset, probe, filesystem, tier)

@@ -3,8 +3,10 @@
  * gateway binding, so an unrelated listener cannot impersonate a successful startup. */
 import { join } from 'node:path'
 import { MINUTE_MS, SECOND_MS } from '../../control/src/durations.ts'
+import { HTTP_FRONT_PORT } from '../../control/src/edge-headers.ts'
 import { PARENT_DEATH_SIGNAL } from '../../deploy/image-state.ts'
 import { readClientConfig } from './client-config.ts'
+import { localRequirements } from './up-local-policy.ts'
 import { type LocalInstallation, supervisor } from './up-local-record.ts'
 
 export function localEnvironment(record: LocalInstallation): NodeJS.ProcessEnv {
@@ -22,7 +24,8 @@ export function localEnvironment(record: LocalInstallation): NodeJS.ProcessEnv {
     PRYX_CLIENT_CONFIG: record.clientConfig,
     PRYX_PUBLIC_URL: record.apiUrl,
     PRYX_DEFAULT_TIER: record.tier,
-    PORT: new URL(record.apiUrl).port,
+    PRYX_REQUIRE: localRequirements(record.require).join(','),
+    PORT: new URL(record.apiUrl).port || String(HTTP_FRONT_PORT),
     TMPDIR: record.paths.runtime,
     PATH: `${join(record.bundle, 'bin')}:${process.env.PATH ?? ''}`,
   }

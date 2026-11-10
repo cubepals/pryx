@@ -3,8 +3,10 @@
  * until a managed process and its original start time have both been verified. */
 import { closeSync, constants, fstatSync, openSync, readFileSync } from 'node:fs'
 import { isAbsolute, join, relative, sep } from 'node:path'
+import { GUARANTEES, type Guarantee } from '../../control/src/guarantees.ts'
 import { createPrivateFile } from '../../deploy/image-state.ts'
 import { processStart } from '../../deploy/supervisor-process.ts'
+import { type ProfileRecord, validProfile } from './up-local-profile.ts'
 import type { LocalPaths } from './up-paths.ts'
 
 export type LocalInstallation = {
@@ -18,6 +20,8 @@ export type LocalInstallation = {
   paths: LocalPaths
   userUnit: boolean
   enabledLinger: boolean
+  profiles?: ProfileRecord[]
+  require?: Guarantee[]
 }
 export function readOwnedText(path: string): string | undefined {
   let fd: number
@@ -55,7 +59,12 @@ export function readInstallation(paths: LocalPaths) {
     !/^[a-f0-9]{64}$/.test(record.digest) ||
     !/^\d+\.\d+\.\d+$/.test(record.version) ||
     JSON.stringify(record.paths) !== JSON.stringify(paths) ||
-    record.clientConfig !== paths.client
+    record.clientConfig !== paths.client ||
+    (record.require !== undefined &&
+      (!Array.isArray(record.require) || !record.require.every((name) => GUARANTEES.includes(name)))) ||
+    (record.profiles !== undefined &&
+      (!Array.isArray(record.profiles) ||
+        !record.profiles.every((profile) => validProfile(profile, paths.home))))
   )
     throw new Error('Invalid managed installation; keep its state and inspect installation.json')
   return record

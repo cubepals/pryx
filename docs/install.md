@@ -25,15 +25,19 @@ a domain is optional. Process isolation requires enforceable Landlock ABI 3. On 
 Where the systemd user manager and noninteractive linger authorization work, pryx
 installs `~/.config/systemd/user/pryx.service` and starts it. Otherwise the command
 stays in the foreground and explains how to keep it running after logout. In a
-second terminal, run `~/.local/bin/pryx run -- echo hello`. Put `~/.local/bin` on
-PATH to use the shorter command. User sandboxes share your UID and have no enforced
+second terminal, run `~/.local/bin/pryx run -- echo hello`. New POSIX shell sessions
+find `pryx` through an installed PATH block; linked, unsafe or read-only shell
+profiles are left alone. The absolute command works in the current shell.
+User sandboxes share your UID and have no enforced
 resource limits: use them for your work, not strangers' code.
 
 `pryx upgrade` authenticates the latest release and retains state and credentials.
-With foreground supervision it stays attached to the upgraded service.
+With foreground supervision it stays attached to the upgraded service. Deployment
+requirements are retained across user-manager restarts and upgrades; a backend
+change requires an explicit data migration.
 `pryx down` stops the service and its retained compute, keeping data.
 `pryx down --purge` also removes the managed bundle, configuration, state, cache,
-bootstrap, CLI shortcut and user unit, prints the removed paths and reverses linger
+bootstrap, CLI shortcut, exact PATH block and user unit, prints the removed paths and reverses linger
 only when this installation enabled it. Save backups before purging.
 
 ## Server with root

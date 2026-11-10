@@ -8,6 +8,7 @@ import {
   closeSync,
   constants,
   existsSync,
+  fchmodSync,
   fstatSync,
   fsyncSync,
   linkSync,
@@ -44,14 +45,15 @@ export function createPrivateFile(
     constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
     mode,
   )
-  try {
-    writeFileSync(fd, contents)
-    fsyncSync(fd)
-  } finally {
-    closeSync(fd)
-  }
   let moved = false
   try {
+    try {
+      fchmodSync(fd, mode)
+      writeFileSync(fd, contents)
+      fsyncSync(fd)
+    } finally {
+      closeSync(fd)
+    }
     if (replace) {
       renameSync(temporary, path)
       moved = true

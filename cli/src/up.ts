@@ -8,6 +8,8 @@ import { option } from './sandbox.ts'
 import { checkHostRuntime } from './up-host.ts'
 import { localPaths, runInstalled, upLocal } from './up-local.ts'
 import { inspectLocal } from './up-local-check.ts'
+import { localRequirements } from './up-local-policy.ts'
+import { readInstallation } from './up-local-record.ts'
 import { selectPreset } from './up-preset.ts'
 import { upPlan, up as upServer } from './up-server.ts'
 
@@ -16,6 +18,7 @@ export { runInstallCommand, upPlan } from './up-server.ts'
 export async function up(args: string[]) {
   const preset = selectPreset(option(args, '--preset'))
   if (args.includes('--preflight')) {
+    localRequirements()
     if (preset === 'server') {
       const plan = upPlan(option(args, '--domain') ?? 'localhost')
       if (!plan.linux || !plan.root || !plan.systemd || plan.architecture !== 'x64')
@@ -39,6 +42,7 @@ export async function up(args: string[]) {
       ...upPlan(option(args, '--domain') ?? 'localhost'),
       preset,
       paths,
+      require: localRequirements(readInstallation(paths)?.require),
       probe: checked,
       changes: false,
     }
