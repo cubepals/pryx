@@ -31,6 +31,7 @@ interface PortSpec {
 }
 
 export interface RuntimeSpec {
+  require?: readonly import('./guarantees.ts').Guarantee[]
   fuseMounts?: boolean
   isolation?: import('./isolation.ts').Isolation
   agent?: import('./wire.ts').WorkloadSpec['agent']
@@ -502,7 +503,11 @@ export class RuntimeUnsupported extends Error {
  * a wait passes it, and the owner is told so rather than what the provider said.
  */
 export class RuntimeFull extends Error {
-  constructor(provider: string, detail: string) {
+  constructor(
+    provider: string,
+    detail: string,
+    readonly missingGuarantees: readonly import('./guarantees.ts').Guarantee[] = [],
+  ) {
     super(`The ${provider} runtime has no room: ${detail}`)
     this.name = 'RuntimeFull'
   }

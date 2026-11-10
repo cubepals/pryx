@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
-// Generated from openapi/node-writes.openapi.json; sha256 8225717134534693e3e40a147a765e00b53ec7b0602c938c579f97d9fe59206a.
+// Generated from openapi/node-writes.openapi.json; sha256 a67042ac67c65e8fe7e0bc383d9e642dfe4fdaaa09df22d2660c7b7d4532930c.
 export type paths = Record<string, never>;
 export type webhooks = Record<string, never>;
 export interface components {
@@ -251,6 +251,8 @@ export interface components {
             lifecycle: string | null;
             nodeId: string;
         };
+        /** @enum {string} */
+        Guarantee: "separate-users" | "memory-limit" | "cpu-limit" | "private-network" | "host-firewall" | "own-kernel" | "memory-sleep" | "browser-sandbox" | "private-pids";
         /** @enum {string} */
         Health: "starting" | "healthy" | "unhealthy";
         HeartbeatRequest: {
@@ -713,6 +715,17 @@ export interface components {
              * @description Bumped each time the container is made again for a new spec.
              */
             generation: number;
+            guarantees?: {
+                "browser-sandbox"?: boolean;
+                "cpu-limit"?: boolean;
+                "host-firewall"?: boolean;
+                "memory-limit"?: boolean;
+                "memory-sleep"?: boolean;
+                "own-kernel"?: boolean;
+                "private-network"?: boolean;
+                "private-pids"?: boolean;
+                "separate-users"?: boolean;
+            };
             health: components["schemas"]["Health"] | null;
             id: components["schemas"]["WorkloadId"];
             image: string;

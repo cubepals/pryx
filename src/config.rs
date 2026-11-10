@@ -483,6 +483,9 @@ impl Config {
     }
 
     pub fn data_owner_ids(&self) -> (u32, u32) {
+        if self.runtime != RuntimeKind::Container {
+            return (rustix::process::geteuid().as_raw(), rustix::process::getegid().as_raw());
+        }
         let owner = self.workloads.data_owner.unwrap_or(self.workloads.user);
         (owner.uid, owner.gid)
     }

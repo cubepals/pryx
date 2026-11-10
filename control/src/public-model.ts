@@ -34,6 +34,7 @@ export class PublicModel {
     readonly portRange: readonly [number, number] = DEFAULT_EDGE_PORT_RANGE,
     readonly defaultIsolation: import('./isolation.ts').Isolation = 'container',
     readonly publicOrigin?: string,
+    readonly require: import('./guarantees.ts').Guarantee[] = [],
   ) {}
   async view(id: string, project: string) {
     const sandbox = await this.boxes.get(id, project)
@@ -137,6 +138,7 @@ export class PublicModel {
         ? {}
         : { packages: body.packages ?? source?.packages }),
       isolation,
+      require: [...new Set([...this.require, ...(body.require ?? source?.require ?? [])])],
       resources: body.resources ??
         (body.units === undefined ? source?.resources : undefined) ?? {
           memoryMb: this.boxes.projects?.unit.memoryMb ?? UNIT_DEFAULTS.memoryMb,

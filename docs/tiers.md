@@ -197,7 +197,8 @@ candidates. These are fresh sandboxes, without a pre-created VM or warmed comman
 | Sleep retains processes and terminals | Frozen container | Suspended process group | No; VM is disposed and recreated |
 
 agentOS 0.4.7 has no per-VM suspend operation in its published client. Suspending its shared
-sidecar would pause unrelated sandboxes, so it cannot implement pryx sleep. The collector
+sidecar would pause unrelated sandboxes, so it cannot implement sleep that retains processes.
+The additive `memory-sleep` guarantee is false on this tier; data sleep still works. The collector
 records that unsupported alternative with n=0 and measures disposal plus recreation with
 filesystem validation instead.
 
@@ -360,6 +361,9 @@ and HTTP/TLS gateways; no sandbox proxy setting can bypass the firewall. Process
 return an explicit tier refusal. `network:none` remains the all-tiers network boundary.
 Workdir uses the `workload-options` feature; user selection is restricted to the operator
 container user. Metrics use cached tier counters and preserve null where unavailable.
+These policy fields are refused when the destination no longer announces the feature,
+including on a wake whose specification is unchanged. They are never silently dropped.
+The default Internet network remains compatible with old nodes.
 Git requires an image/userland installation on native tiers. The verified optional wasm Git
 package is staged with the distribution and loaded only on request. Stateful shells use pipes
 on every tier; [K16 measurements](checks/k16.md) retain the before/after raw samples.

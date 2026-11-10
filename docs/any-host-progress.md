@@ -6,7 +6,7 @@ Only recorded CI evidence establishes completion; a local pass alone does not.
 
 | Milestone | Status | Finishing commit | CI proof | Ran | Did not run | Parked and why | Left |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| K19 | in progress | — | — | Repository and plan discovery | Implementation checks | — | Read brief, implement, validate and push |
+| K19 | in progress | — | Bootstrap run below; implementation CI pending | Rust: 420 pass, 16 existing ignored; full control check: 372 pass, 1 existing skip; Python: 23 tests, 1 existing skip; both strict Clippy modes, fmt, generators, structure, actionlint/ShellCheck | Hosted KVM, ordinary-image and new end-to-end attacks | None | Push implementation, diagnose and complete CI |
 | K20 | not started | — | — | — | All | — | Complete brief after K19 |
 | K21 | not started | — | — | — | All | — | Complete brief after K20 |
 | K22 | not started | — | — | — | All | — | Complete brief after K21 |
@@ -18,9 +18,34 @@ Only recorded CI evidence establishes completion; a local pass alone does not.
 
 ## CI cost
 
-No workflows added yet.
+K19 adds KVM permission setup and one real guest probe to the existing Rust job
+(estimated under one minute per pull request), a frozen Bun install and real CLI
+doctor invocation in that job (estimated under one minute), an ordinary-image probe to existing
+Compose acceptance (estimated under one minute), and failure-only Docker/kernel
+diagnostics (under one minute on failure). No new required job is added.
 
 ## Evidence and handoff
 
 - Started from `origin/main`; the original environment checkout predates this plan.
 - No milestone implementation or acceptance result is claimed yet.
+- Bootstrap CI: https://github.com/cubepals/pryx/actions/runs/42768042942 at
+  `03e4affe3f1adfda46d70b126ad5177935716168`. Core and control checks pass;
+  Docker integration fails the existing OOM-reporting case: Docker reports exit 137
+  with OOMKilled false. This was before any implementation change. Failure evidence
+  is retained in that run; kernel/daemon evidence is added to diagnose the next run.
+- K19 implementation in progress: field refusals and unchanged-spec wake regression,
+  runtime-specific doctor and common data ownership, measured host probes, additive
+  guarantee names/views/requirements and both generated SDKs. The early control
+  suite passed 368 tests with real Postgres; the early Rust suite passed with the
+  verified agentOS distribution. These precede the latest source edits and do not
+  establish completion. Hosted KVM and ordinary-image acceptance have not run yet.
+- Current control check: 372 pass, one existing compiled-assets skip, 8,098 assertions
+  against real local Postgres. Python: 23 tests, one existing credential skip. Schema/SDK
+  generation, structure, workflow/ShellCheck and whitespace checks pass.
+- Local Docker OOM acceptance fails with the workload still running. Its engine reports
+  `rootless`, `memory=false`, `swap=false`, `cgroup=none`; this cannot establish a hard
+  memory limit. Keep the original assertion and require real rootful CI evidence.
+- One overlapping local Rust run fails the existing Wasm compact command with exit 137
+  instead of zero. The cause is unknown; retain it separately from the earlier complete
+  passing run. The final current-source Rust run passes 420 tests, with 16 existing
+  ignored cases; both strict Clippy modes and fmt pass. No test was skipped or loosened.

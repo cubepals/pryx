@@ -141,6 +141,7 @@ export async function startControl(
     db,
     boxes: sandboxes,
     defaultIsolation: config.defaultIsolation,
+    require: config.require,
     publicOrigin: config.publicOrigin,
     nodes,
     domain: config.publicDomain,

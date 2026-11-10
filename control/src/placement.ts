@@ -16,6 +16,7 @@ type Policy = 'balanced' | 'binpack' | 'spread'
 export type Lifecycle = 'active' | 'draining' | 'lost' | 'retired'
 
 export interface PlacementRequest {
+  require?: readonly import('./guarantees.ts').Guarantee[]
   isolation?: import('./isolation.ts').Isolation
   memoryMb: number
   cpuMillis: number
@@ -95,6 +96,7 @@ export const DEFAULTS: PlacementOptions = {
 }
 
 export interface Considered {
+  missingGuarantees?: readonly import('./guarantees.ts').Guarantee[]
   node: string
   name: string
   /** `ok`, or why the node was passed over. */
@@ -121,6 +123,8 @@ function refusal(node: NodeView, request: PlacementRequest, options: PlacementOp
   if (node.quarantined) return 'quarantined: duplicate identity'
   if (node.health !== 'healthy') return `health ${node.health}`
   if (node.regionKey !== request.regionKey) return `region ${node.regionKey}`
+  const guarantees = request.require?.filter((name) => !node.features.includes(name)) ?? []
+  if (guarantees.length) return `lacks required guarantees: ${guarantees.join(', ')}`
   if ((request.isolation ?? 'container') !== nodeIsolation(node.features))
     return 'isolation tier does not match'
   if (request.cpuLimits && nodeIsolation(node.features) !== 'container') return CPU_LIMIT_PROBLEM
@@ -228,7 +232,13 @@ export function selectNode(
   const fits: Fit[] = []
   for (const node of nodes) {
     const why = refusal(node, request, options)
-    considered.push({ node: node.id, name: node.name, reason: why ?? 'ok' })
+    const missingGuarantees = request.require?.filter((name) => !node.features.includes(name))
+    considered.push({
+      node: node.id,
+      name: node.name,
+      reason: why ?? 'ok',
+      ...(missingGuarantees?.length ? { missingGuarantees } : {}),
+    })
     if (why === null) fits.push(fit(node, request, options))
   }
   fits.sort((a, b) => compare(a, b, options))

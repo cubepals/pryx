@@ -499,6 +499,9 @@ export interface components {
             expiresAt: number;
         };
         Sandbox: {
+            guarantees?: {
+                [key: string]: boolean;
+            };
             name?: string;
             labels?: {
                 [key: string]: string;
@@ -755,6 +758,7 @@ export interface components {
             idle?: number;
             /** @enum {string} */
             isolation?: "container" | "process" | "wasm";
+            require?: ("separate-users" | "memory-limit" | "cpu-limit" | "private-network" | "host-firewall" | "own-kernel" | "memory-sleep" | "browser-sandbox" | "private-pids")[];
             restart?: {
                 /** @enum {string} */
                 policy: "no" | "on-failure";
@@ -921,6 +925,7 @@ export interface components {
                 idle?: number;
                 /** @enum {string} */
                 isolation?: "container" | "process" | "wasm";
+                require?: ("separate-users" | "memory-limit" | "cpu-limit" | "private-network" | "host-firewall" | "own-kernel" | "memory-sleep" | "browser-sandbox" | "private-pids")[];
                 restart?: {
                     /** @enum {string} */
                     policy: "no" | "on-failure";

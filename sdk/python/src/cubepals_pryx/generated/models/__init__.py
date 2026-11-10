@@ -16,6 +16,7 @@ from .make_request_ports_item import MakeRequestPortsItem
 from .make_request_ports_item_audience import MakeRequestPortsItemAudience
 from .make_request_ports_item_front import MakeRequestPortsItemFront
 from .make_request_ports_item_protocol import MakeRequestPortsItemProtocol
+from .make_request_require_item import MakeRequestRequireItem
 from .make_request_resources import MakeRequestResources
 from .make_request_restart import MakeRequestRestart
 from .make_request_restart_policy import MakeRequestRestartPolicy
@@ -25,6 +26,7 @@ from .sandbox import Sandbox
 from .sandbox_agent import SandboxAgent
 from .sandbox_endpoints_item import SandboxEndpointsItem
 from .sandbox_exit import SandboxExit
+from .sandbox_guarantees import SandboxGuarantees
 from .sandbox_isolation import SandboxIsolation
 from .sandbox_labels import SandboxLabels
 from .sandbox_metadata import SandboxMetadata
@@ -46,6 +48,7 @@ __all__ = (
     "MakeRequestPortsItemAudience",
     "MakeRequestPortsItemFront",
     "MakeRequestPortsItemProtocol",
+    "MakeRequestRequireItem",
     "MakeRequestResources",
     "MakeRequestRestart",
     "MakeRequestRestartPolicy",
@@ -55,6 +58,7 @@ __all__ = (
     "SandboxAgent",
     "SandboxEndpointsItem",
     "SandboxExit",
+    "SandboxGuarantees",
     "SandboxIsolation",
     "SandboxLabels",
     "SandboxMetadata",

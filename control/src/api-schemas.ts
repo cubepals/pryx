@@ -5,6 +5,7 @@
 import { z } from 'zod'
 import node from '../../openapi/node-reads.openapi.json'
 import writes from '../../openapi/node-writes.openapi.json'
+import { GUARANTEES } from './guarantees.ts'
 import { ISOLATIONS } from './isolation.ts'
 import { agentSchema } from './node-contract.ts'
 import type { WorkloadSpec } from './wire.ts'
@@ -63,6 +64,7 @@ export const makeSchema = z
     ttl: z.number().positive().optional(),
     idle: z.number().positive().optional(),
     isolation: z.enum(ISOLATIONS).optional(),
+    require: z.array(z.enum(GUARANTEES)).max(GUARANTEES.length).optional(),
     restart: z
       .object({
         policy: z.enum(nodeSchemas.RestartPolicy.oneOf.map((p) => p.const) as ['no', 'on-failure']),
@@ -118,6 +120,7 @@ export const snapshotSchema = z.object({
   at: z.string().optional(),
 })
 export const sandboxSchema = z.object({
+  guarantees: z.record(z.enum(GUARANTEES), z.boolean()).optional(),
   name: z.string().optional(),
   labels: map.optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),

@@ -173,6 +173,7 @@ pub async fn run(
     let mut failing_since: Option<u64> = None;
     loop {
         seq += 1;
+        manager.refresh_firewall().await;
         let mut request: HeartbeatRequest = heartbeat_report(&manager, &node_id, &session, boot.clone(), seq);
         request.upgrade_failed = upgrader.failure();
         let reported = Gist::of(&request.workloads);

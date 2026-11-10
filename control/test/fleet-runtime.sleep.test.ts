@@ -329,6 +329,23 @@ afterAll(async () => {
 })
 
 describe.skipIf(!hasDatabase)('FleetRuntime asleep, with pryxd in memory', () => {
+  test('wake refuses an unchanged spec after its node loses workload options', async () => {
+    const features = [...FEATURES, 'workload-options']
+    const { node } = await running('lost-options', features)
+    const key = runtimeKey(randomUUID())
+    const spec = { ...SPEC, workdir: '/data/work' }
+    const handle = await suspending.ensureProvisioned(key, { regionKey: 'lost-options' }, spec, quiet)
+    await suspending.sleep(handle)
+    await pulse(node, FEATURES)
+    await suspending.refreshRegistry()
+    const held = await claimed(node.id)
+    const since = nodes.calls.length
+    await expect(
+      suspending.ensureProvisioned(key, { regionKey: 'lost-options' }, spec, quiet),
+    ).rejects.toThrow('workload-options')
+    expect(nodes.calls.slice(since).some((call) => /PUT|POST \/start/.test(call.line))).toBe(false)
+    expect(await claimed(node.id)).toBe(held)
+  })
   test('with the switch off, a sleep stops and gives its room back', async () => {
     const { node, handle, since } = await running('off')
     await stopping.refreshRegistry()

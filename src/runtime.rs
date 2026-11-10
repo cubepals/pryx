@@ -206,6 +206,9 @@ pub struct RuntimeEvent {
 
 #[derive(Clone, Debug, Default)]
 pub struct RuntimeInfo {
+    pub(crate) rootless: bool,
+    pub(crate) memory_limit: bool,
+    pub(crate) cpu_limit: bool,
     pub(crate) version: Option<String>,
     pub(crate) api_version: Option<String>,
     pub(crate) cgroup_version: Option<String>,

@@ -15,6 +15,10 @@ source it says **unverified**, and the milestone that depends on it starts by ch
 
 Checked against the code, not the documentation.
 
+This section records the research baseline above. K19's implementation and its acceptance
+evidence are tracked in [any-host progress](any-host-progress.md); its current command and
+guarantee contract is documented in [host capabilities](host-capabilities.md).
+
 **One backend per node.** A `pryxd` runs exactly one of three backends, set by the `runtime` key
 (`src/config/process.rs`, `src/main.rs`): `container` (Docker), `process` (a restricted process
 tree) or `wasm` (agentOS virtual machines in WebAssembly). Control derives one tier per node from

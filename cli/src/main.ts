@@ -5,6 +5,7 @@
 import { PryxError } from '@cubepals/pryx'
 import { PRYX_VERSION } from '../../control/src/generated/release.ts'
 import { readClientConfig } from './client-config.ts'
+import { doctor } from './doctor.ts'
 import { key } from './key.ts'
 import { node } from './node.ts'
 import { project } from './project.ts'
@@ -24,29 +25,31 @@ try {
           if (!saved) throw new Error('No CLI credentials')
           console.log(saved.key)
         })()
-      : group === 'webhook'
-        ? await (await import('./webhook.ts')).webhook(args)
-        : group === 'templates'
-          ? await (await import('./template.ts')).template(['ls'])
-          : group === 'template'
-            ? await (await import('./template.ts')).template(args)
-            : group === 'mcp'
-              ? await (await import('./mcp.ts')).mcp(args)
-              : group === 'up'
-                ? await up(args)
-                : group === 'node'
-                  ? await node(args)
-                  : group === 'key'
-                    ? await key(args)
-                    : group === 'project'
-                      ? await project(args)
-                      : group === 'sandbox'
-                        ? await sandbox(args)
-                        : group === 'run'
-                          ? await run(args)
-                          : (() => {
-                              throw new Error('usage: pryx up|node|key|project|sandbox|run|mcp|template')
-                            })()
+      : group === 'doctor'
+        ? await doctor(args)
+        : group === 'webhook'
+          ? await (await import('./webhook.ts')).webhook(args)
+          : group === 'templates'
+            ? await (await import('./template.ts')).template(['ls'])
+            : group === 'template'
+              ? await (await import('./template.ts')).template(args)
+              : group === 'mcp'
+                ? await (await import('./mcp.ts')).mcp(args)
+                : group === 'up'
+                  ? await up(args)
+                  : group === 'node'
+                    ? await node(args)
+                    : group === 'key'
+                      ? await key(args)
+                      : group === 'project'
+                        ? await project(args)
+                        : group === 'sandbox'
+                          ? await sandbox(args)
+                          : group === 'run'
+                            ? await run(args)
+                            : (() => {
+                                throw new Error('usage: pryx up|node|key|project|sandbox|run|mcp|template')
+                              })()
   if (result !== undefined) console.log(JSON.stringify(result, null, 2))
 } catch (error) {
   console.error(error instanceof Error ? error.message : 'Command failed')

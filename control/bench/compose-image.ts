@@ -46,6 +46,37 @@ try {
     process.env.PRYX_IMAGE_TEST ?? 'pryx-static-test',
     `ghcr.io/cubepals/pryx:${PRYX_VERSION}`,
   ])
+  const probe = JSON.parse(
+    await command([
+      'docker',
+      'run',
+      '--rm',
+      '--entrypoint',
+      '/pryxd',
+      process.env.PRYX_IMAGE_TEST ?? 'pryx-static-test',
+      'probe',
+      '--json',
+    ]),
+  ) as { landlockAbi: number; capabilities: Record<string, { state: string }> }
+  for (const name of [
+    'kvm',
+    'kvm-device',
+    'fuse-device',
+    'docker',
+    'docker-user',
+    'podman',
+    'podman-user',
+    'systemd',
+  ])
+    if (probe.capabilities[name]?.state !== 'off')
+      throw new Error(`Ordinary image probe: ${name} must be off`)
+  for (const name of ['user-namespaces', 'host-firewall'])
+    if (probe.capabilities[name]?.state !== 'unknown')
+      throw new Error(`Ordinary image probe: ${name} must be unknown`)
+  for (const name of ['landlock', 'separate-users', 'cgroup-controllers'])
+    if (probe.capabilities[name]?.state !== 'on') throw new Error(`Ordinary image probe: ${name} must be on`)
+  if (probe.landlockAbi < 3)
+    throw new Error('Ordinary image probe disagrees with its namespace/Landlock policy')
   await command([...prefix, 'config', '--quiet'])
   await command([...prefix, 'up', '-d', '--no-build', '--pull', 'never'])
   await healthy()

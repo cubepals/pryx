@@ -135,14 +135,31 @@ jobs:
       # test binary runs even after one fails, so a failure can't hide the others.
       - name: Stage the verified agentOS distribution
         run: python3 scripts/fetch-agentos.py "$RUNNER_TEMP/agentos"
+      # K19 uses the free hosted runner's real KVM device; no VM service or paid runner.
+      - name: Allow the runner user to probe KVM
+        run: |
+          sudo modprobe kvm
+          test -c /dev/kvm
+          sudo chown "$(id -u):$(id -g)" /dev/kvm
       - run: cargo test --locked --no-fail-fast
         env:
           PRYX_AGENTOS_DISTRIBUTION: ${{ runner.temp }}/agentos
+          PRYX_PROBE_KVM: 'on'
+      - name: CLI doctor uses the real host document
+        run: |
+          bun install --frozen-lockfile
+          PRYX_PRYXD_BIN="$PWD/target/debug/pryxd" bun cli/src/main.ts doctor --json > "$RUNNER_TEMP/host-probe.json"
+          jq -e '.capabilities.kvm.state == "on"' "$RUNNER_TEMP/host-probe.json"
       # Against the runner's own Docker daemon: hardening, limits, the OOM killer, isolation,
       # restarts. They chown data directories, so Cargo's runner starts the test binary as root;
       # Cargo itself, and so target/, stays the runner's.
       - name: Docker integration tests
         run: CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER=sudo cargo test --locked --test docker -- --ignored --test-threads 2
+      - name: Docker and kernel failure evidence
+        if: failure()
+        run: |
+          sudo journalctl -u docker --since '-10 min' --no-pager -n 80
+          sudo dmesg --ctime | tail -80
 
   supply-chain:
     name: Dependency licences and advisories

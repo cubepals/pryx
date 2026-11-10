@@ -5,6 +5,17 @@ import { existsSync, readFileSync } from 'node:fs'
 import daemonJson from '../../deploy/daemon.json'
 import { writeChanged } from './up-files.ts'
 export type InstallCommand = (args: string[], quiet?: boolean, redactions?: string[]) => Promise<void>
+export function hostInstallProblem(docker: boolean, nft: boolean, distribution: string): string | null {
+  if ((docker && nft) || ['debian', 'ubuntu'].includes(distribution)) return null
+  const missing = [!docker && 'Docker', !nft && 'nftables'].filter(Boolean).join(' and ')
+  return `Missing ${missing}; automatic package installation is unavailable on ${distribution}. Install ${missing} with this distribution's package manager, then run pryx up`
+}
+export function checkHostRuntime() {
+  const release = readFileSync('/etc/os-release', 'utf8')
+  const distribution = /^ID=(.*)$/m.exec(release)?.[1]?.replaceAll('"', '') ?? 'unknown Linux distribution'
+  const problem = hostInstallProblem(Boolean(Bun.which('docker')), Boolean(Bun.which('nft')), distribution)
+  if (problem) throw new Error(problem)
+}
 const DOCKER_INSTALL = `set -eu
 . /etc/os-release
 case "$ID" in ubuntu|debian) ;; *) exit 1;; esac
@@ -18,6 +29,7 @@ apt-get update -q
 apt-get install -yq docker-ce docker-ce-cli containerd.io
 `
 export async function configureHostRuntime(run: InstallCommand) {
+  checkHostRuntime()
   if (!Bun.which('docker')) await run(['sh', '-c', DOCKER_INSTALL])
   if (!Bun.which('nft')) {
     await run(['apt-get', 'update', '-q'])

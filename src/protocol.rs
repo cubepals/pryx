@@ -23,6 +23,7 @@
 //! - `store_lease.rs`: optional ephemeral store authority and its versioned object.
 //! - `exec.rs`: running one command inside a workload.
 //! - `agent.rs`: optional agent bootstrap, tokens and file metadata.
+//! - `guarantees.rs`: additive measured enforcement names shared with the public contract.
 //! - `node.rs`: what the node reports about itself.
 //! - `wire.rs`: what a node and its control plane send each other: enrollment, heartbeats, renewal.
 //! - `schema.rs`: tests only; these types as the OpenAPI documents the control plane's TypeScript
@@ -32,6 +33,7 @@ use serde::{Deserialize, Serialize};
 
 mod agent;
 mod exec;
+mod guarantees;
 mod lifecycle;
 mod node;
 #[cfg(test)]
@@ -44,6 +46,7 @@ mod workload;
 
 pub use agent::*;
 pub use exec::*;
+pub use guarantees::*;
 pub use lifecycle::*;
 pub use node::*;
 pub use spec::*;

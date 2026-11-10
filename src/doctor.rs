@@ -125,17 +125,43 @@ pub async fn run(options: &Options) -> Report {
         let report = Report { checks: vec![config_check], fixed };
         return if options.preflight { report.for_preflight() } else { report };
     };
-    let runtime: Option<Box<dyn ContainerRuntime>> =
-        DockerRuntime::new(&config.docker.socket).ok().map(|r| Box::new(r) as Box<dyn ContainerRuntime>);
+    let runtime: Option<Box<dyn ContainerRuntime>> = (config.runtime == crate::config::RuntimeKind::Container)
+        .then(|| DockerRuntime::new(&config.docker.socket).ok().map(|r| Box::new(r) as Box<dyn ContainerRuntime>))
+        .flatten();
     let daemon_json = Path::new(DAEMON_JSON);
     let fixed = match (options.fix, &runtime) {
         (true, Some(runtime)) => Some(fix::apply(&config, runtime.as_ref(), daemon_json).await),
         _ => None,
     };
     let mut checks = vec![config_check];
-    match &runtime {
-        Some(runtime) => checks.extend(docker::checks(runtime.as_ref(), &config.docker.network, daemon_json).await),
-        None => checks.push(Check::warn(
+    match (&config.runtime, &runtime) {
+        (crate::config::RuntimeKind::Process, _) => {
+            checks.push(if pryx_agent::process_capabilities::probe().filesystem {
+                Check::pass("process.landlock", "Landlock ABI 3 filesystem confinement is enforceable")
+            } else {
+                Check::fail(
+                    "process.landlock",
+                    pryx_agent::process_capabilities::FILESYSTEM_UNAVAILABLE,
+                    "Boot a kernel with Landlock ABI 3 or later enabled",
+                )
+                .gating()
+            });
+        }
+        (crate::config::RuntimeKind::Wasm, _) => {
+            checks.push(match crate::runtime::wasm::check_distribution(&config.wasm) {
+                Ok(()) => Check::pass("wasm.distribution", "verified agentOS binary and packages"),
+                Err(error) => Check::fail(
+                    "wasm.distribution",
+                    error.to_string(),
+                    "Stage the pinned agentOS distribution with scripts/fetch-agentos.py",
+                )
+                .gating(),
+            });
+        }
+        (_, Some(runtime)) => {
+            checks.extend(docker::checks(runtime.as_ref(), &config.docker.network, daemon_json).await)
+        }
+        (_, None) => checks.push(Check::warn(
             "docker",
             format!("docker.socket {} isn't a path pryxd can use", config.docker.socket.display()),
             format!(
@@ -144,7 +170,7 @@ pub async fn run(options: &Options) -> Report {
             ),
         )),
     }
-    if config.workloads.allowed_images.is_empty() {
+    if config.runtime == crate::config::RuntimeKind::Container && config.workloads.allowed_images.is_empty() {
         checks.push(Check::warn(
             "workloads.allowed_images",
             "no image prefix is allowed on this host",

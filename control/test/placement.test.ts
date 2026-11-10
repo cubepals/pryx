@@ -67,6 +67,13 @@ const request = (over: Partial<PlacementRequest> = {}): PlacementRequest => ({
 })
 
 describe('selectNode', () => {
+  test('separate-users is refused on a process node sharing its uid', () => {
+    const target = node('process', { features: ['placement-epochs', 'process-tier', 'process-shared-uid'] })
+    const decision = selectNode(request({ isolation: 'process', require: ['separate-users'] }), [target])
+    expect(decision.node).toBeNull()
+    expect(decision.considered[0]?.reason).toContain('separate-users')
+    expect(selectNode(request({ isolation: 'process' }), [target]).node?.id).toBe(target.id)
+  })
   test('hard CPU limits cannot be placed on a tier without cgroups', () => {
     for (const isolation of ['process', 'wasm'] as const) {
       const target = node(isolation, { features: ['placement-epochs', `${isolation}-tier`] })

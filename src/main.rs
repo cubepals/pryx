@@ -44,6 +44,17 @@ enum LogFormat {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Report measured host capabilities without modifying host configuration.
+    Probe {
+        #[arg(long)]
+        json: bool,
+    },
+    #[command(hide = true)]
+    ProbeUserNamespace,
+    #[command(hide = true)]
+    ProbeKvm,
+    #[command(hide = true)]
+    ProbeSeparateUsers,
     #[command(hide = true)]
     LeaseWatchdog {
         #[arg(long)]
@@ -168,6 +179,22 @@ fn main() -> ExitCode {
     }
     let cli = Cli::parse();
     let result = match cli.command {
+        Command::ProbeUserNamespace => pryxd::probe::user_namespace_child(),
+        Command::ProbeKvm => pryxd::probe::kvm_child(),
+        Command::ProbeSeparateUsers => pryxd::probe::separate_users_child(),
+        Command::Probe { json } => {
+            tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(anyhow::Error::from).and_then(
+                |runtime| {
+                    let report = runtime.block_on(pryxd::probe::run());
+                    if json {
+                        println!("{}", serde_json::to_string_pretty(&report)?);
+                    } else {
+                        print!("{}", report.text());
+                    }
+                    Ok(())
+                },
+            )
+        }
         Command::LeaseWatchdog { group, deadline } => {
             pryxd::store_lease::guard::run(&group, deadline).map_err(Into::into)
         }
@@ -360,11 +387,7 @@ async fn serve(path: &Path) -> anyhow::Result<()> {
     let backstop = Backstop::arm(&config.state_dir, boot);
     // Every create gives a data directory to the workloads' user, which takes root (CAP_CHOWN): a
     // daemon that can't is refused here, rather than by every create that follows.
-    store.check_ownable(if config.runtime != RuntimeKind::Container {
-        (rustix::process::geteuid().as_raw(), rustix::process::getegid().as_raw())
-    } else {
-        config.data_owner_ids()
-    })?;
+    store.check_ownable(config.data_owner_ids())?;
     // Fleet mode: the node's id and TLS material come from enrollment, before anything is served.
     let (identity, tls_material): (Option<Identity>, TlsConfig) = match config.mode()? {
         Mode::Fleet(fleet) => {
@@ -385,6 +408,7 @@ async fn serve(path: &Path) -> anyhow::Result<()> {
     let runtime = container_runtime(&config).await?;
     let publish = publish_addresses(&config);
     let manager = Manager::new(config.clone(), runtime, store, Arc::new(Metrics::new()), ports::bind_probe(publish));
+    manager.refresh_host_probe().await;
     if let (Some(identity), Some(fleet)) = (&identity, &config.fleet) {
         manager.set_fleet(identity.node_id(), &fleet.url);
     }

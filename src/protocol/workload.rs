@@ -188,6 +188,8 @@ pub struct Locate {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct WorkloadView {
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub guarantees: BTreeMap<super::Guarantee, bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub isolation: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

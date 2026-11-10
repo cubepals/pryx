@@ -68,6 +68,7 @@ import { event, rows } from './sql.ts'
 import { Transfers } from './transfers.ts'
 import { FleetUpkeep } from './upkeep.ts'
 import { WorkloadApi } from './workload-api.ts'
+import { requireWorkloadFeatures } from './workload-capabilities.ts'
 
 export interface FleetRuntimeOptions {
   db: Db
@@ -267,6 +268,8 @@ export class FleetRuntime implements SandboxRuntime {
       const row = await placementOf(t, key, true)
       const none = [] as Considered[]
       if (row !== null) {
+        const target = row.node_id ? await getNode(t, row.node_id) : null
+        if (target) requireWorkloadFeatures(spec, target.features)
         if (row.state === 'displaced') throw hostLost()
         // The application never provisions a resting server; nor does the fleet, since it would give
         // the data new, empty storage.
@@ -324,7 +327,9 @@ export class FleetRuntime implements SandboxRuntime {
         workload: key,
         data: { considered: chosen.considered },
       })
-      throw new RuntimeFull(this.provider, describe(chosen.considered))
+      throw new RuntimeFull(this.provider, describe(chosen.considered), [
+        ...new Set(chosen.considered.flatMap((node) => node.missingGuarantees ?? [])),
+      ])
     }
     if (chosen.unfinished) {
       const moved = await this.#rehoming.finish(chosen.row, spec, progress)

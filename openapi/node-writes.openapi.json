@@ -856,6 +856,20 @@
         ],
         "type": "object"
       },
+      "Guarantee": {
+        "enum": [
+          "separate-users",
+          "memory-limit",
+          "cpu-limit",
+          "private-network",
+          "host-firewall",
+          "own-kernel",
+          "memory-sleep",
+          "browser-sandbox",
+          "private-pids"
+        ],
+        "type": "string"
+      },
       "Health": {
         "enum": [
           "starting",
@@ -2317,6 +2331,39 @@
             "format": "uint64",
             "minimum": 0,
             "type": "integer"
+          },
+          "guarantees": {
+            "additionalProperties": false,
+            "properties": {
+              "browser-sandbox": {
+                "type": "boolean"
+              },
+              "cpu-limit": {
+                "type": "boolean"
+              },
+              "host-firewall": {
+                "type": "boolean"
+              },
+              "memory-limit": {
+                "type": "boolean"
+              },
+              "memory-sleep": {
+                "type": "boolean"
+              },
+              "own-kernel": {
+                "type": "boolean"
+              },
+              "private-network": {
+                "type": "boolean"
+              },
+              "private-pids": {
+                "type": "boolean"
+              },
+              "separate-users": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
           },
           "health": {
             "anyOf": [

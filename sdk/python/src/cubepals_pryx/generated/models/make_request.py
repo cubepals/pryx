@@ -13,6 +13,7 @@ from attrs import define as _attrs_define
 
 from ..models.make_request_isolation import MakeRequestIsolation
 from ..models.make_request_network import MakeRequestNetwork
+from ..models.make_request_require_item import MakeRequestRequireItem
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
@@ -52,6 +53,7 @@ class MakeRequest:
         ttl (Union[Unset, float]):
         idle (Union[Unset, float]):
         isolation (Union[Unset, MakeRequestIsolation]):
+        require (Union[Unset, list[MakeRequestRequireItem]]):
         restart (Union[Unset, MakeRequestRestart]):
         labels (Union[Unset, MakeRequestLabels]):
         name (Union[Unset, str]):
@@ -81,6 +83,7 @@ class MakeRequest:
     ttl: Union[Unset, float] = UNSET
     idle: Union[Unset, float] = UNSET
     isolation: Union[Unset, MakeRequestIsolation] = UNSET
+    require: Union[Unset, list[MakeRequestRequireItem]] = UNSET
     restart: Union[Unset, "MakeRequestRestart"] = UNSET
     labels: Union[Unset, "MakeRequestLabels"] = UNSET
     name: Union[Unset, str] = UNSET
@@ -153,6 +156,13 @@ class MakeRequest:
         if not isinstance(self.isolation, Unset):
             isolation = self.isolation.value
 
+        require: Union[Unset, list[str]] = UNSET
+        if not isinstance(self.require, Unset):
+            require = []
+            for require_item_data in self.require:
+                require_item = require_item_data.value
+                require.append(require_item)
+
         restart: Union[Unset, dict[str, Any]] = UNSET
         if not isinstance(self.restart, Unset):
             restart = self.restart.to_dict()
@@ -218,6 +228,8 @@ class MakeRequest:
             field_dict["idle"] = idle
         if isolation is not UNSET:
             field_dict["isolation"] = isolation
+        if require is not UNSET:
+            field_dict["require"] = require
         if restart is not UNSET:
             field_dict["restart"] = restart
         if labels is not UNSET:
@@ -329,6 +341,13 @@ class MakeRequest:
         else:
             isolation = MakeRequestIsolation(_isolation)
 
+        require = []
+        _require = d.pop("require", UNSET)
+        for require_item_data in _require or []:
+            require_item = MakeRequestRequireItem(require_item_data)
+
+            require.append(require_item)
+
         _restart = d.pop("restart", UNSET)
         restart: Union[Unset, MakeRequestRestart]
         if isinstance(_restart, Unset):
@@ -387,6 +406,7 @@ class MakeRequest:
             ttl=ttl,
             idle=idle,
             isolation=isolation,
+            require=require,
             restart=restart,
             labels=labels,
             name=name,

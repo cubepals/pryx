@@ -25,6 +25,7 @@ import {
 } from './placement.ts'
 import { holdsMemory, nodeSummaries, toNodeView } from './registry.ts'
 import type { RuntimeSpec } from './runtime-model.ts'
+import { workloadFeatures } from './workload-capabilities.ts'
 
 /** What a node must support to hold a fleet workload. */
 export const NEEDS = ['placement-epochs', 'data-transfer', 'local-snapshots', 'export-exclude']
@@ -54,6 +55,7 @@ export class NodeChoice {
     only: string | null = null,
   ): PlacementRequest {
     return {
+      require: spec.require,
       isolation: spec.isolation,
       memoryMb: spec.resources.memoryMb,
       cpuMillis: reservedCpu(spec.resources, this.#o.cpuMillisPerGb),
@@ -64,11 +66,8 @@ export class NodeChoice {
       needs: [
         ...NEEDS,
         ...(spec.fuseMounts ? [agentContract['x-pryx-tools'].fuseFeature] : []),
-        ...(spec.workdir || spec.user ? ['workload-options'] : []),
-        ...(spec.egress ? ['egress-hostnames'] : []),
+        ...workloadFeatures(spec),
         ...(spec.isolation === 'wasm' ? ['wasm-tier', 'wasm-packages'] : []),
-        ...(spec.packages?.length ? ['wasm-packages'] : []),
-        ...(spec.network === 'none' ? ['network-policy'] : []),
         ...(spec.agent || (spec.sparePorts ?? 0) > 0 ? ['agent'] : []),
       ],
       avoid,

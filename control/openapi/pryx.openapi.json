@@ -4703,6 +4703,37 @@
       "Sandbox": {
         "type": "object",
         "properties": {
+          "guarantees": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "enum": [
+                "separate-users",
+                "memory-limit",
+                "cpu-limit",
+                "private-network",
+                "host-firewall",
+                "own-kernel",
+                "memory-sleep",
+                "browser-sandbox",
+                "private-pids"
+              ]
+            },
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "required": [
+              "separate-users",
+              "memory-limit",
+              "cpu-limit",
+              "private-network",
+              "host-firewall",
+              "own-kernel",
+              "memory-sleep",
+              "browser-sandbox",
+              "private-pids"
+            ]
+          },
           "name": {
             "type": "string"
           },
@@ -5629,6 +5660,24 @@
               "wasm"
             ]
           },
+          "require": {
+            "maxItems": 9,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "separate-users",
+                "memory-limit",
+                "cpu-limit",
+                "private-network",
+                "host-firewall",
+                "own-kernel",
+                "memory-sleep",
+                "browser-sandbox",
+                "private-pids"
+              ]
+            }
+          },
           "restart": {
             "type": "object",
             "properties": {
@@ -6189,6 +6238,24 @@
                   "process",
                   "wasm"
                 ]
+              },
+              "require": {
+                "maxItems": 9,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "separate-users",
+                    "memory-limit",
+                    "cpu-limit",
+                    "private-network",
+                    "host-firewall",
+                    "own-kernel",
+                    "memory-sleep",
+                    "browser-sandbox",
+                    "private-pids"
+                  ]
+                }
               },
               "restart": {
                 "type": "object",

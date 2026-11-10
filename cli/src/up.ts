@@ -15,7 +15,7 @@ import { option } from './sandbox.ts'
 import { FLEET_HANDOUT_DIR, FLEET_PRYXD_BIN, installBinary, releaseFiles } from './up-assets.ts'
 import { configurations } from './up-config.ts'
 import { readEnvironment, writeChanged, writeEnvironment } from './up-files.ts'
-import { configureHostRuntime } from './up-host.ts'
+import { checkHostRuntime, configureHostRuntime } from './up-host.ts'
 import { imageReference, upImage } from './up-image.ts'
 import { container, service } from './up-units.ts'
 
@@ -38,6 +38,7 @@ export const runInstallCommand = async (args: string[], quiet = true, redactions
 const active = (unit: string) => Bun.spawnSync(['systemctl', 'is-active', '--quiet', unit]).exitCode === 0
 export function upPlan(domain: string) {
   return {
+    architecture: process.arch,
     version: PRYX_VERSION,
     domain,
     linux: process.platform === 'linux',
@@ -74,11 +75,20 @@ export async function up(args: string[]) {
     throw new Error('The existing domain is immutable; migrate public address assignments before changing it')
   if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]*$/.test(domain)) throw new Error('--domain is a DNS hostname')
   const plan = upPlan(domain)
+  if (plan.architecture !== 'x64')
+    throw new Error(
+      `This release needs x86_64; detected ${plan.architecture}. Run pryx on a Linux x86_64 host`,
+    )
   if (args.includes('--check'))
     return args.includes('--image') ? { ...plan, image: imageReference(args) } : plan
-  if (!plan.linux || !plan.systemd || !plan.root)
-    throw new Error('up requires a Linux systemd host as root; use --check for a read-only plan')
+  if (!plan.linux) throw new Error('Linux is required; run pryx on a Linux x86_64 host')
+  if (!plan.systemd)
+    throw new Error(
+      'A systemd host is required by this installer; run the release image with docker run instead',
+    )
+  if (!plan.root) throw new Error('The server installer requires root; run sudo pryx up')
   if (args.includes('--image')) return upImage(args, domain, runInstallCommand)
+  checkHostRuntime()
   for (const [path, mode] of [
     ['/etc/pryx', 0o700],
     ['/opt/pryx', 0o755],

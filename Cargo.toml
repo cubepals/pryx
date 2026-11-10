@@ -79,6 +79,10 @@ rustix = { version = "1", features = ["fs", "process", "param", "time", "thread"
 libc = "0.2.189"
 async-trait = "0.1"
 
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+kvm-ioctls = "=0.24.0"
+kvm-bindings = "=0.14.0"
+
 [features]
 # The fake container runtime (src/runtime/fake.rs), for tests only: the tests in tests/ turn it on
 # through the dev-dependency below, and a release build never has it.

@@ -115,17 +115,19 @@ test('workload options and hostname egress require separate feature announcement
     ['egress-hostnames'],
     ['workload-options', 'egress-hostnames'],
   ]) {
-    await api.put(
+    const put = api.put(
       { id: 'node', api_address: 'https://node.test', features },
       'box',
       { ...spec, workdir: '/data/work', user: '65532:65532', egress: { allow: ['example.com'], deny: [] } },
       1,
     )
-    const sent = body as Record<string, unknown>
-    expect(sent.workdir).toBe(features.includes('workload-options') ? '/data/work' : undefined)
-    expect(sent.user).toBe(features.includes('workload-options') ? '65532:65532' : undefined)
-    expect(sent.egress).toEqual(
-      features.includes('egress-hostnames') ? { allow: ['example.com'], deny: [] } : undefined,
-    )
+    if (features.length < 2) await expect(put).rejects.toThrow('Node lacks required features')
+    else {
+      await put
+      const sent = body as Record<string, unknown>
+      expect(sent.workdir).toBe('/data/work')
+      expect(sent.user).toBe('65532:65532')
+      expect(sent.egress).toEqual({ allow: ['example.com'], deny: [] })
+    }
   }
 })

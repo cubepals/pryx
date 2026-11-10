@@ -13,8 +13,9 @@ import type pg from 'pg'
 import nodeSchema from '../../openapi/node-reads.openapi.json'
 import { type Db, type Queryable, UNIQUE_VIOLATION } from './database.ts'
 import { MINUTE_S, SECOND_MS } from './durations.ts'
+import { type Guarantee, guarantees } from './guarantees.ts'
 import { decodeHandle, decodeSnapshot } from './handle.ts'
-import type { NodeClient } from './node-client.ts'
+import { type NodeClient, NodeRefused } from './node-client.ts'
 import { ensureProject, type ProjectAdmission } from './project-admission.ts'
 import { unitsFor } from './project-model.ts'
 import { getNode } from './registry.ts'
@@ -33,6 +34,7 @@ import { TRANSFER_MS } from './workload-api.ts'
 
 export const SESSION_LIVE_SECONDS = 2 * MINUTE_S
 export type SandboxSpec = WorkloadSpec & {
+  require?: Guarantee[]
   image: string
   isolation?: import('./isolation.ts').Isolation
   fuseMounts?: boolean
@@ -53,6 +55,7 @@ export type SandboxState =
   | 'restoring'
   | 'failed'
 export interface Sandbox {
+  guarantees?: Record<Guarantee, boolean>
   name?: string
   labels?: Record<string, string>
   metadata?: Record<string, unknown>
@@ -108,6 +111,7 @@ export class SandboxError extends Error {
 export function runtimeSpec(spec: SandboxSpec): RuntimeSpec {
   const defaults = nodeSchema.components.schemas.WorkloadSpec.properties
   return {
+    require: spec.require,
     image: spec.image,
     ...(spec.fuseMounts ? { fuseMounts: true } : {}),
     packages: spec.packages,
@@ -221,8 +225,10 @@ export class Sandboxes {
           sql`SELECT report FROM fleet_observations WHERE workload = ${row.id} AND node_id = ${ref.node} AND epoch = ${ref.epoch}`,
         )
       : null
+    const node = ref?.node ? await getNode(this.db, ref.node) : null
     return {
       name: row.spec.name,
+      guarantees: guarantees(node?.features ?? []),
       labels: row.spec.labels,
       metadata: row.spec.metadata,
       workdir: row.spec.workdir ?? undefined,
@@ -439,7 +445,11 @@ export class Sandboxes {
         }
       } catch (error) {
         await this.state(id, row.state)
-        if (error instanceof RuntimeFull && !row.quota_running) await this.projects?.stopped(id)
+        if (
+          !row.quota_running &&
+          (error instanceof RuntimeFull || (error instanceof NodeRefused && error.code === 'unsupported'))
+        )
+          await this.projects?.stopped(id)
         if (error instanceof RuntimeFull) await this.placement?.refused(row.region, row.spec)
         throw error
       }

@@ -28,6 +28,7 @@ import type {
   WorkloadSpec,
   WorkloadView,
 } from './wire.ts'
+import { requireWorkloadFeatures } from './workload-capabilities.ts'
 
 /**
  * Teardown (fence, delete) stops a running copy gracefully first, which takes the spec's grace
@@ -60,6 +61,7 @@ export const address = (node: Dialled): NodeAddress => ({
 })
 
 function toWorkloadSpec(spec: RuntimeSpec, features: readonly string[]): WorkloadSpec {
+  requireWorkloadFeatures(spec, features)
   const { cpuReservationMillis, ...resources } = spec.resources
   return {
     image: spec.image,

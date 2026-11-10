@@ -53,6 +53,7 @@ impl Manager {
     }
 
     async fn reconcile_inner(self: &Arc<Self>, from: Records) -> Result<(u64, u64), NodeError> {
+        self.refresh_firewall().await;
         let mut host_issues = Vec::new();
         let mut issues: HashMap<WorkloadId, Vec<Issue>> = HashMap::new();
         if from == Records::FromDisk {

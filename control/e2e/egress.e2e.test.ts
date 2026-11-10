@@ -2,6 +2,8 @@
 /** Host firewall acceptance uses the real container bridge and root fixture. Virtual agent
  * acceptance stays unprivileged in its separate invocation; this case remains in the full suite. */
 import { expect, test } from 'bun:test'
+import { readFileSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import type { Sandbox } from '../../sdk/typescript/src/index.ts'
 import { MINUTE_MS } from '../src/durations.ts'
 import { agentDeployment } from './agent-context.ts'
@@ -20,6 +22,17 @@ test(
         egress: { allow: ['example.com'], deny: ['example.org'] },
         resources: { memoryMb: 256 },
       })
+      await box.refresh()
+      expect(box.guarantees?.['host-firewall']).toBe(true)
+      expect(box.guarantees?.['private-network']).toBe(true)
+      expect(box.guarantees?.['private-pids']).toBe(true)
+      const outside = join(c.d.dir, 'host-guarantee-canary')
+      writeFileSync(outside, 'kept')
+      expect((await box.run(['sh', '-c', 'printf escaped > "$1"', 'probe', outside])).code).not.toBe(0)
+      expect(readFileSync(outside, 'utf8')).toBe('kept')
+      const daemon = c.d.children[0]?.child.pid
+      expect(daemon).toBeDefined()
+      expect((await box.run(['sh', '-c', 'kill -0 "$1"', 'probe', String(daemon)])).code).not.toBe(0)
       expect(
         (
           await box.run([

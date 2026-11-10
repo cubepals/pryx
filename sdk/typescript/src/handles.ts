@@ -109,6 +109,9 @@ export class Sandbox {
   get isolation() {
     return this.view.isolation
   }
+  get guarantees() {
+    return this.view.guarantees
+  }
   get units() {
     return this.view.units
   }

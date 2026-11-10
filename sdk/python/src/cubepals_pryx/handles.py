@@ -46,6 +46,8 @@ class Sandbox:
     @property
     def isolation(self):return None if isinstance(self._view.isolation,Unset) else self._view.isolation
     @property
+    def guarantees(self):return {} if isinstance(self._view.guarantees,Unset) else self._view.guarantees.to_dict()
+    @property
     def units(self):return None if isinstance(self._view.units,Unset) else self._view.units
     def _command_options(self,options):
         cwd=getattr(self._view,'workdir',None)

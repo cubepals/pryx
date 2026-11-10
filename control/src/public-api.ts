@@ -27,6 +27,7 @@ import { type NodeClient, NodeRefused } from './node-client.ts'
 import { ProjectAdmission, projectRow, projectUsage } from './project-admission.ts'
 import { exceeded, ProjectError } from './project-model.ts'
 import { PublicModel } from './public-model.ts'
+import { RuntimeFull } from './runtime-model.ts'
 import { lifetimeSchema, SandboxLifetime } from './sandbox-lifetime.ts'
 import { SandboxError, type Sandboxes } from './sandboxes.ts'
 import { one, toDate } from './sql.ts'
@@ -38,6 +39,7 @@ export function createPublicApi(options: {
   nodes: NodeClient
   domain: string
   defaultIsolation?: import('./isolation.ts').Isolation
+  require?: import('./guarantees.ts').Guarantee[]
   publicOrigin?: string
   repoImage?: string
   webhookSealKey?: string
@@ -53,6 +55,7 @@ export function createPublicApi(options: {
     options.edgePortRange,
     options.defaultIsolation,
     options.publicOrigin,
+    options.require,
   )
   const agents = new Agents(boxes, nodes, domain)
   const mounts = new NativeMounts(db, options.webhookSealKey ?? '')
@@ -147,11 +150,13 @@ export function createPublicApi(options: {
         error: {
           code,
           message:
-            error instanceof SandboxError
-              ? error.message
-              : code === 'no_room'
-                ? 'No node can complete this request'
-                : 'Node refused the operation',
+            error instanceof RuntimeFull && error.missingGuarantees.length
+              ? `No node provides required guarantees: ${error.missingGuarantees.join(', ')}`
+              : error instanceof SandboxError
+                ? error.message
+                : code === 'no_room'
+                  ? 'No node can complete this request'
+                  : 'Node refused the operation',
         },
       },
       status,

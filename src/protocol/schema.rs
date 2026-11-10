@@ -51,7 +51,7 @@ fn node_reads() -> Value {
 fn node_writes() -> Value {
     document("pryxd: what a node writes", Contract::Serialize, |g| {
         schemas!(g;
-            pryx_agent::auth::Claims, AgentTokenResponse, FileList, FileInfo, StoreLeaseIdentity, WorkloadView, ListResponse, StatsView, LogRecord, EnsureResponse, PowerResponse, FenceResponse,
+            Guarantee, pryx_agent::auth::Claims, AgentTokenResponse, FileList, FileInfo, StoreLeaseIdentity, WorkloadView, ListResponse, StatsView, LogRecord, EnsureResponse, PowerResponse, FenceResponse,
             DeleteResponse, ExecResponse, ExecEvent, ExportResponse, RestoreResponse, SnapshotResponse, SnapshotList,
             SnapshotDeleteResponse, NodeHealth, NodeStatus, ErrorBody, EnrollRequest, HeartbeatRequest, RenewRequest,
         );

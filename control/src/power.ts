@@ -26,6 +26,7 @@ import { type ProgressSink, RuntimeFull, type RuntimeHandle, type RuntimeSpec } 
 import { one } from './sql.ts'
 import type { EnsureResponse, WorkloadView } from './wire.ts'
 import type { WorkloadApi } from './workload-api.ts'
+import { requireWorkloadFeatures } from './workload-capabilities.ts'
 
 /** Node states in which a workload waited on to run never will without being asked again. */
 const NOT_STARTING = new Set(['stopped', 'crashed', 'missing', 'retained', 'fenced', 'suspended'])
@@ -107,6 +108,7 @@ export class Power {
     created: boolean,
     shouldStart = true,
   ): Promise<RuntimeHandle> {
+    requireWorkloadFeatures(spec, node.features)
     const key = row.workload
     const epoch = Number(row.epoch)
     const digest = sentDigest(spec)

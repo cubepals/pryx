@@ -38,6 +38,23 @@ fn pryxd(args: &[&str], config: &Path) -> (bool, String) {
 }
 
 #[test]
+fn process_doctor_checks_its_policy_and_uses_the_same_owner_as_serve() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = config(dir.path(), "127.0.0.1:7443");
+    let text = std::fs::read_to_string(&path).unwrap();
+    std::fs::write(&path, format!("runtime = \"process\"\n{text}")).unwrap();
+    std::fs::create_dir(dir.path().join("state")).unwrap();
+    let (_, output) = pryxd(&["doctor", "--json"], &path);
+    let report: serde_json::Value = serde_json::from_str(&output).unwrap();
+    let checks = report["checks"].as_array().unwrap();
+    assert!(!checks.iter().any(|check| check["name"].as_str().unwrap().starts_with("docker")));
+    assert!(!checks.iter().any(|check| check["name"] == "workloads.allowed_images"));
+    assert_eq!(checks.iter().find(|check| check["name"] == "state_dir.ownable").unwrap()["status"], "pass");
+    let policy = checks.iter().find(|check| check["name"] == "process.landlock").unwrap();
+    assert_eq!(policy["status"] == "pass", pryx_agent::process_capabilities::probe().filesystem);
+}
+
+#[test]
 fn docker_down_is_a_warning_and_pryxd_still_starts() {
     let dir = tempfile::tempdir().unwrap();
     let config = config(dir.path(), "127.0.0.1:7443");

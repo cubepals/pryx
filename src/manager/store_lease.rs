@@ -10,6 +10,10 @@ use crate::store_lease::Held;
 impl Manager {
     pub fn features(&self) -> Vec<String> {
         let mut features = crate::protocol::features();
+        features.extend(self.guarantees().into_iter().filter(|(_, on)| *on).map(|(guarantee, _)| guarantee.feature()));
+        if let Some(abi) = self.host_probe.lock().unwrap().landlock_abi {
+            features.push(format!("landlock-abi-{abi}"));
+        }
         if self.runtime.is_wasm() {
             features.extend(["wasm-tier".into(), "wasm-packages".into()]);
         }
@@ -43,6 +47,45 @@ impl Manager {
             features.push("store-lease".into());
         }
         features
+    }
+
+    pub async fn refresh_host_probe(&self) {
+        let report = crate::probe::run().await;
+        *self.host_probe.lock().unwrap() = report;
+    }
+
+    pub(crate) async fn refresh_firewall(&self) {
+        if let Ok(firewall) = tokio::task::spawn_blocking(crate::probe::firewall).await {
+            self.host_probe.lock().unwrap().capabilities.insert("host-firewall".into(), firewall);
+        }
+    }
+
+    pub(crate) fn guarantees(&self) -> BTreeMap<crate::protocol::Guarantee, bool> {
+        use crate::protocol::Guarantee as G;
+        let probe = self.host_probe.lock().unwrap();
+        let info = self.runtime_info.lock().unwrap();
+        let container = self.runtime.isolation() == "container";
+        G::ALL
+            .into_iter()
+            .map(|guarantee| {
+                let on = match guarantee {
+                    G::SeparateUsers => self.runtime.is_process() && probe.on("separate-users"),
+                    G::MemoryLimit => container && info.as_ref().is_some_and(|info| info.memory_limit),
+                    G::CpuLimit => container && info.as_ref().is_some_and(|info| info.cpu_limit),
+                    G::PrivateNetwork | G::PrivatePids => container,
+                    G::HostFirewall => container && probe.on("host-firewall"),
+                    G::MemorySleep => {
+                        !self.runtime.is_wasm()
+                            && (!container || info.as_ref().is_some_and(|info| !info.rootless && info.memory_limit))
+                    }
+                    G::BrowserSandbox => {
+                        container && self.config.docker.native_tools_seccomp.is_some() && probe.on("user-namespaces")
+                    }
+                    G::OwnKernel => false,
+                };
+                (guarantee, on)
+            })
+            .collect()
     }
     pub(super) fn require_store_lease(&self, record: &WorkloadRecord) -> Result<(), NodeError> {
         if !self.config.store_lease.enabled {

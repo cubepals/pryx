@@ -29,6 +29,7 @@ pub mod manager;
 pub mod metrics;
 pub mod ports;
 pub mod priority;
+pub mod probe;
 pub mod protocol;
 pub mod reconcile;
 pub mod runtime;

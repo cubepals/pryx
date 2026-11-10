@@ -19,7 +19,11 @@ module. Templates retain complete upstream notices and source URLs; the licence 
 are in [checks/measurements](checks/measurements/).
 
 Configure the node explicitly before scheduling these tools. Browser Chromium requires user
-namespaces. FUSE additionally requires the real `/dev/fuse` character device. Install the
+namespaces; `pryx doctor` reports whether the caller can use them. The public
+`browser-sandbox` guarantee additionally requires the node's native-tool policy. A missing
+guarantee can be required at creation and causes placement refusal. See
+[host capabilities](host-capabilities.md) for the distinction between false and unknown.
+FUSE additionally requires the real `/dev/fuse` character device. Install the
 [host profile](../deploy/native-tools-seccomp.json) as a protected root-owned file:
 
 ```sh

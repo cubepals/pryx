@@ -53,6 +53,8 @@ use crate::protocol::MAX_STOP_TIMEOUT;
 
 /// Longer than the longest stop: Docker answers a stop only once the container exited.
 const CLIENT_TIMEOUT_SECS: u64 = MAX_STOP_TIMEOUT as u64 + 60;
+/// Docker Engine /info SecurityOptions uses this identifier for rootless mode.
+const ROOTLESS_SECURITY_OPTION: &str = "name=rootless";
 /// Quick calls get a much shorter leash of their own.
 const QUICK: Duration = Duration::from_secs(20);
 const ICC_OPTION: &str = "com.docker.network.bridge.enable_icc";
@@ -273,6 +275,15 @@ impl ContainerRuntime for DockerRuntime {
         let version = quick("version", self.docker()?.version()).await?;
         let info = quick("info", self.docker()?.info()).await?;
         Ok(RuntimeInfo {
+            rootless: info
+                .security_options
+                .as_ref()
+                .is_some_and(|options| options.iter().any(|option| option == ROOTLESS_SECURITY_OPTION)),
+            memory_limit: info.memory_limit == Some(true)
+                && info.cgroup_driver.as_ref().is_some_and(|driver| driver.to_string() != "none"),
+            cpu_limit: info.cpu_cfs_quota == Some(true)
+                && info.cpu_shares == Some(true)
+                && info.cgroup_driver.as_ref().is_some_and(|driver| driver.to_string() != "none"),
             version: version.version,
             api_version: version.api_version,
             cgroup_version: info.cgroup_version.map(|v| v.to_string()),
