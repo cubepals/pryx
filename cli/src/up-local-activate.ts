@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Activate only an authenticated release. Bootstrap shortcuts are atomic files pointing at
  * immutable bundles; sandbox state and older releases remain available across upgrades. */
-import { chmodSync, existsSync, mkdirSync, readFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { capabilitySummary, hostProbe } from '../../deploy/host-probe.ts'
 import { createPrivateFile } from '../../deploy/image-state.ts'
@@ -40,7 +40,13 @@ export async function localSummary(record: LocalInstallation, action: string) {
   if (!saved) throw new Error('The service did not save its private CLI credentials')
   const probe = await hostProbe(join(record.bundle, 'bin/pryxd'), localEnvironment(record))
   const printed = join(record.paths.config, 'key-printed')
-  const firstKey = !existsSync(printed)
+  let firstKey = false
+  try {
+    createPrivateFile(printed, 'printed\n')
+    firstKey = true
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+  }
   console.log(
     JSON.stringify(
       {
@@ -58,7 +64,6 @@ export async function localSummary(record: LocalInstallation, action: string) {
       2,
     ),
   )
-  if (firstKey) createPrivateFile(printed, 'printed\n')
   if (record.preset === 'user')
     console.log(
       "User sandboxes share your user and have no enforced resource limits; use them for one person's work, not strangers' code.",

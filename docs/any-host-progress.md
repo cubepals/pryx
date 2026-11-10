@@ -396,3 +396,23 @@ job when publication is authorized. That job has not run in this task.
   ShellCheck and whitespace validation. Existing complete Bun validation remains
   388 passing tests, one existing skip and 8,159 assertions; no TypeScript changed
   in this candidate. The real hard-memory Docker case remains a CI requirement.
+- Any host 42822883979 at b1037a7 is fully green across all thirteen jobs. Booted
+  Fedora 129861287860 reaches hello in 40s, Debian 129861287918 in 45s, Ubuntu
+  129861288077 in 43s; each reports user_unit=True and enabled_linger=True and
+  completes repeat, check, retained-key/file upgrade and purge. Alpine, all default
+  Docker cells, root Docker, GNU fallback, unchanged unsupported-host refusal,
+  domainless sudo and relocation also pass. K20 still awaits complete normal CI.
+- The FIFO candidate a83699a passes real Docker job 129866676186 in CI 42826944648:
+  the hard-memory/OOM assertion succeeds, all fourteen integration cases pass, and
+  none is ignored (the separate lease case remains in its existing suite). This is
+  actual hosted enforcement evidence; the full workflow is still running.
+- A four-process barrier exposes a separate local-summary race: all four commands
+  print the initial key before the old marker write. The regression fails with four
+  disclosures. Claim the marker atomically before output; the same regression now
+  proves exactly one disclosure, four successful processes and mode 0600. Probe
+  presentation is a fixture; the concurrent processes, filesystem claim and output
+  collection are real, and credential values never appear in assertions or logs.
+- The atomic-summary correction passes the complete Bun check: 389 tests, one
+  existing skip, 8,162 assertions, generated contracts/docs/release checks, typecheck
+  and unchanged TypeScript structure. All implementation changes remain on any-host;
+  no production release, key, tag, version or repository setting was changed.
