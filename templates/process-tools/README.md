@@ -9,7 +9,8 @@ build exactly; retain that build's complete runtime notices and linkage metadata
 
 Launchers set the library path to the bundle's own libraries and execute the unchanged
 upstream binaries through **host glibc**. No binary rewriting, private loader or private glibc
-belongs in this bundle. The host probe reports its actual glibc version; tools whose minimum
+belongs in this bundle. The complete locked dependency set requires host glibc **2.34**
+(debugpy's attach helper sets the measured floor). The host probe reports its actual version; tools whose minimum
 cannot be met stay off with that reason. The completed bundle is verified by digest and fetched
 only when a sandbox first asks for a native tool. Its cache and private runtime state stay
 outside persistent sandbox data.
@@ -30,7 +31,12 @@ They are not build inputs for the active bundle. The main deliverable is never p
 
 Parts (`process-tools/`):
 
+- `build.py`: verified assembly, complete notices, addon selection and an ELF symbol audit.
+- `smoke.py`: real stateful Python/Node kernels and charts after physical relocation.
+- `browser/`: maintained debugging-pipe and Unix-proxy adapters, lock and browser acceptance.
 - `launchers/`: small runtime launchers using the bundle's libraries and host glibc.
 - `artifacts.json`: immutable upstream runtime and matching notice archives.
+- `compatibility.json`: one architecture and host-glibc prerequisite for build and host probe.
 - `libraries.lock.json`: immutable library/font archives and their notice hashes.
+- `helpers.lock.json`: separately executed namespace helpers and their complete notices.
 - `notices/`: source-reviewed corrections to incomplete library/font package notices.

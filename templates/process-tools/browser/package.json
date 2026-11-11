@@ -1,0 +1,10 @@
+{
+  "name": "pryx-process-browser",
+  "private": true,
+  "version": "0.0.0",
+  "license": "FSL-1.1-ALv2",
+  "dependencies": {
+    "puppeteer-core": "25.17.0",
+    "ws": "8.22.1"
+  }
+}

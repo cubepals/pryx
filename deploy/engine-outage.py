@@ -44,6 +44,16 @@ try:
     answer = subprocess.run([cli, 'run', '--isolation', 'process', '--', 'echo', 'alive'],
                             check=True, capture_output=True, text=True, timeout=45)
     assert answer.stdout.strip() == 'alive'
+    # The pre-outage copy view can remain cached until a live node observation arrives.
+    # Observe withdrawal first, so the later true value proves recovery rather than stale state.
+    withdrawn = time.monotonic() + 45
+    while True:
+        view = subprocess.run([cli, 'sandbox', 'get', sys.argv[2]], capture_output=True, text=True, timeout=5)
+        if view.returncode == 0 and json.loads(view.stdout).get('guarantees', {}).get('private-pids') is False:
+            break
+        if time.monotonic() >= withdrawn:
+            raise AssertionError('The installed node did not withdraw paused container availability')
+        time.sleep(0.2)
 finally:
     signal.pidfd_send_signal(descriptor, signal.SIGCONT)
     os.close(descriptor)

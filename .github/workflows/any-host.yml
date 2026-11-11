@@ -17,6 +17,40 @@ defaults:
     shell: bash
 
 jobs:
+  process-tools:
+    name: Relocatable upstream process tools
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Assemble verified upstream runtimes
+        run: |
+          python3 templates/process-tools/build.py --cache "$RUNNER_TEMP/tool-inputs" --output "$RUNNER_TEMP/process-tools"
+      - name: Run both real kernels after physical relocation
+        run: |
+          test "$(id -u)" -ne 0
+          moved="$RUNNER_TEMP/ordinary user tools moved to a substantially longer path"
+          mv "$RUNNER_TEMP/process-tools" "$moved"
+          "$moved/bin/python3" templates/process-tools/smoke.py "$moved" | tee "$RUNNER_TEMP/upstream-kernels.jsonl"
+          "$moved/bin/node" -e 'const assert=require("node:assert/strict");assert.equal(require("node:child_process").execFileSync(process.execPath,["-p","6*7"],{encoding:"utf8"}).trim(),"42")'
+          "$moved/bin/chrome-headless-shell" --version
+          cp "$moved/manifest.json" "$RUNNER_TEMP/upstream-tool-manifest.json"
+      - name: Run Chromium over its debugging pipe
+        run: |
+          moved="$RUNNER_TEMP/ordinary user tools moved to a substantially longer path"
+          "$moved/bin/node" "$moved/browser-client/smoke.mjs" "$moved" | tee "$RUNNER_TEMP/upstream-browser.jsonl"
+      - name: Retain ordinary-user bundle observations
+        if: always()
+        uses: ./.github/actions/upload-evidence
+        with:
+          name: upstream-process-tools
+          path: |
+            ${{ runner.temp }}/upstream-kernels.jsonl
+            ${{ runner.temp }}/upstream-browser.jsonl
+            ${{ runner.temp }}/upstream-tool-manifest.json
+          if-no-files-found: error
   bundle:
     name: Bundle runtime acceptance
     runs-on: ubuntu-24.04
@@ -86,7 +120,7 @@ jobs:
             echo "manifest=$(sha256sum host-parts/PARTS.sha256 | cut -d ' ' -f1)"
             echo "transport=$(sha256sum host-transport.tar | cut -d ' ' -f1)"
           } >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      - uses: ./.github/actions/upload-evidence
         with:
           name: host-bundle-preview-0
           path: |
@@ -95,7 +129,7 @@ jobs:
           compression-level: 0
           if-no-files-found: error
           retention-days: 7
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      - uses: ./.github/actions/upload-evidence
         if: fromJSON(steps.transport.outputs.count) > 1
         with:
           name: host-bundle-preview-1
@@ -105,7 +139,7 @@ jobs:
           compression-level: 0
           if-no-files-found: error
           retention-days: 7
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      - uses: ./.github/actions/upload-evidence
         if: fromJSON(steps.transport.outputs.count) > 2
         with:
           name: host-bundle-preview-2
@@ -115,7 +149,7 @@ jobs:
           compression-level: 0
           if-no-files-found: error
           retention-days: 7
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      - uses: ./.github/actions/upload-evidence
         if: fromJSON(steps.transport.outputs.count) > 3
         with:
           name: host-bundle-preview-3

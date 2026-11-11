@@ -13,6 +13,10 @@ use std::{
 pub(super) fn read(root: &Path) -> Report {
     let mut report =
         Report { architecture: std::env::consts::ARCH.into(), c_library: c_library(), ..Report::default() };
+    report.capabilities.insert(
+        "process-tool-runtime".into(),
+        crate::capability::process_tools::prerequisite(&report.architecture, &report.c_library),
+    );
     let (abi, capability) = landlock();
     report.landlock_abi = abi;
     report.capabilities.insert("landlock".into(), capability);

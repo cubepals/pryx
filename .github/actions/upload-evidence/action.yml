@@ -1,0 +1,40 @@
+name: Upload retained evidence
+description: Retry one failed artifact delivery without weakening required evidence or tests
+inputs:
+  name:
+    description: Artifact name
+    required: true
+  path:
+    description: Paths retained by the producing job
+    required: true
+  if-no-files-found:
+    description: Preserve the caller's missing-evidence policy
+    default: warn
+  compression-level:
+    description: Upstream artifact compression level
+    default: '6'
+  retention-days:
+    description: Artifact retention
+    default: '7'
+runs:
+  using: composite
+  steps:
+    - id: first
+      continue-on-error: true
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: ${{ inputs.name }}
+        path: ${{ inputs.path }}
+        if-no-files-found: ${{ inputs.if-no-files-found }}
+        compression-level: ${{ inputs.compression-level }}
+        retention-days: ${{ inputs.retention-days }}
+    - if: ${{ !cancelled() && steps.first.outcome == 'failure' }}
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: ${{ inputs.name }}
+        path: ${{ inputs.path }}
+        if-no-files-found: ${{ inputs.if-no-files-found }}
+        compression-level: ${{ inputs.compression-level }}
+        retention-days: ${{ inputs.retention-days }}
+        # A failed finalization can leave an incomplete artifact with this run-local name.
+        overwrite: true

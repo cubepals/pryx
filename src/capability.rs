@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Read-only host evidence from bounded child probes and the host C library. Capability policy,
 //! configuration and runtime selection belong to callers; this module starts no workload.
+//!
+//! Parts (`capability/`):
+//! - `process_tools.rs`: the upstream tool bundle's host-glibc prerequisite.
+pub(crate) mod process_tools;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

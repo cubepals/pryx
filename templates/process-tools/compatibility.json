@@ -1,0 +1,4 @@
+{
+  "architecture": "x86_64",
+  "hostGlibcMinimum": "2.34"
+}

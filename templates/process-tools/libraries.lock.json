@@ -1366,5 +1366,21 @@
         "bytes": 25292
       }
     ]
+  },
+  {
+    "name": "libcap",
+    "version": "2.78",
+    "build": "h084b8d7_1",
+    "url": "https://conda.anaconda.org/conda-forge/linux-64/libcap-2.78-h084b8d7_1.conda",
+    "sha256": "8cb25174d6b6fac95d31e86cfe41faffc8ee9dacbf2bfd22e6c23377e8f338c1",
+    "bytes": 124306,
+    "declaredLicence": "BSD-3-Clause (selected)",
+    "notices": [
+      {
+        "path": "info/licenses/License",
+        "sha256": "68467e731f4744bd6e0bb69e8df9c3a994e09cd6b203d0c41327ac6d079c581d",
+        "bytes": 20318
+      }
+    ]
   }
 ]
