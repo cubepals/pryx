@@ -127,22 +127,7 @@ pub async fn run(options: &Options) -> Report {
         let report = Report { checks: vec![config_check], fixed };
         return if options.preflight { report.for_preflight() } else { report };
     };
-    let mut endpoint_error = None;
-    if config.docker.enabled
-        && matches!(config.runtime, crate::config::RuntimeKind::Container | crate::config::RuntimeKind::Auto)
-        && config.docker.discover
-    {
-        match crate::runtime::engine::socket(&config.docker).await {
-            Ok(socket) => {
-                config.docker.socket = socket;
-                config.docker.discover = false;
-            }
-            Err(error) => {
-                endpoint_error = Some(error.to_string());
-                config.docker.enabled = false;
-            }
-        }
-    }
+    let endpoint_error = docker::endpoint(&mut config).await;
     let runtime: Option<Box<dyn ContainerRuntime>> = (config.docker.enabled
         && matches!(config.runtime, crate::config::RuntimeKind::Container | crate::config::RuntimeKind::Auto))
     .then(|| DockerRuntime::new(&config.docker.socket).ok().map(|r| Box::new(r) as Box<dyn ContainerRuntime>))

@@ -15,6 +15,27 @@ use serde_json::{Map, Value};
 use super::check::Check;
 use crate::runtime::{ContainerRuntime, RuntimeError, RuntimeInfo};
 
+/// Resolve the engine once so tier checks and doctor clients use the same endpoint.
+pub(super) async fn endpoint(config: &mut crate::config::Config) -> Option<String> {
+    let mut endpoint_error = None;
+    if config.docker.enabled
+        && matches!(config.runtime, crate::config::RuntimeKind::Container | crate::config::RuntimeKind::Auto)
+        && config.docker.discover
+    {
+        match crate::runtime::engine::socket(&config.docker).await {
+            Ok(socket) => {
+                config.docker.socket = socket;
+                config.docker.discover = false;
+            }
+            Err(error) => {
+                endpoint_error = Some(error.to_string());
+                config.docker.enabled = false;
+            }
+        }
+    }
+    endpoint_error
+}
+
 /// How long doctor waits on Docker. Short: a hung daemon shouldn't hold up pryxd's start.
 const DOCKER_WAIT: Duration = Duration::from_secs(5);
 
