@@ -111,7 +111,73 @@ pub struct DockerRuntime {
     pub(super) ownership: ownership::Policy,
 }
 
+struct RootlessExec {
+    peer: termination::Peer,
+    podman: bool,
+    container: String,
+    init_pid: i32,
+}
+
 impl DockerRuntime {
+    async fn rootless_exec_policy(&self, container: &str) -> Result<Option<RootlessExec>, RuntimeError> {
+        let cached = self.info.lock().unwrap().clone();
+        let info = match cached {
+            Some(info) => info,
+            None => self.info().await?,
+        };
+        if let Some(problem) = info.container_policy_problem {
+            return Err(RuntimeError::Other(problem));
+        }
+        if !info.rootless {
+            return Ok(None);
+        }
+        let peer = termination::peer(&self.socket).await.map_err(RuntimeError::Other)?;
+        let inspect = quick("inspect exec owner", self.docker()?.inspect_container(container, None)).await?;
+        let container = inspect.id.ok_or_else(|| RuntimeError::Other("exec owner has no identity".into()))?;
+        let state = inspect.state.unwrap_or_default();
+        let init_pid = state
+            .pid
+            .and_then(|pid| i32::try_from(pid).ok())
+            .filter(|pid| *pid > 1)
+            .ok_or_else(|| RuntimeError::Conflict("exec owner is not running".into()))?;
+        let owned = if info.podman {
+            self.podman_exec_pids(&container).await?.contains(&init_pid)
+        } else {
+            termination::shim_owned(init_pid, peer.uid, &container)
+        };
+        if !owned {
+            return Err(RuntimeError::Other(
+            "exec-pid-visibility is unavailable: the selected engine cannot prove process ownership; use its direct local socket with visible host PIDs".into()));
+        }
+        Ok(Some(RootlessExec { peer, podman: info.podman, container, init_pid }))
+    }
+
+    async fn podman_exec_pids(&self, container: &str) -> Result<std::collections::BTreeSet<i32>, RuntimeError> {
+        // Podman v4.9.3 TopContainer uses psgo's documented hpid descriptor and HPID column.
+        const HOST_PID_DESCRIPTOR: &str = "hpid";
+        const HOST_PID_COLUMN: &str = "HPID";
+        let options = bollard::query_parameters::TopOptionsBuilder::default().ps_args(HOST_PID_DESCRIPTOR).build();
+        let top = quick("exec process membership", self.docker()?.top_processes(container, Some(options))).await?;
+        let column = top
+            .titles
+            .as_ref()
+            .and_then(|titles| titles.iter().position(|title| title == HOST_PID_COLUMN))
+            .ok_or_else(|| {
+                RuntimeError::Other("exec-pid-visibility is unavailable: the engine omitted host PIDs".into())
+            })?;
+        top.processes
+            .unwrap_or_default()
+            .into_iter()
+            .map(|row| {
+                row.get(column).and_then(|pid| pid.trim().parse::<i32>().ok()).filter(|pid| *pid > 1).ok_or_else(|| {
+                    RuntimeError::Other(
+                        "exec-pid-visibility is unavailable: the engine returned an invalid host PID".into(),
+                    )
+                })
+            })
+            .collect()
+    }
+
     /// Doesn't connect yet: pryxd starts even while Docker is down (bollard refuses to build a
     /// client for a socket that doesn't exist yet), and says so until it's back.
     pub fn new(socket: &Path) -> Result<Self, RuntimeError> {

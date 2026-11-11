@@ -186,3 +186,38 @@ async fn attack_neighbour(case: &EngineCase) {
     assert!(view.guarantees[&Guarantee::PrivateNetwork]);
     assert!(view.guarantees[&Guarantee::PrivatePids]);
 }
+
+#[tokio::test]
+#[ignore = "needs the actual selected engine"]
+async fn engine_exec_timeout_retires_children_and_keeps_the_workload_running() {
+    let Some(case) = EngineCase::new().await else { return };
+    case.create("timeout").await;
+    case.manager.start(id("timeout"), None).await.unwrap();
+    let before = case.manager.view(&id("timeout")).unwrap();
+    let backend =
+        bollard::Docker::connect_with_unix(case.socket.to_str().unwrap(), 60, bollard::API_DEFAULT_VERSION).unwrap();
+    let original = backend.inspect_container(&before.locate.container_name, None).await.unwrap().state.unwrap();
+    for script in ["sleep 30; echo never", "exec 1>&- 2>&-; sleep 30; echo never"] {
+        let began = Instant::now();
+        let result = case
+            .manager
+            .exec(
+                id("timeout"),
+                ExecRequest { command: vec!["sh".into(), "-c".into(), script.into()], timeout_seconds: 1 },
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        assert!(result.timed_out && result.killed, "{result:?}");
+        assert!(began.elapsed() < Duration::from_secs(6));
+    }
+    assert_eq!(case.command("timeout", "ps -o args | grep -c '^sleep 30' || true").await.trim(), "0");
+    let actual = backend.inspect_container(&before.locate.container_name, None).await.unwrap().state.unwrap();
+    assert_eq!(actual.running, Some(true));
+    assert_eq!(actual.started_at, original.started_at, "termination never restarts the workload");
+    let after = case.manager.view(&id("timeout")).unwrap();
+    assert_eq!(after.locate.container_id, before.locate.container_id);
+    assert_eq!(after.started_at, before.started_at);
+    case.manager.delete(id("timeout"), DataDisposition::Delete, Some("timeout".into()), None).await.unwrap();
+}
