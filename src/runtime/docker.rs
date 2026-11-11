@@ -105,6 +105,7 @@ pub struct DockerRuntime {
     socket: String,
     client: std::sync::Mutex<Option<Docker>>,
     info: std::sync::Mutex<Option<RuntimeInfo>>,
+    metadata_version: std::sync::Mutex<Option<bollard::models::SystemVersion>>,
     relays: relay::Relays,
     egress: egress::Egress,
     native_tools: native_tools::Policy,
@@ -158,6 +159,7 @@ impl DockerRuntime {
             socket,
             client: std::sync::Mutex::new(None),
             info: std::sync::Mutex::new(None),
+            metadata_version: std::sync::Mutex::new(None),
             relays: relay::Relays::default(),
             egress: Default::default(),
             native_tools: Default::default(),
@@ -173,6 +175,23 @@ impl DockerRuntime {
     ) -> Result<Self, RuntimeError> {
         self.native_tools = native_tools::Policy::load(profile, fuse, apparmor)?;
         Ok(self)
+    }
+
+    fn checked_metadata(
+        &self,
+        cached: bool,
+        version: &Option<String>,
+        info: Result<bollard::models::SystemInfo, RuntimeError>,
+        native_available: bool,
+    ) -> Result<bollard::models::SystemInfo, RuntimeError> {
+        if cached && (!native_available || !info.as_ref().is_ok_and(|info| &info.server_version == version)) {
+            *self.metadata_version.lock().unwrap() = None;
+            *self.client.lock().unwrap() = None;
+            return Err(RuntimeError::Unavailable(
+                "engine metadata changed or became unavailable; re-probe required".into(),
+            ));
+        }
+        info
     }
 
     /// Prove the independent cgroup watchdog before enabling the optional host feature.
@@ -377,10 +396,16 @@ impl ContainerRuntime for DockerRuntime {
         let client = self.docker()?;
         crate::capability::probe_phase("engine-negotiate");
         crate::capability::probe_phase("engine-version");
-        let (_, version) = tokio::try_join!(
-            quick("negotiate version", client.clone().negotiate_version()),
-            quick("version", client.version()),
-        )?;
+        let cached = self.metadata_version.lock().unwrap().clone();
+        let version = if let Some(version) = &cached {
+            version.clone()
+        } else {
+            tokio::try_join!(
+                quick("negotiate version", client.clone().negotiate_version()),
+                quick("version", client.version()),
+            )?
+            .1
+        };
         let podman = version
             .components
             .as_ref()
@@ -400,7 +425,11 @@ impl ContainerRuntime for DockerRuntime {
         let native =
             async { if let Some(version) = &podman_version { podman::host(self, version).await } else { None } };
         let (info, native) = tokio::join!(quick("info", client.info()), native);
-        let info = info?;
+        let info = self.checked_metadata(cached.is_some(), &version.version, info, native.is_some())?;
+        // Only stable version negotiation is reused. Controllers, ownership and policy stay live.
+        if podman && native.is_some() && version.version.is_some() && version.version == info.server_version {
+            *self.metadata_version.lock().unwrap() = Some(version.clone());
+        }
         let mut result = RuntimeInfo {
             podman,
             podman_version,

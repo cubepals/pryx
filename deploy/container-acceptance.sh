@@ -2,13 +2,37 @@
 # SPDX-License-Identifier: FSL-1.1-ALv2
 # Test preparation runs as root; every installer and sandbox command runs as uid 1001.
 set -eu
+rewrite_ubuntu_sources() {
+  pryx_source_root=$1
+  pryx_source_mirror=$2
+  pryx_sources_found=0
+  for pryx_source in "$pryx_source_root/etc/apt/sources.list" \
+    "$pryx_source_root"/etc/apt/sources.list.d/*.list \
+    "$pryx_source_root"/etc/apt/sources.list.d/*.sources; do
+    [ -f "$pryx_source" ] || continue
+    case "$pryx_source" in
+      *.sources)
+        if grep -q '^URIs:' "$pryx_source"; then
+          sed -i "s|^URIs:.*|URIs: $pryx_source_mirror|" "$pryx_source"
+          pryx_sources_found=1
+        fi ;;
+      *)
+        if grep -Eq '^deb(-src)?[[:space:]]' "$pryx_source"; then
+          sed -Ei "s|^(deb(-src)?[[:space:]]+(\[[^]]*\][[:space:]]+)?)[^[:space:]]+|\1$pryx_source_mirror|" "$pryx_source"
+          pryx_sources_found=1
+        fi ;;
+    esac
+  done
+  if [ "$pryx_sources_found" != 1 ]; then
+    echo 'The Ubuntu fixture has no recognized signed archive sources' >&2
+    return 1
+  fi
+}
 if command -v apt-get >/dev/null; then
   pryx_apt_ca=${PRYX_TEST_APT_CA:-/etc/ssl/certs/ca-certificates.crt}
-  pryx_ubuntu_sources=/etc/apt/sources.list.d/ubuntu.sources
   if sh -c '. /etc/os-release; [ "$ID" = ubuntu ]'; then
     pryx_ubuntu_mirror=${PRYX_TEST_UBUNTU_MIRROR:?The Ubuntu fixture needs its archive mirror}
-    grep -q '^URIs:' "$pryx_ubuntu_sources"
-    sed -i "s|^URIs:.*|URIs: $pryx_ubuntu_mirror|" "$pryx_ubuntu_sources"
+    rewrite_ubuntu_sources "" "$pryx_ubuntu_mirror"
   fi
   # The minimal Ubuntu image bootstraps its own CA package using the read-only runner roots.
   # TLS, Ubuntu release signatures and package digest verification all remain mandatory.

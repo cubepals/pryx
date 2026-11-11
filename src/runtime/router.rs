@@ -59,9 +59,9 @@ impl Router {
         let mut failure = None;
         for backend in &self.backends {
             let health = async { if all { backend.info().await } else { backend.serving_info().await } };
-            let result = tokio::time::timeout(engine::PROBE_TIMEOUT, health)
-                .await
-                .unwrap_or_else(|_| Err(RuntimeError::Unavailable("health check timed out".into())));
+            let result = tokio::time::timeout(engine::PROBE_TIMEOUT, health).await;
+            let timed_out = result.is_err();
+            let result = result.unwrap_or_else(|_| Err(RuntimeError::Unavailable("health check timed out".into())));
             match result {
                 Ok(info) => {
                     self.info.lock().unwrap().insert(backend.isolation().into(), info.clone());
@@ -70,6 +70,7 @@ impl Router {
                     }
                 }
                 Err(error) => {
+                    tracing::warn!(tier = backend.isolation(), timed_out, "runtime tier health unavailable");
                     self.unavailable(backend.isolation());
                     failure = Some(RuntimeError::Unavailable(format!("{} tier: {error}", backend.isolation())));
                 }

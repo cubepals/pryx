@@ -33,9 +33,11 @@ sudo incus file push deploy/local-diagnostics.py pryx/local-diagnostics.py
 # Reuse distro prerequisite setup, replacing only its final su with a PAM login session
 # for systemd distributions. Alpine uses its actual OpenRC/foreground path.
 sudo incus exec pryx --env "PRYX_TEST_UBUNTU_MIRROR=$(jq -r .ubuntuMirror .github/engine-versions.json)" -- sh -c '
+  set -eu
   if [ "$(cat /proc/1/comm)" = systemd ]; then
     while ! systemctl is-active --quiet systemd-logind; do sleep 1; done
     PRYX_PREPARE_ONLY=1 sh /container-acceptance.sh
+    [ "$(id -u pryxtest)" = 1001 ]
     case "$(. /etc/os-release; echo "$ID")" in
       debian|ubuntu) apt-get install -y dbus-user-session libpam-systemd polkitd ;;
       fedora) dnf install -y systemd-pam dbus-broker polkit ;;

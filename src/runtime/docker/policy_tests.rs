@@ -164,22 +164,28 @@ async fn native_podman_metadata_uses_the_selected_socket_and_native_route() {
     let native = serde_json::json!({"host": {"networkBackend": "netavark", "cgroupManager": "systemd",
         "cgroupControllers": [], "security": {"rootless": true}}});
     let native: podman_api_stubs::models::Info = serde_json::from_value(native).unwrap();
+    let native = Arc::new(std::sync::Mutex::new(native));
+    let returned = native.clone();
+    let server_version = Arc::new(std::sync::Mutex::new(native_version.clone()));
+    let changing = server_version.clone();
     let paths = Arc::new(std::sync::Mutex::new(Vec::new()));
     let seen = paths.clone();
     let app = Router::new()
         .route(
             &endpoint,
             get(move || {
-                let native = native.clone();
+                let native = returned.lock().unwrap().clone();
                 async move { Json(native) }
             }),
         )
         .fallback(any(move |request: Request| {
             let version = native_version.clone();
+            let server_version = changing.lock().unwrap().clone();
             seen.lock().unwrap().push(request.uri().path().to_owned());
             async move {
                 let value = if request.uri().path().ends_with("/version") {
                     serde_json::to_value(bollard::models::SystemVersion {
+                        version: Some(version.clone()),
                         api_version: Some(bollard::API_DEFAULT_VERSION.to_string()),
                         components: Some(vec![bollard::models::SystemVersionComponents {
                             name: PODMAN_ENGINE_COMPONENT.into(),
@@ -191,6 +197,7 @@ async fn native_podman_metadata_uses_the_selected_socket_and_native_route() {
                     .unwrap()
                 } else {
                     serde_json::to_value(bollard::models::SystemInfo {
+                        server_version: Some(server_version),
                         security_options: Some(vec![ROOTLESS_SECURITY_OPTION.into()]),
                         memory_limit: Some(true),
                         cpu_cfs_quota: Some(true),
@@ -216,5 +223,26 @@ async fn native_podman_metadata_uses_the_selected_socket_and_native_route() {
     assert!(info.container_policy_problem.is_none(), "native route was not reached: {:?}", paths.lock().unwrap());
     assert!(info.podman && info.rootless);
     assert!(!info.memory_limit && !info.cpu_limit && !info.pids_limit);
+    verify_metadata_refresh(&runtime, &paths, &native, &server_version).await;
     server.abort();
+}
+
+async fn verify_metadata_refresh(
+    runtime: &DockerRuntime,
+    paths: &Arc<std::sync::Mutex<Vec<String>>>,
+    native: &Arc<std::sync::Mutex<podman_api_stubs::models::Info>>,
+    server_version: &Arc<std::sync::Mutex<String>>,
+) {
+    let versions = || paths.lock().unwrap().iter().filter(|path| path.ends_with("/version")).count();
+    assert_eq!(versions(), 2);
+    native.lock().unwrap().host.as_mut().unwrap().cgroup_controllers = Some(vec!["memory".into()]);
+    let info = tokio::time::timeout(super::super::ENGINE_PROBE_TIMEOUT, runtime.info()).await.unwrap().unwrap();
+    assert!(info.memory_limit, "controllers remain live observations");
+    assert_eq!(versions(), 2, "stable Podman version reads must not repeat during health/probe contention");
+    let original = server_version.lock().unwrap().clone();
+    *server_version.lock().unwrap() = format!("{original}-changed");
+    assert!(matches!(runtime.info().await, Err(RuntimeError::Unavailable(_))));
+    *server_version.lock().unwrap() = original;
+    assert!(runtime.info().await.unwrap().memory_limit);
+    assert_eq!(versions(), 4, "a changed engine must negotiate and revalidate metadata again");
 }
