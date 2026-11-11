@@ -109,6 +109,42 @@ test('an unnamed private-network request chooses the tier that actually supports
       network: 'none',
     })
     expect(refused.status).toBe(StatusCodes.SERVICE_UNAVAILABLE)
+    const image = await c.request('/sandboxes', 'POST', { image: 'alpine:3.22', network: 'none' })
+    expect(image.status).toBe(StatusCodes.SERVICE_UNAVAILABLE)
+    expect(c.nodes.calls).toHaveLength(before)
+  } finally {
+    await c.close()
+  }
+})
+
+test('open tier selection matches the request source before applying its preference', async () => {
+  const c = await publicContext()
+  try {
+    await tiers(c, [...features, 'tier-container'])
+    const plain = await c.request('/sandboxes', 'POST', {})
+    expect(plain.status).toBe(StatusCodes.CREATED)
+    expect((await plain.json()).isolation).toBe('process')
+    const processFirst = new PublicModel(c.db, c.boxes, 'sandboxes.test', undefined, [
+      'process',
+      'container',
+      'wasm',
+    ])
+    const image = await processFirst.create('default', makeSchema.parse({ image: 'alpine:3.22' }))
+    expect(image.isolation).toBe('container')
+    const snapshot = await c.boxes.snapshot(image.id, 'default')
+    await c.db.execute(sql`UPDATE sandbox_snapshots SET spec=spec-'isolation' WHERE id=${snapshot.id}`)
+    const legacy = await processFirst.create('default', makeSchema.parse({ snapshot: snapshot.id }))
+    expect(legacy.isolation).toBe('container')
+    const packages = await processFirst.create('default', makeSchema.parse({ packages: ['python'] }))
+    expect(packages.isolation).toBe('wasm')
+    const template = await c.model.template('default', 'source-aware', makeSchema.parse({}))
+    const saved = await c.db.execute(sql`SELECT spec FROM templates WHERE id=${template?.id}`)
+    expect((saved.rows[0]?.spec as { isolation: string }).isolation).toBe('process')
+    const before = c.nodes.calls.length
+    const fixed = new PublicModel(c.db, c.boxes, 'sandboxes.test', undefined, 'container')
+    await expect(fixed.create('default', makeSchema.parse({}))).rejects.toThrow('Choose exactly one')
+    const explicit = await c.request('/sandboxes', 'POST', { isolation: 'container' })
+    expect(explicit.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY)
     expect(c.nodes.calls).toHaveLength(before)
   } finally {
     await c.close()

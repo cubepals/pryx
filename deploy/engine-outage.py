@@ -16,6 +16,8 @@ import sys
 import time
 
 cli = sys.argv[1]
+retained = subprocess.run([cli, 'sandbox', 'get', sys.argv[2]], check=True, capture_output=True, text=True, timeout=5)
+assert json.loads(retained.stdout)['isolation'] == 'container', 'The retained outage canary must be a container'
 endpoint = Path(os.environ['PRYX_TEST_ENGINE_SOCKET'])
 owned = Path(os.environ['RUNNER_TEMP']) / ('pryx-engine-' + os.environ['PRYX_TEST_ENGINE'])
 assert endpoint.is_relative_to(owned)

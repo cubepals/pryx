@@ -8,7 +8,9 @@ Each workload keeps its chosen tier for its lifetime and reports that tier's gua
 A named unavailable tier is refused; it is never substituted.
 
 For an unnamed request, control chooses container, then process, then Wasm among healthy nodes
-that meet `require`. VM joins that order between container and process when available in K25.
+that meet `require` and accept the supplied source: images need containers, image-free requests
+use process or Wasm, and package requests need Wasm. Snapshots and templates retain their saved
+tier. VM joins that order between container and process when available in K25.
 `PRYX_DEFAULT_ISOLATION=process` fixes one tier; a comma-separated list changes the priority.
 Local installations retain this preference across user-manager restarts and upgrades.
 The image and new local installations use auto mode. Without an engine, the usual first choice
@@ -23,13 +25,15 @@ The complete measurements below retain their original contexts, samples and budg
 
 ## Rootless engine measurements
 
-The [ordinary-user engine run](https://github.com/cubepals/pryx/actions/runs/43015556681)
-measures source `03729e9175a07bcea63f6aa4e87dcacae07771d6` on an x86_64 Ubuntu 24.04 hosted
+The [ordinary-user engine run](https://github.com/cubepals/pryx/actions/runs/43027222801)
+measures source `2d7e2a7fe1ec1b39035645ed591610ec818309e8` on an x86_64 Ubuntu 24.04 hosted
 runner. Podman is the pinned Ubuntu `4.9.3+ds1-1ubuntu0.2` package, with vfs storage and no
 delegated controllers. Each fresh workload reserves 256 MiB for admission and explicitly accepts
 missing memory enforcement; CPU, PID and memory-sleep limits are off. The same job proves
 nonzero identity, readonly root, zero kernel capabilities, PID and network separation,
 HTTP ingress, snapshot/fork retention, stop/wake and bounded exec-tree cancellation.
+A separate private-network case proves published ingress, no default route and denied external
+egress after an internet-mode canary first proves the target is reachable.
 
 These are **direct node-manager measurements**. They include neither the public API nor the
 edge, and do not replace the public-edge cohorts and budgets below. All 30 serial samples
@@ -40,7 +44,7 @@ strict deletion and installer startup are outside these timers. Percentiles use 
 
 | Engine and host context | Completed samples | Create ms p50 / p90 | Exec ms p50 / p90 | HTTP round trip ms p50 / p90 |
 | --- | ---: | ---: | ---: | ---: |
-| Rootless Podman, ordinary runner user | 30 | 4382.40 / 4623.39 | 46.81 / 177.34 | 3.14 / 3.20 |
+| Rootless Podman, ordinary runner user | 30 | 4217.50 / 4361.13 | 47.99 / 127.72 | 3.20 / 3.31 |
 | Standard rootless Docker 29.9.2 mapping | 0 | Unavailable | Unavailable | Unavailable |
 
 The standard Docker mapping cannot expose daemon-owned data to the required nonzero sandbox
@@ -49,9 +53,9 @@ user: default and host namespaces deny the write, and keep-id is unsupported. It
 lifecycle and timings are parked; a custom mapped local daemon is not evidence for that host.
 Rootless Docker also refuses `network-policy` for `network: "none"`: its internal bridges cannot
 provide ingress through the node user. Podman uses native published ingress for internal bridges.
-The [Podman samples](checks/measurements/k22/podman-03729e9.json),
-[Docker refusal](checks/measurements/k22/docker-03729e9.json) and
-[artifact provenance](checks/measurements/k22/provenance.json) are retained byte for byte after
+The [Podman samples](checks/measurements/k22/podman-2d7e2a7.json),
+[Docker refusal](checks/measurements/k22/docker-2d7e2a7.json) and
+[artifact provenance](checks/measurements/k22/provenance-2d7e2a7.json) are retained byte for byte after
 checking their GitHub archive digests. A failed collection retains its partial sample count
 and cannot report completion.
 

@@ -98,7 +98,11 @@ pryx up > "$HOME/repeated.log"
 if grep -q '"apiKey"' "$HOME/repeated.log"; then echo 'Repeated the first key' >&2; exit 1; fi
 phase=retained-workload
 key_before=$(pryx config key | sha256sum)
-box=$(pryx sandbox create --idle 5m | python3 -c 'import json,sys;print(json.load(sys.stdin)["id"])')
+if [ "${PRYX_EXPECT_CONTAINER:-}" = on ]; then
+  box=$(pryx sandbox create --isolation container --image alpine:3.22 --idle 5m | python3 -c 'import json,sys;r=json.load(sys.stdin);assert r["isolation"] == "container";assert r["guarantees"]["private-pids"];print(r["id"])')
+else
+  box=$(pryx sandbox create --idle 5m | python3 -c 'import json,sys;print(json.load(sys.stdin)["id"])')
+fi
 printf 'state survives upgrade\n' > "$HOME/kept"
 pryx sandbox cp "$HOME/kept" "$box:kept"
 phase=upgrade

@@ -24,7 +24,7 @@ import { SandboxError, type Sandboxes, type SandboxSpec } from './sandboxes.ts'
 import { SDK_DEFAULTS } from './sdk-defaults.ts'
 import { jsonb, one, rows } from './sql.ts'
 
-const networkNeeds = (body: Pick<Make, 'network'>) =>
+const networkNeeds = (body: Partial<Pick<Make, 'network'>>) =>
   body.network === 'none' ? [nodeSchema['x-pryx-network'].policyFeature] : []
 
 export class PublicModel {
@@ -43,12 +43,18 @@ export class PublicModel {
     required: readonly import('./guarantees.ts').Guarantee[],
     region?: string,
     only?: string,
-    needs: readonly string[] = [],
+    body: Partial<Pick<Make, 'network' | 'image' | 'packages'>> = {},
   ): Promise<import('./isolation.ts').Isolation> {
     if (typeof this.defaultIsolation === 'string') return this.defaultIsolation
+    const order = this.defaultIsolation.filter(
+      (tier) =>
+        (body.image ? tier === 'container' : tier !== 'container') &&
+        (!body.packages?.length || tier === 'wasm'),
+    )
+    const needs = networkNeeds(body)
     const tier = await this.boxes.engine.isolationChoice.firstIsolation(
       this.db,
-      this.defaultIsolation,
+      order,
       required,
       region,
       only,
@@ -57,7 +63,7 @@ export class PublicModel {
     if (tier) return tier
     throw new SandboxError(
       'no_room',
-      `No healthy node serves an eligible tier (${this.defaultIsolation.join(', ')})${required.length ? ` with required guarantees: ${required.join(', ')}` : ''}${needs.length ? ` with required features: ${needs.join(', ')}` : ''}`,
+      `No healthy node serves an eligible tier for this source (${this.defaultIsolation.join(', ')})${required.length ? ` with required guarantees: ${required.join(', ')}` : ''}${needs.length ? ` with required features: ${needs.join(', ')}` : ''}`,
     )
   }
   async defaultIsolationView(): Promise<import('./isolation.ts').Isolation> {
@@ -168,7 +174,7 @@ export class PublicModel {
         [...this.require, ...(body.require ?? source?.require ?? [])],
         body.region,
         options.onlyNode,
-        networkNeeds(body),
+        { ...body, image: body.image ?? source?.image, packages: body.packages ?? source?.packages },
       ))
     if (sources === 0 && isolation === 'container')
       throw new SandboxError('invalid_request', 'Choose exactly one of image, snapshot or template')
@@ -315,12 +321,7 @@ export class PublicModel {
       isolation:
         body.isolation ??
         priorTier ??
-        (await this.defaultTier(
-          [...this.require, ...(body.require ?? [])],
-          body.region,
-          undefined,
-          networkNeeds(body),
-        )),
+        (await this.defaultTier([...this.require, ...(body.require ?? [])], body.region, undefined, body)),
     }
     if ((!body.image && body.isolation === 'container') || body.snapshot || body.template)
       throw new SandboxError('invalid_request', 'A template starts from a tier-native specification')
@@ -363,7 +364,7 @@ export class PublicModel {
           [...this.require, ...(t.spec.require ?? [])],
           t.spec.region,
           undefined,
-          networkNeeds(t.spec),
+          t.spec,
         ))
       for (const n of nodes) {
         if (!nodeIsolations(n.features).includes(isolation)) continue
