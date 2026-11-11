@@ -14,15 +14,7 @@ async fn an_engine_without_memory_sleep_refuses_before_freezing_and_keeps_files_
     let dir = tempfile::tempdir().unwrap();
     let dep = deployment();
     let _cleanup = engine::EngineCleanup { socket, deployment: dep.clone() };
-    let owner = if limits.rootless {
-        format!(
-            "[workloads]\ndata_owner = \"{}:{}\"\n",
-            rustix::process::geteuid().as_raw(),
-            rustix::process::getegid().as_raw()
-        )
-    } else {
-        HOST_OWNERSHIP.into()
-    };
+    let owner: String = if limits.rootless { "[workloads]\n".into() } else { HOST_OWNERSHIP.into() };
     let manager = manager_on(dir.path(), runtime, &extra(&dep).replace(HOST_OWNERSHIP, &owner));
     assert!(manager.reconcile(Records::FromDisk).await.error.is_none());
     let mut value = support::spec_json();

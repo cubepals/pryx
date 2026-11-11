@@ -78,6 +78,8 @@ rustix = { version = "1", features = ["fs", "process", "param", "time", "thread"
 # adjtimex, which rustix doesn't wrap: whether the clock is synchronised (doctor).
 libc = "0.2.189"
 async-trait = "0.1"
+podman-api-stubs = "=0.9.0"
+oci-spec = { version = "=0.10.0", default-features = false, features = ["runtime"] }
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]
 kvm-ioctls = "=0.24.0"

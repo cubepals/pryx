@@ -87,6 +87,9 @@ impl Policy {
         }
         Ok(Self { profile, fuse, apparmor: apparmor.map(str::to_owned) })
     }
+    pub(super) fn custom(&self) -> bool {
+        self.fuse || self.profile.is_some() || self.apparmor.is_some()
+    }
     pub(super) fn fuse(&self) -> bool {
         self.fuse
     }

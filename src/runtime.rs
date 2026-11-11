@@ -60,6 +60,10 @@ pub struct ContainerSpec {
     pub(crate) memory_bytes: i64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) allow_unenforced_memory: Option<bool>,
+    #[serde(default)]
+    pub(crate) require_cpu_limit: bool,
+    #[serde(default)]
+    pub(crate) require_pids_limit: bool,
     pub(crate) nano_cpus: Option<i64>,
     pub(crate) cpu_shares: i64,
     pub(crate) pids_limit: i64,
@@ -216,6 +220,8 @@ pub struct RuntimeEvent {
 
 #[derive(Clone, Debug, Default)]
 pub struct RuntimeInfo {
+    pub(crate) podman: bool,
+    pub(crate) podman_version: Option<String>,
     pub(crate) container_policy_problem: Option<String>,
     pub(crate) rootless: bool,
     pub(crate) memory_limit: bool,

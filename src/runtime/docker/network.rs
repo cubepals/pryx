@@ -10,6 +10,9 @@ pub(super) async fn internal(
     name: &str,
     labels: &BTreeMap<String, String>,
 ) -> Result<(), RuntimeError> {
+    if podman::selected(runtime).await? {
+        return podman::network(runtime, name, labels, true).await;
+    }
     let inspect =
         quick("inspect internal network", runtime.docker()?.inspect_network(name, None::<InspectNetworkOptions>)).await;
     match inspect {
@@ -44,6 +47,12 @@ pub(super) async fn ensure(
     name: &str,
     labels: &BTreeMap<String, String>,
 ) -> Result<NetworkReport, RuntimeError> {
+    if podman::selected(runtime).await? {
+        // This base network is a policy namespace only; native create puts each workload
+        // on its own isolated bridge, never alongside another workload on this bridge.
+        podman::network(runtime, name, labels, false).await?;
+        return Ok(NetworkReport { isolated: true });
+    }
     if let Some(isolated) = runtime.network_isolated(name).await? {
         return Ok(NetworkReport { isolated });
     }
@@ -71,6 +80,9 @@ pub(super) async fn ensure(
 }
 
 pub(super) async fn isolated(runtime: &DockerRuntime, name: &str) -> Result<Option<bool>, RuntimeError> {
+    if podman::selected(runtime).await? {
+        return podman::isolated(runtime, name).await;
+    }
     match quick("inspect network", runtime.docker()?.inspect_network(name, None::<InspectNetworkOptions>)).await {
         Ok(network) => {
             Ok(Some(network.options.unwrap_or_default().get(ICC_OPTION).map(String::as_str) == Some("false")))

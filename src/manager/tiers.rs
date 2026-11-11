@@ -71,6 +71,9 @@ impl Manager {
         Ok(self.runtime.bind(&record.container_name, record.container_id.as_deref(), self.record_tier(record))?)
     }
     pub(super) fn record_data_owner(&self, record: &WorkloadRecord) -> Result<(u32, u32), NodeError> {
+        if self.record_tier(record) == "container" && self.config.workloads.data_owner.is_some() {
+            return Ok(self.config.data_owner_ids());
+        }
         Ok(self.record_runtime(record)?.data_owner(record.id.as_str())?.unwrap_or_else(|| self.config.data_owner_ids()))
     }
     pub(super) fn uses_store_lease(&self, record: &WorkloadRecord) -> bool {

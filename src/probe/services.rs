@@ -38,6 +38,7 @@ pub(super) async fn read(report: &mut Report) {
     }
     let mut selected = false;
     for (name, socket) in crate::runtime::engine::candidates() {
+        crate::capability::probe_phase(name);
         let result = crate::runtime::engine::inspect(&socket).await;
         let capability = match result {
             Ok(info) => {
@@ -128,6 +129,7 @@ fn username(uid: u32) -> String {
 }
 
 pub(crate) fn firewall() -> Capability {
+    crate::capability::probe_phase("nft");
     let result = Command::new("nft").args(["-j", "list", "tables"]).output();
     match result {
         Ok(output) if output.status.success() => {

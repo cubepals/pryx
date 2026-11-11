@@ -58,9 +58,12 @@ impl Report {
 
 /// Probes this caller's access. This does not need a configuration or acquire a privilege.
 pub async fn run() -> Report {
+    crate::capability::probe_phase("kernel");
     let mut report = kernel::read(Path::new("/"));
+    crate::capability::probe_phase("user-namespace");
     report.capabilities.insert("user-namespaces".into(), child("probe-user-namespace"));
     let users = if rustix::process::geteuid().is_root() {
+        crate::capability::probe_phase("separate-users");
         child("probe-separate-users")
     } else {
         Capability::new(
@@ -70,6 +73,7 @@ pub async fn run() -> Report {
         )
     };
     report.capabilities.insert("separate-users".into(), users);
+    crate::capability::probe_phase("kvm");
     let kvm = if report.on("kvm-device") { child("probe-kvm") } else { report.capabilities["kvm-device"].clone() };
     report.capabilities.insert("kvm".into(), kvm);
     services::read(&mut report).await;
@@ -80,6 +84,7 @@ pub async fn run() -> Report {
 pub async fn tier_report() -> Report {
     let mut report = run().await;
     tiers::read(&mut report);
+    crate::capability::probe_phase("complete");
     report
 }
 

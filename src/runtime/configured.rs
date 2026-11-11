@@ -150,7 +150,10 @@ pub(crate) fn wasm_available(config: &crate::config::WasmConfig) -> Capability {
             "Use process on a Landlock host or install a compatible supported distribution",
         );
     }
-    match crate::runtime::wasm::check_distribution(config) {
+    crate::capability::probe_phase("wasm-distribution");
+    let distribution = crate::runtime::wasm::check_distribution(config);
+    crate::capability::probe_phase("wasm-distribution-complete");
+    match distribution {
         Ok(()) => Capability::on("The pinned agentOS binary and packages are verified"),
         Err(error) => {
             Capability::new(State::Off, error.to_string(), "Install the pinned agentOS distribution for this host")

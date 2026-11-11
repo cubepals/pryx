@@ -77,6 +77,7 @@ pub(crate) fn child(argument: &str) -> Capability {
 
 pub(crate) fn c_library() -> String {
     for (command, args) in [("getconf", vec!["GNU_LIBC_VERSION"]), ("ldd", vec!["--version"])] {
+        probe_phase(command);
         if let Ok(output) = std::process::Command::new(command).args(args).output() {
             let bytes = if output.stdout.is_empty() { output.stderr } else { output.stdout };
             let text = String::from_utf8_lossy(&bytes);
@@ -86,4 +87,12 @@ pub(crate) fn c_library() -> String {
         }
     }
     "unknown: neither getconf nor ldd could identify the host C library".into()
+}
+
+/// Opt-in fixed phase metadata for a bounded probe's caller; never command arguments or output.
+pub(crate) fn probe_phase(phase: &str) {
+    if std::env::var("PRYX_PROBE_DIAGNOSTICS").as_deref() == Ok("1") {
+        let now = rustix::time::clock_gettime(rustix::time::ClockId::Monotonic);
+        eprintln!("PRYX_PROBE phase={phase} monotonic_seconds={} nanos={}", now.tv_sec, now.tv_nsec);
+    }
 }

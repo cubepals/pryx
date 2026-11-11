@@ -1,0 +1,20 @@
+{
+  "docker": {
+    "version": "29.9.2",
+    "url": "https://download.docker.com/linux/static/stable/x86_64/docker-29.9.2.tgz",
+    "sha256": "9ac225999fd5e863f7694c728ef23d480616b1e5639328fa309befd4243d69eb",
+    "extrasUrl": "https://download.docker.com/linux/static/stable/x86_64/docker-rootless-extras-29.9.2.tgz",
+    "extrasSha256": "f2663b230a7afc13dea88fc589685331d01f5f3fc458b92ab40e2388db452ed2",
+    "rootlesskit": "3.3.0"
+  },
+  "podman": {
+    "version": "4.9.3+ds1-1ubuntu0.2",
+    "url": "https://archive.ubuntu.com/ubuntu/pool/universe/libp/libpod/podman_4.9.3+ds1-1ubuntu0.2_amd64.deb",
+    "sha256": "e5c1c37e387ed14c352a744a75fbb79fb2f82573ca7bf36886e3b7333fc9ef1a"
+  },
+  "image": {
+    "reference": "mirror.gcr.io/library/alpine@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f",
+    "fallback": "docker.io/library/alpine@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f",
+    "alias": "alpine:3.22"
+  }
+}

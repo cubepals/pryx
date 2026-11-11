@@ -64,6 +64,9 @@ pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Res
         }
         spec.entrypoint = Some(entrypoint);
     }
+    if info.podman {
+        return podman::create(runtime, &spec, &info).await;
+    }
     let options = CreateContainerOptionsBuilder::new().name(&spec.name).build();
     let mut body = body_of(&spec);
     runtime.native_tools.apply(&mut body);
@@ -97,14 +100,19 @@ fn check_engine_policy(runtime: &DockerRuntime, spec: &ContainerSpec, info: &Run
             crate::protocol::Guarantee::MemoryLimit.feature()
         )));
     }
-    if !info.cpu_limit && spec.nano_cpus.is_some() {
+    if !info.cpu_limit && (spec.nano_cpus.is_some() || spec.require_cpu_limit) {
         return Err(RuntimeError::Other(format!(
             "{} is unavailable on this engine",
             crate::protocol::Guarantee::CpuLimit.feature()
         )));
     }
-    if info.rootless && (spec.egress.is_some() || runtime.native_tools.fuse()) {
-        return Err(RuntimeError::Other("host-firewall and native FUSE require a rootful engine".into()));
+    if !info.pids_limit && spec.require_pids_limit {
+        return Err(RuntimeError::Other("pids-limit is unavailable on this engine".into()));
+    }
+    if (info.rootless || info.podman) && (spec.egress.is_some() || runtime.native_tools.fuse()) {
+        return Err(RuntimeError::Other(
+            "host-firewall and native FUSE require a supported rootful Docker engine".into(),
+        ));
     }
     Ok(())
 }

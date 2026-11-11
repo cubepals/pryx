@@ -9,6 +9,7 @@
 //!
 //! Parts (`docker/`):
 //! - `egress.rs`: firewall-gated hostname bridges and gateways.
+//! - `podman.rs`: native Netavark isolation and hardened container creation.
 //! - `network.rs`: engine bridge creation and isolation observation.
 //! - `create.rs`: trusted container and agent creation.
 //! - `container.rs`: container construction and observation types.
@@ -23,6 +24,7 @@ pub(crate) mod egress;
 mod exec;
 mod native_tools;
 mod network;
+mod podman;
 #[cfg(test)]
 mod policy_tests;
 mod relay;
@@ -62,7 +64,7 @@ const CLIENT_TIMEOUT_SECS: u64 = MAX_STOP_TIMEOUT as u64 + 60;
 const ROOTLESS_SECURITY_OPTION: &str = "name=rootless";
 /// Podman v6.1.0 pkg/api/handlers/compat/version.go's component name.
 const PODMAN_ENGINE_COMPONENT: &str = "Podman Engine";
-pub(crate) const PODMAN_POLICY_PROBLEM: &str = "Podman cannot enforce pryx's inter-container bridge isolation through its compatible API; select a supported Docker engine";
+pub(crate) const PODMAN_POLICY_PROBLEM: &str = "Podman needs its native API, Netavark and the default native-tools profile to preserve container isolation; use a supported engine configuration";
 /// Quick calls get a much shorter leash of their own.
 const QUICK: Duration = Duration::from_secs(20);
 const ICC_OPTION: &str = "com.docker.network.bridge.enable_icc";
@@ -216,6 +218,49 @@ fn map_err(error: BollardError) -> RuntimeError {
     }
 }
 
+async fn native_request<T: serde::de::DeserializeOwned>(
+    runtime: &DockerRuntime,
+    version: &str,
+    method: reqwest::Method,
+    path: &[&str],
+    body: Option<Vec<u8>>,
+) -> Result<T, RuntimeError> {
+    let client = reqwest::Client::builder()
+        .unix_socket(runtime.socket.as_str())
+        .no_proxy()
+        .timeout(QUICK)
+        .build()
+        .map_err(|_| RuntimeError::Other("Cannot construct native API transport".into()))?;
+    let mut url = reqwest::Url::parse("http://localhost").expect("literal native endpoint");
+    url.path_segments_mut()
+        .expect("literal HTTP URL has path segments")
+        .push(&format!("v{version}"))
+        .push("libpod")
+        .extend(path);
+    let response = client
+        .request(method, url)
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .body(body.unwrap_or_default())
+        .send()
+        .await
+        .map_err(|error| {
+            if error.is_timeout() {
+                RuntimeError::Timeout("Podman native API timed out".into())
+            } else {
+                RuntimeError::Unavailable("Podman native API transport failed".into())
+            }
+        })?;
+    if !response.status().is_success() {
+        return Err(map_err(BollardError::DockerResponseServerError {
+            status_code: response.status().as_u16(),
+            message: "Podman rejected native container policy".into(),
+        }));
+    }
+    let bytes =
+        response.bytes().await.map_err(|_| RuntimeError::Unavailable("Podman native API response was lost".into()))?;
+    serde_json::from_slice(&bytes).map_err(|_| RuntimeError::Other("Podman native API response was invalid".into()))
+}
+
 async fn quick<T>(
     what: &str,
     fut: impl std::future::Future<Output = Result<T, BollardError>>,
@@ -241,14 +286,24 @@ fn pull_tag(image: &str) -> Option<&'static str> {
 
 #[async_trait]
 impl ContainerRuntime for DockerRuntime {
+    fn data_owner(&self, _id: &str) -> Result<Option<(u32, u32)>, RuntimeError> {
+        Ok(self
+            .info
+            .lock()
+            .unwrap()
+            .as_ref()
+            .filter(|info| info.rootless)
+            .map(|_| (rustix::process::geteuid().as_raw(), rustix::process::getegid().as_raw())))
+    }
     fn supports_agent(&self) -> bool {
         true
     }
     fn supports_native_fuse(&self) -> bool {
-        self.native_tools.fuse() && self.info.lock().unwrap().as_ref().is_some_and(|info| !info.rootless)
+        self.native_tools.fuse()
+            && self.info.lock().unwrap().as_ref().is_some_and(|info| !info.rootless && !info.podman)
     }
     fn supports_hostname_egress(&self) -> bool {
-        self.info.lock().unwrap().as_ref().is_some_and(|info| !info.rootless) && egress::ready()
+        self.info.lock().unwrap().as_ref().is_some_and(|info| !info.rootless && !info.podman) && egress::ready()
     }
     fn supports_network_policy(&self) -> bool {
         true
@@ -275,12 +330,25 @@ impl ContainerRuntime for DockerRuntime {
         let client = quick("negotiate version", self.docker()?.negotiate_version()).await?;
         let version = quick("version", client.version()).await?;
         let info = quick("info", self.docker()?.info()).await?;
-        let result = RuntimeInfo {
-            container_policy_problem: version
-                .components
-                .as_ref()
-                .is_some_and(|components| components.iter().any(|component| component.name == PODMAN_ENGINE_COMPONENT))
-                .then(|| PODMAN_POLICY_PROBLEM.into()),
+        let podman = version
+            .components
+            .as_ref()
+            .is_some_and(|components| components.iter().any(|component| component.name == PODMAN_ENGINE_COMPONENT));
+        let podman_version = version
+            .components
+            .as_ref()
+            .and_then(|components| components.iter().find(|component| component.name == PODMAN_ENGINE_COMPONENT))
+            .map(|component| component.version.clone())
+            .filter(|version| {
+                !version.is_empty()
+                    && version.split('.').count() == 3
+                    && version.split('.').all(|part| part.parse::<u32>().is_ok())
+            });
+        let native = if let Some(version) = &podman_version { podman::host(self, version).await } else { None };
+        let mut result = RuntimeInfo {
+            podman,
+            podman_version,
+            container_policy_problem: (podman && native.is_none()).then(|| PODMAN_POLICY_PROBLEM.into()),
             rootless: info
                 .security_options
                 .as_ref()
@@ -301,6 +369,7 @@ impl ContainerRuntime for DockerRuntime {
             live_restore: info.live_restore_enabled,
             log_driver: info.logging_driver,
         };
+        podman::enforcement(&mut result, native.as_ref());
         *self.info.lock().unwrap() = Some(result.clone());
         Ok(result)
     }
@@ -408,11 +477,25 @@ impl ContainerRuntime for DockerRuntime {
 
     async fn remove(&self, name: &str) -> Result<(), RuntimeError> {
         self.relays.stop(name).await;
+        let network = if self.info.lock().unwrap().as_ref().is_some_and(|info| info.podman) {
+            self.inspect(name).await?.and_then(|info| info.labels.get(podman::NETWORK_LABEL).cloned())
+        } else {
+            None
+        };
         // v: anonymous volumes an image declares go with the container instead of leaking; the
         // workload's data is a bind mount, which removal never touches.
         let options = RemoveContainerOptionsBuilder::new().force(true).v(true).build();
         match quick("remove", self.docker()?.remove_container(name, Some(options))).await {
-            Err(RuntimeError::NotFound(_)) | Ok(()) => self.egress.stop(self, name).await,
+            Err(RuntimeError::NotFound(_)) | Ok(()) => {
+                self.egress.stop(self, name).await?;
+                if let Some(network) = network {
+                    match podman::delete_network(self, &network).await {
+                        Ok(_) | Err(RuntimeError::NotFound(_)) => {}
+                        Err(error) => return Err(error),
+                    }
+                }
+                Ok(())
+            }
             Err(error) => Err(error),
         }
     }
@@ -629,6 +712,8 @@ mod tests {
             user: "1000:1000".into(),
             memory_bytes: 256 * 1024 * 1024,
             allow_unenforced_memory: None,
+            require_cpu_limit: false,
+            require_pids_limit: false,
             nano_cpus: None,
             cpu_shares: 1024,
             pids_limit: 4096,

@@ -227,6 +227,8 @@ impl Manager {
             user: self.config.workloads.user.to_string(),
             memory_bytes: i64::from(r.memory_mb) * 1024 * 1024,
             allow_unenforced_memory: r.allow_unenforced_memory,
+            require_cpu_limit: r.cpu_millis.is_some() || r.cpu_weight.is_some(),
+            require_pids_limit: r.pids_limit.is_some(),
             nano_cpus: r.cpu_millis.map(|m| i64::from(m) * 1_000_000),
             // Weight follows size unless asked otherwise: a 4 GB sandbox gets Docker's default
             // 1024, a 3 GB one 768, an 8 GB one 2048. Contention is shared as the price is.

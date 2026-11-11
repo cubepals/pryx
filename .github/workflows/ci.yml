@@ -701,12 +701,13 @@ jobs:
           docker pull -q mirror.gcr.io/library/node:22
           docker tag mirror.gcr.io/library/node:22 node:22
           python3 -m http.server 9876 --bind 127.0.0.1 --directory dist > "$RUNNER_TEMP/artifact-server.log" 2>&1 &
-          printf 'Defaults env_keep += "PRYX_RELEASE_BASE_URL PRYX_DOMAIN"\n' | sudo tee /etc/sudoers.d/pryx-ci-artifacts >/dev/null
+          printf 'Defaults env_keep += "PRYX_RELEASE_BASE_URL PRYX_DOMAIN PRYX_PROBE_DIAGNOSTICS"\n' | sudo tee /etc/sudoers.d/pryx-ci-artifacts >/dev/null
       - name: One-command quickstart and repeat install
         id: up
         run: |
           started=$(date +%s)
           export PRYX_RELEASE_BASE_URL=http://127.0.0.1:9876
+          export PRYX_PROBE_DIAGNOSTICS=1
           export PRYX_DOMAIN=sandboxes.example.com
           # Only the download origin is replaced for this unreleased build.
           output=$(curl --retry 5 --retry-connrefused -fsSL "$PRYX_RELEASE_BASE_URL/install.sh" | sudo sh)
@@ -769,6 +770,9 @@ jobs:
         if: failure()
         run: |
           sudo journalctl -u pryx-control -u pryx-edge -u pryx-postgres -u pryx-store -u pryxd --no-pager -n 150
+          free -m
+          ps -eo pid,ppid,comm,rss --sort=-rss | head -20
+          sudo journalctl -k --since '-5 min' --no-pager -n 100 | rg -i 'oom|killed process|out of memory' || true
           bun -e '
             import { edgeConfig } from "./edge/src/config.ts"
             import { SECOND_MS } from "./control/src/durations.ts"
