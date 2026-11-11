@@ -4,24 +4,7 @@ use super::*;
 
 pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Result<String, RuntimeError> {
     let info = runtime.info().await?;
-    if let Some(problem) = info.container_policy_problem {
-        return Err(RuntimeError::Other(problem));
-    }
-    if !info.memory_limit && spec.allow_unenforced_memory != Some(true) {
-        return Err(RuntimeError::Other(format!(
-            "{} is unavailable on this engine",
-            crate::protocol::Guarantee::MemoryLimit.feature()
-        )));
-    }
-    if !info.cpu_limit && spec.nano_cpus.is_some() {
-        return Err(RuntimeError::Other(format!(
-            "{} is unavailable on this engine",
-            crate::protocol::Guarantee::CpuLimit.feature()
-        )));
-    }
-    if info.rootless && (spec.egress.is_some() || runtime.native_tools.fuse()) {
-        return Err(RuntimeError::Other("host-firewall and native FUSE require a rootful engine".into()));
-    }
+    check_engine_policy(runtime, spec, &info)?;
     let mut prepared = spec.clone();
     let resolver = runtime.egress.prepare(runtime, &mut prepared).await?;
     let spec = &prepared;
@@ -102,4 +85,26 @@ pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Res
     }
     let created = quick("create", runtime.docker()?.create_container(Some(options), body)).await?;
     Ok(created.id)
+}
+
+fn check_engine_policy(runtime: &DockerRuntime, spec: &ContainerSpec, info: &RuntimeInfo) -> Result<(), RuntimeError> {
+    if let Some(problem) = &info.container_policy_problem {
+        return Err(RuntimeError::Other(problem.clone()));
+    }
+    if !info.memory_limit && spec.allow_unenforced_memory != Some(true) {
+        return Err(RuntimeError::Other(format!(
+            "{} is unavailable on this engine",
+            crate::protocol::Guarantee::MemoryLimit.feature()
+        )));
+    }
+    if !info.cpu_limit && spec.nano_cpus.is_some() {
+        return Err(RuntimeError::Other(format!(
+            "{} is unavailable on this engine",
+            crate::protocol::Guarantee::CpuLimit.feature()
+        )));
+    }
+    if info.rootless && (spec.egress.is_some() || runtime.native_tools.fuse()) {
+        return Err(RuntimeError::Other("host-firewall and native FUSE require a rootful engine".into()));
+    }
+    Ok(())
 }
