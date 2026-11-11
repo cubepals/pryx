@@ -38,8 +38,7 @@ impl Manager {
             let metadata = std::fs::symlink_metadata(parent).ok()?;
             if !metadata.is_dir()
                 || metadata.mode() & 0o022 != 0
-                || (metadata.uid() != rustix::process::geteuid().as_raw()
-                    && !(runtime.is_process() && metadata.uid() == 0))
+                || (metadata.uid() != rustix::process::geteuid().as_raw() && metadata.uid() != 0)
             {
                 return None;
             }
@@ -195,5 +194,44 @@ impl Manager {
         };
         let token = key.sign(&claims).map_err(|_| NodeError::Internal("Cannot issue sandbox token".into()))?;
         Ok(AgentTokenResponse { token, expires_at, epoch, agent })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::runtime::docker::DockerRuntime;
+    use std::os::unix::fs::{PermissionsExt, symlink};
+
+    #[test]
+    fn container_agents_accept_trusted_root_ancestors_and_reject_writable_or_linked_paths() {
+        let directory = tempfile::Builder::new()
+            .prefix("pryx-agent-trust-")
+            .tempdir_in(std::env::var_os("HOME").expect("the test runner has a home"))
+            .unwrap();
+        let binary = directory.path().join("agent");
+        std::fs::write(&binary, b"trusted executable fixture, never executed").unwrap();
+        std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let config: Config = toml::from_str(&format!(
+            "deployment_id = \"test\"\nnode_id = \"node\"\nstate_dir = {:?}\n[api]\nlisten = \"127.0.0.1:0\"\n\
+             [workloads]\nagent_binary = {binary:?}\n",
+            directory.path().join("state"),
+        ))
+        .unwrap();
+        let runtime = Arc::new(DockerRuntime::new(&directory.path().join("unused.sock")).unwrap());
+        let store = Store::open(&config.state_dir).unwrap();
+        let manager =
+            Manager::new(Arc::new(config), runtime.clone(), store, Arc::new(Metrics::new()), Arc::new(|_, _| true));
+        assert_eq!(manager.agent_binary(runtime.as_ref()), Some(binary.clone()));
+        std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o722)).unwrap();
+        assert!(manager.agent_binary(runtime.as_ref()).is_none());
+        std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o700)).unwrap();
+        std::fs::set_permissions(directory.path(), std::fs::Permissions::from_mode(0o722)).unwrap();
+        assert!(manager.agent_binary(runtime.as_ref()).is_none());
+        std::fs::set_permissions(directory.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let kept = directory.path().join("kept");
+        std::fs::rename(&binary, &kept).unwrap();
+        symlink(&kept, &binary).unwrap();
+        assert!(manager.agent_binary(runtime.as_ref()).is_none());
     }
 }

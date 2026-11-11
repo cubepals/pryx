@@ -4,8 +4,14 @@
 # login session. The host prepares test fixtures; pryx receives no extra kernel privileges.
 set -euo pipefail
 image=$1
-sudo apt-get update -qq
-sudo apt-get install -y incus=6.0.0-1ubuntu0.3
+pryx_sources=$(mktemp "$RUNNER_TEMP/pryx-incus-XXXXXX.sources")
+pryx_source_parts=$(mktemp -d "$RUNNER_TEMP/pryx-incus-sources-XXXXXX")
+pryx_ubuntu_mirror=$(jq -r .ubuntuMirror .github/engine-versions.json)
+grep -q '^URIs:' /etc/apt/sources.list.d/ubuntu.sources
+sed "s|^URIs:.*|URIs: $pryx_ubuntu_mirror|" /etc/apt/sources.list.d/ubuntu.sources > "$pryx_sources"
+apt_options=(-o "Dir::Etc::sourcelist=$pryx_sources" -o "Dir::Etc::sourceparts=$pryx_source_parts")
+sudo apt-get "${apt_options[@]}" update -qq -o Acquire::Retries=3 -o APT::Update::Error-Mode=any
+sudo apt-get "${apt_options[@]}" install -y incus=6.0.0-1ubuntu0.3
 sudo incus admin init --minimal
 sudo iptables -I DOCKER-USER -i incusbr0 -j ACCEPT
 sudo iptables -I DOCKER-USER -o incusbr0 -j ACCEPT
