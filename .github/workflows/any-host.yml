@@ -39,6 +39,11 @@ jobs:
           cp "$moved/manifest.json" "$RUNNER_TEMP/upstream-tool-manifest.json"
       - name: Run Chromium over its debugging pipe
         run: |
+          # This positive fixture needs a host that permits the namespace capability.
+          # Product installation changes no sysctl; default-profile negative cases remain.
+          if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
           moved="$RUNNER_TEMP/ordinary user tools moved to a substantially longer path"
           "$moved/bin/node" "$moved/browser-client/smoke.mjs" "$moved" | tee "$RUNNER_TEMP/upstream-browser.jsonl"
       - name: Retain ordinary-user bundle observations
