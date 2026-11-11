@@ -3,8 +3,17 @@
 # Test preparation runs as root; every installer and sandbox command runs as uid 1001.
 set -eu
 if command -v apt-get >/dev/null; then
-  apt-get update -qq
-  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends curl ca-certificates python3 passwd tar
+  pryx_apt_ca=${PRYX_TEST_APT_CA:-/etc/ssl/certs/ca-certificates.crt}
+  pryx_ubuntu_sources=/etc/apt/sources.list.d/ubuntu.sources
+  if sh -c '. /etc/os-release; [ "$ID" = ubuntu ]'; then
+    pryx_ubuntu_mirror=${PRYX_TEST_UBUNTU_MIRROR:?The Ubuntu fixture needs its archive mirror}
+    grep -q '^URIs:' "$pryx_ubuntu_sources"
+    sed -i "s|^URIs:.*|URIs: $pryx_ubuntu_mirror|" "$pryx_ubuntu_sources"
+  fi
+  # The minimal Ubuntu image bootstraps its own CA package using the read-only runner roots.
+  # TLS, Ubuntu release signatures and package digest verification all remain mandatory.
+  apt-get update -qq -o Acquire::Retries=3 -o APT::Update::Error-Mode=any -o "Acquire::https::CaInfo=$pryx_apt_ca"
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends -o "Acquire::https::CaInfo=$pryx_apt_ca" curl ca-certificates python3 passwd tar
 elif command -v apk >/dev/null; then
   apk add --no-cache curl ca-certificates python3 shadow tar
 elif command -v dnf >/dev/null; then

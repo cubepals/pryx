@@ -26,7 +26,7 @@ sudo incus file push deploy/container-acceptance.sh pryx/container-acceptance.sh
 sudo incus file push deploy/local-diagnostics.py pryx/local-diagnostics.py
 # Reuse distro prerequisite setup, replacing only its final su with a PAM login session
 # for systemd distributions. Alpine uses its actual OpenRC/foreground path.
-sudo incus exec pryx -- sh -c '
+sudo incus exec pryx --env "PRYX_TEST_UBUNTU_MIRROR=$(jq -r .ubuntuMirror .github/engine-versions.json)" -- sh -c '
   if [ "$(cat /proc/1/comm)" = systemd ]; then
     while ! systemctl is-active --quiet systemd-logind; do sleep 1; done
     PRYX_PREPARE_ONLY=1 sh /container-acceptance.sh
