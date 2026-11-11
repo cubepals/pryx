@@ -74,7 +74,7 @@ impl DockerRuntime {
                 // Docker has no API to stop an exec (moby/moby#35703). From the host, pryxd
                 // can: find its pid, make sure it is still this container's, and kill its tree.
                 if let Some((pid, container)) = self.exec_pid(&exec_id).await {
-                    result.killed = kill_exec_tree(pid, &container) > 0;
+                    result.killed = termination::kill_exec_tree(pid, &container) > 0;
                 }
             }
         }

@@ -74,18 +74,18 @@ fn only_a_reference_without_tag_or_digest_is_pulled_as_latest() {
 #[test]
 fn the_tree_walk_never_starts_from_0_or_1() {
     let children = HashMap::from([(0, vec![1, 2]), (1, vec![100, 200]), (100, vec![101]), (101, vec![102])]);
-    assert!(descendants(0, &children).is_empty());
-    assert!(descendants(1, &children).is_empty());
-    assert!(descendants(-1, &children).is_empty());
-    assert_eq!(descendants(100, &children), vec![100, 101, 102]);
-    assert_eq!(descendants(200, &children), vec![200], "a leaf is its own tree");
+    assert!(termination::descendants(0, &children).is_empty());
+    assert!(termination::descendants(1, &children).is_empty());
+    assert!(termination::descendants(-1, &children).is_empty());
+    assert_eq!(termination::descendants(100, &children), vec![100, 101, 102]);
+    assert_eq!(termination::descendants(200, &children), vec![200], "a leaf is its own tree");
 }
 
 #[test]
 fn killing_from_0_or_1_signals_nothing() {
     // An id no cgroup names, so even a walk that did start could kill nothing on this host.
     let container = "0".repeat(64);
-    assert_eq!(kill_exec_tree(0, &container), 0);
-    assert_eq!(kill_exec_tree(1, &container), 0);
-    assert_eq!(kill_exec_tree(-1, &container), 0);
+    assert_eq!(termination::kill_exec_tree(0, &container), 0);
+    assert_eq!(termination::kill_exec_tree(1, &container), 0);
+    assert_eq!(termination::kill_exec_tree(-1, &container), 0);
 }
