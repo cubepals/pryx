@@ -15,15 +15,33 @@ manifest=.github/engine-versions.json
 export XDG_RUNTIME_DIR="$root/run"
 
 fetch() {
-  local url=$1 digest=$2 output=$3
-  curl --retry 5 --retry-delay 3 --retry-connrefused --connect-timeout 20 --max-time 180 -fsSL "$url" -o "$output"
-  printf '%s  %s\n' "$digest" "$output" | sha256sum -c -
+  local url=$1 digest=$2 output=$3 fallback=${4:-} source
+  for source in "$url" "$fallback"; do
+    [ -n "$source" ] || continue
+    if curl --retry 5 --retry-delay 5 --retry-connrefused --retry-max-time 240 --connect-timeout 20 --max-time 180 -fsSL "$source" -o "$output" &&
+      printf '%s  %s\n' "$digest" "$output" | sha256sum -c -; then return 0; fi
+  done
+  return 1
 }
 
 sudo systemctl stop docker.service docker.socket
 sudo rm -f /var/run/docker.sock
-sudo apt-get update -o Acquire::Retries=3
-sudo apt-get install -y uidmap slirp4netns
+# Keep the runner's suites, components and Ubuntu signing keys while avoiding its failed DNS
+# mirror chain. These invocation-only sources affect this isolated CI engine setup alone.
+ubuntu_mirror=$(jq -r .ubuntuMirror "$manifest")
+python3 - "$root/ubuntu.sources" "$ubuntu_mirror" <<'PY'
+from pathlib import Path
+import re
+import sys
+source = Path('/etc/apt/sources.list.d/ubuntu.sources').read_text()
+source, count = re.subn(r'(?m)^URIs:.*$', 'URIs: ' + sys.argv[2], source)
+assert count > 0, 'The hosted runner has no Ubuntu archive URI'
+Path(sys.argv[1]).write_text(source)
+PY
+mkdir -p "$root/apt-source-parts"
+apt_options=(-o "Dir::Etc::sourcelist=$root/ubuntu.sources" -o "Dir::Etc::sourceparts=$root/apt-source-parts")
+sudo apt-get "${apt_options[@]}" update -o Acquire::Retries=3 -o APT::Update::Error-Mode=any
+sudo apt-get "${apt_options[@]}" install -y uidmap slirp4netns
 
 if [ "$engine" = docker ]; then
   fetch "$(jq -r .docker.url "$manifest")" "$(jq -r .docker.sha256 "$manifest")" "$root/docker.tgz"
@@ -56,8 +74,10 @@ PROFILE
   printf '%s\n' "$root/bin" >> "${GITHUB_PATH:?}"
   probe=("$root/bin/docker" --host "$endpoint")
 else
-  fetch "$(jq -r .podman.url "$manifest")" "$(jq -r .podman.sha256 "$manifest")" "$root/podman.deb"
-  sudo apt-get install -y --allow-downgrades "$root/podman.deb"
+  podman_url=$(jq -r .podman.url "$manifest")
+  # Ubuntu mirrors keep the archive's relative pool paths and identical package bytes.
+  fetch "$podman_url" "$(jq -r .podman.sha256 "$manifest")" "$root/podman.deb" "$ubuntu_mirror/pool/${podman_url#*/pool/}"
+  sudo apt-get "${apt_options[@]}" install -y --allow-downgrades "$root/podman.deb"
   [ "$(dpkg-query -W -f='${Version}' podman)" = "$(jq -r .podman.version "$manifest")" ]
   endpoint="unix://$root/run/podman.sock"
   podman --root "$root/data" --runroot "$root/exec" --storage-driver=vfs \
