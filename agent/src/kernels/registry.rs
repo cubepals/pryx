@@ -39,9 +39,13 @@ impl Registry {
             return Err(Failure(
                 axum::http::StatusCode::NOT_IMPLEMENTED,
                 "unsupported",
-                format!(
-                    "Language kernels require an isolated native interpreter template; the {tier} tier is unsupported"
-                ),
+                if tier == "process" {
+                    "Language kernels require a verified process tool bundle and private IPC; use a supported container interpreter template or a release providing native process kernels".into()
+                } else {
+                    format!(
+                        "Language kernels require an isolated native interpreter template; the {tier} tier is unsupported"
+                    )
+                },
             ));
         }
         if context.len() > 64 || !context.bytes().all(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_')) {

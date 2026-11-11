@@ -69,10 +69,7 @@ async fn authenticate(State(agent): State<Arc<Agent>>, mut request: Request, nex
 
 pub fn router(agent: Arc<Agent>) -> Router {
     let router = Router::new()
-        .route(
-            "/_pryx/health",
-            get(|State(agent):State<Arc<Agent>>| async move { Json(serde_json::json!({"status":"ok","apiVersion":crate::contract::API_VERSION,"kernelsVersion":crate::kernels::VERSION,"toolsVersion":crate::tools::VERSION,"mountsPending":crate::tools::mounts_pending(&agent)})) }),
-        )
+        .route("/_pryx/health", get(health))
         .route("/_pryx/logs", get(logs))
         .route("/_pryx/processes", get(list).post(start))
         .route("/_pryx/processes/{id}", get(view))
@@ -97,6 +94,14 @@ pub fn router(agent: Arc<Agent>) -> Router {
         .layer(DefaultBodyLimit::max(crate::contract::MAX_REQUEST_BYTES))
         .route_layer(middleware::from_fn_with_state(agent.clone(), authenticate))
         .with_state(agent)
+}
+
+async fn health(State(agent): State<Arc<Agent>>) -> Json<serde_json::Value> {
+    let mut value = serde_json::json!({"status":"ok","apiVersion":crate::contract::API_VERSION,"kernelsVersion":crate::kernels::VERSION,"toolsVersion":crate::tools::VERSION,"mountsPending":crate::tools::mounts_pending(&agent)});
+    if crate::process_policy::ipc_scoped() {
+        value["processIpcScoped"] = true.into();
+    }
+    Json(value)
 }
 
 async fn list(State(agent): State<Arc<Agent>>) -> Json<serde_json::Value> {

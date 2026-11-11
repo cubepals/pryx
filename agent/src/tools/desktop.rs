@@ -12,7 +12,7 @@ use crate::{
 use serde_json::json;
 
 pub(crate) async fn open(agent: &Agent, claims: &Claims) -> Result<ToolAccess, Failure> {
-    state::native(agent)?;
+    state::native(agent, "Desktop automation")?;
     let state = state::get(agent)?;
     state::require(&state, "desktop")?;
     state::ready(agent, super::defaults::DESKTOP_PORT).await?;
@@ -40,7 +40,7 @@ fn check_point(point: &Point) -> Result<(), Failure> {
     Ok(())
 }
 async fn ready(agent: &Agent) -> Result<std::sync::Arc<state::State>, Failure> {
-    state::native(agent)?;
+    state::native(agent, "Desktop automation")?;
     let state = state::get(agent)?;
     state::require(&state, "desktop")?;
     state::ready(agent, super::defaults::DESKTOP_PORT).await?;

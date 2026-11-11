@@ -1,0 +1,21 @@
+{
+  "abstract": {
+    "completed": true,
+    "neighbourRefused": true,
+    "ownerReachable": true,
+    "scopeAvailable": true
+  },
+  "filesystem": "enforced",
+  "neighbour": {
+    "connection": "reachable",
+    "fileRead": "blocked",
+    "uid": 1001
+  },
+  "owner": {
+    "connection": "reachable",
+    "fileRead": "not-requested",
+    "uid": 1001
+  },
+  "sameUid": true,
+  "scope": "design observation only; native process tools remain refused"
+}

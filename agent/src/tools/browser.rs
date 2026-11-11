@@ -12,7 +12,7 @@ use crate::{
 use serde_json::json;
 
 async fn ready(agent: &Agent) -> Result<std::sync::Arc<state::State>, Failure> {
-    state::native(agent)?;
+    state::native(agent, "Browser automation")?;
     let state = state::get(agent)?;
     state::require(&state, "browser")?;
     state::ready(agent, super::defaults::BROWSER_PORT).await?;

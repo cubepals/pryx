@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Record the actual shared-UID pathname socket boundary before choosing a native tool transport.
 //! The existing agent installs its real policy in separate children; no tool is enabled here.
+//!
+//! Parts (`private_ipc/`):
+//! - `scoped.rs`: installed supervisor domains, a live owner and a same-UID peer.
+#[path = "private_ipc/scoped.rs"]
+mod scoped;
 use pryx_agent::process_policy::{POLICY_ENV, Policy};
 use serde_json::{Value, json};
 use std::{
@@ -61,17 +66,7 @@ fn pathname_ipc_design_proves_file_ownership_and_records_connect_privacy() {
 }
 
 fn connect(data: &Path, socket: &Path, secret: &Path, neighbour: bool) -> Output {
-    let policy = Policy {
-        data: data.to_owned(),
-        memory_bytes: 512 * 1024 * 1024,
-        address_space_bytes: 64 * 1024 * 1024 * 1024,
-        open_files: 256,
-        processes: 4096,
-        cpu_seconds: 60,
-        nice: 1,
-        network_off: false,
-    };
-    Command::new(env!("CARGO_BIN_EXE_pryx-agent"))
+    restricted(data)
         .args([
             "restricted",
             "/usr/bin/python3",
@@ -94,8 +89,6 @@ print(json.dumps({'uid':os.geteuid(),'fileRead':file_read,'connection':connectio
         .arg(socket)
         .arg(secret)
         .arg(neighbour.to_string())
-        .current_dir(data)
-        .env(POLICY_ENV, serde_json::to_string(&policy).unwrap())
         .output()
         .unwrap()
 }
@@ -109,12 +102,29 @@ fn report(mut value: Value) {
     }
     assert_eq!(pryx_agent::process_capabilities::probe().abstract_unix_ipc, ipc.supported());
     value["abstract"] = serde_json::to_value(ipc).unwrap();
+    value["supervisorAbstract"] = scoped::observe(ipc.supported());
     if let Some(path) = std::env::var_os("PRYX_PRIVATE_IPC_REPORT") {
         let mut file = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(path).unwrap();
         file.write_all(serde_json::to_string_pretty(&value).unwrap().as_bytes()).unwrap();
         file.sync_all().unwrap();
     }
     println!("{value}");
+}
+
+fn restricted(data: &Path) -> Command {
+    let policy = Policy {
+        data: data.to_owned(),
+        memory_bytes: 512 * 1024 * 1024,
+        address_space_bytes: 64 * 1024 * 1024 * 1024,
+        open_files: 256,
+        processes: 4096,
+        cpu_seconds: 60,
+        nice: 1,
+        network_off: false,
+    };
+    let mut command = Command::new(env!("CARGO_BIN_EXE_pryx-agent"));
+    command.current_dir(data).env(POLICY_ENV, serde_json::to_string(&policy).unwrap());
+    command
 }
 
 #[test]

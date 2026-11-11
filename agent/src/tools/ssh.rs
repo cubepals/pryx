@@ -92,7 +92,7 @@ fn key() -> Result<PrivateKey, Failure> {
 }
 
 pub(crate) async fn create(agent: &Agent, claims: &Claims) -> Result<SshCreated, Failure> {
-    state::native(agent)?;
+    state::native(agent, "SSH access")?;
     let state = state::get(agent)?;
     let mut sessions = state.ssh.lock().await;
     let dead: Vec<_> = sessions

@@ -10,14 +10,23 @@ mod filter;
 mod watchdog;
 use landlock::{
     ABI, Access, AccessFs, AccessNet, CompatLevel, Compatible, Ruleset, RulesetAttr, RulesetCreatedAttr, RulesetStatus,
-    path_beneath_rules,
+    Scope, path_beneath_rules,
 };
 use rustix::process::{Resource, Rlimit, setrlimit};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::{
+    path::PathBuf,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 pub const POLICY_ENV: &str = "PRYX_PROCESS_POLICY";
 pub const NETWORK_ENV: &str = "PRYX_PROCESS_NETWORK_OFF";
+static IPC_SCOPED: AtomicBool = AtomicBool::new(false);
+
+/// An installed supervisor restriction, distinct from the disposable capability probe.
+pub fn ipc_scoped() -> bool {
+    IPC_SCOPED.load(Ordering::Acquire)
+}
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Policy {
@@ -75,9 +84,13 @@ pub fn enter(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
         std::path::Path::new("/dev/pts"),
         std::path::Path::new("/dev/ptmx"),
     ];
-    let status = Ruleset::default()
-        .set_compatibility(CompatLevel::HardRequirement)
-        .handle_access(AccessFs::from_all(abi))?
+    let scoped = crate::process_capabilities::private_ipc_probe().supported();
+    let mut rules =
+        Ruleset::default().set_compatibility(CompatLevel::HardRequirement).handle_access(AccessFs::from_all(abi))?;
+    if scoped {
+        rules = rules.scope(Scope::AbstractUnixSocket)?;
+    }
+    let status = rules
         .create()?
         .add_rules(path_beneath_rules(read, AccessFs::from_read(abi)))?
         .add_rules(path_beneath_rules(write, AccessFs::from_all(abi)))?
@@ -86,6 +99,7 @@ pub fn enter(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
         return Err("Landlock filesystem policy is unavailable".into());
     }
     filter::apply(false)?;
+    IPC_SCOPED.store(scoped, Ordering::Release);
     Ok(())
 }
 

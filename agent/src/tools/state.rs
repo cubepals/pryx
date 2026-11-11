@@ -27,12 +27,18 @@ pub(crate) struct State {
 pub(crate) fn failure(code: &'static str, message: &str) -> Failure {
     Failure(StatusCode::CONFLICT, code, message.into())
 }
-pub(crate) fn native(agent: &Agent) -> Result<(), Failure> {
+pub(crate) fn native(agent: &Agent, capability: &str) -> Result<(), Failure> {
     if let Some(tier) = agent.processes.kernel_unsupported_tier() {
         return Err(Failure(
             StatusCode::NOT_IMPLEMENTED,
             "unsupported",
-            format!("Native tools are unsupported on the {tier} tier"),
+            if tier == "process" {
+                format!(
+                    "{capability} requires a verified process tool bundle and its private transport; use a supported container template or a release providing native process tools"
+                )
+            } else {
+                format!("{capability} is unsupported on the {tier} tier; use a supported native container template")
+            },
         ));
     }
     Ok(())

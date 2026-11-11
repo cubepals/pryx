@@ -1,6 +1,6 @@
 # Code interpreters
 
-A language context is a supervised process inside an isolated native sandbox. Its variables
+A language context is a supervised process inside an isolated native container sandbox. Its variables
 survive calls. The interpreter templates automatically start warming the default context at agent startup;
 `box.python()` or `box.javascript()` reuses it and waits for its Jupyter-ready handshake. HTTP health stays responsive while scientific imports warm. Named contexts are independent. The process
 appears in `box.processes()` and its id/PID appears in `box.kernels()`.
@@ -74,8 +74,12 @@ as MCP image content, alongside text events.
 Connection files are mode 0600 in a private temporary directory outside persistent data. Jupyter
 channels use a random HMAC key on sandbox-local loopback. The agent launches kernel executables
 directly, never a `jupyter` command. Native container isolation keeps these sockets off the host;
-the process and wasm tiers explicitly refuse interpreter contexts until they can provide the
-same private native transport. Images run as the sandbox's user and existing resource limits.
+the process and Wasm tiers explicitly refuse interpreter contexts. Process kernels still need
+a verified, safely relocated bundle and complete private-IPC adoption. A pathname Unix socket
+alone does not isolate shared-UID neighbours: K23's hosted test proves that its neighbour can
+connect despite a denied ordinary file read. Independently scoped abstract sockets pass the
+primitive test, but that does not prove isolation from legacy unscoped peers or tool readiness.
+Images run as the sandbox's user and existing resource limits.
 Snapshots preserve data, not live Python variables; waking a stopped container starts a fresh
 kernel. Live state exists only while that kernel survives.
 

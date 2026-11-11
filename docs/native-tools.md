@@ -1,7 +1,9 @@
 # Desktop, browser, SSH and bucket tools
 
-Native tools run on the **container** tier, as the sandbox user. The process and Wasm tiers
-refuse these tools by name. They wrap existing programs; the agent owns scoped routes and the
+Native tools run on the **container** tier, as the sandbox user. The process tier names the
+missing verified bundle and private transport for each tool; Wasm refuses native tools.
+K23's staged bundle is not available for production use: safe relocation is still unavailable,
+and no tool is fetched on sandbox creation. They wrap existing programs; the agent owns scoped routes and the
 edge owns access. `toolsVersion` is separate from the stable agent API version.
 
 ```sh

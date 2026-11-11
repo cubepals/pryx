@@ -1,0 +1,52 @@
+{
+  "status": "parked after three distinct relocation approaches",
+  "platform": "managed Debian 13.6, ordinary UID 1000, kernel 6.18.57; local Landlock unavailable",
+  "inputs": "templates/process-tools/conda.lock.json and artifacts.json at 399e7e0",
+  "sourcePrefix": "/tmp/pryx-k23-native-tools-build",
+  "archive": {
+    "sha256": "6114a1d435b6b52ca096b346d99e1b93e54c59ab21ab6144422dac418b297424",
+    "bytes": 812670485,
+    "scope": "local exploratory archive, not published or accepted as a runtime bundle"
+  },
+  "passed": [
+    "All 97 package archive SHA-256 values checked before installation",
+    "All locked packaged notice hashes checked and retained, plus source corrections",
+    "Existing hash-locked Python wheels installed; scientific/interpreter imports pass",
+    "Existing Node lock installed; zeromq and canvas native modules load",
+    "Official headless shell reports Google Chrome for Testing 158.0.8127.18",
+    "Private glibc 2.28 loader starts Python with scientific/interpreter imports",
+    "Private glibc 2.28 loader starts Node",
+    "Pinned external conda-pack builds archive and standard data-filter extraction succeeds"
+  ],
+  "builderObservation": {
+    "condaPackageIdentity": "conda-pack 0.9.2 pyhcf101f3_0, locked archive digest",
+    "reportedPythonDistributionAndCliVersion": "0.0.0",
+    "interpretation": "Preserve owner-package versus executable-version discrepancy; do not claim the CLI reported 0.9.2"
+  },
+  "attempts": [
+    {
+      "approach": "Direct private-loader invocation",
+      "observed": "Python reports its expected executable, but Node process.execPath points to sysroot/lib64/ld-2.28.so",
+      "failure": "Node self-spawning and maintained JavaScript kernels cannot use that executable identity safely"
+    },
+    {
+      "approach": "Relocate ELF interpreter and RPATH with bundled patchelf",
+      "observed": "patchelf receives SIGBUS while rewriting its own executable",
+      "failure": "Cannot publish a cache after a crashing relocation helper"
+    },
+    {
+      "approach": "Run a detached copy of patchelf through the private loader",
+      "observed": "Detached patchelf receives SIGBUS while rewriting the active private libc-2.28.so, which also has an interpreter",
+      "failure": "Scanning every interpreter-bearing ELF still mutates a live bootstrap image"
+    }
+  ],
+  "notRun": [
+    "No process-tier Python/JavaScript state/chart acceptance",
+    "No process-tier browser screenshot or edge CDP session",
+    "No default-container native-kernel acceptance",
+    "No native process SDK acceptance",
+    "No thirty-sample native tool cohort",
+    "No tool-bundle publication or lazy production fetch"
+  ],
+  "secondTryAfterK27": "Use an explicit executable manifest rather than every interpreter-bearing ELF; bootstrap from independent, unmodified helper images and never relocate active libc. This is an untested hypothesis, not a fourth attempt."
+}
