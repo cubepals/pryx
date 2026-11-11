@@ -78,7 +78,8 @@ fn document(title: &str, contract: Contract, add: impl FnOnce(&mut SchemaGenerat
             "minCpuMillis": crate::protocol::MIN_CPU_MILLIS,
             "defaultMinMemoryMb": crate::protocol::DEFAULT_MIN_MEMORY_MB,
             "cpuLimitProblem": crate::protocol::CPU_LIMIT_PROBLEM,
-            "unenforcedMemoryFeature": crate::protocol::UNENFORCED_MEMORY_FEATURE
+            "unenforcedMemoryFeature": crate::protocol::UNENFORCED_MEMORY_FEATURE,
+            "observedGuaranteesFeature": crate::protocol::OBSERVED_RESOURCE_LIMITS_FEATURE
         },
         "x-pryx-network": {"defaultPortRange": crate::protocol::DEFAULT_PORT_RANGE,
             "policyFeature": crate::protocol::NETWORK_POLICY_FEATURE},

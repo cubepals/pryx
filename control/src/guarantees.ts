@@ -15,3 +15,16 @@ export function guarantees(
     GUARANTEES.map((name) => [name, features.includes(scoped ? `tier-${tier}:${name}` : name)]),
   ) as Record<Guarantee, boolean>
 }
+
+/** Placement capabilities are not evidence that an older copy was configured with limits. */
+export function workloadGuarantees(
+  features: readonly string[],
+  tier: Isolation,
+  observed?: Partial<Record<Guarantee, boolean>> | null,
+): Record<Guarantee, boolean> {
+  const result = guarantees(features, tier)
+  if (tier === 'container' && features.includes(contract['x-pryx-resources'].observedGuaranteesFeature)) {
+    for (const name of ['memory-limit', 'cpu-limit'] as const) result[name] &&= observed?.[name] === true
+  }
+  return result
+}

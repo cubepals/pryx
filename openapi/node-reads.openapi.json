@@ -925,6 +925,7 @@
     "cpuLimitProblem": "CPU ceilings and weights require container isolation",
     "defaultMinMemoryMb": 256,
     "minCpuMillis": 100,
+    "observedGuaranteesFeature": "observed-resource-limits",
     "unenforcedMemoryFeature": "unenforced-memory"
   },
   "x-pryx-tiers": {

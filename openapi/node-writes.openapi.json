@@ -2155,6 +2155,43 @@
             "minimum": 0,
             "type": "integer"
           },
+          "guarantees": {
+            "additionalProperties": false,
+            "description": "Copy-bound guarantees, announced by rootless engines rather than inferred from node capacity.",
+            "properties": {
+              "browser-sandbox": {
+                "type": "boolean"
+              },
+              "cpu-limit": {
+                "type": "boolean"
+              },
+              "host-firewall": {
+                "type": "boolean"
+              },
+              "memory-limit": {
+                "type": "boolean"
+              },
+              "memory-sleep": {
+                "type": "boolean"
+              },
+              "own-kernel": {
+                "type": "boolean"
+              },
+              "private-network": {
+                "type": "boolean"
+              },
+              "private-pids": {
+                "type": "boolean"
+              },
+              "separate-users": {
+                "type": "boolean"
+              }
+            },
+            "type": [
+              "object",
+              "null"
+            ]
+          },
           "id": {
             "type": "string"
           },
@@ -2534,6 +2571,7 @@
     "cpuLimitProblem": "CPU ceilings and weights require container isolation",
     "defaultMinMemoryMb": 256,
     "minCpuMillis": 100,
+    "observedGuaranteesFeature": "observed-resource-limits",
     "unenforcedMemoryFeature": "unenforced-memory"
   },
   "x-pryx-tiers": {

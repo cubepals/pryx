@@ -75,10 +75,13 @@ pub fn heartbeat_report(
 }
 
 fn workload_reports(manager: &Manager) -> Vec<WorkloadReport> {
+    let observed_limits = manager.features().iter().any(|f| f == crate::protocol::OBSERVED_RESOURCE_LIMITS_FEATURE);
     manager
         .list(None)
         .into_iter()
         .map(|v| WorkloadReport {
+            guarantees: (observed_limits && v.isolation.as_deref().unwrap_or("container") == "container")
+                .then_some(v.guarantees),
             metrics: manager.cached_metrics(&v.id),
             agent: v.agent,
             id: v.id.to_string(),

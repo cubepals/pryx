@@ -242,6 +242,11 @@ mod tests {
         let view = manager.view(&id).unwrap();
         assert!(!view.guarantees[&Guarantee::MemoryLimit], "the existing copy still has no memory ceiling");
         assert!(!view.guarantees[&Guarantee::CpuLimit], "the existing copy still has no CPU enforcement");
+        let report =
+            || crate::fleet::heartbeat::heartbeat_report(&manager, &crate::ids::NodeId::from("node"), "s", None, 1);
+        let rootless_report = report();
+        assert!(rootless_report.features.iter().any(|f| f == crate::protocol::OBSERVED_RESOURCE_LIMITS_FEATURE));
+        assert_eq!(rootless_report.workloads[0].guarantees.as_ref(), Some(&view.guarantees));
         {
             let mut state = manager.state.lock().unwrap();
             let copy = state.observed.get_mut(&id).unwrap().info.as_mut().unwrap();
@@ -250,6 +255,7 @@ mod tests {
         }
         let configured = manager.view(&id).unwrap();
         assert!(configured.guarantees[&Guarantee::MemoryLimit] && configured.guarantees[&Guarantee::CpuLimit]);
+        assert_eq!(report().workloads[0].guarantees.as_ref(), Some(&configured.guarantees));
         {
             let mut state = manager.state.lock().unwrap();
             let copy = state.observed.get_mut(&id).unwrap().info.as_mut().unwrap();
@@ -262,5 +268,9 @@ mod tests {
             rootful.guarantees[&Guarantee::MemoryLimit] && rootful.guarantees[&Guarantee::CpuLimit],
             "retain legacy rootful reporting"
         );
+        let rootful_report = report();
+        assert!(!rootful_report.features.iter().any(|f| f == crate::protocol::OBSERVED_RESOURCE_LIMITS_FEATURE));
+        assert!(rootful_report.workloads[0].guarantees.is_none());
+        assert!(serde_json::to_value(&rootful_report.workloads[0]).unwrap().get("guarantees").is_none());
     }
 }

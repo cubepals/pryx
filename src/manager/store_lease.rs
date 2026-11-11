@@ -58,6 +58,14 @@ impl Manager {
                 continue;
             }
             features.push(format!("tier-{tier}"));
+            let rootless = if self.runtime.multi_tier() {
+                self.runtime.tier_info(tier).is_some_and(|info| info.rootless)
+            } else {
+                self.runtime_info.lock().unwrap().as_ref().is_some_and(|info| info.rootless)
+            };
+            if tier == "container" && rootless {
+                features.push(crate::protocol::OBSERVED_RESOURCE_LIMITS_FEATURE.into());
+            }
             if self.runtime.multi_tier()
                 && self.runtime.backend(tier).is_some_and(|runtime| runtime.supports_network_policy())
             {

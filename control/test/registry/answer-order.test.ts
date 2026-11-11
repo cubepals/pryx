@@ -45,6 +45,7 @@ describe.skipIf(!hasDatabase)('ordering a node’s reports of its own copy', () 
       VALUES (${workload}, ${node.id}, 1, 'placed', 'eu', 128, 32, 1, 'stopped')`)
     const stopped: WorkloadView = {
       ...report(workload, 1, { state: 'stopped', changedAt: later }),
+      guarantees: undefined,
       ports: [],
       image: 'alpine:3.22',
       startedAt: earlier,

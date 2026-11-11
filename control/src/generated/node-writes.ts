@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
-// Generated from openapi/node-writes.openapi.json; sha256 6502c1d5ad04224177781e8fafc251c22e36e9f2f17748a39b7d3b3fc7a7372a.
+// Generated from openapi/node-writes.openapi.json; sha256 403ce3e008576b14f1aff2461126c9601b1aab5adf31d85d4de8117fbfb62b2d.
 export type paths = Record<string, never>;
 export type webhooks = Record<string, never>;
 export interface components {
@@ -674,6 +674,18 @@ export interface components {
             exit: components["schemas"]["ExitInfo"] | null;
             /** Format: uint64 */
             generation: number;
+            /** @description Copy-bound guarantees, announced by rootless engines rather than inferred from node capacity. */
+            guarantees?: {
+                "browser-sandbox"?: boolean;
+                "cpu-limit"?: boolean;
+                "host-firewall"?: boolean;
+                "memory-limit"?: boolean;
+                "memory-sleep"?: boolean;
+                "own-kernel"?: boolean;
+                "private-network"?: boolean;
+                "private-pids"?: boolean;
+                "separate-users"?: boolean;
+            } | null;
             id: string;
             /**
              * @description What the node found wrong with the workload and can't mend itself: a restart refused for
