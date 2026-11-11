@@ -42,3 +42,9 @@ path = "deploy/notices/**"
 precedence = "override"
 SPDX-FileCopyrightText = "Upstream contributors (see each retained notice)"
 SPDX-License-Identifier = "LicenseRef-Third-Party-Notices"
+
+[[annotations]]
+path = "templates/process-tools/notices/**"
+precedence = "override"
+SPDX-FileCopyrightText = "Upstream contributors (see each retained notice)"
+SPDX-License-Identifier = "LicenseRef-Third-Party-Notices"

@@ -1,0 +1,10 @@
+[
+  {
+    "name": "headless-shell",
+    "version": "158.0.8127.18",
+    "revision": "1254",
+    "url": "https://cdn.playwright.dev/builds/cft/158.0.8127.18/linux64/chrome-headless-shell-linux64.zip",
+    "sha256": "18352d22cb0cdf520cbff2ad8c41391f0e02a72886cb53b0fde4bdfc4bd075d6",
+    "licenceReview": "K18, byte-identical complete notice dd98ccbd268687cc52554f51179fe9781ea87bd94cb2afad803b24d6cc087217; no full Chromium or Widevine"
+  }
+]
