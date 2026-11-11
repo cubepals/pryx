@@ -48,7 +48,7 @@ export async function upLocal(args: string[], preset: 'user' | 'container', upgr
   const port = configuredPort()
   localRequirements()
   localIsolation()
-  const initial = await inspectLocal(preset)
+  const initial = await inspectLocal(preset, { installation: readInstallation(paths) })
   // This probe and all path checks finish before the first persistent mutation.
   mkdirSync(paths.home, { recursive: true, mode: 0o755 })
   const unlock = acquireLifecycle(paths.operation)
@@ -68,10 +68,12 @@ export async function upLocal(args: string[], preset: 'user' | 'container', upgr
       )
     if (upgrading && !previous) throw new Error('No managed installation; run pryx up first')
     if (previous && !upgrading) {
-      record = { ...previous, require, defaultIsolation }
+      const engineSocket = previous.engineSocket ?? (previous.runtime ? initial.engineSocket : undefined)
+      record = { ...previous, ...(engineSocket ? { engineSocket } : {}), require, defaultIsolation }
       if (
         JSON.stringify(previous.require ?? []) !== JSON.stringify(require) ||
-        JSON.stringify(previous.defaultIsolation) !== JSON.stringify(defaultIsolation)
+        JSON.stringify(previous.defaultIsolation) !== JSON.stringify(defaultIsolation) ||
+        previous.engineSocket !== record.engineSocket
       ) {
         if (previous.userUnit) await stopUserUnit(paths, false)
         await stopLocal(previous)
@@ -82,12 +84,12 @@ export async function upLocal(args: string[], preset: 'user' | 'container', upgr
       const selected = await selectedRelease(upgrading, source)
       const staged = await stageBundle(paths, { source, ...selected })
       try {
-        const checked = await inspectLocal(
-          preset,
-          staged.unpacked,
-          staged.temporary,
-          previous?.tier ?? process.env.PRYX_DEFAULT_TIER,
-        )
+        const checked = await inspectLocal(preset, {
+          bundle: staged.unpacked,
+          temporary: staged.temporary,
+          requested: previous?.runtime ? undefined : (previous?.tier ?? process.env.PRYX_DEFAULT_TIER),
+          installation: previous,
+        })
         if (previous) {
           const old = JSON.parse(readFileSync(join(previous.bundle, 'bundle.json'), 'utf8')) as BundleMetadata
           if (old.postgres.major !== staged.metadata.postgres.major)
@@ -104,6 +106,7 @@ export async function upLocal(args: string[], preset: 'user' | 'container', upgr
           bundle,
           preset,
           tier: checked.tier,
+          ...(checked.engineSocket ? { engineSocket: checked.engineSocket } : {}),
           runtime:
             previous?.runtime ??
             (!previous && !process.env.PRYX_DEFAULT_TIER && checked.probe.tiers ? 'auto' : undefined),

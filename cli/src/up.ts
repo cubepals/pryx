@@ -24,7 +24,8 @@ export async function up(args: string[]) {
       if (!plan.linux || !plan.root || !plan.systemd || plan.architecture !== 'x64')
         throw new Error('Server preset requires Linux x86_64, root and systemd')
       checkHostRuntime()
-    } else if (preset !== 'node') await inspectLocal(preset)
+    } else if (preset !== 'node')
+      await inspectLocal(preset, { installation: readInstallation(localPaths(preset)) })
     return
   }
   if (args.includes('--check')) {
@@ -33,7 +34,7 @@ export async function up(args: string[]) {
     let checked: unknown
     try {
       checked = probeBinary()
-        ? await inspectLocal(preset)
+        ? await inspectLocal(preset, { installation: readInstallation(paths) })
         : { requirement: 'Install the signed release bootstrap to measure backend availability' }
     } catch (error) {
       checked = { requirement: error instanceof Error ? error.message : 'Host probe failed' }

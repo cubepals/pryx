@@ -17,6 +17,7 @@ export type LocalInstallation = {
   preset: 'user' | 'container'
   tier: 'process' | 'wasm' | 'container'
   runtime?: 'auto'
+  engineSocket?: string
   defaultIsolation?: IsolationDefault
   apiUrl: string
   clientConfig: string
@@ -60,6 +61,10 @@ export function readInstallation(paths: LocalPaths) {
     !['user', 'container'].includes(record.preset) ||
     !['process', 'wasm', 'container'].includes(record.tier) ||
     (record.runtime !== undefined && record.runtime !== 'auto') ||
+    (record.engineSocket !== undefined &&
+      (typeof record.engineSocket !== 'string' ||
+        !isAbsolute(record.engineSocket) ||
+        /[\0\r\n]/.test(record.engineSocket))) ||
     (record.defaultIsolation !== undefined && !isIsolationDefault(record.defaultIsolation)) ||
     !/^[a-f0-9]{64}$/.test(record.digest) ||
     !/^\d+\.\d+\.\d+$/.test(record.version) ||

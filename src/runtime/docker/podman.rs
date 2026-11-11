@@ -98,7 +98,15 @@ pub(super) async fn network(
             {
                 return Ok(());
             }
-            return Err(RuntimeError::Other("Podman network does not enforce the owned isolation policy".into()));
+            return Err(RuntimeError::Other(format!(
+                "Podman network-policy is unavailable: bridge={} internal={} isolated={} ownership={owned}",
+                network.driver.as_deref() == Some(BRIDGE_DRIVER),
+                network.internal == Some(internal),
+                network
+                    .options
+                    .as_ref()
+                    .is_some_and(|options| options.get(ISOLATE_OPTION).map(String::as_str) == Some("true")),
+            )));
         }
         Err(RuntimeError::NotFound(_)) => {}
         Err(error) => return Err(error),

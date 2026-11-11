@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Activate only an authenticated release. Bootstrap shortcuts are atomic files pointing at
  * immutable bundles; sandbox state and older releases remain available across upgrades. */
-import { chmodSync, mkdirSync, readFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { containerContext } from '../../deploy/host-context.ts'
 import { capabilitySummary, hostProbe } from '../../deploy/host-probe.ts'
-import { createPrivateFile } from '../../deploy/image-state.ts'
+import { createPrivateFile, IMAGE_NODE_CONFIG } from '../../deploy/image-state.ts'
 import { readClientConfig } from './client-config.ts'
 import { localEnvironment } from './up-local-process.ts'
 import type { LocalInstallation } from './up-local-record.ts'
@@ -39,7 +39,12 @@ export function activateCli(record: LocalInstallation) {
 export async function localSummary(record: LocalInstallation, action: string) {
   const saved = readClientConfig(record.clientConfig)
   if (!saved) throw new Error('The service did not save its private CLI credentials')
-  const probe = await hostProbe(join(record.bundle, 'bin/pryxd'), localEnvironment(record))
+  const configured = join(record.paths.config, IMAGE_NODE_CONFIG)
+  const probe = await hostProbe(
+    join(record.bundle, 'bin/pryxd'),
+    localEnvironment(record),
+    record.engineSocket && existsSync(configured) ? configured : undefined,
+  )
   const printed = join(record.paths.config, 'key-printed')
   let firstKey = false
   try {

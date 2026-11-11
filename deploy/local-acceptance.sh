@@ -49,6 +49,13 @@ python3 - "$config/installation.json" <<'PY'
 import json, os, pathlib, sys
 r = json.loads(pathlib.Path(sys.argv[1]).read_text())
 print('user_unit='+str(r['userUnit'])+' enabled_linger='+str(r['enabledLinger']))
+if os.environ.get('PRYX_TEST_ENGINE_SOCKET'):
+    import tomllib
+    expected = os.environ['PRYX_TEST_ENGINE_SOCKET']
+    assert r['engineSocket'] == expected
+    configurations = [tomllib.loads(path.read_text()) for path in pathlib.Path(r['paths']['config']).glob('*.toml')]
+    assert any(value.get('docker', {}).get('socket') == expected for value in configurations)
+    print('selected_engine=retained_in_service_configuration')
 if os.getuid() == 0:
     # PostgreSQL 17 file layout: postmaster.pid's first line identifies the server.
     pid = int((pathlib.Path(r['paths']['state'])/'postgres/data/postmaster.pid').read_text().splitlines()[0])

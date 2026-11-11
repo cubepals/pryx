@@ -8,7 +8,8 @@ pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Res
     let mut prepared = spec.clone();
     let resolver = runtime.egress.prepare(runtime, &mut prepared).await?;
     let spec = &prepared;
-    if spec.internal_network {
+    // Native Podman create owns a separate bridge and published ingress for each workload.
+    if spec.internal_network && !info.podman {
         runtime.ensure_internal_network(&spec.network, &spec.labels).await?;
     }
     let mut spec = spec.clone();

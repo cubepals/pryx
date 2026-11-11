@@ -17,6 +17,8 @@ export function localEnvironment(record: LocalInstallation): NodeJS.ProcessEnv {
     PRYX_PRYXD_BIN: join(record.bundle, 'bin/pryxd'),
     PRYX_AGENTOS_DISTRIBUTION: join(record.bundle, 'agentos'),
     PRYX_LOCAL_PRESET: record.preset,
+    PRYX_LOCAL_ENGINE_SOCKET: record.engineSocket,
+    DOCKER_HOST: record.engineSocket ? `unix://${record.engineSocket}` : process.env.DOCKER_HOST,
     PRYX_LOCAL_LAUNCHER: join(record.paths.bootstrap, 'bin/pryxd'),
     PRYX_STATE_DIR: record.paths.state,
     PRYX_LOCAL_CONFIG_DIR: record.paths.config,
