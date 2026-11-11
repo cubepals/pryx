@@ -876,3 +876,5 @@
 
 - K22: Persist independent original public memory/CPU intent before unit normalization. Defaults remain admission reservations and capable engines keep their existing ceilings; only announcing nodes may receive automatic missing-memory acceptance or omit an originally unnamed CPU ceiling. Explicit values, units and required guarantees retain enforcement/refusal. Legacy records keep original routing and wire resources, and legacy snapshots never infer defaults from equal numbers; the node still validates every create/start.
 - K22: Run actionlint with the existing pinned ShellCheck 0.11.0 actually discoverable. Replace the diagnostic mkdir option combination caught by hosted SC2174 with mode-0700 install -d; no linter warning is waived.
+
+- K22: Give the unchanged lease-exchange body an explicit boot-clock anchor so its real-HTTP fixture uses the exact same start in its strict authority assertion. Production still reads boot time before networking; no deadline, margin or assertion is relaxed. The original fixture sampled twice across a millisecond boundary and failed during move validation.

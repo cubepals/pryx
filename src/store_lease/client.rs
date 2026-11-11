@@ -27,6 +27,16 @@ pub(crate) async fn renew(
     write: bool,
 ) -> Result<u64, String> {
     let start = boot_ms().map_err(|_| "Boot clock unavailable")?;
+    renew_at(start, id, epoch, node, grant, write).await
+}
+async fn renew_at(
+    start: u64,
+    id: &str,
+    epoch: u64,
+    node: &str,
+    grant: &StoreLeaseGrant,
+    write: bool,
+) -> Result<u64, String> {
     let exchange = async {
         let tls = if grant.read_url.starts_with("https:") || grant.write_url.starts_with("https:") {
             Some(http::public_tls()?)
@@ -199,7 +209,7 @@ mod exchange_tests {
             renew_seconds: 10,
         };
         let start = boot_ms().unwrap();
-        let until = renew("one", 1, "node", &grant, true).await.unwrap();
+        let until = renew_at(start, "one", 1, "node", &grant, true).await.unwrap();
         assert!(until > start && until <= start + 30_000 - MARGIN_MS);
         assert!(!format!("{grant:?}").contains("secret-do-not-log"));
         store.object.lock().unwrap().session = "another-daemon".into();
