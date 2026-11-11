@@ -40,9 +40,19 @@ if (args.some(arg => arg === '--no-sandbox' || arg.startsWith('--remote-debuggin
   throw new Error('Process Chromium requires its sandbox and debugging pipe')
 }
 const owner = launch({ executablePath: join(config.bundle, 'bin/chrome-headless-shell'), args, pipe: true, detached: false, env: process.env })
+let startupDiagnostic = ''
+const rememberStartup = bytes => { startupDiagnostic = (startupDiagnostic + bytes).slice(-16384) }
+owner.nodeProcess.stderr.on('data', rememberStartup)
 const pipe = new PipeTransport(owner.nodeProcess.stdio[3], owner.nodeProcess.stdio[4])
 const connection = new Connection('', pipe, 0, config.timeoutMs, true)
-const browser = await puppeteer.connect({ transport: await bridge(connection), defaultViewport: { width: 1280, height: 720 } })
+let browser
+try {
+  browser = await puppeteer.connect({ transport: await bridge(connection), defaultViewport: { width: 1280, height: 720 } })
+} catch (error) {
+  await owner.close()
+  throw new Error(`Chromium's mandatory sandbox or debugging pipe failed: ${startupDiagnostic}`, { cause: error })
+}
+owner.nodeProcess.stderr.off('data', rememberStartup)
 const version = await connection.send('Browser.getVersion')
 const server = http.createServer(async (request, response) => {
   response.setHeader('cache-control', 'no-store')
