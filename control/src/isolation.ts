@@ -26,3 +26,11 @@ export function isIsolationDefault(value: unknown): value is IsolationDefault {
     ? ISOLATIONS.includes(value as Isolation)
     : Array.isArray(value) && value.length > 0 && value.every((tier) => ISOLATIONS.includes(tier))
 }
+
+/** A per-feature marker scopes only that capability; unannounced features retain legacy semantics. */
+export function nodeFeature(features: readonly string[], feature: string, isolation?: Isolation): boolean {
+  const scope = nodeSchema['x-pryx-tiers'].capabilityScopePrefix
+  return features.includes(`${scope}${feature}`)
+    ? features.includes(`tier-${isolation ?? nodeIsolation(features)}:${feature}`)
+    : features.includes(feature)
+}

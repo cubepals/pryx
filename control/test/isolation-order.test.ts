@@ -3,6 +3,7 @@
  * fall back. These Postgres tests check control decisions, not backend confinement. */
 import { expect, test } from 'bun:test'
 import { sql } from 'drizzle-orm'
+import { StatusCodes } from 'http-status-codes'
 import { makeSchema } from '../src/api-schemas.ts'
 import { PublicModel } from '../src/public-model.ts'
 import { publicContext } from './public-context.ts'
@@ -81,6 +82,34 @@ test('a legacy template keeps its tier when its omitted isolation is normalized'
     await c.db.execute(sql`UPDATE templates SET spec=spec-'isolation' WHERE name='legacy-tier'`)
     const again = await c.model.template('default', 'legacy-tier', body)
     expect(again?.id).toBe(first?.id)
+  } finally {
+    await c.close()
+  }
+})
+
+test('an unnamed private-network request chooses the tier that actually supports its policy', async () => {
+  const c = await publicContext()
+  try {
+    await tiers(c, [
+      ...features,
+      'tier-container',
+      'tier-capabilities:network-policy',
+      'network-policy',
+      'tier-process:network-policy',
+      'tier-process:agent',
+      'tier-container:agent',
+    ])
+    const made = await c.request('/sandboxes', 'POST', { network: 'none' })
+    expect(made.status).toBe(StatusCodes.CREATED)
+    expect((await made.json()).isolation).toBe('process')
+    const before = c.nodes.calls.length
+    const refused = await c.request('/sandboxes', 'POST', {
+      isolation: 'container',
+      image: 'alpine:3.22',
+      network: 'none',
+    })
+    expect(refused.status).toBe(StatusCodes.SERVICE_UNAVAILABLE)
+    expect(c.nodes.calls).toHaveLength(before)
   } finally {
     await c.close()
   }

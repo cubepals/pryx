@@ -69,7 +69,8 @@ if [ "${PRYX_EXPECT_CONTAINER:-}" = on ]; then
   box=$(pryx sandbox create --isolation container --image alpine:3.22 | python3 -c 'import json,sys;r=json.load(sys.stdin);assert r["isolation"] == "container";assert r["guarantees"]["private-pids"];assert not r["guarantees"]["memory-limit"];assert not r["guarantees"]["cpu-limit"];assert not r["guarantees"]["memory-sleep"];print(r["id"])')
   [ "$(pryx run --isolation container --image alpine:3.22 -- echo hello)" = hello ]
   pryx sandbox rm "$box" > "$HOME/deleted-image.json"
-  echo 'rootless_container=running explicit_limits=off'
+  [ "$(pryx run --isolation process --network none -- echo private-process)" = private-process ]
+  echo 'rootless_container=running explicit_limits=off process_network_none=running'
 elif [ "${PRYX_EXPECT_CONTAINER:-}" = off ]; then
   phase=explicit-container-refusal
   if pryx sandbox create --isolation container --image alpine:3.22 > "$HOME/refused-image.log" 2>&1; then
@@ -78,7 +79,8 @@ elif [ "${PRYX_EXPECT_CONTAINER:-}" = off ]; then
   fi
   grep -Eiq 'container|isolation' "$HOME/refused-image.log"
   [ "$(pryx run --isolation process -- echo hello)" = hello ]
-  echo 'rootless_container=refused process=running'
+  [ "$(pryx run --isolation process --network none -- echo private-process)" = private-process ]
+  echo 'rootless_container=refused process=running process_network_none=running'
 fi
 # Check never generates credentials, rewrites configuration or starts another supervisor.
 find "$config" -type f ! -name '*.log' -exec sha256sum {} \; | sort > "$HOME/before-check"

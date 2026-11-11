@@ -915,7 +915,8 @@
     "defaultPortRange": [
       42000,
       42999
-    ]
+    ],
+    "policyFeature": "network-policy"
   },
   "x-pryx-process": {
     "imageProblem": "this host runs the process tier; images are not available"
@@ -925,6 +926,9 @@
     "defaultMinMemoryMb": 256,
     "minCpuMillis": 100,
     "unenforcedMemoryFeature": "unenforced-memory"
+  },
+  "x-pryx-tiers": {
+    "capabilityScopePrefix": "tier-capabilities:"
   },
   "x-pryx-wasm": {
     "imageProblem": "this host runs the wasm tier; images are not available",

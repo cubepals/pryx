@@ -338,3 +338,22 @@ test('mixed tiers share capacity and keep enforcement scoped to the requested ti
   for (const isolation of ['container', 'process', 'wasm'] as const)
     expect(selectNode(request({ isolation }), [mixed]).node).toBeNull()
 })
+
+test('backend capabilities cannot leak from another tier on the same node', () => {
+  const mixed = node('mixed', {
+    features: [
+      'placement-epochs',
+      'multi-tier',
+      'tier-capabilities:network-policy',
+      'tier-container',
+      'tier-process',
+      'network-policy',
+      'tier-process:network-policy',
+    ],
+  })
+  const needs = ['placement-epochs', 'network-policy']
+  expect(selectNode(request({ isolation: 'container', needs }), [mixed]).node).toBeNull()
+  expect(selectNode(request({ isolation: 'process', needs }), [mixed]).node?.id).toBe('mixed')
+  mixed.features = mixed.features.filter((name) => name !== 'tier-capabilities:network-policy')
+  expect(selectNode(request({ isolation: 'container', needs }), [mixed]).node?.id).toBe('mixed')
+})

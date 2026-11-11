@@ -105,3 +105,33 @@ test('memory acceptance is feature gated for both booleans and null remains abse
   await api.put(node, 'box', { ...spec, resources: { ...spec.resources, allowUnenforcedMemory: null } }, 1)
   expect(bodies.at(-1)?.resources).not.toHaveProperty('allowUnenforcedMemory')
 })
+
+test('scoped network policy is serialized for its tier and refused before an unchanged-spec wake elsewhere', async () => {
+  const bodies: Record<string, unknown>[] = []
+  const api = new WorkloadApi({
+    async call<T>(...args: unknown[]): Promise<T> {
+      bodies.push((args[3] as { body: Record<string, unknown> }).body)
+      return {} as T
+    },
+  })
+  const feature = contract['x-pryx-network'].policyFeature
+  const marker = `${contract['x-pryx-tiers'].capabilityScopePrefix}${feature}`
+  const features = ['multi-tier', 'tier-container', 'tier-process', marker, `tier-process:${feature}`]
+  const node = { id: 'node', api_address: 'https://node.test', features }
+  const process = { ...spec, image: '', isolation: 'process' as const, network: 'none' as const }
+  await api.put(node, 'process', process, 1)
+  expect(bodies[0]?.network).toBe('none')
+  await expect(
+    api.put(node, 'container', { ...spec, isolation: 'container', network: 'none' }, 1),
+  ).rejects.toThrow(feature)
+  await expect(
+    api.put(
+      { ...node, features: features.filter((value) => !value.startsWith('tier-process:')) },
+      'process',
+      process,
+      1,
+      { wake: true },
+    ),
+  ).rejects.toThrow(feature)
+  expect(bodies).toHaveLength(1)
+})

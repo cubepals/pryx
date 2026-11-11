@@ -830,3 +830,16 @@ The local host document preserves its capability fields and adds `tiers`, each w
 evidence and action. `pryxd probe --config <file>` applies that configuration’s tier selection
 without starting compute. `pryx doctor` discovers an owned managed configuration and uses
 this additive flag when supported; an older daemon keeps its existing host-only report.
+
+### Tier-scoped optional capabilities
+
+A mixed node may announce `tier-capabilities:network-policy`. This marker qualifies the
+existing `network-policy` feature: `tier-container:network-policy` or
+`tier-process:network-policy` then identifies the backends that can enforce network none
+while retaining private ingress. The unqualified feature remains available when a ready
+backend supports it. A controller checks the chosen tier before placement, creation and
+unchanged-spec wake; an open tier choice considers the policy before selecting a backend.
+A node that does not announce the per-feature marker keeps its previous global semantics.
+Markers qualify one named capability at a time, so adding another scoped capability does not
+reinterpret old nodes. Rust owns the marker prefix and policy name through the generated
+OpenAPI metadata; workload fields and all v1 record bytes retain their existing names.

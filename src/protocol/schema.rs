@@ -80,7 +80,9 @@ fn document(title: &str, contract: Contract, add: impl FnOnce(&mut SchemaGenerat
             "cpuLimitProblem": crate::protocol::CPU_LIMIT_PROBLEM,
             "unenforcedMemoryFeature": crate::protocol::UNENFORCED_MEMORY_FEATURE
         },
-        "x-pryx-network": {"defaultPortRange": crate::protocol::DEFAULT_PORT_RANGE},
+        "x-pryx-network": {"defaultPortRange": crate::protocol::DEFAULT_PORT_RANGE,
+            "policyFeature": crate::protocol::NETWORK_POLICY_FEATURE},
+        "x-pryx-tiers": {"capabilityScopePrefix": crate::protocol::TIER_CAPABILITY_SCOPE_PREFIX},
         "x-pryx-wasm": {"imageProblem": crate::protocol::WASM_IMAGE_PROBLEM, "portProblem": crate::protocol::WASM_PORT_PROBLEM, "maxPackages": crate::protocol::MAX_WASM_PACKAGES,
             "maxHttpFrameBytes":agentos_sidecar_client::wire::DEFAULT_MAX_FRAME_BYTES, "packageNamePattern": crate::protocol::PACKAGE_NAME_PATTERN},
         "x-pryx-process": {"imageProblem": crate::protocol::PROCESS_IMAGE_PROBLEM},

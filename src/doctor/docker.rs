@@ -124,6 +124,11 @@ fn engine_limits(info: &RuntimeInfo) -> Vec<Check> {
         }
         for (name, available, action) in [
             (
+                "docker.network-policy",
+                Some(info.podman),
+                "Use a supported Podman engine for private ingress on network none",
+            ),
+            (
                 "docker.exec-pid-visibility",
                 info.local_process_ids,
                 "Run pryx on the engine host with directly visible process identities and same-user procfs access",
@@ -347,7 +352,7 @@ mod tests {
     fn a_rootless_engine_explains_missing_enforcement_and_slow_storage() {
         let info = RuntimeInfo { rootless: true, storage_driver: Some("vfs".into()), ..Default::default() };
         let checks = engine_limits(&info);
-        assert_eq!(checks.len(), 7);
+        assert_eq!(checks.len(), 8);
         assert!(checks.iter().all(|check| check.status == Status::Warn && check.fix.is_some()));
         for name in [
             "docker.memory-limit",
@@ -357,6 +362,7 @@ mod tests {
             "docker.storage",
             "docker.exec-pid-visibility",
             "docker.low-ports",
+            "docker.network-policy",
         ] {
             assert!(!by_name(&checks, name).fix.as_ref().unwrap().is_empty());
         }

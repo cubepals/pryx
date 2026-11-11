@@ -11,7 +11,7 @@
 import contract from '../../openapi/node-writes.openapi.json'
 import { type Guarantee, guarantees as tierGuarantees } from './guarantees.ts'
 import type { Health } from './health.ts'
-import { CPU_LIMIT_PROBLEM, nodeIsolations } from './isolation.ts'
+import { CPU_LIMIT_PROBLEM, nodeFeature, nodeIsolations } from './isolation.ts'
 import type { RuntimeSpec } from './runtime-model.ts'
 
 type Policy = 'balanced' | 'binpack' | 'spread'
@@ -134,7 +134,9 @@ function refusal(node: NodeView, request: PlacementRequest, options: PlacementOp
   if (!nodeIsolations(node.features).includes(request.isolation ?? 'container'))
     return `isolation tier ${request.isolation ?? 'container'} does not match`
   if (request.cpuLimits && (request.isolation ?? 'container') !== 'container') return CPU_LIMIT_PROBLEM
-  const missing = request.needs.filter((f) => !node.features.includes(f))
+  const missing = request.needs.filter(
+    (f) => !nodeFeature(node.features, f, request.isolation ?? 'container'),
+  )
   if (missing.length > 0) return `lacks ${missing.join(', ')}`
   const memoryFree = node.capacity.allocatableMemoryMb - node.running.memoryMb - options.headroomMb
   if (memoryFree < request.memoryMb)

@@ -308,6 +308,10 @@ socket = {}
     if std::env::var_os("PRYX_TEST_ENGINE").is_some() {
         assert!(named("docker.exec-pid-visibility").is_some(), "{report}");
         assert_eq!(named("docker.exec-pid-visibility").unwrap()["status"], "pass");
+        assert_eq!(
+            named("docker.network-policy").unwrap()["status"],
+            if std::env::var("PRYX_TEST_ENGINE").as_deref() == Ok("podman") { "pass" } else { "warn" }
+        );
         let first: u16 =
             std::fs::read_to_string("/proc/sys/net/ipv4/ip_unprivileged_port_start").unwrap().trim().parse().unwrap();
         let ports = named("docker.low-ports").unwrap();
@@ -318,5 +322,6 @@ socket = {}
     } else {
         assert!(named("docker.exec-pid-visibility").is_none());
         assert!(named("docker.low-ports").is_none());
+        assert!(named("docker.network-policy").is_none());
     }
 }

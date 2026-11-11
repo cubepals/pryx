@@ -29,10 +29,13 @@ impl EngineCase {
         })
     }
 
-    async fn create(&self, name: &str) {
+    async fn create(&self, name: &str, internal: bool) {
         let mut value = support::spec_json();
         value["resources"] = serde_json::json!({"memoryMb": 256, "allowUnenforcedMemory": true});
         value["ports"].as_array_mut().unwrap().truncate(1);
+        if internal {
+            value["network"] = "none".into();
+        }
         let status = axum::http::StatusCode::OK;
         let response = format!(
             r#"while IFS= read -r line && [ "$line" != "$(printf "\r")" ]; do :; done; printf "{:?} {} {}\r\nConnection: close\r\nContent-Length: %s\r\n\r\n" "$(wc -c </data/index.html)"; cat /data/index.html"#,
@@ -80,7 +83,7 @@ impl EngineCase {
         for index in 0..30 {
             let name = format!("measure-{index}");
             let began = Instant::now();
-            self.create(&name).await;
+            self.create(&name, false).await;
             self.manager.start(id(&name), None).await.unwrap();
             let create = began.elapsed().as_secs_f64() * 1000.0;
             assert_eq!(self.command(&name, "printf measured > /data/index.html").await, "");
@@ -130,7 +133,7 @@ async fn engine_images_ports_snapshot_fork_and_stop_keep_their_boundaries() {
     if let Some(output) = output {
         case.measurements(&output).await;
     }
-    case.create("original").await;
+    case.create("original", false).await;
     case.manager.start(id("original"), None).await.unwrap();
     assert_eq!(case.command("original", "printf original > /data/index.html; cat /data/index.html").await, "original");
     assert_eq!(case.page("original").await, "original");
@@ -187,7 +190,7 @@ async fn snapshot_and_fork(case: &EngineCase) {
     let export: ExportRequest = serde_json::from_value(serde_json::json!({"url": url})).unwrap();
     let archive = case.manager.export(id("original"), export, None).await.unwrap();
     assert!(archive.size_bytes > 0);
-    case.create("fork").await;
+    case.create("fork", false).await;
     let restore: RestoreRequest =
         serde_json::from_value(serde_json::json!({"url": url, "sha256": archive.sha256})).unwrap();
     case.manager.restore(id("fork"), restore, None).await.unwrap();
@@ -232,7 +235,7 @@ async fn attack_neighbour(case: &EngineCase) {
 #[ignore = "needs the actual selected engine"]
 async fn engine_exec_timeout_retires_children_and_keeps_the_workload_running() {
     let Some(case) = EngineCase::new().await else { return };
-    case.create("timeout").await;
+    case.create("timeout", false).await;
     case.manager.start(id("timeout"), None).await.unwrap();
     let before = case.manager.view(&id("timeout")).unwrap();
     let backend =
@@ -261,4 +264,47 @@ async fn engine_exec_timeout_retires_children_and_keeps_the_workload_running() {
     assert_eq!(after.locate.container_id, before.locate.container_id);
     assert_eq!(after.started_at, before.started_at);
     case.manager.delete(id("timeout"), DataDisposition::Delete, Some("timeout".into()), None).await.unwrap();
+}
+
+#[tokio::test]
+#[ignore = "needs the actual selected engine"]
+async fn engine_internal_network_preserves_ingress_and_refuses_external_egress() {
+    use tokio::io::AsyncWriteExt;
+    let Some(case) = EngineCase::new().await else { return };
+    if !case.manager.features().iter().any(|feature| feature == "network-policy") {
+        let mut value = support::spec_json();
+        value["resources"] = serde_json::json!({"memoryMb": 256, "allowUnenforcedMemory": true});
+        value["network"] = "none".into();
+        let error = case
+            .manager
+            .ensure(id("internal"), serde_json::from_value(value).unwrap(), Precondition::None, None)
+            .await
+            .unwrap_err();
+        let NodeError::Invalid(fields) = error else { panic!("unexpected refusal: {error:?}") };
+        assert!(serde_json::to_string(&fields).unwrap().contains("network-policy"));
+        assert!(!case.manager.store.data_dir(&id("internal")).exists());
+        return;
+    }
+    let host = host_address();
+    let listener = tokio::net::TcpListener::bind((host, 0)).await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let server = tokio::spawn(async move {
+        while let Ok((mut stream, _)) = listener.accept().await {
+            let _ = stream.write_all(b"canary").await;
+        }
+    });
+    case.create("internet", false).await;
+    case.manager.start(id("internet"), None).await.unwrap();
+    let dial = format!("nc -w 1 {host} {port}");
+    assert_eq!(case.command("internet", &dial).await, "canary", "the controlled target is reachable before policy");
+    case.create("internal", true).await;
+    case.manager.start(id("internal"), None).await.unwrap();
+    case.command("internal", "printf internal > /data/index.html").await;
+    assert_eq!(case.page("internal").await, "internal", "private ingress remains reachable");
+    assert_eq!(case.command("internal", "ip route | grep -c '^default' || true").await.trim(), "0");
+    case.command("internal", &format!("if {dial}; then exit 1; fi")).await;
+    server.abort();
+    for name in ["internal", "internet"] {
+        case.manager.delete(id(name), DataDisposition::Delete, Some(name.into()), None).await.unwrap();
+    }
 }

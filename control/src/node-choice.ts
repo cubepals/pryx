@@ -14,7 +14,7 @@ import agentContract from '../../agent/openapi.json'
 import type { Queryable } from './database.ts'
 import { type Guarantee, guarantees } from './guarantees.ts'
 import type { Thresholds } from './health.ts'
-import { type Isolation, nodeIsolations } from './isolation.ts'
+import { type Isolation, nodeFeature, nodeIsolations } from './isolation.ts'
 import {
   type Considered,
   type Decision,
@@ -91,6 +91,7 @@ export class NodeChoice {
     required: readonly Guarantee[],
     region?: string,
     only?: string,
+    needs: readonly string[] = [],
   ): Promise<Isolation | undefined> {
     const nodes = await this.#views(q)
     const mapped = region === undefined ? undefined : (this.#o.regionMap?.[region] ?? region)
@@ -103,7 +104,8 @@ export class NodeChoice {
           (mapped === undefined || node.regionKey === mapped) &&
           (only === undefined || node.id === only) &&
           nodeIsolations(node.features).includes(tier) &&
-          required.every((name) => guarantees(node.features, tier)[name]),
+          required.every((name) => guarantees(node.features, tier)[name]) &&
+          needs.every((feature) => nodeFeature(node.features, feature, tier)),
       ),
     )
   }

@@ -37,8 +37,15 @@ impl Manager {
         if self.runtime.supports_hostname_egress() {
             features.push("egress-hostnames".into());
         }
-        if self.runtime.supports_network_policy() {
-            features.push("network-policy".into());
+        if self.runtime.supports_network_policy() || self.ready_network_policy() {
+            features.push(crate::protocol::NETWORK_POLICY_FEATURE.into());
+        }
+        if self.runtime.multi_tier() {
+            features.push(format!(
+                "{}{}",
+                crate::protocol::TIER_CAPABILITY_SCOPE_PREFIX,
+                crate::protocol::NETWORK_POLICY_FEATURE
+            ));
         }
         if self.runtime.supports_native_fuse() {
             features.push(pryx_agent::contract::FUSE_FEATURE.into());
@@ -51,6 +58,11 @@ impl Manager {
                 continue;
             }
             features.push(format!("tier-{tier}"));
+            if self.runtime.multi_tier()
+                && self.runtime.backend(tier).is_some_and(|runtime| runtime.supports_network_policy())
+            {
+                features.push(format!("tier-{tier}:{}", crate::protocol::NETWORK_POLICY_FEATURE));
+            }
             features.extend(
                 self.tier_guarantees(tier)
                     .into_iter()
@@ -69,6 +81,14 @@ impl Manager {
             }
         }
         features
+    }
+
+    fn ready_network_policy(&self) -> bool {
+        self.runtime.multi_tier()
+            && self.runtime.tiers().into_iter().any(|tier| {
+                self.runtime.tier_ready(tier)
+                    && self.runtime.backend(tier).is_some_and(|runtime| runtime.supports_network_policy())
+            })
     }
 
     pub async fn refresh_host_probe(&self) {

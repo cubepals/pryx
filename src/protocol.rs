@@ -59,6 +59,10 @@ pub(crate) const PROTOCOL_VERSION: u32 = 1;
 pub const MIN_CPU_MILLIS: u32 = 100;
 /// Opt-in acceptance of a memory reservation on an engine without memory enforcement.
 pub const UNENFORCED_MEMORY_FEATURE: &str = "unenforced-memory";
+/// Per-feature announcement that availability is qualified by a tier on mixed nodes.
+pub(crate) const TIER_CAPABILITY_SCOPE_PREFIX: &str = "tier-capabilities:";
+/// Availability of network none with retained private ingress.
+pub(crate) const NETWORK_POLICY_FEATURE: &str = "network-policy";
 /// Default host memory floor; the operator may configure a different policy.
 pub const DEFAULT_MIN_MEMORY_MB: u32 = 256;
 /// Default inclusive host listener pool, also used for legacy image configurations.

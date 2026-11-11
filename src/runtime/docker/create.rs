@@ -94,6 +94,11 @@ fn check_engine_policy(runtime: &DockerRuntime, spec: &ContainerSpec, info: &Run
     if let Some(problem) = &info.container_policy_problem {
         return Err(RuntimeError::Other(problem.clone()));
     }
+    if info.rootless && !info.podman && spec.internal_network {
+        return Err(RuntimeError::Other(
+            "network-policy is unavailable: rootless Docker cannot provide private internal ingress; use a supported Podman engine".into(),
+        ));
+    }
     if !info.memory_limit && spec.allow_unenforced_memory != Some(true) {
         return Err(RuntimeError::Other(format!(
             "{} is unavailable on this engine",

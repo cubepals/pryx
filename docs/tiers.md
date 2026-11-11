@@ -47,6 +47,8 @@ The standard Docker mapping cannot expose daemon-owned data to the required nonz
 user: default and host namespaces deny the write, and keep-id is unsupported. It refuses
 `data-owner-mapping` before data or compute, while other tiers remain available. Its positive
 lifecycle and timings are parked; a custom mapped local daemon is not evidence for that host.
+Rootless Docker also refuses `network-policy` for `network: "none"`: its internal bridges cannot
+provide ingress through the node user. Podman uses native published ingress for internal bridges.
 The [Podman samples](checks/measurements/k22/podman-03729e9.json),
 [Docker refusal](checks/measurements/k22/docker-03729e9.json) and
 [artifact provenance](checks/measurements/k22/provenance.json) are retained byte for byte after

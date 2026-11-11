@@ -15,6 +15,7 @@ import nodeSchema from '../../openapi/node-reads.openapi.json'
 
 import { HOUR_MS, MINUTE_MS, SECOND_MS } from './durations.ts'
 import { guarantees } from './guarantees.ts'
+import { nodeFeature } from './isolation.ts'
 import { CONFIRM_DELETE_HEADER, type NodeAddress, type NodeClient } from './node-client.ts'
 import type { NodeRow } from './registry.ts'
 import type { RuntimeSpec } from './runtime-model.ts'
@@ -79,7 +80,9 @@ function toWorkloadSpec(spec: RuntimeSpec, features: readonly string[]): Workloa
     ...(features.includes('multi-tier') && spec.isolation ? { isolation: spec.isolation } : {}),
     ...(features.includes('wasm-packages') && spec.packages ? { packages: [...spec.packages] } : {}),
     ...(spec.agent ? { agent: spec.agent, sparePorts: spec.sparePorts } : {}),
-    ...(features.includes('network-policy') && spec.network ? { network: spec.network } : {}),
+    ...(nodeFeature(features, nodeSchema['x-pryx-network'].policyFeature, spec.isolation) && spec.network
+      ? { network: spec.network }
+      : {}),
     ...(features.includes('workload-options') && spec.workdir ? { workdir: spec.workdir } : {}),
     ...(features.includes('workload-options') && spec.user ? { user: spec.user } : {}),
     ...(features.includes('egress-hostnames') && spec.egress ? { egress: spec.egress } : {}),

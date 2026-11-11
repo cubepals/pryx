@@ -4,7 +4,7 @@
 import { StatusCodes } from 'http-status-codes'
 import contract from '../../openapi/node-writes.openapi.json'
 import { guarantees as tierGuarantees } from './guarantees.ts'
-import { nodeIsolations } from './isolation.ts'
+import { nodeFeature, nodeIsolations } from './isolation.ts'
 import { NodeRefused } from './node-client.ts'
 import { RuntimeFull, type RuntimeSpec } from './runtime-model.ts'
 
@@ -16,7 +16,7 @@ export function workloadFeatures(spec: RuntimeSpec): string[] {
     ...(spec.workdir !== undefined || spec.user !== undefined ? ['workload-options'] : []),
     ...(spec.egress !== undefined ? ['egress-hostnames'] : []),
     ...(spec.packages?.length ? ['wasm-packages'] : []),
-    ...(spec.network === 'none' ? ['network-policy'] : []),
+    ...(spec.network === 'none' ? [contract['x-pryx-network'].policyFeature] : []),
   ]
 }
 
@@ -26,7 +26,7 @@ export function requireWorkloadFeatures(spec: RuntimeSpec, features: readonly st
   const guarantees = spec.require?.filter((name) => !tierGuarantees(features, spec.isolation)[name]) ?? []
   if (guarantees.length)
     throw new RuntimeFull('fleet', `Node lacks required guarantees: ${guarantees.join(', ')}`, guarantees)
-  const missing = workloadFeatures(spec).filter((feature) => !features.includes(feature))
+  const missing = workloadFeatures(spec).filter((feature) => !nodeFeature(features, feature, spec.isolation))
   if (missing.length)
     throw new NodeRefused(
       StatusCodes.CONFLICT,

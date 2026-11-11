@@ -353,7 +353,7 @@ impl ContainerRuntime for DockerRuntime {
         self.info.lock().unwrap().as_ref().is_some_and(|info| !info.rootless && !info.podman) && egress::ready()
     }
     fn supports_network_policy(&self) -> bool {
-        true
+        self.info.lock().unwrap().as_ref().is_none_or(|info| !info.rootless || info.podman)
     }
 
     async fn ensure_internal_network(&self, name: &str, labels: &BTreeMap<String, String>) -> Result<(), RuntimeError> {
