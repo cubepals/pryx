@@ -11,6 +11,10 @@ use std::os::unix::process::CommandExt;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let arguments = std::env::args().skip(1).collect::<Vec<_>>();
+    if arguments.first().is_some_and(|a| a == pryx_agent::bootstrap_capabilities::PROBE) {
+        println!("{}", serde_json::to_string(&pryx_agent::bootstrap_capabilities::probe())?);
+        return Ok(());
+    }
     let native_bootstrap = arguments.first().is_some_and(|a| a.starts_with("--") && a != "--version");
     let mappings = if native_bootstrap { pryx_agent::fuse_namespace::prepare()? } else { None };
     // Images run as the same sandbox user. Prevent their processes from reading the agent's

@@ -93,6 +93,9 @@ impl Policy {
     pub(super) fn fuse(&self) -> bool {
         self.fuse
     }
+    pub(super) fn browser_profile(&self) -> bool {
+        self.profile.is_some()
+    }
     pub(super) fn apply(&self, body: &mut ContainerCreateBody) {
         let env = body.env.get_or_insert_default();
         env.retain(|v| !v.starts_with(&format!("{}=", pryx_agent::contract::FUSE_ENV)));

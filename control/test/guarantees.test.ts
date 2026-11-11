@@ -107,3 +107,37 @@ test('public rootless limits follow the current copy observation across controll
     await c.close()
   }
 })
+
+test('browser sandbox reporting follows the current copy and retains other legacy guarantees', async () => {
+  const c = await publicContext()
+  try {
+    const created = await c.request('/sandboxes', 'POST', { image: 'alpine:3.22' })
+    const { id } = (await created.json()) as { id: string }
+    await c.report()
+    const feature = contract['x-pryx-resources'].nativeBrowserPolicyFeature
+    const offered = ['browser-sandbox', 'memory-limit', 'private-network']
+    await c.db.execute(sql`UPDATE fleet_nodes SET features=${JSON.stringify([...offered, feature])}::jsonb`)
+    const view = async () => (await (await c.request(`/sandboxes/${id}`)).json()).guarantees
+    const observed = async (on: boolean) =>
+      c.db.execute(sql`UPDATE fleet_observations SET report=jsonb_set(report,'{guarantees}',
+        ${JSON.stringify({ 'browser-sandbox': on })}::jsonb) WHERE workload=${id}`)
+    await observed(false)
+    expect(await view()).toMatchObject({
+      'browser-sandbox': false,
+      'memory-limit': true,
+      'private-network': true,
+    })
+    await observed(true)
+    expect((await view())['browser-sandbox']).toBe(true)
+    await c.db.execute(sql`UPDATE fleet_observations SET epoch=epoch+1 WHERE workload=${id}`)
+    expect((await view())['browser-sandbox']).toBe(false)
+    await c.db.execute(
+      sql`UPDATE fleet_observations SET epoch=epoch-1,report=report-'guarantees' WHERE workload=${id}`,
+    )
+    expect((await view())['browser-sandbox']).toBe(false)
+    await c.db.execute(sql`UPDATE fleet_nodes SET features=${JSON.stringify(offered)}::jsonb`)
+    expect((await view())['browser-sandbox']).toBe(true)
+  } finally {
+    await c.close()
+  }
+})

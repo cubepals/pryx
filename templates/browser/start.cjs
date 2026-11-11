@@ -8,6 +8,7 @@ const { readFileSync } = require('node:fs')
 const { timingSafeEqual } = require('node:crypto')
 const httpProxy = require('http-proxy')
 const { join } = require('node:path')
+const sandboxed=require('./sandbox.cjs')
 const root=process.env.PRYX_TOOL_DIRECTORY
 const cdp=Number(process.env.PRYX_CDP_PORT)
 const publicPort=Number(process.env.PRYX_BROWSER_PORT)
@@ -23,7 +24,7 @@ function access(request){
   }catch{return}
 }
 async function main(){
-  const browser=await chromium.launchPersistentContext(join(root,'chromium'),{headless:true,chromiumSandbox:true,args:[`--remote-debugging-port=${cdp}`,'--remote-debugging-address=127.0.0.1'],viewport:{width:1280,height:720}})
+  const browser=await chromium.launchPersistentContext(join(root,'chromium'),{headless:true,chromiumSandbox:sandboxed(root),args:[`--remote-debugging-port=${cdp}`,'--remote-debugging-address=127.0.0.1'],viewport:{width:1280,height:720}})
   const proxy=httpProxy.createProxyServer({target:`http://127.0.0.1:${cdp}`,ws:true,changeOrigin:true,followRedirects:false})
   proxy.on('error',(_error,_request,response)=>{if(response.writeHead)response.writeHead(HTTP_STATUS_BAD_GATEWAY);response.end()})
   const server=http.createServer(async(request,response)=>{
@@ -52,4 +53,4 @@ async function main(){
   process.on('SIGTERM',stop);process.on('SIGINT',stop)
   browser.on('close',()=>{if(!stopping)process.exit(1)})
 }
-main().catch(()=>{console.error('Sandboxed Chromium failed to start; check the host native-tools seccomp policy');process.exit(1)})
+main().catch(()=>{console.error('Chromium failed to start; check the reported browser-sandbox policy and host requirements');process.exit(1)})

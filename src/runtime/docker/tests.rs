@@ -19,6 +19,7 @@ pub(super) fn spec() -> ContainerSpec {
         memory_bytes: 256 * 1024 * 1024,
         allow_unenforced_memory: None,
         require_cpu_limit: false,
+        require_browser_sandbox: None,
         require_pids_limit: false,
         nano_cpus: None,
         cpu_shares: 1024,

@@ -1,0 +1,7 @@
+#!/bin/sh
+# SPDX-License-Identifier: FSL-1.1-ALv2
+set -eu
+bundle=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd -P)
+export LD_LIBRARY_PATH="$bundle/python/lib:$bundle/libraries/lib"
+export PYTHONHOME="$bundle/python"
+exec "$bundle/python/bin/python3" "$@"

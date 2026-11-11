@@ -13,6 +13,7 @@
 //! - `podman.rs`: native Netavark isolation and hardened container creation.
 //! - `network.rs`: engine bridge creation and isolation observation.
 //! - `create.rs`: trusted container and agent creation.
+//! - `browser_policy.rs`: negotiated agent bootstrap and inner-browser policy observation.
 //! - `container.rs`: container construction and observation types.
 //! - `exec.rs`: command attachment and timeout containment.
 //! - `native_tools.rs`: explicit host-only seccomp and FUSE device policy.
@@ -21,6 +22,7 @@
 //! - `termination.rs`: kernel process ancestry and cgroup-owned exec cleanup.
 //! - `relay.rs`: bounded private ingress to gateway-free internal networks.
 
+mod browser_policy;
 mod container;
 mod create;
 pub(crate) mod egress;

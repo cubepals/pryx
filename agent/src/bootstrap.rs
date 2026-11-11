@@ -46,6 +46,8 @@ pub struct Bootstrap {
     keep_alive: bool,
     #[arg(long, default_value = "/")]
     entrypoint_cwd: String,
+    #[arg(long = crate::bootstrap_capabilities::BROWSER_ARGUMENT)]
+    browser_sandbox: Option<bool>,
     #[arg(last = true)]
     entrypoint: Vec<String>,
 }
@@ -79,6 +81,9 @@ pub async fn serve(
     args: Bootstrap,
     forward: Option<Arc<dyn crate::guest::Forward>>,
 ) -> Result<i32, Box<dyn std::error::Error>> {
+    if args.browser_sandbox == Some(false) && std::env::var_os(crate::process_policy::POLICY_ENV).is_some() {
+        return Err("browser-sandbox cannot be disabled on the process tier".into());
+    }
     if args.host_bindings.is_some() && forward.is_none() {
         return Err("Process forwarding ownership channel is required".into());
     }
@@ -123,7 +128,8 @@ pub async fn serve(
         telemetry,
         logs: logbook.clone(),
     });
-    crate::tools::prepare(&agent).map_err(|_| "Native tool runtime directory failed")?;
+    crate::tools::prepare(&agent, args.browser_sandbox.unwrap_or(true))
+        .map_err(|_| "Native tool runtime directory failed")?;
     let mut servers = Vec::new();
     for listener in listeners {
         let listener = listener.tap_io(|socket| {

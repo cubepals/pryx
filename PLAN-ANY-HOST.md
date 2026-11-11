@@ -47,11 +47,12 @@ Never block yourself
 - A tool that is missing is installed. A registry, mirror or download that fails is retried with
   a longer wait and then replaced by another source at the same pinned digest; an outage is
   never a reason to stop.
-- When the same failure has survived three different attempts, park it: write in the progress
-  file what fails, what was tried and what the evidence is; leave that one piece off, refused
-  with a clear message, so the build stays green; mark the milestone "done except" with the
-  piece named; and go on with everything that doesn't depend on it. A later milestone that
-  needs a parked piece does its other parts and records the same.
+- When a side piece's failure has survived three different attempts, park that side piece:
+  write what fails, the attempts and evidence in the progress file; leave it off with a named
+  refusal and continue independent work. "Done except" names only these side pieces. The
+  main deliverable of a milestone is never parked: choose another approach and continue until
+  it works and CI proves it. In K23 the relocatable bundle and ordinary-user browser/Python/
+  Node kernels are the main deliverable, as explicitly corrected by the user.
 - After K27, return to every parked piece once, with what was learned since.
 - Stop only when every milestone is done or done except, and every parked piece has had its
   second try.

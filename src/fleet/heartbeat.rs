@@ -80,7 +80,8 @@ fn workload_reports(manager: &Manager) -> Vec<WorkloadReport> {
         .list(None)
         .into_iter()
         .map(|v| WorkloadReport {
-            guarantees: (observed_limits && v.isolation.as_deref().unwrap_or("container") == "container")
+            guarantees: ((observed_limits || manager.browser_policy_observed(&v.id))
+                && v.isolation.as_deref().unwrap_or("container") == "container")
                 .then_some(v.guarantees),
             metrics: manager.cached_metrics(&v.id),
             agent: v.agent,

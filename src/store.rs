@@ -458,6 +458,7 @@ pub(crate) mod tests {
             generation: 1,
             phase: Phase::Active,
             spec: SpecRecord {
+                require_browser_sandbox: None,
                 isolation: None,
                 packages: Vec::new(),
                 agent: None,

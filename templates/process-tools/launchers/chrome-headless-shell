@@ -1,0 +1,7 @@
+#!/bin/sh
+# SPDX-License-Identifier: FSL-1.1-ALv2
+set -eu
+bundle=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd -P)
+export LD_LIBRARY_PATH="$bundle/browser/chrome-headless-shell-linux64:$bundle/libraries/lib"
+export FONTCONFIG_FILE="$bundle/etc/fonts/fonts.conf"
+exec "$bundle/browser/chrome-headless-shell-linux64/chrome-headless-shell" "$@"

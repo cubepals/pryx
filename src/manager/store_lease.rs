@@ -66,6 +66,9 @@ impl Manager {
             if tier == "container" && rootless {
                 features.push(crate::protocol::OBSERVED_RESOURCE_LIMITS_FEATURE.into());
             }
+            if tier == "container" {
+                features.push(crate::protocol::NATIVE_BROWSER_POLICY_FEATURE.into());
+            }
             if self.runtime.multi_tier()
                 && self.runtime.backend(tier).is_some_and(|runtime| runtime.supports_network_policy())
             {

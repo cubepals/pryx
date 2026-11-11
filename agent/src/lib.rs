@@ -35,10 +35,12 @@
 //! - `ports.rs`: preallocated forward slots.
 //! - `main.rs`: PID 1 bootstrap and embedded shell.
 //! - `bootstrap.rs`: entrypoint supervision and termination.
+//! - `bootstrap_capabilities.rs`: optional executable bootstrap argument discovery.
 
 pub mod auth;
 #[cfg(feature = "server")]
 pub mod bootstrap;
+pub mod bootstrap_capabilities;
 #[cfg(feature = "server")]
 pub mod context;
 pub mod contract;

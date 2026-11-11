@@ -2571,6 +2571,7 @@
     "cpuLimitProblem": "CPU ceilings and weights require container isolation",
     "defaultMinMemoryMb": 256,
     "minCpuMillis": 100,
+    "nativeBrowserPolicyFeature": "native-browser-policy",
     "observedGuaranteesFeature": "observed-resource-limits",
     "unenforcedMemoryFeature": "unenforced-memory"
   },

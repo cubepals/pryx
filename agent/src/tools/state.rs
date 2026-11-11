@@ -65,7 +65,7 @@ pub(crate) fn get(agent: &Agent) -> Result<Arc<State>, Failure> {
     *held = Some(state.clone());
     Ok(state)
 }
-pub(crate) fn prepare(agent: &Agent) -> Result<(), Failure> {
+pub(crate) fn prepare(agent: &Agent, browser_sandbox: bool) -> Result<(), Failure> {
     if agent.processes.kernel_unsupported_tier().is_some()
         || (std::env::var_os(super::defaults::KIND_ENV).is_none()
             && std::env::var_os(crate::contract::MOUNTS_ENV).is_none())
@@ -73,6 +73,11 @@ pub(crate) fn prepare(agent: &Agent) -> Result<(), Failure> {
         return Ok(());
     }
     let state = get(agent)?;
+    if state.kind.as_deref() == Some("browser") {
+        // Before access is issued this document has no token and authenticates nobody.
+        // Legacy agents do not create it; new templates consequently retain strict sandboxing.
+        write(&state, "browser-access.json", &serde_json::json!({"chromiumSandbox":browser_sandbox}))?;
+    }
     let mut env = BTreeMap::from([
         (super::defaults::DIRECTORY_ENV.into(), state.directory.path().to_string_lossy().into_owned()),
         ("PRYX_DESKTOP_PORT".into(), super::defaults::DESKTOP_PORT.to_string()),

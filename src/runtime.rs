@@ -67,6 +67,8 @@ pub struct ContainerSpec {
     pub(crate) require_cpu_limit: bool,
     #[serde(default)]
     pub(crate) require_pids_limit: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) require_browser_sandbox: Option<bool>,
     pub(crate) nano_cpus: Option<i64>,
     pub(crate) cpu_shares: i64,
     pub(crate) pids_limit: i64,

@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
-// Generated from openapi/node-reads.openapi.json; sha256 7e5edcfecdd6aaf5109f32798c7f05b5c5f77580de87297eae9b60550c2c8239.
+// Generated from openapi/node-reads.openapi.json; sha256 a69c5492929befc9bb97080251263ac5a62dc85f91c6f59e4f9a33aafbc93a03.
 export type paths = Record<string, never>;
 export type webhooks = Record<string, never>;
 export interface components {
@@ -382,6 +382,8 @@ export interface components {
             packages?: string[];
             /** @default [] */
             ports?: components["schemas"]["PortSpec"][];
+            /** @description Sent only after native-browser-policy is announced; never authorizes disabling a sandbox. */
+            requireBrowserSandbox?: boolean | null;
             resources: components["schemas"]["Resources"];
             /**
              * @default {

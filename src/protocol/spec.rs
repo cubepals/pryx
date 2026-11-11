@@ -73,6 +73,9 @@ pub struct WorkloadSpec {
     /// Sent only after the node announces multi-tier.
     #[serde(default)]
     pub(crate) isolation: Option<Isolation>,
+    /// Sent only after native-browser-policy is announced; never authorizes disabling a sandbox.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) require_browser_sandbox: Option<bool>,
     /// An image reference. Must match the host's `allowed_images` prefixes.
     #[serde(default)]
     pub(crate) image: String,
@@ -264,6 +267,7 @@ impl WorkloadSpec {
     pub fn record(&self) -> SpecRecord {
         SpecRecord {
             isolation: self.isolation,
+            require_browser_sandbox: self.require_browser_sandbox,
             image: self.image.clone(),
             packages: self.packages.clone(),
             entrypoint: self.entrypoint.clone(),
@@ -300,6 +304,8 @@ impl WorkloadSpec {
 pub struct SpecRecord {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) isolation: Option<Isolation>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) require_browser_sandbox: Option<bool>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) packages: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -342,6 +348,7 @@ impl SpecRecord {
             .collect::<Option<BTreeMap<_, _>>>()?;
         Some(WorkloadSpec {
             isolation: self.isolation,
+            require_browser_sandbox: self.require_browser_sandbox,
             image: self.image.clone(),
             packages: self.packages.clone(),
             entrypoint: self.entrypoint.clone(),
@@ -409,6 +416,18 @@ mod tests {
         let mut value = example_spec();
         value["isolation"] = "unknown".into();
         assert!(serde_json::from_value::<WorkloadSpec>(value).is_err());
+    }
+
+    #[test]
+    fn browser_requirement_keeps_legacy_bytes_and_survives_recovery() {
+        let legacy = spec(example_spec()).record();
+        assert!(serde_json::to_value(&legacy).unwrap().get("requireBrowserSandbox").is_none());
+        let mut value = example_spec();
+        value["requireBrowserSandbox"] = true.into();
+        let record = spec(value).record();
+        assert_ne!(record.digest(), legacy.digest());
+        let secrets = BTreeMap::from([("APP_TOKEN".into(), "private".into())]);
+        assert_eq!(record.with_secrets(&secrets, None).unwrap().require_browser_sandbox, Some(true));
     }
 
     #[test]

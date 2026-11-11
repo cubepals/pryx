@@ -2,8 +2,8 @@
 
 Native tools run on the **container** tier, as the sandbox user. The process tier names the
 missing verified bundle and private transport for each tool; Wasm refuses native tools.
-K23's staged bundle is not available for production use: safe relocation is still unavailable,
-and no tool is fetched on sandbox creation. They wrap existing programs; the agent owns scoped routes and the
+K23's upstream relocatable bundle is being integrated and is not yet available for production;
+no tool is fetched on sandbox creation. They wrap existing programs; the agent owns scoped routes and the
 edge owns access. `toolsVersion` is separate from the stable agent API version.
 
 ```sh
@@ -20,8 +20,8 @@ sanitized flattened filesystem. No published layer contains the donor's propriet
 module. Templates retain complete upstream notices and source URLs; the licence inventories
 are in [checks/measurements](checks/measurements/).
 
-Configure the node explicitly before scheduling these tools. Browser Chromium requires user
-namespaces; `pryx doctor` reports whether the caller can use them. The public
+The container browser also runs under the default container policy. Its inner Chromium sandbox
+requires user namespaces and the approved native-tool policy; `pryx doctor` reports whether the caller can use them. The public
 `browser-sandbox` guarantee additionally requires the node's native-tool policy. A missing
 guarantee can be required at creation and causes placement refusal. See
 [host capabilities](host-capabilities.md) for the distinction between false and unknown.
@@ -62,7 +62,11 @@ A request cannot select a host profile or a device. Hosts without this opt-in do
 
 The host must permit nested user namespaces under its own LSM/AppArmor policy; this setting
 does not turn off an LSM. A host that refuses that operation must be configured by its operator.
-Chromium always starts with `chromiumSandbox: true`; there is no insecure fallback.
+The node binds the container browser's inner-sandbox choice to its observed host policy through
+the actual agent executable's announced bootstrap support. With no approved profile, the browser
+uses the container's existing outer isolation and reports `browser-sandbox` off. A request that
+requires that guarantee is refused. Legacy agents remain strict. The process browser always
+requires Chromium's sandbox and refuses a host that cannot provide it.
 
 ```ts
 const box = await pryx.sandbox({ template: 'desktop', units: 2 })

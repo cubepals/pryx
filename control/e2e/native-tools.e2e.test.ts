@@ -20,6 +20,54 @@ function png(bytes: Uint8Array) {
   expect([...bytes.subarray(0, 8)]).toEqual(PNG)
   expect(bytes.length).toBeGreaterThan(100)
 }
+
+test(
+  'default Docker browser reports its inner sandbox off and keeps outer hardening',
+  async () => {
+    expect(ready).toBe(true)
+    const c = await agentDeployment('container', { publicToolOrigin: true })
+    let box: Sandbox | undefined
+    try {
+      const plan = builtinTemplate('browser', 'alpine:pryx-browser')
+      if (!plan) throw new Error('Missing browser plan')
+      await c.sdk.template(plan)
+      await expect(c.sdk.sandbox({ template: 'browser', require: ['browser-sandbox'] })).rejects.toThrow(
+        'browser-sandbox',
+      )
+      box = await c.sdk.sandbox({ template: 'browser', units: 4, idle: '10m' })
+      await box.write('index.html', '<!doctype html><title>container browser</title><h1>Rendered</h1>')
+      const server = await box.spawn([
+        'python3',
+        '-m',
+        'http.server',
+        '3000',
+        '--bind',
+        '127.0.0.1',
+        '--directory',
+        '/data',
+      ])
+      await server.waitForPort(3000)
+      png(await box.browser.screenshot('http://127.0.0.1:3000'))
+      const access = await box.browser()
+      expect((await fetch(access.url.replace(/\?.*$/, ''))).status).toBe(StatusCodes.FORBIDDEN)
+      await command(['node', 'templates/browser/cdp-check.cjs', access.url])
+      await python(c.d.env, box, 'browser')
+      await box.refresh()
+      expect(box.guarantees?.['browser-sandbox']).toBe(false)
+      expect(box.guarantees?.['private-network']).toBe(true)
+      const hardening = await box.run([
+        'python3',
+        '-c',
+        "import os,pathlib; s=dict(line.split(':',1) for line in pathlib.Path('/proc/self/status').read_text().splitlines() if ':' in line); assert int(s['NoNewPrivs'])==1; assert int(s['CapEff'],16)==0; assert os.geteuid()!=0; assert os.statvfs('/').f_flag & os.ST_RDONLY;\ntry: pathlib.Path('/pryx-root-write').write_text('forbidden')\nexcept OSError: pass\nelse: raise AssertionError('image root was writable')",
+      ])
+      expect(hardening.code).toBe(0)
+    } finally {
+      await box?.delete()
+      await c.close()
+    }
+  },
+  5 * MINUTE_MS,
+)
 async function command(argv: string[], env?: Record<string, string | undefined>) {
   const child = Bun.spawn(argv, { env, stdout: 'pipe', stderr: 'pipe' })
   const [code, out, error] = await Promise.all([

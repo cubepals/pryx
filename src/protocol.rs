@@ -61,6 +61,8 @@ pub const MIN_CPU_MILLIS: u32 = 100;
 pub const UNENFORCED_MEMORY_FEATURE: &str = "unenforced-memory";
 /// Rootless resource guarantees are bounded by observations of each workload copy.
 pub(crate) const OBSERVED_RESOURCE_LIMITS_FEATURE: &str = "observed-resource-limits";
+/// Native browser guarantees include the immutable policy bound to the observed workload copy.
+pub(crate) const NATIVE_BROWSER_POLICY_FEATURE: &str = "native-browser-policy";
 /// Per-feature announcement that availability is qualified by a tier on mixed nodes.
 pub(crate) const TIER_CAPABILITY_SCOPE_PREFIX: &str = "tier-capabilities:";
 /// Availability of network none with retained private ingress.

@@ -1,5 +1,5 @@
 {
-  "status": "parked after three distinct relocation approaches",
+  "status": "Historical failed binary-rewriting approaches; superseded by explicit user correction; bundle active",
   "platform": "managed Debian 13.6, ordinary UID 1000, kernel 6.18.57; local Landlock unavailable",
   "inputs": "templates/process-tools/conda.lock.json and artifacts.json at 399e7e0",
   "sourcePrefix": "/tmp/pryx-k23-native-tools-build",
@@ -48,5 +48,5 @@
     "No thirty-sample native tool cohort",
     "No tool-bundle publication or lazy production fetch"
   ],
-  "secondTryAfterK27": "Use an explicit executable manifest rather than every interpreter-bearing ELF; bootstrap from independent, unmodified helper images and never relocate active libc. This is an untested hypothesis, not a fourth attempt."
+  "secondTryAfterK27": "Superseded: do not retry binary rewriting or private glibc. Complete the main bundle now with relocatable upstream builds, library-path launchers and host glibc. Three-attempt parking applies only to side pieces."
 }

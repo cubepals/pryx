@@ -826,6 +826,13 @@
             },
             "type": "array"
           },
+          "requireBrowserSandbox": {
+            "description": "Sent only after native-browser-policy is announced; never authorizes disabling a sandbox.",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "resources": {
             "$ref": "#/components/schemas/Resources"
           },
@@ -925,6 +932,7 @@
     "cpuLimitProblem": "CPU ceilings and weights require container isolation",
     "defaultMinMemoryMb": 256,
     "minCpuMillis": 100,
+    "nativeBrowserPolicyFeature": "native-browser-policy",
     "observedGuaranteesFeature": "observed-resource-limits",
     "unenforcedMemoryFeature": "unenforced-memory"
   },

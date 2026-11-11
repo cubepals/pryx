@@ -6,5 +6,28 @@
     "url": "https://cdn.playwright.dev/builds/cft/158.0.8127.18/linux64/chrome-headless-shell-linux64.zip",
     "sha256": "18352d22cb0cdf520cbff2ad8c41391f0e02a72886cb53b0fde4bdfc4bd075d6",
     "licenceReview": "K18, byte-identical complete notice dd98ccbd268687cc52554f51179fe9781ea87bd94cb2afad803b24d6cc087217; no full Chromium or Widevine"
+  },
+  {
+    "name": "python-standalone",
+    "version": "3.12.16",
+    "release": "20261110",
+    "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261110/cpython-3.12.16%2B20261110-x86_64-unknown-linux-gnu-install_only.tar.gz",
+    "sha256": "c2f87d4b4e8db3abddb0f116c6ccfc503d0cbdbb9ee8faacddad1b679ec12e99",
+    "licenceReview": "docs/checks/measurements/k23/python-standalone-review.json"
+  },
+  {
+    "name": "python-standalone-notices",
+    "version": "3.12.16",
+    "release": "20261110",
+    "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261110/cpython-3.12.16%2B20261110-x86_64-unknown-linux-gnu-pgo%2Blto-full.tar.zst",
+    "sha256": "a1b98760371cfd145a1533ea75c89437cdaf538e84c5e84c469eda9065a251af",
+    "licenceReview": "Matching interpreter bytes; retain full runtime notice tree and PYTHON.json"
+  },
+  {
+    "name": "node",
+    "version": "24.22.1",
+    "url": "https://nodejs.org/dist/v24.22.1/node-v24.22.1-linux-x64.tar.xz",
+    "sha256": "6c172a9ab6718f7b801fb5a7bd486af2ee5e32758086a04b84fcce2aa77095e6",
+    "licenceReview": "MIT and retained bundled notices, root notice 5888dbb9a1d2b18f2c3e6c5f6af1b39de658372b402a0577b002777f14c62ace exactly matches reviewed Node 24.22.1 notice; npm retains its separate notices"
   }
 ]

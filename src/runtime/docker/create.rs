@@ -23,6 +23,7 @@ pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Res
     if let Some(agent) = &spec.agent {
         let image = quick("inspect image", runtime.docker()?.inspect_image(&spec.image)).await?;
         let config = image.config.unwrap_or_default();
+        let browser = browser_policy::mode(runtime, &spec, config.env.as_deref()).await?;
         let original = if agent.keep_alive {
             Vec::new()
         } else {
@@ -63,6 +64,7 @@ pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Res
             entrypoint.push("--".into());
             entrypoint.extend(original);
         }
+        browser_policy::bind(browser, &mut entrypoint, &mut spec.labels);
         spec.entrypoint = Some(entrypoint);
     }
     if info.podman {

@@ -111,6 +111,9 @@ impl WorkloadSpec {
         if self.user.is_some() && (policy.process || policy.wasm) {
             problems.add("user", "user selection requires the container tier");
         }
+        if self.require_browser_sandbox == Some(true) && (policy.process || policy.wasm) {
+            problems.add("requireBrowserSandbox", "browser-sandbox requires a supported native container browser");
+        }
         if self.workdir.as_ref().is_some_and(|p| !p.starts_with('/') || p.len() > 4096 || !no_nul(p)) {
             problems.add("workdir", "must be an absolute path without NUL");
         }

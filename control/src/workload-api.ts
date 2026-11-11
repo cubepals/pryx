@@ -78,6 +78,10 @@ function toWorkloadSpec(spec: RuntimeSpec, features: readonly string[]): Workloa
   return {
     image: spec.image,
     ...(features.includes('multi-tier') && spec.isolation ? { isolation: spec.isolation } : {}),
+    ...(features.includes(nodeSchema['x-pryx-resources'].nativeBrowserPolicyFeature) &&
+    spec.require?.includes('browser-sandbox')
+      ? { requireBrowserSandbox: true }
+      : {}),
     ...(features.includes('wasm-packages') && spec.packages ? { packages: [...spec.packages] } : {}),
     ...(spec.agent ? { agent: spec.agent, sparePorts: spec.sparePorts } : {}),
     ...(nodeFeature(features, nodeSchema['x-pryx-network'].policyFeature, spec.isolation) && spec.network

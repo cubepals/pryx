@@ -36,6 +36,7 @@ export async function deployment(
     webhookAllowHosts?: string[]
     egressPolicy?: boolean
     nativeTools?: boolean
+    publicToolOrigin?: boolean
     allowedImages?: string[]
     storeLease?: boolean
     nodes?: number
@@ -110,7 +111,9 @@ export async function deployment(
     bin: options.binary ?? bin,
     options: {
       ...options,
-      ...(options.nativeTools ? { agentPublicOrigin: `http://127.0.0.1:${edgePort}` } : {}),
+      ...(options.nativeTools || options.publicToolOrigin
+        ? { agentPublicOrigin: `http://127.0.0.1:${edgePort}` }
+        : {}),
     },
     pems,
     control,

@@ -56,7 +56,22 @@ impl Manager {
                 guarantees.entry(guarantee).and_modify(|on| *on &= configured == Some(true));
             }
         }
+        if tier == "container"
+            && let Some(policy) = observed.and_then(|info| info.labels.get(crate::labels::LABEL_BROWSER_SANDBOX))
+        {
+            guarantees.entry(G::BrowserSandbox).and_modify(|on| *on &= policy.parse::<bool>() == Ok(true));
+        }
         guarantees
+    }
+
+    pub(crate) fn browser_policy_observed(&self, id: &WorkloadId) -> bool {
+        self.state
+            .lock()
+            .unwrap()
+            .observed
+            .get(id)
+            .and_then(|o| o.info.as_ref())
+            .is_some_and(|info| info.labels.contains_key(crate::labels::LABEL_BROWSER_SANDBOX))
     }
 
     fn build_view(&self, state: &State, record: &WorkloadRecord, info: Option<&ContainerInfo>) -> WorkloadView {
@@ -272,5 +287,74 @@ mod tests {
         assert!(!rootful_report.features.iter().any(|f| f == crate::protocol::OBSERVED_RESOURCE_LIMITS_FEATURE));
         assert!(rootful_report.workloads[0].guarantees.is_none());
         assert!(serde_json::to_value(&rootful_report.workloads[0]).unwrap().get("guarantees").is_none());
+    }
+
+    #[tokio::test]
+    async fn browser_policy_observations_withdraw_only_the_inner_sandbox_guarantee() {
+        let directory = tempfile::tempdir().unwrap();
+        let (uid, gid) = (rustix::process::geteuid().as_raw(), rustix::process::getegid().as_raw());
+        let config: Config = toml::from_str(&format!(
+            "deployment_id = \"test\"\nnode_id = \"node\"\nstate_dir = \"{}\"\n[api]\nlisten = \"127.0.0.1:0\"\n\
+             [docker]\nnative_tools_seccomp = \"/host-policy.json\"\n\
+             [workloads]\nallowed_images = [\"alpine:\"]\ndata_owner = \"{uid}:{gid}\"\n\
+             [capacity]\nmin_free_disk_mb = 1\n",
+            directory.path().display()
+        ))
+        .unwrap();
+        let runtime = Arc::new(FakeRuntime::new());
+        runtime.runtime_info.lock().unwrap().memory_limit = true;
+        let store = Store::open(&config.state_dir).unwrap();
+        let manager = Manager::new(Arc::new(config), runtime, store, Arc::new(Metrics::new()), Arc::new(|_, _| true));
+        assert!(manager.reconcile(Records::FromDisk).await.error.is_none());
+        manager.host_probe.lock().unwrap().capabilities.insert(
+            "user-namespaces".into(),
+            crate::capability::Capability::on("model fixture: host namespace capability"),
+        );
+        let id = WorkloadId::parse("browser").unwrap();
+        let spec = serde_json::from_value(serde_json::json!({
+            "image":"alpine:3.22", "resources":{"memoryMb":256},
+            "storage":{"mountPath":"/data","sizeGb":1}
+        }))
+        .unwrap();
+        manager.ensure(id.clone(), spec, Precondition::None, None).await.unwrap();
+        let report =
+            || crate::fleet::heartbeat::heartbeat_report(&manager, &crate::ids::NodeId::from("node"), "s", None, 1);
+        assert!(manager.view(&id).unwrap().guarantees[&Guarantee::BrowserSandbox]);
+        assert!(report().workloads[0].guarantees.is_none(), "ordinary rootful report stays unchanged");
+        for (policy, expected) in [("true", true), ("false", false), ("unknown", false)] {
+            manager
+                .state
+                .lock()
+                .unwrap()
+                .observed
+                .get_mut(&id)
+                .unwrap()
+                .info
+                .as_mut()
+                .unwrap()
+                .labels
+                .insert(crate::labels::LABEL_BROWSER_SANDBOX.into(), policy.into());
+            let view = manager.view(&id).unwrap();
+            assert_eq!(view.guarantees[&Guarantee::BrowserSandbox], expected);
+            assert!(view.guarantees[&Guarantee::MemoryLimit] && view.guarantees[&Guarantee::PrivateNetwork]);
+            assert_eq!(report().workloads[0].guarantees.as_ref(), Some(&view.guarantees));
+        }
+        manager.host_probe.lock().unwrap().capabilities.remove("user-namespaces");
+        manager
+            .state
+            .lock()
+            .unwrap()
+            .observed
+            .get_mut(&id)
+            .unwrap()
+            .info
+            .as_mut()
+            .unwrap()
+            .labels
+            .insert(crate::labels::LABEL_BROWSER_SANDBOX.into(), true.to_string());
+        assert!(
+            !manager.view(&id).unwrap().guarantees[&Guarantee::BrowserSandbox],
+            "a copy cannot promote host capability"
+        );
     }
 }
