@@ -272,7 +272,10 @@ impl ContainerRuntime for DockerRuntime {
         Ok(())
     }
     async fn info(&self) -> Result<RuntimeInfo, RuntimeError> {
-        let version = quick("version", self.docker()?.version()).await?;
+        // The maintained client negotiates down for engines such as Podman (compat API 1.44).
+        // Its clones share the negotiated version, so all subsequent operations use it.
+        let client = quick("negotiate version", self.docker()?.negotiate_version()).await?;
+        let version = quick("version", client.version()).await?;
         let info = quick("info", self.docker()?.info()).await?;
         Ok(RuntimeInfo {
             rootless: info

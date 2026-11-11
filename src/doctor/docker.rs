@@ -60,6 +60,7 @@ pub(crate) async fn checks(runtime: &dyn ContainerRuntime, network: &str, daemon
                     info.api_version.as_deref().unwrap_or("?")
                 ),
             ));
+            checks.extend(engine_limits(&info));
             checks.push(cgroup(&info));
             checks.push(live_restore(&info));
             checks.push(isolation(network, waited(runtime.network_isolated(network)).await));
@@ -67,6 +68,44 @@ pub(crate) async fn checks(runtime: &dyn ContainerRuntime, network: &str, daemon
         }
     }
     checks.push(compare(daemon_json, &on_disk));
+    checks
+}
+
+fn engine_limits(info: &RuntimeInfo) -> Vec<Check> {
+    let mut checks = Vec::new();
+    if info.rootless {
+        for (name, on, action) in [
+            (
+                "docker.memory-limit",
+                info.memory_limit,
+                "Delegate the memory controller to this user's systemd service on cgroup v2",
+            ),
+            (
+                "docker.cpu-limit",
+                info.cpu_limit,
+                "Delegate the cpu controller to this user's systemd service on cgroup v2",
+            ),
+            (
+                "docker.memory-sleep",
+                false,
+                "Use a rootful engine with an enforceable freezer; sleep stops to disk on this engine",
+            ),
+            ("docker.host-firewall", false, "Use the server preset with its root-owned firewall"),
+        ] {
+            checks.push(if on {
+                Check::pass(name, "the engine reports enforcement available")
+            } else {
+                Check::warn(name, "off on this rootless engine", action)
+            });
+        }
+    }
+    if info.storage_driver.as_deref() == Some("vfs") {
+        checks.push(Check::warn(
+            "docker.storage",
+            "vfs copies image layers and is slow",
+            "Use an engine with overlayfs support or its packaged fuse-overlayfs driver",
+        ));
+    }
     checks
 }
 
@@ -261,5 +300,18 @@ mod tests {
         let check = compare(&path, &read_daemon_json(&path));
         assert_eq!(check.status, Status::Warn);
         assert!(check.detail.contains("isn't a JSON object"));
+    }
+    #[test]
+    fn a_rootless_engine_explains_missing_enforcement_and_slow_storage() {
+        let info = RuntimeInfo { rootless: true, storage_driver: Some("vfs".into()), ..Default::default() };
+        let checks = engine_limits(&info);
+        assert_eq!(checks.len(), 5);
+        assert!(checks.iter().all(|check| check.status == Status::Warn && check.fix.is_some()));
+        for name in
+            ["docker.memory-limit", "docker.cpu-limit", "docker.memory-sleep", "docker.host-firewall", "docker.storage"]
+        {
+            assert!(!by_name(&checks, name).fix.as_ref().unwrap().is_empty());
+        }
+        assert!(engine_limits(&RuntimeInfo::default()).is_empty(), "retain rootful doctor's existing checks");
     }
 }

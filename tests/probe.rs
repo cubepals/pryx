@@ -38,6 +38,15 @@ fn the_probe_reports_every_capability_without_a_configuration_or_secrets() {
         assert!(!capability.evidence.is_empty(), "{name}");
         assert!(!capability.action.is_empty(), "{name}");
     }
+    let selected =
+        ["engine-env", "docker", "docker-user", "podman-user", "podman"].into_iter().find(|name| report.on(name));
+    if let Some(selected) = selected {
+        assert!(report.on("engine-selected"));
+        let socket = &report.capabilities["engine-selected"].evidence;
+        assert!(report.capabilities[selected].evidence.starts_with(socket));
+    } else {
+        assert!(!report.on("engine-selected"));
+    }
     let namespace = Command::new(env!("CARGO_BIN_EXE_pryxd")).arg("probe-user-namespace").output().unwrap();
     assert_eq!(report.on("user-namespaces"), namespace.status.success());
     for name in ["kvm", "fuse"] {

@@ -9,6 +9,7 @@
 //! Parts (`runtime/`):
 //! - `router.rs`: immutable workload routes over the available backends.
 //! - `configured.rs`: construction from host-owned backend settings.
+//! - `engine.rs`: ordered local engine discovery and bounded read-only selection.
 //! - `docker.rs`: the Docker Engine API, over the local unix socket.
 //! - `fake.rs`: an in-memory runtime for tests, with the Docker behaviour pryxd depends on.
 //! - `wasm.rs`: virtual agentOS VMs through a separately verified sidecar.
@@ -16,6 +17,7 @@
 
 pub mod configured;
 pub mod docker;
+pub mod engine;
 #[cfg(any(test, feature = "fake"))]
 pub mod fake;
 pub mod process;

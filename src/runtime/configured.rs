@@ -15,7 +15,8 @@ pub async fn create(config: &Config) -> anyhow::Result<Arc<dyn ContainerRuntime>
         Arc::new(crate::runtime::process::ProcessRuntime::new(&config.state_dir, config.process.clone())?)
     } else {
         anyhow::ensure!(config.docker.enabled, "the container tier is disabled by this host preset");
-        let docker = DockerRuntime::new(&config.docker.socket)?.with_native_tools(
+        let socket = super::engine::socket(&config.docker).await?;
+        let docker = DockerRuntime::new(&socket)?.with_native_tools(
             config.docker.native_tools_seccomp.as_deref(),
             config.docker.native_fuse,
             config.docker.native_tools_apparmor.as_deref(),
@@ -37,18 +38,17 @@ pub async fn availability(config: &Config) -> std::collections::BTreeMap<&'stati
         Capability::new(State::Off, "configuration selects another tier", "Set runtime = auto")
     };
     let docker = async {
-        let runtime = DockerRuntime::new(&config.docker.socket)?;
-        runtime.info().await
+        let socket = super::engine::socket(&config.docker).await?;
+        super::engine::inspect(&socket).await
     };
     let container = if !matches!(config.runtime, RuntimeKind::Auto | RuntimeKind::Container) {
         Some("configuration selects another tier".into())
     } else if !config.docker.enabled {
         Some("disabled by this host preset; use the server preset for host engine access".into())
     } else {
-        match tokio::time::timeout(std::time::Duration::from_secs(2), docker).await {
-            Ok(Ok(_)) => None,
-            Ok(Err(error)) => Some(error.to_string()),
-            Err(_) => Some("engine info exceeded two seconds".into()),
+        match docker.await {
+            Ok(_) => None,
+            Err(error) => Some(error.to_string()),
         }
     };
     std::collections::BTreeMap::from([
@@ -66,7 +66,23 @@ pub async fn availability(config: &Config) -> std::collections::BTreeMap<&'stati
 }
 
 async fn auto(config: &Config) -> anyhow::Result<Arc<dyn ContainerRuntime>> {
-    let available = availability(config).await;
+    let mut selected = config.clone();
+    let mut engine_error = None;
+    if config.docker.enabled {
+        match super::engine::socket(&config.docker).await {
+            Ok(socket) => selected.docker.socket = socket,
+            Err(error) => {
+                engine_error = Some(error.to_string());
+                selected.docker.enabled = false;
+            }
+        }
+        selected.docker.discover = false;
+    }
+    let config = &selected;
+    let mut available = availability(config).await;
+    if let Some(reason) = engine_error {
+        available.insert("container", Some(reason));
+    }
     let mut backends = Vec::new();
     let mut reasons = Vec::new();
     for tier in ["container", "process", "wasm"] {

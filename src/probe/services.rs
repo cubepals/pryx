@@ -4,7 +4,6 @@
 //! Read-only service discovery. A socket's presence never establishes that its engine works;
 //! successful engine info is required. Failed privileged firewall inspection remains unknown.
 use super::{Capability, Report, State};
-use crate::runtime::{ContainerRuntime, docker::DockerRuntime};
 use std::{path::PathBuf, process::Command, time::Duration};
 
 pub(super) async fn read(report: &mut Report) {
@@ -37,37 +36,55 @@ pub(super) async fn read(report: &mut Report) {
         };
         report.capabilities.insert(name.into(), capability);
     }
-    let mut sockets = vec![
-        ("docker", PathBuf::from("/var/run/docker.sock")),
-        ("docker-user", runtime.join("docker.sock")),
-        ("podman-user", runtime.join("podman/podman.sock")),
-        ("podman", PathBuf::from("/run/podman/podman.sock")),
-    ];
-    if let Ok(host) = std::env::var("DOCKER_HOST")
-        && let Some(path) = host.strip_prefix("unix://")
-    {
-        sockets.push(("engine-env", PathBuf::from(path)));
-    }
-    for (name, socket) in sockets {
-        let result = async {
-            let runtime = DockerRuntime::new(&socket)?;
-            runtime.info().await
-        };
-        let capability = match tokio::time::timeout(Duration::from_secs(2), result).await {
-            Ok(Ok(info)) => Capability::on(format!(
-                "{} answered info: version {}; cgroup {}; driver {}; security {}",
-                socket.display(),
-                info.version.as_deref().unwrap_or("unknown"),
-                info.cgroup_version.as_deref().unwrap_or("unknown"),
-                info.cgroup_driver.as_deref().unwrap_or("unknown"),
-                info.security_options.join(", ")
-            )),
-            Ok(Err(error)) => Capability::new(
+    let mut selected = false;
+    for (name, socket) in crate::runtime::engine::candidates() {
+        let result = crate::runtime::engine::inspect(&socket).await;
+        let capability = match result {
+            Ok(info) => {
+                if !selected {
+                    report.capabilities.insert("engine-selected".into(), Capability::on(socket.display().to_string()));
+                    for (name, on, evidence, action) in [
+                        (
+                            "engine-memory-limit",
+                            info.memory_limit,
+                            "memory controller enforcement",
+                            "Delegate the memory controller on cgroup v2",
+                        ),
+                        (
+                            "engine-cpu-limit",
+                            info.cpu_limit,
+                            "CPU controller enforcement",
+                            "Delegate the cpu controller on cgroup v2",
+                        ),
+                        (
+                            "engine-memory-sleep",
+                            !info.rootless && info.memory_limit,
+                            "rootful freezer prerequisite",
+                            "Use a rootful engine with its freezer; sleep stops to disk otherwise",
+                        ),
+                    ] {
+                        report.capabilities.insert(
+                            name.into(),
+                            if on { Capability::on(evidence) } else { Capability::new(State::Off, evidence, action) },
+                        );
+                    }
+                    selected = true;
+                }
+                Capability::on(format!(
+                    "{} answered info: version {}; cgroup {}; driver {}; storage {}; security {}",
+                    socket.display(),
+                    info.version.as_deref().unwrap_or("unknown"),
+                    info.cgroup_version.as_deref().unwrap_or("unknown"),
+                    info.cgroup_driver.as_deref().unwrap_or("unknown"),
+                    info.storage_driver.as_deref().unwrap_or("unknown"),
+                    info.security_options.join(", ")
+                ))
+            }
+            Err(error) => Capability::new(
                 socket_state(&socket),
                 error.to_string(),
                 "Start a Docker-compatible engine and grant this user socket access",
             ),
-            Err(_) => Capability::new(State::Unknown, "Engine info exceeded two seconds", "Check the engine service"),
         };
         report.capabilities.insert(name.into(), capability);
     }

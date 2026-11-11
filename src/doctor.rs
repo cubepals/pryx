@@ -119,7 +119,7 @@ pub fn check_config(path: &Path) -> (Check, Option<crate::config::Config>) {
 /// Runs every check; with `fix`, applies the safe fixes first.
 pub async fn run(options: &Options) -> Report {
     let (config_check, config) = config::check(&options.config);
-    let Some(config) = config else {
+    let Some(mut config) = config else {
         let fixed = options.fix.then(|| fix::Fixed {
             changes: Vec::new(),
             next: vec!["Nothing changed: --fix needs a valid configuration first".into()],
@@ -127,6 +127,22 @@ pub async fn run(options: &Options) -> Report {
         let report = Report { checks: vec![config_check], fixed };
         return if options.preflight { report.for_preflight() } else { report };
     };
+    let mut endpoint_error = None;
+    if config.docker.enabled
+        && matches!(config.runtime, crate::config::RuntimeKind::Container | crate::config::RuntimeKind::Auto)
+        && config.docker.discover
+    {
+        match crate::runtime::engine::socket(&config.docker).await {
+            Ok(socket) => {
+                config.docker.socket = socket;
+                config.docker.discover = false;
+            }
+            Err(error) => {
+                endpoint_error = Some(error.to_string());
+                config.docker.enabled = false;
+            }
+        }
+    }
     let runtime: Option<Box<dyn ContainerRuntime>> = (config.docker.enabled
         && matches!(config.runtime, crate::config::RuntimeKind::Container | crate::config::RuntimeKind::Auto))
     .then(|| DockerRuntime::new(&config.docker.socket).ok().map(|r| Box::new(r) as Box<dyn ContainerRuntime>))
@@ -137,6 +153,13 @@ pub async fn run(options: &Options) -> Report {
         _ => None,
     };
     let mut checks = vec![config_check];
+    if let Some(error) = endpoint_error {
+        checks.push(Check::warn(
+            "docker.endpoint",
+            error,
+            "Set DOCKER_HOST to a local unix:// socket or name docker.socket",
+        ));
+    }
     checks.extend(tiers::checks(&config).await);
     match (&config.runtime, &runtime) {
         (crate::config::RuntimeKind::Auto, runtime) => {
