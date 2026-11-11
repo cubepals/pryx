@@ -6,15 +6,28 @@ impl Session {
     pub(crate) async fn start(owner: &Processes, language: Language) -> Result<Arc<Self>, Failure> {
         use std::io::Write;
         use std::os::unix::fs::OpenOptionsExt;
-        let directory = tempfile::Builder::new().prefix("pryx-kernel-").tempdir()?;
+        let native = crate::process_tools::configured().filter(|_| owner.kernel_unsupported_tier() == Some("process"));
+        let bundle = native.and_then(|tools| tools.root());
+        let directory = match native {
+            Some(tools) => tempfile::Builder::new().prefix("pryx-kernel-").tempdir_in(&tools.policy.scratch)?,
+            None => tempfile::Builder::new().prefix("pryx-kernel-").tempdir()?,
+        };
         let path = directory.path().join("connection.json");
         let ip = std::net::Ipv4Addr::LOCALHOST;
-        let (ports, reservations) = jupyter_zmq_client::peek_ports_with_listeners(ip.into(), CHANNELS)
-            .await
-            .map_err(|_| failure("kernel_start_failed", "Cannot reserve kernel channels"))?;
-        let info = ConnectionInfo {
-            transport: jupyter_protocol::connection_info::Transport::TCP,
-            ip: ip.to_string(),
+        let (ports, reservations) = if bundle.is_some() {
+            ((1..=u16::try_from(CHANNELS).expect("Jupyter channel count")).collect(), Vec::new())
+        } else {
+            jupyter_zmq_client::peek_ports_with_listeners(ip.into(), CHANNELS)
+                .await
+                .map_err(|_| failure("kernel_start_failed", "Cannot reserve kernel channels"))?
+        };
+        let mut info = ConnectionInfo {
+            transport: if bundle.is_some() {
+                jupyter_protocol::connection_info::Transport::IPC
+            } else {
+                jupyter_protocol::connection_info::Transport::TCP
+            },
+            ip: if bundle.is_some() { format!("@pryx-kernel-{}", uuid::Uuid::new_v4()) } else { ip.to_string() },
             stdin_port: ports[0],
             control_port: ports[1],
             hb_port: ports[2],
@@ -30,10 +43,18 @@ impl Session {
         let config = path.to_string_lossy().into_owned();
         let command = match language {
             Language::Python => {
-                let mut command = vec!["python3".into(), "-m".into(), "ipykernel_launcher".into(), "-f".into(), config];
+                let executable = bundle
+                    .as_ref()
+                    .map(|root| root.join("bin/python3").to_string_lossy().into_owned())
+                    .unwrap_or_else(|| "python3".into());
+                let mut command = vec![executable, "-m".into(), "ipykernel_launcher".into(), "-f".into(), config];
                 // Read image configuration explicitly; runtime history/state belongs in the
                 // private writable directory, never the image's root-owned IPython profile.
-                if let Some(root) = std::env::var_os("IPYTHONDIR") {
+                if let Some(root) = bundle
+                    .as_ref()
+                    .map(|root| root.join("kernels/python/ipython").into_os_string())
+                    .or_else(|| std::env::var_os("IPYTHONDIR"))
+                {
                     command.extend([
                         "--config".into(),
                         std::path::Path::new(&root)
@@ -45,10 +66,19 @@ impl Session {
                 command
             }
             Language::Javascript => vec![
-                "node".into(),
+                bundle
+                    .as_ref()
+                    .map(|root| root.join("bin/node").to_string_lossy().into_owned())
+                    .unwrap_or_else(|| "node".into()),
                 "--require".into(),
-                "/opt/pryx/interrupt.cjs".into(),
-                "/opt/pryx/kernel.cjs".into(),
+                bundle
+                    .as_ref()
+                    .map(|root| root.join("kernels/javascript/interrupt.cjs").to_string_lossy().into_owned())
+                    .unwrap_or_else(|| "/opt/pryx/interrupt.cjs".into()),
+                bundle
+                    .as_ref()
+                    .map(|root| root.join("kernels/javascript/kernel.cjs").to_string_lossy().into_owned())
+                    .unwrap_or_else(|| "/opt/pryx/kernel.cjs".into()),
                 config,
             ],
         };
@@ -57,6 +87,14 @@ impl Session {
         env.insert("JUPYTER_RUNTIME_DIR".into(), directory.path().to_string_lossy().into_owned());
         env.insert("IPYTHONDIR".into(), directory.path().join("ipython").to_string_lossy().into_owned());
         env.insert("PYTHONUNBUFFERED".into(), "1".into());
+        if let Some(bundle) = &bundle {
+            env.insert(
+                "NODE_PATH".into(),
+                bundle.join("kernels/javascript/node_modules").to_string_lossy().into_owned(),
+            );
+            env.insert("FONTCONFIG_FILE".into(), bundle.join("etc/fonts/fonts.conf").to_string_lossy().into_owned());
+            env.insert("XDG_CACHE_HOME".into(), directory.path().join("cache").to_string_lossy().into_owned());
+        }
         let process = owner.start(
             Start {
                 command: Command::Argv(command),
@@ -73,6 +111,10 @@ impl Session {
         )?;
         let mut starting = Starting(Some(process.clone()));
         drop(reservations);
+        if bundle.is_some() {
+            // libzmq uses @ for Linux abstract endpoints; Tokio's Unix transport takes NUL.
+            info.ip.replace_range(..1, "\0");
+        }
         let connected = async {
             let session = uuid::Uuid::new_v4().to_string();
             let iopub = jupyter_zmq_client::create_client_iopub_connection(&info, "", &session).await?;

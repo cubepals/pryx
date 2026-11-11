@@ -38,30 +38,29 @@ import { decodeHandle, decodeSnapshot, encodeHandle, encodeSnapshot, isHandle, i
 import type { Thresholds } from './health.ts'
 import { hostLost, Ledger, nextEpoch, place, placementOf, remove, StaleHandle } from './ledger.ts'
 import { NodeCache } from './node-cache.ts'
-import { describe, NEEDS, NodeChoice } from './node-choice.ts'
+import { NEEDS, NodeChoice, placementRefused } from './node-choice.ts'
 import { type NodeClient, NodeRefused } from './node-client.ts'
 import { type Considered, cpuRequest, type PlacementOptions, type PlacementRequest } from './placement.ts'
 import { Power } from './power.ts'
 import { getNode, lockRegion } from './registry.ts'
 import { Rehoming } from './rehoming.ts'
-import {
-  type ArchiveTarget,
-  type Audience,
-  type Endpoint,
-  type InstallSeed,
-  type Placement,
-  type ProgressSink,
-  type RestoreSource,
-  type RuntimeCapacity,
-  RuntimeFull,
-  type RuntimeHandle,
-  type RuntimeKey,
-  type RuntimeLocation,
-  type RuntimeObservation,
-  type RuntimePrices,
-  type RuntimeSpec,
-  type SandboxRuntime,
-  type SnapshotHandle,
+import type {
+  ArchiveTarget,
+  Audience,
+  Endpoint,
+  InstallSeed,
+  Placement,
+  ProgressSink,
+  RestoreSource,
+  RuntimeCapacity,
+  RuntimeHandle,
+  RuntimeKey,
+  RuntimeLocation,
+  RuntimeObservation,
+  RuntimePrices,
+  RuntimeSpec,
+  SandboxRuntime,
+  SnapshotHandle,
 } from './runtime-model.ts'
 import { RuntimeViews } from './runtime-views.ts'
 import { event, rows } from './sql.ts'
@@ -332,12 +331,7 @@ export class FleetRuntime implements SandboxRuntime {
         workload: key,
         data: { considered: chosen.considered },
       })
-      throw new RuntimeFull(
-        this.provider,
-        describe(chosen.considered),
-        [...new Set(chosen.considered.flatMap((node) => node.missingGuarantees ?? []))],
-        spec.isolation,
-      )
+      throw placementRefused(this.provider, chosen.considered, spec.isolation)
     }
     if (chosen.unfinished) {
       const moved = await this.#rehoming.finish(chosen.row, spec, progress)

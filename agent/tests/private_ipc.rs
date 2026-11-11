@@ -113,6 +113,8 @@ fn report(mut value: Value) {
 
 fn restricted(data: &Path) -> Command {
     let policy = Policy {
+        tools: None,
+        require_ipc_scope: None,
         data: data.to_owned(),
         memory_bytes: 512 * 1024 * 1024,
         address_space_bytes: 64 * 1024 * 1024 * 1024,

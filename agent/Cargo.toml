@@ -44,6 +44,7 @@ jupyter-protocol = { version = "=2.0.3", optional = true }
 regex = { version = "1", optional = true }
 globset = { version = "0.4", optional = true }
 tar = { version = "0.4", optional = true }
+flate2 = { version = "1", optional = true }
 tempfile = { version = "3", optional = true }
 
 [features]
@@ -51,7 +52,7 @@ default = ["server", "mcp"]
 mcp = ["server"]
 fs = ["dep:rustix", "dep:landlock", "dep:tokio"]
 schema = ["dep:schemars"]
-server = ["dep:percent-encoding", "dep:nix", "dep:ssh-key", "dep:chrono", "dep:jupyter-zmq-client", "dep:jupyter-protocol", "dep:regex", "dep:globset", "dep:tar", "dep:tempfile", "dep:async-trait", "fs", "dep:axum", "dep:tokio", "dep:tokio-util", "dep:futures-util", "dep:bytes", "dep:uuid", "dep:portable-pty", "dep:notify", "dep:procfs", "dep:brush-core", "dep:brush-builtins", "dep:reqwest", "dep:libc", "dep:clap", "dep:rustls", "dep:httparse", "dep:landlock", "dep:seccompiler"]
+server = ["dep:flate2", "dep:percent-encoding", "dep:nix", "dep:ssh-key", "dep:chrono", "dep:jupyter-zmq-client", "dep:jupyter-protocol", "dep:regex", "dep:globset", "dep:tar", "dep:tempfile", "dep:async-trait", "fs", "dep:axum", "dep:tokio", "dep:tokio-util", "dep:futures-util", "dep:bytes", "dep:uuid", "dep:portable-pty", "dep:notify", "dep:procfs", "dep:brush-core", "dep:brush-builtins", "dep:reqwest", "dep:libc", "dep:clap", "dep:rustls", "dep:httparse", "dep:landlock", "dep:seccompiler"]
 
 [[bin]]
 name = "pryx-agent"

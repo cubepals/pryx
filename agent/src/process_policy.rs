@@ -27,7 +27,7 @@ static IPC_SCOPED: AtomicBool = AtomicBool::new(false);
 pub fn ipc_scoped() -> bool {
     IPC_SCOPED.load(Ordering::Acquire)
 }
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Policy {
     pub data: PathBuf,
@@ -38,6 +38,30 @@ pub struct Policy {
     pub cpu_seconds: u64,
     pub nice: i32,
     pub network_off: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tools: Option<crate::process_tool_policy::Policy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub require_ipc_scope: Option<bool>,
+}
+
+/// A trusted tool worker and its supervisor must inherit the same private abstract-socket domain.
+pub fn scope() -> Result<(), Box<dyn std::error::Error>> {
+    if ipc_scoped() {
+        return Ok(());
+    }
+    if !crate::process_capabilities::private_ipc_probe().supported() {
+        return Err("Native process tools require enforced Landlock abstract-socket isolation".into());
+    }
+    let status = Ruleset::default()
+        .set_compatibility(CompatLevel::HardRequirement)
+        .scope(Scope::AbstractUnixSocket)?
+        .create()?
+        .restrict_self()?;
+    if status.ruleset != RulesetStatus::FullyEnforced {
+        return Err("Native process tools require enforced Landlock abstract-socket isolation".into());
+    }
+    IPC_SCOPED.store(true, Ordering::Release);
+    Ok(())
 }
 
 pub fn enter(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
@@ -78,16 +102,29 @@ pub fn enter(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
     let mut read: Vec<PathBuf> = read.into_iter().map(PathBuf::from).filter(|p| p.exists()).collect();
     read.push(std::env::current_exe()?);
     read.push(PathBuf::from(format!("/proc/{}/task", std::process::id())));
-    let write = [
+    if let Some(tools) = &policy.tools
+        && tools.unavailable.is_none()
+    {
+        read.push(tools.cache.clone());
+    }
+    let mut write = vec![
         policy.data.as_path(),
         std::path::Path::new("/dev/null"),
         std::path::Path::new("/dev/pts"),
         std::path::Path::new("/dev/ptmx"),
     ];
-    let scoped = crate::process_capabilities::private_ipc_probe().supported();
+    if let Some(tools) = &policy.tools
+        && tools.unavailable.is_none()
+    {
+        write.push(tools.scratch.as_path());
+    }
+    let scoped = ipc_scoped() || crate::process_capabilities::private_ipc_probe().supported();
+    if policy.require_ipc_scope == Some(true) && !scoped {
+        return Err("This process requires enforced private IPC before guest execution".into());
+    }
     let mut rules =
         Ruleset::default().set_compatibility(CompatLevel::HardRequirement).handle_access(AccessFs::from_all(abi))?;
-    if scoped {
+    if scoped && !ipc_scoped() {
         rules = rules.scope(Scope::AbstractUnixSocket)?;
     }
     let status = rules

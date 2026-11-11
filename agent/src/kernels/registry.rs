@@ -35,7 +35,16 @@ impl Registry {
         language: Language,
         context: String,
     ) -> Result<Arc<Kernel>, Failure> {
-        if let Some(tier) = owner.kernel_unsupported_tier() {
+        if owner.kernel_unsupported_tier() == Some("process")
+            && let Some(tools) = crate::process_tools::configured()
+        {
+            tools.supported()?;
+            if std::env::var_os(crate::process_policy::NETWORK_ENV).is_some() {
+                return Err(Failure(axum::http::StatusCode::NOT_IMPLEMENTED, "unsupported",
+                    "Native kernels on network-none need prebound private channels; ordinary command egress remains denied".into()));
+            }
+            tools.prepare().await?;
+        } else if let Some(tier) = owner.kernel_unsupported_tier() {
             return Err(Failure(
                 axum::http::StatusCode::NOT_IMPLEMENTED,
                 "unsupported",

@@ -62,6 +62,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Only the supervisor bootstrap uses it; guest shell/launcher invocations cannot create
     // a less restricted worker from their inherited policy.
     let bootstrap = !matches!(arguments.first().map(String::as_str), Some("shell" | "--version" | "restricted"));
+    let policy: Option<pryx_agent::process_policy::Policy> = std::env::var(pryx_agent::process_policy::POLICY_ENV)
+        .ok()
+        .map(|encoded| serde_json::from_str(&encoded))
+        .transpose()?;
+    if let Some(policy) = &policy {
+        if policy.require_ipc_scope == Some(true)
+            || policy.tools.as_ref().is_some_and(|tools| tools.unavailable.is_none())
+        {
+            pryx_agent::process_policy::scope()?;
+        }
+        if let Some(tools) = &policy.tools {
+            pryx_agent::process_tools::install(tools.clone(), policy.nice)?;
+        }
+    }
     let forwarding = if bootstrap
         && (std::env::var_os(pryx_agent::process_policy::POLICY_ENV).is_some()
             || arguments.iter().any(|a| a == "--host-bindings" || a.starts_with("--host-bindings=")))
@@ -70,9 +84,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         None
     };
-    if let Ok(encoded) = std::env::var(pryx_agent::process_policy::POLICY_ENV) {
-        let policy = serde_json::from_str(&encoded)?;
-        pryx_agent::process_policy::enter(&policy)?;
+    if let Some(policy) = &policy {
+        pryx_agent::process_policy::enter(policy)?;
         if arguments.first().is_some_and(|a| a == "restricted") {
             let executable = arguments.get(1).ok_or("Missing restricted command")?;
             return Err(std::process::Command::new(executable)

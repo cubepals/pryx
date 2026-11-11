@@ -3067,6 +3067,7 @@ dependencies = [
  "bytes",
  "chrono",
  "clap",
+ "flate2",
  "futures-util",
  "globset",
  "http-body-util",

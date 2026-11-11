@@ -1,0 +1,14 @@
+{
+  "commit": "54b9e62e885676f69aa5c946f94ab87cb8c6df28",
+  "run": 43111625306,
+  "job": 130828840530,
+  "artifact": 13896672084,
+  "artifactSha256": "7b778122d3bc0498f135381b0ccbe3b7c548f1922ee832e818c16d148eb129bf",
+  "hostUid": 1001,
+  "kernelObservations": "upstream-kernels-54b9e62.jsonl",
+  "browserObservation": "upstream-browser-54b9e62.jsonl",
+  "maximumRequiredGlibc": "2.34",
+  "inventoryEntries": 34489,
+  "scope": "Verified upstream bundle and real relocated tools; ordinary-user Pryx installer, complete process policy, edge, neighbour, lazy acquisition, SDK and thirty-sample acceptance remain required",
+  "hostPreparation": "Disposable Ubuntu positive fixture permits unprivileged user namespaces; product installer changes no sysctl"
+}

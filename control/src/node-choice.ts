@@ -26,7 +26,7 @@ import {
   startRefusal,
 } from './placement.ts'
 import { holdsMemory, nodeSummaries, toNodeView } from './registry.ts'
-import type { RuntimeSpec } from './runtime-model.ts'
+import { RuntimeFull, type RuntimeSpec } from './runtime-model.ts'
 import { workloadFeatures } from './workload-capabilities.ts'
 
 /** What a node must support to hold a fleet workload. */
@@ -34,6 +34,16 @@ export const NEEDS = ['placement-epochs', 'data-transfer', 'local-snapshots', 'e
 
 export const describe = (considered: readonly Considered[]) =>
   considered.length === 0 ? 'no nodes' : considered.map((c) => `${c.name}: ${c.reason}`).join('; ')
+
+export const missingGuarantees = (considered: readonly Considered[]): Guarantee[] => [
+  ...new Set(considered.flatMap((node) => node.missingGuarantees ?? [])),
+]
+
+export const placementRefused = (
+  provider: string,
+  considered: readonly Considered[],
+  isolation?: Isolation,
+) => new RuntimeFull(provider, describe(considered), missingGuarantees(considered), isolation)
 
 export class NodeChoice {
   readonly #o: {

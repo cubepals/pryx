@@ -73,6 +73,51 @@ async fn route_capabilities_allow_only_readiness_and_port_reads() {
     );
 }
 
+#[tokio::test]
+async fn process_scope_proofs_are_optional_authenticated_and_bound_to_actual_state() {
+    let (_dir, agent, token) = fixture().await;
+    let (_, legacy) = call(&agent, &token, "GET", "/_pryx/health", Value::Null).await;
+    assert!(legacy.get("processObservation").is_none());
+    for nonce in ["fresh-node-challenge".to_string(), "invalid challenge".into(), "oversized".repeat(128)] {
+        let response = router(agent.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/_pryx/health")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header(pryx_agent::process_observation::NONCE_HEADER, &nonce)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let value: Value = serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        if pryx_agent::process_observation::nonce_valid(&nonce) {
+            let proof: pryx_agent::process_observation::Proof =
+                serde_json::from_value(value["processObservation"].clone()).unwrap();
+            assert_eq!(proof.observation.nonce, nonce);
+            assert_eq!(proof.observation.sandbox, agent.sandbox);
+            assert_eq!(proof.observation.epoch, agent.epoch);
+            assert_eq!(proof.observation.pid, std::process::id());
+            assert_eq!(proof.observation.ipc_scoped, pryx_agent::process_policy::ipc_scoped());
+            assert!(!proof.signature.is_empty());
+        } else {
+            assert!(value.get("processObservation").is_none());
+        }
+    }
+    let response = router(agent)
+        .oneshot(
+            Request::builder()
+                .uri("/_pryx/health")
+                .header(pryx_agent::process_observation::NONCE_HEADER, "fresh-node-challenge")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
 #[cfg(feature = "mcp")]
 #[tokio::test]
 async fn mcp_runs_real_processes_and_enforces_file_and_timeout_authority() {

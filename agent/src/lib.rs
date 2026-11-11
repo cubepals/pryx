@@ -13,6 +13,9 @@
 //! - `telemetry.rs`: in-memory activity and stream ownership.
 //! - `process.rs`: supervised process trees, streams, stdin and completion.
 //! - `process_policy.rs`: process-tier filesystem, syscall and sampled resource restrictions.
+//! - `process_tools.rs`: host-bound native bundle acquisition and private runtime inputs.
+//! - `process_tool_policy.rs`: independent native artifact/cache policy types and parser version.
+//! - `process_observation.rs`: challenge-bound signed observations of installed process isolation.
 //! - `process_forward.rs`: ownership-verified process-tier forwarding channel.
 //! - `process_peer.rs`: kernel process and connected-peer ownership evidence.
 //! - `process_capabilities.rs`: non-mutating kernel support queries.
@@ -62,7 +65,13 @@ pub mod process;
 #[cfg(feature = "fs")]
 pub mod process_capabilities;
 #[cfg(feature = "server")]
+pub mod process_observation;
+#[cfg(feature = "server")]
 pub mod process_policy;
+#[cfg(feature = "server")]
+pub mod process_tool_policy;
+#[cfg(feature = "server")]
+pub mod process_tools;
 #[cfg(feature = "server")]
 pub mod pty;
 #[cfg(all(feature = "schema", feature = "server"))]

@@ -11,8 +11,10 @@ pub const BROWSER_ARGUMENT: &str = "browser-sandbox";
 pub struct Capabilities {
     #[serde(default)]
     pub browser_policy: bool,
+    #[serde(default)]
+    pub process_tools_version: u16,
 }
 
 pub fn probe() -> Capabilities {
-    Capabilities { browser_policy: true }
+    Capabilities { browser_policy: true, process_tools_version: crate::process_tool_policy::VERSION }
 }

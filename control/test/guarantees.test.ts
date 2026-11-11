@@ -61,6 +61,35 @@ test('an unavailable named tier is refused by name without contacting compute', 
   }
 })
 
+test('a template fork names a missing guarantee before contacting compute', async () => {
+  const c = await publicContext()
+  try {
+    const warmed = await c.request('/templates', 'POST', {
+      name: 'browser-policy-source',
+      spec: {
+        image: 'alpine:3.22',
+        resources: { memoryMb: 512 },
+        storage: { mountPath: '/data', sizeGb: 1 },
+        ports: [],
+      },
+    })
+    expect(warmed.status).toBe(StatusCodes.CREATED)
+    const template = (await warmed.json()) as { id: string }
+    const before = c.nodes.calls.filter((call) => call.method !== 'GET').length
+    const response = await c.request('/sandboxes', 'POST', {
+      template: template.id,
+      require: ['browser-sandbox'],
+    })
+    expect(response.status).toBe(StatusCodes.SERVICE_UNAVAILABLE)
+    const body = await response.json()
+    expect(body.error.code).toBe('no_room')
+    expect(body.error.message).toContain('browser-sandbox')
+    expect(c.nodes.calls.filter((call) => call.method !== 'GET').length).toBe(before)
+  } finally {
+    await c.close()
+  }
+})
+
 test('public rootless limits follow the current copy observation across controller gains', async () => {
   const c = await publicContext()
   try {

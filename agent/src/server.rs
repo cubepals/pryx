@@ -96,10 +96,27 @@ pub fn router(agent: Arc<Agent>) -> Router {
         .with_state(agent)
 }
 
-async fn health(State(agent): State<Arc<Agent>>) -> Json<serde_json::Value> {
+async fn health(State(agent): State<Arc<Agent>>, headers: HeaderMap) -> Json<serde_json::Value> {
     let mut value = serde_json::json!({"status":"ok","apiVersion":crate::contract::API_VERSION,"kernelsVersion":crate::kernels::VERSION,"toolsVersion":crate::tools::VERSION,"mountsPending":crate::tools::mounts_pending(&agent)});
     if crate::process_policy::ipc_scoped() {
         value["processIpcScoped"] = true.into();
+    }
+    if let Some(nonce) = headers
+        .get(crate::process_observation::NONCE_HEADER)
+        .and_then(|value| value.to_str().ok())
+        .filter(|nonce| crate::process_observation::nonce_valid(nonce))
+    {
+        let proof = crate::process_observation::sign(
+            &agent.key,
+            crate::process_observation::Observation {
+                nonce: nonce.into(),
+                sandbox: agent.sandbox.clone(),
+                epoch: agent.epoch,
+                pid: std::process::id(),
+                ipc_scoped: crate::process_policy::ipc_scoped(),
+            },
+        );
+        value["processObservation"] = serde_json::to_value(proof).expect("fixed observation serializes");
     }
     Json(value)
 }
