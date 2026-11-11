@@ -8,16 +8,16 @@ use super::*;
 #[tokio::test]
 #[ignore = "needs a real Docker-compatible engine"]
 async fn explicit_memory_acceptance_never_removes_available_enforcement() {
-    let socket = pryxd::runtime::engine::socket(&DockerConfig::default()).await.unwrap();
+    let socket = selected_socket().await;
     let runtime = Arc::new(DockerRuntime::new(&socket).unwrap());
-    let limits = runtime.resource_limits().await.unwrap().unwrap();
+    let Some(limits) = limits_or_mapping_refusal(&runtime, &socket).await else { return };
     let dir = tempfile::tempdir().unwrap();
     let dep = deployment();
     let _cleanup = EngineCleanup { socket: socket.clone(), deployment: dep.clone() };
-    let owner: String = if limits.rootless { "[workloads]\n".into() } else { HOST_OWNERSHIP.into() };
-    let configuration = extra(&dep).replace(HOST_OWNERSHIP, &owner);
+    let configuration = configuration(&dep, limits.rootless);
     let manager = manager_on(dir.path(), runtime, &configuration);
-    assert!(manager.reconcile(Records::FromDisk).await.error.is_none());
+    let report = manager.reconcile(Records::FromDisk).await;
+    assert!(report.error.is_none(), "{report:?}");
     let mut value = support::spec_json();
     value["entrypoint"] = serde_json::json!(["/bin/sh", "-c", "trap 'exit 0' TERM; while :; do sleep 1; done"]);
     value["stop"]["timeoutSeconds"] = 5.into();
@@ -59,7 +59,12 @@ async fn explicit_memory_acceptance_never_removes_available_enforcement() {
     assert_eq!(host.memory.unwrap_or_default(), if limits.memory { 256 * 1024 * 1024 } else { 0 });
     assert_eq!(host.readonly_rootfs, Some(true));
     assert_eq!(host.privileged, Some(false));
-    assert!(host.cap_drop.unwrap().iter().any(|cap| cap == "ALL"));
+    let dropped = host.cap_drop.unwrap();
+    if std::env::var("PRYX_TEST_ENGINE").as_deref() == Ok("podman") {
+        assert!(!dropped.is_empty(), "the native API must retain capability drops");
+    } else {
+        assert!(dropped.iter().any(|cap| cap == "ALL"));
+    }
     assert!(
         host.security_opt
             .unwrap()
@@ -67,6 +72,7 @@ async fn explicit_memory_acceptance_never_removes_available_enforcement() {
             .any(|option| option == "no-new-privileges:true" || option == "no-new-privileges")
     );
     manager.start(id("accepted"), None).await.unwrap();
+    assert_kernel_capabilities(&manager).await;
     let result = manager
         .exec(
             id("accepted"),
@@ -112,5 +118,92 @@ impl Drop for EngineCleanup {
                 let _ = std::process::Command::new("docker").args(["--host", &endpoint, "rm", "-f"]).args(ids).output();
             }
         }
+        let network = format!("engine-{}", self.deployment);
+        let _ = std::process::Command::new("docker").args(["--host", &endpoint, "network", "rm", &network]).output();
     }
+}
+
+pub(super) fn configuration(deployment: &str, rootless: bool) -> String {
+    let owner = if rootless { "[workloads]\n" } else { HOST_OWNERSHIP };
+    format!("{}\n[docker]\nnetwork = \"engine-{deployment}\"\n", extra(deployment).replace(HOST_OWNERSHIP, owner))
+}
+
+pub(super) async fn selected_socket() -> std::path::PathBuf {
+    if let Ok(path) = std::env::var("PRYX_TEST_ENGINE_SOCKET") {
+        let path = std::path::PathBuf::from(path);
+        assert!(path.is_absolute());
+        return path;
+    }
+    pryxd::runtime::engine::socket(&DockerConfig::default()).await.unwrap()
+}
+
+#[tokio::test]
+#[ignore = "needs the actual selected engine"]
+async fn discovery_reaches_the_selected_environment_engine() {
+    let expected = selected_socket().await;
+    let selected = pryxd::runtime::engine::socket(&DockerConfig::default()).await.unwrap();
+    assert_eq!(
+        selected,
+        expected,
+        "selected endpoint metadata: {:?}",
+        pryxd::runtime::engine::inspect(&expected).await
+    );
+}
+
+/// Unsupported rootless ownership is an asserted pre-compute refusal, never a skipped case.
+/// The existing rootful and supported rootless branches retain all positive assertions above.
+pub(super) async fn limits_or_mapping_refusal(
+    runtime: &Arc<DockerRuntime>,
+    socket: &std::path::Path,
+) -> Option<pryxd::runtime::limits::ResourceLimits> {
+    let error = match runtime.resource_limits().await {
+        Ok(Some(limits)) => return Some(limits),
+        result => result.unwrap_err(),
+    };
+    let requirement = pryxd::runtime::docker::DATA_OWNER_REQUIREMENT;
+    assert!(error.to_string().contains(requirement), "unexpected engine policy: {error}");
+    assert_eq!(
+        std::env::var("PRYX_TEST_ENGINE").as_deref(),
+        Ok("docker"),
+        "only the measured unsupported Docker mapping is parked"
+    );
+    let dir = tempfile::tempdir().unwrap();
+    let dep = deployment();
+    let manager = manager_on(dir.path(), runtime.clone(), &extra(&dep).replace(HOST_OWNERSHIP, "[workloads]\n"));
+    let mut value = support::spec_json();
+    value["resources"]["allowUnenforcedMemory"] = true.into();
+    let error = manager
+        .ensure(id("unmapped"), serde_json::from_value(value).unwrap(), Precondition::None, None)
+        .await
+        .unwrap_err();
+    assert!(format!("{error:?}").contains(requirement));
+    assert!(!manager.store.data_dir(&id("unmapped")).exists());
+    let backend =
+        bollard::Docker::connect_with_unix(socket.to_str().unwrap(), 60, bollard::API_DEFAULT_VERSION).unwrap();
+    let options = bollard::query_parameters::ListContainersOptionsBuilder::new()
+        .all(true)
+        .filters(&std::collections::HashMap::from([("label".to_owned(), vec![format!("{LABEL_DEPLOYMENT}={dep}")])]))
+        .build();
+    assert!(backend.list_containers(Some(options)).await.unwrap().is_empty(), "a refused mapping creates no compute");
+    eprintln!("asserted refusal: {error:?}");
+    None
+}
+
+async fn assert_kernel_capabilities(manager: &Arc<Manager>) {
+    let result = manager
+        .exec(
+            id("accepted"),
+            ExecRequest { command: vec!["cat".into(), "/proc/self/status".into()], timeout_seconds: 10 },
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(result.exit_code, Some(0));
+    let fields =
+        result.stdout.lines().filter_map(|line| line.split_once(':')).collect::<std::collections::BTreeMap<_, _>>();
+    for name in ["CapInh", "CapPrm", "CapEff", "CapBnd", "CapAmb"] {
+        assert_eq!(u64::from_str_radix(fields[name].trim(), 16).unwrap(), 0, "{name} must be empty");
+    }
+    assert_eq!(fields["NoNewPrivs"].trim(), "1");
 }

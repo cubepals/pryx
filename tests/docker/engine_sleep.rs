@@ -8,15 +8,15 @@ use super::*;
 #[tokio::test]
 #[ignore = "needs a real Docker-compatible engine"]
 async fn an_engine_without_memory_sleep_refuses_before_freezing_and_keeps_files_after_stop() {
-    let socket = pryxd::runtime::engine::socket(&DockerConfig::default()).await.unwrap();
+    let socket = engine::selected_socket().await;
     let runtime = Arc::new(DockerRuntime::new(&socket).unwrap());
-    let limits = runtime.resource_limits().await.unwrap().unwrap();
+    let Some(limits) = engine::limits_or_mapping_refusal(&runtime, &socket).await else { return };
     let dir = tempfile::tempdir().unwrap();
     let dep = deployment();
     let _cleanup = engine::EngineCleanup { socket, deployment: dep.clone() };
-    let owner: String = if limits.rootless { "[workloads]\n".into() } else { HOST_OWNERSHIP.into() };
-    let manager = manager_on(dir.path(), runtime, &extra(&dep).replace(HOST_OWNERSHIP, &owner));
-    assert!(manager.reconcile(Records::FromDisk).await.error.is_none());
+    let manager = manager_on(dir.path(), runtime, &engine::configuration(&dep, limits.rootless));
+    let report = manager.reconcile(Records::FromDisk).await;
+    assert!(report.error.is_none(), "{report:?}");
     let mut value = support::spec_json();
     value["entrypoint"] = serde_json::json!(["/bin/sh", "-c", "trap 'exit 0' TERM; while :; do sleep 1; done"]);
     value["resources"] = serde_json::json!({"memoryMb": 256, "allowUnenforcedMemory": true});

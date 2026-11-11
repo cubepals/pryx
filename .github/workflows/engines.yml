@@ -15,6 +15,7 @@ on:
       - '.github/workflows/engines.yml'
       - 'scripts/setup-test-engine.sh'
       - 'scripts/engine-ownership.py'
+      - 'scripts/engine-api-probe.py'
 
 permissions:
   contents: read
@@ -28,6 +29,8 @@ jobs:
     name: Rootless ${{ matrix.engine }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
+    env:
+      PRYX_PROBE_DIAGNOSTICS: '1'
     strategy:
       fail-fast: false
       matrix:
@@ -55,6 +58,8 @@ jobs:
             test-${{ steps.rust.outputs.version }}-
       - name: Start the engine as the runner user
         run: bash scripts/setup-test-engine.sh "${{ matrix.engine }}"
+      - name: Read bounded engine metadata timings
+        run: timeout 20s python3 scripts/engine-api-probe.py
       - name: Real engine controller and cold sleep cases
         run: cargo test --locked --test docker engine -- --ignored --test-threads 1
       - name: Measure default, host and keep-id data ownership

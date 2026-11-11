@@ -9,6 +9,7 @@
 //!
 //! Parts (`docker/`):
 //! - `egress.rs`: firewall-gated hostname bridges and gateways.
+//! - `ownership.rs`: read-only proof of host data identity mapping.
 //! - `podman.rs`: native Netavark isolation and hardened container creation.
 //! - `network.rs`: engine bridge creation and isolation observation.
 //! - `create.rs`: trusted container and agent creation.
@@ -25,7 +26,9 @@ pub(crate) mod egress;
 mod exec;
 mod native_tools;
 mod network;
+pub(crate) mod ownership;
 mod podman;
+pub use ownership::DATA_OWNER_REQUIREMENT;
 #[cfg(test)]
 mod policy_tests;
 mod relay;
@@ -102,6 +105,7 @@ pub struct DockerRuntime {
     relays: relay::Relays,
     egress: egress::Egress,
     native_tools: native_tools::Policy,
+    pub(super) ownership: ownership::Policy,
 }
 
 impl DockerRuntime {
@@ -116,6 +120,7 @@ impl DockerRuntime {
             relays: relay::Relays::default(),
             egress: Default::default(),
             native_tools: Default::default(),
+            ownership: Default::default(),
         })
     }
 
@@ -328,8 +333,11 @@ impl ContainerRuntime for DockerRuntime {
     async fn info(&self) -> Result<RuntimeInfo, RuntimeError> {
         // The maintained client negotiates down for engines such as Podman (compat API 1.44).
         // Its clones share the negotiated version, so all subsequent operations use it.
+        crate::capability::probe_phase("engine-negotiate");
         let client = quick("negotiate version", self.docker()?.negotiate_version()).await?;
+        crate::capability::probe_phase("engine-version");
         let version = quick("version", client.version()).await?;
+        crate::capability::probe_phase("engine-compatible-info");
         let info = quick("info", self.docker()?.info()).await?;
         let podman = version
             .components
@@ -345,6 +353,7 @@ impl ContainerRuntime for DockerRuntime {
                     && version.split('.').count() == 3
                     && version.split('.').all(|part| part.parse::<u32>().is_ok())
             });
+        crate::capability::probe_phase("engine-native-info");
         let native = if let Some(version) = &podman_version { podman::host(self, version).await } else { None };
         let mut result = RuntimeInfo {
             podman,
@@ -371,8 +380,20 @@ impl ContainerRuntime for DockerRuntime {
             log_driver: info.logging_driver,
         };
         podman::enforcement(&mut result, native.as_ref());
+        crate::capability::probe_phase("engine-info-complete");
+        if result.container_policy_problem.is_none() {
+            result.container_policy_problem = ownership::problem(self, &result).await;
+        }
         *self.info.lock().unwrap() = Some(result.clone());
         Ok(result)
+    }
+
+    async fn serving_info(&self) -> Result<RuntimeInfo, RuntimeError> {
+        let info = self.info().await?;
+        if let Some(problem) = &info.container_policy_problem {
+            return Err(RuntimeError::Unavailable(problem.clone()));
+        }
+        Ok(info)
     }
 
     async fn ensure_network(

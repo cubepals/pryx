@@ -16,11 +16,7 @@ pub async fn create(config: &Config) -> anyhow::Result<Arc<dyn ContainerRuntime>
     } else {
         anyhow::ensure!(config.docker.enabled, "the container tier is disabled by this host preset");
         let socket = super::engine::socket(&config.docker).await?;
-        let docker = DockerRuntime::new(&socket)?.with_native_tools(
-            config.docker.native_tools_seccomp.as_deref(),
-            config.docker.native_fuse,
-            config.docker.native_tools_apparmor.as_deref(),
-        )?;
+        let docker = container(config, &socket)?;
         if let Ok(Ok(info)) = tokio::time::timeout(super::engine::PROBE_TIMEOUT, docker.info()).await
             && let Some(problem) = info.container_policy_problem
         {
@@ -44,7 +40,10 @@ pub async fn availability(config: &Config) -> std::collections::BTreeMap<&'stati
     };
     let docker = async {
         let socket = super::engine::socket(&config.docker).await?;
-        super::engine::inspect(&socket).await
+        let docker = container(config, &socket).map_err(|error| super::RuntimeError::Other(error.to_string()))?;
+        tokio::time::timeout(super::engine::PROBE_TIMEOUT, docker.info())
+            .await
+            .map_err(|_| super::RuntimeError::Unavailable("container policy probe timed out".into()))?
     };
     let container = if !matches!(config.runtime, RuntimeKind::Auto | RuntimeKind::Container) {
         Some("configuration selects another tier".into())
@@ -114,6 +113,17 @@ async fn auto(config: &Config) -> anyhow::Result<Arc<dyn ContainerRuntime>> {
         anyhow::bail!("No isolation tier is available: {}", reasons.join("; "));
     }
     Ok(Arc::new(super::router::Router::new(backends)?))
+}
+
+fn container(config: &Config, socket: &std::path::Path) -> anyhow::Result<DockerRuntime> {
+    let mut docker = DockerRuntime::new(socket)?.with_native_tools(
+        config.docker.native_tools_seccomp.as_deref(),
+        config.docker.native_fuse,
+        config.docker.native_tools_apparmor.as_deref(),
+    )?;
+    docker.ownership =
+        super::docker::ownership::Policy { user: config.workloads.user, owner: config.workloads.data_owner };
+    Ok(docker)
 }
 
 pub(crate) fn process_available(separate: Option<&Capability>) -> Capability {

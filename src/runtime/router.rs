@@ -53,12 +53,13 @@ impl Router {
     }
     async fn read_info(&self, all: bool) -> Result<RuntimeInfo, RuntimeError> {
         if !self.multiple {
-            return self.default().info().await;
+            return if all { self.default().info().await } else { self.default().serving_info().await };
         }
         let mut first = None;
         let mut failure = None;
         for backend in &self.backends {
-            let result = tokio::time::timeout(engine::PROBE_TIMEOUT, backend.info())
+            let health = async { if all { backend.info().await } else { backend.serving_info().await } };
+            let result = tokio::time::timeout(engine::PROBE_TIMEOUT, health)
                 .await
                 .unwrap_or_else(|_| Err(RuntimeError::Unavailable("health check timed out".into())));
             match result {

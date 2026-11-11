@@ -104,3 +104,65 @@ async fn losing_cpu_or_pids_enforcement_refuses_before_native_or_compatible_crea
     assert_eq!(mutations.load(Ordering::SeqCst), 0);
     server.abort();
 }
+
+#[tokio::test]
+async fn native_podman_metadata_uses_the_selected_socket_and_native_route() {
+    use axum::routing::get;
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("podman.sock");
+    let listener = tokio::net::UnixListener::bind(&path).unwrap();
+    let versions: serde_json::Value =
+        serde_json::from_str(include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/.github/engine-versions.json")))
+            .unwrap();
+    let native_version = versions["podman"]["version"].as_str().unwrap().split('+').next().unwrap().to_owned();
+    let endpoint = format!("/v{native_version}/libpod/info");
+    let native = serde_json::json!({"host": {"networkBackend": "netavark", "cgroupManager": "systemd",
+        "cgroupControllers": [], "security": {"rootless": true}}});
+    let native: podman_api_stubs::models::Info = serde_json::from_value(native).unwrap();
+    let paths = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let seen = paths.clone();
+    let app = Router::new()
+        .route(
+            &endpoint,
+            get(move || {
+                let native = native.clone();
+                async move { Json(native) }
+            }),
+        )
+        .fallback(any(move |request: Request| {
+            let version = native_version.clone();
+            seen.lock().unwrap().push(request.uri().path().to_owned());
+            async move {
+                let value = if request.uri().path().ends_with("/version") {
+                    serde_json::to_value(bollard::models::SystemVersion {
+                        api_version: Some(bollard::API_DEFAULT_VERSION.to_string()),
+                        components: Some(vec![bollard::models::SystemVersionComponents {
+                            name: PODMAN_ENGINE_COMPONENT.into(),
+                            version,
+                            ..Default::default()
+                        }]),
+                        ..Default::default()
+                    })
+                    .unwrap()
+                } else {
+                    serde_json::to_value(bollard::models::SystemInfo {
+                        security_options: Some(vec![ROOTLESS_SECURITY_OPTION.into()]),
+                        memory_limit: Some(true),
+                        cpu_cfs_quota: Some(true),
+                        cpu_shares: Some(true),
+                        pids_limit: Some(true),
+                        cgroup_driver: Some(bollard::models::SystemInfoCgroupDriverEnum::SYSTEMD),
+                        ..Default::default()
+                    })
+                    .unwrap()
+                };
+                Json(value)
+            }
+        }));
+    let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let info = crate::runtime::engine::inspect(&path).await.unwrap();
+    assert!(info.container_policy_problem.is_none(), "native route was not reached: {:?}", paths.lock().unwrap());
+    assert!(info.podman && info.rootless);
+    assert!(!info.memory_limit && !info.cpu_limit && !info.pids_limit);
+    server.abort();
+}
