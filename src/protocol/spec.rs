@@ -121,8 +121,12 @@ pub struct WorkloadSpec {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct Resources {
-    /// Hard memory limit (no swap). Expressed in MiB.
+    /// Hard memory limit (no swap), in MiB; admission reservation when unenforced memory is explicitly accepted.
     pub(crate) memory_mb: u32,
+    /// Accept missing memory enforcement only on an engine without its controller. A capable
+    /// engine still enforces memoryMb. Sent only after unenforced-memory is announced.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) allow_unenforced_memory: Option<bool>,
     /// CPU ceiling in thousandths of a core (CFS quota). Also what the JVM counts as its
     /// processors. Absent: no ceiling, weight only.
     #[serde(default)]

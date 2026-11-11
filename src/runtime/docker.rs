@@ -13,6 +13,7 @@
 //! - `container.rs`: container construction and observation types.
 //! - `exec.rs`: command attachment and timeout containment.
 //! - `native_tools.rs`: explicit host-only seccomp and FUSE device policy.
+//! - `policy_tests.rs`: transport regression for unsupported engine policy refusal.
 //! - `relay.rs`: bounded private ingress to gateway-free internal networks.
 
 mod container;
@@ -20,6 +21,8 @@ mod create;
 pub(crate) mod egress;
 mod exec;
 mod native_tools;
+#[cfg(test)]
+mod policy_tests;
 mod relay;
 use container::{body_of, info_from};
 
@@ -55,6 +58,9 @@ use crate::protocol::MAX_STOP_TIMEOUT;
 const CLIENT_TIMEOUT_SECS: u64 = MAX_STOP_TIMEOUT as u64 + 60;
 /// Docker Engine /info SecurityOptions uses this identifier for rootless mode.
 const ROOTLESS_SECURITY_OPTION: &str = "name=rootless";
+/// Podman v6.1.0 pkg/api/handlers/compat/version.go's component name.
+const PODMAN_ENGINE_COMPONENT: &str = "Podman Engine";
+pub(crate) const PODMAN_POLICY_PROBLEM: &str = "Podman cannot enforce pryx's inter-container bridge isolation through its compatible API; select a supported Docker engine";
 /// Quick calls get a much shorter leash of their own.
 const QUICK: Duration = Duration::from_secs(20);
 const ICC_OPTION: &str = "com.docker.network.bridge.enable_icc";
@@ -87,6 +93,7 @@ pub(crate) fn internal_network(network: &str) -> String {
 pub struct DockerRuntime {
     socket: String,
     client: std::sync::Mutex<Option<Docker>>,
+    info: std::sync::Mutex<Option<RuntimeInfo>>,
     relays: relay::Relays,
     egress: egress::Egress,
     native_tools: native_tools::Policy,
@@ -100,6 +107,7 @@ impl DockerRuntime {
         Ok(Self {
             socket,
             client: std::sync::Mutex::new(None),
+            info: std::sync::Mutex::new(None),
             relays: relay::Relays::default(),
             egress: Default::default(),
             native_tools: Default::default(),
@@ -119,7 +127,10 @@ impl DockerRuntime {
     /// Prove the independent cgroup watchdog before enabling the optional host feature.
     pub async fn check_store_lease(&self) -> Result<(), RuntimeError> {
         let info = self.info().await?;
-        if info.cgroup_version.as_deref() != Some("2") || info.cgroup_driver.as_deref() != Some("cgroupfs") {
+        if info.rootless
+            || info.cgroup_version.as_deref() != Some("2")
+            || info.cgroup_driver.as_deref() != Some("cgroupfs")
+        {
             return Err(RuntimeError::Other("store-lease needs rootful cgroup v2 and Docker cgroupfs driver".into()));
         }
         crate::store_lease::guard::prepare("probe", 0)
@@ -232,10 +243,10 @@ impl ContainerRuntime for DockerRuntime {
         true
     }
     fn supports_native_fuse(&self) -> bool {
-        self.native_tools.fuse()
+        self.native_tools.fuse() && self.info.lock().unwrap().as_ref().is_some_and(|info| !info.rootless)
     }
     fn supports_hostname_egress(&self) -> bool {
-        egress::ready()
+        self.info.lock().unwrap().as_ref().is_some_and(|info| !info.rootless) && egress::ready()
     }
     fn supports_network_policy(&self) -> bool {
         true
@@ -271,13 +282,30 @@ impl ContainerRuntime for DockerRuntime {
         quick("create internal network", self.docker()?.create_network(request)).await?;
         Ok(())
     }
+    async fn resource_limits(&self) -> Result<Option<super::limits::ResourceLimits>, RuntimeError> {
+        let info = self.info().await?;
+        if let Some(problem) = info.container_policy_problem {
+            return Err(RuntimeError::Other(problem));
+        }
+        Ok(Some(super::limits::ResourceLimits {
+            memory: info.memory_limit,
+            cpu: info.cpu_limit,
+            pids: info.pids_limit,
+            rootless: info.rootless,
+        }))
+    }
     async fn info(&self) -> Result<RuntimeInfo, RuntimeError> {
         // The maintained client negotiates down for engines such as Podman (compat API 1.44).
         // Its clones share the negotiated version, so all subsequent operations use it.
         let client = quick("negotiate version", self.docker()?.negotiate_version()).await?;
         let version = quick("version", client.version()).await?;
         let info = quick("info", self.docker()?.info()).await?;
-        Ok(RuntimeInfo {
+        let result = RuntimeInfo {
+            container_policy_problem: version
+                .components
+                .as_ref()
+                .is_some_and(|components| components.iter().any(|component| component.name == PODMAN_ENGINE_COMPONENT))
+                .then(|| PODMAN_POLICY_PROBLEM.into()),
             rootless: info
                 .security_options
                 .as_ref()
@@ -287,6 +315,8 @@ impl ContainerRuntime for DockerRuntime {
             cpu_limit: info.cpu_cfs_quota == Some(true)
                 && info.cpu_shares == Some(true)
                 && info.cgroup_driver.as_ref().is_some_and(|driver| driver.to_string() != "none"),
+            pids_limit: info.pids_limit == Some(true)
+                && info.cgroup_driver.as_ref().is_some_and(|driver| driver.to_string() != "none"),
             version: version.version,
             api_version: version.api_version,
             cgroup_version: info.cgroup_version.map(|v| v.to_string()),
@@ -295,7 +325,9 @@ impl ContainerRuntime for DockerRuntime {
             security_options: info.security_options.unwrap_or_default(),
             live_restore: info.live_restore_enabled,
             log_driver: info.logging_driver,
-        })
+        };
+        *self.info.lock().unwrap() = Some(result.clone());
+        Ok(result)
     }
 
     async fn ensure_network(
@@ -636,7 +668,7 @@ fn descendants(root: i32, children: &HashMap<i32, Vec<i32>>) -> Vec<i32> {
 mod tests {
     use super::*;
 
-    fn spec() -> ContainerSpec {
+    pub(super) fn spec() -> ContainerSpec {
         ContainerSpec {
             packages: Vec::new(),
             agent: None,
@@ -650,6 +682,7 @@ mod tests {
             labels: BTreeMap::new(),
             user: "1000:1000".into(),
             memory_bytes: 256 * 1024 * 1024,
+            allow_unenforced_memory: None,
             nano_cpus: None,
             cpu_shares: 1024,
             pids_limit: 4096,

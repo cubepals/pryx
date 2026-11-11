@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** An unsupported policy is refused before any node write, including after feature loss. */
 import { expect, test } from 'bun:test'
+import contract from '../../openapi/node-writes.openapi.json'
 import type { RuntimeSpec } from '../src/runtime-model.ts'
 import { WorkloadApi } from '../src/workload-api.ts'
 
@@ -30,6 +31,10 @@ test('policy fields cannot disappear on a node lacking their feature', async () 
     [{ egress: { allow: ['example.com'] } }, 'egress-hostnames'],
     [{ network: 'none' as const }, 'network-policy'],
     [{ packages: ['python'] }, 'wasm-packages'],
+    [
+      { resources: { memoryMb: 256, allowUnenforcedMemory: true } },
+      contract['x-pryx-resources'].unenforcedMemoryFeature,
+    ],
   ]
   for (const [field, feature] of policies) {
     const before = calls
@@ -77,4 +82,26 @@ test('tier selection reaches only announcing nodes and cannot inherit another ti
     ),
   ).rejects.toThrow('cpu-limit')
   expect(bodies).toHaveLength(3)
+})
+
+test('memory acceptance is feature gated for both booleans and null remains absent on legacy nodes', async () => {
+  const bodies: Array<{ resources: Record<string, unknown> }> = []
+  const api = new WorkloadApi({
+    async call<T>(...args: unknown[]): Promise<T> {
+      bodies.push((args[3] as { body: { resources: Record<string, unknown> } }).body)
+      return {} as T
+    },
+  })
+  const node = { id: 'node', api_address: 'https://node.test', features: [] as string[] }
+  const feature = contract['x-pryx-resources'].unenforcedMemoryFeature
+  for (const acceptance of [false, true]) {
+    const request = { ...spec, resources: { ...spec.resources, allowUnenforcedMemory: acceptance } }
+    const before = bodies.length
+    await expect(api.put(node, 'box', request, 1)).rejects.toThrow(feature)
+    expect(bodies).toHaveLength(before)
+    await api.put({ ...node, features: [feature] }, 'box', request, 1)
+    expect(bodies.at(-1)?.resources.allowUnenforcedMemory).toBe(acceptance)
+  }
+  await api.put(node, 'box', { ...spec, resources: { ...spec.resources, allowUnenforcedMemory: null } }, 1)
+  expect(bodies.at(-1)?.resources).not.toHaveProperty('allowUnenforcedMemory')
 })

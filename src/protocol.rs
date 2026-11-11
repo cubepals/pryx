@@ -57,6 +57,8 @@ pub use workload::*;
 pub(crate) const PROTOCOL_VERSION: u32 = 1;
 /// The existing minimum requested CPU rate, shared by all runtime policies.
 pub const MIN_CPU_MILLIS: u32 = 100;
+/// Opt-in acceptance of a memory reservation on an engine without memory enforcement.
+pub const UNENFORCED_MEMORY_FEATURE: &str = "unenforced-memory";
 /// Default host memory floor; the operator may configure a different policy.
 pub const DEFAULT_MIN_MEMORY_MB: u32 = 256;
 /// Default inclusive host listener pool, also used for legacy image configurations.
@@ -93,6 +95,7 @@ pub(crate) const FEATURES: &[&str] = &[
     "workload-options",
     "workload-metrics",
     "multi-tier",
+    UNENFORCED_MEMORY_FEATURE,
 ];
 
 impl ProtocolVersions {

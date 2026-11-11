@@ -5,7 +5,11 @@ use super::{Capability, Report, State};
 
 pub(super) fn read(report: &mut Report) {
     let engines = ["docker", "docker-user", "podman", "podman-user", "engine-env"];
-    let container = if engines.iter().any(|name| report.on(name)) {
+    let container = if let Some(policy) = report.capabilities.get("engine-container-policy")
+        && policy.state != State::On
+    {
+        policy.clone()
+    } else if engines.iter().any(|name| report.on(name)) {
         Capability::on("A Docker-compatible engine answered info")
     } else {
         let unknown = engines

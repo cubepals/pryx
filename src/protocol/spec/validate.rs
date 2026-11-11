@@ -223,6 +223,12 @@ impl WorkloadSpec {
     fn check_resources(&self, policy: &SpecPolicy, problems: &mut Problems) {
         let r = &self.resources;
         if policy.process || policy.wasm {
+            if r.allow_unenforced_memory.is_some() {
+                problems.add(
+                    "resources.allowUnenforcedMemory",
+                    "unenforced memory acceptance requires container isolation",
+                );
+            }
             for (field, present) in [("cpuMillis", r.cpu_millis.is_some()), ("cpuWeight", r.cpu_weight.is_some())] {
                 if present {
                     problems.add(format!("resources.{field}"), crate::protocol::CPU_LIMIT_PROBLEM);

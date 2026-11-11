@@ -48,6 +48,7 @@ export interface RuntimeSpec {
   secrets: Readonly<Record<string, string>>
   resources: {
     memoryMb: number
+    allowUnenforcedMemory?: boolean | null
     cpuMillis?: number | null
     cpuReservationMillis?: number | null
     cpuWeight?: number | null

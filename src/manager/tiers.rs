@@ -5,6 +5,16 @@ use super::*;
 use crate::protocol::Isolation;
 
 impl Manager {
+    pub(super) async fn validate_resources(
+        &self,
+        runtime: &dyn ContainerRuntime,
+        resources: &crate::protocol::Resources,
+    ) -> Result<(), NodeError> {
+        if let Some(limits) = self.note(runtime.resource_limits().await)? {
+            limits.validate(resources).map_err(NodeError::Invalid)?;
+        }
+        Ok(())
+    }
     pub(super) fn runtime_for(&self, tier: Option<Isolation>) -> Result<Arc<dyn ContainerRuntime>, NodeError> {
         let name = tier.map(Isolation::as_str).unwrap_or(self.runtime.isolation());
         if let Some(backend) = self.runtime.backend(name) {

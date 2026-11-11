@@ -94,6 +94,9 @@ pub(crate) async fn checks(runtime: &dyn ContainerRuntime, network: &str, daemon
 
 fn engine_limits(info: &RuntimeInfo) -> Vec<Check> {
     let mut checks = Vec::new();
+    if let Some(problem) = &info.container_policy_problem {
+        checks.push(Check::warn("docker.policy", problem, "Select a supported Docker engine with docker.socket"));
+    }
     if info.rootless {
         for (name, on, action) in [
             (

@@ -23,6 +23,7 @@ impl Manager {
         let _guard = lock.lock().await;
         let runtime = self.spec_runtime(&id, &spec)?;
         spec.validate(&self.spec_policy(runtime.as_ref())).map_err(NodeError::Invalid)?;
+        self.validate_resources(runtime.as_ref(), &spec.resources).await?;
         if (spec.agent.is_some() || spec.spare_ports.is_some()) && self.agent_binary(runtime.as_ref()).is_none() {
             return Err(NodeError::Invalid(vec![FieldError {
                 field: "agent".into(),
@@ -225,6 +226,7 @@ impl Manager {
             labels,
             user: self.config.workloads.user.to_string(),
             memory_bytes: i64::from(r.memory_mb) * 1024 * 1024,
+            allow_unenforced_memory: r.allow_unenforced_memory,
             nano_cpus: r.cpu_millis.map(|m| i64::from(m) * 1_000_000),
             // Weight follows size unless asked otherwise: a 4 GB sandbox gets Docker's default
             // 1024, a 3 GB one 768, an 8 GB one 2048. Contention is shared as the price is.

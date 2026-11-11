@@ -9,6 +9,7 @@
 //! Parts (`runtime/`):
 //! - `router.rs`: immutable workload routes over the available backends.
 //! - `configured.rs`: construction from host-owned backend settings.
+//! - `limits.rs`: refusal of limits an engine cannot enforce.
 //! - `engine.rs`: ordered local engine discovery and bounded read-only selection.
 //! - `docker.rs`: the Docker Engine API, over the local unix socket.
 //! - `fake.rs`: an in-memory runtime for tests, with the Docker behaviour pryxd depends on.
@@ -20,6 +21,7 @@ pub mod docker;
 pub mod engine;
 #[cfg(any(test, feature = "fake"))]
 pub mod fake;
+pub mod limits;
 pub mod process;
 pub mod router;
 pub mod wasm;
@@ -56,6 +58,8 @@ pub struct ContainerSpec {
     pub labels: BTreeMap<String, String>,
     pub(crate) user: String,
     pub(crate) memory_bytes: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) allow_unenforced_memory: Option<bool>,
     pub(crate) nano_cpus: Option<i64>,
     pub(crate) cpu_shares: i64,
     pub(crate) pids_limit: i64,
@@ -212,9 +216,11 @@ pub struct RuntimeEvent {
 
 #[derive(Clone, Debug, Default)]
 pub struct RuntimeInfo {
+    pub(crate) container_policy_problem: Option<String>,
     pub(crate) rootless: bool,
     pub(crate) memory_limit: bool,
     pub(crate) cpu_limit: bool,
+    pub(crate) pids_limit: bool,
     pub(crate) version: Option<String>,
     pub(crate) api_version: Option<String>,
     pub(crate) cgroup_version: Option<String>,
@@ -326,6 +332,9 @@ pub trait ContainerRuntime: Send + Sync + 'static {
         _labels: &BTreeMap<String, String>,
     ) -> Result<(), RuntimeError> {
         Err(RuntimeError::Other("This runtime has no internal network".into()))
+    }
+    async fn resource_limits(&self) -> Result<Option<limits::ResourceLimits>, RuntimeError> {
+        Ok(None)
     }
     async fn info(&self) -> Result<RuntimeInfo, RuntimeError>;
     async fn ensure_network(

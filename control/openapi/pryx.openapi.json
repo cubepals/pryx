@@ -5465,6 +5465,13 @@
           "resources": {
             "type": "object",
             "properties": {
+              "allowUnenforcedMemory": {
+                "description": "Accept missing memory enforcement only on an engine without its controller. A capable\nengine still enforces memoryMb. Sent only after unenforced-memory is announced.",
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
               "cpuMillis": {
                 "default": null,
                 "description": "CPU ceiling in thousandths of a core (CFS quota). Also what the JVM counts as its\nprocessors. Absent: no ceiling, weight only.",
@@ -5510,7 +5517,7 @@
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 9007199254740991,
-                "description": "Hard memory limit (no swap). Expressed in MiB."
+                "description": "Hard memory limit (no swap), in MiB; admission reservation when unenforced memory is explicitly accepted."
               },
               "pidsLimit": {
                 "default": null,
@@ -6044,6 +6051,13 @@
               "resources": {
                 "type": "object",
                 "properties": {
+                  "allowUnenforcedMemory": {
+                    "description": "Accept missing memory enforcement only on an engine without its controller. A capable\nengine still enforces memoryMb. Sent only after unenforced-memory is announced.",
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
                   "cpuMillis": {
                     "default": null,
                     "description": "CPU ceiling in thousandths of a core (CFS quota). Also what the JVM counts as its\nprocessors. Absent: no ceiling, weight only.",
@@ -6089,7 +6103,7 @@
                     "type": "integer",
                     "minimum": 0,
                     "maximum": 9007199254740991,
-                    "description": "Hard memory limit (no swap). Expressed in MiB."
+                    "description": "Hard memory limit (no swap), in MiB; admission reservation when unenforced memory is explicitly accepted."
                   },
                   "pidsLimit": {
                     "default": null,

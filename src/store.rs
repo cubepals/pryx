@@ -472,6 +472,7 @@ pub(crate) mod tests {
                 secret_names: vec![],
                 resources: Resources {
                     memory_mb: 256,
+                    allow_unenforced_memory: None,
                     cpu_millis: None,
                     cpu_reservation_millis: None,
                     cpu_weight: None,

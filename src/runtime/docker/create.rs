@@ -3,6 +3,25 @@
 use super::*;
 
 pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Result<String, RuntimeError> {
+    let info = runtime.info().await?;
+    if let Some(problem) = info.container_policy_problem {
+        return Err(RuntimeError::Other(problem));
+    }
+    if !info.memory_limit && spec.allow_unenforced_memory != Some(true) {
+        return Err(RuntimeError::Other(format!(
+            "{} is unavailable on this engine",
+            crate::protocol::Guarantee::MemoryLimit.feature()
+        )));
+    }
+    if !info.cpu_limit && spec.nano_cpus.is_some() {
+        return Err(RuntimeError::Other(format!(
+            "{} is unavailable on this engine",
+            crate::protocol::Guarantee::CpuLimit.feature()
+        )));
+    }
+    if info.rootless && (spec.egress.is_some() || runtime.native_tools.fuse()) {
+        return Err(RuntimeError::Other("host-firewall and native FUSE require a rootful engine".into()));
+    }
     let mut prepared = spec.clone();
     let resolver = runtime.egress.prepare(runtime, &mut prepared).await?;
     let spec = &prepared;
@@ -65,6 +84,18 @@ pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Res
     let options = CreateContainerOptionsBuilder::new().name(&spec.name).build();
     let mut body = body_of(&spec);
     runtime.native_tools.apply(&mut body);
+    if let Some(host) = body.host_config.as_mut() {
+        if !info.memory_limit {
+            host.memory = None;
+            host.memory_swap = None;
+        }
+        if !info.cpu_limit {
+            host.cpu_shares = None;
+        }
+        if !info.pids_limit {
+            host.pids_limit = None;
+        }
+    }
     // Docker's embedded resolver forwards to this one, from the container's side of the bridge.
     if let (Some(resolver), Some(host)) = (resolver, body.host_config.as_mut()) {
         host.dns = Some(vec![resolver.to_string()]);

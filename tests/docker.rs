@@ -9,7 +9,12 @@
 //!
 //! Each test uses its own deployment id, so they don't see each other's containers, and removes
 //! what it made.
+//!
+//! Parts (`docker/`):
+//! - `engine.rs`: real engine limit refusals and explicit memory acceptance.
 
+#[path = "docker/engine.rs"]
+mod engine;
 mod support;
 
 use std::net::TcpListener;

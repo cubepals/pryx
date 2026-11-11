@@ -21,6 +21,11 @@ pub async fn create(config: &Config) -> anyhow::Result<Arc<dyn ContainerRuntime>
             config.docker.native_fuse,
             config.docker.native_tools_apparmor.as_deref(),
         )?;
+        if let Ok(Ok(info)) = tokio::time::timeout(super::engine::PROBE_TIMEOUT, docker.info()).await
+            && let Some(problem) = info.container_policy_problem
+        {
+            anyhow::bail!(problem);
+        }
         if config.store_lease.enabled {
             docker.check_store_lease().await?;
             crate::store_lease::check_policy(&config.state_dir, true)?;
@@ -47,7 +52,7 @@ pub async fn availability(config: &Config) -> std::collections::BTreeMap<&'stati
         Some("disabled by this host preset; use the server preset for host engine access".into())
     } else {
         match docker.await {
-            Ok(_) => None,
+            Ok(info) => info.container_policy_problem,
             Err(error) => Some(error.to_string()),
         }
     };

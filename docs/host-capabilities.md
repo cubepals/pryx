@@ -10,8 +10,10 @@ evidence that the kernel lacks the capability. Only `on` can become a promised g
 The probe creates a disposable user namespace and uses a capability in its private UTS
 namespace; asks the Landlock ABI; reads the daemon's own cgroup controllers; opens devices;
 and, on x86_64 with KVM access, measures ten real guest HLT exits. Namespace and guest
-children have a two-second deadline. Engine discovery reads info from system and user
-Docker/Podman sockets and a Unix `DOCKER_HOST`. The report also covers the firewall table,
+children have a two-second deadline. Engine discovery asks for version and info, in order:
+Unix `DOCKER_HOST`, system Docker, user Docker, user Podman, system Podman. The first complete
+answer selects the engine. An explicit `docker.socket` in the configuration never falls back.
+Remote engines are refused because they cannot establish this host's data bind paths. The report also covers the firewall table,
 systemd, the user session, linger, architecture and the host C library.
 
 `pryxd doctor --config …` checks the selected runtime. Process nodes check enforceable
@@ -54,6 +56,22 @@ node feature on both create and wake. They are refused before a write or start w
 feature is missing. Default Internet networking remains compatible with older v1 nodes,
 where the absent field already means Internet. CPU reservation remains admission metadata
 and retains its existing feature gate; it never becomes an implied kernel quota.
+
+A container request with a memory limit is refused when the engine lacks its controller;
+the refusal names `memory-limit`. An ordinary user can explicitly accept a reservation:
+
+```json
+{"image":"alpine:3.22","resources":{"memoryMb":256,"allowUnenforcedMemory":true}}
+```
+
+The node must announce `unenforced-memory` before control sends this field. Without a
+controller, the sandbox reports `memory-limit: false` and 256 MiB still counts for admission.
+Every capable engine applies the hard limit even when acceptance is true. This field cannot
+remove deployment requirements, CPU limits or PID limits: a requested CPU quota, weight or
+PID limit that the engine cannot enforce is refused. Omitted fields retain their original
+spec and record bytes. Doctor explains missing controller delegation and slow VFS storage. Podman is currently
+refused by name because its compatible API ignores the required bridge isolation option;
+its adapter and hosted acceptance remain unfinished.
 
 The static `suspend` protocol feature remains for compatibility. `memory-sleep` is the
 additional statement that sleep preserves processes: Wasm data sleep disposes and recreates

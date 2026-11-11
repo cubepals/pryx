@@ -2,6 +2,7 @@
 /** Required node features are checked before both spec writes and unchanged-spec wakes. */
 
 import { StatusCodes } from 'http-status-codes'
+import contract from '../../openapi/node-writes.openapi.json'
 import { guarantees as tierGuarantees } from './guarantees.ts'
 import { nodeIsolations } from './isolation.ts'
 import { NodeRefused } from './node-client.ts'
@@ -9,6 +10,9 @@ import { RuntimeFull, type RuntimeSpec } from './runtime-model.ts'
 
 export function workloadFeatures(spec: RuntimeSpec): string[] {
   return [
+    ...(spec.resources.allowUnenforcedMemory != null
+      ? [contract['x-pryx-resources'].unenforcedMemoryFeature]
+      : []),
     ...(spec.workdir !== undefined || spec.user !== undefined ? ['workload-options'] : []),
     ...(spec.egress !== undefined ? ['egress-hostnames'] : []),
     ...(spec.packages?.length ? ['wasm-packages'] : []),

@@ -66,6 +66,11 @@ impl Manager {
     async fn boot(self: &Arc<Self>, mut record: WorkloadRecord, info: ContainerInfo) -> Result<(), NodeError> {
         let id = record.id.clone();
         let deferred = self.boot_spec(&record, &info);
+        self.validate_resources(
+            self.record_runtime(&record)?.as_ref(),
+            deferred.as_ref().map_or(&record.spec.resources, |spec| &spec.resources),
+        )
+        .await?;
         let memory = deferred.as_ref().map_or(record.spec.resources.memory_mb, |spec| spec.resources.memory_mb);
         self.admit(&id, u64::from(memory))?;
         match deferred {
@@ -140,6 +145,7 @@ impl Manager {
     /// Resumes a suspended workload: thawed, the same process from the same start, if it comes
     /// back within `resume_timeout_seconds`. Otherwise it is killed and booted afresh on its data.
     async fn resume_suspended(self: &Arc<Self>, mut record: WorkloadRecord) -> Result<PowerResponse, NodeError> {
+        self.validate_resources(self.record_runtime(&record)?.as_ref(), &record.spec.resources).await?;
         let id = record.id.clone();
         let timeout = self.config.workloads.resume_timeout();
         let thawed = match tokio::time::timeout(timeout, self.runtime.unpause(&record.container_name)).await {

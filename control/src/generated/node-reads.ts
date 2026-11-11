@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
-// Generated from openapi/node-reads.openapi.json; sha256 15d638d678bd70caf9aa09230749a02772c6857ca507a38ba45cd145c87e970b.
+// Generated from openapi/node-reads.openapi.json; sha256 26ea7a5d12deca1e223faad2e4f139ba91644158e0b4a26a0c13ea4dc4571dc6.
 export type paths = Record<string, never>;
 export type webhooks = Record<string, never>;
 export interface components {
@@ -179,6 +179,11 @@ export interface components {
         };
         Resources: {
             /**
+             * @description Accept missing memory enforcement only on an engine without its controller. A capable
+             *     engine still enforces memoryMb. Sent only after unenforced-memory is announced.
+             */
+            allowUnenforcedMemory?: boolean | null;
+            /**
              * Format: uint32
              * @description CPU ceiling in thousandths of a core (CFS quota). Also what the JVM counts as its
              *     processors. Absent: no ceiling, weight only.
@@ -199,7 +204,7 @@ export interface components {
             cpuWeight?: number | null;
             /**
              * Format: uint32
-             * @description Hard memory limit (no swap). Expressed in MiB.
+             * @description Hard memory limit (no swap), in MiB; admission reservation when unenforced memory is explicitly accepted.
              */
             memoryMb: number;
             /**

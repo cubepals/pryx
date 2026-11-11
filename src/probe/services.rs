@@ -43,6 +43,17 @@ pub(super) async fn read(report: &mut Report) {
             Ok(info) => {
                 if !selected {
                     report.capabilities.insert("engine-selected".into(), Capability::on(socket.display().to_string()));
+                    report.capabilities.insert(
+                        "engine-container-policy".into(),
+                        match &info.container_policy_problem {
+                            Some(problem) => Capability::new(
+                                State::Off,
+                                problem,
+                                "Select a supported Docker engine with docker.socket",
+                            ),
+                            None => Capability::on("The engine supports the container bridge policy"),
+                        },
+                    );
                     for (name, on, evidence, action) in [
                         (
                             "engine-memory-limit",

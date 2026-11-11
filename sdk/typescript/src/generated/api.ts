@@ -688,6 +688,11 @@ export interface components {
             entrypoint?: string[];
             resources?: {
                 /**
+                 * @description Accept missing memory enforcement only on an engine without its controller. A capable
+                 *     engine still enforces memoryMb. Sent only after unenforced-memory is announced.
+                 */
+                allowUnenforcedMemory?: boolean | null;
+                /**
                  * @description CPU ceiling in thousandths of a core (CFS quota). Also what the JVM counts as its
                  *     processors. Absent: no ceiling, weight only.
                  * @default null
@@ -703,7 +708,7 @@ export interface components {
                  * @default null
                  */
                 cpuWeight?: number | null;
-                /** @description Hard memory limit (no swap). Expressed in MiB. */
+                /** @description Hard memory limit (no swap), in MiB; admission reservation when unenforced memory is explicitly accepted. */
                 memoryMb: number;
                 /**
                  * @description Processes and threads. Absent: the host default (4096).
@@ -855,6 +860,11 @@ export interface components {
                 entrypoint?: string[];
                 resources?: {
                     /**
+                     * @description Accept missing memory enforcement only on an engine without its controller. A capable
+                     *     engine still enforces memoryMb. Sent only after unenforced-memory is announced.
+                     */
+                    allowUnenforcedMemory?: boolean | null;
+                    /**
                      * @description CPU ceiling in thousandths of a core (CFS quota). Also what the JVM counts as its
                      *     processors. Absent: no ceiling, weight only.
                      * @default null
@@ -870,7 +880,7 @@ export interface components {
                      * @default null
                      */
                     cpuWeight?: number | null;
-                    /** @description Hard memory limit (no swap). Expressed in MiB. */
+                    /** @description Hard memory limit (no swap), in MiB; admission reservation when unenforced memory is explicitly accepted. */
                     memoryMb: number;
                     /**
                      * @description Processes and threads. Absent: the host default (4096).

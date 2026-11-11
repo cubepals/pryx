@@ -62,7 +62,7 @@ export const address = (node: Dialled): NodeAddress => ({
 
 function toWorkloadSpec(spec: RuntimeSpec, features: readonly string[]): WorkloadSpec {
   requireWorkloadFeatures(spec, features)
-  const { cpuReservationMillis, ...resources } = spec.resources
+  const { cpuReservationMillis, allowUnenforcedMemory, ...resources } = spec.resources
   return {
     image: spec.image,
     ...(features.includes('multi-tier') && spec.isolation ? { isolation: spec.isolation } : {}),
@@ -77,6 +77,10 @@ function toWorkloadSpec(spec: RuntimeSpec, features: readonly string[]): Workloa
     secrets: { ...spec.secrets },
     resources: {
       ...resources,
+      ...(features.includes(nodeSchema['x-pryx-resources'].unenforcedMemoryFeature) &&
+      allowUnenforcedMemory != null
+        ? { allowUnenforcedMemory }
+        : {}),
       ...(features.includes('cpu-reservation') && cpuReservationMillis != null
         ? { cpuReservationMillis }
         : {}),
