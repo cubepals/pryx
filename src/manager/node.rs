@@ -11,7 +11,7 @@ use super::*;
 impl Manager {
     /// Asks the runtime now rather than trusting the last call's outcome.
     pub async fn health(&self) -> NodeHealth {
-        if let Ok(info) = self.note(self.runtime.info().await) {
+        if let Ok(info) = self.note(self.runtime.serving_info().await) {
             *self.runtime_info.lock().unwrap() = Some(info);
         }
         let docker = self.docker_up();
@@ -138,7 +138,7 @@ impl Manager {
     }
 
     pub async fn node_status(self: &Arc<Self>) -> NodeStatus {
-        if let Ok(info) = self.note(self.runtime.info().await) {
+        if let Ok(info) = self.note(self.runtime.serving_info().await) {
             *self.runtime_info.lock().unwrap() = Some(info);
         }
         let facts = self.config.host_facts();

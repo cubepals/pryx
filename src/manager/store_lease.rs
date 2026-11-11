@@ -47,6 +47,9 @@ impl Manager {
             features.push("store-lease".into());
         }
         for tier in self.runtime.tiers() {
+            if self.runtime.multi_tier() && !self.runtime.tier_ready(tier) {
+                continue;
+            }
             features.push(format!("tier-{tier}"));
             features.extend(
                 self.tier_guarantees(tier)
@@ -84,6 +87,9 @@ impl Manager {
     }
     pub(super) fn tier_guarantees(&self, tier: &str) -> BTreeMap<crate::protocol::Guarantee, bool> {
         use crate::protocol::Guarantee as G;
+        if self.runtime.multi_tier() && !self.runtime.tier_ready(tier) {
+            return G::ALL.into_iter().map(|guarantee| (guarantee, false)).collect();
+        }
         let probe = self.host_probe.lock().unwrap();
         let info = self.runtime_info.lock().unwrap();
         let tier_info = self.runtime.tier_info(tier);

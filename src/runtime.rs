@@ -259,6 +259,13 @@ pub enum RuntimeError {
     Other(String),
 }
 
+/// A complete inventory of each responding backend, with unreadable tiers kept distinct from
+/// an empty inventory. Callers must leave those tiers' records and observations untouched.
+pub struct Inventory {
+    pub containers: Vec<ContainerInfo>,
+    pub unavailable: BTreeMap<String, String>,
+}
+
 /// The exit code a container's process ends with when `signal` ends it: 128 plus the signal's
 /// number, as a shell reports it and Docker passes on.
 pub fn exit_by(signal: libc::c_int) -> i64 {
@@ -335,6 +342,20 @@ pub trait ContainerRuntime: Send + Sync + 'static {
     }
     async fn resource_limits(&self) -> Result<Option<limits::ResourceLimits>, RuntimeError> {
         Ok(None)
+    }
+    /// Health of the served tiers. A router may answer while one independent tier is down.
+    async fn serving_info(&self) -> Result<RuntimeInfo, RuntimeError> {
+        self.info().await
+    }
+    fn tier_ready(&self, _tier: &str) -> bool {
+        true
+    }
+    fn tier_era(&self, _tier: &str) -> u64 {
+        0
+    }
+    fn tier_unavailable(&self, _tier: &str) {}
+    async fn inventory(&self, labels: &[String]) -> Result<Inventory, RuntimeError> {
+        Ok(Inventory { containers: self.list(labels).await?, unavailable: BTreeMap::new() })
     }
     async fn info(&self) -> Result<RuntimeInfo, RuntimeError>;
     async fn ensure_network(

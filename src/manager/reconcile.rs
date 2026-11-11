@@ -67,6 +67,19 @@ impl Manager {
         let mut seen = BTreeSet::new();
         for record in records {
             seen.insert(record.id.clone());
+            if self.runtime.multi_tier() && record.isolation.is_none() {
+                return Err(RuntimeError::Unavailable("the recorded unresolved tier is unavailable".into()).into());
+            }
+            if self.runtime.multi_tier() && !self.runtime.tier_ready(self.record_tier(&record)) {
+                issues.entry(record.id.clone()).or_default().push(Issue::new(
+                    IssueCode::RuntimeUnavailable,
+                    format!(
+                        "{} tier is unavailable; saved compute and observations are left untouched",
+                        self.record_tier(&record)
+                    ),
+                ));
+                continue;
+            }
             let found = by_workload.remove(&record.id).unwrap_or_default();
             if self.check_record(record, found, &mut issues).await? {
                 adopted += 1;
@@ -102,6 +115,9 @@ impl Manager {
     /// issues with either: a network that lets workloads reach each other, a daemon that stops
     /// them when it restarts.
     async fn check_host(&self) -> Result<Vec<Issue>, NodeError> {
+        if self.runtime.multi_tier() {
+            return self.check_tier_hosts().await;
+        }
         let mut host_issues = Vec::new();
         let network_labels = BTreeMap::from([
             (LABEL_MANAGED.to_owned(), "true".to_owned()),
@@ -136,13 +152,59 @@ impl Manager {
         Ok(host_issues)
     }
 
+    async fn check_tier_hosts(&self) -> Result<Vec<Issue>, NodeError> {
+        let info = self.note(self.runtime.serving_info().await)?;
+        *self.runtime_info.lock().unwrap() = Some(info);
+        let labels = BTreeMap::from([
+            (LABEL_MANAGED.to_owned(), "true".to_owned()),
+            (LABEL_DEPLOYMENT.to_owned(), self.config.deployment_id.clone()),
+        ]);
+        let mut issues = Vec::new();
+        for tier in self.runtime.tiers() {
+            let Some(backend) = self.runtime.backend(tier) else { continue };
+            if self.runtime.tier_info(tier).is_none() {
+                issues.push(Issue::new(IssueCode::RuntimeUnavailable, format!("{tier} tier is unavailable")));
+                continue;
+            }
+            let result = async {
+                let network = backend.ensure_network(&self.config.docker.network, &labels).await?;
+                if backend.supports_network_policy() {
+                    backend
+                        .ensure_internal_network(
+                            &crate::runtime::docker::internal_network(&self.config.docker.network),
+                            &labels,
+                        )
+                        .await?;
+                }
+                Ok::<_, RuntimeError>(network)
+            }
+            .await;
+            match result {
+                Ok(network) if !network.isolated => issues.push(Issue::new(
+                    IssueCode::NetworkNotIsolated,
+                    format!("{tier} network does not enforce host isolation policy"),
+                )),
+                Ok(_) => {}
+                Err(error) if error.is_unavailable() => {
+                    issues.push(Issue::new(IssueCode::RuntimeUnavailable, format!("{tier} tier: {error}")))
+                }
+                Err(error) => return Err(error.into()),
+            }
+        }
+        Ok(issues)
+    }
+
     /// The runtime's containers of this deployment, by the workload their label names. One
     /// whose label names none is a host issue.
     async fn containers_by_workload(
         &self,
         host_issues: &mut Vec<Issue>,
     ) -> Result<HashMap<WorkloadId, Vec<ContainerInfo>>, NodeError> {
-        let containers = self.note(self.runtime.list(&self.owner_labels()).await)?;
+        let inventory = self.note(self.runtime.inventory(&self.owner_labels()).await)?;
+        for (tier, problem) in inventory.unavailable {
+            host_issues.push(Issue::new(IssueCode::RuntimeUnavailable, format!("{tier} tier: {problem}")));
+        }
+        let containers = inventory.containers;
         let mut by_workload: HashMap<WorkloadId, Vec<ContainerInfo>> = HashMap::new();
         for c in containers {
             match c.labels.get(LABEL_WORKLOAD).map(|w| WorkloadId::parse(w)) {

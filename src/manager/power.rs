@@ -213,7 +213,8 @@ impl Manager {
         if !matches!(status, Some(ContainerStatus::Running | ContainerStatus::Paused)) {
             return Err(not_running());
         }
-        if let Some(limits) = self.note(self.record_runtime(&record)?.resource_limits().await)?
+        if let Some(limits) =
+            self.note_tier(self.record_tier(&record), self.record_runtime(&record)?.resource_limits().await)?
             && (limits.rootless || !limits.memory)
         {
             return Err(NodeError::Conflict {

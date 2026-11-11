@@ -5,12 +5,18 @@ use super::*;
 use crate::protocol::Isolation;
 
 impl Manager {
+    pub(super) fn note_tier<T>(&self, tier: &str, result: Result<T, RuntimeError>) -> Result<T, RuntimeError> {
+        if result.as_ref().is_err_and(RuntimeError::is_unavailable) {
+            self.runtime.tier_unavailable(tier);
+        }
+        self.note(result)
+    }
     pub(super) async fn validate_resources(
         &self,
         runtime: &dyn ContainerRuntime,
         resources: &crate::protocol::Resources,
     ) -> Result<(), NodeError> {
-        if let Some(limits) = self.note(runtime.resource_limits().await)? {
+        if let Some(limits) = self.note_tier(runtime.isolation(), runtime.resource_limits().await)? {
             limits.validate(resources).map_err(NodeError::Invalid)?;
         }
         Ok(())

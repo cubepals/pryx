@@ -434,9 +434,9 @@ impl Manager {
     }
 
     /// Whether what pryxd remembers about workloads is current: the runtime answers, and a
-    /// full pass has looked since it last didn't. Otherwise every state reads `unknown`: after an
-    /// outage the last observation is history (a daemon stop kills workloads), and reporting it
-    /// as the state would tell the control plane something false.
+    /// full pass has looked since it last didn't. Independent tiers additionally require their
+    /// own complete inventory. An unavailable tier's last observation is history, never missing
+    /// compute or a reason to redirect its saved workload.
     pub(crate) fn trustworthy(&self) -> bool {
         self.docker_up() && self.reconciled()
     }
@@ -447,13 +447,16 @@ impl Manager {
     }
 
     /// Records whether the runtime answered; every runtime error funnels through here. An
-    /// outage also forgets that pryxd was reconciled: whatever happened while it couldn't
-    /// look (a daemon stop kills workloads) is unknown until a full pass has looked again.
+    /// single-backend outage forgets reconciliation. A router keeps healthy tiers serving and
+    /// independently invalidates an unreadable tier until its next complete inventory.
     fn note<T>(&self, result: Result<T, RuntimeError>) -> Result<T, RuntimeError> {
         match &result {
             Err(e) if e.is_unavailable() => {
-                self.docker_up.store(false, Ordering::SeqCst);
-                self.reconciled.store(false, Ordering::SeqCst);
+                if !self.runtime.multi_tier() || !self.runtime.tiers().iter().any(|tier| self.runtime.tier_ready(tier))
+                {
+                    self.docker_up.store(false, Ordering::SeqCst);
+                    self.reconciled.store(false, Ordering::SeqCst);
+                }
                 self.runtime_era.fetch_add(1, Ordering::SeqCst);
             }
             _ => self.docker_up.store(true, Ordering::SeqCst),
@@ -589,7 +592,8 @@ impl Manager {
     /// What `remember` notes in memory; whether the record's boot changed, which is then written.
     fn note_observed(&self, id: &WorkloadId, info: Option<ContainerInfo>) -> bool {
         let mut state = self.state.lock().unwrap();
-        let era = self.runtime_era.load(Ordering::SeqCst);
+        let tier_era = state.records.get(id).map_or(0, |record| self.runtime.tier_era(self.record_tier(record)));
+        let era = self.runtime_era.load(Ordering::SeqCst).saturating_add(tier_era);
         // A failure pryxd watched happen: it was running at the last look, in this same era,
         // and has now exited badly. Anything else (found dead at startup, after a reboot or a
         // runtime outage) is reported and left alone.

@@ -241,3 +241,126 @@ async fn list_discovery_cannot_redirect_a_recorded_tier_to_another_backend() {
     assert!(matches!(listed, Err(RuntimeError::Conflict(_))));
     assert_eq!(router.bound_isolation(&f.record.container_name), Some("container"));
 }
+
+#[tokio::test]
+async fn an_engine_outage_leaves_other_tiers_serving_and_preserves_saved_compute() {
+    use pryxd::protocol::WorkloadState;
+    let dir = tempfile::tempdir().unwrap();
+    let container = Arc::new(FakeRuntime::new());
+    let process = Arc::new(FakeRuntime::new().with_isolation(Isolation::Process));
+    let wasm = Arc::new(FakeRuntime::new().with_isolation(Isolation::Wasm));
+    let router = Arc::new(Router::new(vec![container.clone(), process.clone(), wasm.clone()]).unwrap());
+    let manager = support::manager_on(dir.path(), router.clone(), "runtime = 'auto'");
+    assert!(manager.reconcile(Records::FromDisk).await.error.is_none());
+    for tier in ["container", "process", "wasm"] {
+        manager.ensure(support::id(tier), spec(Some(tier)), Precondition::None, None).await.unwrap();
+        manager.start(support::id(tier), None).await.unwrap();
+    }
+    let before = manager.view(&support::id("container")).unwrap();
+    container.set_available(false);
+    let health = manager.health().await;
+    assert_eq!(health.status, "ok");
+    assert!(!manager.features().contains(&"tier-container".into()));
+    assert!(manager.features().contains(&"tier-process".into()));
+    assert!(manager.features().contains(&"tier-wasm".into()));
+    assert_eq!(manager.view(&support::id("container")).unwrap().state, WorkloadState::Unknown);
+    assert!(manager.reconcile(Records::InMemory).await.error.is_none());
+    assert!(manager.start(support::id("container"), None).await.is_err());
+    for tier in ["process", "wasm"] {
+        assert_eq!(manager.view(&support::id(tier)).unwrap().state, WorkloadState::Running);
+        manager.stop(support::id(tier), None, None).await.unwrap();
+        manager.start(support::id(tier), None).await.unwrap();
+        assert_eq!(manager.view(&support::id(tier)).unwrap().state, WorkloadState::Running);
+    }
+    let during = manager.view(&support::id("container")).unwrap();
+    assert_eq!(during.locate.container_id, before.locate.container_id);
+    assert!(during.guarantees.values().all(|on| !on));
+    assert_eq!(during.generation, before.generation);
+    assert_eq!(during.spec_digest, before.spec_digest);
+    assert!(!during.issues.iter().any(|issue| issue.code == pryxd::protocol::IssueCode::ContainerMissing));
+    container.set_available(true);
+    assert!(!manager.features().contains(&"tier-container".into()), "health alone cannot publish stale observations");
+    assert_eq!(manager.view(&support::id("container")).unwrap().state, WorkloadState::Unknown);
+    assert!(manager.reconcile(Records::InMemory).await.error.is_none());
+    assert_eq!(manager.view(&support::id("container")).unwrap().state, WorkloadState::Running);
+    assert!(manager.features().contains(&"tier-container".into()));
+    assert_eq!(container.count_calls("create "), 1);
+    assert_eq!(process.count_calls("create "), 1);
+    assert_eq!(wasm.count_calls("create "), 1);
+}
+
+#[tokio::test]
+async fn all_tiers_down_degrades_the_node_and_one_recovered_tier_can_reconcile() {
+    let dir = tempfile::tempdir().unwrap();
+    let container = Arc::new(FakeRuntime::new());
+    let process = Arc::new(FakeRuntime::new().with_isolation(Isolation::Process));
+    let router = Arc::new(Router::new(vec![container.clone(), process.clone()]).unwrap());
+    let manager = support::manager_on(dir.path(), router, "runtime = 'auto'");
+    assert!(manager.reconcile(Records::FromDisk).await.error.is_none());
+    container.set_available(false);
+    process.set_available(false);
+    assert_eq!(manager.health().await.status, "degraded");
+    assert!(manager.reconcile(Records::InMemory).await.error.is_some());
+    process.set_available(true);
+    assert!(manager.reconcile(Records::InMemory).await.error.is_none());
+    assert_eq!(manager.health().await.status, "ok");
+    manager.ensure(support::id("new-process"), spec(Some("process")), Precondition::None, None).await.unwrap();
+    manager.start(support::id("new-process"), None).await.unwrap();
+    assert_eq!(container.count_calls("create "), 0);
+    assert_eq!(process.count_calls("create "), 1);
+}
+
+#[tokio::test]
+async fn restarting_with_an_unreadable_engine_keeps_its_record_bytes_and_route() {
+    let dir = tempfile::tempdir().unwrap();
+    let container = Arc::new(FakeRuntime::new());
+    let process = Arc::new(FakeRuntime::new().with_isolation(Isolation::Process));
+    let router = Arc::new(Router::new(vec![container.clone(), process.clone()]).unwrap());
+    let manager = support::manager_on(dir.path(), router, "runtime = 'auto'");
+    assert!(manager.reconcile(Records::FromDisk).await.error.is_none());
+    let id = support::id("saved");
+    manager.ensure(id.clone(), spec(Some("container")), Precondition::None, None).await.unwrap();
+    manager.start(id.clone(), None).await.unwrap();
+    let path = manager.store.workload_dir(&id).join("workload.json");
+    let before = std::fs::read(&path).unwrap();
+    drop(manager);
+    container.set_available(false);
+    let router = Arc::new(Router::new(vec![process.clone(), container.clone()]).unwrap());
+    let manager = support::manager_on(dir.path(), router, "runtime = 'auto'");
+    assert!(manager.reconcile(Records::FromDisk).await.error.is_none());
+    assert_eq!(std::fs::read(path).unwrap(), before);
+    assert_eq!(manager.view(&id).unwrap().state, pryxd::protocol::WorkloadState::Unknown);
+    assert!(manager.start(id.clone(), None).await.is_err());
+    assert_eq!(process.count_calls("start "), 0);
+    assert_eq!(process.count_calls("create "), 0);
+    container.set_available(true);
+    assert!(manager.reconcile(Records::InMemory).await.error.is_none());
+    assert_eq!(manager.view(&id).unwrap().state, pryxd::protocol::WorkloadState::Running);
+    assert_eq!(container.count_calls("create "), 1);
+}
+
+#[tokio::test]
+async fn a_crash_discovered_after_an_engine_outage_is_not_a_watched_failure() {
+    let dir = tempfile::tempdir().unwrap();
+    let container = Arc::new(FakeRuntime::new());
+    let process = Arc::new(FakeRuntime::new().with_isolation(Isolation::Process));
+    let router = Arc::new(Router::new(vec![container.clone(), process]).unwrap());
+    let manager = support::manager_on(dir.path(), router, "runtime = 'auto'");
+    assert!(manager.reconcile(Records::FromDisk).await.error.is_none());
+    let mut value = support::spec_json();
+    value["isolation"] = "container".into();
+    value["restart"] = serde_json::json!({"policy": "on-failure", "maxRetries": 3});
+    let id = support::id("unwatched");
+    manager.ensure(id.clone(), serde_json::from_value(value).unwrap(), Precondition::None, None).await.unwrap();
+    manager.start(id.clone(), None).await.unwrap();
+    let name = manager.view(&id).unwrap().locate.container_name;
+    container.set_available(false);
+    assert_eq!(manager.health().await.status, "ok");
+    container.crash(&name, 1, false);
+    container.set_available(true);
+    assert!(manager.reconcile(Records::InMemory).await.error.is_none());
+    let view = manager.view(&id).unwrap();
+    assert_eq!(view.state, pryxd::protocol::WorkloadState::Crashed);
+    assert_eq!(view.last_failure_at, None);
+    assert_eq!(view.restart_count, 0);
+}

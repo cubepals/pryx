@@ -10,6 +10,8 @@ pub struct Router {
     multiple: bool,
     routes: Mutex<BTreeMap<String, String>>,
     info: Mutex<BTreeMap<String, RuntimeInfo>>,
+    ready: Mutex<std::collections::BTreeSet<String>>,
+    eras: Mutex<BTreeMap<String, u64>>,
 }
 pub(crate) fn for_manager(runtime: Arc<dyn ContainerRuntime>) -> Arc<dyn ContainerRuntime> {
     if runtime.multi_tier() || runtime.backend(runtime.isolation()).is_some() {
@@ -29,7 +31,53 @@ impl Router {
         if tiers.len() != backends.len() {
             return Err(RuntimeError::Other("duplicate isolation backend".into()));
         }
-        Ok(Self { backends, multiple: true, routes: Mutex::new(BTreeMap::new()), info: Mutex::new(BTreeMap::new()) })
+        Ok(Self {
+            backends,
+            multiple: true,
+            routes: Mutex::new(BTreeMap::new()),
+            info: Mutex::new(BTreeMap::new()),
+            ready: Mutex::new(std::collections::BTreeSet::new()),
+            eras: Mutex::new(BTreeMap::new()),
+        })
+    }
+    fn reported<T>(&self, tier: &str, result: Result<T, RuntimeError>) -> Result<T, RuntimeError> {
+        if result.as_ref().is_err_and(RuntimeError::is_unavailable) {
+            self.unavailable(tier);
+        }
+        result
+    }
+    fn unavailable(&self, tier: &str) {
+        *self.eras.lock().unwrap().entry(tier.into()).or_default() += 1;
+        self.ready.lock().unwrap().remove(tier);
+        self.info.lock().unwrap().remove(tier);
+    }
+    async fn read_info(&self, all: bool) -> Result<RuntimeInfo, RuntimeError> {
+        if !self.multiple {
+            return self.default().info().await;
+        }
+        let mut first = None;
+        let mut failure = None;
+        for backend in &self.backends {
+            let result = tokio::time::timeout(engine::PROBE_TIMEOUT, backend.info())
+                .await
+                .unwrap_or_else(|_| Err(RuntimeError::Unavailable("health check timed out".into())));
+            match result {
+                Ok(info) => {
+                    self.info.lock().unwrap().insert(backend.isolation().into(), info.clone());
+                    if first.is_none() {
+                        first = Some(info);
+                    }
+                }
+                Err(error) => {
+                    self.unavailable(backend.isolation());
+                    failure = Some(RuntimeError::Unavailable(format!("{} tier: {error}", backend.isolation())));
+                }
+            }
+        }
+        if all && let Some(error) = failure {
+            return Err(error);
+        }
+        first.ok_or_else(|| RuntimeError::Unavailable("all tiers are unavailable".into()))
     }
     fn default(&self) -> &dyn ContainerRuntime {
         self.backends[0].as_ref()
@@ -123,29 +171,55 @@ impl ContainerRuntime for Router {
         self.default().supports_network_policy()
     }
     async fn info(&self) -> Result<RuntimeInfo, RuntimeError> {
+        self.read_info(true).await
+    }
+    async fn serving_info(&self) -> Result<RuntimeInfo, RuntimeError> {
+        self.read_info(false).await
+    }
+    fn tier_ready(&self, tier: &str) -> bool {
+        !self.multiple || (self.ready.lock().unwrap().contains(tier) && self.info.lock().unwrap().contains_key(tier))
+    }
+    fn tier_era(&self, tier: &str) -> u64 {
+        self.eras.lock().unwrap().get(tier).copied().unwrap_or_default()
+    }
+    fn tier_unavailable(&self, tier: &str) {
+        self.unavailable(tier);
+    }
+    async fn inventory(&self, labels: &[String]) -> Result<Inventory, RuntimeError> {
         if !self.multiple {
-            return self.default().info().await;
+            return Ok(Inventory { containers: self.list(labels).await?, unavailable: BTreeMap::new() });
         }
-        let mut first = None;
-        let mut failure = None;
-        for backend in &self.backends {
-            match backend.info().await {
-                Ok(info) => {
-                    self.info.lock().unwrap().insert(backend.isolation().into(), info.clone());
-                    if first.is_none() {
-                        first = Some(info);
-                    }
-                }
-                Err(error) => {
-                    self.info.lock().unwrap().remove(backend.isolation());
-                    failure = Some(RuntimeError::Unavailable(format!("{} tier: {error}", backend.isolation())));
-                }
+        let mut all = Vec::new();
+        let mut unavailable = BTreeMap::new();
+        let mut complete = Vec::new();
+        for tier in self.routes.lock().unwrap().values() {
+            if self.backend(tier).is_none() {
+                unavailable.insert(tier.clone(), format!("the recorded {tier} tier is unavailable"));
             }
         }
-        if let Some(error) = failure {
-            return Err(error);
+        for backend in &self.backends {
+            let era = self.tier_era(backend.isolation());
+            match backend.list(labels).await {
+                Ok(containers) => {
+                    all.extend(containers.into_iter().map(|info| (backend.isolation(), info)));
+                    complete.push((backend.isolation(), era));
+                }
+                Err(error) if error.is_unavailable() => {
+                    self.unavailable(backend.isolation());
+                    unavailable.insert(backend.isolation().into(), error.to_string());
+                }
+                Err(error) => return Err(error),
+            }
         }
-        first.ok_or_else(|| RuntimeError::Unavailable("all tiers are unavailable".into()))
+        self.remember(all.iter().map(|(tier, info)| (*tier, info)))?;
+        let eras = self.eras.lock().unwrap();
+        self.ready.lock().unwrap().extend(
+            complete
+                .into_iter()
+                .filter(|(tier, era)| eras.get(*tier).copied().unwrap_or_default() == *era)
+                .map(|(tier, _)| String::from(tier)),
+        );
+        Ok(Inventory { containers: all.into_iter().map(|(_, info)| info).collect(), unavailable })
     }
     async fn ensure_network(
         &self,
@@ -177,34 +251,47 @@ impl ContainerRuntime for Router {
     }
     async fn create(&self, spec: &ContainerSpec) -> Result<String, RuntimeError> {
         let backend = self.target(&spec.name)?;
-        let id = backend.create(spec).await?;
+        let id = self.reported(backend.isolation(), backend.create(spec).await)?;
         self.bind(&spec.name, Some(&id), backend.isolation())?;
         Ok(id)
     }
     async fn start(&self, name: &str) -> Result<(), RuntimeError> {
-        self.target(name)?.start(name).await
+        let backend = self.target(name)?;
+        self.reported(backend.isolation(), backend.start(name).await)
     }
     async fn stop(&self, name: &str, signal: &str, grace: Duration) -> Result<(), RuntimeError> {
-        self.target(name)?.stop(name, signal, grace).await
+        let backend = self.target(name)?;
+        self.reported(backend.isolation(), backend.stop(name, signal, grace).await)
     }
     async fn kill(&self, name: &str) -> Result<(), RuntimeError> {
-        self.target(name)?.kill(name).await
+        let backend = self.target(name)?;
+        self.reported(backend.isolation(), backend.kill(name).await)
     }
     async fn pause(&self, name: &str) -> Result<(), RuntimeError> {
-        self.target(name)?.pause(name).await
+        let backend = self.target(name)?;
+        self.reported(backend.isolation(), backend.pause(name).await)
     }
     async fn unpause(&self, name: &str) -> Result<(), RuntimeError> {
-        self.target(name)?.unpause(name).await
+        let backend = self.target(name)?;
+        self.reported(backend.isolation(), backend.unpause(name).await)
     }
     async fn disable_restart(&self, name: &str) -> Result<(), RuntimeError> {
-        self.target(name)?.disable_restart(name).await
+        let backend = self.target(name)?;
+        self.reported(backend.isolation(), backend.disable_restart(name).await)
     }
     async fn remove(&self, name: &str) -> Result<(), RuntimeError> {
-        self.target(name)?.remove(name).await
+        let backend = self.target(name)?;
+        self.reported(backend.isolation(), backend.remove(name).await)
     }
     async fn inspect(&self, name: &str) -> Result<Option<ContainerInfo>, RuntimeError> {
         match self.target(name) {
-            Ok(backend) => return backend.inspect(name).await,
+            Ok(backend) => {
+                let result = backend.inspect(name).await;
+                if result.as_ref().is_err_and(RuntimeError::is_unavailable) {
+                    self.unavailable(backend.isolation());
+                }
+                return result;
+            }
             Err(RuntimeError::NotFound(_)) => {}
             Err(error) => return Err(error),
         }
@@ -250,7 +337,8 @@ impl ContainerRuntime for Router {
         timeout: Duration,
         max_output: usize,
     ) -> Result<ExecOutput, RuntimeError> {
-        self.target(container)?.exec(container, command, timeout, max_output).await
+        let backend = self.target(container)?;
+        self.reported(backend.isolation(), backend.exec(container, command, timeout, max_output).await)
     }
     async fn exec_stream(
         &self,
@@ -260,7 +348,8 @@ impl ContainerRuntime for Router {
         max_output: usize,
         output: tokio::sync::mpsc::Sender<LogChunk>,
     ) -> Result<ExecOutput, RuntimeError> {
-        self.target(container)?.exec_stream(container, command, timeout, max_output, output).await
+        let backend = self.target(container)?;
+        self.reported(backend.isolation(), backend.exec_stream(container, command, timeout, max_output, output).await)
     }
     fn logs(&self, name: &str, options: LogOptions) -> BoxStream<'static, Result<LogChunk, RuntimeError>> {
         match self.target(name) {
@@ -269,7 +358,8 @@ impl ContainerRuntime for Router {
         }
     }
     async fn stats(&self, name: &str) -> Result<Option<RawStats>, RuntimeError> {
-        self.target(name)?.stats(name).await
+        let backend = self.target(name)?;
+        self.reported(backend.isolation(), backend.stats(name).await)
     }
     fn events(&self, labels: &[String]) -> BoxStream<'static, Result<RuntimeEvent, RuntimeError>> {
         stream::select_all(self.backends.iter().map(|r| r.events(labels)).collect::<Vec<_>>()).boxed()

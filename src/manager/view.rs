@@ -18,7 +18,12 @@ impl Manager {
     /// The state as every view, count and heartbeat reports it.
     fn state_in(&self, state: &State, record: &WorkloadRecord, info: Option<&ContainerInfo>) -> WorkloadState {
         let id = &record.id;
-        pending_restart(state, id, derive_state(record, info, state.stopping(id), state.suspend(id), self.sight()))
+        let sight = if self.runtime.multi_tier() && !self.runtime.tier_ready(self.record_tier(record)) {
+            Sight::Stale
+        } else {
+            self.sight()
+        };
+        pending_restart(state, id, derive_state(record, info, state.stopping(id), state.suspend(id), sight))
     }
 
     // ─── views ─────────────────────────────────────────────────────────────────────────────

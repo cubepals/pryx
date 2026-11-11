@@ -275,7 +275,7 @@ impl Manager {
     /// generation, removed first.
     async fn make_container(&self, record: &WorkloadRecord, spec: &WorkloadSpec) -> Result<String, NodeError> {
         let pull = Duration::from_secs(self.config.docker.pull_timeout_seconds);
-        self.note(self.record_runtime(record)?.ensure_image(&spec.image, pull).await)?;
+        self.note_tier(self.record_tier(record), self.record_runtime(record)?.ensure_image(&spec.image, pull).await)?;
         if self.uses_store_lease(record) {
             crate::store_lease::guard::prepare(record.id.as_str(), record.epoch.unwrap_or_default())
                 .map_err(|_| NodeError::Internal("Cannot prepare lease cgroup".into()))?;
@@ -400,7 +400,7 @@ impl Manager {
         }
         // Pull first: if the new image can't be had, the running workload is left untouched.
         let pull = Duration::from_secs(self.config.docker.pull_timeout_seconds);
-        self.note(self.record_runtime(&record)?.ensure_image(&spec.image, pull).await)?;
+        self.note_tier(self.record_tier(&record), self.record_runtime(&record)?.ensure_image(&spec.image, pull).await)?;
         let old_ports = record.ports.clone();
         let ports = self.allocate_ports(&id, &spec, &old_ports)?;
         self.persist_resting_ports().await;
