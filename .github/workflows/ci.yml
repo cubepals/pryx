@@ -145,6 +145,14 @@ jobs:
         env:
           PRYX_AGENTOS_DISTRIBUTION: ${{ runner.temp }}/agentos
           PRYX_PROBE_KVM: 'on'
+          PRYX_PRIVATE_IPC_REPORT: ${{ runner.temp }}/process-ipc-design.json
+      - name: Save process IPC design evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: process-ipc-design
+          path: ${{ runner.temp }}/process-ipc-design.json
+          if-no-files-found: warn
       - name: CLI doctor uses the real host document
         run: |
           bun install --frozen-lockfile
