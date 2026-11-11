@@ -9,6 +9,7 @@
 //!
 //! Parts (`docker/`):
 //! - `egress.rs`: firewall-gated hostname bridges and gateways.
+//! - `network.rs`: engine bridge creation and isolation observation.
 //! - `create.rs`: trusted container and agent creation.
 //! - `container.rs`: container construction and observation types.
 //! - `exec.rs`: command attachment and timeout containment.
@@ -21,6 +22,7 @@ mod create;
 pub(crate) mod egress;
 mod exec;
 mod native_tools;
+mod network;
 #[cfg(test)]
 mod policy_tests;
 mod relay;
@@ -253,34 +255,7 @@ impl ContainerRuntime for DockerRuntime {
     }
 
     async fn ensure_internal_network(&self, name: &str, labels: &BTreeMap<String, String>) -> Result<(), RuntimeError> {
-        let inspect =
-            quick("inspect internal network", self.docker()?.inspect_network(name, None::<InspectNetworkOptions>))
-                .await;
-        match inspect {
-            Ok(network) => {
-                if network.internal == Some(true)
-                    && network.options.unwrap_or_default().get(ICC_OPTION).map(String::as_str) == Some("false")
-                {
-                    return Ok(());
-                }
-                return Err(RuntimeError::Other("The internal network does not enforce host policy".into()));
-            }
-            Err(RuntimeError::NotFound(_)) => {}
-            Err(error) => return Err(error),
-        }
-        let request = NetworkCreateRequest {
-            name: name.into(),
-            driver: Some("bridge".into()),
-            internal: Some(true),
-            options: Some(HashMap::from([
-                (ICC_OPTION.into(), "false".into()),
-                (BRIDGE_NAME_OPTION.into(), bridge_name(name)),
-            ])),
-            labels: Some(labels.clone().into_iter().collect()),
-            ..Default::default()
-        };
-        quick("create internal network", self.docker()?.create_network(request)).await?;
-        Ok(())
+        network::internal(self, name, labels).await
     }
     async fn resource_limits(&self) -> Result<Option<super::limits::ResourceLimits>, RuntimeError> {
         let info = self.info().await?;
@@ -335,40 +310,11 @@ impl ContainerRuntime for DockerRuntime {
         name: &str,
         labels: &BTreeMap<String, String>,
     ) -> Result<NetworkReport, RuntimeError> {
-        if let Some(isolated) = self.network_isolated(name).await? {
-            return Ok(NetworkReport { isolated });
-        }
-        let request = NetworkCreateRequest {
-            name: name.to_owned(),
-            driver: Some("bridge".into()),
-            // Workloads can't reach each other directly; each reaches the outside network and is reached
-            // through its published ports only, which the host's rules keep the others off.
-            options: Some(HashMap::from([
-                (ICC_OPTION.to_owned(), "false".to_owned()),
-                (BRIDGE_NAME_OPTION.to_owned(), bridge_name(name)),
-            ])),
-            labels: Some(labels.clone().into_iter().collect()),
-            ..Default::default()
-        };
-        match quick("create network", self.docker()?.create_network(request)).await {
-            Ok(_) => Ok(NetworkReport { isolated: true }),
-            // Made by someone else in between, maybe without isolation: look again.
-            Err(RuntimeError::Conflict(message)) => match self.network_isolated(name).await? {
-                Some(isolated) => Ok(NetworkReport { isolated }),
-                None => Err(RuntimeError::Conflict(message)),
-            },
-            Err(e) => Err(e),
-        }
+        network::ensure(self, name, labels).await
     }
 
     async fn network_isolated(&self, name: &str) -> Result<Option<bool>, RuntimeError> {
-        match quick("inspect network", self.docker()?.inspect_network(name, None::<InspectNetworkOptions>)).await {
-            Ok(network) => {
-                Ok(Some(network.options.unwrap_or_default().get(ICC_OPTION).map(String::as_str) == Some("false")))
-            }
-            Err(RuntimeError::NotFound(_)) => Ok(None),
-            Err(e) => Err(e),
-        }
+        network::isolated(self, name).await
     }
 
     async fn ensure_image(&self, image: &str, timeout: Duration) -> Result<bool, RuntimeError> {
