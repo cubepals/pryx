@@ -42,6 +42,7 @@ async fn explicit_memory_acceptance_never_removes_available_enforcement() {
         value["resources"].as_object_mut().unwrap().remove("cpuMillis");
     }
     extra_limit_refusals(&manager, &limits, &value).await;
+    let memory_mb = value["resources"]["memoryMb"].as_u64().unwrap();
     let made =
         manager.ensure(id("accepted"), serde_json::from_value(value).unwrap(), Precondition::None, None).await.unwrap();
     let view = serde_json::to_value(&made.workload).unwrap();
@@ -74,6 +75,9 @@ async fn explicit_memory_acceptance_never_removes_available_enforcement() {
     );
     manager.start(id("accepted"), None).await.unwrap();
     assert_kernel_capabilities(&manager).await;
+    if !limits.memory {
+        assert_memory_overrun(&manager, memory_mb).await;
+    }
     let result = manager
         .exec(
             id("accepted"),
@@ -226,6 +230,22 @@ pub(super) async fn limits_or_mapping_refusal(
     assert!(backend.list_containers(Some(options)).await.unwrap().is_empty(), "a refused mapping creates no compute");
     eprintln!("asserted refusal: {error:?}");
     None
+}
+
+async fn assert_memory_overrun(manager: &Arc<Manager>, memory_mb: u64) {
+    let bytes = (memory_mb + 16) * 1024 * 1024;
+    let program = format!("BEGIN {{ value=sprintf(\"%0{bytes}d\",1); print length(value) }}");
+    let result = manager
+        .exec(id("accepted"), ExecRequest { command: vec!["awk".into(), program], timeout_seconds: 10 }, None, None)
+        .await
+        .unwrap();
+    assert_eq!(result.exit_code, Some(0), "{result:?}");
+    assert!(!result.timed_out);
+    assert_eq!(
+        result.stdout.trim().parse::<u64>().unwrap(),
+        bytes,
+        "an accepted missing memory controller does not enforce the reservation"
+    );
 }
 
 async fn assert_kernel_capabilities(manager: &Arc<Manager>) {

@@ -39,6 +39,12 @@ pub(super) fn info_from(inspect: ContainerInspectResponse) -> ContainerInfo {
         .filter_map(|kv| kv.split_once('=').map(|(k, v)| (k.to_owned(), v.to_owned())))
         .collect();
     ContainerInfo {
+        memory_enforced: inspect.host_config.as_ref().map(|host| host.memory.unwrap_or_default() > 0),
+        cpu_enforced: inspect.host_config.as_ref().map(|host| {
+            host.nano_cpus.unwrap_or_default() > 0
+                || host.cpu_quota.unwrap_or_default() > 0
+                || host.cpu_shares.unwrap_or_default() > 0
+        }),
         cgroup_parent: inspect.host_config.and_then(|h| h.cgroup_parent),
         id: inspect.id.unwrap_or_default(),
         name: inspect.name.unwrap_or_default().trim_start_matches('/').to_owned(),

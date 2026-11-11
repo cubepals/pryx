@@ -35,6 +35,30 @@ impl Manager {
         Ok(self.build_view(&state, record, info))
     }
 
+    fn workload_guarantees(
+        &self,
+        record: &WorkloadRecord,
+        observed: Option<&ContainerInfo>,
+    ) -> BTreeMap<crate::protocol::Guarantee, bool> {
+        use crate::protocol::Guarantee as G;
+        let tier = self.record_tier(record);
+        let mut guarantees = self.tier_guarantees(tier);
+        let rootless = if self.runtime.multi_tier() {
+            self.runtime.tier_info(tier).is_some_and(|info| info.rootless)
+        } else {
+            self.runtime_info.lock().unwrap().as_ref().is_some_and(|info| info.rootless)
+        };
+        if tier == "container" && rootless {
+            for (guarantee, configured) in [
+                (G::MemoryLimit, observed.and_then(|info| info.memory_enforced)),
+                (G::CpuLimit, observed.and_then(|info| info.cpu_enforced)),
+            ] {
+                guarantees.entry(guarantee).and_modify(|on| *on &= configured == Some(true));
+            }
+        }
+        guarantees
+    }
+
     fn build_view(&self, state: &State, record: &WorkloadRecord, info: Option<&ContainerInfo>) -> WorkloadView {
         let workload_state = self.state_in(state, record, info);
         let exit = info
@@ -81,7 +105,7 @@ impl Manager {
         let (used, measured) =
             state.disk.get(&record.id).map(|(b, at)| (Some(*b), Some(format_time(*at)))).unwrap_or_default();
         WorkloadView {
-            guarantees: self.tier_guarantees(self.record_tier(record)),
+            guarantees: self.workload_guarantees(record, info),
             isolation: (self.record_tier(record) != "container").then(|| self.record_tier(record).into()),
             agent: self.agent_view(record, info),
             id: record.id.clone(),
@@ -172,4 +196,71 @@ fn pending_restart(state: &State, id: &WorkloadId, derived: WorkloadState) -> Wo
         _ => false,
     };
     if waiting { WorkloadState::Restarting } else { derived }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{protocol::Guarantee, runtime::fake::FakeRuntime};
+
+    #[tokio::test]
+    async fn gaining_controllers_does_not_upgrade_an_existing_unlimited_copy() {
+        let directory = tempfile::tempdir().unwrap();
+        let (uid, gid) = (rustix::process::geteuid().as_raw(), rustix::process::getegid().as_raw());
+        let config: Config = toml::from_str(&format!(
+            "deployment_id = \"test\"\nnode_id = \"node\"\nstate_dir = \"{}\"\n[api]\nlisten = \"127.0.0.1:0\"\n\
+             [workloads]\nallowed_images = [\"alpine:\"]\ndata_owner = \"{uid}:{gid}\"\n\
+             [capacity]\nmin_free_disk_mb = 1\n",
+            directory.path().display()
+        ))
+        .unwrap();
+        let runtime = Arc::new(FakeRuntime::new());
+        runtime.runtime_info.lock().unwrap().rootless = true;
+        let store = Store::open(&config.state_dir).unwrap();
+        let manager =
+            Manager::new(Arc::new(config), runtime.clone(), store, Arc::new(Metrics::new()), Arc::new(|_, _| true));
+        assert!(manager.reconcile(Records::FromDisk).await.error.is_none());
+        let id = WorkloadId::parse("unlimited").unwrap();
+        let spec = serde_json::from_value(serde_json::json!({
+            "image": "alpine:3.22", "resources": {"memoryMb": 256, "allowUnenforcedMemory": true},
+            "storage": {"mountPath": "/data", "sizeGb": 1}
+        }))
+        .unwrap();
+        manager.ensure(id.clone(), spec, Precondition::None, None).await.unwrap();
+        {
+            let mut state = manager.state.lock().unwrap();
+            let copy = state.observed.get_mut(&id).unwrap().info.as_mut().unwrap();
+            copy.memory_enforced = Some(false);
+            copy.cpu_enforced = Some(false);
+        }
+        {
+            let mut info = manager.runtime_info.lock().unwrap();
+            let info = info.as_mut().unwrap();
+            info.memory_limit = true;
+            info.cpu_limit = true;
+        }
+        let view = manager.view(&id).unwrap();
+        assert!(!view.guarantees[&Guarantee::MemoryLimit], "the existing copy still has no memory ceiling");
+        assert!(!view.guarantees[&Guarantee::CpuLimit], "the existing copy still has no CPU enforcement");
+        {
+            let mut state = manager.state.lock().unwrap();
+            let copy = state.observed.get_mut(&id).unwrap().info.as_mut().unwrap();
+            copy.memory_enforced = Some(true);
+            copy.cpu_enforced = Some(true);
+        }
+        let configured = manager.view(&id).unwrap();
+        assert!(configured.guarantees[&Guarantee::MemoryLimit] && configured.guarantees[&Guarantee::CpuLimit]);
+        {
+            let mut state = manager.state.lock().unwrap();
+            let copy = state.observed.get_mut(&id).unwrap().info.as_mut().unwrap();
+            copy.memory_enforced = Some(false);
+            copy.cpu_enforced = Some(false);
+        }
+        manager.runtime_info.lock().unwrap().as_mut().unwrap().rootless = false;
+        let rootful = manager.view(&id).unwrap();
+        assert!(
+            rootful.guarantees[&Guarantee::MemoryLimit] && rootful.guarantees[&Guarantee::CpuLimit],
+            "retain legacy rootful reporting"
+        );
+    }
 }

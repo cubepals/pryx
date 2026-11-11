@@ -224,6 +224,8 @@ impl ProcessRuntime {
                 .and_then(|s| s.rsplit_once(") ").map(|(_, s)| s.starts_with('T')))
                 .unwrap_or(false);
         Ok(Some(ContainerInfo {
+            memory_enforced: None,
+            cpu_enforced: None,
             cgroup_parent: None,
             id: entry.id,
             name: entry.spec.name,

@@ -135,6 +135,8 @@ pub enum ContainerStatus {
 /// A container as the runtime reports it right now.
 #[derive(Clone)]
 pub struct ContainerInfo {
+    pub(crate) memory_enforced: Option<bool>,
+    pub(crate) cpu_enforced: Option<bool>,
     pub(crate) cgroup_parent: Option<String>,
     pub(crate) id: String,
     pub(crate) name: String,

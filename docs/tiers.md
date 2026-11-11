@@ -21,6 +21,38 @@ images; it refuses a resting legacy record whose process/Wasm identity cannot be
 
 The complete measurements below retain their original contexts, samples and budgets.
 
+## Rootless engine measurements
+
+The [ordinary-user engine run](https://github.com/cubepals/pryx/actions/runs/43015556681)
+measures source `03729e9175a07bcea63f6aa4e87dcacae07771d6` on an x86_64 Ubuntu 24.04 hosted
+runner. Podman is the pinned Ubuntu `4.9.3+ds1-1ubuntu0.2` package, with vfs storage and no
+delegated controllers. Each fresh workload reserves 256 MiB for admission and explicitly accepts
+missing memory enforcement; CPU, PID and memory-sleep limits are off. The same job proves
+nonzero identity, readonly root, zero kernel capabilities, PID and network separation,
+HTTP ingress, snapshot/fork retention, stop/wake and bounded exec-tree cancellation.
+
+These are **direct node-manager measurements**. They include neither the public API nor the
+edge, and do not replace the public-edge cohorts and budgets below. All 30 serial samples
+use a locally available image and a new workload identity. Create includes ensure and start;
+exec runs `true` after writing the service's data file outside the exec timer; network is one
+HTTP request through the engine's published loopback port, returning that file. Image pulling,
+strict deletion and installer startup are outside these timers. Percentiles use nearest rank.
+
+| Engine and host context | Completed samples | Create ms p50 / p90 | Exec ms p50 / p90 | HTTP round trip ms p50 / p90 |
+| --- | ---: | ---: | ---: | ---: |
+| Rootless Podman, ordinary runner user | 30 | 4382.40 / 4623.39 | 46.81 / 177.34 | 3.14 / 3.20 |
+| Standard rootless Docker 29.9.2 mapping | 0 | Unavailable | Unavailable | Unavailable |
+
+The standard Docker mapping cannot expose daemon-owned data to the required nonzero sandbox
+user: default and host namespaces deny the write, and keep-id is unsupported. It refuses
+`data-owner-mapping` before data or compute, while other tiers remain available. Its positive
+lifecycle and timings are parked; a custom mapped local daemon is not evidence for that host.
+The [Podman samples](checks/measurements/k22/podman-03729e9.json),
+[Docker refusal](checks/measurements/k22/docker-03729e9.json) and
+[artifact provenance](checks/measurements/k22/provenance.json) are retained byte for byte after
+checking their GitHub archive digests. A failed collection retains its partial sample count
+and cannot report completion.
+
 ## Comparison method
 
 `control/bench/tiers.ts one-box|image output-prefix` runs all three tiers from the same release
