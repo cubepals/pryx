@@ -15,6 +15,7 @@
 import { createHash } from 'node:crypto'
 import { setTimeout as pause } from 'node:timers/promises'
 import { sql } from 'drizzle-orm'
+import nodeContract from '../../openapi/node-writes.openapi.json'
 import { type Admission, NO_ROOM } from './admission.ts'
 import type { Db } from './database.ts'
 import { SECOND_MS } from './durations.ts'
@@ -164,7 +165,7 @@ export class Power {
    */
   async sleep(ref: FleetRef, node: NodeRow): Promise<'suspended' | 'stopped'> {
     this.#running.delete(ref.key)
-    if (this.#suspend && node.features.includes(SUSPEND_FEATURE)) {
+    if (this.#suspend && node.features.includes(SUSPEND_FEATURE) && (await this.#keepsMemory(ref, node))) {
       try {
         await this.#api.power(node, ref.key, ref.epoch, 'suspend')
         return 'suspended'
@@ -179,6 +180,14 @@ export class Power {
     }
     await this.halt(ref, node, 'stop')
     return 'stopped'
+  }
+
+  /** New nodes report the copy's own tier guarantee; legacy nodes retain their existing contract. */
+  async #keepsMemory(ref: FleetRef, node: NodeRow): Promise<boolean> {
+    if (!node.features.includes(nodeContract['x-pryx-resources'].unenforcedMemoryFeature)) return true
+    const view = await this.#api.view(node, ref.key, true)
+    if (view.epoch !== ref.epoch) throw new StaleHandle('The copy on the node belongs to another placement')
+    return view.guarantees?.['memory-sleep'] === true
   }
 
   /** A stop, or a kill, which gives the copy's claim on its node back. */

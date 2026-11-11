@@ -11,10 +11,13 @@
 //! what it made.
 //!
 //! Parts (`docker/`):
+//! - `engine_sleep.rs`: memory-sleep refusal and retained bytes through cold wake.
 //! - `engine.rs`: real engine limit refusals and explicit memory acceptance.
 
 #[path = "docker/engine.rs"]
 mod engine;
+#[path = "docker/engine_sleep.rs"]
+mod engine_sleep;
 mod support;
 
 use std::net::TcpListener;

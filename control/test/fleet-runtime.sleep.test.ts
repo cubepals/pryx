@@ -13,10 +13,12 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { createHash, randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import { StatusCodes } from 'http-status-codes'
+import nodeContract from '../../openapi/node-writes.openapi.json'
 import { FleetStore } from '../src/archive-transport.ts'
 import type { FleetCa } from '../src/ca.ts'
 import type { Db } from '../src/database.ts'
 import { SECOND_MS } from '../src/durations.ts'
+import { guarantees } from '../src/guarantees.ts'
 import { decodeHandle } from '../src/handle.ts'
 import { THRESHOLDS } from '../src/health.ts'
 import {
@@ -46,6 +48,7 @@ import {
 } from './nodes.ts'
 
 interface Copy {
+  memorySleep?: boolean
   epoch: number
   state: WorkloadState
   digest: string
@@ -187,6 +190,9 @@ class Nodes {
     if (copy === undefined)
       throw new NodeRefused(StatusCodes.NOT_FOUND, 'not_found', 'no such workload', null)
     return {
+      ...(copy.memorySleep === undefined
+        ? {}
+        : { guarantees: { ...guarantees([]), 'memory-sleep': copy.memorySleep } }),
       id: workload,
       generation: 1,
       epoch: copy.epoch,
@@ -359,6 +365,54 @@ describe.skipIf(!hasDatabase)('FleetRuntime asleep, with pryxd in memory', () =>
     const { handle, since } = await running('no-feature', FEATURES.slice(0, -1))
     expect(await suspending.sleep(handle)).toBe('stopped')
     expect(callsSince(since)).toEqual(['POST /stop t600000'])
+  })
+
+  test('a reported off memory guarantee stops without a suspend request', async () => {
+    const { node, key, handle, since } = await running('memory-off', [
+      ...FEATURES,
+      nodeContract['x-pryx-resources'].unenforcedMemoryFeature,
+    ])
+    const copy = nodes.copies.get(`${node.id}/${key}`)!
+    copy.memorySleep = false
+    expect(await suspending.sleep(handle)).toBe('stopped')
+    expect(callsSince(since)).toEqual(['GET  t5000', 'POST /stop t600000'])
+    await pulse(node)
+    expect(await claimed(node.id)).toBe(0)
+  })
+  test('a new node with an unknown memory guarantee stops directly', async () => {
+    const { handle, since } = await running('memory-unknown', [
+      ...FEATURES,
+      nodeContract['x-pryx-resources'].unenforcedMemoryFeature,
+    ])
+    expect(await suspending.sleep(handle)).toBe('stopped')
+    expect(callsSince(since)).toEqual(['GET  t5000', 'POST /stop t600000'])
+  })
+  test('a reported on copy guarantee keeps the suspend path', async () => {
+    const { node, key, handle, since } = await running('memory-on', [
+      ...FEATURES,
+      nodeContract['x-pryx-resources'].unenforcedMemoryFeature,
+    ])
+    nodes.copies.get(`${node.id}/${key}`)!.memorySleep = true
+    expect(await suspending.sleep(handle)).toBe('suspended')
+    expect(callsSince(since)).toEqual(['GET  t5000', 'POST /suspend t60000'])
+  })
+  test('a changed epoch refuses sleep before any mutation', async () => {
+    const { node, key, handle, since } = await running('memory-stale', [
+      ...FEATURES,
+      nodeContract['x-pryx-resources'].unenforcedMemoryFeature,
+    ])
+    nodes.copies.get(`${node.id}/${key}`)!.epoch++
+    await expect(suspending.sleep(handle)).rejects.toThrow('another placement')
+    expect(callsSince(since)).toEqual(['GET  t5000'])
+  })
+  test('an unreachable memory read never sends a power mutation', async () => {
+    const { handle, since } = await running('memory-unreachable', [
+      ...FEATURES,
+      nodeContract['x-pryx-resources'].unenforcedMemoryFeature,
+    ])
+    nodes.unreachable.push('GET ')
+    await expect(suspending.sleep(handle)).rejects.toBeInstanceOf(NodeUnreachable)
+    expect(callsSince(since)).toEqual(['GET  t5000'])
   })
 
   test('a copy not running is stopped, as one the node won’t suspend', async () => {

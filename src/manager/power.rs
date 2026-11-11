@@ -213,6 +213,17 @@ impl Manager {
         if !matches!(status, Some(ContainerStatus::Running | ContainerStatus::Paused)) {
             return Err(not_running());
         }
+        if let Some(limits) = self.note(self.record_runtime(&record)?.resource_limits().await)?
+            && (limits.rootless || !limits.memory)
+        {
+            return Err(NodeError::Conflict {
+                code: ConflictCode::MemorySleepUnavailable,
+                message: format!(
+                    "{} is unavailable on this engine; stop the workload instead",
+                    crate::protocol::Guarantee::MemorySleep.feature()
+                ),
+            });
+        }
         // Recorded before the freeze: a frozen container pryxd made is never taken for a running
         // one, even if pryxd dies right after.
         self.save_suspension(id, SuspendRecord { suspended_at: Some(now_str()), ..suspend.clone() }).await?;

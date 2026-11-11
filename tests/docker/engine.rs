@@ -104,9 +104,9 @@ fn refusal(error: NodeError, guarantee: pryxd::protocol::Guarantee) {
     assert!(serde_json::to_string(&errors).unwrap().contains(expected.as_str().unwrap()));
 }
 
-struct EngineCleanup {
-    socket: std::path::PathBuf,
-    deployment: String,
+pub(super) struct EngineCleanup {
+    pub(super) socket: std::path::PathBuf,
+    pub(super) deployment: String,
 }
 impl Drop for EngineCleanup {
     fn drop(&mut self) {

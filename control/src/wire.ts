@@ -48,6 +48,7 @@ export type WorkloadView = Pick<
   | 'finishedAt'
   | 'changedAt'
   | 'locate'
+  | 'guarantees'
 > & { ports: Array<Omit<Writes['PortView'], 'protocol'>> }
 export type EnsureResponse = Writes['EnsureResponse']
 export type PowerResponse = Writes['PowerResponse']
