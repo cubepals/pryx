@@ -34,6 +34,7 @@ import { TRANSFER_MS } from './workload-api.ts'
 
 export const SESSION_LIVE_SECONDS = 2 * MINUTE_S
 export type SandboxSpec = WorkloadSpec & {
+  resourceDefaults?: RuntimeSpec['resourceDefaults']
   require?: Guarantee[]
   image: string
   isolation?: import('./isolation.ts').Isolation
@@ -112,6 +113,7 @@ export function runtimeSpec(spec: SandboxSpec): RuntimeSpec {
   const defaults = nodeSchema.components.schemas.WorkloadSpec.properties
   return {
     require: spec.require,
+    ...(spec.resourceDefaults ? { resourceDefaults: spec.resourceDefaults } : {}),
     image: spec.image,
     ...(spec.fuseMounts ? { fuseMounts: true } : {}),
     packages: spec.packages,

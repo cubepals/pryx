@@ -8,7 +8,8 @@
  * node's reason, so a refusal can say why and a decision can be replayed from its inputs.
  */
 
-import { guarantees as tierGuarantees } from './guarantees.ts'
+import contract from '../../openapi/node-writes.openapi.json'
+import { type Guarantee, guarantees as tierGuarantees } from './guarantees.ts'
 import type { Health } from './health.ts'
 import { CPU_LIMIT_PROBLEM, nodeIsolations } from './isolation.ts'
 import type { RuntimeSpec } from './runtime-model.ts'
@@ -20,6 +21,8 @@ export interface PlacementRequest {
   require?: readonly import('./guarantees.ts').Guarantee[]
   isolation?: import('./isolation.ts').Isolation
   memoryMb: number
+  /** An originally named container memory ceiling, independent of its admission reservation. */
+  memoryLimit?: boolean
   cpuMillis: number
   /** Requires enforceable per-sandbox CPU quota or weight. */
   cpuLimits?: boolean
@@ -124,10 +127,9 @@ function refusal(node: NodeView, request: PlacementRequest, options: PlacementOp
   if (node.quarantined) return 'quarantined: duplicate identity'
   if (node.health !== 'healthy') return `health ${node.health}`
   if (node.regionKey !== request.regionKey) return `region ${node.regionKey}`
-  const guarantees =
-    request.require?.filter(
-      (name) => !tierGuarantees(node.features, request.isolation ?? 'container')[name],
-    ) ?? []
+  const guarantees = enforcementRequirements(request, node.features).filter(
+    (name) => !tierGuarantees(node.features, request.isolation ?? 'container')[name],
+  )
   if (guarantees.length) return `lacks required guarantees: ${guarantees.join(', ')}`
   if (!nodeIsolations(node.features).includes(request.isolation ?? 'container'))
     return `isolation tier ${request.isolation ?? 'container'} does not match`
@@ -158,6 +160,21 @@ function refusal(node: NodeView, request: PlacementRequest, options: PlacementOp
   const portsFree = node.capacity.portsTotal - node.capacity.portsAllocated
   if (portsFree < request.ports) return `ports: ${portsFree} free, needs ${request.ports}`
   return null
+}
+
+function enforcementRequirements(
+  request: PlacementRequest,
+  features: readonly string[],
+): readonly Guarantee[] {
+  const required = [...(request.require ?? [])]
+  if (
+    (request.isolation ?? 'container') === 'container' &&
+    features.includes(contract['x-pryx-resources'].unenforcedMemoryFeature)
+  ) {
+    if (request.memoryLimit) required.push('memory-limit')
+    if (request.cpuLimits) required.push('cpu-limit')
+  }
+  return [...new Set(required)]
 }
 
 /** The memory the sandboxes placed on a node may add up to, running or not. */
@@ -236,7 +253,7 @@ export function selectNode(
   const fits: Fit[] = []
   for (const node of nodes) {
     const why = refusal(node, request, options)
-    const missingGuarantees = request.require?.filter(
+    const missingGuarantees = enforcementRequirements(request, node.features).filter(
       (name) => !tierGuarantees(node.features, request.isolation ?? 'container')[name],
     )
     considered.push({

@@ -14,6 +14,7 @@
 import nodeSchema from '../../openapi/node-reads.openapi.json'
 
 import { HOUR_MS, MINUTE_MS, SECOND_MS } from './durations.ts'
+import { guarantees } from './guarantees.ts'
 import { CONFIRM_DELETE_HEADER, type NodeAddress, type NodeClient } from './node-client.ts'
 import type { NodeRow } from './registry.ts'
 import type { RuntimeSpec } from './runtime-model.ts'
@@ -63,6 +64,16 @@ export const address = (node: Dialled): NodeAddress => ({
 function toWorkloadSpec(spec: RuntimeSpec, features: readonly string[]): WorkloadSpec {
   requireWorkloadFeatures(spec, features)
   const { cpuReservationMillis, allowUnenforcedMemory, ...resources } = spec.resources
+  let memoryAcceptance = allowUnenforcedMemory
+  if (
+    (spec.isolation ?? 'container') === 'container' &&
+    features.includes(nodeSchema['x-pryx-resources'].unenforcedMemoryFeature)
+  ) {
+    const enforced = guarantees(features, spec.isolation)
+    if (spec.resourceDefaults?.memory && !enforced['memory-limit'] && memoryAcceptance == null)
+      memoryAcceptance = true
+    if (spec.resourceDefaults?.cpu && !enforced['cpu-limit']) delete resources.cpuMillis
+  }
   return {
     image: spec.image,
     ...(features.includes('multi-tier') && spec.isolation ? { isolation: spec.isolation } : {}),
@@ -78,8 +89,8 @@ function toWorkloadSpec(spec: RuntimeSpec, features: readonly string[]): Workloa
     resources: {
       ...resources,
       ...(features.includes(nodeSchema['x-pryx-resources'].unenforcedMemoryFeature) &&
-      allowUnenforcedMemory != null
-        ? { allowUnenforcedMemory }
+      memoryAcceptance != null
+        ? { allowUnenforcedMemory: memoryAcceptance }
         : {}),
       ...(features.includes('cpu-reservation') && cpuReservationMillis != null
         ? { cpuReservationMillis }

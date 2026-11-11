@@ -62,8 +62,13 @@ export class NodeChoice {
       require: spec.require,
       isolation: spec.isolation,
       memoryMb: spec.resources.memoryMb,
+      memoryLimit:
+        (spec.isolation ?? 'container') === 'container' &&
+        (spec.resources.allowUnenforcedMemory === false ||
+          (spec.resources.allowUnenforcedMemory !== true && spec.resourceDefaults?.memory === false)),
       cpuMillis: reservedCpu(spec.resources, this.#o.cpuMillisPerGb),
-      cpuLimits: spec.resources.cpuMillis != null || spec.resources.cpuWeight != null,
+      cpuLimits:
+        spec.resources.cpuWeight != null || (spec.resources.cpuMillis != null && !spec.resourceDefaults?.cpu),
       diskGb: spec.storage.sizeGb,
       ports: spec.ports.length + (spec.agent ? 1 + (spec.sparePorts ?? 0) : 0),
       regionKey: region,

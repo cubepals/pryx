@@ -179,6 +179,15 @@ export class PublicModel {
         : { packages: body.packages ?? source?.packages }),
       isolation,
       require: [...new Set([...this.require, ...(body.require ?? source?.require ?? [])])],
+      resourceDefaults:
+        body.resources === undefined && body.units === undefined && source
+          ? source.resourceDefaults
+          : body.units === undefined
+            ? {
+                memory: body.resources === undefined,
+                cpu: body.resources?.cpuMillis == null && body.resources?.cpuWeight == null,
+              }
+            : { memory: false, cpu: false },
       resources: body.resources ??
         (body.units === undefined ? source?.resources : undefined) ?? {
           memoryMb: this.boxes.projects?.unit.memoryMb ?? UNIT_DEFAULTS.memoryMb,

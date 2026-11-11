@@ -282,7 +282,7 @@ jobs:
             sudo python3 pryxd/deploy/local-diagnostics.py "$directory"
           done
           directory="$RUNNER_TEMP/contract-diagnostics"
-          mkdir -m 700 -p "$directory"
+          install -d -m 700 "$directory"
           docker logs --tail 80 s3 > "$directory/s3.log" 2>&1 || true
           python3 pryxd/deploy/local-diagnostics.py "$directory"
 

@@ -31,6 +31,8 @@ interface PortSpec {
 }
 
 export interface RuntimeSpec {
+  /** Original public request intent, persisted before unit defaults. Absent on legacy records. */
+  resourceDefaults?: { memory: boolean; cpu: boolean }
   require?: readonly import('./guarantees.ts').Guarantee[]
   fuseMounts?: boolean
   isolation?: import('./isolation.ts').Isolation
