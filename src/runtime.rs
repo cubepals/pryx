@@ -7,6 +7,7 @@
 //! microVM backend would be a third, and the protocol would not change.
 //!
 //! Parts (`runtime/`):
+//! - `agent_metadata.rs`: bounded optional parser support from the configured executable.
 //! - `router.rs`: immutable workload routes over the available backends.
 //! - `configured.rs`: construction from host-owned backend settings.
 //! - `limits.rs`: refusal of limits an engine cannot enforce.
@@ -16,6 +17,7 @@
 //! - `wasm.rs`: virtual agentOS VMs through a separately verified sidecar.
 //! - `process.rs`: namespace-free process tier and private runtime journal.
 
+mod agent_metadata;
 pub mod configured;
 pub mod docker;
 pub mod engine;
