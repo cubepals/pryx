@@ -192,6 +192,7 @@ jobs:
           if [ "$TEST_MODE" = root ]; then profile+=(-e PRYX_TEST_ROOT_MODE=1 -e PORT=80); fi
           docker run --rm "${profile[@]}" \
             --env "PRYX_TEST_UBUNTU_MIRROR=$(jq -r .ubuntuMirror .github/engine-versions.json)" \
+            --env "PRYX_TEST_UBUNTU_FALLBACK_MIRROR=$(jq -r .ubuntuFallbackMirror .github/engine-versions.json)" \
             --env PRYX_TEST_APT_CA=/pryx-ci-ca.pem \
             --mount "type=bind,source=/etc/ssl/certs/ca-certificates.crt,target=/pryx-ci-ca.pem,readonly" \
             --mount "type=bind,source=$PWD/host-artifacts,target=/artifacts,readonly" \

@@ -18,7 +18,7 @@ fetch() {
   local url=$1 digest=$2 output=$3 fallback=${4:-} source
   for source in "$url" "$fallback"; do
     [ -n "$source" ] || continue
-    if curl --retry 5 --retry-delay 5 --retry-connrefused --retry-max-time 240 --connect-timeout 20 --max-time 180 -fsSL "$source" -o "$output" &&
+    if curl --ipv4 --retry 5 --retry-delay 5 --retry-connrefused --retry-max-time 240 --connect-timeout 20 --max-time 180 -fsSL "$source" -o "$output" &&
       printf '%s  %s\n' "$digest" "$output" | sha256sum -c -; then return 0; fi
   done
   return 1
@@ -39,8 +39,12 @@ assert count > 0, 'The hosted runner has no Ubuntu archive URI'
 Path(sys.argv[1]).write_text(source)
 PY
 mkdir -p "$root/apt-source-parts"
-apt_options=(-o "Dir::Etc::sourcelist=$root/ubuntu.sources" -o "Dir::Etc::sourceparts=$root/apt-source-parts")
-sudo apt-get "${apt_options[@]}" update -o Acquire::Retries=3 -o APT::Update::Error-Mode=any
+apt_options=(-o "Dir::Etc::sourcelist=$root/ubuntu.sources" -o "Dir::Etc::sourceparts=$root/apt-source-parts" -o Acquire::ForceIPv4=true -o Acquire::Retries=3)
+if ! sudo apt-get "${apt_options[@]}" update -o APT::Update::Error-Mode=any; then
+  ubuntu_mirror=$(jq -r .ubuntuFallbackMirror "$manifest")
+  sed -i "s|^URIs:.*|URIs: $ubuntu_mirror|" "$root/ubuntu.sources"
+  sudo apt-get "${apt_options[@]}" update -o APT::Update::Error-Mode=any
+fi
 sudo apt-get "${apt_options[@]}" install -y uidmap slirp4netns
 
 if [ "$engine" = docker ]; then

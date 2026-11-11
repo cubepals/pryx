@@ -36,8 +36,12 @@ if command -v apt-get >/dev/null; then
   fi
   # The minimal Ubuntu image bootstraps its own CA package using the read-only runner roots.
   # TLS, Ubuntu release signatures and package digest verification all remain mandatory.
-  apt-get update -qq -o Acquire::Retries=3 -o APT::Update::Error-Mode=any -o "Acquire::https::CaInfo=$pryx_apt_ca"
-  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends -o "Acquire::https::CaInfo=$pryx_apt_ca" curl ca-certificates python3 passwd tar
+  if ! apt-get update -qq -o Acquire::ForceIPv4=true -o Acquire::Retries=3 -o APT::Update::Error-Mode=any -o "Acquire::https::CaInfo=$pryx_apt_ca"; then
+    [ -n "${pryx_ubuntu_mirror:-}" ] || exit 1
+    rewrite_ubuntu_sources "" "${PRYX_TEST_UBUNTU_FALLBACK_MIRROR:?The Ubuntu fixture needs its fallback archive mirror}"
+    apt-get update -qq -o Acquire::ForceIPv4=true -o Acquire::Retries=3 -o APT::Update::Error-Mode=any -o "Acquire::https::CaInfo=$pryx_apt_ca"
+  fi
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o Acquire::ForceIPv4=true -o Acquire::Retries=3 --no-install-recommends -o "Acquire::https::CaInfo=$pryx_apt_ca" curl ca-certificates python3 passwd tar
 elif command -v apk >/dev/null; then
   apk add --no-cache curl ca-certificates python3 shadow tar
 elif command -v dnf >/dev/null; then

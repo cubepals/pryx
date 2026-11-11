@@ -1,5 +1,6 @@
 {
   "ubuntuMirror": "https://mirrors.edge.kernel.org/ubuntu",
+  "ubuntuFallbackMirror": "https://mirrors.mit.edu/ubuntu",
   "docker": {
     "version": "29.9.2",
     "url": "https://download.docker.com/linux/static/stable/x86_64/docker-29.9.2.tgz",

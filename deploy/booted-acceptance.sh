@@ -9,8 +9,12 @@ pryx_source_parts=$(mktemp -d "$RUNNER_TEMP/pryx-incus-sources-XXXXXX")
 pryx_ubuntu_mirror=$(jq -r .ubuntuMirror .github/engine-versions.json)
 grep -q '^URIs:' /etc/apt/sources.list.d/ubuntu.sources
 sed "s|^URIs:.*|URIs: $pryx_ubuntu_mirror|" /etc/apt/sources.list.d/ubuntu.sources > "$pryx_sources"
-apt_options=(-o "Dir::Etc::sourcelist=$pryx_sources" -o "Dir::Etc::sourceparts=$pryx_source_parts")
-sudo apt-get "${apt_options[@]}" update -qq -o Acquire::Retries=3 -o APT::Update::Error-Mode=any
+apt_options=(-o "Dir::Etc::sourcelist=$pryx_sources" -o "Dir::Etc::sourceparts=$pryx_source_parts" -o Acquire::ForceIPv4=true -o Acquire::Retries=3)
+if ! sudo apt-get "${apt_options[@]}" update -qq -o APT::Update::Error-Mode=any; then
+  pryx_ubuntu_mirror=$(jq -r .ubuntuFallbackMirror .github/engine-versions.json)
+  sed -i "s|^URIs:.*|URIs: $pryx_ubuntu_mirror|" "$pryx_sources"
+  sudo apt-get "${apt_options[@]}" update -qq -o APT::Update::Error-Mode=any
+fi
 sudo apt-get "${apt_options[@]}" install -y incus=6.0.0-1ubuntu0.3
 sudo incus admin init --minimal
 sudo iptables -I DOCKER-USER -i incusbr0 -j ACCEPT
@@ -32,14 +36,14 @@ sudo incus file push deploy/container-acceptance.sh pryx/container-acceptance.sh
 sudo incus file push deploy/local-diagnostics.py pryx/local-diagnostics.py
 # Reuse distro prerequisite setup, replacing only its final su with a PAM login session
 # for systemd distributions. Alpine uses its actual OpenRC/foreground path.
-sudo incus exec pryx --env "PRYX_TEST_UBUNTU_MIRROR=$(jq -r .ubuntuMirror .github/engine-versions.json)" -- sh -c '
+sudo incus exec pryx --env "PRYX_TEST_UBUNTU_MIRROR=$(jq -r .ubuntuMirror .github/engine-versions.json)" --env "PRYX_TEST_UBUNTU_FALLBACK_MIRROR=$(jq -r .ubuntuFallbackMirror .github/engine-versions.json)" -- sh -c '
   set -eu
   if [ "$(cat /proc/1/comm)" = systemd ]; then
     while ! systemctl is-active --quiet systemd-logind; do sleep 1; done
     PRYX_PREPARE_ONLY=1 sh /container-acceptance.sh
     [ "$(id -u pryxtest)" = 1001 ]
     case "$(. /etc/os-release; echo "$ID")" in
-      debian|ubuntu) apt-get install -y dbus-user-session libpam-systemd polkitd ;;
+      debian|ubuntu) apt-get install -y -o Acquire::ForceIPv4=true -o Acquire::Retries=3 dbus-user-session libpam-systemd polkitd ;;
       fedora) dnf install -y systemd-pam dbus-broker polkit ;;
     esac
     python3 -m http.server 9876 --bind 127.0.0.1 --directory /artifacts >/tmp/artifact-server.log 2>&1 &

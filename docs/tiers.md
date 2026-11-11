@@ -25,8 +25,8 @@ The complete measurements below retain their original contexts, samples and budg
 
 ## Rootless engine measurements
 
-The [ordinary-user engine run](https://github.com/cubepals/pryx/actions/runs/43052744144)
-measures source `5da54b4afd80411868b55479e7d33147da697bd6` on an x86_64 Ubuntu 24.04 hosted
+The [ordinary-user engine run](https://github.com/cubepals/pryx/actions/runs/43071213897)
+measures source `197a372781c654311205064e3f482852b2e01907` on an x86_64 Ubuntu 24.04 hosted
 runner. Podman is the pinned Ubuntu `4.9.3+ds1-1ubuntu0.2` package, with vfs storage and no
 delegated controllers. Each fresh workload reserves 256 MiB for admission and explicitly accepts
 missing memory enforcement; CPU, PID and memory-sleep limits are off. The same job proves
@@ -44,7 +44,7 @@ strict deletion and installer startup are outside these timers. Percentiles use 
 
 | Engine and host context | Completed samples | Create ms p50 / p90 | Exec ms p50 / p90 | HTTP round trip ms p50 / p90 |
 | --- | ---: | ---: | ---: | ---: |
-| Rootless Podman, ordinary runner user | 30 | 3900.08 / 3987.13 | 44.21 / 47.90 | 2.88 / 3.03 |
+| Rootless Podman, ordinary runner user | 30 | 2247.29 / 2472.42 | 75.68 / 265.73 | 3.07 / 3.20 |
 | Standard rootless Docker 29.9.2 mapping | 0 | Unavailable | Unavailable | Unavailable |
 
 The standard Docker mapping cannot expose daemon-owned data to the required nonzero sandbox
@@ -53,9 +53,9 @@ user: default and host namespaces deny the write, and keep-id is unsupported. It
 lifecycle and timings are parked; a custom mapped local daemon is not evidence for that host.
 Rootless Docker also refuses `network-policy` for `network: "none"`: its internal bridges cannot
 provide ingress through the node user. Podman uses native published ingress for internal bridges.
-The [Podman samples](checks/measurements/k22/podman-5da54b4.json),
-[Docker refusal](checks/measurements/k22/docker-5da54b4.json) and
-[artifact provenance](checks/measurements/k22/provenance-5da54b4.json) are retained byte for byte after
+The [Podman samples](checks/measurements/k22/podman-197a372.json),
+[Docker refusal](checks/measurements/k22/docker-197a372.json) and
+[artifact provenance](checks/measurements/k22/provenance-197a372.json) are retained byte for byte after
 checking their GitHub archive digests. A failed collection retains its partial sample count
 and cannot report completion.
 
