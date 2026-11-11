@@ -273,6 +273,7 @@ jobs:
       - name: One command, image or refusal, repeat, upgrade and purge
         env:
           PRYX_EXPECT_CONTAINER: ${{ matrix.engine == 'podman' && 'on' || 'off' }}
+          PRYX_ENGINE_OUTAGE_PROBE: ${{ github.workspace }}/deploy/engine-outage.py
         run: |
           sudo install -m 644 deploy/local-diagnostics.py /local-diagnostics.py
           python3 -m http.server 9876 --bind 127.0.0.1 --directory host-artifacts > "$RUNNER_TEMP/artifact-server.log" 2>&1 &

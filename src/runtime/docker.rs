@@ -112,10 +112,9 @@ pub struct DockerRuntime {
 }
 
 struct RootlessExec {
-    peer: termination::Peer,
-    podman: bool,
+    owner: termination::Ownership,
+    init: termination::Held,
     container: String,
-    init_pid: i32,
 }
 
 impl DockerRuntime {
@@ -131,7 +130,7 @@ impl DockerRuntime {
         if !info.rootless {
             return Ok(None);
         }
-        let peer = termination::peer(&self.socket).await.map_err(RuntimeError::Other)?;
+        let peer_uid = termination::peer(&self.socket).await.map_err(RuntimeError::Other)?;
         let inspect = quick("inspect exec owner", self.docker()?.inspect_container(container, None)).await?;
         let container = inspect.id.ok_or_else(|| RuntimeError::Other("exec owner has no identity".into()))?;
         let state = inspect.state.unwrap_or_default();
@@ -140,42 +139,15 @@ impl DockerRuntime {
             .and_then(|pid| i32::try_from(pid).ok())
             .filter(|pid| *pid > 1)
             .ok_or_else(|| RuntimeError::Conflict("exec owner is not running".into()))?;
-        let owned = if info.podman {
-            self.podman_exec_pids(&container).await?.contains(&init_pid)
-        } else {
-            termination::shim_owned(init_pid, peer.uid, &container)
-        };
-        if !owned {
-            return Err(RuntimeError::Other(
-            "exec-pid-visibility is unavailable: the selected engine cannot prove process ownership; use its direct local socket with visible host PIDs".into()));
+        let init = termination::Held::capture(init_pid).ok_or_else(|| {
+            RuntimeError::Other("exec-pid-visibility is unavailable: the workload init is gone".into())
+        })?;
+        let owner = termination::Ownership::capture(init_pid, peer_uid, &container, !info.podman).ok_or_else(|| RuntimeError::Other(
+            "exec-pid-visibility is unavailable: the workload's private process identity is unreadable; permit same-user procfs inspection on the engine host".into()))?;
+        if !init.alive() {
+            return Err(RuntimeError::Conflict("exec owner exited during namespace inspection".into()));
         }
-        Ok(Some(RootlessExec { peer, podman: info.podman, container, init_pid }))
-    }
-
-    async fn podman_exec_pids(&self, container: &str) -> Result<std::collections::BTreeSet<i32>, RuntimeError> {
-        // Podman v4.9.3 TopContainer uses psgo's documented hpid descriptor and HPID column.
-        const HOST_PID_DESCRIPTOR: &str = "hpid";
-        const HOST_PID_COLUMN: &str = "HPID";
-        let options = bollard::query_parameters::TopOptionsBuilder::default().ps_args(HOST_PID_DESCRIPTOR).build();
-        let top = quick("exec process membership", self.docker()?.top_processes(container, Some(options))).await?;
-        let column = top
-            .titles
-            .as_ref()
-            .and_then(|titles| titles.iter().position(|title| title == HOST_PID_COLUMN))
-            .ok_or_else(|| {
-                RuntimeError::Other("exec-pid-visibility is unavailable: the engine omitted host PIDs".into())
-            })?;
-        top.processes
-            .unwrap_or_default()
-            .into_iter()
-            .map(|row| {
-                row.get(column).and_then(|pid| pid.trim().parse::<i32>().ok()).filter(|pid| *pid > 1).ok_or_else(|| {
-                    RuntimeError::Other(
-                        "exec-pid-visibility is unavailable: the engine returned an invalid host PID".into(),
-                    )
-                })
-            })
-            .collect()
+        Ok(Some(RootlessExec { owner, init, container }))
     }
 
     /// Doesn't connect yet: pryxd starts even while Docker is down (bollard refuses to build a
@@ -437,6 +409,8 @@ impl ContainerRuntime for DockerRuntime {
                 .security_options
                 .as_ref()
                 .is_some_and(|options| options.iter().any(|option| option == ROOTLESS_SECURITY_OPTION)),
+            local_process_ids: None,
+            unprivileged_ports: None,
             memory_limit: info.memory_limit == Some(true)
                 && info.cgroup_driver.as_ref().is_some_and(|driver| driver.to_string() != "none"),
             cpu_limit: info.cpu_cfs_quota == Some(true)
@@ -454,6 +428,20 @@ impl ContainerRuntime for DockerRuntime {
             log_driver: info.logging_driver,
         };
         podman::enforcement(&mut result, native.as_ref());
+        if result.rootless {
+            let visible = termination::peer(&self.socket).await.is_ok();
+            result.local_process_ids = Some(visible);
+            // ip(7): ports below ip_unprivileged_port_start require CAP_NET_BIND_SERVICE.
+            // The host-side rootless port helper needs all nonzero ports available.
+            result.unprivileged_ports = visible
+                .then(|| {
+                    std::fs::read_to_string("/proc/sys/net/ipv4/ip_unprivileged_port_start")
+                        .ok()
+                        .and_then(|value| value.trim().parse::<u16>().ok())
+                        .map(|first| first <= 1)
+                })
+                .flatten();
+        }
         crate::capability::probe_phase("engine-info-complete");
         if result.container_policy_problem.is_none() {
             result.container_policy_problem = ownership::problem(self, &result).await;

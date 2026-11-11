@@ -69,6 +69,37 @@ impl EngineCase {
         result.stdout
     }
 
+    async fn measurements(&self, output: &std::path::Path) {
+        let mut report = serde_json::json!({
+            "status": "running", "requestedSamples": 30, "samples": [],
+            "scope": "direct node manager, locally available image, serial workloads, no public edge",
+            "engine": std::env::var("PRYX_TEST_ENGINE").unwrap_or_else(|_| "docker".into()),
+            "architecture": std::env::consts::ARCH,
+        });
+        std::fs::write(output, serde_json::to_vec_pretty(&report).unwrap()).unwrap();
+        for index in 0..30 {
+            let name = format!("measure-{index}");
+            let began = Instant::now();
+            self.create(&name).await;
+            self.manager.start(id(&name), None).await.unwrap();
+            let create = began.elapsed().as_secs_f64() * 1000.0;
+            assert_eq!(self.command(&name, "printf measured > /data/index.html").await, "");
+            let began = Instant::now();
+            assert_eq!(self.command(&name, "true").await, "");
+            let exec = began.elapsed().as_secs_f64() * 1000.0;
+            let began = Instant::now();
+            assert_eq!(self.page(&name).await, "measured");
+            let network = began.elapsed().as_secs_f64() * 1000.0;
+            report["samples"].as_array_mut().unwrap().push(serde_json::json!({
+                "createMs": create, "execMs": exec, "networkMs": network,
+            }));
+            std::fs::write(output, serde_json::to_vec_pretty(&report).unwrap()).unwrap();
+            self.manager.delete(id(&name), DataDisposition::Delete, Some(name.clone()), None).await.unwrap();
+        }
+        report["status"] = "complete".into();
+        std::fs::write(output, serde_json::to_vec_pretty(&report).unwrap()).unwrap();
+    }
+
     async fn page(&self, name: &str) -> String {
         let port = self.manager.view(&id(name)).unwrap().ports[0].host_port;
         let client = reqwest::Client::builder().no_proxy().timeout(Duration::from_secs(5)).build().unwrap();
@@ -88,7 +119,17 @@ impl EngineCase {
 #[tokio::test]
 #[ignore = "needs the actual selected engine"]
 async fn engine_images_ports_snapshot_fork_and_stop_keep_their_boundaries() {
-    let Some(case) = EngineCase::new().await else { return };
+    let output = std::env::var_os("PRYX_ENGINE_MEASUREMENTS").map(std::path::PathBuf::from);
+    let Some(case) = EngineCase::new().await else {
+        if let Some(output) = output {
+            let report = serde_json::json!({"status": "refused", "requirement": "data-owner-mapping", "samples": []});
+            std::fs::write(output, serde_json::to_vec_pretty(&report).unwrap()).unwrap();
+        }
+        return;
+    };
+    if let Some(output) = output {
+        case.measurements(&output).await;
+    }
     case.create("original").await;
     case.manager.start(id("original"), None).await.unwrap();
     assert_eq!(case.command("original", "printf original > /data/index.html; cat /data/index.html").await, "original");

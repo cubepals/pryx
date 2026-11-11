@@ -4,7 +4,9 @@
 use rustix::process::{Pid, PidfdFlags, Signal, pidfd_open, pidfd_send_signal};
 use std::{
     collections::HashMap,
+    fs::File,
     os::fd::{AsRawFd, OwnedFd},
+    os::unix::fs::MetadataExt,
 };
 
 /// SIGKILLs `pid` and every process descended from it, each only if its cgroup still names
@@ -57,11 +59,7 @@ pub(super) fn descendants(root: i32, children: &HashMap<i32, Vec<i32>>) -> Vec<i
     tree
 }
 
-pub(super) struct Peer {
-    pub(super) uid: u32,
-}
-
-pub(super) async fn peer(socket: &str) -> Result<Peer, String> {
+pub(super) async fn peer(socket: &str) -> Result<u32, String> {
     let stream = tokio::time::timeout(crate::runtime::ENGINE_PROBE_TIMEOUT, tokio::net::UnixStream::connect(socket))
         .await
         .map_err(|_| visibility("the engine peer timed out"))?
@@ -74,7 +72,7 @@ pub(super) async fn peer(socket: &str) -> Result<Peer, String> {
     if !unique_uid(credentials.uid()) {
         return Err(visibility("the engine peer UID is unmapped or ambiguous"));
     }
-    Ok(Peer { uid: credentials.uid() })
+    Ok(credentials.uid())
 }
 
 fn visibility(reason: &str) -> String {
@@ -168,6 +166,30 @@ pub(super) fn process_tree(root: i32) -> std::collections::BTreeSet<i32> {
     descendants(root, &children_by_parent()).into_iter().collect()
 }
 
+pub(super) struct Namespace(File);
+
+impl Namespace {
+    pub(super) fn capture(init: i32) -> Option<Self> {
+        // proc_pid_status(5): a private namespace's init is the final NSpid 1.
+        // Its descriptor pins that namespace even after the numeric PID disappears.
+        let status = std::fs::read_to_string(format!("/proc/{init}/status")).ok()?;
+        let pids = status.lines().find_map(|line| line.strip_prefix("NSpid:"))?.split_whitespace().collect::<Vec<_>>();
+        if pids.len() < 2 || pids.last().copied() != Some("1") {
+            return None;
+        }
+        let namespace = Self(File::open(format!("/proc/{init}/ns/pid")).ok()?);
+        (!namespace.owns(rustix::process::getpid().as_raw_pid())).then_some(namespace)
+    }
+
+    pub(super) fn owns(&self, pid: i32) -> bool {
+        let ours = self.0.metadata();
+        let theirs = File::open(format!("/proc/{pid}/ns/pid")).and_then(|file| file.metadata());
+        ours.ok()
+            .zip(theirs.ok())
+            .is_some_and(|(ours, theirs)| ours.dev() == theirs.dev() && ours.ino() == theirs.ino())
+    }
+}
+
 #[derive(Clone, PartialEq, Eq)]
 struct Stamp {
     parent: i32,
@@ -227,6 +249,24 @@ fn shim_argument(pid: i32, container: &str) -> bool {
     })
 }
 
+pub(super) enum Ownership {
+    Namespace(Namespace),
+    Shim { uid: u32, container: String },
+}
+impl Ownership {
+    pub(super) fn capture(init: i32, uid: u32, container: &str, docker: bool) -> Option<Self> {
+        Namespace::capture(init).map(Self::Namespace).or_else(|| {
+            (docker && shim_owned(init, uid, container)).then(|| Self::Shim { uid, container: container.into() })
+        })
+    }
+    pub(super) fn owns(&self, pid: i32) -> bool {
+        match self {
+            Self::Namespace(namespace) => namespace.owns(pid),
+            Self::Shim { uid, container } => shim_owned(pid, *uid, container),
+        }
+    }
+}
+
 #[cfg(test)]
 mod kernel_tests {
     use super::*;
@@ -250,6 +290,10 @@ mod kernel_tests {
         let uid = rustix::process::geteuid().as_raw();
         assert!(!shim_owned(process.pid, uid, &container));
         assert!(!shim_owned(process.pid, uid.checked_add(1).unwrap(), &container));
+        assert!(
+            Namespace::capture(process.pid).is_none(),
+            "forged argv cannot make a host process a private namespace init"
+        );
         assert!(!process.kill(), "an unverified capture is never armed");
         assert!(process.alive() && child.try_wait().unwrap().is_none());
         child.kill().unwrap();
@@ -284,7 +328,7 @@ mod kernel_tests {
         let answer = peer(path.to_str().unwrap()).await;
         let uid = rustix::process::geteuid().as_raw();
         if single_pid_namespace(rustix::process::getpid().as_raw_pid()) && unique_uid(uid) {
-            assert_eq!(answer.unwrap().uid, uid);
+            assert_eq!(answer.unwrap(), uid);
         } else {
             assert!(answer.err().unwrap().contains("exec-pid-visibility"));
         }

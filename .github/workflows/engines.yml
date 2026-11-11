@@ -61,7 +61,16 @@ jobs:
       - name: Read bounded engine metadata timings
         run: timeout 20s python3 scripts/engine-api-probe.py
       - name: Real engine controller and cold sleep cases
+        env:
+          PRYX_ENGINE_MEASUREMENTS: ${{ runner.temp }}/engine-measurements.json
         run: cargo test --locked --test docker engine -- --ignored --test-threads 1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: rootless-${{ matrix.engine }}-measurements
+          path: ${{ runner.temp }}/engine-measurements.json
+          if-no-files-found: warn
+          retention-days: 7
       - name: Measure default, host and keep-id data ownership
         if: ${{ !cancelled() && env.DOCKER_HOST != '' }}
         run: python3 scripts/engine-ownership.py

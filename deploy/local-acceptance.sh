@@ -103,6 +103,12 @@ pryx sandbox start "$box" > "$HOME/restarted-box.json"
 pryx sandbox cp "$box:kept" "$HOME/restored"
 python3 -c 'import filecmp,sys; assert filecmp.cmp(sys.argv[1],sys.argv[2],shallow=False)' "$HOME/kept" "$HOME/restored"
 [ "$(pryx run -- echo hello)" = hello ]
+if [ "${PRYX_EXPECT_CONTAINER:-}" = on ]; then
+  phase=engine-outage
+  python3 "${PRYX_ENGINE_OUTAGE_PROBE:?}" "$cli" "$box"
+  pryx sandbox cp "$box:kept" "$HOME/after-engine-outage"
+  python3 -c 'import filecmp,sys; assert filecmp.cmp(sys.argv[1],sys.argv[2],shallow=False)' "$HOME/kept" "$HOME/after-engine-outage"
+fi
 # Leave the real retained workload for purge to stop, rather than deleting it through the API.
 phase=purge
 pryx down --purge > "$HOME/purged.json"

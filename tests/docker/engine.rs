@@ -41,6 +41,7 @@ async fn explicit_memory_acceptance_never_removes_available_enforcement() {
         assert!(!manager.store.data_dir(&id("cpu-limited")).exists());
         value["resources"].as_object_mut().unwrap().remove("cpuMillis");
     }
+    extra_limit_refusals(&manager, &limits, &value).await;
     let made =
         manager.ensure(id("accepted"), serde_json::from_value(value).unwrap(), Precondition::None, None).await.unwrap();
     let view = serde_json::to_value(&made.workload).unwrap();
@@ -94,6 +95,42 @@ async fn explicit_memory_acceptance_never_removes_available_enforcement() {
     cleanup(&manager, &["accepted"]).await;
 }
 
+async fn extra_limit_refusals(
+    manager: &Arc<Manager>,
+    limits: &pryxd::runtime::limits::ResourceLimits,
+    value: &serde_json::Value,
+) {
+    for (name, field, enforced) in
+        [("weight-limited", "cpuWeight", limits.cpu), ("pids-limited", "pidsLimit", limits.pids)]
+    {
+        if enforced {
+            continue;
+        }
+        let mut value = value.clone();
+        value["resources"][field] = 128.into();
+        let error = manager
+            .ensure(id(name), serde_json::from_value(value).unwrap(), Precondition::None, None)
+            .await
+            .unwrap_err();
+        let NodeError::Invalid(errors) = error else { panic!("unexpected refusal: {error:?}") };
+        let errors = serde_json::to_value(&errors).unwrap();
+        assert!(errors.as_array().unwrap().iter().any(|error| error["field"] == format!("resources.{field}")));
+        let named = if field == "cpuWeight" {
+            serde_json::to_value(pryxd::protocol::Guarantee::CpuLimit).unwrap()
+        } else {
+            "pids-limit".into()
+        };
+        assert!(
+            errors
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|error| error["problem"].as_str().unwrap().contains(named.as_str().unwrap()))
+        );
+        assert!(!manager.store.data_dir(&id(name)).exists());
+    }
+}
+
 fn refusal(error: NodeError, guarantee: pryxd::protocol::Guarantee) {
     let NodeError::Invalid(errors) = error else {
         panic!("unexpected refusal: {error:?}");
@@ -118,8 +155,10 @@ impl Drop for EngineCleanup {
                 let _ = std::process::Command::new("docker").args(["--host", &endpoint, "rm", "-f"]).args(ids).output();
             }
         }
-        let network = format!("engine-{}", self.deployment);
-        let _ = std::process::Command::new("docker").args(["--host", &endpoint, "network", "rm", &network]).output();
+        for network in [format!("engine-{}", self.deployment), format!("engine-{}-internal", self.deployment)] {
+            let _ =
+                std::process::Command::new("docker").args(["--host", &endpoint, "network", "rm", &network]).output();
+        }
     }
 }
 
@@ -206,4 +245,58 @@ async fn assert_kernel_capabilities(manager: &Arc<Manager>) {
         assert_eq!(u64::from_str_radix(fields[name].trim(), 16).unwrap(), 0, "{name} must be empty");
     }
     assert_eq!(fields["NoNewPrivs"].trim(), "1");
+}
+
+#[tokio::test]
+#[ignore = "needs the actual selected engine"]
+async fn engine_doctor_reads_local_process_and_low_port_prerequisites() {
+    let socket = selected_socket().await;
+    let directory = tempfile::tempdir().unwrap();
+    let pki = support::pki(directory.path());
+    let config = directory.path().join("doctor.toml");
+    let path = |value: &std::path::Path| serde_json::to_string(value.to_str().unwrap()).unwrap();
+    std::fs::write(
+        &config,
+        format!(
+            r#"
+node_id = "engine-doctor"
+deployment_id = "engine-doctor"
+state_dir = {}
+[api]
+listen = "127.0.0.1:0"
+[api.tls]
+cert = {}
+key = {}
+client_ca = {}
+allowed_clients = [{}]
+[docker]
+socket = {}
+"#,
+            path(&directory.path().join("state")),
+            path(&pki.dir.join("node.pem")),
+            path(&pki.dir.join("node.key")),
+            path(&pki.dir.join("ca.pem")),
+            serde_json::to_string(support::CLIENT).unwrap(),
+            path(&socket)
+        ),
+    )
+    .unwrap();
+    let report = pryxd::doctor::run(&pryxd::doctor::Options { config, preflight: false, fix: false }).await;
+    let report = serde_json::to_value(report).unwrap();
+    let checks = report["checks"].as_array().unwrap();
+    let named = |name| checks.iter().find(|check| check["name"] == name);
+    if std::env::var_os("PRYX_TEST_ENGINE").is_some() {
+        assert!(named("docker.exec-pid-visibility").is_some(), "{report}");
+        assert_eq!(named("docker.exec-pid-visibility").unwrap()["status"], "pass");
+        let first: u16 =
+            std::fs::read_to_string("/proc/sys/net/ipv4/ip_unprivileged_port_start").unwrap().trim().parse().unwrap();
+        let ports = named("docker.low-ports").unwrap();
+        assert_eq!(ports["status"], if first <= 1 { "pass" } else { "warn" });
+        if first > 1 {
+            assert!(!ports["fix"].as_str().unwrap().is_empty());
+        }
+    } else {
+        assert!(named("docker.exec-pid-visibility").is_none());
+        assert!(named("docker.low-ports").is_none());
+    }
 }

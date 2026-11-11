@@ -116,7 +116,7 @@ impl DockerRuntime {
         let Some(policy) = policy else {
             return Ok(termination::kill_exec_tree(pid, container));
         };
-        if policy.container != container || policy.init_pid == pid {
+        if policy.container != container || policy.init.pid == pid || !policy.init.alive() {
             return Err(RuntimeError::Other("exec-timeout refused an unverified process identity".into()));
         }
         tokio::time::timeout(Duration::from_secs(2), self.kill_rootless_exec(pid, policy))
@@ -140,15 +140,11 @@ impl DockerRuntime {
                     held.insert(*target, process);
                 }
             }
-            let allowed = if policy.podman {
-                self.podman_exec_pids(&policy.container).await?
-            } else {
-                current
-                    .iter()
-                    .copied()
-                    .filter(|target| termination::shim_owned(*target, policy.peer.uid, &policy.container))
-                    .collect()
-            };
+            let allowed = current
+                .iter()
+                .copied()
+                .filter(|target| policy.owner.owns(*target))
+                .collect::<std::collections::BTreeSet<_>>();
             if !allowed.contains(&pid) {
                 return Err(RuntimeError::Other(
                     "exec-timeout is unavailable: the selected engine did not prove process ownership".into(),

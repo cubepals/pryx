@@ -45,7 +45,10 @@ export async function inspectLocal(
       'Container tier is unavailable in this host context; run pryx on the engine host with a supported local engine, or select an available process or wasm tier',
     )
   const gnu = /glibc|gnu libc|gnu c library/i.test(probe.cLibrary)
-  const tier = imageTier(canContainer, requested ?? (!filesystem && gnu ? 'wasm' : undefined))
+  const tier = imageTier(
+    canContainer,
+    requested ?? (!canContainer && !filesystem && gnu ? 'wasm' : undefined),
+  )
   const problem = localProblem(preset, probe, filesystem, tier)
   if (problem) throw new Error(problem)
   if (tier === 'wasm') {

@@ -122,6 +122,24 @@ fn engine_limits(info: &RuntimeInfo) -> Vec<Check> {
                 Check::warn(name, "off on this rootless engine", action)
             });
         }
+        for (name, available, action) in [
+            (
+                "docker.exec-pid-visibility",
+                info.local_process_ids,
+                "Run pryx on the engine host with directly visible process identities and same-user procfs access",
+            ),
+            (
+                "docker.low-ports",
+                info.unprivileged_ports,
+                "Use published ports at or above the host kernel's ip_unprivileged_port_start threshold",
+            ),
+        ] {
+            checks.push(match available {
+                Some(true) => Check::pass(name, "the local kernel prerequisite is available"),
+                Some(false) => Check::warn(name, "the local kernel prerequisite is off", action),
+                None => Check::warn(name, "the local kernel prerequisite could not be established", action),
+            });
+        }
     }
     if info.storage_driver.as_deref() == Some("vfs") {
         checks.push(Check::warn(
@@ -329,11 +347,17 @@ mod tests {
     fn a_rootless_engine_explains_missing_enforcement_and_slow_storage() {
         let info = RuntimeInfo { rootless: true, storage_driver: Some("vfs".into()), ..Default::default() };
         let checks = engine_limits(&info);
-        assert_eq!(checks.len(), 5);
+        assert_eq!(checks.len(), 7);
         assert!(checks.iter().all(|check| check.status == Status::Warn && check.fix.is_some()));
-        for name in
-            ["docker.memory-limit", "docker.cpu-limit", "docker.memory-sleep", "docker.host-firewall", "docker.storage"]
-        {
+        for name in [
+            "docker.memory-limit",
+            "docker.cpu-limit",
+            "docker.memory-sleep",
+            "docker.host-firewall",
+            "docker.storage",
+            "docker.exec-pid-visibility",
+            "docker.low-ports",
+        ] {
             assert!(!by_name(&checks, name).fix.as_ref().unwrap().is_empty());
         }
         assert!(engine_limits(&RuntimeInfo::default()).is_empty(), "retain rootful doctor's existing checks");
