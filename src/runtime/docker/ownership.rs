@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Read-only proof that a local engine maps the host-owned data into the configured nonzero
 //! workload identity. No ownership changes, namespace entry or compute are used for this probe.
-use super::{DockerRuntime, RuntimeInfo};
+use super::{DATA_OWNER_REQUIREMENT, DockerRuntime, RuntimeInfo};
 use crate::config::{Ids, WorkloadPolicy};
 use std::os::unix::fs::MetadataExt;
-
-pub const DATA_OWNER_REQUIREMENT: &str = "data-owner-mapping";
 
 #[derive(Clone, Copy)]
 pub(crate) struct Policy {
@@ -36,7 +34,7 @@ pub(super) async fn problem(runtime: &DockerRuntime, info: &RuntimeInfo) -> Opti
 
 async fn proof(runtime: &DockerRuntime, info: &RuntimeInfo) -> Result<(), String> {
     let stream =
-        tokio::time::timeout(super::super::engine::PROBE_TIMEOUT, tokio::net::UnixStream::connect(&runtime.socket))
+        tokio::time::timeout(super::super::ENGINE_PROBE_TIMEOUT, tokio::net::UnixStream::connect(&runtime.socket))
             .await
             .map_err(|_| "the selected engine's peer did not answer".to_owned())?
             .map_err(|_| "the selected engine's peer is unavailable".to_owned())?;

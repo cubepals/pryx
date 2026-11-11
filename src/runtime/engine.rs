@@ -5,12 +5,9 @@
 //! selection requires both version and info. A selected endpoint never changes during service.
 use super::{ContainerRuntime, RuntimeError, RuntimeInfo, docker::DockerRuntime};
 use crate::config::DockerConfig;
-use std::{
-    path::{Path, PathBuf},
-    time::Duration,
-};
+use std::path::{Path, PathBuf};
 
-pub const PROBE_TIMEOUT: Duration = Duration::from_secs(2);
+pub use super::ENGINE_PROBE_TIMEOUT as PROBE_TIMEOUT;
 
 pub fn candidates() -> Vec<(&'static str, PathBuf)> {
     let uid = rustix::process::geteuid().as_raw();

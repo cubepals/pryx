@@ -11,11 +11,14 @@
 //! what it made.
 //!
 //! Parts (`docker/`):
+//! - `engine_lifecycle.rs`: real image, HTTP, snapshot, fork and neighbour boundary acceptance.
 //! - `engine_sleep.rs`: memory-sleep refusal and retained bytes through cold wake.
 //! - `engine.rs`: real engine limit refusals and explicit memory acceptance.
 
 #[path = "docker/engine.rs"]
 mod engine;
+#[path = "docker/engine_lifecycle.rs"]
+mod engine_lifecycle;
 #[path = "docker/engine_sleep.rs"]
 mod engine_sleep;
 mod support;

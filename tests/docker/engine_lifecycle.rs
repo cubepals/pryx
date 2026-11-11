@@ -1,0 +1,188 @@
+// SPDX-License-Identifier: FSL-1.1-ALv2
+//! Image-backed lifecycle and adversarial checks on the selected real engine. Archive transport
+//! uses a bounded loopback HTTP peer; no runtime, container, filesystem or network is simulated.
+use super::*;
+use pryxd::protocol::{ExportRequest, Guarantee, RestoreRequest, SnapshotRequest};
+
+struct EngineCase {
+    manager: Arc<Manager>,
+    socket: std::path::PathBuf,
+    _cleanup: engine::EngineCleanup,
+    _directory: tempfile::TempDir,
+}
+
+impl EngineCase {
+    async fn new() -> Option<Self> {
+        let socket = engine::selected_socket().await;
+        let runtime = Arc::new(DockerRuntime::new(&socket).unwrap());
+        let limits = engine::limits_or_mapping_refusal(&runtime, &socket).await?;
+        let directory = tempfile::tempdir().unwrap();
+        let deployment = deployment();
+        let manager = manager_on(directory.path(), runtime, &engine::configuration(&deployment, limits.rootless));
+        let report = manager.reconcile(Records::FromDisk).await;
+        assert!(report.error.is_none(), "{report:?}");
+        Some(Self {
+            manager,
+            socket: socket.clone(),
+            _cleanup: engine::EngineCleanup { socket, deployment },
+            _directory: directory,
+        })
+    }
+
+    async fn create(&self, name: &str) {
+        let mut value = support::spec_json();
+        value["resources"] = serde_json::json!({"memoryMb": 256, "allowUnenforcedMemory": true});
+        value["ports"].as_array_mut().unwrap().truncate(1);
+        let status = axum::http::StatusCode::OK;
+        let response = format!(
+            r#"while IFS= read -r line && [ "$line" != "$(printf "\r")" ]; do :; done; printf "{:?} {} {}\r\nConnection: close\r\nContent-Length: %s\r\n\r\n" "$(wc -c </data/index.html)"; cat /data/index.html"#,
+            axum::http::Version::HTTP_10,
+            status.as_u16(),
+            status.canonical_reason().unwrap()
+        );
+        value["entrypoint"] = serde_json::json!([
+            "sh",
+            "-c",
+            format!("exec nc -lk -p {} -e sh -c '{response}'", pryxd::examples::HTTP_PORT)
+        ]);
+        let made = self
+            .manager
+            .ensure(id(name), serde_json::from_value(value).unwrap(), Precondition::None, None)
+            .await
+            .unwrap();
+        assert_eq!(made.outcome, EnsureOutcome::Created);
+    }
+
+    async fn command(&self, name: &str, script: &str) -> String {
+        let result = self
+            .manager
+            .exec(
+                id(name),
+                ExecRequest { command: vec!["sh".into(), "-c".into(), script.into()], timeout_seconds: 10 },
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        assert_eq!(result.exit_code, Some(0), "{result:?}");
+        assert!(!result.timed_out);
+        result.stdout
+    }
+
+    async fn page(&self, name: &str) -> String {
+        let port = self.manager.view(&id(name)).unwrap().ports[0].host_port;
+        let client = reqwest::Client::builder().no_proxy().timeout(Duration::from_secs(5)).build().unwrap();
+        client
+            .get(format!("http://127.0.0.1:{port}/"))
+            .send()
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap()
+            .text()
+            .await
+            .unwrap()
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs the actual selected engine"]
+async fn engine_images_ports_snapshot_fork_and_stop_keep_their_boundaries() {
+    let Some(case) = EngineCase::new().await else { return };
+    case.create("original").await;
+    case.manager.start(id("original"), None).await.unwrap();
+    assert_eq!(case.command("original", "printf original > /data/index.html; cat /data/index.html").await, "original");
+    assert_eq!(case.page("original").await, "original");
+    let result = case
+        .command("original", "if touch /etc/pryx-escape 2>/dev/null; then echo writable; else echo readonly; fi; id -u")
+        .await;
+    assert_eq!(result, "readonly\n1000\n");
+    case.manager.stop(id("original"), None, None).await.unwrap();
+    snapshot_and_fork(&case).await;
+    case.manager.start(id("original"), None).await.unwrap();
+    assert_eq!(case.page("original").await, "original");
+    assert_eq!(case.page("fork").await, "fork");
+    attack_neighbour(&case).await;
+    let view = case.manager.view(&id("original")).unwrap();
+    if std::env::var("PRYX_TEST_ENGINE").is_ok() {
+        assert!(!view.guarantees[&Guarantee::MemorySleep]);
+        assert!(!view.guarantees[&Guarantee::HostFirewall]);
+        let error = case.manager.suspend(id("original"), None).await.unwrap_err();
+        assert!(matches!(error, NodeError::Conflict { code: ConflictCode::MemorySleepUnavailable, .. }));
+    }
+    case.manager.stop(id("original"), None, None).await.unwrap();
+    case.manager.start(id("original"), None).await.unwrap();
+    assert_eq!(case.command("original", "cat /data/index.html").await, "original");
+    assert_eq!(case.page("original").await, "original");
+    for name in ["original", "fork"] {
+        case.manager.delete(id(name), DataDisposition::Delete, Some(name.into()), None).await.unwrap();
+    }
+}
+
+async fn snapshot_and_fork(case: &EngineCase) {
+    let snapshot: SnapshotRequest = serde_json::from_value(serde_json::json!({"id": "baseline"})).unwrap();
+    let taken = case.manager.snapshot(id("original"), snapshot, None).await.unwrap();
+    assert!(taken.created && taken.snapshot.files > 0);
+    let object = Arc::new(tokio::sync::RwLock::new(bytes::Bytes::new()));
+    let read = object.clone();
+    let write = object.clone();
+    let app = axum::Router::new().route(
+        "/archive",
+        axum::routing::get(move || {
+            let read = read.clone();
+            async move { read.read().await.clone() }
+        })
+        .put(move |body: bytes::Bytes| {
+            let write = write.clone();
+            async move {
+                *write.write().await = body;
+                axum::http::StatusCode::OK
+            }
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}/archive", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let export: ExportRequest = serde_json::from_value(serde_json::json!({"url": url})).unwrap();
+    let archive = case.manager.export(id("original"), export, None).await.unwrap();
+    assert!(archive.size_bytes > 0);
+    case.create("fork").await;
+    let restore: RestoreRequest =
+        serde_json::from_value(serde_json::json!({"url": url, "sha256": archive.sha256})).unwrap();
+    case.manager.restore(id("fork"), restore, None).await.unwrap();
+    server.abort();
+    case.manager.start(id("fork"), None).await.unwrap();
+    assert_eq!(case.command("fork", "cat /data/index.html; printf fork > /data/index.html").await, "original");
+    let restore: RestoreRequest = serde_json::from_value(serde_json::json!({"snapshot": "baseline"})).unwrap();
+    case.manager.restore(id("original"), restore, None).await.unwrap();
+}
+
+async fn attack_neighbour(case: &EngineCase) {
+    let original_pid = case.command("original", "readlink /proc/1/ns/pid").await;
+    let fork_pid = case.command("fork", "readlink /proc/1/ns/pid").await;
+    assert!(!original_pid.trim().is_empty() && !fork_pid.trim().is_empty());
+    assert_ne!(original_pid, fork_pid, "a neighbour must have its own PID namespace");
+    let backend =
+        bollard::Docker::connect_with_unix(case.socket.to_str().unwrap(), 60, bollard::API_DEFAULT_VERSION).unwrap();
+    let view = case.manager.view(&id("original")).unwrap();
+    let target = backend.inspect_container(&view.locate.container_name, None).await.unwrap();
+    let networks = target.network_settings.unwrap().networks.unwrap();
+    let address = networks
+        .values()
+        .find_map(|network| network.ip_address.as_ref())
+        .unwrap()
+        .parse::<std::net::Ipv4Addr>()
+        .unwrap();
+    let script = format!(
+        "if wget -q -T 2 -O - http://{address}:{}/; then echo neighbour-reached; fi; true",
+        pryxd::examples::HTTP_PORT
+    );
+    let output = case.command("fork", &script).await;
+    assert!(
+        !output.contains("original") && !output.contains("neighbour-reached"),
+        "a neighbour reached the private bridge: {output}"
+    );
+    assert_eq!(case.page("original").await, "original", "the target remains reachable from its published port");
+    assert!(view.guarantees[&Guarantee::PrivateNetwork]);
+    assert!(view.guarantees[&Guarantee::PrivatePids]);
+}

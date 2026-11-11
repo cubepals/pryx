@@ -38,6 +38,9 @@ use time::OffsetDateTime;
 
 use crate::protocol::{Health, Proto};
 
+/// Shared read-only health deadline for engine discovery and local ownership proof.
+pub const ENGINE_PROBE_TIMEOUT: Duration = Duration::from_secs(2);
+
 /// Everything needed to make one workload's container. Hardening is not optional here: the
 /// manager always fills it from host policy.
 #[derive(Clone, serde::Serialize, serde::Deserialize)]

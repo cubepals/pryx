@@ -159,8 +159,15 @@ async fn native_podman_metadata_uses_the_selected_socket_and_native_route() {
                 Json(value)
             }
         }));
+    // Actual Podman 4.9.3 metadata reads in CI job 130448281871 take about 560 ms each.
+    // The two-second discovery deadline must include every required read, without serial delays.
+    let app = app.layer(axum::middleware::from_fn(|request, next: axum::middleware::Next| async move {
+        tokio::time::sleep(Duration::from_millis(560)).await;
+        next.run(request).await
+    }));
     let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
-    let info = crate::runtime::engine::inspect(&path).await.unwrap();
+    let runtime = DockerRuntime::new(&path).unwrap();
+    let info = tokio::time::timeout(super::super::ENGINE_PROBE_TIMEOUT, runtime.info()).await.unwrap().unwrap();
     assert!(info.container_policy_problem.is_none(), "native route was not reached: {:?}", paths.lock().unwrap());
     assert!(info.podman && info.rootless);
     assert!(!info.memory_limit && !info.cpu_limit && !info.pids_limit);

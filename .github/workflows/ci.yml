@@ -273,6 +273,18 @@ jobs:
         working-directory: cubepals
         env:
           BLOCKLYD_BIN: ${{ github.workspace }}/pryxd/target/debug/pryxd
+          BLOCKLYD_E2E_KEEP: '1'
+      - name: Bounded upstream fixture diagnostics
+        if: failure()
+        run: |
+          for directory in /tmp/blockly-e2e*; do
+            [ -d "$directory" ] || continue
+            sudo python3 pryxd/deploy/local-diagnostics.py "$directory"
+          done
+          directory="$RUNNER_TEMP/contract-diagnostics"
+          mkdir -m 700 -p "$directory"
+          docker logs --tail 80 s3 > "$directory/s3.log" 2>&1 || true
+          python3 pryxd/deploy/local-diagnostics.py "$directory"
 
   # The image a release publishes builds, and its binary is static. Not on main's own push, where
   # release.yml builds it.

@@ -28,7 +28,6 @@ mod native_tools;
 mod network;
 pub(crate) mod ownership;
 mod podman;
-pub use ownership::DATA_OWNER_REQUIREMENT;
 #[cfg(test)]
 mod policy_tests;
 mod relay;
@@ -62,6 +61,8 @@ use super::{
 };
 use crate::protocol::MAX_STOP_TIMEOUT;
 
+/// A rootless engine must map its workload identity to the host's protected data owner.
+pub const DATA_OWNER_REQUIREMENT: &str = "data-owner-mapping";
 /// Longer than the longest stop: Docker answers a stop only once the container exited.
 const CLIENT_TIMEOUT_SECS: u64 = MAX_STOP_TIMEOUT as u64 + 60;
 /// Docker Engine /info SecurityOptions uses this identifier for rootless mode.
@@ -331,14 +332,15 @@ impl ContainerRuntime for DockerRuntime {
         }))
     }
     async fn info(&self) -> Result<RuntimeInfo, RuntimeError> {
-        // The maintained client negotiates down for engines such as Podman (compat API 1.44).
-        // Its clones share the negotiated version, so all subsequent operations use it.
+        // The maintained client negotiates the compatible API; its clones share that version.
+        // Independent metadata reads run together within the existing discovery deadline.
+        let client = self.docker()?;
         crate::capability::probe_phase("engine-negotiate");
-        let client = quick("negotiate version", self.docker()?.negotiate_version()).await?;
         crate::capability::probe_phase("engine-version");
-        let version = quick("version", client.version()).await?;
-        crate::capability::probe_phase("engine-compatible-info");
-        let info = quick("info", self.docker()?.info()).await?;
+        let (_, version) = tokio::try_join!(
+            quick("negotiate version", client.clone().negotiate_version()),
+            quick("version", client.version()),
+        )?;
         let podman = version
             .components
             .as_ref()
@@ -353,8 +355,12 @@ impl ContainerRuntime for DockerRuntime {
                     && version.split('.').count() == 3
                     && version.split('.').all(|part| part.parse::<u32>().is_ok())
             });
+        crate::capability::probe_phase("engine-compatible-info");
         crate::capability::probe_phase("engine-native-info");
-        let native = if let Some(version) = &podman_version { podman::host(self, version).await } else { None };
+        let native =
+            async { if let Some(version) = &podman_version { podman::host(self, version).await } else { None } };
+        let (info, native) = tokio::join!(quick("info", client.info()), native);
+        let info = info?;
         let mut result = RuntimeInfo {
             podman,
             podman_version,
