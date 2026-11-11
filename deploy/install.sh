@@ -38,7 +38,7 @@ verify() {
 preset=${PRYX_PRESET:-}
 if [ -z "$preset" ]; then
   if [ "$(id -u)" != 0 ]; then preset=user
-  elif [ -f /.dockerenv ] || [ -f /run/.containerenv ] || [ -n "${container:-}" ]; then preset=container
+  elif [ -f /.dockerenv ] || [ -f /run/.containerenv ] || [ -f /run/systemd/container ] || [ -n "${container:-}" ]; then preset=container
   elif [ -d /run/systemd/system ]; then preset=server
   else echo 'Root requires systemd or a container; run the command as an ordinary user' >&2; exit 1
   fi

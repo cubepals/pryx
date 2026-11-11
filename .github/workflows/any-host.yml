@@ -240,6 +240,48 @@ jobs:
           TEST_IMAGE: ${{ matrix.image }}
         run: bash deploy/booted-acceptance.sh "$TEST_IMAGE"
 
+  user-engine:
+    name: User preset with rootless ${{ matrix.engine }}
+    needs: bundle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: [docker, podman]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch every producing-job archive part
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRYX_EXPECTED_PARTS: ${{ needs.bundle.outputs.parts }}
+          PRYX_PARTS_MANIFEST: ${{ needs.bundle.outputs.manifest }}
+          PRYX_TRANSPORT_DIGEST: ${{ needs.bundle.outputs.transport }}
+        run: bash deploy/host-artifacts.sh
+      - name: Verify and reconstruct the release transport
+        run: |
+          (cd host-parts && sha256sum -c PARTS.sha256)
+          cat host-parts/part? > host-transport.tar
+          sha256sum -c host-parts/TRANSPORT.sha256
+          mkdir host-artifacts
+          tar -xf host-transport.tar -C host-artifacts
+          (cd host-artifacts && sha256sum -c SHA256SUMS)
+      - name: Start the engine as the runner user
+        run: bash scripts/setup-test-engine.sh "${{ matrix.engine }}"
+      - name: One command, image or refusal, repeat, upgrade and purge
+        env:
+          PRYX_EXPECT_CONTAINER: ${{ matrix.engine == 'podman' && 'on' || 'off' }}
+        run: |
+          sudo install -m 644 deploy/local-diagnostics.py /local-diagnostics.py
+          python3 -m http.server 9876 --bind 127.0.0.1 --directory host-artifacts > "$RUNNER_TEMP/artifact-server.log" 2>&1 &
+          server=$!
+          trap 'kill "$server"' EXIT
+          curl --retry 5 --retry-connrefused --retry-delay 1 --max-time 10 -fsS http://127.0.0.1:9876/install.sh -o /dev/null
+          sh deploy/local-acceptance.sh | tee acceptance.txt
+          cat acceptance.txt >> "$GITHUB_STEP_SUMMARY"
+
   server:
     name: Domainless sudo bootstrap
     needs: bundle

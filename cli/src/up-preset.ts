@@ -2,6 +2,7 @@
 /** Choose a host preset without changing the host. Backend selection and its guarantees stay
  * with the node; this only chooses how the same release programs are installed. */
 import { existsSync } from 'node:fs'
+import { containerContext } from '../../deploy/host-context.ts'
 import type { HostProbe } from '../../deploy/host-probe.ts'
 
 export const PRESETS = ['user', 'container', 'server', 'node'] as const
@@ -10,8 +11,7 @@ export function selectPreset(
   override: string | undefined,
   facts = {
     uid: process.getuid?.(),
-    container:
-      existsSync('/.dockerenv') || existsSync('/run/.containerenv') || Boolean(process.env.container),
+    container: containerContext(),
     systemd: existsSync('/run/systemd/system'),
   },
 ): Preset {

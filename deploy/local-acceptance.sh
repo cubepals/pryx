@@ -64,6 +64,22 @@ phase=hello
 [ "$(pryx run -- echo hello)" = hello ]
 [ "$(sh -lc 'pryx run -- echo hello')" = hello ]
 echo "seconds_to_hello=$(($(date +%s)-started))"
+if [ "${PRYX_EXPECT_CONTAINER:-}" = on ]; then
+  phase=explicit-container
+  box=$(pryx sandbox create --isolation container --image alpine:3.22 | python3 -c 'import json,sys;r=json.load(sys.stdin);assert r["isolation"] == "container";assert r["guarantees"]["private-pids"];assert not r["guarantees"]["memory-limit"];assert not r["guarantees"]["cpu-limit"];assert not r["guarantees"]["memory-sleep"];print(r["id"])')
+  [ "$(pryx run --isolation container --image alpine:3.22 -- echo hello)" = hello ]
+  pryx sandbox rm "$box" > "$HOME/deleted-image.json"
+  echo 'rootless_container=running explicit_limits=off'
+elif [ "${PRYX_EXPECT_CONTAINER:-}" = off ]; then
+  phase=explicit-container-refusal
+  if pryx sandbox create --isolation container --image alpine:3.22 > "$HOME/refused-image.log" 2>&1; then
+    echo 'Unsupported container mapping created a sandbox' >&2
+    exit 1
+  fi
+  grep -Eiq 'container|isolation' "$HOME/refused-image.log"
+  [ "$(pryx run --isolation process -- echo hello)" = hello ]
+  echo 'rootless_container=refused process=running'
+fi
 # Check never generates credentials, rewrites configuration or starts another supervisor.
 find "$config" -type f ! -name '*.log' -exec sha256sum {} \; | sort > "$HOME/before-check"
 pryx up --check > "$HOME/check.json"

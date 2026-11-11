@@ -23,6 +23,7 @@ import { createToken, heldBack, nodeSummaries } from '../control/src/registry.ts
 import { startEdge } from '../edge/src/agent.ts'
 import { edgeConfig } from '../edge/src/config.ts'
 import { front } from '../edge/src/front.ts'
+import { containerContext } from './host-context.ts'
 import { capabilitySummary, hostProbe } from './host-probe.ts'
 import { imagePortRange } from './image-network.ts'
 import {
@@ -195,7 +196,7 @@ ca = ${JSON.stringify(join(identity, 'ca.pem'))}
 enrollment_token_file = ${JSON.stringify(tokenPath)}
 heartbeat_seconds = 1
 ${tier !== 'container' ? `[capacity]\nreserved_memory_mb = ${reservedMemory}\nreserved_cpu_millis = ${reservedCpu}` : ''}
-${layout.local ? '[docker]\nenabled = false' : ''}
+${layout.local && containerContext() ? '[docker]\nenabled = false' : ''}
 [wasm]
 distribution = ${JSON.stringify(layout.agentos)}
 ${layout.local && process.env.PRYX_LOCAL_LAUNCHER ? `launcher_executable = ${JSON.stringify(process.env.PRYX_LOCAL_LAUNCHER)}` : ''}

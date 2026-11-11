@@ -4,6 +4,7 @@
 import { existsSync, realpathSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { containerContext } from '../../deploy/host-context.ts'
 import { hostProbe, probeBinary } from '../../deploy/host-probe.ts'
 import { imageTier } from '../../deploy/image-tier.ts'
 import { configuredPort } from './up-local-network.ts'
@@ -38,12 +39,10 @@ export async function inspectLocal(
       'The release agent could not probe filesystem confinement; check its executable and host permissions',
     )
   const filesystem = (JSON.parse(result.stdout.toString()) as { filesystem: boolean }).filesystem === true
-  // A mounted engine socket alone cannot prove that its bind paths and network belong
-  // to this container. Keep image workloads refused until that relationship is measured.
-  const canContainer = false
+  const canContainer = !containerContext() && probe.tiers?.container?.state === 'on'
   if (requested === 'container' && !canContainer)
     throw new Error(
-      'Container tier needs the engine and host firewall permissions; run the server preset on the host or select the process tier',
+      'Container tier is unavailable in this host context; run pryx on the engine host with a supported local engine, or select an available process or wasm tier',
     )
   const gnu = /glibc|gnu libc|gnu c library/i.test(probe.cLibrary)
   const tier = imageTier(canContainer, requested ?? (!filesystem && gnu ? 'wasm' : undefined))

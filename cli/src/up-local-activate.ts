@@ -3,6 +3,7 @@
  * immutable bundles; sandbox state and older releases remain available across upgrades. */
 import { chmodSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { containerContext } from '../../deploy/host-context.ts'
 import { capabilitySummary, hostProbe } from '../../deploy/host-probe.ts'
 import { createPrivateFile } from '../../deploy/image-state.ts'
 import { readClientConfig } from './client-config.ts'
@@ -56,7 +57,9 @@ export async function localSummary(record: LocalInstallation, action: string) {
         tiers:
           record.runtime === 'auto'
             ? Object.entries(probe.tiers ?? {})
-                .filter(([tier, value]) => tier !== 'container' && value.state === 'on')
+                .filter(
+                  ([tier, value]) => value.state === 'on' && (tier !== 'container' || !containerContext()),
+                )
                 .map(([tier]) => tier)
             : [record.tier],
         require: record.require ?? [],
@@ -72,7 +75,7 @@ export async function localSummary(record: LocalInstallation, action: string) {
   )
   if (record.preset === 'user')
     console.log(
-      "User sandboxes share your user and have no enforced resource limits; use them for one person's work, not strangers' code.",
+      "Process sandboxes share your user and have no enforced resource limits; use them for one person's work, not strangers' code.",
     )
   console.log(`${shellQuote(record.paths.cli)} run -- echo hello`)
 }
