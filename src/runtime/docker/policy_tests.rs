@@ -11,6 +11,51 @@ use std::sync::{
 };
 
 #[tokio::test]
+async fn podman_restart_fencing_requires_observed_no_restart_without_unsupported_updates() {
+    use bollard::models::{ContainerInspectResponse, HostConfig};
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("restart.sock");
+    let listener = tokio::net::UnixListener::bind(&path).unwrap();
+    let updates = Arc::new(AtomicUsize::new(0));
+    let policy = Arc::new(std::sync::Mutex::new(Some(RestartPolicyNameEnum::NO)));
+    let observed = policy.clone();
+    let calls = updates.clone();
+    let app = Router::new().fallback(any(move |request: Request| {
+        let name = *observed.lock().unwrap();
+        let calls = calls.clone();
+        async move {
+            if request.method() != axum::http::Method::GET {
+                calls.fetch_add(1, Ordering::SeqCst);
+                return (StatusCode::NOT_IMPLEMENTED, Json(serde_json::json!({})));
+            }
+            let inspect = ContainerInspectResponse {
+                host_config: Some(HostConfig {
+                    restart_policy: name
+                        .map(|name| DockerRestartPolicy { name: Some(name), maximum_retry_count: None }),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            };
+            (StatusCode::OK, Json(serde_json::to_value(inspect).unwrap()))
+        }
+    }));
+    let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let runtime = DockerRuntime::new(&path).unwrap();
+    *runtime.info.lock().unwrap() = Some(RuntimeInfo { podman: true, ..Default::default() });
+    runtime.disable_restart("owned").await.unwrap();
+    *policy.lock().unwrap() = Some(RestartPolicyNameEnum::EMPTY);
+    runtime.disable_restart("owned").await.unwrap();
+    for changed in [Some(RestartPolicyNameEnum::ALWAYS), None] {
+        *policy.lock().unwrap() = changed;
+        let error = runtime.disable_restart("owned").await.unwrap_err();
+        assert!(error.to_string().contains("restart-policy"), "{error:?}");
+    }
+    assert_eq!(updates.load(Ordering::SeqCst), 0, "no unsupported update or ignored policy change");
+    runtime.ensure_internal_network("unused-placeholder", &BTreeMap::new()).await.unwrap();
+    server.abort();
+}
+
+#[tokio::test]
 async fn an_unsupported_bridge_policy_is_refused_before_any_compute_mutation() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("engine.sock");

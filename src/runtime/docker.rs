@@ -549,6 +549,19 @@ impl ContainerRuntime for DockerRuntime {
     }
 
     async fn disable_restart(&self, name: &str) -> Result<(), RuntimeError> {
+        if podman::selected(self).await? {
+            // Podman 4.9 has no compatible update route; native update only changes cgroups.
+            // Its WithRestartPolicy treats explicit empty/no as disabled. Unknown never suffices.
+            let inspected = quick("inspect restart policy", self.docker()?.inspect_container(name, None)).await?;
+            let policy = inspected.host_config.and_then(|host| host.restart_policy).and_then(|policy| policy.name);
+            return if matches!(policy, Some(RestartPolicyNameEnum::NO | RestartPolicyNameEnum::EMPTY)) {
+                Ok(())
+            } else {
+                Err(RuntimeError::Other(
+                    "Podman restart-policy is active or unknown; this adapter requires disabled engine restarts".into(),
+                ))
+            };
+        }
         let body = ContainerUpdateBody {
             restart_policy: Some(DockerRestartPolicy {
                 name: Some(RestartPolicyNameEnum::NO),

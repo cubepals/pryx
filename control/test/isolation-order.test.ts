@@ -4,6 +4,7 @@
 import { expect, test } from 'bun:test'
 import { sql } from 'drizzle-orm'
 import { StatusCodes } from 'http-status-codes'
+import nodeSchema from '../../openapi/node-writes.openapi.json'
 import { makeSchema } from '../src/api-schemas.ts'
 import { PublicModel } from '../src/public-model.ts'
 import { publicContext } from './public-context.ts'
@@ -28,6 +29,25 @@ async function tiers(c: Awaited<ReturnType<typeof publicContext>>, offered = fea
   )
   await c.boxes.engine.refreshRegistry()
 }
+
+test('image refusal on a native-only fleet retains the owning protocol problem before compute', async () => {
+  const c = await publicContext()
+  try {
+    for (const [tier, problem] of [
+      ['process', nodeSchema['x-pryx-process'].imageProblem],
+      ['wasm', nodeSchema['x-pryx-wasm'].imageProblem],
+    ] as const) {
+      await tiers(c, [...features.filter((feature) => !feature.startsWith('tier-')), `tier-${tier}`])
+      const before = c.nodes.calls.length
+      const response = await c.request('/sandboxes', 'POST', { image: 'alpine:3.22' })
+      expect(response.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY)
+      expect((await response.json()).error.details).toContainEqual({ field: 'image', problem })
+      expect(c.nodes.calls).toHaveLength(before)
+    }
+  } finally {
+    await c.close()
+  }
+})
 
 test('an unnamed tier chooses the first eligible tier and reports what it received', async () => {
   const c = await publicContext()

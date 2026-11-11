@@ -241,6 +241,10 @@ async fn engine_exec_timeout_retires_children_and_keeps_the_workload_running() {
     let backend =
         bollard::Docker::connect_with_unix(case.socket.to_str().unwrap(), 60, bollard::API_DEFAULT_VERSION).unwrap();
     let original = backend.inspect_container(&before.locate.container_name, None).await.unwrap().state.unwrap();
+    let runtime = DockerRuntime::new(&case.socket).unwrap();
+    runtime.disable_restart(before.locate.container_id.as_deref().unwrap()).await.unwrap();
+    let policy = backend.inspect_container(&before.locate.container_name, None).await.unwrap().host_config.unwrap();
+    assert_eq!(policy.restart_policy.unwrap().name, Some(bollard::models::RestartPolicyNameEnum::NO));
     for script in ["sleep 30; echo never", "exec 1>&- 2>&-; sleep 30; echo never"] {
         let began = Instant::now();
         let result = case

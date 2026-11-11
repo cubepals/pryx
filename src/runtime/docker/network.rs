@@ -11,7 +11,9 @@ pub(super) async fn internal(
     labels: &BTreeMap<String, String>,
 ) -> Result<(), RuntimeError> {
     if podman::selected(runtime).await? {
-        return podman::network(runtime, name, labels, true).await;
+        // Native create validates a private bridge for each workload; this shared placeholder
+        // is never attached to one and has no part in enforcing its network policy.
+        return Ok(());
     }
     let inspect =
         quick("inspect internal network", runtime.docker()?.inspect_network(name, None::<InspectNetworkOptions>)).await;

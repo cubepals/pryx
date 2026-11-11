@@ -16,7 +16,12 @@ import { SECOND_MS } from './durations.ts'
 import { addresses, DEFAULT_EDGE_PORT_RANGE } from './edge-addresses.ts'
 import { shownState } from './edge-routed.ts'
 import { PRYX_VERSION } from './generated/release.ts'
-import { DEFAULT_ISOLATION_ORDER, type IsolationDefault, nodeIsolations } from './isolation.ts'
+import {
+  DEFAULT_ISOLATION_ORDER,
+  type Isolation,
+  type IsolationDefault,
+  nodeIsolations,
+} from './isolation.ts'
 import type { MountSpec, NativeMounts } from './native-mounts.ts'
 import { complete, fingerprint, operation } from './operations.ts'
 import { UNIT_DEFAULTS, unitSpec } from './project-model.ts'
@@ -26,6 +31,13 @@ import { jsonb, one, rows } from './sql.ts'
 
 const networkNeeds = (body: Partial<Pick<Make, 'network'>>) =>
   body.network === 'none' ? [nodeSchema['x-pryx-network'].policyFeature] : []
+
+function validateImage(tier: Isolation, image?: string) {
+  if (tier === 'container' || !image) return
+  const problem =
+    tier === 'wasm' ? nodeSchema['x-pryx-wasm'].imageProblem : nodeSchema['x-pryx-process'].imageProblem
+  z.object({ image: z.never({ error: problem }) }).parse({ image })
+}
 
 export class PublicModel {
   mounts?: NativeMounts
@@ -61,6 +73,20 @@ export class PublicModel {
       needs,
     )
     if (tier) return tier
+    if (
+      body.image &&
+      !(await this.boxes.engine.isolationChoice.firstIsolation(this.db, order, [], region, only))
+    ) {
+      const native = await this.boxes.engine.isolationChoice.firstIsolation(
+        this.db,
+        this.defaultIsolation,
+        required,
+        region,
+        only,
+        needs,
+      )
+      if (native) validateImage(native, body.image)
+    }
     throw new SandboxError(
       'no_room',
       `No healthy node serves an eligible tier for this source (${this.defaultIsolation.join(', ')})${required.length ? ` with required guarantees: ${required.join(', ')}` : ''}${needs.length ? ` with required features: ${needs.join(', ')}` : ''}`,
@@ -241,13 +267,7 @@ export class PublicModel {
       ...(body.ttl ? { ttl: body.ttl } : {}),
       ...(body.idle ? { idle: body.idle } : {}),
     }
-    if (spec.isolation !== 'container' && spec.image) {
-      const problem =
-        spec.isolation === 'wasm'
-          ? nodeSchema['x-pryx-wasm'].imageProblem
-          : nodeSchema['x-pryx-process'].imageProblem
-      z.object({ image: z.never({ error: problem }) }).parse({ image: spec.image })
-    }
+    validateImage(isolation, spec.image)
     if (spec.isolation === 'wasm' && spec.ports?.some((port) => port.protocol === 'udp'))
       z.object({ ports: z.never({ error: nodeSchema['x-pryx-wasm'].portProblem }) }).parse({
         ports: spec.ports,
