@@ -100,11 +100,42 @@ print(json.dumps({'uid':os.geteuid(),'fileRead':file_read,'connection':connectio
         .unwrap()
 }
 
-fn report(value: Value) {
+fn report(mut value: Value) {
+    let ipc = pryx_agent::process_capabilities::private_ipc_probe();
+    if ipc.scope_available {
+        assert!(ipc.completed, "abstract socket probe did not finish: {ipc:?}");
+        assert_eq!(ipc.owner_reachable, Some(true));
+        assert_eq!(ipc.neighbour_refused, Some(true));
+    }
+    assert_eq!(pryx_agent::process_capabilities::probe().abstract_unix_ipc, ipc.supported());
+    value["abstract"] = serde_json::to_value(ipc).unwrap();
     if let Some(path) = std::env::var_os("PRYX_PRIVATE_IPC_REPORT") {
         let mut file = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(path).unwrap();
         file.write_all(serde_json::to_string_pretty(&value).unwrap().as_bytes()).unwrap();
         file.sync_all().unwrap();
     }
     println!("{value}");
+}
+
+#[test]
+fn ipc_probe_stays_available_when_it_cannot_create_a_worker() {
+    let output = Command::new("/usr/bin/python3")
+        .args([
+            "-c",
+            r#"
+import os, resource, sys
+_, hard = resource.getrlimit(resource.RLIMIT_NPROC)
+resource.setrlimit(resource.RLIMIT_NPROC, (1, hard))
+os.execv(sys.argv[1], [sys.argv[1], 'process-probe'])
+"#,
+        ])
+        .arg(env!("CARGO_BIN_EXE_pryx-agent"))
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+    // Root can bypass RLIMIT_NPROC. Ordinary-user CI must actually withhold this capability.
+    if rustix::process::geteuid().as_raw() != 0 {
+        assert!(!value["abstractUnixIpc"].as_bool().unwrap_or(false));
+    }
 }

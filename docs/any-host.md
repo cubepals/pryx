@@ -263,10 +263,12 @@ component:
   same authenticated proxy as today.
 - Kernels use the Jupyter protocol's `ipc` transport, sockets under the sandbox's own directory.
 - The VNC server and websockify listen on Unix sockets under the sandbox's directory.
-- Landlock already keeps one sandbox out of another's directory, so a pathname socket there is
-  private. The X server's own socket is the open point: it lives in `/tmp/.X11-unix`, which
-  process sandboxes share. K24 starts by testing a socket path of its own (`DISPLAY` as a path);
-  if that fails, the desktop on the process tier needs user namespaces, and says so.
+- Landlock filesystem rules alone do not make a pathname Unix socket private in shared-UID
+  mode: the [real process-policy probe](checks/measurements/k23/pathname-ipc-31596de.json)
+  denies the neighbour's file read but permits its socket connection. Native shared-UID tools
+  need an independently proved IPC boundary, such as Landlock ABI 6 abstract-socket scoping;
+  they remain refused until that boundary is enforced. The X server's `/tmp/.X11-unix` socket
+  is another open point. K24 tests its display transport before selecting namespaces or a refusal.
 
 The programs themselves come from a **tool bundle**: a relocatable directory with the browser, its
 libraries and fonts, the display server, xdotool, noVNC and websockify, built in CI from pinned
