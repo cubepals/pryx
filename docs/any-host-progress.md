@@ -1540,3 +1540,42 @@ job when publication is authorized. That job has not run in this task.
   acceptance and thirty samples, native OpenSSH command/PTY/HTTP-edge wake,
   capability placement and doctor, then continue K25 without parking a main
   deliverable. The two K22 Docker exceptions remain parked until after K27.
+- Source f61cc88 producer 131406873836 builds the complete combined runtime
+  and corresponding-source asset. All seven relocated controls, three full
+  library/floor boundary cases and earlier native/X11 policy checks pass. The
+  provider correction gets the isolated client past its prior startup failure,
+  then the real desktop reaches its unchanged 30-second readiness deadline;
+  only an Xvfb private-directory ownership warning is captured. Retain this
+  failure under k24. Add fixed, secret-free startup phases and Chromium startup
+  output for the next real observation; do not raise the bound or claim success.
+  Separately, actual websockify serves the noVNC page over a local Unix socket
+  with HTTP 200; this is explicitly unconfined, not the native worker proof.
+- Read all three completed f61 release-image/one-box failures 131406936696,
+  131407064340 and 131407064640: the static Docker build omits the new desktop
+  protocol JSON from its explicit COPY list. Include that file and the newly
+  compiled-in desktop compatibility JSON. No image pass is claimed locally.
+- Add a closed native OpenSSH worker using unchanged inetd mode on accepted
+  private Unix descriptors, private maintained-helper PID/proc/tmp/account
+  views and the ordinary process filter. Preserve the inherited supervisor IPC
+  scope without broadening any filesystem or syscall rule; normal process
+  entry still creates its original independent domain. Bind ephemeral auth/
+  config into the private home view read-only, preserving StrictModes while
+  host persistent data remains empty there. A fixed launcher enters the existing
+  embedded shell and guest signal restrictions. Product SSH creation remains
+  on its existing refusal until the next integration step wires this worker.
+- The explicit hosted SSH case requires a real command, real allocated PTY,
+  SSH key/host-key verification, denied neighbour data through SSH, and the
+  independent same-UID neighbour's denied broker and key/data reads. The client
+  key enters maintained ssh-agent only over stdin. Its byte proxy uses bundled
+  Node maintained stream pipelines; a real local exchange verifies first bytes
+  before stdin EOF, output completion and clean exit. The initial Python fixture
+  transport has an EOF/thread shutdown problem and is replaced before adoption.
+  This is transport-only local evidence, not native SSH confinement acceptance.
+- Keep desktop and SSH assertions as independent steps in the existing producer
+  after successful complete-component preparation, so either completed failure
+  remains a job failure while the other main proof can run. No new job, required
+  gate, skip or test system; expected SSH case is under one minute. Local checks
+  pass 484 workspace tests with 32 ignored and 73 agent tests with ten ignored,
+  real Wasm, strict Clippy for both crates, all three structure checks, fmt,
+  actual ShellCheck/actionlint, docs, whitespace and REUSE. No local fully
+  confined positive is claimed. K24 remains active, with no new parked piece.

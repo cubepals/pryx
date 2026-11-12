@@ -7,6 +7,7 @@
 //! - `browser_session.rs`: scoped Unix connections and bounded screenshots.
 //! - `desktop.rs`: closed desktop launch with private temporary and proc mounts.
 //! - `desktop_session.rs`: scoped native desktop calls and worker lifetime.
+//! - `ssh.rs`: unchanged OpenSSH inetd behind private accounts and Unix sockets.
 //! - `cache.rs`: pinned acquisition, safe extraction and complete cache verification.
 //! - `cache_tests.rs`: real HTTP/archive integrity and cache-tampering regressions.
 pub mod browser;
@@ -17,6 +18,7 @@ mod cache;
 mod cache_tests;
 pub mod desktop;
 mod desktop_session;
+pub mod ssh;
 
 use crate::context::Failure;
 pub use crate::process_tool_policy::{Artifact, Policy};

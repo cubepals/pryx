@@ -11,6 +11,8 @@ COPY src src
 COPY agent agent
 COPY templates/process-tools/compatibility.json templates/process-tools/compatibility.json
 COPY templates/process-tools/browser/protocol.json templates/process-tools/browser/protocol.json
+COPY templates/process-tools/desktop/protocol.json templates/process-tools/desktop/protocol.json
+COPY templates/process-tools/desktop-full.json templates/process-tools/desktop-full.json
 # The unit `pryxd join` installs, and the daemon.json `doctor` checks against, are compiled in.
 COPY deploy deploy
 RUN cargo build --locked --release \

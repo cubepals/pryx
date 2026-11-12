@@ -1,0 +1,23 @@
+{
+  "source": "f61cc88",
+  "run": 43282411209,
+  "job": 131406873836,
+  "hostGlibc": "2.39",
+  "combinedRuntimeBuilt": true,
+  "combinedCorrespondingSourcesBuilt": true,
+  "completeLibraryBoundaryCasesPassed": 3,
+  "sevenRelocatedProgramControlsPassed": true,
+  "headfulApplicationPassed": false,
+  "failure": "Desktop readiness deadline at the unchanged 30-second bound; only Xvfb private-directory ownership warning was captured",
+  "diagnosticChange": "Retain only fixed startup phase metadata and Chromium startup output so the next real run identifies the blocked stage",
+  "localObservation": "The maintained websockify program independently serves vnc.html with HTTP 200 over its Unix listener; this unconfined observation proves no native policy or browser success",
+  "releaseImageFailures": {
+    "jobs": [
+      131406936696,
+      131407064340,
+      131407064640
+    ],
+    "cause": "Docker build stage omitted the newly compiled-in desktop/protocol.json; desktop-full.json also needs copying",
+    "correction": "Copy both committed JSON compile-time assets into the release build stage"
+  }
+}

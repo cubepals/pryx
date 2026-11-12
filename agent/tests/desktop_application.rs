@@ -174,11 +174,15 @@ fn descendants(pid: u32) -> Vec<u32> {
     }
 }
 fn diagnostics(root: &Path) -> String {
-    [root.join("owner.stderr"), root.join("owner/scratch/desktop.stderr")]
-        .iter()
-        .map(|p| fs::read_to_string(p).unwrap_or_default())
-        .collect::<Vec<_>>()
-        .join("\n")
+    [
+        root.join("owner.stderr"),
+        root.join("owner/scratch/desktop.stderr"),
+        root.join("owner/scratch/desktop-phase.json"),
+    ]
+    .iter()
+    .map(|p| fs::read_to_string(p).unwrap_or_default())
+    .collect::<Vec<_>>()
+    .join("\n")
 }
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore = "explicit complete staged tools, namespaces and fully enforced process policy"]

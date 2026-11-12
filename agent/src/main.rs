@@ -48,6 +48,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if arguments.first().is_some_and(|a| a == "process-desktop-child") {
         return pryx_agent::process_tools::desktop::child();
     }
+    if arguments.first().is_some_and(|a| a == "process-ssh-child") {
+        return pryx_agent::process_tools::ssh::child();
+    }
+    if arguments.first().is_some_and(|a| a == "process-ssh-shell") {
+        let supervisor = nix::unistd::getppid().as_raw() as u32;
+        pryx_agent::process_policy::child(supervisor, false)?;
+        let command = if arguments.get(1).is_some_and(|a| a == "-c") { arguments.get(2).cloned() } else { None };
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
+        std::process::exit(runtime.block_on(shell(command))?.into());
+    }
     if arguments.first().is_some_and(|a| a == "process-probe") {
         println!("{}", serde_json::to_string(&pryx_agent::process_capabilities::probe())?);
         return Ok(());

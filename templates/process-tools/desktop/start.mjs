@@ -17,6 +17,7 @@ const component = join(config.bundle, 'desktop')
 const require = createRequire(join(config.bundle, 'browser-client/package.json'))
 const puppeteer = require('puppeteer-core')
 const children = []
+function phase(name) { writeFileSync(join(config.scratch, 'desktop-phase.json'), JSON.stringify({ phase:name }), { mode:0o600 }) }
 const environment = { ...process.env, XAUTHORITY: join(config.scratch, 'Xauthority'),
   HOME: join(config.scratch, 'home'), TMPDIR: '/tmp',
   FONTCONFIG_FILE: join(config.bundle, 'etc/fonts/fonts.conf'),
@@ -63,7 +64,9 @@ async function stop(code = 0) {
 process.on('SIGTERM', () => stop())
 process.on('SIGINT', () => stop())
 const cookie = randomBytes(16).toString('hex')
+phase('create-display-cookie')
 await run('xauth', ['add', ':0', '.', cookie])
+phase('start-display')
 const display = start(program('Xvfb'), ['-displayfd', '1', '-nolisten', 'tcp', '-noreset',
   '-screen', '0', '1280x720x24', '-auth', environment.XAUTHORITY,
   '-xkbdir', join(component, 'payload/usr/share/X11/xkb')], { stdio: ['ignore', 'pipe', 'inherit'] })
@@ -77,7 +80,9 @@ environment.DISPLAY = await new Promise((resolve, reject) => {
   display.once('exit', () => reject(new Error('Display exited before readiness')))
 })
 await run('xauth', ['add', environment.DISPLAY, '.', cookie])
+phase('own-display-client')
 await run('xdotool', ['getmouselocation'])
+phase('start-private-vnc-web')
 start(join(config.bundle, 'bin/python3'), [join(component, 'adapter/vnc.py'), vnc, program('x11vnc')])
 writeFileSync(join(config.scratch, 'tokens'), '', { mode: 0o600 })
 start(join(config.bundle, 'bin/python3'), [join(component, 'adapter/web.py'),
@@ -89,10 +94,13 @@ while (!existsSync(web) || !existsSync(vnc)) {
   if (Date.now() >= deadline) throw new Error('Private VNC readiness deadline elapsed')
   await pause(20)
 }
+phase('start-sandboxed-headful-browser')
 browser = await puppeteer.launch({ executablePath: program('chromium'), headless: false, pipe: true,
+  dumpio:true, timeout:config.timeoutMs,
   userDataDir: join(config.scratch, 'chromium'), env: environment,
   args: ['--disable-gpu', '--use-gl=angle', '--use-angle=swiftshader', '--window-position=0,0', '--window-size=1280,720', '--no-first-run'] })
 browser.on('disconnected', () => stop(1))
+phase('open-application')
 const pages = await browser.pages()
 await pages[0].goto(config.applicationUrl || 'about:blank', { timeout: config.timeoutMs })
 const server = http.createServer(async (request, response) => {
@@ -136,4 +144,5 @@ server.on('upgrade', (request, socket, head) => {
   upstream.on('close', () => socket.destroy())
 })
 server.listen({ path: '\0' + config.address })
+phase('serve-desktop')
 writeFileSync(join(config.scratch, 'desktop-ready.json'), JSON.stringify({ display: environment.DISPLAY, xauthority: environment.XAUTHORITY, uid: process.getuid() }), { mode: 0o600 })

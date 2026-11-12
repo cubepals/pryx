@@ -11,3 +11,4 @@ Parts (`desktop/`):
 - `web.py`: run maintained websockify with capability URL logging disabled.
 - `policy.py`: bind the existing token-file resolver to wall-clock expiry.
 - `protocol.json`: private adapter paths and websockify's documented Unix target marker.
+- `ssh-shell`: enter the existing embedded shell with inherited guest restrictions.

@@ -65,25 +65,35 @@ pub fn scope() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub fn enter(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
-    enter_variant(policy, false, false)
+    enter_variant(policy, false, false, false)
 }
 
 /// The fixed helper has already installed private user, mount, PID and proc namespaces.
 pub fn browser(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
-    enter_variant(policy, true, false)
+    enter_variant(policy, true, false, true)
 }
 
 /// The fixed desktop helper has a private temporary mount and inherits its supervisor's IPC scope.
 pub fn desktop(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
-    enter_variant(policy, false, true)
+    enter_variant(policy, false, true, true)
 }
 
 /// The closed desktop supervisor also launches sandboxed Chromium in its private proc/root.
 pub fn desktop_browser(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
-    enter_variant(policy, true, true)
+    enter_variant(policy, true, true, true)
 }
 
-fn enter_variant(policy: &Policy, browser: bool, desktop: bool) -> Result<(), Box<dyn std::error::Error>> {
+/// A closed tool child inherits its supervisor's scope and keeps every ordinary guest rule.
+pub fn inherited(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
+    enter_variant(policy, false, false, true)
+}
+
+fn enter_variant(
+    policy: &Policy,
+    browser: bool,
+    desktop: bool,
+    inherited: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     if !crate::process_capabilities::probe().filesystem {
         return Err(crate::process_capabilities::FILESYSTEM_UNAVAILABLE.into());
     }
@@ -146,13 +156,14 @@ fn enter_variant(policy: &Policy, browser: bool, desktop: bool) -> Result<(), Bo
     if desktop {
         write.extend([std::path::Path::new("/tmp"), std::path::Path::new("/dev/shm")]);
     }
-    let scoped = browser || desktop || ipc_scoped() || crate::process_capabilities::private_ipc_probe().supported();
+    let scoped =
+        inherited || browser || desktop || ipc_scoped() || crate::process_capabilities::private_ipc_probe().supported();
     if policy.require_ipc_scope == Some(true) && !scoped {
         return Err("This process requires enforced private IPC before guest execution".into());
     }
     let mut rules =
         Ruleset::default().set_compatibility(CompatLevel::HardRequirement).handle_access(AccessFs::from_all(abi))?;
-    if scoped && !browser && !desktop && !ipc_scoped() {
+    if scoped && !inherited && !browser && !desktop && !ipc_scoped() {
         rules = rules.scope(Scope::AbstractUnixSocket)?;
     }
     let status = rules
