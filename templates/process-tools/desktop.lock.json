@@ -1,0 +1,416 @@
+[
+  {
+    "package": "libaudit1",
+    "version": "1:3.0.9-1",
+    "url": "https://deb.debian.org/debian/pool/main/a/audit/libaudit1_3.0.9-1_amd64.deb",
+    "sha256": "30954df4b5a7c505661ba8ae5e6ea94f5805e408899fb400783bb166eb5ff306",
+    "archive": "libaudit1_3.0.9-1_amd64.deb",
+    "sourcePackage": "audit",
+    "noticeSha256": "6c7011e93f643b112c4cc3622131e28a30477afad6c4f5efe466b13aa7f603cc",
+    "noticeBytes": 1596,
+    "notice": "notices/desktop/libaudit1.copyright",
+    "licences": [
+      "GPL-2",
+      "LGPL-2.1"
+    ]
+  },
+  {
+    "package": "libbsd0",
+    "version": "0.11.7-2",
+    "url": "https://deb.debian.org/debian/pool/main/libb/libbsd/libbsd0_0.11.7-2_amd64.deb",
+    "sha256": "bb31cc8b40f962a85b2cec970f7f79cc704a1ae4bad24257a822055404b2c60b",
+    "licences": [
+      "BSD-2-clause",
+      "BSD-2-clause-NetBSD",
+      "BSD-2-clause-author",
+      "BSD-2-clause-verbatim",
+      "BSD-3-clause",
+      "BSD-3-clause-John-Birrell",
+      "BSD-3-clause-Regents",
+      "BSD-3-clause-Regents and BSD-2-clause-NetBSD",
+      "BSD-3-clause-author",
+      "BSD-4-clause-Niels-Provos",
+      "Beerware",
+      "Expat",
+      "ISC",
+      "ISC-Original",
+      "libutil-David-Nugent",
+      "public-domain"
+    ],
+    "source": "https://sources.debian.org/src/libbsd/0.11.7-2/",
+    "archive": "libbsd0_0.11.7-2_amd64.deb",
+    "noticeSha256": "00fd7be5d907a6bcc409a80f2d565f508673db4761d54623691f89ae3aa20fc7",
+    "noticeBytes": 23960,
+    "notice": "../native-tools/notices/libbsd0.txt"
+  },
+  {
+    "package": "libcap-ng0",
+    "version": "0.8.3-1+b3",
+    "url": "https://deb.debian.org/debian/pool/main/libc/libcap-ng/libcap-ng0_0.8.3-1+b3_amd64.deb",
+    "sha256": "b4b54769c77e4a71c8b33aee4d600ba28a9994a1c6f60d55d4ebe7fc44882e07",
+    "archive": "libcap-ng0_0.8.3-1+b3_amd64.deb",
+    "sourcePackage": "libcap-ng",
+    "noticeSha256": "49b5db19990a3e3cc1a9ed716aed231f6f3c1c217e58f62ae4dc2818c6d3e9cc",
+    "noticeBytes": 2035,
+    "notice": "notices/desktop/libcap-ng0.copyright",
+    "licences": [
+      "GPL-2+",
+      "GPL-3",
+      "LGPL-2.1+"
+    ]
+  },
+  {
+    "package": "libfontenc1",
+    "version": "1:1.1.4-1",
+    "url": "https://deb.debian.org/debian/pool/main/libf/libfontenc/libfontenc1_1.1.4-1_amd64.deb",
+    "sha256": "1d0aa6ea16a34a8de1ea170360c4cb699f3239aeddb292df2d2c4eb6e835de4b",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libfontenc/1%3A1.1.4-1/",
+    "archive": "libfontenc1_1%3a1.1.4-1_amd64.deb",
+    "noticeSha256": "a7cb43c56c51407bc6539032a47c5351cd03962ed6a30b4f52dec6ed7db54383",
+    "noticeBytes": 1158,
+    "notice": "../native-tools/notices/libfontenc1.txt"
+  },
+  {
+    "package": "libgcrypt20",
+    "version": "1.10.1-3+deb12u1",
+    "url": "https://deb.debian.org/debian/pool/main/libg/libgcrypt20/libgcrypt20_1.10.1-3+deb12u1_amd64.deb",
+    "sha256": "e7a56552139c693904a6f9712234c05fe918353273a7cbdb5e62f423ad71bb97",
+    "archive": "libgcrypt20_1.10.1-3+deb12u1_amd64.deb",
+    "sourcePackage": "libgcrypt20",
+    "noticeSha256": "95db2f9da663f2bfe2aabe9c72fce9d6c9ae767b912f397d7823f50bd55a1a7d",
+    "noticeBytes": 24896,
+    "notice": "notices/desktop/libgcrypt20.copyright",
+    "licences": [
+      "See complete retained Debian copyright"
+    ]
+  },
+  {
+    "package": "libgl1",
+    "version": "1.6.0-1",
+    "url": "https://deb.debian.org/debian/pool/main/libg/libglvnd/libgl1_1.6.0-1_amd64.deb",
+    "sha256": "6f89b1702c48e9a2437bb3c1ffac8e1ab2d828fc28b3d14b2eecd4cc19b2c790",
+    "licences": [
+      "Apache-2.0",
+      "BSD-1-clause",
+      "GPL",
+      "GPL-3+",
+      "MIT"
+    ],
+    "source": "https://sources.debian.org/src/libglvnd/1.6.0-1/",
+    "archive": "libgl1_1.6.0-1_amd64.deb",
+    "noticeSha256": "0cc0a3c5c051417d3c056b154bd41f070108d3a9a8cebb7bb4fbb3a2ebd1efb2",
+    "noticeBytes": 4650,
+    "notice": "../native-tools/notices/libgl1.txt"
+  },
+  {
+    "package": "libglvnd0",
+    "version": "1.6.0-1",
+    "url": "https://deb.debian.org/debian/pool/main/libg/libglvnd/libglvnd0_1.6.0-1_amd64.deb",
+    "sha256": "b6da5b153dd62d8b5e5fbe25242db1fc05c068707c365db49abda8c2427c75f8",
+    "licences": [
+      "Apache-2.0",
+      "BSD-1-clause",
+      "GPL",
+      "GPL-3+",
+      "MIT"
+    ],
+    "source": "https://sources.debian.org/src/libglvnd/1.6.0-1/",
+    "archive": "libglvnd0_1.6.0-1_amd64.deb",
+    "noticeSha256": "0cc0a3c5c051417d3c056b154bd41f070108d3a9a8cebb7bb4fbb3a2ebd1efb2",
+    "noticeBytes": 4650,
+    "notice": "../native-tools/notices/libglvnd0.txt"
+  },
+  {
+    "package": "libglx0",
+    "version": "1.6.0-1",
+    "url": "https://deb.debian.org/debian/pool/main/libg/libglvnd/libglx0_1.6.0-1_amd64.deb",
+    "sha256": "95f568df73dedf43ae66834a75502112e0d4f3ad7124f3dbfa790b739383b896",
+    "licences": [
+      "Apache-2.0",
+      "BSD-1-clause",
+      "GPL",
+      "GPL-3+",
+      "MIT"
+    ],
+    "source": "https://sources.debian.org/src/libglvnd/1.6.0-1/",
+    "archive": "libglx0_1.6.0-1_amd64.deb",
+    "noticeSha256": "0cc0a3c5c051417d3c056b154bd41f070108d3a9a8cebb7bb4fbb3a2ebd1efb2",
+    "noticeBytes": 4650,
+    "notice": "../native-tools/notices/libglx0.txt"
+  },
+  {
+    "package": "libgpg-error0",
+    "version": "1.46-1",
+    "url": "https://deb.debian.org/debian/pool/main/libg/libgpg-error/libgpg-error0_1.46-1_amd64.deb",
+    "sha256": "89944ee11d7370ce6ef46fc52f094c4a6512eff8943ec4c6ebefeae6360ceada",
+    "archive": "libgpg-error0_1.46-1_amd64.deb",
+    "sourcePackage": "libgpg-error",
+    "noticeSha256": "8760fd36efa1d7186f8769d4e76a3e678045b94d54465bf6f2db5eb871c7c27f",
+    "noticeBytes": 4903,
+    "notice": "notices/desktop/libgpg-error0.copyright",
+    "licences": [
+      "BSD-3-clause",
+      "GPL-3+",
+      "LGPL-2.1+",
+      "LGPL-2.1+ or BSD-3-clause",
+      "g10-permissive"
+    ]
+  },
+  {
+    "package": "liblz4-1",
+    "version": "1.9.4-1",
+    "url": "https://deb.debian.org/debian/pool/main/l/lz4/liblz4-1_1.9.4-1_amd64.deb",
+    "sha256": "64cde86cef1deaf828bd60297839b59710b5cd8dc50efd4f12643caaee9389d3",
+    "archive": "liblz4-1_1.9.4-1_amd64.deb",
+    "sourcePackage": "lz4",
+    "noticeSha256": "d3be0f43fe14da244f97c451bbae789c0acf868612598a69f5f22a289abeca40",
+    "noticeBytes": 3275,
+    "notice": "notices/desktop/liblz4-1.copyright",
+    "licences": [
+      "BSD-2-clause",
+      "GPL-2+",
+      "GPL-2+ or BSD-2-clause"
+    ]
+  },
+  {
+    "package": "libmd0",
+    "version": "1.0.4-2",
+    "url": "https://deb.debian.org/debian/pool/main/libm/libmd/libmd0_1.0.4-2_amd64.deb",
+    "sha256": "03539fd30c509e27101d13a56e52eda9062bdf1aefe337c07ab56def25a13eab",
+    "archive": "libmd0_1.0.4-2_amd64.deb",
+    "sourcePackage": "libmd",
+    "noticeSha256": "4365ef6255ad553fce69dd4bc0e093472c5d0e41b8ea493a545cc926ce171aa6",
+    "noticeBytes": 8018,
+    "notice": "notices/desktop/libmd0.copyright",
+    "licences": [
+      "BSD-2-clause",
+      "BSD-2-clause-NetBSD",
+      "BSD-3-clause",
+      "BSD-3-clause-Aaron-D-Gifford",
+      "Beerware",
+      "ISC",
+      "public-domain-md4",
+      "public-domain-md5",
+      "public-domain-sha1"
+    ]
+  },
+  {
+    "package": "libselinux1",
+    "version": "3.4-1+b6",
+    "url": "https://deb.debian.org/debian/pool/main/libs/libselinux/libselinux1_3.4-1+b6_amd64.deb",
+    "sha256": "2b07f5287b9105f40158b56e4d70cc1652dac56a408f3507b4ab3d061eed425f",
+    "archive": "libselinux1_3.4-1+b6_amd64.deb",
+    "sourcePackage": "libselinux",
+    "noticeSha256": "641806738b0c6a3d03168c2649e6b94205198bb66cd557e6bae3a20b71c9bb0b",
+    "noticeBytes": 3131,
+    "notice": "notices/desktop/libselinux1.copyright",
+    "licences": [
+      "See complete retained Debian copyright"
+    ]
+  },
+  {
+    "package": "libsystemd0",
+    "version": "252.39-1~deb12u2",
+    "url": "https://deb.debian.org/debian/pool/main/s/systemd/libsystemd0_252.39-1~deb12u2_amd64.deb",
+    "sha256": "013c07514a9e4933b2d5c098018695a6aa42d085dbc483ce2c094a954c8a1b0a",
+    "archive": "libsystemd0_252.39-1~deb12u2_amd64.deb",
+    "sourcePackage": "systemd",
+    "noticeSha256": "a7d06854714a1ca99f6dbd1a1641dde5bcf28635be149f6554449618f8f427f3",
+    "noticeBytes": 12776,
+    "notice": "notices/desktop/libsystemd0.copyright",
+    "licences": [
+      "CC0-1.0",
+      "Expat",
+      "GPL-2 with Linux-syscall-note exception",
+      "GPL-2+",
+      "LGPL-2.1+",
+      "public-domain"
+    ]
+  },
+  {
+    "package": "libunwind8",
+    "version": "1.6.2-3",
+    "url": "https://deb.debian.org/debian/pool/main/libu/libunwind/libunwind8_1.6.2-3_amd64.deb",
+    "sha256": "7b297868682836e4c87be349f17e4a56bc287586e3576503e84a5cb5485ce925",
+    "licences": [
+      "Expat",
+      "GPL-2+"
+    ],
+    "source": "https://sources.debian.org/src/libunwind/1.6.2-3/",
+    "archive": "libunwind8_1.6.2-3_amd64.deb",
+    "noticeSha256": "e74ce4a6f3ed0f3048e653aba38cdfc18b7865876bb3efeccfc1e220976cb71f",
+    "noticeBytes": 3612,
+    "notice": "../native-tools/notices/libunwind8.txt"
+  },
+  {
+    "package": "libxdo3",
+    "version": "1:3.20160805.1-5",
+    "url": "https://deb.debian.org/debian/pool/main/x/xdotool/libxdo3_3.20160805.1-5_amd64.deb",
+    "sha256": "c47096b186fc848d8677b1f307c2e76cd1490b2470b30b3bde6f31ed4a64297a",
+    "licences": [
+      "BSD-3-clause"
+    ],
+    "source": "https://sources.debian.org/src/xdotool/1%3A3.20160805.1-5/",
+    "archive": "libxdo3_1%3a3.20160805.1-5_amd64.deb",
+    "noticeSha256": "7022c27d07a4777ff1e23a83274f6351d634d83053b46a7f5582a2c988ab4572",
+    "noticeBytes": 1965,
+    "notice": "../native-tools/notices/libxdo3.txt"
+  },
+  {
+    "package": "libxfont2",
+    "version": "1:2.0.6-1+deb12u1",
+    "url": "https://deb.debian.org/debian-security/pool/updates/main/libx/libxfont/libxfont2_2.0.6-1+deb12u1_amd64.deb",
+    "sha256": "96ca8e9e1d913dd9855f46f1f09d0e0aec964b70d428da9f032250fc7a400419",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxfont/1%3A2.0.6-1%2Bdeb12u1/",
+    "archive": "libxfont2_1%3a2.0.6-1+deb12u1_amd64.deb",
+    "noticeSha256": "c0ec1767e5a927bdf17f8ca2af231263f973c06e5f30efa1b4867e93614dd061",
+    "noticeBytes": 13512,
+    "notice": "../native-tools/notices/libxfont2.txt"
+  },
+  {
+    "package": "libxinerama1",
+    "version": "2:1.1.4-3",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxinerama/libxinerama1_1.1.4-3_amd64.deb",
+    "sha256": "8dde8f74d2fc001f306fb1295a86850145e93191d35c983c7f52eb21b0a7f8cb",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxinerama/2%3A1.1.4-3/",
+    "archive": "libxinerama1_2%3a1.1.4-3_amd64.deb",
+    "noticeSha256": "e49d9732f261b3ffcb50c40914bd9d144de5557dad9b2ae20dbe8e3c5b3d17fb",
+    "noticeBytes": 3670,
+    "notice": "../native-tools/notices/libxinerama1.txt"
+  },
+  {
+    "package": "libxkbfile1",
+    "version": "1:1.1.0-1",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxkbfile/libxkbfile1_1.1.0-1_amd64.deb",
+    "sha256": "7c58d9986f918b71568ad83dbb6f4ab22c185f243461d41acee920cc5e13d347",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxkbfile/1%3A1.1.0-1/",
+    "archive": "libxkbfile1_1%3a1.1.0-1_amd64.deb",
+    "noticeSha256": "6114c8684ed96f82898a092f08b9c934268b7a73f201fbec6ade863083438c99",
+    "noticeBytes": 3403,
+    "notice": "../native-tools/notices/libxkbfile1.txt"
+  },
+  {
+    "package": "libxmuu1",
+    "version": "2:1.1.3-3",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxmu/libxmuu1_1.1.3-3_amd64.deb",
+    "sha256": "983ca41d506fa159536cd584118855748763f5f5a3b5949206bee4a62ec0cbf9",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxmu/2%3A1.1.3-3/",
+    "archive": "libxmuu1_2%3a1.1.3-3_amd64.deb",
+    "noticeSha256": "7e06a93da6844467d2b5844939351d4702eccd25df71dc6c6e60e8affba09d41",
+    "noticeBytes": 3631,
+    "notice": "../native-tools/notices/libxmuu1.txt"
+  },
+  {
+    "package": "libxtst6",
+    "version": "2:1.2.3-1.1",
+    "url": "https://deb.debian.org/debian/pool/main/libx/libxtst/libxtst6_1.2.3-1.1_amd64.deb",
+    "sha256": "be67f1efe7cd3dbe9dc0d717e0a8c0959cc663950aa15a42636ab90b134f9cb5",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/libxtst/2%3A1.2.3-1.1/",
+    "archive": "libxtst6_2%3a1.2.3-1.1_amd64.deb",
+    "noticeSha256": "304f78731e1e0e78132fbba4e1909c8642878a3b8c4837b36cb2d38891bf2204",
+    "noticeBytes": 5914,
+    "notice": "../native-tools/notices/libxtst6.txt"
+  },
+  {
+    "package": "x11-xkb-utils",
+    "version": "7.7+7",
+    "url": "https://deb.debian.org/debian/pool/main/x/x11-xkb-utils/x11-xkb-utils_7.7+7_amd64.deb",
+    "sha256": "b25970e444fadf4717e5624bc2a2eecef785d09d731b571da8d43f5297b43b12",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/x11-xkb-utils/7.7%2B7/",
+    "archive": "x11-xkb-utils_7.7+7_amd64.deb",
+    "noticeSha256": "cf2ace27426806b4423a1931f42fe2cd87900b8c062de5bdae57e553c2d1dbf5",
+    "noticeBytes": 12018,
+    "notice": "../native-tools/notices/x11-xkb-utils.txt"
+  },
+  {
+    "package": "xauth",
+    "version": "1:1.1.2-1",
+    "url": "https://deb.debian.org/debian/pool/main/x/xauth/xauth_1.1.2-1_amd64.deb",
+    "sha256": "57d6348f392c77ccc3fdc5874c527df18df8be702814b13d1151352b28e29145",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/xauth/1%3A1.1.2-1/",
+    "archive": "xauth_1%3a1.1.2-1_amd64.deb",
+    "noticeSha256": "35f7f9792a4d64ef293878893d5cf07e09d2e5eb87fd17a4c0f47d66d4735c0c",
+    "noticeBytes": 1273,
+    "notice": "../native-tools/notices/xauth.txt"
+  },
+  {
+    "package": "xdotool",
+    "version": "1:3.20160805.1-5",
+    "url": "https://deb.debian.org/debian/pool/main/x/xdotool/xdotool_3.20160805.1-5_amd64.deb",
+    "sha256": "baf0f340e8272e9313848f820ec962aaf843f17ee5737fe256c970f8f5f152b5",
+    "licences": [
+      "BSD-3-clause"
+    ],
+    "source": "https://sources.debian.org/src/xdotool/1%3A3.20160805.1-5/",
+    "archive": "xdotool_1%3a3.20160805.1-5_amd64.deb",
+    "noticeSha256": "7022c27d07a4777ff1e23a83274f6351d634d83053b46a7f5582a2c988ab4572",
+    "noticeBytes": 1965,
+    "notice": "../native-tools/notices/xdotool.txt"
+  },
+  {
+    "package": "xkb-data",
+    "version": "2.35.1-1",
+    "url": "https://deb.debian.org/debian/pool/main/x/xkeyboard-config/xkb-data_2.35.1-1_all.deb",
+    "sha256": "28a79c61b785f403da93af58c39aed13c022032935e3e54362c6707169cfe982",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/xkeyboard-config/2.35.1-1/",
+    "archive": "xkb-data_2.35.1-1_all.deb",
+    "noticeSha256": "689b0893bac5fa59edff92dabc27c1797b51510440ee54e709a573334681a180",
+    "noticeBytes": 9923,
+    "notice": "../native-tools/notices/xkb-data.txt"
+  },
+  {
+    "package": "xserver-common",
+    "version": "2:21.1.7-3+deb12u13",
+    "url": "https://deb.debian.org/debian-security/pool/updates/main/x/xorg-server/xserver-common_21.1.7-3+deb12u13_all.deb",
+    "sha256": "90849288bd60f8dc013b16030323f509eab658f1861d9f61da8b9760dd790c8b",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/xorg-server/2%3A21.1.7-3%2Bdeb12u13/",
+    "archive": "xserver-common_2%3a21.1.7-3+deb12u13_all.deb",
+    "noticeSha256": "4cc0447a22635c7b2f1a93fec4aa94f1970fadeb72a063de006b51cf4963a06f",
+    "noticeBytes": 94783,
+    "notice": "../native-tools/notices/xserver-common.txt"
+  },
+  {
+    "package": "xvfb",
+    "version": "2:21.1.7-3+deb12u13",
+    "url": "https://deb.debian.org/debian-security/pool/updates/main/x/xorg-server/xvfb_21.1.7-3+deb12u13_amd64.deb",
+    "sha256": "975440b40f6d44cbc806134c624a22ef1cd9a4ba9f7ad2706faf9ae96185eac3",
+    "licences": [
+      "MIT/X11-style (all per-file notices retained)"
+    ],
+    "source": "https://sources.debian.org/src/xorg-server/2%3A21.1.7-3%2Bdeb12u13/",
+    "archive": "xvfb_2%3a21.1.7-3+deb12u13_amd64.deb",
+    "noticeSha256": "4cc0447a22635c7b2f1a93fec4aa94f1970fadeb72a063de006b51cf4963a06f",
+    "noticeBytes": 94783,
+    "notice": "../native-tools/notices/xvfb.txt"
+  }
+]

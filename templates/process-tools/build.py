@@ -20,12 +20,12 @@ import tarfile
 import tempfile
 import zipfile
 
-from archive_inputs import ROOT, REPO, acquire, copy_entry, digest, unpack
+from archive_inputs import GLIBC_SONAMES, ROOT, REPO, acquire, copy_entry, digest, unpack
 
 
 
 def libraries(items, cache, output, extractor):
-    forbidden = {"libc.so.6", "libm.so.6", "libpthread.so.0", "libdl.so.2", "librt.so.1", "libresolv.so.2"}
+    forbidden = GLIBC_SONAMES
     for item in items:
         archive = acquire(item, cache)
         # Extract verified bytes afresh; a mutable extracted cache is not integrity evidence.

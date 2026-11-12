@@ -124,6 +124,18 @@ jobs:
           python3 templates/process-tools/desktop-fixture.py --cache "$RUNNER_TEMP/tool-inputs" \
             --output "$PRYX_DESKTOP_DESIGN_FIXTURE" --libraries "$moved/libraries/lib"
           cargo test --locked -p pryx-agent --test desktop_design -- --ignored --nocapture
+      - name: Stage X11 tools without publishing or enabling them
+        run: |
+          moved="$RUNNER_TEMP/ordinary user tools moved to a substantially longer path"
+          python3 templates/process-tools/desktop.py --cache "$RUNNER_TEMP/tool-inputs" \
+            --output "$RUNNER_TEMP/desktop-component" --libraries "$moved/libraries/lib" \
+            --report "$RUNNER_TEMP/desktop-component-before-move.json"
+          relocated="$RUNNER_TEMP/desktop tools relocated to a substantially longer path"
+          mv "$RUNNER_TEMP/desktop-component" "$relocated"
+          python3 templates/process-tools/desktop.py --smoke-only --output "$relocated" \
+            --report "$RUNNER_TEMP/desktop-component.json"
+          PRYX_DESKTOP_TEST_COMPONENT="$relocated" \
+            python3 -m unittest discover -s templates/process-tools -p 'desktop_test.py'
       - name: Retain the verified runtime for installed-product acceptance
         uses: ./.github/actions/upload-evidence
         with:
@@ -153,6 +165,7 @@ jobs:
             ${{ runner.temp }}/native-process-acceptance.log
             ${{ runner.temp }}/native-artifact-server.log
             ${{ runner.temp }}/desktop-design.json
+            ${{ runner.temp }}/desktop-component.json
           if-no-files-found: error
   bundle:
     name: Bundle runtime acceptance

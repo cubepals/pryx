@@ -1259,3 +1259,24 @@ job when publication is authorized. That job has not run in this task.
   only the canceled E2E/one-box dependencies. Their rootless and CodeQL runs
   had already passed. K23 completion continues to cite tested implementation
   5945724, whose complete proof is retained separately.
+- Stage the unchanged X11 component separately from the runtime: 26 digest-locked
+  Debian archives, reviewed full notices/licences and the K23 own libraries;
+  no package hooks, executable rewriting or private glibc. Retain only Xvfb,
+  xdotool, xauth and xkbcomp executables from these inputs. A complete ELF audit
+  first finds unused XKB GUI utilities need additional host libraries; removing
+  those unrelated programs makes every shipped non-glibc dependency resolve
+  inside the component. All selected programs pass real controls after moving
+  the tree to a longer path containing spaces. The measured desktop floor is
+  glibc 2.35; existing browser/kernel 2.34 remains unchanged. Four Python cases
+  pass, including actual missing-own-library and fake-private-libc refusal;
+  generated-launcher ShellCheck, actionlint and existing old/non-glibc Rust
+  prerequisite test pass. Preserve raw local inventory and provenance under k24.
+  This adds under two minutes to the existing branch/scheduled tool job and no
+  job or required gate; ordinary PR fixture tests remain explicitly conditional.
+  Corresponding-source export, live owner/neighbour/proc-root confinement and
+  product acceptance remain required before publication or capability enablement.
+- Read source-3b43da1 push E2E 131278406825 and aggregate 131305882152 in full:
+  the field test sees current metrics but zero historical samples in its last
+  minute. Its other suites pass; the normal PR 43245914144 is fully green.
+  Preserve the failed push and investigate the metrics ingestion boundary;
+  no retry or assertion relaxation substitutes for a cause-specific correction.

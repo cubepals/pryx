@@ -26,7 +26,7 @@ def main():
     parser.add_argument('--libraries', type=Path, required=True)
     options = parser.parse_args()
     libraries = options.libraries.resolve()
-    forbidden = {'libc.so.6', 'libm.so.6', 'libpthread.so.0', 'libdl.so.2', 'librt.so.1', 'libresolv.so.2'}
+    forbidden = build.GLIBC_SONAMES
     if any(p.name in forbidden or p.name.startswith('ld-linux') for p in libraries.rglob('*')):
         raise ValueError('A private glibc is forbidden in the desktop fixture')
     output = options.output.resolve()

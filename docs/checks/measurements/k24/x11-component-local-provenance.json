@@ -1,0 +1,21 @@
+{
+  "sourceBase": "e69fa1fddc8ccb10b6afb60bec6340d5ca610f01",
+  "scope": "Local staged component only; no live display, namespace or installed-product acceptance",
+  "componentPath": "/tmp/pryx k24 desktop tools with notices relocated into an ordinary user path with spaces",
+  "reportSha256": "26fb8984c08db09f629917ea92fe42a6bbf07d8d2b2bc6087c2b30aefd734a51",
+  "inputs": {
+    "templates/process-tools/desktop.py": "bca6bdce77b36a9a1086fd8c0e689f547a78e0075f98b0d883e0cde191dc8a04",
+    "templates/process-tools/desktop_test.py": "54359615a7ae7cb7882a663d39b5c152a8fddbe6f9cc2fafe1982da55264dadf",
+    "templates/process-tools/desktop.lock.json": "a9bec5824d6ee8ef0b77b6dbf22289f395b7751c4db15fff637d8e58d593ff18",
+    "templates/process-tools/archive_inputs.py": "b7033b9d2a36a56a3e5ddf3b922db34d7600afc0a18c36a4c9d4870cc2c9a6ec",
+    "templates/process-tools/compatibility.json": "d01d075103f682e59884a977018a470407aa1491bea5b3e847a760088272aef5"
+  },
+  "checks": [
+    "Four unchanged program controls after physical relocation",
+    "Four Python tests including actual missing own-library and private-libc rejection",
+    "ShellCheck of generated launchers",
+    "Actionlint including ShellCheck",
+    "Actual host glibc 2.41; staged desktop minimum 2.35",
+    "Existing old/non-glibc native prerequisite test passes"
+  ]
+}

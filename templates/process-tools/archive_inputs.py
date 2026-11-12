@@ -15,6 +15,12 @@ import urllib.request
 ROOT = Path(__file__).resolve().parent
 REPO = ROOT.parent.parent
 
+# GNU libc's runtime sonames belong to the host, including the ELF interpreter.
+GLIBC_SONAMES = frozenset({
+    'libc.so.6', 'libm.so.6', 'libpthread.so.0', 'libdl.so.2', 'librt.so.1',
+    'libresolv.so.2', 'libutil.so.1', 'libanl.so.1', 'ld-linux-x86-64.so.2',
+})
+
 
 def digest(path):
     with path.open("rb") as source:
