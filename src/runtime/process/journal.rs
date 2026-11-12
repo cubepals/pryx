@@ -199,6 +199,7 @@ impl ProcessRuntime {
             started: None,
             finished: None,
             cleaned: true,
+            native_browser: None,
         };
         let id = entry.id.clone();
         self.save(entry)?;
@@ -220,6 +221,18 @@ impl ProcessRuntime {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn process_browser_labels_come_only_from_own_live_launch_policy() {
+        let root = tempfile::tempdir().unwrap();
+        let runtime = ProcessRuntime::new(root.path(), ProcessConfig::default()).unwrap();
+        let mut spec = fixture_spec(root.path(), 0);
+        spec.labels.insert(crate::labels::LABEL_BROWSER_SANDBOX.into(), true.to_string());
+        runtime.create_entry(&spec).unwrap();
+        let observed = runtime.observe_entry(&spec.name).unwrap().unwrap();
+        assert_eq!(observed.labels[crate::labels::LABEL_BROWSER_SANDBOX], false.to_string());
+        assert!(runtime.entry(&spec.name).unwrap().native_browser.is_none());
+    }
 
     #[tokio::test]
     async fn cpu_ceilings_are_refused_before_creation_or_journal_relaunch() {

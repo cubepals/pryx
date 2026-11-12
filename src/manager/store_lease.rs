@@ -66,7 +66,7 @@ impl Manager {
             if tier == "container" && rootless {
                 features.push(crate::protocol::OBSERVED_RESOURCE_LIMITS_FEATURE.into());
             }
-            if tier == "container" {
+            if matches!(tier, "container" | "process") {
                 features.push(crate::protocol::NATIVE_BROWSER_POLICY_FEATURE.into());
             }
             if self.runtime.multi_tier()
@@ -103,7 +103,22 @@ impl Manager {
     }
 
     pub async fn refresh_host_probe(&self) {
-        let report = crate::probe::run().await;
+        let mut report = crate::probe::run().await;
+        if let Ok(runtime) = self.runtime_for(Some(crate::protocol::Isolation::Process)) {
+            let available = match self.agent_binary(runtime.as_ref()) {
+                Some(binary) => runtime.native_browser(&binary).await,
+                None => Err(crate::runtime::RuntimeError::Other("No trusted process agent executable".into())),
+            };
+            let capability = match available {
+                Ok(()) => crate::capability::Capability::on("Native process browser prerequisites are verified"),
+                Err(problem) => crate::capability::Capability::new(
+                    crate::capability::State::Off,
+                    problem.to_string(),
+                    "Inspect the agent, native descriptor, host namespace/IPC policy and legacy process history",
+                ),
+            };
+            report.capabilities.insert(pryx_agent::process_tool_policy::BROWSER_CAPABILITY.into(), capability);
+        }
         *self.host_probe.lock().unwrap() = report;
     }
 
@@ -142,7 +157,8 @@ impl Manager {
                             && (!container || info.as_ref().is_some_and(|info| !info.rootless && info.memory_limit))
                     }
                     G::BrowserSandbox => {
-                        container && self.config.docker.native_tools_seccomp.is_some() && probe.on("user-namespaces")
+                        (container && self.config.docker.native_tools_seccomp.is_some() && probe.on("user-namespaces"))
+                            || (tier == "process" && probe.on(pryx_agent::process_tool_policy::BROWSER_CAPABILITY))
                     }
                     G::OwnKernel => false,
                 };

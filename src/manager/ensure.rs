@@ -30,6 +30,20 @@ impl Manager {
                 problem: "the host has no trusted agent executable".into(),
             }]));
         }
+        if runtime.is_process() && spec.require_browser_sandbox == Some(true) {
+            let binary = self.agent_binary(runtime.as_ref()).ok_or_else(|| {
+                NodeError::Invalid(vec![FieldError {
+                    field: "requireBrowserSandbox".into(),
+                    problem: "browser-sandbox requires a trusted process agent".into(),
+                }])
+            })?;
+            runtime.native_browser(&binary).await.map_err(|problem| {
+                NodeError::Invalid(vec![FieldError {
+                    field: "requireBrowserSandbox".into(),
+                    problem: format!("browser-sandbox: {problem}"),
+                }])
+            })?;
+        }
         if spec.egress.is_some()
             && (!runtime.supports_hostname_egress() || spec.network == crate::protocol::NetworkMode::None)
         {

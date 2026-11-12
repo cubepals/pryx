@@ -335,6 +335,9 @@ pub trait ContainerRuntime: Send + Sync + 'static {
     fn is_process(&self) -> bool {
         false
     }
+    async fn native_browser(&self, _binary: &std::path::Path) -> Result<(), RuntimeError> {
+        Err(RuntimeError::Other("Native process browser is unavailable on this backend".into()))
+    }
     fn data_owner(&self, _id: &str) -> Result<Option<(u32, u32)>, RuntimeError> {
         Ok(None)
     }

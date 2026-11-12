@@ -47,6 +47,8 @@ struct Entry {
     pub finished: Option<String>,
     #[serde(default)]
     pub cleaned: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_browser: Option<bool>,
 }
 
 use std::sync::Arc;
@@ -55,6 +57,9 @@ use std::sync::Arc;
 impl ContainerRuntime for ProcessRuntime {
     fn is_process(&self) -> bool {
         true
+    }
+    async fn native_browser(&self, binary: &std::path::Path) -> Result<(), RuntimeError> {
+        self.browser_requirement(binary).await
     }
     fn data_owner(&self, id: &str) -> Result<Option<(u32, u32)>, RuntimeError> {
         self.owner(id).map(Some)

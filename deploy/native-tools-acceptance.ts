@@ -71,8 +71,13 @@ async function cdp(url: string) {
     }
   }).finally(() => websocket.close())
 }
-async function make() {
-  const box = await sdk.sandbox({ isolation: 'process', units: 4, idle: '10m' })
+async function make(requireBrowser = false) {
+  const box = await sdk.sandbox({
+    isolation: 'process',
+    units: 4,
+    idle: '10m',
+    ...(requireBrowser ? { require: ['browser-sandbox'] } : {}),
+  })
   assert.equal(box.isolation, 'process')
   return box
 }
@@ -97,7 +102,7 @@ for (const language of ['python', 'javascript'] as const) {
     await box.delete()
   }
 }
-const box = await make()
+const box = await make(browserOn)
 try {
   if (browserOn) {
     await box.write('index.html', '<!doctype html><h1>Installed native browser 漢字 😀</h1>')
@@ -119,6 +124,7 @@ try {
       }),
     )
   } else {
+    await assert.rejects(make(true), /browser-sandbox/)
     await assert.rejects(box.browser(), /user namespaces/)
     await box.refresh()
     assert.equal(box.guarantees?.['browser-sandbox'], false)

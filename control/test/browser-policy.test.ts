@@ -7,12 +7,22 @@ import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import contract from '../../openapi/node-writes.openapi.json'
+import { workloadGuarantees } from '../src/guarantees.ts'
 import type { CallOptions } from '../src/node-client.ts'
 import { WorkloadApi } from '../src/workload-api.ts'
 
 const sandboxed = createRequire(import.meta.url)('../../templates/browser/sandbox.cjs') as (
   root: string,
 ) => boolean
+
+test('process browser guarantees require both node and configured copy observations', () => {
+  const feature = contract['x-pryx-resources'].nativeBrowserPolicyFeature
+  const features = ['browser-sandbox', feature]
+  expect(workloadGuarantees(features, 'process')['browser-sandbox']).toBe(false)
+  expect(workloadGuarantees(features, 'process', { 'browser-sandbox': false })['browser-sandbox']).toBe(false)
+  expect(workloadGuarantees(features, 'process', { 'browser-sandbox': true })['browser-sandbox']).toBe(true)
+  expect(workloadGuarantees([feature], 'process', { 'browser-sandbox': true })['browser-sandbox']).toBe(false)
+})
 
 test('legacy policy and forged environment retain the browser sandbox', () => {
   const root = mkdtempSync(join(tmpdir(), 'pryx-browser-policy-'))

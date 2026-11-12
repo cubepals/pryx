@@ -26,7 +26,10 @@ export function workloadGuarantees(
   if (tier === 'container' && features.includes(contract['x-pryx-resources'].observedGuaranteesFeature)) {
     for (const name of ['memory-limit', 'cpu-limit'] as const) result[name] &&= observed?.[name] === true
   }
-  if (tier === 'container' && features.includes(contract['x-pryx-resources'].nativeBrowserPolicyFeature)) {
+  if (
+    ['container', 'process'].includes(tier) &&
+    features.includes(contract['x-pryx-resources'].nativeBrowserPolicyFeature)
+  ) {
     result['browser-sandbox'] &&= observed?.['browser-sandbox'] === true
   }
   return result

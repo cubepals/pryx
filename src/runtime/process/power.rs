@@ -175,6 +175,8 @@ impl ProcessRuntime {
             return Ok(());
         }
         let (tools, required) = self.native_policy(&entry).await?;
+        entry.native_browser =
+            Some(tools.as_ref().is_some_and(|tools| tools.unavailable.is_none() && tools.browser_on));
         let child = self.launch_command(&entry, tools, required)?.spawn().map_err(error)?;
         entry.pid = Some(child.id());
         entry.ticks = identity(child.id());
@@ -236,13 +238,18 @@ impl ProcessRuntime {
                 .and_then(|pid| fs::read_to_string(format!("/proc/{pid}/stat")).ok())
                 .and_then(|s| s.rsplit_once(") ").map(|(_, s)| s.starts_with('T')))
                 .unwrap_or(false);
+        let mut labels = entry.spec.labels;
+        labels.insert(
+            crate::labels::LABEL_BROWSER_SANDBOX.into(),
+            (alive && entry.native_browser == Some(true)).to_string(),
+        );
         Ok(Some(ContainerInfo {
             memory_enforced: None,
             cpu_enforced: None,
             cgroup_parent: None,
             id: entry.id,
             name: entry.spec.name,
-            labels: entry.spec.labels,
+            labels,
             env: entry.spec.env.into_iter().collect(),
             status: if paused {
                 ContainerStatus::Paused

@@ -14,6 +14,15 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[derive(Default)]
+struct Readiness {
+    supported: bool,
+    scoped: bool,
+    artifact: Option<Artifact>,
+    unavailable: Option<String>,
+    browser_on: bool,
+}
+
 fn descriptor(binary: &Path) -> Result<Artifact, RuntimeError> {
     let path = binary.parent().ok_or_else(|| error("Missing agent directory"))?.join("process-tools.json");
     let file = fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK).open(path).map_err(
@@ -77,26 +86,17 @@ impl ProcessRuntime {
             directory(&uid.join(format!("scratch-{}", uuid::Uuid::new_v4())), owner)?,
         ))
     }
-    pub(super) async fn native_policy(&self, entry: &Entry) -> Result<(Option<Policy>, bool), RuntimeError> {
-        let required = self.scope_required()?;
-        let agent = entry.spec.agent.as_ref().ok_or_else(|| error("Missing process supervisor"))?;
-        let metadata = crate::runtime::agent_metadata::query(&agent.binary).await;
+    async fn native_readiness(&self, binary: &Path) -> Result<Readiness, RuntimeError> {
+        let metadata = crate::runtime::agent_metadata::query(binary).await;
         if metadata.as_ref().is_none_or(|value| value.process_tools_version < VERSION) {
-            if required {
-                return Err(error(
-                    "This host requires scoped process agents; upgrade the legacy supervisor before launching compute",
-                ));
-            }
-            note_unscoped(&self.state.root)?;
-            return Ok((None, false));
+            return Ok(Readiness::default());
         }
-        let artifact = descriptor(&agent.binary);
+        let artifact = descriptor(binary);
         let glibc =
             crate::capability::process_tools::prerequisite(std::env::consts::ARCH, &crate::capability::c_library());
         let mut unavailable = (glibc.state != crate::capability::State::On).then_some(glibc.evidence);
         let scoped = pryx_agent::process_capabilities::private_ipc_probe().supported();
         if !scoped {
-            note_unscoped(&self.state.root)?;
             unavailable.get_or_insert_with(|| {
                 "Native process tools require enforceable Landlock ABI 6 abstract-socket isolation".into()
             });
@@ -118,18 +118,61 @@ impl ProcessRuntime {
                 }
             }
         }
-        if unavailable.is_none() && !required {
-            crate::durable::write_atomic(&self.state.root.join("native-scope-required"), b"1\n", 0o600)
-                .map_err(error)?;
-        }
-        let (cache, downloads, scratch) = self.tool_paths(self.owner(&agent.sandbox)?)?;
         let browser_on = unavailable.is_none()
             && metadata
                 .is_some_and(|value| value.process_browser_version >= pryx_agent::process_tool_policy::BROWSER_VERSION)
             && crate::capability::child("probe-user-namespace").state == crate::capability::State::On;
+        Ok(Readiness { supported: true, scoped, artifact: artifact.ok(), unavailable, browser_on })
+    }
+    pub(super) async fn browser_requirement(&self, binary: &Path) -> Result<(), RuntimeError> {
+        let ready = self.native_readiness(binary).await?;
+        if !ready.supported {
+            return Err(error("Native process browser needs a compatible scoped agent; upgrade its executable"));
+        }
+        if let Some(reason) = ready.unavailable {
+            return Err(error(reason));
+        }
+        if !ready.browser_on {
+            return Err(error("Process browser needs a supported agent and usable unprivileged user namespaces"));
+        }
+        Ok(())
+    }
+    pub(super) async fn native_policy(&self, entry: &Entry) -> Result<(Option<Policy>, bool), RuntimeError> {
+        let required = self.scope_required()?;
+        let agent = entry.spec.agent.as_ref().ok_or_else(|| error("Missing process supervisor"))?;
+        let ready = self.native_readiness(&agent.binary).await?;
+        if entry.spec.require_browser_sandbox == Some(true) && !ready.browser_on {
+            return Err(error(ready.unavailable.unwrap_or_else(|| {
+                "browser-sandbox needs a compatible process agent and usable unprivileged user namespaces".into()
+            })));
+        }
+        if !ready.supported {
+            if required {
+                return Err(error(
+                    "This host requires scoped process agents; upgrade the legacy supervisor before launching compute",
+                ));
+            }
+            note_unscoped(&self.state.root)?;
+            return Ok((None, false));
+        }
+        if !ready.scoped {
+            note_unscoped(&self.state.root)?;
+        }
+        if ready.unavailable.is_none() && !required {
+            crate::durable::write_atomic(&self.state.root.join("native-scope-required"), b"1\n", 0o600)
+                .map_err(error)?;
+        }
+        let (cache, downloads, scratch) = self.tool_paths(self.owner(&agent.sandbox)?)?;
         Ok((
-            Some(Policy { cache, downloads, scratch, artifact: artifact.ok(), unavailable, browser_on }),
-            required || scoped,
+            Some(Policy {
+                cache,
+                downloads,
+                scratch,
+                artifact: ready.artifact,
+                unavailable: ready.unavailable,
+                browser_on: ready.browser_on,
+            }),
+            required || ready.scoped,
         ))
     }
 }
@@ -137,6 +180,21 @@ impl ProcessRuntime {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn placement_probes_do_not_mark_unscoped_history_or_acquire_tools() {
+        let root = tempfile::tempdir().unwrap();
+        let runtime = ProcessRuntime::new(root.path(), crate::config::ProcessConfig::default()).unwrap();
+        let binary = root.path().join("agent");
+        for answer in ["{}".to_string(), serde_json::to_string(&pryx_agent::bootstrap_capabilities::probe()).unwrap()] {
+            fs::write(&binary, format!("#!/bin/sh\nprintf '%s' '{answer}'\n")).unwrap();
+            fs::set_permissions(&binary, fs::Permissions::from_mode(0o700)).unwrap();
+            assert!(runtime.browser_requirement(&binary).await.is_err());
+            assert!(!runtime.state.root.join("native-unscoped-boot").exists());
+            assert!(!runtime.state.root.join("native-scope-required").exists());
+            assert!(!root.path().join("process-tools").exists());
+        }
+    }
 
     #[test]
     fn descriptors_refuse_links_writers_and_oversized_inputs() {

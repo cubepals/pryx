@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 pub const VERSION: u16 = 1;
 pub const BROWSER_VERSION: u16 = 1;
+pub const BROWSER_CAPABILITY: &str = "process-browser-sandbox";
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]

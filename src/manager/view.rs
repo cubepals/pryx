@@ -61,6 +61,10 @@ impl Manager {
         {
             guarantees.entry(G::BrowserSandbox).and_modify(|on| *on &= policy.parse::<bool>() == Ok(true));
         }
+        if tier == "process" {
+            let configured = observed.and_then(|info| info.labels.get(crate::labels::LABEL_BROWSER_SANDBOX));
+            guarantees.entry(G::BrowserSandbox).and_modify(|on| *on &= configured.is_some_and(|on| on == "true"));
+        }
         guarantees
     }
 

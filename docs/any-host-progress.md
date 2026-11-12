@@ -829,3 +829,23 @@ job when publication is authorized. That job has not run in this task.
   only on containers. Keep the installed positive assertion intact. Then obtain
   genuine signed ordinary-user edge/SDK samples and default-Docker native proof;
   K23 remains in progress, with no parked main deliverable.
+
+- Process browser guarantee checkpoint reuses native launch readiness without
+  creating cache/scratch or changing boot/scope history during placement probes.
+  Actual executable metadata, protected descriptor, host prerequisites and fresh
+  signed managed peers qualify the host. The private launch journal qualifies its
+  copy; unknown/legacy launch state overwrites any carried browser label to false.
+  Control requires both observations. Strict process browser requests validate
+  before creation and on each launch/resume; Wasm retains its refusal.
+  Installed acceptance now also requires browser-sandbox on the positive create
+  and asserts required placement refusal in the default Docker profile.
+- Local full serial Rust passes 476 tests, 25 ignored, including real Wasm; strict
+  all-target Clippy, Rust structure and formatting pass. Full Bun with real
+  PostgreSQL passes 426 tests, one existing compiled-assets skip and 8,359
+  assertions. Current-source hosted native and installed acceptance remain pending.
+- Cleared superseded incomplete checkpoint CI from the runner queue; none of their
+  interrupted checks establish a pass. Preserve the older 44ba713 normal-CI
+  43185102836 failure in job 131070287116: metadata's actual-executable test
+  unexpectedly returns false for its positive fixture under parallel tests.
+  Its complete log was read; it has no cause diagnostic. Keep its two-second
+  bound and all assertions while instrumenting spawn/read/exit/parse/timeout.
