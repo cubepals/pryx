@@ -54,7 +54,11 @@ export function edgeApi(service: EdgeService, token?: string) {
         { error: { code: 'invalid_request', message: 'Invalid route version' } },
         StatusCodes.UNPROCESSABLE_ENTITY,
       )
-    await sawEdge(service.db, c.get('edge'), version)
+    const features = (c.req.header(EDGE_FEATURES_HEADER) ?? '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean)
+    await sawEdge(service.db, c.get('edge'), version, features)
     const list = await service.routes(c.req.header(EDGE_FEATURES_HEADER)?.split(',').includes('agent'))
     c.header(ROUTES_VERSION_HEADER, String(list.version))
     c.header('etag', `"${list.digest}"`)

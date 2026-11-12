@@ -137,7 +137,7 @@ async fn watch(
         .map_err(|_| io::Error::other("Cannot configure directory watch"))?;
     watcher.watch(&watched, RecursiveMode::Recursive).map_err(|_| io::Error::other("Cannot watch directory"))?;
     let active = agent.telemetry.active();
-    Ok(upgrade.protocols(["pryx"]).on_upgrade(move |mut socket| async move {
+    Ok(upgrade.protocols([crate::contract::WEBSOCKET_PROTOCOL]).on_upgrade(move |mut socket| async move {
         let _active = active;
         if socket.send(Message::Text(serde_json::json!({"type":"ready"}).to_string().into())).await.is_err() { return; }
         let (_watcher, _directory) = (watcher, directory);

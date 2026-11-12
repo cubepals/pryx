@@ -103,6 +103,10 @@ export async function execCommand(
 export async function sandbox(args: string[]): Promise<unknown> {
   const client = publicClient()
   const [verb = 'ls', id, ...rest] = args
+  if (verb === 'ssh-proxy') {
+    if (!id || !rest[0]) throw new Error('SSH proxy needs sandbox and lease identities')
+    return (await import('./ssh-proxy.ts')).sshProxy(client, id, rest[0])
+  }
   if (verb === 'ssh') {
     if (!id) throw new Error('sandbox ssh needs an id')
     return (await import('./sandbox-ssh.ts')).ssh(client, id, rest)

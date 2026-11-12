@@ -10,6 +10,8 @@ import {
   EDGE_FEATURES_HEADER,
   EDGE_ID_HEADER,
   HTTP_FRONT_PORT,
+  HTTP_ONLY_FEATURE,
+  SSH_WEBSOCKET_FEATURE,
   TLS_FRONT_PORT,
 } from '../../control/src/edge-headers.ts'
 import { PRYX_VERSION } from '../../control/src/generated/release.ts'
@@ -113,7 +115,11 @@ export async function startEdge(config: EdgeConfig = edgeConfig()) {
         headers: {
           authorization: `Bearer ${config.token}`,
           [EDGE_ID_HEADER]: config.id,
-          [EDGE_FEATURES_HEADER]: 'agent',
+          [EDGE_FEATURES_HEADER]: [
+            'agent',
+            SSH_WEBSOCKET_FEATURE,
+            ...(config.httpOnly ? [HTTP_ONLY_FEATURE] : []),
+          ].join(','),
           ...headers,
         },
         signal: AbortSignal.any([abort.signal, AbortSignal.timeout(config.requestMs)]),

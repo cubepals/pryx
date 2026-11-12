@@ -163,6 +163,14 @@ OpenSSH checks wall-clock public-key expiry even immediately after wake. A stop/
 invalidates old raw slots; request a new lease. Only public lease metadata reaches control.
 Ordinary serialization of SDK SSH handles omits `key`.
 
+New leases can also advertise `webSocketUrl` and `transport`. The CLI uses OpenSSH's
+ProxyCommand through the authenticated HTTP edge when its live advertisements report an
+HTTP-only deployment; an available raw front remains the default. Both paths use the same
+lease, host key, expiry, revocation and epoch checks. TypeScript `access.connect()` and
+Python `access.connect()` open the authenticated binary WebSocket for an SSH client; await
+the Python call in async mode. The connection carries OpenSSH bytes without interpreting
+them. New SDKs retain the raw behavior when an older agent or edge lacks this transport.
+
 ```ts
 const mounted = await pryx.sandbox({
   image: 'ghcr.io/cubepals/pryx-tools:<release-version>',

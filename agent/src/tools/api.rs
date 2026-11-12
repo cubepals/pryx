@@ -32,6 +32,7 @@ pub(crate) fn routes() -> Router<Arc<Agent>> {
         .route("/_pryx/ssh", post(open_ssh).delete(revoke_all))
         .route("/_pryx/ssh/{id}", get(view_ssh).delete(revoke_ssh))
         .route("/_pryx/ssh/{id}/expiry", post(expire_ssh))
+        .route("/_pryx/ssh/{id}/connect", get(connect_ssh))
         .route("/_pryx/mounts", get(list_mounts).post(init_mounts))
         .layer(axum::middleware::map_response(|mut response: Response| async move {
             response.headers_mut().insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
@@ -114,6 +115,14 @@ async fn open_ssh(
 }
 async fn view_ssh(State(agent): State<Arc<Agent>>, Path(id): Path<String>) -> Result<Json<SshView>, Failure> {
     Ok(Json(ssh::view(&agent, &id).await?))
+}
+async fn connect_ssh(
+    State(agent): State<Arc<Agent>>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<String>,
+    upgrade: axum::extract::ws::WebSocketUpgrade,
+) -> Result<Response, Failure> {
+    super::ssh_socket::connect(agent, claims, id, upgrade).await
 }
 async fn expire_ssh(
     State(agent): State<Arc<Agent>>,

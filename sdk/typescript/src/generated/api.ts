@@ -497,6 +497,10 @@ export interface components {
             user: string;
             hostKey: string;
             expiresAt: number;
+            /** @enum {string} */
+            transport?: "tcp" | "websocket";
+            /** Format: uri */
+            webSocketUrl?: string;
         };
         Sandbox: {
             guarantees?: {

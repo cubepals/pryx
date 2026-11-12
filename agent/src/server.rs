@@ -247,10 +247,12 @@ async fn websocket(
 ) -> Result<Response, Failure> {
     let process = agent.processes.get(&id)?;
     let active = agent.telemetry.active();
-    Ok(upgrade.protocols(["pryx"]).max_message_size(64 * 1024).on_upgrade(move |socket| async move {
-        let _active = active;
-        attached(socket, process).await
-    }))
+    Ok(upgrade.protocols([crate::contract::WEBSOCKET_PROTOCOL]).max_message_size(64 * 1024).on_upgrade(
+        move |socket| async move {
+            let _active = active;
+            attached(socket, process).await
+        },
+    ))
 }
 
 async fn terminal(
@@ -274,10 +276,12 @@ async fn terminal(
         claims.max_exec_seconds,
     )?;
     let active = agent.telemetry.active();
-    Ok(upgrade.protocols(["pryx"]).max_message_size(64 * 1024).on_upgrade(move |socket| async move {
-        let _active = active;
-        attached(socket, process).await
-    }))
+    Ok(upgrade.protocols([crate::contract::WEBSOCKET_PROTOCOL]).max_message_size(64 * 1024).on_upgrade(
+        move |socket| async move {
+            let _active = active;
+            attached(socket, process).await
+        },
+    ))
 }
 
 #[derive(Deserialize)]

@@ -5,14 +5,20 @@ from .generated.tools import TOOL_DEFAULTS
 from ._transport import PryxError
 
 class SshAccess:
-    __slots__=('address','__key')
-    def __init__(self,address,key): self.address,self.__key=address,key
+    __slots__=('address','__key','__agent')
+    def __init__(self,address,key,agent=None): self.address,self.__key,self.__agent=address,key,agent
     def __getattr__(self,name):
-        fields={'host_key':'hostKey','expires_at':'expiresAt'}
+        fields={'host_key':'hostKey','expires_at':'expiresAt','web_socket_url':'webSocketUrl'}
         try:return self.address[fields.get(name,name)]
         except KeyError:raise AttributeError(name) from None
     @property
     def key(self):return self.__key
+    @property
+    def transport(self):return self.address.get('transport','tcp')
+    def connect(self):
+        if not self.address.get('webSocketUrl') or self.__agent is None:
+            raise PryxError(0,{'error':{'code':'unsupported','message':'This SSH lease does not advertise WebSocket transport'}})
+        return self.__agent.socket('/_pryx/ssh/'+quote(self.address['id'],safe='')+'/connect')
     def to_dict(self):return dict(self.address)
     def __repr__(self):return f'SshAccess({self.address!r})'
 
@@ -42,12 +48,13 @@ class Ssh(Desktop):
     def __init__(self,agent,http,id):super().__init__(agent);self.http,self.path=http,f'/v1/sandboxes/{quote(id,safe="")}/ssh'
     def __call__(self):
         created=self._request('ssh')
-        try:return SshAccess(self.http.request(self.path,'POST',{'id':created['id']}),created['key'])
+        try:return SshAccess(self.http.request(self.path,'POST',{'id':created['id']}),created['key'],self.agent)
         except BaseException:
             try:self.agent.request('/_pryx/ssh/'+quote(created['id'],safe=''),'DELETE')
             except Exception:pass
             raise
     def revoke(self):return self.http.request(self.path,'DELETE')
+    def connect(self,lease):return self.agent.socket('/_pryx/ssh/'+quote(lease,safe='')+'/connect')
 
 class AsyncDesktop:
     def __init__(self,agent):self.agent=agent
@@ -75,9 +82,10 @@ class AsyncSsh(AsyncDesktop):
     def __init__(self,agent,http,id):super().__init__(agent);self.http,self.path=http,f'/v1/sandboxes/{quote(id,safe="")}/ssh'
     async def __call__(self):
         created=await self._request('ssh')
-        try:return SshAccess(await self.http.request(self.path,'POST',{'id':created['id']}),created['key'])
+        try:return SshAccess(await self.http.request(self.path,'POST',{'id':created['id']}),created['key'],self.agent)
         except BaseException:
             try:await self.agent.request('/_pryx/ssh/'+quote(created['id'],safe=''),'DELETE')
             except Exception:pass
             raise
     async def revoke(self):return await self.http.request(self.path,'DELETE')
+    async def connect(self,lease):return await self.agent.socket('/_pryx/ssh/'+quote(lease,safe='')+'/connect')

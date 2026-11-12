@@ -34,6 +34,7 @@ pub const FUSE_FEATURE: &str = "native-fuse-mounts";
 pub const MOUNTS_ENV: &str = "PRYX_BOOTSTRAP_MOUNTS";
 pub const TOOL_KIND_ENV: &str = "PRYX_TOOL_TEMPLATE";
 pub const SSH_FORWARD_HEADER: &str = "x-pryx-ssh-session";
+pub const WEBSOCKET_PROTOCOL: &str = "pryx";
 
 /// Native browser proxy and bounded service/image budgets; templates retain these values.
 pub const BROWSER_PORT: u16 = 9223;

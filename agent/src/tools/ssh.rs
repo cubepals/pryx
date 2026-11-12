@@ -62,6 +62,7 @@ impl SshSession {
             host_key: self.host_key.clone(),
             expires_at: self.expires.load(Ordering::Acquire),
             running: self.process.view().running,
+            web_socket: Some(true),
         }
     }
     fn authorize(&self, expires: i64) -> Result<(), Failure> {

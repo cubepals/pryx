@@ -4689,6 +4689,17 @@
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
+          },
+          "transport": {
+            "type": "string",
+            "enum": [
+              "tcp",
+              "websocket"
+            ]
+          },
+          "webSocketUrl": {
+            "type": "string",
+            "format": "uri"
           }
         },
         "required": [

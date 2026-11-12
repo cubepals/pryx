@@ -208,11 +208,40 @@ fn live_x11_worker() {
     }
 }
 fn descendants(pid: u32, result: &mut Vec<u32>) {
+    // PPid is available without CONFIG_CHECKPOINT_RESTORE's optional task/children files.
+    let processes = procfs::process::all_processes()
+        .unwrap()
+        .flatten()
+        .filter_map(|process| process.stat().ok())
+        .collect::<Vec<_>>();
     result.push(pid);
-    let text = fs::read_to_string(format!("/proc/{pid}/task/{pid}/children")).unwrap();
-    for child in text.split_whitespace() {
-        descendants(child.parse().unwrap(), result);
+    loop {
+        let before = result.len();
+        for stat in &processes {
+            if result.contains(&(stat.ppid as u32)) && !result.contains(&(stat.pid as u32)) {
+                result.push(stat.pid as u32);
+            }
+        }
+        if before == result.len() {
+            break;
+        }
     }
+}
+#[test]
+fn live_display_descendants_include_children_of_worker_threads() {
+    let (started, child) = std::sync::mpsc::channel();
+    let (stop, stopped) = std::sync::mpsc::channel();
+    let worker = std::thread::spawn(move || {
+        let running = Running(Command::new("sleep").arg("30").spawn().unwrap());
+        started.send(running.0.id()).unwrap();
+        let _ = stopped.recv();
+    });
+    let child = child.recv().unwrap();
+    let mut observed = Vec::new();
+    descendants(std::process::id(), &mut observed);
+    let _ = stop.send(());
+    worker.join().unwrap();
+    assert!(observed.contains(&child));
 }
 #[test]
 #[ignore = "explicit staged X11 tools, user namespaces and enforced filesystem/private IPC"]

@@ -15,6 +15,8 @@
  */
 export const EDGE_ID_HEADER = 'x-edge-id'
 export const EDGE_FEATURES_HEADER = 'x-pryx-edge-features'
+export const SSH_WEBSOCKET_FEATURE = 'ssh-websocket'
+export const HTTP_ONLY_FEATURE = 'http-only'
 export const AGENT_ROUTE_PORT = '_pryx'
 export const ROUTES_VERSION_HEADER = 'x-routes-version'
 export const ROUTES_HELD_HEADER = 'x-routes-held'

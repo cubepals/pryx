@@ -72,6 +72,7 @@ pub fn document() -> serde_json::Value {
         ("get", "/_pryx/ssh/{id}", None),
         ("delete", "/_pryx/ssh/{id}", None),
         ("post", "/_pryx/ssh/{id}/expiry", Some("SshExpiry")),
+        ("get", "/_pryx/ssh/{id}/connect", None),
         ("get", "/_pryx/mounts", None),
         ("post", "/_pryx/mounts", Some("MountsInit")),
         ("post", "/_pryx/processes/{id}/ready", Some("Wait")),
@@ -96,6 +97,9 @@ pub fn document() -> serde_json::Value {
         let mut operation = serde_json::json!({"x-pryx-agent-version":crate::contract::API_VERSION,"responses":{"200":{"description":"Completed"},"204":{"description":"Completed without content"}}});
         if let Some(schema) = schema {
             operation["requestBody"] = serde_json::json!({"required":true,"content":{"application/json":{"schema":{"$ref":format!("#/components/schemas/{schema}")}}}});
+        }
+        if path == "/_pryx/ssh/{id}/connect" {
+            operation["responses"] = serde_json::json!({"101":{"description":"Binary OpenSSH stream over an authenticated WebSocket; lease expiry and revocation close the stream"}});
         }
         if path.starts_with("/_pryx/kernels") {
             operation["x-pryx-kernels-version"] = serde_json::json!(crate::kernels::VERSION);

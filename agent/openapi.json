@@ -734,6 +734,12 @@
           },
           "user": {
             "type": "string"
+          },
+          "webSocket": {
+            "type": [
+              "boolean",
+              "null"
+            ]
           }
         },
         "required": [
@@ -790,6 +796,12 @@
           },
           "user": {
             "type": "string"
+          },
+          "webSocket": {
+            "type": [
+              "boolean",
+              "null"
+            ]
           }
         },
         "required": [
@@ -1712,6 +1724,26 @@
           },
           "204": {
             "description": "Completed without content"
+          }
+        },
+        "x-pryx-agent-version": 2
+      }
+    },
+    "/_pryx/ssh/{id}/connect": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "101": {
+            "description": "Binary OpenSSH stream over an authenticated WebSocket; lease expiry and revocation close the stream"
           }
         },
         "x-pryx-agent-version": 2

@@ -14,7 +14,7 @@ export interface paths {
                 header: {
                     "x-edge-id": string;
                     "x-routes-held"?: string;
-                    /** @description Comma-separated additive edge features; agent enables sandbox capabilities and agent manifests. */
+                    /** @description Comma-separated additive edge features; agent enables sandbox manifests, ssh-websocket enables HTTP SSH, and http-only reports no raw front. */
                     "x-pryx-edge-features"?: string;
                 };
                 path?: never;

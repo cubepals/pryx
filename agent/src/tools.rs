@@ -8,6 +8,7 @@
 //! - `desktop.rs`: xdotool/scrot computer use and token-protected noVNC access.
 //! - `browser.rs`: Playwright CDP access and screenshots.
 //! - `ssh.rs`: one-time client keys and supervised OpenSSH sessions.
+//! - `ssh_socket.rs`: authenticated opaque WebSocket transport through the existing lease-bound forward.
 //! - `mounts.rs`: native FUSE adapters and public mount descriptions.
 //! - `api.rs`: scoped HTTP routes for these tool families.
 //! - `types.rs`: Rust-owned request/response schemas and tool defaults.
@@ -19,6 +20,7 @@ pub mod defaults;
 mod desktop;
 mod mounts;
 mod ssh;
+mod ssh_socket;
 mod state;
 pub mod types;
 #[cfg(feature = "mcp")]

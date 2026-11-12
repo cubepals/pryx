@@ -59,7 +59,7 @@ export function edgeContract() {
                     name: EDGE_FEATURES_HEADER,
                     schema: { type: 'string' },
                     description:
-                      'Comma-separated additive edge features; agent enables sandbox capabilities and agent manifests.',
+                      'Comma-separated additive edge features; agent enables sandbox manifests, ssh-websocket enables HTTP SSH, and http-only reports no raw front.',
                   },
                 ]
               : []),

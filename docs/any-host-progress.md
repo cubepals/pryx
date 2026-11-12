@@ -11,7 +11,7 @@ Only recorded CI evidence establishes completion; a local pass alone does not.
 | K21 | done | `de3ef9dc13e955e96c2f7c1e530f800069ff50c0` | Normal CI [42885151433](https://github.com/cubepals/pryx/actions/runs/42885151433), Any host [42885151332](https://github.com/cubepals/pryx/actions/runs/42885151332), Measure [42885520235](https://github.com/cubepals/pryx/actions/runs/42885520235), all green | All normal jobs and aggregate; all thirteen host jobs; both complete measurement jobs, including historical budgets and three-tier collectors | Production main/release prohibited; unchanged credentialed cases | None | None |
 | K22 | done except | `7963826182e3f8e9037aea17d4716df15086bd81` | Normal push [43075452804](https://github.com/cubepals/pryx/actions/runs/43075452804) and PR [43075462394](https://github.com/cubepals/pryx/actions/runs/43075462394), Any host [43075452782](https://github.com/cubepals/pryx/actions/runs/43075452782), Rootless engines [43075452793](https://github.com/cubepals/pryx/actions/runs/43075452793) and [43075462656](https://github.com/cubepals/pryx/actions/runs/43075462656), all green; supplementary Measure [43063939164](https://github.com/cubepals/pryx/actions/runs/43063939164) on source 87400f3 is also green | Full normal CI including actual rootful Docker, Wasm, two-node, integrations and recovery; all 15 host jobs; Podman lifecycle/attacks, install/repeat/upgrade/outage/recovery/purge; controller refusals, copy-bound guarantees and 30 hosted engine samples | Main/release prohibited; unchanged credentialed cases | Standard rootless Docker data-owner mapping with dependent positive lifecycle/timings; rootless Docker internal ingress/network-policy. Three approaches each recorded; both remain named refusals until their post-K27 second try | Supported scope complete; K23 started |
 | K23 | done | `5945724a4ac8fbc28610292d701ffa7e9bffc040` | Normal push [43233699289](https://github.com/cubepals/pryx/actions/runs/43233699289) and PR [43233712859](https://github.com/cubepals/pryx/actions/runs/43233712859), Any host [43233699231](https://github.com/cubepals/pryx/actions/runs/43233699231), Rootless engines [43233699487](https://github.com/cubepals/pryx/actions/runs/43233699487) and [43233712730](https://github.com/cubepals/pryx/actions/runs/43233712730), CodeQL [43233712847](https://github.com/cubepals/pryx/actions/runs/43233712847), all green | Signed fresh ordinary-user installation without engine; actual pinned upstream Python/Node paths and host glibc; both SDKs, state/charts/errors/interrupt/restart, MCP/CLI; browser screenshot/forwarded CDP and guarantee; thirty process and container samples per tool; default-Docker kernels and namespace/required-browser refusals; neighbour isolation, purge, Alpine relocation; full normal CI and all sixteen host jobs | Main/release prohibited; unchanged credentialed cases | None; corrected relocatable bundle is complete, with no binary rewriting or private tool glibc | Complete; begin K24 immediately |
-| K24 | in progress | — | — | Brief, policy/transport and upstream design review | Native desktop/HTTP SSH implementation and acceptance | None | First real X11 socket design test, then desktop bundle and authenticated HTTP SSH; keep all container behavior and budgets |
+| K24 | in progress | — | — | Hosted X11 pathname refusal, staged relocation/source export, live own Xvfb/xdotool assertions; local HTTP SSH transport, automatic edge selection, both SDK adapters and binary/revocation tests | Complete live neighbour/proc-root proof; native desktop/OpenSSH bundle integration and installed CI acceptance | None | Complete native desktop/noVNC/SSH, headful browser, both SDK cohorts and 30 samples each, then final green CI; keep all container behavior and budgets |
 | K25 | not started | — | — | — | All | — | Complete brief after K24 |
 | K26 | not started | — | — | — | All | — | Complete brief after K25 |
 | K27 | not started | — | — | — | All | — | Complete brief after K26, then revisit every parked piece |
@@ -1367,3 +1367,58 @@ job when publication is authorized. That job has not run in this task.
   REUSE, docs and whitespace pass. No TypeScript source changes follow the
   preceding full check. Fresh hosted live proof remains required; desktop stays
   unannounced. Added ordinary CI cost is under one second, with no new gate.
+- Source 1216943 producer 131336978161 completes the combined source asset,
+  unchanged native kernel/browser policy tests, physical X11 relocation and all
+  three staged Python cases, then repeats the still-unchanged XKB failure. Read
+  its full log; the source-export phase is proved but the failed job is no full
+  native acceptance. Source-07b producer 131342060401 gets past XKB: the actual
+  Xvfb starts and its own confined xdotool/abstract-connect assertions pass.
+  Its parent then fails the leader-only descendant count before neighbour tests.
+  Read the full log. A real local worker-thread regression catches the optional
+  task/children absence; use procfs parent-PID records and retain all original
+  live endpoint/alias/neighbour assertions. The corrected local regression passes.
+- Read e69fa1f PR E2E 131306082683 and aggregate 131337562668 in full:
+  only the already diagnosed retained-minute metrics race fails; its push
+  43253634643 is green. The existing targeted fixture correction is included
+  from 26c8b10 onward; do not rerun or relabel that older PR failure.
+- HTTP SSH foundation now adds an optional advertised agent lease flag and an
+  authenticated binary WebSocket endpoint. It connects through the exact
+  session-bound spare forward, preserving existing process ownership checks,
+  target/session matching, revocation watch and expiry. Edge authentication and
+  live lease lookup precede wake; the stream tracks that SSH route so removing
+  it closes the connection even while asleep. Exposed application paths are
+  unchanged. Add one migration for live authenticated edge feature metadata:
+  HTTP-only edges choose WebSocket, live raw fronts remain default, and legacy
+  peers retain raw behavior. All protocol/schema changes are additive.
+- Both SDKs retain the key privately and provide the binary connection. The CLI
+  keeps ssh-agent/ssh-add stdin and pinned host keys, using OpenSSH ProxyCommand
+  only for a selected WebSocket lease. Its private helper passes only sandbox/
+  lease identities on argv and uses maintained ws 8.22.1 streams. A real 3-MiB
+  binary test first catches an oversized frame; split input at the existing SDK
+  chunk bound rather than raising any message limit. The corrected test retains
+  first bytes and every payload byte under backpressure. Real Rust TCP/WebSocket
+  acceptance proves first bytes, opaque NUL/non-UTF8 payload and expiry; real SQL
+  and edge tests prove support negotiation, raw default, authentication before
+  wake and exact-session revocation. These are transport tests, not a claim that
+  the unimplemented native process SSH server or installed K24 cohort passed.
+- Complete local verification for this foundation: 482 Rust tests pass with
+  28 explicitly ignored cases, including the corrected thread regression, real
+  Wasm and the new stream expiry test. Full workspace check passes 432 tests,
+  one existing compiled-assets skip and 8,386 assertions against real PostgreSQL.
+  Python generation/check and 23 SDK tests pass, with one existing credential
+  skip; initially missing generator is installed from the existing lock. Strict
+  all-target Clippy, all three structure checks, fmt, actual ShellCheck/actionlint,
+  REUSE, schema generation, docs and whitespace are checked below before push.
+  The first workspace run retains its pre-fix large-frame failure; the final
+  complete check is green. Estimated new ordinary PR execution cost: under five
+  seconds, with no new job/test system/gate. Hosted transport and native product
+  acceptance remain required. Native desktop/SSH announcements stay off.
+- Next K24 work: complete hosted live X11 privacy; extend the staged component
+  with separately executed scrot/x11vnc/OpenSSH, noVNC/websockify and complete
+  own libraries/notices/sources; finish actual native desktop and SSH worker
+  integration, placement/doctor, HTTP-only installed acceptance, both SDKs and
+  thirty samples each. Read-only extraction of the four K18 program packages
+  verifies their actual full copyright hashes (OpenSSH server uses its package
+  doc symlink to the client notice) and inspects ELF dependencies without running
+  them. A new upstream Chromium snapshot candidate is download/review only;
+  no headful browser is adopted or executed before its complete licence audit.
