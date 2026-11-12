@@ -1615,9 +1615,15 @@
     "sourcePackage": "nss",
     "sourceVersion": "2:3.87.1-1+deb12u4",
     "elfs": [
+      "usr/lib/x86_64-linux-gnu/libfreebl3.so",
+      "usr/lib/x86_64-linux-gnu/libfreeblpriv3.so",
       "usr/lib/x86_64-linux-gnu/libnss3.so",
+      "usr/lib/x86_64-linux-gnu/libnssckbi.so",
+      "usr/lib/x86_64-linux-gnu/libnssdbm3.so",
       "usr/lib/x86_64-linux-gnu/libnssutil3.so",
-      "usr/lib/x86_64-linux-gnu/libsmime3.so"
+      "usr/lib/x86_64-linux-gnu/libsmime3.so",
+      "usr/lib/x86_64-linux-gnu/libsoftokn3.so",
+      "usr/lib/x86_64-linux-gnu/libssl3.so"
     ],
     "licences": [
       "BSD-3",
@@ -2028,6 +2034,24 @@
     "notice": "notices/desktop-full/libsndfile1.copyright",
     "noticeSha256": "56bc3dae5803b8b2d59adf72fcd526eef2f4ac929d2442562d12248867222335",
     "noticeBytes": 15415
+  },
+  {
+    "package": "libsqlite3-0",
+    "version": "3.40.1-2+deb12u2",
+    "url": "https://deb.debian.org/debian/pool/main/s/sqlite3/libsqlite3-0_3.40.1-2+deb12u2_amd64.deb",
+    "sha256": "a8d78b40e9b4e422224aeebfe0e4dfc243f6acf3532490b0c05480d4283d41e2",
+    "sourcePackage": "sqlite3",
+    "sourceVersion": "3.40.1-2+deb12u2",
+    "elfs": [
+      "usr/lib/x86_64-linux-gnu/libsqlite3.so.0.8.6"
+    ],
+    "licences": [
+      "public-domain",
+      "GPL-2+"
+    ],
+    "notice": "notices/desktop-full/libsqlite3-0.copyright",
+    "noticeSha256": "78e9df8f8153c91c762ec970b82d224ac4d30f05aa7773e7e17e268141e53873",
+    "noticeBytes": 1833
   },
   {
     "package": "libssl3",

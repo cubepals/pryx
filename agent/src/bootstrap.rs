@@ -92,10 +92,6 @@ pub async fn serve(
     let key = SigningKey::from_encoded(&encoded)?;
     let logbook = Arc::new(crate::logbook::Logbook::open(&args.data)?);
     let telemetry = Arc::new(crate::telemetry::Telemetry::default());
-    let mut listeners = Vec::new();
-    for ip in &bindings[&args.port] {
-        listeners.push(tokio::net::TcpListener::bind((*ip, args.port)).await?);
-    }
     let mut spares = Vec::new();
     for port in args.spare_ports {
         let mut held = Vec::new();
@@ -130,6 +126,10 @@ pub async fn serve(
     });
     crate::tools::prepare(&agent, args.browser_sandbox.unwrap_or(true))
         .map_err(|_| "Native tool runtime directory failed")?;
+    let mut listeners = Vec::new();
+    for ip in &bindings[&args.port] {
+        listeners.push(tokio::net::TcpListener::bind((*ip, args.port)).await?);
+    }
     let mut servers = Vec::new();
     for listener in listeners {
         let listener = listener.tap_io(|socket| {

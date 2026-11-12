@@ -1761,3 +1761,30 @@ job when publication is authorized. That job has not run in this task.
   exposing the main listener in a follow-up. This compiling checkpoint is WIP;
   the full node suite and Bun check are still running. The compiled installed
   fixture, typecheck, generated API checks and structure checks pass.
+- Capability source c058a1c passes the complete Bun workspace check against real
+  PostgreSQL: 436 tests, one existing skip, 8,407 assertions; lint/type/generated
+  contract/docs/release stages pass. The bootstrap startup-order correction and
+  remaining complete Rust verification are still running.
+- The node-only complete invocation passes 258 unit cases, including both new
+  actual-agent SSH metadata and read-only-history regressions, then fails the
+  unchanged three-second Wasm immediate-HTTP-listener test again. Retain this
+  local failure; earlier complete Wasm proof and green hosted core runs do not
+  turn it into a local pass. No timeout or assertion changes are made.
+- Complete the desktop NSS runtime closure with its pinned dynamic modules and
+  pinned SQLite dependency, reviewed notice and all four corresponding-source
+  inputs. A real local NSS database/random control loads softoken/freebl/SQLite
+  only from the component and passes; the same control against the original
+  three-ELF NSS selection fails initialization. Retain this control in the
+  existing assembly/relocation acceptance, with no new job. Its first disposable
+  fixture copied the SQLite alias as a regular file, causing the exact-map check
+  to fail; preserve upstream symlinks as the real assembler already does.
+- Keep actual SSH command success and wait for the SDK's existing running-state
+  condition before the fixture's final state assertion. This respects the
+  existing counted-edge acknowledgement rule; no state policy changes. Updated
+  installed fixture compilation, Python syntax, notice/source identity inventory,
+  mixed structure, formatting and whitespace checks pass. Fresh hosted producer
+  and full installed acceptance remain required after the NSS correction.
+- The corrected bootstrap passes both real subprocess tests, including every
+  configured-interface positive and foreign-interface negative assertion and
+  supervisor-tree forwarding denial. The main listener is exposed only after
+  spare binding and native worker preparation; no test assertions are changed.

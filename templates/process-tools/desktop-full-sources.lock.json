@@ -240,6 +240,38 @@
     "sourceVersion": "10.42-1+deb12u2"
   },
   {
+    "name": "sqlite3:sqlite3_3.40.1-2+deb12u2.debian.tar.xz",
+    "url": "https://deb.debian.org/debian/pool/main/s/sqlite3/sqlite3_3.40.1-2+deb12u2.debian.tar.xz",
+    "sha256": "0843bc12e4364076477935ce313a6d0796fd899a989ff18ebb6545540e10e4ca",
+    "bytes": 34260,
+    "sourcePackage": "sqlite3",
+    "sourceVersion": "3.40.1-2+deb12u2"
+  },
+  {
+    "name": "sqlite3:sqlite3_3.40.1-2+deb12u2.dsc",
+    "url": "https://deb.debian.org/debian/pool/main/s/sqlite3/sqlite3_3.40.1-2+deb12u2.dsc",
+    "sha256": "ee3459ae9d00939741c7708fc1b8ce1bde12d8c3fb1dfa005bbbc8651d884e23",
+    "bytes": 2519,
+    "sourcePackage": "sqlite3",
+    "sourceVersion": "3.40.1-2+deb12u2"
+  },
+  {
+    "name": "sqlite3:sqlite3_3.40.1.orig-www.tar.xz",
+    "url": "https://deb.debian.org/debian/pool/main/s/sqlite3/sqlite3_3.40.1.orig-www.tar.xz",
+    "sha256": "a5e95a18d1b59729278860559ded78751b9163ffb5bb906c5cd24c015f71d5fd",
+    "bytes": 5865720,
+    "sourcePackage": "sqlite3",
+    "sourceVersion": "3.40.1-2+deb12u2"
+  },
+  {
+    "name": "sqlite3:sqlite3_3.40.1.orig.tar.xz",
+    "url": "https://deb.debian.org/debian/pool/main/s/sqlite3/sqlite3_3.40.1.orig.tar.xz",
+    "sha256": "aaa776260ab4dc976db34aa7891819484c8676b5b2783123ebc6301e2ca5d655",
+    "bytes": 8019048,
+    "sourcePackage": "sqlite3",
+    "sourceVersion": "3.40.1-2+deb12u2"
+  },
+  {
     "name": "xorg-server:xorg-server_21.1.7-3+deb12u13.diff.gz",
     "url": "https://deb.debian.org/debian-security/pool/updates/main/x/xorg-server/xorg-server_21.1.7-3+deb12u13.diff.gz",
     "sha256": "2e2402de559cf20e3ba8c9f4e400b215749f29829adf291132d6e8f066b8a75e",

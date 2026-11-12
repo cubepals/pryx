@@ -71,7 +71,7 @@ export async function nativeSshCommand(box: Sandbox, sleep = false) {
       assert.equal(box.state, 'sleeping')
     }
     assert.equal(await connectSsh(access, ['-T', 'cat ssh-marker'], box.id), 0)
-    await box.refresh()
+    await box.waitUntil('running')
     assert.equal(box.state, 'running')
   } finally {
     await box.ssh.revoke()

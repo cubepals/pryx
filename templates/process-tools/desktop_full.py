@@ -12,6 +12,7 @@ from pathlib import Path
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 from archive_inputs import REPO, ROOT, acquire, copy_entry, digest
 import desktop
@@ -112,6 +113,30 @@ exec "$component/payload/{relative}" "$@"
     desktop_web.assemble(cache, output)
 
 
+def nss_smoke(root):
+    # NSS loads its cryptographic/database modules dynamically, outside DT_NEEDED.
+    control = '''
+import ctypes
+from pathlib import Path
+import sys
+component, database = map(Path, sys.argv[1:])
+libraries = component / 'payload/usr/lib/x86_64-linux-gnu'
+nss = ctypes.CDLL(str(libraries / 'libnss3.so'))
+assert nss.NSS_InitReadWrite(('sql:' + str(database)).encode()) == 0, 'NSS database initialization failed'
+assert nss.PK11_GenerateRandom((ctypes.c_ubyte * 32)(), 32) == 0, 'NSS random control failed'
+paths = {line.split(maxsplit=5)[-1].strip() for line in Path('/proc/self/maps').read_text().splitlines()}
+for name in ['libsoftokn3.so', 'libfreeblpriv3.so', 'libsqlite3.so.0.8.6']:
+    expected = str(libraries / name)
+    assert expected in paths, 'NSS runtime dependency is not loaded from the component: ' + name
+    assert not any(Path(path).name == name and path != expected for path in paths), 'NSS mixed host and component dependencies'
+assert nss.NSS_Shutdown() == 0, 'NSS shutdown failed'
+assert (database / 'cert9.db').is_file() and (database / 'key4.db').is_file(), 'NSS did not create its own databases'
+'''
+    with tempfile.TemporaryDirectory() as database:
+        subprocess.run([sys.executable, '-c', control, str(root), database], check=True, timeout=10,
+                       env=dict(os.environ, LD_LIBRARY_PATH=':'.join(map(str, library_paths(root)))))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--cache', type=Path)
@@ -133,6 +158,8 @@ def main():
         result = subprocess.run([str(root / 'bin' / name), flag], timeout=10, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         if result.returncode:
             raise ValueError(f'Desktop loader control failed for {name}: {result.stdout[-8192:]}')
+    nss_smoke(root)
+    report['componentNssDatabase'] = True
     report['relocatedProgramControls'] = ['Xvfb', 'xdotool', 'scrot', 'x11vnc', 'sshd', 'ssh', 'chromium']
     options.report.write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps({k: v for k, v in report.items() if k != 'files'}))
