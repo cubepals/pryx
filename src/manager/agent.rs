@@ -4,7 +4,6 @@
 //! Agent bootstrap and short-lived capabilities. Private signing material stays in the runtime's
 //! secret environment; neither records, labels nor a workload view can contain its value.
 
-use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 
 use pryx_agent::auth::{Claims, SigningKey, TOKEN_LIFETIME_SECONDS};
@@ -24,26 +23,7 @@ impl Manager {
         if runtime.is_wasm() {
             return std::env::current_exe().ok();
         }
-        let path = &self.config.workloads.agent_binary;
-        let metadata = std::fs::symlink_metadata(path).ok()?;
-        if !metadata.is_file()
-            || metadata.mode() & 0o022 != 0
-            || metadata.mode() & 0o111 == 0
-            || (metadata.uid() != rustix::process::geteuid().as_raw() && !(runtime.is_process() && metadata.uid() == 0))
-        {
-            return None;
-        }
-        // Writable ancestors would let another user replace a checked executable by path.
-        for parent in path.ancestors().skip(1) {
-            let metadata = std::fs::symlink_metadata(parent).ok()?;
-            if !metadata.is_dir()
-                || metadata.mode() & 0o022 != 0
-                || (metadata.uid() != rustix::process::geteuid().as_raw() && metadata.uid() != 0)
-            {
-                return None;
-            }
-        }
-        Some(path.clone())
+        crate::runtime::protected_agent(&self.config.workloads.agent_binary, runtime.is_process())
     }
 
     pub(super) fn requested_ports(&self, spec: &WorkloadSpec, runtime: &dyn ContainerRuntime) -> Vec<PortSpec> {

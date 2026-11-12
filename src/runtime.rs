@@ -18,6 +18,7 @@
 //! - `process.rs`: namespace-free process tier and private runtime journal.
 
 mod agent_metadata;
+pub(crate) use agent_metadata::protected as protected_agent;
 pub mod configured;
 pub mod docker;
 pub mod engine;

@@ -2,7 +2,12 @@
 //! Bounded metadata from the actual protected agent executable. Parser support never asserts
 //! host capability, isolation enforcement or native service readiness.
 use pryx_agent::bootstrap_capabilities::{Capabilities, PROBE};
-use std::{path::Path, process::Stdio, time::Duration};
+use std::{
+    os::unix::fs::MetadataExt,
+    path::{Path, PathBuf},
+    process::Stdio,
+    time::Duration,
+};
 use tokio::io::AsyncReadExt;
 
 const PROBE_TIMEOUT: Duration = Duration::from_secs(2);
@@ -62,6 +67,29 @@ pub(crate) async fn query(binary: &Path) -> Option<Capabilities> {
 
 pub(crate) async fn supported(binary: &Path) -> bool {
     query(binary).await.is_some_and(|value| value.browser_policy)
+}
+
+/// The installed executable and every ancestor must retain the host ownership policy.
+pub(crate) fn protected(path: &Path, allow_root: bool) -> Option<PathBuf> {
+    let metadata = std::fs::symlink_metadata(path).ok()?;
+    if !metadata.is_file()
+        || metadata.mode() & 0o022 != 0
+        || metadata.mode() & 0o111 == 0
+        || (metadata.uid() != rustix::process::geteuid().as_raw() && !(allow_root && metadata.uid() == 0))
+    {
+        return None;
+    }
+    // Writable ancestors would let another user replace a checked executable by path.
+    for parent in path.ancestors().skip(1) {
+        let metadata = std::fs::symlink_metadata(parent).ok()?;
+        if !metadata.is_dir()
+            || metadata.mode() & 0o022 != 0
+            || (metadata.uid() != rustix::process::geteuid().as_raw() && metadata.uid() != 0)
+        {
+            return None;
+        }
+    }
+    Some(path.to_path_buf())
 }
 
 #[cfg(test)]
