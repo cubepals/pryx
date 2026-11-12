@@ -111,6 +111,13 @@ jobs:
           sudo install -m 644 "$trust/ca.crt" /usr/local/share/ca-certificates/pryx-ci-native-tools.crt
           sudo update-ca-certificates
           cargo test --locked -p pryx-agent --test native_process -- --ignored --nocapture --test-threads=1 2>&1 | tee "$RUNNER_TEMP/native-process-acceptance.log"
+      - name: Retain the verified runtime for installed-product acceptance
+        uses: ./.github/actions/upload-evidence
+        with:
+          name: process-tool-runtime
+          path: ${{ runner.temp }}/pryx-process-tools-linux-x64.tar.gz
+          compression-level: '0'
+          if-no-files-found: error
       - name: Retain the separate corresponding-source distribution
         if: always()
         uses: ./.github/actions/upload-evidence
@@ -154,6 +161,12 @@ jobs:
         run: |
           openssl genpkey -algorithm ED25519 -out "$RUNNER_TEMP/preview.key"
           openssl pkey -in "$RUNNER_TEMP/preview.key" -pubout -out "$RUNNER_TEMP/preview.pub"
+      - name: Fetch the producing job's native runtime
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: process-tool-runtime
+          path: ${{ runner.temp }}/native-distribution
+          digest-mismatch: error
       - name: Build the same programs as the release image
         env:
           PRYX_NATIVE_DESCRIPTOR: ${{ needs.process-tools.outputs.descriptor }}
@@ -162,6 +175,13 @@ jobs:
           import json, os
           from pathlib import Path
           descriptor = json.loads(os.environ['PRYX_NATIVE_DESCRIPTOR'])
+          import hashlib
+          runtime = Path(os.environ['RUNNER_TEMP']) / 'native-distribution/pryx-process-tools-linux-x64.tar.gz'
+          with runtime.open('rb') as stream:
+              assert hashlib.file_digest(stream, 'sha256').hexdigest() == descriptor['sha256']
+          assert runtime.stat().st_size == descriptor['bytes']
+          # The same preview descriptor enters the signed bundle; production keeps its release URL.
+          descriptor['url'] = 'https://127.0.0.1:9877/pryx-process-tools-linux-x64.tar.gz'
           Path('deploy/process-tools/process-tools.json').write_text(json.dumps(descriptor) + '\n')
           PY
           started=$(date +%s)
@@ -184,6 +204,29 @@ jobs:
           sed "s/__PRYX_VERSION__/$version/g" deploy/install.sh > host-artifacts/install.sh
           (cd host-artifacts && sha256sum -- * > SHA256SUMS)
           du -h host-artifacts/* | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Run the signed ordinary-user install and native SDK acceptance
+        run: bash deploy/native-host-acceptance.sh
+      - name: Native kernels and browser refusal in the default image profile
+        run: |
+          docker run --rm --entrypoint /bin/bash \
+            --mount "type=bind,source=$PWD,target=/test,readonly" \
+            --mount "type=bind,source=$PWD/host-artifacts,target=/artifacts,readonly" \
+            --mount "type=bind,source=$RUNNER_TEMP/native-distribution,target=/native-artifacts,readonly" \
+            --mount "type=bind,source=$RUNNER_TEMP/native-host-trust,target=/fixture-trust,readonly" \
+            --mount "type=bind,source=/etc/ssl/certs/ca-certificates.crt,target=/etc/ssl/certs/ca-certificates.crt,readonly" \
+            --mount "type=bind,source=$RUNNER_TEMP/pryx-test-bun,target=/test-bun,readonly" \
+            pryx-host-bundle /test/deploy/native-container-acceptance.sh | tee "$RUNNER_TEMP/native-default-image.log"
+      - name: Retain installed native observations and all thirty samples
+        if: always()
+        uses: ./.github/actions/upload-evidence
+        with:
+          name: installed-native-tools
+          path: |
+            ${{ runner.temp }}/native-user-acceptance.log
+            ${{ runner.temp }}/native-process-measurements.json
+            ${{ runner.temp }}/native-host-artifact-server.log
+            ${{ runner.temp }}/native-default-image.log
+          if-no-files-found: error
       - name: Relocation in the image userland
         run: |
           docker run --rm --entrypoint /bin/sh \

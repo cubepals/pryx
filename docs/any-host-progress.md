@@ -782,3 +782,29 @@ job when publication is authorized. That job has not run in this task.
   and whitespace pass. The latest complete unchanged-product Rust suite remains
   473 passing/25 ignored at 907cfca. Corrected full-policy kernel/browser proof is
   still pending; neither the raw bundle successes nor this diagnostic completes K23.
+
+- Installed acceptance checkpoint adds a signed-preview user install with no
+  engine socket, existing Python browser/interpreter SDK checks in both context
+  modes, real TypeScript state/chart/browser/CDP calls, guarantee assertions and
+  thirty raw create-to-first-image samples for each native tool. The same signed
+  bundle also runs inside the actual image under the default Docker profile:
+  both kernels must work and the process browser must name missing user namespaces.
+  CI setup alone prepares accounts, fixture trust and the positive host namespace
+  prerequisite; product installation remains one command without sudo or Docker.
+  These tests are wired but unrun because full-policy kernel startup still fails.
+  Estimated extra ten to twenty branch/scheduled bundle-job minutes, no new job,
+  ordinary PR cost or required gate.
+- Local full Bun check passes with real digest-pinned PostgreSQL 17.11: 425 tests,
+  one existing compiled-assets skip, 8,355 assertions; typecheck, lint, docs,
+  structure checks, actionlint, shell syntax and whitespace pass. This establishes
+  source validity, never installed native-tool acceptance on this restricted host.
+- Hosted source assembly fdbfc72 job 131070682839 and 7823f2f job 131071983927
+  both publish source SHA-256
+  458be764b28ee804917fd12ab28043ec905da1fd70b720886d449cf1be1b9db6,
+  inventory SHA-256
+  37c76dbc43cb37414b07ca8b84773cc045c0afb0ea2c2db280d3f3fb248afca6,
+  402,508,427 bytes and 898 entries. Contents match the local inventoried sources;
+  archive file modes follow each build host. Both then reproduce kernel_died.
+  Source 907cfca job 131076501577 proves verified HTTPS acquisition and reproduces
+  that same native startup failure; its namespace refusal passes. Read all three
+  failed job logs. Main K23 work remains active.
