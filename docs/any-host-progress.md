@@ -1599,3 +1599,42 @@ job when publication is authorized. That job has not run in this task.
   build is still running, with a second invocation queued using the verified
   agentOS distribution. No local or hosted corrected desktop pass is claimed.
   Push this compiling checkpoint before proceeding with lease integration.
+- Rebuild the lost native SSH lease integration: the existing create/view/shorten/
+  revoke service now owns either its original container process or one private
+  native OpenSSH worker. A reserved logical port resolves only to that worker's
+  scoped Unix endpoint; the existing spare validates target/session and watches
+  revocation. No native SSH server listens on TCP. Ephemeral host keys, config
+  and authorized keys remain in scratch; its temporary data-side mount stays
+  empty. Worker lifetime, cancellation cleanup and port reservation have a real
+  local Unix-stream regression. Add an explicit hosted real-agent lease test
+  for WebSocket SSH greeting, capacity, revoke/expiry stream closure, reconnect
+  refusal and no persisted authorization. Actual installed SSH commands/wake,
+  desktop/SSH SDK cohorts, announcements and timings remain required.
+- The restored fixture check's first run lacks the configured Wasm distribution
+  and fails its real sidecar launch. The next run uses the verified distribution
+  and passes agent cases but hits the existing three-second guest HTTP readiness
+  bound while Clippy compiles concurrently. Retain both failures; serialize the
+  following full Rust run after compilation without changing any bound or test.
+  Hosted corrected desktop proof on 7664b5b is still pending. Added ordinary PR
+  unit execution is under one second; the existing branch/scheduled native
+  producer gains an estimated under thirty seconds for its real-agent lease
+  case. No new job, required gate, skip or test system.
+- Corrected fixture 7664b5b now has green complete-component producer
+  [131474013120](https://github.com/cubepals/pryx/actions/runs/43301624317/job/131474013120).
+  Read its completed log: real headful application click and complete typed text,
+  PNG, noVNC page, actual RFB greeting, active expiry and expired reconnect
+  refusal pass in 4.38 seconds as UID 1001. Chromium retains its own nested PID
+  namespace, extra seccomp and no-new-privileges. The unconfined controller
+  connects thirteen actual private aliases; the independent scoped same-UID
+  neighbour cannot connect either private socket through any tested proc-root
+  alias, access the abstract broker or read the owner cookie. Retain the exact
+  JSON in desktop-application-7664b5b.json under k24. Actual OpenSSH command/PTY
+  and all earlier full policy/source/relocation checks also pass. The signed
+  installation continuation is running; no installed K24 or full milestone
+  completion is claimed from this producer proof.
+- Lease checkpoint: current native agent library and test targets type-check;
+  fmt, mixed structure and whitespace checks pass. The full Rust structure/
+  Clippy process is finishing the node crate; the serialized full Rust suite
+  remains queued behind it. The complete Bun workspace check is running against
+  verified local PostgreSQL 17.11.0. Push this compiling work in progress now;
+  no current-source full-suite or hosted native-lease pass is claimed yet.

@@ -39,7 +39,7 @@ fn diagnostic(directory: &Path) {
     for entry in fs::read_dir(directory).unwrap().flatten() {
         if entry.file_type().unwrap().is_dir() {
             diagnostic(&entry.path());
-        } else if matches!(entry.file_name().to_str(), Some("agent.stderr" | "browser.stderr")) {
+        } else if matches!(entry.file_name().to_str(), Some("agent.stderr" | "browser.stderr" | "server.stderr")) {
             let bytes = fs::read(entry.path()).unwrap();
             eprintln!(
                 "Native startup diagnostic: {}",
@@ -91,7 +91,7 @@ fn start(artifact: process_tool_policy::Artifact, browser_on: bool, unavailable:
             artifact: Some(artifact),
             unavailable,
             browser_on,
-            desktop_on: None,
+            desktop_on: Some(browser_on),
             desktop_unavailable: None,
         }),
     };
@@ -388,4 +388,85 @@ async fn unavailable_browser_names_namespace_policy_without_acquiring_tools() {
     let body: Value = serde_json::from_slice(&response.bytes().await.unwrap()).unwrap();
     assert!(body["error"]["message"].as_str().unwrap().contains("user namespaces"));
     assert_eq!(fs::read_dir(&agent.cache).unwrap().count(), 0);
+}
+
+#[tokio::test]
+#[ignore = "explicit hosted complete artifact and private process-policy acceptance"]
+async fn native_ssh_leases_forward_revoke_and_expire() {
+    use tokio_tungstenite::tungstenite::{client::IntoClientRequest, http::header};
+    require_host();
+    let agent = start(artifact(), true, None);
+    agent.healthy().await;
+    let connect = |id: &str| {
+        let mut request =
+            format!("{}/_pryx/ssh/{id}/connect", agent.url.replace("http:", "ws:")).into_client_request().unwrap();
+        request.headers_mut().insert(header::AUTHORIZATION, format!("Bearer {}", agent.token).parse().unwrap());
+        request
+            .headers_mut()
+            .insert(header::SEC_WEBSOCKET_PROTOCOL, pryx_agent::contract::WEBSOCKET_PROTOCOL.parse().unwrap());
+        request
+    };
+    let lease = agent.json(reqwest::Method::POST, "/_pryx/ssh", Value::Null).await;
+    assert_eq!(lease["user"], "pryx");
+    assert_eq!(lease["webSocket"], true);
+    assert!(lease["key"].as_str().unwrap().starts_with("-----BEGIN OPENSSH PRIVATE KEY-----"));
+    let id = lease["id"].as_str().unwrap();
+    let (mut socket, _) = tokio_tungstenite::connect_async(connect(id)).await.unwrap();
+    native_ssh_greeting(&mut socket).await;
+    let refused = agent.call(reqwest::Method::POST, "/_pryx/ssh", Value::Null).await;
+    assert_eq!(refused.status(), axum::http::StatusCode::CONFLICT);
+    assert_eq!(
+        serde_json::from_slice::<Value>(&refused.bytes().await.unwrap()).unwrap()["error"]["code"],
+        "ssh_capacity"
+    );
+    let revoked = agent.call(reqwest::Method::DELETE, &format!("/_pryx/ssh/{id}"), Value::Null).await;
+    assert_eq!(revoked.status(), axum::http::StatusCode::NO_CONTENT);
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while let Some(Ok(message)) = socket.next().await {
+            if message.is_close() {
+                break;
+            }
+        }
+    })
+    .await
+    .expect("Revocation must close the existing SSH stream");
+    assert!(tokio_tungstenite::connect_async(connect(id)).await.is_err());
+    let lease = agent.json(reqwest::Method::POST, "/_pryx/ssh", Value::Null).await;
+    assert_ne!(lease["id"], id);
+    let id = lease["id"].as_str().unwrap();
+    let (mut socket, _) = tokio_tungstenite::connect_async(connect(id)).await.unwrap();
+    native_ssh_greeting(&mut socket).await;
+    let expiry = pryx_agent::telemetry::now() + 2;
+    agent.json(reqwest::Method::POST, &format!("/_pryx/ssh/{id}/expiry"), json!({"expiresAt":expiry})).await;
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while let Some(Ok(message)) = socket.next().await {
+            if message.is_close() {
+                break;
+            }
+        }
+    })
+    .await
+    .expect("Shortened expiry must close the existing SSH stream");
+    assert!(tokio_tungstenite::connect_async(connect(id)).await.is_err());
+    let data = agent.directory.path().join("data");
+    for entry in fs::read_dir(data).unwrap().flatten() {
+        if entry.file_name().to_string_lossy().starts_with(".pryx-ssh-") {
+            assert_eq!(
+                fs::read_dir(entry.path()).unwrap().count(),
+                0,
+                "Authorization must stay outside persistent data"
+            );
+        }
+    }
+    println!(
+        "{}",
+        json!({"nativeSshLease":true,"scope":"authenticated actual process agent and private Unix OpenSSH forwarding","revokedStreamClosed":true,"expiryStreamClosed":true,"expiredReconnectDenied":true,"uid":rustix::process::geteuid().as_raw()})
+    );
+}
+
+async fn native_ssh_greeting(
+    socket: &mut tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
+) {
+    let message = tokio::time::timeout(Duration::from_secs(5), socket.next()).await.unwrap().unwrap().unwrap();
+    assert!(message.into_data().starts_with(b"SSH-2.0-OpenSSH_"));
 }

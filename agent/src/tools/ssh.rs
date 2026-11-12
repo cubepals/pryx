@@ -20,9 +20,42 @@ use std::{
     },
 };
 
+enum Service {
+    Container(Arc<Process>),
+    Native(Arc<crate::process_tools::Ssh>),
+}
+impl Service {
+    fn running(&self) -> bool {
+        match self {
+            Self::Container(process) => process.view().running,
+            Self::Native(ssh) => ssh.running(),
+        }
+    }
+    fn kill(&self) {
+        match self {
+            Self::Container(process) => {
+                let _ = process.signal(libc::SIGKILL);
+            }
+            Self::Native(ssh) => ssh.stop(),
+        }
+    }
+    async fn stop(&self) {
+        self.kill();
+        if let Self::Container(process) = self {
+            process.wait().await;
+        }
+    }
+}
+impl Drop for Service {
+    fn drop(&mut self) {
+        if self.running() {
+            self.kill();
+        }
+    }
+}
 pub(crate) struct SshSession {
     id: String,
-    process: Arc<Process>,
+    process: Service,
     ports: Arc<Ports>,
     directory: tempfile::TempDir,
     port: u16,
@@ -33,13 +66,6 @@ pub(crate) struct SshSession {
     expires: AtomicI64,
     authorized: crate::paths::DataDir,
     authorized_path: String,
-}
-impl Drop for SshSession {
-    fn drop(&mut self) {
-        if self.process.view().running {
-            let _ = self.process.signal(libc::SIGKILL);
-        }
-    }
 }
 struct PendingAuthorization {
     data: Option<crate::paths::DataDir>,
@@ -61,7 +87,7 @@ impl SshSession {
             user: self.user.clone(),
             host_key: self.host_key.clone(),
             expires_at: self.expires.load(Ordering::Acquire),
-            running: self.process.view().running,
+            running: self.process.running(),
             web_socket: Some(true),
         }
     }
@@ -78,9 +104,8 @@ impl SshSession {
     }
     async fn stop(&self) -> Result<(), Failure> {
         self.ports.unexpose_ssh(&self.id).await?;
-        if self.process.view().running {
-            let _ = self.process.signal(libc::SIGKILL);
-            self.process.wait().await;
+        if self.process.running() {
+            self.process.stop().await;
         }
         let _ = self.authorized.delete(&self.authorized_path);
         let _ = std::fs::remove_dir_all(self.directory.path());
@@ -93,12 +118,18 @@ fn key() -> Result<PrivateKey, Failure> {
 }
 
 pub(crate) async fn create(agent: &Agent, claims: &Claims) -> Result<SshCreated, Failure> {
-    state::native(agent, "SSH access")?;
+    let native =
+        crate::process_tools::configured().filter(|_| agent.processes.kernel_unsupported_tier() == Some("process"));
+    if let Some(tools) = native {
+        tools.supported()?;
+    } else {
+        state::native(agent, "SSH access")?;
+    }
     let state = state::get(agent)?;
     let mut sessions = state.ssh.lock().await;
     let dead: Vec<_> = sessions
         .iter()
-        .filter(|(_, s)| !s.downcast_ref::<SshSession>().expect("SSH state").process.view().running)
+        .filter(|(_, s)| !s.downcast_ref::<SshSession>().expect("SSH state").process.running())
         .map(|(id, _)| id.clone())
         .collect();
     for id in dead {
@@ -110,12 +141,16 @@ pub(crate) async fn create(agent: &Agent, claims: &Claims) -> Result<SshCreated,
         return Err(state::failure("ssh_capacity", "No SSH listener slot is available"));
     }
     let expires = state::expiry(claims)?;
-    let user = nix::unistd::User::from_uid(nix::unistd::getuid())
-        .map_err(std::io::Error::from)?
-        .ok_or_else(|| {
-            state::failure("tool_unavailable", "OpenSSH needs a named sandbox user; use the tools template")
-        })?
-        .name;
+    let user = if native.is_some() {
+        "pryx".into()
+    } else {
+        nix::unistd::User::from_uid(nix::unistd::getuid())
+            .map_err(std::io::Error::from)?
+            .ok_or_else(|| {
+                state::failure("tool_unavailable", "OpenSSH needs a named sandbox user; use the tools template")
+            })?
+            .name
+    };
     if nix::unistd::getuid().is_root() || !user.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-') {
         return Err(state::failure("unsupported", "OpenSSH requires a named non-root sandbox user"));
     }
@@ -135,26 +170,46 @@ pub(crate) async fn create(agent: &Agent, claims: &Claims) -> Result<SshCreated,
     let held = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await?;
     let port = held.local_addr()?.port();
     let id = uuid::Uuid::new_v4().to_string();
-    let authorized_path = format!(".pryx-agent/ssh/{id}.pub");
-    let full_authorized = agent.processes.data.join(&authorized_path).to_string_lossy().into_owned();
+    let home = if native.is_some() {
+        Some(tempfile::Builder::new().prefix(".pryx-ssh-").tempdir_in(&agent.processes.data)?)
+    } else {
+        None
+    };
+    let authorized_path = if native.is_some() { "authorized_keys".into() } else { format!(".pryx-agent/ssh/{id}.pub") };
+    let config_root = home.as_ref().map(|home| home.path()).unwrap_or(directory.path());
+    let full_authorized =
+        if native.is_some() { config_root.join(&authorized_path) } else { agent.processes.data.join(&authorized_path) }
+            .to_string_lossy()
+            .into_owned();
     if full_authorized.contains(['\n', '\r']) {
         return Err(state::failure("unsupported", "SSH data path contains a line separator"));
     }
     let quoted_authorized = full_authorized.replace('\\', "\\\\").replace('"', "\\\"");
-    let private_path = directory.path().to_string_lossy();
+    let private_path = config_root.to_string_lossy();
     if private_path.contains(['\n', '\r']) {
         return Err(state::failure("unsupported", "SSH temporary path contains a line separator"));
     }
     let quoted_private = private_path.replace('\\', "\\\\").replace('"', "\\\"");
-    let config = format!(
+    let mut config = format!(
         "Port {port}\nListenAddress 127.0.0.1\nHostKey \"{}/host_key\"\nAuthorizedKeysFile \"{quoted_authorized}\"\nPidFile \"{}/pid\"\nAllowUsers {user}\nUsePAM no\nPasswordAuthentication no\nKbdInteractiveAuthentication no\nAuthenticationMethods publickey\nPubkeyAuthentication yes\nPermitRootLogin no\nPermitEmptyPasswords no\nAllowAgentForwarding no\nAllowTcpForwarding no\nX11Forwarding no\nPermitTunnel no\nPermitUserEnvironment no\nPermitUserRC no\nUseDNS no\nStrictModes yes\nLogLevel ERROR\nSubsystem sftp internal-sftp\n",
         quoted_private, quoted_private
     );
+    if native.is_some() {
+        let executable = std::env::current_exe()?.to_string_lossy().into_owned();
+        if executable.contains(['\n', '\r']) {
+            return Err(state::failure("unsupported", "SSH executable path contains a line separator"));
+        }
+        config.push_str(&format!(
+            "SetEnv PRYX_SSH_EXECUTABLE=\"{}\"\n",
+            executable.replace('\\', "\\\\").replace('"', "\\\"")
+        ));
+    }
     files.write_atomic("config", config.as_bytes(), false)?;
     // OpenSSH reads authorized_keys for every authentication, including after a pause.
     let time =
         chrono::DateTime::<chrono::Utc>::from_timestamp(expires, 0).expect("bounded expiry").format("%Y%m%d%H%M%SZ");
-    let authorized = crate::paths::DataDir::open(&agent.processes.data)?;
+    let authorized =
+        crate::paths::DataDir::open(if native.is_some() { directory.path() } else { &agent.processes.data })?;
     let mut pending = PendingAuthorization { data: Some(authorized), path: authorized_path.clone() };
     pending.data.as_ref().expect("pending key").write_atomic(
         &authorized_path,
@@ -162,32 +217,41 @@ pub(crate) async fn create(agent: &Agent, claims: &Claims) -> Result<SshCreated,
             .as_bytes(),
         false,
     )?;
-    drop(held);
-    let process = command::start(
-        agent,
-        vec![
-            "/usr/sbin/sshd".into(),
-            "-D".into(),
-            "-e".into(),
-            "-f".into(),
-            directory.path().join("config").to_string_lossy().into_owned(),
-        ],
-        BTreeMap::new(),
-        None,
-        false,
-    )?;
-    let mut starting = command::Starting(Some(process.clone()));
-    let ready=async {
-        tokio::select!{result=state::ready(agent,port)=>result,_=process.wait()=>Err(state::failure("tool_died","OpenSSH exited before readiness"))}
-    }.await;
-    if let Err(error) = ready {
-        let _ = process.signal(libc::SIGKILL);
-        return Err(error);
-    }
+    let process = if let Some(tools) = native {
+        let home = home.expect("native home mount");
+        let launch = crate::process_tools::ssh::Launch {
+            directory: directory.path().into(),
+            home_mount: home.path().into(),
+            address: format!("pryx-ssh-{}", uuid::Uuid::new_v4()),
+        };
+        Service::Native(tools.ssh(launch, home, held).await?)
+    } else {
+        drop(held);
+        let process = command::start(
+            agent,
+            vec![
+                "/usr/sbin/sshd".into(),
+                "-D".into(),
+                "-e".into(),
+                "-f".into(),
+                directory.path().join("config").to_string_lossy().into_owned(),
+            ],
+            BTreeMap::new(),
+            None,
+            false,
+        )?;
+        let mut starting = command::Starting(Some(process.clone()));
+        tokio::select! {
+            result = state::ready(agent, port) => result?,
+            _ = process.wait() => return Err(state::failure("tool_died", "OpenSSH exited before readiness")),
+        }
+        starting.0 = None;
+        Service::Container(process)
+    };
     let slot = match agent.ports.expose_ssh(port, &id, claims.max_ports).await {
         Ok(slot) => slot,
         Err(error) => {
-            let _ = process.signal(libc::SIGKILL);
+            process.stop().await;
             return Err(error.into());
         }
     };
@@ -211,7 +275,7 @@ pub(crate) async fn create(agent: &Agent, claims: &Claims) -> Result<SshCreated,
         loop {
             let Some(session) = weak.upgrade() else { return };
             let remaining = session.expires.load(Ordering::Acquire) - crate::telemetry::now();
-            if remaining <= 0 || !session.process.view().running {
+            if remaining <= 0 || !session.process.running() {
                 let _ = session.stop().await;
                 return;
             }
@@ -221,7 +285,6 @@ pub(crate) async fn create(agent: &Agent, claims: &Claims) -> Result<SshCreated,
     });
     let view = session.view();
     sessions.insert(id, session);
-    starting.0 = None;
     let encoded = client
         .to_openssh(LineEnding::LF)
         .map_err(|_| state::failure("key_generation", "Cannot format SSH client key"))?;
@@ -234,7 +297,7 @@ pub(crate) async fn view(agent: &Agent, id: &str) -> Result<SshView, Failure> {
         .get(id)
         .and_then(|s| s.downcast_ref::<SshSession>())
         .ok_or_else(|| state::failure("not_found", "SSH lease is unavailable"))?;
-    if session.expires.load(Ordering::Acquire) <= crate::telemetry::now() || !session.process.view().running {
+    if session.expires.load(Ordering::Acquire) <= crate::telemetry::now() || !session.process.running() {
         return Err(state::failure("expired", "SSH lease expired"));
     }
     Ok(session.view())

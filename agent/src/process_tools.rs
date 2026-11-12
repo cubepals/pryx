@@ -8,6 +8,7 @@
 //! - `desktop.rs`: closed desktop launch with private temporary and proc mounts.
 //! - `desktop_session.rs`: scoped native desktop calls and worker lifetime.
 //! - `ssh.rs`: unchanged OpenSSH inetd behind private accounts and Unix sockets.
+//! - `ssh_session.rs`: native SSH worker lifetime and lease-bound logical ports.
 //! - `cache.rs`: pinned acquisition, safe extraction and complete cache verification.
 //! - `cache_tests.rs`: real HTTP/archive integrity and cache-tampering regressions.
 pub mod browser;
@@ -19,6 +20,7 @@ mod cache_tests;
 pub mod desktop;
 mod desktop_session;
 pub mod ssh;
+mod ssh_session;
 
 use crate::context::Failure;
 pub use crate::process_tool_policy::{Artifact, Policy};
@@ -26,6 +28,7 @@ use axum::http::StatusCode;
 pub use browser_session::Browser;
 use browser_session::failed;
 pub use desktop_session::Desktop;
+pub use ssh_session::Ssh;
 use std::{
     path::PathBuf,
     sync::{Arc, OnceLock, RwLock},
@@ -37,6 +40,7 @@ enum Request {
     Prepare(oneshot::Sender<Prepared>),
     Browser(browser::Launch, oneshot::Sender<Result<std::process::Child, String>>),
     Desktop(desktop::Launch, oneshot::Sender<Result<std::process::Child, String>>),
+    Ssh(ssh::Launch, oneshot::Sender<Result<std::process::Child, String>>),
 }
 pub struct Tools {
     pub policy: Policy,
@@ -45,6 +49,7 @@ pub struct Tools {
     browser: RwLock<Option<Arc<Browser>>>,
     desktop_transition: Mutex<()>,
     desktop: RwLock<Option<Arc<Desktop>>>,
+    ssh: RwLock<std::collections::BTreeMap<u16, std::sync::Weak<Ssh>>>,
     transition: Mutex<()>,
     root: RwLock<Option<PathBuf>>,
 }
@@ -105,6 +110,26 @@ pub fn install(policy: Policy, process: crate::process_policy::Policy) -> std::i
                             let _ = child.wait();
                         }
                     }
+                    Request::Ssh(launch, reply) => {
+                        let result = if priority.is_ok() {
+                            captured
+                                .artifact
+                                .as_ref()
+                                .ok_or_else(|| "Missing native SSH artifact".to_string())
+                                .and_then(|artifact| {
+                                    let bundle = captured.cache.join(&artifact.sha256);
+                                    std::env::current_exe()
+                                        .and_then(|executable| ssh::start_at(&process, launch, &bundle, &executable))
+                                        .map_err(|error| error.to_string())
+                                })
+                        } else {
+                            Err("Native SSH worker is unavailable".into())
+                        };
+                        if let Err(Ok(mut child)) = reply.send(result) {
+                            let _ = child.kill();
+                            let _ = child.wait();
+                        }
+                    }
                 }
             }
         })?;
@@ -113,6 +138,7 @@ pub fn install(policy: Policy, process: crate::process_policy::Policy) -> std::i
         .set(Arc::new(Tools {
             policy,
             requests,
+            ssh: RwLock::default(),
             transition: Mutex::new(()),
             root: RwLock::new(None),
             browser_transition: Mutex::new(()),
@@ -276,5 +302,61 @@ impl Tools {
         .map_err(|e| failed(e.to_string()))?;
         *self.desktop.write().unwrap() = Some(desktop.clone());
         Ok(desktop)
+    }
+}
+
+impl Tools {
+    pub fn active_ssh(&self, port: u16) -> Option<Arc<Ssh>> {
+        self.ssh.read().unwrap().get(&port).and_then(std::sync::Weak::upgrade)
+    }
+    pub async fn ssh(
+        &self,
+        launch: ssh::Launch,
+        home: tempfile::TempDir,
+        held: tokio::net::TcpListener,
+    ) -> Result<Arc<Ssh>, Failure> {
+        self.supported()?;
+        if self.policy.desktop_on != Some(true) {
+            return Err(Failure(
+                StatusCode::NOT_IMPLEMENTED,
+                "unsupported",
+                "Native SSH requires the verified desktop/OpenSSH component, host glibc and private user namespaces"
+                    .into(),
+            ));
+        }
+        if std::env::var_os(crate::process_policy::NETWORK_ENV).is_some() {
+            return Err(Failure(
+                StatusCode::NOT_IMPLEMENTED,
+                "unsupported",
+                "Process SSH is off for network-none; ordinary command egress remains denied".into(),
+            ));
+        }
+        let root = self.prepare().await?;
+        if !root.join("desktop/bin/sshd").is_file() {
+            return Err(failed("The installed native artifact has no verified OpenSSH component"));
+        }
+        let (reply, answer) = oneshot::channel();
+        self.requests.send(Request::Ssh(launch.clone(), reply)).await.map_err(|_| failed("SSH worker stopped"))?;
+        let child = answer.await.map_err(|_| failed("SSH worker stopped"))?.map_err(failed)?;
+        let port = held.local_addr()?.port();
+        let session = Arc::new(Ssh::new(launch, child, home, held));
+        tokio::time::timeout(crate::contract::TOOL_STARTUP, async {
+            loop {
+                if !session.running() {
+                    return Err(std::io::Error::other("Native SSH worker exited before readiness"));
+                }
+                if session.ready() && session.connect().await.is_ok() {
+                    return Ok(());
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .map_err(|_| failed("Native SSH startup deadline elapsed"))?
+        .map_err(|error| failed(error.to_string()))?;
+        let mut routes = self.ssh.write().unwrap();
+        routes.retain(|_, value| value.strong_count() > 0);
+        routes.insert(port, Arc::downgrade(&session));
+        Ok(session)
     }
 }
