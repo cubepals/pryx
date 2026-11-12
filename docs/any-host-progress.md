@@ -1808,3 +1808,20 @@ job when publication is authorized. That job has not run in this task.
   and read-only doctor behavior. Documentation and whitespace checks pass; do
   not add thirty-sample desktop/SSH numbers before fresh installed CI produces
   them. The latest installed proof and aggregate host matrix are still pending.
+- Source 6519720 producer 131530530128 in 43317876537 passes the relocated
+  componentNssDatabase control, measured glibc 2.36 floor on host 2.39, and real
+  private OpenSSH command/PTY/host-key/neighbour checks. The actual-agent lease
+  case also retains revocation/expiry closure and denied reconnects. Headful
+  input instead fails the immediate click-observation assertion after 3.85s;
+  result.json only means xdotool returned, while the application reports input
+  asynchronously. Retain desktop-application-6519720.json and wait for both
+  actual click and complete typed text within the unchanged startup deadline.
+  Keep both final assertions and every privacy check. Installed continuation
+  is skipped, not proved.
+- Clarify a missing existing process history in doctor with its compatible-node
+  startup requirement, keeping the no-write behavior. Add node-side model
+  coverage for native feature withdrawal and refusal to advertise another
+  backend's tools. All 294 library tests pass (one explicit ignore), including
+  both regressions and the unchanged Wasm listener. The updated headful fixture
+  compiles; its two hosted cases remain explicitly ignored locally. Fresh
+  hosted observation/installed proof and current strict lint remain pending.

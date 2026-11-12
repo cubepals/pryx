@@ -73,11 +73,16 @@ impl ProcessRuntime {
     /// Observe an existing journal without initializing directories or changing scope history.
     pub(crate) fn read_only(root: &Path, policy: ProcessConfig) -> Result<Self, RuntimeError> {
         let root = root.join("process-runtime");
-        let metadata = fs::symlink_metadata(&root).map_err(error)?;
+        let history_error = |problem| {
+            error(format!(
+                "Native tools require readable, verified process scope history; start a compatible node: {problem}"
+            ))
+        };
+        let metadata = fs::symlink_metadata(&root).map_err(history_error)?;
         if !metadata.is_dir() || metadata.uid() != rustix::process::geteuid().as_raw() || metadata.mode() & 0o077 != 0 {
             return Err(error("Unsafe process runtime directory"));
         }
-        if read_private(&root.join("native-scope-origin")).map_err(error)? != b"1\n" {
+        if read_private(&root.join("native-scope-origin")).map_err(history_error)? != b"1\n" {
             return Err(error("Native tools require verified process scope history; start a compatible node"));
         }
         Self::read_entries(root, policy)
@@ -242,7 +247,8 @@ mod tests {
     #[test]
     fn read_only_runtime_does_not_initialize_or_repair_scope_history() {
         let root = tempfile::tempdir().unwrap();
-        assert!(ProcessRuntime::read_only(root.path(), ProcessConfig::default()).is_err());
+        let missing = ProcessRuntime::read_only(root.path(), ProcessConfig::default()).err().unwrap().to_string();
+        assert!(missing.contains("process scope history") && missing.contains("start a compatible node"));
         assert_eq!(fs::read_dir(root.path()).unwrap().count(), 0);
         let runtime = ProcessRuntime::new(root.path(), ProcessConfig::default()).unwrap();
         let origin = runtime.state.root.join("native-scope-origin");
@@ -251,7 +257,8 @@ mod tests {
         assert!(!runtime.state.root.join("native-scope-required").exists());
         assert!(!runtime.state.root.join("native-unscoped-boot").exists());
         fs::remove_file(&origin).unwrap();
-        assert!(ProcessRuntime::read_only(root.path(), ProcessConfig::default()).is_err());
+        let missing = ProcessRuntime::read_only(root.path(), ProcessConfig::default()).err().unwrap().to_string();
+        assert!(missing.contains("process scope history") && missing.contains("start a compatible node"));
         assert!(!origin.exists());
         assert!(!runtime.state.root.join("native-unscoped-boot").exists());
     }

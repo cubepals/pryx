@@ -1,0 +1,26 @@
+{
+  "source": "6519720",
+  "run": 43317876537,
+  "job": 131530530128,
+  "hostGlibc": "2.39",
+  "componentNssDatabase": true,
+  "headful": {
+    "resultFileObserved": true,
+    "clickPresentAtImmediateRead": false,
+    "failure": "assertion failed: observed.iter().any(|v| v[\"kind\"] == \"click\")",
+    "elapsedSeconds": 3.85
+  },
+  "ssh": {
+    "command": true,
+    "pty": true,
+    "strictHostKey": true,
+    "clientKeyOnlyInAgentMemory": true,
+    "persistentDataHasNoAuthorization": true,
+    "neighbourFilesDeniedThroughSsh": true,
+    "nativeAgentLease": true,
+    "revocationClosesStreams": true,
+    "expiryClosesStreams": true,
+    "expiredReconnectDenied": true
+  },
+  "scope": "Completed producer log; headful input failed at the immediate application-observation read. Installed continuation and timing cohorts did not run. The bounded observation-wait correction needs fresh proof."
+}

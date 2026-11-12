@@ -239,8 +239,19 @@ async fn real_headful_input_vnc_and_neighbour_privacy() {
         assert!(owner.0.try_wait().unwrap().is_none() && Instant::now() < deadline, "{}", diagnostics(root.path()));
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
-    while !input.root.join("data/result.json").exists() {
-        assert!(owner.0.try_wait().unwrap().is_none() && Instant::now() < deadline, "{}", diagnostics(root.path()));
+    loop {
+        let observed = observations.lock().unwrap().clone();
+        if input.root.join("data/result.json").exists()
+            && observed.iter().any(|v| v["kind"] == "click")
+            && observed.iter().any(|v| v["kind"] == "type" && v["value"] == "Native desktop typed text")
+        {
+            break;
+        }
+        assert!(
+            owner.0.try_wait().unwrap().is_none() && Instant::now() < deadline,
+            "{}\napplication observations: {observed:?}",
+            diagnostics(root.path())
+        );
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
     let observed = observations.lock().unwrap().clone();

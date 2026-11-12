@@ -222,6 +222,54 @@ mod tests {
     use super::*;
     use crate::{protocol::Guarantee, runtime::fake::FakeRuntime};
 
+    #[test]
+    fn native_tool_announcements_require_process_tier_and_current_evidence() {
+        use crate::protocol::{Isolation, NATIVE_DESKTOP_FEATURE, NATIVE_SSH_FEATURE, TIER_CAPABILITY_SCOPE_PREFIX};
+        use pryx_agent::process_tool_policy::{DESKTOP_CAPABILITY, SSH_CAPABILITY};
+        for tier in [Isolation::Process, Isolation::Container, Isolation::Wasm] {
+            let directory = tempfile::tempdir().unwrap();
+            let config: Config = toml::from_str(&format!(
+                "deployment_id = 'test'\nnode_id = 'node'\nstate_dir = '{}'\n[api]\nlisten = '127.0.0.1:0'\n",
+                directory.path().display()
+            ))
+            .unwrap();
+            let store = Store::open(&config.state_dir).unwrap();
+            let manager = Manager::new(
+                Arc::new(config),
+                Arc::new(FakeRuntime::new().with_isolation(tier)),
+                store,
+                Arc::new(Metrics::new()),
+                Arc::new(|_, _| true),
+            );
+            for state in [false, true, false] {
+                let mut probe = manager.host_probe.lock().unwrap();
+                for capability in [DESKTOP_CAPABILITY, SSH_CAPABILITY] {
+                    if state {
+                        probe.capabilities.insert(
+                            capability.into(),
+                            crate::capability::Capability::on("model fixture: verified native tool prerequisites"),
+                        );
+                    } else {
+                        probe.capabilities.remove(capability);
+                    }
+                }
+                drop(probe);
+                let features = manager.features();
+                for feature in [NATIVE_DESKTOP_FEATURE, NATIVE_SSH_FEATURE] {
+                    assert!(features.contains(&format!("{TIER_CAPABILITY_SCOPE_PREFIX}{feature}")));
+                    assert!(!features.iter().any(|value| value == feature));
+                    assert_eq!(
+                        features.contains(&format!("tier-process:{feature}")),
+                        state && tier == Isolation::Process
+                    );
+                    for other in [Isolation::Container, Isolation::Wasm] {
+                        assert!(!features.contains(&format!("tier-{}:{feature}", other.as_str())));
+                    }
+                }
+            }
+        }
+    }
+
     #[tokio::test]
     async fn gaining_controllers_does_not_upgrade_an_existing_unlimited_copy() {
         let directory = tempfile::tempdir().unwrap();
