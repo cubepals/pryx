@@ -1,0 +1,5 @@
+#!/bin/sh
+# SPDX-License-Identifier: FSL-1.1-ALv2
+# Keep executable bytes immutable during parallel fork/exec tests. Each invocation's
+# symlink names its own response file; writers hold data, never the executable inode.
+exec /bin/cat "$0.json"

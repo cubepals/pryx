@@ -67,32 +67,45 @@ pub(crate) async fn supported(binary: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::os::unix::fs::PermissionsExt;
+
+    fn fixture() -> (tempfile::TempDir, std::path::PathBuf) {
+        let directory = tempfile::tempdir().unwrap();
+        let binary = directory.path().join("agent");
+        std::os::unix::fs::symlink(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/agent-metadata"),
+            &binary,
+        )
+        .unwrap();
+        (directory, binary)
+    }
 
     #[tokio::test]
     async fn actual_executable_metadata_gates_optional_bootstrap_arguments() {
-        let directory = tempfile::tempdir().unwrap();
-        let binary = directory.path().join("agent");
+        let (_directory, binary) = fixture();
+        let response = binary.with_extension("json");
         for (answer, expected) in [
             (serde_json::to_string(&pryx_agent::bootstrap_capabilities::probe()).unwrap(), true),
             ("{}".into(), false),
             ("not-json".into(), false),
             ("x".repeat(PROBE_BYTES as usize + 1), false),
         ] {
-            std::fs::write(&binary, format!("#!/bin/sh\nprintf '%s' '{answer}'\n")).unwrap();
-            std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o700)).unwrap();
+            std::fs::write(&response, answer).unwrap();
             assert_eq!(supported(&binary).await, expected);
         }
-        std::fs::write(&binary, "#!/bin/sh\nexit 2\n").unwrap();
-        assert!(!supported(&binary).await, "a legacy parser rejection cannot enable arguments");
+        std::fs::remove_file(response).unwrap();
+        assert!(!supported(&binary).await, "an executable's nonzero exit cannot enable arguments");
     }
 
     #[tokio::test]
     async fn a_stalled_executable_cannot_stall_container_creation() {
-        let directory = tempfile::tempdir().unwrap();
-        let binary = directory.path().join("agent");
-        std::fs::write(&binary, "#!/bin/sh\nexec /bin/sleep 30\n").unwrap();
-        std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let (_directory, binary) = fixture();
+        // Opening the unpaired FIFO stalls the real probe executable without a writer.
+        rustix::fs::mkfifoat(
+            rustix::fs::CWD,
+            binary.with_extension("json"),
+            rustix::fs::Mode::RUSR | rustix::fs::Mode::WUSR,
+        )
+        .unwrap();
         assert!(!supported(&binary).await);
     }
 }

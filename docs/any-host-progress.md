@@ -956,3 +956,26 @@ job when publication is authorized. That job has not run in this task.
   still running. Cancel superseded Any-host 43200870211 and 43201263882, whose
   bundles retain the known SDK-before-install fixture failure; neither is a pass.
   Draft PR 21 now records the current scope and additional CI minutes.
+
+- Read normal source 462216b job 131127004972/run 43201264196:
+  the original metadata positive fails with the new diagnostic `spawn: Text file
+  busy (os error 26)`. Locally reproduce ETXTBSY with an executable writer retained
+  only by a forked peer; an immutable executable remains usable with a retained
+  response-data writer. Replace only the generated executable fixture with a
+  checked-in script and private response files. Preserve every response/exit
+  assertion and the two-second bound; a blocking FIFO proves the stalled probe.
+  Focused real-executable cases pass, including the observed deadline. Correct
+  the initial local compile's rustix mkfifo/mkfifoat API mismatch; that failed
+  compilation establishes no check pass. Full Rust validation remains pending.
+- Cancel inspected superseded normal runs 43201264196 and 43201271250 after
+  retaining that failure; interrupted end-to-end jobs establish no pass. Keep
+  both d1a0a63 normal runs for the new container cohorts, and 919f7fe Any-host
+  43204171378 for the corrected fresh-account install. Main K23 work stays active.
+- Immutable-fixture checkpoint passes full serial Rust: 477 tests, 25 ignored,
+  including real Wasm; configured parallel root-library validation also passes all
+  254 cases. Strict all-target Clippy, Rust structure, formatting, shell syntax,
+  actionlint, docs and whitespace pass. Unchanged TypeScript retains 426 passing
+  tests and its existing skip. Normal d1a0a63 end-to-end step passes all 33 enabled
+  cases (15 existing skips) with 931 assertions. Its new sixty-sample kernel
+  startup case takes 115.1 seconds, within the estimated extra one to three
+  ordinary-PR minutes. Artifact digests are verified; raw retention follows.
