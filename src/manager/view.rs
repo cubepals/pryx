@@ -361,4 +361,60 @@ mod tests {
             "a copy cannot promote host capability"
         );
     }
+
+    #[tokio::test]
+    async fn process_browser_copy_guarantees_reach_the_heartbeat() {
+        let directory = tempfile::tempdir().unwrap();
+        let (uid, gid) = (rustix::process::geteuid().as_raw(), rustix::process::getegid().as_raw());
+        let config: Config = toml::from_str(&format!(
+            "deployment_id = 'test'\nnode_id = 'node'\nstate_dir = '{}'\n[api]\nlisten = '127.0.0.1:0'\n\
+             [workloads]\ndata_owner = '{uid}:{gid}'\n[capacity]\nmin_free_disk_mb = 1\n",
+            directory.path().display()
+        ))
+        .unwrap();
+        let store = Store::open(&config.state_dir).unwrap();
+        let runtime = Arc::new(FakeRuntime::new().with_isolation(crate::protocol::Isolation::Process));
+        let manager = Manager::new(Arc::new(config), runtime, store, Arc::new(Metrics::new()), Arc::new(|_, _| true));
+        assert!(manager.reconcile(Records::FromDisk).await.error.is_none());
+        let capability = pryx_agent::process_tool_policy::BROWSER_CAPABILITY;
+        manager.host_probe.lock().unwrap().capabilities.insert(
+            capability.into(),
+            crate::capability::Capability::on("model fixture: verified process browser prerequisites"),
+        );
+        let id = WorkloadId::parse("process-browser").unwrap();
+        let spec = serde_json::from_value(serde_json::json!({
+            "isolation":"process", "image":"", "resources":{"memoryMb":256},
+            "storage":{"mountPath":"/data","sizeGb":1}
+        }))
+        .unwrap();
+        manager.ensure(id.clone(), spec, Precondition::None, Some(7)).await.unwrap();
+        manager.start(id.clone(), Some(7)).await.unwrap();
+        let report =
+            || crate::fleet::heartbeat::heartbeat_report(&manager, &crate::ids::NodeId::from("node"), "s", None, 1);
+        assert!(!manager.view(&id).unwrap().guarantees[&Guarantee::BrowserSandbox]);
+        assert!(report().workloads[0].guarantees.is_none(), "a legacy copy adds no unobserved map");
+        for (policy, expected) in [("false", false), ("unknown", false), ("true", true)] {
+            manager
+                .state
+                .lock()
+                .unwrap()
+                .observed
+                .get_mut(&id)
+                .unwrap()
+                .info
+                .as_mut()
+                .unwrap()
+                .labels
+                .insert(crate::labels::LABEL_BROWSER_SANDBOX.into(), policy.into());
+            let view = manager.view(&id).unwrap();
+            assert_eq!(view.guarantees[&Guarantee::BrowserSandbox], expected);
+            let copy = &report().workloads[0];
+            assert_eq!(copy.epoch, Some(7));
+            assert_eq!(copy.guarantees.as_ref(), Some(&view.guarantees));
+        }
+        manager.host_probe.lock().unwrap().capabilities.remove(capability);
+        let view = manager.view(&id).unwrap();
+        assert!(!view.guarantees[&Guarantee::BrowserSandbox], "a copy cannot promote host capability");
+        assert_eq!(report().workloads[0].guarantees.as_ref(), Some(&view.guarantees));
+    }
 }

@@ -10,7 +10,7 @@ Only recorded CI evidence establishes completion; a local pass alone does not.
 | K20 | done | `54bd364` | Normal CI 42832474233 and Any host 42832474296, both green | All 13 host jobs: 8 user distro contexts, root container/PG UID, fallback, refusal, sudo, relocation; full normal CI including real Docker/KVM, one-box/Action, Wasm, 2-node, Rivet/celld and recovery | Production main/release prohibited; unchanged credentialed cloud/bootstrap cases skipped | None | Complete; proceed to K21 |
 | K21 | done | `de3ef9dc13e955e96c2f7c1e530f800069ff50c0` | Normal CI [42885151433](https://github.com/cubepals/pryx/actions/runs/42885151433), Any host [42885151332](https://github.com/cubepals/pryx/actions/runs/42885151332), Measure [42885520235](https://github.com/cubepals/pryx/actions/runs/42885520235), all green | All normal jobs and aggregate; all thirteen host jobs; both complete measurement jobs, including historical budgets and three-tier collectors | Production main/release prohibited; unchanged credentialed cases | None | None |
 | K22 | done except | `7963826182e3f8e9037aea17d4716df15086bd81` | Normal push [43075452804](https://github.com/cubepals/pryx/actions/runs/43075452804) and PR [43075462394](https://github.com/cubepals/pryx/actions/runs/43075462394), Any host [43075452782](https://github.com/cubepals/pryx/actions/runs/43075452782), Rootless engines [43075452793](https://github.com/cubepals/pryx/actions/runs/43075452793) and [43075462656](https://github.com/cubepals/pryx/actions/runs/43075462656), all green; supplementary Measure [43063939164](https://github.com/cubepals/pryx/actions/runs/43063939164) on source 87400f3 is also green | Full normal CI including actual rootful Docker, Wasm, two-node, integrations and recovery; all 15 host jobs; Podman lifecycle/attacks, install/repeat/upgrade/outage/recovery/purge; controller refusals, copy-bound guarantees and 30 hosted engine samples | Main/release prohibited; unchanged credentialed cases | Standard rootless Docker data-owner mapping with dependent positive lifecycle/timings; rootless Docker internal ingress/network-policy. Three approaches each recorded; both remain named refusals until their post-K27 second try | Supported scope complete; K23 started |
-| K23 | in progress | — | Complete native-policy job [131101705318](https://github.com/cubepals/pryx/actions/runs/43194460133/job/131101705318) on ae7b5a8 is green; source 4eb6257 repeats that proof in job 131119291210; installed-product acceptance pending | Verified relocation/acquisition, both stateful abstract-IPC kernels/PNGs, owner success and same-UID neighbour denial, mandatory-sandbox screenshot/forwarded CDP, namespace refusal without download; signed bundle wiring, host glibc and legacy-peer gates implemented | Successful installed Pryx process/edge acceptance, both SDKs and thirty samples; release publication | **None: bundle un-parked by explicit user correction**; failed binary-rewriting experiments retained only as history | Finish corrected signed ordinary-user/default-Docker acceptance, retain comparable samples and get final CI green. Upstream builds use host glibc >=2.34 and bundle-owned libraries; no binary rewriting or private glibc. Side pieces alone use the three-attempt rule |
+| K23 | in progress | — | Full normal CI [43200870546](https://github.com/cubepals/pryx/actions/runs/43200870546) on d1a0a63 is green; complete native-policy job 131101705318 on ae7b5a8 is green; installed job [131137974179](https://github.com/cubepals/pryx/actions/runs/43204171378/job/131137974179) on 919f7fe proves functionality then fails public browser guarantee | Verified acquisition/isolation; signed ordinary-user install without engine; both real kernels through both SDK modes with state/charts/error/interrupt/restart, actual cache executables/versions and host glibc check; MCP/CLI; browser screenshot and edge CDP; thirty container samples each | Passing installed guarantee and ninety process samples; default-Docker native checks; final-source full CI; release publication | **None: bundle un-parked by explicit user correction**; failed binary-rewriting experiments retained only as history | Repair process guarantee heartbeat projection, finish installed/default-Docker acceptance and samples, then get final CI green. Upstream tools use host glibc >=2.34 and bundle-owned libraries; no binary rewriting/private glibc. Side pieces alone use the three-attempt rule |
 | K24 | not started | — | — | — | All | — | Complete brief after K23 |
 | K25 | not started | — | — | — | All | — | Complete brief after K24 |
 | K26 | not started | — | — | — | All | — | Complete brief after K25 |
@@ -985,3 +985,40 @@ job when publication is authorized. That job has not run in this task.
   1,787.4 ms. Existing trivial/chart p90 budgets remain 3.9/116.1 ms. Record the
   container half in speed.md without inventing process measurements or claiming
   the still-running job's later checks passed. Docs/whitespace validation follows.
+- Normal d1a0a63 run 43200870546 is now fully green, including Wasm, two-node,
+  real maintained integrations and store-cut/watchdog recovery. Source c0a4192's
+  hosted PR Rust/Docker job 131142771911 is also green, including the immutable
+  metadata fixture. The earlier recorded docs/whitespace checks passed.
+- Read signed-install source 919f7fe job 131137974179/run 43204171378 in full:
+  fresh ordinary-user readiness succeeds with no engine; genuine Python 3.12.16
+  and Node 24.22.1 run through both SDK modes with state/charts/errors/interrupt/
+  restart and actual pinned cache executables. MCP run_python and installed CLI
+  pass. Browser screenshot, forwarded exact-version CDP and both Python browser
+  modes succeed, then the public browser-sandbox guarantee asserts false.
+  Verify artifact 13939307648 ZIP SHA-256
+  a54c637d2d4fd2d357003b71cf888ffa08ee33f122b65145931ebe69f926c525;
+  retain exact installed-kernels-919f7fe.jsonl observations and qualified provenance.
+  No ninety-sample, default-Docker or milestone completion is claimed.
+- Diagnose the heartbeat's container-only condition dropping process copy maps.
+  A real manager/heartbeat regression fails with None before the fix and passes
+  afterward, retaining false/unknown/true, epoch and host-withdrawal assertions.
+  Keep resource-limit maps container-only. Full Rust validation is in progress;
+  installed guarantee assertion stays unchanged. Cancel superseded Any-host
+  43206227281 because its bundle retains that known reporting defect.
+- Clear inspected superseded runs 43204181426, 43204171456, 43206050578,
+  43206038287, 43206038315, 43206050257 and 43206050117 from the queue;
+  none had a new failed job when canceled, and interrupted checks prove no pass.
+- Read older d1a0a63 PR end-to-end job 131124251340/run 43200882590:
+  container tool/interpreter cohorts and all Wasm cases pass, but two-node
+  sleeping/full-host recovery asserts running memory 1,984 MB and receives zero
+  immediately after waitRunning. Other two-node cases and later integration/
+  recovery steps pass; the aggregate correctly fails. Keep the resource assertion
+  and investigate source observations/start accounting; no passing PR claim or
+  unsupported timing explanation is substituted for this failure.
+- Heartbeat projection checkpoint passes complete serial Rust: 478 tests,
+  25 ignored, including real Wasm; strict all-target Clippy, Rust structure,
+  formatting, actionlint, docs and whitespace pass. The new manager-to-heartbeat
+  regression is red before and green after the change. TypeScript product source
+  is unchanged from the 426-pass local check and green hosted workspaces. Next:
+  diagnose the separate resource-ledger failure while installed CI proves the
+  corrected guarantee and collects the outstanding native cohorts.

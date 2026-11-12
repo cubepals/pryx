@@ -1,0 +1,3 @@
+installed_preset=user tier=process engine=none protected_descriptor=present
+{"installed":true,"language":"python","stateRetained":true,"png":true,"bothPythonModes":true,"bundleRuntime":true,"version":"3.12.16","interrupt":true,"restart":true,"mcpRunPython":true,"installedCli":true}
+{"installed":true,"language":"javascript","stateRetained":true,"png":true,"bothPythonModes":true,"bundleRuntime":true,"version":"24.22.1","interrupt":true,"restart":true}

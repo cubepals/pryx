@@ -1,0 +1,65 @@
+{
+  "source": "919f7fe51b6d85111ef08cf26c9aa1e31482ab96",
+  "workflow": "Any host",
+  "run": 43204171378,
+  "job": 131137974179,
+  "url": "https://github.com/cubepals/pryx/actions/runs/43204171378/job/131137974179",
+  "jobConclusion": "failure",
+  "failedAssertion": "Public browser-sandbox guarantee was false after successful screenshot, forwarded Browser.getVersion and both Python SDK browser modes",
+  "artifact": {
+    "id": 13939307648,
+    "name": "installed-native-tools",
+    "zipSha256": "a54c637d2d4fd2d357003b71cf888ffa08ee33f122b65145931ebe69f926c525"
+  },
+  "retained": {
+    "file": "installed-kernels-919f7fe.jsonl",
+    "sha256": "81b82d69def062943af0c9eb5898315caf9acf95588d8732276b046393fa3147",
+    "scope": "Exact first three stdout lines; redacted failure diagnostics remain in the producing artifact"
+  },
+  "observed": {
+    "preset": "user",
+    "tier": "process",
+    "engine": "none",
+    "protectedDescriptor": true,
+    "kernels": [
+      {
+        "installed": true,
+        "language": "python",
+        "stateRetained": true,
+        "png": true,
+        "bothPythonModes": true,
+        "bundleRuntime": true,
+        "version": "3.12.16",
+        "interrupt": true,
+        "restart": true,
+        "mcpRunPython": true,
+        "installedCli": true
+      },
+      {
+        "installed": true,
+        "language": "javascript",
+        "stateRetained": true,
+        "png": true,
+        "bothPythonModes": true,
+        "bundleRuntime": true,
+        "version": "24.22.1",
+        "interrupt": true,
+        "restart": true
+      }
+    ]
+  },
+  "priorChecksCompleted": {
+    "hostGlibcEqualsGetconf": true,
+    "actualPythonNodeCacheExecutablePaths": true,
+    "browserPng": true,
+    "forwardedCdpAndExactChromeVersion": true,
+    "bothPythonBrowserModes": true
+  },
+  "priorChecksEvidence": "The real compiled driver reached its following guarantee assertion; these preceding calls/assertions ran sequentially and returned successfully. No browser success stdout was emitted before that assertion.",
+  "notRun": [
+    "ninety installed-tool startup samples",
+    "default Docker native acceptance",
+    "later signed-bundle distribution matrix"
+  ],
+  "limitations": "This proves installed functionality, not passing guarantees, a complete K23 milestone or release publication."
+}
