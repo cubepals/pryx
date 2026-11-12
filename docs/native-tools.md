@@ -1,11 +1,10 @@
 # Desktop, browser, SSH and bucket tools
 
 The **container** tier provides desktops, browsers, SSH and bucket mounts as the sandbox user.
-The **process** tier implements browsers and Python/Node kernels through a separately verified
-tool bundle; desktops, SSH and mounts retain their capability refusals. Wasm refuses native
-tools. CI proves complete agent policy and signed ordinary-user installation with both kernels,
-browser/CDP, both SDKs and thirty startup samples per tool. Default-Docker native checks also
-pass; final workflow completion remains tracked in [the progress record](any-host-progress.md).
+The **process** tier provides browsers, Python/Node kernels, desktops and SSH through a separately
+verified tool bundle when the host meets each tool's prerequisites; mounts retain their capability
+refusal. Wasm refuses native tools. Measured acceptance and host coverage are recorded in
+[speed](speed.md) and [the progress record](any-host-progress.md).
 These tools wrap existing programs; the agent owns scoped routes and the edge owns access.
 `toolsVersion` is separate from the stable agent API version.
 
@@ -47,6 +46,44 @@ const { url: cdp } = await box.browser()
 const python = await box.python()
 console.log((await python.run('6 * 7')).text)
 ```
+
+### Process desktops and SSH
+
+The full desktop/OpenSSH component requires x86_64 Linux with host glibc **2.36** or later,
+usable unprivileged user namespaces and the private IPC/history checks above. The core browser
+and kernels keep their **2.34** minimum. `pryx doctor` reports `process-desktop` and `process-ssh`
+with the observed requirement when either is off. The installer does not change host policy.
+
+Xvfb and headful Chromium run with software rendering in a private PID, IPC and temporary-file
+view; Chromium keeps its own sandbox. Each sandbox has its own display. VNC, websockify and
+the desktop command adapter use scoped Unix sockets; no shared host display or VNC TCP port
+is exposed. The same desktop methods and expiring noVNC URL work through the HTTP edge.
+No window manager runs by default.
+
+```ts
+const box = await pryx.sandbox({
+  isolation: 'process', units: 4, requiredTools: ['desktop', 'ssh'],
+})
+const png = await box.desktop.screenshot()
+await box.desktop.click(100, 100)
+await box.desktop.type('hello')
+await box.desktop.key('Return')
+const access = await box.ssh()
+// Use pryx sandbox ssh <id>, or access.connect() with an SSH client.
+await box.ssh.revoke()
+```
+
+Optional `requiredTools` requires the verified native desktop/SSH capability during placement
+and again before wake. A node or tier that cannot prove it is refused by name. Omitting it
+keeps normal tool acquisition on demand. Existing container templates and calls keep their
+behavior; they do not claim the native process bundle's capability. `network: none` refuses
+these native tools while preserving its egress restrictions.
+
+Native OpenSSH serves accepted Unix connections as the sandbox's own user, with its normal
+authentication, host keys and command/PTY behavior. The HTTP-only user preset carries those
+bytes over the authenticated agent WebSocket using OpenSSH ProxyCommand. Private client keys
+stay in memory, and authorization stays outside persistent sandbox data. Lease capacity,
+expiry, revocation, wake and neighbour isolation apply to this transport too.
 
 ## Container tools
 

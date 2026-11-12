@@ -1788,3 +1788,23 @@ job when publication is authorized. That job has not run in this task.
   configured-interface positive and foreign-interface negative assertion and
   supervisor-tree forwarding denial. The main listener is exposed only after
   spare binding and native worker preparation; no test assertions are changed.
+- Source 6519720 passes the complete local cargo test invocation: 489 tests,
+  33 explicit ignores, including the unchanged immediate Wasm HTTP case,
+  complete real Wasm integration and rustdoc. An out-of-tree diagnostic using
+  the same pinned distribution reaches the Node listener in 1.4 seconds and
+  retains its startup output. No Wasm change is justified or retained; keep the
+  earlier intermittent local failures above. Updated fixture typecheck passes.
+  The original pinned Rust structure checker also passes.
+- Inspect superseded 486ceaf/c058a1c normal runs: every completed job is green,
+  with only remaining end-to-end/release jobs active. Cancel 43313276118,
+  43313268621 and 43316964375 to release capacity for 6519720; cancellation of
+  43316955102 returns GitHub HTTP 502, so do not count it as canceled. The
+  c058a1c producer 131527347634 passes; cancel its queued bundle continuation
+  in 43316955031 in favor of the source with the NSS fix. Latest 6519720 normal
+  and Any-host runs remain required; canceled runs are not aggregate proof.
+- Strict all-target local Clippy passes for source 6519720. Update native-tools,
+  comparison and host-capability documentation with process desktop/SSH host
+  prerequisites, scoped transports, optional requiredTools placement/wake intent
+  and read-only doctor behavior. Documentation and whitespace checks pass; do
+  not add thirty-sample desktop/SSH numbers before fresh installed CI produces
+  them. The latest installed proof and aggregate host matrix are still pending.
