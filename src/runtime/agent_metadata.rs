@@ -8,7 +8,7 @@ use tokio::io::AsyncReadExt;
 const PROBE_TIMEOUT: Duration = Duration::from_secs(2);
 const PROBE_BYTES: u64 = 4096;
 
-pub(crate) async fn supported(binary: &Path) -> bool {
+pub(crate) async fn query(binary: &Path) -> Option<Capabilities> {
     let query = async {
         let mut child = tokio::process::Command::new(binary)
             .arg(PROBE)
@@ -26,7 +26,11 @@ pub(crate) async fn supported(binary: &Path) -> bool {
         }
         serde_json::from_slice::<Capabilities>(&bytes).ok()
     };
-    tokio::time::timeout(PROBE_TIMEOUT, query).await.ok().flatten().is_some_and(|value| value.browser_policy)
+    tokio::time::timeout(PROBE_TIMEOUT, query).await.ok().flatten()
+}
+
+pub(crate) async fn supported(binary: &Path) -> bool {
+    query(binary).await.is_some_and(|value| value.browser_policy)
 }
 
 #[cfg(test)]

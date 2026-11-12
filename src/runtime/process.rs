@@ -4,6 +4,7 @@
 //! alone. The manager retains the existing epoch, snapshot and data-directory lifecycle.
 //!
 //! Parts (`process/`):
+//! - `native.rs`: protected tool inputs and authenticated supervisor adoption.
 //! - `journal.rs`: private specifications, UID allocation and process identity checks.
 //! - `power.rs`: agent launch, tree signals and process observations.
 //! - `exec.rs`: the legacy node exec transport through the same authenticated agent.
@@ -13,6 +14,7 @@
 mod exec;
 mod journal;
 mod logs;
+mod native;
 mod observe;
 mod power;
 mod termination;
@@ -29,6 +31,7 @@ pub struct ProcessRuntime {
 }
 struct State {
     pub root: PathBuf,
+    pub launch: tokio::sync::Mutex<()>,
     pub entries: Mutex<BTreeMap<String, Entry>>,
     pub children: Mutex<HashMap<String, std::process::Child>>,
     pub owners: Mutex<BTreeMap<String, (u32, u32)>>,

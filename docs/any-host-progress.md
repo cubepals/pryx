@@ -682,3 +682,22 @@ job when publication is authorized. That job has not run in this task.
 - Persist each building step with a signed commit and push, at least every thirty
   minutes, as required by the resumed task. Never accumulate a whole integration
   milestone only in the execution workspace.
+- Rebuilt process launch now reads a protected bounded descriptor beside the actual
+  agent, gates optional fields on its parser version, isolates cache/download/scratch
+  paths from persistent data, serializes launches, and verifies fresh signed peer
+  observations against journal keys and live PID start ticks. A monotonic scope
+  guard prevents later unscoped launches beside eligible native tools; boot-bound
+  history prevents unverifiable legacy orphans from being mistaken for absence.
+  Ordinary compute remains available when only these native prerequisites fail.
+  Full local Rust passes 473 tests with 23 existing ignored cases, including the
+  real Wasm lifecycle; strict Clippy, all three structure checks, fmt and whitespace
+  pass. Hosted current-source launch/kernel acceptance remains pending; no ready
+  process browser or completed ordinary-user installation is claimed.
+- Packager source fe0437a has green Any-host job 131044569877 in run 43177305638.
+  Downloaded artifact 13924229695 matches ZIP SHA-256
+  c136f8532c68ff6abb3a64ddaef928f7b1952b770d476dfc9ac205fd3d6efa69.
+  Retain exact descriptor/kernel/browser observations and provenance under
+  checks/measurements/k23/packaged-*. The pinned archive has 38,894 entries and
+  1,890,465,977 expanded bytes; UID 1001 retains state and PNGs in both kernels,
+  and browser/CDP/expiry/renderer sandbox observations pass after relocation.
+  This proves packaging and upstream tools, not installed-product integration.

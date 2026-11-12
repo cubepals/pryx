@@ -5,6 +5,8 @@ use super::journal::error;
 use super::*;
 use base64::{Engine, engine::general_purpose::STANDARD};
 use pryx_agent::auth::{Claims, Scope, SigningKey};
+const MAX_SCOPE_RESPONSE_BYTES: usize = 4096;
+
 impl ProcessRuntime {
     async fn raw(
         &self,
@@ -13,6 +15,7 @@ impl ProcessRuntime {
         path: &str,
         body: serde_json::Value,
         timeout: Duration,
+        nonce: Option<&str>,
     ) -> Result<Bytes, RuntimeError> {
         let entry = self.entry(name)?;
         let boot = entry.spec.agent.as_ref().ok_or_else(|| error("Missing process agent"))?;
@@ -43,11 +46,14 @@ impl ProcessRuntime {
                 file: None,
             })
             .map_err(error)?;
-        let headers = [
+        let mut headers = vec![
             ("authorization", format!("Bearer {token}")),
             ("content-type", "application/json".into()),
             ("Idempotency-Key", uuid::Uuid::new_v4().to_string()),
         ];
+        if let Some(nonce) = nonce {
+            headers.push((pryx_agent::process_observation::NONCE_HEADER, nonce.into()));
+        }
         let response = crate::http_client::send(
             method,
             &format!("http://127.0.0.1:{port}{path}"),
@@ -61,7 +67,10 @@ impl ProcessRuntime {
         let status = response.status();
         let bytes = tokio::time::timeout(
             timeout,
-            crate::http_client::read_body(response, pryx_agent::contract::MAX_REQUEST_BYTES * 2),
+            crate::http_client::read_body(
+                response,
+                if nonce.is_some() { MAX_SCOPE_RESPONSE_BYTES } else { pryx_agent::contract::MAX_REQUEST_BYTES * 2 },
+            ),
         )
         .await
         .map_err(error)?
@@ -79,8 +88,52 @@ impl ProcessRuntime {
         body: serde_json::Value,
         timeout: Duration,
     ) -> Result<serde_json::Value, RuntimeError> {
-        let bytes = self.raw(name, method, path, body, timeout).await?;
+        let bytes = self.raw(name, method, path, body, timeout, None).await?;
         if bytes.is_empty() { Ok(serde_json::Value::Null) } else { serde_json::from_slice(&bytes).map_err(error) }
+    }
+    pub(super) async fn agent_scope_proven(&self, entry: &Entry) -> bool {
+        let Some(pid) = observe::matching_pid(entry.pid, entry.ticks) else { return false };
+        let Some(boot) = &entry.spec.agent else { return false };
+        let Some(key) = entry
+            .spec
+            .env
+            .iter()
+            .find(|(name, _)| name == &boot.secret_env)
+            .and_then(|(_, value)| SigningKey::from_encoded(value).ok())
+        else {
+            return false;
+        };
+        let nonce = uuid::Uuid::new_v4().to_string();
+        let Ok(response) = self
+            .raw(
+                &entry.spec.name,
+                hyper::Method::GET,
+                "/_pryx/health",
+                serde_json::Value::Null,
+                super::super::ENGINE_PROBE_TIMEOUT,
+                Some(&nonce),
+            )
+            .await
+        else {
+            return false;
+        };
+        let Ok(response) = serde_json::from_slice::<serde_json::Value>(&response) else { return false };
+        let Some(proof) = response
+            .get("processObservation")
+            .cloned()
+            .and_then(|value| serde_json::from_value::<pryx_agent::process_observation::Proof>(value).ok())
+        else {
+            return false;
+        };
+        observe::matching_pid(entry.pid, entry.ticks) == Some(pid)
+            && pryx_agent::process_observation::verify(
+                &proof,
+                &key.public_key(),
+                &nonce,
+                &boot.sandbox,
+                boot.epoch,
+                pid,
+            )
     }
     pub(super) async fn agent_health(&self, name: &str) -> Result<(), RuntimeError> {
         self.request(name, hyper::Method::GET, "/_pryx/health", serde_json::Value::Null, Duration::from_millis(100))
@@ -121,7 +174,14 @@ impl ProcessRuntime {
             ..Default::default()
         };
         let replay = self
-            .raw(name, hyper::Method::GET, &format!("/_pryx/processes/{id}/output"), serde_json::Value::Null, timeout)
+            .raw(
+                name,
+                hyper::Method::GET,
+                &format!("/_pryx/processes/{id}/output"),
+                serde_json::Value::Null,
+                timeout,
+                None,
+            )
             .await?;
         for line in replay.split(|byte| *byte == b'\n').filter(|line| !line.is_empty()) {
             let event: serde_json::Value = serde_json::from_slice(line).map_err(error)?;

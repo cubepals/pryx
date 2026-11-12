@@ -26,14 +26,47 @@ fn read_private(path: &Path) -> std::io::Result<Vec<u8>> {
     }
     Ok(bytes)
 }
+fn initialize_scope_history(root: &Path, existed: bool) -> Result<(), RuntimeError> {
+    let path = root.join("native-scope-origin");
+    match read_private(&path) {
+        Ok(bytes) if bytes == b"1\n" => return Ok(()),
+        Ok(_) => return Err(error("Invalid native scope origin")),
+        Err(problem) if problem.kind() == std::io::ErrorKind::NotFound => (),
+        Err(problem) => return Err(error(problem)),
+    }
+    if existed {
+        note_unscoped(root)?;
+    }
+    crate::durable::write_atomic(&path, b"1\n", 0o600).map_err(error)
+}
+pub(super) fn note_unscoped(root: &Path) -> Result<(), RuntimeError> {
+    let boot = crate::host::boot_id().unwrap_or_else(|| "unknown".into());
+    crate::durable::write_atomic(&root.join("native-unscoped-boot"), boot.as_bytes(), 0o600).map_err(error)
+}
+pub(super) fn legacy_boot(root: &Path) -> Result<bool, RuntimeError> {
+    match read_private(&root.join("native-unscoped-boot")) {
+        Ok(bytes) => {
+            if bytes != b"unknown"
+                && std::str::from_utf8(&bytes).ok().and_then(|s| uuid::Uuid::parse_str(s).ok()).is_none()
+            {
+                return Err(error("Invalid legacy process boot marker"));
+            }
+            Ok(crate::host::boot_id().is_none_or(|boot| boot.as_bytes() == bytes || bytes == b"unknown"))
+        }
+        Err(problem) if problem.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(problem) => Err(error(problem)),
+    }
+}
 impl ProcessRuntime {
     pub fn new(root: &Path, policy: ProcessConfig) -> Result<Self, RuntimeError> {
         let root = root.join("process-runtime");
+        let existed = root.exists();
         fs::DirBuilder::new().recursive(true).mode(0o700).create(&root).map_err(error)?;
         let metadata = fs::symlink_metadata(&root).map_err(error)?;
         if !metadata.is_dir() || metadata.uid() != rustix::process::geteuid().as_raw() || metadata.mode() & 0o077 != 0 {
             return Err(error("Unsafe process runtime directory"));
         }
+        initialize_scope_history(&root, existed)?;
         let mut entries = BTreeMap::new();
         for path in fs::read_dir(&root).map_err(error)? {
             let path = path.map_err(error)?.path();
@@ -50,12 +83,21 @@ impl ProcessRuntime {
         Ok(Self {
             state: Arc::new(State {
                 root,
+                launch: tokio::sync::Mutex::new(()),
                 entries: Mutex::new(entries),
                 children: Mutex::new(HashMap::new()),
                 owners: Mutex::new(owners),
             }),
             policy,
         })
+    }
+    pub(super) fn scope_required(&self) -> Result<bool, RuntimeError> {
+        match read_private(&self.state.root.join("native-scope-required")) {
+            Ok(bytes) if bytes == b"1\n" => Ok(true),
+            Ok(_) => Err(error("Invalid native process scope guard")),
+            Err(problem) if problem.kind() == std::io::ErrorKind::NotFound => Ok(false),
+            Err(problem) => Err(error(problem)),
+        }
     }
     pub(super) fn shared_uid(&self) -> bool {
         !rustix::process::geteuid().is_root()
@@ -243,6 +285,26 @@ mod tests {
         fs::write(&path, b"{}").unwrap();
         fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
         assert!(ProcessRuntime::new(dir.path(), ProcessConfig::default()).is_err());
+    }
+
+    #[test]
+    fn scope_history_survives_empty_journals_and_only_a_new_boot_clears_legacy_history() {
+        let fresh = tempfile::tempdir().unwrap();
+        initialize_scope_history(fresh.path(), false).unwrap();
+        assert!(!legacy_boot(fresh.path()).unwrap());
+        note_unscoped(fresh.path()).unwrap();
+        initialize_scope_history(fresh.path(), true).unwrap();
+        assert!(legacy_boot(fresh.path()).unwrap());
+        let old = tempfile::tempdir().unwrap();
+        initialize_scope_history(old.path(), true).unwrap();
+        assert!(legacy_boot(old.path()).unwrap());
+        let marker = old.path().join("native-unscoped-boot");
+        crate::durable::write_atomic(&marker, uuid::Uuid::new_v4().to_string().as_bytes(), 0o600).unwrap();
+        assert!(!legacy_boot(old.path()).unwrap());
+        crate::durable::write_atomic(&marker, b"broken", 0o600).unwrap();
+        assert!(legacy_boot(old.path()).is_err());
+        fs::write(old.path().join("native-scope-origin"), b"broken").unwrap();
+        assert!(initialize_scope_history(old.path(), true).is_err());
     }
 
     fn fixture_spec(path: &Path, index: usize) -> ContainerSpec {
