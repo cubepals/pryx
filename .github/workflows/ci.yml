@@ -795,7 +795,7 @@ jobs:
           sudo journalctl -u pryx-control -u pryx-edge -u pryx-postgres -u pryx-store -u pryxd --no-pager -n 150
           free -m
           ps -eo pid,ppid,comm,rss --sort=-rss | head -20
-          sudo journalctl -k --since '-5 min' --no-pager -n 100 | rg -i 'oom|killed process|out of memory' || true
+          sudo journalctl -k --since '-5 min' --no-pager -n 100 | grep -Ei 'oom|killed process|out of memory' || true
           bun -e '
             import { edgeConfig } from "./edge/src/config.ts"
             import { SECOND_MS } from "./control/src/durations.ts"

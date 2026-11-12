@@ -7,8 +7,8 @@ use agentos_client::{
     PatternPermissions, PermissionMode, Permissions, PythonLimits, ResourceLimits, RootFilesystemConfig,
     RootFilesystemKind, WasmLimits,
 };
+use ring::digest::{Context, SHA256};
 use serde::Deserialize;
-use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 
 use super::{ContainerSpec, RuntimeError};
@@ -67,7 +67,7 @@ pub(super) fn verify(path: &Path, expected: &str) -> Result<(), RuntimeError> {
     {
         return Err(super::error("Unsafe agentOS distribution file"));
     }
-    let mut digest = Sha256::new();
+    let mut digest = Context::new(&SHA256);
     use std::io::Read;
     let mut buffer = [0; 64 * 1024];
     loop {
@@ -77,7 +77,7 @@ pub(super) fn verify(path: &Path, expected: &str) -> Result<(), RuntimeError> {
         }
         digest.update(&buffer[..count]);
     }
-    if hex::encode(digest.finalize()) != expected {
+    if hex::encode(digest.finish().as_ref()) != expected {
         return Err(super::error("agentOS distribution checksum mismatch"));
     }
     Ok(())
@@ -193,4 +193,35 @@ pub(super) async fn packages(options: &mut AgentOsConfig, root: &Path, names: &[
         }));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sha2::{Digest, Sha256};
+    use std::os::unix::fs::PermissionsExt;
+
+    #[test]
+    fn distribution_hash_preserves_sha256_and_path_guards() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("package");
+        let mut bytes = b"verified distribution bytes".repeat(8192);
+        let expected = hex::encode(Sha256::digest(&bytes));
+        std::fs::write(&path, &bytes).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        verify(&path, &expected).unwrap();
+        bytes[0] ^= 1;
+        std::fs::write(&path, &bytes).unwrap();
+        assert!(verify(&path, &expected).is_err());
+        bytes[0] ^= 1;
+        std::fs::write(&path, &bytes).unwrap();
+        let link = root.path().join("linked-package");
+        std::os::unix::fs::symlink(&path, &link).unwrap();
+        assert!(verify(&link, &expected).is_err());
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o660)).unwrap();
+        assert!(verify(&path, &expected).is_err());
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        std::fs::set_permissions(root.path(), std::fs::Permissions::from_mode(0o770)).unwrap();
+        assert!(verify(&path, &expected).is_err());
+    }
 }

@@ -56,6 +56,8 @@ thiserror = "2"
 anyhow = "1"
 clap = { version = "4.6", features = ["derive"] }
 sha2 = "0.11"
+# The existing TLS/agent crypto backend also streams large distribution digests.
+ring = "0.17"
 # Archives in Blockly's existing format: a gzip tarball of the data directory.
 tar = { version = "0.4", default-features = false }
 flate2 = "1"
