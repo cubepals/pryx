@@ -37,6 +37,14 @@ descriptor = pathlib.Path(record['bundle'])/'bin/process-tools.json'
 assert descriptor.is_file()
 print('installed_preset=user tier=process engine=none protected_descriptor=present')
 PY
+# Install client dependencies only after the fresh-account product install succeeds. Pip's
+# cache can inherit a group-writable runner umask; it must not pre-create managed ancestry.
+if [ -n "${PRYX_PYTHON:-}" ]; then
+  python3 -m venv "$HOME/sdk-python"
+  "$PRYX_PYTHON" -m pip install --no-cache-dir "$HOME/sdk-source" > "$HOME/sdk-install.log" 2>&1
+else
+  python3 -m pip install --user --break-system-packages --no-cache-dir "$HOME/sdk-source" > "$HOME/sdk-install.log" 2>&1
+fi
 "${PRYX_NATIVE_ACCEPTANCE_BIN:?}"
 "$cli" down --purge > "$HOME/native-purge.log" 2>&1
 test ! -e "$HOME/.config/pryx"

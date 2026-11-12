@@ -63,7 +63,7 @@ except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
 
 logs = list(private.glob('*.log'))
 if len(sys.argv) == 1:
-    logs[:0] = [home / 'install.log', home / 'upgrade.log', home / 'unit.log']
+    logs[:0] = [home / name for name in ['install.log', 'upgrade.log', 'unit.log', 'sdk-install.log']]
 for path in logs:
     if not path.is_file():
         continue

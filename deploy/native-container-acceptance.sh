@@ -7,7 +7,6 @@ cd /test
 useradd --create-home --shell /bin/bash pryxtools
 cp -a sdk/python /home/pryxtools/sdk-source
 chown -R pryxtools:pryxtools /home/pryxtools/sdk-source
-su -s /bin/bash pryxtools -c 'python3 -m pip install --user --break-system-packages /home/pryxtools/sdk-source' > /home/pryxtools/sdk-install.log 2>&1
 python3 deploy/tool-artifact-server.py --directory /native-artifacts \
   --certificate /fixture-trust/server.crt --key /fixture-trust/server.key > /home/pryxtools/native-artifact-server.log 2>&1 &
 pryx_container_tls=$!

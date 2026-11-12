@@ -940,3 +940,19 @@ job when publication is authorized. That job has not run in this task.
   43198789805, 43198780660, 43197128635, 43197116701, 43199632253 and
   43199622999. None had a new failed job; interrupted checks establish no pass.
   Keep d1a0a63's final-comparison CI and 4eb6257's corrected install proof active.
+
+- Read corrected-fixture installed job 131124391571/run 43199623015:
+  signing and image build pass, then preflight refuses the already-created
+  /home/pryxtools/.cache as unsafe. This is now an explicit refusal, not the prior
+  unreadable diagnostic. No native SDK or timing pass is claimed. Artifact
+  13936222933 retains the refusal and SDK/server logs, ZIP SHA-256
+  c9e3929d75964c2ad8e35f9909aef516ab6b28a5c1d78cb9ac74e04f0e24bbd9.
+  Move Python SDK dependency installation after product readiness in both fixtures,
+  disable pip caching and retain its log. All product path checks stay unchanged.
+- Shell syntax, Python compilation, actionlint and whitespace pass. Product code
+  retains local Rust 477/Bun 426 checks. Hosted d1a0a63 job 131124170594 is green,
+  including the parallel metadata test, real Wasm and all 21 Docker integration
+  cases; both rootless runs and CodeQL are green. Normal full end-to-end CI is
+  still running. Cancel superseded Any-host 43200870211 and 43201263882, whose
+  bundles retain the known SDK-before-install fixture failure; neither is a pass.
+  Draft PR 21 now records the current scope and additional CI minutes.

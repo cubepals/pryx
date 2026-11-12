@@ -31,6 +31,10 @@ cleanup() {
     sudo cp /home/pryxtools/native-process-measurements.json "$RUNNER_TEMP/native-process-measurements.json" || result=1
     sudo chown "$(id -u):$(id -g)" "$RUNNER_TEMP/native-process-measurements.json" || result=1
   fi
+  if sudo test -f /home/pryxtools/sdk-install.log; then
+    sudo cp /home/pryxtools/sdk-install.log "$RUNNER_TEMP/native-python-sdk-install.log" || result=1
+    sudo chown "$(id -u):$(id -g)" "$RUNNER_TEMP/native-python-sdk-install.log" || result=1
+  fi
   kill "$pryx_native_tls" "$pryx_native_http" 2>/dev/null || true
   wait "$pryx_native_tls" "$pryx_native_http" || true
   exit "$result"
@@ -53,10 +57,8 @@ find "$pryx_native_fixture" -type f -exec chmod 644 {} +
 bun build --compile deploy/native-tools-acceptance.ts --outfile "$pryx_native_fixture/acceptance"
 chmod 755 "$pryx_native_fixture/acceptance"
 printf '%s\n' "$pryx_native_fixture" > "$RUNNER_TEMP/native-fixture-path"
-sudo -u pryxtools -H python3 -m venv /home/pryxtools/sdk-python
 sudo cp -a sdk/python /home/pryxtools/sdk-source
 sudo chown -R pryxtools:pryxtools /home/pryxtools/sdk-source
-sudo -u pryxtools -H /home/pryxtools/sdk-python/bin/pip install /home/pryxtools/sdk-source > "$RUNNER_TEMP/native-python-sdk-install.log" 2>&1
 cd "$pryx_native_fixture"
 sudo -u pryxtools -H env -i HOME=/home/pryxtools PATH=/usr/local/bin:/usr/bin:/bin \
   PRYX_NATIVE_ACCEPTANCE_BIN="$pryx_native_fixture/acceptance" PRYX_PYTHON=/home/pryxtools/sdk-python/bin/python \
