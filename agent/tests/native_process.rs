@@ -154,6 +154,7 @@ impl Agent {
         reqwest::Client::new()
             .request(method, format!("{}{path}", self.url))
             .bearer_auth(&self.token)
+            .header("idempotency-key", uuid::Uuid::new_v4().to_string())
             .header("content-type", "application/json")
             .body(body.to_string())
             .timeout(Duration::from_secs(180))
@@ -177,6 +178,9 @@ impl Agent {
             let Ok(bytes) = response.bytes().await else { return };
             let Ok(list) = serde_json::from_slice::<Value>(&bytes) else { return };
             for process in list["processes"].as_array().into_iter().flatten() {
+                if process["running"] != false {
+                    continue;
+                }
                 eprintln!("Native supervised startup result: {process}");
                 let Some(id) = process["id"].as_str() else { continue };
                 let mut response =
@@ -233,6 +237,9 @@ for address in json.loads(sys.argv[1]):
                 Value::Null,
             )
             .await;
+        if result["code"] != 0 {
+            self.startup_diagnostics().await;
+        }
         assert_eq!(result["code"], 0, "{result}");
     }
 }

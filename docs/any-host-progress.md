@@ -849,3 +849,22 @@ job when publication is authorized. That job has not run in this task.
   unexpectedly returns false for its positive fixture under parallel tests.
   Its complete log was read; it has no cause diagnostic. Keep its two-second
   bound and all assertions while instrumenting spawn/read/exit/parse/timeout.
+
+- Scheduler source a1b3d34 job 131089697366/run 43190915817 now proves both
+  Python and JavaScript retain state and return PNGs under the complete process
+  policy as UID 1001. Download artifact 13931796583 and verify ZIP SHA-256
+  bd14ab2f9c2c682915482fa4828cfff5152e54e31db5e9eff2be537cdcf053ba;
+  retain exact observations/provenance in full-policy-kernels-*. The job then
+  stops at the owner socket probe: its process POST omitted the mandatory
+  idempotency key. Correct that fixture request, keep all socket/browser
+  assertions, and capture bounded exited-process output on a failed socket check.
+  Neither neighbour/browser nor signed installation acceptance has passed yet.
+- Keep the metadata test's original assertions, timeout and output bound.
+  Add stage-specific test-only spawn/read/exit/parse/timeout diagnostics while
+  preserving product refusal behavior. Its configured parallel unit run passes;
+  the first local parallel command lacked the agentOS asset environment and
+  failed only that real-Wasm fixture, then was corrected without changing code.
+  Full configured serial Rust passes 476 tests with 25 ignored, including real
+  Wasm. The corrected keyed-fixture agent tests and strict Clippy pass; final
+  Rust structure, formatting and whitespace checks pass. Unchanged TypeScript retains 426 passing
+  tests, one existing skip and 8,359 assertions at 48bc51f.

@@ -8,25 +8,56 @@ use tokio::io::AsyncReadExt;
 const PROBE_TIMEOUT: Duration = Duration::from_secs(2);
 const PROBE_BYTES: u64 = 4096;
 
+#[derive(Debug, thiserror::Error)]
+enum ProbeFailure {
+    #[error("metadata {0}: {1}")]
+    Io(&'static str, #[source] std::io::Error),
+    #[error("metadata output exceeds its bound")]
+    Oversized,
+    #[error("metadata process exited: {0}")]
+    Exit(std::process::ExitStatus),
+    #[error("metadata parse: {0}")]
+    Parse(#[from] serde_json::Error),
+}
+
+async fn observed(binary: &Path) -> Result<Capabilities, ProbeFailure> {
+    let mut child = tokio::process::Command::new(binary)
+        .arg(PROBE)
+        .env_clear()
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .kill_on_drop(true)
+        .spawn()
+        .map_err(|error| ProbeFailure::Io("spawn", error))?;
+    let mut bytes = Vec::new();
+    child
+        .stdout
+        .take()
+        .expect("metadata stdout is piped")
+        .take(PROBE_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .await
+        .map_err(|error| ProbeFailure::Io("read", error))?;
+    if bytes.len() as u64 > PROBE_BYTES {
+        return Err(ProbeFailure::Oversized);
+    }
+    let exit = child.wait().await.map_err(|error| ProbeFailure::Io("wait", error))?;
+    if !exit.success() {
+        return Err(ProbeFailure::Exit(exit));
+    }
+    Ok(serde_json::from_slice(&bytes)?)
+}
+
 pub(crate) async fn query(binary: &Path) -> Option<Capabilities> {
-    let query = async {
-        let mut child = tokio::process::Command::new(binary)
-            .arg(PROBE)
-            .env_clear()
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .kill_on_drop(true)
-            .spawn()
-            .ok()?;
-        let mut bytes = Vec::new();
-        child.stdout.take()?.take(PROBE_BYTES + 1).read_to_end(&mut bytes).await.ok()?;
-        if bytes.len() as u64 > PROBE_BYTES || !child.wait().await.ok()?.success() {
-            return None;
-        }
-        serde_json::from_slice::<Capabilities>(&bytes).ok()
-    };
-    tokio::time::timeout(PROBE_TIMEOUT, query).await.ok().flatten()
+    let result = tokio::time::timeout(PROBE_TIMEOUT, observed(binary)).await;
+    #[cfg(test)]
+    match &result {
+        Err(problem) => eprintln!("Agent metadata timeout: {problem}"),
+        Ok(Err(problem)) => eprintln!("Agent metadata failure: {problem}"),
+        Ok(Ok(_)) => (),
+    }
+    result.ok()?.ok()
 }
 
 pub(crate) async fn supported(binary: &Path) -> bool {

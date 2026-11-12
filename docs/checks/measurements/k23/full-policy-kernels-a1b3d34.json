@@ -1,0 +1,16 @@
+[
+  {
+    "language": "python",
+    "png": true,
+    "scope": "full-process-policy",
+    "stateRetained": true,
+    "uid": 1001
+  },
+  {
+    "language": "javascript",
+    "png": true,
+    "scope": "full-process-policy",
+    "stateRetained": true,
+    "uid": 1001
+  }
+]
