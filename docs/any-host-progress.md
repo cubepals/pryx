@@ -1422,3 +1422,19 @@ job when publication is authorized. That job has not run in this task.
   doc symlink to the client notice) and inspects ELF dependencies without running
   them. A new upstream Chromium snapshot candidate is download/review only;
   no headful browser is adopted or executed before its complete licence audit.
+- Hosted live X11 privacy is now green: be92e89926c4d31940230c6f79eeb2d263cbbeba,
+  Any-host 43268999503, producer 131360151698. The two complete native kernel/
+  browser policy tests pass in 59.33 s; the X11 argument test passes; all four
+  relocated program controls and all three Python contracts pass on host glibc
+  2.39. The live display case passes in 0.11 s as UID 1001: own xdotool returns
+  real pointer coordinates and its abstract connection works; the independent
+  same-UID neighbour cannot read owner data, connect the abstract display or
+  any of five actual proc-root aliases. The unconfined controller also passes
+  its positive live alias assertion. Retain exact raw reports/provenance under
+  k24. Producer artifact 13968396107 ZIP has verified SHA-256
+  7c8445aa4ab9360b790319c2e3c0e155ca635ba0ce3995f742adfeceaa05577a.
+  This proves the staged Xvfb/xdotool design, not a headful browser or installed
+  desktop/SSH. Combined source ZIP 13966708940 is retained by that producer at
+  3e2569f97999ab56c7acd663bd21f9c9f64557ddf2d398ee650aa2d462753191;
+  its descriptor is in the verified small evidence artifact. The signed bundle
+  continuation and full normal CI are still running.
