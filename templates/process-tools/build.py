@@ -237,6 +237,7 @@ def configuration(output):
                      '<fontconfig><dir prefix="relative">../../libraries/share/fonts</dir>'
                      '<cachedir prefix="xdg">fontconfig</cachedir></fontconfig>\n')
     shutil.copytree(ROOT / "notices", output / "notices/corrections")
+    shutil.copy2(REPO / "LICENSE.md", output / "notices/pryx-LICENSE.md")
     for name in ["artifacts.json", "libraries.lock.json", "helpers.lock.json", "compatibility.json"]:
         shutil.copy2(ROOT / name, output / "notices" / name)
     shutil.copy2(REPO / "docs/checks/measurements/k23/python-standalone-review.json", output / "notices/python-review.json")
@@ -247,6 +248,8 @@ def inventory(output):
     minimum = tuple(map(int, json.loads((ROOT / "compatibility.json").read_text())["hostGlibcMinimum"].split('.')))
     required = (0, 0)
     for path in sorted(output.rglob("*")):
+        if path == output / "manifest.json":
+            continue
         if path.is_symlink():
             if not path.resolve().is_relative_to(output):
                 raise ValueError(f"Bundle symlink escapes: {path}")

@@ -31,6 +31,10 @@ jobs:
           python3 templates/process-tools/build.py --cache "$RUNNER_TEMP/tool-inputs" --output "$RUNNER_TEMP/process-tools"
       - name: Package the separate lazy tool artifact
         run: |
+          python3 templates/process-tools/sources.py --runtime "$RUNNER_TEMP/process-tools" \
+            --cache "$RUNNER_TEMP/tool-inputs" --output "$RUNNER_TEMP/process-tool-sources" \
+            --archive "$RUNNER_TEMP/pryx-process-tools-sources.tar.gz" \
+            --descriptor "$RUNNER_TEMP/process-tool-sources.json"
           python3 - <<'PY' > "$RUNNER_TEMP/tool-release-url"
           import tomllib
           with open('Cargo.toml', 'rb') as source:
@@ -81,6 +85,14 @@ jobs:
           trap 'kill "$artifact_server"; wait "$artifact_server" || true' EXIT
           curl --retry 5 --retry-connrefused --retry-delay 1 -fsS http://127.0.0.1:9877/fixture-process-tools.json > /dev/null
           cargo test --locked -p pryx-agent --test native_process -- --ignored --nocapture --test-threads=1 2>&1 | tee "$RUNNER_TEMP/native-process-acceptance.log"
+      - name: Retain the separate corresponding-source distribution
+        if: always()
+        uses: ./.github/actions/upload-evidence
+        with:
+          name: process-tool-sources
+          path: ${{ runner.temp }}/pryx-process-tools-sources.tar.gz
+          compression-level: '0'
+          if-no-files-found: error
       - name: Retain ordinary-user bundle observations
         if: always()
         uses: ./.github/actions/upload-evidence
@@ -91,6 +103,7 @@ jobs:
             ${{ runner.temp }}/upstream-browser.jsonl
             ${{ runner.temp }}/upstream-tool-manifest.json
             ${{ runner.temp }}/process-tools.json
+            ${{ runner.temp }}/process-tool-sources.json
             ${{ runner.temp }}/native-process-acceptance.log
             ${{ runner.temp }}/native-artifact-server.log
           if-no-files-found: error

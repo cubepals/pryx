@@ -731,3 +731,14 @@ job when publication is authorized. That job has not run in this task.
   agent tests, strict all-target Clippy, structure checks and formatting pass;
   full serial Rust passes 473 tests with 25 ignored (the two new native cases
   run explicitly in CI). Corrected hosted native acceptance remains pending.
+
+- Corresponding-source checkpoint assembles 25 verified upstream source archives
+  plus complete selected library/helper recipes, patches and notices into a
+  separate asset. Local archive SHA-256
+  3db0346f1a312a8dc5f3d57cb435262446c86cd86d709b58c9a0e11a3ea00906,
+  402,508,316 bytes, 898 entries; runtime and source inventories both verify.
+  Source coverage includes every selected GPL/LGPL/MPL/Sleepycat package. Runtime
+  notices pin the source descriptor and include Pryx's own launcher/adapter licence.
+  Source delivery uses a separate uncompressed CI artifact so small tool evidence
+  remains downloadable. Estimated one to three additional branch/scheduled minutes,
+  no new job or ordinary PR gate. Production publication wiring remains active.

@@ -29,11 +29,19 @@ The failed conda-prefix/private-loader experiments are retained as
 Their proposed parking and binary-rewriting retry are superseded by the user's correction.
 They are not build inputs for the active bundle. The main deliverable is never parked.
 
+`sources.py` builds the separate corresponding-source release asset from the digest-pinned
+`sources.lock.json`, retaining upstream archives and the exact binary packages' complete
+recipes and patches. Runtime notices record that asset's descriptor; asking for a tool never
+downloads its sources. Both assets must accompany production publication. Source collection
+never runs a package recipe or modifies an upstream binary.
+
 Parts (`process-tools/`):
 
 - `build.py`: verified assembly, complete notices, addon selection and an ELF symbol audit.
 - `package.py`: unchanged payload packaging and pinned archive/inventory expansion metadata.
 - `package_test.py`: real archive determinism, bounds and inventory-tampering regressions.
+- `sources.py`: separate corresponding-source distribution and runtime notice descriptor.
+- `sources.lock.json`: immutable source archives for copyleft and Sleepycat components.
 - `smoke.py`: real stateful Python/Node kernels and charts after physical relocation.
 - `browser/`: maintained debugging-pipe and Unix-proxy adapters, lock and browser acceptance.
 - `launchers/`: small runtime launchers using the bundle's libraries and host glibc.
