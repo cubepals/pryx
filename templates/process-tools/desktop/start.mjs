@@ -10,6 +10,7 @@ import net from 'node:net'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { setTimeout as pause } from 'node:timers/promises'
+import protocol from './protocol.json' with { type: 'json' }
 
 const config = JSON.parse(readFileSync(0, 'utf8'))
 const component = join(config.bundle, 'desktop')
@@ -21,7 +22,7 @@ const environment = { ...process.env, XAUTHORITY: join(config.scratch, 'Xauthori
   FONTCONFIG_FILE: join(config.bundle, 'etc/fonts/fonts.conf'),
   IMLIB2_LOADER_PATH: join(component, 'payload/usr/lib/x86_64-linux-gnu/imlib2/loaders') }
 mkdirSync('/tmp/pryx-desktop', { mode: 0o700 })
-const vnc = '/tmp/pryx-desktop/vnc.sock', web = '/tmp/pryx-desktop/web.sock'
+const vnc = protocol.vncSocket, web = protocol.webSocket
 function program(name) { return join(component, 'bin', name) }
 function start(executable, args, extra = {}) {
   const child = spawn(executable, args, { env: environment, stdio: ['ignore', 'ignore', 'inherit'], ...extra })
@@ -30,8 +31,8 @@ function start(executable, args, extra = {}) {
   child.on('exit', () => stop(1))
   return child
 }
-async function run(name, args, input) {
-  const child = execFile(program(name), args, { env: environment, timeout: config.timeoutMs, maxBuffer: config.maxRequestBytes })
+async function run(name, args, input, timeoutMs = config.timeoutMs) {
+  const child = execFile(program(name), args, { env: environment, timeout: timeoutMs, maxBuffer: config.maxRequestBytes })
   if (input !== undefined) child.stdin.end(input)
   return new Promise((resolve, reject) => {
     let output = ''
@@ -96,17 +97,18 @@ const pages = await browser.pages()
 await pages[0].goto(config.applicationUrl || 'about:blank', { timeout: config.timeoutMs })
 const server = http.createServer(async (request, response) => {
   response.setHeader('cache-control', 'no-store')
-  if (request.url === '/command') {
-    if (!equal(request.headers['pryx-desktop-private'], config.privateToken)) { response.writeHead(constants.HTTP_STATUS_FORBIDDEN).end(); return }
+  if (request.url === protocol.commandPath) {
+    if (!equal(request.headers[protocol.privateHeader], config.privateToken)) { response.writeHead(constants.HTTP_STATUS_FORBIDDEN).end(); return }
     try {
       let bytes = ''
       for await (const chunk of request) {
         bytes += chunk
         if (Buffer.byteLength(bytes) > config.maxRequestBytes) throw new Error('Command too large')
       }
-      const { name, args, input } = JSON.parse(bytes)
+      const { name, args, input, timeoutMs = config.timeoutMs } = JSON.parse(bytes)
       if (!['xdotool', 'scrot'].includes(name) || !Array.isArray(args) || args.some(value => typeof value !== 'string')) throw new Error('Invalid tool')
-      response.end(await run(name, args, input))
+      if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > config.timeoutMs) throw new Error('Invalid command deadline')
+      response.end(await run(name, args, input, timeoutMs))
     } catch { response.writeHead(constants.HTTP_STATUS_BAD_GATEWAY).end() }
     return
   }

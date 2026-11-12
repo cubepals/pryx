@@ -21,6 +21,8 @@ struct Readiness {
     artifact: Option<Artifact>,
     unavailable: Option<String>,
     browser_on: bool,
+    desktop_on: Option<bool>,
+    desktop_unavailable: Option<String>,
 }
 
 fn descriptor(binary: &Path) -> Result<Artifact, RuntimeError> {
@@ -120,9 +122,38 @@ impl ProcessRuntime {
         }
         let browser_on = unavailable.is_none()
             && metadata
+                .as_ref()
                 .is_some_and(|value| value.process_browser_version >= pryx_agent::process_tool_policy::BROWSER_VERSION)
             && crate::capability::child("probe-user-namespace").state == crate::capability::State::On;
-        Ok(Readiness { supported: true, scoped, artifact: artifact.ok(), unavailable, browser_on })
+        let desktop_supported = metadata
+            .as_ref()
+            .is_some_and(|value| value.process_desktop_version >= pryx_agent::process_tool_policy::DESKTOP_VERSION);
+        let desktop_glibc = crate::capability::process_tools::desktop_prerequisite(
+            std::env::consts::ARCH,
+            &crate::capability::c_library(),
+        );
+        let mut desktop_unavailable = unavailable.clone();
+        if desktop_glibc.state != crate::capability::State::On {
+            desktop_unavailable.get_or_insert(desktop_glibc.evidence);
+        }
+        if !browser_on {
+            desktop_unavailable.get_or_insert_with(|| {
+                "Native desktop requires usable unprivileged user namespaces and a verified scoped agent".into()
+            });
+        }
+        let desktop_on = desktop_supported.then_some(desktop_unavailable.is_none());
+        if !desktop_supported {
+            desktop_unavailable = None;
+        }
+        Ok(Readiness {
+            supported: true,
+            scoped,
+            artifact: artifact.ok(),
+            unavailable,
+            browser_on,
+            desktop_on,
+            desktop_unavailable,
+        })
     }
     pub(super) async fn browser_requirement(&self, binary: &Path) -> Result<(), RuntimeError> {
         let ready = self.native_readiness(binary).await?;
@@ -134,6 +165,15 @@ impl ProcessRuntime {
         }
         if !ready.browser_on {
             return Err(error("Process browser needs a supported agent and usable unprivileged user namespaces"));
+        }
+        Ok(())
+    }
+    pub(super) async fn desktop_requirement(&self, binary: &Path) -> Result<(), RuntimeError> {
+        let ready = self.native_readiness(binary).await?;
+        if ready.desktop_on != Some(true) {
+            return Err(error(ready.desktop_unavailable.unwrap_or_else(|| {
+                "Native desktop needs an agent and installation providing the verified desktop bundle".into()
+            })));
         }
         Ok(())
     }
@@ -171,6 +211,8 @@ impl ProcessRuntime {
                 artifact: ready.artifact,
                 unavailable: ready.unavailable,
                 browser_on: ready.browser_on,
+                desktop_on: ready.desktop_on,
+                desktop_unavailable: ready.desktop_unavailable,
             }),
             required || ready.scoped,
         ))

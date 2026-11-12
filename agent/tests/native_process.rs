@@ -91,6 +91,8 @@ fn start(artifact: process_tool_policy::Artifact, browser_on: bool, unavailable:
             artifact: Some(artifact),
             unavailable,
             browser_on,
+            desktop_on: None,
+            desktop_unavailable: None,
         }),
     };
     let child = Command::new(env!("CARGO_BIN_EXE_pryx-agent"))

@@ -1,0 +1,16 @@
+{
+  "source": "2b8eb85",
+  "run": 43278545700,
+  "job": 131393371543,
+  "hostedUid": 1001,
+  "observedHostGlibc": "2.39",
+  "sourceVersions": 112,
+  "sourceInputs": 370,
+  "fullRelocationControlsPassed": true,
+  "fullLibraryBoundaryCasesPassed": 2,
+  "liveX11PrivacyPassed": true,
+  "applicationPassed": false,
+  "failure": "The isolated test worker constructed reqwest without installing the existing Rustls ring provider; No provider set",
+  "correction": "Install the same maintained ring provider as the real agent executable in this isolated fixture worker, before constructing its client",
+  "scope": "Fixture startup failure; no headful application or installed desktop success claimed"
+}

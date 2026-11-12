@@ -77,6 +77,8 @@ impl Fixture {
             downloads: root.path().join("downloads"),
             scratch: root.path().join("scratch"),
             browser_on: false,
+            desktop_on: None,
+            desktop_unavailable: None,
             unavailable: None,
             artifact: Some(Artifact { url, sha256: digest, manifest_sha256, bytes: length, unpacked_bytes, entries }),
         };

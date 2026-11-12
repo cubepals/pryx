@@ -338,6 +338,9 @@ pub trait ContainerRuntime: Send + Sync + 'static {
     async fn native_browser(&self, _binary: &std::path::Path) -> Result<(), RuntimeError> {
         Err(RuntimeError::Other("Native process browser is unavailable on this backend".into()))
     }
+    async fn native_desktop(&self, _binary: &std::path::Path) -> Result<(), RuntimeError> {
+        Err(RuntimeError::Other("This runtime does not provide a native process desktop".into()))
+    }
     fn data_owner(&self, _id: &str) -> Result<Option<(u32, u32)>, RuntimeError> {
         Ok(None)
     }

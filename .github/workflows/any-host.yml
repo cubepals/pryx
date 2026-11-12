@@ -143,19 +143,13 @@ jobs:
               private_temporary_x11_allows_own_client_and_denies_same_uid_neighbour -- --ignored --nocapture
       - name: Stage the complete desktop programs and source closure
         run: |
-          python3 templates/process-tools/desktop_sources.py --full --cache "$RUNNER_TEMP/tool-inputs" \
-            --output "$RUNNER_TEMP/desktop-full-sources"
-          cp "$RUNNER_TEMP/desktop-full-sources/manifest.json" "$RUNNER_TEMP/desktop-full-sources.json"
-          python3 templates/process-tools/desktop_full.py --cache "$RUNNER_TEMP/tool-inputs" \
-            --output "$RUNNER_TEMP/desktop-full" --report "$RUNNER_TEMP/desktop-full-before-move.json"
-          relocated="$RUNNER_TEMP/complete desktop relocated into a longer ordinary user path"
-          mv "$RUNNER_TEMP/desktop-full" "$relocated"
+          moved="$RUNNER_TEMP/ordinary user tools moved to a substantially longer path"
+          relocated="$moved/desktop"
+          cp "$RUNNER_TEMP/process-tool-sources/desktop-full/manifest.json" "$RUNNER_TEMP/desktop-full-sources.json"
           python3 templates/process-tools/desktop_full.py --smoke-only --output "$relocated" \
             --report "$RUNNER_TEMP/desktop-full-component.json"
           PRYX_DESKTOP_FULL_TEST_COMPONENT="$relocated" \
             python3 -m unittest discover -s templates/process-tools -p 'desktop_full_test.py'
-          moved="$RUNNER_TEMP/ordinary user tools moved to a substantially longer path"
-          mv "$relocated" "$moved/desktop"
           PRYX_DESKTOP_APPLICATION_BUNDLE="$moved" \
             PRYX_DESKTOP_APPLICATION_REPORT="$RUNNER_TEMP/desktop-application.json" \
             CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0 \

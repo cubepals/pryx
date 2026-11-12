@@ -17,6 +17,7 @@ import tomllib
 import build
 import package
 import desktop_sources
+import desktop_web
 
 
 def recipes(items, cache, output, extractor):
@@ -39,6 +40,12 @@ def collect(runtime, cache, output):
     catalog = json.loads((build.ROOT / 'sources.lock.json').read_text())
     output.mkdir(parents=True, exist_ok=False)
     desktop_sources.collect(cache, output / 'desktop')
+    if (runtime / 'desktop').is_dir():
+        desktop_sources.collect(cache, output / 'desktop-full', binary_lock='desktop-full.lock.json',
+                                source_lock='desktop-full-sources.lock.json', licence_directory='notices/desktop-full')
+        desktop_web.sources(cache, output / 'desktop-web')
+        shutil.copytree(runtime / 'desktop/notices', output / 'desktop-full/runtime-notices')
+        shutil.copytree(runtime / 'desktop/adapter', output / 'desktop-full/adapter')
     for item in catalog:
         archive = build.acquire(item, cache)
         destination = output / 'archives' / item['sha256'] / archive.name

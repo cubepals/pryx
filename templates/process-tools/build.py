@@ -21,6 +21,7 @@ import tempfile
 import zipfile
 
 from archive_inputs import GLIBC_SONAMES, ROOT, REPO, acquire, copy_entry, digest, unpack
+import desktop_full
 
 
 
@@ -195,6 +196,8 @@ def inventory(output):
     entries = []
     minimum = tuple(map(int, json.loads((ROOT / "compatibility.json").read_text())["hostGlibcMinimum"].split('.')))
     required = (0, 0)
+    desktop_minimum = tuple(map(int, desktop_full.configuration()['hostGlibcMinimum'].split('.')))
+    desktop_required = (0, 0)
     for path in sorted(output.rglob("*")):
         if path == output / "manifest.json":
             continue
@@ -208,13 +211,20 @@ def inventory(output):
             if elf:
                 symbols = subprocess.check_output(["readelf", "--version-info", "--wide", str(path)], stderr=subprocess.DEVNULL).decode()
                 versions = [tuple(map(int, value.split('.'))) for value in re.findall(r"GLIBC_([0-9]+\.[0-9]+(?:\.[0-9]+)?)", symbols)]
-                required = max([required, *versions])
-                if required > minimum:
-                    raise ValueError(f"Bundle ELF exceeds host glibc minimum: {path}")
+                if path.relative_to(output).parts[0] == 'desktop':
+                    desktop_required = max([desktop_required, *versions])
+                    if desktop_required > desktop_minimum:
+                        raise ValueError(f"Desktop ELF exceeds host glibc minimum: {path}")
+                else:
+                    required = max([required, *versions])
+                    if required > minimum:
+                        raise ValueError(f"Bundle ELF exceeds host glibc minimum: {path}")
             entries.append({"path": str(path.relative_to(output)), "sha256": digest(path)})
     (output / "manifest.json").write_text(json.dumps({
         "format": 1, **json.loads((ROOT / "compatibility.json").read_text()),
         "maximumRequiredGlibc": '.'.join(map(str, required)), "files": entries,
+        "desktopHostGlibcMinimum": '.'.join(map(str, desktop_minimum)),
+        "desktopMaximumRequiredGlibc": '.'.join(map(str, desktop_required)),
     }, indent=2) + "\n")
 
 
@@ -234,6 +244,8 @@ def main():
         helpers(json.loads((ROOT / "helpers.lock.json").read_text()), options.cache, output, extractor)
         configuration(output)
         kernels(output)
+        desktop_full.assemble(options.cache, output / 'desktop')
+        desktop_full.audit(output / 'desktop')
         inventory(output)
 
 

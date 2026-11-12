@@ -17,6 +17,10 @@ pub(super) fn read(root: &Path) -> Report {
         "process-tool-runtime".into(),
         crate::capability::process_tools::prerequisite(&report.architecture, &report.c_library),
     );
+    report.capabilities.insert(
+        "desktop-tool-runtime".into(),
+        crate::capability::process_tools::desktop_prerequisite(&report.architecture, &report.c_library),
+    );
     let (abi, capability) = landlock();
     report.landlock_abi = abi;
     report.capabilities.insert("landlock".into(), capability);

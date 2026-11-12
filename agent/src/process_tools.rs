@@ -6,6 +6,7 @@
 //! - `browser.rs`: fixed launch through maintained private namespaces.
 //! - `browser_session.rs`: scoped Unix connections and bounded screenshots.
 //! - `desktop.rs`: closed desktop launch with private temporary and proc mounts.
+//! - `desktop_session.rs`: scoped native desktop calls and worker lifetime.
 //! - `cache.rs`: pinned acquisition, safe extraction and complete cache verification.
 //! - `cache_tests.rs`: real HTTP/archive integrity and cache-tampering regressions.
 pub mod browser;
@@ -15,12 +16,14 @@ mod cache;
 #[path = "process_tools/cache_tests.rs"]
 mod cache_tests;
 pub mod desktop;
+mod desktop_session;
 
 use crate::context::Failure;
 pub use crate::process_tool_policy::{Artifact, Policy};
 use axum::http::StatusCode;
 pub use browser_session::Browser;
 use browser_session::failed;
+pub use desktop_session::Desktop;
 use std::{
     path::PathBuf,
     sync::{Arc, OnceLock, RwLock},
@@ -31,12 +34,15 @@ type Prepared = Result<PathBuf, String>;
 enum Request {
     Prepare(oneshot::Sender<Prepared>),
     Browser(browser::Launch, oneshot::Sender<Result<std::process::Child, String>>),
+    Desktop(desktop::Launch, oneshot::Sender<Result<std::process::Child, String>>),
 }
 pub struct Tools {
     pub policy: Policy,
     requests: mpsc::Sender<Request>,
     browser_transition: Mutex<()>,
     browser: RwLock<Option<Arc<Browser>>>,
+    desktop_transition: Mutex<()>,
+    desktop: RwLock<Option<Arc<Desktop>>>,
     transition: Mutex<()>,
     root: RwLock<Option<PathBuf>>,
 }
@@ -75,6 +81,28 @@ pub fn install(policy: Policy, process: crate::process_policy::Policy) -> std::i
                             let _ = child.wait();
                         }
                     }
+                    Request::Desktop(launch, reply) => {
+                        let result = if priority.is_ok() {
+                            captured
+                                .artifact
+                                .as_ref()
+                                .ok_or_else(|| "Missing native desktop artifact".to_string())
+                                .and_then(|artifact| {
+                                    let bundle = captured.cache.join(&artifact.sha256);
+                                    std::env::current_exe()
+                                        .and_then(|executable| {
+                                            desktop::start_at(&process, launch, &bundle, &executable)
+                                        })
+                                        .map_err(|e| e.to_string())
+                                })
+                        } else {
+                            Err("Native desktop worker is unavailable".into())
+                        };
+                        if let Err(Ok(mut child)) = reply.send(result) {
+                            let _ = child.kill();
+                            let _ = child.wait();
+                        }
+                    }
                 }
             }
         })?;
@@ -87,6 +115,8 @@ pub fn install(policy: Policy, process: crate::process_policy::Policy) -> std::i
             root: RwLock::new(None),
             browser_transition: Mutex::new(()),
             browser: RwLock::new(None),
+            desktop_transition: Mutex::new(()),
+            desktop: RwLock::new(None),
         }))
         .map_err(|_| std::io::Error::other("Native process tools are already configured"))
 }
@@ -187,5 +217,62 @@ impl Tools {
         .map_err(|problem| failed(problem.to_string()))?;
         *self.browser.write().unwrap() = Some(browser.clone());
         Ok(browser)
+    }
+}
+
+impl Tools {
+    pub fn active_desktop(&self) -> Option<Arc<Desktop>> {
+        self.desktop.read().unwrap().clone()
+    }
+    pub async fn desktop(&self, scratch: &std::path::Path) -> Result<Arc<Desktop>, Failure> {
+        self.supported()?;
+        if self.policy.desktop_on != Some(true) {
+            return Err(Failure(axum::http::StatusCode::NOT_IMPLEMENTED,"unsupported",
+                self.policy.desktop_unavailable.clone().unwrap_or_else(|| "Native desktop needs an installation providing its verified bundle, host-glibc and private-namespace policy".into())));
+        }
+        if std::env::var_os(crate::process_policy::NETWORK_ENV).is_some() {
+            return Err(Failure(
+                axum::http::StatusCode::NOT_IMPLEMENTED,
+                "unsupported",
+                "Process desktop is off for network-none; ordinary command egress remains denied".into(),
+            ));
+        }
+        let root = self.prepare().await?;
+        if !root.join("desktop/adapter/start.mjs").is_file() {
+            return Err(failed("The installed native artifact has no verified desktop component"));
+        }
+        let _transition = self.desktop_transition.lock().await;
+        if let Some(desktop) = self.active_desktop() {
+            return Ok(desktop);
+        }
+        let launch = desktop::Launch {
+            scratch: scratch.into(),
+            address: format!("pryx-desktop-{}", uuid::Uuid::new_v4()),
+            private_token: uuid::Uuid::new_v4().to_string(),
+            application_url: None,
+        };
+        let (reply, answer) = oneshot::channel();
+        self.requests
+            .send(Request::Desktop(launch.clone(), reply))
+            .await
+            .map_err(|_| failed("Desktop worker stopped"))?;
+        let child = answer.await.map_err(|_| failed("Desktop worker stopped"))?.map_err(failed)?;
+        let desktop = Arc::new(Desktop::new(launch, child));
+        tokio::time::timeout(crate::contract::TOOL_STARTUP, async {
+            loop {
+                if desktop.exited()? {
+                    return Err(std::io::Error::other("Native desktop startup failed; inspect its private diagnostic"));
+                }
+                if desktop.connect().await.is_ok() {
+                    return Ok(());
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .map_err(|_| failed("Desktop startup deadline elapsed"))?
+        .map_err(|e| failed(e.to_string()))?;
+        *self.desktop.write().unwrap() = Some(desktop.clone());
+        Ok(desktop)
     }
 }

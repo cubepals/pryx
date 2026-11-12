@@ -61,6 +61,9 @@ impl ContainerRuntime for ProcessRuntime {
     async fn native_browser(&self, binary: &std::path::Path) -> Result<(), RuntimeError> {
         self.browser_requirement(binary).await
     }
+    async fn native_desktop(&self, binary: &std::path::Path) -> Result<(), RuntimeError> {
+        self.desktop_requirement(binary).await
+    }
     fn data_owner(&self, id: &str) -> Result<Option<(u32, u32)>, RuntimeError> {
         self.owner(id).map(Some)
     }

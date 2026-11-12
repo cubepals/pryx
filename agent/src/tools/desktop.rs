@@ -12,17 +12,20 @@ use crate::{
 use serde_json::json;
 
 pub(crate) async fn open(agent: &Agent, claims: &Claims) -> Result<ToolAccess, Failure> {
-    state::native(agent, "Desktop automation")?;
-    let state = state::get(agent)?;
-    state::require(&state, "desktop")?;
-    state::ready(agent, super::defaults::DESKTOP_PORT).await?;
+    let state = ready(agent).await?;
     let _lock = state.access.lock().await;
     let token = state::nonce()?;
     let expires_at = state::expiry(claims)?;
     // TokenFile owns token-to-target parsing; the adapter additionally verifies wall-clock expiry.
     use std::io::Write;
     let directory = crate::paths::DataDir::open(state.directory.path())?;
-    directory.write("tokens")?.write_all(format!("{token}: 127.0.0.1:{}\n", super::defaults::VNC_PORT).as_bytes())?;
+    let target = if agent.processes.kernel_unsupported_tier() == Some("process") {
+        let protocol = crate::process_tools::desktop::protocol();
+        format!("{}:{}", protocol.unix_target_type, protocol.vnc_socket)
+    } else {
+        format!("127.0.0.1:{}", super::defaults::VNC_PORT)
+    };
+    directory.write("tokens")?.write_all(format!("{token}: {target}\n").as_bytes())?;
     state::write(&state, "desktop-access.json", &json!({"token":token,"expiresAt":expires_at}))?;
     let url = agent.ports.expose(super::defaults::DESKTOP_PORT, claims.max_ports).await?.url;
     let base = reqwest::Url::parse(&url).map_err(|_| state::failure("invalid_url", "Invalid public desktop URL"))?;
@@ -40,18 +43,47 @@ fn check_point(point: &Point) -> Result<(), Failure> {
     Ok(())
 }
 async fn ready(agent: &Agent) -> Result<std::sync::Arc<state::State>, Failure> {
+    if agent.processes.kernel_unsupported_tier() == Some("process")
+        && let Some(tools) = crate::process_tools::configured()
+    {
+        let state = state::get(agent)?;
+        tools.desktop(state.directory.path()).await?;
+        use std::io::Read;
+        let mut bytes = Vec::new();
+        std::fs::File::open(state.directory.path().join("desktop-ready.json"))?.take(4096).read_to_end(&mut bytes)?;
+        let ready: serde_json::Value = serde_json::from_slice(&bytes)
+            .map_err(|_| state::failure("tool_failed", "Invalid private desktop readiness"))?;
+        let display = ready["display"]
+            .as_str()
+            .filter(|v| v.starts_with(':') && v[1..].bytes().all(|b| b.is_ascii_digit()))
+            .ok_or_else(|| state::failure("tool_failed", "Invalid private display"))?;
+        agent.processes.tools.environment.write().unwrap().extend([
+            ("DISPLAY".into(), display.into()),
+            ("XAUTHORITY".into(), state.directory.path().join("Xauthority").to_string_lossy().into_owned()),
+        ]);
+        return Ok(state);
+    }
     state::native(agent, "Desktop automation")?;
     let state = state::get(agent)?;
     state::require(&state, "desktop")?;
     state::ready(agent, super::defaults::DESKTOP_PORT).await?;
     Ok(state)
 }
+async fn run(agent: &Agent, claims: &Claims, argv: Vec<String>, input: Option<&[u8]>) -> Result<Vec<u8>, Failure> {
+    if agent.processes.kernel_unsupported_tier() == Some("process")
+        && let Some(desktop) = crate::process_tools::configured().and_then(|tools| tools.active_desktop())
+    {
+        return desktop
+            .command(argv, input, std::time::Duration::from_secs(claims.max_exec_seconds.unwrap_or(30).min(30).into()))
+            .await;
+    }
+    command::run(agent, claims, argv, input).await
+}
 pub(crate) async fn screenshot(agent: &Agent, claims: &Claims) -> Result<Vec<u8>, Failure> {
     let state = ready(agent).await?;
     let path = state.directory.path().join(format!("screen-{}.png", uuid::Uuid::new_v4()));
     let result =
-        command::run(agent, claims, vec!["scrot".into(), "--silent".into(), path.to_string_lossy().into_owned()], None)
-            .await;
+        run(agent, claims, vec!["scrot".into(), "--silent".into(), path.to_string_lossy().into_owned()], None).await;
     if let Err(error) = result {
         let _ = tokio::fs::remove_file(&path).await;
         return Err(error);
@@ -61,7 +93,7 @@ pub(crate) async fn screenshot(agent: &Agent, claims: &Claims) -> Result<Vec<u8>
 pub(crate) async fn move_to(agent: &Agent, claims: &Claims, point: Point) -> Result<(), Failure> {
     ready(agent).await?;
     check_point(&point)?;
-    command::run(
+    run(
         agent,
         claims,
         vec!["xdotool".into(), "mousemove".into(), "--sync".into(), point.x.to_string(), point.y.to_string()],
@@ -74,7 +106,7 @@ pub(crate) async fn click(agent: &Agent, claims: &Claims, point: Point) -> Resul
     ready(agent).await?;
     check_point(&point)?;
     // X11 button 1 is the primary pointer button (X protocol, pointer mapping).
-    command::run(
+    run(
         agent,
         claims,
         vec![
@@ -96,7 +128,7 @@ pub(crate) async fn text(agent: &Agent, claims: &Claims, text: Text) -> Result<(
     if text.text.contains('\0') || text.text.len() > crate::contract::CAPTURE_BYTES {
         return Err(state::failure("invalid_request", "Invalid desktop text"));
     }
-    command::run(
+    run(
         agent,
         claims,
         vec![
@@ -121,8 +153,7 @@ pub(crate) async fn key(agent: &Agent, claims: &Claims, key: Key) -> Result<(), 
     {
         return Err(state::failure("invalid_request", "Invalid xdotool key combination"));
     }
-    command::run(agent, claims, vec!["xdotool".into(), "key".into(), "--clearmodifiers".into(), key.combo], None)
-        .await?;
+    run(agent, claims, vec!["xdotool".into(), "key".into(), "--clearmodifiers".into(), key.combo], None).await?;
     Ok(())
 }
 pub(crate) async fn scroll(agent: &Agent, claims: &Claims, scroll: Scroll) -> Result<(), Failure> {
@@ -133,7 +164,7 @@ pub(crate) async fn scroll(agent: &Agent, claims: &Claims, scroll: Scroll) -> Re
     // X11 wheel mapping: buttons 4/5 vertical, 6/7 horizontal, documented by xdotool(1).
     for (value, negative, positive) in [(scroll.dy, "4", "5"), (scroll.dx, "6", "7")] {
         if value != 0 {
-            command::run(
+            run(
                 agent,
                 claims,
                 vec![

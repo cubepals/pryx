@@ -8,7 +8,25 @@ use std::{
     io::{self, Read, Write},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
+    sync::OnceLock,
 };
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Protocol {
+    pub command_path: String,
+    pub private_header: String,
+    pub vnc_socket: String,
+    pub web_socket: String,
+    pub unix_target_type: String,
+}
+pub fn protocol() -> &'static Protocol {
+    static PROTOCOL: OnceLock<Protocol> = OnceLock::new();
+    PROTOCOL.get_or_init(|| {
+        serde_json::from_str(include_str!("../../../templates/process-tools/desktop/protocol.json"))
+            .expect("committed desktop adapter protocol")
+    })
+}
 
 #[derive(Clone, Deserialize, Serialize)]
 pub struct Launch {

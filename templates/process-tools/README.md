@@ -22,7 +22,9 @@ inputs. [The standalone-Python review](../../docs/checks/measurements/k23/python
 records PSF/CNRI and dependency licences, including the optional Berkeley DB extension's
 Sleepycat source obligations. These are separate external programs and libraries, never linked
 into pryx. The Node runtime notice exactly matches the previously reviewed version, and the
-headless shell's complete notice matches K18. Full Chromium and Widevine remain excluded.
+headless shell's complete notice matches K18. The separate K24 desktop component carries
+unchanged Debian headful Chromium and its complete own library/source closure; Widevine is excluded.
+Its host glibc minimum is **2.36**, independently of the core browser/kernel minimum.
 
 The failed conda-prefix/private-loader experiments are retained as
 [historical evidence](../../docs/checks/measurements/k23/abandoned-conda-prefix.lock.json).
@@ -34,6 +36,8 @@ They are not build inputs for the active bundle. The main deliverable is never p
 recipes and patches. Runtime notices record that asset's descriptor; asking for a tool never
 downloads its sources. Both assets must accompany production publication. Source collection
 never runs a package recipe or modifies an upstream binary.
+The combined source asset also retains every full desktop DSC/original/Debian input and the
+complete noVNC/websockify sources. Current acceptance status is in the progress record.
 
 The release build writes its generated descriptor under `deploy/process-tools/` before image
 packaging. Both the full signed host bundle and the bootstrap retain it beside the actual

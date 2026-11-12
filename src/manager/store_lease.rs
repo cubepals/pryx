@@ -118,6 +118,21 @@ impl Manager {
                 ),
             };
             report.capabilities.insert(pryx_agent::process_tool_policy::BROWSER_CAPABILITY.into(), capability);
+            let desktop = match self.agent_binary(runtime.as_ref()) {
+                Some(binary) => runtime.native_desktop(&binary).await,
+                None => Err(crate::runtime::RuntimeError::Other("No trusted process agent executable".into())),
+            };
+            let desktop = match desktop {
+                Ok(()) => crate::capability::Capability::on(
+                    "Native process desktop bundle, host glibc and private namespaces are available",
+                ),
+                Err(problem) => crate::capability::Capability::new(
+                    crate::capability::State::Off,
+                    problem.to_string(),
+                    "Inspect native desktop bundle, glibc, private IPC and user-namespace policy",
+                ),
+            };
+            report.capabilities.insert(pryx_agent::process_tool_policy::DESKTOP_CAPABILITY.into(), desktop);
         }
         *self.host_probe.lock().unwrap() = report;
     }

@@ -51,6 +51,8 @@ fn policy(input: &Input) -> process_policy::Policy {
             artifact: None,
             unavailable: None,
             browser_on: false,
+            desktop_on: None,
+            desktop_unavailable: None,
         }),
     }
 }

@@ -8,6 +8,26 @@ pub(crate) fn prerequisite(architecture: &str, host: &str) -> Capability {
             .expect("committed bundle compatibility");
     let target = policy["architecture"].as_str().expect("bundle architecture");
     let minimum = policy["hostGlibcMinimum"].as_str().expect("bundle glibc minimum");
+    for_minimum(architecture, host, target, minimum, "Native process tools")
+}
+
+pub(crate) fn desktop_prerequisite(architecture: &str, host: &str) -> Capability {
+    let policy: serde_json::Value =
+        serde_json::from_str(include_str!("../../templates/process-tools/compatibility.json"))
+            .expect("committed bundle compatibility");
+    let desktop: serde_json::Value =
+        serde_json::from_str(include_str!("../../templates/process-tools/desktop-full.json"))
+            .expect("committed desktop compatibility");
+    for_minimum(
+        architecture,
+        host,
+        policy["architecture"].as_str().expect("bundle architecture"),
+        desktop["hostGlibcMinimum"].as_str().expect("desktop host minimum"),
+        "Native process desktop tools",
+    )
+}
+
+fn for_minimum(architecture: &str, host: &str, target: &str, minimum: &str, tool: &str) -> Capability {
     let action = format!("Use a {target} host with glibc {minimum} or newer for native process tools");
     if architecture != target {
         return Capability::new(
@@ -24,11 +44,7 @@ pub(crate) fn prerequisite(architecture: &str, host: &str) -> Capability {
             "Host {host} meets process-tool glibc {minimum}; tools still require their own readiness"
         ))
     } else {
-        Capability::new(
-            State::Off,
-            format!("Native process tools require host glibc >= {minimum}; observed {host}"),
-            action,
-        )
+        Capability::new(State::Off, format!("{tool} require host glibc >= {minimum}; observed {host}"), action)
     }
 }
 
@@ -61,5 +77,18 @@ mod tests {
             assert_eq!(prerequisite("x86_64", host).state, State::On);
         }
         assert_eq!(prerequisite("aarch64", "glibc 2.41").state, State::Off);
+    }
+
+    #[test]
+    fn desktop_floor_does_not_withdraw_usable_core_tools() {
+        for host in ["glibc 2.34", "glibc 2.35"] {
+            assert_eq!(prerequisite("x86_64", host).state, State::On);
+            let desktop = desktop_prerequisite("x86_64", host);
+            assert_eq!(desktop.state, State::Off);
+            assert!(desktop.evidence.contains(host));
+            assert!(desktop.evidence.contains("2.36"));
+        }
+        assert_eq!(desktop_prerequisite("x86_64", "glibc 2.36").state, State::On);
+        assert_eq!(desktop_prerequisite("x86_64", "musl libc; Version 2.40").state, State::Off);
     }
 }

@@ -1,0 +1,7 @@
+{
+  "commandPath": "/command",
+  "privateHeader": "pryx-desktop-private",
+  "vncSocket": "/tmp/pryx-desktop/vnc.sock",
+  "webSocket": "/tmp/pryx-desktop/web.sock",
+  "unixTargetType": "unix_socket"
+}

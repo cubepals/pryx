@@ -1498,3 +1498,45 @@ job when publication is authorized. That job has not run in this task.
   bounded existing diagnostics. Keep this failure open for diagnosis, do not
   relabel it green or rerun that unchanged source. Normal source-be CI remains
   running at this checkpoint. K24 remains in progress, with no piece parked.
+- Source 2b8eb85 producer 131393371543 passes complete sources, both full
+  library-boundary cases, all seven relocated controls and live X11 privacy,
+  then the new isolated application fixture exits before Chromium observation:
+  its reqwest client lacks the Rustls provider. The real agent already installs
+  ring at startup. Install that same provider in this isolated fixture entry,
+  retain the exact failure under k24, and claim no application pass from it.
+- Connect native desktop open/screenshot/input to the closed worker and route
+  the existing logical desktop port through its scoped Unix socket. Preserve
+  coordinate/text validation, image/capture bounds, caller command deadlines,
+  expiring public capabilities and every container path. Worker command paths
+  and websockify Unix target markers have one private protocol definition.
+  New optional host policy fields are omitted for legacy agent parsers; only
+  an executable advertising desktop policy support receives them. Host glibc,
+  namespaces, scoped IPC/history and installed descriptor produce named off
+  reasons. No new ordinary-command filesystem or syscall grant.
+- Assemble the complete desktop and web subtree into the existing lazy runtime
+  build, with the 112-version/370-input source closure and complete web sources
+  in the separate combined source asset. Do not raise the core host minimum:
+  actual local inventory remains core 2.34, desktop 2.36, host observed 2.41.
+  A real upstream ELF passes only within its desktop group and is rejected if
+  moved into the core group. The complete local source asset builds at
+  1,733,694,870 bytes; retain its descriptor and exact pre-final-adapter scope
+  under k24. Hosted preview production of the final source remains required;
+  nothing is published to a release. Avoid duplicate full-component assembly
+  in the producer; test the actual already-relocated combined runtime instead.
+- Final local service checks pass 483 workspace tests with 30 ignored, plus
+  73 agent tests with eight ignored, eight real Python cases, strict all-target
+  Clippy for both crates, all three structure checks, fmt, docs, actionlint with
+  actual ShellCheck and REUSE. The first structure run catches a new parent/
+  desktop-session cycle; keep orchestration in its owner module and the final
+  graph passes. Legacy policy round-trip preserves the old serialized shape.
+  No installed desktop/SDK/noVNC-edge or native SSH success is claimed yet.
+  Expected added branch/scheduled producer cost is the already disclosed full
+  component/source stage plus under a minute of real application acceptance;
+  ordinary PR adds no job or required gate. K24 remains in progress.
+- Source be92e89 now also has green normal push 43268999621 and PR 43269014308,
+  in addition to all sixteen Any-host jobs, rootless regressions and CodeQL.
+  The docs-only 683 timing-cohort no_room failure remains explicit and open.
+  Next: require the corrected headful worker proof, finish installed desktop
+  acceptance and thirty samples, native OpenSSH command/PTY/HTTP-edge wake,
+  capability placement and doctor, then continue K25 without parking a main
+  deliverable. The two K22 Docker exceptions remain parked until after K27.

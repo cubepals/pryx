@@ -53,6 +53,8 @@ fn policy(input: &Input) -> process_policy::Policy {
             artifact: None,
             unavailable: None,
             browser_on: true,
+            desktop_on: None,
+            desktop_unavailable: None,
         }),
     }
 }
@@ -151,6 +153,7 @@ fn neighbour(input: &Input) {
 #[test]
 #[ignore = "closed subprocess entry for hosted desktop acceptance"]
 fn desktop_application_worker() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let input: Input = serde_json::from_str(&std::env::var(INPUT).unwrap()).unwrap();
     if input.neighbour { neighbour(&input) } else { owner(&input) }
 }
