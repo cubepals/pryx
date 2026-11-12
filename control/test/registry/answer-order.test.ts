@@ -29,6 +29,53 @@ const earlier = '2026-01-01T00:00:00Z'
 const later = '2026-01-01T00:00:01Z'
 
 describe.skipIf(!hasDatabase)('ordering a node’s reports of its own copy', () => {
+  test('a complete first answer establishes only its assigned node and epoch', async () => {
+    const node = await enrollNode(db, ca, 'first-answer')
+    const other = await enrollNode(db, ca, 'wrong-answer')
+    const workload = 'first-answered-copy'
+    await db.execute(sql`INSERT INTO fleet_placements (workload, node_id, epoch, state, region_key, memory_mb, cpu_millis, disk_gb, desired_power)
+      VALUES (${workload}, ${node.id}, 7, 'placed', 'eu', 128, 32, 1, 'running')`)
+    const running: WorkloadView = {
+      ...report(workload, 7, { state: 'running', changedAt: later }),
+      guarantees: undefined,
+      ports: [],
+      image: 'alpine:3.22',
+      startedAt: later,
+      finishedAt: null,
+      locate: { containerName: workload, containerId: null, dataDir: '/data' },
+    }
+    expect(await answered(db, other.id, running)).toBe(false)
+    expect(await answered(db, node.id, { ...running, epoch: 8 })).toBe(false)
+    expect(await answered(db, node.id, { ...running, id: 'unassigned-answer' })).toBe(false)
+    expect(await rows(db, sql`SELECT workload FROM fleet_observations WHERE workload = ${workload}`)).toEqual(
+      [],
+    )
+    expect(await answered(db, node.id, running)).toBe(true)
+    expect(
+      await rows<{ report: { state: string; memoryMb: number }; epoch: string }>(
+        db,
+        sql`SELECT report,epoch FROM fleet_observations WHERE workload = ${workload}`,
+      ),
+    ).toMatchObject([{ epoch: '7', report: { state: 'running', memoryMb: 128 } }])
+    await heartbeat(
+      db,
+      registryOptions(),
+      node.id,
+      node.sha,
+      beat(node, 'session', 1, [report(workload, 7, { state: 'stopped', changedAt: earlier })]),
+    )
+    expect(await holdsMemory(db, workload)).toBe(true)
+    await heartbeat(
+      db,
+      registryOptions(),
+      node.id,
+      node.sha,
+      beat(node, 'session', 2, [
+        report(workload, 7, { state: 'stopped', changedAt: '2026-01-01T00:00:02Z' }),
+      ]),
+    )
+    expect(await holdsMemory(db, workload)).toBe(false)
+  })
   test('a heartbeat sampled before a stop answer keeps the released memory free', async () => {
     const node = await enrollNode(db, ca, 'stop-answer')
     const workload = 'stopped-copy'

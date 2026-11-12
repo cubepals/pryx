@@ -14,8 +14,8 @@ import { sql } from 'drizzle-orm'
 import type { Db, Queryable } from '../database.ts'
 import type { Health, Thresholds } from '../health.ts'
 import type { NodeView } from '../placement.ts'
-import { event, exec, one, rows } from '../sql.ts'
-import type { WorkloadView } from '../wire.ts'
+import { event, exec, jsonb, one, rows } from '../sql.ts'
+import type { WorkloadReport, WorkloadView } from '../wire.ts'
 import { healthOf, NODE_COLUMNS, type NodeRow } from './node.ts'
 import { listeningSeconds } from './presence.ts'
 
@@ -63,19 +63,47 @@ export async function holdsMemory(q: Queryable, workload: string): Promise<boole
 /**
  * The node's own answer about its copy of `workload` (to a stop, a kill, a start, or a read),
  * taken as its latest report of the copy's state, so the memory a copy that no longer runs held is
- * free at once. Only for the copy of the epoch the node last reported: a copy it hasn't reported
- * yet waits for its heartbeat, which carries the rest of the report. False when nothing changed.
+ * free at once. An existing copy must match its observed epoch. A complete first answer can
+ * establish only the exact node/epoch already assigned in the ledger, so an older first
+ * heartbeat cannot erase an acknowledged start. False when nothing changed.
  */
 export async function answered(q: Queryable, nodeId: string, view: WorkloadView): Promise<boolean> {
+  const report: Partial<WorkloadReport> = {
+    id: view.id,
+    epoch: view.epoch,
+    supersededBy: view.supersededBy,
+    generation: view.generation,
+    state: view.state,
+    specDigest: view.specDigest,
+    changedAt: view.changedAt,
+    agent: view.agent,
+    guarantees: view.guarantees,
+    exit: view.exit,
+    restartCount: view.restartCount,
+    lastFailureAt: view.lastFailureAt,
+    ports: view.ports && Object.fromEntries(view.ports.map((port) => [port.name, port.hostPort])),
+  }
+  const complete = Boolean(view.changedAt && view.ports && view.specDigest && view.generation != null)
   const written = await exec(
     q,
-    sql`UPDATE fleet_observations SET state = ${view.state}, state_changed_at = now(), observed_at = now(),
-          report = jsonb_set(report, '{state}', to_jsonb(${view.state}::text))
+    sql`INSERT INTO fleet_observations (node_id, workload, epoch, superseded_by, state, spec_digest, report)
+        SELECT ${nodeId}, ${view.id}, ${view.epoch}, ${view.supersededBy ?? null}, ${view.state},
+          ${view.specDigest ?? null}, ${jsonb(report)} || jsonb_build_object('memoryMb',
+            (SELECT memory_mb FROM fleet_placements WHERE workload = ${view.id}
+              AND node_id = ${nodeId} AND epoch IS NOT DISTINCT FROM ${view.epoch}))
+        WHERE EXISTS (SELECT 1 FROM fleet_observations WHERE node_id = ${nodeId}
+            AND workload = ${view.id} AND epoch IS NOT DISTINCT FROM ${view.epoch})
+          OR (${complete} AND EXISTS (SELECT 1 FROM fleet_placements WHERE workload = ${view.id}
+            AND node_id = ${nodeId} AND epoch IS NOT DISTINCT FROM ${view.epoch}
+            AND state IN ('placing', 'placed')))
+        ON CONFLICT (node_id, workload) DO UPDATE SET
+          state = EXCLUDED.state, state_changed_at = now(), observed_at = now(),
+          report = jsonb_set(fleet_observations.report, '{state}', to_jsonb(${view.state}::text))
             || jsonb_strip_nulls(jsonb_build_object('changedAt', ${view.changedAt ?? null}::text))
-        WHERE node_id = ${nodeId} AND workload = ${view.id} AND epoch IS NOT DISTINCT FROM ${view.epoch}
-          AND state <> ${view.state}
+        WHERE fleet_observations.epoch IS NOT DISTINCT FROM EXCLUDED.epoch
+          AND fleet_observations.state <> EXCLUDED.state
           AND COALESCE(${view.changedAt ?? null}::timestamptz >=
-                       (report->>'changedAt')::timestamptz, true)`,
+                       (fleet_observations.report->>'changedAt')::timestamptz, true)`,
   )
   return written > 0
 }

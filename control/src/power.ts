@@ -130,7 +130,7 @@ export class Power {
       return handle
     }
     await progress.step(asleep ? 'resuming' : 'booting')
-    const started = await this.#api.power(node, key, epoch, 'start', !created).catch((error) => {
+    const started = await this.#admission.power(node, key, epoch, 'start', !created).catch((error) => {
       if (sent === null && error instanceof NodeRefused && PUT_AGAIN.has(error.code)) return null
       throw error
     })

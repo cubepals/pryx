@@ -1022,3 +1022,20 @@ job when publication is authorized. That job has not run in this task.
   is unchanged from the 426-pass local check and green hosted workspaces. Next:
   diagnose the separate resource-ledger failure while installed CI proves the
   corrected guarantee and collects the outstanding native cohorts.
+- Reproduce the two-node accounting failure against real Postgres: after an
+  acknowledged first start, a delayed pre-start stopped heartbeat reduces held
+  memory from 1,024 MB to zero. Provisioning bypassed the admission answer path;
+  the registry could update existing observations but could not establish the
+  first copy from a successful answer. Route that start through admission with
+  the same wake timeout and atomically seed only the exact assigned node/epoch.
+  Existing observations keep their epoch/timestamp guards. A newer genuine stop
+  still releases memory. The real two-node assertion and RPC counts/deadlines
+  stay unchanged; this is an accounting repair rather than a test timing change.
+- The new flow is red before and green after. First-answer guards reject another
+  node, another epoch and an unassigned workload; delayed older reports cannot
+  override the answer, and an actual later stop remains authoritative. Focused
+  flow/registry checks pass. Full Bun with real PostgreSQL passes 428 tests,
+  one existing compiled-assets skip and 8,370 assertions; typecheck, lint, both
+  structure graphs and whitespace pass. Rust retains 478 passing tests/25 ignored
+  at 3b20de4. Hosted two-node validation and corrected installed native cohorts
+  remain pending; no main deliverable is parked.

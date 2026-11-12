@@ -10,10 +10,13 @@ import { StatusCodes } from 'http-status-codes'
 import { SECOND_MS } from '../src/durations.ts'
 import { decodeHandle } from '../src/handle.ts'
 import { NodeRefused } from '../src/node-client.ts'
+import { heartbeat } from '../src/registry.ts'
 import { RuntimeFull } from '../src/runtime-model.ts'
+import type { PowerResponse } from '../src/wire.ts'
 import { TEARDOWN_MS, TRANSFER_MS } from '../src/workload-api.ts'
 import type { flowContext } from './flow-context.ts'
 import type { EnrolledNode } from './nodes.ts'
+import { beat, registryOptions, report } from './nodes.ts'
 
 export function registerFlows1(ctx: ReturnType<typeof flowContext>) {
   test('1. a first start on a node with room: PUT, then start, with its room claimed', async () => {
@@ -54,6 +57,35 @@ export function registerFlows1(ctx: ReturnType<typeof flowContext>) {
     const again = await ctx.runtime.ensureProvisioned(key, { regionKey: 'first' }, ctx.SPEC, ctx.quiet)
     expect(decodeHandle(again).epoch).toBe(1)
     expect(await ctx.callsSince(since + 2)).toEqual([`first-0 POST /v1/workloads/${key}/start e1 t30000`])
+  })
+  test('a first start answer retains its claim ahead of a delayed pre-start heartbeat', async () => {
+    const [node] = (await ctx.region('start-before-beat', 1)) as [EnrolledNode]
+    const key = ctx.server()
+    const earlier = '2026-01-01T00:00:00Z'
+    const later = '2026-01-01T00:00:01Z'
+    ctx.nodes.once(/^POST .*\/start$/, async (answer) => {
+      const result = answer() as PowerResponse
+      result.workload.changedAt = later
+      return result
+    })
+    const handle = await ctx.runtime.ensureProvisioned(
+      key,
+      { regionKey: 'start-before-beat' },
+      ctx.SPEC,
+      ctx.quiet,
+    )
+    await ctx.runtime.waitRunning(handle, AbortSignal.timeout(SECOND_MS))
+    expect(await ctx.running(node.id)).toBe(ctx.SPEC.resources.memoryMb)
+    // This first heartbeat was sampled before the already-acknowledged start.
+    await heartbeat(
+      ctx.db,
+      registryOptions(),
+      node.id,
+      node.sha,
+      beat(node, 'session', ctx.seq + 1, [report(key, 1, { state: 'stopped', changedAt: earlier })]),
+    )
+    expect(await ctx.running(node.id)).toBe(ctx.SPEC.resources.memoryMb)
+    expect(await ctx.placement(key)).toMatchObject({ desired_power: 'running', epoch: '1' })
   })
   test('2. a first placement its node refuses for room is undone, and its room given back', async () => {
     const [n] = (await ctx.region('refused-put', 1)) as [EnrolledNode]
