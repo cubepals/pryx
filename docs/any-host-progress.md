@@ -1241,3 +1241,21 @@ job when publication is authorized. That job has not run in this task.
   passes; a nested private-glibc marker is refused before any acquisition or
   extraction. Source/report hashes and local-only qualifications are retained
   beside the report. Hosted design evidence remains pending.
+- Hosted first X11 result: source 3b43da1, run 43245895630, job
+  131278307230 is green. Both existing native kernel/browser policy tests pass
+  in 44.04 seconds, then the new real X11 argument test passes in 0.08 seconds
+  as UID 1001 with filesystem/private-IPC enforcement required. Both original
+  programs load and produce their real private-path display refusal under the
+  complete policy. Artifact 13956942717 has verified ZIP SHA-256
+  f46154bfa36ed4670f5de3f236778016b668174a5fe940f718dc6d8a0b229ec4;
+  retain its exact desktop-design.json and provenance under k24. This selects
+  the user-namespace/private-temporary route, while a live display, own clients,
+  scoped neighbours/proc-root aliases and headful Chromium remain unproved.
+  Full source CI is still running; this job alone does not complete K24.
+- Documentation-only source e4d7a23 CI runs 43243427316, 43243444866 and
+  43243427238 had no failed jobs when inspected and were canceled after the
+  new K24 source was pushed. Interrupted jobs are no passes. The two completed
+  failed aggregates 131279136338 / 131279157507 were read in full and contain
+  only the canceled E2E/one-box dependencies. Their rootless and CodeQL runs
+  had already passed. K23 completion continues to cite tested implementation
+  5945724, whose complete proof is retained separately.

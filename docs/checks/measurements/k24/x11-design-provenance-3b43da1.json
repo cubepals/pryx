@@ -1,0 +1,18 @@
+{
+  "source": "3b43da1eb67bdfb47a66db58ffc45d48d6c3a918",
+  "run": 43245895630,
+  "job": 131278307230,
+  "jobConclusion": "success",
+  "artifact": {
+    "id": 13956942717,
+    "name": "upstream-process-tools",
+    "zipSha256": "f46154bfa36ed4670f5de3f236778016b668174a5fe940f718dc6d8a0b229ec4"
+  },
+  "retained": {
+    "x11-design-3b43da1.json": {
+      "artifactFile": "desktop-design.json",
+      "sha256": "25e01fe65d546de3d5fc4428e718a3ff298d1e179bda88b52bd6a9554c2192dc"
+    }
+  },
+  "scope": "Unchanged pinned Xvfb/xdotool load and reject private-path displays under complete filesystem/private-IPC policy as UID1001. No live endpoint, neighbour or headful Chromium acceptance is established by this argument probe. Full source CI remains in progress."
+}
