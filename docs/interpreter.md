@@ -1,6 +1,6 @@
 # Code interpreters
 
-A language context is a supervised process inside an isolated native container sandbox. Its variables
+A language context is a supervised process inside a native container or supported process sandbox. Its variables
 survive calls. The interpreter templates automatically start warming the default context at agent startup;
 `box.python()` or `box.javascript()` reuses it and waits for its Jupyter-ready handshake. HTTP health stays responsive while scientific imports warm. Named contexts are independent. The process
 appears in `box.processes()` and its id/PID appears in `box.kernels()`.
@@ -71,16 +71,22 @@ default applies otherwise. Each sandbox holds at most 16 contexts.
 MCP tools `run_python` and `run_javascript` use these same owners and return image MIME output
 as MCP image content, alongside text events.
 
-Connection files are mode 0600 in a private temporary directory outside persistent data. Jupyter
-channels use a random HMAC key on sandbox-local loopback. The agent launches kernel executables
-directly, never a `jupyter` command. Native container isolation keeps these sockets off the host;
-the process and Wasm tiers explicitly refuse interpreter contexts. Process kernels still need
-a verified, safely relocated bundle and complete private-IPC adoption. A pathname Unix socket
-alone does not isolate shared-UID neighbours: K23's hosted test proves that its neighbour can
-connect despite a denied ordinary file read. Independently scoped abstract sockets pass the
-primitive test, but that does not prove isolation from legacy unscoped peers or tool readiness.
-Images run as the sandbox's user and existing resource limits.
-Snapshots preserve data, not live Python variables; waking a stopped container starts a fresh
+Connection files are mode 0600 in a private temporary directory outside persistent data.
+Container Jupyter channels use a random HMAC key on sandbox-local loopback. Process kernels
+use abstract Unix sockets inside the supervisor's enforced Landlock ABI 6 scope; they add no
+TCP listener. A plain pathname socket is insufficient for shared-UID isolation. Hosted
+complete-policy tests prove the owner's connection succeeds while a separate same-UID agent
+cannot connect. Fresh signed scope proof from every managed peer is required; unverified
+legacy peers or unknown process history keep native tools off with a reason.
+
+The agent launches kernel executables directly, never a `jupyter` command. Container images
+run as the sandbox user with existing resource limits. Process kernels lazily fetch the
+[verified upstream bundle](native-tools.md#process-tools), using its unchanged Python/Node
+builds, bundle-owned libraries and host glibc >=2.34. They currently refuse `network: none`
+because private channels cannot yet be prebound under that policy; ordinary egress denial
+remains enforced. Wasm refuses native contexts. Signed ordinary-user installed-product
+acceptance and thirty-sample measurements remain pending in the [progress record](any-host-progress.md).
+Snapshots preserve data, not live Python variables; waking a stopped sandbox starts a fresh
 kernel. Live state exists only while that kernel survives.
 
 ## Versions and licences

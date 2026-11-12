@@ -1,10 +1,53 @@
 # Desktop, browser, SSH and bucket tools
 
-Native tools run on the **container** tier, as the sandbox user. The process tier names the
-missing verified bundle and private transport for each tool; Wasm refuses native tools.
-K23's upstream relocatable bundle is being integrated and is not yet available for production;
-no tool is fetched on sandbox creation. They wrap existing programs; the agent owns scoped routes and the
-edge owns access. `toolsVersion` is separate from the stable agent API version.
+The **container** tier provides desktops, browsers, SSH and bucket mounts as the sandbox user.
+The **process** tier implements browsers and Python/Node kernels through a separately verified
+tool bundle; desktops, SSH and mounts retain their capability refusals. Wasm refuses native
+tools. K23's complete agent-policy CI passes; signed ordinary-user installation acceptance and
+startup measurements are still pending. See [the progress record](any-host-progress.md).
+These tools wrap existing programs; the agent owns scoped routes and the edge owns access.
+`toolsVersion` is separate from the stable agent API version.
+
+## Process tools
+
+A release carrying `process-tools.json` beside its installed agent supplies a digest-pinned
+runtime and a separate corresponding-source release asset. Neither enters the base installation.
+The first browser or kernel request fetches the runtime over verified HTTPS, checks its archive
+and complete file inventory, and publishes a read-only per-user cache outside sandbox data.
+Creating a sandbox and querying capabilities never fetch tools. Source-only builds without
+the descriptor name the missing artifact and keep these tools off.
+
+The upstream builds are python-build-standalone CPython 3.12.16 (20261110), Node's official
+24.22.1 tarball and Chrome Headless Shell 158.0.8127.18. Small launchers select the bundle's
+libraries and use **host glibc**, without rewriting binaries or shipping a private glibc.
+The complete dependency set requires x86_64 Linux with glibc **2.34** or later; the probe
+reports the actual host version and names the minimum on an older host. Pinned inputs,
+complete notices and corresponding-source directions are described in the
+[bundle documentation](../templates/process-tools/README.md).
+
+Private IPC requires enforced Landlock ABI 6 abstract-socket scopes and fresh signed proof
+from every live managed supervisor. Legacy or unverified peers keep tools off with a reason;
+unknown process history on the current boot requires a host restart. Ordinary process
+commands remain available. Process tools currently refuse `network: none` rather than
+loosening its socket restrictions.
+
+The process browser additionally requires usable unprivileged user namespaces under the
+host's security policy. It always keeps Chromium's sandbox, with bubblewrap providing private
+mount, PID, IPC and temporary-file namespaces. Its debugging pipe and scoped Unix proxy expose
+the same expiring browser capability through the edge; no browser TCP listener is added.
+`require: ['browser-sandbox']` requires both host readiness and the copy's observed launch
+policy. An operator can enable namespaces in the host policy; the user installer changes no
+sysctl, LSM profile or container policy.
+
+```ts
+const box = await pryx.sandbox({ isolation: 'process', require: ['browser-sandbox'] })
+const page = await box.browser.screenshot('https://example.com')
+const { url: cdp } = await box.browser()
+const python = await box.python()
+console.log((await python.run('6 * 7')).text)
+```
+
+## Container tools
 
 ```sh
 pryx template create desktop
@@ -94,7 +137,7 @@ const { url: cdp } = await browser.browser()
 const page = await browser.browser.screenshot('https://example.com')
 ```
 
-CDP remains on loopback 9222. The exposed 9223 HTTP/WebSocket proxy requires a random expiring
+In containers, CDP remains on loopback 9222. The exposed 9223 HTTP/WebSocket proxy requires a random expiring
 capability, delegates forwarding to http-proxy, and rewrites discovery for the edge URL prefix.
 Keep the returned URL private. New connections fail after expiry/rotation. Existing browser/VNC
 WebSockets can live until disconnection, as other authenticated streaming sessions do.
