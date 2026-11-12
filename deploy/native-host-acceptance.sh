@@ -39,12 +39,26 @@ trap cleanup EXIT
 curl --retry 5 --retry-connrefused --retry-delay 1 -fsS http://127.0.0.1:9876/install.sh > /dev/null
 curl --retry 5 --retry-connrefused --retry-delay 1 --head -fsS https://127.0.0.1:9877/pryx-process-tools-linux-x64.tar.gz > /dev/null
 sudo useradd --create-home --shell /bin/bash pryxtools
-install -m 755 "$(command -v bun)" "$RUNNER_TEMP/pryx-test-bun"
+pryx_native_fixture=$(mktemp -d /tmp/pryx-native-acceptance.XXXXXX)
+chmod 755 "$pryx_native_fixture"
+mkdir -p "$pryx_native_fixture/deploy" "$pryx_native_fixture/templates/process-tools" \
+  "$pryx_native_fixture/sdk/typescript/test/fixtures" "$pryx_native_fixture/sdk"
+cp deploy/native-user-acceptance.sh deploy/native-container-acceptance.sh \
+  deploy/local-diagnostics.py deploy/tool-artifact-server.py "$pryx_native_fixture/deploy/"
+cp templates/process-tools/artifacts.json "$pryx_native_fixture/templates/process-tools/"
+cp sdk/typescript/test/fixtures/chart.cjs "$pryx_native_fixture/sdk/typescript/test/fixtures/"
+cp -a sdk/python "$pryx_native_fixture/sdk/python"
+find "$pryx_native_fixture" -type d -exec chmod 755 {} +
+find "$pryx_native_fixture" -type f -exec chmod 644 {} +
+bun build --compile deploy/native-tools-acceptance.ts --outfile "$pryx_native_fixture/acceptance"
+chmod 755 "$pryx_native_fixture/acceptance"
+printf '%s\n' "$pryx_native_fixture" > "$RUNNER_TEMP/native-fixture-path"
 sudo -u pryxtools -H python3 -m venv /home/pryxtools/sdk-python
 sudo cp -a sdk/python /home/pryxtools/sdk-source
 sudo chown -R pryxtools:pryxtools /home/pryxtools/sdk-source
 sudo -u pryxtools -H /home/pryxtools/sdk-python/bin/pip install /home/pryxtools/sdk-source > "$RUNNER_TEMP/native-python-sdk-install.log" 2>&1
+cd "$pryx_native_fixture"
 sudo -u pryxtools -H env -i HOME=/home/pryxtools PATH=/usr/local/bin:/usr/bin:/bin \
-  PRYX_TEST_BUN="$RUNNER_TEMP/pryx-test-bun" PRYX_PYTHON=/home/pryxtools/sdk-python/bin/python \
+  PRYX_NATIVE_ACCEPTANCE_BIN="$pryx_native_fixture/acceptance" PRYX_PYTHON=/home/pryxtools/sdk-python/bin/python \
   PRYX_NATIVE_BROWSER=on PRYX_NATIVE_MEASUREMENTS=/home/pryxtools/native-process-measurements.json \
   /bin/sh deploy/native-user-acceptance.sh | tee "$RUNNER_TEMP/native-user-acceptance.log"

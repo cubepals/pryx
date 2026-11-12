@@ -902,3 +902,16 @@ job when publication is authorized. That job has not run in this task.
   compiled-assets skip and 8,359 assertions; lint/typecheck, all TypeScript
   structure checks and whitespace pass. Unchanged Rust retains 477 passing
   tests and 25 ignored at 84efee5. Signed-preview CI remains in progress.
+
+- Read ae7b5a8 installed-bundle failure 131107999803/run 43194460133 in full:
+  image construction and preview signing succeed, but the fresh account exits
+  before readiness and cannot read local-diagnostics.py through the runner's
+  private checkout ancestry (EACCES). This establishes no installed native pass.
+  Compile the real acceptance client, copy only public test inputs to a traversable
+  /tmp fixture, and run the fresh account from that directory; share the same
+  client/inputs with the default Docker image. Runner home/checkout permissions
+  remain private. Retain safe HTTP release-server and SDK-install diagnostics.
+- The standalone client compiles locally (505 modules, about two seconds); shell
+  syntax, actionlint, docs and whitespace pass. Product source is unchanged from
+  the 477-pass Rust and 426-pass Bun checkpoints. The exact initial installer
+  refusal remains to be exposed by the now-readable diagnostics if it persists.

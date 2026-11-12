@@ -208,13 +208,13 @@ jobs:
         run: bash deploy/native-host-acceptance.sh
       - name: Native kernels and browser refusal in the default image profile
         run: |
+          fixture=$(cat "$RUNNER_TEMP/native-fixture-path")
           docker run --rm --entrypoint /bin/bash \
-            --mount "type=bind,source=$PWD,target=/test,readonly" \
+            --mount "type=bind,source=$fixture,target=/test,readonly" \
             --mount "type=bind,source=$PWD/host-artifacts,target=/artifacts,readonly" \
             --mount "type=bind,source=$RUNNER_TEMP/native-distribution,target=/native-artifacts,readonly" \
             --mount "type=bind,source=$RUNNER_TEMP/native-host-trust,target=/fixture-trust,readonly" \
             --mount "type=bind,source=/etc/ssl/certs/ca-certificates.crt,target=/etc/ssl/certs/ca-certificates.crt,readonly" \
-            --mount "type=bind,source=$RUNNER_TEMP/pryx-test-bun,target=/test-bun,readonly" \
             pryx-host-bundle /test/deploy/native-container-acceptance.sh | tee "$RUNNER_TEMP/native-default-image.log"
       - name: Retain installed native observations and all thirty samples
         if: always()
@@ -225,6 +225,8 @@ jobs:
             ${{ runner.temp }}/native-user-acceptance.log
             ${{ runner.temp }}/native-process-measurements.json
             ${{ runner.temp }}/native-host-artifact-server.log
+            ${{ runner.temp }}/native-host-release-server.log
+            ${{ runner.temp }}/native-python-sdk-install.log
             ${{ runner.temp }}/native-default-image.log
           if-no-files-found: error
       - name: Relocation in the image userland

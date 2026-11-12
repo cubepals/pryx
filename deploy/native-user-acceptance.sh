@@ -37,7 +37,7 @@ descriptor = pathlib.Path(record['bundle'])/'bin/process-tools.json'
 assert descriptor.is_file()
 print('installed_preset=user tier=process engine=none protected_descriptor=present')
 PY
-"${PRYX_TEST_BUN:?}" deploy/native-tools-acceptance.ts
+"${PRYX_NATIVE_ACCEPTANCE_BIN:?}"
 "$cli" down --purge > "$HOME/native-purge.log" 2>&1
 test ! -e "$HOME/.config/pryx"
 test ! -e "$HOME/.local/share/pryx"

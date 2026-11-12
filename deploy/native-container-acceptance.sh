@@ -16,4 +16,4 @@ pryx_container_http=$!
 trap 'kill "$pryx_container_tls" "$pryx_container_http"; wait "$pryx_container_tls" "$pryx_container_http" || true' EXIT
 curl --retry 5 --retry-connrefused --retry-delay 1 -fsS http://127.0.0.1:9876/install.sh > /dev/null
 curl --retry 5 --retry-connrefused --retry-delay 1 --head -fsS https://127.0.0.1:9877/pryx-process-tools-linux-x64.tar.gz > /dev/null
-su -s /bin/bash pryxtools -c 'cd /test; env -i HOME=/home/pryxtools PATH=/usr/local/bin:/usr/bin:/bin PRYX_TEST_BUN=/test-bun PRYX_NATIVE_BROWSER=off /bin/sh deploy/native-user-acceptance.sh'
+su -s /bin/bash pryxtools -c 'cd /test; env -i HOME=/home/pryxtools PATH=/usr/local/bin:/usr/bin:/bin PRYX_NATIVE_ACCEPTANCE_BIN=/test/acceptance PRYX_NATIVE_BROWSER=off /bin/sh deploy/native-user-acceptance.sh'
