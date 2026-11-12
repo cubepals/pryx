@@ -979,3 +979,9 @@ job when publication is authorized. That job has not run in this task.
   cases (15 existing skips) with 931 assertions. Its new sixty-sample kernel
   startup case takes 115.1 seconds, within the estimated extra one to three
   ordinary-PR minutes. Artifact digests are verified; raw retention follows.
+- Retain the exact d1a0a63 container reports under checks/measurements/k23 with
+  source/job/ZIP and raw-file digests. Verify all thirty-sample quantiles against
+  the raw arrays: startup p90 Python 1,903.7 ms, JavaScript 825.4 ms and browser
+  1,787.4 ms. Existing trivial/chart p90 budgets remain 3.9/116.1 ms. Record the
+  container half in speed.md without inventing process measurements or claiming
+  the still-running job's later checks passed. Docs/whitespace validation follows.

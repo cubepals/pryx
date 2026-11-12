@@ -86,3 +86,31 @@ The first-run timer starts after `python()` opens the warmed kernel; it does not
 measure sandbox creation. These CI results are separate from the workspace's
 paired before/after measurements above. The earlier single-unit budget failure
 remains recorded; changing the CPU allocation is not presented as a code speedup.
+
+## K23 container startup comparison
+
+Source `d1a0a63` in CI run
+[43200870546](https://github.com/cubepals/pryx/actions/runs/43200870546)
+passes the end-to-end cases and retains thirty samples per cohort through the
+real control and edge. Templates are prepared before timing. Each new interpreter
+timer starts before sandbox creation and ends at the first validated PNG, including
+routing and kernel startup. The browser timer also includes starting the sandbox's
+own HTTP page server. Four default container units enforce one CPU core and 2 GiB.
+
+| Cached container create to first PNG | n | p50 ms | p90 ms |
+| --- | --- | --- | --- |
+| Python kernel and chart | 30 | 1746.2 | 1903.7 |
+| JavaScript kernel and chart | 30 | 711.0 | 825.4 |
+| Browser rendered page | 30 | 1740.7 | 1787.4 |
+
+The [kernel startup samples](checks/measurements/k23/container-interpreter-startup-d1a0a63.json),
+[browser samples](checks/measurements/k23/container-native-d1a0a63.json) and
+[artifact provenance](checks/measurements/k23/container-provenance-d1a0a63.json)
+retain every observation and verified producer digest. The new sixty-sample case
+takes 115.1 seconds. The unchanged [interpreter budget report](checks/measurements/k23/container-interpreter-budgets-d1a0a63.json)
+still passes: trivial p90 3.9 ms and chart p90 116.1 ms. Those budget timers keep
+their original clock points and are separate from startup.
+
+This is the container half of K23's comparison. Signed ordinary-user process
+measurements remain pending; the [progress record](any-host-progress.md) tracks
+installed-product proof and the workflow's remaining checks.
