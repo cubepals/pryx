@@ -1,0 +1,43 @@
+{
+  "source": "5945724a4ac8fbc28610292d701ffa7e9bffc040",
+  "workflow": "CI",
+  "run": 43233699289,
+  "job": 131235487060,
+  "url": "https://github.com/cubepals/pryx/actions/runs/43233699289/job/131235487060",
+  "e2e": {
+    "tests": 48,
+    "passed": 33,
+    "skipped": 15,
+    "failures": 0,
+    "newStartupCaseSeconds": 99.87061
+  },
+  "jobStatusAtRetention": "success; complete normal push workflow including Wasm, two-node, integrations, recovery and aggregate is green",
+  "artifacts": [
+    {
+      "id": 13953133316,
+      "name": "native-tools-measurements",
+      "zipSha256": "4c9e2834fb5f480de1538502eb4e8af5cf04a20f1b79fd85ba52c1cf9a1fe062"
+    },
+    {
+      "id": 13953602655,
+      "name": "interpreter-measurements",
+      "zipSha256": "8dada25c9adb856c82a28acd7be416b48d666f3e73fef8259b2a01e13a5b67bc"
+    }
+  ],
+  "retained": {
+    "container-native-5945724.json": {
+      "artifactFile": "native-tools-measurements.json",
+      "sha256": "ba98db897c84994d27c554c3f5922a1f5f1ff043050bb7ab2d1d6ba0d9c9c29d"
+    },
+    "container-interpreter-budgets-5945724.json": {
+      "artifactFile": "interpreter-measurements.json",
+      "sha256": "0cb15ffc382172ae339dd9e63e28abfd9a0996587b231ffeb7fce670403ea764"
+    },
+    "container-interpreter-startup-5945724.json": {
+      "artifactFile": "interpreter-create-to-image.json",
+      "sha256": "ec68a8570ebb223b3d64a197048036a8278ee5d2ee8544db06ebb5de5fed7e0b"
+    }
+  },
+  "scope": "Thirty samples per container cohort, four default units (one CPU core, 2 GiB), cached templates. New kernel timer includes create, routing, kernel startup and first validated PNG. Browser includes its sandbox-local HTTP page-server startup. Historical interpreter execution/restart budgets retain their original clock points.",
+  "limitations": "Separate container and ordinary-user process CI runners, with different CPU/memory guarantees; the matching installed report retains its host conditions. Both normal push and PR CI and the full sixteen-job Any-host workflow pass on this source. No main run or publication."
+}

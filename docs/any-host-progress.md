@@ -10,8 +10,8 @@ Only recorded CI evidence establishes completion; a local pass alone does not.
 | K20 | done | `54bd364` | Normal CI 42832474233 and Any host 42832474296, both green | All 13 host jobs: 8 user distro contexts, root container/PG UID, fallback, refusal, sudo, relocation; full normal CI including real Docker/KVM, one-box/Action, Wasm, 2-node, Rivet/celld and recovery | Production main/release prohibited; unchanged credentialed cloud/bootstrap cases skipped | None | Complete; proceed to K21 |
 | K21 | done | `de3ef9dc13e955e96c2f7c1e530f800069ff50c0` | Normal CI [42885151433](https://github.com/cubepals/pryx/actions/runs/42885151433), Any host [42885151332](https://github.com/cubepals/pryx/actions/runs/42885151332), Measure [42885520235](https://github.com/cubepals/pryx/actions/runs/42885520235), all green | All normal jobs and aggregate; all thirteen host jobs; both complete measurement jobs, including historical budgets and three-tier collectors | Production main/release prohibited; unchanged credentialed cases | None | None |
 | K22 | done except | `7963826182e3f8e9037aea17d4716df15086bd81` | Normal push [43075452804](https://github.com/cubepals/pryx/actions/runs/43075452804) and PR [43075462394](https://github.com/cubepals/pryx/actions/runs/43075462394), Any host [43075452782](https://github.com/cubepals/pryx/actions/runs/43075452782), Rootless engines [43075452793](https://github.com/cubepals/pryx/actions/runs/43075452793) and [43075462656](https://github.com/cubepals/pryx/actions/runs/43075462656), all green; supplementary Measure [43063939164](https://github.com/cubepals/pryx/actions/runs/43063939164) on source 87400f3 is also green | Full normal CI including actual rootful Docker, Wasm, two-node, integrations and recovery; all 15 host jobs; Podman lifecycle/attacks, install/repeat/upgrade/outage/recovery/purge; controller refusals, copy-bound guarantees and 30 hosted engine samples | Main/release prohibited; unchanged credentialed cases | Standard rootless Docker data-owner mapping with dependent positive lifecycle/timings; rootless Docker internal ingress/network-policy. Three approaches each recorded; both remain named refusals until their post-K27 second try | Supported scope complete; K23 started |
-| K23 | in progress | — | Full normal push CI [43219637483](https://github.com/cubepals/pryx/actions/runs/43219637483) on 95560de is green; complete policy job 131187563160 and installed bundle job [131190931529](https://github.com/cubepals/pryx/actions/runs/43219637379/job/131190931529) are green; later host-matrix jobs fail Ubuntu prerequisite downloads | Signed fresh ordinary-user install without engine; actual pinned Python/Node executables and host glibc; both SDKs, state/charts/error/interrupt/restart, MCP/CLI; browser screenshot/forwarded CDP and guarantee; thirty process and container samples each; default-Docker both kernels, namespace/required-browser refusals and purge; Alpine relocation; complete normal CI including all ten two-node checks and recovery | Final-source complete PR/host matrix CI; main/release prohibited | **None: bundle un-parked by explicit user correction**; failed binary-rewriting experiments retained only as history | Validate the mirror-download fallback and faster complete Wasm verification across final CI, then start K24 immediately. Upstream tools use host glibc >=2.34 and bundle-owned libraries; no binary rewriting/private glibc. Side pieces alone use the three-attempt rule |
-| K24 | not started | — | — | — | All | — | Complete brief after K23 |
+| K23 | done | `5945724a4ac8fbc28610292d701ffa7e9bffc040` | Normal push [43233699289](https://github.com/cubepals/pryx/actions/runs/43233699289) and PR [43233712859](https://github.com/cubepals/pryx/actions/runs/43233712859), Any host [43233699231](https://github.com/cubepals/pryx/actions/runs/43233699231), Rootless engines [43233699487](https://github.com/cubepals/pryx/actions/runs/43233699487) and [43233712730](https://github.com/cubepals/pryx/actions/runs/43233712730), CodeQL [43233712847](https://github.com/cubepals/pryx/actions/runs/43233712847), all green | Signed fresh ordinary-user installation without engine; actual pinned upstream Python/Node paths and host glibc; both SDKs, state/charts/errors/interrupt/restart, MCP/CLI; browser screenshot/forwarded CDP and guarantee; thirty process and container samples per tool; default-Docker kernels and namespace/required-browser refusals; neighbour isolation, purge, Alpine relocation; full normal CI and all sixteen host jobs | Main/release prohibited; unchanged credentialed cases | None; corrected relocatable bundle is complete, with no binary rewriting or private tool glibc | Complete; begin K24 immediately |
+| K24 | in progress | — | — | Brief, policy/transport and upstream design review | Native desktop/HTTP SSH implementation and acceptance | None | First real X11 socket design test, then desktop bundle and authenticated HTTP SSH; keep all container behavior and budgets |
 | K25 | not started | — | — | — | All | — | Complete brief after K24 |
 | K26 | not started | — | — | — | All | — | Complete brief after K25 |
 | K27 | not started | — | — | — | All | — | Complete brief after K26, then revisit every parked piece |
@@ -1174,3 +1174,48 @@ job when publication is authorized. That job has not run in this task.
   Strict all-target Clippy, Rust structure, formatting, actionlint and whitespace
   pass; unchanged TypeScript retains 429 passing tests and its existing skip.
   Hosted one-box proof and complete final CI remain required before K23 closes.
+
+- K23 final proof: implementation 5945724a4ac8fbc28610292d701ffa7e9bffc040
+  passes complete normal push 43233699289 and PR 43233712859, all sixteen
+  Any-host jobs in 43233699231, both Rootless-engine runs 43233699487 /
+  43233712730, and CodeQL 43233712847. Both one-box jobs pass the unchanged
+  thirty-second host probe after the complete Wasm verifier correction.
+  The earlier 2db00ba PR 43228050073 and full Any-host 43228041477 are also
+  green; its push 43228041376 retains only the known one-box timeout and
+  consequent aggregate failure, whose complete logs were read. The recovered
+  Debian/Fedora/Ubuntu prerequisite jobs use a healthy primary mirror, so those
+  passes do not claim a hosted outage or forced fallback; the temporary
+  command harness separately proves both fallback paths and failed exits.
+- Final-source policy job 131235345512 passes both real kernels, state/PNGs,
+  browser screenshot/forwarded CDP, same-UID neighbour refusal and the no-fetch
+  namespace refusal in 46.24 seconds. Installed bundle job 131239358446 passes
+  the signed fresh UID-1002 user install without engine access, both SDKs and
+  Python modes, actual pinned runtime paths/versions, host-glibc comparison,
+  MCP/installed CLI, browser guarantee and all ninety process samples; actual
+  default-Docker kernels/refusals, purge and both relocation checks pass too.
+  Its release-equivalent bundle build takes 1,037 seconds. The process-tools
+  and signed bundle costs belong to the existing branch/scheduled workflow;
+  the new sixty-kernel container cohort adds 99.9 seconds to normal PR E2E,
+  within the recorded one-to-three-minute estimate, without a new gate.
+- Retain the final-source complete-policy, signed-user/default-image and
+  container reports, raw thirty-sample cohorts and producer archive digests
+  under docs/checks/measurements/k23 with suffix 5945724. Every downloaded ZIP
+  digest is checked before extraction. Source-matched startup figures replace
+  the earlier comparison in docs/speed.md; different runner and resource
+  guarantees remain explicit. Normal E2E job 131235487060 passes its first
+  suite with 33 tests, 15 existing skips and no failures, then Wasm, all ten
+  two-node cases, integrations and store-cut/watchdog recovery. The final
+  source keeps 479 local Rust passes / 25 existing ignored and 429 workspace
+  passes / one existing skip, with strict checks previously recorded. Main,
+  release publication and unchanged credentialed cases remain unrun. K23 is
+  done with no parked pieces; both K22 Docker exceptions stay parked until
+  their required second try after K27.
+- Start K24 immediately after that final green source. Re-read its brief,
+  AGENTS.md, the progress record and relevant decisions. First prove the X11
+  socket design using unmodified, pinned external programs under real process
+  policy; no pathname privacy is inferred from a private directory. Existing
+  K18 Xvfb/xdotool notices and archive locks are available for the fixture.
+  Read-only upstream review has not adopted or executed the downloaded
+  TigerVNC 1.16.2 binary; complete its dependency/source licence audit before
+  any use. Native desktop/SSH availability remains off pending implementation
+  and hosted proof; no K24 acceptance is claimed at this checkpoint.

@@ -89,10 +89,10 @@ remains recorded; changing the CPU allocation is not presented as a code speedup
 
 ## K23 startup comparison
 
-Source `95560de` in green normal CI run
-[43219637483](https://github.com/cubepals/pryx/actions/runs/43219637483)
+Source `5945724` in green normal CI run
+[43233699289](https://github.com/cubepals/pryx/actions/runs/43233699289)
 and green installed bundle job
-[131190931529](https://github.com/cubepals/pryx/actions/runs/43219637379/job/131190931529)
+[131239358446](https://github.com/cubepals/pryx/actions/runs/43233699231/job/131239358446)
 retains thirty samples per tool through real control and edge. Each timer starts
 before sandbox creation and ends at the first validated PNG, including routing
 and kernel startup. Browser timing includes starting its own HTTP page server.
@@ -101,28 +101,28 @@ supervisor still verifies the bundle's complete inventory.
 
 | Create to first PNG | n per tier | Container p50 ms | Container p90 ms | Process p50 ms | Process p90 ms |
 | --- | --- | --- | --- | --- | --- |
-| Python kernel and chart | 30 | 1424.0 | 1490.6 | 11954.5 | 12045.2 |
-| JavaScript kernel and chart | 30 | 773.9 | 823.8 | 7962.1 | 8006.7 |
-| Browser rendered page | 30 | 1676.7 | 1778.3 | 8946.1 | 9036.7 |
+| Python kernel and chart | 30 | 1500.7 | 1568.3 | 11953.0 | 12041.2 |
+| JavaScript kernel and chart | 30 | 799.7 | 843.6 | 7948.3 | 8011.3 |
+| Browser rendered page | 30 | 1779.6 | 1810.1 | 8941.8 | 9029.4 |
 
 Both request four default units with different resource guarantees: containers
 enforce one CPU core and 2 GiB, while process CPU/memory guarantees are off. The tiers run on separate CI runners. The ordinary process account has
 UID 1002, x86_64, host glibc 2.39 and Landlock ABI 8, with no engine access.
 
-The [container kernel samples](checks/measurements/k23/container-interpreter-startup-95560de.json),
-[container browser samples](checks/measurements/k23/container-native-95560de.json),
-[container provenance](checks/measurements/k23/container-provenance-95560de.json),
-[process samples](checks/measurements/k23/installed-process-startup-95560de.json)
-and [installed provenance](checks/measurements/k23/installed-provenance-95560de.json)
+The [container kernel samples](checks/measurements/k23/container-interpreter-startup-5945724.json),
+[container browser samples](checks/measurements/k23/container-native-5945724.json),
+[container provenance](checks/measurements/k23/container-provenance-5945724.json),
+[process samples](checks/measurements/k23/installed-process-startup-5945724.json)
+and [installed provenance](checks/measurements/k23/installed-provenance-5945724.json)
 retain every observation and verified producer digest. The sixty-sample container
-kernel case takes 96.7 seconds. The unchanged
-[interpreter budget report](checks/measurements/k23/container-interpreter-budgets-95560de.json)
-still passes: trivial p90 3.0 ms and chart p90 82.2 ms. Those budget timers keep
+kernel case takes 99.9 seconds. The unchanged
+[interpreter budget report](checks/measurements/k23/container-interpreter-budgets-5945724.json)
+still passes: trivial p90 4.2 ms and chart p90 106.8 ms. Those budget timers keep
 their original clock points and are separate from startup.
 
 Signed ordinary-user and default-Docker native acceptance, purge and Alpine
-relocation pass in the installed bundle job. Later host-matrix jobs fail while
-downloading Ubuntu test prerequisites, so the whole Any-host workflow remains
-unfinished. The [progress record](any-host-progress.md) tracks that correction.
-Earlier d1a0a63 container and 3b20de4 process observations remain retained with
-their original source, hashes and workflow qualifications.
+relocation pass. Normal push and [PR CI](https://github.com/cubepals/pryx/actions/runs/43233712859)
+and all sixteen [Any-host jobs](https://github.com/cubepals/pryx/actions/runs/43233699231)
+are green on this source. No main push or release publication ran. Earlier
+observations remain retained with their original source, hashes and workflow
+qualifications in the [progress record](any-host-progress.md).
