@@ -754,3 +754,24 @@ job when publication is authorized. That job has not run in this task.
   existing Any-host bundle after native acceptance; no ordinary PR job or gate.
   No release/tag/key/settings change was performed. Installed edge/SDK acceptance
   and hosted proof of this metadata step remain pending.
+
+- Host CA checkpoint supports conventional host trust bundles in the closed
+  acquisition worker, bounded to four MiB with regular-file validation. HTTPS,
+  redirect and certificate validation remain mandatory; guest-selected trust
+  environment is ignored. The disposable HTTPS fixture serves with its CA and
+  is refused without it locally. Full serial Rust passes 473 tests, 25 ignored,
+  including real Wasm; strict Clippy and all three structure checks pass.
+  Hosted full-policy acceptance now uses this verified HTTPS fixture after testing
+  untrusted-certificate refusal, with its CA installed only on the disposable runner.
+  Actionlint, Python compilation, docs and whitespace checks pass.
+- Corrected TLS-fixture source 44ba713 reaches actual native acquisition, then
+  Any-host job 131070176323/run 43185094598 fails with kernel_died during the
+  first kernel startup. Its no-fetch namespace-refusal case passes. Capture the
+  existing supervised output next; keep the original assertions/deadlines.
+  Remaining work in this failed run and earlier failed 43182878919 was canceled
+  to free runners; interrupted jobs establish no pass.
+- Read older fe0437a Podman failure 131050333291/run 43177305638: its exact-peer
+  outage check never observes withdrawal within forty-five seconds. Preserve the
+  failure, all assertions and current supported-engine coverage. Later 64f222f
+  Any-host 43179552328 is fully green; repeated current-source proof remains
+  required. No parked rootless Docker piece was retried.

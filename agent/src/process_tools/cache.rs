@@ -42,6 +42,38 @@ fn address_allowed(url: &reqwest::Url) -> bool {
                 && url.host_str().is_some_and(|host| matches!(host, "127.0.0.1" | "localhost" | "[::1]"))))
 }
 
+fn host_client() -> Result<reqwest::ClientBuilder, Box<dyn std::error::Error>> {
+    let mut client = reqwest::Client::builder();
+    // Host trust configuration belongs to the pre-filesystem-policy worker. Workload
+    // environment variables and bundle libraries never choose an acquisition trust store.
+    const MAX_HOST_ROOTS_BYTES: u64 = 4 * 1024 * 1024;
+    for path in [
+        "/etc/ssl/certs/ca-certificates.crt",
+        "/etc/pki/tls/certs/ca-bundle.crt",
+        "/etc/ssl/ca-bundle.pem",
+        "/etc/ssl/cert.pem",
+    ] {
+        let source = match File::open(path) {
+            Ok(source) => source,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error.into()),
+        };
+        if !source.metadata()?.is_file() {
+            return Err(invalid("Host CA bundle must be a regular file").into());
+        }
+        let mut bytes = Vec::new();
+        source.take(MAX_HOST_ROOTS_BYTES + 1).read_to_end(&mut bytes)?;
+        if bytes.len() as u64 > MAX_HOST_ROOTS_BYTES {
+            return Err(invalid("Host CA bundle exceeds its read bound").into());
+        }
+        for certificate in reqwest::Certificate::from_pem_bundle(&bytes)? {
+            client = client.add_root_certificate(certificate);
+        }
+        break;
+    }
+    Ok(client)
+}
+
 pub(super) async fn prepare(policy: &Policy) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let artifact = policy.artifact.as_ref().ok_or("This installation has no pinned process tool artifact")?;
     for digest in [&artifact.sha256, &artifact.manifest_sha256] {
@@ -83,7 +115,7 @@ async fn download(artifact: &Artifact, archive: &Path) -> Result<(), Box<dyn std
     if !address_allowed(&url) {
         return Err(invalid("Process tool acquisition requires HTTPS").into());
     }
-    let client = reqwest::Client::builder()
+    let client = host_client()?
         .timeout(Duration::from_mins(5))
         .redirect(reqwest::redirect::Policy::custom(|attempt| {
             if attempt.previous().len() >= 5 || !address_allowed(attempt.url()) {

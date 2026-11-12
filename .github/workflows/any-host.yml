@@ -86,13 +86,30 @@ jobs:
           from pathlib import Path
           root = Path(os.environ['RUNNER_TEMP'])
           descriptor = json.loads((root / 'process-tools.json').read_text())
-          descriptor['url'] = 'http://127.0.0.1:9877/process-tools.tar.gz'
+          descriptor['url'] = 'https://127.0.0.1:9877/process-tools.tar.gz'
           (root / 'native-distribution/fixture-process-tools.json').write_text(json.dumps(descriptor))
           PY
-          python3 -m http.server 9877 --bind 127.0.0.1 --directory "$RUNNER_TEMP/native-distribution" > "$RUNNER_TEMP/native-artifact-server.log" 2>&1 &
+          trust="$RUNNER_TEMP/native-artifact-trust"
+          mkdir -m 700 "$trust"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj '/CN=Pryx CI tool CA' \
+            -keyout "$trust/ca.key" -out "$trust/ca.crt" > "$trust/openssl.log" 2>&1
+          openssl req -newkey rsa:2048 -nodes -subj '/CN=127.0.0.1' \
+            -keyout "$trust/server.key" -out "$trust/server.csr" >> "$trust/openssl.log" 2>&1
+          printf '%s\n' 'subjectAltName=IP:127.0.0.1' 'extendedKeyUsage=serverAuth' > "$trust/extensions"
+          openssl x509 -req -in "$trust/server.csr" -CA "$trust/ca.crt" -CAkey "$trust/ca.key" \
+            -CAcreateserial -days 1 -extfile "$trust/extensions" -out "$trust/server.crt" >> "$trust/openssl.log" 2>&1
+          python3 deploy/tool-artifact-server.py --port 9877 --directory "$RUNNER_TEMP/native-distribution" \
+            --certificate "$trust/server.crt" --key "$trust/server.key" > "$RUNNER_TEMP/native-artifact-server.log" 2>&1 &
           artifact_server=$!
           trap 'kill "$artifact_server"; wait "$artifact_server" || true' EXIT
-          curl --retry 5 --retry-connrefused --retry-delay 1 -fsS http://127.0.0.1:9877/fixture-process-tools.json > /dev/null
+          curl --retry 5 --retry-connrefused --retry-delay 1 --cacert "$trust/ca.crt" -fsS https://127.0.0.1:9877/fixture-process-tools.json > /dev/null
+          if curl --silent --show-error --max-time 5 https://127.0.0.1:9877/fixture-process-tools.json > /dev/null 2> "$trust/untrusted.log"; then
+            echo 'Untrusted fixture certificate was accepted' >&2
+            exit 1
+          fi
+          # Disposable runner prerequisite only; product installation never changes host trust.
+          sudo install -m 644 "$trust/ca.crt" /usr/local/share/ca-certificates/pryx-ci-native-tools.crt
+          sudo update-ca-certificates
           cargo test --locked -p pryx-agent --test native_process -- --ignored --nocapture --test-threads=1 2>&1 | tee "$RUNNER_TEMP/native-process-acceptance.log"
       - name: Retain the separate corresponding-source distribution
         if: always()
