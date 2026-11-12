@@ -14,9 +14,9 @@ from urllib.parse import urljoin, urlparse
 from archive_inputs import REPO, ROOT, acquire, digest
 
 
-def collect(cache, output):
-    binaries = json.loads((ROOT / 'desktop.lock.json').read_text())
-    catalog = json.loads((ROOT / 'desktop-sources.lock.json').read_text())
+def collect(cache, output, *, binary_lock='desktop.lock.json', source_lock='desktop-sources.lock.json', licence_directory='notices/desktop'):
+    binaries = json.loads((ROOT / binary_lock).read_text())
+    catalog = json.loads((ROOT / source_lock).read_text())
     expected = {(p['sourcePackage'], p['sourceVersion']) for p in binaries}
     actual = {(p['sourcePackage'], p['sourceVersion']) for p in catalog}
     if actual != expected:
@@ -70,7 +70,7 @@ def collect(cache, output):
         destination.parent.mkdir(parents=True)
         shutil.copy2(source, destination)
         files.append(dict(path=str(destination.relative_to(output)), sha256=digest(destination)))
-    for name in ['desktop.lock.json', 'desktop-sources.lock.json']:
+    for name in [binary_lock, source_lock]:
         shutil.copy2(ROOT / name, output / name)
         files.append(dict(path=name, sha256=digest(output / name)))
     notices = output / 'notices'
@@ -80,7 +80,7 @@ def collect(cache, output):
         if digest(notice) != item['noticeSha256']:
             raise ValueError('Desktop source copyright differs from its reviewed bytes')
         shutil.copy2(notice, notices / (item['package'] + '.copyright'))
-    for path in (ROOT / 'notices/desktop').iterdir():
+    for path in (ROOT / licence_directory).iterdir():
         if not path.name.endswith('.copyright'):
             shutil.copy2(path, notices / path.name)
     shutil.copy2(REPO / 'LICENSE.md', notices / 'pryx-LICENSE.md')
@@ -96,8 +96,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--cache', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--full', action='store_true', help='Validate the separately staged complete desktop inputs')
     options = parser.parse_args()
-    report = collect(options.cache, options.output)
+    report = collect(options.cache, options.output,
+                     **dict(binary_lock='desktop-full.lock.json', source_lock='desktop-full-sources.lock.json', licence_directory='notices/desktop-full') if options.full else {})
     print(json.dumps({k: v for k, v in report.items() if k != 'files'}))
 
 

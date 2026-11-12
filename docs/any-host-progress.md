@@ -1438,3 +1438,22 @@ job when publication is authorized. That job has not run in this task.
   3e2569f97999ab56c7acd663bd21f9c9f64557ddf2d398ee650aa2d462753191;
   its descriptor is in the verified small evidence artifact. The signed bundle
   continuation and full normal CI are still running.
+- Complete staged desktop component now builds from 142 digest-pinned Debian
+  binary inputs with 159 selected unchanged ELF files, their own non-glibc
+  libraries and complete notices. Its 112 source versions have all 370 required
+  DSC/original/Debian source archives collected and verified locally. No package
+  hooks, binary rewriting or private glibc. The measured full-component minimum
+  is host glibc 2.36; K23's core minimum remains 2.34. Actual host glibc is 2.41.
+  After a physical move to a longer ordinary path containing spaces, all seven
+  loader controls pass: Xvfb, xdotool, scrot, x11vnc, sshd, ssh and Chromium.
+  Retain the exact local inventory and provenance under k24. Seven Python cases,
+  both structure checks, real generated-launcher ShellCheck, actionlint, docs,
+  whitespace and REUSE (1,679 files) pass. These controls do not claim headful
+  application interaction, native SSH service or installed-user acceptance.
+- Extend the existing Any-host producer with this complete staged/source check;
+  expected additional branch/scheduled execution is three to five minutes. No
+  new job, required gate or ordinary PR stage. Upload only its JSON evidence;
+  the staged runtime and complete source archive remain unpublished until native
+  integration includes both assets. K24 remains in progress with no new parked
+  piece. Next: real headful application/input, private VNC/noVNC and native SSH
+  workers, complete own-source publication, capabilities and installed acceptance.

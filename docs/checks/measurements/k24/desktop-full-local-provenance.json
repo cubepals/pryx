@@ -1,0 +1,20 @@
+{
+  "scope": "Local staged component; not installed, confined, published or announced",
+  "hostGlibc": "2.41",
+  "reportSha256": "f4f100f1b5f001dd64a607964d1dd6499db7885977d35e874d7028a70e05843f",
+  "correspondingSourceManifestSha256": "c2cb0e300c3655dcf4ccabc7fd029e7b4058f5c9cc94938cbcee65aa272b959c",
+  "sourceVersions": 112,
+  "sourceArchives": 370,
+  "binaryPackages": 142,
+  "selectedElfs": 159,
+  "pythonTests": 7,
+  "controls": [
+    "Xvfb",
+    "xdotool",
+    "scrot",
+    "x11vnc",
+    "sshd",
+    "ssh",
+    "chromium"
+  ]
+}

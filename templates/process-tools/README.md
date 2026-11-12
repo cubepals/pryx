@@ -61,6 +61,11 @@ Parts (`process-tools/`):
 - `desktop_sources.py`: complete DSC-verified original sources and Debian changes, without execution.
 - `desktop-sources.lock.json`: immutable corresponding sources for every staged binary source/version.
 - `desktop_sources_test.py`: real DSC rejection when a required original archive is omitted.
+- `desktop_full.py`: separately staged headful Chromium, VNC/capture and OpenSSH closure; no runtime publication yet.
+- `desktop-full.json`: measured full-component host floor and unchanged program paths.
+- `desktop-full.lock.json`: exact selected ELF files, runtime data packages and notice digests.
+- `desktop-full-sources.lock.json`: complete DSC/original/Debian source inputs for that component.
+- `desktop_full_test.py`: actual full-component missing-library and private-glibc rejection.
 - `libraries.lock.json`: immutable library/font archives and their notice hashes.
 - `helpers.lock.json`: separately executed namespace helpers and their complete notices.
 - `notices/`: source-reviewed corrections to incomplete library/font package notices.

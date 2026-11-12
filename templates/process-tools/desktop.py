@@ -69,12 +69,14 @@ exec "$component/payload/usr/bin/{name}" "$@"
         launcher.chmod(0o755)
 
 
-def audit(root):
-    minimum = json.loads((ROOT / 'compatibility.json').read_text())['desktopHostGlibcMinimum']
+def audit(root, minimum=None, library_directories=None):
+    minimum = minimum or json.loads((ROOT / 'compatibility.json').read_text())['desktopHostGlibcMinimum']
     allowed = tuple(map(int, minimum.split('.')))
     maximum = (0, 0)
     members = []
-    libraries = [root / 'payload/usr/lib/x86_64-linux-gnu', root / 'payload/lib/x86_64-linux-gnu', root / 'libraries']
+    libraries = library_directories or [root / 'payload/usr/lib/x86_64-linux-gnu', root / 'payload/lib/x86_64-linux-gnu', root / 'libraries']
+    if any(not path.resolve().is_relative_to(root.resolve()) for path in libraries):
+        raise ValueError('Desktop libraries must belong to their component')
     missing = set()
     for path in sorted(root.rglob('*')):
         relative = str(path.relative_to(root))

@@ -141,6 +141,19 @@ jobs:
             CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0 \
             cargo test --locked -p pryx-agent --test desktop_live \
               private_temporary_x11_allows_own_client_and_denies_same_uid_neighbour -- --ignored --nocapture
+      - name: Stage the complete desktop programs and source closure
+        run: |
+          python3 templates/process-tools/desktop_sources.py --full --cache "$RUNNER_TEMP/tool-inputs" \
+            --output "$RUNNER_TEMP/desktop-full-sources"
+          cp "$RUNNER_TEMP/desktop-full-sources/manifest.json" "$RUNNER_TEMP/desktop-full-sources.json"
+          python3 templates/process-tools/desktop_full.py --cache "$RUNNER_TEMP/tool-inputs" \
+            --output "$RUNNER_TEMP/desktop-full" --report "$RUNNER_TEMP/desktop-full-before-move.json"
+          relocated="$RUNNER_TEMP/complete desktop relocated into a longer ordinary user path"
+          mv "$RUNNER_TEMP/desktop-full" "$relocated"
+          python3 templates/process-tools/desktop_full.py --smoke-only --output "$relocated" \
+            --report "$RUNNER_TEMP/desktop-full-component.json"
+          PRYX_DESKTOP_FULL_TEST_COMPONENT="$relocated" \
+            python3 -m unittest discover -s templates/process-tools -p 'desktop_full_test.py'
       - name: Retain the verified runtime for installed-product acceptance
         uses: ./.github/actions/upload-evidence
         with:
@@ -172,6 +185,8 @@ jobs:
             ${{ runner.temp }}/desktop-design.json
             ${{ runner.temp }}/desktop-component.json
             ${{ runner.temp }}/desktop-live.json
+            ${{ runner.temp }}/desktop-full-component.json
+            ${{ runner.temp }}/desktop-full-sources.json
           if-no-files-found: error
   bundle:
     name: Bundle runtime acceptance
