@@ -126,13 +126,13 @@ pub(super) fn child(supervisor: u32) -> Result<(), Box<dyn std::error::Error>> {
         libc::SYS_tkill,
         libc::SYS_pidfd_send_signal,
         libc::SYS_setpriority,
-        libc::SYS_sched_setscheduler,
         libc::SYS_sched_setparam,
         libc::SYS_sched_setattr,
         libc::SYS_sched_setaffinity,
     ] {
         rules.insert(syscall, vec![]);
     }
+    rules.insert(libc::SYS_sched_setscheduler, vec![argument_rule(1, SeccompCmpOp::Ne, libc::SCHED_OTHER as u32)]);
     for syscall in [libc::SYS_tgkill, libc::SYS_rt_tgsigqueueinfo] {
         rules.insert(syscall, vec![argument_rule(0, SeccompCmpOp::Eq, supervisor)]);
     }
@@ -159,6 +159,19 @@ pub(super) fn child(supervisor: u32) -> Result<(), Box<dyn std::error::Error>> {
     )?
     .try_into()?;
     seccompiler::apply_filter(&program)?;
+    // libzmq reasserts inherited SCHED_OTHER for each thread and aborts on EPERM.
+    // Report this request as a no-op: no target's scheduler or host-selected nice value
+    // can change. Every other scheduling request retains the denial above.
+    let inherited_scheduler: BpfProgram = SeccompFilter::new(
+        [(libc::SYS_sched_setscheduler, vec![argument_rule(1, SeccompCmpOp::Eq, libc::SCHED_OTHER as u32)])]
+            .into_iter()
+            .collect(),
+        SeccompAction::Allow,
+        SeccompAction::Errno(0),
+        std::env::consts::ARCH.try_into()?,
+    )?
+    .try_into()?;
+    seccompiler::apply_filter(&inherited_scheduler)?;
     Ok(())
 }
 
@@ -172,6 +185,48 @@ fn argument_rule(argument: u8, op: SeccompCmpOp, value: u32) -> SeccompRule {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn inherited_scheduler_requests_cannot_reschedule_foreign_processes() {
+        use std::io::{BufRead, BufReader};
+        let mut foreign = std::process::Command::new("python3")
+            .args(["-c", "import os,time; os.sched_setscheduler(0,os.SCHED_BATCH,os.sched_param(0)); print('ready',flush=True); time.sleep(30)"])
+            .stdout(std::process::Stdio::piped())
+            .spawn().unwrap();
+        let mut ready = String::new();
+        BufReader::new(foreign.stdout.take().unwrap()).read_line(&mut ready).unwrap();
+        assert_eq!(ready.trim(), "ready");
+        let target = foreign.id();
+        let result = std::thread::spawn(move || {
+            apply(false).unwrap();
+            child(std::process::id()).unwrap();
+            std::process::Command::new("python3")
+                .args([
+                    "-c",
+                    r#"
+import os
+target=int(os.environ['FOREIGN'])
+before=os.getpriority(os.PRIO_PROCESS,0)
+assert os.sched_getscheduler(target)==os.SCHED_BATCH
+os.sched_setscheduler(0,os.SCHED_OTHER,os.sched_param(0))
+os.sched_setscheduler(target,os.SCHED_OTHER,os.sched_param(0))
+assert os.sched_getscheduler(target)==os.SCHED_BATCH
+assert os.getpriority(os.PRIO_PROCESS,0)==before
+try: os.sched_setscheduler(target,os.SCHED_IDLE,os.sched_param(0))
+except PermissionError: pass
+else: raise AssertionError('Scheduling changes must remain denied')
+"#,
+                ])
+                .env("FOREIGN", target.to_string())
+                .output()
+                .unwrap()
+        })
+        .join();
+        foreign.kill().unwrap();
+        foreign.wait().unwrap();
+        let output = result.unwrap();
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    }
 
     #[test]
     fn guest_signals_cannot_reach_supervisor_threads() {

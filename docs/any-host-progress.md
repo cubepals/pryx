@@ -808,3 +808,24 @@ job when publication is authorized. That job has not run in this task.
   Source 907cfca job 131076501577 proves verified HTTPS acquisition and reproduces
   that same native startup failure; its namespace refusal passes. Read all three
   failed job logs. Main K23 work remains active.
+
+- Read diagnostic source 0beebee job 131077812690/run 43187370614:
+  the Python kernel aborts with Operation not permitted at libzmq thread.cpp:315.
+  Read upstream 4.3.5 source: pthread_setschedparam reasserts inherited scheduling,
+  conflicting with the guest's blanket scheduler denial. Enforce SCHED_OTHER as
+  a no-op rather than allowing a scheduling change; all other scheduler operations,
+  priority changes and supervisor signal protections retain their denials.
+  New actual foreign-process test observes SCHED_BATCH unchanged after the request.
+  Both genuine pinned Python and Node ZeroMQ contexts now start threads and bind
+  abstract sockets under the guest syscall filter locally. This isolates the fix;
+  full filesystem/browser acceptance still belongs to hosted CI.
+- Scheduler checkpoint full serial Rust passes 474 tests with 25 ignored, including
+  real Wasm; strict all-target Clippy, Rust structure, formatting and whitespace
+  pass. The unchanged TypeScript sources retain the complete 425-pass check at
+  a2ee1e9. Its queued Any-host 43189216316 was canceled before execution because
+  it retained this already-diagnosed kernel failure; that run establishes no pass.
+- Next integration work includes process browser placement/copy guarantees and
+  strict requirement validation: current reporting still qualifies browser-sandbox
+  only on containers. Keep the installed positive assertion intact. Then obtain
+  genuine signed ordinary-user edge/SDK samples and default-Docker native proof;
+  K23 remains in progress, with no parked main deliverable.
