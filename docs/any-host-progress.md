@@ -1280,3 +1280,40 @@ job when publication is authorized. That job has not run in this task.
   minute. Its other suites pass; the normal PR 43245914144 is fully green.
   Preserve the failed push and investigate the metrics ingestion boundary;
   no retry or assertion relaxation substitutes for a cause-specific correction.
+- The staged component's Any-host producer 131323890859 is green on 79360fb;
+  its full installed matrix is still running. Both normal core jobs fail REUSE
+  because a Python string containing a generated SPDX header is read as an
+  invalid licence expression. Read both complete logs, correct the literal to
+  preserve the same launcher bytes and obtain a clean local REUSE 6.2.0 result.
+  A ShellCheck audit also finds the executable missing from local PATH: the
+  earlier local ShellCheck pass statement was not execution proof. Acquire the
+  official 0.11.0 archive at publisher SHA-256
+  8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198,
+  read its GPL-3.0 licence and run all four generated launchers plus complete
+  actionlint with this actual executable; both pass.
+- Add explicit live X11 acceptance: unchanged Xvfb starts in a private temporary
+  mount through reviewed bubblewrap, keeps its inherited abstract-IPC scope,
+  and uses the pinned xkbcomp at its compiled path. Its own confined xdotool
+  must work. An independent same-UID, fully confined neighbour must fail ordinary
+  file reads, abstract display connection and every real server proc-root alias;
+  the unconfined controller requires a reachable alias as its positive control.
+  Keep cookie bytes out of reports. Only the new trusted desktop policy grants
+  its private temporary mount; ordinary guest filesystem/seccomp is unchanged.
+  Local full Rust passes 479 tests, 28 ignored, including the two new explicitly
+  hosted fixture entries. Strict Clippy, all three structure checks, fmt,
+  actionlint/ShellCheck, REUSE, four assembled-component Python cases and full
+  workspace check pass (429 tests, one existing compiled-assets skip, 8,372
+  assertions against real PostgreSQL). The explicit live case has not run on
+  this machine, whose filesystem policy is unavailable, and hosted success
+  remains required. Estimated addition: under one minute to the existing tool
+  job plus ordinary test compilation; no new job or required gate.
+- Fix the observed field-metrics fixture race: retained history uses minute
+  buckets, so the latest observation can exist before a bucket enters the last
+  minute. Wait for the actual historical sample within the existing thirty-second
+  read-only polling bound and assert the same fixed window afterward. Preserve
+  the positive sample assertion, all product behavior and all existing timeouts.
+  The full workspace check passes; real E2E proof remains pending.
+- Read-only corresponding-source acquisition retains all 74 immutable inputs
+  for the staged component's 22 distinct source/version pairs. Each Debian DSC's
+  archive size/SHA-256 is verified; no source is executed. This local acquisition
+  is not yet the committed source-export implementation or publication proof.

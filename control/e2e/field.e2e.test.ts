@@ -154,9 +154,13 @@ test(
       await box.setIdle('5m')
       await box.waitUntil('running')
       await until('reported metrics', async () => (await box?.metrics())?.metrics)
-      expect(
-        (await box.metrics({ since: new Date(Date.now() - MINUTE_MS).toISOString() })).samples?.length,
-      ).toBeGreaterThan(0)
+      // History is stored in minute buckets; a current observation can precede the next bucket.
+      const metricsSince = new Date(Date.now() - MINUTE_MS).toISOString()
+      await until('retained minute metrics', async () => {
+        const history = await box?.metrics({ since: metricsSince })
+        return history?.samples?.length
+      })
+      expect((await box.metrics({ since: metricsSince })).samples?.length).toBeGreaterThan(0)
       await box.killAll()
       await box.sleep()
       expect((await c.sdk.sandbox(id, { wake: false })).state).toBe('sleeping')

@@ -1,7 +1,7 @@
 # Process tool bundle
 
-K23's main deliverable remains active until an ordinary user's install runs its browser and
-Python/Node kernels without Docker, proved in CI. Its inputs are upstream distributions that
+K23's ordinary-user browser and Python/Node kernels run without Docker, proved by the
+CI evidence in [the progress record](../../docs/any-host-progress.md). Its inputs are upstream distributions that
 relocate by design: python-build-standalone CPython 3.12.16 (20261110), Node's official 24.22.1
 tarball and Chrome Headless Shell 158.0.8127.18. [artifacts.json](artifacts.json) pins every
 archive by SHA-256. The Python install-only interpreter matches the separately pinned full
@@ -44,6 +44,7 @@ the existing missing-artifact reason.
 Parts (`process-tools/`):
 
 - `build.py`: verified assembly, complete notices, addon selection and an ELF symbol audit.
+- `archive_inputs.py`: immutable archive retrieval and payload copying without package hooks.
 - `package.py`: unchanged payload packaging and pinned archive/inventory expansion metadata.
 - `package_test.py`: real archive determinism, bounds and inventory-tampering regressions.
 - `sources.py`: separate corresponding-source distribution and runtime notice descriptor.
@@ -53,6 +54,10 @@ Parts (`process-tools/`):
 - `launchers/`: small runtime launchers using the bundle's libraries and host glibc.
 - `artifacts.json`: immutable upstream runtime and matching notice archives.
 - `compatibility.json`: one architecture and host-glibc prerequisite for build and host probe.
+- `desktop.py`: separately staged X11 assembly and own-library/host-glibc audit, not published yet.
+- `desktop-fixture.py`: unchanged X11 inputs for the initial argument design test.
+- `desktop.lock.json`: digest-pinned staged Debian programs, libraries and full copyright hashes.
+- `desktop_test.py`: real staged ELF missing-library and private-glibc rejection contracts.
 - `libraries.lock.json`: immutable library/font archives and their notice hashes.
 - `helpers.lock.json`: separately executed namespace helpers and their complete notices.
 - `notices/`: source-reviewed corrections to incomplete library/font package notices.

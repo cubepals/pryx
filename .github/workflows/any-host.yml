@@ -136,6 +136,11 @@ jobs:
             --report "$RUNNER_TEMP/desktop-component.json"
           PRYX_DESKTOP_TEST_COMPONENT="$relocated" \
             python3 -m unittest discover -s templates/process-tools -p 'desktop_test.py'
+          PRYX_DESKTOP_TEST_COMPONENT="$relocated" PRYX_DESKTOP_TEST_BASE="$moved" \
+            PRYX_DESKTOP_LIVE_REPORT="$RUNNER_TEMP/desktop-live.json" \
+            CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0 \
+            cargo test --locked -p pryx-agent --test desktop_live \
+              private_temporary_x11_allows_own_client_and_denies_same_uid_neighbour -- --ignored --nocapture
       - name: Retain the verified runtime for installed-product acceptance
         uses: ./.github/actions/upload-evidence
         with:
@@ -166,6 +171,7 @@ jobs:
             ${{ runner.temp }}/native-artifact-server.log
             ${{ runner.temp }}/desktop-design.json
             ${{ runner.temp }}/desktop-component.json
+            ${{ runner.temp }}/desktop-live.json
           if-no-files-found: error
   bundle:
     name: Bundle runtime acceptance

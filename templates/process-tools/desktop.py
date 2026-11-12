@@ -52,11 +52,13 @@ def assemble(cache, output, libraries):
     binaries.mkdir()
     for name in PROGRAMS:
         launcher = binaries / name
-        launcher.write_text('#!/bin/sh\n# SPDX-License-Identifier: FSL-1.1-ALv2\nset -eu\n'
-                            'component=$(CDPATH=\'\' cd -- "$(dirname -- "$0")/.." && pwd -P)\n'
-                            'export LD_LIBRARY_PATH="$component/payload/usr/lib/x86_64-linux-gnu:'
-                            '$component/payload/lib/x86_64-linux-gnu:$component/libraries"\n'
-                            f'exec "$component/payload/usr/bin/{name}" "$@"\n')
+        launcher.write_text(f'''#!/bin/sh
+# SPDX-License-Identifier: FSL-1.1-ALv2
+set -eu
+component=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd -P)
+export LD_LIBRARY_PATH="$component/payload/usr/lib/x86_64-linux-gnu:$component/payload/lib/x86_64-linux-gnu:$component/libraries"
+exec "$component/payload/usr/bin/{name}" "$@"
+''')
         launcher.chmod(0o755)
 
 

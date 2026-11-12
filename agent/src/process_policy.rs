@@ -65,15 +65,20 @@ pub fn scope() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub fn enter(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
-    enter_variant(policy, false)
+    enter_variant(policy, false, false)
 }
 
 /// The fixed helper has already installed private user, mount, PID and proc namespaces.
 pub fn browser(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
-    enter_variant(policy, true)
+    enter_variant(policy, true, false)
 }
 
-fn enter_variant(policy: &Policy, browser: bool) -> Result<(), Box<dyn std::error::Error>> {
+/// The fixed desktop helper has a private temporary mount and inherits its supervisor's IPC scope.
+pub fn desktop(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
+    enter_variant(policy, false, true)
+}
+
+fn enter_variant(policy: &Policy, browser: bool, desktop: bool) -> Result<(), Box<dyn std::error::Error>> {
     if !crate::process_capabilities::probe().filesystem {
         return Err(crate::process_capabilities::FILESYSTEM_UNAVAILABLE.into());
     }
@@ -133,13 +138,16 @@ fn enter_variant(policy: &Policy, browser: bool) -> Result<(), Box<dyn std::erro
     if browser {
         write.extend([std::path::Path::new("/proc"), std::path::Path::new("/dev/shm")]);
     }
-    let scoped = browser || ipc_scoped() || crate::process_capabilities::private_ipc_probe().supported();
+    if desktop {
+        write.extend([std::path::Path::new("/tmp"), std::path::Path::new("/dev/shm")]);
+    }
+    let scoped = browser || desktop || ipc_scoped() || crate::process_capabilities::private_ipc_probe().supported();
     if policy.require_ipc_scope == Some(true) && !scoped {
         return Err("This process requires enforced private IPC before guest execution".into());
     }
     let mut rules =
         Ruleset::default().set_compatibility(CompatLevel::HardRequirement).handle_access(AccessFs::from_all(abi))?;
-    if scoped && !browser && !ipc_scoped() {
+    if scoped && !browser && !desktop && !ipc_scoped() {
         rules = rules.scope(Scope::AbstractUnixSocket)?;
     }
     let status = rules
