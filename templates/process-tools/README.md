@@ -58,6 +58,9 @@ Parts (`process-tools/`):
 - `desktop-fixture.py`: unchanged X11 inputs for the initial argument design test.
 - `desktop.lock.json`: digest-pinned staged Debian programs, libraries and full copyright hashes.
 - `desktop_test.py`: real staged ELF missing-library and private-glibc rejection contracts.
+- `desktop_sources.py`: complete DSC-verified original sources and Debian changes, without execution.
+- `desktop-sources.lock.json`: immutable corresponding sources for every staged binary source/version.
+- `desktop_sources_test.py`: real DSC rejection when a required original archive is omitted.
 - `libraries.lock.json`: immutable library/font archives and their notice hashes.
 - `helpers.lock.json`: separately executed namespace helpers and their complete notices.
 - `notices/`: source-reviewed corrections to incomplete library/font package notices.

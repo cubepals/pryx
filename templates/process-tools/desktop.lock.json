@@ -12,7 +12,8 @@
     "licences": [
       "GPL-2",
       "LGPL-2.1"
-    ]
+    ],
+    "sourceVersion": "1:3.0.9-1"
   },
   {
     "package": "libbsd0",
@@ -41,7 +42,9 @@
     "archive": "libbsd0_0.11.7-2_amd64.deb",
     "noticeSha256": "00fd7be5d907a6bcc409a80f2d565f508673db4761d54623691f89ae3aa20fc7",
     "noticeBytes": 23960,
-    "notice": "../native-tools/notices/libbsd0.txt"
+    "notice": "../native-tools/notices/libbsd0.txt",
+    "sourcePackage": "libbsd",
+    "sourceVersion": "0.11.7-2"
   },
   {
     "package": "libcap-ng0",
@@ -57,7 +60,8 @@
       "GPL-2+",
       "GPL-3",
       "LGPL-2.1+"
-    ]
+    ],
+    "sourceVersion": "0.8.3-1"
   },
   {
     "package": "libfontenc1",
@@ -71,7 +75,9 @@
     "archive": "libfontenc1_1%3a1.1.4-1_amd64.deb",
     "noticeSha256": "a7cb43c56c51407bc6539032a47c5351cd03962ed6a30b4f52dec6ed7db54383",
     "noticeBytes": 1158,
-    "notice": "../native-tools/notices/libfontenc1.txt"
+    "notice": "../native-tools/notices/libfontenc1.txt",
+    "sourcePackage": "libfontenc",
+    "sourceVersion": "1:1.1.4-1"
   },
   {
     "package": "libgcrypt20",
@@ -85,7 +91,8 @@
     "notice": "notices/desktop/libgcrypt20.copyright",
     "licences": [
       "See complete retained Debian copyright"
-    ]
+    ],
+    "sourceVersion": "1.10.1-3+deb12u1"
   },
   {
     "package": "libgl1",
@@ -103,7 +110,9 @@
     "archive": "libgl1_1.6.0-1_amd64.deb",
     "noticeSha256": "0cc0a3c5c051417d3c056b154bd41f070108d3a9a8cebb7bb4fbb3a2ebd1efb2",
     "noticeBytes": 4650,
-    "notice": "../native-tools/notices/libgl1.txt"
+    "notice": "../native-tools/notices/libgl1.txt",
+    "sourcePackage": "libglvnd",
+    "sourceVersion": "1.6.0-1"
   },
   {
     "package": "libglvnd0",
@@ -121,7 +130,9 @@
     "archive": "libglvnd0_1.6.0-1_amd64.deb",
     "noticeSha256": "0cc0a3c5c051417d3c056b154bd41f070108d3a9a8cebb7bb4fbb3a2ebd1efb2",
     "noticeBytes": 4650,
-    "notice": "../native-tools/notices/libglvnd0.txt"
+    "notice": "../native-tools/notices/libglvnd0.txt",
+    "sourcePackage": "libglvnd",
+    "sourceVersion": "1.6.0-1"
   },
   {
     "package": "libglx0",
@@ -139,7 +150,9 @@
     "archive": "libglx0_1.6.0-1_amd64.deb",
     "noticeSha256": "0cc0a3c5c051417d3c056b154bd41f070108d3a9a8cebb7bb4fbb3a2ebd1efb2",
     "noticeBytes": 4650,
-    "notice": "../native-tools/notices/libglx0.txt"
+    "notice": "../native-tools/notices/libglx0.txt",
+    "sourcePackage": "libglvnd",
+    "sourceVersion": "1.6.0-1"
   },
   {
     "package": "libgpg-error0",
@@ -157,7 +170,8 @@
       "LGPL-2.1+",
       "LGPL-2.1+ or BSD-3-clause",
       "g10-permissive"
-    ]
+    ],
+    "sourceVersion": "1.46-1"
   },
   {
     "package": "liblz4-1",
@@ -173,7 +187,8 @@
       "BSD-2-clause",
       "GPL-2+",
       "GPL-2+ or BSD-2-clause"
-    ]
+    ],
+    "sourceVersion": "1.9.4-1"
   },
   {
     "package": "libmd0",
@@ -195,7 +210,8 @@
       "public-domain-md4",
       "public-domain-md5",
       "public-domain-sha1"
-    ]
+    ],
+    "sourceVersion": "1.0.4-2"
   },
   {
     "package": "libselinux1",
@@ -209,7 +225,8 @@
     "notice": "notices/desktop/libselinux1.copyright",
     "licences": [
       "See complete retained Debian copyright"
-    ]
+    ],
+    "sourceVersion": "3.4-1"
   },
   {
     "package": "libsystemd0",
@@ -228,7 +245,8 @@
       "GPL-2+",
       "LGPL-2.1+",
       "public-domain"
-    ]
+    ],
+    "sourceVersion": "252.39-1~deb12u2"
   },
   {
     "package": "libunwind8",
@@ -243,7 +261,9 @@
     "archive": "libunwind8_1.6.2-3_amd64.deb",
     "noticeSha256": "e74ce4a6f3ed0f3048e653aba38cdfc18b7865876bb3efeccfc1e220976cb71f",
     "noticeBytes": 3612,
-    "notice": "../native-tools/notices/libunwind8.txt"
+    "notice": "../native-tools/notices/libunwind8.txt",
+    "sourcePackage": "libunwind",
+    "sourceVersion": "1.6.2-3"
   },
   {
     "package": "libxdo3",
@@ -257,7 +277,9 @@
     "archive": "libxdo3_1%3a3.20160805.1-5_amd64.deb",
     "noticeSha256": "7022c27d07a4777ff1e23a83274f6351d634d83053b46a7f5582a2c988ab4572",
     "noticeBytes": 1965,
-    "notice": "../native-tools/notices/libxdo3.txt"
+    "notice": "../native-tools/notices/libxdo3.txt",
+    "sourcePackage": "xdotool",
+    "sourceVersion": "1:3.20160805.1-5"
   },
   {
     "package": "libxfont2",
@@ -271,7 +293,9 @@
     "archive": "libxfont2_1%3a2.0.6-1+deb12u1_amd64.deb",
     "noticeSha256": "c0ec1767e5a927bdf17f8ca2af231263f973c06e5f30efa1b4867e93614dd061",
     "noticeBytes": 13512,
-    "notice": "../native-tools/notices/libxfont2.txt"
+    "notice": "../native-tools/notices/libxfont2.txt",
+    "sourcePackage": "libxfont",
+    "sourceVersion": "1:2.0.6-1+deb12u1"
   },
   {
     "package": "libxinerama1",
@@ -285,7 +309,9 @@
     "archive": "libxinerama1_2%3a1.1.4-3_amd64.deb",
     "noticeSha256": "e49d9732f261b3ffcb50c40914bd9d144de5557dad9b2ae20dbe8e3c5b3d17fb",
     "noticeBytes": 3670,
-    "notice": "../native-tools/notices/libxinerama1.txt"
+    "notice": "../native-tools/notices/libxinerama1.txt",
+    "sourcePackage": "libxinerama",
+    "sourceVersion": "2:1.1.4-3"
   },
   {
     "package": "libxkbfile1",
@@ -299,7 +325,9 @@
     "archive": "libxkbfile1_1%3a1.1.0-1_amd64.deb",
     "noticeSha256": "6114c8684ed96f82898a092f08b9c934268b7a73f201fbec6ade863083438c99",
     "noticeBytes": 3403,
-    "notice": "../native-tools/notices/libxkbfile1.txt"
+    "notice": "../native-tools/notices/libxkbfile1.txt",
+    "sourcePackage": "libxkbfile",
+    "sourceVersion": "1:1.1.0-1"
   },
   {
     "package": "libxmuu1",
@@ -313,7 +341,9 @@
     "archive": "libxmuu1_2%3a1.1.3-3_amd64.deb",
     "noticeSha256": "7e06a93da6844467d2b5844939351d4702eccd25df71dc6c6e60e8affba09d41",
     "noticeBytes": 3631,
-    "notice": "../native-tools/notices/libxmuu1.txt"
+    "notice": "../native-tools/notices/libxmuu1.txt",
+    "sourcePackage": "libxmu",
+    "sourceVersion": "2:1.1.3-3"
   },
   {
     "package": "libxtst6",
@@ -327,7 +357,9 @@
     "archive": "libxtst6_2%3a1.2.3-1.1_amd64.deb",
     "noticeSha256": "304f78731e1e0e78132fbba4e1909c8642878a3b8c4837b36cb2d38891bf2204",
     "noticeBytes": 5914,
-    "notice": "../native-tools/notices/libxtst6.txt"
+    "notice": "../native-tools/notices/libxtst6.txt",
+    "sourcePackage": "libxtst",
+    "sourceVersion": "2:1.2.3-1.1"
   },
   {
     "package": "x11-xkb-utils",
@@ -341,7 +373,9 @@
     "archive": "x11-xkb-utils_7.7+7_amd64.deb",
     "noticeSha256": "cf2ace27426806b4423a1931f42fe2cd87900b8c062de5bdae57e553c2d1dbf5",
     "noticeBytes": 12018,
-    "notice": "../native-tools/notices/x11-xkb-utils.txt"
+    "notice": "../native-tools/notices/x11-xkb-utils.txt",
+    "sourcePackage": "x11-xkb-utils",
+    "sourceVersion": "7.7+7"
   },
   {
     "package": "xauth",
@@ -355,7 +389,9 @@
     "archive": "xauth_1%3a1.1.2-1_amd64.deb",
     "noticeSha256": "35f7f9792a4d64ef293878893d5cf07e09d2e5eb87fd17a4c0f47d66d4735c0c",
     "noticeBytes": 1273,
-    "notice": "../native-tools/notices/xauth.txt"
+    "notice": "../native-tools/notices/xauth.txt",
+    "sourcePackage": "xauth",
+    "sourceVersion": "1:1.1.2-1"
   },
   {
     "package": "xdotool",
@@ -369,7 +405,9 @@
     "archive": "xdotool_1%3a3.20160805.1-5_amd64.deb",
     "noticeSha256": "7022c27d07a4777ff1e23a83274f6351d634d83053b46a7f5582a2c988ab4572",
     "noticeBytes": 1965,
-    "notice": "../native-tools/notices/xdotool.txt"
+    "notice": "../native-tools/notices/xdotool.txt",
+    "sourcePackage": "xdotool",
+    "sourceVersion": "1:3.20160805.1-5"
   },
   {
     "package": "xkb-data",
@@ -383,7 +421,9 @@
     "archive": "xkb-data_2.35.1-1_all.deb",
     "noticeSha256": "689b0893bac5fa59edff92dabc27c1797b51510440ee54e709a573334681a180",
     "noticeBytes": 9923,
-    "notice": "../native-tools/notices/xkb-data.txt"
+    "notice": "../native-tools/notices/xkb-data.txt",
+    "sourcePackage": "xkeyboard-config",
+    "sourceVersion": "2.35.1-1"
   },
   {
     "package": "xserver-common",
@@ -397,7 +437,9 @@
     "archive": "xserver-common_2%3a21.1.7-3+deb12u13_all.deb",
     "noticeSha256": "4cc0447a22635c7b2f1a93fec4aa94f1970fadeb72a063de006b51cf4963a06f",
     "noticeBytes": 94783,
-    "notice": "../native-tools/notices/xserver-common.txt"
+    "notice": "../native-tools/notices/xserver-common.txt",
+    "sourcePackage": "xorg-server",
+    "sourceVersion": "2:21.1.7-3+deb12u13"
   },
   {
     "package": "xvfb",
@@ -411,6 +453,8 @@
     "archive": "xvfb_2%3a21.1.7-3+deb12u13_amd64.deb",
     "noticeSha256": "4cc0447a22635c7b2f1a93fec4aa94f1970fadeb72a063de006b51cf4963a06f",
     "noticeBytes": 94783,
-    "notice": "../native-tools/notices/xvfb.txt"
+    "notice": "../native-tools/notices/xvfb.txt",
+    "sourcePackage": "xorg-server",
+    "sourceVersion": "2:21.1.7-3+deb12u13"
   }
 ]

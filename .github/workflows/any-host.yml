@@ -134,8 +134,8 @@ jobs:
           mv "$RUNNER_TEMP/desktop-component" "$relocated"
           python3 templates/process-tools/desktop.py --smoke-only --output "$relocated" \
             --report "$RUNNER_TEMP/desktop-component.json"
-          PRYX_DESKTOP_TEST_COMPONENT="$relocated" \
-            python3 -m unittest discover -s templates/process-tools -p 'desktop_test.py'
+          PRYX_DESKTOP_TEST_COMPONENT="$relocated" PRYX_DESKTOP_TEST_SOURCE_CACHE="$RUNNER_TEMP/tool-inputs" \
+            python3 -m unittest discover -s templates/process-tools -p 'desktop*_test.py'
           PRYX_DESKTOP_TEST_COMPONENT="$relocated" PRYX_DESKTOP_TEST_BASE="$moved" \
             PRYX_DESKTOP_LIVE_REPORT="$RUNNER_TEMP/desktop-live.json" \
             CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0 \

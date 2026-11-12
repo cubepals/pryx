@@ -1317,3 +1317,35 @@ job when publication is authorized. That job has not run in this task.
   for the staged component's 22 distinct source/version pairs. Each Debian DSC's
   archive size/SHA-256 is verified; no source is executed. This local acquisition
   is not yet the committed source-export implementation or publication proof.
+- Complete staged desktop corresponding-source export: pin all 74 DSC/original/
+  Debian-change inputs for 22 source/version pairs and 26 binary packages.
+  Validate each complete DSC reference set, every input size/digest, binary
+  package control source identity and all 26 full copyright hashes. Preserve
+  original/source archives, Debian patches, full notices/licences and pryx's
+  licence without running hooks or source code. Add this directory to the
+  existing separate source asset; runtime availability remains unchanged.
+  The actual local export and deterministic packager pass: 37,336,907 archive
+  bytes, 184 entries, SHA-256
+  122ec130cb2bef6015b70652633706a2c4af42670d5743e7b344712145920f44.
+  Raw inventory and source/provenance hashes are under k24. Its example.invalid
+  descriptor identifies a local staging artifact, never a published release.
+  Five real Python cases pass, including a DSC export missing its actual pinned
+  original archive; rejection occurs before output creation. All four source-
+  mapped program controls, actual ShellCheck/actionlint, Python syntax, REUSE,
+  docs, whitespace and all three structure checks pass. No Rust/TypeScript
+  source changes follow their preceding full checks. Combined hosted source
+  packaging and the live X11 proof remain pending. Source collection adds an
+  estimated under one minute to the branch/scheduled producer and release build;
+  the existing source fixture test adds under one second. No job or gate.
+- Superseded Any-host runs 43253634559 / 43258722135 and normal source-793
+  runs 43258722385 / 43258740558 were inspected and canceled to release queued
+  runners for 26c8b10. The only completed failures observed before cancellation
+  were the two already-read REUSE core failures. The source-793 staged producer
+  remains a passed job; its canceled installed continuation is not a pass.
+  Source-26c normal push 43261043234, PR 43261068736 and Any-host 43261043378
+  are still running. Preserve any later completed aggregate/failure evidence.
+- The two canceled source-793 aggregates 131334515078 / 131334553656
+  complete with expected failures. Read both full logs: they contain only the
+  already diagnosed REUSE core failures plus canceled E2E/one-box dependencies.
+  The canceled Any-host runs have no completed failing jobs. None is labeled
+  green or used as final milestone acceptance.

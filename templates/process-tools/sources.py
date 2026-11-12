@@ -16,6 +16,7 @@ import tempfile
 import tomllib
 import build
 import package
+import desktop_sources
 
 
 def recipes(items, cache, output, extractor):
@@ -37,6 +38,7 @@ def recipes(items, cache, output, extractor):
 def collect(runtime, cache, output):
     catalog = json.loads((build.ROOT / 'sources.lock.json').read_text())
     output.mkdir(parents=True, exist_ok=False)
+    desktop_sources.collect(cache, output / 'desktop')
     for item in catalog:
         archive = build.acquire(item, cache)
         destination = output / 'archives' / item['sha256'] / archive.name

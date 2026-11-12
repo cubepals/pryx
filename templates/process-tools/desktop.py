@@ -27,6 +27,13 @@ def assemble(cache, output, libraries):
     notices.mkdir()
     for item in packages:
         archive = acquire(dict(item, name=item['package']), cache)
+        source = subprocess.check_output(['dpkg-deb', '--field', str(archive), 'Source'], text=True).strip()
+        version = subprocess.check_output(['dpkg-deb', '--field', str(archive), 'Version'], text=True).strip()
+        source = source or item['package']
+        if ' (' in source:
+            source, version = source[:-1].split(' (')
+        if (source, version) != (item['sourcePackage'], item['sourceVersion']):
+            raise ValueError('Desktop binary source metadata differs from its corresponding-source mapping')
         subprocess.run(['dpkg-deb', '--extract', str(archive), str(payload)], check=True)
         source = ROOT / item['notice']
         if digest(source) != item['noticeSha256']:
