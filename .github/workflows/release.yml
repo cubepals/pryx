@@ -75,7 +75,21 @@ jobs:
         with:
           ref: ${{ env.SHA }}
           persist-credentials: false
-      - name: Build
+      - name: Assemble the separate native tool distributions
+        # Native tools are separate lazy assets; only their digest descriptor enters the image.
+        # Source archives, recipes and patches are retained unchanged as data.
+        run: |
+          mkdir -p dist
+          python3 templates/process-tools/build.py --cache "$RUNNER_TEMP/tool-inputs" --output "$RUNNER_TEMP/process-tools"
+          python3 templates/process-tools/sources.py --runtime "$RUNNER_TEMP/process-tools" \
+            --cache "$RUNNER_TEMP/tool-inputs" --output "$RUNNER_TEMP/process-tool-sources" \
+            --archive dist/pryx-process-tools-sources.tar.gz \
+            --descriptor "$RUNNER_TEMP/process-tool-sources.json"
+          python3 templates/process-tools/package.py --root "$RUNNER_TEMP/process-tools" \
+            --archive dist/pryx-process-tools-linux-x64.tar.gz \
+            --descriptor deploy/process-tools/process-tools.json \
+            --url "https://github.com/cubepals/pryx/releases/download/v$version/pryx-process-tools-linux-x64.tar.gz"
+      - name: Build the release image
         run: docker build -t "$IMAGE:$version" .
       - name: The binary says its version, and the files
         run: |

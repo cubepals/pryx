@@ -1,0 +1,4 @@
+Process-tool metadata is generated from verified release archives before image packaging.
+The signed host and bootstrap archives retain process-tools.json beside pryx-agent.
+Runtime and corresponding-source payloads remain separate release assets. A source-only
+image build without this generated descriptor keeps native tools unavailable by name.

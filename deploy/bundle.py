@@ -160,6 +160,9 @@ def main():
                 ('/usr/bin/tini', 'tini')]:
             bundle.executable(source, 'bin/' + target)
         bundle.library('/usr/lib/x86_64-linux-gnu/libnss_wrapper.so')
+        tools = Path('/usr/local/lib/pryx/process-tools.json')
+        if tools.exists():
+            shutil.copy2(tools, bundle.root / 'bin/process-tools.json')
         for name in ['pryxd.sig', 'pryxd.bootstrap.sig']:
             if Path('/' + name).exists():
                 shutil.copy2('/' + name, bundle.root / 'bin' / name)
@@ -184,6 +187,8 @@ def main():
             if payload.exists():
                 shutil.copy2(payload, bootstrap / 'bin' / payload.name)
         shutil.copytree(bundle.root / 'lib', bootstrap / 'lib')
+        if tools.exists():
+            shutil.copy2(tools, bootstrap / 'bin/process-tools.json')
         shutil.copytree(bundle.root / 'licenses', bootstrap / 'licenses')
         pack(bootstrap, destination / 'pryx-bootstrap-linux-x64.tar.gz')
 

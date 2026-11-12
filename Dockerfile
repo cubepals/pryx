@@ -56,6 +56,7 @@ RUN apt-get update \
 COPY --from=agentos /agentos /usr/local/lib/pryx/agentos
 COPY --from=build /src/target/release/pryxd /pryxd
 COPY --from=build /src/target/release/pryx-agent /usr/local/lib/pryx/pryx-agent
+COPY deploy/process-tools/ /usr/local/lib/pryx/
 COPY --from=node-userland /usr/local/bin/node /usr/local/bin/node
 COPY --from=node-userland /usr/local/lib/node_modules /usr/local/lib/node_modules
 RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \

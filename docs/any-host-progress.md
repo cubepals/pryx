@@ -742,3 +742,15 @@ job when publication is authorized. That job has not run in this task.
   Source delivery uses a separate uncompressed CI artifact so small tool evidence
   remains downloadable. Estimated one to three additional branch/scheduled minutes,
   no new job or ordinary PR gate. Production publication wiring remains active.
+
+- Installation metadata checkpoint wires generated process-tools.json into the
+  release image and both host/bootstrap archives; signed full-host contents bind
+  its acquisition digest. The release workflow assembles and publishes runtime
+  and corresponding-source assets through its existing immutable-release path.
+  Any-host host packaging uses the producing tool job's exact descriptor and
+  relocation checks its retention, size and private write permissions. A source-only
+  image without generated metadata preserves the named missing-artifact refusal.
+  This adds an estimated five to twelve release-build minutes and serializes the
+  existing Any-host bundle after native acceptance; no ordinary PR job or gate.
+  No release/tag/key/settings change was performed. Installed edge/SDK acceptance
+  and hosted proof of this metadata step remain pending.

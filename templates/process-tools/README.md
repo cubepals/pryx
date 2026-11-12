@@ -35,6 +35,12 @@ recipes and patches. Runtime notices record that asset's descriptor; asking for 
 downloads its sources. Both assets must accompany production publication. Source collection
 never runs a package recipe or modifies an upstream binary.
 
+The release build writes its generated descriptor under `deploy/process-tools/` before image
+packaging. Both the full signed host bundle and the bootstrap retain it beside the actual
+agent executable. The large runtime and source assets remain outside those installations.
+A source-only image build without generated metadata keeps native tools unavailable with
+the existing missing-artifact reason.
+
 Parts (`process-tools/`):
 
 - `build.py`: verified assembly, complete notices, addon selection and an ELF symbol audit.

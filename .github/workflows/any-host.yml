@@ -21,6 +21,8 @@ jobs:
     name: Relocatable upstream process tools
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    outputs:
+      descriptor: ${{ steps.package.outputs.descriptor }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -30,6 +32,7 @@ jobs:
           python3 -m unittest discover -s templates/process-tools -p '*_test.py'
           python3 templates/process-tools/build.py --cache "$RUNNER_TEMP/tool-inputs" --output "$RUNNER_TEMP/process-tools"
       - name: Package the separate lazy tool artifact
+        id: package
         run: |
           python3 templates/process-tools/sources.py --runtime "$RUNNER_TEMP/process-tools" \
             --cache "$RUNNER_TEMP/tool-inputs" --output "$RUNNER_TEMP/process-tool-sources" \
@@ -45,6 +48,12 @@ jobs:
           python3 templates/process-tools/package.py --root "$RUNNER_TEMP/process-tools" \
             --archive "$RUNNER_TEMP/pryx-process-tools-linux-x64.tar.gz" \
             --descriptor "$RUNNER_TEMP/process-tools.json" --url "$(cat "$RUNNER_TEMP/tool-release-url")"
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os
+          from pathlib import Path
+          descriptor = json.loads((Path(os.environ['RUNNER_TEMP']) / 'process-tools.json').read_text())
+          print('descriptor=' + json.dumps(descriptor, separators=(',', ':')))
+          PY
       - name: Run both real kernels after physical relocation
         run: |
           test "$(id -u)" -ne 0
@@ -109,6 +118,7 @@ jobs:
           if-no-files-found: error
   bundle:
     name: Bundle runtime acceptance
+    needs: process-tools
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     outputs:
@@ -128,7 +138,15 @@ jobs:
           openssl genpkey -algorithm ED25519 -out "$RUNNER_TEMP/preview.key"
           openssl pkey -in "$RUNNER_TEMP/preview.key" -pubout -out "$RUNNER_TEMP/preview.pub"
       - name: Build the same programs as the release image
+        env:
+          PRYX_NATIVE_DESCRIPTOR: ${{ needs.process-tools.outputs.descriptor }}
         run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          descriptor = json.loads(os.environ['PRYX_NATIVE_DESCRIPTOR'])
+          Path('deploy/process-tools/process-tools.json').write_text(json.dumps(descriptor) + '\n')
+          PY
           started=$(date +%s)
           docker build --target bundle --build-arg "PRYX_PREVIEW_PUBLIC_KEY=$(cat "$RUNNER_TEMP/preview.pub")" -t pryx-host-bundle .
           mkdir host-artifacts
