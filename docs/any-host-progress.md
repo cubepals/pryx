@@ -891,3 +891,14 @@ job when publication is authorized. That job has not run in this task.
   retains 426 passing tests/8,359 assertions and its existing compiled-assets skip.
   Actual installed native acceptance, source-final CI and K23 completion remain
   pending; the two parked Docker pieces remain untouched.
+
+- Runtime-origin acceptance now checks actual Python/Node executable paths below
+  the pinned cache and exact upstream versions, Chrome's CDP version, and the
+  daemon's host-glibc report against host getconf. Retain architecture, libc and
+  Landlock ABI with raw samples. Add TypeScript error/interrupt/restart checks,
+  MCP run_python returning PNG, and the installed CLI against the existing box.
+  These remain mandatory hosted assertions; no installed-product pass is claimed.
+- Complete local Bun with real PostgreSQL passes 426 tests, one existing
+  compiled-assets skip and 8,359 assertions; lint/typecheck, all TypeScript
+  structure checks and whitespace pass. Unchanged Rust retains 477 passing
+  tests and 25 ignored at 84efee5. Signed-preview CI remains in progress.

@@ -3,20 +3,52 @@
  * SDK acceptance runs unchanged; this script retains raw process-tier timing samples only. */
 import assert from 'node:assert/strict'
 import { readFileSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { StatusCodes } from 'http-status-codes'
 import { readClientConfig } from '../cli/src/client-config.ts'
+import { readInstallation } from '../cli/src/up-local-record.ts'
+import { userPaths } from '../cli/src/up-paths.ts'
 import { SECOND_MS } from '../control/src/durations.ts'
+import { Agent } from '../sdk/typescript/src/agent.ts'
 import { Pryx, type Sandbox } from '../sdk/typescript/src/index.ts'
+import { Transport } from '../sdk/typescript/src/transport.ts'
+import { hostProbe } from './host-probe.ts'
 
 const credential = readClientConfig()
 assert(credential, 'Installed CLI credentials are required')
 assert(process.getuid?.() !== 0, 'Native acceptance must run as an ordinary user')
-const installed = JSON.parse(readFileSync(join(homedir(), '.config/pryx/installation.json'), 'utf8'))
+const installed = readInstallation(userPaths())
+assert(installed)
 assert.equal(installed.preset, 'user')
 assert.equal(installed.tier, 'process')
 const sdk = new Pryx(credential)
+const host = await hostProbe(join(installed.bundle, 'bin/pryxd'))
+const systemGlibc = Bun.spawnSync(['getconf', 'GNU_LIBC_VERSION'], { stdout: 'pipe', stderr: 'pipe' })
+assert.equal(systemGlibc.exitCode, 0)
+assert.equal(host.cLibrary, systemGlibc.stdout.toString().trim())
+const nodeConfig = Bun.TOML.parse(readFileSync(join(installed.paths.config, 'pryxd.toml'), 'utf8')) as Record<
+  string,
+  unknown
+>
+const nodeState = nodeConfig.state_dir
+assert(typeof nodeState === 'string')
+const descriptor = JSON.parse(readFileSync(join(installed.bundle, 'bin/process-tools.json'), 'utf8'))
+const runtimeRoot = join(
+  String(nodeState),
+  'process-tools',
+  String(process.getuid?.()),
+  'cache',
+  descriptor.sha256,
+)
+const inputs = JSON.parse(readFileSync('templates/process-tools/artifacts.json', 'utf8')) as {
+  name: string
+  version: string
+}[]
+function version(name: string) {
+  const pinned = inputs.find((input) => input.name === name)
+  assert(pinned)
+  return pinned.version
+}
 const browserOn = process.env.PRYX_NATIVE_BROWSER === 'on'
 assert(['on', 'off'].includes(process.env.PRYX_NATIVE_BROWSER ?? ''))
 const samples: Record<string, number[]> = {}
@@ -27,9 +59,14 @@ function png(bytes: Uint8Array | undefined) {
   assert.deepEqual(bytes.subarray(0, pngSignature.length), pngSignature)
 }
 async function command(argv: string[], env: Record<string, string | undefined>) {
-  const child = Bun.spawn(argv, { env, stdout: 'ignore', stderr: 'pipe' })
-  const [code, error] = await Promise.all([child.exited, new Response(child.stderr).text()])
-  assert.equal(code, 0, `Existing Python SDK acceptance failed: ${error.slice(-2000)}`)
+  const child = Bun.spawn(argv, { env, stdout: 'pipe', stderr: 'pipe' })
+  const [code, out, error] = await Promise.all([
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ])
+  assert.equal(code, 0, `Installed client acceptance failed: ${error.slice(-2000)}`)
+  return out
 }
 async function python(box: Sandbox, kind: string) {
   const interpreter = process.env.PRYX_PYTHON ?? 'python3'
@@ -64,6 +101,7 @@ async function cdp(url: string) {
       clearTimeout(timer)
       try {
         assert.match(result.result.product, /Chrome/)
+        assert.equal(result.result.product.split('/').at(-1), version('headless-shell'))
         resolve()
       } catch (error) {
         reject(error)
@@ -93,10 +131,71 @@ for (const language of ['python', 'javascript'] as const) {
     assert.equal((await kernel.run(language === 'python' ? 'value=40' : 'var value=40')).status, 'ok')
     assert.equal((await kernel.run('value+2')).text, '42')
     png((await kernel.run(chart[language])).png)
+    const runtime = JSON.parse(
+      (
+        await kernel.run(
+          language === 'python'
+            ? "print(__import__('json').dumps({'executable':__import__('sys').executable,'version':__import__('platform').python_version()}))"
+            : 'console.log(JSON.stringify({executable:process.execPath,version:process.versions.node}))',
+        )
+      ).stdout.trim(),
+    )
+    assert.equal(runtime.version, version(language === 'python' ? 'python-standalone' : 'node'))
+    assert(runtime.executable.startsWith(`${join(runtimeRoot, language === 'python' ? 'python' : 'node')}/`))
+    const error = await kernel.run(
+      language === 'python' ? "raise ValueError('known')" : "throw new Error('known')",
+    )
+    assert.match(error.error?.value ?? '', /known/)
+    assert(error.error && error.error.traceback.length > 0)
+    let interrupted = false
+    for await (const event of kernel.stream(
+      language === 'python'
+        ? "print('interrupt-ready',flush=True)\nwhile True: pass"
+        : "console.log('interrupt-ready');while(true){}",
+    )) {
+      if (!interrupted && event.type === 'stream' && event.text.includes('interrupt-ready')) {
+        interrupted = true
+        await kernel.interrupt()
+      }
+    }
+    assert(interrupted)
+    assert.equal((await kernel.run('value+2')).text, '42')
+    const old = kernel.pid
+    await kernel.restart()
+    assert.notEqual(kernel.pid, old)
+    assert((await kernel.run('value')).error)
     await kernel.close()
     await python(box, language)
+    if (language === 'python') {
+      const agent = new Agent(new Transport(credential), box.id)
+      const rpc = await agent.request<{
+        result: { content: { type: string; mimeType?: string }[]; isError?: boolean }
+      }>('/_pryx/mcp', 'POST', {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'run_python', arguments: { code: chart.python } },
+      })
+      assert(!rpc.result.isError)
+      assert(rpc.result.content.some((part) => part.type === 'image' && part.mimeType === 'image/png'))
+      assert.equal(
+        await command([installed.paths.cli, 'sandbox', 'python', box.id, '-c', 'print(2+2)'], process.env),
+        '4\n',
+      )
+    }
     console.log(
-      JSON.stringify({ installed: true, language, stateRetained: true, png: true, bothPythonModes: true }),
+      JSON.stringify({
+        installed: true,
+        language,
+        stateRetained: true,
+        png: true,
+        bothPythonModes: true,
+        bundleRuntime: true,
+        version: runtime.version,
+        interrupt: true,
+        restart: true,
+        ...(language === 'python' ? { mcpRunPython: true, installedCli: true } : {}),
+      }),
     )
   } finally {
     await box.delete()
@@ -168,6 +267,6 @@ if (browserOn) {
   assert(process.env.PRYX_NATIVE_MEASUREMENTS)
   writeFileSync(
     process.env.PRYX_NATIVE_MEASUREMENTS,
-    `${JSON.stringify({ uid: process.getuid?.(), preset: 'user', isolation: 'process', unit: 'ms', point: 'create-to-first-image', samples }, null, 2)}\n`,
+    `${JSON.stringify({ uid: process.getuid?.(), preset: 'user', isolation: 'process', architecture: host.architecture, hostCLibrary: host.cLibrary, landlockAbi: host.landlockAbi, unit: 'ms', point: 'create-to-first-image', samples }, null, 2)}\n`,
   )
 }
