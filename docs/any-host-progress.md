@@ -1825,3 +1825,22 @@ job when publication is authorized. That job has not run in this task.
   both regressions and the unchanged Wasm listener. The updated headful fixture
   compiles; its two hosted cases remain explicitly ignored locally. Fresh
   hosted observation/installed proof and current strict lint remain pending.
+- Current strict all-target Clippy passes. The full Rust run during concurrent
+  pinned-tool assembly passes its unit/API suites but fails the unchanged real
+  Wasm restart command with exit 137 (tests/wasm.rs:93), after runtime worker-stall
+  diagnostics and 144.69s. Pause only that optional assembly's process tree for
+  a controlled complete invocation: all 490 tests pass, 33 explicit ignores,
+  including real Wasm and rustdoc, with every deadline unchanged. Automatically
+  resume assembly afterward. Retain both results; no Wasm change is justified
+  or retained. Update the NSS runtime-map control to import SQLite's ELF filename
+  from its pinned inventory; the real local database/random control passes.
+  Python discovery passes its two portable tests, with six explicit asset-based
+  skips; do not count those as executed desktop proof.
+- After inspecting completed jobs (none failing), cancel superseded normal runs
+  43318906923, 43318893241, 43317889920, 43317876556 and 43316955102, and
+  superseded producer run 43318893527, to prioritize source 35b8b15. Three much
+  older queued 235399d runs report already completed when cancellation is
+  attempted; they are not newly canceled or aggregate proof. Source 35b8b15's
+  producer/normal CI remain active. Optional local artifact download is denied
+  by the environment proxy at Azure storage; assemble the same pinned official
+  inputs locally instead, without changing networking policy or verification.

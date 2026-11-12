@@ -119,13 +119,13 @@ def nss_smoke(root):
 import ctypes
 from pathlib import Path
 import sys
-component, database = map(Path, sys.argv[1:])
+component, database = map(Path, sys.argv[1:3])
 libraries = component / 'payload/usr/lib/x86_64-linux-gnu'
 nss = ctypes.CDLL(str(libraries / 'libnss3.so'))
 assert nss.NSS_InitReadWrite(('sql:' + str(database)).encode()) == 0, 'NSS database initialization failed'
 assert nss.PK11_GenerateRandom((ctypes.c_ubyte * 32)(), 32) == 0, 'NSS random control failed'
 paths = {line.split(maxsplit=5)[-1].strip() for line in Path('/proc/self/maps').read_text().splitlines()}
-for name in ['libsoftokn3.so', 'libfreeblpriv3.so', 'libsqlite3.so.0.8.6']:
+for name in ['libsoftokn3.so', 'libfreeblpriv3.so', sys.argv[3]]:
     expected = str(libraries / name)
     assert expected in paths, 'NSS runtime dependency is not loaded from the component: ' + name
     assert not any(Path(path).name == name and path != expected for path in paths), 'NSS mixed host and component dependencies'
@@ -133,7 +133,8 @@ assert nss.NSS_Shutdown() == 0, 'NSS shutdown failed'
 assert (database / 'cert9.db').is_file() and (database / 'key4.db').is_file(), 'NSS did not create its own databases'
 '''
     with tempfile.TemporaryDirectory() as database:
-        subprocess.run([sys.executable, '-c', control, str(root), database], check=True, timeout=10,
+        sqlite = next(item for item in inputs() if item['package'] == 'libsqlite3-0')
+        subprocess.run([sys.executable, '-c', control, str(root), database, Path(sqlite['elfs'][0]).name], check=True, timeout=10,
                        env=dict(os.environ, LD_LIBRARY_PATH=':'.join(map(str, library_paths(root)))))
 
 
