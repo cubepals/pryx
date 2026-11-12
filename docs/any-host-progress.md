@@ -1039,3 +1039,26 @@ job when publication is authorized. That job has not run in this task.
   structure graphs and whitespace pass. Rust retains 478 passing tests/25 ignored
   at 3b20de4. Hosted two-node validation and corrected installed native cohorts
   remain pending; no main deliverable is parked.
+- Read source 15643ad PR Rust/Docker job 131160344053/run 43211582753:
+  ordinary Rust passes, but the Docker OOM acknowledgement exits 127 instead of
+  zero. Kernel logs show the allocator killed first, then the producer triggers
+  a second OOM killing PID 1. Docker's journal confirms runc cannot open that
+  exited init's /proc/PID/ns/ipc for the acknowledgement. Preserve this failure;
+  the other twenty Docker cases pass, and the push's Docker job 131160297855 is
+  green. No PR/overall completion is claimed.
+- The fixture now gives both allocation children the existing preferred victim
+  score and signals readiness after both waits finish, before its blocking FIFO
+  read. Only then does the host issue its one acknowledgement exec. The original
+  64-MiB hard limit, 400-MiB allocation, thirty-second deadline, zero-exit
+  acknowledgement and final OOM/SIGKILL assertions stay unchanged. No process
+  receives capabilities or a different engine policy. Local complete Rust passes
+  478 tests with 25 ignored; strict all-target Clippy, Rust structure, formatting
+  and whitespace pass. Real Docker validation of the coordination change belongs
+  to CI and remains pending. Unchanged Bun retains 428 passing tests/8,370
+  assertions and the existing skip at 15643ad.
+- Cleared inspected superseded normal runs 43206227502, 43206239992,
+  43210142839 and 43210152796; no new failed job was present when canceled.
+  Keep source 3b20de4 Any-host 43210142686 for the first corrected installed
+  guarantee/cohort proof and source 15643ad Any-host 43211573586 for accounting
+  integration. Interrupted checks establish no pass; both parked Docker pieces
+  remain untouched.
