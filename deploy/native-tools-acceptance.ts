@@ -119,6 +119,12 @@ async function make(requireBrowser = false) {
   assert.equal(box.isolation, 'process')
   return box
 }
+async function browserPage(box: Sandbox) {
+  await box.write('index.html', '<!doctype html><h1>Installed native browser 漢字 😀</h1>')
+  const server = await box.spawn(['python3', '-m', 'http.server', '3000', '--bind', '127.0.0.1'])
+  await server.waitForPort(3000)
+  return 'http://127.0.0.1:3000'
+}
 const chart = {
   python: 'plt.plot([1,2,3]); plt.show()',
   javascript: "$$.mime({'image/png':require('./chart.cjs')().toString('base64')})",
@@ -204,10 +210,7 @@ for (const language of ['python', 'javascript'] as const) {
 const box = await make(browserOn)
 try {
   if (browserOn) {
-    await box.write('index.html', '<!doctype html><h1>Installed native browser 漢字 😀</h1>')
-    const server = await box.spawn(['python3', '-m', 'http.server', '3000', '--bind', '127.0.0.1'])
-    await server.waitForPort(3000)
-    png(await box.browser.screenshot('http://127.0.0.1:3000'))
+    png(await box.browser.screenshot(await browserPage(box)))
     const access = await box.browser()
     await cdp(access.url)
     await python(box, 'browser')
@@ -235,34 +238,24 @@ try {
   await box.delete()
 }
 if (browserOn) {
-  const page = Bun.serve({
-    hostname: '127.0.0.1',
-    port: 0,
-    fetch: () =>
-      new Response('<h1>Native timed image 漢字 😀</h1>', { headers: { 'content-type': 'text/html' } }),
-  })
-  try {
-    for (const kind of ['browser', 'python', 'javascript'] as const) {
-      samples[kind] = []
-      for (let sample = 0; sample < 30; sample++) {
-        const started = performance.now()
-        const box = await make()
-        try {
-          if (kind === 'browser') png(await box.browser.screenshot(`http://127.0.0.1:${page.port}`))
-          else {
-            await box.write('chart.cjs', readFileSync('sdk/typescript/test/fixtures/chart.cjs'))
-            const kernel = kind === 'python' ? await box.python() : await box.javascript()
-            png((await kernel.run(chart[kind])).png)
-          }
-          samples[kind].push(performance.now() - started)
-        } finally {
-          await box.delete()
+  for (const kind of ['browser', 'python', 'javascript'] as const) {
+    samples[kind] = []
+    for (let sample = 0; sample < 30; sample++) {
+      const started = performance.now()
+      const box = await make()
+      try {
+        if (kind === 'browser') png(await box.browser.screenshot(await browserPage(box)))
+        else {
+          await box.write('chart.cjs', readFileSync('sdk/typescript/test/fixtures/chart.cjs'))
+          const kernel = kind === 'python' ? await box.python() : await box.javascript()
+          png((await kernel.run(chart[kind])).png)
         }
+        samples[kind].push(performance.now() - started)
+      } finally {
+        await box.delete()
       }
-      assert.equal(samples[kind].length, 30)
     }
-  } finally {
-    await page.stop(true)
+    assert.equal(samples[kind].length, 30)
   }
   assert(process.env.PRYX_NATIVE_MEASUREMENTS)
   writeFileSync(

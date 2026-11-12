@@ -915,3 +915,17 @@ job when publication is authorized. That job has not run in this task.
   syntax, actionlint, docs and whitespace pass. Product source is unchanged from
   the 477-pass Rust and 426-pass Bun checkpoints. The exact initial installer
   refusal remains to be exposed by the now-readable diagnostics if it persists.
+
+- Startup comparison checkpoint adds thirty real container create-to-first-PNG
+  samples per language, with untimed template preparation matching the prepared
+  native bundle. Process browser timing now includes its own page-server startup,
+  matching the existing container browser cohort. Historical interpreter execution
+  and restart budgets remain unchanged. Estimated one to three additional minutes
+  in the existing normal-PR end-to-end job; no new job or required gate.
+- Full local Bun check passes: 426 tests, one existing compiled-assets skip,
+  8,359 assertions with real PostgreSQL. Both TypeScript structure checks,
+  standalone-client compilation, actionlint and whitespace pass. Real container
+  cohorts and corrected installed-product CI remain pending. Canceled superseded
+  Any-host runs 43197116631 and 43198781057 after their native-policy jobs passed;
+  their bundles still used the known private-checkout fixture and establish no
+  installed-product pass. Keep corrected source 4eb6257 run 43199623015 active.

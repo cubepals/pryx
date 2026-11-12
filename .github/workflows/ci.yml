@@ -533,6 +533,7 @@ jobs:
           PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
           PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
           PRYX_INTERPRETER_MEASUREMENTS: ${{ runner.temp }}/interpreter-measurements.json
+          PRYX_INTERPRETER_IMAGE_MEASUREMENTS: ${{ runner.temp }}/interpreter-create-to-image.json
           PRYX_NATIVE_MEASUREMENTS: ${{ runner.temp }}/native-tools-measurements.json
           PRYX_COMPARE_LINKS: ${{ runner.temp }}/compare-links.json
           PRYX_NATIVE_TOOLS_SECCOMP: /usr/local/lib/pryx/native-tools-seccomp.json
@@ -557,7 +558,9 @@ jobs:
         uses: ./.github/actions/upload-evidence
         with:
           name: interpreter-measurements
-          path: ${{ runner.temp }}/interpreter-measurements.json
+          path: |
+            ${{ runner.temp }}/interpreter-measurements.json
+            ${{ runner.temp }}/interpreter-create-to-image.json
           if-no-files-found: error
       - name: Summarize interpreter measurements
         if: always()
