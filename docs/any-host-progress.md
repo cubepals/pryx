@@ -1870,3 +1870,20 @@ job when publication is authorized. That job has not run in this task.
   summary/doctor tests pass; the complete Bun check passes 436 tests, one existing
   skip and 8,407 assertions against real PostgreSQL, with all preceding stages
   green. Fresh installed summary/capability acceptance remains required.
+- Installed source 35b8b15, job
+  [131543614392](https://github.com/cubepals/pryx/actions/runs/43319847311/job/131543614392),
+  passes configured doctor, native requiredTools placement, real TypeScript and
+  both Python-mode desktop click/text/PNG/noVNC, and actual TypeScript HTTP SSH
+  commands including sleep/wake and the running-state condition. It then fails
+  the installed CLI SSH command: Bun reports the explicit glibc loader as
+  process.execPath, so ProxyCommand tries to load sandbox as an ELF program.
+  Retain installed-35b8b15.json; Python SSH and timing cohorts did not run.
+- Reenter the installed wrapper through the existing bundle locator for HTTP
+  SSH ProxyCommand. A regression compiles the real CLI and a probe, runs them
+  through the glibc --argv0 loader pattern in a path containing spaces, confirms
+  the loader-valued execPath, and reaches the real proxy SDK lookup without
+  transport stdout. The former executable selection fails that same regression
+  with exit 127; the corrected selection and opaque-stream regression both pass.
+  Lint/type/schema/docs/release and mixed structure checks pass. The complete Bun
+  test stage is still running in this compiling checkpoint; fresh installed CLI,
+  Python SSH, timing and full aggregate results remain required.

@@ -8,6 +8,7 @@ import { join } from 'node:path'
 import { setTimeout as pause } from 'node:timers/promises'
 import type { Pryx } from '@cubepals/pryx'
 import { SECOND_MS } from '../../control/src/durations.ts'
+import { bundleBinary } from '../../deploy/local-layout.ts'
 
 export async function connectSsh(
   lease: import('@cubepals/pryx').SshAccess,
@@ -65,7 +66,9 @@ export async function connectSsh(
         'GlobalKnownHostsFile=/dev/null',
         '-o',
         'ForwardAgent=no',
-        ...(lease.transport === 'websocket' ? ['-o', `ProxyCommand=${proxyCommand(sandbox, lease.id)}`] : []),
+        ...(lease.transport === 'websocket'
+          ? ['-o', `ProxyCommand=${sshProxyCommand(sandbox, lease.id)}`]
+          : []),
         `${lease.user}@${lease.host}`,
         ...args,
       ],
@@ -92,9 +95,9 @@ export async function ssh(client: Pryx, id: string, args: string[]) {
   }
 }
 
-function proxyCommand(sandbox: string | undefined, lease: string) {
+export function sshProxyCommand(sandbox: string | undefined, lease: string) {
   if (!sandbox) throw new Error('WebSocket SSH needs its sandbox identity')
-  const executable = process.execPath
+  const executable = bundleBinary('pryx', process.execPath)
   const source = executable.endsWith('/bun') ? [process.argv[1] as string] : []
   // OpenSSH runs ProxyCommand through a shell; every argument is literal and contains no key.
   return [executable, ...source, 'sandbox', 'ssh-proxy', sandbox, lease]
