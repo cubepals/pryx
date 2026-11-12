@@ -664,3 +664,21 @@ job when publication is authorized. That job has not run in this task.
   full Bun passes 425 tests, one existing compiled-assets skip and 8,355 assertions.
   The template missing-guarantee regression keeps the original hosted browser
   refusal assertion intact. Current-source hosted acceptance remains pending.
+
+- Recovery checkpoint: the preceding machine's uncommitted process-launch/browser
+  integration is lost. Continue from bd34a7e and the committed cache/kernel/signed
+  observation foundation; no lost local check establishes current-source proof.
+  Source bd34a7e has green normal CI 43116738327 and 43116730410, Any host
+  43116731031, both Rootless runs 43116738176/43116730821 and CodeQL 43116738090.
+  K23 remains in progress; K22's two Docker exceptions remain untouched.
+- First rebuilt step adds unchanged-payload archive packaging, a pinned acquisition
+  descriptor and real archive/inventory regression checks. Both Python tests,
+  Python compilation, actionlint, documentation and whitespace checks pass locally.
+  The existing Any-host tool job now packages before smoke execution and retains
+  the descriptor; new packaging adds an estimated two to four branch/scheduled CI
+  minutes, with no new job or ordinary PR gate. Hosted packaging proof is pending.
+  Source retention/publication, protected installation metadata, process adoption,
+  browser confinement, installed edge/SDK acceptance and thirty samples remain.
+- Persist each building step with a signed commit and push, at least every thirty
+  minutes, as required by the resumed task. Never accumulate a whole integration
+  milestone only in the execution workspace.

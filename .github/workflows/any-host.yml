@@ -27,7 +27,20 @@ jobs:
           persist-credentials: false
       - name: Assemble verified upstream runtimes
         run: |
+          python3 -m unittest discover -s templates/process-tools -p '*_test.py'
           python3 templates/process-tools/build.py --cache "$RUNNER_TEMP/tool-inputs" --output "$RUNNER_TEMP/process-tools"
+      - name: Package the separate lazy tool artifact
+        run: |
+          python3 - <<'PY' > "$RUNNER_TEMP/tool-release-url"
+          import tomllib
+          with open('Cargo.toml', 'rb') as source:
+              cargo = tomllib.load(source)
+          version = cargo['workspace']['package']['version']
+          print(f'https://github.com/cubepals/pryx/releases/download/v{version}/pryx-process-tools-linux-x64.tar.gz')
+          PY
+          python3 templates/process-tools/package.py --root "$RUNNER_TEMP/process-tools" \
+            --archive "$RUNNER_TEMP/pryx-process-tools-linux-x64.tar.gz" \
+            --descriptor "$RUNNER_TEMP/process-tools.json" --url "$(cat "$RUNNER_TEMP/tool-release-url")"
       - name: Run both real kernels after physical relocation
         run: |
           test "$(id -u)" -ne 0
@@ -55,6 +68,7 @@ jobs:
             ${{ runner.temp }}/upstream-kernels.jsonl
             ${{ runner.temp }}/upstream-browser.jsonl
             ${{ runner.temp }}/upstream-tool-manifest.json
+            ${{ runner.temp }}/process-tools.json
           if-no-files-found: error
   bundle:
     name: Bundle runtime acceptance

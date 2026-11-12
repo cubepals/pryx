@@ -24,6 +24,8 @@ The state is in the repository
   anything you remember. A new task with no history must be able to continue from them alone.
 - Commit small and often, and push the branch after every commit that builds. Nothing that
   matters exists only on this machine.
+- Commit and push each step that builds, at least every thirty minutes. Checkpoints preserve
+  incomplete milestones honestly; a machine failure must not lose a larger interval of work.
 
 CI is the proof
 

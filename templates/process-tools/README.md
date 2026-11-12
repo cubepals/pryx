@@ -32,6 +32,8 @@ They are not build inputs for the active bundle. The main deliverable is never p
 Parts (`process-tools/`):
 
 - `build.py`: verified assembly, complete notices, addon selection and an ELF symbol audit.
+- `package.py`: unchanged payload packaging and pinned archive/inventory expansion metadata.
+- `package_test.py`: real archive determinism, bounds and inventory-tampering regressions.
 - `smoke.py`: real stateful Python/Node kernels and charts after physical relocation.
 - `browser/`: maintained debugging-pipe and Unix-proxy adapters, lock and browser acceptance.
 - `launchers/`: small runtime launchers using the bundle's libraries and host glibc.
