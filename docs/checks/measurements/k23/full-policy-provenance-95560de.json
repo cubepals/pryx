@@ -1,0 +1,23 @@
+{
+  "source": "95560de94e75547db25f6e545f433ceb41ad8006",
+  "run": 43219637379,
+  "job": 131187563160,
+  "jobConclusion": "success",
+  "artifact": {
+    "id": 13946510445,
+    "name": "upstream-process-tools",
+    "zipSha256": "25ebae8a10875dbaf3ef371b4db1ccb0891183178872ab9ee219237a1294ef26"
+  },
+  "retained": {
+    "full-policy-descriptor-95560de.json": {
+      "artifactFile": "process-tools.json",
+      "sha256": "4c580eb484c12887251bfe2504bfdc93f1148a51db83b87ccf859987c229e034"
+    },
+    "full-policy-95560de.json": {
+      "artifactFile": "native-process-acceptance.log",
+      "sha256": "b09a23ad3c34d14d0f3183391700c804dce3d5ab0725fa1252e1cb70fbd86b73",
+      "transformation": "JSON outcome objects extracted from the complete real-policy test log; harness/compiler prefixes omitted"
+    }
+  },
+  "scope": "Both relocated upstream kernels and browser pass; full agent policy proves state, PNGs, same-UID neighbour refusal, forwarded CDP and namespace-policy refusal without acquisition. Signed installed-product evidence is retained separately on the same source."
+}

@@ -1,0 +1,43 @@
+{
+  "source": "95560de94e75547db25f6e545f433ceb41ad8006",
+  "workflow": "CI",
+  "run": 43219637483,
+  "job": 131187623947,
+  "url": "https://github.com/cubepals/pryx/actions/runs/43219637483/job/131187623947",
+  "e2e": {
+    "tests": 48,
+    "passed": 33,
+    "skipped": 15,
+    "failures": 0,
+    "newStartupCaseSeconds": 96.710385
+  },
+  "jobStatusAtRetention": "success; complete normal push workflow including Wasm, two-node, integrations, recovery and aggregate is green",
+  "artifacts": [
+    {
+      "id": 13947885117,
+      "name": "native-tools-measurements",
+      "zipSha256": "636841972e10bd2262bf1a113571f89c9bc51d684a18f68d6e09db4fdabac1c2"
+    },
+    {
+      "id": 13946304237,
+      "name": "interpreter-measurements",
+      "zipSha256": "7777321502e102f123a31e1306e9dfaed04d019e60d6e8592e75d4949c96d941"
+    }
+  ],
+  "retained": {
+    "container-native-95560de.json": {
+      "artifactFile": "native-tools-measurements.json",
+      "sha256": "0d842101e96c4b8b5ab92de6a24b1e7e699d3ac3ff9114d9d927036a06ef76ef"
+    },
+    "container-interpreter-budgets-95560de.json": {
+      "artifactFile": "interpreter-measurements.json",
+      "sha256": "0ab68a3f9bf3ec7e6510d142391cffb797c7b10f5bd67ba416bffd63d382d99f"
+    },
+    "container-interpreter-startup-95560de.json": {
+      "artifactFile": "interpreter-create-to-image.json",
+      "sha256": "71b8a329a4dd7644d6627a46e902145f7c01c3d717c6511ccd4f73043fb8f4ec"
+    }
+  },
+  "scope": "Thirty samples per container cohort, four default units (one CPU core, 2 GiB), cached templates. New kernel timer includes create, routing, kernel startup and first validated PNG. Browser includes its sandbox-local HTTP page-server startup. Historical interpreter execution/restart budgets retain their original clock points.",
+  "limitations": "Separate container and ordinary-user process CI runners, with different CPU/memory guarantees; the matching installed report retains its host conditions. PR completion and the separate distribution-matrix correction remain tracked in the progress record. No main run or publication."
+}

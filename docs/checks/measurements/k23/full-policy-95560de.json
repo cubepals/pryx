@@ -1,0 +1,24 @@
+[
+  {
+    "language": "python",
+    "png": true,
+    "scope": "full-process-policy",
+    "stateRetained": true,
+    "uid": 1001
+  },
+  {
+    "language": "javascript",
+    "png": true,
+    "scope": "full-process-policy",
+    "stateRetained": true,
+    "uid": 1001
+  },
+  {
+    "browser": true,
+    "forwardedCdp": true,
+    "sameUidNeighbourRefused": true,
+    "scope": "full-process-policy",
+    "screenshot": true,
+    "uid": 1001
+  }
+]

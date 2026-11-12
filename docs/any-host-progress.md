@@ -10,7 +10,7 @@ Only recorded CI evidence establishes completion; a local pass alone does not.
 | K20 | done | `54bd364` | Normal CI 42832474233 and Any host 42832474296, both green | All 13 host jobs: 8 user distro contexts, root container/PG UID, fallback, refusal, sudo, relocation; full normal CI including real Docker/KVM, one-box/Action, Wasm, 2-node, Rivet/celld and recovery | Production main/release prohibited; unchanged credentialed cloud/bootstrap cases skipped | None | Complete; proceed to K21 |
 | K21 | done | `de3ef9dc13e955e96c2f7c1e530f800069ff50c0` | Normal CI [42885151433](https://github.com/cubepals/pryx/actions/runs/42885151433), Any host [42885151332](https://github.com/cubepals/pryx/actions/runs/42885151332), Measure [42885520235](https://github.com/cubepals/pryx/actions/runs/42885520235), all green | All normal jobs and aggregate; all thirteen host jobs; both complete measurement jobs, including historical budgets and three-tier collectors | Production main/release prohibited; unchanged credentialed cases | None | None |
 | K22 | done except | `7963826182e3f8e9037aea17d4716df15086bd81` | Normal push [43075452804](https://github.com/cubepals/pryx/actions/runs/43075452804) and PR [43075462394](https://github.com/cubepals/pryx/actions/runs/43075462394), Any host [43075452782](https://github.com/cubepals/pryx/actions/runs/43075452782), Rootless engines [43075452793](https://github.com/cubepals/pryx/actions/runs/43075452793) and [43075462656](https://github.com/cubepals/pryx/actions/runs/43075462656), all green; supplementary Measure [43063939164](https://github.com/cubepals/pryx/actions/runs/43063939164) on source 87400f3 is also green | Full normal CI including actual rootful Docker, Wasm, two-node, integrations and recovery; all 15 host jobs; Podman lifecycle/attacks, install/repeat/upgrade/outage/recovery/purge; controller refusals, copy-bound guarantees and 30 hosted engine samples | Main/release prohibited; unchanged credentialed cases | Standard rootless Docker data-owner mapping with dependent positive lifecycle/timings; rootless Docker internal ingress/network-policy. Three approaches each recorded; both remain named refusals until their post-K27 second try | Supported scope complete; K23 started |
-| K23 | in progress | — | Full normal CI [43200870546](https://github.com/cubepals/pryx/actions/runs/43200870546) on d1a0a63 is green; installed job [131159201658](https://github.com/cubepals/pryx/actions/runs/43210142686/job/131159201658) on 3b20de4 passes all native acceptance then fails a later Alpine descriptor fixture; fe030cf core job 131170162631 passes all 21 real Docker cases | Signed fresh ordinary-user install without engine; actual pinned Python/Node executables and host glibc; both SDKs, state/charts/error/interrupt/restart, MCP/CLI; browser screenshot/forwarded CDP and guarantee; thirty process and container samples each; default-Docker both kernels, namespace/required-browser refusals and purge | Final-source complete CI and subsequent distribution matrix; main/release prohibited | **None: bundle un-parked by explicit user correction**; failed binary-rewriting experiments retained only as history | Obtain final green CI for the Alpine parser and power-answer lock-order corrections, then start K24 immediately. Upstream tools use host glibc >=2.34 and bundle-owned libraries; no binary rewriting/private glibc. Side pieces alone use the three-attempt rule |
+| K23 | in progress | — | Full normal push CI [43219637483](https://github.com/cubepals/pryx/actions/runs/43219637483) on 95560de is green; complete policy job 131187563160 and installed bundle job [131190931529](https://github.com/cubepals/pryx/actions/runs/43219637379/job/131190931529) are green; later host-matrix jobs fail Ubuntu prerequisite downloads | Signed fresh ordinary-user install without engine; actual pinned Python/Node executables and host glibc; both SDKs, state/charts/error/interrupt/restart, MCP/CLI; browser screenshot/forwarded CDP and guarantee; thirty process and container samples each; default-Docker both kernels, namespace/required-browser refusals and purge; Alpine relocation; complete normal CI including all ten two-node checks and recovery | Final-source complete PR/host matrix CI; main/release prohibited | **None: bundle un-parked by explicit user correction**; failed binary-rewriting experiments retained only as history | Finish the Ubuntu prerequisite mirror-download fallback and obtain final green CI, then start K24 immediately. Upstream tools use host glibc >=2.34 and bundle-owned libraries; no binary rewriting/private glibc. Side pieces alone use the three-attempt rule |
 | K24 | not started | — | — | — | All | — | Complete brief after K23 |
 | K25 | not started | — | — | — | All | — | Complete brief after K24 |
 | K26 | not started | — | — | — | All | — | Complete brief after K25 |
@@ -1109,3 +1109,46 @@ job when publication is authorized. That job has not run in this task.
   Both structure graphs and whitespace pass. Unchanged Rust retains 478 passing
   tests and 25 existing ignored cases; fresh hosted CI is still required. K23
   remains active, not parked.
+- Source 95560de has complete green normal push CI 43219637483, including
+  every Rust/Docker case, the 429-test workspace check, contract, one-box/Action,
+  all 33 first-stage end-to-end cases, Wasm, ten two-node cases, Rivet/celld and
+  store-cut/watchdog recovery. PR 43219647421 remains in its later integration
+  phases at retention. Rootless workflows 43219637263/43219647485 and CodeQL
+  43219647640 are green; both parked K22 pieces retain their existing refusals.
+- On that same source, Any-host 43219637379's process-policy job 131187563160
+  and complete bundle job 131190931529 are green. Signed ordinary UID 1002,
+  engine none, both SDKs/kernels/MCP/CLI, exact upstream executables and host
+  glibc, browser screenshot/CDP/guarantee, all ninety process samples and purge
+  pass. The actual default Docker image then passes both kernels and mandatory
+  namespace/browser placement refusals, followed by purge. Both base-userland
+  and Alpine relocation retain and validate the native descriptor through the
+  shipped Bun runtime; the former missing-Python smoke failure is fixed.
+  Raw observations, safe logs and verified ZIP/file hashes are retained under
+  installed-provenance-95560de.json, container-provenance-95560de.json and
+  full-policy-provenance-95560de.json; docs/speed.md now pairs this source's
+  thirty-sample cohorts with their different resource guarantees stated.
+- Later host-matrix jobs 131211854724 (booted Debian), 131211854587 (booted
+  Fedora) and 131211854645 (Ubuntu Docker) fail before product acceptance.
+  Every complete failure log was read: the primary Ubuntu mirror serves a
+  successful index update, then its package downloads time out. The boot hosts
+  never install Incus or boot those distributions; the Ubuntu container never
+  finishes its Python/curl prerequisites. Preserve those failures, without
+  assigning them to native tools or claiming the full workflow green.
+- Extend each affected fixture's existing signed-mirror fallback over both
+  apt-get update and prerequisite installation, retaining Incus 6.0.0-1ubuntu0.3,
+  IPv4/retry options, TLS CA paths and release/package verification. A temporary
+  command harness exercises primary success, update failure, download failure
+  and both mirrors failing for each actual shell block: fallback succeeds only
+  where its commands succeed, and both-down keeps exit 100. Existing Ubuntu
+  source-format tests still pass. Complete workspace check passes again with
+  429 tests, one existing skip and 8,372 assertions; both structure graphs,
+  actionlint, shell syntax and whitespace pass. Express the concurrency probe's
+  unchanged one-millisecond poll through SECOND_MS as required. Hosted mirror
+  recovery and a final complete green source remain required before K23 closes.
+- Superseded runs 43218393906, 43218403357, 43214488216, 43214477883 and
+  43218393796 were inspected and canceled before this head's validation. Their
+  only final failed checks are the expected cancellation aggregates; those logs
+  were read. Interrupted jobs establish no pass. PR 21's body now distinguishes
+  installed proof from unfinished final CI and states the measured PR cohort
+  cost. Existing security review notices refer to fixed test nonce vectors;
+  the production challenge uses a fresh UUIDv4 in process/exec.rs.

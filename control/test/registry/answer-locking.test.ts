@@ -65,7 +65,7 @@ describe.skipIf(!hasDatabase)('power answer lock ordering', () => {
           )
           if (blocked?.waiting) break
           if (Date.now() >= deadline) throw new Error('Answer never waited for the held node')
-          await Bun.sleep(1)
+          await Bun.sleep(SECOND_MS / 1000)
         }
         // As in heartbeat(), insert the first report while the node lock remains held.
         // An answer reserving this observation before its foreign-key node lock deadlocks here.
