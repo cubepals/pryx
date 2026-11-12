@@ -11,7 +11,7 @@ Only recorded CI evidence establishes completion; a local pass alone does not.
 | K21 | done | `de3ef9dc13e955e96c2f7c1e530f800069ff50c0` | Normal CI [42885151433](https://github.com/cubepals/pryx/actions/runs/42885151433), Any host [42885151332](https://github.com/cubepals/pryx/actions/runs/42885151332), Measure [42885520235](https://github.com/cubepals/pryx/actions/runs/42885520235), all green | All normal jobs and aggregate; all thirteen host jobs; both complete measurement jobs, including historical budgets and three-tier collectors | Production main/release prohibited; unchanged credentialed cases | None | None |
 | K22 | done except | `7963826182e3f8e9037aea17d4716df15086bd81` | Normal push [43075452804](https://github.com/cubepals/pryx/actions/runs/43075452804) and PR [43075462394](https://github.com/cubepals/pryx/actions/runs/43075462394), Any host [43075452782](https://github.com/cubepals/pryx/actions/runs/43075452782), Rootless engines [43075452793](https://github.com/cubepals/pryx/actions/runs/43075452793) and [43075462656](https://github.com/cubepals/pryx/actions/runs/43075462656), all green; supplementary Measure [43063939164](https://github.com/cubepals/pryx/actions/runs/43063939164) on source 87400f3 is also green | Full normal CI including actual rootful Docker, Wasm, two-node, integrations and recovery; all 15 host jobs; Podman lifecycle/attacks, install/repeat/upgrade/outage/recovery/purge; controller refusals, copy-bound guarantees and 30 hosted engine samples | Main/release prohibited; unchanged credentialed cases | Standard rootless Docker data-owner mapping with dependent positive lifecycle/timings; rootless Docker internal ingress/network-policy. Three approaches each recorded; both remain named refusals until their post-K27 second try | Supported scope complete; K23 started |
 | K23 | done | `5945724a4ac8fbc28610292d701ffa7e9bffc040` | Normal push [43233699289](https://github.com/cubepals/pryx/actions/runs/43233699289) and PR [43233712859](https://github.com/cubepals/pryx/actions/runs/43233712859), Any host [43233699231](https://github.com/cubepals/pryx/actions/runs/43233699231), Rootless engines [43233699487](https://github.com/cubepals/pryx/actions/runs/43233699487) and [43233712730](https://github.com/cubepals/pryx/actions/runs/43233712730), CodeQL [43233712847](https://github.com/cubepals/pryx/actions/runs/43233712847), all green | Signed fresh ordinary-user installation without engine; actual pinned upstream Python/Node paths and host glibc; both SDKs, state/charts/errors/interrupt/restart, MCP/CLI; browser screenshot/forwarded CDP and guarantee; thirty process and container samples per tool; default-Docker kernels and namespace/required-browser refusals; neighbour isolation, purge, Alpine relocation; full normal CI and all sixteen host jobs | Main/release prohibited; unchanged credentialed cases | None; corrected relocatable bundle is complete, with no binary rewriting or private tool glibc | Complete; begin K24 immediately |
-| K24 | in progress | — | — | Hosted X11 pathname refusal, staged relocation/source export, live own Xvfb/xdotool assertions; local HTTP SSH transport, automatic edge selection, both SDK adapters and binary/revocation tests | Complete live neighbour/proc-root proof; native desktop/OpenSSH bundle integration and installed CI acceptance | None | Complete native desktop/noVNC/SSH, headful browser, both SDK cohorts and 30 samples each, then final green CI; keep all container behavior and budgets |
+| K24 | in progress | — | — | Hosted live X11/proc-root privacy, full component/source relocation, actual OpenSSH command/PTY/key and same-UID isolation; HTTP SSH transport and SDK binary/revocation tests | Corrected headful application proof; native SSH lease integration; installed desktop/SSH/HTTP-edge wake and thirty-sample SDK cohorts | None | Finish native desktop/noVNC/SSH integration and installed acceptance, then final green CI; keep all container behavior and budgets |
 | K25 | not started | — | — | — | All | — | Complete brief after K24 |
 | K26 | not started | — | — | — | All | — | Complete brief after K25 |
 | K27 | not started | — | — | — | All | — | Complete brief after K26, then revisit every parked piece |
@@ -1579,3 +1579,23 @@ job when publication is authorized. That job has not run in this task.
   real Wasm, strict Clippy for both crates, all three structure checks, fmt,
   actual ShellCheck/actionlint, docs, whitespace and REUSE. No local fully
   confined positive is claimed. K24 remains active, with no new parked piece.
+
+- Resumed from 86ac7d6 after machine loss. Its complete normal push
+  [43286192564](https://github.com/cubepals/pryx/actions/runs/43286192564)
+  and PR [43286206558](https://github.com/cubepals/pryx/actions/runs/43286206558)
+  are green. Read completed Any-host producer 131420110678 on
+  [43286192692](https://github.com/cubepals/pryx/actions/runs/43286192692):
+  actual OpenSSH command, allocated PTY, pinned host key, in-memory client key,
+  denied neighbour files through SSH, scoped broker denial and empty persistent
+  authorization mount all pass as UID 1001. The independent desktop case reaches
+  Chromium, then fails Oilpan CagedHeap reservation under the fixture's 64-GiB
+  ceiling. Retain both exact observations in worker-86ac7d6.json under k24.
+  Use the preset's existing 8-TiB virtual-address default through one imported
+  constant; product limits, memory watchdog, startup deadline and every assertion
+  remain unchanged. Corrected hosted proof is still required. The lost lease
+  integration is being rebuilt; K24 remains in progress with no new parked piece.
+- Fixture checkpoint: both changed crates compile; fmt, the mixed structure
+  ratchet and whitespace checks pass. The first restored-machine full Rust test
+  build is still running, with a second invocation queued using the verified
+  agentOS distribution. No local or hosted corrected desktop pass is claimed.
+  Push this compiling checkpoint before proceeding with lease integration.

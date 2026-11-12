@@ -39,7 +39,7 @@ fn policy(input: &Input) -> process_policy::Policy {
     process_policy::Policy {
         data: input.root.join("data"),
         memory_bytes: 2 * 1024 * 1024 * 1024,
-        address_space_bytes: 64 * 1024 * 1024 * 1024,
+        address_space_bytes: process_policy::DEFAULT_ADDRESS_SPACE_MB * 1024 * 1024,
         open_files: 4096,
         processes: 4096,
         cpu_seconds: 120,

@@ -1,0 +1,30 @@
+{
+  "source": "86ac7d663f0f3f6cb54c67c893b25b5f20f42049",
+  "run": "https://github.com/cubepals/pryx/actions/runs/43286192692",
+  "job": 131420110678,
+  "desktopFailure": [
+    "2026-11-12T19:13:44.2409713Z thread 'real_headful_input_vnc_and_neighbour_privacy' (15359) panicked at agent/tests/desktop_application.rs:239:9:",
+    "2026-11-12T19:13:44.2411796Z thread 'desktop_application_worker' (15365) panicked at agent/tests/desktop_application.rs:102:13:",
+    "2026-11-12T19:13:44.2413024Z Desktop readiness deadline",
+    "2026-11-12T19:13:44.2444223Z # Oilpan: Out of memory (Oilpan: CagedHeap reservation.)",
+    "2026-11-12T19:13:44.2451253Z # Oilpan: Out of memory (Oilpan: CagedHeap reservation.)",
+    "2026-11-12T19:13:44.2489379Z # Oilpan: Out of memory (Oilpan: CagedHeap reservation.)",
+    "2026-11-12T19:13:44.2492501Z # Oilpan: Out of memory (Oilpan: CagedHeap reservation.)"
+  ],
+  "ssh": {
+    "clientKeyOnlyInAgentMemory": true,
+    "command": true,
+    "neighbour": {
+      "abstractDenied": "Operation not permitted (os error 1)",
+      "ownerFilesDenied": true,
+      "uid": 1001
+    },
+    "neighbourFilesDeniedThroughSsh": true,
+    "persistentDataHasNoAuthorization": true,
+    "pty": true,
+    "scope": "Real staged OpenSSH worker; installed SDK/HTTP-edge wake and thirty samples still required",
+    "strictHostKey": true,
+    "uid": 1001
+  },
+  "scope": "Retained completed hosted evidence; does not prove installed product acceptance"
+}

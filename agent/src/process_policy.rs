@@ -6,6 +6,9 @@
 //! Parts (`process_policy/`):
 //! - `filter.rs`: deny dangerous syscalls and namespace creation.
 //! - `watchdog.rs`: resident-memory sampling outside the filesystem-restricted worker threads.
+/// Default host virtual-address ceiling, shared with native-tool acceptance.
+pub const DEFAULT_ADDRESS_SPACE_MB: u64 = 8 * 1024 * 1024;
+
 mod filter;
 mod watchdog;
 use landlock::{

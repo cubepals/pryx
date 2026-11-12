@@ -27,7 +27,7 @@ impl Default for ProcessConfig {
         Self {
             uid_first: 20000,
             uid_count: 16384,
-            address_space_mb: 8 * 1024 * 1024,
+            address_space_mb: pryx_agent::process_policy::DEFAULT_ADDRESS_SPACE_MB,
             cpu_seconds: 600,
             open_files: 1024,
         }
