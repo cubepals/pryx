@@ -3,8 +3,9 @@
 The **container** tier provides desktops, browsers, SSH and bucket mounts as the sandbox user.
 The **process** tier implements browsers and Python/Node kernels through a separately verified
 tool bundle; desktops, SSH and mounts retain their capability refusals. Wasm refuses native
-tools. K23's complete agent-policy CI passes; signed ordinary-user installation acceptance and
-startup measurements are still pending. See [the progress record](any-host-progress.md).
+tools. CI proves complete agent policy and signed ordinary-user installation with both kernels,
+browser/CDP, both SDKs and thirty startup samples per tool. Default-Docker native checks also
+pass; final workflow completion remains tracked in [the progress record](any-host-progress.md).
 These tools wrap existing programs; the agent owns scoped routes and the edge owns access.
 `toolsVersion` is separate from the stable agent API version.
 

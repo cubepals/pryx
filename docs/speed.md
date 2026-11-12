@@ -87,30 +87,41 @@ measure sandbox creation. These CI results are separate from the workspace's
 paired before/after measurements above. The earlier single-unit budget failure
 remains recorded; changing the CPU allocation is not presented as a code speedup.
 
-## K23 container startup comparison
+## K23 startup comparison
 
-Source `d1a0a63` in CI run
+Container source `d1a0a63` in green CI run
 [43200870546](https://github.com/cubepals/pryx/actions/runs/43200870546)
-passes the end-to-end cases and retains thirty samples per cohort through the
-real control and edge. Templates are prepared before timing. Each new interpreter
-timer starts before sandbox creation and ends at the first validated PNG, including
-routing and kernel startup. The browser timer also includes starting the sandbox's
-own HTTP page server. Four default container units enforce one CPU core and 2 GiB.
+and process source `3b20de4` in the installed acceptance of
+[43210142686](https://github.com/cubepals/pryx/actions/runs/43210142686/job/131159201658)
+retain thirty samples per tool through real control and edge. Each timer starts
+before sandbox creation and ends at the first validated PNG, including routing
+and kernel startup. Browser timing includes starting its own HTTP page server.
+Templates and the process bundle are cached before timing; each fresh process
+supervisor still verifies the bundle's complete inventory.
 
-| Cached container create to first PNG | n | p50 ms | p90 ms |
-| --- | --- | --- | --- |
-| Python kernel and chart | 30 | 1746.2 | 1903.7 |
-| JavaScript kernel and chart | 30 | 711.0 | 825.4 |
-| Browser rendered page | 30 | 1740.7 | 1787.4 |
+| Create to first PNG | n per tier | Container p50 ms | Container p90 ms | Process p50 ms | Process p90 ms |
+| --- | --- | --- | --- | --- | --- |
+| Python kernel and chart | 30 | 1746.2 | 1903.7 | 11957.5 | 12061.5 |
+| JavaScript kernel and chart | 30 | 711.0 | 825.4 | 7925.8 | 8075.0 |
+| Browser rendered page | 30 | 1740.7 | 1787.4 | 8867.4 | 9000.1 |
 
-The [kernel startup samples](checks/measurements/k23/container-interpreter-startup-d1a0a63.json),
-[browser samples](checks/measurements/k23/container-native-d1a0a63.json) and
-[artifact provenance](checks/measurements/k23/container-provenance-d1a0a63.json)
-retain every observation and verified producer digest. The new sixty-sample case
-takes 115.1 seconds. The unchanged [interpreter budget report](checks/measurements/k23/container-interpreter-budgets-d1a0a63.json)
+Both request four default units, but this is not an equal-limit benchmark:
+containers enforce one CPU core and 2 GiB, while process CPU/memory guarantees
+are off. The tiers run on separate CI runners. The ordinary process account has
+UID 1002, x86_64, host glibc 2.39 and Landlock ABI 8, with no engine access.
+
+The [container kernel samples](checks/measurements/k23/container-interpreter-startup-d1a0a63.json),
+[container browser samples](checks/measurements/k23/container-native-d1a0a63.json),
+[container provenance](checks/measurements/k23/container-provenance-d1a0a63.json),
+[process samples](checks/measurements/k23/installed-process-startup-3b20de4.json)
+and [installed provenance](checks/measurements/k23/installed-provenance-3b20de4.json)
+retain every observation and verified producer digest. The sixty-sample container
+kernel case takes 115.1 seconds. The unchanged
+[interpreter budget report](checks/measurements/k23/container-interpreter-budgets-d1a0a63.json)
 still passes: trivial p90 3.9 ms and chart p90 116.1 ms. Those budget timers keep
 their original clock points and are separate from startup.
 
-This is the container half of K23's comparison. Signed ordinary-user process
-measurements remain pending; the [progress record](any-host-progress.md) tracks
-installed-product proof and the workflow's remaining checks.
+All signed ordinary-user and default-Docker native acceptance checks passed in
+the process measurement job. That job failed afterward in an Alpine descriptor
+smoke check requiring absent host Python; it is not a green whole-job claim.
+The [progress record](any-host-progress.md) tracks its correction and final CI.

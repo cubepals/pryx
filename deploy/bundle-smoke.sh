@@ -20,16 +20,20 @@ mkdir "$temporary/bootstrap"
 tar -xzf /artifacts/pryx-bootstrap-linux-x64.tar.gz -C "$temporary/bootstrap"
 if [ -f "$bundle/bin/process-tools.json" ]; then
   cmp "$bundle/bin/process-tools.json" "$temporary/bootstrap/bin/process-tools.json"
-  python3 - "$bundle/bin/process-tools.json" <<'PY'
-import json, pathlib, stat, sys
-path = pathlib.Path(sys.argv[1])
-assert path.stat().st_size <= 4096
-assert not path.stat().st_mode & (stat.S_IWGRP | stat.S_IWOTH)
-descriptor = json.loads(path.read_text())
-assert descriptor['url'].startswith('https://')
-assert all(len(descriptor[field]) == 64 for field in ['sha256', 'manifest_sha256'])
-print('native_descriptor=retained_in_base_and_bootstrap')
-PY
+  # Bun's documented standalone CLI mode reuses the shipped runtime on minimal hosts.
+  BUN_BE_BUN=1 "$bundle/bin/pryx" --eval '
+    const assert = require("node:assert/strict");
+    const fs = require("node:fs");
+    const path = process.argv.at(-1);
+    const info = fs.lstatSync(path);
+    assert(info.isFile() && info.size <= 4096);
+    assert.equal(info.mode & 0o022, 0);
+    const descriptor = JSON.parse(fs.readFileSync(path, "utf8"));
+    assert(descriptor.url.startsWith("https://"));
+    for (const name of ["sha256", "manifest_sha256"])
+      assert(/^[a-f0-9]{64}$/.test(descriptor[name]));
+    console.log("native_descriptor=retained_in_base_and_bootstrap");
+  ' "$bundle/bin/process-tools.json"
 fi
 "$bundle/bin/setpriv" --reuid=1001 --regid=1001 --clear-groups "$temporary/bootstrap/bin/pryxd" probe --json > "$temporary/bootstrap-probe.json"
 "$bundle/bin/setpriv" --reuid=1001 --regid=1001 --clear-groups "$temporary/bootstrap/bin/pryx-agent" process-probe > "$temporary/agent-probe.json"

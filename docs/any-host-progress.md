@@ -10,7 +10,7 @@ Only recorded CI evidence establishes completion; a local pass alone does not.
 | K20 | done | `54bd364` | Normal CI 42832474233 and Any host 42832474296, both green | All 13 host jobs: 8 user distro contexts, root container/PG UID, fallback, refusal, sudo, relocation; full normal CI including real Docker/KVM, one-box/Action, Wasm, 2-node, Rivet/celld and recovery | Production main/release prohibited; unchanged credentialed cloud/bootstrap cases skipped | None | Complete; proceed to K21 |
 | K21 | done | `de3ef9dc13e955e96c2f7c1e530f800069ff50c0` | Normal CI [42885151433](https://github.com/cubepals/pryx/actions/runs/42885151433), Any host [42885151332](https://github.com/cubepals/pryx/actions/runs/42885151332), Measure [42885520235](https://github.com/cubepals/pryx/actions/runs/42885520235), all green | All normal jobs and aggregate; all thirteen host jobs; both complete measurement jobs, including historical budgets and three-tier collectors | Production main/release prohibited; unchanged credentialed cases | None | None |
 | K22 | done except | `7963826182e3f8e9037aea17d4716df15086bd81` | Normal push [43075452804](https://github.com/cubepals/pryx/actions/runs/43075452804) and PR [43075462394](https://github.com/cubepals/pryx/actions/runs/43075462394), Any host [43075452782](https://github.com/cubepals/pryx/actions/runs/43075452782), Rootless engines [43075452793](https://github.com/cubepals/pryx/actions/runs/43075452793) and [43075462656](https://github.com/cubepals/pryx/actions/runs/43075462656), all green; supplementary Measure [43063939164](https://github.com/cubepals/pryx/actions/runs/43063939164) on source 87400f3 is also green | Full normal CI including actual rootful Docker, Wasm, two-node, integrations and recovery; all 15 host jobs; Podman lifecycle/attacks, install/repeat/upgrade/outage/recovery/purge; controller refusals, copy-bound guarantees and 30 hosted engine samples | Main/release prohibited; unchanged credentialed cases | Standard rootless Docker data-owner mapping with dependent positive lifecycle/timings; rootless Docker internal ingress/network-policy. Three approaches each recorded; both remain named refusals until their post-K27 second try | Supported scope complete; K23 started |
-| K23 | in progress | — | Full normal CI [43200870546](https://github.com/cubepals/pryx/actions/runs/43200870546) on d1a0a63 is green; complete native-policy job 131101705318 on ae7b5a8 is green; installed job [131137974179](https://github.com/cubepals/pryx/actions/runs/43204171378/job/131137974179) on 919f7fe proves functionality then fails public browser guarantee | Verified acquisition/isolation; signed ordinary-user install without engine; both real kernels through both SDK modes with state/charts/error/interrupt/restart, actual cache executables/versions and host glibc check; MCP/CLI; browser screenshot and edge CDP; thirty container samples each | Passing installed guarantee and ninety process samples; default-Docker native checks; final-source full CI; release publication | **None: bundle un-parked by explicit user correction**; failed binary-rewriting experiments retained only as history | Repair process guarantee heartbeat projection, finish installed/default-Docker acceptance and samples, then get final CI green. Upstream tools use host glibc >=2.34 and bundle-owned libraries; no binary rewriting/private glibc. Side pieces alone use the three-attempt rule |
+| K23 | in progress | — | Full normal CI [43200870546](https://github.com/cubepals/pryx/actions/runs/43200870546) on d1a0a63 is green; installed job [131159201658](https://github.com/cubepals/pryx/actions/runs/43210142686/job/131159201658) on 3b20de4 passes all native acceptance then fails a later Alpine descriptor fixture; fe030cf core job 131170162631 passes all 21 real Docker cases | Signed fresh ordinary-user install without engine; actual pinned Python/Node executables and host glibc; both SDKs, state/charts/error/interrupt/restart, MCP/CLI; browser screenshot/forwarded CDP and guarantee; thirty process and container samples each; default-Docker both kernels, namespace/required-browser refusals and purge | Final-source complete CI and subsequent distribution matrix; main/release prohibited | **None: bundle un-parked by explicit user correction**; failed binary-rewriting experiments retained only as history | Correct Alpine descriptor smoke's host-Python dependency, obtain final green CI, then start K24 immediately. Upstream tools use host glibc >=2.34 and bundle-owned libraries; no binary rewriting/private glibc. Side pieces alone use the three-attempt rule |
 | K24 | not started | — | — | — | All | — | Complete brief after K23 |
 | K25 | not started | — | — | — | All | — | Complete brief after K24 |
 | K26 | not started | — | — | — | All | — | Complete brief after K25 |
@@ -1062,3 +1062,29 @@ job when publication is authorized. That job has not run in this task.
   guarantee/cohort proof and source 15643ad Any-host 43211573586 for accounting
   integration. Interrupted checks establish no pass; both parked Docker pieces
   remain untouched.
+- Installed native acceptance on 3b20de4 completes in Any-host 43210142686,
+  job 131159201658: fresh ordinary UID 1002 with no engine, both real pinned
+  kernels through TypeScript and both Python SDK modes, state/PNG/error/interrupt/
+  restart, MCP/installed CLI, browser screenshot/forwarded CDP/no-token refusal
+  and positive copy guarantee. All ninety process samples and purge pass; the
+  actual default-Docker image then passes both kernels/SDKs and namespace-based
+  browser/strict-placement refusals, followed by purge. Artifact 13943183731's
+  ZIP SHA-256 is c40d0458e6636d1717ba0d7ce8a635c3701b4cbbe08451c2e53b75d1162a2df9;
+  exact samples, safe acceptance logs, hashes and qualifications are retained in
+  docs/checks/measurements/k23/installed-provenance-3b20de4.json. Host glibc 2.39
+  equals getconf. Paired startup p50/p90 and unequal-limit conditions are now in
+  docs/speed.md. This completes the installed native evidence, not the whole job:
+  later Alpine relocation fails because its descriptor parser invokes absent
+  host Python, so subsequent distribution checks remain unproved on this source.
+- Replace that smoke parser with Bun's documented BUN_BE_BUN standalone CLI mode
+  on the already shipped executable. The real compiled CLI parses the retained
+  descriptor locally; size/mode/regular-file, HTTPS, digest and bootstrap equality
+  checks remain required. No host interpreter dependency or runtime-byte rewrite
+  is introduced. Shell syntax, actionlint and whitespace pass; hosted minimal-host
+  proof and complete final CI remain required before K23 is recorded done.
+- Source fe030cf core job 131170162631 is green, including the immutable metadata
+  fixture, process browser heartbeat regression and all twenty-one actual Docker
+  tests. The revised OOM fixture passes with the original acknowledgement and
+  limits. Superseded PR run 43211582753 was canceled after its OOM failure was
+  read and corrected; its interrupted jobs establish no pass. Both parked K22
+  rootless Docker pieces remain untouched until the post-K27 second try.

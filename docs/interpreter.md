@@ -84,8 +84,10 @@ run as the sandbox user with existing resource limits. Process kernels lazily fe
 [verified upstream bundle](native-tools.md#process-tools), using its unchanged Python/Node
 builds, bundle-owned libraries and host glibc >=2.34. They currently refuse `network: none`
 because private channels cannot yet be prebound under that policy; ordinary egress denial
-remains enforced. Wasm refuses native contexts. Signed ordinary-user installed-product
-acceptance and thirty-sample measurements remain pending in the [progress record](any-host-progress.md).
+remains enforced. Wasm refuses native contexts. CI proves both installed kernels through
+the TypeScript and sync/async Python SDKs, including state, charts, errors, interrupt and
+restart. The [startup comparison](speed.md#k23-startup-comparison) retains thirty samples
+per tool; [the progress record](any-host-progress.md) tracks final workflow completion.
 Snapshots preserve data, not live Python variables; waking a stopped sandbox starts a fresh
 kernel. Live state exists only while that kernel survives.
 
