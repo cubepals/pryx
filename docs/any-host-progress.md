@@ -775,3 +775,10 @@ job when publication is authorized. That job has not run in this task.
   failure, all assertions and current supported-engine coverage. Later 64f222f
   Any-host 43179552328 is fully green; repeated current-source proof remains
   required. No parked rootless Docker piece was retried.
+
+- Native startup diagnostic checkpoint preserves the failing kernel assertion and
+  emits bounded supervised process exit/output evidence only after a failed open.
+  Complete agent tests, strict agent all-target Clippy, Rust structure, formatting
+  and whitespace pass. The latest complete unchanged-product Rust suite remains
+  473 passing/25 ignored at 907cfca. Corrected full-policy kernel/browser proof is
+  still pending; neither the raw bundle successes nor this diagnostic completes K23.

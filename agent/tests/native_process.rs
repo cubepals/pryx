@@ -165,8 +165,44 @@ impl Agent {
         let response = self.call(method, path, body).await;
         let status = response.status();
         let text = response.text().await.unwrap();
+        if !status.is_success() && path == "/_pryx/kernels" {
+            self.startup_diagnostics().await;
+        }
         assert!(status.is_success(), "{path}: {status} {text}");
         serde_json::from_str(&text).unwrap()
+    }
+    async fn startup_diagnostics(&self) {
+        let work = async {
+            let response = self.call(reqwest::Method::GET, "/_pryx/processes", Value::Null).await;
+            let Ok(bytes) = response.bytes().await else { return };
+            let Ok(list) = serde_json::from_slice::<Value>(&bytes) else { return };
+            for process in list["processes"].as_array().into_iter().flatten() {
+                eprintln!("Native supervised startup result: {process}");
+                let Some(id) = process["id"].as_str() else { continue };
+                let mut response =
+                    self.call(reqwest::Method::GET, &format!("/_pryx/processes/{id}/output"), Value::Null).await;
+                let mut retained = Vec::new();
+                while let Ok(Some(chunk)) = response.chunk().await {
+                    retained.extend_from_slice(&chunk[..chunk.len().min(16 * 1024 - retained.len())]);
+                    let exited = retained
+                        .split(|byte| *byte == b'\n')
+                        .any(|line| serde_json::from_slice::<Value>(line).is_ok_and(|event| event["type"] == "exit"));
+                    if retained.len() == 16 * 1024 || exited {
+                        break;
+                    }
+                }
+                for line in retained.split(|byte| *byte == b'\n') {
+                    if let Ok(event) = serde_json::from_slice::<Value>(line)
+                        && event["type"] == "output"
+                        && let Some(bytes) = event["bytes"].as_str()
+                        && let Ok(bytes) = STANDARD.decode(bytes)
+                    {
+                        eprintln!("Native startup {}: {}", event["stream"], String::from_utf8_lossy(&bytes));
+                    }
+                }
+            }
+        };
+        let _ = tokio::time::timeout(Duration::from_secs(5), work).await;
     }
     async fn execute(&self, id: &str, code: &str) -> Vec<Value> {
         let response = self
