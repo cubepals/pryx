@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
 //! Native SSH leases hold a reserved logical TCP port without serving TCP. Forwarding resolves
-//! that exact port to a scoped Unix worker; the private home mount contains no host-side keys.
+//! that exact port to a scoped Unix worker; authorization never enters persistent data.
 use super::ssh::Launch;
 use std::sync::{
     Mutex,
@@ -13,17 +13,11 @@ pub struct Ssh {
     launch: Launch,
     child: Mutex<std::process::Child>,
     stopped: AtomicBool,
-    _home: tempfile::TempDir,
     _held: tokio::net::TcpListener,
 }
 impl Ssh {
-    pub(super) fn new(
-        launch: Launch,
-        child: std::process::Child,
-        home: tempfile::TempDir,
-        held: tokio::net::TcpListener,
-    ) -> Self {
-        Self { launch, child: Mutex::new(child), stopped: AtomicBool::new(false), _home: home, _held: held }
+    pub(super) fn new(launch: Launch, child: std::process::Child, held: tokio::net::TcpListener) -> Self {
+        Self { launch, child: Mutex::new(child), stopped: AtomicBool::new(false), _held: held }
     }
     pub fn running(&self) -> bool {
         !self.stopped.load(Ordering::Acquire)
@@ -62,8 +56,6 @@ mod tests {
     #[tokio::test]
     async fn scoped_ssh_lifetime_reserves_port_and_refuses_after_stop() {
         let root = tempfile::tempdir().unwrap();
-        let home = tempfile::tempdir_in(root.path()).unwrap();
-        let home_path = home.path().to_path_buf();
         let address = format!("pryx-ssh-unit-{}", uuid::Uuid::new_v4());
         let listener =
             std::os::unix::net::UnixListener::bind_addr(&SocketAddr::from_abstract_name(&address).unwrap()).unwrap();
@@ -72,12 +64,7 @@ mod tests {
         let held = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await.unwrap();
         let port = held.local_addr().unwrap();
         let child = std::process::Command::new("/bin/sleep").arg("30").spawn().unwrap();
-        let session = Ssh::new(
-            Launch { directory: root.path().into(), home_mount: home_path.clone(), address },
-            child,
-            home,
-            held,
-        );
+        let session = Ssh::new(Launch { directory: root.path().into(), address }, child, held);
         assert!(session.running());
         assert!(tokio::net::TcpListener::bind(port).await.is_err());
         let peer = tokio::spawn(async move {
@@ -93,7 +80,6 @@ mod tests {
         assert!(!session.running());
         assert_eq!(session.connect().await.unwrap_err().kind(), std::io::ErrorKind::NotConnected);
         drop(session);
-        assert!(!home_path.exists());
         assert!(tokio::net::TcpListener::bind(port).await.is_ok());
     }
 }

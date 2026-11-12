@@ -23,7 +23,7 @@ struct Input {
     bundle: PathBuf,
 }
 
-pub(super) fn start(policy: &ProcessPolicy, tools: &Policy, launch: Launch) -> io::Result<Child> {
+pub fn start(policy: &ProcessPolicy, tools: &Policy, launch: Launch) -> io::Result<Child> {
     if !tools.browser_on {
         return Err(io::Error::other(
             "Process browser requires usable unprivileged user namespaces; allow them in the host security policy",
@@ -35,7 +35,7 @@ pub(super) fn start(policy: &ProcessPolicy, tools: &Policy, launch: Launch) -> i
         return Err(io::Error::other("Browser scratch escapes its private root"));
     }
     for name in ["home", "tmp", "cache"] {
-        fs::create_dir_all(launch.scratch.join(name))?;
+        tools.scratch_directory(&launch.scratch.join(name))?;
     }
     let executable = std::env::current_exe()?;
     let mut command = Command::new(bundle.join("helpers/bwrap"));
@@ -84,7 +84,7 @@ pub(super) fn start(policy: &ProcessPolicy, tools: &Policy, launch: Launch) -> i
         .arg("process-browser-child")
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
-        .stderr(fs::File::create(launch.scratch.join("browser.stderr"))?);
+        .stderr(tools.scratch_output(&launch.scratch.join("browser.stderr"))?);
     let input = serde_json::to_vec(&Input { policy: policy.clone(), launch, bundle })?;
     let mut child = command.spawn()?;
     let result =

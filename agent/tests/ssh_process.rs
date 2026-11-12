@@ -79,11 +79,7 @@ fn native_ssh_worker() {
         return;
     }
     process_policy::scope().unwrap();
-    let launch = ssh::Launch {
-        directory: input.root.join("scratch/ssh"),
-        home_mount: input.root.join("data/.ssh-session"),
-        address: input.address.clone(),
-    };
+    let launch = ssh::Launch { directory: input.root.join("scratch/ssh"), address: input.address.clone() };
     let mut running = Running(
         ssh::start_at(&policy(&input), launch, &input.bundle, Path::new(env!("CARGO_BIN_EXE_pryx-agent"))).unwrap(),
     );
@@ -186,7 +182,7 @@ fn real_native_ssh_command_pty_and_same_uid_privacy() {
     fs::set_permissions(files.join("host_key"), fs::Permissions::from_mode(0o600)).unwrap();
     fs::write(files.join("authorized_keys"), private.public_key().to_openssh().unwrap()).unwrap();
     fs::set_permissions(files.join("authorized_keys"), fs::Permissions::from_mode(0o600)).unwrap();
-    let mount = input.root.join("data/.ssh-session");
+    let mount = PathBuf::from(process_tool_policy::SSH_AUTH_DIRECTORY).join("ssh");
     let configuration = format!(
         "HostKey \"{}/host_key\"\nAuthorizedKeysFile \"{}/authorized_keys\"\nAllowUsers pryx\nUsePAM no\nPasswordAuthentication no\nKbdInteractiveAuthentication no\nAuthenticationMethods publickey\nPubkeyAuthentication yes\nPermitRootLogin no\nPermitEmptyPasswords no\nAllowAgentForwarding no\nAllowTcpForwarding no\nX11Forwarding no\nPermitTunnel no\nPermitUserEnvironment no\nPermitUserRC no\nUseDNS no\nStrictModes yes\nLogLevel ERROR\nSetEnv PRYX_SSH_EXECUTABLE=\"{}\"\n",
         config_word(&mount),
@@ -263,7 +259,11 @@ fn real_native_ssh_command_pty_and_same_uid_privacy() {
     let terminal = finish(terminal);
     assert!(terminal.status.success(), "{}", String::from_utf8_lossy(&terminal.stderr));
     assert!(String::from_utf8_lossy(&terminal.stdout).contains("native-pty-observed\r\n"));
-    assert_eq!(fs::read_dir(&mount).unwrap().count(), 0, "No key/configuration may enter host persistent data");
+    assert_eq!(
+        fs::read_dir(input.root.join("data/.ssh-session")).unwrap().count(),
+        0,
+        "No key/configuration may enter host persistent data"
+    );
     input.neighbour = true;
     input.root = root.path().join("neighbour");
     let mut neighbour = Running(worker(&input).stdout(Stdio::null()).stderr(Stdio::piped()).spawn().unwrap());

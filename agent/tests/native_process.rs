@@ -449,14 +449,12 @@ async fn native_ssh_leases_forward_revoke_and_expire() {
     .expect("Shortened expiry must close the existing SSH stream");
     assert!(tokio_tungstenite::connect_async(connect(id)).await.is_err());
     let data = agent.directory.path().join("data");
+    assert!(!data.join(".pryx-agent/ssh").exists(), "Authorization must stay outside persistent data");
     for entry in fs::read_dir(data).unwrap().flatten() {
-        if entry.file_name().to_string_lossy().starts_with(".pryx-ssh-") {
-            assert_eq!(
-                fs::read_dir(entry.path()).unwrap().count(),
-                0,
-                "Authorization must stay outside persistent data"
-            );
-        }
+        assert!(
+            !entry.file_name().to_string_lossy().starts_with(".pryx-ssh-"),
+            "Native SSH must not create a persistent authorization mountpoint"
+        );
     }
     println!(
         "{}",

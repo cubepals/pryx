@@ -53,7 +53,7 @@ pub fn start_at(policy: &Policy, launch: Launch, bundle: &Path, executable: &Pat
         return Err(io::Error::other("Desktop paths escape host-owned native tool roots"));
     }
     for name in ["home", "cache"] {
-        fs::create_dir_all(launch.scratch.join(name))?;
+        tools.scratch_directory(&launch.scratch.join(name))?;
     }
     let mut command = Command::new(bundle.join("helpers/bwrap"));
     command
@@ -99,7 +99,7 @@ pub fn start_at(policy: &Policy, launch: Launch, bundle: &Path, executable: &Pat
         .arg("process-desktop-child")
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
-        .stderr(fs::File::create(launch.scratch.join("desktop.stderr"))?);
+        .stderr(tools.scratch_output(&launch.scratch.join("desktop.stderr"))?);
     let encoded = serde_json::to_vec(&Input { policy: policy.clone(), launch, bundle: bundle.into() })?;
     let mut child = command.spawn()?;
     if let Err(error) =

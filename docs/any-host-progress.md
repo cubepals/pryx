@@ -1638,3 +1638,55 @@ job when publication is authorized. That job has not run in this task.
   remains queued behind it. The complete Bun workspace check is running against
   verified local PostgreSQL 17.11.0. Push this compiling work in progress now;
   no current-source full-suite or hosted native-lease pass is claimed yet.
+- Review finds and reproduces a pre-policy launcher path escape: a real harness
+  linked against the retained base agent library puts desktop.stderr behind a
+  guest-created symlink. The trusted desktop launch truncates the foreign marker
+  before its deliberately absent namespace helper fails. Use the existing
+  descriptor-relative no-follow walk for all three launchers' scratch directory
+  creation and diagnostic files; add real parent/leaf-symlink and positive own-
+  output regressions. This is a concrete base-code failure, not a hypothetical
+  relaxation or a new host requirement.
+- Remove the native SSH launch's guest-writable source-file and home-mount paths.
+  Pass account bytes in anonymous descriptors from the protected downloads root
+  using the pinned bubblewrap 0.13.1 ro-bind-data option (checked in its exact
+  tagged source), and mount only the stable scratch root read-only onto a fixed
+  private authorization path. The closed SSH worker alone reads that namespace-
+  private alias; ordinary commands retain all original grants. Keys/configuration
+  no longer need even an empty mountpoint in persistent data. Retain all existing
+  command, PTY, neighbour, expiry and revocation assertions; fresh hosted proof
+  for this follow-up is still required.
+- Source-c471 local verification passes its new Unix-stream/lifetime regression
+  and all agent tests reached by the complete workspace invocation. Serialized
+  node tests still fail the unchanged three-second real Wasm HTTP-readiness case
+  (256 node unit tests pass); serialization did not resolve it, so contention is
+  not an established diagnosis. The full Bun check passes lint/type/schema/docs/
+  release stages and 430 tests, with one existing skip; MCP's thirty-second
+  deadline and the fake fleet's stale-node health case fail while compilation
+  runs. Retain those failures and require a focused diagnosis/current hosted
+  results; do not loosen a timeout, health rule or assertion.
+- Source c471eb6 has green complete producer
+  [131482068172](https://github.com/cubepals/pryx/actions/runs/43303928155/job/131482068172).
+  Its real confined agent creates a native SSH lease, forwards the actual
+  OpenSSH greeting over authenticated WebSocket, refuses excess capacity,
+  closes existing streams on revocation and shortened expiry, denies reconnects
+  and keeps authorization outside data. Retain ssh-lease-c471eb6.json under k24.
+  Its actual headful desktop and SSH command/PTY/neighbour cases also pass.
+  The signed installed continuation is running; hardened-launcher and installed
+  product proof remain required.
+- Hardened launcher tests pass locally: 34 agent unit tests (one existing ignored
+  subprocess entry) and the new real browser/desktop/SSH foreign-file regression
+  all pass. Positive owned-output and parent-symlink tests pass. The old-library
+  harness demonstrates the pre-fix truncation; the regression retains its foreign
+  marker after every corrected launcher refuses a malicious diagnostic path.
+  The source-7664 normal core job 131474102904 is also green, including its complete
+  real Wasm/Docker checks; the local Wasm readiness failure remains unresolved,
+  not relabeled as a pass. Native capability announcements remain unchanged.
+- Final hardened-launcher agent suite passes completely: 76 tests, twelve
+  explicitly ignored hosted/subprocess cases. Fmt, mixed structure and whitespace
+  checks pass. The first regression compile exposed the browser launcher's private
+  Rust visibility; expose its fixed trusted launcher like the desktop/SSH launchers
+  so the real external regression exercises it. No HTTP entrypoint is added.
+  The idle Bun run passes 431 tests, with one existing skip, but fails the unchanged
+  held-upload acknowledgement deadline; the previous MCP and move failures pass.
+  This remains an explicit local failure pending focused diagnosis. Fresh hosted
+  native SSH/desktop acceptance is required after the safer account mounts.

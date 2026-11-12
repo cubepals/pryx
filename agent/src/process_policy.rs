@@ -139,6 +139,9 @@ fn enter_variant(
     {
         read.push(tools.cache.clone());
     }
+    if inherited {
+        read.push(PathBuf::from(crate::process_tool_policy::SSH_AUTH_DIRECTORY));
+    }
     if browser {
         read.extend([PathBuf::from("/proc"), PathBuf::from("/sys/devices/system/cpu")]);
     }

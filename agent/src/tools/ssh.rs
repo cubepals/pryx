@@ -170,13 +170,17 @@ pub(crate) async fn create(agent: &Agent, claims: &Claims) -> Result<SshCreated,
     let held = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await?;
     let port = held.local_addr()?.port();
     let id = uuid::Uuid::new_v4().to_string();
-    let home = if native.is_some() {
-        Some(tempfile::Builder::new().prefix(".pryx-ssh-").tempdir_in(&agent.processes.data)?)
-    } else {
-        None
-    };
+    let native_root = native
+        .map(|tools| {
+            directory
+                .path()
+                .strip_prefix(&tools.policy.scratch)
+                .map(|relative| std::path::Path::new(crate::process_tool_policy::SSH_AUTH_DIRECTORY).join(relative))
+                .map_err(|_| state::failure("unsupported", "Native SSH directory escapes private scratch"))
+        })
+        .transpose()?;
     let authorized_path = if native.is_some() { "authorized_keys".into() } else { format!(".pryx-agent/ssh/{id}.pub") };
-    let config_root = home.as_ref().map(|home| home.path()).unwrap_or(directory.path());
+    let config_root = native_root.as_deref().unwrap_or(directory.path());
     let full_authorized =
         if native.is_some() { config_root.join(&authorized_path) } else { agent.processes.data.join(&authorized_path) }
             .to_string_lossy()
@@ -218,13 +222,11 @@ pub(crate) async fn create(agent: &Agent, claims: &Claims) -> Result<SshCreated,
         false,
     )?;
     let process = if let Some(tools) = native {
-        let home = home.expect("native home mount");
         let launch = crate::process_tools::ssh::Launch {
             directory: directory.path().into(),
-            home_mount: home.path().into(),
             address: format!("pryx-ssh-{}", uuid::Uuid::new_v4()),
         };
-        Service::Native(tools.ssh(launch, home, held).await?)
+        Service::Native(tools.ssh(launch, held).await?)
     } else {
         drop(held);
         let process = command::start(

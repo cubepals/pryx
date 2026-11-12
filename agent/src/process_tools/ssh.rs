@@ -5,7 +5,7 @@ use crate::process_policy::Policy;
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
-    io::{self, Read, Write},
+    io::{self, Seek, Write},
     os::{
         linux::net::SocketAddrExt,
         unix::{
@@ -17,12 +17,13 @@ use std::{
     process::{Child, Command, Stdio},
 };
 
+const MAX_BOOTSTRAP_BYTES: usize = 32 * 1024;
+
 pub const PRIVATE_DIRECTORY: &str = "/tmp/pryx-ssh";
 pub const PRIVATE_SOCKET: &str = "/tmp/pryx-ssh/server.sock";
 #[derive(Clone, Deserialize, Serialize)]
 pub struct Launch {
     pub directory: PathBuf,
-    pub home_mount: PathBuf,
     pub address: String,
 }
 #[derive(Deserialize, Serialize)]
@@ -42,7 +43,6 @@ pub fn start_at(policy: &Policy, launch: Launch, bundle: &Path, executable: &Pat
     }
     if !fs::canonicalize(&launch.directory)?.starts_with(fs::canonicalize(&tools.scratch)?)
         || !fs::canonicalize(bundle)?.starts_with(fs::canonicalize(&tools.cache)?)
-        || !fs::canonicalize(&launch.home_mount)?.starts_with(fs::canonicalize(&policy.data)?)
     {
         return Err(io::Error::other("Native SSH paths escape their host-owned roots"));
     }
@@ -53,11 +53,19 @@ pub fn start_at(policy: &Policy, launch: Launch, bundle: &Path, executable: &Pat
     }
     let uid = rustix::process::geteuid().as_raw();
     let gid = rustix::process::getegid().as_raw();
-    fs::write(
-        launch.directory.join("passwd"),
-        format!("pryx:x:{uid}:{gid}:Pryx sandbox:{home}:{}\n", shell.display()),
-    )?;
-    fs::write(launch.directory.join("group"), format!("pryx:x:{gid}:\n"))?;
+    // These descriptors are created outside every guest filesystem grant. Bubblewrap copies
+    // their bytes before mounting private accounts, without reopening guest-writable paths.
+    let mut passwd = tempfile::tempfile_in(&tools.downloads)?;
+    passwd.write_all(format!("pryx:x:{uid}:{gid}:Pryx sandbox:{home}:{}\n", shell.display()).as_bytes())?;
+    passwd.rewind()?;
+    let mut group = tempfile::tempfile_in(&tools.downloads)?;
+    group.write_all(format!("pryx:x:{gid}:\n").as_bytes())?;
+    group.rewind()?;
+    let encoded =
+        serde_json::to_string(&Input { policy: policy.clone(), launch: launch.clone(), bundle: bundle.into() })?;
+    if encoded.len() > MAX_BOOTSTRAP_BYTES {
+        return Err(io::Error::other("Oversized SSH bootstrap"));
+    }
     let mut command = Command::new(bundle.join("helpers/bwrap"));
     command
         .env_clear()
@@ -86,40 +94,36 @@ pub fn start_at(policy: &Policy, launch: Launch, bundle: &Path, executable: &Pat
     for path in [&policy.data, &tools.scratch] {
         command.arg("--bind").arg(path).arg(path);
     }
-    for name in ["passwd", "group"] {
-        command.arg("--ro-bind").arg(launch.directory.join(name)).arg(format!("/etc/{name}"));
-    }
+    command.args(["--ro-bind-data", "0", "/etc/passwd", "--ro-bind-data", "1", "/etc/group"]);
     command
         .arg("--ro-bind")
-        .arg(&launch.directory)
-        .arg(&launch.home_mount)
+        .arg(&tools.scratch)
+        .arg(crate::process_tool_policy::SSH_AUTH_DIRECTORY)
         .arg("--chdir")
         .arg(&policy.data)
         .arg(executable)
         .arg("process-ssh-child")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::null())
-        .stderr(fs::File::create(launch.directory.join("server.stderr"))?);
-    let encoded = serde_json::to_vec(&Input { policy: policy.clone(), launch, bundle: bundle.into() })?;
-    let mut child = command.spawn()?;
-    if let Err(error) = child.stdin.take().ok_or_else(|| io::Error::other("Missing SSH bootstrap"))?.write_all(&encoded)
-    {
-        let _ = child.kill();
-        let _ = child.wait();
-        return Err(error);
-    }
+        .env(crate::process_tool_policy::SSH_BOOTSTRAP_ENV, encoded)
+        .stdin(Stdio::from(passwd))
+        .stdout(Stdio::from(group))
+        .stderr(tools.scratch_output(&launch.directory.join("server.stderr"))?);
+    let child = command.spawn()?;
     Ok(child)
 }
 
 pub fn child() -> Result<(), Box<dyn std::error::Error>> {
-    const MAX_BOOTSTRAP_BYTES: u64 = 32 * 1024;
-    let mut bytes = Vec::new();
-    std::io::stdin().take(MAX_BOOTSTRAP_BYTES + 1).read_to_end(&mut bytes)?;
-    if bytes.len() as u64 > MAX_BOOTSTRAP_BYTES {
+    let encoded = std::env::var(crate::process_tool_policy::SSH_BOOTSTRAP_ENV)?;
+    if encoded.len() > MAX_BOOTSTRAP_BYTES {
         return Err("Oversized SSH bootstrap".into());
     }
-    let input: Input = serde_json::from_slice(&bytes)?;
-    fs::create_dir(PRIVATE_DIRECTORY)?;
+    let input: Input = serde_json::from_str(&encoded)?;
+    let tools = input.policy.tools.as_ref().ok_or("Missing native SSH policy")?;
+    let relative = input.launch.directory.strip_prefix(&tools.scratch)?;
+    if relative.components().any(|component| !matches!(component, std::path::Component::Normal(_))) {
+        return Err("Native SSH directory escapes its private root".into());
+    }
+    let config = Path::new(crate::process_tool_policy::SSH_AUTH_DIRECTORY).join(relative).join("config");
+    fs::create_dir_all(PRIVATE_DIRECTORY)?;
     fs::set_permissions(PRIVATE_DIRECTORY, fs::Permissions::from_mode(0o700))?;
     let private = UnixListener::bind(PRIVATE_SOCKET)?;
     fs::set_permissions(PRIVATE_SOCKET, fs::Permissions::from_mode(0o600))?;
@@ -148,7 +152,7 @@ pub fn child() -> Result<(), Box<dyn std::error::Error>> {
                     let stdin:std::os::fd::OwnedFd=stream.try_clone()?.into();
                     let stdout:std::os::fd::OwnedFd=stream.into();
                     let child=tokio::process::Command::new(input.bundle.join("desktop/bin/sshd"))
-                        .args(["-i","-e","-f"]).arg(input.launch.home_mount.join("config"))
+                        .args(["-i","-e","-f"]).arg(&config)
                         .env_clear().env("PATH","/usr/bin:/bin")
                         .stdin(Stdio::from(stdin)).stdout(Stdio::from(stdout))
                         .stderr(fs::OpenOptions::new().append(true).open(input.launch.directory.join("server.stderr"))?)

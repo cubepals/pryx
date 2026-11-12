@@ -1,0 +1,13 @@
+{
+  "source": "c471eb6df066d244eacb059ac5e9e01d8ddb4417",
+  "run": "https://github.com/cubepals/pryx/actions/runs/43303928155",
+  "job": 131482068172,
+  "report": {
+    "expiredReconnectDenied": true,
+    "expiryStreamClosed": true,
+    "nativeSshLease": true,
+    "revokedStreamClosed": true,
+    "scope": "authenticated actual process agent and private Unix OpenSSH forwarding",
+    "uid": 1001
+  }
+}

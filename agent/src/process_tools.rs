@@ -309,12 +309,7 @@ impl Tools {
     pub fn active_ssh(&self, port: u16) -> Option<Arc<Ssh>> {
         self.ssh.read().unwrap().get(&port).and_then(std::sync::Weak::upgrade)
     }
-    pub async fn ssh(
-        &self,
-        launch: ssh::Launch,
-        home: tempfile::TempDir,
-        held: tokio::net::TcpListener,
-    ) -> Result<Arc<Ssh>, Failure> {
+    pub async fn ssh(&self, launch: ssh::Launch, held: tokio::net::TcpListener) -> Result<Arc<Ssh>, Failure> {
         self.supported()?;
         if self.policy.desktop_on != Some(true) {
             return Err(Failure(
@@ -339,7 +334,7 @@ impl Tools {
         self.requests.send(Request::Ssh(launch.clone(), reply)).await.map_err(|_| failed("SSH worker stopped"))?;
         let child = answer.await.map_err(|_| failed("SSH worker stopped"))?.map_err(failed)?;
         let port = held.local_addr()?.port();
-        let session = Arc::new(Ssh::new(launch, child, home, held));
+        let session = Arc::new(Ssh::new(launch, child, held));
         tokio::time::timeout(crate::contract::TOOL_STARTUP, async {
             loop {
                 if !session.running() {
