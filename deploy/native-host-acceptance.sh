@@ -24,7 +24,18 @@ python3 deploy/tool-artifact-server.py --directory "$pryx_native_artifacts" \
 pryx_native_tls=$!
 python3 -m http.server 9876 --bind 127.0.0.1 --directory "$PWD/host-artifacts" > "$RUNNER_TEMP/native-host-release-server.log" 2>&1 &
 pryx_native_http=$!
-trap 'kill "$pryx_native_tls" "$pryx_native_http"; wait "$pryx_native_tls" "$pryx_native_http" || true' EXIT
+cleanup() {
+  result=$?
+  trap - EXIT
+  if sudo test -f /home/pryxtools/native-process-measurements.json; then
+    sudo cp /home/pryxtools/native-process-measurements.json "$RUNNER_TEMP/native-process-measurements.json" || result=1
+    sudo chown "$(id -u):$(id -g)" "$RUNNER_TEMP/native-process-measurements.json" || result=1
+  fi
+  kill "$pryx_native_tls" "$pryx_native_http" 2>/dev/null || true
+  wait "$pryx_native_tls" "$pryx_native_http" || true
+  exit "$result"
+}
+trap cleanup EXIT
 curl --retry 5 --retry-connrefused --retry-delay 1 -fsS http://127.0.0.1:9876/install.sh > /dev/null
 curl --retry 5 --retry-connrefused --retry-delay 1 --head -fsS https://127.0.0.1:9877/pryx-process-tools-linux-x64.tar.gz > /dev/null
 sudo useradd --create-home --shell /bin/bash pryxtools
@@ -37,5 +48,3 @@ sudo -u pryxtools -H env -i HOME=/home/pryxtools PATH=/usr/local/bin:/usr/bin:/b
   PRYX_TEST_BUN="$RUNNER_TEMP/pryx-test-bun" PRYX_PYTHON=/home/pryxtools/sdk-python/bin/python \
   PRYX_NATIVE_BROWSER=on PRYX_NATIVE_MEASUREMENTS=/home/pryxtools/native-process-measurements.json \
   /bin/sh deploy/native-user-acceptance.sh | tee "$RUNNER_TEMP/native-user-acceptance.log"
-sudo cp /home/pryxtools/native-process-measurements.json "$RUNNER_TEMP/native-process-measurements.json"
-sudo chown "$(id -u):$(id -g)" "$RUNNER_TEMP/native-process-measurements.json"

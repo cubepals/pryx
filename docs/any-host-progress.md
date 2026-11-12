@@ -868,3 +868,26 @@ job when publication is authorized. That job has not run in this task.
   Wasm. The corrected keyed-fixture agent tests and strict Clippy pass; final
   Rust structure, formatting and whitespace checks pass. Unchanged TypeScript retains 426 passing
   tests, one existing skip and 8,359 assertions at 48bc51f.
+
+- Native-policy source ae7b5a8 has green Any-host job 131101705318 in run
+  43194460133: both real kernels retain state/PNGs, owner abstract connections
+  succeed, a separate same-UID agent cannot connect, screenshot and forwarded CDP
+  work, and the namespace refusal causes no download. Download artifact
+  13933605902 and verify ZIP SHA-256
+  b4071e267aba352629e9415553871481cb6037f88c369c98a65487e40e17966b;
+  retain exact full-policy-*.json observations, descriptor and provenance.
+  Signed ordinary-user bundle job 131107999803 is now running. This is the
+  complete agent-policy proof, not installed-product or thirty-sample completion.
+- Reproduce ordinary Bun rmSync failing EACCES on the sealed native cache.
+  After stopping owned compute, local-stop now prepares directory permissions
+  using the existing descriptor-relative walk/chmod while keeping files and link
+  targets untouched. Its real regression removes a sealed tree, retains an
+  outside target, refuses a linked root and handles a FIFO without opening it.
+  No running guest cache grant is relaxed. The hosted fixture also preserves
+  completed raw samples on a later teardown failure.
+- Current purge checkpoint passes full serial Rust: 477 tests, 25 ignored,
+  including real Wasm; strict all-target Clippy, Rust structure, formatting,
+  actionlint, shell syntax, docs and whitespace pass. Unchanged TypeScript
+  retains 426 passing tests/8,359 assertions and its existing compiled-assets skip.
+  Actual installed native acceptance, source-final CI and K23 completion remain
+  pending; the two parked Docker pieces remain untouched.

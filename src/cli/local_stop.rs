@@ -23,7 +23,29 @@ async fn stop(config: &Config, purge: bool) -> anyhow::Result<()> {
     ensure!(bad.is_empty(), "unreadable workload records; keep state and repair them before purging");
     let runtime = configured::create(config).await?;
     let owned = owned_compute(config, runtime.as_ref(), records).await?;
-    stop_owned(runtime.as_ref(), owned, purge).await
+    stop_owned(runtime.as_ref(), owned, purge).await?;
+    if purge {
+        unseal_native_tools(&config.state_dir).context("preparing the stopped native cache for purge")?;
+    }
+    Ok(())
+}
+
+fn unseal_native_tools(state: &Path) -> std::io::Result<()> {
+    let root = state.join("process-tools");
+    let directory = match pryx_agent::paths::DataDir::open(&root) {
+        Ok(directory) => directory,
+        Err(problem) if problem.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(problem) => return Err(problem),
+    };
+    // All compute has stopped while both lifecycle/store locks remain held. Reuse the
+    // descriptor-relative walk and chmod owner; links never grant access to their targets.
+    crate::tree::walk(&root, &[], &mut |entry| {
+        if matches!(entry.kind, crate::tree::Kind::Dir) {
+            directory.chmod(entry.path.to_str().ok_or(std::io::ErrorKind::InvalidData)?, 0o700)?;
+        }
+        Ok(())
+    })?;
+    Ok(())
 }
 
 async fn owned_compute(
@@ -82,6 +104,37 @@ mod tests {
     use crate::protocol::Isolation;
     use crate::runtime::{fake::FakeRuntime, router::Router};
     use std::sync::Arc;
+
+    #[test]
+    fn sealed_cache_purge_never_changes_link_targets() {
+        use std::os::unix::fs::{PermissionsExt, symlink};
+        let state = tempfile::tempdir().unwrap();
+        unseal_native_tools(state.path()).unwrap();
+        assert!(!state.path().join("process-tools").exists());
+        let cache = state.path().join("process-tools/uid/cache/digest/nested");
+        std::fs::create_dir_all(&cache).unwrap();
+        std::fs::write(cache.join("verified"), b"unchanged upstream bytes").unwrap();
+        rustix::fs::mkfifoat(
+            rustix::fs::CWD,
+            state.path().join("process-tools/temporary-pipe"),
+            rustix::fs::Mode::from_raw_mode(0o600),
+        )
+        .unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(outside.path().join("kept"), b"keep these bytes").unwrap();
+        symlink(outside.path(), cache.join("outside-link")).unwrap();
+        for path in [cache.as_path(), cache.parent().unwrap(), outside.path()] {
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o555)).unwrap();
+        }
+        unseal_native_tools(state.path()).unwrap();
+        assert_eq!(std::fs::metadata(outside.path()).unwrap().permissions().mode() & 0o777, 0o555);
+        std::fs::remove_dir_all(state.path().join("process-tools")).unwrap();
+        assert_eq!(std::fs::read(outside.path().join("kept")).unwrap(), b"keep these bytes");
+        symlink(outside.path(), state.path().join("process-tools")).unwrap();
+        assert!(unseal_native_tools(state.path()).is_err());
+        assert_eq!(std::fs::metadata(outside.path()).unwrap().permissions().mode() & 0o777, 0o555);
+        std::fs::set_permissions(outside.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+    }
 
     #[tokio::test]
     async fn cleanup_binds_the_observed_id_when_creation_did_not_record_it() {
