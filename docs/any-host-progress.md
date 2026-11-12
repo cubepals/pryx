@@ -722,3 +722,12 @@ job when publication is authorized. That job has not run in this task.
   three runtime minutes, with a forty-five-minute failure bound and no new gate.
   Installed signed metadata, corresponding-source publication, actual ordinary-user
   edge/SDK acceptance, default-Docker native cases and thirty samples remain active.
+
+- Native-policy source 8fd54f1 fails Any-host job 131062896379 in run
+  43182878919 before health: the standalone test executable has not installed
+  reqwest's TLS provider. Raw assembly, packaging, both kernels and the mandatory
+  browser checks pass in that same job. Initialize Ring in the fixture, matching
+  product bootstrap; keep every native acceptance assertion and deadline. Local
+  agent tests, strict all-target Clippy, structure checks and formatting pass;
+  full serial Rust passes 473 tests with 25 ignored (the two new native cases
+  run explicitly in CI). Corrected hosted native acceptance remains pending.

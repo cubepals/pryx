@@ -208,6 +208,7 @@ fn artifact() -> process_tool_policy::Artifact {
     .unwrap()
 }
 fn require_host() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
     assert!(!rustix::process::geteuid().is_root());
     assert!(pryx_agent::process_capabilities::probe().filesystem);
     assert!(pryx_agent::process_capabilities::private_ipc_probe().supported());
