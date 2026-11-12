@@ -18,62 +18,10 @@ import stat
 import subprocess
 import tarfile
 import tempfile
-import time
-import urllib.request
 import zipfile
 
-ROOT = Path(__file__).resolve().parent
-REPO = ROOT.parent.parent
+from archive_inputs import ROOT, REPO, acquire, copy_entry, digest, unpack
 
-
-def digest(path):
-    with path.open("rb") as source:
-        return hashlib.file_digest(source, "sha256").hexdigest()
-
-
-def acquire(item, cache):
-    target = cache / item["sha256"] / Path(item["url"]).name
-    target.parent.mkdir(parents=True, exist_ok=True)
-    if target.exists():
-        if digest(target) != item["sha256"]:
-            raise ValueError(f"Cached digest mismatch: {item['name']}")
-        return target
-    for attempt in range(3):
-        try:
-            with urllib.request.urlopen(item["url"], timeout=180) as response:
-                with target.with_suffix(".download").open("wb") as output:
-                    shutil.copyfileobj(response, output)
-            if digest(target.with_suffix(".download")) != item["sha256"]:
-                raise ValueError(f"Downloaded digest mismatch: {item['name']}")
-            target.with_suffix(".download").rename(target)
-            return target
-        except (OSError, TimeoutError):
-            if attempt == 2:
-                raise
-            time.sleep(5 * (attempt + 1))
-
-
-def unpack(archive, destination):
-    destination.mkdir(parents=True, exist_ok=True)
-    with tarfile.open(archive) as source:
-        source.extractall(destination, filter="data")
-
-
-def copy_entry(source, destination, boundary):
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    if source.is_symlink():
-        link = os.readlink(source)
-        resolved = (source.parent / link).resolve()
-        if Path(link).is_absolute() or not resolved.is_relative_to(boundary.resolve()):
-            raise ValueError(f"Escaping package link: {source}")
-        if destination.is_symlink() and os.readlink(destination) == link:
-            return
-        destination.symlink_to(link)
-    elif destination.exists():
-        if digest(source) != digest(destination):
-            raise ValueError(f"Conflicting package payload: {destination}")
-    else:
-        shutil.copy2(source, destination)
 
 
 def libraries(items, cache, output, extractor):
