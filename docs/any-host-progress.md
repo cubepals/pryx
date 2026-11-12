@@ -10,7 +10,7 @@ Only recorded CI evidence establishes completion; a local pass alone does not.
 | K20 | done | `54bd364` | Normal CI 42832474233 and Any host 42832474296, both green | All 13 host jobs: 8 user distro contexts, root container/PG UID, fallback, refusal, sudo, relocation; full normal CI including real Docker/KVM, one-box/Action, Wasm, 2-node, Rivet/celld and recovery | Production main/release prohibited; unchanged credentialed cloud/bootstrap cases skipped | None | Complete; proceed to K21 |
 | K21 | done | `de3ef9dc13e955e96c2f7c1e530f800069ff50c0` | Normal CI [42885151433](https://github.com/cubepals/pryx/actions/runs/42885151433), Any host [42885151332](https://github.com/cubepals/pryx/actions/runs/42885151332), Measure [42885520235](https://github.com/cubepals/pryx/actions/runs/42885520235), all green | All normal jobs and aggregate; all thirteen host jobs; both complete measurement jobs, including historical budgets and three-tier collectors | Production main/release prohibited; unchanged credentialed cases | None | None |
 | K22 | done except | `7963826182e3f8e9037aea17d4716df15086bd81` | Normal push [43075452804](https://github.com/cubepals/pryx/actions/runs/43075452804) and PR [43075462394](https://github.com/cubepals/pryx/actions/runs/43075462394), Any host [43075452782](https://github.com/cubepals/pryx/actions/runs/43075452782), Rootless engines [43075452793](https://github.com/cubepals/pryx/actions/runs/43075452793) and [43075462656](https://github.com/cubepals/pryx/actions/runs/43075462656), all green; supplementary Measure [43063939164](https://github.com/cubepals/pryx/actions/runs/43063939164) on source 87400f3 is also green | Full normal CI including actual rootful Docker, Wasm, two-node, integrations and recovery; all 15 host jobs; Podman lifecycle/attacks, install/repeat/upgrade/outage/recovery/purge; controller refusals, copy-bound guarantees and 30 hosted engine samples | Main/release prohibited; unchanged credentialed cases | Standard rootless Docker data-owner mapping with dependent positive lifecycle/timings; rootless Docker internal ingress/network-policy. Three approaches each recorded; both remain named refusals until their post-K27 second try | Supported scope complete; K23 started |
-| K23 | in progress | — | Full normal CI [43200870546](https://github.com/cubepals/pryx/actions/runs/43200870546) on d1a0a63 is green; installed job [131159201658](https://github.com/cubepals/pryx/actions/runs/43210142686/job/131159201658) on 3b20de4 passes all native acceptance then fails a later Alpine descriptor fixture; fe030cf core job 131170162631 passes all 21 real Docker cases | Signed fresh ordinary-user install without engine; actual pinned Python/Node executables and host glibc; both SDKs, state/charts/error/interrupt/restart, MCP/CLI; browser screenshot/forwarded CDP and guarantee; thirty process and container samples each; default-Docker both kernels, namespace/required-browser refusals and purge | Final-source complete CI and subsequent distribution matrix; main/release prohibited | **None: bundle un-parked by explicit user correction**; failed binary-rewriting experiments retained only as history | Correct Alpine descriptor smoke's host-Python dependency, obtain final green CI, then start K24 immediately. Upstream tools use host glibc >=2.34 and bundle-owned libraries; no binary rewriting/private glibc. Side pieces alone use the three-attempt rule |
+| K23 | in progress | — | Full normal CI [43200870546](https://github.com/cubepals/pryx/actions/runs/43200870546) on d1a0a63 is green; installed job [131159201658](https://github.com/cubepals/pryx/actions/runs/43210142686/job/131159201658) on 3b20de4 passes all native acceptance then fails a later Alpine descriptor fixture; fe030cf core job 131170162631 passes all 21 real Docker cases | Signed fresh ordinary-user install without engine; actual pinned Python/Node executables and host glibc; both SDKs, state/charts/error/interrupt/restart, MCP/CLI; browser screenshot/forwarded CDP and guarantee; thirty process and container samples each; default-Docker both kernels, namespace/required-browser refusals and purge | Final-source complete CI and subsequent distribution matrix; main/release prohibited | **None: bundle un-parked by explicit user correction**; failed binary-rewriting experiments retained only as history | Obtain final green CI for the Alpine parser and power-answer lock-order corrections, then start K24 immediately. Upstream tools use host glibc >=2.34 and bundle-owned libraries; no binary rewriting/private glibc. Side pieces alone use the three-attempt rule |
 | K24 | not started | — | — | — | All | — | Complete brief after K23 |
 | K25 | not started | — | — | — | All | — | Complete brief after K24 |
 | K26 | not started | — | — | — | All | — | Complete brief after K25 |
@@ -1088,3 +1088,24 @@ job when publication is authorized. That job has not run in this task.
   limits. Superseded PR run 43211582753 was canceled after its OOM failure was
   read and corrected; its interrupted jobs establish no pass. Both parked K22
   rootless Docker pieces remain untouched until the post-K27 second try.
+- Source 15643ad normal CI 43211573607 finishes with one failing new
+  container startup cohort (127 assertions before no_room), not a kernel/tool
+  failure. Completed job 131160297911's full log and retained e2e.xml were read;
+  artifact 13944485683's ZIP SHA-256 is
+  f04ea33d25f76f1500d3bae1ca3a644b25930e5c788ac3b1136b121cf34bdcc8.
+  PostgreSQL reports the actual cause at 12:09:02: answered() reserves its new
+  fleet_observations row then waits for the node foreign-key KEY SHARE lock,
+  while heartbeat holds that node FOR UPDATE and waits for the same observation.
+  All ten actual two-node tests pass (43 assertions), as do subsequent Rivet/
+  celld and both store-cut/watchdog recovery cases; the run remains failed.
+- Reproduce the exact first-insert/node-foreign-key deadlock against local real
+  Postgres before changing production code. answered() now holds the node's
+  KEY SHARE lock in the same transaction before its observation upsert, matching
+  heartbeat's node-before-observation order. There is no lifecycle replay or
+  deadlock retry. The concurrency regression first fails with deadlock.c/40P01,
+  then passes with the fix; existing old-report/assigned-epoch guards also pass.
+  Complete workspace lint/typecheck/OpenAPI/docs/release checks pass; all 429
+  Bun tests pass with the one existing compiled-assets skip and 8,372 assertions.
+  Both structure graphs and whitespace pass. Unchanged Rust retains 478 passing
+  tests and 25 existing ignored cases; fresh hosted CI is still required. K23
+  remains active, not parked.

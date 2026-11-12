@@ -65,7 +65,9 @@ export async function holdsMemory(q: Queryable, workload: string): Promise<boole
  * taken as its latest report of the copy's state, so the memory a copy that no longer runs held is
  * free at once. An existing copy must match its observed epoch. A complete first answer can
  * establish only the exact node/epoch already assigned in the ledger, so an older first
- * heartbeat cannot erase an acknowledged start. False when nothing changed.
+ * heartbeat cannot erase an acknowledged start. Lock the node first, as heartbeat does,
+ * before an insert can reserve its observation and check the node foreign key.
+ * False when nothing changed.
  */
 export async function answered(q: Queryable, nodeId: string, view: WorkloadView): Promise<boolean> {
   const report: Partial<WorkloadReport> = {
@@ -84,28 +86,35 @@ export async function answered(q: Queryable, nodeId: string, view: WorkloadView)
     ports: view.ports && Object.fromEntries(view.ports.map((port) => [port.name, port.hostPort])),
   }
   const complete = Boolean(view.changedAt && view.ports && view.specDigest && view.generation != null)
-  const written = await exec(
-    q,
-    sql`INSERT INTO fleet_observations (node_id, workload, epoch, superseded_by, state, spec_digest, report)
-        SELECT ${nodeId}, ${view.id}, ${view.epoch}, ${view.supersededBy ?? null}, ${view.state},
-          ${view.specDigest ?? null}, ${jsonb(report)} || jsonb_build_object('memoryMb',
-            (SELECT memory_mb FROM fleet_placements WHERE workload = ${view.id}
-              AND node_id = ${nodeId} AND epoch IS NOT DISTINCT FROM ${view.epoch}))
-        WHERE EXISTS (SELECT 1 FROM fleet_observations WHERE node_id = ${nodeId}
-            AND workload = ${view.id} AND epoch IS NOT DISTINCT FROM ${view.epoch})
-          OR (${complete} AND EXISTS (SELECT 1 FROM fleet_placements WHERE workload = ${view.id}
-            AND node_id = ${nodeId} AND epoch IS NOT DISTINCT FROM ${view.epoch}
-            AND state IN ('placing', 'placed')))
-        ON CONFLICT (node_id, workload) DO UPDATE SET
-          state = EXCLUDED.state, state_changed_at = now(), observed_at = now(),
-          report = jsonb_set(fleet_observations.report, '{state}', to_jsonb(${view.state}::text))
-            || jsonb_strip_nulls(jsonb_build_object('changedAt', ${view.changedAt ?? null}::text))
-        WHERE fleet_observations.epoch IS NOT DISTINCT FROM EXCLUDED.epoch
-          AND fleet_observations.state <> EXCLUDED.state
-          AND COALESCE(${view.changedAt ?? null}::timestamptz >=
-                       (fleet_observations.report->>'changedAt')::timestamptz, true)`,
-  )
-  return written > 0
+  return q.transaction(async (t) => {
+    const node = await one<{ id: string }>(
+      t,
+      sql`SELECT id FROM fleet_nodes WHERE id = ${nodeId} FOR KEY SHARE`,
+    )
+    if (!node) return false
+    const written = await exec(
+      t,
+      sql`INSERT INTO fleet_observations (node_id, workload, epoch, superseded_by, state, spec_digest, report)
+          SELECT ${nodeId}, ${view.id}, ${view.epoch}, ${view.supersededBy ?? null}, ${view.state},
+            ${view.specDigest ?? null}, ${jsonb(report)} || jsonb_build_object('memoryMb',
+              (SELECT memory_mb FROM fleet_placements WHERE workload = ${view.id}
+                AND node_id = ${nodeId} AND epoch IS NOT DISTINCT FROM ${view.epoch}))
+          WHERE EXISTS (SELECT 1 FROM fleet_observations WHERE node_id = ${nodeId}
+              AND workload = ${view.id} AND epoch IS NOT DISTINCT FROM ${view.epoch})
+            OR (${complete} AND EXISTS (SELECT 1 FROM fleet_placements WHERE workload = ${view.id}
+              AND node_id = ${nodeId} AND epoch IS NOT DISTINCT FROM ${view.epoch}
+              AND state IN ('placing', 'placed')))
+          ON CONFLICT (node_id, workload) DO UPDATE SET
+            state = EXCLUDED.state, state_changed_at = now(), observed_at = now(),
+            report = jsonb_set(fleet_observations.report, '{state}', to_jsonb(${view.state}::text))
+              || jsonb_strip_nulls(jsonb_build_object('changedAt', ${view.changedAt ?? null}::text))
+          WHERE fleet_observations.epoch IS NOT DISTINCT FROM EXCLUDED.epoch
+            AND fleet_observations.state <> EXCLUDED.state
+            AND COALESCE(${view.changedAt ?? null}::timestamptz >=
+                         (fleet_observations.report->>'changedAt')::timestamptz, true)`,
+    )
+    return written > 0
+  })
 }
 
 /** Every node that isn't retired, with the ledger's reservations on it. */
