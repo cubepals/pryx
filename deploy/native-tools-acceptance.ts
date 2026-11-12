@@ -6,6 +6,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { StatusCodes } from 'http-status-codes'
 import { readClientConfig } from '../cli/src/client-config.ts'
+import { sshProxy } from '../cli/src/ssh-proxy.ts'
 import { readInstallation } from '../cli/src/up-local-record.ts'
 import { userPaths } from '../cli/src/up-paths.ts'
 import { SECOND_MS } from '../control/src/durations.ts'
@@ -13,15 +14,21 @@ import { Agent } from '../sdk/typescript/src/agent.ts'
 import { Pryx, type Sandbox } from '../sdk/typescript/src/index.ts'
 import { Transport } from '../sdk/typescript/src/transport.ts'
 import { hostProbe } from './host-probe.ts'
+import { interactiveAcceptance, nativeSshCommand } from './native-interactive-acceptance.ts'
 
 const credential = readClientConfig()
 assert(credential, 'Installed CLI credentials are required')
 assert(process.getuid?.() !== 0, 'Native acceptance must run as an ordinary user')
+const sdk = new Pryx(credential)
+if (process.argv[2] === 'sandbox' && process.argv[3] === 'ssh-proxy') {
+  assert(process.argv[4] && process.argv[5])
+  await sshProxy(sdk, process.argv[4], process.argv[5])
+  process.exit(0)
+}
 const installed = readInstallation(userPaths())
 assert(installed)
 assert.equal(installed.preset, 'user')
 assert.equal(installed.tier, 'process')
-const sdk = new Pryx(credential)
 const host = await hostProbe(join(installed.bundle, 'bin/pryxd'))
 const systemGlibc = Bun.spawnSync(['getconf', 'GNU_LIBC_VERSION'], { stdout: 'pipe', stderr: 'pipe' })
 assert.equal(systemGlibc.exitCode, 0)
@@ -68,10 +75,10 @@ async function command(argv: string[], env: Record<string, string | undefined>) 
   assert.equal(code, 0, `Installed client acceptance failed: ${error.slice(-2000)}`)
   return out
 }
-async function python(box: Sandbox, kind: string) {
+async function python(box: Sandbox, kind: string, extra: Record<string, string> = {}) {
   const interpreter = process.env.PRYX_PYTHON ?? 'python3'
-  const env = { ...process.env, PRYX_API_URL: credential?.url, PRYX_API_KEY: credential?.key }
-  if (kind === 'browser')
+  const env = { ...process.env, ...extra, PRYX_API_URL: credential?.url, PRYX_API_KEY: credential?.key }
+  if (['browser', 'native-desktop', 'ssh'].includes(kind))
     await command([interpreter, 'sdk/python/e2e/native_tools.py'], {
       ...env,
       PRYX_TOOLS_SANDBOX: box.id,
@@ -228,6 +235,8 @@ try {
   } else {
     await assert.rejects(make(true), /browser-sandbox/)
     await assert.rejects(box.browser(), /user namespaces/)
+    await assert.rejects(box.desktop(), /user namespaces/)
+    await assert.rejects(box.ssh(), /user namespaces/)
     await box.refresh()
     assert.equal(box.guarantees?.['browser-sandbox'], false)
     console.log(
@@ -238,13 +247,16 @@ try {
   await box.delete()
 }
 if (browserOn) {
-  for (const kind of ['browser', 'python', 'javascript'] as const) {
+  await interactiveAcceptance({ make, png, python, command, cli: installed.paths.cli })
+  for (const kind of ['browser', 'python', 'javascript', 'desktop', 'ssh'] as const) {
     samples[kind] = []
     for (let sample = 0; sample < 30; sample++) {
       const started = performance.now()
       const box = await make()
       try {
-        if (kind === 'browser') png(await box.browser.screenshot(await browserPage(box)))
+        if (kind === 'desktop') png(await box.desktop.screenshot())
+        else if (kind === 'ssh') await nativeSshCommand(box)
+        else if (kind === 'browser') png(await box.browser.screenshot(await browserPage(box)))
         else {
           await box.write('chart.cjs', readFileSync('sdk/typescript/test/fixtures/chart.cjs'))
           const kernel = kind === 'python' ? await box.python() : await box.javascript()
@@ -260,6 +272,6 @@ if (browserOn) {
   assert(process.env.PRYX_NATIVE_MEASUREMENTS)
   writeFileSync(
     process.env.PRYX_NATIVE_MEASUREMENTS,
-    `${JSON.stringify({ uid: process.getuid?.(), preset: 'user', isolation: 'process', architecture: host.architecture, hostCLibrary: host.cLibrary, landlockAbi: host.landlockAbi, unit: 'ms', point: 'create-to-first-image', samples }, null, 2)}\n`,
+    `${JSON.stringify({ uid: process.getuid?.(), preset: 'user', isolation: 'process', architecture: host.architecture, hostCLibrary: host.cLibrary, landlockAbi: host.landlockAbi, unit: 'ms', point: 'create-to-first-image', samplePoints: { ssh: 'create-to-command' }, samples }, null, 2)}\n`,
   )
 }

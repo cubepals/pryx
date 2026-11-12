@@ -46,12 +46,14 @@ sudo useradd --create-home --shell /bin/bash pryxtools
 pryx_native_fixture=$(mktemp -d /tmp/pryx-native-acceptance.XXXXXX)
 chmod 755 "$pryx_native_fixture"
 mkdir -p "$pryx_native_fixture/deploy" "$pryx_native_fixture/templates/process-tools" \
-  "$pryx_native_fixture/sdk/typescript/test/fixtures" "$pryx_native_fixture/sdk"
+  "$pryx_native_fixture/sdk/typescript/test/fixtures" "$pryx_native_fixture/sdk" \
+  "$pryx_native_fixture/agent/tests/fixtures"
 cp deploy/native-user-acceptance.sh deploy/native-container-acceptance.sh \
   deploy/local-diagnostics.py deploy/tool-artifact-server.py "$pryx_native_fixture/deploy/"
 cp templates/process-tools/artifacts.json "$pryx_native_fixture/templates/process-tools/"
 cp sdk/typescript/test/fixtures/chart.cjs "$pryx_native_fixture/sdk/typescript/test/fixtures/"
 cp -a sdk/python "$pryx_native_fixture/sdk/python"
+cp agent/tests/fixtures/desktop-application.html "$pryx_native_fixture/agent/tests/fixtures/"
 find "$pryx_native_fixture" -type d -exec chmod 755 {} +
 find "$pryx_native_fixture" -type f -exec chmod 644 {} +
 bun build --compile deploy/native-tools-acceptance.ts --outfile "$pryx_native_fixture/acceptance"

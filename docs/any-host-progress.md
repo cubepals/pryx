@@ -1681,7 +1681,7 @@ job when publication is authorized. That job has not run in this task.
   The source-7664 normal core job 131474102904 is also green, including its complete
   real Wasm/Docker checks; the local Wasm readiness failure remains unresolved,
   not relabeled as a pass. Native capability announcements remain unchanged.
-- Final hardened-launcher agent suite passes completely: 76 tests, twelve
+- Final hardened-launcher agent suite passes completely: 76 tests, eleven
   explicitly ignored hosted/subprocess cases. Fmt, mixed structure and whitespace
   checks pass. The first regression compile exposed the browser launcher's private
   Rust visibility; expose its fixed trusted launcher like the desktop/SSH launchers
@@ -1690,3 +1690,30 @@ job when publication is authorized. That job has not run in this task.
   held-upload acknowledgement deadline; the previous MCP and move failures pass.
   This remains an explicit local failure pending focused diagnosis. Fresh hosted
   native SSH/desktop acceptance is required after the safer account mounts.
+- Hardened source f3d14ad has green complete producer 131492976250 on
+  [43307047875](https://github.com/cubepals/pryx/actions/runs/43307047875).
+  Read its completed log: the new fixed private SSH account mounts retain real
+  command/PTY and same-UID privacy, and the real-agent WebSocket lease case
+  retains capacity, shortened expiry, revocation and reconnect refusal. The
+  complete headful application/noVNC/Chromium sandbox/neighbour proof also
+  passes. Strict local all-target agent Clippy passes after the follow-up.
+- Add installed-user acceptance for application-observed TypeScript and both
+  Python-mode desktop input, real noVNC/RFB through the HTTP edge, actual SSH
+  commands and wake through HTTP, the installed CLI and both Python transport
+  modes. Extend the existing thirty-sample native cohort with desktop images
+  and SSH command readiness; retain every existing kernel/browser cohort and
+  all container budgets. Default-container namespace refusals now explicitly
+  cover desktop and SSH too. This adds an estimated two to four minutes to the
+  existing branch/scheduled bundle job, no ordinary PR execution, job or gate.
+  The compiled fixture has a narrow ProxyCommand entry which reuses the existing
+  CLI/SDK stream and receives only sandbox/lease IDs. A real local compiled-mode
+  probe reaches its SDK lookup and emits no stdout. Types, fixture compilation,
+  Python syntax, shell syntax, mixed structure and whitespace pass; actual new
+  installed cases and timings remain pending fresh hosted execution.
+- Current installed-acceptance source passes the full Bun workspace check:
+  432 tests, one existing compiled-assets skip, 8,386 assertions against real
+  PostgreSQL. All lint/type/generated-schema/docs/release stages pass. Earlier
+  local timing failures remain above; the focused temporary RPC trace observed
+  its timeout callback and error event promptly, so no speculative node-client
+  change or diagnostic logging is retained. Correct the agent suite's ignored
+  count to eleven in this checkpoint. New installed K24 proof remains pending.
