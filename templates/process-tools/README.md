@@ -66,6 +66,9 @@ Parts (`process-tools/`):
 - `desktop-full.lock.json`: exact selected ELF files, runtime data packages and notice digests.
 - `desktop-full-sources.lock.json`: complete DSC/original/Debian source inputs for that component.
 - `desktop_full_test.py`: actual full-component missing-library and private-glibc rejection.
+- `desktop_web.py`: verified noVNC/websockify staging and complete source retention.
+- `desktop-web.lock.json`: pinned web programs and corresponding sources, reusing K18 reviews.
+- `desktop/`: fixed external desktop supervision, Unix forwarding and token expiry adapters.
 - `libraries.lock.json`: immutable library/font archives and their notice hashes.
 - `helpers.lock.json`: separately executed namespace helpers and their complete notices.
 - `notices/`: source-reviewed corrections to incomplete library/font package notices.

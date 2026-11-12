@@ -45,6 +45,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if arguments.first().is_some_and(|a| a == "process-browser-child") {
         return pryx_agent::process_tools::browser::child();
     }
+    if arguments.first().is_some_and(|a| a == "process-desktop-child") {
+        return pryx_agent::process_tools::desktop::child();
+    }
     if arguments.first().is_some_and(|a| a == "process-probe") {
         println!("{}", serde_json::to_string(&pryx_agent::process_capabilities::probe())?);
         return Ok(());

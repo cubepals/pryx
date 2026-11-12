@@ -1457,3 +1457,44 @@ job when publication is authorized. That job has not run in this task.
   integration includes both assets. K24 remains in progress with no new parked
   piece. Next: real headful application/input, private VNC/noVNC and native SSH
   workers, complete own-source publication, capabilities and installed acceptance.
+- Source 78177e5's complete staged producer passes (131382232340), including
+  all full-source inputs and seven relocated loader controls on the hosted user.
+  Its push/PR core jobs 131382299733 / 131382392789 fail only the attribution
+  phrase grep: the unchanged digest-locked GLib copyright contains a literal
+  phrase in its Creative Commons legal terms. Read both complete logs. Preserve
+  the copyright bytes and exempt precisely that one upstream legal file from
+  this prose-only grep; all source checks and licence checks remain intact.
+- Add the closed native desktop worker in maintained private user/PID/IPC/UTS,
+  temporary and proc mounts. Its existing browser policy permits Chromium's
+  own nested sandbox, while ordinary guest filters remain unchanged. The fixed
+  adapter starts unchanged Xvfb/headful Chromium, xdotool/scrot, x11vnc inetd
+  per private Unix connection, and noVNC/websockify over Unix sockets. No public
+  VNC/TCP listener or window manager. Keep capability announcements off pending
+  the real hosted acceptance. Reuse the audited K18 web inputs, pin their exact
+  wheel and complete source archives, retain full notices, and import only the
+  Unix/token-file functionality rather than unrelated optional plugins.
+- The explicit hosted case requires an application-observed click and complete
+  typed text, a real PNG, noVNC page, actual RFB greeting, active expiry and
+  expired reconnect refusal. Require the real renderer's extra PID namespace,
+  seccomp filter and no-new-privileges. Probe a live private endpoint as the
+  unconfined positive control, then deny the independent same-UID neighbour
+  the abstract broker, both private socket proc-root aliases and owner cookie.
+  This is a staged worker test, not installed SDK/edge milestone completion.
+- Local worker verification: compilation, 482 root/workspace Rust tests with
+  30 explicitly ignored cases, another 72 agent tests with eight ignored cases,
+  five staged Python cases, all seven relocation controls including the added
+  web payload, maintained websockify import, complete web-source acquisition,
+  strict Clippy, all three structure checks, actual ShellCheck/actionlint, docs,
+  whitespace and REUSE (1,694 files) pass. The initial Rust run omitted this
+  machine's existing Wasm sidecar fixture path; the corrected complete run uses
+  PRYX_AGENTOS_DISTRIBUTION and passes real Wasm. Local confinement positives
+  are not claimed. Added hosted native application case is expected under one
+  minute in the existing producer, with no new job or gate.
+- Source be92e89's complete Any-host run 43268999503 is now green, including
+  all sixteen host jobs and signed ordinary-user/native SDK continuation. A
+  later docs-only source 683c4bf installed job 131370282724 passes both SDKs'
+  kernel/browser positives but fails with public no_room during its timing
+  cohort. Read the full log; no placement-refusal reason is emitted by its
+  bounded existing diagnostics. Keep this failure open for diagnosis, do not
+  relabel it green or rerun that unchanged source. Normal source-be CI remains
+  running at this checkpoint. K24 remains in progress, with no piece parked.

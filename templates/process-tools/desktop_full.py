@@ -15,6 +15,7 @@ import subprocess
 import tempfile
 from archive_inputs import REPO, ROOT, acquire, copy_entry, digest
 import desktop
+import desktop_web
 
 
 def inputs():
@@ -108,6 +109,7 @@ export LD_LIBRARY_PATH="{libraries}"
 exec "$component/payload/{relative}" "$@"
 ''')
         launcher.chmod(0o755)
+    desktop_web.assemble(cache, output)
 
 
 def main():

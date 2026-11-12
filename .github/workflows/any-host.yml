@@ -154,6 +154,13 @@ jobs:
             --report "$RUNNER_TEMP/desktop-full-component.json"
           PRYX_DESKTOP_FULL_TEST_COMPONENT="$relocated" \
             python3 -m unittest discover -s templates/process-tools -p 'desktop_full_test.py'
+          moved="$RUNNER_TEMP/ordinary user tools moved to a substantially longer path"
+          mv "$relocated" "$moved/desktop"
+          PRYX_DESKTOP_APPLICATION_BUNDLE="$moved" \
+            PRYX_DESKTOP_APPLICATION_REPORT="$RUNNER_TEMP/desktop-application.json" \
+            CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0 \
+            cargo test --locked -p pryx-agent --test desktop_application \
+              real_headful_input_vnc_and_neighbour_privacy -- --ignored --nocapture
       - name: Retain the verified runtime for installed-product acceptance
         uses: ./.github/actions/upload-evidence
         with:
@@ -187,6 +194,7 @@ jobs:
             ${{ runner.temp }}/desktop-live.json
             ${{ runner.temp }}/desktop-full-component.json
             ${{ runner.temp }}/desktop-full-sources.json
+            ${{ runner.temp }}/desktop-application.json
           if-no-files-found: error
   bundle:
     name: Bundle runtime acceptance

@@ -5,6 +5,7 @@
 //! Parts (`process_tools/`):
 //! - `browser.rs`: fixed launch through maintained private namespaces.
 //! - `browser_session.rs`: scoped Unix connections and bounded screenshots.
+//! - `desktop.rs`: closed desktop launch with private temporary and proc mounts.
 //! - `cache.rs`: pinned acquisition, safe extraction and complete cache verification.
 //! - `cache_tests.rs`: real HTTP/archive integrity and cache-tampering regressions.
 pub mod browser;
@@ -13,6 +14,7 @@ mod cache;
 #[cfg(test)]
 #[path = "process_tools/cache_tests.rs"]
 mod cache_tests;
+pub mod desktop;
 
 use crate::context::Failure;
 pub use crate::process_tool_policy::{Artifact, Policy};

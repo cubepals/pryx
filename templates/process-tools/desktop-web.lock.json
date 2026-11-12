@@ -1,0 +1,20 @@
+[
+  {
+    "name": "novnc",
+    "url": "https://codeload.github.com/novnc/noVNC/tar.gz/refs/tags/v1.7.0",
+    "sha256": "b1003a11b6e6e8d8f7f5e5586daae7f8ca651d8aee0aa155ff9ac841c48f52c6",
+    "licence": "MPL-2.0 with retained BSD, MIT and OFL asset notices"
+  },
+  {
+    "name": "websockify-wheel",
+    "url": "https://files.pythonhosted.org/packages/19/e8/6476cd85a71f7cfb04ca1e199809b75bc8580d075d4338ffcde4c761d620/websockify-0.13.0-py3-none-any.whl",
+    "sha256": "ac497a8dafc7f51d28ca989f01cdf5f8add663a497d425a56b159dcb8d6a314c",
+    "licence": "LGPL-3.0-only, separate external Python program"
+  },
+  {
+    "name": "websockify-source",
+    "url": "https://files.pythonhosted.org/packages/f7/9e/fa7b6322fe22a02cf34256cbe300a9468533038b1262c7960119a787b595/websockify-0.13.0.tar.gz",
+    "sha256": "9969731116653226c4c499a8a50712c8f3f7c105c615ead7ebc6ae781f0ba954",
+    "licence": "LGPL-3.0-only, complete corresponding source"
+  }
+]

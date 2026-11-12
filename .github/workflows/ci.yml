@@ -124,7 +124,8 @@ jobs:
       - name: Durations and comments
         run: |
           if git grep -nE '\b(3_?600|86_?400|604_?800)\b|\b60 ?\* ?60\b' -- '*.rs'; then exit 1; fi
-          if git grep -niE "owner'?s decision|owner decided|per the owner|as requested" -- . ':!.github/workflows/ci.yml'; then exit 1; fi
+          # This digest-locked upstream legal text contains the literal phrase; preserve it verbatim.
+          if git grep -niE "owner'?s decision|owner decided|per the owner|as requested" -- . ':!.github/workflows/ci.yml' ':!templates/process-tools/notices/desktop-full/libglib2.0-0.copyright'; then exit 1; fi
       - name: Structure
         run: |
           curl -fsSL https://raw.githubusercontent.com/cubepals/cubepals/e264c475d05aa31ec8871b2ceb8c421cf7370200/scripts/check-structure.ts \

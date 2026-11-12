@@ -78,6 +78,11 @@ pub fn desktop(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
     enter_variant(policy, false, true)
 }
 
+/// The closed desktop supervisor also launches sandboxed Chromium in its private proc/root.
+pub fn desktop_browser(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
+    enter_variant(policy, true, true)
+}
+
 fn enter_variant(policy: &Policy, browser: bool, desktop: bool) -> Result<(), Box<dyn std::error::Error>> {
     if !crate::process_capabilities::probe().filesystem {
         return Err(crate::process_capabilities::FILESYSTEM_UNAVAILABLE.into());
