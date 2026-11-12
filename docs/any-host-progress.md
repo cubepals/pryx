@@ -1219,3 +1219,25 @@ job when publication is authorized. That job has not run in this task.
   TigerVNC 1.16.2 binary; complete its dependency/source licence audit before
   any use. Native desktop/SSH availability remains off pending implementation
   and hosted proof; no K24 acceptance is claimed at this checkpoint.
+- First K24 checkpoint adds an explicit X11 fixture, separate from the runtime
+  archive, from eleven already reviewed K18 Debian package digests/notices and
+  the K23 shared libraries. dpkg-deb extracts bytes without installing packages
+  or running hooks; the fixture rejects private glibc and copies no implementation
+  into pryx. Original executable SHA-256 hashes are checked by the real-agent
+  design test. Positive -help/--version controls prove the programs load; private
+  display refusals are compared with the same real programs outside confinement,
+  so no vendor exit or error text is invented. The local explicit test passes,
+  but this machine cannot enforce Landlock: x11-design-local.json records only
+  unconfined argument behavior and the complete policy's refusal, not hosted
+  isolation. No live X11 endpoint or headful Chromium acceptance is claimed.
+  The existing Any-host tool job explicitly runs the new artifact-dependent test
+  with filesystem/private-IPC enforcement required, and retains its raw report.
+  Estimated addition: under two minutes to that branch/scheduled job and under
+  one minute of ordinary PR test compilation, with no new job or required gate.
+  Desktop/SSH availability stays off. Full local Rust passes 479 tests with
+  26 ignored cases (the new fixture-dependent case runs explicitly in CI).
+  Strict all-target Clippy, all three structure checks, fmt, actionlint, Python
+  syntax, docs and whitespace pass. Rebuilt fixture/explicit local acceptance
+  passes; a nested private-glibc marker is refused before any acquisition or
+  extraction. Source/report hashes and local-only qualifications are retained
+  beside the report. Hosted design evidence remains pending.

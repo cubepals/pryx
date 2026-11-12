@@ -111,6 +111,19 @@ jobs:
           sudo install -m 644 "$trust/ca.crt" /usr/local/share/ca-certificates/pryx-ci-native-tools.crt
           sudo update-ca-certificates
           cargo test --locked -p pryx-agent --test native_process -- --ignored --nocapture --test-threads=1 2>&1 | tee "$RUNNER_TEMP/native-process-acceptance.log"
+      - name: Record the real X11 display transport design
+        env:
+          PRYX_DESKTOP_DESIGN_FIXTURE: ${{ runner.temp }}/desktop-design-fixture
+          PRYX_DESKTOP_DESIGN_REPORT: ${{ runner.temp }}/desktop-design.json
+          PRYX_DESKTOP_DESIGN_REQUIRE_POLICY: '1'
+          CARGO_PROFILE_DEV_DEBUG: '0'
+          CARGO_PROFILE_TEST_DEBUG: '0'
+          CARGO_INCREMENTAL: '0'
+        run: |
+          moved="$RUNNER_TEMP/ordinary user tools moved to a substantially longer path"
+          python3 templates/process-tools/desktop-fixture.py --cache "$RUNNER_TEMP/tool-inputs" \
+            --output "$PRYX_DESKTOP_DESIGN_FIXTURE" --libraries "$moved/libraries/lib"
+          cargo test --locked -p pryx-agent --test desktop_design -- --ignored --nocapture
       - name: Retain the verified runtime for installed-product acceptance
         uses: ./.github/actions/upload-evidence
         with:
@@ -139,6 +152,7 @@ jobs:
             ${{ runner.temp }}/process-tool-sources.json
             ${{ runner.temp }}/native-process-acceptance.log
             ${{ runner.temp }}/native-artifact-server.log
+            ${{ runner.temp }}/desktop-design.json
           if-no-files-found: error
   bundle:
     name: Bundle runtime acceptance
