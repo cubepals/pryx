@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { SECOND_MS } from '../../control/src/durations.ts'
 import { PRYX_VERSION } from '../../control/src/generated/release.ts'
+import { IMAGE_NODE_CONFIG } from '../../deploy/image-state.ts'
 import { writeClientConfig } from '../src/client-config.ts'
 import type { LocalInstallation } from '../src/up-local-record.ts'
 import { userPaths } from '../src/up-paths.ts'
@@ -20,10 +21,14 @@ test('concurrent summaries claim the first key before any process prints', async
   try {
     mkdirSync(join(bundle, 'bin'), { recursive: true })
     mkdirSync(barrier)
-    writeFileSync(join(bundle, 'bin/pryxd'), "#!/bin/sh\nprintf '%s\\n' '{\"capabilities\":{}}'\n", {
-      mode: 0o700,
-    })
+    writeFileSync(
+      join(bundle, 'bin/pryxd'),
+      '#!/bin/sh\n[ "$1" = probe ] && [ "$2" = --json ] && [ "$3" = --config ] && [ "$4" = "$PRYX_TEST_NODE_CONFIG" ] || exit 1\nprintf \'%s\\n\' \'{"capabilities":{}}\'\n',
+      { mode: 0o700 },
+    )
     writeClientConfig({ url: 'http://127.0.0.1:7331', key: crypto.randomUUID() }, paths.client)
+    const configured = join(paths.config, IMAGE_NODE_CONFIG)
+    writeFileSync(configured, '# owned process node configuration\n', { mode: 0o600 })
     const record: LocalInstallation = {
       version: PRYX_VERSION,
       digest: 'a'.repeat(64),
@@ -60,6 +65,7 @@ test('concurrent summaries claim the first key before any process prints', async
             PRYX_TEST_RECORD: file,
             PRYX_TEST_BARRIER: barrier,
             PRYX_TEST_ID: String(id),
+            PRYX_TEST_NODE_CONFIG: configured,
             PRYX_TEST_WORKERS: String(workers),
             PRYX_TEST_DEADLINE_MS: String(10 * SECOND_MS),
             PRYX_TEST_POLL_MS: String(SECOND_MS / 100),

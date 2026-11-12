@@ -43,7 +43,7 @@ export async function localSummary(record: LocalInstallation, action: string) {
   const probe = await hostProbe(
     join(record.bundle, 'bin/pryxd'),
     localEnvironment(record),
-    record.engineSocket && existsSync(configured) ? configured : undefined,
+    existsSync(configured) ? configured : undefined,
   )
   const printed = join(record.paths.config, 'key-printed')
   let firstKey = false

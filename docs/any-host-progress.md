@@ -1856,3 +1856,17 @@ job when publication is authorized. That job has not run in this task.
   Installed bundle job 131543614392 is running; do not infer its outcome from
   this staged-worker proof. Latest source 8d6be2f imports the same pinned SQLite
   filename in the NSS control, with unchanged product behavior; its CI is active.
+- Local exact pinned runtime assembly completes successfully. The explicit
+  guarded headful invocation then fails immediately at its mandatory filesystem
+  confinement probe on this executor; do not bypass that precondition or claim
+  local headful/privacy execution. Hosted producer 131537320861 remains the
+  positive confined proof. The local staged programs and NSS control provide
+  reproducible inputs for further diagnostics, without changing product policy.
+- Correct the installed summary's engine-only configured-probe condition:
+  process presets have an existing node configuration too, and a bare probe now
+  deliberately reports native capabilities off. Pass that existing configuration
+  and strengthen the four-process credential-summary fixture to require its real
+  probe argv while preserving the one-time credential claim. Both focused
+  summary/doctor tests pass; the complete Bun check passes 436 tests, one existing
+  skip and 8,407 assertions against real PostgreSQL, with all preceding stages
+  green. Fresh installed summary/capability acceptance remains required.
