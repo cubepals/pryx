@@ -53,6 +53,7 @@ impl Manager {
         if self.config.store_lease.enabled && self.runtime.tiers().contains(&"container") {
             features.push("store-lease".into());
         }
+        features.extend(self.native_tool_features());
         for tier in self.runtime.tiers() {
             if self.runtime.multi_tier() && !self.runtime.tier_ready(tier) {
                 continue;
@@ -94,6 +95,26 @@ impl Manager {
         features
     }
 
+    fn native_tool_features(&self) -> Vec<String> {
+        let mut features: Vec<_> = [crate::protocol::NATIVE_DESKTOP_FEATURE, crate::protocol::NATIVE_SSH_FEATURE]
+            .into_iter()
+            .map(|feature| format!("{}{feature}", crate::protocol::TIER_CAPABILITY_SCOPE_PREFIX))
+            .collect();
+        let tier = crate::protocol::Isolation::Process.as_str();
+        if self.runtime.tiers().contains(&tier) && (!self.runtime.multi_tier() || self.runtime.tier_ready(tier)) {
+            let probe = self.host_probe.lock().unwrap();
+            for (capability, feature) in [
+                (pryx_agent::process_tool_policy::DESKTOP_CAPABILITY, crate::protocol::NATIVE_DESKTOP_FEATURE),
+                (pryx_agent::process_tool_policy::SSH_CAPABILITY, crate::protocol::NATIVE_SSH_FEATURE),
+            ] {
+                if probe.on(capability) {
+                    features.push(format!("tier-{tier}:{feature}"));
+                }
+            }
+        }
+        features
+    }
+
     fn ready_network_policy(&self) -> bool {
         self.runtime.multi_tier()
             && self.runtime.tiers().into_iter().any(|tier| {
@@ -118,21 +139,27 @@ impl Manager {
                 ),
             };
             report.capabilities.insert(pryx_agent::process_tool_policy::BROWSER_CAPABILITY.into(), capability);
-            let desktop = match self.agent_binary(runtime.as_ref()) {
-                Some(binary) => runtime.native_desktop(&binary).await,
-                None => Err(crate::runtime::RuntimeError::Other("No trusted process agent executable".into())),
+            let binary = self.agent_binary(runtime.as_ref());
+            let desktop = match &binary {
+                Some(binary) => runtime.native_desktop(binary).await.map_err(|error| error.to_string()),
+                None => Err("No trusted process agent executable".into()),
             };
-            let desktop = match desktop {
-                Ok(()) => crate::capability::Capability::on(
-                    "Native process desktop bundle, host glibc and private namespaces are available",
-                ),
-                Err(problem) => crate::capability::Capability::new(
-                    crate::capability::State::Off,
-                    problem.to_string(),
-                    "Inspect native desktop bundle, glibc, private IPC and user-namespace policy",
-                ),
+            let ssh_supported = if desktop.is_ok() {
+                match &binary {
+                    Some(binary) => crate::runtime::process_ssh_supported(binary).await,
+                    None => false,
+                }
+            } else {
+                false
             };
-            report.capabilities.insert(pryx_agent::process_tool_policy::DESKTOP_CAPABILITY.into(), desktop);
+            report.capabilities.insert(
+                pryx_agent::process_tool_policy::DESKTOP_CAPABILITY.into(),
+                crate::capability::process_tools::desktop_capability(&desktop),
+            );
+            report.capabilities.insert(
+                pryx_agent::process_tool_policy::SSH_CAPABILITY.into(),
+                crate::capability::process_tools::ssh_capability(&desktop, ssh_supported),
+            );
         }
         *self.host_probe.lock().unwrap() = report;
     }

@@ -43,7 +43,8 @@ export const placementRefused = (
   provider: string,
   considered: readonly Considered[],
   isolation?: Isolation,
-) => new RuntimeFull(provider, describe(considered), missingGuarantees(considered), isolation)
+  requiredTools: readonly import('./tool-capabilities.ts').RequiredTool[] = [],
+) => new RuntimeFull(provider, describe(considered), missingGuarantees(considered), isolation, requiredTools)
 
 export class NodeChoice {
   readonly #o: {

@@ -17,6 +17,8 @@ pub struct Capabilities {
     pub process_browser_version: u16,
     #[serde(default)]
     pub process_desktop_version: u16,
+    #[serde(default)]
+    pub process_ssh_version: u16,
 }
 
 pub fn probe() -> Capabilities {
@@ -25,5 +27,6 @@ pub fn probe() -> Capabilities {
         process_tools_version: crate::process_tool_policy::VERSION,
         process_browser_version: crate::process_tool_policy::BROWSER_VERSION,
         process_desktop_version: crate::process_tool_policy::DESKTOP_VERSION,
+        process_ssh_version: crate::process_tool_policy::SSH_VERSION,
     }
 }

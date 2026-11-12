@@ -14,6 +14,7 @@ from attrs import define as _attrs_define
 from ..models.make_request_isolation import MakeRequestIsolation
 from ..models.make_request_network import MakeRequestNetwork
 from ..models.make_request_require_item import MakeRequestRequireItem
+from ..models.make_request_required_tools_item import MakeRequestRequiredToolsItem
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
@@ -54,6 +55,7 @@ class MakeRequest:
         idle (Union[Unset, float]):
         isolation (Union[Unset, MakeRequestIsolation]):
         require (Union[Unset, list[MakeRequestRequireItem]]):
+        required_tools (Union[Unset, list[MakeRequestRequiredToolsItem]]):
         restart (Union[Unset, MakeRequestRestart]):
         labels (Union[Unset, MakeRequestLabels]):
         name (Union[Unset, str]):
@@ -84,6 +86,7 @@ class MakeRequest:
     idle: Union[Unset, float] = UNSET
     isolation: Union[Unset, MakeRequestIsolation] = UNSET
     require: Union[Unset, list[MakeRequestRequireItem]] = UNSET
+    required_tools: Union[Unset, list[MakeRequestRequiredToolsItem]] = UNSET
     restart: Union[Unset, "MakeRequestRestart"] = UNSET
     labels: Union[Unset, "MakeRequestLabels"] = UNSET
     name: Union[Unset, str] = UNSET
@@ -163,6 +166,13 @@ class MakeRequest:
                 require_item = require_item_data.value
                 require.append(require_item)
 
+        required_tools: Union[Unset, list[str]] = UNSET
+        if not isinstance(self.required_tools, Unset):
+            required_tools = []
+            for required_tools_item_data in self.required_tools:
+                required_tools_item = required_tools_item_data.value
+                required_tools.append(required_tools_item)
+
         restart: Union[Unset, dict[str, Any]] = UNSET
         if not isinstance(self.restart, Unset):
             restart = self.restart.to_dict()
@@ -230,6 +240,8 @@ class MakeRequest:
             field_dict["isolation"] = isolation
         if require is not UNSET:
             field_dict["require"] = require
+        if required_tools is not UNSET:
+            field_dict["requiredTools"] = required_tools
         if restart is not UNSET:
             field_dict["restart"] = restart
         if labels is not UNSET:
@@ -348,6 +360,13 @@ class MakeRequest:
 
             require.append(require_item)
 
+        required_tools = []
+        _required_tools = d.pop("requiredTools", UNSET)
+        for required_tools_item_data in _required_tools or []:
+            required_tools_item = MakeRequestRequiredToolsItem(required_tools_item_data)
+
+            required_tools.append(required_tools_item)
+
         _restart = d.pop("restart", UNSET)
         restart: Union[Unset, MakeRequestRestart]
         if isinstance(_restart, Unset):
@@ -407,6 +426,7 @@ class MakeRequest:
             idle=idle,
             isolation=isolation,
             require=require,
+            required_tools=required_tools,
             restart=restart,
             labels=labels,
             name=name,

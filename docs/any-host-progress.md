@@ -1717,3 +1717,47 @@ job when publication is authorized. That job has not run in this task.
   its timeout callback and error event promptly, so no speculative node-client
   change or diagnostic logging is retained. Correct the agent suite's ignored
   count to eleven in this checkpoint. New installed K24 proof remains pending.
+- Preserve the executable ownership check unchanged in signed source 486ceaf,
+  moving it into runtime/agent_metadata for the read-only configured doctor.
+  Local cargo check and rustdoc pass. The preceding full Rust invocation passes
+  all 487 executable cases (33 explicit ignores), including real Wasm; its final
+  rustdoc catches the intermediate move's private-module access, corrected before
+  this checkpoint. Do not describe that invocation as an all-stage pass.
+- Add optional public requiredTools desktop/SSH intent, generated SDK contracts,
+  observed process-tier feature advertisement, placement and unchanged-spec wake
+  enforcement. Keep requirements out of the node WorkloadSpec. The configured
+  doctor uses existing protected-agent checks and a read-only journal load; its
+  missing-history regression must not initialize or repair runtime state. Hosted
+  installed capability/doctor proof and the complete current checks are pending.
+- Installed source a54b426, bundle job
+  [131508549256](https://github.com/cubepals/pryx/actions/runs/43309758259/job/131508549256),
+  passes real application-observed TypeScript and both Python-mode desktop input,
+  PNG and edge noVNC/RFB. SSH prints the actual marker through the HTTP edge,
+  including wake, then the immediate public view assertion sees starting rather
+  than running. Inspect route acknowledgement before changing that assertion;
+  remaining CLI/Python SSH and thirty-sample cohorts did not run.
+- Source 486ceaf producer
+  [131514579182](https://github.com/cubepals/pryx/actions/runs/43313268690/job/131514579182)
+  fails actual headful navigation: bundled NSS 3.87.1 loads the host's newer
+  libsoftokn3, which requires missing NSSUTIL_3.94, and Chromium exits. Its real
+  SSH command/PTY/neighbour test still passes. Earlier successful desktop runs
+  do not resolve this incomplete dynamic dependency closure; fix and prove it.
+- Cancel superseded pending runs 43301624317, 43303928155, 43307047875,
+  43303927680, 43307060009 and 43307047872 after inspecting their completed jobs.
+  Preserve their recorded successful producer/bundle evidence above; their
+  canceled remainder is not aggregate proof. No completed failure was canceled.
+  Keep latest source runs and c471eb6 PR CI 43303936669 for complete results.
+- PR CI 43303936669 is now completely green for source c471eb6. Capability
+  checkpoint's 28 focused CLI/placement/workload tests pass (126 assertions),
+  including the no-installation-state doctor regression. Generated Python
+  consistency and mixed structure checks pass. The first doctor test observed
+  Bun's own transpiler cache in its disposable HOME; disable that child cache
+  and retain the exact no-new-state assertion. Full current suites remain running.
+- Current cargo test compiles all targets, then passes 34 agent unit and 19 API
+  cases before the unchanged bootstrap test fails its positive spare-listener
+  assertion. The main TCP socket is bound before the spare sockets, and the
+  test treats a successful main connect as their startup completion. Preserve
+  the test's interface-denial assertions and bind the spare transport before
+  exposing the main listener in a follow-up. This compiling checkpoint is WIP;
+  the full node suite and Bun check are still running. The compiled installed
+  fixture, typecheck, generated API checks and structure checks pass.

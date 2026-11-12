@@ -8,6 +8,7 @@ import writes from '../../openapi/node-writes.openapi.json'
 import { GUARANTEES } from './guarantees.ts'
 import { ISOLATIONS } from './isolation.ts'
 import { agentSchema } from './node-contract.ts'
+import { REQUIRED_TOOLS, TOOL_NETWORK_PROBLEM } from './tool-capabilities.ts'
 import type { WorkloadSpec } from './wire.ts'
 
 const map = z.record(z.string(), z.string())
@@ -65,6 +66,7 @@ export const makeSchema = z
     idle: z.number().positive().optional(),
     isolation: z.enum(ISOLATIONS).optional(),
     require: z.array(z.enum(GUARANTEES)).max(GUARANTEES.length).optional(),
+    requiredTools: z.array(z.enum(REQUIRED_TOOLS)).max(REQUIRED_TOOLS.length).optional(),
     restart: z
       .object({
         policy: z.enum(nodeSchemas.RestartPolicy.oneOf.map((p) => p.const) as ['no', 'on-failure']),
@@ -102,6 +104,10 @@ export const makeSchema = z
     region: z.string().default('default'),
   })
   .strict()
+  .refine((body) => body.network !== 'none' || !body.requiredTools?.length, {
+    path: ['requiredTools'],
+    error: TOOL_NETWORK_PROBLEM,
+  })
 export const execSchema = z
   .object({
     command: z.array(z.string()).min(1),

@@ -10,6 +10,9 @@ pub const SSH_BOOTSTRAP_ENV: &str = "PRYX_SSH_BOOTSTRAP";
 pub const VERSION: u16 = 1;
 pub const BROWSER_VERSION: u16 = 1;
 pub const BROWSER_CAPABILITY: &str = "process-browser-sandbox";
+pub const SSH_VERSION: u16 = 1;
+pub const SSH_CAPABILITY: &str = "process-ssh";
+
 pub const DESKTOP_VERSION: u16 = 1;
 pub const DESKTOP_CAPABILITY: &str = "process-desktop";
 

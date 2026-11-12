@@ -34,6 +34,7 @@ export interface RuntimeSpec {
   /** Original public request intent, persisted before unit defaults. Absent on legacy records. */
   resourceDefaults?: { memory: boolean; cpu: boolean }
   require?: readonly import('./guarantees.ts').Guarantee[]
+  requiredTools?: readonly import('./tool-capabilities.ts').RequiredTool[]
   fuseMounts?: boolean
   isolation?: import('./isolation.ts').Isolation
   agent?: import('./wire.ts').WorkloadSpec['agent']
@@ -511,6 +512,7 @@ export class RuntimeFull extends Error {
     detail: string,
     readonly missingGuarantees: readonly import('./guarantees.ts').Guarantee[] = [],
     readonly missingIsolation?: import('./isolation.ts').Isolation,
+    readonly requiredTools: readonly import('./tool-capabilities.ts').RequiredTool[] = [],
   ) {
     super(`The ${provider} runtime has no room: ${detail}`)
     this.name = 'RuntimeFull'

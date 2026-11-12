@@ -5696,6 +5696,17 @@
               ]
             }
           },
+          "requiredTools": {
+            "maxItems": 2,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "desktop",
+                "ssh"
+              ]
+            }
+          },
           "restart": {
             "type": "object",
             "properties": {
@@ -6279,6 +6290,17 @@
                     "memory-sleep",
                     "browser-sandbox",
                     "private-pids"
+                  ]
+                }
+              },
+              "requiredTools": {
+                "maxItems": 2,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "desktop",
+                    "ssh"
                   ]
                 }
               },

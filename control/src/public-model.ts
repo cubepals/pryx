@@ -6,7 +6,6 @@ import { randomUUID } from 'node:crypto'
 import { setTimeout as pause } from 'node:timers/promises'
 import { sql } from 'drizzle-orm'
 import { z } from 'zod'
-
 import agentContract from '../../agent/openapi.json'
 import nodeSchema from '../../openapi/node-writes.openapi.json'
 import type { Make, PublicPort } from './api-schemas.ts'
@@ -28,6 +27,7 @@ import { UNIT_DEFAULTS, unitSpec } from './project-model.ts'
 import { SandboxError, type Sandboxes, type SandboxSpec } from './sandboxes.ts'
 import { SDK_DEFAULTS } from './sdk-defaults.ts'
 import { jsonb, one, rows } from './sql.ts'
+import { toolFeatures } from './tool-capabilities.ts'
 
 const networkNeeds = (body: Partial<Pick<Make, 'network'>>) =>
   body.network === 'none' ? [nodeSchema['x-pryx-network'].policyFeature] : []
@@ -55,7 +55,7 @@ export class PublicModel {
     required: readonly import('./guarantees.ts').Guarantee[],
     region?: string,
     only?: string,
-    body: Partial<Pick<Make, 'network' | 'image' | 'packages'>> = {},
+    body: Partial<Pick<Make, 'network' | 'image' | 'packages' | 'requiredTools'>> = {},
   ): Promise<import('./isolation.ts').Isolation> {
     if (typeof this.defaultIsolation === 'string') return this.defaultIsolation
     const order = this.defaultIsolation.filter(
@@ -63,7 +63,7 @@ export class PublicModel {
         (body.image ? tier === 'container' : tier !== 'container') &&
         (!body.packages?.length || tier === 'wasm'),
     )
-    const needs = networkNeeds(body)
+    const needs = [...networkNeeds(body), ...toolFeatures(body.requiredTools)]
     const tier = await this.boxes.engine.isolationChoice.firstIsolation(
       this.db,
       order,
@@ -200,7 +200,12 @@ export class PublicModel {
         [...this.require, ...(body.require ?? source?.require ?? [])],
         body.region,
         options.onlyNode,
-        { ...body, image: body.image ?? source?.image, packages: body.packages ?? source?.packages },
+        {
+          ...body,
+          image: body.image ?? source?.image,
+          packages: body.packages ?? source?.packages,
+          requiredTools: body.requiredTools ?? source?.requiredTools,
+        },
       ))
     if (sources === 0 && isolation === 'container')
       throw new SandboxError('invalid_request', 'Choose exactly one of image, snapshot or template')
@@ -217,6 +222,9 @@ export class PublicModel {
         : { packages: body.packages ?? source?.packages }),
       isolation,
       require: [...new Set([...this.require, ...(body.require ?? source?.require ?? [])])],
+      ...((body.requiredTools ?? source?.requiredTools)
+        ? { requiredTools: body.requiredTools ?? source?.requiredTools }
+        : {}),
       resourceDefaults:
         body.resources === undefined && body.units === undefined && source
           ? source.resourceDefaults

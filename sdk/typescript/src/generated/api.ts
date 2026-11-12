@@ -768,6 +768,7 @@ export interface components {
             /** @enum {string} */
             isolation?: "container" | "process" | "wasm";
             require?: ("separate-users" | "memory-limit" | "cpu-limit" | "private-network" | "host-firewall" | "own-kernel" | "memory-sleep" | "browser-sandbox" | "private-pids")[];
+            requiredTools?: ("desktop" | "ssh")[];
             restart?: {
                 /** @enum {string} */
                 policy: "no" | "on-failure";
@@ -940,6 +941,7 @@ export interface components {
                 /** @enum {string} */
                 isolation?: "container" | "process" | "wasm";
                 require?: ("separate-users" | "memory-limit" | "cpu-limit" | "private-network" | "host-firewall" | "own-kernel" | "memory-sleep" | "browser-sandbox" | "private-pids")[];
+                requiredTools?: ("desktop" | "ssh")[];
                 restart?: {
                     /** @enum {string} */
                     policy: "no" | "on-failure";

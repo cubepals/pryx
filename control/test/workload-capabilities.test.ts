@@ -2,6 +2,7 @@
 /** An unsupported policy is refused before any node write, including after feature loss. */
 import { expect, test } from 'bun:test'
 import contract from '../../openapi/node-writes.openapi.json'
+import { makeSchema } from '../src/api-schemas.ts'
 import type { RuntimeSpec } from '../src/runtime-model.ts'
 import { WorkloadApi } from '../src/workload-api.ts'
 
@@ -31,6 +32,8 @@ test('policy fields cannot disappear on a node lacking their feature', async () 
     [{ egress: { allow: ['example.com'] } }, 'egress-hostnames'],
     [{ network: 'none' as const }, 'network-policy'],
     [{ packages: ['python'] }, 'wasm-packages'],
+    [{ requiredTools: ['desktop'] }, contract['x-pryx-native-tools'].desktopFeature],
+    [{ requiredTools: ['ssh'] }, contract['x-pryx-native-tools'].sshFeature],
     [
       { resources: { memoryMb: 256, allowUnenforcedMemory: true } },
       contract['x-pryx-resources'].unenforcedMemoryFeature,
@@ -134,4 +137,51 @@ test('scoped network policy is serialized for its tier and refused before an unc
     ),
   ).rejects.toThrow(feature)
   expect(bodies).toHaveLength(1)
+})
+
+test('native tool requirements stay in control and refuse feature loss before an unchanged wake', async () => {
+  const bodies: Record<string, unknown>[] = []
+  const api = new WorkloadApi({
+    async call<T>(...args: unknown[]): Promise<T> {
+      bodies.push((args[3] as { body: Record<string, unknown> }).body)
+      return {} as T
+    },
+  })
+  const tools = contract['x-pryx-native-tools']
+  const features = [
+    'multi-tier',
+    'tier-process',
+    'tier-container',
+    ...[tools.desktopFeature, tools.sshFeature].flatMap((feature) => [
+      `${contract['x-pryx-tiers'].capabilityScopePrefix}${feature}`,
+      `tier-process:${feature}`,
+    ]),
+  ]
+  const node = { id: 'node', api_address: 'https://node.test', features }
+  const request: RuntimeSpec = { ...spec, image: '', isolation: 'process', requiredTools: ['desktop', 'ssh'] }
+  await api.put(node, 'native', request, 1)
+  expect(bodies[0]).not.toHaveProperty('requiredTools')
+  await expect(
+    api.put(
+      { ...node, features: features.filter((feature) => feature !== `tier-process:${tools.sshFeature}`) },
+      'native',
+      request,
+      1,
+      { wake: true },
+    ),
+  ).rejects.toThrow(tools.sshFeature)
+  await expect(api.put(node, 'container', { ...request, isolation: 'container' }, 1)).rejects.toThrow(
+    tools.desktopFeature,
+  )
+  await expect(api.put(node, 'native', { ...request, network: 'none' }, 1)).rejects.toThrow('network-none')
+  expect(bodies).toHaveLength(1)
+})
+
+test('tool requirements reject unknown names and network-none before placement', () => {
+  expect(makeSchema.parse({ isolation: 'process', requiredTools: ['desktop', 'ssh'] })).toHaveProperty(
+    'requiredTools',
+    ['desktop', 'ssh'],
+  )
+  expect(() => makeSchema.parse({ requiredTools: ['unannounced'] })).toThrow()
+  expect(() => makeSchema.parse({ network: 'none', requiredTools: ['ssh'] })).toThrow('network-none')
 })

@@ -69,6 +69,10 @@ pub(crate) async fn supported(binary: &Path) -> bool {
     query(binary).await.is_some_and(|value| value.browser_policy)
 }
 
+pub(crate) async fn process_ssh_supported(binary: &Path) -> bool {
+    query(binary).await.is_some_and(|value| value.process_ssh_version >= pryx_agent::process_tool_policy::SSH_VERSION)
+}
+
 /// The installed executable and every ancestor must retain the host ownership policy.
 pub(crate) fn protected(path: &Path, allow_root: bool) -> Option<PathBuf> {
     let metadata = std::fs::symlink_metadata(path).ok()?;
@@ -105,6 +109,24 @@ mod tests {
         )
         .unwrap();
         (directory, binary)
+    }
+
+    #[tokio::test]
+    async fn native_ssh_support_requires_the_actual_executable_announcement() {
+        let (_directory, binary) = fixture();
+        let response = binary.with_extension("json");
+        for (answer, expected) in [
+            (serde_json::to_string(&pryx_agent::bootstrap_capabilities::probe()).unwrap(), true),
+            (
+                serde_json::json!({"processDesktopVersion":pryx_agent::process_tool_policy::DESKTOP_VERSION})
+                    .to_string(),
+                false,
+            ),
+            ("{}".into(), false),
+        ] {
+            std::fs::write(&response, answer).unwrap();
+            assert_eq!(process_ssh_supported(&binary).await, expected);
+        }
     }
 
     #[tokio::test]

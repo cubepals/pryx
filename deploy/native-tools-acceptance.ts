@@ -29,7 +29,11 @@ const installed = readInstallation(userPaths())
 assert(installed)
 assert.equal(installed.preset, 'user')
 assert.equal(installed.tier, 'process')
+const browserOn = process.env.PRYX_NATIVE_BROWSER === 'on'
 const host = await hostProbe(join(installed.bundle, 'bin/pryxd'))
+const doctor = JSON.parse(await command([installed.paths.cli, 'doctor', '--json'], process.env))
+assert.equal(doctor.capabilities['process-desktop'].state, browserOn ? 'on' : 'off')
+assert.equal(doctor.capabilities['process-ssh'].state, browserOn ? 'on' : 'off')
 const systemGlibc = Bun.spawnSync(['getconf', 'GNU_LIBC_VERSION'], { stdout: 'pipe', stderr: 'pipe' })
 assert.equal(systemGlibc.exitCode, 0)
 assert.equal(host.cLibrary, systemGlibc.stdout.toString().trim())
@@ -56,7 +60,6 @@ function version(name: string) {
   assert(pinned)
   return pinned.version
 }
-const browserOn = process.env.PRYX_NATIVE_BROWSER === 'on'
 assert(['on', 'off'].includes(process.env.PRYX_NATIVE_BROWSER ?? ''))
 const samples: Record<string, number[]> = {}
 const pngSignature = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])
@@ -116,11 +119,12 @@ async function cdp(url: string) {
     }
   }).finally(() => websocket.close())
 }
-async function make(requireBrowser = false) {
+async function make(requireBrowser = false, requiredTools?: ('desktop' | 'ssh')[]) {
   const box = await sdk.sandbox({
     isolation: 'process',
     units: 4,
     idle: '10m',
+    ...(requiredTools ? { requiredTools } : {}),
     ...(requireBrowser ? { require: ['browser-sandbox'] } : {}),
   })
   assert.equal(box.isolation, 'process')
@@ -247,12 +251,18 @@ try {
   await box.delete()
 }
 if (browserOn) {
-  await interactiveAcceptance({ make, png, python, command, cli: installed.paths.cli })
+  await interactiveAcceptance({
+    make: () => make(false, ['desktop', 'ssh']),
+    png,
+    python,
+    command,
+    cli: installed.paths.cli,
+  })
   for (const kind of ['browser', 'python', 'javascript', 'desktop', 'ssh'] as const) {
     samples[kind] = []
     for (let sample = 0; sample < 30; sample++) {
       const started = performance.now()
-      const box = await make()
+      const box = await make(false, kind === 'desktop' ? ['desktop'] : kind === 'ssh' ? ['ssh'] : undefined)
       try {
         if (kind === 'desktop') png(await box.desktop.screenshot())
         else if (kind === 'ssh') await nativeSshCommand(box)

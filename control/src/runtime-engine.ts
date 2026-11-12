@@ -331,7 +331,7 @@ export class FleetRuntime implements SandboxRuntime {
         workload: key,
         data: { considered: chosen.considered },
       })
-      throw placementRefused(this.provider, chosen.considered, spec.isolation)
+      throw placementRefused(this.provider, chosen.considered, spec.isolation, spec.requiredTools)
     }
     if (chosen.unfinished) {
       const moved = await this.#rehoming.finish(chosen.row, spec, progress)

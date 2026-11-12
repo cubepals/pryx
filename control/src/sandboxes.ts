@@ -36,6 +36,7 @@ export const SESSION_LIVE_SECONDS = 2 * MINUTE_S
 export type SandboxSpec = WorkloadSpec & {
   resourceDefaults?: RuntimeSpec['resourceDefaults']
   require?: Guarantee[]
+  requiredTools?: import('./tool-capabilities.ts').RequiredTool[]
   image: string
   isolation?: import('./isolation.ts').Isolation
   fuseMounts?: boolean
@@ -113,6 +114,7 @@ export function runtimeSpec(spec: SandboxSpec): RuntimeSpec {
   const defaults = nodeSchema.components.schemas.WorkloadSpec.properties
   return {
     require: spec.require,
+    ...(spec.requiredTools?.length ? { requiredTools: spec.requiredTools } : {}),
     ...(spec.resourceDefaults ? { resourceDefaults: spec.resourceDefaults } : {}),
     image: spec.image,
     ...(spec.fuseMounts ? { fuseMounts: true } : {}),

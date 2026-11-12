@@ -5,6 +5,7 @@
 /** A node; unless `over` says otherwise, every server placed on it runs. */
 
 import { describe, expect, test } from 'bun:test'
+import contract from '../../openapi/node-writes.openapi.json'
 import {
   cpuRequest,
   DEFAULTS,
@@ -13,6 +14,7 @@ import {
   selectNode,
   startRefusal,
 } from '../src/placement.ts'
+import { toolFeatures } from '../src/tool-capabilities.ts'
 
 function node(
   id: string,
@@ -356,4 +358,22 @@ test('backend capabilities cannot leak from another tier on the same node', () =
   expect(selectNode(request({ isolation: 'process', needs }), [mixed]).node?.id).toBe('mixed')
   mixed.features = mixed.features.filter((name) => name !== 'tier-capabilities:network-policy')
   expect(selectNode(request({ isolation: 'container', needs }), [mixed]).node?.id).toBe('mixed')
+})
+
+test('native tool placement selects only the tier with observed tool support', () => {
+  const needs = toolFeatures(['desktop', 'ssh'])
+  const base = [
+    'placement-epochs',
+    'multi-tier',
+    'tier-process',
+    'tier-container',
+    ...needs.map((feature) => `${contract['x-pryx-tiers'].capabilityScopePrefix}${feature}`),
+  ]
+  const eligible = node('ready', {
+    features: [...base, ...needs.map((feature) => `tier-process:${feature}`)],
+  })
+  const missing = node('off', { features: base })
+  expect(selectNode(request({ isolation: 'process', needs }), [missing, eligible]).node?.id).toBe('ready')
+  expect(selectNode(request({ isolation: 'process', needs }), [missing]).node).toBeNull()
+  expect(selectNode(request({ isolation: 'container', needs }), [eligible]).node).toBeNull()
 })

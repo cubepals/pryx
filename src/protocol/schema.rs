@@ -82,6 +82,7 @@ fn document(title: &str, contract: Contract, add: impl FnOnce(&mut SchemaGenerat
             "observedGuaranteesFeature": crate::protocol::OBSERVED_RESOURCE_LIMITS_FEATURE,
             "nativeBrowserPolicyFeature": crate::protocol::NATIVE_BROWSER_POLICY_FEATURE
         },
+        "x-pryx-native-tools": {"desktopFeature":crate::protocol::NATIVE_DESKTOP_FEATURE,"sshFeature":crate::protocol::NATIVE_SSH_FEATURE},
         "x-pryx-network": {"defaultPortRange": crate::protocol::DEFAULT_PORT_RANGE,
             "policyFeature": crate::protocol::NETWORK_POLICY_FEATURE},
         "x-pryx-tiers": {"capabilityScopePrefix": crate::protocol::TIER_CAPABILITY_SCOPE_PREFIX},

@@ -27,6 +27,35 @@ pub(crate) fn desktop_prerequisite(architecture: &str, host: &str) -> Capability
     )
 }
 
+pub(crate) fn desktop_capability(ready: &Result<(), String>) -> Capability {
+    match ready {
+        Ok(()) => Capability::on("Native process desktop bundle, host glibc and private namespaces are available"),
+        Err(reason) => Capability::new(
+            State::Off,
+            reason.clone(),
+            "Inspect native desktop bundle, glibc, private IPC and user-namespace policy",
+        ),
+    }
+}
+
+pub(crate) fn ssh_capability(ready: &Result<(), String>, supported: bool) -> Capability {
+    match ready {
+        Err(reason) => Capability::new(
+            State::Off,
+            format!("Native SSH prerequisite: {reason}"),
+            "Inspect the native OpenSSH component, glibc, private IPC and user namespaces",
+        ),
+        Ok(()) if supported => {
+            Capability::on("Native OpenSSH bundle, compatible agent and private process transport are available")
+        }
+        Ok(()) => Capability::new(
+            State::Off,
+            "The installed process agent does not announce native SSH support",
+            "Upgrade the installed agent to a release providing native SSH",
+        ),
+    }
+}
+
 fn for_minimum(architecture: &str, host: &str, target: &str, minimum: &str, tool: &str) -> Capability {
     let action = format!("Use a {target} host with glibc {minimum} or newer for native process tools");
     if architecture != target {

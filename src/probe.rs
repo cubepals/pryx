@@ -76,6 +76,15 @@ pub async fn run() -> Report {
     crate::capability::probe_phase("kvm");
     let kvm = if report.on("kvm-device") { child("probe-kvm") } else { report.capabilities["kvm-device"].clone() };
     report.capabilities.insert("kvm".into(), kvm);
+    let native = Err("Native process tools require a configured, verified installation".to_string());
+    report.capabilities.insert(
+        pryx_agent::process_tool_policy::DESKTOP_CAPABILITY.into(),
+        crate::capability::process_tools::desktop_capability(&native),
+    );
+    report.capabilities.insert(
+        pryx_agent::process_tool_policy::SSH_CAPABILITY.into(),
+        crate::capability::process_tools::ssh_capability(&native, false),
+    );
     services::read(&mut report).await;
     report
 }
@@ -112,7 +121,34 @@ pub async fn for_config(config: &crate::config::Config) -> Report {
         };
         report.tiers.insert(tier.into(), capability);
     }
+    native_tools_for_config(&mut report, config).await;
     report
+}
+
+async fn native_tools_for_config(report: &mut Report, config: &crate::config::Config) {
+    use crate::runtime::{ContainerRuntime, process::ProcessRuntime};
+    let ready = async {
+        if !report.tiers.get("process").is_some_and(|tier| tier.state == State::On) {
+            return Err("The configured process tier is unavailable".to_string());
+        }
+        let runtime =
+            ProcessRuntime::read_only(&config.state_dir, config.process.clone()).map_err(|error| error.to_string())?;
+        let binary = crate::runtime::protected_agent(&config.workloads.agent_binary, true)
+            .ok_or_else(|| "Native tools require a protected installed process agent".to_string())?;
+        runtime.native_desktop(&binary).await.map_err(|error| error.to_string())?;
+        Ok(crate::runtime::process_ssh_supported(&binary).await)
+    }
+    .await;
+    let desktop = ready.as_ref().map(|_| ()).map_err(Clone::clone);
+    let ssh = ready.unwrap_or(false);
+    report.capabilities.insert(
+        pryx_agent::process_tool_policy::DESKTOP_CAPABILITY.into(),
+        crate::capability::process_tools::desktop_capability(&desktop),
+    );
+    report.capabilities.insert(
+        pryx_agent::process_tool_policy::SSH_CAPABILITY.into(),
+        crate::capability::process_tools::ssh_capability(&desktop, ssh),
+    );
 }
 
 /// Only the disposable child invokes these; the daemon never enters another namespace.

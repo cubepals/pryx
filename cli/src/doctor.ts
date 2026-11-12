@@ -5,6 +5,7 @@ import { existsSync, lstatSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { SECOND_MS } from '../../control/src/durations.ts'
+import { probeBinary } from '../../deploy/host-probe.ts'
 import { IMAGE_NODE_CONFIG } from '../../deploy/image-state.ts'
 import { privateDirectory, stateRoot } from '../../deploy/local-layout.ts'
 import { containerPaths } from './up-paths.ts'
@@ -49,10 +50,7 @@ function configuredNode() {
 
 export async function doctor(args: string[]) {
   if (args.some((argument) => argument !== '--json')) throw new Error('usage: pryx doctor [--json]')
-  const binary =
-    process.env.PRYX_PRYXD_BIN ??
-    Bun.which('pryxd') ??
-    ['/opt/pryx/pryxd', '/usr/local/bin/pryxd'].find((path) => existsSync(path))
+  const binary = probeBinary() ?? ['/usr/local/bin/pryxd'].find((path) => existsSync(path))
   if (!binary) throw new Error('pryxd is missing; install pryx on this host before running pryx doctor')
   const config = configuredNode()
   const help = config

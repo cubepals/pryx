@@ -2557,6 +2557,10 @@
     "tokenLifetimeSeconds": 300,
     "tokenPrefix": "pa1"
   },
+  "x-pryx-native-tools": {
+    "desktopFeature": "native-desktop",
+    "sshFeature": "native-ssh"
+  },
   "x-pryx-network": {
     "defaultPortRange": [
       42000,

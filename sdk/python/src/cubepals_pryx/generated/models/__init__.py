@@ -17,6 +17,7 @@ from .make_request_ports_item_audience import MakeRequestPortsItemAudience
 from .make_request_ports_item_front import MakeRequestPortsItemFront
 from .make_request_ports_item_protocol import MakeRequestPortsItemProtocol
 from .make_request_require_item import MakeRequestRequireItem
+from .make_request_required_tools_item import MakeRequestRequiredToolsItem
 from .make_request_resources import MakeRequestResources
 from .make_request_restart import MakeRequestRestart
 from .make_request_restart_policy import MakeRequestRestartPolicy
@@ -48,6 +49,7 @@ __all__ = (
     "MakeRequestPortsItemAudience",
     "MakeRequestPortsItemFront",
     "MakeRequestPortsItemProtocol",
+    "MakeRequestRequiredToolsItem",
     "MakeRequestRequireItem",
     "MakeRequestResources",
     "MakeRequestRestart",
