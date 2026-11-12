@@ -160,6 +160,8 @@ fn enter_variant(policy: &Policy, browser: bool, desktop: bool) -> Result<(), Bo
     }
     if browser {
         filter::browser()?;
+    } else if desktop {
+        filter::desktop()?;
     } else {
         filter::apply(false)?;
     }

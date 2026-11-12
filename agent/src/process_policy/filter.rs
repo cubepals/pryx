@@ -7,12 +7,15 @@ use seccompiler::{
 use std::collections::BTreeMap;
 
 pub(super) fn apply(network_off: bool) -> Result<(), Box<dyn std::error::Error>> {
-    variant(network_off, false)
+    variant(network_off, false, false)
 }
 pub(super) fn browser() -> Result<(), Box<dyn std::error::Error>> {
-    variant(false, true)
+    variant(false, true, false)
 }
-fn variant(network_off: bool, browser: bool) -> Result<(), Box<dyn std::error::Error>> {
+pub(super) fn desktop() -> Result<(), Box<dyn std::error::Error>> {
+    variant(false, false, true)
+}
+fn variant(network_off: bool, browser: bool, desktop: bool) -> Result<(), Box<dyn std::error::Error>> {
     let mut rules = BTreeMap::new();
     for syscall in [
         libc::SYS_mount,
@@ -75,6 +78,14 @@ fn variant(network_off: bool, browser: bool) -> Result<(), Box<dyn std::error::E
         }
     } else {
         rules.insert(libc::SYS_clone, clone_rules());
+        if desktop {
+            // Xorg's Popen drops to its existing real IDs before executing the pinned xkbcomp.
+            // Permit only those same IDs; all other identity and namespace denials remain.
+            rules
+                .insert(libc::SYS_setuid, vec![argument_rule(0, SeccompCmpOp::Ne, rustix::process::getuid().as_raw())]);
+            rules
+                .insert(libc::SYS_setgid, vec![argument_rule(0, SeccompCmpOp::Ne, rustix::process::getgid().as_raw())]);
+        }
     }
     if network_off {
         for syscall in [libc::SYS_connect, libc::SYS_bind, libc::SYS_sendto, libc::SYS_sendmsg, libc::SYS_sendmmsg] {
@@ -185,6 +196,39 @@ fn argument_rule(argument: u8, op: SeccompCmpOp, value: u32) -> SeccompRule {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn desktop_allows_only_the_xorg_helpers_existing_ids() {
+        for desktop in [false, true] {
+            let output = std::thread::spawn(move || {
+                variant(false, false, desktop).unwrap();
+                std::process::Command::new("python3")
+                    .args([
+                        "-c",
+                        r#"
+import os
+allowed=os.environ['DESKTOP']=='true'
+for change,identity in [(os.setuid,os.getuid()),(os.setgid,os.getgid())]:
+    try: change(identity)
+    except PermissionError: assert not allowed
+    else: assert allowed
+    try: change(identity+1)
+    except PermissionError: pass
+    else: raise AssertionError('Foreign identity must remain denied')
+try: os.setresuid(os.getuid(),os.getuid(),os.getuid())
+except PermissionError: pass
+else: raise AssertionError('Other credential operations must remain denied')
+"#,
+                    ])
+                    .env("DESKTOP", desktop.to_string())
+                    .output()
+                    .unwrap()
+            })
+            .join()
+            .unwrap();
+            assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        }
+    }
 
     #[test]
     fn inherited_scheduler_requests_cannot_reschedule_foreign_processes() {

@@ -76,7 +76,22 @@ fn worker(input: &Input) -> Command {
     command
 }
 fn server(input: &Input) {
+    fs::create_dir("/tmp/.X11-unix").unwrap();
     process_policy::desktop(&policy(input)).unwrap();
+    let compiler = Command::new("/usr/bin/xkbcomp")
+        .arg("-version")
+        .env(
+            "LD_LIBRARY_PATH",
+            format!(
+                "{}/payload/usr/lib/x86_64-linux-gnu:{}/payload/lib/x86_64-linux-gnu:{}/libraries",
+                input.component.display(),
+                input.component.display(),
+                input.component.display()
+            ),
+        )
+        .output()
+        .unwrap();
+    assert!(compiler.status.success(), "Pinned compiler: {}", String::from_utf8_lossy(&compiler.stderr));
     let status = command(input, "Xvfb")
         .args(["-displayfd", "1", "-nolisten", "tcp", "-screen", "0", "800x600x24"])
         .arg("-auth")

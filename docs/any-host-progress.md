@@ -1349,3 +1349,21 @@ job when publication is authorized. That job has not run in this task.
   already diagnosed REUSE core failures plus canceled E2E/one-box dependencies.
   The canceled Any-host runs have no completed failing jobs. None is labeled
   green or used as final milestone acceptance.
+- Read the complete failed live producer 131332095651 on 26c8b10:
+  own-library audit, physical relocation and all four loader controls pass as
+  UID 1001 on host glibc 2.39, then Xvfb exits before display readiness with
+  failed XKB initialization. Preserve its exact diagnostic and pinned-source
+  evidence under k24; this is no live desktop success. Inspect the actual
+  digest-locked Xorg 21.1.7 source: Popen exits if setgid(getgid()) or
+  setuid(getuid()) is denied, as ordinary process seccomp requires.
+- Correct only the trusted private-desktop worker: allow setuid/setgid for its
+  exact current real IDs, retaining all other credential and namespace denials.
+  Prepare its private /tmp/.X11-unix and require the real pinned xkbcomp control
+  before Xvfb. The new real subprocess test proves current-ID calls succeed in
+  desktop mode, fail in ordinary mode, and foreign IDs/setresuid remain denied
+  in both. No existing guest policy, assertion or deadline changes. Complete
+  local Rust passes 480 tests, 28 ignored, including real Wasm; strict all-target
+  Clippy, all three structure checks, fmt, full actionlint with actual ShellCheck,
+  REUSE, docs and whitespace pass. No TypeScript source changes follow the
+  preceding full check. Fresh hosted live proof remains required; desktop stays
+  unannounced. Added ordinary CI cost is under one second, with no new gate.
