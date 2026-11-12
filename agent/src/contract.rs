@@ -34,3 +34,10 @@ pub const FUSE_FEATURE: &str = "native-fuse-mounts";
 pub const MOUNTS_ENV: &str = "PRYX_BOOTSTRAP_MOUNTS";
 pub const TOOL_KIND_ENV: &str = "PRYX_TOOL_TEMPLATE";
 pub const SSH_FORWARD_HEADER: &str = "x-pryx-ssh-session";
+
+/// Native browser proxy and bounded service/image budgets; templates retain these values.
+pub const BROWSER_PORT: u16 = 9223;
+pub const TOOL_STARTUP: std::time::Duration = std::time::Duration::from_secs(30);
+pub const MAX_IMAGE_BYTES: usize = 4 * CAPTURE_BYTES;
+// PNG specification section 5.2.
+pub(crate) const PNG: &[u8] = b"\x89PNG\r\n\x1a\n";

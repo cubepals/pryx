@@ -129,7 +129,10 @@ async fn wait(
         .await
         .map_err(|_| Failure(StatusCode::REQUEST_TIMEOUT, "wait_timeout", "Readiness deadline elapsed".into()))?
 }
-pub async fn probe_stream(mut stream: TcpStream, path: Option<&str>) -> std::io::Result<Option<u16>> {
+pub async fn probe_stream(
+    mut stream: impl tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+    path: Option<&str>,
+) -> std::io::Result<Option<u16>> {
     let Some(path) = path else { return Ok(None) };
     stream.write_all(format!("GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n").as_bytes()).await?;
     let mut bytes = Vec::new();

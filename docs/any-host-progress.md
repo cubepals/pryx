@@ -701,3 +701,24 @@ job when publication is authorized. That job has not run in this task.
   1,890,465,977 expanded bytes; UID 1001 retains state and PNGs in both kernels,
   and browser/CDP/expiry/renderer sandbox observations pass after relocation.
   This proves packaging and upstream tools, not installed-product integration.
+- Rebuilt browser integration now launches the fixed broker through the reviewed
+  bubblewrap helper in private user/PID/mount/proc namespaces, applies its full
+  browser filesystem/syscall variant there, clears guest loaders/options and
+  preserves mandatory Chromium sandboxing/debugging pipe. Its logical browser
+  forward uses the scoped Unix session; ordinary command and owned-TCP policies
+  remain unchanged. The private route/header has one JSON owner, included in the
+  static Docker build and copied unchanged into the bundle.
+- Add two explicit artifact-dependent real-agent CI cases: both kernels retain
+  state and produce PNGs under full policy, owner socket connections work while
+  an independent same-UID neighbour is denied, browser screenshot and forwarded
+  CDP work, and a namespace-policy refusal occurs without acquiring the payload.
+  These new cases are invoked with --ignored in the existing Any-host tool job;
+  they have not yet run on the rebuilt source. The local host probe reports
+  filesystem/network policy unavailable, so no local native-positive claim is made.
+  Existing ordinary tests stay intact. Full local Rust passes 473 tests, with
+  23 existing ignored plus these two explicit CI cases; strict Clippy, all three
+  structure checks, fmt, actionlint, Node syntax and documentation checks pass.
+  The job's estimated additional cost is five to ten compile minutes plus one to
+  three runtime minutes, with a forty-five-minute failure bound and no new gate.
+  Installed signed metadata, corresponding-source publication, actual ordinary-user
+  edge/SDK acceptance, default-Docker native cases and thirty samples remain active.

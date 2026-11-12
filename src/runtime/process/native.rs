@@ -81,7 +81,7 @@ impl ProcessRuntime {
         let required = self.scope_required()?;
         let agent = entry.spec.agent.as_ref().ok_or_else(|| error("Missing process supervisor"))?;
         let metadata = crate::runtime::agent_metadata::query(&agent.binary).await;
-        if metadata.is_none_or(|value| value.process_tools_version < VERSION) {
+        if metadata.as_ref().is_none_or(|value| value.process_tools_version < VERSION) {
             if required {
                 return Err(error(
                     "This host requires scoped process agents; upgrade the legacy supervisor before launching compute",
@@ -124,6 +124,8 @@ impl ProcessRuntime {
         }
         let (cache, downloads, scratch) = self.tool_paths(self.owner(&agent.sandbox)?)?;
         let browser_on = unavailable.is_none()
+            && metadata
+                .is_some_and(|value| value.process_browser_version >= pryx_agent::process_tool_policy::BROWSER_VERSION)
             && crate::capability::child("probe-user-namespace").state == crate::capability::State::On;
         Ok((
             Some(Policy { cache, downloads, scratch, artifact: artifact.ok(), unavailable, browser_on }),

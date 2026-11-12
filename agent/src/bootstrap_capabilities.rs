@@ -13,8 +13,14 @@ pub struct Capabilities {
     pub browser_policy: bool,
     #[serde(default)]
     pub process_tools_version: u16,
+    #[serde(default)]
+    pub process_browser_version: u16,
 }
 
 pub fn probe() -> Capabilities {
-    Capabilities { browser_policy: true, process_tools_version: crate::process_tool_policy::VERSION }
+    Capabilities {
+        browser_policy: true,
+        process_tools_version: crate::process_tool_policy::VERSION,
+        process_browser_version: crate::process_tool_policy::BROWSER_VERSION,
+    }
 }

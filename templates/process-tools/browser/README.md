@@ -11,3 +11,9 @@ Parts (`browser/`):
 - `bridge.mjs`: browser-target sessions over the maintained CDP connection.
 - `start.mjs`: pipe launch, expiring discovery/proxy and private screenshots.
 - `smoke.mjs`: real screenshots, CDP expiry and observed renderer confinement.
+- `protocol.json`: the private screenshot route/header shared with the Rust Unix client.
+
+`protocol.json` owns the private screenshot route/header for both the maintained
+broker adapter and the Rust Unix client. It changes no public browser URL or CDP
+message. The process launcher requires the browser's sandbox inside private
+namespaces and never accepts `--no-sandbox`.

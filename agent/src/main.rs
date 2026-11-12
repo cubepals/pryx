@@ -42,6 +42,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let executable = command.first().ok_or("Missing tool command")?;
         return Err(std::process::Command::new(executable).args(&command[1..]).exec().into());
     }
+    if arguments.first().is_some_and(|a| a == "process-browser-child") {
+        return pryx_agent::process_tools::browser::child();
+    }
     if arguments.first().is_some_and(|a| a == "process-probe") {
         println!("{}", serde_json::to_string(&pryx_agent::process_capabilities::probe())?);
         return Ok(());
@@ -73,7 +76,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             pryx_agent::process_policy::scope()?;
         }
         if let Some(tools) = &policy.tools {
-            pryx_agent::process_tools::install(tools.clone(), policy.nice)?;
+            pryx_agent::process_tools::install(tools.clone(), policy.clone())?;
         }
     }
     let forwarding = if bootstrap

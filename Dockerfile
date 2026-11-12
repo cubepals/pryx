@@ -10,6 +10,7 @@ COPY Cargo.toml Cargo.lock ./
 COPY src src
 COPY agent agent
 COPY templates/process-tools/compatibility.json templates/process-tools/compatibility.json
+COPY templates/process-tools/browser/protocol.json templates/process-tools/browser/protocol.json
 # The unit `pryxd join` installs, and the daemon.json `doctor` checks against, are compiled in.
 COPY deploy deploy
 RUN cargo build --locked --release \

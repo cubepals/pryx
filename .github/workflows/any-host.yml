@@ -20,7 +20,7 @@ jobs:
   process-tools:
     name: Relocatable upstream process tools
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -59,6 +59,28 @@ jobs:
           fi
           moved="$RUNNER_TEMP/ordinary user tools moved to a substantially longer path"
           "$moved/bin/node" "$moved/browser-client/smoke.mjs" "$moved" | tee "$RUNNER_TEMP/upstream-browser.jsonl"
+      - name: Run tools through the complete process policy
+        env:
+          PRYX_NATIVE_TOOL_DESCRIPTOR: ${{ runner.temp }}/native-distribution/fixture-process-tools.json
+          CARGO_PROFILE_DEV_DEBUG: '0'
+          CARGO_PROFILE_TEST_DEBUG: '0'
+          CARGO_INCREMENTAL: '0'
+        run: |
+          mkdir "$RUNNER_TEMP/native-distribution"
+          ln "$RUNNER_TEMP/pryx-process-tools-linux-x64.tar.gz" "$RUNNER_TEMP/native-distribution/process-tools.tar.gz"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP'])
+          descriptor = json.loads((root / 'process-tools.json').read_text())
+          descriptor['url'] = 'http://127.0.0.1:9877/process-tools.tar.gz'
+          (root / 'native-distribution/fixture-process-tools.json').write_text(json.dumps(descriptor))
+          PY
+          python3 -m http.server 9877 --bind 127.0.0.1 --directory "$RUNNER_TEMP/native-distribution" > "$RUNNER_TEMP/native-artifact-server.log" 2>&1 &
+          artifact_server=$!
+          trap 'kill "$artifact_server"; wait "$artifact_server" || true' EXIT
+          curl --retry 5 --retry-connrefused --retry-delay 1 -fsS http://127.0.0.1:9877/fixture-process-tools.json > /dev/null
+          cargo test --locked -p pryx-agent --test native_process -- --ignored --nocapture --test-threads=1 2>&1 | tee "$RUNNER_TEMP/native-process-acceptance.log"
       - name: Retain ordinary-user bundle observations
         if: always()
         uses: ./.github/actions/upload-evidence
@@ -69,6 +91,8 @@ jobs:
             ${{ runner.temp }}/upstream-browser.jsonl
             ${{ runner.temp }}/upstream-tool-manifest.json
             ${{ runner.temp }}/process-tools.json
+            ${{ runner.temp }}/native-process-acceptance.log
+            ${{ runner.temp }}/native-artifact-server.log
           if-no-files-found: error
   bundle:
     name: Bundle runtime acceptance

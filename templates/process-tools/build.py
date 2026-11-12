@@ -209,7 +209,7 @@ def node_packages(source, destination, output, environment, select_addons=False)
 
         shutil.copytree(staging, destination, ignore=omit, symlinks=True)
     for source_file in source.iterdir():
-        if source_file.suffix in {".cjs", ".mjs"}:
+        if source_file.suffix in {".cjs", ".mjs"} or source_file.name == "protocol.json":
             shutil.copy2(source_file, destination / source_file.name)
 
 

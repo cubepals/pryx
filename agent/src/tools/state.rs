@@ -48,7 +48,10 @@ pub(crate) fn get(agent: &Agent) -> Result<Arc<State>, Failure> {
     if let Some(state) = held.as_ref() {
         return Ok(state.clone().downcast::<State>().expect("native tool state"));
     }
-    let directory = tempfile::Builder::new().prefix("pryx-tools-").tempdir_in("/tmp")?;
+    let native =
+        crate::process_tools::configured().filter(|_| agent.processes.kernel_unsupported_tier() == Some("process"));
+    let temporary = native.map(|tools| tools.policy.scratch.as_path()).unwrap_or_else(|| std::path::Path::new("/tmp"));
+    let directory = tempfile::Builder::new().prefix("pryx-tools-").tempdir_in(temporary)?;
     let data = std::fs::canonicalize(&agent.processes.data)?;
     if std::fs::canonicalize(directory.path())?.starts_with(data) {
         return Err(failure("unsupported", "Native tools require temporary storage outside persistent data"));
@@ -126,7 +129,7 @@ pub(crate) async fn ready(agent: &Agent, port: u16) -> Result<(), Failure> {
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
     };
-    tokio::time::timeout(Duration::from_secs(30), wait)
+    tokio::time::timeout(crate::contract::TOOL_STARTUP, wait)
         .await
         .map_err(|_| failure("tool_not_ready", "Template service did not become ready; check host tool requirements"))?
 }

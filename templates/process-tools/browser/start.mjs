@@ -13,6 +13,7 @@ import { timingSafeEqual } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { bridge } from './bridge.mjs'
+import protocol from './protocol.json' with { type: 'json' }
 
 const config = JSON.parse(readFileSync(0, 'utf8'))
 function equal(a, b) {
@@ -56,7 +57,7 @@ owner.nodeProcess.stderr.off('data', rememberStartup)
 const version = await connection.send('Browser.getVersion')
 const server = http.createServer(async (request, response) => {
   response.setHeader('cache-control', 'no-store')
-  if (request.url === '/_pryx/screenshot' && equal(request.headers['x-pryx-browser-private'], config.privateToken)) {
+  if (request.url === protocol.screenshotPath && equal(request.headers[protocol.privateHeader], config.privateToken)) {
     let page
     try {
       let body = ''

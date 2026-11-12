@@ -65,6 +65,15 @@ pub fn scope() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub fn enter(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
+    enter_variant(policy, false)
+}
+
+/// The fixed helper has already installed private user, mount, PID and proc namespaces.
+pub fn browser(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
+    enter_variant(policy, true)
+}
+
+fn enter_variant(policy: &Policy, browser: bool) -> Result<(), Box<dyn std::error::Error>> {
     if !crate::process_capabilities::probe().filesystem {
         return Err(crate::process_capabilities::FILESYSTEM_UNAVAILABLE.into());
     }
@@ -107,6 +116,9 @@ pub fn enter(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
     {
         read.push(tools.cache.clone());
     }
+    if browser {
+        read.extend([PathBuf::from("/proc"), PathBuf::from("/sys/devices/system/cpu")]);
+    }
     let mut write = vec![
         policy.data.as_path(),
         std::path::Path::new("/dev/null"),
@@ -118,13 +130,16 @@ pub fn enter(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
     {
         write.push(tools.scratch.as_path());
     }
-    let scoped = ipc_scoped() || crate::process_capabilities::private_ipc_probe().supported();
+    if browser {
+        write.extend([std::path::Path::new("/proc"), std::path::Path::new("/dev/shm")]);
+    }
+    let scoped = browser || ipc_scoped() || crate::process_capabilities::private_ipc_probe().supported();
     if policy.require_ipc_scope == Some(true) && !scoped {
         return Err("This process requires enforced private IPC before guest execution".into());
     }
     let mut rules =
         Ruleset::default().set_compatibility(CompatLevel::HardRequirement).handle_access(AccessFs::from_all(abi))?;
-    if scoped && !ipc_scoped() {
+    if scoped && !browser && !ipc_scoped() {
         rules = rules.scope(Scope::AbstractUnixSocket)?;
     }
     let status = rules
@@ -135,7 +150,11 @@ pub fn enter(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
     if status.ruleset != RulesetStatus::FullyEnforced {
         return Err("Landlock filesystem policy is unavailable".into());
     }
-    filter::apply(false)?;
+    if browser {
+        filter::browser()?;
+    } else {
+        filter::apply(false)?;
+    }
     IPC_SCOPED.store(scoped, Ordering::Release);
     Ok(())
 }

@@ -7,6 +7,12 @@ use seccompiler::{
 use std::collections::BTreeMap;
 
 pub(super) fn apply(network_off: bool) -> Result<(), Box<dyn std::error::Error>> {
+    variant(network_off, false)
+}
+pub(super) fn browser() -> Result<(), Box<dyn std::error::Error>> {
+    variant(false, true)
+}
+fn variant(network_off: bool, browser: bool) -> Result<(), Box<dyn std::error::Error>> {
     let mut rules = BTreeMap::new();
     for syscall in [
         libc::SYS_mount,
@@ -46,7 +52,30 @@ pub(super) fn apply(network_off: bool) -> Result<(), Box<dyn std::error::Error>>
     ] {
         rules.insert(syscall, vec![]);
     }
-    rules.insert(libc::SYS_clone, clone_rules());
+    if browser {
+        // Namespace operations are confined by the maintained helper's private root and IDs.
+        // Ordinary commands retain every original denial and cannot invoke this trusted worker.
+        for syscall in [
+            libc::SYS_mount,
+            libc::SYS_umount2,
+            libc::SYS_pivot_root,
+            libc::SYS_chroot,
+            libc::SYS_unshare,
+            libc::SYS_setns,
+            libc::SYS_setuid,
+            libc::SYS_setgid,
+            libc::SYS_setreuid,
+            libc::SYS_setregid,
+            libc::SYS_setresuid,
+            libc::SYS_setresgid,
+            libc::SYS_setgroups,
+            libc::SYS_capset,
+        ] {
+            rules.remove(&syscall);
+        }
+    } else {
+        rules.insert(libc::SYS_clone, clone_rules());
+    }
     if network_off {
         for syscall in [libc::SYS_connect, libc::SYS_bind, libc::SYS_sendto, libc::SYS_sendmsg, libc::SYS_sendmmsg] {
             rules.insert(syscall, vec![]);

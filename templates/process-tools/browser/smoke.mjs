@@ -13,6 +13,7 @@ import { join, resolve } from 'node:path'
 import { setTimeout as pause } from 'node:timers/promises'
 import puppeteer from 'puppeteer-core'
 import { WebSocket } from 'ws'
+import protocol from './protocol.json' with { type: 'json' }
 
 assert.notEqual(process.getuid(), 0)
 const bundle = resolve(process.argv[2])
@@ -49,7 +50,7 @@ try {
       await pause(25)
     }
   }
-  const shot = await request('/_pryx/screenshot', JSON.stringify({ url: pageUrl }), { 'x-pryx-browser-private': privateToken })
+  const shot = await request(protocol.screenshotPath, JSON.stringify({ url: pageUrl }), { [protocol.privateHeader]: privateToken })
   assert.equal(shot.status, constants.HTTP_STATUS_OK, diagnostic)
   assert.equal(shot.bytes.subarray(1, 4).toString(), 'PNG')
   const policy = { token: randomBytes(32).toString('hex'), expiresAt: Math.floor(Date.now() / 1000) + 10,
