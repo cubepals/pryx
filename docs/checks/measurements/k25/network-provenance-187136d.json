@@ -1,0 +1,57 @@
+{
+  "source": "187136db53e32b941922a8d14b36b8e99699d26c",
+  "run": 43450896770,
+  "job": 131972447502,
+  "conclusion": "success",
+  "startedAt": "2026-11-13T15:17:46Z",
+  "completedAt": "2026-11-13T15:20:14Z",
+  "artifactId": 14050262591,
+  "artifactSha256": "a4b67e89bade5121b3d6dd18bc64bdbfb17d68fbebb733efba84aa1cb6de2a1d",
+  "scope": "Minimal network fixtures only; no production VM/policy/confinement proof",
+  "summary": {
+    "vsock": {
+      "helperAndGuestReportMs": {
+        "n": 30,
+        "p50": 840.364108,
+        "p90": 928.2660000000001
+      },
+      "httpMs": {
+        "n": 30,
+        "p50": 0.64758,
+        "p90": 0.713774
+      },
+      "bulkMiBPerSecond": {
+        "n": 30,
+        "p50": 101.16684255470685,
+        "p90": 107.63884927181242
+      },
+      "dnsMs": {
+        "n": 30,
+        "p50": 2.752272,
+        "p90": 4.168409
+      }
+    },
+    "pasta": {
+      "helperAndGuestReportMs": {
+        "n": 30,
+        "p50": 866.681896,
+        "p90": 922.678015
+      },
+      "httpMs": {
+        "n": 30,
+        "p50": 0.372326,
+        "p90": 0.409425
+      },
+      "bulkMiBPerSecond": {
+        "n": 30,
+        "p50": 110.49015032792647,
+        "p90": 135.42223943288417
+      },
+      "dnsMs": {
+        "n": 30,
+        "p50": 2.026644,
+        "p90": 2.134816
+      }
+    }
+  }
+}

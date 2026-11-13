@@ -2250,3 +2250,24 @@ job when publication is authorized. That job has not run in this task.
   timing is fabricated, and both thirty-sample cohorts and all denials remain.
   Python compilation, complete actionlint/ShellCheck, docs and whitespace pass;
   another real comparison is required. No new piece is parked.
+- Source 187136d's complete kernel/network experiment is green in
+  [43450896770](https://github.com/cubepals/pryx/actions/runs/43450896770/job/131972447502).
+  Verify artifact a4b67e89bade5121b3d6dd18bc64bdbfb17d68fbebb733efba84aa1cb6de2a1d
+  before retaining network-spike-187136d.json, network-provenance-187136d.json
+  and representative serial logs. Both candidates complete thirty samples on
+  the same host, with all guest filesystem, HTTP/bulk, DNS and namespace checks;
+  vsock also passes both management denials in every guest. No path is parked.
+- Record the complete input/method/limit account in docs/checks/k25-vm-spikes.md.
+  Same-runner vsock/pasta HTTP p50 is 0.648/0.372 ms, 16-MiB throughput p50
+  101.167/110.490 MiB/s, and helper-plus-validated-guest-report p50
+  840.364/866.682 ms. Each startup report includes filesystem/network checks,
+  bulk and DNS, so it is not production create readiness. The entire optional
+  job takes 148 seconds; ordinary PR cost remains zero.
+- Add a separate single-guest prerequisite case after the unchanged two thirty-
+  sample cohorts. On only the disposable runner, make host user namespaces and
+  TUN unavailable, assert pasta's real refusal, then require the complete vsock
+  guest and both management denials to pass. Restore both host settings through
+  a shell trap. The separate report cannot be mistaken for the full comparison;
+  its reduced count is enabled only after checking the actual missing prerequisites.
+  Also observe pasta helper RSS before the monitor acknowledgement, outside the
+  measurement clock. Finalize the production network choice after this proof.

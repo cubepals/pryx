@@ -123,13 +123,20 @@ def boot(configurator, monitor, kernel, root, writes, work, label, expected_boot
                 monitor_pid = process.pid if monitor_record is None else json.loads(monitor_record.read_text())['monitorPid']
                 resident = (Path('/proc') / str(monitor_pid) / 'status').read_text()
                 rss = next(line for line in resident.splitlines() if line.startswith('VmRSS:'))
+                helper_rss = None
+                if monitor_record is not None:
+                    helper_status = (Path('/proc') / str(process.pid) / 'status').read_text()
+                    helper_rss = next(line for line in helper_status.splitlines() if line.startswith('VmRSS:'))
                 # Acknowledge once only after every guest assertion; this is not a retryable exec.
                 connection.sendall(b'stop\n')
             code = process.wait(timeout=10)
             if code:
                 raise ValueError(f'Monitor exited unsuccessfully: {code}')
-            return {**report, 'label': label, 'launchToFilesystemVsockReportMs': elapsed,
-                    'monitorResident': rss, 'monitorExit': code}
+            result = {**report, 'label': label, 'launchToFilesystemVsockReportMs': elapsed,
+                      'monitorResident': rss, 'monitorExit': code}
+            if helper_rss is not None:
+                result['helperResident'] = helper_rss
+            return result
     finally:
         listener.close()
         if process is not None and process.poll() is None:

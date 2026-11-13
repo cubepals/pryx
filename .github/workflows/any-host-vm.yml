@@ -108,6 +108,25 @@ jobs:
             --forwarder "$RUNNER_TEMP/vm-gvforwarder" --proxy "$RUNNER_TEMP/vm-network-proxy" \
             --work "$RUNNER_TEMP/vm-network-spike" \
             --output "$RUNNER_TEMP/vm-network-spike.json" | tee "$RUNNER_TEMP/vm-network-spike.log"
+      - name: Prove vsock without host user namespaces or TUN
+        run: |
+          pryx_userns_limit=$(cat /proc/sys/user/max_user_namespaces)
+          pryx_tun_mode=$(stat -c '%a' /dev/net/tun)
+          restore_pryx_network_prerequisites() {
+            sudo sysctl -w "user.max_user_namespaces=$pryx_userns_limit"
+            sudo chmod "$pryx_tun_mode" /dev/net/tun
+          }
+          trap restore_pryx_network_prerequisites EXIT
+          sudo sysctl -w user.max_user_namespaces=0
+          sudo chmod 000 /dev/net/tun
+          python3 templates/vm-tools/network_compare.py --without-host-prerequisites \
+            --inspection "$RUNNER_TEMP/vm-archive-inspection.json" --staged "$RUNNER_TEMP/vm-selected-files" \
+            --configurator "$RUNNER_TEMP/vm-config" --guest "$RUNNER_TEMP/vm-guest" \
+            --mkfs "$RUNNER_TEMP/vm-build-tools/erofs/usr/bin/mkfs.erofs" \
+            --inputs "$RUNNER_TEMP/vm-network-inputs" --network-probe "$RUNNER_TEMP/vm-network-probe" \
+            --forwarder "$RUNNER_TEMP/vm-gvforwarder" --proxy "$RUNNER_TEMP/vm-network-proxy" \
+            --work "$RUNNER_TEMP/vm-network-prerequisites" \
+            --output "$RUNNER_TEMP/vm-network-prerequisites.json" | tee "$RUNNER_TEMP/vm-network-prerequisites.log"
       - name: Retain candidate identities and actual digests
         if: always()
         uses: ./.github/actions/upload-evidence
@@ -129,4 +148,7 @@ jobs:
             ${{ runner.temp }}/vm-network-spike.log
             ${{ runner.temp }}/vm-network-spike/**/*.log
             ${{ runner.temp }}/vm-network-spike/**/namespace.json
+            ${{ runner.temp }}/vm-network-prerequisites.json
+            ${{ runner.temp }}/vm-network-prerequisites.log
+            ${{ runner.temp }}/vm-network-prerequisites/**/*.log
           if-no-files-found: error

@@ -107,7 +107,7 @@ def compare(args, report, save):
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        for mode in ['vsock', 'pasta']:
+        for mode in ['vsock'] if args.without_host_prerequisites else ['vsock', 'pasta']:
             path = args.work / mode
             path.mkdir(mode=0o700)
             image = path / 'image'
@@ -127,7 +127,7 @@ def compare(args, report, save):
             report['paths'].append(cohort)
             save()
             try:
-                for index in range(kernel.SAMPLES):
+                for index in range(1 if args.without_host_prerequisites else kernel.SAMPLES):
                     writes = path / 'writes.ext4'
                     shutil.copyfile(pristine, writes)
                     proxy = None
@@ -195,6 +195,8 @@ def main():
     for name in ['inspection', 'staged', 'configurator', 'guest', 'mkfs', 'inputs',
                  'network-probe', 'forwarder', 'proxy', 'work', 'output']:
         parser.add_argument('--' + name, type=Path, required=True)
+    parser.add_argument('--without-host-prerequisites', action='store_true',
+                        help='Separate one-guest prerequisite case; requires host user namespaces and TUN unavailable')
     args = parser.parse_args()
     if os.geteuid() == 0:
         raise ValueError('Network comparison must launch as the ordinary runner user')
@@ -207,6 +209,19 @@ def main():
 
     save()
     try:
+        if args.without_host_prerequisites:
+            namespaces = int(Path('/proc/sys/user/max_user_namespaces').read_text())
+            tun = os.access('/dev/net/tun', os.R_OK | os.W_OK)
+            if namespaces != 0 or tun:
+                raise ValueError('Prerequisite fixture requires actual missing host user namespaces and TUN access')
+            refusal = subprocess.run([str(args.inputs / 'pasta'), '--foreground', '--no-pidns', '--', 'true'],
+                                     capture_output=True, text=True, timeout=10)
+            if refusal.returncode == 0:
+                raise ValueError('Pasta unexpectedly created its unavailable user namespace')
+            report['scope'] = 'Separate one-guest vsock prerequisite proof with host user namespaces and TUN unavailable'
+            report['pastaRefusal'] = {'exitCode': refusal.returncode, 'stderr': refusal.stderr,
+                                     'hostUserNamespaces': namespaces, 'hostTunAccess': tun}
+            save()
         compare(args, report, save)
         report['status'] = 'success'
     except Exception as failure:
