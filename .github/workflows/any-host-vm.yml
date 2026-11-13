@@ -57,6 +57,7 @@ jobs:
           "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-guest" ./cmd/guest
           "$pryx_go" mod verify
       - name: Build and relocate the unchanged VM filesystem component
+        id: filesystems
         run: |
           python3 templates/vm-tools/filesystem.py \
             --cache "$RUNNER_TEMP/vm-filesystem-archives" \
@@ -137,6 +138,31 @@ jobs:
             --forwarder "$RUNNER_TEMP/vm-gvforwarder" --proxy "$RUNNER_TEMP/vm-network-proxy" \
             --work "$RUNNER_TEMP/vm-network-prerequisites" \
             --output "$RUNNER_TEMP/vm-network-prerequisites.json" | tee "$RUNNER_TEMP/vm-network-prerequisites.log"
+      - name: Prepare the repository Rust for real OCI acceptance
+        id: vm-rust
+        if: ${{ !cancelled() && steps.filesystems.outcome == 'success' }}
+        run: rustup toolchain install
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: ${{ !cancelled() && steps.vm-rust.outcome == 'success' }}
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            target
+          key: vm-inputs-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}
+          restore-keys: vm-inputs-
+      - name: Prepare real pinned Alpine and Debian OCI layers without an engine
+        if: ${{ !cancelled() && steps.vm-rust.outcome == 'success' }}
+        env:
+          PRYX_VM_FILESYSTEM_COMPONENT: ${{ runner.temp }}/vm-filesystem-component
+          PRYX_VM_IMAGE_REPORT: ${{ runner.temp }}/vm-image-acceptance.json
+          CARGO_PROFILE_DEV_DEBUG: '0'
+          CARGO_PROFILE_TEST_DEBUG: '0'
+          CARGO_INCREMENTAL: '0'
+        run: |
+          PRYX_VM_FILESYSTEM_MANIFEST=$(sha256sum "$PRYX_VM_FILESYSTEM_COMPONENT/filesystem-manifest.json" | cut -d' ' -f1)
+          export PRYX_VM_FILESYSTEM_MANIFEST
+          cargo test --locked --test vm_images -- --ignored --nocapture | tee "$RUNNER_TEMP/vm-image-acceptance.log"
       - name: Retain candidate identities and actual digests
         if: always()
         uses: ./.github/actions/upload-evidence
@@ -152,6 +178,8 @@ jobs:
             ${{ runner.temp }}/vm-filesystem-check.json
             ${{ runner.temp }}/vm-filesystem-component/filesystem-manifest.json
             ${{ runner.temp }}/vm-filesystem-component/filesystem-inputs.json
+            ${{ runner.temp }}/vm-image-acceptance.json
+            ${{ runner.temp }}/vm-image-acceptance.log
             ${{ runner.temp }}/vm-spike-notices
             ${{ runner.temp }}/vm-kernel-spike.json
             ${{ runner.temp }}/vm-kernel-spike.log

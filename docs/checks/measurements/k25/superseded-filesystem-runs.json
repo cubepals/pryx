@@ -1,0 +1,51 @@
+[
+  {
+    "run": 43463161507,
+    "name": "CI",
+    "source": "87a5a0b1198597bb76012fcda9c22f8517c9d818",
+    "requestSucceeded": true,
+    "scope": "Superseded incomplete run; every completed job checked for failure before cancellation"
+  },
+  {
+    "run": 43463149380,
+    "name": "CI",
+    "source": "87a5a0b1198597bb76012fcda9c22f8517c9d818",
+    "requestSucceeded": true,
+    "scope": "Superseded incomplete run; every completed job checked for failure before cancellation"
+  },
+  {
+    "run": 43463149584,
+    "name": "Rootless engines",
+    "source": "87a5a0b1198597bb76012fcda9c22f8517c9d818",
+    "requestSucceeded": true,
+    "scope": "Superseded incomplete run; every completed job checked for failure before cancellation"
+  },
+  {
+    "run": 43463149494,
+    "name": "Any host",
+    "source": "87a5a0b1198597bb76012fcda9c22f8517c9d818",
+    "requestSucceeded": true,
+    "scope": "Superseded incomplete run; every completed job checked for failure before cancellation"
+  },
+  {
+    "run": 43461864817,
+    "name": "CI",
+    "source": "1f2b5d86aa502ecd7c5515f516b5b0bbdda7c7be",
+    "requestSucceeded": true,
+    "scope": "Superseded incomplete run; every completed job checked for failure before cancellation"
+  },
+  {
+    "run": 43461852634,
+    "name": "CI",
+    "source": "1f2b5d86aa502ecd7c5515f516b5b0bbdda7c7be",
+    "requestSucceeded": true,
+    "scope": "Superseded incomplete run; every completed job checked for failure before cancellation"
+  },
+  {
+    "run": 43461852487,
+    "name": "Any host",
+    "source": "1f2b5d86aa502ecd7c5515f516b5b0bbdda7c7be",
+    "requestSucceeded": true,
+    "scope": "Superseded incomplete run; every completed job checked for failure before cancellation"
+  }
+]

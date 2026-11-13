@@ -26,6 +26,7 @@ Parts (`vm-tools/`):
 - `filesystem-inputs.json`: pinned signed Alpine filesystem helpers, complete source/recipe inputs and notices.
 - `filesystem.py`: assemble unchanged helper ELFs and their separate musl closure after package signature verification.
 - `filesystem_check.py`: relocated EROFS round trip, populated ext4 integrity and actual library-resolution checks.
+- `image-inputs.json`: actual upstream manifest digests for real daemonless Alpine/Debian image acceptance.
 
 The inventory workflow runs on `any-host` pushes while manual dispatch is unavailable before
 main. Its output records upstream asset identities, actual byte hashes and source commits.

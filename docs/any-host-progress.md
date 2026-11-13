@@ -2389,3 +2389,43 @@ job when publication is authorized. That job has not run in this task.
   existing fetch script before the complete rerun. Formatting and full Clippy
   with warnings denied pass. Real guest ingress proof remains to be added with
   the production init/backend; no local KVM or engine test is claimed.
+
+- Prepare production OCI inputs with pinned oci-client 0.18.0 and its actual
+  owned manifest/configuration/media/digest types. Stream every blob through the
+  client's digest verifier to EOF, check declared size and uncompressed rootfs
+  diff_id, then convert the tar directly with unchanged mkfs.erofs's aufs-to-
+  overlay metadata handling. No image path is extracted onto the host.
+- Verify the complete filesystem tool component through the existing descriptor-
+  relative no-follow tree walk before execution, refusing links, extra/missing
+  members, wrong modes or changed bytes. Publish synced read-only EROFS files and
+  atomic cache records under layer digest plus builder identity. Corrupt complete
+  cache data yields its own typed runtime refusal and is never silently repaired.
+  Bound config/layer expansion, count, diagnostics and acquisition deadlines;
+  cancel an active external builder through the process library's kill-on-drop.
+- The ECR fixture mirror returns its real registry data-limit error, and the
+  Google mirror lacks these fixture tags. Resolve the actual upstream Docker Hub
+  manifest digests and retain immutable Alpine/Debian references in image-inputs.json.
+  A real local acceptance successfully prepares both, reuses unchanged cached
+  outputs and refuses deliberately corrupted cache data. Source images remain
+  archives on the host. HTTPS certificate checks remain enabled; external blob
+  addresses require credential-free HTTPS, and bounded retries match the OCI
+  library's transient error variants/statuses, never Docker/error text.
+- Extend only the existing optional VM job to run that real Rust integration
+  acceptance, independent of an earlier alternative-network failure once the
+  actual filesystem component succeeds. Ordinary PR cost remains zero; estimate
+  three additional optional-job minutes on a cold Rust cache. The normal Rust
+  test suite retains this explicitly CI-input-backed acceptance as ignored, and
+  the optional job explicitly executes it. No existing test or gate is skipped.
+- Local full Rust verification with real pinned Wasm assets again runs without
+  fail-fast: every executable except the unchanged AF_INET6-dependent library
+  test passes. The executor still returns EAFNOSUPPORT for actual IPv6 socket
+  creation. No local Docker/KVM proof is claimed. Product VM init, bundle
+  acquisition, runtime confinement and lifecycle remain incomplete and unadvertised.
+- Source 8b2279f's complete normal push 43458373493 and PR 43458389388 are both
+  green; source f2d6b83's optional VM experiment 43465395072 is green. These are
+  earlier implementation checkpoints and do not pre-prove the new OCI code.
+- Retain the explicit superseded-run cancellation inventories under k25
+  measurements: inspect every completed job for failure before cancelling an
+  incomplete older run, preserve all failed/green experiment evidence, and keep
+  the active implementation and the earlier full application baseline running.
+  Cancellation is not counted as a successful check or milestone proof.

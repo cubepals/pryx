@@ -16,6 +16,7 @@
 //! - `fake.rs`: an in-memory runtime for tests, with the Docker behaviour pryxd depends on.
 //! - `wasm.rs`: virtual agentOS VMs through a separately verified sidecar.
 //! - `process.rs`: namespace-free process tier and private runtime journal.
+//! - `vm.rs`: verified VM image inputs; compute remains unavailable until backend acceptance.
 
 mod agent_metadata;
 pub(crate) use agent_metadata::{process_ssh_supported, protected as protected_agent};
@@ -27,6 +28,7 @@ pub mod fake;
 pub mod limits;
 pub mod process;
 pub mod router;
+pub mod vm;
 pub mod wasm;
 
 use std::collections::BTreeMap;
@@ -273,6 +275,8 @@ pub enum RuntimeError {
     /// A start refused because a host port the container binds is taken.
     #[error("runtime refused ({status}): {message}")]
     PortTaken { status: u16, message: String },
+    #[error("VM image cache verification failed")]
+    ImageCacheInvalid,
     #[error("{0}")]
     Other(String),
 }
