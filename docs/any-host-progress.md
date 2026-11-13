@@ -1887,3 +1887,6 @@ job when publication is authorized. That job has not run in this task.
   Lint/type/schema/docs/release and mixed structure checks pass. The complete Bun
   test stage is still running in this compiling checkpoint; fresh installed CLI,
   Python SSH, timing and full aggregate results remain required.
+- The hosted task machine failed a fourth time after d125752 with nothing unpushed. Work continues
+  from that commit on a supervised machine that restarts the same task when it stops. No source
+  change in this checkpoint.
