@@ -1,0 +1,16 @@
+{
+  "source": "9402ef5",
+  "run": 43442622901,
+  "job": 131943829577,
+  "conclusion": "success",
+  "startedAt": "2026-11-13T14:26:25Z",
+  "completedAt": "2026-11-13T14:27:32Z",
+  "artifactId": 14047090575,
+  "artifactSha256": "5eff31ab3f6a12db429c6eb8ed84755afa6822f9d53e08cf6dc7a53558b3ea48",
+  "scope": "Minimal ordinary-user kernel fixture only; not production VM-tier proof",
+  "coldSamples": 30,
+  "coldP50Ms": 717.034978,
+  "coldP90Ms": 725.265253,
+  "diskRebootSamples": 1,
+  "diskRebootMs": 724.471111
+}

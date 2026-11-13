@@ -2127,3 +2127,21 @@ job when publication is authorized. That job has not run in this task.
   runs 43435813982, 43435801507, 43435801516. These cancellations free capacity
   for the latest real experiment and count as no passing aggregates. Retain the
   already green K24 implementation and the completed upstream inventory results.
+- Kernel spike source 9402ef5 is green in
+  [43442622901](https://github.com/cubepals/pryx/actions/runs/43442622901/job/131943829577).
+  Verify the actual evidence archive digest before retaining kernel-spike-9402ef5.json,
+  kernel-provenance-9402ef5.json and first-boot/reboot serial logs (line endings
+  normalized in committed text). All thirty cold samples and the one disk-retaining
+  reboot prove EROFS/overlay/ext4/virtio/vsock and unchanged lower bytes; guest
+  Linux 6.18.56 differs from host 7.0.0-1017-azure. Host UID is 1001 throughout.
+- Minimal kernel launch-to-validated-report p50/p90 is 717.035/725.265 ms;
+  disk-retaining reboot is 724.471 ms with boot counter two. Fixture root is
+  4,460,544 bytes; initial image preparation is 21.341 ms. The first blocked
+  monitor's observed RSS is 56,812 kB with a 256-MiB, one-vCPU guest; this is not
+  production idle-memory proof. The entire optional job takes 67 seconds,
+  adding zero ordinary PR minutes. Every original thirty-sample assertion passes.
+- K25's published-kernel spike is complete and its decision recorded. Continue
+  immediately with the pasta/user-namespace TAP versus maintained vsock network
+  comparison, including both guest management-path denials, then the production
+  lazy VM bundle, OCI conversion, agent/backend, confinement, lifecycle and timings.
+  No VM feature is advertised, K25 remains in progress, and no piece is parked.
