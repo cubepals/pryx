@@ -2910,3 +2910,29 @@ job when publication is authorized. That job has not run in this task.
   ext4/staged upstream-fixture recovery acceptance passes in 6.72 s. Full local Rust remains
   498 passes, one unchanged IPv6 failure and 33 ignored cases; strict root/helper Clippy and
   fmt pass. No new job/gate or added PR minute; real adapter/KVM proof awaits CI.
+
+
+- K25 cold-boot runtime checkpoint: compose verified bundle acquisition, daemonless OCI,
+  spec-sized ext4, generated physical-memory/vCPU configuration, non-root guest bootstrap,
+  confined owned monitor and private TCP forwarder behind ContainerRuntime. Keep it OUTSIDE
+  configured/automatic tier selection. Carry disk bytes and explicit CPU-weight intent as
+  defaulted internal ContainerSpec fields; public protocol shapes and formats do not change.
+- One private owner lock serializes runtime instances; stable sandbox leases fence monitor
+  generations and startup refuses any predecessor still holding its disk. Cold starts and
+  stops remain owned across request cancellation. Only safe health reads retry; each launch,
+  bootstrap and signed shutdown is submitted once. A clean exit needs the scoped signed disk
+  proof; forced retirement remains distinct. Dead-monitor cleanup and unsupported signal/log
+  behavior still need completion before exposure. Root, public networking/hostname policy,
+  fractional vCPUs, CPU weights, UDP, registry packages and memory sleep have named refusals.
+- Add actual runtime-seam acceptance to the EXISTING optional VM job: both pinned OCI images,
+  two-vCPU boot, authenticated exec, clean stop, cold wake, copied-disk fork independence and
+  remove. This new test is ignored on hosts without KVM and explicitly run there. Estimated
+  optional cost is up to two minutes including initial root test compilation; zero new PR
+  jobs/gates and no ordinary PR minute. Real execution is pending, not inferred locally.
+  Full local Rust: 498 passes, the unchanged IPv6 failure and 34 ignored cases; strict root/
+  helper Clippy, fmt and actionlint pass. No tier availability is advertised by this checkpoint.
+- Next finish backend failure/adoption cleanup, legacy logs/stats and SIGINT semantics;
+  integrate node agent state and data APIs with stopped-disk access and snapshot/export
+  barriers; implement root helper/jailer/TAP/firewall and ordinary-user network policy;
+  then wire protected descriptors into configuration/release/install, prove node+edge
+  lifecycle and thirty production samples. K25 main deliverable remains in progress.

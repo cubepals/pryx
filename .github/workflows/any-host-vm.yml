@@ -217,6 +217,16 @@ jobs:
           CARGO_INCREMENTAL: '0'
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
         run: cargo test --locked --manifest-path vm-image/Cargo.toml --test bundle -- --ignored --nocapture | tee "$RUNNER_TEMP/vm-bundle-acceptance.log"
+      - name: Prove the production VM runtime seam on both OCI images
+        if: ${{ !cancelled() && steps.vm-bundle.outcome == 'success' }}
+        env:
+          PRYX_VM_RUNTIME_DESCRIPTOR: ${{ runner.temp }}/vm-runtime.json
+          PRYX_VM_RUNTIME_ARCHIVE: ${{ runner.temp }}/pryx-vm-linux-x64.tar.gz
+          CARGO_PROFILE_DEV_DEBUG: '0'
+          CARGO_PROFILE_TEST_DEBUG: '0'
+          CARGO_INCREMENTAL: '0'
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: cargo test --locked --lib runtime::vm::instance::tests::actual_runtime_cold_boot_exec_stop_wake_copy_and_fork -- --ignored --nocapture | tee "$RUNNER_TEMP/vm-runtime-acceptance.log"
       - name: Prepare real pinned Alpine and Debian OCI layers without an engine
         if: ${{ !cancelled() && steps.vm-rust.outcome == 'success' }}
         env:
@@ -257,6 +267,7 @@ jobs:
             ${{ runner.temp }}/vm-runtime.json
             ${{ runner.temp }}/vm-sources.json
             ${{ runner.temp }}/vm-bundle.log
+            ${{ runner.temp }}/vm-runtime-acceptance.log
             ${{ runner.temp }}/vm-bundle-acceptance.log
             ${{ runner.temp }}/vm-corresponding-sources.log
             ${{ runner.temp }}/vm-candidate-inventory.json

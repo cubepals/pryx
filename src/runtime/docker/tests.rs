@@ -5,6 +5,8 @@ use super::*;
 
 pub(super) fn spec() -> ContainerSpec {
     ContainerSpec {
+        storage_bytes: 0,
+        cpu_weight_requested: false,
         packages: Vec::new(),
         agent: None,
         cgroup_parent: None,

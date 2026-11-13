@@ -66,6 +66,10 @@ pub struct ContainerSpec {
     pub labels: BTreeMap<String, String>,
     pub(crate) user: String,
     pub(crate) memory_bytes: i64,
+    #[serde(default)]
+    pub(crate) storage_bytes: u64,
+    #[serde(default)]
+    pub(crate) cpu_weight_requested: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) allow_unenforced_memory: Option<bool>,
     #[serde(default)]

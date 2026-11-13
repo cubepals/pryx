@@ -1069,3 +1069,5 @@
 - K25: share the production owned-monitor/bootstrap primitive with actual KVM acceptance, keeping verified inputs and the host confinement plan outside workload control; a dropped request cannot replay boot secrets or certify process/disk exit.
 
 - K25: keep bounded SDK control calls separate from an owned private-address HTTP/2 forwarding process, verify readiness against every admitted host binding, and use the same production adapters in real KVM acceptance; neither uncertain mutations nor application streams are replayed.
+
+- K25: compose the real VM runtime behind ContainerRuntime before registering it, carry host-admitted disk size and explicit CPU-weight intent in optional internal spec fields, and refuse unsupported weights, fractional vCPUs, UDP, networking and memory sleep; one sandbox lease spans generations and caller cancellation cannot replay a launch or shutdown.

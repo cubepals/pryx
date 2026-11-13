@@ -11,11 +11,13 @@
 //! - `machine.rs`: owned confined monitor process and one-shot private bootstrap.
 //! - `transport.rs`: bounded one-shot SDK requests over private pipes.
 //! - `forward.rs`: owned private-address streaming forwarding processes.
+//! - `instance.rs`: cold-boot runtime under construction, outside automatic tier selection.
 pub mod bundle;
 pub mod disk;
 pub mod filesystems;
 pub mod forward;
 pub mod image;
+pub mod instance;
 pub mod machine;
 pub mod transport;
 

@@ -123,6 +123,10 @@ impl Machine {
         Ok(())
     }
 
+    pub fn exited(&mut self) -> io::Result<Option<ExitStatus>> {
+        self.child.try_wait()
+    }
+
     pub async fn wait(&mut self) -> io::Result<ExitStatus> {
         self.child.wait().await
     }

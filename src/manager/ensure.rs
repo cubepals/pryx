@@ -240,6 +240,8 @@ impl Manager {
             labels,
             user: self.config.workloads.user.to_string(),
             memory_bytes: i64::from(r.memory_mb) * 1024 * 1024,
+            storage_bytes: u64::from(spec.storage.size_gb) * 1024 * 1024 * 1024,
+            cpu_weight_requested: r.cpu_weight.is_some(),
             allow_unenforced_memory: r.allow_unenforced_memory,
             require_cpu_limit: r.cpu_millis.is_some() || r.cpu_weight.is_some(),
             require_pids_limit: r.pids_limit.is_some(),
