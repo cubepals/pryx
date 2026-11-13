@@ -8,6 +8,7 @@
 // - inputs.json: immutable Alpine and pasta source inputs.
 // - module-notices.json: pinned dependency closure and complete primary-notice digests.
 // - go.mod, go.sum: the separate comparison module and unchanged upstream forwarder tool.
+// - go.work: local main modules for network-directory cache verification.
 // - README.md: experiment scope and listener boundaries.
 package networkfixture
 

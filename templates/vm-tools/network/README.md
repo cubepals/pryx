@@ -7,6 +7,7 @@ No production backend or VM guarantee is enabled here.
 Parts (`network/`):
 
 - `go.mod` and `go.sum`: pinned network library and unchanged upstream guest-forwarder tool.
+- `go.work`: make both local fixture modules explicit for cache verification within this directory only.
 - `cmd/proxy/main.go`: separate guest packet transport and private host management listeners.
 - `cmd/probe/main.go`: guest DHCP/HTTP/throughput/DNS measurements and two management denials.
 - `network.go`: the upstream API's unexported route names, with their source recorded.

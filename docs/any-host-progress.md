@@ -2176,3 +2176,18 @@ job when publication is authorized. That job has not run in this task.
   adds zero ordinary PR minutes or required checks; estimated total three-to-six
   minutes now includes ninety cold guests and compilation. Record actual time
   and any real network failures after this push. Production VM support remains off.
+- Network source 57c7f93 fails setup in
+  [43446165170](https://github.com/cubepals/pryx/actions/runs/43446165170/job/131956052064)
+  before either network guest runs. Its digest-verified artifact proves all thirty
+  updated kernel boots still pass; preserve network-setup-failure-57c7f93.json
+  with zero network observations. Go mod verify tries to verify a nonexistent
+  archive for the local replaced fixture module. Reproduce the exact failure
+  locally and inspect the installed Go verifier's main-module handling.
+- Declare the two local fixture modules as main modules in a workspace within
+  the network directory only. The parent kernel build does not discover it;
+  its dependency closure stays unchanged. Keep Go's existing verification and
+  additionally run it after actual compilation. The real local corrected
+  verifier passes, while an isolated downloaded module whose licence bytes are
+  deliberately changed fails with Go's own modified-directory error. Remove
+  that disposable cache afterward. The exact network notice closure still passes;
+  no checksum check, assertion or network cohort is skipped or weakened.

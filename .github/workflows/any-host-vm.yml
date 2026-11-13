@@ -55,6 +55,7 @@ jobs:
           python3 notices.py --go "$pryx_go" --output "$RUNNER_TEMP/vm-spike-notices"
           "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-config" ./cmd/config
           "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-guest" ./cmd/guest
+          "$pryx_go" mod verify
       - name: Allow the ordinary runner user to open real KVM
         run: |
           sudo modprobe kvm
@@ -88,6 +89,7 @@ jobs:
           "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-network-proxy" ./cmd/proxy
           "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-network-probe" ./cmd/probe
           "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-gvforwarder" github.com/containers/gvisor-tap-vsock/cmd/vm
+          "$pryx_go" mod verify
       - name: Permit user namespaces on the positive comparison runner
         run: |
           # This disposable fixture compares a capability's positive path; product setup changes no host policy.
