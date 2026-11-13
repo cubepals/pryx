@@ -31,18 +31,19 @@ jobs:
           python3 templates/vm-tools/inventory.py \
             --archive-cache "$RUNNER_TEMP/vm-archives" \
             --output "$RUNNER_TEMP/vm-candidate-inventory.json" | tee "$RUNNER_TEMP/vm-input-inventory.log"
+      - name: Prepare pinned separate experiment tools
+        run: |
+          python3 templates/vm-tools/prepare.py --root "$RUNNER_TEMP/vm-build-tools" | tee "$RUNNER_TEMP/vm-tool-inputs.log"
+          dpkg-query -W e2fsprogs
       - name: Inspect published kernels and their archive configurations
         run: |
-          zstd --version
-          python3 templates/vm-tools/inspect.py \
+          "$RUNNER_TEMP/vm-build-tools/zstd/usr/bin/zstd" --version
+          python3 templates/vm-tools/archive_inspection.py \
+            --zstd "$RUNNER_TEMP/vm-build-tools/zstd/usr/bin/zstd" \
             --inventory "$RUNNER_TEMP/vm-candidate-inventory.json" \
             --archive-cache "$RUNNER_TEMP/vm-archives" \
             --staged "$RUNNER_TEMP/vm-selected-files" \
             --output "$RUNNER_TEMP/vm-archive-inspection.json" | tee "$RUNNER_TEMP/vm-archive-inspection.log"
-      - name: Prepare pinned separate experiment tools
-        run: |
-          python3 templates/vm-tools/prepare.py --root "$RUNNER_TEMP/vm-build-tools" | tee "$RUNNER_TEMP/vm-tool-inputs.log"
-          dpkg-query -W zstd e2fsprogs
       - name: Build the typed configuration and static guest probe
         working-directory: templates/vm-tools
         env:

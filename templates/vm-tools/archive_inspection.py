@@ -24,7 +24,7 @@ MAX_CONFIG_BYTES = 2 * 1024 * 1024
 MAX_EXPANDED_BYTES = 16 * 1024 * 1024 * 1024
 
 
-def inspect(candidate, cache, destination):
+def inspect(candidate, cache, destination, zstd='zstd'):
     archive_path = cache / (candidate['sha256'] + '.archive')
     with archive_path.open('rb') as source:
         if hashlib.file_digest(source, 'sha256').hexdigest() != candidate['sha256']:
@@ -33,7 +33,7 @@ def inspect(candidate, cache, destination):
               'sourceCommit': candidate['sourceCommit'], 'members': [], 'executed': False}
     decoder = None
     if candidate['assetName'].endswith('.zst'):
-        decoder = subprocess.Popen(['zstd', '-dc', '--', str(archive_path)], stdout=subprocess.PIPE)
+        decoder = subprocess.Popen([str(zstd), '-dc', '--', str(archive_path)], stdout=subprocess.PIPE)
         stream = decoder.stdout
         mode = 'r|'
     else:
@@ -109,11 +109,12 @@ def main():
     parser.add_argument('--archive-cache', type=Path, required=True)
     parser.add_argument('--staged', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--zstd', type=Path, required=True)
     args = parser.parse_args()
     args.staged.mkdir(parents=True, exist_ok=True, mode=0o700)
     report = {'scope': 'Archive inspection only; no kernel or monitor executed', 'candidates': []}
     for candidate in json.loads(args.inventory.read_text())['candidates']:
-        result = inspect(candidate, args.archive_cache, args.staged)
+        result = inspect(candidate, args.archive_cache, args.staged, args.zstd)
         report['candidates'].append(result)
         print(json.dumps(result), flush=True)
         args.output.write_text(json.dumps(report, indent=2) + '\n')

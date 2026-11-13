@@ -1,0 +1,9 @@
+{
+  "source": "68046d3",
+  "run": 43441847267,
+  "job": 131941167952,
+  "conclusion": "failure",
+  "artifactId": 14046805236,
+  "artifactSha256": "36816cb5efe4deb8d2220ed493f4d6ca86b43f6e38aed09e89ac30b418bdec9c",
+  "scope": "Guest kernel mounts EROFS and reaches PID 1; fixture fails before successful vsock report; zero samples"
+}

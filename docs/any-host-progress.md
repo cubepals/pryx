@@ -2104,3 +2104,26 @@ job when publication is authorized. That job has not run in this task.
   Its branch/weekly job retains the twenty-minute ceiling; estimated two-to-five
   minutes now includes private verified build tools and thirty boots. Record the
   actual hosted cost and results, including failures. Local Docker/KVM remain unrun.
+- First real kernel spike source 68046d3 fails in
+  [43441847267](https://github.com/cubepals/pryx/actions/runs/43441847267/job/131941167952).
+  Its digest-verified artifact retains zero completed samples. Preserve the complete
+  failed serial log, report and artifact provenance. The published guest kernel
+  6.18.56 boots under ordinary host UID 1001, discovers virtio block/vsock, mounts
+  EROFS and launches PID 1; that fixture then fails with device-or-resource-busy
+  on its duplicate devtmpfs mount. This is partial boot evidence, not acceptance.
+- Require CONFIG_DEVTMPFS_MOUNT and verify its actual /dev mount and filesystem
+  rather than remounting the kernel's single-instance devtmpfs. Keep every existing
+  filesystem, disk-retention, vsock, differing-kernel and sample-count assertion.
+  Remove the inspection script's standard-library name collision, which caused
+  an unrelated apport exception while reporting the timeout. Local builds, Go vet,
+  Python compilation, full actionlint/ShellCheck and whitespace pass; real boot
+  success still requires fresh hosted proof.
+- The failed job also reveals PATH's zstd is 1.5.7 although the installed Ubuntu
+  package is 1.5.5; pin and verify the already reviewed 1.5.5 package privately
+  before inspection, retaining its complete notices. Hosted mke2fs's package is
+  the reviewed e2fsprogs 1.47.0-2.4~exp1ubuntu4.1. The local machine ran no KVM.
+- Inspect completed jobs (none failing) before canceling superseded input-only
+  source 13d4f5b runs 43437923673, 43437934155, 43437923840 and source 74d8750
+  runs 43435813982, 43435801507, 43435801516. These cancellations free capacity
+  for the latest real experiment and count as no passing aggregates. Retain the
+  already green K24 implementation and the completed upstream inventory results.

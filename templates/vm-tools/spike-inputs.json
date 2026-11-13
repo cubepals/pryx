@@ -7,6 +7,14 @@
     "licence": "BSD-3-Clause",
     "digestSource": "https://go.dev/dl/?mode=json&include=all"
   },
+  "zstd": {
+    "version": "1.5.5+dfsg2-2build1.1",
+    "url": "https://archive.ubuntu.com/ubuntu/pool/main/libz/libzstd/zstd_1.5.5+dfsg2-2build1.1_amd64.deb",
+    "sha256": "d7667f83e3a2caeaaecaca464d542ee6ccf537259a479622796c84afc96d6032",
+    "bytes": 644020,
+    "licence": "BSD-3-Clause option; separate executable",
+    "digestSource": "Ubuntu noble signed Packages metadata"
+  },
   "erofs": {
     "version": "1.7.1-1build2",
     "url": "https://archive.ubuntu.com/ubuntu/pool/universe/e/erofs-utils/erofs-utils_1.7.1-1build2_amd64.deb",

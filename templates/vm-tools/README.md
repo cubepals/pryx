@@ -8,7 +8,7 @@ Parts (`vm-tools/`):
 
 - `candidates.json`: versioned primary monitor/kernel candidates, upstream archive digests and licences.
 - `inventory.py`: bounded primary metadata/archive acquisition, source identity and SHA-256.
-- `inspect.py`: bounded streamed member inspection and regular-file staging by content digest.
+- `archive_inspection.py`: bounded streamed member inspection and regular-file staging by content digest.
 - `kernel-selection.json`: exact published kernel/monitor members and required built-in configuration.
 - `spike-inputs.json`: pinned private Go toolchain and separate EROFS builder inputs.
 - `prepare.py`: verify those tool inputs before private extraction.

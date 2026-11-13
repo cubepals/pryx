@@ -1,0 +1,288 @@
+2026-11-13T14:22:41.222814400 [anonymous-instance:main] Running Firecracker v1.18.0
+2026-11-13T14:22:41.244770133 [anonymous-instance:main] Artificially kick devices
+2026-11-13T14:22:41.244906120 [anonymous-instance:fc_vcpu 0] Received a VcpuEvent::Resume message with immediate_exit enabled. immediate_exit was disabled before proceeding
+2026-11-13T14:22:41.244930263 [anonymous-instance:main] Successfully started microvm that was configured from one single json
+2026-11-13T14:22:41.245143091 [anonymous-instance:main] Detached the serial input due to peer close/error.
+2026-11-13T14:22:41.256536953 [anonymous-instance:fc_vcpu 0] vcpu: IO write @ 0xcf8:0x4 failed: Failed to find address range.
+2026-11-13T14:22:41.256567190 [anonymous-instance:fc_vcpu 0] vcpu: IO read @ 0xcfc:0x2 failed: Failed to find address range.
+[    0.000000] Linux version 6.18.56 (@4c5819bcf197) (gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0, GNU ld (GNU Binutils for Ubuntu) 2.38) #1 SMP Fri Oct 16 18:41:32 UTC 2026
+[    0.000000] Command line: console=ttyS0 reboot=k panic=1 pci=off rootfstype=erofs init=/init ro pci=off root=/dev/vda ro virtio_mmio.device=4K@0xc0001000:5 virtio_mmio.device=4K@0xc0002000:6 virtio_mmio.device=4K@0xc0003000:7
+[    0.000000] [Firmware Bug]: TSC doesn't count with P0 frequency!
+[    0.000000] BIOS-provided physical RAM map:
+[    0.000000] BIOS-e820: [mem 0x0000000000000000-0x000000000009fbff] usable
+[    0.000000] BIOS-e820: [mem 0x000000000009fc00-0x00000000000fffff] reserved
+[    0.000000] BIOS-e820: [mem 0x0000000000100000-0x000000000fffffff] usable
+[    0.000000] BIOS-e820: [mem 0x00000000eec00000-0x00000000febfffff] reserved
+[    0.000000] NX (Execute Disable) protection: active
+[    0.000000] APIC: Static calls initialized
+[    0.000000] DMI not present or invalid.
+[    0.000000] Hypervisor detected: KVM
+[    0.000000] last_pfn = 0x10000 max_arch_pfn = 0x400000000
+[    0.000000] kvm-clock: Using msrs 4b564d01 and 4b564d00
+[    0.000000] kvm-clock: using sched offset of 34008887 cycles
+[    0.000018] clocksource: kvm-clock: mask: 0xffffffffffffffff max_cycles: 0x1cd42e4dffb, max_idle_ns: 881590591483 ns
+[    0.000089] tsc: Detected 2445.426 MHz processor
+[    0.000526] last_pfn = 0x10000 max_arch_pfn = 0x400000000
+[    0.000707] MTRR map: 0 entries (0 fixed + 0 variable; max 16), built from 8 variable MTRRs
+[    0.000729] x86/PAT: Configuration [0-7]: WB  WC  UC- UC  WB  WP  UC- WT  
+[    0.000987] found SMP MP-table at [mem 0x0009fc00-0x0009fc0f]
+[    0.001096] Using GB pages for direct mapping
+[    0.001255] ACPI: Early table checksum verification disabled
+[    0.001353] ACPI: RSDP 0x00000000000E0000 000024 (v02 FIRECK)
+[    0.001379] ACPI: XSDT 0x00000000000A017C 00003C (v01 FIRECK FCMVXSDT 00000000 FCAT 20240119)
+[    0.001413] ACPI: FACP 0x000000000009FFEC 000114 (v06 FIRECK FCVMFADT 00000000 FCAT 20240119)
+[    0.001425] ACPI: DSDT 0x000000000009FD30 0002BC (v02 FIRECK FCVMDSDT 00000000 FCAT 20240119)
+[    0.001427] ACPI: APIC 0x00000000000A0100 000040 (v06 FIRECK FCVMMADT 00000000 FCAT 20240119)
+[    0.001429] ACPI: MCFG 0x00000000000A0140 00003C (v01 FIRECK FCMVMCFG 00000000 FCAT 20240119)
+[    0.001430] ACPI: Reserving FACP table memory at [mem 0x9ffec-0xa00ff]
+[    0.001431] ACPI: Reserving DSDT table memory at [mem 0x9fd30-0x9ffeb]
+[    0.001431] ACPI: Reserving APIC table memory at [mem 0xa0100-0xa013f]
+[    0.001432] ACPI: Reserving MCFG table memory at [mem 0xa0140-0xa017b]
+[    0.001877] No NUMA configuration found
+[    0.001878] Faking a node at [mem 0x0000000000000000-0x000000000fffffff]
+[    0.001896] NODE_DATA(0) allocated [mem 0x0fffaa80-0x0ffffcff]
+[    0.002089] Zone ranges:
+[    0.002105]   DMA      [mem 0x0000000000001000-0x0000000000ffffff]
+[    0.002114]   DMA32    [mem 0x0000000001000000-0x000000000fffffff]
+[    0.002123]   Normal   empty
+[    0.002131]   Device   empty
+[    0.002132] Movable zone start for each node
+[    0.002132] Early memory node ranges
+[    0.002133]   node   0: [mem 0x0000000000001000-0x000000000009efff]
+[    0.002142]   node   0: [mem 0x0000000000100000-0x000000000fffffff]
+[    0.002150] Initmem setup node 0 [mem 0x0000000000001000-0x000000000fffffff]
+[    0.002221] On node 0, zone DMA: 1 pages in unavailable ranges
+[    0.002880] On node 0, zone DMA: 97 pages in unavailable ranges
+[    0.012536] IOAPIC[0]: apic_id 0, version 17, address 0xfec00000, GSI 0-23
+[    0.012540] ACPI: Using ACPI (MADT) for SMP configuration information
+[    0.012541] TSC deadline timer available
+[    0.012552] CPU topo: Max. logical packages:   1
+[    0.012561] CPU topo: Max. logical dies:       1
+[    0.012561] CPU topo: Max. dies per package:   1
+[    0.012565] CPU topo: Max. threads per core:   1
+[    0.012565] CPU topo: Num. cores per package:     1
+[    0.012565] CPU topo: Num. threads per package:   1
+[    0.012566] CPU topo: Allowing 1 present CPUs plus 0 hotplug CPUs
+[    0.012628] kvm-guest: APIC: eoi() replaced with kvm_guest_apic_eoi_write()
+[    0.012746] [mem 0x10000000-0xeebfffff] available for PCI devices
+[    0.012747] Booting paravirtualized kernel on KVM
+[    0.012764] clocksource: refined-jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 7645519600211568 ns
+[    0.019698] setup_percpu: NR_CPUS:240 nr_cpumask_bits:1 nr_cpu_ids:1 nr_node_ids:1
+[    0.025196] percpu: Embedded 47 pages/cpu s163840 r0 d28672 u2097152
+[    0.025265] Kernel command line: console=ttyS0 reboot=k panic=1 pci=off rootfstype=erofs init=/init ro pci=off root=/dev/vda ro virtio_mmio.device=4K@0xc0001000:5 virtio_mmio.device=4K@0xc0002000:6 virtio_mmio.device=4K@0xc0003000:7
+[    0.025865] random: crng init done
+[    0.025873] printk: log buffer data + meta data: 131072 + 458752 = 589824 bytes
+[    0.026516] Dentry cache hash table entries: 32768 (order: 6, 262144 bytes, linear)
+[    0.026944] Inode-cache hash table entries: 16384 (order: 5, 131072 bytes, linear)
+[    0.027067] Fallback order for Node 0: 0 
+[    0.027069] Built 1 zonelists, mobility grouping on.  Total pages: 65438
+[    0.027070] Policy zone: DMA32
+[    0.027071] mem auto-init: stack:off, heap alloc:off, heap free:off
+[    0.028210] SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=1, Nodes=1
+[    0.028926] rcu: Hierarchical RCU implementation.
+[    0.028935] rcu: 	RCU restricting CPUs from NR_CPUS=240 to nr_cpu_ids=1.
+[    0.028944] 	Tracing variant of Tasks RCU enabled.
+[    0.028967] rcu: RCU calculated value of scheduler-enlistment delay is 25 jiffies.
+[    0.028968] rcu: Adjusting geometry for rcu_fanout_leaf=16, nr_cpu_ids=1
+[    0.029018] RCU Tasks Trace: Setting shift to 0 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=1.
+[    0.029037] NR_IRQS: 15616, nr_irqs: 256, preallocated irqs: 0
+[    0.029202] rcu: srcu_init: Setting srcu_struct sizes based on contention.
+[    0.029212] clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 7645041785100000 ns
+[    0.029520] Console: colour dummy device 80x25
+[    0.029722] printk: legacy console [ttyS0] enabled
+[    0.152569] ACPI: Core revision 20250807
+[    0.153490] APIC: Switch to symmetric I/O mode setup
+[    0.155079] x2apic enabled
+[    0.156364] APIC: Switched APIC routing to: physical x2apic
+[    0.157679] clocksource: tsc-early: mask: 0xffffffffffffffff max_cycles: 0x233fd7ba1b0, max_idle_ns: 440795295779 ns
+[    0.159629] Calibrating delay loop (skipped) preset value.. 4890.85 BogoMIPS (lpj=9781704)
+[    0.162005] x86/cpu: User Mode Instruction Prevention (UMIP) activated
+[    0.163629] Last level iTLB entries: 4KB 512, 2MB 512, 4MB 256
+[    0.163629] Last level dTLB entries: 4KB 2048, 2MB 2048, 4MB 1024, 1GB 0
+[    0.163629] mitigations: Enabled attack vectors: user_kernel, user_user, SMT mitigations: auto
+[    0.163629] Speculative Store Bypass: Vulnerable
+[    0.163629] Speculative Return Stack Overflow: IBPB-extending microcode not applied!
+[    0.163629] Speculative Return Stack Overflow: WARNING: See https://kernel.org/doc/html/latest/admin-guide/hw-vuln/srso.html for mitigation options.
+[    0.163629] Speculative Return Stack Overflow: WARNING: kernel not compiled with MITIGATION_SRSO.
+[    0.163629] Spectre V2 : Vulnerable
+[    0.163629] Speculative Return Stack Overflow: Vulnerable
+[    0.163629] Spectre V1 : Vulnerable: __user pointer sanitization and usercopy barriers only; no swapgs barriers
+[    0.163629] x86/fpu: Supporting XSAVE feature 0x001: 'x87 floating point registers'
+[    0.163629] x86/fpu: Supporting XSAVE feature 0x002: 'SSE registers'
+[    0.163629] x86/fpu: Supporting XSAVE feature 0x004: 'AVX registers'
+[    0.163629] x86/fpu: Supporting XSAVE feature 0x800: 'Control-flow User registers'
+[    0.163629] x86/fpu: Supporting XSAVE feature 0x1000: 'Control-flow Kernel registers (KVM only)'
+[    0.163629] x86/fpu: xstate_offset[2]:  576, xstate_sizes[2]:  256
+[    0.163629] x86/fpu: xstate_offset[11]:  832, xstate_sizes[11]:   16
+[    0.163629] x86/fpu: xstate_offset[12]:  848, xstate_sizes[12]:   24
+[    0.163629] x86/fpu: Enabled xstate features 0x1807, context size is 872 bytes, using 'compacted' format.
+[    0.163629] Freeing SMP alternatives memory: 48K
+[    0.163629] pid_max: default: 32768 minimum: 301
+[    0.163629] LSM: initializing lsm=capability,landlock,selinux
+[    0.163629] landlock: Up and running.
+[    0.163629] SELinux:  Initializing.
+[    0.163629] Mount-cache hash table entries: 512 (order: 0, 4096 bytes, linear)
+[    0.163629] Mountpoint-cache hash table entries: 512 (order: 0, 4096 bytes, linear)
+[    0.163629] smpboot: CPU0: AMD EPYC (family: 0x19, model: 0x1, stepping: 0x1)
+[    0.163629] Performance Events: PMU not available due to virtualization, using software events only.
+[    0.163781] signal: max sigframe size: 1360
+[    0.167710] rcu: Hierarchical SRCU implementation.
+[    0.168892] rcu: 	Max phase no-delay instances is 1000.
+[    0.170547] smp: Bringing up secondary CPUs ...
+[    0.171619] smp: Brought up 1 node, 1 CPU
+[    0.171638] smpboot: Total of 1 processors activated (4890.85 BogoMIPS)
+[    0.173472] Memory: 226240K/261752K available (13801K kernel code, 1116K rwdata, 3108K rodata, 1288K init, 3504K bss, 34024K reserved, 0K cma-reserved)
+[    0.176006] devtmpfs: initialized
+[    0.176968] x86/mm: Memory block size: 128MB
+[    0.178389] posixtimers hash table entries: 512 (order: 1, 8192 bytes, linear)
+[    0.179692] futex hash table entries: 256 (16384 bytes on 1 NUMA nodes, total 16 KiB, linear).
+[    0.182144] NET: Registered PF_NETLINK/PF_ROUTE protocol family
+[    0.183601] DMA: preallocated 128 KiB GFP_KERNEL pool for atomic allocations
+[    0.183671] DMA: preallocated 128 KiB GFP_KERNEL|GFP_DMA pool for atomic allocations
+[    0.185569] DMA: preallocated 128 KiB GFP_KERNEL|GFP_DMA32 pool for atomic allocations
+[    0.187440] audit: initializing netlink subsys (disabled)
+[    0.187851] thermal_sys: Registered thermal governor 'step_wise'
+[    0.187859] audit: type=2000 audit(1794579761.314:1): state=initialized audit_enabled=0 res=1
+[    0.191231] cpuidle: using governor menu
+[    0.191710] acpiphp: ACPI Hot Plug PCI Controller Driver version: 0.5
+[    0.193269] PCI: Fatal: No config space access function found
+[    0.194964] HugeTLB: registered 1.00 GiB page size, pre-allocated 0 pages
+[    0.195636] HugeTLB: 16380 KiB vmemmap can be freed for a 1.00 GiB page
+[    0.197178] HugeTLB: registered 2.00 MiB page size, pre-allocated 0 pages
+[    0.198740] HugeTLB: 28 KiB vmemmap can be freed for a 2.00 MiB page
+[    0.200145] ACPI: Added _OSI(Module Device)
+[    0.201142] ACPI: Added _OSI(Processor Device)
+[    0.202178] ACPI: Added _OSI(Processor Aggregator Device)
+[    0.203625] ACPI: 1 ACPI AML tables successfully acquired and loaded
+[    0.203710] ACPI: Interpreter enabled
+[    0.204588] ACPI: PM: (supports S0)
+[    0.205412] ACPI: Using IOAPIC for interrupt routing
+[    0.206585] PCI: Using host bridge windows from ACPI; if necessary, use "pci=nocrs" and report a bug
+[    0.207636] PCI: Using E820 reservations for host bridge windows
+[    0.209637] iommu: Default domain type: Translated
+[    0.210768] iommu: DMA domain TLB invalidation policy: lazy mode
+[    0.211828] SCSI subsystem initialized
+[    0.212800] pps_core: LinuxPPS API ver. 1 registered
+[    0.213969] pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+[    0.215651] PTP clock support registered
+[    0.217005] PCI: Using ACPI for IRQ routing
+[    0.217998] PCI: System does not support PCI
+[    0.219072] vgaarb: loaded
+[    0.219665] clocksource: Switched to clocksource kvm-clock
+[    0.222179] pnp: PnP ACPI init
+[    0.223008] pnp: PnP ACPI: found 2 devices
+[    0.225830] NET: Registered PF_INET protocol family
+[    0.227169] IP idents hash table entries: 4096 (order: 3, 32768 bytes, linear)
+[    0.229184] tcp_listen_portaddr_hash hash table entries: 256 (order: 0, 4096 bytes, linear)
+[    0.231165] Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
+[    0.232963] TCP established hash table entries: 2048 (order: 2, 16384 bytes, linear)
+[    0.234824] TCP bind hash table entries: 2048 (order: 4, 65536 bytes, linear)
+[    0.236652] TCP: Hash tables configured (established 2048 bind 2048)
+[    0.238324] UDP hash table entries: 256 (order: 2, 16384 bytes, linear)
+[    0.239940] UDP-Lite hash table entries: 256 (order: 2, 16384 bytes, linear)
+[    0.241677] NET: Registered PF_UNIX/PF_LOCAL protocol family
+[    0.243140] PCI: CLS 0 bytes, default 64
+[    0.244337] virtio-mmio: Registering device virtio-mmio.0 at 0xc0001000-0xc0001fff, IRQ 5.
+[    0.246411] virtio-mmio: Registering device virtio-mmio.1 at 0xc0002000-0xc0002fff, IRQ 6.
+[    0.248627] virtio-mmio: Registering device virtio-mmio.2 at 0xc0003000-0xc0003fff, IRQ 7.
+[    0.250851] clocksource: tsc: mask: 0xffffffffffffffff max_cycles: 0x233fd7ba1b0, max_idle_ns: 440795295779 ns
+[    0.253465] clocksource: Switched to clocksource tsc
+[    0.254709] platform rtc_cmos: registered platform RTC device (no PNP device found)
+2026-11-13T14:22:41.589827577 [anonymous-instance:fc_vcpu 0] vcpu: IO read @ 0x87:0x1 failed: Failed to find address range.
+[    0.256918] workingset: timestamp_bits=40 max_order=16 bucket_order=0
+[    0.259601] Key type cifs.spnego registered
+[    0.260652] Key type cifs.idmap registered
+[    0.261507] fuse: init (API version 7.45)
+[    0.262409] SGI XFS with security attributes, no debug enabled
+[    0.263936] 9p: Installing v9fs 9p2000 file system support
+[    0.276125] cryptd: max_cpu_qlen set to 1000
+[    0.289691] NET: Registered PF_ALG protocol family
+[    0.290614] xor: automatically using best checksumming function   avx       
+[    0.291952] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 249)
+[    0.294362] virtio-mmio virtio-mmio.0: error -16: can't request region for resource [mem 0xc0001000-0xc0001fff]
+[    0.296279] virtio-mmio virtio-mmio.0: probe with driver virtio-mmio failed with error -16
+[    0.297817] virtio-mmio virtio-mmio.1: error -16: can't request region for resource [mem 0xc0002000-0xc0002fff]
+[    0.299966] virtio-mmio virtio-mmio.1: probe with driver virtio-mmio failed with error -16
+[    0.301511] virtio-mmio virtio-mmio.2: error -16: can't request region for resource [mem 0xc0003000-0xc0003fff]
+[    0.303451] virtio-mmio virtio-mmio.2: probe with driver virtio-mmio failed with error -16
+[    0.305088] Serial: 8250/16550 driver, 4 ports, IRQ sharing disabled
+[    0.306495] 00:00: ttyS0 at I/O 0x3f8 (irq = 29, base_baud = 115200) is a 16550A
+2026-11-13T14:22:41.641385998 [anonymous-instance:fc_vcpu 0] vcpu: IO read @ 0x2f9:0x1 failed: Failed to find address range.
+2026-11-13T14:22:41.641405985 [anonymous-instance:fc_vcpu 0] vcpu: IO write @ 0x2f9:0x1 failed: Failed to find address range.
+2026-11-13T14:22:41.641417537 [anonymous-instance:fc_vcpu 0] vcpu: IO read @ 0x2f9:0x1 failed: Failed to find address range.
+2026-11-13T14:22:41.641428427 [anonymous-instance:fc_vcpu 0] vcpu: IO write @ 0x2f9:0x1 failed: Failed to find address range.
+2026-11-13T14:22:41.641438726 [anonymous-instance:fc_vcpu 0] vcpu: IO read @ 0x2f9:0x1 failed: Failed to find address range.
+2026-11-13T14:22:41.641449096 [anonymous-instance:fc_vcpu 0] vcpu: IO write @ 0x2f9:0x1 failed: Failed to find address range.
+2026-11-13T14:22:41.641519037 [anonymous-instance:fc_vcpu 0] vcpu: IO read @ 0x3e9:0x1 failed: Failed to find address range.
+2026-11-13T14:22:41.641532913 [anonymous-instance:fc_vcpu 0] vcpu: IO write @ 0x3e9:0x1 failed: Failed to find address range.
+2026-11-13T14:22:41.641543282 [anonymous-instance:fc_vcpu 0] vcpu: IO read @ 0x3e9:0x1 failed: Failed to find address range.
+2026-11-13T14:22:41.641553361 [anonymous-instance:fc_vcpu 0] vcpu: IO write @ 0x3e9:0x1 failed: Failed to find address range.
+2026-11-13T14:22:41.641563310 [anonymous-instance:fc_vcpu 0] vcpu: IO read @ 0x3e9:0x1 failed: Failed to find address range.
+2026-11-13T14:22:41.641573189 [anonymous-instance:fc_vcpu 0] vcpu: IO write @ 0x3e9:0x1 failed: Failed to find address range.
+2026-11-13T14:22:41.641618884 [anonymous-instance:fc_vcpu 0] vcpu: IO read @ 0x2e9:0x1 failed: Failed to find address range.
+2026-11-13T14:22:41.641632389 [anonymous-instance:fc_vcpu 0] vcpu: IO write @ 0x2e9:0x1 failed: Failed to find address range.
+2026-11-13T14:22:41.641642679 [anonymous-instance:fc_vcpu 0] vcpu: IO read @ 0x2e9:0x1 failed: Failed to find address range.
+2026-11-13T14:22:41.641652807 [anonymous-instance:fc_vcpu 0] vcpu: IO write @ 0x2e9:0x1 failed: Failed to find address range.
+2026-11-13T14:22:41.641670090 [anonymous-instance:fc_vcpu 0] vcpu: IO write @ 0x2e9:0x1 failed: Failed to find address range.
+[    0.310835] brd: module loaded
+[    0.314155] loop: module loaded
+[    0.314951] virtio_blk virtio0: 1/0/0 default/read/poll queues
+[    0.316653] virtio_blk virtio0: [vda] 8696 512-byte logical blocks (4.45 MB/4.25 MiB)
+2026-11-13T14:22:41.651453904 [anonymous-instance:fc_vcpu 0] [Block:root] notifying queues
+[    0.318687] virtio_blk virtio1: 1/0/0 default/read/poll queues
+[    0.320264] virtio_blk virtio1: [vdb] 262144 512-byte logical blocks (134 MB/128 MiB)
+2026-11-13T14:22:41.655061911 [anonymous-instance:fc_vcpu 0] [Block:writes] notifying queues
+[    0.322088] tun: Universal TUN/TAP device driver, 1.6
+[    0.323330] VFIO - User Level meta-driver version: 0.3
+[    0.324442] device-mapper: ioctl: 4.50.0-ioctl (2025-04-28) initialised: dm-devel@lists.linux.dev
+[    0.326938] xt_time: kernel timezone is -0000
+[    0.327815] IPVS: Registered protocols (TCP, UDP, SCTP, AH, ESP)
+[    0.328948] IPVS: Connection hash table configured (size=4096, memory=32Kbytes)
+[    0.330551] IPVS: ipvs loaded.
+[    0.331148] IPVS: [rr] scheduler registered.
+[    0.331953] IPVS: [wrr] scheduler registered.
+[    0.332768] IPVS: [lc] scheduler registered.
+[    0.333554] IPVS: [wlc] scheduler registered.
+[    0.334369] IPVS: [fo] scheduler registered.
+[    0.335228] IPVS: [ovf] scheduler registered.
+[    0.336061] IPVS: [lblc] scheduler registered.
+[    0.336894] IPVS: [lblcr] scheduler registered.
+[    0.337743] IPVS: [dh] scheduler registered.
+[    0.338552] IPVS: [sh] scheduler registered.
+[    0.339356] IPVS: [sed] scheduler registered.
+[    0.340177] IPVS: [nq] scheduler registered.
+[    0.340986] IPVS: [sip] pe registered.
+[    0.341831] Initializing XFRM netlink socket
+[    0.342707] NET: Registered PF_INET6 protocol family
+[    0.344206] Segment Routing with IPv6
+[    0.344936] In-situ OAM (IOAM) with IPv6
+[    0.345731] NET: Registered PF_PACKET protocol family
+[    0.346802] Bridge firewalling registered
+[    0.347574] 9pnet: Installing 9P2000 support
+[    0.348404] Key type dns_resolver registered
+[    0.349278] NET: Registered PF_VSOCK protocol family
+2026-11-13T14:22:41.684268883 [anonymous-instance:fc_vcpu 0] [Vsock:vsock] notifying queues
+2026-11-13T14:22:41.687306281 [anonymous-instance:fc_vcpu 0] Invalid MMIO read @ 0xfed803c0:0x4: Failed to find address range.
+2026-11-13T14:22:41.687327802 [anonymous-instance:fc_vcpu 0] Invalid MMIO read @ 0xfed803c0:0x4: Failed to find address range.
+[    0.354037] IPI shorthand broadcast: enabled
+[    0.356314] sched_clock: Marking stable (224469968, 130417598)->(430823197, -75935631)
+[    0.357878] registered taskstats version 1
+[    0.363338] Demotion targets for Node 0: null
+[    0.365028] alg: No test for fips(ansi_cprng) (fips_ansi_cprng)
+[    0.372092] check access for rdinit=/init failed: -2, ignoring
+[    0.372871] erofs (device vda): mounted with root inode @ nid 36.
+[    0.373542] VFS: Mounted root (erofs filesystem) readonly on device 254:0.
+[    0.374312] devtmpfs: mounted
+[    0.374964] Freeing unused decrypted memory: 2036K
+[    0.376345] Freeing unused kernel image (initmem) memory: 1288K
+[    0.377047] Write protecting the kernel read-only data: 18432k
+[    0.379019] Freeing unused kernel image (text/rodata gap) memory: 532K
+[    0.382182] Freeing unused kernel image (rodata/data gap) memory: 988K
+[    0.383335] Run /init as init process
+PRYX_KERNEL_SPIKE_FAILURE: device or resource busy
+[    1.389837] reboot: Restarting system
+[    1.390286] reboot: machine restart
+2026-11-13T14:22:42.726611559 [anonymous-instance:main] Vmm is stopping.
+2026-11-13T14:22:42.726654299 [anonymous-instance:main] Killing vCPU threads
+2026-11-13T14:22:42.726684100 [anonymous-instance:fc_vcpu 0] Requested a vCPU run with immediate_exit enabled. The operation was skipped
+2026-11-13T14:22:42.757928059 [anonymous-instance:main] Firecracker exiting successfully. exit_code=0

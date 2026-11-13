@@ -30,7 +30,7 @@ def main():
         if name == 'go':
             with tarfile.open(archive) as source:
                 source.extractall(destination, filter='data')
-        elif name == 'erofs':
+        elif name in {'erofs', 'zstd'}:
             subprocess.run(['dpkg-deb', '--extract', str(archive), str(destination)], check=True)
         else:
             raise ValueError('Unknown pinned experiment tool')

@@ -36,9 +36,22 @@ func probe() map[string]any {
 	if os.Getpid() != 1 {
 		panic("The guest experiment may run only as PID 1 inside the VM")
 	}
-	must(unix.Mount("devtmpfs", "/dev", "devtmpfs", 0, ""))
 	must(unix.Mount("proc", "/proc", "proc", 0, ""))
 	must(unix.Mount("sysfs", "/sys", "sysfs", 0, ""))
+	// The required published DEVTMPFS_MOUNT configuration mounts this before PID 1.
+	filesystem("/dev", unix.TMPFS_MAGIC)
+	mounts, err := os.ReadFile("/proc/self/mountinfo")
+	must(err)
+	devtmpfs := false
+	for _, mount := range strings.Split(string(mounts), "\n") {
+		fields := strings.Fields(mount)
+		if len(fields) > 5 && fields[4] == "/dev" && strings.Contains(mount, " - devtmpfs ") {
+			devtmpfs = true
+		}
+	}
+	if !devtmpfs {
+		panic("Kernel did not mount its required devtmpfs")
+	}
 	filesystem("/", unix.EROFS_SUPER_MAGIC_V1)
 	if err := os.WriteFile("/baseline", []byte("changed"), 0o600); err == nil {
 		panic("EROFS accepted a write")
