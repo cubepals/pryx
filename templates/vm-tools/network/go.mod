@@ -7,6 +7,7 @@ require (
 	github.com/containers/gvisor-tap-vsock v0.9.0
 	github.com/mdlayher/vsock v1.3.0
 	github.com/vishvananda/netlink v1.3.1
+	golang.org/x/sys v0.48.0
 )
 
 require (
@@ -29,7 +30,6 @@ require (
 	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa // indirect
 	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
 	gvisor.dev/gvisor v0.0.0-20260413194555-9680d69bf798 // indirect
 )

@@ -14,6 +14,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"os"
 	"os/exec"
 	"strconv"
@@ -25,15 +26,57 @@ import (
 	"github.com/containers/gvisor-tap-vsock/pkg/types"
 	"github.com/mdlayher/vsock"
 	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 )
+
+const requestTimeout = 2 * time.Second
+
+func stalledConnection(connection net.Conn) {
+	// Observe the real guest TCP socket before the existing deadline closes it. No packet,
+	// timeout or retry policy changes here; the syscall package owns the TCP_INFO layout.
+	owner, ok := connection.(syscall.Conn)
+	if !ok {
+		return
+	}
+	raw, err := owner.SyscallConn()
+	if err != nil {
+		log.Printf("Slow fixture connection observation: %v", err)
+		return
+	}
+	var info *unix.TCPInfo
+	var observationError error
+	err = raw.Control(func(fd uintptr) {
+		info, observationError = unix.GetsockoptTCPInfo(int(fd), unix.IPPROTO_TCP, unix.TCP_INFO)
+	})
+	if err == nil {
+		err = observationError
+	}
+	if err != nil {
+		log.Printf("Slow fixture connection observation: %v", err)
+		return
+	}
+	encoded, err := json.Marshal(map[string]any{"local": connection.LocalAddr().String(),
+		"remote": connection.RemoteAddr().String(), "tcpInfo": info})
+	if err == nil {
+		log.Printf("Slow fixture connection: %s", encoded)
+	}
+}
 
 func checkedGet(client *http.Client, url string, expected int64) (float64, error) {
 	started := time.Now()
-	response, err := client.Get(url)
+	var connection net.Conn
+	request, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return 0, err
+	}
+	trace := &httptrace.ClientTrace{GotConn: func(info httptrace.GotConnInfo) { connection = info.Conn }}
+	response, err := client.Do(request.WithContext(httptrace.WithClientTrace(request.Context(), trace)))
 	if err != nil {
 		return 0, err
 	}
 	defer response.Body.Close()
+	timer := time.AfterFunc(requestTimeout*3/4, func() { stalledConnection(connection) })
+	defer timer.Stop()
 	if response.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf("Network fixture returned %s", response.Status)
 	}
@@ -94,7 +137,7 @@ func measure(fixture experiment.Network) (map[string]any, error) {
 	} else {
 		return nil, fmt.Errorf("Unknown network fixture path %q", fixture.Mode)
 	}
-	client := &http.Client{Timeout: 2 * time.Second, Transport: &http.Transport{Proxy: nil}}
+	client := &http.Client{Timeout: requestTimeout, Transport: &http.Transport{Proxy: nil}}
 	deadline := time.Now().Add(20 * time.Second)
 	for {
 		if _, err := checkedGet(client, fixture.URL+experiment.NetworkHelloPath, int64(len(experiment.NetworkHello))); err == nil {
@@ -113,7 +156,7 @@ func measure(fixture experiment.Network) (map[string]any, error) {
 		if err := denied(client, "http://"+net.JoinHostPort(fixture.Gateway, strconv.Itoa(port))+networkfixture.ExposePath, http.StatusUnauthorized); err != nil {
 			return nil, err
 		}
-		direct := &http.Client{Timeout: 2 * time.Second, Transport: &http.Transport{
+		direct := &http.Client{Timeout: requestTimeout, Transport: &http.Transport{
 			DialContext: func(context.Context, string, string) (net.Conn, error) {
 				return vsock.Dial(vsock.Host, experiment.NetworkPort, nil)
 			},

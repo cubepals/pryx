@@ -91,6 +91,7 @@ jobs:
           "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-gvforwarder" github.com/containers/gvisor-tap-vsock/cmd/vm
           "$pryx_go" mod verify
       - name: Permit user namespaces on the positive comparison runner
+        id: network-prerequisites
         run: |
           # This disposable fixture compares a capability's positive path; product setup changes no host policy.
           if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
@@ -109,6 +110,7 @@ jobs:
             --work "$RUNNER_TEMP/vm-network-spike" \
             --output "$RUNNER_TEMP/vm-network-spike.json" | tee "$RUNNER_TEMP/vm-network-spike.log"
       - name: Prove vsock without host user namespaces or TUN
+        if: ${{ !cancelled() && steps.network-prerequisites.outcome == 'success' }}
         run: |
           pryx_userns_limit=$(cat /proc/sys/user/max_user_namespaces)
           pryx_tun_mode=$(stat -c '%a' /dev/net/tun)

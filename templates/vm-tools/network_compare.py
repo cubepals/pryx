@@ -148,6 +148,7 @@ def compare(args, report, save):
                                 tap, record = 'fc0', path / 'namespace.json'
                                 record.unlink(missing_ok=True)
                                 launcher = [str(args.inputs / 'pasta'), '--foreground', '--no-pidns', '-4',
+                                            '--debug', '--log-file', str(path / f'helper-{index:02}.log'),
                                             '--ns-ifname', 'uplink', '--address', fixture['device'] + '/' +
                                             str(ipaddress.ip_network(fixture['subnet']).prefixlen),
                                             '--gateway', fixture['gateway'], '--mac-addr', fixture['gatewayMac'],

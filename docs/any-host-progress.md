@@ -12,7 +12,7 @@ Only recorded CI evidence establishes completion; a local pass alone does not.
 | K22 | done except | `7963826182e3f8e9037aea17d4716df15086bd81` | Normal push [43075452804](https://github.com/cubepals/pryx/actions/runs/43075452804) and PR [43075462394](https://github.com/cubepals/pryx/actions/runs/43075462394), Any host [43075452782](https://github.com/cubepals/pryx/actions/runs/43075452782), Rootless engines [43075452793](https://github.com/cubepals/pryx/actions/runs/43075452793) and [43075462656](https://github.com/cubepals/pryx/actions/runs/43075462656), all green; supplementary Measure [43063939164](https://github.com/cubepals/pryx/actions/runs/43063939164) on source 87400f3 is also green | Full normal CI including actual rootful Docker, Wasm, two-node, integrations and recovery; all 15 host jobs; Podman lifecycle/attacks, install/repeat/upgrade/outage/recovery/purge; controller refusals, copy-bound guarantees and 30 hosted engine samples | Main/release prohibited; unchanged credentialed cases | Standard rootless Docker data-owner mapping with dependent positive lifecycle/timings; rootless Docker internal ingress/network-policy. Three approaches each recorded; both remain named refusals until their post-K27 second try | Supported scope complete; K23 started |
 | K23 | done | `5945724a4ac8fbc28610292d701ffa7e9bffc040` | Normal push [43233699289](https://github.com/cubepals/pryx/actions/runs/43233699289) and PR [43233712859](https://github.com/cubepals/pryx/actions/runs/43233712859), Any host [43233699231](https://github.com/cubepals/pryx/actions/runs/43233699231), Rootless engines [43233699487](https://github.com/cubepals/pryx/actions/runs/43233699487) and [43233712730](https://github.com/cubepals/pryx/actions/runs/43233712730), CodeQL [43233712847](https://github.com/cubepals/pryx/actions/runs/43233712847), all green | Signed fresh ordinary-user installation without engine; actual pinned upstream Python/Node paths and host glibc; both SDKs, state/charts/errors/interrupt/restart, MCP/CLI; browser screenshot/forwarded CDP and guarantee; thirty process and container samples per tool; default-Docker kernels and namespace/required-browser refusals; neighbour isolation, purge, Alpine relocation; full normal CI and all sixteen host jobs | Main/release prohibited; unchanged credentialed cases | None; corrected relocatable bundle is complete, with no binary rewriting or private tool glibc | Complete; begin K24 immediately |
 | K24 | done | `53e83505f823cf4b92aca2b4a952cf084c636f32` | Normal PR [43421825320](https://github.com/cubepals/pryx/actions/runs/43421825320) and all sixteen Any-host jobs [43421813961](https://github.com/cubepals/pryx/actions/runs/43421813961), green | Signed user install, real SDK/CLI desktop and HTTP SSH/wake, noVNC/expiry, Chromium sandbox and neighbour privacy, OpenSSH PTY/keys/leases, configured doctor/placement, 30 samples per tool, unchanged container budgets, full normal and host matrix | Main/release prohibited; unchanged credentialed cases | None | Complete; begin K25 |
-| K25 | in progress | — | Kernel spike [43442622901](https://github.com/cubepals/pryx/actions/runs/43442622901), source 9402ef5, green; complete milestone proof pending | Verified published inputs, thirty ordinary-user KVM EROFS/overlay/ext4/vsock boots and disk-retaining reboot | Network comparison and production VM bundle/backend/lifecycle/confinement/timings; no local KVM | None | Prove both rootless network candidates in CI, then build the VM tier |
+| K25 | in progress | — | Kernel [43442622901](https://github.com/cubepals/pryx/actions/runs/43442622901) and thirty-per-path comparison [43450896770](https://github.com/cubepals/pryx/actions/runs/43450896770), green; repeated pasta stall retained | Verified published inputs, thirty ordinary-user KVM EROFS/overlay/ext4/vsock boots, disk reboot, both network cohorts and management denials | Host-prerequisite case, pasta stall investigation, production VM bundle/backend/lifecycle/confinement/timings; no local KVM | None | Finalize network choice with prerequisite proof, then build the VM tier |
 | K26 | not started | — | — | — | All | — | Complete brief after K25 |
 | K27 | not started | — | — | — | All | — | Complete brief after K26, then revisit every parked piece |
 
@@ -2271,3 +2271,23 @@ job when publication is authorized. That job has not run in this task.
   its reduced count is enabled only after checking the actual missing prerequisites.
   Also observe pasta helper RSS before the monitor acknowledgement, outside the
   measurement clock. Finalize the production network choice after this proof.
+- Repeated source 0b8afec comparison
+  [43452903447](https://github.com/cubepals/pryx/actions/runs/43452903447/job/131979462700)
+  passes thirty vsock guests and thirteen pasta guests, then the fourteenth
+  pasta bulk transfer stalls after 1,890,748 of 16,777,216 bytes and reaches
+  the unchanged two-second client deadline. Preserve its full partial report,
+  failed serial and verified artifact provenance. The prerequisite case did
+  not run because the earlier step failed. The RSS observation works in the
+  thirteen successful pasta cases; no cause for the transfer stall is established.
+- Keep the exact client deadline, body length, clocks, DNS assertions, both
+  management denials and two thirty-sample cohorts. Add pasta's own bounded
+  debug log plus a read-only guest TCP_INFO observation before the existing
+  deadline, importing the syscall library's layout/constants. A real local HTTP
+  server deliberately stalls a partially delivered response: the same two-second
+  client fails while the real kernel TCP observation arrives first. Go builds,
+  vet and cache verification pass; Python compilation, complete actionlint with
+  ShellCheck, docs and whitespace pass. This is diagnosis, not a claimed repair.
+- Run the independently useful missing-userns/TUN case even after a comparison
+  failure, once its actual positive runner setup succeeded; retain the original
+  failure in the aggregate. No assertion is skipped, and its single guest remains
+  clearly separate from the two original thirty-sample cohorts. No piece is parked.

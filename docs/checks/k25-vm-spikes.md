@@ -68,3 +68,11 @@ namespace. These tests do not prove production monitor confinement or hostname e
 Earlier setup, interface and DNS failures also remain recorded. Both candidates now work;
 the separate vsock test with host user namespaces and TUN unavailable is the remaining
 prerequisite experiment before the production network choice is finalized.
+
+A repeat on source `0b8afec` passes all thirty vsock guests and thirteen pasta guests, then the
+fourteenth pasta bulk response stalls after 1,890,748 bytes and hits the unchanged two-second
+client deadline. Its complete partial report and serial log remain under `measurements/k25/`.
+That stall remains unresolved. The next run adds bounded upstream pasta logs and real guest
+TCP_INFO observation before the same deadline; it changes neither the deadline nor the transfer.
+The separate missing-prerequisite case runs independently of the comparison's outcome, while
+the aggregate still fails if any original comparison assertion fails.
