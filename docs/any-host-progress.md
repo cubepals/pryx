@@ -11,7 +11,7 @@ Only recorded CI evidence establishes completion; a local pass alone does not.
 | K21 | done | `de3ef9dc13e955e96c2f7c1e530f800069ff50c0` | Normal CI [42885151433](https://github.com/cubepals/pryx/actions/runs/42885151433), Any host [42885151332](https://github.com/cubepals/pryx/actions/runs/42885151332), Measure [42885520235](https://github.com/cubepals/pryx/actions/runs/42885520235), all green | All normal jobs and aggregate; all thirteen host jobs; both complete measurement jobs, including historical budgets and three-tier collectors | Production main/release prohibited; unchanged credentialed cases | None | None |
 | K22 | done except | `7963826182e3f8e9037aea17d4716df15086bd81` | Normal push [43075452804](https://github.com/cubepals/pryx/actions/runs/43075452804) and PR [43075462394](https://github.com/cubepals/pryx/actions/runs/43075462394), Any host [43075452782](https://github.com/cubepals/pryx/actions/runs/43075452782), Rootless engines [43075452793](https://github.com/cubepals/pryx/actions/runs/43075452793) and [43075462656](https://github.com/cubepals/pryx/actions/runs/43075462656), all green; supplementary Measure [43063939164](https://github.com/cubepals/pryx/actions/runs/43063939164) on source 87400f3 is also green | Full normal CI including actual rootful Docker, Wasm, two-node, integrations and recovery; all 15 host jobs; Podman lifecycle/attacks, install/repeat/upgrade/outage/recovery/purge; controller refusals, copy-bound guarantees and 30 hosted engine samples | Main/release prohibited; unchanged credentialed cases | Standard rootless Docker data-owner mapping with dependent positive lifecycle/timings; rootless Docker internal ingress/network-policy. Three approaches each recorded; both remain named refusals until their post-K27 second try | Supported scope complete; K23 started |
 | K23 | done | `5945724a4ac8fbc28610292d701ffa7e9bffc040` | Normal push [43233699289](https://github.com/cubepals/pryx/actions/runs/43233699289) and PR [43233712859](https://github.com/cubepals/pryx/actions/runs/43233712859), Any host [43233699231](https://github.com/cubepals/pryx/actions/runs/43233699231), Rootless engines [43233699487](https://github.com/cubepals/pryx/actions/runs/43233699487) and [43233712730](https://github.com/cubepals/pryx/actions/runs/43233712730), CodeQL [43233712847](https://github.com/cubepals/pryx/actions/runs/43233712847), all green | Signed fresh ordinary-user installation without engine; actual pinned upstream Python/Node paths and host glibc; both SDKs, state/charts/errors/interrupt/restart, MCP/CLI; browser screenshot/forwarded CDP and guarantee; thirty process and container samples per tool; default-Docker kernels and namespace/required-browser refusals; neighbour isolation, purge, Alpine relocation; full normal CI and all sixteen host jobs | Main/release prohibited; unchanged credentialed cases | None; corrected relocatable bundle is complete, with no binary rewriting or private tool glibc | Complete; begin K24 immediately |
-| K24 | in progress | — | Latest source f07c8c6: [43416258168](https://github.com/cubepals/pryx/actions/runs/43416258168) producer green, installed bundle running; normal core/contract/workspaces green | Real headful click/text, noVNC/RFB/expiry, Chromium sandbox and neighbour privacy; native SSH command/PTY/host-key and agent lease revocation/expiry; full hosted Rust/Docker, local pinned-Bun check | Complete installed CLI/Python SSH, thirty-sample cohorts and final normal/host aggregates | None | Finish installed acceptance and measurements, then final green CI; preserve container behavior and budgets |
+| K24 | in progress | — | Publication fix 53e8350 producer green in [43421813961](https://github.com/cubepals/pryx/actions/runs/43421813961), bundle building; f07c8c6 normal CI green, installed desktop cohort fails | Real headful input/noVNC/privacy, OpenSSH command/PTY/lease lifecycle, installed CLI and both Python SSH modes, HTTP wake, full hosted Rust/Docker and local pinned-Bun checks | Complete desktop/SSH timing cohorts, corrected installed/default-image continuation and final normal/host aggregates | None | Prove listener/metadata publication fix in fresh hosted acceptance; finish all thirty samples and retain container budgets |
 | K25 | not started | — | — | — | All | — | Complete brief after K24 |
 | K26 | not started | — | — | — | All | — | Complete brief after K25 |
 | K27 | not started | — | — | — | All | — | Complete brief after K26, then revisit every parked piece |
@@ -1971,3 +1971,32 @@ job when publication is authorized. That job has not run in this task.
   store-loss recovery. This remains baseline proof, not the corrected desktop
   publication sequence's final result. Latest implementation and checkpoint
   installed jobs remain active and must retain their own outcomes.
+- Incremental-retention source f07c8c6 installed job
+  [131859900624](https://github.com/cubepals/pryx/actions/runs/43416258168/job/131859900624)
+  again passes every functional desktop/SSH SDK, CLI and wake case, then fails
+  the second desktop timing sample with file_failed/404 and ENOENT. Its verified
+  artifact now retains all thirty browser, thirty Python, thirty JavaScript and
+  one desktop observation. Preserve partial-process-startup-f07c8c6.json and
+  partial-provenance-f07c8c6.json; no SSH timing cohort ran and the failed job is
+  not completion. This narrows the missing-file failure to native desktop startup.
+- The metadata publication regression also passes on the machine's exact pinned
+  Node 24.22.1. Running the original c4afa94 publication sequence through that
+  same real listener/second-process control fails at the expected missing metadata
+  assertion. Fresh source 53e8350 producer is running, after its portable control.
+- Inspect completed jobs (none failing) before canceling superseded c4afa94
+  workflows 43419556297, 43419556330 and 43419567404 plus f07c8c6 push CI
+  43416258410. Retain f07c8c6 PR CI and both completed installed failures for
+  evidence; cancellations are not passing aggregates. Latest 53e8350 workflows
+  take the released runner capacity.
+- Publication source 53e8350 has green producer
+  [131873383538](https://github.com/cubepals/pryx/actions/runs/43421813961/job/131873383538).
+  Its portable discovery passes three cases with six explicit asset skips, then
+  real confined tools, all 27 headful observations, VNC expiry, Chromium's own
+  sandbox, every neighbour denial, and OpenSSH command/PTY/key-memory checks pass.
+  The initial nine-case portable discovery takes 5.328 seconds on that runner;
+  it adds no ordinary PR execution or new job. Corrected signed bundle
+  131880099054 is building; complete timing and installed product proof remain.
+- f07c8c6 PR CI
+  [43416268136](https://github.com/cubepals/pryx/actions/runs/43416268136)
+  finishes completely green, including full deployment/integration/recovery.
+  Keep its failed installed-native report separate from that normal-CI success.

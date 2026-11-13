@@ -1,0 +1,59 @@
+{
+  "source": "f07c8c607cda9265c95707b8e645691c4ec301f3",
+  "run": 43416258168,
+  "job": 131859900624,
+  "url": "https://github.com/cubepals/pryx/actions/runs/43416258168/job/131859900624",
+  "jobConclusion": "failure",
+  "artifact": {
+    "id": 14034890969,
+    "name": "installed-native-tools",
+    "zipSha256": "dff1a3de876f16589c65eca226c705c65d97f37ccf63d5db51a764a232503202"
+  },
+  "retained": {
+    "native-process-measurements.json": {
+      "sha256": "9ed13bb70996ca005168b01f967dde2edbadfe49b5b688f72fbb541357cf951d",
+      "localFile": "partial-process-startup-f07c8c6.json"
+    },
+    "native-user-acceptance.log": {
+      "sha256": "8d9a1f7c2a1d02fdebf787e490068d925ff4ab60b1ede1983a3434e52c44c513"
+    }
+  },
+  "summary": {
+    "browser": {
+      "n": 30,
+      "p50Ms": 8956.006744999991,
+      "p90Ms": 9011.124543999991
+    },
+    "python": {
+      "n": 30,
+      "p50Ms": 10921.585560999927,
+      "p90Ms": 11219.58108100004
+    },
+    "javascript": {
+      "n": 30,
+      "p50Ms": 7973.812860999955,
+      "p90Ms": 8796.97100400005
+    },
+    "desktop": {
+      "n": 1,
+      "p50Ms": 9112.044702999992,
+      "p90Ms": 9112.044702999992
+    }
+  },
+  "completeCohorts": false,
+  "failure": {
+    "cohort": "desktop",
+    "completedSamples": 1,
+    "nextSampleFailed": 2,
+    "code": "file_failed",
+    "status": 404,
+    "message": "No such file or directory (os error 2)"
+  },
+  "observedFunctional": {
+    "bothSdkDesktopInputScreenshotNovnc": true,
+    "typescriptSshCommandAndHttpWake": true,
+    "installedCliSsh": true,
+    "bothPythonSshModes": true
+  },
+  "scope": "A failed installed-product job, not milestone completion. The incremental collector retains all ninety browser/kernel samples and one desktop sample; the next desktop screenshot fails. No SSH timing cohort ran. A separately reproduced listener-before-metadata race is corrected in 53e8350 and still requires fresh hosted proof."
+}
