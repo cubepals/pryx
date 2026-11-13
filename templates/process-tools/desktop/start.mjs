@@ -143,6 +143,6 @@ server.on('upgrade', (request, socket, head) => {
   socket.on('close', () => { clearTimeout(expiry); upstream.destroy() })
   upstream.on('close', () => socket.destroy())
 })
+writeFileSync(join(config.scratch, 'desktop-ready.json'), JSON.stringify({ display: environment.DISPLAY, xauthority: environment.XAUTHORITY, uid: process.getuid() }), { mode: 0o600 })
 server.listen({ path: '\0' + config.address })
 phase('serve-desktop')
-writeFileSync(join(config.scratch, 'desktop-ready.json'), JSON.stringify({ display: environment.DISPLAY, xauthority: environment.XAUTHORITY, uid: process.getuid() }), { mode: 0o600 })

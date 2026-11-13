@@ -1947,3 +1947,27 @@ job when publication is authorized. That job has not run in this task.
   Both current contract/workspace jobs are green. Latest bundle 131859900624
   is building; earlier a421236 bundle 131852252855 has reached signed-user
   native acceptance. Neither installed outcome nor aggregate is inferred.
+- Installed a421236 job
+  [131852252855](https://github.com/cubepals/pryx/actions/runs/43414083235/job/131852252855)
+  proves all functional cases, including the corrected installed CLI SSH command,
+  both Python SSH modes, actual HTTP-edge wake, both SDK desktop input and
+  noVNC. It later fails a screenshot startup cohort with file_failed/404 and
+  ENOENT. Its final-only collector retains no raw samples; do not infer completed
+  cohorts from elapsed time. Retain installed-a421236.json with the downloaded
+  artifact's verified SHA-256. Default-image and host continuation are skipped.
+- Independently reproduce a desktop startup race using the actual committed
+  adapter publication sequence and a second real Node process: the private
+  listener accepts a connection before desktop-ready.json exists. Agent startup
+  uses that connection as readiness, then immediately opens the missing metadata.
+  Write complete metadata before listen. The retained portable regression fails
+  against the old sequence and passes the correction on Node 22.23.4; the existing
+  producer suite will run it before real pinned-Node/headful product acceptance.
+  Local Python discovery finds nine cases: three pass and six retain their
+  existing asset-based skips. Node syntax and whitespace pass. No deadline or assertion is relaxed,
+  no job or gate is added, and measured local regression cost is under a second.
+- Baseline a421236 PR CI
+  [43414091255](https://github.com/cubepals/pryx/actions/runs/43414091255)
+  is completely green, including Wasm, two-node, upstream integrations and
+  store-loss recovery. This remains baseline proof, not the corrected desktop
+  publication sequence's final result. Latest implementation and checkpoint
+  installed jobs remain active and must retain their own outcomes.
