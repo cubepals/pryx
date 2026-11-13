@@ -67,6 +67,11 @@ pub fn scope() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// The monitor uses an exact filesystem policy, then inherits the ordinary dangerous-syscall denials.
+pub(crate) fn monitor() -> Result<(), Box<dyn std::error::Error>> {
+    filter::apply(false)
+}
+
 pub fn enter(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
     enter_variant(policy, false, false, false)
 }

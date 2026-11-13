@@ -2685,3 +2685,29 @@ job when publication is authorized. That job has not run in this task.
 - Reclaim unused root-package build variants with cargo clean after their checks complete:
   target output shrinks from 11 GiB to 5.9 GiB and free workspace disk rises to 9.1 GiB.
   Keep active inputs and current helper executables; no source or user data is removed.
+
+- K25 monitor launch checkpoint: exact Landlock read/write grants and the existing process
+  syscall policy surround the ordinary-user monitor; extra rules deny host signals, limit/
+  scheduler changes and non-Unix sockets. Root must invoke the unchanged jailer with fixed
+  non-root IDs. Preserve its own seccomp filter. A kernel lease lives on stdin because the
+  pinned jailer closes every inherited descriptor above stdio. A second filter prevents
+  closing, overwriting, unlocking or setting close-on-exec on that lease; its path is outside
+  all writable grants. Parent identity is checked before launch. No VM tier is advertised.
+- Actual local host-process acceptance passes file/signal/network/lease-release denials,
+  permitted private writes, competing-launch refusal and lease release only after process
+  exit (0.04 s). This is not a substitute for Firecracker/jailer/KVM proof. Full local Rust
+  has 496 passes, the unchanged IPv6 EAFNOSUPPORT failure and 33 existing ignored cases;
+  strict root/helper Clippy, fmt, Python compilation, actionlint and static-musl agent build
+  pass. Existing KVM acceptance now requires this launcher and tests its lease around each
+  boot/exit. Estimated cost is under one added PR second and under one optional-job second.
+  The root jailer launch path is implemented but has not executed here or been proved in CI.
+- Read both new VM failures: cabbc97 run 43491406115/job 132113238299 and 6df0993 run
+  43492477562/job 132116968546. Their bundle step cannot find the independent workspace’s
+  static helper: set the build step’s CARGO_TARGET_DIR explicitly to the shared root target.
+  Do not relax static verification. In 6df0993 the valid shutdown acknowledgement succeeds,
+  but the guest kernel halts instead of exiting the monitor: its retained serial says power
+  off is unavailable (PM is disabled). Artifact 14070876767 has verified SHA-256
+  f6fc50da71163a803dd28a90ca15be26d0df338ab7d72da2f26b0a5c63b9eb3c. Its proof line is
+  also interrupted by the kernel console. Next drain the signed observation and use the
+  same reboot path already proved by the minimal kernel spike, preserving the disk checks
+  and fifteen-second deadline. Neither failed run establishes guest lifecycle or bundle proof.

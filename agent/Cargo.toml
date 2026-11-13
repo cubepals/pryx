@@ -22,7 +22,7 @@ vsock = { version = "=0.5.5", optional = true }
 futures-util = { version = "0.3", default-features = false, features = ["sink"], optional = true }
 bytes = { version = "1", optional = true }
 uuid = { version = "1", features = ["v4"], optional = true }
-rustix = { version = "1", features = ["fs", "process", "thread", "mount", "system"], optional = true }
+rustix = { version = "1", features = ["fs", "process", "thread", "mount", "system", "stdio"], optional = true }
 portable-pty = { version = "0.9", optional = true }
 notify = { version = "8", optional = true }
 procfs = { version = "0.18", default-features = false, optional = true }

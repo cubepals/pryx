@@ -21,6 +21,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if arguments.first().is_some_and(|a| a == pryx_agent::vm_boot::AGENT_MODE) {
         return pryx_agent::vm_init::agent(&arguments[1..]);
     }
+    if arguments.first().is_some_and(|a| a == pryx_agent::vm_monitor::MODE) {
+        return pryx_agent::vm_monitor::launch();
+    }
     let native_bootstrap = arguments.first().is_some_and(|a| a.starts_with("--") && a != "--version");
     let mappings = if native_bootstrap { pryx_agent::fuse_namespace::prepare()? } else { None };
     // Images run as the same sandbox user. Prevent their processes from reading the agent's

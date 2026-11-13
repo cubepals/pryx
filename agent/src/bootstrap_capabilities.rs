@@ -36,6 +36,10 @@ pub struct Capabilities {
     pub vm_network_program: String,
     #[serde(default)]
     pub vm_packet_program: String,
+    #[serde(default)]
+    pub vm_monitor_version: u16,
+    #[serde(default)]
+    pub vm_monitor_mode: String,
 }
 
 pub fn probe() -> Capabilities {
@@ -53,5 +57,7 @@ pub fn probe() -> Capabilities {
         vm_init_mode: crate::vm_boot::INIT_MODE.into(),
         vm_network_program: crate::vm_boot::NETWORK_PROGRAM.into(),
         vm_packet_program: crate::vm_boot::PACKET_PROGRAM.into(),
+        vm_monitor_version: crate::vm_monitor::VERSION,
+        vm_monitor_mode: crate::vm_monitor::MODE.into(),
     }
 }

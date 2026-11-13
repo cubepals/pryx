@@ -9,6 +9,7 @@ use pryx_agent::{
     contract::{AGENT_PORT, IDEMPOTENCY_HEADER},
     process::{Command as GuestCommand, Start},
     vm_boot::{self, Boot, Network},
+    vm_monitor::{self, Plan, Role},
     vm_observation::{self, Proof},
     vm_shutdown,
 };
@@ -18,6 +19,7 @@ use serde_json::{Value, json};
 use std::{
     fs,
     net::Ipv4Addr,
+    os::unix::fs::DirBuilderExt,
     path::{Path, PathBuf},
     process::Stdio,
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -345,18 +347,49 @@ async fn boot(
     });
     let serial_path = directory.join(format!("boot{round}.serial.log"));
     let serial = fs::File::create(&serial_path).unwrap();
-    let mut monitor = Command::new(input("PRYX_VM_MONITOR"))
-        .arg("--api-sock")
-        .arg(&api)
-        .arg("--config-file")
-        .arg(&config_path)
+    let locks = directory.parent().unwrap().join("monitor-locks");
+    match fs::DirBuilder::new().mode(0o700).create(&locks) {
+        Ok(()) => (),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => (),
+        Err(error) => panic!("Create monitor lease directory: {error}"),
+    }
+    let lease_path = locks.join(format!("{}.lock", directory.file_name().unwrap().to_str().unwrap()));
+    let mut read = vec![input("PRYX_VM_KERNEL"), bootstrap.join("bootstrap.erofs"), config_path.clone()];
+    read.extend(image.layers.iter().cloned());
+    let plan = Plan {
+        program: input("PRYX_VM_MONITOR"),
+        arguments: vec![
+            "--api-sock".into(),
+            api.display().to_string(),
+            "--config-file".into(),
+            config_path.display().to_string(),
+        ],
+        directory: directory.into(),
+        lock: lease_path.clone(),
+        parent: std::process::id(),
+        read,
+        write: vec![writes.into()],
+        role: Role::Ordinary,
+    };
+    let mut monitor = Command::new(input("PRYX_VM_HOST_LAUNCHER"))
+        .arg(vm_monitor::MODE)
+        .stdin(Stdio::piped())
         .stdout(serial.try_clone().unwrap())
         .stderr(serial)
         .kill_on_drop(true)
         .spawn()
         .unwrap();
+    let mut launcher = monitor.stdin.take().unwrap();
+    launcher.write_all(&serde_json::to_vec(&plan).unwrap()).await.unwrap();
+    launcher.shutdown().await.unwrap();
+    drop(launcher);
     let guest = Guest { channel, client: input("PRYX_VM_AGENT_CLIENT"), token: token.clone() };
     guest.ready().await;
+    let lease = fs::OpenOptions::new().read(true).write(true).open(&lease_path).unwrap();
+    assert_eq!(
+        rustix::fs::flock(&lease, rustix::fs::FlockOperation::NonBlockingLockExclusive).unwrap_err(),
+        rustix::io::Errno::WOULDBLOCK
+    );
     tokio::time::timeout(Duration::from_secs(1), sender).await.unwrap().unwrap();
     let kernel = exercise_guest(&guest, directory, round, uid, network_fixture.as_ref(), &bootstrap_metadata).await;
     let other_nonce = uuid::Uuid::new_v4().simple().to_string();
@@ -392,6 +425,8 @@ async fn boot(
     assert_eq!(status, StatusCode::ACCEPTED);
     let status = tokio::time::timeout_at(deadline, monitor.wait()).await.expect("VM did not power off").unwrap();
     assert!(status.success());
+    rustix::fs::flock(&lease, rustix::fs::FlockOperation::NonBlockingLockExclusive).unwrap();
+    drop(lease);
     if let Some(mut fixture) = network_fixture {
         fixture.proxy.kill().await.unwrap();
     }
@@ -401,6 +436,7 @@ async fn boot(
     let check = check.arg("-f").arg("-n").arg(writes).output().unwrap();
     assert!(check.status.success(), "Stopped VM disk failed read-only integrity check");
     json!({"round": round, "kernel": kernel, "guestUid": uid, "signedCleanShutdown": true,
+        "monitorConfined": true, "monitorLeaseHeldUntilExit": true,
         "authenticatedInitShutdown": true, "shutdownReplayRefused": true,
         "persistentFile": true, "hostFileDenied": true, "hostSignalDenied": true,
         "networked": networked, "dhcpDnsHttpAndManagementDenial": networked})
@@ -421,7 +457,7 @@ async fn actual_agent_boots_both_oci_images_and_reboots_synced_disks() {
     for (index, input) in inputs.iter().enumerate() {
         let image = images.prepare(input["reference"].as_str().unwrap(), Duration::from_secs(120)).await.unwrap();
         let directory = work.join(format!("image{index}"));
-        fs::create_dir(&directory).unwrap();
+        fs::DirBuilder::new().mode(0o700).create(&directory).unwrap();
         let writes = directory.join("writes.ext4");
         fs::File::create_new(&writes).unwrap().set_len(512 * 1024 * 1024).unwrap();
         assert!(tools.builder("mke2fs").args(["-q", "-F", "-t", "ext4"]).arg(&writes).status().unwrap().success());
