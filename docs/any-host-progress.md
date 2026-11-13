@@ -1916,3 +1916,14 @@ job when publication is authorized. That job has not run in this task.
   lint/type/generated-schema/docs/release stages pass. Current a421236 producer
   131847490561 is green and its installed continuation is running. The mapped
   geometry correction still requires its own hosted proof.
+- Preserve installed timing evidence after each validated sample, before teardown,
+  instead of only after all five cohorts finish. A later failure now retains
+  completed observations in the existing always-uploaded report. Keep the same
+  report shape, timer boundaries, cleanup behavior and thirty-sample assertions;
+  partial arrays never count as a complete cohort. No CI job, gate or measurable
+  execution cost is added. Current full local checks are running.
+- The incremental-retention change passes the complete pinned-Bun workspace
+  check: 437 tests, one existing skip, 8,415 assertions with real PostgreSQL,
+  including all lint/type/generated-contract/docs/release checks. A separate
+  final typecheck and whitespace check pass. Installed cohorts remain pending
+  hosted execution; no partial or earlier-source result is promoted to completion.

@@ -258,6 +258,14 @@ if (browserOn) {
     command,
     cli: installed.paths.cli,
   })
+  const measurementsPath = process.env.PRYX_NATIVE_MEASUREMENTS
+  assert(measurementsPath)
+  const retainStartupSamples = () => {
+    writeFileSync(
+      measurementsPath,
+      `${JSON.stringify({ uid: process.getuid?.(), preset: 'user', isolation: 'process', architecture: host.architecture, hostCLibrary: host.cLibrary, landlockAbi: host.landlockAbi, unit: 'ms', point: 'create-to-first-image', samplePoints: { ssh: 'create-to-command' }, samples }, null, 2)}\n`,
+    )
+  }
   for (const kind of ['browser', 'python', 'javascript', 'desktop', 'ssh'] as const) {
     samples[kind] = []
     for (let sample = 0; sample < 30; sample++) {
@@ -273,15 +281,11 @@ if (browserOn) {
           png((await kernel.run(chart[kind])).png)
         }
         samples[kind].push(performance.now() - started)
+        retainStartupSamples()
       } finally {
         await box.delete()
       }
     }
     assert.equal(samples[kind].length, 30)
   }
-  assert(process.env.PRYX_NATIVE_MEASUREMENTS)
-  writeFileSync(
-    process.env.PRYX_NATIVE_MEASUREMENTS,
-    `${JSON.stringify({ uid: process.getuid?.(), preset: 'user', isolation: 'process', architecture: host.architecture, hostCLibrary: host.cLibrary, landlockAbi: host.landlockAbi, unit: 'ms', point: 'create-to-first-image', samplePoints: { ssh: 'create-to-command' }, samples }, null, 2)}\n`,
-  )
 }
