@@ -3028,3 +3028,24 @@ job when publication is authorized. That job has not run in this task.
   reports three existing length warnings outside that daemon gate. Normal strict workspace
   Clippy/fmt pass; full local Rust remains 502 passes, one known IPv6 failure and 34 ignored.
   CI must confirm the complete Structure gate. Continue stopped-VM node file APIs next.
+
+
+- K25 trusted file-service preparation: add a parser-advertised guest mode exposing only the
+  existing authenticated read/write/list/stat handlers and health. Refuse image layers, network,
+  workload commands and spare forwarding. Keep service logs in guest tmpfs; do not start tools,
+  entrypoints or the persistent telemetry/ports reaper. Actual local route acceptance streams
+  more than the JSON request limit, checks traversal/authentication and command-route refusals,
+  and preserves existing port metadata. Host stopped-disk/session integration is next; no public
+  VM availability is announced by this checkpoint.
+- Full local Rust ran every target: 503 passes, 34 ignored, the recorded IPv6 fixture failure
+  and a Wasm immediate-listener readiness failure (running guest process, no observed listener
+  within the unchanged deadline). Preserve that result; its isolated recheck is pending. Both
+  strict Clippy modes, fmt and whitespace checks pass. Real file-only boot remains CI work.
+- Source eabb37a VM run 43528855604/job 132241251645 is green: eight runtime boots in 38.47 s
+  prove both images, live-monitor copy refusal, copy-held boot refusal, unchanged metadata poll
+  activity, cold wake, independent forks and signed quick completion. Six component boots and
+  bundle/actual-filesystem acceptance also pass. Short summary: checks/measurements/k25/
+  copy-lease-eabb37a.json. Normal Structure/aggregate remains pending; scanner stays at eighteen
+  addressed findings. Keep K25 in progress.
+- Extend the continuation instruction through K28, K29 and K30, after K27 and parked-piece
+  second attempts, merging origin/main when those briefs are reached. No pull request is opened.

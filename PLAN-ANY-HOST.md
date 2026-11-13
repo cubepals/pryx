@@ -1,6 +1,6 @@
-# Running K19 to K27 unattended
+# Running K19 to K30 unattended
 
-How one task takes the any-host plan (docs/any-host.md) from K19 to K27 with nobody watching, for
+How one task takes the any-host plan (docs/any-host.md) from K19 to K30 with nobody watching, for
 as many days as it needs. A task is started with one line: "Do what PLAN-ANY-HOST.md says." A task
 that stops is started again with the same line and continues where the files say it was.
 
@@ -61,8 +61,10 @@ Never block yourself
   it works and CI proves it. In K23 the relocatable bundle and ordinary-user browser/Python/
   Node kernels are the main deliverable, as explicitly corrected by the user.
 - After K27, return to every parked piece once, with what was learned since.
-- Stop only when every milestone is done or done except, and every parked piece has had its
-  second try.
+- After K27 and the second attempt at every parked piece, fetch main and merge origin/main
+  into this branch (never rebase), then execute PLAN-K28.md, PLAN-K29.md and PLAN-K30.md in order.
+- Stop only when every milestone through K30 is done or done except, and every parked piece
+  has had its second try.
 
 Never, whatever it would unblock
 

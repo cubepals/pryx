@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 pub const PROBE: &str = "bootstrap-probe";
 pub const BROWSER_ARGUMENT: &str = "browser-sandbox";
 pub const VSOCK_ARGUMENT: &str = "vm-vsock";
+pub const VM_FILES_ARGUMENT: &str = "vm-files-only";
+pub const VM_FILES_VERSION: u16 = 1;
 
 #[derive(Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -46,6 +48,8 @@ pub struct Capabilities {
     pub vm_stream_port_base: u32,
     #[serde(default)]
     pub vm_stream_version: u16,
+    #[serde(default)]
+    pub vm_files_version: u16,
 }
 
 pub fn probe() -> Capabilities {
@@ -68,5 +72,6 @@ pub fn probe() -> Capabilities {
         vm_service_port_base: crate::vm_boot::SERVICE_PORT_BASE,
         vm_stream_port_base: crate::vm_boot::STREAM_PORT_BASE,
         vm_stream_version: crate::vm_boot::STREAM_VERSION,
+        vm_files_version: VM_FILES_VERSION,
     }
 }

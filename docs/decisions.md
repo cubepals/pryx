@@ -1081,3 +1081,5 @@
 - Copy VM disks only after orderly stop, staged recovery and independent read-only fsck, while holding the monitor lifetime lease; keep snapshot/export work owned across cancellation, reserve its running memory, and cold-resume only while execution and fencing authority remain valid.
 
 - Split SDK monitor configuration, private guest bootstrap and disk publication into separate functions; preserve launch ordering and all checks while meeting the existing daemon function-length gate without changing its baseline.
+
+- Read stopped VM data in a dedicated authenticated file-only guest with no image layers, network, entrypoint, tools, spare ports or persistent telemetry; reuse existing descriptor-relative handlers and advertise parser support in verified bundle metadata before host code may select it.

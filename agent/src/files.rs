@@ -33,6 +33,13 @@ struct Move {
     to: String,
 }
 
+pub(crate) fn data_routes() -> Router<Arc<Agent>> {
+    Router::new()
+        .route("/_pryx/files/content", get(read).put(write).layer(DefaultBodyLimit::disable()))
+        .route("/_pryx/files/list", get(list))
+        .route("/_pryx/files/stat", get(stat))
+}
+
 pub(crate) fn routes() -> Router<Arc<Agent>> {
     Router::new()
         .route("/_pryx/files/content", get(read).put(write).delete(delete).layer(DefaultBodyLimit::disable()))

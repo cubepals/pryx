@@ -3,6 +3,9 @@
 
 //! PID 1 starts the original entrypoint, serves the agent and forwards termination. Adopted
 //! descendants are reaped separately from the process API's managed children.
+//!
+//! Parts (`bootstrap/`):
+//! - `files.rs`: trusted file-only VM service, without workload or tool startup.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::net::{IpAddr, Ipv4Addr};
@@ -20,6 +23,8 @@ use crate::paths::DataDir;
 use crate::ports::Ports;
 use crate::process::{Command, Event, Processes, Start};
 use crate::server::{Agent, router};
+
+mod files;
 
 type Bindings = BTreeMap<u16, Vec<IpAddr>>;
 type HttpTask = tokio::task::JoinHandle<io::Result<()>>;
@@ -58,6 +63,7 @@ async fn serve_http(
     cid: Option<u32>,
     service_base: u32,
     extra_ports: &[u16],
+    files_only: bool,
 ) -> io::Result<(Vec<HttpTask>, Option<crate::vm_ingress::Ingress>)> {
     let mut listeners = Vec::new();
     for ip in &bindings[&port] {
@@ -77,7 +83,8 @@ async fn serve_http(
         let listener = listener.tap_io(|socket| {
             let _ = socket.set_nodelay(true);
         });
-        servers.push(tokio::spawn(axum::serve(listener, router(agent.clone())).into_future()));
+        let app = if files_only { crate::server::files_router(agent.clone()) } else { router(agent.clone()) };
+        servers.push(tokio::spawn(axum::serve(listener, app).into_future()));
     }
     Ok((servers, ingress))
 }
@@ -111,6 +118,8 @@ pub struct Bootstrap {
     browser_sandbox: Option<bool>,
     #[arg(long = crate::bootstrap_capabilities::VSOCK_ARGUMENT)]
     vm_vsock: bool,
+    #[arg(long = crate::bootstrap_capabilities::VM_FILES_ARGUMENT, hide = true)]
+    vm_files_only: bool,
     #[arg(long)]
     vm_cid: Option<u32>,
     #[arg(long, default_value_t = 0)]
@@ -123,6 +132,18 @@ pub struct Bootstrap {
 
 impl Bootstrap {
     fn validate_host_policy(&self, forwarding: bool) -> Result<(), Box<dyn std::error::Error>> {
+        if self.vm_files_only
+            && (!self.vm_vsock
+                || self.vm_cid.is_none()
+                || !self.entrypoint.is_empty()
+                || !self.spare_ports.is_empty()
+                || !self.vm_ports.is_empty()
+                || self.host_bindings.is_some())
+        {
+            return Err(
+                "VM file service requires private guest ingress without workload commands or spare ports".into()
+            );
+        }
         if (!self.vm_ports.is_empty() || self.vm_port_base != 0) && !self.vm_vsock {
             return Err("VM port metadata requires its guest transport".into());
         }
@@ -139,6 +160,10 @@ impl Bootstrap {
             return Err("Process forwarding ownership channel is required".into());
         }
         Ok(())
+    }
+
+    pub(crate) fn vm_files_only(&self) -> bool {
+        self.vm_files_only
     }
 
     pub(crate) fn vm_identity(&self) -> (&str, u64, &str) {
@@ -180,6 +205,9 @@ pub async fn serve(
     forward: Option<Arc<dyn crate::guest::Forward>>,
 ) -> Result<i32, Box<dyn std::error::Error>> {
     args.validate_host_policy(forward.is_some())?;
+    if args.vm_files_only {
+        return args.serve_files().await;
+    }
     let bindings = args.bindings(std::env::var_os(crate::process_policy::POLICY_ENV).is_some())?;
     let encoded = std::env::var(&args.secret_env).map_err(|_| "Agent signing material is missing")?;
     let key = SigningKey::from_encoded(&encoded)?;
@@ -214,7 +242,7 @@ pub async fn serve(
         .map_err(|_| "Native tool runtime directory failed")?;
     let cid = args.vm_vsock.then_some(args.vm_cid.unwrap_or(tokio_vsock::VMADDR_CID_HOST + 1));
     let (servers, mut vm_ingress) =
-        serve_http(agent.clone(), args.port, &bindings, cid, args.vm_port_base, &args.vm_ports).await?;
+        serve_http(agent.clone(), args.port, &bindings, cid, args.vm_port_base, &args.vm_ports, false).await?;
     let mut term = signal(SignalKind::terminate())?;
     let mut interrupt = signal(SignalKind::interrupt())?;
     prepare_mounts(&agent, &servers, &mut term, &mut interrupt).await?;

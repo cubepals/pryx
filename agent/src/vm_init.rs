@@ -284,6 +284,9 @@ async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Err
     let arguments = crate::bootstrap::Bootstrap::try_parse_from(
         std::iter::once("pryx-agent").chain(boot.arguments.iter().map(String::as_str)),
     )?;
+    if arguments.vm_files_only() && (boot.network.is_some() || !boot.layers.is_empty() || !boot.read_only_root) {
+        return Err("VM file service requires no image layers, no network and a read-only root".into());
+    }
     let (sandbox, epoch, secret_env) = arguments.vm_identity();
     let encoded = boot
         .environment

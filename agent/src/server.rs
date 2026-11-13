@@ -67,6 +67,16 @@ async fn authenticate(State(agent): State<Arc<Agent>>, mut request: Request, nex
     Response::from_parts(parts, Body::from_stream(stream))
 }
 
+/// Trusted maintenance guests expose data operations and readiness only.
+pub fn files_router(agent: Arc<Agent>) -> Router {
+    Router::new()
+        .route("/_pryx/health", get(health))
+        .merge(crate::files::data_routes())
+        .layer(DefaultBodyLimit::max(crate::contract::MAX_REQUEST_BYTES))
+        .route_layer(middleware::from_fn_with_state(agent.clone(), authenticate))
+        .with_state(agent)
+}
+
 pub fn router(agent: Arc<Agent>) -> Router {
     let router = Router::new()
         .route("/_pryx/health", get(health))

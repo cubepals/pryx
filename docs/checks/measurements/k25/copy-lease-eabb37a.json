@@ -1,0 +1,16 @@
+{
+  "measurement": "Production runtime copy fencing and metadata on both pinned OCI images",
+  "commit": "eabb37a",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43528855604",
+  "result": "green",
+  "runtimeSeconds": 38.47,
+  "runtimeBoots": 8,
+  "componentBoots": 6,
+  "assertions": [
+    "Live monitor refuses copy lease",
+    "Copy lease fences a second boot",
+    "Authenticated metadata crosses owned forwarder without polling activity",
+    "Cold wake and copied-disk forks preserve independent data",
+    "Signed immediate exit status remains 7"
+  ]
+}
