@@ -1,0 +1,11 @@
+{
+  "source": "f5ac55e",
+  "run": 43449577193,
+  "job": 131967896508,
+  "conclusion": "failure",
+  "artifactId": 14049822569,
+  "artifactSha256": "6e63291dcef96600d3df813aed4bd89d0404c71d81844afee6ecbe8c49b8b176",
+  "scope": "Thirty vsock guests pass; pasta now advertises the gateway resolver but its forward target is not discovered when an explicit DNS address is supplied",
+  "vsockSamples": 30,
+  "pastaSamples": 0
+}

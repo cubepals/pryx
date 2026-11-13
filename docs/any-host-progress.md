@@ -2236,3 +2236,17 @@ job when publication is authorized. That job has not run in this task.
   including every actual aggregate, full Rust/TS/contracts, deployment and end-to-end
   recovery. The installed continuation 131940893233 remains pending at this
   checkpoint. This normal proof does not complete the new network spike or K25.
+- Source f5ac55e comparison
+  [43449577193](https://github.com/cubepals/pryx/actions/runs/43449577193/job/131967896508)
+  retains another thirty successful vsock guests and zero successful pasta guests.
+  Preserve the full raw partial report, failed pasta serial and verified artifact
+  provenance. Pasta now advertises 10.77.25.1, and the unchanged real-DNS lookup
+  times out against that address; the aggregate remains failed.
+- Inspect pinned conf.c get_dns and add_dns_resolv4 together with fwd.c: setting
+  an explicit guest DNS address marks IPv4 DNS complete and skips the discovery
+  that also initializes the host forwarding target. Remove the explicit DNS
+  address, keeping documented DHCP DNS advertisement and gateway forwarding so
+  the helper's own resolver discovery/remapping runs. No DNS server, reply or
+  timing is fabricated, and both thirty-sample cohorts and all denials remain.
+  Python compilation, complete actionlint/ShellCheck, docs and whitespace pass;
+  another real comparison is required. No new piece is parked.
