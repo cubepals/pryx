@@ -1,9 +1,9 @@
 {
-  "source": "7efb280ccc1921d9fc57aea98ce817b5e2417046",
-  "run": 43464154294,
-  "job": 132018658215,
-  "conclusion": "success",
-  "artifactId": 14057313908,
-  "artifactSha256": "456a962d8038a0600a2864d80f835f06494efff09f28a2173bc003eeceade8c5",
-  "scope": "New relocated filesystem component plus thirty actual KVM boots and disk reboot; unchanged two network cohorts plus independent missing-prerequisite guest; no production VM backend proof"
+  "measurement": "New relocated filesystem component plus thirty actual KVM boots and disk reboot; unchanged two network cohorts plus independent missing-prerequisite guest; no production VM backend proof",
+  "commit": "7efb280ccc1921d9fc57aea98ce817b5e2417046",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43464154294",
+  "result": {
+    "conclusion": "success",
+    "scope": "New relocated filesystem component plus thirty actual KVM boots and disk reboot; unchanged two network cohorts plus independent missing-prerequisite guest; no production VM backend proof"
+  }
 }

@@ -1,1 +1,6 @@
-{"monitorPid": 10198, "uidMap": "         0       1001          1\n", "netns": "net:[4026532316]", "hostNetns": "net:[4026531833]"}
+{
+  "measurement": "pasta namespace 45fa355",
+  "commit": "45fa355",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43447042201",
+  "result": "Diagnostic evidence only; see the linked CI artifact and progress history for the outcome."
+}

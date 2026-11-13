@@ -1,24 +1,8 @@
 {
-  "source": "26c8b10",
-  "run": 43261043378,
-  "job": 131332095651,
-  "result": "Failed before live display readiness; no positive desktop acceptance",
-  "producerLogSha256": "6e34db87d83d0b1b0cd9e1f8a591bc6ee02324aff5ce26bac490feca8bb7b75f",
-  "actualDiagnostic": [
-    "2026-11-12T16:46:23.8392456Z Live display failed: ",
-    "2026-11-12T16:46:23.8392880Z thread 'live_x11_worker' (11213) panicked at agent/tests/desktop_live.rs:150:9:",
-    "2026-11-12T16:46:23.8393380Z Display exited before readiness",
-    "2026-11-12T16:46:23.8393829Z note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace",
-    "2026-11-12T16:46:23.8394509Z ; server: _XSERVTransmkdir: ERROR: euid != 0,directory /tmp/.X11-unix will not be created.",
-    "2026-11-12T16:46:23.8395303Z XKB: Failed to compile keymap",
-    "2026-11-12T16:46:23.8395826Z Keyboard initialization failed. This could be a missing or incorrect setup of xkeyboard-config.",
-    "2026-11-12T16:46:23.8396372Z (EE) ",
-    "2026-11-12T16:46:23.8396590Z Fatal server error:",
-    "2026-11-12T16:46:23.8396897Z (EE) Failed to activate virtual core keyboard: 2(EE) ",
-    "2026-11-12T16:46:23.8397169Z ",
-    "2026-11-12T16:46:23.8397758Z note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace"
-  ],
-  "pinnedSourceFileSha256": "188c0c7a4c69707c29ead22f470215ab904d82354c2008af9569a24c7a06efe1",
-  "observedCause": "Pinned Xorg Popen reasserts current real GID/UID before xkbcomp; ordinary process seccomp denies both operations",
-  "nextAttempt": "Private desktop only: allow exactly current real IDs, create private X11 socket directory and require real pinned compiler control"
+  "measurement": "x11 live first failure",
+  "commit": "26c8b10",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43261043378",
+  "result": {
+    "observedCause": "Pinned Xorg Popen reasserts current real GID/UID before xkbcomp; ordinary process seccomp denies both operations"
+  }
 }

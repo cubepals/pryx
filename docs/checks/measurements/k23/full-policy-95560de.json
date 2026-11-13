@@ -1,24 +1,6 @@
-[
-  {
-    "language": "python",
-    "png": true,
-    "scope": "full-process-policy",
-    "stateRetained": true,
-    "uid": 1001
-  },
-  {
-    "language": "javascript",
-    "png": true,
-    "scope": "full-process-policy",
-    "stateRetained": true,
-    "uid": 1001
-  },
-  {
-    "browser": true,
-    "forwardedCdp": true,
-    "sameUidNeighbourRefused": true,
-    "scope": "full-process-policy",
-    "screenshot": true,
-    "uid": 1001
-  }
-]
+{
+  "measurement": "full policy 95560de",
+  "commit": "95560de94e75547db25f6e545f433ceb41ad8006",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43219637379",
+  "result": "Inventory/review of 3 entries; complete notices are retained with the corresponding build inputs and distribution."
+}

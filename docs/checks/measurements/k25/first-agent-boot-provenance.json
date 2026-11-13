@@ -1,10 +1,10 @@
 {
-  "source": "2c25bdc",
-  "run": 43481338649,
-  "job": 132078295325,
-  "conclusion": "failure",
-  "artifact": 14065447643,
-  "artifactSha256": "bcf751902ef6bf39065ed5bb6d360a8caf30967231d5a1bf5892fa456ddb442e",
-  "failure": "Actual guest init refuses wildcard local socket CID; use the existing library device CID query, preserving host-peer and bootstrap-CID equality",
-  "scope": "First real guest-init boot; no lifecycle proof"
+  "measurement": "First real guest-init boot; no lifecycle proof",
+  "commit": "2c25bdc",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43481338649",
+  "result": {
+    "conclusion": "failure",
+    "failure": "Actual guest init refuses wildcard local socket CID; use the existing library device CID query, preserving host-peer and bootstrap-CID equality",
+    "scope": "First real guest-init boot; no lifecycle proof"
+  }
 }

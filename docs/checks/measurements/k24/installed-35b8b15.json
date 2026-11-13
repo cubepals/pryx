@@ -1,27 +1,20 @@
 {
-  "source": "35b8b15",
-  "run": 43319847311,
-  "job": 131543614392,
-  "preset": "user",
-  "tier": "process",
-  "engine": "none",
-  "doctorNativeCapabilities": true,
-  "requiredToolsPlacement": true,
-  "desktop": {
-    "applicationClick": true,
-    "applicationText": true,
-    "screenshot": true,
-    "edgeNovnc": true,
-    "typescript": true,
-    "bothPythonModes": true
-  },
-  "ssh": {
-    "typescriptCommand": true,
-    "httpEdgeWakeCommand": true,
-    "runningViewAfterWake": true,
-    "installedCli": false,
-    "failure": "sandbox: error while loading shared libraries: sandbox: cannot open shared object file; SSH exit 255"
-  },
-  "notRun": ["Python SSH continuation", "thirty-sample desktop and SSH cohorts", "remaining bundle and host matrix"],
-  "scope": "Completed installed-product job log. The relocated CLI's loader-valued execPath breaks its ProxyCommand. A compiled real-loader regression and fresh installed proof are required after the wrapper correction."
+  "measurement": "Completed installed-product job log. The relocated CLI's loader-valued execPath breaks its ProxyCommand. A compiled real-loader regression and fresh installed proof are required after the wrapper correction.",
+  "commit": "35b8b15",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43319847311",
+  "result": {
+    "doctorNativeCapabilities": true,
+    "requiredToolsPlacement": true,
+    "desktop.applicationClick": true,
+    "desktop.applicationText": true,
+    "desktop.screenshot": true,
+    "desktop.edgeNovnc": true,
+    "desktop.typescript": true,
+    "desktop.bothPythonModes": true,
+    "ssh.typescriptCommand": true,
+    "ssh.httpEdgeWakeCommand": true,
+    "ssh.installedCli": false,
+    "ssh.failure": "sandbox: error while loading shared libraries: sandbox: cannot open shared object file; SSH exit 255",
+    "scope": "Completed installed-product job log. The relocated CLI's loader-valued execPath breaks its ProxyCommand. A compiled real-loader regression and fresh installed proof are required after the wrapper correction."
+  }
 }

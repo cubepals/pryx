@@ -1,5 +1,8 @@
 {
-  "requirement": "data-owner-mapping",
-  "samples": [],
-  "status": "refused"
+  "measurement": "docker 2d7e2a7",
+  "commit": "2d7e2a7fe1ec1b39035645ed591610ec818309e8",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43027222801",
+  "result": {
+    "status": "refused"
+  }
 }

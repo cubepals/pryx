@@ -1,47 +1,22 @@
 {
-  "source": "a42123699991c578ee30c5c93d532b5a069c63b2",
-  "run": 43414083235,
-  "job": 131852252855,
-  "url": "https://github.com/cubepals/pryx/actions/runs/43414083235/job/131852252855",
-  "jobConclusion": "failure",
-  "artifact": {
-    "id": 14034156561,
-    "name": "installed-native-tools",
-    "zipSha256": "304284eea55166abc4240a05488673df0e21da4fcbe2b7628a2d46487454fe1c"
-  },
-  "retained": {
-    "native-user-acceptance.log": {
-      "sha256": "b39174921be01b13f031520ff1105fce309099406192362a9b3a9bb59a5d1631"
-    }
-  },
-  "summary": {},
-  "completeCohorts": false,
-  "preset": "user",
-  "tier": "process",
-  "engine": "none",
-  "observed": {
-    "configuredDoctor": true,
-    "requiredToolsPlacement": true,
-    "typescriptAndBothPythonDesktopInput": true,
-    "desktopScreenshot": true,
-    "edgeNovnc": true,
-    "typescriptSshCommand": true,
-    "httpEdgeSshWake": true,
-    "installedCliSshCommand": true,
-    "bothPythonSshModes": true,
-    "kernelStateChartsInterruptRestart": true,
-    "browserScreenshotCdpGuarantee": true
-  },
-  "failure": {
-    "stage": "startup cohorts after all functional acceptance",
-    "code": "file_failed",
-    "status": 404,
-    "message": "No such file or directory (os error 2)",
-    "rawSamplesRetained": false
-  },
-  "notProved": [
-    "Complete thirty-sample startup cohorts",
-    "Default-Docker continuation and remaining host matrix"
-  ],
-  "scope": "Completed installed-product job and digest-verified artifact. Every functional desktop/SSH case passes, including the corrected CLI loader path. The pre-incremental collector loses raw samples on the later screenshot failure. An independently reproduced desktop metadata publication race is corrected afterward; fresh hosted proof is required."
+  "measurement": "Completed installed-product job and digest-verified artifact. Every functional desktop/SSH case passes, including the corrected CLI loader path. The pre-incremental collector loses raw samples on the later screenshot failure. An independently reproduced desktop metadata publication race is corrected afterward; fresh hosted proof is required.",
+  "commit": "a42123699991c578ee30c5c93d532b5a069c63b2",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43414083235",
+  "result": {
+    "jobConclusion": "failure",
+    "artifact.id": 14034156561,
+    "completeCohorts": false,
+    "observed.requiredToolsPlacement": true,
+    "observed.typescriptAndBothPythonDesktopInput": true,
+    "observed.desktopScreenshot": true,
+    "observed.edgeNovnc": true,
+    "observed.typescriptSshCommand": true,
+    "observed.httpEdgeSshWake": true,
+    "observed.installedCliSshCommand": true,
+    "observed.bothPythonSshModes": true,
+    "observed.kernelStateChartsInterruptRestart": true,
+    "observed.browserScreenshotCdpGuarantee": true,
+    "failure.status": 404,
+    "scope": "Completed installed-product job and digest-verified artifact. Every functional desktop/SSH case passes, including the corrected CLI loader path. The pre-incremental collector loses raw samples on the later screenshot fai\u2026"
+  }
 }

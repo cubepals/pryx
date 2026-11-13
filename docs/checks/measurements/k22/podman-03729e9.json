@@ -1,159 +1,22 @@
 {
-  "architecture": "x86_64",
-  "engine": "podman",
-  "requestedSamples": 30,
-  "samples": [
-    {
-      "createMs": 5575.9159819999995,
-      "execMs": 44.908761999999996,
-      "networkMs": 3.078096
+  "measurement": "direct node manager, locally available image, serial workloads, no public edge",
+  "commit": "03729e9",
+  "ci": "Not recorded; local or inventory evidence, not a CI pass",
+  "result": {
+    "samples.createMs": {
+      "n": 30,
+      "p50": 4382.397,
+      "p90": 4623.389
     },
-    {
-      "createMs": 4409.819665999999,
-      "execMs": 47.090543,
-      "networkMs": 3.1944220000000003
+    "samples.execMs": {
+      "n": 30,
+      "p50": 46.805,
+      "p90": 177.337
     },
-    {
-      "createMs": 4177.767909,
-      "execMs": 45.353775999999996,
-      "networkMs": 3.145414
-    },
-    {
-      "createMs": 4263.392005,
-      "execMs": 45.099388999999995,
-      "networkMs": 3.108931
-    },
-    {
-      "createMs": 4379.299083,
-      "execMs": 46.805149,
-      "networkMs": 3.1794789999999997
-    },
-    {
-      "createMs": 4454.8515640000005,
-      "execMs": 44.677796,
-      "networkMs": 3.182143
-    },
-    {
-      "createMs": 4499.395652,
-      "execMs": 60.459462,
-      "networkMs": 3.0930269999999997
-    },
-    {
-      "createMs": 4231.384674,
-      "execMs": 52.996508,
-      "networkMs": 3.284335
-    },
-    {
-      "createMs": 4520.157754999999,
-      "execMs": 45.830144000000004,
-      "networkMs": 3.146712
-    },
-    {
-      "createMs": 4472.150197,
-      "execMs": 167.522787,
-      "networkMs": 3.137197
-    },
-    {
-      "createMs": 4081.715869,
-      "execMs": 45.449393,
-      "networkMs": 3.197302
-    },
-    {
-      "createMs": 4098.065857,
-      "execMs": 46.186313,
-      "networkMs": 2.844717
-    },
-    {
-      "createMs": 4060.926683,
-      "execMs": 48.38928,
-      "networkMs": 3.017472
-    },
-    {
-      "createMs": 4224.926724,
-      "execMs": 48.001839999999994,
-      "networkMs": 3.183096
-    },
-    {
-      "createMs": 4623.389047,
-      "execMs": 205.445495,
-      "networkMs": 3.282101
-    },
-    {
-      "createMs": 4525.255201,
-      "execMs": 62.416792,
-      "networkMs": 3.130059
-    },
-    {
-      "createMs": 4388.791617,
-      "execMs": 140.87580499999999,
-      "networkMs": 3.1244300000000003
-    },
-    {
-      "createMs": 4623.72539,
-      "execMs": 177.336565,
-      "networkMs": 3.195739
-    },
-    {
-      "createMs": 4516.535728,
-      "execMs": 242.11974,
-      "networkMs": 3.1532679999999997
-    },
-    {
-      "createMs": 4402.823574,
-      "execMs": 118.80379,
-      "networkMs": 3.1984779999999997
-    },
-    {
-      "createMs": 4493.348115,
-      "execMs": 220.626916,
-      "networkMs": 3.1418850000000003
-    },
-    {
-      "createMs": 4549.187481,
-      "execMs": 45.498075,
-      "networkMs": 2.982383
-    },
-    {
-      "createMs": 4763.610309,
-      "execMs": 45.841642,
-      "networkMs": 3.0762340000000004
-    },
-    {
-      "createMs": 4346.2109279999995,
-      "execMs": 47.138121999999996,
-      "networkMs": 3.140286
-    },
-    {
-      "createMs": 4265.356008000001,
-      "execMs": 44.877126000000004,
-      "networkMs": 2.982588
-    },
-    {
-      "createMs": 4302.925481,
-      "execMs": 45.410633,
-      "networkMs": 3.1211960000000003
-    },
-    {
-      "createMs": 4253.401169,
-      "execMs": 44.824853,
-      "networkMs": 3.058544
-    },
-    {
-      "createMs": 4338.216286,
-      "execMs": 43.373341,
-      "networkMs": 2.931651
-    },
-    {
-      "createMs": 4382.397111,
-      "execMs": 50.288488,
-      "networkMs": 3.1337650000000004
-    },
-    {
-      "createMs": 4328.505386,
-      "execMs": 46.60597,
-      "networkMs": 3.1445570000000003
+    "samples.networkMs": {
+      "n": 30,
+      "p50": 3.137,
+      "p90": 3.197
     }
-  ],
-  "scope": "direct node manager, locally available image, serial workloads, no public edge",
-  "status": "complete"
+  }
 }

@@ -91,7 +91,7 @@ The agent API itself retains its authenticated WebSocket terminal and streaming 
 All listeners use the host-selected audience addresses. Safe GET/HEAD requests may wait up to
 three seconds for a newly starting listener; mutations and started responses are never repeated.
 The default wasm terminal uses the bundled shell's minimal input backend to preserve pasted
-multi-line commands; its rich line editor drops subsequent pasted lines in the pinned release.
+multi-line commands; its rich line editor drops subsequent pasted lines in the pinned release. Raw output belongs to the cited CI artifacts; the repository keeps only its summary.
 
 Requests authenticate with the same scoped, expiring sandbox capabilities as the other tiers.
 Project credentials never enter the guest. Commands execute inside the VM. A virtual PID is

@@ -1,45 +1,16 @@
 {
-  "source": "d1a0a63f6968078009b7d35efd77f56146e8d04d",
-  "workflow": "CI",
-  "run": 43200870546,
-  "job": 131124170861,
-  "url": "https://github.com/cubepals/pryx/actions/runs/43200870546/job/131124170861",
-  "e2e": {
-    "tests": 48,
-    "passed": 33,
-    "skipped": 15,
-    "failures": 0,
-    "assertions": 931,
-    "seconds": 623.707844433,
-    "newStartupCaseSeconds": 115.096454
-  },
-  "jobStatusAtRetention": "in progress after successful end-to-end step; later Wasm/two-node/integration/recovery checks remain separate",
-  "artifacts": [
-    {
-      "id": 13938055675,
-      "name": "interpreter-measurements",
-      "zipSha256": "4842175233e3f79b0ee114d729a722db59394d6c043d7d694c9c70a51d577230"
-    },
-    {
-      "id": 13936872277,
-      "name": "native-tools-measurements",
-      "zipSha256": "14011ec20f85d8e02168b310b2373c993b8f8822a8a7cef786421b6163e872aa"
-    }
-  ],
-  "retained": {
-    "container-interpreter-budgets-d1a0a63.json": {
-      "sha256": "e58b7703745544dda0b0224050e488bef4c1397fd22010d134e5d3249102256a",
-      "artifactFile": "interpreter-measurements.json"
-    },
-    "container-interpreter-startup-d1a0a63.json": {
-      "sha256": "04068cd47cd8809b691172e40e26e58db79ee548650cffc602e682dacff6f995",
-      "artifactFile": "interpreter-create-to-image.json"
-    },
-    "container-native-d1a0a63.json": {
-      "sha256": "c51e9b101f5dfa774d3d7beb28a758ba736e8dd3cb0c52d1797f267ed44ebc65",
-      "artifactFile": "native-tools-measurements.json"
-    }
-  },
-  "scope": "Thirty samples per container cohort, four default units (one CPU core, 2 GiB), cached templates. New kernel timer includes create, routing, kernel startup and first validated PNG. Browser includes its sandbox-local HTTP page-server startup. Historical interpreter execution/restart budgets retain their original clock points.",
-  "limitations": "Container observations only; signed ordinary-user process and default-Docker native acceptance remain pending. No release publication or main run."
+  "measurement": "Thirty samples per container cohort, four default units (one CPU core, 2 GiB), cached templates. New kernel timer includes create, routing, kernel startup and first validated PNG. Browser includes its sandbox-local HTTP page-server startup. Historical interpreter execution/restart budgets retain their original clock points.",
+  "commit": "d1a0a63f6968078009b7d35efd77f56146e8d04d",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43200870546",
+  "result": {
+    "e2e.tests": 48,
+    "e2e.passed": 33,
+    "e2e.skipped": 15,
+    "e2e.failures": 0,
+    "e2e.assertions": 931,
+    "e2e.seconds": 623.708,
+    "e2e.newStartupCaseSeconds": 115.096,
+    "scope": "Thirty samples per container cohort, four default units (one CPU core, 2 GiB), cached templates. New kernel timer includes create, routing, kernel startup and first validated PNG. Browser includes its sandbox-local HTTP \u2026",
+    "limitations": "Container observations only; signed ordinary-user process and default-Docker native acceptance remain pending. No release publication or main run."
+  }
 }

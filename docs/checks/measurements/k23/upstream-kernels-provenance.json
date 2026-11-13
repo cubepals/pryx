@@ -1,13 +1,9 @@
 {
+  "measurement": "bundle acceptance only; not installed native process/edge acceptance",
   "commit": "9ba70269bf75f1ee195f7fe85d4f9ba70c4e11fa",
-  "run": 43109289475,
-  "job": 130820732451,
-  "artifact": 13895038972,
-  "artifactSha256": "fd6b36a35444ad0e58bbe6600bf5f9003d8c6b958c9388c97372604bfb630319",
-  "kernelObservations": "upstream-kernels-9ba7026.jsonl",
-  "bundleInventoryEntries": 34489,
-  "maximumRequiredGlibc": "2.34",
-  "assemblyAndKernels": "passed as ordinary UID 1001; no Docker invocation",
-  "browser": "failed at initial debugging-pipe attachment; add bounded Chromium startup diagnostics before choosing a host-policy fix",
-  "scope": "bundle acceptance only; not installed native process/edge acceptance"
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43109289475",
+  "result": {
+    "bundleInventoryEntries": 34489,
+    "scope": "bundle acceptance only; not installed native process/edge acceptance"
+  }
 }

@@ -1,41 +1,20 @@
 {
-  "scope": "One local diagnostic pair over the actual pinned agentOS distribution, using the debug pryxd host probe; filesystem cache state is uncontrolled. This is separate from the thirty-sample sandbox startup cohorts. Hosted correction proof remains required.",
-  "baselineRevision": "2db00ba676215671c555f1d3a4e62ed0b23e14bb",
-  "baselineVerifierSha256": "c00b0b1f2b4e8168844ee8c2eb58903d48f7d5d1c085697f9a41b1c00261ed54",
-  "newVerifierSha256": "f71f2b63144ecfbcbdcacf7ccf101163306756d7606e35e83571cd9bf1d24a81",
-  "distributionPolicySha256": "c6e4fcb4cf0a9910947637c30dbdcf2f9bed6111f91d544be7f9181a83de872e",
-  "verifiedFiles": 9,
-  "verifiedBytes": 695545065,
-  "probeDeadlineSeconds": 30,
-  "before": {
-    "hashImplementation": "sha2 0.11.1",
-    "wholeProbeSeconds": 25.329,
-    "userCpuSeconds": 20.841,
-    "systemCpuSeconds": 4.025,
-    "distributionSeconds": 25.10869990700303
-  },
-  "after": {
-    "hashImplementation": "Ring 0.17.14",
-    "wallSeconds": 0.874,
-    "userSeconds": 0.608,
-    "sysSeconds": 0.193,
-    "distributionSeconds": 0.7675723200009088
-  },
-  "capabilityAndTierStatesUnchanged": true,
-  "wasmTier": {
-    "state": "on",
-    "evidence": "The pinned agentOS binary and packages are verified",
-    "action": "No action needed"
-  },
-  "retainedSha256": {
-    "wasm-probe-before-ring-local.log": "5de164a6e58320e6a58034ab09ad269918756c1f5ca6212829ca4588f8f0cf26",
-    "wasm-probe-after-ring-local.log": "bd35217875e132a898f00964afdf7a088da8fce970313ea807990d1185452ed7"
-  },
-  "hostedFailure": {
-    "run": 43228041376,
-    "job": 131216334843,
-    "stage": "One-command quickstart and repeat install",
-    "observation": "Host probe exits 137 after its wasm-distribution phase; caller retains the thirty-second kill bound. Kernel OOM diagnostic could not run because rg was absent."
-  },
-  "verification": "479 Rust tests pass, 25 existing ignored. New independent-SHA256/multibuffer integrity test also rejects modified content, symlinks, writable files and writable ancestors."
+  "measurement": "One local diagnostic pair over the actual pinned agentOS distribution, using the debug pryxd host probe; filesystem cache state is uncontrolled. This is separate from the thirty-sample sandbox startup cohorts. Hosted correction proof remains required.",
+  "commit": "2db00ba676215671c555f1d3a4e62ed0b23e14bb",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43201264196",
+  "result": {
+    "scope": "One local diagnostic pair over the actual pinned agentOS distribution, using the debug pryxd host probe; filesystem cache state is uncontrolled. This is separate from the thirty-sample sandbox startup cohorts. Hosted cor\u2026",
+    "verifiedFiles": 9,
+    "verifiedBytes": 695545065,
+    "probeDeadlineSeconds": 30,
+    "before.wholeProbeSeconds": 25.329,
+    "before.userCpuSeconds": 20.841,
+    "before.systemCpuSeconds": 4.025,
+    "before.distributionSeconds": 25.109,
+    "after.wallSeconds": 0.874,
+    "after.userSeconds": 0.608,
+    "after.sysSeconds": 0.193,
+    "after.distributionSeconds": 0.768,
+    "capabilityAndTierStatesUnchanged": true
+  }
 }

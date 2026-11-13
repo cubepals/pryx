@@ -27,7 +27,7 @@ takes 21.341 ms. The first blocked monitor has 56,812 kB resident memory. These 
 fixture measurements, not production create, agent, idle-memory or image-pull measurements.
 The entire hosted job takes 67 seconds.
 
-[Raw kernel observations](measurements/k25/kernel-spike-9402ef5.json) and
+[Kernel summary](measurements/k25/kernel-spike-9402ef5.json) and
 [verified artifact provenance](measurements/k25/kernel-provenance-9402ef5.json) retain the evidence.
 The initial duplicate-devtmpfs-mount failure remains in the same measurements directory.
 
@@ -49,7 +49,7 @@ TCP/IP nor the packet framing is implemented by pryx.
 | 16-MiB transfer, MiB/s | 101.167 / 107.639 | 110.490 / 135.422 |
 | Outbound DNS lookup, ms | 2.752 / 4.168 | 2.027 / 2.135 |
 
-Each row has thirty raw observations per path; percentiles use nearest ranks 15 and 27. The
+Each row has thirty measurement summaries per path; percentiles use nearest ranks 15 and 27. The
 startup row includes guest filesystem checks, DHCP/network readiness, management-denial checks
 on vsock, the HTTP requests, bulk transfer and DNS. It excludes image preparation and is not a
 production create-to-ready measurement. DNS queries use the host's actual resolver through the
@@ -63,14 +63,14 @@ The guest-facing listener serves only the maintained packet-connect route. Pasta
 namespace maps host UID 1001, excludes host root and differs from the initial host network
 namespace. These tests do not prove production monitor confinement or hostname egress policy.
 
-[Raw network observations](measurements/k25/network-spike-187136d.json) and
-[verified artifact provenance](measurements/k25/network-provenance-187136d.json) retain all samples.
+[Network summary](measurements/k25/network-spike-187136d.json) and
+[verified artifact provenance](measurements/k25/network-provenance-187136d.json) retain sample aggregates.
 Earlier setup, interface and DNS failures also remain recorded. Both candidates complete this cohort; later repeats and the missing-prerequisite experiment
 are recorded below.
 
 A repeat on source `0b8afec` passes all thirty vsock guests and thirteen pasta guests, then the
 fourteenth pasta bulk response stalls after 1,890,748 bytes and hits the unchanged two-second
-client deadline. Its complete partial report and serial log remain under `measurements/k25/`.
+client deadline. Its short summary remains under `measurements/k25/`; raw reports and serial logs belong to that CI run’s artifacts.
 That stall remains unresolved. The next run adds bounded upstream pasta logs and real guest
 TCP_INFO observation before the same deadline; it changes neither the deadline nor the transfer.
 The separate missing-prerequisite case runs independently of the comparison's outcome, while
@@ -93,7 +93,7 @@ The initial host namespace must remain untouched. This suspected cause still nee
 
 Source `8b2279f` passes [the complete experiment](https://github.com/cubepals/pryx/actions/runs/43458372918/job/131998442387):
 all thirty guests per path and the separate missing-prerequisite guest pass. Retain
-[its raw observations](measurements/k25/network-spike-8b2279f.json),
+[its measurement summaries](measurements/k25/network-spike-8b2279f.json),
 [prerequisite observations](measurements/k25/network-prerequisites-8b2279f.json) and
 [verified provenance](measurements/k25/network-provenance-8b2279f.json). Every actual private
 interface has IPv6 disabled. The helper nevertheless learns a bridge-interface MAC briefly
@@ -114,7 +114,7 @@ identical pinned bytes when the primary source denies the hosted runner.
 
 The [relocation report](measurements/k25/filesystem-relocation-7efb280.json) proves a real EROFS
 round trip and populated ext4 integrity without root or a mount. The
-[full boot report](measurements/k25/kernel-filesystems-7efb280.json) identifies the exact
+[boot summary](measurements/k25/kernel-filesystems-7efb280.json) identifies the exact
 [component manifest](measurements/k25/filesystem-manifest-7efb280.json) used for all thirty
 boots and the disk-retaining reboot; [artifact provenance](measurements/k25/filesystem-provenance-7efb280.json)
 retains its verified identity. This component does not yet provide runtime acquisition,

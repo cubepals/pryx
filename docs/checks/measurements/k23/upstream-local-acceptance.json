@@ -1,57 +1,16 @@
 {
-  "scope": "Single local bundle acceptance, not process-tier/edge acceptance or thirty-sample timing",
-  "source": "Working tree following f804977; exact assembly/adapter source hashes below",
-  "hostUid": 1000,
-  "hostCLibrary": "glibc 2.41",
-  "relocatedTo": "/tmp/pryx final K23 ordinary install relocated with spaces",
-  "hostGlibcMinimum": "2.34",
-  "maximumRequiredGlibc": "2.34",
-  "inventoryEntries": 34489,
-  "inventorySha256": "f9134140f9830a107fdf691be0730f5c9cc99a4babb4e0778262458776fea342",
-  "kernelObservations": [
-    {
-      "language": "python",
-      "uid": 1000,
-      "transport": "ipc",
-      "abstract": true,
-      "stateRetained": true,
-      "png": true
-    },
-    {
-      "language": "javascript",
-      "uid": 1000,
-      "transport": "ipc",
-      "abstract": true,
-      "stateRetained": true,
-      "png": true
-    }
-  ],
-  "browserObservation": {
-    "uid": 1000,
-    "debuggingPipe": true,
-    "abstractUnix": true,
-    "screenshot": true,
-    "cdp": true,
-    "expires": true,
-    "chromiumSandbox": true,
-    "rendererPidNamespace": true,
-    "rendererSeccomp": true
-  },
-  "sourceSha256": {
-    "templates/process-tools/build.py": "c4f42858d6d339248521f83c7f80ab6fcca7afc7df792ab5a7244e6f9477c17a",
-    "templates/process-tools/smoke.py": "ccad1a9c0dfce3c6ef8b7f0bd439f0c8bec98c98d9262441b3ec5579ab93f441",
-    "templates/process-tools/browser/start.mjs": "bdf9853ea8fafc8d4cc3989c36296d188fe73c079365ba8a8ff3c5716358f80d",
-    "templates/process-tools/browser/bridge.mjs": "db6433dbae918d6239bf930eb336e0cfbd2bd9a1d5632518a583a07a591b1a35",
-    "templates/process-tools/browser/smoke.mjs": "56749924fa236e826ea3e88237bcd722ebcb60a370766770239f9d28a429e87b",
-    "templates/node-interpreter/kernel.cjs": "aa745f4876130e78ee4d5c160dc66a3e39590f1e41f4eb2b6a8c21799184e53f"
-  },
-  "notYetProved": [
-    "Pryx ordinary-user installation",
-    "lazy verified acquisition",
-    "full process policy",
-    "shared-uid neighbour",
-    "edge and both SDKs on process tier",
-    "thirty timed samples",
-    "hosted CI"
-  ]
+  "measurement": "Single local bundle acceptance, not process-tier/edge acceptance or thirty-sample timing",
+  "commit": "recorded in 9ba7026; measurement revision not recorded",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43109289475",
+  "result": {
+    "scope": "Single local bundle acceptance, not process-tier/edge acceptance or thirty-sample timing",
+    "inventoryEntries": 34489,
+    "browserObservation.debuggingPipe": true,
+    "browserObservation.abstractUnix": true,
+    "browserObservation.screenshot": true,
+    "browserObservation.cdp": true,
+    "browserObservation.expires": true,
+    "browserObservation.chromiumSandbox": true,
+    "browserObservation.rendererSeccomp": true
+  }
 }

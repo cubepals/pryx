@@ -1,12 +1,8 @@
 {
+  "measurement": "Pinned packaging plus relocated upstream tools as UID 1001; installed Pryx process policy, edge, SDKs, neighbours and thirty samples remain pending",
   "commit": "fe0437aeb4bfaa44e82eeb0a2dc6595180b42c1c",
-  "run": 43177305638,
-  "job": 131044569877,
-  "artifact": 13924229695,
-  "artifactSha256": "c136f8532c68ff6abb3a64ddaef928f7b1952b770d476dfc9ac205fd3d6efa69",
-  "descriptor": "packaged-descriptor-fe0437a.json",
-  "kernels": "packaged-kernels-fe0437a.jsonl",
-  "browser": "packaged-browser-fe0437a.jsonl",
-  "scope": "Pinned packaging plus relocated upstream tools as UID 1001; installed Pryx process policy, edge, SDKs, neighbours and thirty samples remain pending",
-  "publishedRuntimeArchive": false
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43177305638",
+  "result": {
+    "scope": "Pinned packaging plus relocated upstream tools as UID 1001; installed Pryx process policy, edge, SDKs, neighbours and thirty samples remain pending"
+  }
 }

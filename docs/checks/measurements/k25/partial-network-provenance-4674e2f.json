@@ -1,11 +1,9 @@
 {
-  "source": "4674e2f",
-  "run": 43448545479,
-  "job": 131964295978,
-  "conclusion": "failure",
-  "artifactId": 14049082770,
-  "artifactSha256": "7ebf9817004d60bee10dd22cbd2770e7f1c058ec9452bd95814b4c0ba5058333",
-  "scope": "Thirty TCP_NODELAY vsock samples pass; pasta obtains DHCP and reaches the DNS assertion, whose guest resolver has no advertised nameserver; no successful pasta sample",
-  "vsockSamples": 30,
-  "pastaSamples": 0
+  "measurement": "Thirty TCP_NODELAY vsock samples pass; pasta obtains DHCP and reaches the DNS assertion, whose guest resolver has no advertised nameserver; no successful pasta sample",
+  "commit": "4674e2f",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43448545479",
+  "result": {
+    "conclusion": "failure",
+    "scope": "Thirty TCP_NODELAY vsock samples pass; pasta obtains DHCP and reaches the DNS assertion, whose guest resolver has no advertised nameserver; no successful pasta sample"
+  }
 }

@@ -1,88 +1,9 @@
 {
-  "source": "60d5b50884d86887d90c5fc5055873ddfa1c31d6",
-  "run": 43440140287,
-  "conclusion": "success",
-  "scope": "Baseline application and all host cells before the VM backend exists; not VM acceptance",
-  "jobs": [
-    {
-      "id": 131935320003,
-      "name": "Relocatable upstream process tools",
-      "conclusion": "success"
-    },
-    {
-      "id": 131940893233,
-      "name": "Bundle runtime acceptance",
-      "conclusion": "success"
-    },
-    {
-      "id": 131967129468,
-      "name": "User preset with rootless docker",
-      "conclusion": "success"
-    },
-    {
-      "id": 131967129482,
-      "name": "Domainless sudo bootstrap",
-      "conclusion": "success"
-    },
-    {
-      "id": 131967129592,
-      "name": "Ordinary user in booted Ubuntu 24.04",
-      "conclusion": "success"
-    },
-    {
-      "id": 131967129604,
-      "name": "User preset with rootless podman",
-      "conclusion": "success"
-    },
-    {
-      "id": 131967129633,
-      "name": "Ordinary user in booted Debian 13",
-      "conclusion": "success"
-    },
-    {
-      "id": 131967129716,
-      "name": "Ordinary user in booted Fedora 44",
-      "conclusion": "success"
-    },
-    {
-      "id": 131967129726,
-      "name": "Ordinary user in Ubuntu with Landlock denied Docker",
-      "conclusion": "success"
-    },
-    {
-      "id": 131967129734,
-      "name": "Ordinary user in Fedora Docker",
-      "conclusion": "success"
-    },
-    {
-      "id": 131967129742,
-      "name": "Ordinary user in Ubuntu Docker",
-      "conclusion": "success"
-    },
-    {
-      "id": 131967129779,
-      "name": "Ordinary user in Alpine Docker",
-      "conclusion": "success"
-    },
-    {
-      "id": 131967129803,
-      "name": "Ordinary user in Debian root preset Docker",
-      "conclusion": "success"
-    },
-    {
-      "id": 131967130059,
-      "name": "Ordinary user in Alpine with Landlock denied Docker",
-      "conclusion": "success"
-    },
-    {
-      "id": 131967130203,
-      "name": "Ordinary user in Debian Docker",
-      "conclusion": "success"
-    },
-    {
-      "id": 131967130215,
-      "name": "Ordinary user in booted Alpine 3.24",
-      "conclusion": "success"
-    }
-  ]
+  "measurement": "Baseline application and all host cells before the VM backend exists; not VM acceptance",
+  "commit": "60d5b50884d86887d90c5fc5055873ddfa1c31d6",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43440140287",
+  "result": {
+    "conclusion": "success",
+    "scope": "Baseline application and all host cells before the VM backend exists; not VM acceptance"
+  }
 }

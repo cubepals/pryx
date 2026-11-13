@@ -211,7 +211,7 @@ HTTP-only deployment; an available raw front remains the default. Both paths use
 lease, host key, expiry, revocation and epoch checks. TypeScript `access.connect()` and
 Python `access.connect()` open the authenticated binary WebSocket for an SSH client; await
 the Python call in async mode. The connection carries OpenSSH bytes without interpreting
-them. New SDKs retain the raw behavior when an older agent or edge lacks this transport.
+them. New SDKs retain the raw behavior when an older agent or edge lacks this transport. Raw output belongs to the cited CI artifacts; the repository keeps only its summary.
 
 ```ts
 const mounted = await pryx.sandbox({

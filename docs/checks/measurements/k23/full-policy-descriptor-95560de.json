@@ -1,8 +1,10 @@
 {
-  "url": "https://github.com/cubepals/pryx/releases/download/v0.1.0/pryx-process-tools-linux-x64.tar.gz",
-  "sha256": "84b07dd893a53f9a7c5a940ace76088c87b306e474e53ec9b83d8e55938e1436",
-  "manifest_sha256": "9755b8935784f349bb870493505e6e8131ee8ef5058b67b09ca2414e7757e9ff",
-  "bytes": 726249314,
-  "unpacked_bytes": 1890480698,
-  "entries": 38897
+  "measurement": "full policy descriptor 95560de",
+  "commit": "95560de94e75547db25f6e545f433ceb41ad8006",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43219637379",
+  "result": {
+    "bytes": 726249314,
+    "unpacked_bytes": 1890480698,
+    "entries": 38897
+  }
 }

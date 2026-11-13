@@ -39,6 +39,11 @@ CI is the proof
 - After each push, wait for the branch's CI run, read every failure in its logs, fix the cause
   and push again. A milestone is done when CI is green on its last commit; record that run in
   the progress file. Then begin the next.
+- Keep raw output in CI artifacts. Under docs/checks/measurements commit only inputs read by
+  code or checks and one short summary per measurement: what ran, decisive numbers, source
+  commit and CI URL. Remove raw logs/dumps and update every reference when replacing them.
+- Each CI inspection also reads PR 21 scanner comments through GitHub's API. Fix new findings
+  as they appear; test cryptographic challenges are generated at runtime, preserving assertions.
 - If you cannot push, or cannot read CI's results from here, write that once in the progress
   file, run everything that can run on this machine, and keep going.
 
@@ -70,7 +75,10 @@ Never, whatever it would unblock
 
 The end
 
-Update docs/any-host-progress.md a last time and leave `any-host` pushed and green. The last
+Update docs/any-host-progress.md a last time and leave `any-host` pushed and green.
+After all builds and milestone verification, land one pull request per milestone, in order,
+not one combined squash; keep commits confined to one milestone so the split is clean. Open no
+pull request during the build. The last
 message lists, for each milestone: what was built, the CI run that proved it, what did not run,
 what is parked and why, and every decision recorded.
 ```

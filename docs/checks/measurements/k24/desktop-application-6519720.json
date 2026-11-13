@@ -1,26 +1,23 @@
 {
-  "source": "6519720",
-  "run": 43317876537,
-  "job": 131530530128,
-  "hostGlibc": "2.39",
-  "componentNssDatabase": true,
-  "headful": {
-    "resultFileObserved": true,
-    "clickPresentAtImmediateRead": false,
-    "failure": "assertion failed: observed.iter().any(|v| v[\"kind\"] == \"click\")",
-    "elapsedSeconds": 3.85
-  },
-  "ssh": {
-    "command": true,
-    "pty": true,
-    "strictHostKey": true,
-    "clientKeyOnlyInAgentMemory": true,
-    "persistentDataHasNoAuthorization": true,
-    "neighbourFilesDeniedThroughSsh": true,
-    "nativeAgentLease": true,
-    "revocationClosesStreams": true,
-    "expiryClosesStreams": true,
-    "expiredReconnectDenied": true
-  },
-  "scope": "Completed producer log; headful input failed at the immediate application-observation read. Installed continuation and timing cohorts did not run. The bounded observation-wait correction needs fresh proof."
+  "measurement": "Completed producer log; headful input failed at the immediate application-observation read. Installed continuation and timing cohorts did not run. The bounded observation-wait correction needs fresh proof.",
+  "commit": "6519720",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43317876537",
+  "result": {
+    "componentNssDatabase": true,
+    "headful.resultFileObserved": true,
+    "headful.clickPresentAtImmediateRead": false,
+    "headful.failure": "assertion failed: observed.iter().any(|v| v[\"kind\"] == \"click\")",
+    "headful.elapsedSeconds": 3.85,
+    "ssh.command": true,
+    "ssh.pty": true,
+    "ssh.strictHostKey": true,
+    "ssh.clientKeyOnlyInAgentMemory": true,
+    "ssh.persistentDataHasNoAuthorization": true,
+    "ssh.neighbourFilesDeniedThroughSsh": true,
+    "ssh.nativeAgentLease": true,
+    "ssh.revocationClosesStreams": true,
+    "ssh.expiryClosesStreams": true,
+    "ssh.expiredReconnectDenied": true,
+    "scope": "Completed producer log; headful input failed at the immediate application-observation read. Installed continuation and timing cohorts did not run. The bounded observation-wait correction needs fresh proof."
+  }
 }

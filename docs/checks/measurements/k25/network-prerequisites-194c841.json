@@ -1,67 +1,52 @@
 {
-  "scope": "Separate one-guest vsock prerequisite proof with host user namespaces and TUN unavailable",
-  "hostKernel": "7.0.0-1017-azure",
-  "uid": 1001,
-  "paths": [
-    {
-      "path": "vsock",
-      "fixture": {
-        "mode": "vsock",
-        "url": "http://10.77.25.254:44969",
-        "subnet": "10.77.25.0/24",
-        "gateway": "10.77.25.1",
-        "device": "10.77.25.2",
-        "host": "10.77.25.254",
-        "gatewayMac": "02:fc:25:00:00:01",
-        "guestMac": "02:fc:25:00:00:02",
-        "mtu": 1500
-      },
-      "samples": [
-        {
-          "boots": 1,
-          "erofs": true,
-          "ext4": true,
-          "filesystems": "nodev\tsysfs\nnodev\ttmpfs\nnodev\tproc\nnodev\tcgroup\nnodev\tcgroup2\nnodev\tdevtmpfs\nnodev\tbinfmt_misc\nnodev\tconfigfs\nnodev\tdebugfs\nnodev\tsockfs\nnodev\tbpf\nnodev\tpipefs\nnodev\tramfs\nnodev\thugetlbfs\nnodev\tdevpts\n\text3\n\text2\n\text4\nnodev\tcifs\nnodev\tsmb3\nnodev\tautofs\n\tfuseblk\nnodev\tfuse\nnodev\tfusectl\nnodev\tvirtiofs\nnodev\toverlay\n\txfs\nnodev\t9p\n\terofs\nnodev\tmqueue\nnodev\tselinuxfs\n",
-          "kernel": "6.18.56",
-          "network": {
-            "bulkBytes": 16777216,
-            "bulkMiBPerSecond": 184.60598817058673,
-            "bulkMs": 86.671078,
-            "directManagementDenied": true,
-            "dnsAddresses": [
-              "104.20.23.154",
-              "172.66.147.243",
-              "2606:4700:10::ac42:93f3",
-              "2606:4700:10::6814:179a"
-            ],
-            "dnsMs": 2.048295,
-            "gatewayManagementDenied": true,
-            "httpMs": 0.42267,
-            "path": "vsock",
-            "readyMs": 106.17318
-          },
-          "overlay": true,
-          "pid": 1,
-          "rootUnchanged": true,
-          "virtioBlock": true,
-          "vsock": true,
-          "label": "vsock-00",
-          "launchToFilesystemVsockReportMs": 655.125424,
-          "monitorResident": "VmRSS:\t   74704 kB",
-          "monitorExit": 0,
-          "helperPreparationMs": 21.687569,
-          "helperAndGuestReportMs": 676.812993,
-          "proxyResident": "VmRSS:\t   31988 kB"
-        }
-      ],
-      "status": "success"
+  "measurement": "Separate one-guest vsock prerequisite proof with host user namespaces and TUN unavailable",
+  "commit": "194c841",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43456439308",
+  "result": {
+    "vsock.samples.helperAndGuestReportMs": {
+      "n": 1,
+      "p50": 676.813,
+      "p90": 676.813
+    },
+    "vsock.samples.helperPreparationMs": {
+      "n": 1,
+      "p50": 21.688,
+      "p90": 21.688
+    },
+    "vsock.samples.launchToFilesystemVsockReportMs": {
+      "n": 1,
+      "p50": 655.125,
+      "p90": 655.125
+    },
+    "vsock.samples.network.bulkBytes": {
+      "n": 1,
+      "p50": 16777216,
+      "p90": 16777216
+    },
+    "vsock.samples.network.bulkMiBPerSecond": {
+      "n": 1,
+      "p50": 184.606,
+      "p90": 184.606
+    },
+    "vsock.samples.network.bulkMs": {
+      "n": 1,
+      "p50": 86.671,
+      "p90": 86.671
+    },
+    "vsock.samples.network.dnsMs": {
+      "n": 1,
+      "p50": 2.048,
+      "p90": 2.048
+    },
+    "vsock.samples.network.httpMs": {
+      "n": 1,
+      "p50": 0.423,
+      "p90": 0.423
+    },
+    "vsock.samples.network.readyMs": {
+      "n": 1,
+      "p50": 106.173,
+      "p90": 106.173
     }
-  ],
-  "status": "success",
-  "pastaRefusal": {
-    "exitCode": 1,
-    "stderr": "Can't run AVX2 build, using non-AVX2 version: No such file or directory\nNo interfaces with usable IPv6 routes\nIPv6: no external interface as template, use local mode\nUnable to create user namespace: No space left on device\n",
-    "hostUserNamespaces": 0,
-    "hostTunAccess": false
   }
 }

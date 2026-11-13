@@ -1,60 +1,22 @@
 {
-  "source": "95560de94e75547db25f6e545f433ceb41ad8006",
-  "workflow": "Any host",
-  "run": 43219637379,
-  "job": 131190931529,
-  "url": "https://github.com/cubepals/pryx/actions/runs/43219637379/job/131190931529",
-  "jobConclusion": "success",
-  "artifact": {
-    "id": 13948102235,
-    "name": "installed-native-tools",
-    "zipSha256": "a275a4ff7386d98133693633248666ac7afcfca0acdfe9038124dce42294b6cc"
-  },
-  "retained": {
-    "installed-process-startup-95560de.json": {
-      "artifactFile": "native-process-measurements.json",
-      "sha256": "49cd547990eec17695ff2636e439c98e3a5f99271574ee673b6b25de6b7abea9"
+  "measurement": "Thirty sequential samples per process tool: sandbox create through validated first PNG; browser includes its own HTTP page-server startup, kernels include first chart. Bundle already acquired by preceding functional tests; every fresh supervisor still verifies its cached inventory. Four default units requested. Host glibc 2.39, x86_64, Landlock ABI 8, ordinary uid 1002, no engine. Process CPU/memory guarantees differ\u2026",
+  "commit": "95560de94e75547db25f6e545f433ceb41ad8006",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43219637379",
+  "result": {
+    "summary.browser": {
+      "n": 30,
+      "p50Ms": 8946.056,
+      "p90Ms": 9036.744
     },
-    "installed-user-95560de.log": {
-      "artifactFile": "native-user-acceptance.log",
-      "sha256": "b809dee0b1c19480ad0bfd3bb7e11b4426d20f887ecaa32130b901121dbc7c49"
+    "summary.python": {
+      "n": 30,
+      "p50Ms": 11954.469,
+      "p90Ms": 12045.156
     },
-    "installed-default-image-95560de.log": {
-      "artifactFile": "native-default-image.log",
-      "sha256": "47dabd079e22de409f37f55b744168f924df3ef687594c548d261825960004ba"
+    "summary.javascript": {
+      "n": 30,
+      "p50Ms": 7962.112,
+      "p90Ms": 8006.744
     }
-  },
-  "summary": {
-    "browser": {
-      "n": 30,
-      "p50Ms": 8946.056087000004,
-      "p90Ms": 9036.744025000007
-    },
-    "python": {
-      "n": 30,
-      "p50Ms": 11954.469314999995,
-      "p90Ms": 12045.156347999931
-    },
-    "javascript": {
-      "n": 30,
-      "p50Ms": 7962.111680000089,
-      "p90Ms": 8006.743754999945
-    }
-  },
-  "observed": {
-    "signedFreshUserInstall": true,
-    "engine": "none",
-    "bothPythonSdkModes": true,
-    "typeScriptKernelsStatePngErrorsInterruptRestart": true,
-    "actualPinnedRuntimeExecutablePathsVersions": true,
-    "hostGlibcEqualsGetconf": true,
-    "mcpRunPythonPng": true,
-    "installedCli": true,
-    "browserScreenshotForwardedCdpAndGuarantee": true,
-    "defaultDockerBothKernelsAndNamespaceBrowserRefusal": true,
-    "requiredBrowserPlacementRefusedWithoutNamespaces": true,
-    "purge": true
-  },
-  "scope": "Thirty sequential samples per process tool: sandbox create through validated first PNG; browser includes its own HTTP page-server startup, kernels include first chart. Bundle already acquired by preceding functional tests; every fresh supervisor still verifies its cached inventory. Four default units requested. Host glibc 2.39, x86_64, Landlock ABI 8, ordinary uid 1002, no engine. Process CPU/memory guarantees differ from container quotas.",
-  "limitations": "Complete signed ordinary-user/default-Docker native acceptance and Alpine relocation pass. Later host-matrix jobs fail fetching Ubuntu prerequisite packages before product acceptance; complete Any-host workflow and final correction CI remain required. No main push or release publication."
+  }
 }

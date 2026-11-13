@@ -1,50 +1,12 @@
 {
-  "source": "13d4f5b",
-  "run": 43437923851,
-  "job": 131927717596,
-  "jobConclusion": "success",
-  "scope": "Verified actual primary archive bytes; no monitor or kernel executed",
-  "candidates": [
-    {
-      "name": "firecracker",
-      "repository": "firecracker-microvm/firecracker",
-      "tag": "v1.18.0",
-      "assetPattern": "^firecracker-.*-x86_64\\.tgz$",
-      "licence": "Apache-2.0",
-      "licenceUrl": "https://github.com/firecracker-microvm/firecracker/blob/v1.18.0/LICENSE",
-      "purpose": "Separate monitor and jailer; no Nitro or emulated fallback",
-      "sha256": "1ac8eec866dd5eea14efecf6323e22b23eea24054545338a5b34bc5bca6623cd",
-      "digestSource": "https://github.com/firecracker-microvm/firecracker/releases/expanded_assets/v1.18.0",
-      "sourceCommit": "eaf83bb718a559d324613d566eaf776b31a62340",
-      "releaseUrl": "https://github.com/firecracker-microvm/firecracker/releases/tag/v1.18.0",
-      "assetId": 727690568,
-      "assetName": "firecracker-v1.18.0-x86_64.tgz",
-      "url": "https://github.com/firecracker-microvm/firecracker/releases/download/v1.18.0/firecracker-v1.18.0-x86_64.tgz",
-      "bytes": 7606252,
-      "upstreamDigest": "sha256:1ac8eec866dd5eea14efecf6323e22b23eea24054545338a5b34bc5bca6623cd",
-      "executed": false
-    },
-    {
-      "name": "kata-kernel-candidate",
-      "repository": "kata-containers/kata-containers",
-      "tag": "4.3.1",
-      "assetPattern": "^kata-static-.*-amd64\\.tar\\.(xz|zst|gz)$",
-      "licence": "Linux kernel GPL-2.0-only; remaining archive components are outside this candidate",
-      "licenceUrl": "https://www.kernel.org/doc/html/latest/process/license-rules.html",
-      "kernelVersion": "6.18.56",
-      "kernelSource": "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.18.56.tar.xz",
-      "configurationSource": "https://github.com/kata-containers/kata-containers/tree/4.3.1/tools/packaging/kernel",
-      "purpose": "Published guest kernel only; boot/configuration proof required before selection",
-      "sha256": "1463a2b86845f4d3d8e87f2f764ec59856fc0fee3520967a79ade32762be2e97",
-      "digestSource": "https://github.com/kata-containers/kata-containers/releases/expanded_assets/4.3.1",
-      "sourceCommit": "03cf2ec06a5d302f23af811744f6bcea49988bfb",
-      "releaseUrl": "https://github.com/kata-containers/kata-containers/releases/tag/4.3.1",
-      "assetId": 663864062,
-      "assetName": "kata-static-4.3.1-amd64.tar.zst",
-      "url": "https://github.com/kata-containers/kata-containers/releases/download/4.3.1/kata-static-4.3.1-amd64.tar.zst",
-      "bytes": 1021129805,
-      "upstreamDigest": "sha256:1463a2b86845f4d3d8e87f2f764ec59856fc0fee3520967a79ade32762be2e97",
-      "executed": false
+  "measurement": "Verified actual primary archive bytes; no monitor or kernel executed",
+  "commit": "13d4f5b",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43437923851",
+  "result": {
+    "candidates.bytes": {
+      "n": 2,
+      "p50": 7606252,
+      "p90": 1021129805
     }
-  ]
+  }
 }

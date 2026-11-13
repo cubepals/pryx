@@ -1,9 +1,9 @@
 {
-  "source": "9496dbf2925f5447341885fcf2106b054e4895d9",
-  "run": 43480235917,
-  "job": 132074522185,
-  "conclusion": "success",
-  "artifact": 14064419038,
-  "artifactSha256": "787532060b4f951ce295e7f4eb748033930ba5882adfcf7ed943773153c95964",
-  "scope": "Published input spikes, real OCI preparation and actual static bootstrap build; guest init boot not yet run"
+  "measurement": "Published input spikes, real OCI preparation and actual static bootstrap build; guest init boot not yet run",
+  "commit": "9496dbf2925f5447341885fcf2106b054e4895d9",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43480235917",
+  "result": {
+    "conclusion": "success",
+    "scope": "Published input spikes, real OCI preparation and actual static bootstrap build; guest init boot not yet run"
+  }
 }

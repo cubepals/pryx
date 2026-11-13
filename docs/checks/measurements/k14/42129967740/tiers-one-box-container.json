@@ -1,45 +1,12 @@
 {
-  "context": "one-box/container",
-  "source": "1cebe304690d9a0c034ec3eb20e7351f15434484",
-  "comparison": "same-source container/process reference versus wasm candidate; release profile",
-  "host": {
-    "cpu": "AMD EPYC 9V74 80-Core Processor",
-    "cores": 4,
-    "kernel": "7.0.0-1017-azure",
-    "memoryBytes": 16760348672,
-    "bun": "1.4.4"
-  },
-  "datasetBytes": 100000000,
-  "repetitions": 30,
-  "samples": {
-    "fixed_node_pss_bytes": [
-      12062720
-    ],
-    "idle_increment_pss_bytes": [],
-    "shell_increment_pss_bytes": [],
-    "cold_create_running_ms": []
-  },
-  "unsupported": {},
-  "tier": "container",
-  "status": "incomplete",
-  "imageId": "sha256:1216a34b97e5f7b6833f49fe02bf106c78c9845df12fe7c9c1f6eb1fdca6ce84",
-  "binarySha256": "6962a88c66c1ccc315eaedc331ec9494dadcf4b05281f9955674cdeef5f73b9c",
-  "topology": "host node, control and edge; container requires the host engine",
-  "failure": "Node refused the operation",
-  "summary": {
-    "fixed_node_pss_bytes": {
+  "measurement": "tiers one box container",
+  "commit": "1cebe304690d9a0c034ec3eb20e7351f15434484",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/42129967740",
+  "result": {
+    "summary.fixed_node_pss_bytes": {
       "n": 1,
       "p50": 12062720,
       "p90": 12062720
-    },
-    "idle_increment_pss_bytes": {
-      "n": 0
-    },
-    "shell_increment_pss_bytes": {
-      "n": 0
-    },
-    "cold_create_running_ms": {
-      "n": 0
     }
   }
 }

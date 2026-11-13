@@ -1,20 +1,11 @@
 {
-  "sourceBase": "26c8b10660afca5417a081d0850fca453a48d440",
-  "scope": "Local source export/package only; no hosted combined-asset or runtime-publication claim",
-  "manifestSha256": "1a487d86ab60cdb9994283ae9f5b7a8e4d51523357b09111436896d4521941db",
-  "stagedArchive": {
-    "url": "https://example.invalid/staged-desktop-sources.tar.gz",
-    "sha256": "122ec130cb2bef6015b70652633706a2c4af42670d5743e7b344712145920f44",
-    "manifest_sha256": "1a487d86ab60cdb9994283ae9f5b7a8e4d51523357b09111436896d4521941db",
-    "bytes": 37336907,
-    "unpacked_bytes": 37853345,
-    "entries": 184
-  },
-  "inputs": {
-    "templates/process-tools/desktop_sources.py": "d7b9a22bfe84a19009ad9348612e3b780cdfd0a75d8fffc55a8708c2417d3bd0",
-    "templates/process-tools/desktop-sources.lock.json": "5e79863ec7e7e28737a96768fca69b905b370ebf1009ca167fce38193ef01d38",
-    "templates/process-tools/desktop.lock.json": "6902b097d290bc061e613d42d57ec9b44271bca80250696e0a604584a3b668b8",
-    "templates/process-tools/sources.py": "a440e037a28e4bc9b925573328bc5b45f6610442172df3803222c95a66bbb87d",
-    "templates/process-tools/desktop.py": "aec21e8f58464204718dbe08cdb7d47461bcabe6031ef5a376e63365661586d4"
+  "measurement": "Local source export/package only; no hosted combined-asset or runtime-publication claim",
+  "commit": "26c8b10660afca5417a081d0850fca453a48d440",
+  "ci": "Not recorded; local or inventory evidence, not a CI pass",
+  "result": {
+    "scope": "Local source export/package only; no hosted combined-asset or runtime-publication claim",
+    "stagedArchive.bytes": 37336907,
+    "stagedArchive.unpacked_bytes": 37853345,
+    "stagedArchive.entries": 184
   }
 }

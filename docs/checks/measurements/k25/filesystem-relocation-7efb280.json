@@ -1,15 +1,12 @@
 {
-  "scope": "Relocated filesystem component only; not production VM lifecycle",
-  "uid": 1001,
-  "status": "success",
-  "files": 15,
-  "loaded": {
-    "mkfs.erofs": "\t/lib/ld-musl-x86_64.so.1 (0x7fb65ed35000)\n\tlibuuid.so.1 => /tmp/relocated-vm-filesystems-4rdt8nn0/relocated/tools/libraries/libuuid.so.1 (0x7fb65ed24000)\n\tliblz4.so.1 => /tmp/relocated-vm-filesystems-4rdt8nn0/relocated/tools/libraries/liblz4.so.1 (0x7fb65ecf9000)\n\tlibz.so.1 => /tmp/relocated-vm-filesystems-4rdt8nn0/relocated/tools/libraries/libz.so.1 (0x7fb65ecde000)\n\tlibc.musl-x86_64.so.1 => /lib/ld-musl-x86_64.so.1 (0x7fb65ed35000)\n",
-    "fsck.erofs": "\t/lib/ld-musl-x86_64.so.1 (0x7f8301141000)\n\tliblz4.so.1 => /tmp/relocated-vm-filesystems-4rdt8nn0/relocated/tools/libraries/liblz4.so.1 (0x7f830110e000)\n\tlibz.so.1 => /tmp/relocated-vm-filesystems-4rdt8nn0/relocated/tools/libraries/libz.so.1 (0x7f83010f3000)\n\tlibc.musl-x86_64.so.1 => /lib/ld-musl-x86_64.so.1 (0x7f8301141000)\n",
-    "mke2fs": "\t/lib/ld-musl-x86_64.so.1 (0x7f1a6af2b000)\n\tlibext2fs.so.2 => /tmp/relocated-vm-filesystems-4rdt8nn0/relocated/tools/libraries/libext2fs.so.2 (0x7f1a6aea9000)\n\tlibcom_err.so.2 => /tmp/relocated-vm-filesystems-4rdt8nn0/relocated/tools/libraries/libcom_err.so.2 (0x7f1a6aea3000)\n\tlibblkid.so.1 => /tmp/relocated-vm-filesystems-4rdt8nn0/relocated/tools/libraries/libblkid.so.1 (0x7f1a6ae70000)\n\tlibuuid.so.1 => /tmp/relocated-vm-filesystems-4rdt8nn0/relocated/tools/libraries/libuuid.so.1 (0x7f1a6ae67000)\n\tlibe2p.so.2 => /tmp/relocated-vm-filesystems-4rdt8nn0/relocated/tools/libraries/libe2p.so.2 (0x7f1a6ae5e000)\n\tlibc.musl-x86_64.so.1 => /lib/ld-musl-x86_64.so.1 (0x7f1a6af2b000)\n\tlibeconf.so.0 => /tmp/relocated-vm-filesystems-4rdt8nn0/relocated/tools/libraries/libeconf.so.0 (0x7f1a6ae53000)\n",
-    "e2fsck": "\t/lib/ld-musl-x86_64.so.1 (0x7f9410728000)\n\tlibext2fs.so.2 => /tmp/relocated-vm-filesystems-4rdt8nn0/relocated/tools/libraries/libext2fs.so.2 (0x7f941067a000)\n\tlibcom_err.so.2 => /tmp/relocated-vm-filesystems-4rdt8nn0/relocated/tools/libraries/libcom_err.so.2 (0x7f9410674000)\n\tlibblkid.so.1 => /tmp/relocated-vm-filesystems-4rdt8nn0/relocated/tools/libraries/libblkid.so.1 (0x7f9410641000)\n\tlibuuid.so.1 => /tmp/relocated-vm-filesystems-4rdt8nn0/relocated/tools/libraries/libuuid.so.1 (0x7f9410638000)\n\tlibe2p.so.2 => /tmp/relocated-vm-filesystems-4rdt8nn0/relocated/tools/libraries/libe2p.so.2 (0x7f941062f000)\n\tlibc.musl-x86_64.so.1 => /lib/ld-musl-x86_64.so.1 (0x7f9410728000)\n\tlibeconf.so.0 => /tmp/relocated-vm-filesystems-4rdt8nn0/relocated/tools/libraries/libeconf.so.0 (0x7f9410624000)\n"
-  },
-  "erofsBytes": 4096,
-  "ext4Bytes": 134217728,
-  "ext4Check": "Pass 1: Checking inodes, blocks, and sizes\nPass 2: Checking directory structure\nPass 3: Checking directory connectivity\nPass 4: Checking reference counts\nPass 5: Checking group summary information\n/tmp/relocated-vm-filesystems-4rdt8nn0/writes.ext4: 13/32768 files (0.0% non-contiguous), 14012/131072 blocks\ne2fsck 1.47.4 (6-Mar-2025)\n"
+  "measurement": "Relocated filesystem component only; not production VM lifecycle",
+  "commit": "7efb280ccc1921d9fc57aea98ce817b5e2417046",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43464154294",
+  "result": {
+    "scope": "Relocated filesystem component only; not production VM lifecycle",
+    "status": "success",
+    "files": 15,
+    "erofsBytes": 4096,
+    "ext4Bytes": 134217728
+  }
 }

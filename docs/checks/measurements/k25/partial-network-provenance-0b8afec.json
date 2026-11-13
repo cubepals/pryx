@@ -1,11 +1,9 @@
 {
-  "source": "0b8afec",
-  "run": 43452903447,
-  "job": 131979462700,
-  "conclusion": "failure",
-  "artifactId": 14053321598,
-  "artifactSha256": "cbd929b9e5d2ccc186fe04e35e4be4f540ee9e0d1c4ee981f3444036db17d996",
-  "scope": "All thirty vsock guests and thirteen pasta guests pass; the fourteenth pasta bulk transfer stalls before its unchanged two-second deadline; prerequisite case did not run",
-  "vsockSamples": 30,
-  "pastaSamples": 13
+  "measurement": "All thirty vsock guests and thirteen pasta guests pass; the fourteenth pasta bulk transfer stalls before its unchanged two-second deadline; prerequisite case did not run",
+  "commit": "0b8afec",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43452903447",
+  "result": {
+    "conclusion": "failure",
+    "scope": "All thirty vsock guests and thirteen pasta guests pass; the fourteenth pasta bulk transfer stalls before its unchanged two-second deadline; prerequisite case did not run"
+  }
 }

@@ -31,7 +31,7 @@ the initial cohort and has no specified budget. At collection time final accepta
 Run [42007702494](https://github.com/cubepals/pryx/actions/runs/42007702494) completed paired
 agent measurements, then failed sleep/wake and scratch-image acceptance. These are initial
 measurements, not a claim of completed acceptance. Both cohorts used the same two-vCPU AMD
-EPYC 9V45 host. Raw samples and daemon identities are retained in
+EPYC 9V45 host. Measurement summary and daemon identities are retained in
 [before](agent-speed-initial-before.json) and [after](agent-speed-initial-after.json).
 The baseline is b91ee23 and the after product is 83c7e2d, using the static release agent.
 
@@ -57,7 +57,7 @@ fe77e673364580efe372a4f685837f219ae7a0a5 and after product
 7cd80e9bff7be320d10993aeadb8e73f3f6f65c8, using the same collector and host. Both measurement
 steps passed; the later Rivet/celld integration step failed, so the workflow is not green.
 [Before](speed-before.json) and [after](speed-after.json) retain every raw sample,
-daemon digest and advertised feature list. Only the after daemon advertises exec-stream.
+daemon digest and advertised feature list. Only the after daemon advertises exec-stream. Raw output belongs to the cited CI artifacts; the repository keeps only its summary.
 
 ```sh
 DATABASE_URL=... S3_TEST_ENDPOINT=http://127.0.0.1:9000 PRYXD_SUDO=1 \
@@ -74,7 +74,7 @@ timing. It validates that create/start reach running and that suspended wake act
 Cleanup, initial setup and template warming are excluded in the corrected common collector.
 The [initial baseline](speed-initial-before.json) included reference clearing/verification
 in its cold timer; the paired rows below exclude it. Snapshot/fork use 100,000,000 zero
-bytes, so data compressibility and the host filesystem's copy behavior matter.
+bytes, so data compressibility and the host filesystem's copy behavior matter. Raw output belongs to the cited CI artifacts; the repository keeps only its summary.
 
 Image creation is measured both from an already cached image and with its local image
 references removed before each sample. Shared Docker layers and OS page caches can remain;
@@ -106,7 +106,7 @@ awaits Docker process exit under the command deadline with four-millisecond insp
 runtime, transport and stream overhead remain for K11 to remove. Node-call timings are in the raw
 report. The after implementation combines durable-operation insert/read and claim/activity
 updates into one database round trip each. The baseline already had authenticated keep-alive
-connections and used the node start response without waiting for a heartbeat; these are retained.
+connections and used the node start response without waiting for a heartbeat; these are retained. Raw output belongs to the cited CI artifacts; the repository keeps only its summary.
 
 Run 41957179796's after samples are discarded: its shared Cargo target reused the baseline
 executable, and the live-output assertion exposed buffered fallback. Both builds now clean the
@@ -165,7 +165,7 @@ arithmetic checks, not physical host measurements.
 
 The K12 collector is `control/bench/process-speed.ts`. CI records paired n=30 container and
 process cohorts on the same runner and source commit, with CPU, kernel, image ID, static-agent
-hash, dataset size, raw samples and completion status. This compares deployment tiers; it does
+hash, dataset size, measurement summaries and completion status. This compares deployment tiers; it does
 not attribute the difference to a single code optimization. The earlier daemon-only image has
 no all-in-one API, so its image-start baseline is explicitly unavailable (n=0).
 
@@ -186,7 +186,7 @@ and no creating of user/mount/PID/network namespaces; changing UID and the requi
 filesystem/network probes succeed. This cohort then fails sandbox admission on available disk,
 before process-operation samples, so it is not successful process acceptance. Raw startup samples,
 image/agent digests and the failure are retained in
-[the initial process report](process-speed-initial-after.json).
+[the initial process report](process-speed-initial-after.json). Raw output belongs to the cited CI artifacts; the repository keeps only its summary.
 
 ### K11 private-ingress cohort
 
@@ -196,7 +196,7 @@ TypeScript and Python agent acceptance, including network none, and the separate
 recovery and lease watchdog suites. Its process-tier admission and edge connection test still
 fail; this is not a claim that the complete workflow passed. Raw
 [before](agent-speed-relay-before.json) and [after](agent-speed-relay-after.json) samples
-retain all observations.
+retain all observations. Raw output belongs to the cited CI artifacts; the repository keeps only its summary.
 
 | operation | before p50 / p90 ms | after p50 / p90 ms | budget p90 |
 | --- | --- | --- | --- |
@@ -216,7 +216,7 @@ cohort on a different runner; it is retained without a causal speedup claim.
 Run [42055145022](https://github.com/cubepals/pryx/actions/runs/42055145022), source bbadbde,
 reaches actual Landlock-restricted process compute in the ordinary image. Its paired
 [container](process-speed-compute-before.json) and
-[process](process-speed-compute-after.json) reports retain all samples. Both use the same
+[process](process-speed-compute-after.json) reports retain sample aggregates. Both use the same
 CI host and source. The process cohort stops at its first Python exposed-HTTP check, so later
 operations are absent and the cohort/workflow is not complete.
 
@@ -238,7 +238,7 @@ The [container](process-speed-http-before.json) and
 [process](process-speed-http-after.json) reports retain every sample and the failure:
 CLI image-refusal acceptance fails after measurement, so this is not completed acceptance.
 The one-box job separately passes the literal quickstart, SDK examples and image host installer,
-including repeat installation. Image-start baseline is unavailable on the prior daemon-only image.
+including repeat installation. Image-start baseline is unavailable on the prior daemon-only image. Raw output belongs to the cited CI artifacts; the repository keeps only its summary.
 
 | operation | container p50 / p90 ms | process p50 / p90 ms | budget p90 |
 | --- | --- | --- | --- |
@@ -286,7 +286,7 @@ All four stated process/image budgets pass with the supervisor guard. The additi
 launcher costs about 1 ms compared with the earlier unguarded process cohort on another run;
 that is an observation, not a controlled causal estimate. The same-host container comparison
 retains its 1,004.62 ms wake p90 rather than rounding it below a second. The process wake p90 is
-15.60 ms. Earlier failed cohorts remain above and in raw reports.
+15.60 ms. Earlier failed cohorts remain above and in measurement summaries.
 
 ## Native celld comparison
 
@@ -296,7 +296,7 @@ both engines using the same patched celld 0.6.3 executable and host. Backend-sta
 1,881.78/1,889.72 ms locally and 1,274.87/1,284.34 ms through pryx. Warm HTTP is
 5.50/5.72 ms locally and 5.74/7.24 ms through pryx. These are observed costs, with no additional
 speed threshold in K13. [docker-api.md](docker-api.md) records the method, limits and complete
-raw samples, including the retained failed initial cohort and unshipped socket experiment.
+measurement summaries, including the retained failed initial cohort and unshipped socket experiment.
 
 ### Project rotation with reserved host ports
 
@@ -309,7 +309,7 @@ outgoing ephemeral range 32768–60999 and reserved workload range 42000–42999
 failures are now retained by the collector. This remains an observed 8 GiB-class runner, not a
 physical 16 GiB measurement. Every assigned test job has now passed; the final aggregate did not start because of the
 account-level Actions runner-allocation restriction described in decisions.md. The workflow
-concluded with failure, not success.
+concluded with failure, not success. Raw output belongs to the cited CI artifacts; the repository keeps only its summary.
 
 
 ## Final K9–K13 measurement cohort
@@ -329,7 +329,7 @@ Comparisons below keep their own baseline definitions; they are not interchangea
 The common collector on 66230f5 measures fe77e67 before and 7cd80e9 after, with the agent
 disabled, preserving the historical Docker-exec path. Raw [before](final-speed-before.json)
 and [after](final-speed-after.json) reports include node-call timings and cold-image
-semantics: references are removed, while shared layers and OS caches can remain.
+semantics: references are removed, while shared layers and OS caches can remain. Raw output belongs to the cited CI artifacts; the repository keeps only its summary.
 
 | Operation | Before p50 / p90 ms | After p50 / p90 ms | Budget |
 | --- | --- | --- | --- |
@@ -358,7 +358,7 @@ measurement. Production transport behavior was left unchanged and the temporary 
 
 The pinned b91ee23 baseline and current 66230f5 use the same host. Raw
 [before](final-agent-speed-before.json) and [after](final-agent-speed-after.json)
-reports preserve unavailable agent-only baseline paths as n=0, rather than inventing samples.
+reports preserve unavailable agent-only baseline paths as n=0, rather than inventing samples. Raw output belongs to the cited CI artifacts; the repository keeps only its summary.
 
 | Operation | Before p50 / p90 ms | After p50 / p90 ms | Budget |
 | --- | --- | --- | --- |
@@ -391,7 +391,7 @@ The prior daemon-only image has no all-in-one API startup baseline, explicitly n
 
 All four process/image thresholds pass. Process exposure is slower than the same-source
 container comparison and is retained without a speedup claim. Capability, mandatory filesystem
-and network enforcement facts, shared UID probes and image/agent digests remain in the raw data.
+and network enforcement facts, shared UID probes and image/agent digests remain in the raw data. Raw output belongs to the cited CI artifacts; the repository keeps only its summary.
 
 ### K13 native celld repeat
 

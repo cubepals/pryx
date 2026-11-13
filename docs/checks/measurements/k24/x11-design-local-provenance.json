@@ -1,8 +1,8 @@
 {
-  "sourceBase": "e4d7a23cf5197587352859fd13d6b6cfc41b6f11",
-  "testSourceSha256": "9c758bd9340a6e2fa6495eafa37c7620f6a98a13c7f5f35769d34afa5d07cc5a",
-  "fixtureBuilderSha256": "98cda9cec47f8028d6007cdb6ca09fb30ed05693e143e564d7e369498f922a9d",
-  "reportSha256": "d0f73ed5634e0be2e755942ee03b321f68d6e360a7a55adac141f7456dc2b6e5",
-  "scope": "Local unchanged X11 argument behavior and process-policy refusal only; filesystem enforcement unavailable. Hosted CI requires enforcement and remains pending. No live endpoint or headful Chromium acceptance.",
-  "privateGlibcNegativeProbe": "Nested libc marker refused before cache/output creation; marker data was never executable."
+  "measurement": "Local unchanged X11 argument behavior and process-policy refusal only; filesystem enforcement unavailable. Hosted CI requires enforcement and remains pending. No live endpoint or headful Chromium acceptance.",
+  "commit": "e4d7a23cf5197587352859fd13d6b6cfc41b6f11",
+  "ci": "Not recorded; local or inventory evidence, not a CI pass",
+  "result": {
+    "scope": "Local unchanged X11 argument behavior and process-policy refusal only; filesystem enforcement unavailable. Hosted CI requires enforcement and remains pending. No live endpoint or headful Chromium acceptance."
+  }
 }

@@ -1,8 +1,8 @@
 {
-  "source": "ae7b5a8af3d9742d466a021c2a31f57a61f37418",
-  "run": 43194460133,
-  "job": 131101705318,
-  "artifact": 13933605902,
-  "artifactZipSha256": "b4071e267aba352629e9415553871481cb6037f88c369c98a65487e40e17966b",
-  "scope": "Full-policy kernels, browser screenshot, forwarded CDP, same-UID owner/neighbour channels and no-fetch namespace refusal; signed installed-product SDKs and thirty samples remain pending"
+  "measurement": "Full-policy kernels, browser screenshot, forwarded CDP, same-UID owner/neighbour channels and no-fetch namespace refusal; signed installed-product SDKs and thirty samples remain pending",
+  "commit": "ae7b5a8af3d9742d466a021c2a31f57a61f37418",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43194460133",
+  "result": {
+    "scope": "Full-policy kernels, browser screenshot, forwarded CDP, same-UID owner/neighbour channels and no-fetch namespace refusal; signed installed-product SDKs and thirty samples remain pending"
+  }
 }

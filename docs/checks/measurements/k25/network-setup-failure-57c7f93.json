@@ -1,13 +1,9 @@
 {
-  "source": "57c7f93",
-  "run": 43446165170,
-  "job": 131956052064,
-  "conclusion": "failure",
-  "failedStep": "Build maintained network wrappers and guest forwarder",
-  "artifactId": 14046794670,
-  "artifactSha256": "96ca20f8211c3057e250cec691e0eb7721e1d82d326ca60bde0b5aa68f197e67",
-  "kernelSamples": 30,
-  "kernelStatus": "success",
-  "networkSamples": 0,
-  "error": "Go mod verify treats the local replaced fixture module as a downloadable cache entry; no local archive exists"
+  "measurement": "network setup failure 57c7f93",
+  "commit": "57c7f93",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43446165170",
+  "result": {
+    "conclusion": "failure",
+    "kernelStatus": "success"
+  }
 }

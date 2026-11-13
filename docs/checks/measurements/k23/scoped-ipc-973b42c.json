@@ -1,21 +1,12 @@
 {
-  "abstract": {
-    "completed": true,
-    "neighbourRefused": true,
-    "ownerReachable": true,
-    "scopeAvailable": true
-  },
-  "filesystem": "enforced",
-  "neighbour": {
-    "connection": "reachable",
-    "fileRead": "blocked",
-    "uid": 1001
-  },
-  "owner": {
-    "connection": "reachable",
-    "fileRead": "not-requested",
-    "uid": 1001
-  },
-  "sameUid": true,
-  "scope": "design observation only; native process tools remain refused"
+  "measurement": "design observation only; native process tools remain refused",
+  "commit": "973b42c",
+  "ci": "Not recorded; local or inventory evidence, not a CI pass",
+  "result": {
+    "abstract.completed": true,
+    "abstract.neighbourRefused": true,
+    "abstract.ownerReachable": true,
+    "abstract.scopeAvailable": true,
+    "scope": "design observation only; native process tools remain refused"
+  }
 }

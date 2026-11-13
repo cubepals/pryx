@@ -1,34 +1,11 @@
 {
-  "source": "53e83505f823cf4b92aca2b4a952cf084c636f32",
-  "run": 43421825320,
-  "job": 131873514089,
-  "jobConclusion": "success",
-  "artifacts": {
-    "native-tools-measurements": {
-      "id": 14038565250,
-      "zipSha256": "12b184295427cdf585a8e798ea7925e4c17ab61b3ce31e259869294515fdc814"
-    },
-    "interpreter-measurements": {
-      "id": 14038505380,
-      "zipSha256": "549d705debcefb90c5c4048795fc2b852aaca1097f66c592567ea5b55ec74e75"
-    }
-  },
-  "retained": {
-    "container-native-53e8350.json": {
-      "artifact": "native-tools-measurements",
-      "artifactFile": "native-tools-measurements.json",
-      "sha256": "3fbd769086a861961f23b11de68ef22607d2c47000a0a21e7dcc3b428de19c4b"
-    },
-    "container-interpreter-budgets-53e8350.json": {
-      "artifact": "interpreter-measurements",
-      "artifactFile": "interpreter-measurements.json",
-      "sha256": "7df1df8886cbb8cfb23a4abe0673a9b4cbf58963700abca7ec2bb2d9ce485334"
-    },
-    "container-interpreter-startup-53e8350.json": {
-      "artifact": "interpreter-measurements",
-      "artifactFile": "interpreter-create-to-image.json",
-      "sha256": "9756e886c14862ce9278a53666a5543a89378ae21ef45e8dd1dda2607b099b76"
-    }
-  },
-  "scope": "Actual container-template cohorts from green full normal PR CI: thirty desktop/browser create-to-first-PNG samples and thirty samples per interpreter language, with four default units (one CPU core, 2 GiB). Separate runner from process installation. Existing interpreter execution/restart clocks and budgets are unchanged. SSH command/wake/revocation and both SDK functionals pass, but this collector has no container SSH timing cohort."
+  "measurement": "Actual container-template cohorts from green full normal PR CI: thirty desktop/browser create-to-first-PNG samples and thirty samples per interpreter language, with four default units (one CPU core, 2 GiB). Separate runner from process installation. Existing interpreter execution/restart clocks and budgets are unchanged. SSH command/wake/revocation and both SDK functionals pass, but this collector has no container SS\u2026",
+  "commit": "53e83505f823cf4b92aca2b4a952cf084c636f32",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43421825320",
+  "result": {
+    "jobConclusion": "success",
+    "artifacts.native-tools-measurements.id": 14038565250,
+    "artifacts.interpreter-measurements.id": 14038505380,
+    "scope": "Actual container-template cohorts from green full normal PR CI: thirty desktop/browser create-to-first-PNG samples and thirty samples per interpreter language, with four default units (one CPU core, 2 GiB). Separate runn\u2026"
+  }
 }

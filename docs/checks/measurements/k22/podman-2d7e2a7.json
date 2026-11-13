@@ -1,159 +1,22 @@
 {
-  "architecture": "x86_64",
-  "engine": "podman",
-  "requestedSamples": 30,
-  "samples": [
-    {
-      "createMs": 4361.130585,
-      "execMs": 46.090857,
-      "networkMs": 3.2336
+  "measurement": "direct node manager, locally available image, serial workloads, no public edge",
+  "commit": "2d7e2a7fe1ec1b39035645ed591610ec818309e8",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43027222801",
+  "result": {
+    "samples.createMs": {
+      "n": 30,
+      "p50": 4217.499,
+      "p90": 4361.131
     },
-    {
-      "createMs": 5855.746078,
-      "execMs": 802.1763109999999,
-      "networkMs": 3.174506
+    "samples.execMs": {
+      "n": 30,
+      "p50": 47.987,
+      "p90": 127.716
     },
-    {
-      "createMs": 4328.007924,
-      "execMs": 48.182187,
-      "networkMs": 3.334783
-    },
-    {
-      "createMs": 4397.927465999999,
-      "execMs": 46.149466,
-      "networkMs": 3.184447
-    },
-    {
-      "createMs": 4303.701461000001,
-      "execMs": 47.986642,
-      "networkMs": 3.266516
-    },
-    {
-      "createMs": 4229.410825999999,
-      "execMs": 88.24937,
-      "networkMs": 3.107807
-    },
-    {
-      "createMs": 4139.7320740000005,
-      "execMs": 55.484325,
-      "networkMs": 3.109302
-    },
-    {
-      "createMs": 4211.452049,
-      "execMs": 48.091215999999996,
-      "networkMs": 3.1731939999999996
-    },
-    {
-      "createMs": 4227.7267409999995,
-      "execMs": 51.590046,
-      "networkMs": 3.2981949999999998
-    },
-    {
-      "createMs": 4253.772811,
-      "execMs": 45.963775,
-      "networkMs": 3.109056
-    },
-    {
-      "createMs": 4159.603674000001,
-      "execMs": 45.646797,
-      "networkMs": 3.200544
-    },
-    {
-      "createMs": 4215.642914,
-      "execMs": 46.104405,
-      "networkMs": 3.221183
-    },
-    {
-      "createMs": 4200.405957,
-      "execMs": 155.422514,
-      "networkMs": 3.201691
-    },
-    {
-      "createMs": 4280.215325,
-      "execMs": 54.945748,
-      "networkMs": 3.225988
-    },
-    {
-      "createMs": 4118.756129,
-      "execMs": 47.836803999999994,
-      "networkMs": 3.196049
-    },
-    {
-      "createMs": 4267.514286,
-      "execMs": 49.111423,
-      "networkMs": 3.253197
-    },
-    {
-      "createMs": 4235.438191,
-      "execMs": 47.390170000000005,
-      "networkMs": 3.3649970000000002
-    },
-    {
-      "createMs": 4239.2576389999995,
-      "execMs": 120.601939,
-      "networkMs": 3.041999
-    },
-    {
-      "createMs": 4196.190543000001,
-      "execMs": 78.120752,
-      "networkMs": 3.3018750000000003
-    },
-    {
-      "createMs": 4137.088916,
-      "execMs": 67.560655,
-      "networkMs": 2.988714
-    },
-    {
-      "createMs": 4189.562462999999,
-      "execMs": 127.71564099999999,
-      "networkMs": 3.1178920000000003
-    },
-    {
-      "createMs": 4217.498745000001,
-      "execMs": 46.755113,
-      "networkMs": 3.312229
-    },
-    {
-      "createMs": 4264.715883,
-      "execMs": 46.199205,
-      "networkMs": 3.337187
-    },
-    {
-      "createMs": 4039.895087,
-      "execMs": 44.836181,
-      "networkMs": 3.246858
-    },
-    {
-      "createMs": 4141.684243000001,
-      "execMs": 46.561977999999996,
-      "networkMs": 3.26438
-    },
-    {
-      "createMs": 4138.55736,
-      "execMs": 50.546794,
-      "networkMs": 2.8804790000000002
-    },
-    {
-      "createMs": 4493.442886000001,
-      "execMs": 212.429634,
-      "networkMs": 3.120714
-    },
-    {
-      "createMs": 4286.194935,
-      "execMs": 43.851513000000004,
-      "networkMs": 2.9637320000000003
-    },
-    {
-      "createMs": 4083.2532889999998,
-      "execMs": 45.029303999999996,
-      "networkMs": 3.088577
-    },
-    {
-      "createMs": 4078.8126169999996,
-      "execMs": 45.216298,
-      "networkMs": 3.05733
+    "samples.networkMs": {
+      "n": 30,
+      "p50": 3.196,
+      "p90": 3.312
     }
-  ],
-  "scope": "direct node manager, locally available image, serial workloads, no public edge",
-  "status": "complete"
+  }
 }

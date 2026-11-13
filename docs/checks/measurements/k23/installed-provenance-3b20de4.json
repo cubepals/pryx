@@ -1,60 +1,22 @@
 {
-  "source": "3b20de4ee7a7ac49e00fa769051f3507f178e8fc",
-  "workflow": "Any host",
-  "run": 43210142686,
-  "job": 131159201658,
-  "url": "https://github.com/cubepals/pryx/actions/runs/43210142686/job/131159201658",
-  "jobConclusion": "failure after installed acceptance passed; later Alpine relocation descriptor parser required missing host Python",
-  "artifact": {
-    "id": 13943183731,
-    "name": "installed-native-tools",
-    "zipSha256": "c40d0458e6636d1717ba0d7ce8a635c3701b4cbbe08451c2e53b75d1162a2df9"
-  },
-  "retained": {
-    "installed-process-startup-3b20de4.json": {
-      "artifactFile": "native-process-measurements.json",
-      "sha256": "861cfdcd6232aa62ad53acea73c300dc0ae29c8bf23b763bd66b3eddf55e52f8"
+  "measurement": "Thirty sequential samples per process tool: sandbox create through validated first PNG; browser includes its own HTTP page-server startup, kernels include first chart. Bundle already acquired by preceding functional tests; every fresh supervisor still verifies its cached inventory. Four default units requested. Host glibc 2.39, x86_64, Landlock ABI 8, ordinary uid 1002, no engine. Process CPU/memory guarantees differ\u2026",
+  "commit": "3b20de4ee7a7ac49e00fa769051f3507f178e8fc",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43210142686",
+  "result": {
+    "summary.browser": {
+      "n": 30,
+      "p50Ms": 8867.428,
+      "p90Ms": 9000.073
     },
-    "installed-user-3b20de4.log": {
-      "artifactFile": "native-user-acceptance.log",
-      "sha256": "b809dee0b1c19480ad0bfd3bb7e11b4426d20f887ecaa32130b901121dbc7c49"
+    "summary.python": {
+      "n": 30,
+      "p50Ms": 11957.537,
+      "p90Ms": 12061.486
     },
-    "installed-default-image-3b20de4.log": {
-      "artifactFile": "native-default-image.log",
-      "sha256": "47dabd079e22de409f37f55b744168f924df3ef687594c548d261825960004ba"
+    "summary.javascript": {
+      "n": 30,
+      "p50Ms": 7925.848,
+      "p90Ms": 8075.039
     }
-  },
-  "summary": {
-    "browser": {
-      "n": 30,
-      "p50Ms": 8867.428322000022,
-      "p90Ms": 9000.07267200001
-    },
-    "python": {
-      "n": 30,
-      "p50Ms": 11957.537046000012,
-      "p90Ms": 12061.486027000006
-    },
-    "javascript": {
-      "n": 30,
-      "p50Ms": 7925.848113000044,
-      "p90Ms": 8075.038659999962
-    }
-  },
-  "observed": {
-    "signedFreshUserInstall": true,
-    "engine": "none",
-    "bothPythonSdkModes": true,
-    "typeScriptKernelsStatePngErrorsInterruptRestart": true,
-    "actualPinnedRuntimeExecutablePathsVersions": true,
-    "hostGlibcEqualsGetconf": true,
-    "mcpRunPythonPng": true,
-    "installedCli": true,
-    "browserScreenshotForwardedCdpAndGuarantee": true,
-    "defaultDockerBothKernelsAndNamespaceBrowserRefusal": true,
-    "requiredBrowserPlacementRefusedWithoutNamespaces": true,
-    "purge": true
-  },
-  "scope": "Thirty sequential samples per process tool: sandbox create through validated first PNG; browser includes its own HTTP page-server startup, kernels include first chart. Bundle already acquired by preceding functional tests; every fresh supervisor still verifies its cached inventory. Four default units requested. Host glibc 2.39, x86_64, Landlock ABI 8, ordinary uid 1002, no engine. Process CPU/memory guarantees differ from container quotas.",
-  "limitations": "Complete ordinary-user/default-Docker native acceptance passed. The job as a whole failed afterward; its later distribution matrix and final-source green workflows remain pending. No main push or release publication."
+  }
 }

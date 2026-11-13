@@ -1,22 +1,13 @@
 {
-  "context": "image/container",
-  "source": "e0ba15ad777fcc0920a0f5b9da31241bbdee576f",
-  "comparison": "same-source container/process reference versus wasm candidate; release profile",
-  "host": {
-    "cpu": "AMD EPYC 9V74 80-Core Processor",
-    "cores": 4,
-    "kernel": "7.0.0-1017-azure",
-    "memoryBytes": 16760340480,
-    "bun": "1.4.4"
-  },
-  "datasetBytes": 100000000,
-  "repetitions": 30,
-  "samples": {},
-  "unsupported": {},
-  "tier": "container",
-  "status": "incomplete",
-  "imageId": "sha256:e0a533cd7fa4e20626e568aaa5cb226c3e4af829eefef0a69e7d39a243c04a90",
-  "binarySha256": "6c0847f28fd4d4fd5e19969b57f5ecd1b3845aa19fc698fc49cf58e96f148edc",
-  "failure": "Timed out waiting for public node healthy",
-  "summary": {}
+  "measurement": "tiers image container",
+  "commit": "e0ba15ad777fcc0920a0f5b9da31241bbdee576f",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/42119781077",
+  "result": {
+    "host.cores": 4,
+    "host.memoryBytes": 16760340480,
+    "datasetBytes": 100000000,
+    "repetitions": 30,
+    "status": "incomplete",
+    "failure": "Timed out waiting for public node healthy"
+  }
 }

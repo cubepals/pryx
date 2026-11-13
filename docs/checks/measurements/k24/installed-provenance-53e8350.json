@@ -1,82 +1,32 @@
 {
-  "source": "53e83505f823cf4b92aca2b4a952cf084c636f32",
-  "run": 43421813961,
-  "job": 131880099054,
-  "url": "https://github.com/cubepals/pryx/actions/runs/43421813961/job/131880099054",
-  "jobConclusion": "success",
-  "artifact": {
-    "id": 14040300197,
-    "name": "installed-native-tools",
-    "zipSha256": "3460c5f55ba169c94004279e1cc7897ca4d7fefa083ed033d05538dbe9e7c5c4"
-  },
-  "retained": {
-    "native-process-measurements.json": {
-      "sha256": "30aecb1b9c84b2026e625eb2c94d0f907ecd73ee84a6f58fb6638bd1bb3a05cc",
-      "localFile": "installed-process-startup-53e8350.json"
+  "measurement": "Thirty sequential samples per tool on a signed fresh ordinary-user installation through actual control and HTTP-only edge. Four default units requested; process CPU/memory guarantees are off. Cached tool bundle, reverified by each fresh supervisor. PNG timers start before sandbox creation and end after first image validation; SSH includes marker write, lease creation, actual OpenSSH command, running acknowledgement a\u2026",
+  "commit": "53e83505f823cf4b92aca2b4a952cf084c636f32",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43421813961",
+  "result": {
+    "summary.browser": {
+      "n": 30,
+      "p50Ms": 8949.934,
+      "p90Ms": 9028.526
     },
-    "native-user-acceptance.log": {
-      "sha256": "fda03be7e3cd6995d72f0e1bfb4879b28cafebc232a0f7329048259dbac1241a",
-      "localFile": "installed-user-53e8350.log"
+    "summary.python": {
+      "n": 30,
+      "p50Ms": 10903.156,
+      "p90Ms": 11443.012
     },
-    "native-default-image.log": {
-      "sha256": "47dabd079e22de409f37f55b744168f924df3ef687594c548d261825960004ba",
-      "localFile": "installed-default-image-53e8350.log"
+    "summary.javascript": {
+      "n": 30,
+      "p50Ms": 7922.154,
+      "p90Ms": 8042.575
+    },
+    "summary.desktop": {
+      "n": 30,
+      "p50Ms": 8959.82,
+      "p90Ms": 9056.767
+    },
+    "summary.ssh": {
+      "n": 30,
+      "p50Ms": 8970.624,
+      "p90Ms": 9006.429
     }
-  },
-  "summary": {
-    "browser": {
-      "n": 30,
-      "p50Ms": 8949.934383999993,
-      "p90Ms": 9028.525588999997
-    },
-    "python": {
-      "n": 30,
-      "p50Ms": 10903.156120999949,
-      "p90Ms": 11443.012168999994
-    },
-    "javascript": {
-      "n": 30,
-      "p50Ms": 7922.154303000076,
-      "p90Ms": 8042.574764000019
-    },
-    "desktop": {
-      "n": 30,
-      "p50Ms": 8959.820372000104,
-      "p90Ms": 9056.766936999978
-    },
-    "ssh": {
-      "n": 30,
-      "p50Ms": 8970.623943999875,
-      "p90Ms": 9006.428709000116
-    }
-  },
-  "completeCohorts": true,
-  "producer": {
-    "run": 43421813961,
-    "job": 131873383538,
-    "runtimeDescriptor": {
-      "url": "https://github.com/cubepals/pryx/releases/download/v0.1.0/pryx-process-tools-linux-x64.tar.gz",
-      "sha256": "fc0d00ea3def978db169414a94d2339693a51d98dbcd74dec9c018e58287a568",
-      "manifest_sha256": "5d6980484b9d68dbd57d9491674881ee2c82955b5c22262c6e0cb59a3102d0a0",
-      "bytes": 921091055,
-      "unpacked_bytes": 2374987077,
-      "entries": 40993
-    }
-  },
-  "observed": {
-    "signedFreshUserInstall": true,
-    "engine": "none",
-    "configuredDoctorAndRequiredToolsPlacement": true,
-    "typescriptAndBothPythonDesktopInputScreenshot": true,
-    "edgeNovncRfb": true,
-    "typescriptSshCommandAndHttpEdgeWake": true,
-    "installedCliSshCommand": true,
-    "bothPythonSshModes": true,
-    "defaultDockerKernelsAndBrowserDesktopSshRefusals": true,
-    "purge": true,
-    "imageAndAlpineRelocation": true
-  },
-  "scope": "Thirty sequential samples per tool on a signed fresh ordinary-user installation through actual control and HTTP-only edge. Four default units requested; process CPU/memory guarantees are off. Cached tool bundle, reverified by each fresh supervisor. PNG timers start before sandbox creation and end after first image validation; SSH includes marker write, lease creation, actual OpenSSH command, running acknowledgement and lease revocation, before sandbox deletion. Host glibc 2.39, x86_64, Landlock ABI 8, UID 1002, no engine.",
-  "limitations": "The installed bundle job, all sixteen Any-host jobs and full normal PR CI are green on this implementation source. No main push or release publication; unchanged credentialed provisioning cases remain unexecuted.",
-  "hostMatrix": "host-matrix-53e8350.json"
+  }
 }

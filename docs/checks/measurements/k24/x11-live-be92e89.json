@@ -1,36 +1,10 @@
 {
-  "filesystemEnforced": true,
-  "neighbour": {
-    "abstractDenied": "Operation not permitted (os error 1)",
-    "procRootAliasesDenied": [
-      {
-        "error": "Permission denied (os error 13)",
-        "path": "/proc/11523/root/tmp/.X11-unix/X0"
-      },
-      {
-        "error": "Permission denied (os error 13)",
-        "path": "/proc/11530/root/tmp/.X11-unix/X0"
-      },
-      {
-        "error": "Permission denied (os error 13)",
-        "path": "/proc/11531/root/tmp/.X11-unix/X0"
-      },
-      {
-        "error": "Permission denied (os error 13)",
-        "path": "/proc/11532/root/tmp/.X11-unix/X0"
-      },
-      {
-        "error": "Permission denied (os error 13)",
-        "path": "/proc/11538/root/tmp/.X11-unix/X0"
-      }
-    ],
-    "uid": 1001
-  },
-  "owner": {
-    "display": ":0",
-    "ownAbstractConnect": true,
-    "ownClient": "x:400 y:300 screen:0 window:543\n",
-    "uid": 1001
-  },
-  "scope": "Live Xvfb/xdotool design only; no headful browser or installed desktop acceptance"
+  "measurement": "Live Xvfb/xdotool design only; no headful browser or installed desktop acceptance",
+  "commit": "be92e89926c4d31940230c6f79eeb2d263cbbeba",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43268999503",
+  "result": {
+    "filesystemEnforced": true,
+    "owner.ownAbstractConnect": true,
+    "scope": "Live Xvfb/xdotool design only; no headful browser or installed desktop acceptance"
+  }
 }

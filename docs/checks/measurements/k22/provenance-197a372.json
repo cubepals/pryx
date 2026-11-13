@@ -1,14 +1,6 @@
 {
+  "measurement": "provenance 197a372",
   "commit": "197a372781c654311205064e3f482852b2e01907",
-  "run": 43071213897,
-  "docker": {
-    "job": 130699259382,
-    "artifact": 13879050653,
-    "archiveSha256": "4173bdd7c41761676e1875eecc3832189b9ec8d3804f4f1c3472e5ae5a605f7f"
-  },
-  "podman": {
-    "job": 130699258860,
-    "artifact": 13878187625,
-    "archiveSha256": "c001a179eb2726a9b3f4f6ceb60859ce74e8d49922cd5eb50337219cdee8b7ea"
-  }
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43071213897",
+  "result": "Diagnostic evidence only; see the linked CI artifact and progress history for the outcome."
 }

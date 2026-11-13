@@ -39,7 +39,7 @@ URL prefix. Declared HTTP ports use the public hostnames returned by the API; co
 and preserve the Host header through the TLS terminator. The configured PRYX_PUBLIC_URL
 hostname stays reserved for control routing, including when a declared hostname collides.
 TLS and raw TCP fronts are disabled in the image. Standalone host edges
-can still use wildcard DNS, certificates and raw fronts as documented in [agent.md](agent.md).
+can still use wildcard DNS, certificates and raw fronts as documented in [agent.md](agent.md). Raw output belongs to the cited CI artifacts; the repository keeps only its summary.
 
 New image state derives its private node listener pool below the kernel's outgoing ephemeral
 range without changing sysctls. Restart preserves the stored pool, including older implicit

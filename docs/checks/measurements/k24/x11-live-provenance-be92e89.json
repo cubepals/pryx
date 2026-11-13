@@ -1,13 +1,8 @@
 {
-  "source": "be92e89926c4d31940230c6f79eeb2d263cbbeba",
-  "run": 43268999503,
-  "job": 131360151698,
-  "artifact": 13968396107,
-  "verifiedArchiveSha256": "7c8445aa4ab9360b790319c2e3c0e155ca635ba0ce3995f742adfeceaa05577a",
-  "reports": {
-    "x11-live-be92e89.json": "d4df455efe0c5354f0ed8cccf9febc6410aaa5a757ef21e1d27b2acee8274ce0",
-    "x11-component-be92e89.json": "2fc452dc07d367e5bed98c26f92628cddc859e394c8745f627ff92c0e4587f9a",
-    "desktop-combined-source-be92e89.json": "ed9ff408c86d7b231e67274c8a17a67a994d8b1ffb27bcb974775890e90442d7"
-  },
-  "scope": "Hosted staged-X11 owner/client and independent same-UID endpoint privacy; no headful browser or installed desktop/SSH acceptance"
+  "measurement": "Hosted staged-X11 owner/client and independent same-UID endpoint privacy; no headful browser or installed desktop/SSH acceptance",
+  "commit": "be92e89926c4d31940230c6f79eeb2d263cbbeba",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43268999503",
+  "result": {
+    "scope": "Hosted staged-X11 owner/client and independent same-UID endpoint privacy; no headful browser or installed desktop/SSH acceptance"
+  }
 }

@@ -17,7 +17,7 @@ ran on the host; these observations are not a dedicated-runner capacity claim.
 | Restart and Jupyter-ready handshake | Unavailable | 3530.3 / 5345.8 |
 
 Both direct-agent p90 budgets hold: trivial execution below 50 ms, chart below 1 second.
-[Raw samples](checks/measurements/k17-loopback.json) retain all observations.
+[Measurement summary](checks/measurements/k17-loopback.json) retain all observations.
 [The collector](../agent/examples/kernel-bench.rs) executes and validates every sample.
 The [initial collector run](checks/measurements/k17-loopback-before-http-tuning.json) retained a
 78.3 ms trivial p90 because its HTTP fixture lacked the TCP_NODELAY setting already used in the
@@ -27,7 +27,7 @@ Warm-template **first run after `python()`** measurements are a separate deploym
 [the end-to-end suite](../control/e2e/interpreter.e2e.test.ts). CI uploads all 30 first-run,
 loopback, chart and restart observations as `interpreter-measurements` and prints p50/p90 in the
 job summary. Local loopback context reuse above is not labelled as template creation. The first CI report at `4938c93` is preserved in
-[its raw artifact](checks/measurements/k17-ci-interpreter-4938c93.json): warm first
+[its artifact summary](checks/measurements/k17-ci-interpreter-4938c93.json): warm first
 run 6.1 / 6.8 ms, trivial loopback 5.1 / 81.6 ms, chart 687.6 / 693.5 ms, restart
 6492.6 / 6588.2 ms (p50 / p90, n=30 each). The trivial p90 fails the 50 ms budget.
 That loopback sandbox accidentally used the default single unit, while the clone
@@ -41,7 +41,7 @@ Both the CI loopback budget cohort and first-run clone cohort request four defau
 Before K18, the agent at commit `8bfb636` does not support desktop screenshots,
 browser screenshots, SSH leases or mounts. The authenticated baseline collector
 sent 30 requests to each new route and received 404 on every request. The
-[raw before report](checks/measurements/k18-before.json) preserves every response
+[before summary](checks/measurements/k18-before.json) preserves every response
 and elapsed time; those refusal latencies are not successful tool measurements.
 
 The native deployment suite collects 30 warm-template create-to-first-PNG samples
@@ -97,7 +97,7 @@ retains thirty samples per tool through real control and edge. Each timer starts
 before sandbox creation and ends at the first validated PNG, including routing
 and kernel startup. Browser timing includes starting its own HTTP page server.
 Templates and the process bundle are cached before timing; each fresh process
-supervisor still verifies the bundle's complete inventory.
+supervisor still verifies the bundle's complete inventory. Raw output belongs to the cited CI artifacts; the repository keeps only its summary.
 
 | Create to first PNG | n per tier | Container p50 ms | Container p90 ms | Process p50 ms | Process p90 ms |
 | --- | --- | --- | --- | --- | --- |
@@ -160,7 +160,7 @@ Landlock ABI 8 and no engine access.
 [container desktop/browser samples](checks/measurements/k24/container-native-53e8350.json),
 [container kernel samples](checks/measurements/k24/container-interpreter-startup-53e8350.json)
 and [container provenance](checks/measurements/k24/container-provenance-53e8350.json)
-retain the raw observations, source, artifact hashes and verified native runtime descriptor.
+retain the measurement summaries, source, artifact hashes and verified native runtime descriptor.
 The existing [interpreter execution budgets](checks/measurements/k24/container-interpreter-budgets-53e8350.json)
 also pass: trivial p90 3.8 ms and chart p90 111.9 ms, with their original clock points and limits.
 Signed fresh-user installation, default-Docker kernel/refusal acceptance, purge and both

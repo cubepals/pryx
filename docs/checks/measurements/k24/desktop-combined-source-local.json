@@ -1,19 +1,13 @@
 {
-  "scope": "Local combined corresponding-source and per-capability inventory build; prior to the final command-deadline adapter edit, not published or installed",
-  "sourceDistribution": {
-    "url": "https://github.com/cubepals/pryx/releases/download/v0.1.0/pryx-process-tools-sources.tar.gz",
-    "sha256": "11443981b8a9b2203398fa4a980fff414801bf9a7bcef0703fe6fb78af30cdce",
-    "manifest_sha256": "664075bc0fbc6bc14580eed9db19ff6837148f3e6a4ac20648e4a7754a29ac0c",
-    "bytes": 1733694870,
-    "unpacked_bytes": 1745147375,
-    "entries": 2159
-  },
-  "sourceVersions": 112,
-  "desktopSourceArchives": 370,
-  "webSourceArchivesRetained": true,
-  "coreHostGlibcMinimum": "2.34",
-  "coreMaximumRequiredGlibc": "2.34",
-  "desktopHostGlibcMinimum": "2.36",
-  "desktopMaximumRequiredGlibc": "2.36",
-  "observedHostGlibc": "2.41"
+  "measurement": "Local combined corresponding-source and per-capability inventory build; prior to the final command-deadline adapter edit, not published or installed",
+  "commit": "recorded in f61cc88; measurement revision not recorded",
+  "ci": "Not recorded; local or inventory evidence, not a CI pass",
+  "result": {
+    "scope": "Local combined corresponding-source and per-capability inventory build; prior to the final command-deadline adapter edit, not published or installed",
+    "sourceDistribution.bytes": 1733694870,
+    "sourceDistribution.unpacked_bytes": 1745147375,
+    "sourceDistribution.entries": 2159,
+    "sourceVersions": 112,
+    "desktopSourceArchives": 370
+  }
 }

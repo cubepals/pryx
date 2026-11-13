@@ -35,7 +35,7 @@ pointed at the private mode-0600 socket, retaining actual requests, exit status 
 `docker-api-spike.json`. Run [42066544946](https://github.com/cubepals/pryx/actions/runs/42066544946)
 completes the experiment: discovery passes, then the unmodified release fails building its
 example image. BuildKit POST `/grpc` and its buildkit-container inspection receive explicit 501
-replies. The [raw report](checks/docker-api-spike-observed.json) retains actual requests and exit 1.
+replies. The [summary](checks/docker-api-spike-observed.json) retains actual requests and exit 1.
 No start or first-request samples exist for this failed route (n=0). The spike remains unshipped
 and no `docker-api` node feature is advertised.
 
@@ -47,7 +47,7 @@ the unchanged example. The later complete comparison below includes both cohorts
 
 ## Complete native comparison
 
-The [complete raw report](checks/celld-native-complete.json) is from CI 42077009774, source
+The [complete summary](checks/celld-native-complete.json) is from CI 42077009774, source
 8128648, on one two-core Intel Xeon Platinum 8370C host running Linux 7.0.0-1017-azure.
 Both engines use the same patched celld 0.6.3 executable, development profile, debug information
 and incremental compilation disabled. The Worker, Python server, Dockerfile and class configuration
