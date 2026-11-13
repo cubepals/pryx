@@ -6,6 +6,8 @@
 //! Parts (`vm/`):
 //! - `filesystems.rs`: verify the host-owned filesystem component before external execution.
 //! - `image.rs`: bounded private-pipe contract with the independent OCI helper.
+//! - `bundle.rs`: whole-release verification and lazy acquisition of pinned VM inputs.
+pub mod bundle;
 pub mod filesystems;
 pub mod image;
 

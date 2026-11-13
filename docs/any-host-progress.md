@@ -2641,3 +2641,29 @@ job when publication is authorized. That job has not run in this task.
   assigned to the existing optional VM job and not claimed locally. Estimated additional
   optional cost is one minute including artifact retention, zero ordinary PR minutes.
   Runtime assembly, signed lazy acquisition and production backend remain required.
+
+- K25 bundle checkpoint: assemble static same-source host helpers, production-only trusted
+  bootstrap, pinned monitor/jailer/kernel, and verified read-only filesystem tools using
+  the existing artifact packager. Separate original Linux/Kata/filesystem/Rust sources;
+  retain primary notices and lock-authenticate the actual 452-package musl graph. Actual
+  local source/notice collection and static-musl OCI helper build pass. Complete bundle
+  assembly still needs upstream monitor/kernel/source inputs available only in CI here.
+- Reuse the existing bounded HTTPS artifact cache for lazy VM acquisition, then verify
+  every member, byte digest, mode and required program with the descriptor-relative tree
+  walker. Source descriptors belong to the signed host installation, never requests. The
+  existing optional job now tests the actual assembled archive, wrong-digest refusal,
+  offline reuse and byte/mode/extra/missing/link corruption. It has not executed locally.
+  Full local Rust again has 494 passes and only the unchanged IPv6 EAFNOSUPPORT failure;
+  root/helper strict Clippy, fmt, Python compilation and actionlint pass. Additional optional
+  cost is estimated four minutes for static helper build, packaging and archive acceptance,
+  with zero ordinary PR minutes and no new job or gate. Release wiring, production VM
+  confinement/backend/lifecycle and measurements remain incomplete and unadvertised.
+- Inspected all completed jobs before cancelling twenty-two superseded unfinished workflows
+  on d41c32d/fea728a/b33d097/ac69b1e. None of those workflows had a completed failed job.
+  Keep their already completed failed VM runs, current 48dc958/3cd50fa implementation runs
+  and the earlier green application baseline. Interrupted work is never a pass.
+- Source 48dc958 real KVM run 43489144084/job 132105365697 rejects the replay and retains
+  agent health, then its valid signed shutdown receives EOF without an acknowledgement.
+  Preserve artifact 14068977689, verified SHA-256 afc2b68a4bedc791b555545889c31401f8cbb66910b5697a6c9f3777f3d23b67,
+  and its serial output in CI: no clean-disk proof is present. Investigate request EOF/
+  half-close handling before claiming orderly shutdown; no deadline or assertion is loosened.

@@ -32,5 +32,11 @@
     "CONFIG_VIRTIO_VSOCKETS",
     "CONFIG_DEVTMPFS_MOUNT"
   ],
-  "kernelVersion": "6.18.56"
+  "kernelVersion": "6.18.56",
+  "jailer": {
+    "path": "release-v1.18.0-x86_64/jailer-v1.18.0-x86_64",
+    "bytes": 2243040,
+    "kind": "file",
+    "sha256": "ddadbaa15b5c942271a83b7040ca7259c8ccf92a9e08d44cce0b86fa407ba460"
+  }
 }

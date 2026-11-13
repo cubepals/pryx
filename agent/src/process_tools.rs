@@ -149,6 +149,27 @@ pub fn install(policy: Policy, process: crate::process_policy::Policy) -> std::i
         .map_err(|_| std::io::Error::other("Native process tools are already configured"))
 }
 
+/// Acquire another host-owned runtime artifact with the same bounded, pinned archive format.
+/// Call before any guest policy; the caller owns private cache/download directories and verifies
+/// its component-specific manifest before executing a program. No tool worker is installed.
+pub async fn acquire_artifact(
+    cache: PathBuf,
+    downloads: PathBuf,
+    artifact: Artifact,
+) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    cache::prepare(&Policy {
+        cache,
+        scratch: downloads.clone(),
+        downloads,
+        artifact: Some(artifact),
+        unavailable: None,
+        browser_on: false,
+        desktop_on: None,
+        desktop_unavailable: None,
+    })
+    .await
+}
+
 pub fn configured() -> Option<&'static Arc<Tools>> {
     TOOLS.get()
 }

@@ -169,6 +169,7 @@ jobs:
           export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=cc
           export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="-C link-arg=--sysroot=$RUNNER_TEMP/vm-cross/sysroot"
           cargo build --locked -p pryx-agent --target x86_64-unknown-linux-musl
+          cargo build --locked --manifest-path vm-image/Cargo.toml --target x86_64-unknown-linux-musl
           python3 templates/vm-tools/bootstrap.py \
             --agent target/x86_64-unknown-linux-musl/debug/pryx-agent \
             --network-helper "$RUNNER_TEMP/vm-network-guest" \
@@ -176,6 +177,43 @@ jobs:
             --network-probe "$RUNNER_TEMP/vm-network-probe" \
             --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" \
             --root "$RUNNER_TEMP/vm-agent-bootstrap" | tee "$RUNNER_TEMP/vm-agent-bootstrap.log"
+      - name: Retain complete published-kernel sources and exact recipes
+        id: vm-sources
+        if: ${{ !cancelled() && steps.filesystems.outcome == 'success' }}
+        run: |
+          python3 templates/vm-tools/sources.py --cache "$RUNNER_TEMP/vm-source-cache" \
+            --output "$RUNNER_TEMP/vm-corresponding-sources" | tee "$RUNNER_TEMP/vm-corresponding-sources.log"
+      - name: Assemble separately inventoried VM runtime and source archives
+        id: vm-bundle
+        if: ${{ !cancelled() && steps.vm-bootstrap.outcome == 'success' && steps.vm-sources.outcome == 'success' }}
+        run: |
+          python3 templates/vm-tools/bootstrap.py \
+            --agent target/x86_64-unknown-linux-musl/debug/pryx-agent \
+            --network-helper "$RUNNER_TEMP/vm-network-guest" --forwarder "$RUNNER_TEMP/vm-gvforwarder" \
+            --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" --root "$RUNNER_TEMP/vm-runtime-bootstrap"
+          python3 templates/vm-tools/bundle.py \
+            --inspection "$RUNNER_TEMP/vm-archive-inspection.json" --staged "$RUNNER_TEMP/vm-selected-files" \
+            --sources "$RUNNER_TEMP/vm-corresponding-sources" --source-output "$RUNNER_TEMP/vm-bundle-sources" \
+            --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" \
+            --sdk-notices "$RUNNER_TEMP/vm-spike-notices" --network-notices "$RUNNER_TEMP/vm-network-notices" \
+            --bootstrap "$RUNNER_TEMP/vm-runtime-bootstrap" \
+            --image-helper target/x86_64-unknown-linux-musl/debug/pryx-vm-image \
+            --configurator "$RUNNER_TEMP/vm-config" --transport "$RUNNER_TEMP/vm-agent-client" \
+            --network-proxy "$RUNNER_TEMP/vm-network-proxy" --output "$RUNNER_TEMP/vm-runtime" \
+            --archive "$RUNNER_TEMP/pryx-vm-linux-x64.tar.gz" --source-archive "$RUNNER_TEMP/pryx-vm-sources.tar.gz" \
+            --descriptor "$RUNNER_TEMP/vm-runtime.json" --source-descriptor "$RUNNER_TEMP/vm-sources.json" \
+            --url-base https://github.com/cubepals/pryx/releases/download/preview | tee "$RUNNER_TEMP/vm-bundle.log"
+      - name: Verify whole runtime, lazy acquisition and corruption refusals
+        if: ${{ !cancelled() && steps.vm-bundle.outcome == 'success' }}
+        env:
+          PRYX_VM_RUNTIME: ${{ runner.temp }}/vm-runtime
+          PRYX_VM_RUNTIME_ARCHIVE: ${{ runner.temp }}/pryx-vm-linux-x64.tar.gz
+          PRYX_VM_RUNTIME_DESCRIPTOR: ${{ runner.temp }}/vm-runtime.json
+          CARGO_PROFILE_DEV_DEBUG: '0'
+          CARGO_PROFILE_TEST_DEBUG: '0'
+          CARGO_INCREMENTAL: '0'
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: cargo test --locked --manifest-path vm-image/Cargo.toml --test bundle -- --ignored --nocapture | tee "$RUNNER_TEMP/vm-bundle-acceptance.log"
       - name: Prepare real pinned Alpine and Debian OCI layers without an engine
         if: ${{ !cancelled() && steps.vm-rust.outcome == 'success' }}
         env:
@@ -203,18 +241,19 @@ jobs:
             --bootstrap "$RUNNER_TEMP/vm-agent-bootstrap" --proxy "$RUNNER_TEMP/vm-network-proxy" \
             --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" \
             --work "$RUNNER_TEMP/vm-guest-acceptance" | tee "$RUNNER_TEMP/vm-guest-acceptance.log"
-      - name: Retain complete published-kernel sources and exact recipes
-        if: ${{ !cancelled() && steps.filesystems.outcome == 'success' }}
-        run: |
-          python3 templates/vm-tools/sources.py --cache "$RUNNER_TEMP/vm-source-cache" \
-            --output "$RUNNER_TEMP/vm-corresponding-sources" | tee "$RUNNER_TEMP/vm-corresponding-sources.log"
       - name: Retain candidate identities and actual digests
         if: always()
         uses: ./.github/actions/upload-evidence
         with:
           name: vm-input-inventory
           path: |
-            ${{ runner.temp }}/vm-corresponding-sources
+            ${{ runner.temp }}/vm-corresponding-sources/inputs.json
+            ${{ runner.temp }}/pryx-vm-linux-x64.tar.gz
+            ${{ runner.temp }}/pryx-vm-sources.tar.gz
+            ${{ runner.temp }}/vm-runtime.json
+            ${{ runner.temp }}/vm-sources.json
+            ${{ runner.temp }}/vm-bundle.log
+            ${{ runner.temp }}/vm-bundle-acceptance.log
             ${{ runner.temp }}/vm-corresponding-sources.log
             ${{ runner.temp }}/vm-candidate-inventory.json
             ${{ runner.temp }}/vm-input-inventory.log

@@ -31,6 +31,8 @@ Parts (`vm-tools/`):
 - `cross-inputs.json` and `cross.py`: signed build-only musl headers/libc and complete source identity.
 - `kernel-source.json`: full published-kernel source archive pin from its primary checksum list.
 - `sources.py`: original Linux archive plus complete commit-verified Kata recipes/patches and monitor source trees.
+- `rust_notices.py`: lock-authenticated original crate sources and primary notices for the helper’s resolved musl graph.
+- `bundle.py`: separate inventoried static runtime and complete corresponding-source archives, using the existing artifact packager.
 - `agent_acceptance.py`: verified published inputs for actual-agent KVM boots and durable disk reboots.
 - `bootstrap.py`: fixed read-only EROFS bootstrap from the actual static agent and its advertised marker.
 
