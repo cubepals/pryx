@@ -1,0 +1,19 @@
+{
+  "scope": "Trusted bootstrap image only; no VM runtime advertisement",
+  "agentSha256": "93555110a0fadb959803682578987f65add84cf369481deabe727a42ed65a0b5",
+  "imageSha256": "6ae1d4cd06994a4d7df195d54fbe8c69e6ee7a0d776e598a50f6349db96635bf",
+  "imageBytes": 61771776,
+  "metadata": {
+    "browserPolicy": true,
+    "processToolsVersion": 1,
+    "processBrowserVersion": 1,
+    "processDesktopVersion": 1,
+    "processSshVersion": 1,
+    "vmVsock": true,
+    "vmInitVersion": 1,
+    "vmBootPort": 11827,
+    "vmBootMarker": "pryx-vm-bootstrap-1\n",
+    "vmBootMarkerPath": "/pryx-vm-bootstrap",
+    "vmInitMode": "vm-init"
+  }
+}

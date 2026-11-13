@@ -50,6 +50,26 @@
     ]
   },
   {
+    "module": "github.com/josharian/native@v1.1.0",
+    "licence": "MIT",
+    "notices": [
+      {
+        "name": "license",
+        "sha256": "ad2395352be6234aaee97b4c99eb2b290c81022c08238cdee45ed0b47ed18651"
+      }
+    ]
+  },
+  {
+    "module": "github.com/mdlayher/packet@v1.1.2",
+    "licence": "MIT",
+    "notices": [
+      {
+        "name": "LICENSE.md",
+        "sha256": "51d5e18766be109050b3e0836e2b3b2d380b05bd1034b48b3cb17431ed270114"
+      }
+    ]
+  },
+  {
     "module": "github.com/mdlayher/socket@v0.6.0",
     "licence": "MIT",
     "notices": [

@@ -3111,6 +3111,7 @@ dependencies = [
  "tokio-vsock",
  "tower",
  "uuid",
+ "vsock",
 ]
 
 [[package]]

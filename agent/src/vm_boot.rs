@@ -9,6 +9,7 @@ pub const PORT: u32 = 11827;
 pub const MAX_BYTES: usize = 256 * 1024;
 pub const MAX_LAYERS: usize = 128;
 pub const INIT_MODE: &str = "vm-init";
+pub const NETWORK_PROGRAM: &str = "guest-network";
 pub const AGENT_MODE: &str = "vm-agent";
 pub const BOOTSTRAP_ROOT: &str = "/.pryx-bootstrap";
 pub const MARKER: &str = "/pryx-vm-bootstrap";

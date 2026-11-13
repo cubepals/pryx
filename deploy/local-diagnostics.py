@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 import sys
 
@@ -42,6 +43,34 @@ def redact(text):
     return re.sub(r'pryx_[A-Za-z0-9_-]+|bk1\.[A-Za-z0-9_.-]+|[a-f0-9]{32,}|[A-Za-z0-9+/]{40,}={0,2}', '[redacted]', text)
 
 
+def inventory(root):
+    """Identify retained fixture captures without reading credentials or workload data."""
+    descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        remaining = 80
+        for directory, children, names, parent in os.fwalk('.', dir_fd=descriptor, follow_symlinks=False):
+            if directory.count('/') >= 2:
+                children[:] = []
+            for name in sorted(names):
+                info = os.stat(name, dir_fd=parent, follow_symlinks=False)
+                if not stat.S_ISREG(info.st_mode):
+                    continue
+                print('retained_fixture_file=' + redact(str(Path(directory) / name))
+                      + ' bytes=' + str(info.st_size))
+                remaining -= 1
+                if remaining == 0:
+                    return
+    finally:
+        os.close(descriptor)
+
+
+if len(sys.argv) == 2:
+    try:
+        inventory(private)
+    except OSError as error:
+        print('fixture_inventory_unavailable=' + type(error).__name__)
+
+
 try:
     record = json.loads((private / 'installation.json').read_text())
     values = json.loads((private / 'credentials.json').read_text())
@@ -65,9 +94,16 @@ logs = list(private.glob('*.log'))
 if len(sys.argv) == 1:
     logs[:0] = [home / name for name in ['install.log', 'upgrade.log', 'unit.log', 'sdk-install.log']]
 for path in logs:
-    if not path.is_file():
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(descriptor, 'rb') as source:
+            info = os.fstat(source.fileno())
+            if not stat.S_ISREG(info.st_mode):
+                continue
+            source.seek(max(0, info.st_size - 16 * 1024))
+            text = source.read(16 * 1024).decode(errors='replace')
+    except OSError:
         continue
-    text = path.read_text(errors='replace')[-16 * 1024:]
     text = redact(text)
     print(path.name + ':')
     print('\n'.join(text.splitlines()[-30:]))

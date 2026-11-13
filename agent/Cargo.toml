@@ -18,6 +18,7 @@ axum = { version = "0.8", default-features = false, features = ["json", "query",
 tokio = { version = "1.53", features = ["rt-multi-thread", "macros", "signal", "net", "time", "sync", "fs", "io-util", "io-std", "process"], optional = true }
 tokio-util = { version = "0.7", features = ["io", "io-util", "rt"], optional = true }
 tokio-vsock = { version = "=0.7.3", optional = true }
+vsock = { version = "=0.5.5", optional = true }
 futures-util = { version = "0.3", default-features = false, features = ["sink"], optional = true }
 bytes = { version = "1", optional = true }
 uuid = { version = "1", features = ["v4"], optional = true }
@@ -53,7 +54,7 @@ default = ["server", "mcp"]
 mcp = ["server"]
 fs = ["dep:rustix", "dep:landlock", "dep:tokio"]
 schema = ["dep:schemars"]
-server = ["dep:flate2", "dep:percent-encoding", "dep:nix", "dep:ssh-key", "dep:chrono", "dep:jupyter-zmq-client", "dep:jupyter-protocol", "dep:regex", "dep:globset", "dep:tar", "dep:tempfile", "dep:async-trait", "fs", "dep:axum", "dep:tokio", "dep:tokio-util", "dep:tokio-vsock", "dep:futures-util", "dep:bytes", "dep:uuid", "dep:portable-pty", "dep:notify", "dep:procfs", "dep:brush-core", "dep:brush-builtins", "dep:reqwest", "dep:libc", "dep:clap", "dep:rustls", "dep:httparse", "dep:landlock", "dep:seccompiler"]
+server = ["dep:flate2", "dep:percent-encoding", "dep:nix", "dep:ssh-key", "dep:chrono", "dep:jupyter-zmq-client", "dep:jupyter-protocol", "dep:regex", "dep:globset", "dep:tar", "dep:tempfile", "dep:async-trait", "fs", "dep:axum", "dep:tokio", "dep:tokio-util", "dep:tokio-vsock", "dep:vsock", "dep:futures-util", "dep:bytes", "dep:uuid", "dep:portable-pty", "dep:notify", "dep:procfs", "dep:brush-core", "dep:brush-builtins", "dep:reqwest", "dep:libc", "dep:clap", "dep:rustls", "dep:httparse", "dep:landlock", "dep:seccompiler"]
 
 [[bin]]
 name = "pryx-agent"

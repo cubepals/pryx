@@ -2505,3 +2505,53 @@ job when publication is authorized. That job has not run in this task.
   agent boots and shutdown checks, with zero ordinary PR minutes and no new gate
   or test system. Production bundle acquisition, confinement, network/backend,
   node lifecycle and thirty-sample production measurements remain required.
+
+- Source 9496dbf's complete optional VM job
+  [43480235917](https://github.com/cubepals/pryx/actions/runs/43480235917)
+  is green. Its original artifact 14064419038 is verified against API SHA-256
+  787532060b4f951ce295e7f4eb748033930ba5882adfcf7ed943773153c95964;
+  retain actual bootstrap/image-preparation reports and provenance under k25
+  measurements. This proves static construction plus the earlier input experiments,
+  not the new guest init boot. Source 2c25bdc's real-agent acceptance is running.
+- Retain checked superseded bootstrap-run cancellations in
+  superseded-bootstrap-runs.json. Read both normal runs' failed logs and preserve
+  the exact Parts-list/doc-list cause, fixed in 9496dbf; inspect every other
+  completed job before cancellation. Preserve the current implementation runs,
+  9496dbf's complete optional proof and the earlier full application baseline.
+  Interrupted runs are not passes.
+- Add a trusted static guest adapter around maintained netlink and DHCP APIs,
+  with no image-owned DHCP executable or shell and no packet/framing code.
+  Its original gvisor forwarder uses preexisting-TAP mode; the adapter applies
+  and renews actual leases and uses private-pipe EOF for readiness. Expand the
+  reviewed network closure to the two client-only MIT modules, native 1.1.0 and
+  packet 1.1.2; verify all 24 complete primary notices and module archive sums.
+  The adapter builds/vets and refuses this ordinary host before any netlink call.
+- Include the adapter in the trusted bootstrap under the actual agent's advertised
+  filename and use it to bring guest loopback up before the agent, even with no
+  network device. The vsock relay needs loopback; Linux does not perform init's
+  interface setup. Outbound guest networking remains explicitly refused until
+  readiness, resolver mounts, monitoring and policy are wired and proved. This
+  adds no PR gate or job and an estimated under ten seconds to the optional build.
+
+- Source 2c25bdc's first actual-agent KVM boot
+  [43481338649](https://github.com/cubepals/pryx/actions/runs/43481338649),
+  job 132078295325, fails its unchanged readiness deadline: the guest reaches
+  trusted PID 1 but correctly refuses the outgoing socket's wildcard local CID.
+  Preserve its complete serial log and artifact provenance (14065447643,
+  SHA-256 bcf751902ef6bf39065ed5bb6d360a8caf30967231d5a1bf5892fa456ddb442e).
+  Import already reviewed vsock 0.5.5 directly and call get_local_cid for actual
+  device identity, preserving strict host-peer and bootstrap-CID equality. No
+  wildcard acceptance, deadline change or claim that a boot passed is made.
+- Source 9496dbf's normal PR contract job 132074668098 retains a 180-second archive
+  adoption timeout followed by endpoint-reset failures. The remaining earlier
+  lifecycle tests pass; the exact cause is not established by its bounded logs,
+  which print only the upgrade fixture log. This is a required failure to
+  investigate, not a reason to rerun or relax that test. The paired normal push's
+  contract job succeeds on the same implementation source; record both outcomes.
+- Extend the existing failure diagnostics with bounded, no-follow retained-fixture
+  file metadata to identify its missing main capture; never read configuration,
+  credentials or workload data. Existing log reads now open regular files without
+  following links and read only their bounded tail. Actual temporary-tree controls
+  verify nested metadata, refusal to expose an outside symlink target, and bounded
+  output from a large log. Keep the contract deadline and test unchanged; the
+  unexplained archive-adoption failure still needs diagnosis if it recurs.

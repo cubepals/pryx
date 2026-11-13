@@ -19,16 +19,23 @@ from filesystem import command
 ELF_INTERPRETER_SEGMENT = 'INTERP'
 
 
+def static(executable):
+    headers = subprocess.check_output(['readelf', '--wide', '--program-headers', str(executable)], text=True, timeout=10)
+    if any(line.split()[:1] == [ELF_INTERPRETER_SEGMENT] for line in headers.splitlines()):
+        raise ValueError('VM bootstrap requires a static agent, with no host ELF interpreter')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--agent', type=Path, required=True)
+    parser.add_argument('--network-helper', type=Path, required=True)
     parser.add_argument('--filesystem-component', type=Path, required=True)
     parser.add_argument('--root', type=Path, required=True)
     args = parser.parse_args()
     agent = args.agent.resolve(strict=True)
-    headers = subprocess.check_output(['readelf', '--wide', '--program-headers', str(agent)], text=True, timeout=10)
-    if any(line.split()[:1] == [ELF_INTERPRETER_SEGMENT] for line in headers.splitlines()):
-        raise ValueError('VM bootstrap requires a static agent, with no host ELF interpreter')
+    static(agent)
+    network_helper = args.network_helper.resolve(strict=True)
+    static(network_helper)
     metadata = json.loads(subprocess.check_output([str(agent), 'bootstrap-probe'], timeout=10))
     if not metadata.get('vmInitVersion') or not metadata.get('vmVsock'):
         raise ValueError('This actual agent does not support VM bootstrap and transport')
@@ -42,10 +49,13 @@ def main():
             entry = tarfile.TarInfo(name)
             entry.type, entry.mode = tarfile.DIRTYPE, 0o755
             output.addfile(entry)
-        entry = tarfile.TarInfo('init')
-        entry.mode, entry.size = 0o755, agent.stat().st_size
-        with agent.open('rb') as source:
-            output.addfile(entry, source)
+        for name, executable in [('init', agent), (metadata['vmNetworkProgram'], network_helper)]:
+            if PurePosixPath(name).name != name:
+                raise ValueError('Bootstrap executable names must be single components')
+            entry = tarfile.TarInfo(name)
+            entry.mode, entry.size = 0o755, executable.stat().st_size
+            with executable.open('rb') as source:
+                output.addfile(entry, source)
         data = metadata['vmBootMarker'].encode()
         entry = tarfile.TarInfo(marker_path.name)
         entry.mode, entry.size = 0o444, len(data)
@@ -56,6 +66,7 @@ def main():
     archive.unlink()
     report = {'scope': 'Trusted bootstrap image only; no VM runtime advertisement',
               'agentSha256': hashlib.sha256(agent.read_bytes()).hexdigest(),
+              'networkHelperSha256': hashlib.sha256(network_helper.read_bytes()).hexdigest(),
               'imageSha256': hashlib.sha256(image.read_bytes()).hexdigest(),
               'imageBytes': image.stat().st_size, 'metadata': metadata}
     (args.root / 'bootstrap.json').write_text(json.dumps(report, indent=2) + '\n')

@@ -1,0 +1,22 @@
+{
+  "images": [
+    {
+      "cacheReused": true,
+      "image": "docker.io/library/alpine@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf",
+      "layers": [
+        8491008
+      ],
+      "manifestDigest": "sha256:0f49f331d9212aff11b932863be4eb01cdf962969aa86dab7d1ee21ac6f5f52b"
+    },
+    {
+      "cacheReused": true,
+      "image": "docker.io/library/debian@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2",
+      "layers": [
+        79380480
+      ],
+      "manifestDigest": "sha256:7378260c0a098d27ac206225db5e7d92b8c7c84ea7afccc86eeb513756bbd392"
+    }
+  ],
+  "scope": "Real OCI preparation only; no production VM boot",
+  "status": "success"
+}

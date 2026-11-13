@@ -228,11 +228,11 @@ fn prepare(boot: &Boot) -> io::Result<File> {
 }
 
 async fn bootstrap() -> io::Result<Boot> {
+    let cid = vsock::get_local_cid()?;
     let mut socket = VsockStream::connect(VsockAddr::new(VMADDR_CID_HOST, vm_boot::PORT)).await?;
-    if socket.peer_addr()?.cid() != VMADDR_CID_HOST || !vm_boot::guest_cid(socket.local_addr()?.cid()) {
+    if socket.peer_addr()?.cid() != VMADDR_CID_HOST || !vm_boot::guest_cid(cid) {
         return Err(invalid("VM bootstrap requires its real host-CID connection"));
     }
-    let cid = socket.local_addr()?.cid();
     let mut bytes = Vec::new();
     (&mut socket).take(vm_boot::MAX_BYTES as u64 + 1).read_to_end(&mut bytes).await?;
     if bytes.len() > vm_boot::MAX_BYTES {
@@ -351,6 +351,15 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     rustix::process::set_dumpable_behavior(rustix::process::DumpableBehavior::NotDumpable)?;
     filesystem("proc", Path::new("/proc"), "proc", MountFlags::NOSUID | MountFlags::NODEV | MountFlags::NOEXEC, "")?;
     filesystem("sysfs", Path::new("/sys"), "sysfs", MountFlags::NOSUID | MountFlags::NODEV | MountFlags::NOEXEC, "")?;
+    if !std::process::Command::new(Path::new("/").join(vm_boot::NETWORK_PROGRAM))
+        .arg("--loopback-only")
+        .env_clear()
+        .stdin(Stdio::null())
+        .status()?
+        .success()
+    {
+        return Err("Trusted guest loopback configuration failed".into());
+    }
     let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
     let boot = runtime.block_on(async { tokio::time::timeout(Duration::from_secs(30), bootstrap()).await })??;
     drop(runtime);
