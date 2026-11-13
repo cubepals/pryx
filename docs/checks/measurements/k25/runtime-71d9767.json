@@ -1,0 +1,17 @@
+{
+  "source": "71d9767909e466351c929b7e81ee132817e75565",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43522794421",
+  "job": 132220983145,
+  "what": "Real KVM ContainerRuntime cold boot, exec, clean stop, cold wake, copied-disk fork independence and immediate signed exit on both pinned OCI images",
+  "result": "success",
+  "images": 2,
+  "runtimeBoots": 8,
+  "vcpusPerGuest": 2,
+  "memoryMiBPerGuest": 256,
+  "dataMiBPerGuest": 64,
+  "runtimeAcceptanceSeconds": 33.12,
+  "immediateExitCode": 7,
+  "otherAcceptance": "All six existing component guest boots, whole-bundle corruption checks and real ext4 staged recovery also pass",
+  "scope": "Runtime seam and components only; public node/edge, root jailer/firewall, automatic selection and production timing samples remain unproved",
+  "rawEvidence": "Retained in the CI run artifact"
+}

@@ -46,7 +46,7 @@ impl VmRuntime {
                 Err(_) => false,
             }
         };
-        if !exited {
+        if !exited && live.monitor.exited().map_err(error)?.is_none() {
             forced = true;
             if !live.killing {
                 live.killing = true;
@@ -66,6 +66,11 @@ impl VmRuntime {
             }
         }
         live.forwarder.stop().await.map_err(error)?;
+        let capture_deadline = if forced { Instant::now() + crate::runtime::ENGINE_PROBE_TIMEOUT } else { deadline };
+        let capture = tokio::time::timeout_at(capture_deadline, live.monitor.finish_serial())
+            .await
+            .map_err(|_| RuntimeError::Timeout("VM diagnostics did not finish after monitor exit".into()))
+            .and_then(|result| result.map_err(error));
         let code = if forced { Ok(crate::runtime::exit_by(libc::SIGKILL)) } else { verified_exit(&entry, &live) };
         drop(live);
         self.state.live.lock().unwrap().remove(&entry.id);
@@ -73,7 +78,7 @@ impl VmRuntime {
             entry.code = code.as_ref().copied().unwrap_or(UNKNOWN_EXIT_CODE);
             entry.finished = Some(crate::clock::now());
         }
-        code.map(|_| ())
+        capture.and(code.map(|_| ()))
     }
     async fn observe(&self, name: &str) -> Result<Option<ContainerInfo>, RuntimeError> {
         let entry = match self.entry(name) {
@@ -98,7 +103,11 @@ impl VmRuntime {
                 ContainerStatus::Running
             } else {
                 live.forwarder.stop().await.map_err(error)?;
-                let result = verified_exit(&entry, &live);
+                let result = tokio::time::timeout(crate::runtime::ENGINE_PROBE_TIMEOUT, live.monitor.finish_serial())
+                    .await
+                    .map_err(|_| RuntimeError::Timeout("VM diagnostics did not finish after monitor exit".into()))
+                    .and_then(|result| result.map_err(error))
+                    .and_then(|_| verified_exit(&entry, &live));
                 entry.code = result.as_ref().copied().unwrap_or(UNKNOWN_EXIT_CODE);
                 entry.finished = Some(crate::clock::now());
                 drop(live);

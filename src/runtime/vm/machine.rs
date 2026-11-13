@@ -7,9 +7,11 @@ use super::error;
 use crate::runtime::RuntimeError;
 use pryx_agent::{vm_boot, vm_monitor};
 use std::{
-    fs::{self, OpenOptions},
-    io,
-    os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt},
+    fs, io,
+    os::{
+        fd::OwnedFd,
+        unix::fs::{MetadataExt, PermissionsExt},
+    },
     path::{Path, PathBuf},
     process::{ExitStatus, Stdio},
 };
@@ -19,6 +21,8 @@ pub struct Machine {
     child: tokio::process::Child,
     bootstrap: Option<JoinHandle<io::Result<()>>>,
     listener: PathBuf,
+    capture: super::serial::Capture,
+    serial_truncated: bool,
 }
 
 fn private(path: &Path) -> Result<(), RuntimeError> {
@@ -40,6 +44,7 @@ impl Machine {
         serial: &Path,
         boot: &vm_boot::Boot,
         deadline: Instant,
+        serial_limit: usize,
     ) -> Result<Self, RuntimeError> {
         private(&plan.directory)?;
         if channel.parent() != Some(plan.directory.as_path()) || serial.parent() != Some(plan.directory.as_path()) {
@@ -51,21 +56,23 @@ impl Machine {
         }
         let listener_path = PathBuf::from(format!("{}_{port}", channel.display(), port = vm_boot::PORT));
         let listener = UnixListener::bind(&listener_path).map_err(error)?;
+        let capture = super::serial::start(serial, serial_limit).map_err(error);
+        let (writer, capture) = match capture {
+            Ok(capture) => capture,
+            Err(problem) => {
+                let _ = fs::remove_file(&listener_path);
+                return Err(problem);
+            }
+        };
         let setup = (|| {
             fs::set_permissions(&listener_path, fs::Permissions::from_mode(0o600))?;
-            let serial = OpenOptions::new()
-                .append(true)
-                .create_new(true)
-                .mode(0o600)
-                .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
-                .open(serial)?;
             let mut command = Command::new(launcher);
             command
                 .arg(vm_monitor::MODE)
                 .env_clear()
                 .stdin(Stdio::piped())
-                .stdout(serial.try_clone()?)
-                .stderr(serial)
+                .stdout(Stdio::from(OwnedFd::from(writer.try_clone()?)))
+                .stderr(Stdio::from(OwnedFd::from(writer)))
                 .kill_on_drop(true);
             command.spawn()
         })();
@@ -85,7 +92,8 @@ impl Machine {
             .await
             .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "VM bootstrap was not received"))?
         });
-        let mut machine = Self { child, bootstrap: Some(bootstrap), listener: listener_path };
+        let mut machine =
+            Self { child, bootstrap: Some(bootstrap), listener: listener_path, capture, serial_truncated: false };
         let bytes = serde_json::to_vec(plan).map_err(error)?;
         let mut input = machine.child.stdin.take().ok_or_else(|| error("Missing VM launcher pipe"))?;
         tokio::time::timeout_at(deadline, async {
@@ -141,6 +149,13 @@ impl Machine {
     /// caller must observe exit and acquire the lifetime lease before any disk mutation.
     pub async fn kill(&mut self) -> io::Result<()> {
         self.child.kill().await
+    }
+    pub async fn finish_serial(&mut self) -> io::Result<()> {
+        self.serial_truncated = self.capture.finish().await?;
+        Ok(())
+    }
+    pub fn serial_truncated(&self) -> bool {
+        self.serial_truncated
     }
 }
 

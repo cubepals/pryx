@@ -1073,3 +1073,5 @@
 - K25: compose the real VM runtime behind ContainerRuntime before registering it, carry host-admitted disk size and explicit CPU-weight intent in optional internal spec fields, and refuse unsupported weights, fractional vCPUs, UDP, networking and memory sleep; one sandbox lease spans generations and caller cancellation cannot replay a launch or shutdown.
 
 - K25: create monitor boot directories with explicit 0700 permissions and keep the privacy refusal intact; observe spontaneous exits under the transition lock, retire forwarding, retain verified guest exit status or an explicit unknown value, and accept fast jobs only after one-shot delivery plus signed completion.
+
+- K25: drain monitor diagnostics through an owned bounded byte capture using the host log budget, retain final bytes and join capture before signature verification; real KVM secrecy checks require that their complete serial stream fit without truncation.

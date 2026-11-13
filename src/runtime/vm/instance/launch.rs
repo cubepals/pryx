@@ -273,8 +273,16 @@ impl VmRuntime {
             write: vec![disk.path],
             role: Role::Ordinary,
         };
-        let mut monitor =
-            Machine::launch(&bundle.root().join("bin/vm-launcher"), &plan, &channel, &serial, &boot, deadline).await?;
+        let mut monitor = Machine::launch(
+            &bundle.root().join("bin/vm-launcher"),
+            &plan,
+            &channel,
+            &serial,
+            &boot,
+            deadline,
+            usize::try_from(u64::from(entry.spec.log_max_size_mb) * 1024 * 1024).map_err(error)?,
+        )
+        .await?;
         let bindings = entry
             .spec
             .ports

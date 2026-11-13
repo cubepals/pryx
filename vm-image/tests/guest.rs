@@ -450,6 +450,7 @@ async fn boot(
         &serial_path,
         &boot,
         tokio::time::Instant::now() + Duration::from_secs(15),
+        pryx_agent::contract::CAPTURE_BYTES * 4,
     )
     .await
     .unwrap();
@@ -496,6 +497,8 @@ async fn boot(
     assert_eq!(status, StatusCode::ACCEPTED);
     let status = tokio::time::timeout_at(deadline, monitor.wait()).await.expect("VM did not power off").unwrap();
     assert!(status.success());
+    tokio::time::timeout_at(deadline, monitor.finish_serial()).await.unwrap().unwrap();
+    assert!(!monitor.serial_truncated(), "All serial bytes must remain available to the secrecy assertions");
     rustix::fs::flock(&lease, rustix::fs::FlockOperation::NonBlockingLockExclusive).unwrap();
     drop(lease);
     if let Some(mut fixture) = network_fixture {

@@ -2966,3 +2966,19 @@ job when publication is authorized. That job has not run in this task.
   verified completion/retirement. Full local Rust is 499 passes, the existing IPv6 failure
   and 34 ignored cases; strict root/helper Clippy and fmt pass. CI must prove the boot-mode,
   lifecycle, quick-job and one-way Structure fixes before any runtime availability is wired.
+
+
+- K25 source 71d9767 optional VM run 43522794421/job 132220983145 is green: both
+  pinned OCI images complete eight actual runtime boots covering two vCPUs, durable exec,
+  clean stop, cold wake, independent copied-disk fork and signed immediate exit code 7.
+  Runtime acceptance takes 33.12 seconds. The unchanged six component boots and real
+  bundle/ext4 recovery acceptance also pass. Short evidence: measurements/k25/runtime-71d9767.json.
+  Normal CI/Structure remains queued; this is not public-node, edge or root-path proof.
+- Bound monitor diagnostics by the host's existing log byte budget: continuously drain the
+  real monitor socket and retain its tail in a private exclusive file, finishing capture
+  before interpreting the signed exit proof. Child retirement stays separate from capture
+  I/O, so a diagnostics error cannot prevent recording confirmed-dead compute. The KVM
+  fixture rejects truncated diagnostics before its existing secrecy/proof assertions.
+  Real-socket bounded-tail regression passes. Full local Rust: 500 passes, one unchanged
+  IPv6 failure and 34 ignored; strict root/helper Clippy and fmt pass. Scanner still has
+  eighteen addressed comments. Continue K25 backend/node integration while CI checks this head.
