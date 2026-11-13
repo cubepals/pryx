@@ -2818,3 +2818,19 @@ job when publication is authorized. That job has not run in this task.
 - Also read fcce6bc run 43506802018's completed VM failure: whole same-source launcher bundle
   assembles and verifies, then the same pre-correction opaque-EOF assertion fails. Raw evidence
   remains in CI; forwarding-acd52ed.json records the decisive preceding measurement only.
+
+
+- K25 sparse-disk checkpoint: after reflink refusal, preserve the kernel's SEEK_DATA/SEEK_HOLE
+  extents in the existing descriptor-relative copy path, with dense copying only where extent
+  lookup is unsupported. Source-size changes fail instead of completing a truncated copy.
+  Keep apparent-byte bounds, the original disk-floor refusal and all existing walk assertions.
+  The new direct descriptor test bypasses reflink, checks every byte and real allocation, and
+  caught a data/hole-boundary gap in progress checks; cap each extent chunk at the remaining
+  progress threshold. No assertion was removed or relaxed.
+- Full local Rust now has 498 passes, the same IPv6 failure and 33 ignored cases; strict
+  Clippy and fmt pass. Existing CI runs the new real-filesystem test; no new job/gate or PR
+  minute. Reclaim obsolete project build variants after this checkpoint before disk work.
+- Cancel superseded pending/running workflows only after reading every completed failure.
+  Retain raw failed jobs and the cancellation inventory outside the repository; cancellations
+  are not passes. Preserve 2969a46's full normal/host baseline and the latest HTTP/2 runs.
+  Additional old ccd8221 control job 132137784482 has the known pre-regeneration docs drift.

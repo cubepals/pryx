@@ -49,7 +49,7 @@ pub(crate) const MAX_ENTRIES: u64 = 2_000_000;
 /// Bytes a tree may come to: what a restore unpacks at most (`tarball::MAX_UNPACKED_BYTES`), and
 /// what `copy_tree` and `tarball::pack` take, by the sizes the files state. A data set may be several GB.
 /// A sparse file states any size with no blocks behind it, which `disk_usage` doesn't see, and
-/// its holes come out as bytes.
+/// its apparent size still counts against admission.
 pub(crate) const MAX_BYTES: u64 = 256 * 1024 * 1024 * 1024;
 /// How often `room` is asked within one file, besides after each: a large file, or a sparse one,
 /// is stopped at the floor partway through.
@@ -387,15 +387,9 @@ impl<'a> Progress<'a> {
         Counted { inner, progress: self }
     }
 
-    /// Copies what is left of `file` to `out`, counted, in steps: `room` is asked while a long
-    /// file is copied, not only after it.
-    fn copy(&mut self, file: &mut File, mut out: &File) -> io::Result<()> {
-        loop {
-            match io::copy(&mut (&mut *file).take(ROOM_STEP), &mut out)? {
-                0 => return Ok(()),
-                n => self.add(n)?,
-            }
-        }
+    /// Copies a descriptor's bytes and holes, keeping the same apparent-byte admission.
+    fn copy(&mut self, file: &mut File, out: &File) -> io::Result<()> {
+        copy::file(self, file, out)
     }
 }
 
@@ -691,7 +685,7 @@ mod tests {
             // Shared, the file takes no space, and is told whole once cloned.
             assert_eq!(told, [1 << 30]);
         } else {
-            // Copied, its holes come out as bytes, and `room` is asked as they land.
+            // Copied, its apparent bytes still count, and `room` is asked in bounded steps.
             assert_eq!(told.last(), Some(&((256 << 20) + ROOM_STEP)), "stopped partway: {told:?}");
             assert!(fs::metadata(dir.path().join("copy/huge")).unwrap().len() <= (256 << 20) + ROOM_STEP);
         }

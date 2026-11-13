@@ -3,6 +3,7 @@
 //! Reflink or bounded file copies from the descriptor-relative tree walk. Directory traversal
 //! remains in the parent module; this module never opens a source again by its path.
 use super::*;
+use rustix::fs::{SeekFrom, seek};
 use std::os::unix::fs::PermissionsExt;
 
 /// The filesystem can't share blocks between these two files; copying is the only way.
@@ -97,4 +98,107 @@ pub fn reflink_supported(dir: &Path) -> bool {
     let _ = fs::remove_file(&a);
     let _ = fs::remove_file(&b);
     result.unwrap_or(false)
+}
+
+/// Copy holes with the kernel's own extent lookup, falling back when it is unsupported.
+/// Count apparent bytes in ROOM_STEP increments, including holes, so existing admission
+/// bounds and cancellation points still apply even when little disk space is allocated.
+pub(super) fn file(progress: &mut Progress<'_>, source: &mut File, mut target: &File) -> io::Result<()> {
+    let size = source.metadata()?.len();
+    let first = match seek(&*source, SeekFrom::Data(0)) {
+        Ok(position) => Some(position),
+        Err(Errno::NXIO) => None,
+        Err(Errno::INVAL | Errno::OPNOTSUPP) => {
+            seek(&*source, SeekFrom::Start(0))?;
+            loop {
+                match io::copy(&mut (&mut *source).take(ROOM_STEP), &mut target)? {
+                    0 => return Ok(()),
+                    n => progress.add(n)?,
+                }
+            }
+        }
+        Err(error) => return Err(error.into()),
+    };
+    let mut position = 0;
+    let mut data = first;
+    while position < size {
+        let next = data.unwrap_or(size).min(size);
+        while position < next {
+            let hole = (next - position).min(progress.next - progress.bytes);
+            position += hole;
+            target.set_len(position)?;
+            progress.add(hole)?;
+        }
+        let Some(start) = data.filter(|start| *start < size) else { break };
+        let end = seek(&*source, SeekFrom::Hole(start))?.min(size);
+        if start < position || end <= start {
+            return Err(io::Error::other("File extents changed during copy"));
+        }
+        seek(&*source, SeekFrom::Start(start))?;
+        seek(target, SeekFrom::Start(start))?;
+        position = start;
+        while position < end {
+            let limit = (end - position).min(progress.next - progress.bytes);
+            let written = io::copy(&mut (&mut *source).take(limit), &mut target)?;
+            if written != limit {
+                return Err(io::ErrorKind::UnexpectedEof.into());
+            }
+            position += written;
+            progress.add(written)?;
+        }
+        data = if position == size {
+            None
+        } else {
+            match seek(&*source, SeekFrom::Data(position)) {
+                Ok(next) if next >= position => Some(next),
+                Err(Errno::NXIO) => None,
+                Ok(_) => return Err(io::Error::other("File extent moved backwards")),
+                Err(error) => return Err(error.into()),
+            }
+        };
+    }
+    if source.metadata()?.len() != size {
+        return Err(io::Error::other("File size changed during copy"));
+    }
+    target.set_len(size)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::{FileExt, MetadataExt};
+
+    #[test]
+    fn descriptor_copy_preserves_bytes_and_kernel_reported_holes_without_reflink() {
+        let directory = tempfile::tempdir().unwrap();
+        let input = directory.path().join("sparse");
+        let output = directory.path().join("copy");
+        let mut source = OpenOptions::new().read(true).write(true).create_new(true).open(&input).unwrap();
+        let size = 16 * ROOM_STEP;
+        source.set_len(size).unwrap();
+        let middle = (0..=u8::MAX).cycle().take(64 * 1024).collect::<Vec<_>>();
+        source.write_all_at(&middle, size / 2).unwrap();
+        source.write_all_at(b"last", size - 4).unwrap();
+        let first = seek(&source, SeekFrom::Data(0));
+        let target = OpenOptions::new().write(true).create_new(true).open(&output).unwrap();
+        let mut told = Vec::new();
+        let mut room = |bytes| {
+            told.push(bytes);
+            Ok(())
+        };
+        {
+            let mut progress = Progress::new(&mut room);
+            file(&mut progress, &mut source, &target).unwrap();
+            progress.ask().unwrap();
+        }
+        assert_eq!(fs::read(input).unwrap(), fs::read(output).unwrap());
+        assert_eq!(told.last(), Some(&size));
+        assert!(told.windows(2).all(|pair| pair[1] - pair[0] <= ROOM_STEP));
+        if first.is_ok_and(|offset| offset > 0) {
+            assert!(
+                target.metadata().unwrap().blocks() * ST_BLOCK_BYTES < size / 4,
+                "The kernel reports holes, so the fallback must preserve them"
+            );
+        }
+    }
 }
