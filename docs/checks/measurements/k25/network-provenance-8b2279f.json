@@ -1,0 +1,12 @@
+{
+  "source": "8b2279f4bf7b9b47589ee62c545094000502836f",
+  "run": 43458372918,
+  "job": 131998442387,
+  "conclusion": "success",
+  "artifactId": 14056145315,
+  "artifactSha256": "5876e2107835d3b253a40b93ae5cf77797c40cb21dfc6436b9a78378dbc12aee",
+  "scope": "Thirty guests per network path plus independent missing-userns/TUN vsock case; IPv6 disabled on actual private namespace interfaces, but bridge MAC learning still occurs during transfers and is not proved repaired",
+  "vsockSamples": 30,
+  "pastaSamples": 30,
+  "prerequisiteGuests": 1
+}

@@ -65,9 +65,8 @@ namespace. These tests do not prove production monitor confinement or hostname e
 
 [Raw network observations](measurements/k25/network-spike-187136d.json) and
 [verified artifact provenance](measurements/k25/network-provenance-187136d.json) retain all samples.
-Earlier setup, interface and DNS failures also remain recorded. Both candidates now work;
-the separate vsock test with host user namespaces and TUN unavailable is the remaining
-prerequisite experiment before the production network choice is finalized.
+Earlier setup, interface and DNS failures also remain recorded. Both candidates complete this cohort; later repeats and the missing-prerequisite experiment
+are recorded below.
 
 A repeat on source `0b8afec` passes all thirty vsock guests and thirteen pasta guests, then the
 fourteenth pasta bulk response stalls after 1,890,748 bytes and hits the unchanged two-second
@@ -90,3 +89,15 @@ shows its learned guest MAC changing to a namespace-interface MAC during a trans
 TCP receive window remains open. Test suppression of private bridge IPv6 control traffic in
 the already IPv4-only comparison, and retain actual link MACs and per-interface IPv6 settings.
 The initial host namespace must remain untouched. This suspected cause still needs CI proof.
+
+
+Source `8b2279f` passes [the complete experiment](https://github.com/cubepals/pryx/actions/runs/43458372918/job/131998442387):
+all thirty guests per path and the separate missing-prerequisite guest pass. Retain
+[its raw observations](measurements/k25/network-spike-8b2279f.json),
+[prerequisite observations](measurements/k25/network-prerequisites-8b2279f.json) and
+[verified provenance](measurements/k25/network-provenance-8b2279f.json). Every actual private
+interface has IPv6 disabled. The helper nevertheless learns a bridge-interface MAC briefly
+in five samples after seeing the VM MAC, before the validated guest report. Thus IPv6
+suppression alone is not a proved repair of the earlier stalls; the earlier failures remain
+unresolved. These diagnostic cohorts include upstream helper debug logging, so use the
+unmodified successful cohort above for the recorded network comparison.
