@@ -2,7 +2,13 @@
 //! Real public OCI registries and the signature-verified filesystem component, without an
 //! engine or root. The optional VM workflow stages these inputs and runs this acceptance.
 use pryx_vm_image::image::Images;
-use pryxd::runtime::{RuntimeError, vm::filesystems::FilesystemTools};
+use pryxd::runtime::{
+    RuntimeError,
+    vm::{
+        filesystems::FilesystemTools,
+        image::{self, Request},
+    },
+};
 use std::{fs, os::unix::fs::PermissionsExt, path::PathBuf, time::Duration};
 
 #[tokio::test]
@@ -17,7 +23,9 @@ async fn real_oci_layers_are_verified_cached_and_corruption_is_refused() {
     let alias = staging.path().join("component-link");
     std::os::unix::fs::symlink(&component, &alias).unwrap();
     assert!(FilesystemTools::verified(&alias, &manifest).is_err());
-    let images = Images::new(staging.path().join("images"), tools).unwrap();
+    let cache = staging.path().join("images");
+    let images = Images::new(cache.clone(), tools).unwrap();
+    let helper = PathBuf::from(env!("CARGO_BIN_EXE_pryx-vm-image"));
     let mut observations = Vec::new();
     let inputs: Vec<serde_json::Value> =
         serde_json::from_str(include_str!("../../templates/vm-tools/image-inputs.json")).unwrap();
@@ -42,6 +50,36 @@ async fn real_oci_layers_are_verified_cached_and_corruption_is_refused() {
             let metadata = fs::metadata(path).unwrap();
             assert_eq!((metadata.len(), metadata.modified().unwrap()), *expected);
         }
+        let request = Request {
+            component: component.clone(),
+            manifest_sha256: manifest.clone(),
+            cache: cache.clone(),
+            image: reference.into(),
+            timeout_seconds: 120,
+        };
+        let prepared = image::prepare(&helper, &request).await.unwrap();
+        assert_eq!(prepared.digest, image.digest);
+        assert_eq!(prepared.layers, image.layers);
+        assert_eq!(
+            serde_json::to_value(&prepared.configuration).unwrap(),
+            serde_json::to_value(
+                serde_json::from_value::<oci_spec::image::ImageConfiguration>(
+                    serde_json::to_value(&image.configuration).unwrap()
+                )
+                .unwrap()
+            )
+            .unwrap()
+        );
+        // A second process must wait for the same kernel cache lock, not publish
+        // layer bytes against a different process's completed record.
+        let lock =
+            fs::OpenOptions::new().read(true).write(true).open(cache.join(&manifest).join("prepare.lock")).unwrap();
+        rustix::fs::flock(&lock, rustix::fs::FlockOperation::NonBlockingLockExclusive).unwrap();
+        let short = Request { timeout_seconds: 1, ..request };
+        assert!(matches!(image::prepare(&helper, &short).await, Err(RuntimeError::Timeout(_))));
+        drop(lock);
+        let request = Request { timeout_seconds: 120, ..short };
+        assert_eq!(image::prepare(&helper, &request).await.unwrap().layers, image.layers);
         observations.push(serde_json::json!({"image": reference, "manifestDigest": image.digest,
             "layers": before.iter().map(|(bytes, _)| *bytes).collect::<Vec<_>>(), "cacheReused": true}));
         let corrupt = &image.layers[0];
@@ -52,6 +90,7 @@ async fn real_oci_layers_are_verified_cached_and_corruption_is_refused() {
             images.prepare(reference, Duration::from_secs(120)).await,
             Err(RuntimeError::ImageCacheInvalid)
         ));
+        assert!(matches!(image::prepare(&helper, &request).await, Err(RuntimeError::ImageCacheInvalid)));
         fs::remove_file(corrupt).unwrap();
         // This test has deliberately poisoned a complete record. Remove that private
         // record before moving to another image, rather than repairing a bad cache silently.

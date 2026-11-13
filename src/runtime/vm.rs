@@ -5,7 +5,9 @@
 //!
 //! Parts (`vm/`):
 //! - `filesystems.rs`: verify the host-owned filesystem component before external execution.
+//! - `image.rs`: bounded private-pipe contract with the independent OCI helper.
 pub mod filesystems;
+pub mod image;
 
 pub fn error(problem: impl std::fmt::Display) -> super::RuntimeError {
     super::RuntimeError::Other(problem.to_string())

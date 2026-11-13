@@ -12,6 +12,7 @@ use oci_client::errors::{OciDistributionError, OciErrorCode};
 use oci_client::{Client, Reference, config::ConfigFile, manifest::OciDescriptor, secrets::RegistryAuth};
 use oci_spec::image::{Arch, Digest, DigestAlgorithm, Os};
 use pryxd::runtime::RuntimeError;
+use rustix::fs::{FlockOperation, flock};
 use serde::{Deserialize, Serialize};
 use std::{
     fs::{self, File, OpenOptions},
@@ -125,10 +126,39 @@ impl Images {
     pub async fn prepare(&self, image: &str, timeout: Duration) -> Result<PreparedImage, RuntimeError> {
         tokio::time::timeout(timeout, async {
             let _guard = self.transition.lock().await;
-            self.pull(image).await
+            // Different helper processes share this builder cache. A process-local mutex
+            // alone cannot keep a complete record paired with its original layer bytes.
+            let lock = self.lock().await?;
+            let result = self.pull(image).await;
+            drop(lock);
+            result
         })
         .await
         .map_err(|_| RuntimeError::Timeout("VM OCI image preparation exceeded its deadline".into()))?
+    }
+
+    async fn lock(&self) -> Result<File, RuntimeError> {
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
+            .open(self.root.join("prepare.lock"))
+            .map_err(error)?;
+        let metadata = file.metadata().map_err(error)?;
+        if !metadata.is_file() || metadata.mode() & 0o077 != 0 || metadata.uid() != rustix::process::geteuid().as_raw()
+        {
+            return Err(error("VM image cache lock must be a private owned regular file"));
+        }
+        loop {
+            match flock(&file, FlockOperation::NonBlockingLockExclusive) {
+                Ok(()) => return Ok(file),
+                Err(rustix::io::Errno::WOULDBLOCK) => tokio::time::sleep(Duration::from_millis(25)).await,
+                Err(problem) => return Err(error(problem)),
+            }
+        }
     }
 
     async fn pull(&self, image: &str) -> Result<PreparedImage, RuntimeError> {

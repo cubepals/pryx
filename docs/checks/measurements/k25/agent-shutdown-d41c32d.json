@@ -1,0 +1,16 @@
+{
+  "measurement": "Actual-agent KVM boot and shutdown on Alpine; first boot fails power-off deadline",
+  "commit": "d41c32d",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43486064853",
+  "result": {
+    "job": 132094719558,
+    "elapsedSeconds": 17.53,
+    "shutdownDeadlineSeconds": 15,
+    "apiActionAccepted": true,
+    "cause": "Published kernel disables INPUT_KEYBOARD and SERIO; accepted SendCtrlAltDel cannot signal trusted init. No clean shutdown or reboot pass is claimed."
+  },
+  "artifact": {
+    "id": 14068097020,
+    "sha256": "ca78db57e0563d78864874f2cdeae1a61c7c5d9cab2c9e1d208191d0c1df4bde"
+  }
+}

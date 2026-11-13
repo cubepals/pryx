@@ -4,5 +4,6 @@
 //!
 //! Parts (`src/`):
 //! - `image.rs`: verified streaming OCI acquisition and immutable EROFS publication.
+//! - `main.rs`: bounded single-request command for the daemon’s private pipe contract.
 pub use pryxd::runtime::vm::{error, filesystems};
 pub mod image;

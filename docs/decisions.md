@@ -1048,3 +1048,4 @@
 
 - K25: Keep only compact measurement summaries and the two process-tool build inputs in docs/checks/measurements; raw logs, inventories and per-sample observations remain CI artifacts, preserving source/run attribution without repository dumps.
 - K25: Generate test observation challenges with the existing OS-backed crypto/UUID libraries, including derived invalid and oversized API inputs; preserve every replay, signature, scope and authentication assertion while addressing PR 21 scanner findings.
+- K25: Invoke the independent OCI helper over bounded private stdin/stdout with the OCI owner’s configuration type and typed cache/timeout refusals; serialize immutable-cache publication with a kernel file lock across helper processes, not only a process-local mutex.

@@ -2599,3 +2599,20 @@ job when publication is authorized. That job has not run in this task.
   and fmt pass. Complete local Rust execution still encounters the existing IPv6 socket
   EAFNOSUPPORT failure; all other test binaries, including actual Wasm, finish successfully.
   Real engine/KVM acceptance remains CI-only; hosted results and scanner reanalysis are pending.
+
+- K25 independent-image helper is executable through a bounded private pipe contract, using
+  the OCI-owned image-configuration type. Preserve typed cache-corruption/timeout refusals
+  and serialize cache publication with a kernel lock across processes. Actual local Alpine
+  and Debian registry acceptance passes, including real subprocess lock contention, timeout,
+  cache reuse and corruption refusal (15.45 s). Helper and root strict all-target Clippy and
+  fmt pass. Complete local Rust again finishes with only the unchanged IPv6 EAFNOSUPPORT
+  failure; no engine/KVM check runs locally. The existing optional registry CI test now
+  exercises the real executable too, estimated under three added seconds and no PR minutes.
+- Source d41c32d real KVM run 43486064853, job 132094719558, fails its original 15-second
+  power-off deadline after reaching the real agent and earlier guest assertions. Download
+  artifact 14068097020 and verify SHA-256 ca78db57e0563d78864874f2cdeae1a61c7c5d9cab2c9e1d208191d0c1df4bde.
+  Its serial output proves the monitor accepts SendCtrlAltDel; its published kernel config
+  disables INPUT_KEYBOARD and SERIO, so no keyboard event reaches init. Summary:
+  checks/measurements/k25/agent-shutdown-d41c32d.json; raw output stays in CI artifacts.
+  Add authenticated boot-scoped trusted-init shutdown without changing the kernel, deadline,
+  existing monitor-action check or clean-disk assertions. Production VM remains incomplete.
