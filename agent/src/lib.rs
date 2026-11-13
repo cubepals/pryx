@@ -39,6 +39,7 @@
 //! - `main.rs`: PID 1 bootstrap and embedded shell.
 //! - `bootstrap.rs`: entrypoint supervision and termination.
 //! - `bootstrap_capabilities.rs`: optional executable bootstrap argument discovery.
+//! - `vm_ingress.rs`: host-CID-only virtio-socket ingress to guest-loopback agent ports.
 
 pub mod auth;
 #[cfg(feature = "server")]
@@ -82,6 +83,8 @@ pub mod server;
 pub mod state;
 #[cfg(feature = "server")]
 pub mod telemetry;
+#[cfg(feature = "server")]
+mod vm_ingress;
 
 #[cfg(feature = "server")]
 mod transfers;

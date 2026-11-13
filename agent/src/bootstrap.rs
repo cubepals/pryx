@@ -48,6 +48,8 @@ pub struct Bootstrap {
     entrypoint_cwd: String,
     #[arg(long = crate::bootstrap_capabilities::BROWSER_ARGUMENT)]
     browser_sandbox: Option<bool>,
+    #[arg(long = crate::bootstrap_capabilities::VSOCK_ARGUMENT)]
+    vm_vsock: bool,
     #[arg(last = true)]
     entrypoint: Vec<String>,
 }
@@ -57,6 +59,12 @@ impl Bootstrap {
         let expected = std::iter::once(self.port).chain(self.spare_ports.iter().copied()).collect::<BTreeSet<_>>();
         if expected.contains(&0) || expected.len() != self.spare_ports.len() + 1 {
             return Err(io::ErrorKind::InvalidInput.into());
+        }
+        if self.vm_vsock {
+            if process_tier || self.host_bindings.is_some() {
+                return Err(io::Error::new(io::ErrorKind::InvalidInput, "VM ingress requires guest-loopback bindings"));
+            }
+            return Ok(expected.into_iter().map(|port| (port, vec![Ipv4Addr::LOCALHOST.into()])).collect());
         }
         let Some(encoded) = &self.host_bindings else {
             if process_tier {
@@ -130,6 +138,8 @@ pub async fn serve(
     for ip in &bindings[&args.port] {
         listeners.push(tokio::net::TcpListener::bind((*ip, args.port)).await?);
     }
+    let mut vm_ingress =
+        args.vm_vsock.then(|| crate::vm_ingress::Ingress::bind(bindings.keys().copied())).transpose()?;
     let mut servers = Vec::new();
     for listener in listeners {
         let listener = listener.tap_io(|socket| {
@@ -208,6 +218,12 @@ pub async fn serve(
         std::future::pending::<Result<i32, Box<dyn std::error::Error>>>().await
     };
     let result = tokio::select! {
+        error = async {
+            match vm_ingress.as_mut() {
+                Some(ingress) => ingress.failed().await,
+                None => std::future::pending().await,
+            }
+        } => Err(error.into()),
         code = exited => Ok(code),
         result = warming => result,
         _ = term.recv() => { terminate(&agent, libc::SIGTERM).await; Ok(0) },
@@ -297,6 +313,9 @@ mod tests {
         let args = Bootstrap::try_parse_from(base).unwrap();
         assert!(args.bindings(true).is_err());
         assert!(args.bindings(false).unwrap()[&AGENT_PORT][0].is_unspecified());
+        let vm = Bootstrap::try_parse_from(base.into_iter().chain(["--vm-vsock"])).unwrap();
+        assert!(vm.bindings(true).is_err());
+        assert!(vm.bindings(false).unwrap().values().all(|ips| ips == &[Ipv4Addr::LOCALHOST]));
         for ips in
             [Vec::<IpAddr>::new(), vec![Ipv4Addr::UNSPECIFIED.into()], vec![std::net::Ipv6Addr::UNSPECIFIED.into()]]
         {
@@ -319,5 +338,8 @@ mod tests {
         let json = serde_json::to_string(&expected).unwrap();
         let args = Bootstrap::try_parse_from(base.into_iter().chain(["--host-bindings", &json])).unwrap();
         assert_eq!(args.bindings(true).unwrap(), expected);
+        let conflicting =
+            Bootstrap::try_parse_from(base.into_iter().chain(["--host-bindings", &json, "--vm-vsock"])).unwrap();
+        assert!(conflicting.bindings(false).is_err());
     }
 }

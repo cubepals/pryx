@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 pub const PROBE: &str = "bootstrap-probe";
 pub const BROWSER_ARGUMENT: &str = "browser-sandbox";
+pub const VSOCK_ARGUMENT: &str = "vm-vsock";
 
 #[derive(Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -19,6 +20,8 @@ pub struct Capabilities {
     pub process_desktop_version: u16,
     #[serde(default)]
     pub process_ssh_version: u16,
+    #[serde(default)]
+    pub vm_vsock: bool,
 }
 
 pub fn probe() -> Capabilities {
@@ -28,5 +31,6 @@ pub fn probe() -> Capabilities {
         process_browser_version: crate::process_tool_policy::BROWSER_VERSION,
         process_desktop_version: crate::process_tool_policy::DESKTOP_VERSION,
         process_ssh_version: crate::process_tool_policy::SSH_VERSION,
+        vm_vsock: true,
     }
 }

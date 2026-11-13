@@ -101,3 +101,21 @@ in five samples after seeing the VM MAC, before the validated guest report. Thus
 suppression alone is not a proved repair of the earlier stalls; the earlier failures remain
 unresolved. These diagnostic cohorts include upstream helper debug logging, so use the
 unmodified successful cohort above for the recorded network comparison.
+
+
+## Filesystem bundle component
+
+Source `7efb280` passes [the component and real-kernel job](https://github.com/cubepals/pryx/actions/runs/43464154294/job/132018658215).
+The component contains four unchanged Alpine filesystem programs and their fifteen-file
+musl/library/configuration closure. Original apk-tools verifies every package signature;
+the same packages fail with an empty trust directory. Complete upstream sources, recipe
+inputs and full notices are retained before execution. The official source mirror supplies
+identical pinned bytes when the primary source denies the hosted runner.
+
+The [relocation report](measurements/k25/filesystem-relocation-7efb280.json) proves a real EROFS
+round trip and populated ext4 integrity without root or a mount. The
+[full boot report](measurements/k25/kernel-filesystems-7efb280.json) identifies the exact
+[component manifest](measurements/k25/filesystem-manifest-7efb280.json) used for all thirty
+boots and the disk-retaining reboot; [artifact provenance](measurements/k25/filesystem-provenance-7efb280.json)
+retains its verified identity. This component does not yet provide runtime acquisition,
+OCI image preparation or a production VM backend.

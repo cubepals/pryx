@@ -2364,3 +2364,28 @@ job when publication is authorized. That job has not run in this task.
   byte count and SHA-256. A real mirror request matches the reviewed patch's
   original bytes. Digest/notice mismatches still fail without fallback. This is
   a source availability repair, not a rerun claimed as successful.
+
+- Source 7efb280's complete VM experiment is green in
+  [43464154294](https://github.com/cubepals/pryx/actions/runs/43464154294/job/132018658215).
+  Verify artifact 456a962d8038a0600a2864d80f835f06494efff09f28a2173bc003eeceade8c5
+  before retaining the real relocation report, fifteen-file component manifest,
+  full thirty-boot/disk-reboot report and provenance. The boot report identifies
+  filesystem manifest 347d7807cd333961f446951e642872e0e49dfdcd135b542795acd063f5557fa5.
+  Both network cohorts and the separate missing-prerequisite guest also pass.
+  The retained acquisition log proves actual primary-source 403s followed by
+  identical-digest official mirror success; no bytes or assertions change.
+- Add optional agent vm-vsock parser metadata and host-CID-only transport to
+  guest-loopback main/spare listeners, with existing authentication and port
+  ownership intact. Ordinary host processes refuse before binding; incompatible
+  process-tier/explicit-host binding combinations refuse. Ingress listener failure
+  terminates the supervisor rather than silently leaving an unreachable guest.
+  This is preparation for the VM backend, not VM capability advertisement.
+- Local full Rust verification runs without fail-fast and with the repository's
+  checksum-pinned real agentOS assets. All executables except the existing
+  dual-stack peer library test pass, including actual Wasm lifecycle; that test
+  fails because this executor's AF_INET6 socket creation returns the real kernel
+  EAFNOSUPPORT. Keep the test unchanged for CI. The first unconfigured attempt
+  also correctly fails missing Wasm assets; stage them using CONTRIBUTING.md's
+  existing fetch script before the complete rerun. Formatting and full Clippy
+  with warnings denied pass. Real guest ingress proof remains to be added with
+  the production init/backend; no local KVM or engine test is claimed.
