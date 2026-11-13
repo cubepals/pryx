@@ -2616,3 +2616,18 @@ job when publication is authorized. That job has not run in this task.
   checks/measurements/k25/agent-shutdown-d41c32d.json; raw output stays in CI artifacts.
   Add authenticated boot-scoped trusted-init shutdown without changing the kernel, deadline,
   existing monitor-action check or clean-disk assertions. Production VM remains incomplete.
+
+- K25 guest shutdown now has a host-CID-only trusted-init listener. Verify a distinct signed
+  boot/sandbox/epoch request with the existing agent key, bound input size and read deadline,
+  and never resubmit a received shutdown. The maintained SDK owns the host vsock connection;
+  no CONNECT framing is copied. Actual KVM acceptance first rejects another boot’s signed
+  request, proves the agent remains healthy, retains the original monitor action, then sends
+  the valid request once. Its acknowledgement and monitor exit share the original fifteen
+  seconds; clean-disk proof, read-only fsck and all reboot/network assertions stay required.
+- Local current-source full Rust finishes with 494 passed, one unchanged IPv6 EAFNOSUPPORT
+  failure and 33 existing ignored cases. Both strict root/helper all-target Clippy, fmt, Go
+  build/vet, complete 24-module notice closure, static-musl agent and actual EROFS bootstrap
+  construction pass. No local KVM or engine execution is claimed. Existing optional CI cost
+  changes by under one second for rejection/acknowledgement; no new job or gate is added.
+  Read the same shutdown failures in fea728a run 43486862080/job 132097499485 and b33d097 run
+  43487324558/job 132099099215; both precede this correction and neither is counted as a pass.

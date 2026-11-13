@@ -44,6 +44,7 @@
 //! - `vm_network.rs`: trusted guest network readiness, resolver mounts and child lifetime.
 //! - `vm_init.rs`: trusted guest init, mount preparation and orderly non-root agent supervision.
 //! - `vm_observation.rs`: boot-scoped signed disk-shutdown observations.
+//! - `vm_shutdown.rs`: authenticated host-CID-only requests to trusted guest init.
 
 pub mod auth;
 #[cfg(feature = "server")]
@@ -97,6 +98,8 @@ pub mod vm_init;
 mod vm_network;
 #[cfg(feature = "server")]
 pub mod vm_observation;
+#[cfg(feature = "server")]
+pub mod vm_shutdown;
 
 #[cfg(feature = "server")]
 mod transfers;

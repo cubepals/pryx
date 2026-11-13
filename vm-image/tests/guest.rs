@@ -10,6 +10,7 @@ use pryx_agent::{
     process::{Command as GuestCommand, Start},
     vm_boot::{self, Boot, Network},
     vm_observation::{self, Proof},
+    vm_shutdown,
 };
 use pryx_vm_image::image::{Images, PreparedImage};
 use pryxd::runtime::vm::filesystems::FilesystemTools;
@@ -362,10 +363,36 @@ async fn boot(
     guest.ready().await;
     tokio::time::timeout(Duration::from_secs(1), sender).await.unwrap().unwrap();
     let kernel = exercise_guest(&guest, directory, round, uid, network_fixture.as_ref(), &bootstrap_metadata).await;
+    let replay = vm_shutdown::request(&key, &format!("{nonce}-other"), sandbox, 1);
+    assert!(
+        request(
+            &guest.client,
+            json!({"socket": guest.channel,
+        "port": vm_shutdown::PORT, "shutdown": replay})
+        )
+        .await
+        .is_err()
+    );
+    assert_eq!(guest.call(Method::GET, "/_pryx/health", Value::Null, None).await.0, StatusCode::OK);
     let (status, _) = request(&guest.client, json!({"socket": api, "stop": true})).await.unwrap();
     assert!(status.is_success());
-    let status =
-        tokio::time::timeout(Duration::from_secs(15), monitor.wait()).await.expect("VM did not power off").unwrap();
+    // This published kernel has no keyboard driver. Preserve the real monitor
+    // action assertion, then ask trusted PID 1 explicitly to flush and power off.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+    let shutdown = vm_shutdown::request(&key, &nonce, sandbox, 1);
+    let (status, _) = tokio::time::timeout_at(
+        deadline,
+        request(
+            &guest.client,
+            json!({"socket": guest.channel,
+            "port": vm_shutdown::PORT, "shutdown": shutdown}),
+        ),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(status, StatusCode::ACCEPTED);
+    let status = tokio::time::timeout_at(deadline, monitor.wait()).await.expect("VM did not power off").unwrap();
     assert!(status.success());
     if let Some(mut fixture) = network_fixture {
         fixture.proxy.kill().await.unwrap();
@@ -376,6 +403,7 @@ async fn boot(
     let check = check.arg("-f").arg("-n").arg(writes).output().unwrap();
     assert!(check.status.success(), "Stopped VM disk failed read-only integrity check");
     json!({"round": round, "kernel": kernel, "guestUid": uid, "signedCleanShutdown": true,
+        "authenticatedInitShutdown": true, "shutdownReplayRefused": true,
         "persistentFile": true, "hostFileDenied": true, "hostSignalDenied": true,
         "networked": networked, "dhcpDnsHttpAndManagementDenial": networked})
 }

@@ -288,6 +288,8 @@ async fn supervise(boot: Boot, writes: File) -> Result<(), Box<dyn std::error::E
     let key = crate::auth::SigningKey::from_encoded(encoded)?;
     let kernel = fs::read_to_string("/proc/sys/kernel/osrelease")?.trim().to_owned();
     let mut network = crate::vm_network::start(boot.network.as_ref()).await?;
+    let shutdown = crate::vm_shutdown::Listener::bind(boot.cid)?;
+    let public_key = key.public_key();
     let mut term = signal(SignalKind::terminate())?;
     let mut interrupt = signal(SignalKind::interrupt())?;
     rustix::system::reboot(rustix::system::RebootCommand::CadOff)?;
@@ -309,6 +311,7 @@ async fn supervise(boot: Boot, writes: File) -> Result<(), Box<dyn std::error::E
         .spawn()?;
     let mut result = tokio::select! { result = child.wait() => Some(result?),
     _ = term.recv() => None, _ = interrupt.recv() => None,
+    result = shutdown.receive(&public_key, &boot.nonce, sandbox, epoch) => { result?; None },
     error = crate::vm_network::failure(&mut network) => return Err(error.into()) };
     if let Some(pid) = child.id().and_then(|pid| Pid::from_raw(pid as i32)) {
         let _ = rustix::process::kill_process_group(pid, Signal::TERM);

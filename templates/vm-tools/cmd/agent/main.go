@@ -32,6 +32,7 @@ type request struct {
 	BinaryBody []byte          `json:"binaryBody"`
 	Stop       bool            `json:"stop"`
 	Headers    http.Header     `json:"headers"`
+	Shutdown   json.RawMessage `json:"shutdown"`
 }
 
 func run() error {
@@ -47,6 +48,9 @@ func run() error {
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&input); err != nil {
 		return fmt.Errorf("Invalid private agent request")
+	}
+	if input.Shutdown != nil {
+		return shutdown(input)
 	}
 	if input.Socket == "" || (!input.Stop && (input.Port == 0 || input.Token == "" || input.Path == "" || input.Path[0] != '/')) {
 		return fmt.Errorf("Incomplete private agent request")
@@ -98,6 +102,40 @@ func run() error {
 		return fmt.Errorf("Agent response exceeds its bound")
 	}
 	return json.NewEncoder(os.Stdout).Encode(map[string]any{"status": response.StatusCode, "body": body})
+}
+
+func shutdown(input request) error {
+	if input.Socket == "" || input.Port == 0 || input.Stop {
+		return fmt.Errorf("Incomplete private shutdown request")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	connection, err := vsock.DialContext(ctx, input.Socket, input.Port)
+	if err != nil {
+		return err
+	}
+	defer connection.Close()
+	if err := connection.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		return err
+	}
+	if _, err := io.Copy(connection, bytes.NewReader(input.Shutdown)); err != nil {
+		return err
+	}
+	half, ok := connection.(interface{ CloseWrite() error })
+	if !ok {
+		return fmt.Errorf("SDK transport does not support shutdown request EOF")
+	}
+	if err := half.CloseWrite(); err != nil {
+		return err
+	}
+	var accepted bool
+	if err := json.NewDecoder(io.LimitReader(connection, maxResponseBytes)).Decode(&accepted); err != nil {
+		return err
+	}
+	if !accepted {
+		return fmt.Errorf("Guest init refused the shutdown request")
+	}
+	return json.NewEncoder(os.Stdout).Encode(map[string]any{"status": http.StatusAccepted, "body": []byte{}})
 }
 
 func main() {
