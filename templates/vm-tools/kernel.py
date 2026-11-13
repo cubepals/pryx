@@ -76,7 +76,7 @@ def root_image(guest, work, mkfs, base=None, additions=None):
         entry.mode, entry.size = 0o644, len(data)
         archive.addfile(entry, io.BytesIO(data))
     path = work / 'root.erofs'
-    command([mkfs, '--tar=f', '--quiet', path, archive_path])
+    command([*(mkfs if isinstance(mkfs, list) else [mkfs]), '--tar=f', '--quiet', path, archive_path])
     archive_path.unlink()
     return path
 
@@ -156,10 +156,19 @@ def main():
     parser.add_argument('--staged', type=Path, required=True)
     parser.add_argument('--configurator', type=Path, required=True)
     parser.add_argument('--guest', type=Path, required=True)
-    parser.add_argument('--mkfs', type=Path, required=True)
+    builder = parser.add_mutually_exclusive_group(required=True)
+    builder.add_argument('--mkfs', type=Path)
+    builder.add_argument('--filesystem-component', type=Path)
     parser.add_argument('--work', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
+    mkfs, mke2fs = args.mkfs, ['/usr/sbin/mke2fs']
+    if args.filesystem_component:
+        from filesystem import command as filesystem_command
+        tools = args.filesystem_component.resolve() / 'tools'
+        mkfs = filesystem_command(tools, 'mkfs.erofs')
+        mke2fs = filesystem_command(tools, 'mke2fs')
+        os.environ['MKE2FS_CONFIG'] = str(tools / 'config/mke2fs.conf')
     if os.geteuid() == 0:
         raise ValueError('Kernel spike must prove the ordinary-user KVM path')
     args.work.mkdir(mode=0o700)
@@ -176,6 +185,9 @@ def main():
     report = {'scope': 'Minimal ordinary-user kernel fixture only; not production VM-tier proof',
               'hostKernel': platform.release(), 'uid': os.geteuid(), 'selection': selection,
               'samples': [], 'wake': [], 'status': 'in-progress'}
+    if args.filesystem_component:
+        manifest = args.filesystem_component / 'filesystem-manifest.json'
+        report['filesystemComponentManifestSha256'] = hashlib.sha256(manifest.read_bytes()).hexdigest()
 
     def save():
         args.output.write_text(json.dumps(report, indent=2) + '\n')
@@ -183,11 +195,11 @@ def main():
     save()
     try:
         started = time.monotonic_ns()
-        root = root_image(args.guest, args.work, args.mkfs)
+        root = root_image(args.guest, args.work, mkfs)
         pristine = args.work / 'pristine.ext4'
         with pristine.open('xb') as output:
             output.truncate(DISK_BYTES)
-        command(['/usr/sbin/mke2fs', '-q', '-t', 'ext4', '-F', pristine])
+        command([*mke2fs, '-q', '-t', 'ext4', '-F', pristine])
         report['imagePreparationMs'] = (time.monotonic_ns() - started) / 1_000_000
         report['rootBytes'] = root.stat().st_size
         for index in range(SAMPLES):

@@ -2334,3 +2334,23 @@ job when publication is authorized. That job has not run in this task.
   including installed continuation 131940893233 and every one of sixteen actual
   host jobs. Retain baseline-host-matrix-60d5b50.json. This is application baseline
   proof before a production VM exists, not completion of K25.
+
+- Begin the VM bundle with the filesystem component: checksum-pin ten Alpine
+  packages, their seven complete upstream source archives, every recipe and
+  source patch, and forty-three full original notice files. The original package
+  keeper from the already pinned Alpine image verifies signatures; a real empty-
+  trust-directory control refuses the same packages. No package script runs.
+- Assemble only four unchanged filesystem executables and their actual ELF
+  dependency closure, invoked through separate unchanged musl. This independent
+  VM component adds no host glibc requirement, private native-tool glibc, package
+  installation or ELF rewriting. Keep mke2fs's packaged configuration private.
+  The ordinary-user local relocation control checks resolved library paths,
+  a real EROFS file round trip and real read-only populated-ext4 integrity.
+- Extend the existing optional VM job to assemble and relocate that component,
+  then use its actual builders for all thirty published-kernel boots and the
+  disk-retaining reboot. Retain its manifest identity in the boot report and
+  its signature diagnostics/relocation report with the artifact. Ordinary PR
+  cost remains zero; estimated optional-job increment is under one minute.
+  Python compilation, complete actionlint/ShellCheck, docs and whitespace pass.
+  Real KVM proof of these new builders remains pending. Production acquisition,
+  monitor/kernel/network assembly and backend/agent/lifecycle remain incomplete.

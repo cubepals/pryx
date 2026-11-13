@@ -23,6 +23,9 @@ Parts (`vm-tools/`):
 - `network_prepare.py`: verified Alpine tar and unchanged separate pasta source build.
 - `network_namespace.py`: private user-namespace bridge and TAP, with parent-bound monitor lifetime.
 - `network_compare.py`: thirty real guest samples per path, HTTP/DNS/throughput and management denial.
+- `filesystem-inputs.json`: pinned signed Alpine filesystem helpers, complete source/recipe inputs and notices.
+- `filesystem.py`: assemble unchanged helper ELFs and their separate musl closure after package signature verification.
+- `filesystem_check.py`: relocated EROFS round trip, populated ext4 integrity and actual library-resolution checks.
 
 The inventory workflow runs on `any-host` pushes while manual dispatch is unavailable before
 main. Its output records upstream asset identities, actual byte hashes and source commits.

@@ -56,6 +56,14 @@ jobs:
           "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-config" ./cmd/config
           "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-guest" ./cmd/guest
           "$pryx_go" mod verify
+      - name: Build and relocate the unchanged VM filesystem component
+        run: |
+          python3 templates/vm-tools/filesystem.py \
+            --cache "$RUNNER_TEMP/vm-filesystem-archives" \
+            --root "$RUNNER_TEMP/vm-filesystem-component" | tee "$RUNNER_TEMP/vm-filesystem-component.log"
+          python3 templates/vm-tools/filesystem_check.py \
+            --component "$RUNNER_TEMP/vm-filesystem-component" \
+            --output "$RUNNER_TEMP/vm-filesystem-check.json"
       - name: Allow the ordinary runner user to open real KVM
         run: |
           sudo modprobe kvm
@@ -69,7 +77,7 @@ jobs:
             --inspection "$RUNNER_TEMP/vm-archive-inspection.json" \
             --staged "$RUNNER_TEMP/vm-selected-files" \
             --configurator "$RUNNER_TEMP/vm-config" --guest "$RUNNER_TEMP/vm-guest" \
-            --mkfs "$RUNNER_TEMP/vm-build-tools/erofs/usr/bin/mkfs.erofs" \
+            --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" \
             --work "$RUNNER_TEMP/vm-kernel-spike" \
             --output "$RUNNER_TEMP/vm-kernel-spike.json" | tee "$RUNNER_TEMP/vm-kernel-spike.log"
       - name: Prepare immutable network comparison inputs
@@ -140,6 +148,10 @@ jobs:
             ${{ runner.temp }}/vm-archive-inspection.json
             ${{ runner.temp }}/vm-archive-inspection.log
             ${{ runner.temp }}/vm-tool-inputs.log
+            ${{ runner.temp }}/vm-filesystem-component.log
+            ${{ runner.temp }}/vm-filesystem-check.json
+            ${{ runner.temp }}/vm-filesystem-component/filesystem-manifest.json
+            ${{ runner.temp }}/vm-filesystem-component/filesystem-inputs.json
             ${{ runner.temp }}/vm-spike-notices
             ${{ runner.temp }}/vm-kernel-spike.json
             ${{ runner.temp }}/vm-kernel-spike.log

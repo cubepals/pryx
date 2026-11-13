@@ -1,0 +1,902 @@
+{
+  "architecture": "x86_64",
+  "bootstrap": {
+    "version": "3.24.4",
+    "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/x86_64/alpine-minirootfs-3.24.4-x86_64.tar.gz",
+    "bytes": 3704088,
+    "sha256": "cdaa38cb8de3537967ee5b6c9b6cd00cc962da2b018e6eea48696bb274923012",
+    "digestSource": "https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/x86_64/latest-releases.yaml",
+    "packages": [
+      {
+        "name": "alpine-baselayout",
+        "version": "3.7.2-r1",
+        "licence": "GPL-2.0-only",
+        "upstream": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/master/main/alpine-baselayout",
+        "sourcePackage": "alpine-baselayout",
+        "sourceCommit": "60a7585bbab2fa0f762504eb617dbca90216e31f"
+      },
+      {
+        "name": "alpine-baselayout-data",
+        "version": "3.7.2-r1",
+        "licence": "GPL-2.0-only",
+        "upstream": "https://gitlab.alpinelinux.org/alpine/aports/-/tree/master/main/alpine-baselayout",
+        "sourcePackage": "alpine-baselayout",
+        "sourceCommit": "60a7585bbab2fa0f762504eb617dbca90216e31f"
+      },
+      {
+        "name": "alpine-keys",
+        "version": "2.6-r0",
+        "licence": "MIT",
+        "upstream": "https://alpinelinux.org",
+        "sourcePackage": "alpine-keys",
+        "sourceCommit": "b9f23becced4d7b3ccc0fa0f28530243ccd314a0"
+      },
+      {
+        "name": "alpine-release",
+        "version": "3.24.4-r0",
+        "licence": "MIT",
+        "upstream": "https://alpinelinux.org",
+        "sourcePackage": "alpine-base",
+        "sourceCommit": "105b835acd9971b9770fb61f5a1ddcc133c180dc"
+      },
+      {
+        "name": "apk-tools",
+        "version": "3.0.9-r0",
+        "licence": "GPL-2.0-only",
+        "upstream": "https://gitlab.alpinelinux.org/alpine/apk-tools",
+        "sourcePackage": "apk-tools",
+        "sourceCommit": "13685e8f2cf1c103cbba2fb9efcfcf19f4918df0"
+      },
+      {
+        "name": "busybox",
+        "version": "1.37.0-r31",
+        "licence": "GPL-2.0-only",
+        "upstream": "https://busybox.net/",
+        "sourcePackage": "busybox",
+        "sourceCommit": "c3ef5d10e6ef6528852c51f0564963e2f8c1be19"
+      },
+      {
+        "name": "busybox-binsh",
+        "version": "1.37.0-r31",
+        "licence": "GPL-2.0-only",
+        "upstream": "https://busybox.net/",
+        "sourcePackage": "busybox",
+        "sourceCommit": "c3ef5d10e6ef6528852c51f0564963e2f8c1be19"
+      },
+      {
+        "name": "ca-certificates-bundle",
+        "version": "20261020-r0",
+        "licence": "MPL-2.0 AND MIT",
+        "upstream": "https://www.mozilla.org/en-US/about/governance/policies/security-group/certs/",
+        "sourcePackage": "ca-certificates",
+        "sourceCommit": "e78f5987166c6ffbe23f6472e2e8f040298fe2da"
+      },
+      {
+        "name": "libapk",
+        "version": "3.0.9-r0",
+        "licence": "GPL-2.0-only",
+        "upstream": "https://gitlab.alpinelinux.org/alpine/apk-tools",
+        "sourcePackage": "apk-tools",
+        "sourceCommit": "13685e8f2cf1c103cbba2fb9efcfcf19f4918df0"
+      },
+      {
+        "name": "libcrypto3",
+        "version": "3.5.9-r0",
+        "licence": "Apache-2.0",
+        "upstream": "https://www.openssl.org/",
+        "sourcePackage": "openssl",
+        "sourceCommit": "29b9ec24b1b5b39aeef51fa2a044210e2ec5258e"
+      },
+      {
+        "name": "libssl3",
+        "version": "3.5.9-r0",
+        "licence": "Apache-2.0",
+        "upstream": "https://www.openssl.org/",
+        "sourcePackage": "openssl",
+        "sourceCommit": "29b9ec24b1b5b39aeef51fa2a044210e2ec5258e"
+      },
+      {
+        "name": "musl",
+        "version": "1.2.6-r3",
+        "licence": "MIT",
+        "upstream": "https://musl.libc.org/",
+        "sourcePackage": "musl",
+        "sourceCommit": "8f79d39391b46d6dbf1800fb68b8212a21d5ee2e"
+      },
+      {
+        "name": "musl-utils",
+        "version": "1.2.6-r3",
+        "licence": "MIT AND BSD-2-Clause AND GPL-2.0-or-later",
+        "upstream": "https://musl.libc.org/",
+        "sourcePackage": "musl",
+        "sourceCommit": "8f79d39391b46d6dbf1800fb68b8212a21d5ee2e"
+      },
+      {
+        "name": "scanelf",
+        "version": "1.3.9-r1",
+        "licence": "GPL-2.0-only",
+        "upstream": "https://wiki.gentoo.org/wiki/Hardened/PaX_Utilities",
+        "sourcePackage": "pax-utils",
+        "sourceCommit": "c61801eeacb3ffcd9c2025b09e402153bb93fb39"
+      },
+      {
+        "name": "ssl_client",
+        "version": "1.37.0-r31",
+        "licence": "GPL-2.0-only",
+        "upstream": "https://busybox.net/",
+        "sourcePackage": "busybox",
+        "sourceCommit": "c3ef5d10e6ef6528852c51f0564963e2f8c1be19"
+      },
+      {
+        "name": "zlib",
+        "version": "1.3.2-r1",
+        "licence": "Zlib",
+        "upstream": "https://zlib.net/",
+        "sourcePackage": "zlib",
+        "sourceCommit": "0afa2da0e8c8051c6f8f64a7a388e5a259904245"
+      }
+    ]
+  },
+  "packages": [
+    {
+      "name": "erofs-utils",
+      "version": "1.9.1-r0",
+      "origin": "erofs-utils",
+      "sourceCommit": "065ca2ca555806ea45d87fad133c88220a333d95",
+      "licence": "GPL-2.0-or-later",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/community/x86_64/erofs-utils-1.9.1-r0.apk",
+      "bytes": 286550,
+      "sha256": "abe0b6153fc472c7ef4e24f23cbd7142c2cfa13d5f2ba9c4c2e12bc2c0cb52c6"
+    },
+    {
+      "name": "e2fsprogs",
+      "version": "1.47.4-r0",
+      "origin": "e2fsprogs",
+      "sourceCommit": "8683a6972cb245fbbdb535dad6435a9930bb9374",
+      "licence": "GPL-2.0-or-later AND LGPL-2.0-or-later AND BSD-3-Clause AND MIT",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/e2fsprogs-1.47.4-r0.apk",
+      "bytes": 180199,
+      "sha256": "c7a99a18206827b09f0cfa2373e6f1db0963845ad8468a378a3b99a7e716a0e8"
+    },
+    {
+      "name": "e2fsprogs-libs",
+      "version": "1.47.4-r0",
+      "origin": "e2fsprogs",
+      "sourceCommit": "8683a6972cb245fbbdb535dad6435a9930bb9374",
+      "licence": "GPL-2.0-or-later AND LGPL-2.0-or-later AND BSD-3-Clause AND MIT",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/e2fsprogs-libs-1.47.4-r0.apk",
+      "bytes": 209319,
+      "sha256": "2e067395a6981b06cfd2cd3abf0e6c6574f7ef64d02e01f75fc5323d4a337fb9"
+    },
+    {
+      "name": "libcom_err",
+      "version": "1.47.4-r0",
+      "origin": "e2fsprogs",
+      "sourceCommit": "8683a6972cb245fbbdb535dad6435a9930bb9374",
+      "licence": "GPL-2.0-or-later AND LGPL-2.0-or-later AND BSD-3-Clause AND MIT",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/libcom_err-1.47.4-r0.apk",
+      "bytes": 6095,
+      "sha256": "4723d0fb8e286dc6adb54dd3cdaedcd8db54260f75ee778a5acb4c16922c0f52"
+    },
+    {
+      "name": "musl",
+      "version": "1.2.6-r3",
+      "origin": "musl",
+      "sourceCommit": "8f79d39391b46d6dbf1800fb68b8212a21d5ee2e",
+      "licence": "MIT",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/musl-1.2.6-r3.apk",
+      "bytes": 415466,
+      "sha256": "e142255d0fa397f14318996bc10378093dcc069dc3dd1b6818c8f28a789c21da"
+    },
+    {
+      "name": "libblkid",
+      "version": "2.42.3-r1",
+      "origin": "util-linux",
+      "sourceCommit": "d98c55af59055e6ca60fbe36e171546918709965",
+      "licence": "LGPL-2.1-or-later",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/libblkid-2.42.3-r1.apk",
+      "bytes": 98429,
+      "sha256": "2512c2bff496ac2b8561a3c814d21d35ce10cda579b3d410f9f96da93a5aaac1"
+    },
+    {
+      "name": "libuuid",
+      "version": "2.42.3-r1",
+      "origin": "util-linux",
+      "sourceCommit": "d98c55af59055e6ca60fbe36e171546918709965",
+      "licence": "BSD-3-Clause",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/libuuid-2.42.3-r1.apk",
+      "bytes": 14261,
+      "sha256": "8306e5bb577696c9069fe1dfd9e1dcc39d2d481c6a1b0e707fd03c3e21aa6aa2"
+    },
+    {
+      "name": "libeconf",
+      "version": "0.8.3-r0",
+      "origin": "libeconf",
+      "sourceCommit": "62db33049768522f381410614d59c7d732f72c3a",
+      "licence": "MIT",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/libeconf-0.8.3-r0.apk",
+      "bytes": 26054,
+      "sha256": "2a791c7957961f830cf31b04f35f814a63afcf633badc9052425ff1cf2f64380"
+    },
+    {
+      "name": "lz4-libs",
+      "version": "1.10.0-r1",
+      "origin": "lz4",
+      "sourceCommit": "1f16962f34234a77fab0f4651459c4381b4a0cd6",
+      "licence": "BSD-2-Clause AND GPL-2.0-or-later",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/lz4-libs-1.10.0-r1.apk",
+      "bytes": 79080,
+      "sha256": "3ad4912ab8ecf5f6236fdb751f88243006b3a8f152684e455b781e16284dd298"
+    },
+    {
+      "name": "zlib",
+      "version": "1.4-r0",
+      "origin": "zlib",
+      "sourceCommit": "bdf501c870a92a05c097857401f69c48c4810384",
+      "licence": "Zlib",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/zlib-1.4-r0.apk",
+      "bytes": 56761,
+      "sha256": "7b05bc778b8b25cd880835b40114182bd4d1581717504d0129c810c0a14291cb"
+    }
+  ],
+  "sources": [
+    {
+      "origin": "erofs-utils",
+      "name": "erofs-utils-1.9.1.tar.gz",
+      "url": "https://distfiles.alpinelinux.org/distfiles/v3.24/erofs-utils-1.9.1.tar.gz",
+      "bytes": 261280,
+      "sha256": "a9ef5ab67c4b8d2d3e9ed71f39cd008bda653142a720d8a395a36f1110d0c432",
+      "sha512": "c66ac253e319886fc41e96813de2edb4281317df6477a8ea71a4af49d5750991964347d533a9be825daf2320370141859e3643c52abbac6bfabdd477f7365ebf",
+      "archive": true
+    },
+    {
+      "origin": "e2fsprogs",
+      "name": "e2fsprogs-1.47.4.tar.gz",
+      "url": "https://distfiles.alpinelinux.org/distfiles/v3.24/e2fsprogs-1.47.4.tar.gz",
+      "bytes": 10152465,
+      "sha256": "9f82eaa7002673291629077b80ee005cadfcd49854907a22007fed70b0ef596e",
+      "sha512": "923c1ba52cf48557e190ee936be47ff3e43e4798950499e3c663f0f077470caefbb69ee845ebe1f969b3e7c1bb0c22e507188f1daca24649c54c5843c835b2f9",
+      "archive": true
+    },
+    {
+      "origin": "musl",
+      "name": "musl-1.2.6.tar.gz",
+      "url": "https://distfiles.alpinelinux.org/distfiles/v3.24/musl-1.2.6.tar.gz",
+      "bytes": 1082499,
+      "sha256": "d585fd3b613c66151fc3249e8ed44f77020cb5e6c1e635a616d3f9f82460512a",
+      "sha512": "1adad96eddb3a2eb0cacb3e363b0046568925fcdd75cf8b0503f2139df1f693d64730779ca0ce8131b7624ab2d37f4247bb1d3393c523de6e30d2b1d7732555c",
+      "archive": true
+    },
+    {
+      "origin": "musl",
+      "name": "handle-aux-at_base.patch",
+      "url": "https://git.alpinelinux.org/aports/plain/main/musl/handle-aux-at_base.patch?id=8f79d39391b46d6dbf1800fb68b8212a21d5ee2e",
+      "bytes": 1214,
+      "sha256": "2a65e03b94217063d72fe998e5fb2e25cd01716078a3ba1b0ab574ab205111e6",
+      "sha512": "a76f79b801497ad994746cf82bb6eaf86f9e1ae646e6819fbae8532a7f4eee53a96ac1d4e789ec8f66aea2a68027b0597f7a579b3369e01258da8accfce41370",
+      "archive": false
+    },
+    {
+      "origin": "musl",
+      "name": "0001-add-stub-for-pthread_mutexattr_setprioceiling.patch",
+      "url": "https://git.alpinelinux.org/aports/plain/main/musl/0001-add-stub-for-pthread_mutexattr_setprioceiling.patch?id=8f79d39391b46d6dbf1800fb68b8212a21d5ee2e",
+      "bytes": 896,
+      "sha256": "b2067680c66af9eb9f4fdc1fa5d9337a9fd62bdab2c437b416aa97d79eb884ee",
+      "sha512": "83ec0f774dbb5d4f4d4b917d149ea0ef609d028d18ae7624e90fedda6e3174c91ade93751bfd376adfa2848155110fc4dd02b6790363b98e5395c4787e8731e8",
+      "archive": false
+    },
+    {
+      "origin": "musl",
+      "name": "fix-loongarch64-zero-len-extcontext.patch",
+      "url": "https://git.alpinelinux.org/aports/plain/main/musl/fix-loongarch64-zero-len-extcontext.patch?id=8f79d39391b46d6dbf1800fb68b8212a21d5ee2e",
+      "bytes": 738,
+      "sha256": "92c8e965798ed516c15cb2a4e7c4ac45ec1eb68b6abff16c73adff2a3bae1b14",
+      "sha512": "6eae45aa82db69bc96386aedf3d1bfe83dfa0a7b4b824326c1c7e1bab31100d635ed0e8930c26a1694697fad59167a42e2b5f3a2ac51b07e36d85f047e268cff",
+      "archive": false
+    },
+    {
+      "origin": "musl",
+      "name": "CVE-2026-6042.patch",
+      "url": "https://git.alpinelinux.org/aports/plain/main/musl/CVE-2026-6042.patch?id=8f79d39391b46d6dbf1800fb68b8212a21d5ee2e",
+      "bytes": 7506,
+      "sha256": "1d0be2e72b9d5bd16546b923aa8af861d271322f01644716a81823bec4065c99",
+      "sha512": "f7849abeab0e4eab992a80464afa07b9c8aae5cee76040523b9dbc0931435f28ea8f5792b8a4a0cd6d608ac2f37e3225e89afcb3171a0a6df44450ed57cee83b",
+      "archive": false
+    },
+    {
+      "origin": "musl",
+      "name": "CVE-2026-40200.patch",
+      "url": "https://git.alpinelinux.org/aports/plain/main/musl/CVE-2026-40200.patch?id=8f79d39391b46d6dbf1800fb68b8212a21d5ee2e",
+      "bytes": 5594,
+      "sha256": "1ee29f64f9ca8e8ad7c349779d661ff6b52126a27575d3586981357a52c406fb",
+      "sha512": "a64ab7688d1a85e560b5687783df482d2467a79a74400da5a1601382847d6b4e6a79b7529a8dc80c46ddda8dc2a812f2261557fc8ee98dc3bdf7322761bd6d9c",
+      "archive": false
+    },
+    {
+      "origin": "musl",
+      "name": "CVE-2026-107891.patch",
+      "url": "https://git.alpinelinux.org/aports/plain/main/musl/CVE-2026-107891.patch?id=8f79d39391b46d6dbf1800fb68b8212a21d5ee2e",
+      "bytes": 5943,
+      "sha256": "0cf0090ab433e8f9ed08ae03a0c93aff557c1d3e347260f62a61a10281f5333b",
+      "sha512": "df73a35b9da531021ad5b1a6aad12b9d8d69de2bed7fc91b1156d9727476ab25c0d3c2341d60488152ee8ccbddb83786e91fff950cdb177b9b04673da98fdc4e",
+      "archive": false
+    },
+    {
+      "origin": "musl",
+      "name": "ldconfig",
+      "url": "https://git.alpinelinux.org/aports/plain/main/musl/ldconfig?id=8f79d39391b46d6dbf1800fb68b8212a21d5ee2e",
+      "bytes": 393,
+      "sha256": "7065021e04a5060957b5c6907af671a7028230d91927fb0c25892cadd9312b7c",
+      "sha512": "29da5e89358103846a42987c2a5ff26ec131e29a6a7a714cd0e2941baf1f1e5cd9b1ee66f488c8e222135031bf2de507d7d05b037ab65c30482147dba63d2e52",
+      "archive": false
+    },
+    {
+      "origin": "musl",
+      "name": "__stack_chk_fail_local.c",
+      "url": "https://git.alpinelinux.org/aports/plain/main/musl/__stack_chk_fail_local.c?id=8f79d39391b46d6dbf1800fb68b8212a21d5ee2e",
+      "bytes": 133,
+      "sha256": "299a7d75a09de3e2e11e7fb4acc3182e4a14e868093d2f30938fce9bfcff13da",
+      "sha512": "062bb49fa54839010acd4af113e20f7263dde1c8a2ca359b5fb2661ef9ed9d84a0f7c3bc10c25dcfa10bb3c5a4874588dff636ac43d5dbb3d748d75400756d0b",
+      "archive": false
+    },
+    {
+      "origin": "musl",
+      "name": "getconf.c",
+      "url": "https://git.alpinelinux.org/aports/plain/main/musl/getconf.c?id=8f79d39391b46d6dbf1800fb68b8212a21d5ee2e",
+      "bytes": 11614,
+      "sha256": "d87d0cbb3690ae2c5d8cc218349fd8278b93855dd625deaf7ae50e320aad247c",
+      "sha512": "0d80f37b34a35e3d14b012257c50862dfeb9d2c81139ea2dfa101d981d093b009b9fa450ba27a708ac59377a48626971dfc58e20a3799084a65777a0c32cbc7d",
+      "archive": false
+    },
+    {
+      "origin": "musl",
+      "name": "getent.c",
+      "url": "https://git.alpinelinux.org/aports/plain/main/musl/getent.c?id=8f79d39391b46d6dbf1800fb68b8212a21d5ee2e",
+      "bytes": 11656,
+      "sha256": "a6171c2db641cdd99c164169d3c5c6ca323617483cedec4cbbe3eb39c5834df0",
+      "sha512": "246e029350d4295147fe311108dcfb991ef130271b856040c1fb6a9955414f263d2a51f978b8ae91f52ff49705e8e4572b8f0e6939801fa854e3f095a67d3d64",
+      "archive": false
+    },
+    {
+      "origin": "musl",
+      "name": "iconv.c",
+      "url": "https://git.alpinelinux.org/aports/plain/main/musl/iconv.c?id=8f79d39391b46d6dbf1800fb68b8212a21d5ee2e",
+      "bytes": 2577,
+      "sha256": "f79a2930a2e5bb0624321589edf8b889d1e9b603e01e6b7ae214616605b3fdd7",
+      "sha512": "9d42d66fb1facce2b85dad919be5be819ee290bd26ca2db00982b2f8e055a0196290a008711cbe2b18ec9eee8d2270e3b3a4692c5a1b807013baa5c2b70a2bbf",
+      "archive": false
+    },
+    {
+      "origin": "util-linux",
+      "name": "util-linux-2.42.3.tar.xz",
+      "url": "https://distfiles.alpinelinux.org/distfiles/v3.24/util-linux-2.42.3.tar.xz",
+      "bytes": 10716216,
+      "sha256": "66ac7c0e725278eb2b039e3104f2c91119341d941b41bac7a285c695f940bd57",
+      "sha512": "2a307943d4fbb34ac02131e10ff7260f181dd706b21e68a891d25d6eb30476a612bcc19b674bb2256283c9c716146e0d79909f37324efc9aa9d45a44e0d58988",
+      "archive": true
+    },
+    {
+      "origin": "util-linux",
+      "name": "utmps.patch",
+      "url": "https://git.alpinelinux.org/aports/plain/main/util-linux/utmps.patch?id=d98c55af59055e6ca60fbe36e171546918709965",
+      "bytes": 690,
+      "sha256": "127c8a4bf9613bed2cec361a5e7f2d77db560a561d771f47e27c008c8eb2d722",
+      "sha512": "c1c9cd816d20582438cda75a9c0ea4e687eee124e657172729aff410f52558be19cc5d649dae07c03f7618411e5aa6c23bcebc3fdf25529517a61b6b343966ef",
+      "archive": false
+    },
+    {
+      "origin": "util-linux",
+      "name": "ttydefaults.h",
+      "url": "https://git.alpinelinux.org/aports/plain/main/util-linux/ttydefaults.h?id=d98c55af59055e6ca60fbe36e171546918709965",
+      "bytes": 965,
+      "sha256": "46faf1198bd884d12c5d45019a5fec8dfdefeae6721d8c9f3da89921acdb2a6d",
+      "sha512": "876bb9041eca1b2cca1e9aac898f282db576f7860aba690a95c0ac629d7c5b2cdeccba504dda87ff55c2a10b67165985ce16ca41a0694a267507e1e0cafd46d9",
+      "archive": false
+    },
+    {
+      "origin": "util-linux",
+      "name": "rfkill.confd",
+      "url": "https://git.alpinelinux.org/aports/plain/main/util-linux/rfkill.confd?id=d98c55af59055e6ca60fbe36e171546918709965",
+      "bytes": 321,
+      "sha256": "d34e754f2ea29b6377a06ca1d4c31a85767f08995b9bbe777b85c023c88d3343",
+      "sha512": "401d2ccbdbfb0ebd573ac616c1077e2c2b79ff03e9221007759d8ac25eb522c401f705abbf7daac183d5e8017982b8ec5dd0a5ebad39507c5bb0a9f31f04ee97",
+      "archive": false
+    },
+    {
+      "origin": "util-linux",
+      "name": "rfkill.initd",
+      "url": "https://git.alpinelinux.org/aports/plain/main/util-linux/rfkill.initd?id=d98c55af59055e6ca60fbe36e171546918709965",
+      "bytes": 898,
+      "sha256": "59637f63f66df13539d651166c33a9122c6de93ef0f102da471e97bdaff4fb04",
+      "sha512": "b0e11226c611fd52d54f599a40d23c4f748d5bd6971732dba2d25581aedaf5d2c62bcb49515d175569ff9aa1cf49a3dff25d1a5d4dcd89428c7020fc7ea3a581",
+      "archive": false
+    },
+    {
+      "origin": "util-linux",
+      "name": "su-l.pamd",
+      "url": "https://git.alpinelinux.org/aports/plain/main/util-linux/su-l.pamd?id=d98c55af59055e6ca60fbe36e171546918709965",
+      "bytes": 202,
+      "sha256": "e498158ef3a93838eaf24e7c6672178fa2e0f8602de799bfc18807fd729bc855",
+      "sha512": "0c8e764308ac1d084ebb4246eb97203de983bc0170066c958a56b412d9fd2f98da7f78f059e59512542c56a2639d6b2da35eff6469a48ebce6b2c406e94a96a7",
+      "archive": false
+    },
+    {
+      "origin": "util-linux",
+      "name": "fix-login.c.patch",
+      "url": "https://git.alpinelinux.org/aports/plain/main/util-linux/fix-login.c.patch?id=d98c55af59055e6ca60fbe36e171546918709965",
+      "bytes": 373,
+      "sha256": "e59c771511890f74e2fcd2de8c716fdc0e2d538f6a3dda1a9d54439e57185cda",
+      "sha512": "bc05278acbe585bfc00c9ee8b898d7765273c2dec68be1d86cd93a9e939b9c41941d56420552f7197d4b785761d97f83c22128fa8de5bb14e6170d79e7f0ff10",
+      "archive": false
+    },
+    {
+      "origin": "util-linux",
+      "name": "fix-nsenter.c.patch",
+      "url": "https://git.alpinelinux.org/aports/plain/main/util-linux/fix-nsenter.c.patch?id=d98c55af59055e6ca60fbe36e171546918709965",
+      "bytes": 416,
+      "sha256": "2de9f2ab0cde675ff79e260749a703e0da2372d256d68e2fa346833d2468c848",
+      "sha512": "c0b66fb44512f10e15ede9f20dec9156234c957543f9761137e1ee307cf8238da475fb445affa5f12084ae2bcf47d4e58360b41d6b298043a03f6e8fe272d897",
+      "archive": false
+    },
+    {
+      "origin": "util-linux",
+      "name": "PATCH-test_enosys-Handle-musl-libc-error-strings.patch",
+      "url": "https://git.alpinelinux.org/aports/plain/main/util-linux/PATCH-test_enosys-Handle-musl-libc-error-strings.patch?id=d98c55af59055e6ca60fbe36e171546918709965",
+      "bytes": 2201,
+      "sha256": "062b4ce8fb648f1a1394a21e5183c538711f701ac39bb12e8617194bf2bf722a",
+      "sha512": "9a08cbd209fd7699d7494a1b786ba3a7f2f08dd02ef4d3655a0acec7b8e5252dc3b78074c8183f237620428a7f0c3eae0c4cbe763b5d7740ea05cabf3b8470d4",
+      "archive": false
+    },
+    {
+      "origin": "util-linux",
+      "name": "0001-libblkid-minix-don-t-detect-erofs-images-as-minix.patch",
+      "url": "https://git.alpinelinux.org/aports/plain/main/util-linux/0001-libblkid-minix-don-t-detect-erofs-images-as-minix.patch?id=d98c55af59055e6ca60fbe36e171546918709965",
+      "bytes": 2001,
+      "sha256": "ef2f71793fd76ce3500ea8df37ada9d0b70958502a24173600667064bd0f7c7b",
+      "sha512": "d45a279149e41a63fc55c8867ad3244ecd9cd6c18d217e9a87bb31e6172e29b338a8f5f302022cc6b741401cbdb25145a504ff654011dd17c66e5bb330ef19a7",
+      "archive": false
+    },
+    {
+      "origin": "util-linux",
+      "name": "libmount-include.patch",
+      "url": "https://git.alpinelinux.org/aports/plain/main/util-linux/libmount-include.patch?id=d98c55af59055e6ca60fbe36e171546918709965",
+      "bytes": 1375,
+      "sha256": "8eb0b8970bdc6de9f924264444d07f93c500a9f1f602784056928229ec541461",
+      "sha512": "c9fe03222466201ac0c91576db2fce79570e55fa985f166960a332e064603cacea640f2d55f20a310db3d72048baf9375147af67067f49f88d9a1c340388ef99",
+      "archive": false
+    },
+    {
+      "origin": "util-linux",
+      "name": "CVE-2026-78408.patch",
+      "url": "https://git.alpinelinux.org/aports/plain/main/util-linux/CVE-2026-78408.patch?id=d98c55af59055e6ca60fbe36e171546918709965",
+      "bytes": 2975,
+      "sha256": "bd5b45db9dbfb340622250e92a9f35dbfd9a3574045c4e89e3d034e2391f7697",
+      "sha512": "d714aadf1b685fbd78d81bd446e871be0f1da78a0ae635b5e823ea632073dfbf3ab3eb30d71ad821342d46ff499fef56881bfc4ecaab3b786746aa9f06cf80f2",
+      "archive": false
+    },
+    {
+      "origin": "libeconf",
+      "name": "libeconf-0.8.3.tar.gz",
+      "url": "https://distfiles.alpinelinux.org/distfiles/v3.24/libeconf-0.8.3.tar.gz",
+      "bytes": 268491,
+      "sha256": "c8855f08d64c06b57a5028a14eec6ddde5e35124f9718031d592b44d8e091f83",
+      "sha512": "3ca9bfd85f0a6d7e1ff963257d0e427cf6aec2df2f8a8178b7ade7b2122f5321686d75b7eabe9c8ebe5b6414a32d2e22c06a760ac296285a950c2ed24b792deb",
+      "archive": true
+    },
+    {
+      "origin": "libeconf",
+      "name": "musl-tests.patch",
+      "url": "https://git.alpinelinux.org/aports/plain/main/libeconf/musl-tests.patch?id=62db33049768522f381410614d59c7d732f72c3a",
+      "bytes": 617,
+      "sha256": "1bca81ded577887200a823273e6443fc630aa8e98fe522b0a9b5600db5742ec7",
+      "sha512": "28431c1f80ee7815991584ef6307dabe593b4da58b9406e6f1a9cb30bfba3e925a48c83b0d3824427631bede5b1249b0c87e0d9fb55971d4ecf90805076b25dd",
+      "archive": false
+    },
+    {
+      "origin": "lz4",
+      "name": "lz4-1.10.0.tar.gz",
+      "url": "https://distfiles.alpinelinux.org/distfiles/v3.24/lz4-1.10.0.tar.gz",
+      "bytes": 387114,
+      "sha256": "537512904744b35e232912055ccf8ec66d768639ff3abe5788d90d792ec5f48b",
+      "sha512": "8c4ceb217e6dc8e7e0beba99adc736aca8963867bcf9f970d621978ba11ce92855912f8b66138037a1d2ae171e8e17beb7be99281fea840106aa60373c455b28",
+      "archive": true
+    },
+    {
+      "origin": "zlib",
+      "name": "zlib-1.4.tar.gz",
+      "url": "https://distfiles.alpinelinux.org/distfiles/v3.24/zlib-1.4.tar.gz",
+      "bytes": 1507140,
+      "sha256": "02dd159783677a749c04adbdd02b55b8a2bcc7e054f51b76b549199a916ad584",
+      "sha512": "13f02285da85956ff722d814695b96807aff7a511ebf4b6d98cf708c353920666093cc18b6653cd7992c8e75c103f7b4baf2de3a105c2db9dcd62bab2c940859",
+      "archive": true
+    }
+  ],
+  "bootstrapSources": [
+    {
+      "origin": "apk-tools",
+      "name": "apk-tools-v3.0.9.tar.gz",
+      "url": "https://distfiles.alpinelinux.org/distfiles/v3.24/apk-tools-v3.0.9.tar.gz",
+      "bytes": 392363,
+      "sha256": "0063029a3eb228fd494b6804613ac53c30372a1a79ac83e23cefa78368767726",
+      "sha512": "933f9a3645e225a8e433951e57fce979d68a933b5cc066591f5da35c561c07ea476c0ada184fa81ab8eea1431f9b475735ad68c598072e26c0a74debf65a680f",
+      "archive": true
+    },
+    {
+      "origin": "openssl",
+      "name": "openssl-3.5.9.tar.gz",
+      "url": "https://distfiles.alpinelinux.org/distfiles/v3.24/openssl-3.5.9.tar.gz",
+      "bytes": 53279637,
+      "sha256": "603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a",
+      "sha512": "c4c8136fd2c98d13bb85a57bfb0def25c906f47f1fe97675cd114594944eab957b5b81a3e0f48826e1a0f093afff5e83766b539d49768f6db68310fd678d7de6",
+      "archive": true
+    }
+  ],
+  "recipes": [
+    {
+      "origin": "erofs-utils",
+      "name": "APKBUILD",
+      "url": "https://git.alpinelinux.org/aports/plain/community/erofs-utils/APKBUILD?id=065ca2ca555806ea45d87fad133c88220a333d95",
+      "bytes": 925,
+      "sha256": "4a2785ee3412c8bf28bb06d2e0ab1ea84e811195a15223d27ff8e741a8b47ad0"
+    },
+    {
+      "origin": "e2fsprogs",
+      "name": "APKBUILD",
+      "url": "https://git.alpinelinux.org/aports/plain/main/e2fsprogs/APKBUILD?id=8683a6972cb245fbbdb535dad6435a9930bb9374",
+      "bytes": 2516,
+      "sha256": "fdeebc52e727e071462ef6616e1d24064fb94a9ed4df88e0b16a3e77d1baa5f3"
+    },
+    {
+      "origin": "musl",
+      "name": "APKBUILD",
+      "url": "https://git.alpinelinux.org/aports/plain/main/musl/APKBUILD?id=8f79d39391b46d6dbf1800fb68b8212a21d5ee2e",
+      "bytes": 6495,
+      "sha256": "22c5adb3f3b68ab84e5ff7d20df68447063d1ecb5c7b39afd5a04a1dfd444a35"
+    },
+    {
+      "origin": "util-linux",
+      "name": "APKBUILD",
+      "url": "https://git.alpinelinux.org/aports/plain/main/util-linux/APKBUILD?id=d98c55af59055e6ca60fbe36e171546918709965",
+      "bytes": 11509,
+      "sha256": "5347f9d386c8684e7f5cc160ae8595c5c3d3cfedcfdc758f5e022a46e560b944"
+    },
+    {
+      "origin": "libeconf",
+      "name": "APKBUILD",
+      "url": "https://git.alpinelinux.org/aports/plain/main/libeconf/APKBUILD?id=62db33049768522f381410614d59c7d732f72c3a",
+      "bytes": 1012,
+      "sha256": "b54a5cbbccacc5bd6df56ae141e27fc7ca9ee08accc4c01d9420cc81ba9e8fba"
+    },
+    {
+      "origin": "lz4",
+      "name": "APKBUILD",
+      "url": "https://git.alpinelinux.org/aports/plain/main/lz4/APKBUILD?id=1f16962f34234a77fab0f4651459c4381b4a0cd6",
+      "bytes": 1199,
+      "sha256": "224936afd99a354d66019ac3ef6438981bb5a1231ee10a030344ffee7150ef09"
+    },
+    {
+      "origin": "zlib",
+      "name": "APKBUILD",
+      "url": "https://git.alpinelinux.org/aports/plain/main/zlib/APKBUILD?id=bdf501c870a92a05c097857401f69c48c4810384",
+      "bytes": 989,
+      "sha256": "f03e134596ecd53717a25715fd7b7616a0ad42a151246ee9c2a06242370ec51b"
+    },
+    {
+      "origin": "apk-tools",
+      "name": "APKBUILD",
+      "url": "https://git.alpinelinux.org/aports/plain/main/apk-tools/APKBUILD?id=13685e8f2cf1c103cbba2fb9efcfcf19f4918df0",
+      "bytes": 3962,
+      "sha256": "092d5c1a4957bf585a4c9d27a7c68cfa07e54cffeac57b1eec154675d54d50b0"
+    },
+    {
+      "origin": "openssl",
+      "name": "APKBUILD",
+      "url": "https://git.alpinelinux.org/aports/plain/main/openssl/APKBUILD?id=29b9ec24b1b5b39aeef51fa2a044210e2ec5258e",
+      "bytes": 7297,
+      "sha256": "ea459c051ee8d846c06f1d47d09d0f737778502c01de88c9696e96a208de5943"
+    }
+  ],
+  "notices": [
+    {
+      "origin": "erofs-utils",
+      "archive": "erofs-utils-1.9.1.tar.gz",
+      "path": "erofs-utils-1.9.1/COPYING",
+      "bytes": 585,
+      "sha256": "0df042de29b44887355db86c79708a4489ce6e6666f6e33ad02040293f09e6a2"
+    },
+    {
+      "origin": "erofs-utils",
+      "archive": "erofs-utils-1.9.1.tar.gz",
+      "path": "erofs-utils-1.9.1/LICENSES/Apache-2.0",
+      "bytes": 10004,
+      "sha256": "a400f85dd06d230f1b308cde4290a53f345b6e320a376b7904b31c51c2fd4b1a"
+    },
+    {
+      "origin": "erofs-utils",
+      "archive": "erofs-utils-1.9.1.tar.gz",
+      "path": "erofs-utils-1.9.1/LICENSES/GPL-2.0",
+      "bytes": 18724,
+      "sha256": "feee3b3157dcdf78d4f50edefbd5dd7adf8b6d52c11bfaaa746a85a373256713"
+    },
+    {
+      "origin": "erofs-utils",
+      "archive": "erofs-utils-1.9.1.tar.gz",
+      "path": "erofs-utils-1.9.1/LICENSES/MIT",
+      "bytes": 1372,
+      "sha256": "323c587d0ccf10e376f8bf9a7f31fb4ca6078105194b42e0b1e0ee2bc9bde71f"
+    },
+    {
+      "origin": "e2fsprogs",
+      "archive": "e2fsprogs-1.47.4.tar.gz",
+      "path": "e2fsprogs-1.47.4/NOTICE",
+      "bytes": 44585,
+      "sha256": "5da5ef153e559c1d990d4c3eedbedd4442db892d37eae1f35fff069de8ec9020"
+    },
+    {
+      "origin": "e2fsprogs",
+      "archive": "e2fsprogs-1.47.4.tar.gz",
+      "path": "e2fsprogs-1.47.4/debian/copyright",
+      "bytes": 20459,
+      "sha256": "2041b5febdc110151ca3372d01b16b85dda1888e33f3f60fce0f59940eed7d19"
+    },
+    {
+      "origin": "e2fsprogs",
+      "archive": "e2fsprogs-1.47.4.tar.gz",
+      "path": "e2fsprogs-1.47.4/ext2ed/COPYRIGHT",
+      "bytes": 18185,
+      "sha256": "3ec9de08738ada1aedf700ce32612a020ea5b402b7d0b92ae54c542780c9b6dc"
+    },
+    {
+      "origin": "e2fsprogs",
+      "archive": "e2fsprogs-1.47.4.tar.gz",
+      "path": "e2fsprogs-1.47.4/lib/ext2fs/tdb/patches/copyright",
+      "bytes": 716,
+      "sha256": "a86f7fb0aee4945307d0989ddc5254191daa8632ea90aebf27ad68fe85bd7dfa"
+    },
+    {
+      "origin": "e2fsprogs",
+      "archive": "e2fsprogs-1.47.4.tar.gz",
+      "path": "e2fsprogs-1.47.4/lib/uuid/COPYING",
+      "bytes": 1391,
+      "sha256": "9b718a9460fed5952466421235bc79eb49d4e9eacc920d7a9dd6285ab8fd6c6d"
+    },
+    {
+      "origin": "musl",
+      "archive": "musl-1.2.6.tar.gz",
+      "path": "musl-1.2.6/COPYRIGHT",
+      "bytes": 6196,
+      "sha256": "b870108ec5e7790e9f9919064f1b9421d62d5f9b0e6c230c6adf7ea2da62e97b"
+    },
+    {
+      "origin": "util-linux",
+      "archive": "util-linux-2.42.3.tar.xz",
+      "path": "util-linux-2.42.3/Documentation/licenses/COPYING.BSD-2-Clause",
+      "bytes": 1245,
+      "sha256": "527f738966ca396cd5a68c1509390de2a780c6b614d9ee57f7544a6161938ed1"
+    },
+    {
+      "origin": "util-linux",
+      "archive": "util-linux-2.42.3.tar.xz",
+      "path": "util-linux-2.42.3/Documentation/licenses/COPYING.BSD-3-Clause",
+      "bytes": 1391,
+      "sha256": "9b718a9460fed5952466421235bc79eb49d4e9eacc920d7a9dd6285ab8fd6c6d"
+    },
+    {
+      "origin": "util-linux",
+      "archive": "util-linux-2.42.3.tar.xz",
+      "path": "util-linux-2.42.3/Documentation/licenses/COPYING.BSD-4-Clause-UC",
+      "bytes": 1824,
+      "sha256": "ba7640f00d93e72e92b94b9d71f25ec53bac2f1682f5c4adcccb0018359f60f8"
+    },
+    {
+      "origin": "util-linux",
+      "archive": "util-linux-2.42.3.tar.xz",
+      "path": "util-linux-2.42.3/Documentation/licenses/COPYING.EUPL-1.2",
+      "bytes": 13827,
+      "sha256": "6fc9e709ccbfe0d77fbffa2427a983282be2eb88e47b1cdb49f21a83b4d1e665"
+    },
+    {
+      "origin": "util-linux",
+      "archive": "util-linux-2.42.3.tar.xz",
+      "path": "util-linux-2.42.3/Documentation/licenses/COPYING.GPL-2.0-only",
+      "bytes": 18092,
+      "sha256": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643"
+    },
+    {
+      "origin": "util-linux",
+      "archive": "util-linux-2.42.3.tar.xz",
+      "path": "util-linux-2.42.3/Documentation/licenses/COPYING.GPL-2.0-or-later",
+      "bytes": 18092,
+      "sha256": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643"
+    },
+    {
+      "origin": "util-linux",
+      "archive": "util-linux-2.42.3.tar.xz",
+      "path": "util-linux-2.42.3/Documentation/licenses/COPYING.GPL-3.0-or-later",
+      "bytes": 35149,
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+    },
+    {
+      "origin": "util-linux",
+      "archive": "util-linux-2.42.3.tar.xz",
+      "path": "util-linux-2.42.3/Documentation/licenses/COPYING.ISC",
+      "bytes": 697,
+      "sha256": "e53348ce276358e9997014071c5294b36a18c4b34f32f00ee57b9acce0aafd63"
+    },
+    {
+      "origin": "util-linux",
+      "archive": "util-linux-2.42.3.tar.xz",
+      "path": "util-linux-2.42.3/Documentation/licenses/COPYING.LGPL-2.1-or-later",
+      "bytes": 26530,
+      "sha256": "dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551"
+    },
+    {
+      "origin": "util-linux",
+      "archive": "util-linux-2.42.3.tar.xz",
+      "path": "util-linux-2.42.3/Documentation/licenses/COPYING.MIT",
+      "bytes": 1054,
+      "sha256": "8555341619542abb48c102afd954e42d4478e5be16ad3d5af7b0ff71009e7348"
+    },
+    {
+      "origin": "util-linux",
+      "archive": "util-linux-2.42.3.tar.xz",
+      "path": "util-linux-2.42.3/libblkid/COPYING",
+      "bytes": 361,
+      "sha256": "f03b01c1251bc3bfee959aea99ed7906a0b08a2ff132d55a1ece18ee573a52a1"
+    },
+    {
+      "origin": "util-linux",
+      "archive": "util-linux-2.42.3.tar.xz",
+      "path": "util-linux-2.42.3/libfdisk/COPYING",
+      "bytes": 361,
+      "sha256": "f03b01c1251bc3bfee959aea99ed7906a0b08a2ff132d55a1ece18ee573a52a1"
+    },
+    {
+      "origin": "util-linux",
+      "archive": "util-linux-2.42.3.tar.xz",
+      "path": "util-linux-2.42.3/liblastlog2/COPYING",
+      "bytes": 1303,
+      "sha256": "d0a359f02d74adc85263c88a1f2e9911e96619fef67067e832ef7936b0606863"
+    },
+    {
+      "origin": "util-linux",
+      "archive": "util-linux-2.42.3.tar.xz",
+      "path": "util-linux-2.42.3/libmount/COPYING",
+      "bytes": 355,
+      "sha256": "5f12c2408a84be40fbff8ad7e281aa4e884fb92ee3f9a61aedf886a9503d3500"
+    },
+    {
+      "origin": "util-linux",
+      "archive": "util-linux-2.42.3.tar.xz",
+      "path": "util-linux-2.42.3/libsmartcols/COPYING",
+      "bytes": 361,
+      "sha256": "f03b01c1251bc3bfee959aea99ed7906a0b08a2ff132d55a1ece18ee573a52a1"
+    },
+    {
+      "origin": "util-linux",
+      "archive": "util-linux-2.42.3.tar.xz",
+      "path": "util-linux-2.42.3/libuuid/COPYING",
+      "bytes": 224,
+      "sha256": "5068749ee9c2f2c545af4a4de9fde3c39dc8d90af47cc0b3a42700116f9b7e71"
+    },
+    {
+      "origin": "util-linux",
+      "archive": "util-linux-2.42.3.tar.xz",
+      "path": "util-linux-2.42.3/pam_lastlog2/COPYING",
+      "bytes": 1303,
+      "sha256": "d0a359f02d74adc85263c88a1f2e9911e96619fef67067e832ef7936b0606863"
+    },
+    {
+      "origin": "util-linux",
+      "archive": "util-linux-2.42.3.tar.xz",
+      "path": "util-linux-2.42.3/COPYING",
+      "bytes": 18092,
+      "sha256": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643"
+    },
+    {
+      "origin": "libeconf",
+      "archive": "libeconf-0.8.3.tar.gz",
+      "path": "libeconf-0.8.3/LICENSE",
+      "bytes": 1052,
+      "sha256": "3a7fd605324017e976e0742ed641c308adce809486db6f219b038e73da5e1e52"
+    },
+    {
+      "origin": "lz4",
+      "archive": "lz4-1.10.0.tar.gz",
+      "path": "lz4-1.10.0/LICENSE",
+      "bytes": 646,
+      "sha256": "4bc9c403f6b679cc076dee210e0e21c27b4e8f6d3fb43d85364c76657bfaaac5"
+    },
+    {
+      "origin": "lz4",
+      "archive": "lz4-1.10.0.tar.gz",
+      "path": "lz4-1.10.0/contrib/debian/copyright",
+      "bytes": 321,
+      "sha256": "4f6ef9d0e844bf432d6a0abb2623f5a61175ae40f7f0e3665490311d89e3af87"
+    },
+    {
+      "origin": "lz4",
+      "archive": "lz4-1.10.0.tar.gz",
+      "path": "lz4-1.10.0/contrib/djgpp/LICENSE",
+      "bytes": 1292,
+      "sha256": "d011d1e02cb32b71c1ce2922ab41a2e2ad30f4ecf8de22c078d53618205abc05"
+    },
+    {
+      "origin": "lz4",
+      "archive": "lz4-1.10.0.tar.gz",
+      "path": "lz4-1.10.0/examples/COPYING",
+      "bytes": 14901,
+      "sha256": "609b910ef05c9c855ecc1da155a36ed0f57514eac452cf93446530b5ea4b3bc3"
+    },
+    {
+      "origin": "lz4",
+      "archive": "lz4-1.10.0.tar.gz",
+      "path": "lz4-1.10.0/lib/LICENSE",
+      "bytes": 1311,
+      "sha256": "8b58c446121a109ccf32edc094bba3010a3d85e4ee3702950db55e4d3e87736c"
+    },
+    {
+      "origin": "lz4",
+      "archive": "lz4-1.10.0.tar.gz",
+      "path": "lz4-1.10.0/programs/COPYING",
+      "bytes": 14901,
+      "sha256": "609b910ef05c9c855ecc1da155a36ed0f57514eac452cf93446530b5ea4b3bc3"
+    },
+    {
+      "origin": "lz4",
+      "archive": "lz4-1.10.0.tar.gz",
+      "path": "lz4-1.10.0/tests/COPYING",
+      "bytes": 14901,
+      "sha256": "609b910ef05c9c855ecc1da155a36ed0f57514eac452cf93446530b5ea4b3bc3"
+    },
+    {
+      "origin": "zlib",
+      "archive": "zlib-1.4.tar.gz",
+      "path": "zlib-1.4/LICENSE",
+      "bytes": 1002,
+      "sha256": "e32ff4e00d9d94930537635291da39e7e612703334bf6fde8c7f1686fe8a45a2"
+    },
+    {
+      "origin": "zlib",
+      "archive": "zlib-1.4.tar.gz",
+      "path": "zlib-1.4/contrib/dotzlib/LICENSE_1_0.txt",
+      "bytes": 1359,
+      "sha256": "36266a8fd073568394cb81cdb2b124f7fdae2c64c1a7ed09db34b4d22efa2951"
+    },
+    {
+      "origin": "zlib",
+      "archive": "zlib-1.4.tar.gz",
+      "path": "zlib-1.4/contrib/minizip/LICENSE.Info-Zip",
+      "bytes": 3509,
+      "sha256": "fc686023047ce5ce3a18a9b8a777156f0e475929d3de06bac279f3c025d2b2ca"
+    },
+    {
+      "origin": "apk-tools",
+      "archive": "apk-tools-v3.0.9.tar.gz",
+      "path": "apk-tools-v3.0.9/LICENSE",
+      "bytes": 17622,
+      "sha256": "b3c87315aae4c9f276c37168f2655dd8bd990544d7a0bbfb929664155c7ab257"
+    },
+    {
+      "origin": "openssl",
+      "archive": "openssl-3.5.9.tar.gz",
+      "path": "openssl-3.5.9/LICENSE.txt",
+      "bytes": 10175,
+      "sha256": "7d5450cb2d142651b8afa315b5f238efc805dad827d91ba367d8516bc9d49e7a"
+    },
+    {
+      "origin": "openssl",
+      "archive": "openssl-3.5.9.tar.gz",
+      "path": "openssl-3.5.9/external/perl/Text-Template-1.56/LICENSE",
+      "bytes": 18412,
+      "sha256": "9837f05336ef3cbacb6a96e1672a0426d81ad01191f214b8d48e22ca62338181"
+    },
+    {
+      "origin": "openssl",
+      "archive": "openssl-3.5.9.tar.gz",
+      "path": "openssl-3.5.9/util/perl/OpenSSL/copyright.pm",
+      "bytes": 1145,
+      "sha256": "04213b69dbebc8ba0dd8a6216af1d9422f9b63619c1cf2f1d8aa107b83bbb608"
+    }
+  ]
+}
