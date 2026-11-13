@@ -2790,3 +2790,13 @@ job when publication is authorized. That job has not run in this task.
   predates the already-proved ccd8221 reset/drain correction. Also read its control failure
   132134747929 and 132134847610: generated API doc drift
   predates 2969a46's regeneration. Do not count either old failure as a current-source pass.
+
+
+- K25 structure preparation: move the existing reflink/copy implementation from tree.rs
+  into tree/copy.rs without changing its behavior. The parent lists the new concern and
+  reexports the same functions. This separate move precedes sparse VM-disk work. Full local
+  Rust keeps 496 passes, the same single IPv6 failure and 33 ignored cases; fmt passes.
+- Read acd52ed run 43506064338/job 132163924616: whole-bundle acceptance and the new 16 MiB
+  file round trip pass, but opaque TCP after client EOF receives no bytes. The pinned monitor
+  source explicitly turns host EOF into shutdown of both directions. Preserve the assertion
+  and fix the stream transport through maintained HTTP/2 CONNECT, not custom framing.
