@@ -2737,3 +2737,18 @@ job when publication is authorized. That job has not run in this task.
   repository-pinned 1.4.4 fixes the environment. Complete pinned Bun check passes with real
   local Postgres: 437 pass, one existing compiled-assets skip and 8,415 assertions. No test
   or assertion is disabled. The superseded cancellation audit retains all completed failures.
+
+- Source ccd8221’s complete optional VM run
+  [43497519965](https://github.com/cubepals/pryx/actions/runs/43497519965), job 132134408877,
+  is green, with every step successful. Verify artifact 14073581063 against SHA-256
+  861fbdb1396b0ddcce116ec3008f8b9d0fe3719ca1a5829edb883870f202f6fb.
+  All six actual Alpine/Debian boots pass confined monitor/lease checks, authenticated
+  process/file APIs, host isolation, replay refusal, signed clean shutdown, read-only
+  fsck and persistent disk reboots; both networked boots pass real DHCP/DNS/HTTP and both
+  management denials. Separate bundle acquisition/offline/corruption acceptance passes
+  in 6.34 s. Runtime archive is 71,233,881 bytes (201,926,123 expanded, 2,391 entries);
+  corresponding sources are 291,441,041 bytes (551 entries). Short summaries are
+  checks/measurements/k25/agent-ccd8221.json and bundle-ccd8221.json. Raw evidence remains
+  in that CI artifact. This proves these inputs/fixtures on ccd8221, not the latest head’s
+  normal/host workflows, production VM backend, root jailer/firewall or required timings.
+  Continue production port forwarding and daemon lifecycle; K25 remains in progress.

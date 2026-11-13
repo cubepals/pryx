@@ -1,0 +1,20 @@
+{
+  "measurement": "Actual ordinary-user KVM agent init, confined monitor, disk reboot and networking on pinned Alpine/Debian",
+  "commit": "ccd8221098f3a16acd5eec25e9af572d63c514fb",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43497519965",
+  "job": 132134408877,
+  "artifact": {
+    "id": 14073581063,
+    "sha256": "861fbdb1396b0ddcce116ec3008f8b9d0fe3719ca1a5829edb883870f202f6fb"
+  },
+  "result": {
+    "images": 2,
+    "boots": 6,
+    "networkedBoots": 2,
+    "guestUid": 1002,
+    "kernel": "6.18.56",
+    "allBoots": "authenticated API/file and host-isolation checks, monitor lease held until exit, replay refusal, signed clean shutdown and read-only e2fsck pass",
+    "networkedBootsResult": "actual DHCP, DNS and HTTP plus gateway/direct management denial pass"
+  },
+  "limits": "Fixture acceptance; production daemon backend, root jailer/firewall and thirty-sample production timings are not proved"
+}
