@@ -116,7 +116,12 @@ fn devices() -> io::Result<BTreeMap<String, PathBuf>> {
     Ok(devices)
 }
 
-fn prepare(boot: &Boot) -> io::Result<File> {
+struct Disk {
+    writes: File,
+    data: File,
+}
+
+fn prepare(boot: &Boot) -> io::Result<Disk> {
     validate(boot)?;
     mount::mount_change("/", MountPropagationFlags::PRIVATE | MountPropagationFlags::REC)?;
     filesystem("tmpfs", Path::new("/run"), "tmpfs", MountFlags::NOSUID | MountFlags::NODEV, "mode=0755,size=16m")?;
@@ -169,6 +174,8 @@ fn prepare(boot: &Boot) -> io::Result<File> {
     let root = DataDir::open(&root_path)?;
     let data_target = mountpoint(&root, boot.data.trim_start_matches('/'))?;
     mount::mount_bind(descriptor(&data), descriptor(&data_target))?;
+    // Open the mounted data root before any image process can rename its ancestors.
+    let mounted_data = root.directory_file(boot.data.trim_start_matches('/'))?;
     for name in ["run", "tmp"] {
         let target = mountpoint(&root, name)?;
         let mode = if name == "tmp" { "1777" } else { "0755" };
@@ -225,7 +232,7 @@ fn prepare(boot: &Boot) -> io::Result<File> {
     if boot.read_only_root {
         mount::mount_remount("/", MountFlags::RDONLY | MountFlags::NODEV | MountFlags::NOSUID, "")?;
     }
-    Ok(sync)
+    Ok(Disk { writes: sync, data: mounted_data })
 }
 
 async fn bootstrap() -> io::Result<Boot> {
@@ -271,7 +278,7 @@ pub fn agent(arguments: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     Err(std::process::Command::new(executable).args(&arguments[2..]).exec().into())
 }
 
-async fn supervise(boot: Boot, writes: File) -> Result<(), Box<dyn std::error::Error>> {
+async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Error>> {
     use std::os::unix::process::ExitStatusExt;
     use tokio::signal::unix::{SignalKind, signal};
     let arguments = crate::bootstrap::Bootstrap::try_parse_from(
@@ -335,7 +342,14 @@ async fn supervise(boot: Boot, writes: File) -> Result<(), Box<dyn std::error::E
         None => child.wait().await?,
     };
     crate::vm_network::stop(network).await?;
-    rustix::fs::syncfs(&writes)?;
+    mount::mount_remount("/", MountFlags::RDONLY | MountFlags::NODEV | MountFlags::NOSUID, "")?;
+    mount::mount_remount(
+        descriptor(&disk.data),
+        MountFlags::BIND | MountFlags::RDONLY | MountFlags::NODEV | MountFlags::NOSUID,
+        "",
+    )?;
+    rustix::fs::syncfs(&disk.writes)?;
+    mount::mount_remount(descriptor(&disk.writes), MountFlags::RDONLY | MountFlags::NODEV | MountFlags::NOSUID, "")?;
     let proof = crate::vm_observation::sign(
         &key,
         crate::vm_observation::Observation {
@@ -349,8 +363,19 @@ async fn supervise(boot: Boot, writes: File) -> Result<(), Box<dyn std::error::E
         },
     );
     eprintln!("\n{}{}", crate::vm_observation::PREFIX, serde_json::to_string(&proof)?);
-    rustix::system::reboot(rustix::system::RebootCommand::PowerOff)?;
-    Err("VM guest power-off returned unexpectedly".into())
+    // Drain the real serial device before the kernel resets its devices, so a
+    // complete signed observation precedes the monitor's guest-reset exit.
+    loop {
+        match nix::sys::termios::tcdrain(std::io::stderr()) {
+            Ok(()) => break,
+            Err(nix::errno::Errno::EINTR) => (),
+            Err(error) => return Err(error.into()),
+        }
+    }
+    // The pinned published kernel has no PM power-off support. Its reboot=k
+    // path, already used by the kernel spike, terminates Firecracker on reset.
+    rustix::system::reboot(rustix::system::RebootCommand::Restart)?;
+    Err("VM guest reset returned unexpectedly".into())
 }
 
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {

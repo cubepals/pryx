@@ -35,7 +35,7 @@ schemars = { version = "=1.2.3", optional = true }
 clap = { version = "4.6", features = ["derive"], optional = true }
 httparse = { version = "1", optional = true }
 landlock = { version = "0.4.7", optional = true }
-nix = { version = "=0.31.3", default-features = false, features = ["sched", "user", "hostname"], optional = true }
+nix = { version = "=0.31.3", default-features = false, features = ["sched", "user", "hostname", "term"], optional = true }
 ssh-key = { version = "=0.6.7", default-features = false, features = ["std", "ed25519", "getrandom"], optional = true }
 chrono = { version = "=0.4.45", default-features = false, features = ["std"], optional = true }
 percent-encoding = { version = "=2.3.2", optional = true }

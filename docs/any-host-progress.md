@@ -2711,3 +2711,13 @@ job when publication is authorized. That job has not run in this task.
   also interrupted by the kernel console. Next drain the signed observation and use the
   same reboot path already proved by the minimal kernel spike, preserving the disk checks
   and fifteen-second deadline. Neither failed run establishes guest lifecycle or bundle proof.
+
+- K25 guest reset correction: retain data/disk descriptors before any workload can rename
+  ancestors. After emptying the command cgroup and stopping trusted networking, remount
+  the overlay, bound data and ext4 disk read-only, then sign the clean observation. Drain
+  the actual console with the existing nix terminal API before reboot=k resets the monitor,
+  matching the already-green kernel spike. Do not change the published kernel, original
+  fifteen-second deadline, read-only fsck, signature, secrecy, replay or reboot assertions.
+  Full local Rust remains 496 passes with the unchanged IPv6 EAFNOSUPPORT failure; strict
+  root/helper Clippy, fmt and static-musl agent build pass. Real remount/drain/reset and disk
+  integrity are still pending CI proof; no local KVM or engine result is claimed.
