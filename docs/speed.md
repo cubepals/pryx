@@ -126,3 +126,42 @@ and all sixteen [Any-host jobs](https://github.com/cubepals/pryx/actions/runs/43
 are green on this source. No main push or release publication ran. Earlier
 observations remain retained with their original source, hashes and workflow
 qualifications in the [progress record](any-host-progress.md).
+
+## K24 desktop and SSH startup
+
+Source `53e8350` passes full [normal PR CI](https://github.com/cubepals/pryx/actions/runs/43421825320)
+and the [signed installed-tool job](https://github.com/cubepals/pryx/actions/runs/43421813961/job/131880099054).
+The installed ordinary account exercises TypeScript, the CLI and both Python SDK modes through
+the HTTP-only edge, including application-observed desktop input, noVNC/RFB and SSH wake.
+Thirty fresh sandboxes per tool retain these startup observations:
+
+| Operation from sandbox creation | n per collected tier | Container p50 ms | Container p90 ms | Process p50 ms | Process p90 ms |
+| --- | --- | --- | --- | --- | --- |
+| Python kernel to chart PNG | 30 | 1661.3 | 1791.5 | 10903.2 | 11443.0 |
+| JavaScript kernel to chart PNG | 30 | 742.6 | 796.2 | 7922.2 | 8042.6 |
+| Browser to rendered-page PNG | 30 | 1721.1 | 1767.4 | 8949.9 | 9028.5 |
+| Desktop to screenshot PNG | 30 | 739.6 | 846.3 | 8959.8 | 9056.8 |
+| SSH command and lease revocation | 30 | — | — | 8970.6 | 9006.4 |
+
+PNG timers end after validating the first returned image. Browser timing includes its own
+HTTP page-server startup. SSH timing includes writing the marker file, creating the lease,
+running the real OpenSSH command, observing running state and revoking the lease; it ends
+before sandbox deletion. This collector has no container SSH timing cohort. Percentiles use
+nearest ranks 15 and 27 of each sorted thirty-sample cohort.
+
+Images, templates and the native bundle are cached before timing. Each fresh process supervisor
+still verifies its complete bundle inventory. Both tiers request four default units; containers
+enforce one CPU core and 2 GiB, while process CPU/memory guarantees are off. The tiers run on
+separate hosted runners. The process account is UID 1002 on x86_64 with host glibc 2.39,
+Landlock ABI 8 and no engine access.
+
+[All 150 process samples](checks/measurements/k24/installed-process-startup-53e8350.json),
+[installed provenance](checks/measurements/k24/installed-provenance-53e8350.json),
+[container desktop/browser samples](checks/measurements/k24/container-native-53e8350.json),
+[container kernel samples](checks/measurements/k24/container-interpreter-startup-53e8350.json)
+and [container provenance](checks/measurements/k24/container-provenance-53e8350.json)
+retain the raw observations, source, artifact hashes and verified native runtime descriptor.
+The existing [interpreter execution budgets](checks/measurements/k24/container-interpreter-budgets-53e8350.json)
+also pass: trivial p90 3.8 ms and chart p90 111.9 ms, with their original clock points and limits.
+Signed fresh-user installation, default-Docker kernel/refusal acceptance, purge and both
+image/Alpine relocation pass. No main push or release publication ran.

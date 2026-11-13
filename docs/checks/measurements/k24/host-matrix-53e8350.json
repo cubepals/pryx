@@ -1,0 +1,136 @@
+{
+  "source": "53e83505f823cf4b92aca2b4a952cf084c636f32",
+  "run": 43421813961,
+  "url": "https://github.com/cubepals/pryx/actions/runs/43421813961",
+  "conclusion": "success",
+  "jobs": [
+    {
+      "id": 131873383538,
+      "name": "Relocatable upstream process tools",
+      "html_url": "https://github.com/cubepals/pryx/actions/runs/43421813961/job/131873383538",
+      "conclusion": "success",
+      "started_at": "2026-11-13T12:02:20Z",
+      "completed_at": "2026-11-13T12:16:49Z"
+    },
+    {
+      "id": 131880099054,
+      "name": "Bundle runtime acceptance",
+      "html_url": "https://github.com/cubepals/pryx/actions/runs/43421813961/job/131880099054",
+      "conclusion": "success",
+      "started_at": "2026-11-13T12:16:51Z",
+      "completed_at": "2026-11-13T13:01:45Z"
+    },
+    {
+      "id": 131901179655,
+      "name": "Domainless sudo bootstrap",
+      "html_url": "https://github.com/cubepals/pryx/actions/runs/43421813961/job/131901179655",
+      "conclusion": "success",
+      "started_at": "2026-11-13T13:01:58Z",
+      "completed_at": "2026-11-13T13:03:40Z"
+    },
+    {
+      "id": 131901179715,
+      "name": "User preset with rootless docker",
+      "html_url": "https://github.com/cubepals/pryx/actions/runs/43421813961/job/131901179715",
+      "conclusion": "success",
+      "started_at": "2026-11-13T13:02:23Z",
+      "completed_at": "2026-11-13T13:05:33Z"
+    },
+    {
+      "id": 131901179721,
+      "name": "Ordinary user in booted Alpine 3.24",
+      "html_url": "https://github.com/cubepals/pryx/actions/runs/43421813961/job/131901179721",
+      "conclusion": "success",
+      "started_at": "2026-11-13T13:02:25Z",
+      "completed_at": "2026-11-13T13:05:50Z"
+    },
+    {
+      "id": 131901179723,
+      "name": "Ordinary user in booted Fedora 44",
+      "html_url": "https://github.com/cubepals/pryx/actions/runs/43421813961/job/131901179723",
+      "conclusion": "success",
+      "started_at": "2026-11-13T13:01:47Z",
+      "completed_at": "2026-11-13T13:04:46Z"
+    },
+    {
+      "id": 131901179742,
+      "name": "Ordinary user in booted Debian 13",
+      "html_url": "https://github.com/cubepals/pryx/actions/runs/43421813961/job/131901179742",
+      "conclusion": "success",
+      "started_at": "2026-11-13T13:01:47Z",
+      "completed_at": "2026-11-13T13:04:40Z"
+    },
+    {
+      "id": 131901179756,
+      "name": "User preset with rootless podman",
+      "html_url": "https://github.com/cubepals/pryx/actions/runs/43421813961/job/131901179756",
+      "conclusion": "success",
+      "started_at": "2026-11-13T13:01:51Z",
+      "completed_at": "2026-11-13T13:06:46Z"
+    },
+    {
+      "id": 131901179782,
+      "name": "Ordinary user in booted Ubuntu 24.04",
+      "html_url": "https://github.com/cubepals/pryx/actions/runs/43421813961/job/131901179782",
+      "conclusion": "success",
+      "started_at": "2026-11-13T13:01:51Z",
+      "completed_at": "2026-11-13T13:05:22Z"
+    },
+    {
+      "id": 131901179858,
+      "name": "Ordinary user in Debian Docker",
+      "html_url": "https://github.com/cubepals/pryx/actions/runs/43421813961/job/131901179858",
+      "conclusion": "success",
+      "started_at": "2026-11-13T13:01:52Z",
+      "completed_at": "2026-11-13T13:04:16Z"
+    },
+    {
+      "id": 131901179874,
+      "name": "Ordinary user in Alpine Docker",
+      "html_url": "https://github.com/cubepals/pryx/actions/runs/43421813961/job/131901179874",
+      "conclusion": "success",
+      "started_at": "2026-11-13T13:01:47Z",
+      "completed_at": "2026-11-13T13:04:26Z"
+    },
+    {
+      "id": 131901179885,
+      "name": "Ordinary user in Ubuntu Docker",
+      "html_url": "https://github.com/cubepals/pryx/actions/runs/43421813961/job/131901179885",
+      "conclusion": "success",
+      "started_at": "2026-11-13T13:02:04Z",
+      "completed_at": "2026-11-13T13:04:24Z"
+    },
+    {
+      "id": 131901179903,
+      "name": "Ordinary user in Fedora Docker",
+      "html_url": "https://github.com/cubepals/pryx/actions/runs/43421813961/job/131901179903",
+      "conclusion": "success",
+      "started_at": "2026-11-13T13:02:27Z",
+      "completed_at": "2026-11-13T13:04:39Z"
+    },
+    {
+      "id": 131901179913,
+      "name": "Ordinary user in Ubuntu with Landlock denied Docker",
+      "html_url": "https://github.com/cubepals/pryx/actions/runs/43421813961/job/131901179913",
+      "conclusion": "success",
+      "started_at": "2026-11-13T13:01:47Z",
+      "completed_at": "2026-11-13T13:04:50Z"
+    },
+    {
+      "id": 131901179918,
+      "name": "Ordinary user in Debian root preset Docker",
+      "html_url": "https://github.com/cubepals/pryx/actions/runs/43421813961/job/131901179918",
+      "conclusion": "success",
+      "started_at": "2026-11-13T13:01:47Z",
+      "completed_at": "2026-11-13T13:04:30Z"
+    },
+    {
+      "id": 131901179961,
+      "name": "Ordinary user in Alpine with Landlock denied Docker",
+      "html_url": "https://github.com/cubepals/pryx/actions/runs/43421813961/job/131901179961",
+      "conclusion": "success",
+      "started_at": "2026-11-13T13:01:47Z",
+      "completed_at": "2026-11-13T13:02:25Z"
+    }
+  ]
+}

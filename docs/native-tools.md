@@ -85,6 +85,11 @@ bytes over the authenticated agent WebSocket using OpenSSH ProxyCommand. Private
 stay in memory, and authorization stays outside persistent sandbox data. Lease capacity,
 expiry, revocation, wake and neighbour isolation apply to this transport too.
 
+The [signed ordinary-user acceptance](https://github.com/cubepals/pryx/actions/runs/43421813961/job/131880099054)
+exercises real application input, screenshots and noVNC through the edge, plus SSH commands,
+HTTP wake, the installed CLI and both Python SDK modes. [Thirty startup samples per tool](speed.md#k24-desktop-and-ssh-startup)
+retain the process/container comparison and its resource differences.
+
 ## Container tools
 
 ```sh
