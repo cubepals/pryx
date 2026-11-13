@@ -2191,3 +2191,27 @@ job when publication is authorized. That job has not run in this task.
   deliberately changed fails with Go's own modified-directory error. Remove
   that disposable cache afterward. The exact network notice closure still passes;
   no checksum check, assertion or network cohort is skipped or weakened.
+- Corrected-module source 45fa355 reaches both actual guest paths in
+  [43447042201](https://github.com/cubepals/pryx/actions/runs/43447042201/job/131959105927).
+  All thirty vsock guests pass EROFS/overlay/ext4, real HTTP/bulk/outbound DNS,
+  both management denials, guest report and successful monitor exit. The first
+  pasta guest boots through the private ordinary-user namespace/bridge, then
+  BusyBox reports its guest virtio interface down; it completes zero samples,
+  so the entire comparison fails. Retain the digest-verified full partial report,
+  pasta serial log, actual namespace mapping and archive provenance separately.
+- Bring eth0 up with the already pinned maintained netlink API before requesting
+  its DHCP lease. The upstream vsock forwarder already performs that step for
+  its own TAP. Preserve both original thirty-sample cohorts, clocks, deadlines
+  and every positive and management-denial assertion. No network path is parked.
+- The first vsock small-request latency is dominated by the fixture server's
+  default Nagle buffering. An independent real local thirty-request persistent
+  HTTP control measures p50/p90 43.988/44.108 ms before TCP_NODELAY and
+  0.160/0.239 ms afterward. Enable the standard server's TCP_NODELAY setting
+  equally for both paths. Keep the earlier 45fa355 samples with that explicit
+  caveat, and require fresh real-KVM cohorts; invent no corrected old timings.
+- After checking completed jobs (none failed), cancel superseded 9402ef5 normal
+  and host runs 43442625755, 43442612553, 43442612871; 8a48e68 runs
+  43443131498, 43443118120, 43443118003; and 57c7f93 normal/host runs
+  43446176133, 43446164652, 43446164627. These are cancellations, not passes.
+  Preserve completed kernel/network failures and green standalone kernel proof,
+  while retaining the earlier 60d5b50 full normal and installed continuations.

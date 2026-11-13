@@ -1,0 +1,12 @@
+{
+  "source": "45fa355",
+  "run": 43447042201,
+  "job": 131959105927,
+  "conclusion": "failure",
+  "artifactId": 14048148438,
+  "artifactSha256": "a5a0d2073c28be38939e3b3112d1b0feae54af4a1df933cab2432645f6eecf92",
+  "scope": "All thirty vsock guests pass both management denials, HTTP, bulk and DNS; first pasta guest reaches DHCP with an interface still down; total comparison fails",
+  "vsockSamples": 30,
+  "pastaSamples": 0,
+  "latencyCaveat": "The initial persistent HTTP fixture has Nagle enabled; keep these raw samples separate from corrected TCP_NODELAY observations"
+}

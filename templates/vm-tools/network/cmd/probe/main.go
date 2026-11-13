@@ -24,6 +24,7 @@ import (
 	networkfixture "cubepals/pryx/vm-network-experiment"
 	"github.com/containers/gvisor-tap-vsock/pkg/types"
 	"github.com/mdlayher/vsock"
+	"github.com/vishvananda/netlink"
 )
 
 func checkedGet(client *http.Client, url string, expected int64) (float64, error) {
@@ -76,6 +77,13 @@ func measure(fixture experiment.Network) (map[string]any, error) {
 			_ = helper.Wait()
 		}()
 	} else if fixture.Mode == "pasta" {
+		link, err := netlink.LinkByName("eth0")
+		if err != nil {
+			return nil, err
+		}
+		if err := netlink.LinkSetUp(link); err != nil {
+			return nil, err
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		helper = exec.CommandContext(ctx, "/sbin/udhcpc", "-f", "-q", "-i", "eth0", "-t", "3", "-T", "1")

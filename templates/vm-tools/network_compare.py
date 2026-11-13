@@ -28,6 +28,7 @@ import kernel
 
 class Fixture(BaseHTTPRequestHandler):
     protocol_version = 'HTTP/1.1'
+    disable_nagle_algorithm = True
 
     def do_GET(self):
         if self.path == self.server.metadata['networkHelloPath']:

@@ -6,6 +6,7 @@ require (
 	cubepals/pryx/vm-experiment v0.0.0
 	github.com/containers/gvisor-tap-vsock v0.9.0
 	github.com/mdlayher/vsock v1.3.0
+	github.com/vishvananda/netlink v1.3.1
 )
 
 require (
@@ -23,7 +24,6 @@ require (
 	github.com/songgao/packets v0.0.0-20160404182456-549a10cd4091 // indirect
 	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8 // indirect
 	github.com/u-root/uio v0.0.0-20240224005618-d2acac8f3701 // indirect
-	github.com/vishvananda/netlink v1.3.1 // indirect
 	github.com/vishvananda/netns v0.0.5 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa // indirect
