@@ -7,7 +7,7 @@ use pryx_agent::vm_monitor::{Plan, Role};
 use serde_json::Value;
 use tokio::time::Instant;
 
-const BOOT_TIMEOUT: Duration = Duration::from_secs(30);
+pub(super) const BOOT_TIMEOUT: Duration = Duration::from_secs(30);
 // Docker Engine HostConfig.NanoCpus uses billionths of a CPU; Bollard exports no conversion constant.
 const NANO_CPU: i64 = 1_000_000_000;
 
@@ -163,7 +163,7 @@ impl VmRuntime {
     }
 }
 
-async fn ready(monitor: &mut Machine, spec: &ContainerSpec, deadline: Instant) -> Result<(), RuntimeError> {
+pub(super) async fn ready(monitor: &mut Machine, spec: &ContainerSpec, deadline: Instant) -> Result<(), RuntimeError> {
     // Only authenticated health reads retry. No exec, bootstrap, file write or shutdown does.
     loop {
         if monitor.exited().map_err(error)?.is_some() {
@@ -183,7 +183,7 @@ async fn ready(monitor: &mut Machine, spec: &ContainerSpec, deadline: Instant) -
     Ok(())
 }
 
-fn plan(
+pub(super) fn plan(
     bundle: &Bundle,
     layers: Vec<PathBuf>,
     disk: PathBuf,

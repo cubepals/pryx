@@ -3049,3 +3049,22 @@ job when publication is authorized. That job has not run in this task.
   addressed findings. Keep K25 in progress.
 - Extend the continuation instruction through K28, K29 and K30, after K27 and parked-piece
   second attempts, merging origin/main when those briefs are reached. No pull request is opened.
+
+
+- K25 stopped-disk runtime session: launch the verified layerless file guest under the same
+  confinement and disk lease, with a private ephemeral relay and a newly generated signing key.
+  Remove workload environment, commands and spare ingress. Hold the transition lock until owned
+  shutdown validates its signed disk observation; dropping a caller schedules the same bounded
+  cleanup and does not certify disk safety. No normal workload state is changed.
+- Extend the existing optional KVM runtime test with a stopped-disk binary round trip larger
+  than the JSON limit, command-route refusal, actual disk-copy lease refusal during service,
+  clean service shutdown and ordinary cold-wake visibility. This adds two boots to that existing
+  job, estimated under fifteen seconds, zero new gates/jobs or ordinary PR minutes. Real boot
+  proof is pending. Local full Rust is 505 passes, the unchanged IPv6 fixture failure and
+  34 ignored cases. Strict Clippy/fmt pass; the daemon length probe has no new length warnings.
+  The earlier isolated Wasm listener recheck passes in 1.89 s; retain its full-suite failure.
+- Read normal source eabb37a job 132241586356: Structure now passes. Its agent SSH lease test
+  fails the final immediate rebind after dropping its listener; the test currently discards
+  the OS error. All other Rust targets pass. Preserve this CI failure and investigate the
+  shared ephemeral-port fixture independently before claiming the aggregate green. Scanner
+  remains eighteen addressed comments; K25 and public node/edge integration remain in progress.

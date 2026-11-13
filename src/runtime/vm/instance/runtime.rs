@@ -147,7 +147,7 @@ impl VmRuntime {
         }))
     }
 }
-fn verified_exit(entry: &Entry, live: &Live) -> Result<i64, RuntimeError> {
+pub(super) fn verified_exit(entry: &Entry, live: &Live) -> Result<i64, RuntimeError> {
     let boot = entry.spec.agent.as_ref().ok_or_else(|| error("VM agent bootstrap is missing"))?;
     let public_key = agent::key(&entry.spec)?.public_key();
     let proof = shutdown_proof(&live.serial, &public_key, &live.nonce, &boot.sandbox, boot.epoch)?;

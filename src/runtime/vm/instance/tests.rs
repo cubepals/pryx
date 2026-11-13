@@ -148,7 +148,32 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
         let copy = temporary.path().join(format!("copy{index}"));
         crate::tree::copy_tree(&data, &copy, None, &[], &mut |_| Ok(())).unwrap();
         drop(copy_lease);
+        let files = runtime.open_files(&id).await.unwrap();
+        assert!(runtime.data_copy_lease(sandbox, &data).await.is_err(), "File service holds the real disk lease");
+        let response = files
+            .request(hyper::Method::GET, "/_pryx/files/content?path=retained", crate::http_client::empty())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), hyper::StatusCode::OK);
+        assert_eq!(crate::http_client::read_body(response, 1024).await.unwrap(), "durable");
+        let bytes: Vec<u8> = (0..=u8::MAX).cycle().take(pryx_agent::contract::MAX_REQUEST_BYTES + 1).collect();
+        let response = files
+            .request(hyper::Method::PUT, "/_pryx/files/content?path=offline", crate::http_client::full(bytes.clone()))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), hyper::StatusCode::NO_CONTENT);
+        let response = files
+            .request(hyper::Method::GET, "/_pryx/files/content?path=offline", crate::http_client::empty())
+            .await
+            .unwrap();
+        assert_eq!(crate::http_client::read_body(response, bytes.len()).await.unwrap().as_ref(), bytes);
+        let response =
+            files.request(hyper::Method::POST, "/_pryx/processes", crate::http_client::full("{}")).await.unwrap();
+        assert_eq!(response.status(), hyper::StatusCode::NOT_FOUND);
+        files.close().await.unwrap();
+        drop(runtime.data_copy_lease(sandbox, &data).await.unwrap());
         runtime.start(&id).await.unwrap();
+        assert_eq!(exec(&runtime, &id, "wc -c < /data/offline").await, format!("{}\n", bytes.len()).as_bytes());
         assert_eq!(exec(&runtime, &id, "cat /data/retained").await, b"durable");
         let fork_spec = spec(&copy, image["reference"].as_str().unwrap());
         let fork = runtime.create(&fork_spec).await.unwrap();
@@ -190,4 +215,31 @@ fn launch_directory_is_private_before_bootstrap_creation() {
     let parent = tempfile::tempdir().unwrap();
     let boot = boot_directory(parent.path()).unwrap();
     assert_eq!(fs::metadata(boot.path()).unwrap().permissions().mode() & 0o777, 0o700);
+}
+
+#[test]
+fn maintenance_has_private_fresh_credentials_and_no_workload_or_extra_ingress() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut original = spec(directory.path(), "invalid");
+    let old_key = agent::key(&original).unwrap().public_key();
+    original.env.push(("WORKLOAD_SECRET".into(), "private-workload-value".into()));
+    original.agent.as_mut().unwrap().spare_ports.push(3000);
+    original.entrypoint = Some(vec!["workload".into()]);
+    original.workdir = Some("/workload".into());
+    original.read_only_rootfs = false;
+    let maintenance = maintenance::specification(&original).unwrap();
+    let second = maintenance::specification(&original).unwrap();
+    assert_eq!(maintenance.env.len(), 1);
+    assert_ne!(agent::key(&maintenance).unwrap().public_key(), old_key);
+    assert_ne!(agent::key(&maintenance).unwrap().public_key(), agent::key(&second).unwrap().public_key());
+    assert!(maintenance.entrypoint.as_ref().unwrap().is_empty());
+    assert_eq!(maintenance.workdir.as_deref(), Some("/"));
+    assert!(maintenance.internal_network && maintenance.egress.is_none() && maintenance.read_only_rootfs);
+    assert!(maintenance.agent.as_ref().unwrap().spare_ports.is_empty());
+    assert_eq!(maintenance.ports.len(), 1);
+    assert_eq!(maintenance.ports[0].host_port, 0);
+    assert_eq!(maintenance.ports[0].host_ips, vec![std::net::IpAddr::V4(Ipv4Addr::LOCALHOST)]);
+    assert_eq!(maintenance.mount_path, original.mount_path);
+    assert_eq!(maintenance.user, original.user);
+    assert_eq!(maintenance.memory_bytes, original.memory_bytes);
 }
