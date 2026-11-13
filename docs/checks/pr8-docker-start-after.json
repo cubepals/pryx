@@ -1,0 +1,12 @@
+{
+  "measurement": "pr8 docker start after",
+  "commit": "recorded in c1c9fa1; measurement revision not recorded",
+  "ci": "Not recorded; local or inventory evidence, not a CI pass",
+  "result": {
+    "testSummaries": 1,
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "scope": "Totals across recorded test summaries, including repeated runs when present"
+  }
+}

@@ -1,101 +1,10 @@
 {
-  "conclusion": "success",
-  "databaseId": 42094938935,
-  "headSha": "f4bbce147e3e700ea78f9c53b07ef1c09eb30223",
-  "jobs": [
-    {
-      "databaseId": 127493254824,
-      "name": "Commit subjects",
-      "status": "completed",
-      "conclusion": "success",
-      "startedAt": "2026-11-05T19:52:47Z",
-      "completedAt": "2026-11-05T19:52:51Z",
-      "url": "https://github.com/cubepals/pryx/actions/runs/42094938935/job/127493254824"
-    },
-    {
-      "databaseId": 127493255128,
-      "name": "Find what changed",
-      "status": "completed",
-      "conclusion": "success",
-      "startedAt": "2026-11-05T19:52:47Z",
-      "completedAt": "2026-11-05T19:52:52Z",
-      "url": "https://github.com/cubepals/pryx/actions/runs/42094938935/job/127493255128"
-    },
-    {
-      "databaseId": 127493322463,
-      "name": "Control workspaces",
-      "status": "completed",
-      "conclusion": "success",
-      "startedAt": "2026-11-05T19:52:54Z",
-      "completedAt": "2026-11-05T19:54:30Z",
-      "url": "https://github.com/cubepals/pryx/actions/runs/42094938935/job/127493322463"
-    },
-    {
-      "databaseId": 127493322605,
-      "name": "Dependency licences and advisories",
-      "status": "completed",
-      "conclusion": "success",
-      "startedAt": "2026-11-05T19:52:54Z",
-      "completedAt": "2026-11-05T19:53:10Z",
-      "url": "https://github.com/cubepals/pryx/actions/runs/42094938935/job/127493322605"
-    },
-    {
-      "databaseId": 127493322653,
-      "name": "One box and Action",
-      "status": "completed",
-      "conclusion": "success",
-      "startedAt": "2026-11-05T19:52:55Z",
-      "completedAt": "2026-11-05T20:08:52Z",
-      "url": "https://github.com/cubepals/pryx/actions/runs/42094938935/job/127493322653"
-    },
-    {
-      "databaseId": 127493322710,
-      "name": "Control end to end",
-      "status": "completed",
-      "conclusion": "success",
-      "startedAt": "2026-11-05T19:52:54Z",
-      "completedAt": "2026-11-05T20:33:41Z",
-      "url": "https://github.com/cubepals/pryx/actions/runs/42094938935/job/127493322710"
-    },
-    {
-      "databaseId": 127493322757,
-      "name": "Contract with the control plane",
-      "status": "completed",
-      "conclusion": "success",
-      "startedAt": "2026-11-05T19:52:54Z",
-      "completedAt": "2026-11-05T19:55:19Z",
-      "url": "https://github.com/cubepals/pryx/actions/runs/42094938935/job/127493322757"
-    },
-    {
-      "databaseId": 127493323093,
-      "name": "Format, lint, tests and structure",
-      "status": "completed",
-      "conclusion": "success",
-      "startedAt": "2026-11-05T19:52:54Z",
-      "completedAt": "2026-11-05T19:58:04Z",
-      "url": "https://github.com/cubepals/pryx/actions/runs/42094938935/job/127493323093"
-    },
-    {
-      "databaseId": 127493324811,
-      "name": "Release image builds",
-      "status": "completed",
-      "conclusion": "skipped",
-      "startedAt": "2026-11-05T19:52:52Z",
-      "completedAt": "2026-11-05T19:52:52Z",
-      "url": "https://github.com/cubepals/pryx/actions/runs/42094938935/job/127493324811"
-    },
-    {
-      "databaseId": 127515696263,
-      "name": "check",
-      "status": "completed",
-      "conclusion": "success",
-      "startedAt": "2026-11-05T20:33:44Z",
-      "completedAt": "2026-11-05T20:33:47Z",
-      "url": "https://github.com/cubepals/pryx/actions/runs/42094938935/job/127515696263"
-    }
-  ],
-  "startedAt": "2026-11-05T19:52:43Z",
-  "status": "completed",
-  "updatedAt": "2026-11-05T20:33:48Z",
-  "url": "https://github.com/cubepals/pryx/actions/runs/42094938935"
+  "measurement": "k9 k13 ci green",
+  "commit": "recorded in c1c9fa1; measurement revision not recorded",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/42094938935",
+  "result": {
+    "conclusion": "success",
+    "databaseId": 42094938935,
+    "status": "completed"
+  }
 }

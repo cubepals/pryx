@@ -21,7 +21,7 @@ Before switching an older configuration to auto, start it once with its previous
 runtime to save existing workloads' tiers. Auto can identify existing compute and container
 images; it refuses a resting legacy record whose process/Wasm identity cannot be established.
 
-The complete measurements below retain their original contexts, samples and budgets.
+The measurement tables retain their original contexts and budgets; committed records contain aggregate summaries, with raw samples in CI artifacts.
 
 ## Rootless engine measurements
 
@@ -179,7 +179,7 @@ maximum. This is one local validation wave, separate from the CI jobs' thirty-wa
 
 The [summary](checks/measurements/k14/local-capacity-9ebc6da/tiers-one-box-wasm.json) records the
 host, source, binary hash, unit profile, CPU admission overcommit, exact bytes and refusal.
-The [driver and invocation](checks/pr8-capacity-local-command.txt) use the benchmark collector,
+The [driver and invocation](checks/pr8-capacity-local-command.json) use the benchmark collector,
 real SDK/API/Postgres/node/sidecar and unchanged `tier-memory.py`. The workspace has no `sudo`
 and cannot install it; all measured Wasm processes belong to the current UID, so the driver
 reads that owned process tree directly and refuses missing PSS. This fresh node has no prior
@@ -195,7 +195,7 @@ refusals. Its creation time was 66,869.40 ms and pre-cleanup context PSS was 554
 The simultaneous delete fan-out then returned HTTP 503 `no_room`; the tier remained
 `incomplete` and the job failed. This public error does not identify the underlying host or
 database cause. The [summary](checks/measurements/k14/42254735382/tiers-image-wasm.json) and
-[log excerpt](checks/pr8-capacity-image-cleanup-before.txt) retain that failed observation;
+[log excerpt](checks/pr8-capacity-image-cleanup-before.json) retain that failed observation;
 the one recorded wave is not presented as a completed thirty-wave comparison.
 Container, process, normal-default and forced-Wasm hello cohorts from that run retain their
 complete samples beside it. The teardown follow-up keeps every delete and its fatal assertion,
@@ -206,7 +206,7 @@ The corresponding [PR run](https://github.com/cubepals/pryx/actions/runs/4225474
 instead failed in the container fork cohort after 22 timings: Docker's start response exceeded
 the unchanged 20-second deadline. Its [measurement summaries](checks/measurements/k14/42254747830/) retain the
 incomplete container result and complete process, Wasm and hello cohorts; the
-[failure log](checks/pr8-container-fork-before.txt) does not establish that container's final state.
+[failure log](checks/pr8-container-fork-before.json) does not establish that container's final state.
 The runtime now inspects once after a start timeout and succeeds only if Docker confirms
 `Running`, without repeating start. A real Docker transport-fault regression withholds the
 response after Docker accepts the mutation: it fails before the fix and passes after it,

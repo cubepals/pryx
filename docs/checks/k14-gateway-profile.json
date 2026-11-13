@@ -1,14 +1,6 @@
-[
-  {
-    "profile": "default",
-    "requests": 50,
-    "passed": 10,
-    "refused": 40
-  },
-  {
-    "profile": "comparison",
-    "requests": 50,
-    "passed": 50,
-    "refused": 0
-  }
-]
+{
+  "measurement": "k14 gateway profile",
+  "commit": "recorded in c1c9fa1; measurement revision not recorded",
+  "ci": "Not recorded; local or inventory evidence, not a CI pass",
+  "result": "Historical diagnostic summary; see the companion check document and cited CI artifact for outcome and limitations."
+}

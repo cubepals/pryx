@@ -2721,3 +2721,19 @@ job when publication is authorized. That job has not run in this task.
   Full local Rust remains 496 passes with the unchanged IPv6 EAFNOSUPPORT failure; strict
   root/helper Clippy, fmt and static-musl agent build pass. Real remount/drain/reset and disk
   integrity are still pending CI proof; no local KVM or engine result is claimed.
+
+- K25 measurement cleanup follow-up: older raw logs and full reports also existed directly
+  under docs/checks. Replace them with source/run/aggregate summaries, correct every renamed
+  link (including historical K14 relative paths), and describe licence links as review
+  summaries rather than full inventories. Primary notices and source inputs remain with
+  builds/distributions. The edge collector now writes raw observations to temporary storage
+  or its configured artifact path. Preserve the two required process-tool reviews unchanged.
+- Read the six retained normal-CI failures found before superseded cancellation: control jobs
+  132122048291, 132119391080, 132119587489, 132119095462, 132111003598 and 132110900206 all
+  reject generated docs/api.md drift. The initial cleanup appended a raw-output note to
+  generated API prose; regenerate with its owner and keep the gate unchanged. JSON, links,
+  Python compilation, whitespace and generated-doc checks now pass. The first full local
+  Bun check used host Bun 1.4.3 and failed its unsupported ws stream API; switching to the
+  repository-pinned 1.4.4 fixes the environment. Complete pinned Bun check passes with real
+  local Postgres: 437 pass, one existing compiled-assets skip and 8,415 assertions. No test
+  or assertion is disabled. The superseded cancellation audit retains all completed failures.

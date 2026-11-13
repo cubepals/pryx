@@ -1,0 +1,12 @@
+{
+  "measurement": "pr8 cpu local",
+  "commit": "recorded in c1c9fa1; measurement revision not recorded",
+  "ci": "Not recorded; local or inventory evidence, not a CI pass",
+  "result": {
+    "testSummaries": 31,
+    "passed": 384,
+    "failed": 0,
+    "ignored": 13,
+    "scope": "Totals across recorded test summaries, including repeated runs when present"
+  }
+}

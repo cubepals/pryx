@@ -1,0 +1,12 @@
+{
+  "measurement": "k14 port reconcile before",
+  "commit": "recorded in c1c9fa1; measurement revision not recorded",
+  "ci": "Not recorded; local or inventory evidence, not a CI pass",
+  "result": {
+    "testSummaries": 2,
+    "passed": 0,
+    "failed": 2,
+    "ignored": 0,
+    "scope": "Totals across recorded test summaries, including repeated runs when present"
+  }
+}

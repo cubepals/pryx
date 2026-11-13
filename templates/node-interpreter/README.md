@@ -11,9 +11,8 @@ LICENSE/NOTICE files. The final FSL-1.1-ALv2 launcher routes only jmp's legacy Z
 ZeroMQ.js 6.8.0's official v5 compatibility API; IJavascript/jp-kernel supplies the whole Jupyter
 server. It never invokes the Jupyter CLI.
 
-The complete [Node inventory](../../docs/checks/measurements/k17-node-licences.json) and
-[base-package inventory](../../docs/checks/measurements/k17-base-licences.json) record licences
-and versions. ZeroMQ.js is MIT AND MPL-2.0: its unmodified corresponding source, including native
+The [Node review summary](../../docs/checks/measurements/k17-node-licences.json) and
+[base-package review summary](../../docs/checks/measurements/k17-base-licences.json) record the review scope. Full versions and notices remain in the image packages and CI artifacts. ZeroMQ.js is MIT AND MPL-2.0: its unmodified corresponding source, including native
 libzmq notices and source retrieval/build instructions, is freely available in
 [the exact npm package](https://registry.npmjs.org/zeromq/-/zeromq-6.8.0.tgz) and
 [upstream](https://github.com/zeromq/zeromq.js/tree/v6.8.0), under
@@ -24,4 +23,4 @@ package downloads in a proxy environment without retaining that CA in the image.
 
 [Interpreter usage and maintenance limits](../../docs/interpreter.md).
 
-Charts use Chart.js 4.6.1 (MIT) and napi-rs/canvas 1.1.0 (MIT; bundled Skia and Chromium BSD-3-Clause notices). The image also ships the upstream canvas/Chromium and Skia licence texts in `/opt/pryx/notices`. The [native canvas dependency inventory](../../docs/checks/measurements/k17-canvas-licences.json) records its Rust build graph. A documented Node VM `breakOnSigint` preload gives NEL a non-destructive interrupt; no Jupyter message implementation is added.
+Charts use Chart.js 4.6.1 (MIT) and napi-rs/canvas 1.1.0 (MIT; bundled Skia and Chromium BSD-3-Clause notices). The image also ships the upstream canvas/Chromium and Skia licence texts in `/opt/pryx/notices`. The [native canvas dependency review summary](../../docs/checks/measurements/k17-canvas-licences.json) summarizes its Rust build-graph review; complete notices remain with the image and CI artifacts. A documented Node VM `breakOnSigint` preload gives NEL a non-destructive interrupt; no Jupyter message implementation is added.

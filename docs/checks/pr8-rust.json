@@ -1,0 +1,12 @@
+{
+  "measurement": "pr8 rust",
+  "commit": "recorded in c1c9fa1; measurement revision not recorded",
+  "ci": "Not recorded; local or inventory evidence, not a CI pass",
+  "result": {
+    "testSummaries": 29,
+    "passed": 383,
+    "failed": 0,
+    "ignored": 14,
+    "scope": "Totals across recorded test summaries, including repeated runs when present"
+  }
+}

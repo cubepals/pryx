@@ -56,7 +56,7 @@ CI host. No local Docker/e2e measurement is claimed. The paired comparison is fr
 fe77e673364580efe372a4f685837f219ae7a0a5 and after product
 7cd80e9bff7be320d10993aeadb8e73f3f6f65c8, using the same collector and host. Both measurement
 steps passed; the later Rivet/celld integration step failed, so the workflow is not green.
-[Before](speed-before.json) and [after](speed-after.json) retain every raw sample,
+[Before](speed-before.json) and [after](speed-after.json) summarize the cohorts; raw samples belong to CI artifacts,
 daemon digest and advertised feature list. Only the after daemon advertises exec-stream. Raw output belongs to the cited CI artifacts; the repository keeps only its summary.
 
 ```sh
@@ -295,7 +295,7 @@ both engines using the same patched celld 0.6.3 executable and host. Backend-sta
 142/154 ms locally and 215/233 ms through pryx; start through first HTTP response is
 1,881.78/1,889.72 ms locally and 1,274.87/1,284.34 ms through pryx. Warm HTTP is
 5.50/5.72 ms locally and 5.74/7.24 ms through pryx. These are observed costs, with no additional
-speed threshold in K13. [docker-api.md](docker-api.md) records the method, limits and complete
+speed threshold in K13. [docker-api.md](../docker-api.md) records the method, limits and complete
 measurement summaries, including the retained failed initial cohort and unshipped socket experiment.
 
 ### Project rotation with reserved host ports
@@ -303,7 +303,7 @@ measurement summaries, including the retained failed initial cohort and unshippe
 [CI 42082995409](https://github.com/cubepals/pryx/actions/runs/42082995409), source 66230f5,
 passes the corrected one-box installer, both SDK README examples, all ten project groups and
 the image host installer including repeat installation. The
-[complete report](projects-reserved-one-box.json) records 50 acknowledged creations,
+[summary](projects-reserved-one-box.json) records 50 acknowledged creations,
 50 validated command runs, four active at once and ten exact quota refusals. The kernel reports
 outgoing ephemeral range 32768–60999 and reserved workload range 42000–42999. Counts and partial
 failures are now retained by the collector. This remains an observed 8 GiB-class runner, not a
@@ -395,7 +395,7 @@ and network enforcement facts, shared UID probes and image/agent digests remain 
 
 ### K13 native celld repeat
 
-The [complete native report](final-celld-native-measurements.json) uses the same patched
+The [native summary](final-celld-native-measurements.json) uses the same patched
 celld 0.6.3 binary/profile and unchanged Worker/container example for both engines, n=30 each.
 It repeats the earlier cohort without replacing it.
 
@@ -409,4 +409,4 @@ Native backend start costs more; the lower start-through-first-response includes
 and polling, and does not isolate a transport optimization. K13 sets no numeric speed threshold.
 The [unmodified-release socket experiment](final-docker-api-spike.json) explicitly fails
 unsupported BuildKit operations and remains unshipped, without advertising a docker-api feature.
-See [docker-api.md](docker-api.md) for the native ownership limits and exact experiment scope.
+See [docker-api.md](../docker-api.md) for the native ownership limits and exact experiment scope.

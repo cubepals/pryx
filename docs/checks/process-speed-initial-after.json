@@ -1,80 +1,12 @@
 {
-  "phase": "after",
-  "comparison": "container and process tiers on the same source and CI host",
-  "source": "1a07f6b0823ffac1bf6d5c9b0c43d9dee6895e8b",
-  "host": {
-    "cpu": "AMD EPYC 9V74 80-Core Processor",
-    "cores": 2,
-    "kernel": "7.0.0-1017-azure",
-    "memoryBytes": 8317927424,
-    "bun": "1.4.4"
-  },
-  "dataset": {
-    "bytes": 100000000,
-    "byte": 42
-  },
-  "absent": {},
-  "imageId": "sha256:bd671a58dcf96c490fffc61743726167b76b5fb54b62fd0e99c4873253a3c021",
-  "capabilities": {
-    "kernel": "7.0.0-1017-azure",
-    "seccomp": 2,
-    "engineSocket": false,
-    "writableCgroup": false,
-    "canCreateNamespaces": {
-      "user": false,
-      "mount": false,
-      "pid": false,
-      "network": false
-    },
-    "canSwitchUid": true
-  },
-  "policy": {
-    "filesystem": true,
-    "network": true
-  },
-  "agentSha256": "87c40997d3cf5c64a1735e87fa91805279be95265d7c705395728e0caca1f2c8",
-  "completed": false,
-  "failure": {
-    "name": "PryxError",
-    "message": "No node can complete this request"
-  },
-  "measurements": {
-    "image_start": {
+  "measurement": "after",
+  "commit": "1a07f6b0823ffac1bf6d5c9b0c43d9dee6895e8b",
+  "ci": "Not recorded; local or inventory evidence, not a CI pass",
+  "result": {
+    "measurements.image_start": {
       "n": 30,
-      "p50Ms": 6691.324746000006,
-      "p90Ms": 6977.846885999999,
-      "samplesMs": [
-        7039.089006,
-        6753.913783,
-        6645.014244,
-        1688.6722499999996,
-        6611.391126999999,
-        1672.9124190000002,
-        6600.827999000001,
-        1937.4611900000018,
-        6691.324746000006,
-        6807.158455999997,
-        6776.4890439999945,
-        7366.013631000002,
-        6720.567790000001,
-        1791.3667009999917,
-        6977.846885999999,
-        6753.922403999997,
-        6714.677358000001,
-        6630.17714,
-        7723.802236000003,
-        6600.299051999988,
-        6753.234437999985,
-        6635.3400339999935,
-        6621.177896999987,
-        1733.1123519999965,
-        6660.0872859999945,
-        6805.519688999979,
-        2207.7016100000183,
-        6739.399464000016,
-        6937.88332600001,
-        1712.6795219999913
-      ]
+      "p50Ms": 6691.325,
+      "p90Ms": 6977.847
     }
   }
 }

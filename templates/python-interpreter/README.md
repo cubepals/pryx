@@ -12,8 +12,8 @@ and historical licence text and Debian package copyright files under `/usr/share
 Agg and the inline backend produce PNG/SVG; pandas tables also have JSON rows.
 
 [The interpreter reference](../../docs/interpreter.md) lists direct versions/licences.
-[Every resolved Python wheel](../../docs/checks/measurements/k17-python-licences.json) and
-[base package](../../docs/checks/measurements/k17-base-licences.json) is inventoried. NumPy/SciPy
+[Python wheel review](../../docs/checks/measurements/k17-python-licences.json) and
+[base-package review](../../docs/checks/measurements/k17-base-licences.json) are summarized; full inventories and notices remain in image packages and CI artifacts. NumPy/SciPy
 bundled BLAS/runtime notices remain in their wheel licence files. Certifi 2026.10.23 is an
 unmodified MPL-2.0 dependency; its corresponding source and notices are freely available from
 [PyPI](https://pypi.org/project/certifi/2026.10.23/#files) and the
