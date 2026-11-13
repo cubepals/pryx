@@ -78,13 +78,19 @@ async fn process_scope_proofs_are_optional_authenticated_and_bound_to_actual_sta
     let (_dir, agent, token) = fixture().await;
     let (_, legacy) = call(&agent, &token, "GET", "/_pryx/health", Value::Null).await;
     assert!(legacy.get("processObservation").is_none());
-    for nonce in ["fresh-node-challenge".to_string(), "invalid challenge".into(), "oversized".repeat(128)] {
+    let challenge = uuid::Uuid::new_v4().simple().to_string();
+    let invalid = format!("{challenge} ");
+    let oversized = challenge.repeat(128);
+    assert!(pryx_agent::process_observation::nonce_valid(&challenge));
+    assert!(!pryx_agent::process_observation::nonce_valid(&invalid));
+    assert!(!pryx_agent::process_observation::nonce_valid(&oversized));
+    for nonce in [&challenge, &invalid, &oversized] {
         let response = router(agent.clone())
             .oneshot(
                 Request::builder()
                     .uri("/_pryx/health")
                     .header("authorization", format!("Bearer {token}"))
-                    .header(pryx_agent::process_observation::NONCE_HEADER, &nonce)
+                    .header(pryx_agent::process_observation::NONCE_HEADER, nonce)
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -92,10 +98,10 @@ async fn process_scope_proofs_are_optional_authenticated_and_bound_to_actual_sta
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
         let value: Value = serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
-        if pryx_agent::process_observation::nonce_valid(&nonce) {
+        if pryx_agent::process_observation::nonce_valid(nonce) {
             let proof: pryx_agent::process_observation::Proof =
                 serde_json::from_value(value["processObservation"].clone()).unwrap();
-            assert_eq!(proof.observation.nonce, nonce);
+            assert_eq!(&proof.observation.nonce, nonce);
             assert_eq!(proof.observation.sandbox, agent.sandbox);
             assert_eq!(proof.observation.epoch, agent.epoch);
             assert_eq!(proof.observation.pid, std::process::id());
@@ -109,7 +115,7 @@ async fn process_scope_proofs_are_optional_authenticated_and_bound_to_actual_sta
         .oneshot(
             Request::builder()
                 .uri("/_pryx/health")
-                .header(pryx_agent::process_observation::NONCE_HEADER, "fresh-node-challenge")
+                .header(pryx_agent::process_observation::NONCE_HEADER, &challenge)
                 .body(Body::empty())
                 .unwrap(),
         )

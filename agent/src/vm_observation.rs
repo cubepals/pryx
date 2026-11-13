@@ -51,14 +51,21 @@ pub fn verify(proof: &Proof, public_key: &str, nonce: &str, sandbox: &str, epoch
 #[cfg(test)]
 mod tests {
     use super::*;
+    use base64::Engine as _;
 
     #[test]
     fn shutdown_proof_is_bound_to_boot_scope_and_whole_disks() {
         let (key, _) = SigningKey::generate().unwrap();
+        let random = ring::rand::SystemRandom::new();
+        let nonce = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .encode(ring::rand::generate::<[u8; 32]>(&random).unwrap().expose());
+        let other_nonce = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .encode(ring::rand::generate::<[u8; 32]>(&random).unwrap().expose());
+        assert_ne!(nonce, other_nonce);
         let proof = sign(
             &key,
             Observation {
-                nonce: "one-boot".into(),
+                nonce: nonce.clone(),
                 sandbox: "one".into(),
                 epoch: 9,
                 kernel: "guest-kernel".into(),
@@ -67,14 +74,14 @@ mod tests {
                 disk_synced: true,
             },
         );
-        assert!(verify(&proof, &key.public_key(), "one-boot", "one", 9));
-        assert!(!verify(&proof, &key.public_key(), "next-boot", "one", 9));
-        assert!(!verify(&proof, &key.public_key(), "one-boot", "other", 9));
-        assert!(!verify(&proof, &key.public_key(), "one-boot", "one", 10));
+        assert!(verify(&proof, &key.public_key(), &nonce, "one", 9));
+        assert!(!verify(&proof, &key.public_key(), &other_nonce, "one", 9));
+        assert!(!verify(&proof, &key.public_key(), &nonce, "other", 9));
+        assert!(!verify(&proof, &key.public_key(), &nonce, "one", 10));
         let mut tampered = proof.clone();
         tampered.observation.code = Some(1);
-        assert!(!verify(&tampered, &key.public_key(), "one-boot", "one", 9));
+        assert!(!verify(&tampered, &key.public_key(), &nonce, "one", 9));
         let incomplete = sign(&key, Observation { disk_synced: false, ..proof.observation });
-        assert!(!verify(&incomplete, &key.public_key(), "one-boot", "one", 9));
+        assert!(!verify(&incomplete, &key.public_key(), &nonce, "one", 9));
     }
 }

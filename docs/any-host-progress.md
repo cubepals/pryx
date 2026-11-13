@@ -2591,3 +2591,11 @@ job when publication is authorized. That job has not run in this task.
   in CI artifacts. Record immediate scanner handling and ordered per-milestone landing as
   the final plan step; no pull request is opened. Local JSON/build-input and reference checks
   pass; this documentation cleanup does not establish new VM acceptance.
+
+- K25 scanner handling: read all seventeen PR 21 findings with unauthenticated curl.
+  Replace fixed process/VM observation challenges with OS-backed random values, and derive
+  invalid/oversized API cases from a fresh challenge. Keep all replay, forgery, scope and
+  authentication assertions, with explicit input-validity checks. Strict all-target Clippy
+  and fmt pass. Complete local Rust execution still encounters the existing IPv6 socket
+  EAFNOSUPPORT failure; all other test binaries, including actual Wasm, finish successfully.
+  Real engine/KVM acceptance remains CI-only; hosted results and scanner reanalysis are pending.

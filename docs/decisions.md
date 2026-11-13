@@ -1047,3 +1047,4 @@
 - K25: Keep VM resolver data in a root-owned guest tmpfs file bound through checked no-follow handles, before the root mount becomes read-only. Start only the fixed trusted bootstrap adapter, wait for private readiness EOF, and withhold a clean shutdown proof if it exits unexpectedly. An absent network configuration creates no outbound helper or VM network device; rootless packet framing remains in the unchanged maintained forwarder.
 
 - K25: Keep only compact measurement summaries and the two process-tool build inputs in docs/checks/measurements; raw logs, inventories and per-sample observations remain CI artifacts, preserving source/run attribution without repository dumps.
+- K25: Generate test observation challenges with the existing OS-backed crypto/UUID libraries, including derived invalid and oversized API inputs; preserve every replay, signature, scope and authentication assertion while addressing PR 21 scanner findings.
