@@ -2936,3 +2936,17 @@ job when publication is authorized. That job has not run in this task.
   barriers; implement root helper/jailer/TAP/firewall and ordinary-user network policy;
   then wire protected descriptors into configuration/release/install, prove node+edge
   lifecycle and thirty production samples. K25 main deliverable remains in progress.
+
+
+- Read the retained follow-up Structure failures on 217029b, 9784438 and 5c56818:
+  moving the callback alone did not remove the facade/copy import cycle. In its own move,
+  put traversal, accounting and source descriptors in tree/walk.rs, let copy.rs import
+  that leaf directly, and retain the public facade/reexports. Move the unchanged real-file
+  assertions to tree/tests.rs. No cycle suppression, baseline expansion or assertion change.
+  Local full Rust/strict root+helper Clippy/fmt pass apart from the known IPv6 test; actual
+  Structure verification is still CI's. Keep K25 in progress until that gate passes.
+- The latest component-only source 5c56818 VM run 43514863702/job 132194126718 is green,
+  covering the production SDK request/forward adapters in all six real guest boots. Scanner
+  remains at eighteen addressed comments. Runtime-seam source e701cb9 run 43519382502/job
+  132209502842 fails before monitor execution because its tempfile launch directory is 0755;
+  preserve the private-directory refusal and fix creation to request 0700 explicitly next.

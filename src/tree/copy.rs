@@ -2,9 +2,22 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Reflink or bounded file copies from the descriptor-relative tree walk. Directory traversal
 //! remains in the parent module; this module never opens a source again by its path.
-use super::*;
+#[cfg(test)]
+use super::walk::ST_BLOCK_BYTES;
+use super::walk::{Copied, Kind, Progress, ROOM_STEP, walk};
+use crate::protocol::Method;
 use rustix::fs::{SeekFrom, seek};
+use rustix::{
+    fs::{Timespec, Timestamps},
+    io::Errno,
+};
 use std::os::unix::fs::PermissionsExt;
+use std::{
+    fs::{self, File, OpenOptions},
+    io::{self, Read},
+    os::unix::fs::{DirBuilderExt, OpenOptionsExt},
+    path::Path,
+};
 
 impl Progress<'_> {
     /// Keep descriptor copying inside this module; the walker never calls a child
