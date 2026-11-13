@@ -17,8 +17,9 @@ impl VmRuntime {
         let Some(live) = live else { return Ok(()) };
         let mut live = live.lock().await;
         let deadline = Instant::now() + grace;
-        let mut forced = force;
-        if !force && !live.shutdown_requested {
+        let already_exited = live.monitor.exited().map_err(error)?.is_some();
+        let mut forced = force && !already_exited;
+        if !force && !already_exited && !live.shutdown_requested {
             live.shutdown_requested = true;
             let boot = entry.spec.agent.as_ref().ok_or_else(|| error("VM agent bootstrap is missing"))?;
             let request = vm_shutdown::request(&agent::key(&entry.spec)?, &live.nonce, &boot.sandbox, boot.epoch);
@@ -32,7 +33,9 @@ impl VmRuntime {
             )
             .await;
         }
-        let exited = if force {
+        let exited = if already_exited {
+            true
+        } else if force {
             false
         } else {
             match tokio::time::timeout_at(deadline, live.monitor.wait()).await {
@@ -63,28 +66,24 @@ impl VmRuntime {
             }
         }
         live.forwarder.stop().await.map_err(error)?;
-        let code = if forced {
-            crate::runtime::exit_by(libc::SIGKILL)
-        } else {
-            let boot = entry.spec.agent.as_ref().ok_or_else(|| error("VM agent bootstrap is missing"))?;
-            let public_key = agent::key(&entry.spec)?.public_key();
-            let proof = shutdown_proof(&live.serial, &public_key, &live.nonce, &boot.sandbox, boot.epoch)?;
-            match (proof.code, proof.signal) {
-                (Some(code), _) => i64::from(code),
-                (_, Some(signal)) => crate::runtime::exit_by(signal),
-                _ => return Err(error("VM shutdown omitted its guest exit status")),
-            }
-        };
+        let code = if forced { Ok(crate::runtime::exit_by(libc::SIGKILL)) } else { verified_exit(&entry, &live) };
         drop(live);
         self.state.live.lock().unwrap().remove(&entry.id);
         if let Some(entry) = self.state.entries.lock().unwrap().get_mut(&entry.id) {
-            entry.code = code;
+            entry.code = code.as_ref().copied().unwrap_or(UNKNOWN_EXIT_CODE);
             entry.finished = Some(crate::clock::now());
         }
-        Ok(())
+        code.map(|_| ())
     }
     async fn observe(&self, name: &str) -> Result<Option<ContainerInfo>, RuntimeError> {
         let entry = match self.entry(name) {
+            Ok(entry) => entry,
+            Err(RuntimeError::NotFound(_)) => return Ok(None),
+            Err(problem) => return Err(problem),
+        };
+        let transition = self.transition(&entry.id);
+        let _transition = transition.lock().await;
+        let mut entry = match self.entry(name) {
             Ok(entry) => entry,
             Err(RuntimeError::NotFound(_)) => return Ok(None),
             Err(problem) => return Err(problem),
@@ -98,7 +97,14 @@ impl VmRuntime {
                 }
                 ContainerStatus::Running
             } else {
-                ContainerStatus::Dead
+                live.forwarder.stop().await.map_err(error)?;
+                let result = verified_exit(&entry, &live);
+                entry.code = result.as_ref().copied().unwrap_or(UNKNOWN_EXIT_CODE);
+                entry.finished = Some(crate::clock::now());
+                drop(live);
+                self.state.live.lock().unwrap().remove(&entry.id);
+                self.state.entries.lock().unwrap().insert(entry.id.clone(), entry.clone());
+                if result.is_ok() { ContainerStatus::Exited } else { ContainerStatus::Dead }
             }
         } else if entry.started.is_some() {
             ContainerStatus::Exited
@@ -123,6 +129,17 @@ impl VmRuntime {
         }))
     }
 }
+fn verified_exit(entry: &Entry, live: &Live) -> Result<i64, RuntimeError> {
+    let boot = entry.spec.agent.as_ref().ok_or_else(|| error("VM agent bootstrap is missing"))?;
+    let public_key = agent::key(&entry.spec)?.public_key();
+    let proof = shutdown_proof(&live.serial, &public_key, &live.nonce, &boot.sandbox, boot.epoch)?;
+    match (proof.code, proof.signal) {
+        (Some(code), _) => Ok(i64::from(code)),
+        (_, Some(signal)) => Ok(crate::runtime::exit_by(signal)),
+        _ => Err(error("VM shutdown omitted its guest exit status")),
+    }
+}
+
 fn shutdown_proof(
     path: &Path,
     key: &str,
@@ -212,7 +229,15 @@ impl ContainerRuntime for VmRuntime {
     }
     async fn start(&self, name: &str) -> Result<(), RuntimeError> {
         let (own, name) = (self.clone(), name.to_owned());
-        tokio::spawn(async move { own.launch_entry(&name).await }).await.map_err(error)?
+        tokio::spawn(async move {
+            own.launch_entry(&name).await?;
+            match own.observe(&name).await? {
+                Some(info) if matches!(info.status, ContainerStatus::Running | ContainerStatus::Exited) => Ok(()),
+                _ => Err(error("VM startup has no live agent or verified guest completion")),
+            }
+        })
+        .await
+        .map_err(error)?
     }
     async fn stop(&self, name: &str, signal: &str, grace: Duration) -> Result<(), RuntimeError> {
         if signal != crate::protocol::StopSignal::SIGTERM.as_str() {

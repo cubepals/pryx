@@ -2950,3 +2950,19 @@ job when publication is authorized. That job has not run in this task.
   remains at eighteen addressed comments. Runtime-seam source e701cb9 run 43519382502/job
   132209502842 fails before monitor execution because its tempfile launch directory is 0755;
   preserve the private-directory refusal and fix creation to request 0700 explicitly next.
+
+
+- K25 launch/exit corrections: tempfile's directory defaults produced 0755 in CI. Request
+  0700 in the builder before any bootstrap file/listener exists; a real local permission
+  regression test now pins it. Preserve Machine's private-directory guard unchanged.
+- Observe spontaneous monitor exits under the runtime transition lock, retire forwarding,
+  record the signed guest result and distinguish missing proof with unknown exit status.
+  A failed clean-stop proof still retires confirmed-dead compute and returns the error;
+  it cannot leave a dead monitor permanently occupying the live map. Already-exited guests
+  are not signalled again. Separate one-shot delivery from liveness so short jobs are accepted
+  only as running agents or verified signed completions. Existing fixture bootstrapped
+  still requires a live monitor; its readiness and shutdown assertions are not loosened.
+- Extend real runtime CI with immediate exit-code-7 jobs on both OCI images and require their
+  verified completion/retirement. Full local Rust is 499 passes, the existing IPv6 failure
+  and 34 ignored cases; strict root/helper Clippy and fmt pass. CI must prove the boot-mode,
+  lifecycle, quick-job and one-way Structure fixes before any runtime availability is wired.

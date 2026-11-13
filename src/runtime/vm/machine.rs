@@ -103,9 +103,9 @@ impl Machine {
         self.child.id()
     }
 
-    /// Call after authenticated agent readiness. A missing or incomplete secret delivery
-    /// never counts as a running guest even when the monitor process itself is alive.
-    pub async fn bootstrapped(&mut self, deadline: Instant) -> Result<(), RuntimeError> {
+    /// Complete the one-shot delivery independently of liveness. A fast guest job may
+    /// already have a signed completion; delivery alone never certifies a running guest.
+    pub async fn delivered(&mut self, deadline: Instant) -> Result<(), RuntimeError> {
         if let Some(mut sender) = self.bootstrap.take() {
             match tokio::time::timeout_at(deadline, &mut sender).await {
                 Ok(delivered) => delivered.map_err(error)?.map_err(error)?,
@@ -117,6 +117,12 @@ impl Machine {
             }
             fs::remove_file(&self.listener).map_err(error)?;
         }
+        Ok(())
+    }
+
+    /// Require completed secret delivery and a live monitor after authenticated readiness.
+    pub async fn bootstrapped(&mut self, deadline: Instant) -> Result<(), RuntimeError> {
+        self.delivered(deadline).await?;
         if self.child.try_wait().map_err(error)?.is_some() {
             return Err(error("VM monitor exited during bootstrap"));
         }

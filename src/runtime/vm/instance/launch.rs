@@ -118,8 +118,7 @@ impl VmRuntime {
             self.state.settings.free_floor_bytes,
         )
         .await?;
-        let directory =
-            tempfile::Builder::new().prefix("boot-").tempdir_in(self.state.root.join("boots")).map_err(error)?;
+        let directory = boot_directory(&self.state.root.join("boots"))?;
         let channel = directory.path().join("vsock");
         let api = directory.path().join("api");
         let serial = directory.path().join("serial");
@@ -294,8 +293,12 @@ impl VmRuntime {
             deadline,
         )
         .await?;
+        monitor.delivered(deadline).await?;
         // Only authenticated health reads retry. No exec, bootstrap, file write or shutdown does.
         loop {
+            if monitor.exited().map_err(error)?.is_some() {
+                break;
+            }
             if agent::raw(
                 &entry.spec,
                 hyper::Method::GET,
@@ -313,7 +316,7 @@ impl VmRuntime {
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
-        monitor.bootstrapped(deadline).await?;
+
         self.state.live.lock().unwrap().insert(
             entry.id.clone(),
             Arc::new(tokio::sync::Mutex::new(Live {

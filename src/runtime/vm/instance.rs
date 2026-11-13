@@ -58,6 +58,9 @@ struct Entry {
     finished: Option<time::OffsetDateTime>,
     code: i64,
 }
+// The runtime seam requires a numeric exit value even without a signed guest observation.
+const UNKNOWN_EXIT_CODE: i64 = -1;
+
 struct Live {
     monitor: Machine,
     forwarder: Forwarder,
@@ -82,6 +85,15 @@ pub(super) fn directory(path: &Path) -> Result<(), RuntimeError> {
     }
     Ok(())
 }
+fn boot_directory(root: &Path) -> Result<tempfile::TempDir, RuntimeError> {
+    use std::os::unix::fs::PermissionsExt;
+    tempfile::Builder::new()
+        .prefix("boot-")
+        .permissions(fs::Permissions::from_mode(0o700))
+        .tempdir_in(root)
+        .map_err(error)
+}
+
 fn lock(path: &Path) -> Result<File, RuntimeError> {
     let file = OpenOptions::new()
         .read(true)

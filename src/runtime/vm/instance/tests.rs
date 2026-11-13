@@ -143,9 +143,35 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
         runtime.remove(&id).await.unwrap();
         assert!(runtime.inspect(&id).await.unwrap().is_none());
         assert!(data.join(super::super::disk::FILE).is_file());
+        let job_data = temporary.path().join(format!("job{index}"));
+        directory(&job_data).unwrap();
+        let mut job_spec = spec(&job_data, image["reference"].as_str().unwrap());
+        job_spec.agent.as_mut().unwrap().keep_alive = false;
+        job_spec.entrypoint = Some(vec!["/bin/sh".into(), "-c".into(), "exit 7".into()]);
+        let job = runtime.create(&job_spec).await.unwrap();
+        runtime.start(&job).await.unwrap();
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+        loop {
+            let info = runtime.inspect(&job).await.unwrap().unwrap();
+            if info.status == ContainerStatus::Exited {
+                assert_eq!(info.exit_code, 7);
+                break;
+            }
+            assert!(tokio::time::Instant::now() < deadline, "Completed guest was not retired");
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        runtime.remove(&job).await.unwrap();
     }
     server.abort();
     println!(
         "Actual runtime seam: both OCI images, 2-vCPU boot, exec, clean stop, cold wake, copied-disk fork isolation and remove passed"
     );
+}
+
+#[test]
+fn launch_directory_is_private_before_bootstrap_creation() {
+    use std::os::unix::fs::PermissionsExt;
+    let parent = tempfile::tempdir().unwrap();
+    let boot = boot_directory(parent.path()).unwrap();
+    assert_eq!(fs::metadata(boot.path()).unwrap().permissions().mode() & 0o777, 0o700);
 }
