@@ -152,6 +152,8 @@ def compare(args, report, save):
                                             str(ipaddress.ip_network(fixture['subnet']).prefixlen),
                                             '--gateway', fixture['gateway'], '--mac-addr', fixture['gatewayMac'],
                                             '--map-host-loopback', fixture['host'], '--mtu', str(fixture['mtu']),
+                                            '--dhcp-dns', '--dns', fixture['gateway'],
+                                            '--dns-forward', fixture['gateway'],
                                             '-t', 'none', '-u', 'none', '-T', 'none', '-U', 'none', '--',
                                             sys.executable, str(ROOT / 'network_namespace.py'),
                                             '--host-netns', os.readlink('/proc/self/ns/net'),

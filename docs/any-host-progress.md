@@ -2215,3 +2215,24 @@ job when publication is authorized. That job has not run in this task.
   43446176133, 43446164652, 43446164627. These are cancellations, not passes.
   Preserve completed kernel/network failures and green standalone kernel proof,
   while retaining the earlier 60d5b50 full normal and installed continuations.
+- Source 4674e2f's real comparison
+  [43448545479](https://github.com/cubepals/pryx/actions/runs/43448545479/job/131964295978)
+  again passes all thirty vsock guests with both management denials and the
+  corrected TCP_NODELAY fixture. Retain its complete partial report, provenance,
+  pasta serial and actual namespace mapping. The pasta guest now obtains its
+  10.77.25.2 lease and reaches outbound DNS after earlier HTTP/bulk assertions,
+  then fails because the guest has no advertised DNS server. No pasta timing is
+  retained or invented, and the aggregate comparison is still failed.
+- Read the pinned pasta manual and source: pasta deliberately defaults DHCP DNS
+  advertisement off. Enable its documented advertisement and gateway-forward
+  mapping, leaving discovery of the actual host nameserver to pasta. Preserve
+  the exact outbound-DNS assertion and both thirty-sample requirements. Source
+  4674e2f's vsock HTTP p50/p90 is 0.526/0.577 ms and helper-plus-guest report is
+  964.389/1040.808 ms on its runner; this is a separate host from the earlier
+  buffered cohort and is not a production latency or cross-run speedup claim.
+- Archive-inspection source 60d5b50 now also has completely green normal push
+  [43440140293](https://github.com/cubepals/pryx/actions/runs/43440140293)
+  and PR [43440150813](https://github.com/cubepals/pryx/actions/runs/43440150813),
+  including every actual aggregate, full Rust/TS/contracts, deployment and end-to-end
+  recovery. The installed continuation 131940893233 remains pending at this
+  checkpoint. This normal proof does not complete the new network spike or K25.
