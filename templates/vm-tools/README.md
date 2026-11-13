@@ -30,6 +30,7 @@ Parts (`vm-tools/`):
 - `image-inputs.json`: actual upstream manifest digests for real daemonless Alpine/Debian image acceptance.
 - `cross-inputs.json` and `cross.py`: signed build-only musl headers/libc and complete source identity.
 - `kernel-source.json`: full published-kernel source archive pin from its primary checksum list.
+- `sources.py`: original Linux archive plus complete commit-verified Kata recipes/patches and monitor source trees.
 - `agent_acceptance.py`: verified published inputs for actual-agent KVM boots and durable disk reboots.
 - `bootstrap.py`: fixed read-only EROFS bootstrap from the actual static agent and its advertised marker.
 

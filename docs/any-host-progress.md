@@ -2631,3 +2631,13 @@ job when publication is authorized. That job has not run in this task.
   changes by under one second for rejection/acknowledgement; no new job or gate is added.
   Read the same shutdown failures in fea728a run 43486862080/job 132097499485 and b33d097 run
   43487324558/job 132099099215; both precede this correction and neither is counted as a pass.
+
+- K25 corresponding-source collection now retains the original checksum-pinned Linux
+  archive, every primary Linux licence text, and complete commit-verified Kata packaging
+  and Firecracker source archives. Git verifies the fixed source trees without checking
+  them out or executing their code; no kernel is built. Python compilation, the real
+  pinned Linux COPYING extraction and actionlint pass locally. Upstream GitHub source
+  repositories are inaccessible from this machine; actual source-tree acquisition is
+  assigned to the existing optional VM job and not claimed locally. Estimated additional
+  optional cost is one minute including artifact retention, zero ordinary PR minutes.
+  Runtime assembly, signed lazy acquisition and production backend remain required.

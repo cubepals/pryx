@@ -203,12 +203,19 @@ jobs:
             --bootstrap "$RUNNER_TEMP/vm-agent-bootstrap" --proxy "$RUNNER_TEMP/vm-network-proxy" \
             --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" \
             --work "$RUNNER_TEMP/vm-guest-acceptance" | tee "$RUNNER_TEMP/vm-guest-acceptance.log"
+      - name: Retain complete published-kernel sources and exact recipes
+        if: ${{ !cancelled() && steps.filesystems.outcome == 'success' }}
+        run: |
+          python3 templates/vm-tools/sources.py --cache "$RUNNER_TEMP/vm-source-cache" \
+            --output "$RUNNER_TEMP/vm-corresponding-sources" | tee "$RUNNER_TEMP/vm-corresponding-sources.log"
       - name: Retain candidate identities and actual digests
         if: always()
         uses: ./.github/actions/upload-evidence
         with:
           name: vm-input-inventory
           path: |
+            ${{ runner.temp }}/vm-corresponding-sources
+            ${{ runner.temp }}/vm-corresponding-sources.log
             ${{ runner.temp }}/vm-candidate-inventory.json
             ${{ runner.temp }}/vm-input-inventory.log
             ${{ runner.temp }}/vm-archive-inspection.json
