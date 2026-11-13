@@ -197,29 +197,41 @@ async fn transaction(
         return Err(error("Prepared VM disk failed independent read-only integrity verification"));
     }
     room(directory, free_floor)?;
-    let candidate_file = owned(&candidate)?;
+    publish(original.as_ref(), &candidate, &path, directory, bytes, deadline)?;
+    Ok(Prepared { path, created: original.is_none(), recovered: original.is_some() })
+}
+
+fn publish(
+    original: Option<&File>,
+    candidate: &Path,
+    path: &Path,
+    directory: &Path,
+    bytes: u64,
+    deadline: Instant,
+) -> Result<(), RuntimeError> {
+    let candidate_file = owned(candidate)?;
     if candidate_file.metadata().map_err(error)?.len() != bytes {
         return Err(error("Prepared VM disk changed its admitted size"));
     }
     candidate_file.sync_all().map_err(error)?;
     remaining(deadline)?;
-    if let Some(original) = &original {
+    if let Some(original) = original {
         let before = original.metadata().map_err(error)?;
-        let current = fs::symlink_metadata(&path).map_err(error)?;
+        let current = fs::symlink_metadata(path).map_err(error)?;
         if before.dev() != current.dev() || before.ino() != current.ino() {
             return Err(RuntimeError::Conflict("VM disk changed during recovery".into()));
         }
-        fs::rename(&candidate, &path).map_err(error)?;
+        fs::rename(candidate, path).map_err(error)?;
     } else {
         rustix::fs::renameat_with(
             rustix::fs::CWD,
-            &candidate,
+            candidate,
             rustix::fs::CWD,
-            &path,
+            path,
             rustix::fs::RenameFlags::NOREPLACE,
         )
         .map_err(error)?;
     }
     File::open(directory).and_then(|directory| directory.sync_all()).map_err(error)?;
-    Ok(Prepared { path, created: original.is_none(), recovered: original.is_some() })
+    Ok(())
 }

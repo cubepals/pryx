@@ -4,11 +4,15 @@
 //! pins, one lifetime lease per sandbox and owned children prevent a second writable guest.
 //!
 //! Parts (`instance/`):
+//! - `configuration.rs`: generated SDK monitor configuration and drive identities.
+//! - `guest.rs`: private guest arguments and bootstrap assembly.
 //! - `launch.rs`: verified inputs, generated monitor configuration and guest bootstrap.
 //! - `agent.rs`: authenticated agent calls and one-shot compatibility exec.
 //! - `runtime.rs`: runtime verbs, observations and bounded event polling.
 //! - `tests.rs`: actual KVM lifecycle acceptance through the runtime seam.
 mod agent;
+mod configuration;
+mod guest;
 mod launch;
 mod runtime;
 #[cfg(test)]

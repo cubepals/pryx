@@ -3,39 +3,13 @@
 //! guest and expose only admitted TCP services. Spec secrets remain in the one-shot bootstrap.
 use super::*;
 use crate::runtime::{PortBinding, Proto};
-use pryx_agent::{
-    vm_boot::{self, Boot},
-    vm_monitor::{Plan, Role},
-};
+use pryx_agent::vm_monitor::{Plan, Role};
 use serde_json::Value;
-use std::process::Stdio;
-use tokio::{io::AsyncReadExt, process::Command, time::Instant};
+use tokio::time::Instant;
 
 const BOOT_TIMEOUT: Duration = Duration::from_secs(30);
 // Docker Engine HostConfig.NanoCpus uses billionths of a CPU; Bollard exports no conversion constant.
 const NANO_CPU: i64 = 1_000_000_000;
-
-async fn output(mut command: Command, deadline: Instant) -> Result<Vec<u8>, RuntimeError> {
-    command.env_clear().stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null()).kill_on_drop(true);
-    tokio::time::timeout_at(deadline, async {
-        let mut child = command.spawn().map_err(error)?;
-        let mut bytes = Vec::new();
-        child
-            .stdout
-            .take()
-            .ok_or_else(|| error("Missing VM configuration output"))?
-            .take(pryx_agent::vm_boot::MAX_BYTES as u64 + 1)
-            .read_to_end(&mut bytes)
-            .await
-            .map_err(error)?;
-        if bytes.len() > pryx_agent::vm_boot::MAX_BYTES || !child.wait().await.map_err(error)?.success() {
-            return Err(error("VM configurator refused its guest resources or drive paths"));
-        }
-        Ok(bytes)
-    })
-    .await
-    .map_err(|_| RuntimeError::Timeout("VM configuration exceeded its deadline".into()))?
-}
 
 pub(super) fn resources(spec: &ContainerSpec) -> Result<(u64, u32, u32, u32), RuntimeError> {
     let memory = u64::try_from(spec.memory_bytes).map_err(error)?;
@@ -124,155 +98,19 @@ impl VmRuntime {
         let serial = directory.path().join("serial");
         let config_path = directory.path().join("monitor.json");
         let deadline = Instant::now() + BOOT_TIMEOUT;
-        let mut arguments = vec![
-            "--kernel".into(),
-            bundle.root().join("kernel/vmlinux").display().to_string(),
-            "--root".into(),
-            bundle.root().join("bootstrap/bootstrap.erofs").display().to_string(),
-            "--writes".into(),
-            disk.path.display().to_string(),
-            "--socket".into(),
-            channel.display().to_string(),
-            "--init-mode".into(),
-            bundle.bootstrap().metadata.vm_init_mode.clone(),
-            "--memory-mib".into(),
-            memory.to_string(),
-            "--vcpus".into(),
-            cpus.to_string(),
-        ];
-        let ids = image.layers.iter().enumerate().map(|(i, _)| format!("layer{i}")).collect::<Vec<_>>();
-        for (id, layer) in ids.iter().zip(&image.layers) {
-            arguments.extend(["--layer".into(), format!("{id}={}", layer.display())]);
-        }
-        let configurator = bundle.root().join("bin/vm-config");
-        let mut command = Command::new(&configurator);
-        command.args(&arguments);
-        let config = output(command, deadline).await?;
-        crate::durable::write_atomic(&config_path, &config, 0o600).map_err(error)?;
-        let mut command = Command::new(&configurator);
-        command.args(&arguments).arg("--identities");
-        let identities: BTreeMap<String, String> =
-            serde_json::from_slice(&output(command, deadline).await?).map_err(error)?;
-        let mut command = Command::new(&configurator);
-        command.arg("--metadata");
-        let metadata: Value = serde_json::from_slice(&output(command, deadline).await?).map_err(error)?;
-        let cid = metadata["guestCid"]
-            .as_u64()
-            .and_then(|n| u32::try_from(n).ok())
-            .filter(|cid| vm_boot::guest_cid(*cid))
-            .ok_or_else(|| error("VM configurator omitted its guest CID"))?;
-        let write_id =
-            metadata["writeDrive"].as_str().ok_or_else(|| error("VM configurator omitted its writable drive ID"))?;
-        let boot_agent = entry.spec.agent.as_ref().ok_or_else(|| error("VM agent bootstrap is missing"))?;
-        let config = image.configuration.config().as_ref();
-        let mut environment = config
-            .and_then(|config| config.env().as_ref())
-            .into_iter()
-            .flatten()
-            .filter_map(|value| value.split_once('=').map(|(key, value)| (key.to_owned(), value.to_owned())))
-            .collect::<BTreeMap<_, _>>();
-        environment.extend(entry.spec.env.iter().cloned());
-        let mut agent_args = vec![
-            "--sandbox".into(),
-            boot_agent.sandbox.clone(),
-            "--epoch".into(),
-            boot_agent.epoch.to_string(),
-            "--data".into(),
-            entry.spec.mount_path.clone(),
-            "--domain".into(),
-            boot_agent.domain.clone(),
-            "--port".into(),
-            boot_agent.agent_port.to_string(),
-            "--secret-env".into(),
-            boot_agent.secret_env.clone(),
-            "--vm-port-base".into(),
-            vm_boot::SERVICE_PORT_BASE.to_string(),
-            "--entrypoint-cwd".into(),
-            entry
-                .spec
-                .workdir
-                .clone()
-                .or_else(|| config.and_then(|c| c.working_dir().clone()))
-                .filter(|path| !path.is_empty())
-                .unwrap_or_else(|| "/".into()),
-        ];
-        if let Some(origin) = &boot_agent.public_origin {
-            agent_args.extend(["--public-origin".into(), origin.clone()]);
-        }
-        if !boot_agent.spare_ports.is_empty() {
-            agent_args.extend([
-                "--spare-ports".into(),
-                boot_agent.spare_ports.iter().map(u16::to_string).collect::<Vec<_>>().join(","),
-            ]);
-        }
-        let declared = entry
-            .spec
-            .ports
-            .iter()
-            .map(|p| p.container_port)
-            .filter(|p| *p != boot_agent.agent_port && !boot_agent.spare_ports.contains(p))
-            .collect::<std::collections::BTreeSet<_>>();
-        if !declared.is_empty() {
-            agent_args.extend(["--vm-ports".into(), declared.iter().map(u16::to_string).collect::<Vec<_>>().join(",")]);
-        }
-        if boot_agent.keep_alive {
-            agent_args.push("--keep-alive".into());
-        }
-        let original = entry.spec.entrypoint.clone().unwrap_or_else(|| {
-            config
-                .into_iter()
-                .flat_map(|c| {
-                    c.entrypoint().clone().unwrap_or_default().into_iter().chain(c.cmd().clone().unwrap_or_default())
-                })
-                .collect()
-        });
-        if !boot_agent.keep_alive && !original.is_empty() {
-            agent_args.push("--".into());
-            agent_args.extend(original);
-        }
-        let nonce = uuid::Uuid::new_v4().simple().to_string();
-        let boot = Boot {
-            version: vm_boot::VERSION,
-            nonce: nonce.clone(),
-            cid,
-            layers: ids
-                .iter()
-                .map(|id| identities.get(id).cloned().ok_or_else(|| error("VM layer identity is missing")))
-                .collect::<Result<_, _>>()?,
-            writes: identities.get(write_id).cloned().ok_or_else(|| error("VM disk identity is missing"))?,
-            hostname: format!("pryx-{}", entry.id),
-            uid,
-            gid,
-            data: entry.spec.mount_path.clone(),
-            read_only_root: entry.spec.read_only_rootfs,
-            temporary_bytes: u64::from(entry.spec.tmp_size_mb) * 1024 * 1024,
-            pids_limit: entry.spec.pids_limit as u64,
-            arguments: agent_args,
-            environment: environment.into_iter().collect(),
-            network_arguments: None,
-            network: None,
-        };
-        let mut read = vec![
-            bundle.root().join("kernel/vmlinux"),
-            bundle.root().join("bootstrap/bootstrap.erofs"),
-            config_path.clone(),
-        ];
-        read.extend(image.layers);
-        let plan = Plan {
-            program: bundle.root().join("bin/firecracker"),
-            arguments: vec![
-                "--api-sock".into(),
-                api.display().to_string(),
-                "--config-file".into(),
-                config_path.display().to_string(),
-            ],
-            directory: directory.path().into(),
-            lock: lease,
-            parent: std::process::id(),
-            read,
-            write: vec![disk.path],
-            role: Role::Ordinary,
-        };
+        let configuration = super::configuration::configure(
+            &bundle,
+            &image,
+            &disk.path,
+            &channel,
+            &config_path,
+            (memory, cpus),
+            deadline,
+        )
+        .await?;
+        let boot = super::guest::boot(&entry.spec, &entry.id, &image, &configuration, (uid, gid))?;
+        let nonce = boot.nonce.clone();
+        let plan = plan(&bundle, image.layers, disk.path, directory.path(), lease, &api, &config_path);
         let mut monitor = Machine::launch(
             &bundle.root().join("bin/vm-launcher"),
             &plan,
@@ -302,28 +140,7 @@ impl VmRuntime {
         )
         .await?;
         monitor.delivered(deadline).await?;
-        // Only authenticated health reads retry. No exec, bootstrap, file write or shutdown does.
-        loop {
-            if monitor.exited().map_err(error)?.is_some() {
-                break;
-            }
-            if agent::raw(
-                &entry.spec,
-                hyper::Method::GET,
-                "/_pryx/health",
-                Value::Null,
-                crate::runtime::ENGINE_PROBE_TIMEOUT,
-            )
-            .await
-            .is_ok()
-            {
-                break;
-            }
-            if Instant::now() >= deadline {
-                return Err(RuntimeError::Timeout("VM agent did not become ready".into()));
-            }
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
+        ready(&mut monitor, &entry.spec, deadline).await?;
 
         self.state.live.lock().unwrap().insert(
             entry.id.clone(),
@@ -343,5 +160,57 @@ impl VmRuntime {
             entry.finished = None;
         }
         Ok(())
+    }
+}
+
+async fn ready(monitor: &mut Machine, spec: &ContainerSpec, deadline: Instant) -> Result<(), RuntimeError> {
+    // Only authenticated health reads retry. No exec, bootstrap, file write or shutdown does.
+    loop {
+        if monitor.exited().map_err(error)?.is_some() {
+            break;
+        }
+        if agent::raw(spec, hyper::Method::GET, "/_pryx/health", Value::Null, crate::runtime::ENGINE_PROBE_TIMEOUT)
+            .await
+            .is_ok()
+        {
+            break;
+        }
+        if Instant::now() >= deadline {
+            return Err(RuntimeError::Timeout("VM agent did not become ready".into()));
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    Ok(())
+}
+
+fn plan(
+    bundle: &Bundle,
+    layers: Vec<PathBuf>,
+    disk: PathBuf,
+    directory: &Path,
+    lease: PathBuf,
+    api: &Path,
+    config_path: &Path,
+) -> Plan {
+    let mut read = vec![
+        bundle.root().join("kernel/vmlinux"),
+        bundle.root().join("bootstrap/bootstrap.erofs"),
+        config_path.to_owned(),
+    ];
+    read.extend(layers);
+    Plan {
+        program: bundle.root().join("bin/firecracker"),
+        arguments: vec![
+            "--api-sock".into(),
+            api.display().to_string(),
+            "--config-file".into(),
+            config_path.display().to_string(),
+        ],
+        directory: directory.into(),
+        lock: lease,
+        parent: std::process::id(),
+        read,
+        write: vec![disk],
+        role: Role::Ordinary,
     }
 }

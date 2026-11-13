@@ -1079,3 +1079,5 @@
 - Transport VM port and activity snapshots in authenticated health reads with Routes scope; carry the typed in-memory observation through ContainerInfo so node views never need to mount a running guest disk or count polling as workload activity.
 
 - Copy VM disks only after orderly stop, staged recovery and independent read-only fsck, while holding the monitor lifetime lease; keep snapshot/export work owned across cancellation, reserve its running memory, and cold-resume only while execution and fencing authority remain valid.
+
+- Split SDK monitor configuration, private guest bootstrap and disk publication into separate functions; preserve launch ordering and all checks while meeting the existing daemon function-length gate without changing its baseline.

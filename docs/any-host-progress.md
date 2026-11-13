@@ -3019,3 +3019,12 @@ job when publication is authorized. That job has not run in this task.
   workspaces passes, but Rust Structure flags transaction (118 lines) and launch_entry
   (242), with a 100-line lint limit. Next split those functions in their own Move change;
   retain the gate/baseline. Scanner remains at eighteen addressed findings. K25 is in progress.
+
+
+- Move only: extract SDK monitor configuration and private guest bootstrap into instance/
+  configuration.rs and guest.rs; extract readiness, confinement-plan assembly and atomic disk
+  publication into focused functions. Preserve the original order, inputs, checks, deadlines
+  and assertions. The daemon function-length probe now has no diagnostics; its agent dependency
+  reports three existing length warnings outside that daemon gate. Normal strict workspace
+  Clippy/fmt pass; full local Rust remains 502 passes, one known IPv6 failure and 34 ignored.
+  CI must confirm the complete Structure gate. Continue stopped-VM node file APIs next.
