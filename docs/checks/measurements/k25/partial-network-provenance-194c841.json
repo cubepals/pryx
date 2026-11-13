@@ -1,0 +1,13 @@
+{
+  "source": "194c841",
+  "run": 43456439308,
+  "job": 131991706889,
+  "conclusion": "failure",
+  "artifactId": 14054486589,
+  "artifactSha256": "db64f8f0f1a778e8d36385de65dc292d65daeaccff9be428e03527d2f759feea",
+  "scope": "Thirty vsock and fourteen pasta guests pass; next pasta bulk transfer stalls with a non-guest MAC learned mid-transfer; independent no-userns/no-TUN vsock guest passes both management denials",
+  "vsockSamples": 30,
+  "pastaSamples": 14,
+  "prerequisiteGuests": 1,
+  "prerequisiteStatus": "success"
+}

@@ -76,3 +76,17 @@ That stall remains unresolved. The next run adds bounded upstream pasta logs and
 TCP_INFO observation before the same deadline; it changes neither the deadline nor the transfer.
 The separate missing-prerequisite case runs independently of the comparison's outcome, while
 the aggregate still fails if any original comparison assertion fails.
+
+Source `194c841` independently passes the full vsock guest with host user namespaces disabled
+and host TUN inaccessible; pasta refuses actual namespace creation. The guest still proves DNS,
+HTTP, bulk transfer and both management denials. This case has one guest and its own report;
+it does not replace either thirty-sample cohort. The same run retains a later pasta transfer
+stall, so the aggregate is failed.
+
+Choose the maintained vsock helper for rootless production networking: its measured HTTP and
+throughput cost is acceptable for the broader proved prerequisites. Rootful networking still
+needs its separate jailer/TAP/firewall implementation and proof. The repeated pasta diagnostic
+shows its learned guest MAC changing to a namespace-interface MAC during a transfer; the guest
+TCP receive window remains open. Test suppression of private bridge IPv6 control traffic in
+the already IPv4-only comparison, and retain actual link MACs and per-interface IPv6 settings.
+The initial host namespace must remain untouched. This suspected cause still needs CI proof.

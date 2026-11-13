@@ -2291,3 +2291,30 @@ job when publication is authorized. That job has not run in this task.
   failure, once its actual positive runner setup succeeded; retain the original
   failure in the aggregate. No assertion is skipped, and its single guest remains
   clearly separate from the two original thirty-sample cohorts. No piece is parked.
+- Diagnostic source 194c841
+  [43456439308](https://github.com/cubepals/pryx/actions/runs/43456439308/job/131991706889)
+  passes all thirty vsock guests and fourteen pasta guests before another pasta
+  bulk stall. Preserve its full partial report, failed serial, bounded helper
+  log and provenance. The real guest TCP_INFO observation succeeds before the
+  unchanged deadline: receive window remains 1,091,200 bytes, with no guest
+  retransmits. The helper changes its learned guest MAC away from the VM during
+  the bulk transfer; the precise private-interface mapping is not yet retained.
+- That same failed aggregate independently passes the missing-prerequisite case.
+  Retain network-prerequisites-194c841.json: host user.max_user_namespaces is
+  zero, host TUN access is false, actual pasta namespace creation refuses, and
+  the full vsock guest passes both management denials, DNS, HTTP and bulk. Its
+  single guest is separate from every thirty-sample comparison; it does not
+  erase the pasta failure. The kernel spike remains proved, and no piece is parked.
+- Finalize the rootless network choice as maintained gvisor-tap-vsock 0.9.0,
+  using the same-runner positive numbers in the recorded spike account and the
+  real missing-prerequisite proof. Both required input spikes now have decisions;
+  the pasta repeat failure remains active work, not a hidden pass or parked piece.
+  Production VM bundle/OCI/agent/backend, rootless confinement and rootful
+  jailer/TAP/firewall, lifecycle, refusal and full timings remain unimplemented.
+- For the suspected bridge-control cause, disable IPv6 only inside the already
+  verified private IPv4-only TAP namespace, before making its bridge. Read back
+  every actual interface setting and retain the real link addresses. The initial
+  namespace/UID-map guards run before mutations. A real local initial-namespace
+  invocation refuses with no topology record; this executor exposes no IPv6
+  sysctl knobs, so the positive namespace change remains strictly CI-only.
+  Python compilation, complete actionlint/ShellCheck, docs and whitespace pass.
