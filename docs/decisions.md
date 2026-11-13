@@ -1063,3 +1063,5 @@
 - K25: carry opaque VM TCP streams with HTTP/2 CONNECT using the existing pinned hyper/h2 (MIT) and the pinned Go 1.27.3 standard library (BSD-3-Clause) libraries; the pinned Firecracker turns Unix EOF into bidirectional shutdown, so library-owned stream end markers preserve half-close without hand-written framing or application-byte retries.
 
 - K25: preserve kernel-reported sparse file holes after reflink refusal in the existing no-follow copy path, retaining apparent-byte admission and cancellation checks; VM snapshots and staged ext4 recovery must not allocate every unwritten guest block.
+
+- K25: serialize writable ext4 preparation with the monitor lease, check current disks read-only, run automatic preen only on a complete staged sparse copy, and publish after independent read-only verification and fsync; a damaged disk or resizing request is refused without replacing current data.

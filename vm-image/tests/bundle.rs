@@ -2,8 +2,21 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! The real assembled static VM bundle is verified before execution and after lazy HTTP
 //! acquisition. Digest, missing/extra member, mode and link failures cannot publish compute.
-use pryxd::runtime::vm::bundle::{Artifact, Bundle};
-use std::{fs, os::unix::fs::PermissionsExt, path::PathBuf};
+use pryxd::runtime::{
+    RuntimeError,
+    vm::{
+        bundle::{Artifact, Bundle},
+        disk,
+        filesystems::sha256,
+    },
+};
+use std::{
+    fs,
+    io::Read,
+    os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt},
+    path::PathBuf,
+    time::Duration,
+};
 use tokio::io::AsyncReadExt;
 
 fn input(name: &str) -> PathBuf {
@@ -30,6 +43,7 @@ async fn actual_bundle_acquires_whole_and_refuses_changed_inputs() {
     assert_eq!(capability.vm_monitor_version, verified.bootstrap().metadata.vm_monitor_version);
     assert_eq!(capability.vm_service_port_base, pryx_agent::vm_boot::SERVICE_PORT_BASE);
     assert!(!verified.filesystems().identity().is_empty());
+    writable_disk(verified.filesystems()).await;
     let directory = tempfile::tempdir().unwrap();
     let cache = directory.path().join("cache");
     let downloads = directory.path().join("downloads");
@@ -86,4 +100,116 @@ async fn actual_bundle_acquires_whole_and_refuses_changed_inputs() {
     std::os::unix::fs::symlink(root.join("kernel/vmlinux"), &kernel).unwrap();
     assert!(Bundle::verified(&changed, &artifact.manifest_sha256).is_err());
     println!("Actual bundle: whole acquisition, offline reuse and all corruption refusals passed");
+}
+
+async fn writable_disk(tools: &pryxd::runtime::vm::filesystems::FilesystemTools) {
+    let temporary = tempfile::tempdir().unwrap();
+    let root = temporary.path().join("data");
+    fs::DirBuilder::new().mode(0o700).create(&root).unwrap();
+    let lease = temporary.path().join("monitor.lock");
+    let size = 64 * 1024 * 1024;
+    let timeout = Duration::from_secs(15);
+    let prepared = disk::prepare(tools, &root, &lease, size, timeout, 0).await.unwrap();
+    assert!(prepared.created && !prepared.recovered);
+    assert_eq!(prepared.path, root.join(disk::FILE));
+    assert_eq!(fs::metadata(&prepared.path).unwrap().len(), size);
+    let before = fs::metadata(&prepared.path).unwrap().ino();
+    let original = sha256(fs::File::open(&prepared.path).unwrap()).unwrap();
+    let again = disk::prepare(tools, &root, &lease, size, timeout, 0).await.unwrap();
+    assert!(!again.created && !again.recovered);
+    assert_eq!(fs::metadata(&again.path).unwrap().ino(), before);
+    assert_eq!(sha256(fs::File::open(&again.path).unwrap()).unwrap(), original);
+    let lock = fs::OpenOptions::new().read(true).write(true).open(&lease).unwrap();
+    rustix::fs::flock(&lock, rustix::fs::FlockOperation::NonBlockingLockExclusive).unwrap();
+    assert!(matches!(disk::prepare(tools, &root, &lease, size, timeout, 0).await, Err(RuntimeError::Conflict(_))));
+    drop(lock);
+    assert!(disk::prepare(tools, &root, &lease, size + 1, timeout, 0).await.is_err());
+    assert!(disk::prepare(tools, &root, &lease, size, timeout, u64::MAX).await.is_err());
+    assert_eq!(sha256(fs::File::open(&again.path).unwrap()).unwrap(), original);
+    fs::remove_file(&again.path).unwrap();
+    let outside = temporary.path().join("outside");
+    fs::write(&outside, b"outside the disk directory").unwrap();
+    std::os::unix::fs::symlink(&outside, &again.path).unwrap();
+    assert!(disk::prepare(tools, &root, &lease, size, timeout, 0).await.is_err());
+    assert_eq!(fs::read(&outside).unwrap(), b"outside the disk directory");
+    fs::remove_file(&again.path).unwrap();
+    let file = fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&again.path).unwrap();
+    file.set_len(size).unwrap();
+    let corrupt = sha256(fs::File::open(&again.path).unwrap()).unwrap();
+    assert!(disk::prepare(tools, &root, &lease, size, timeout, 0).await.is_err());
+    assert_eq!(
+        sha256(fs::File::open(&again.path).unwrap()).unwrap(),
+        corrupt,
+        "Failed recovery must preserve the entire current disk"
+    );
+    assert_eq!(fs::read_dir(&root).unwrap().count(), 1);
+    fs::remove_file(&again.path).unwrap();
+    let fixture = upstream_recovery_fixture();
+    let fixture_file = fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&again.path).unwrap();
+    use std::io::Write;
+    (&fixture_file).write_all(&fixture).unwrap();
+    fixture_file.sync_all().unwrap();
+    drop(fixture_file);
+    let old = fs::File::open(&again.path).unwrap();
+    let old_digest = sha256(old.try_clone().unwrap()).unwrap();
+    let before = old.metadata().unwrap().ino();
+    assert!(
+        !tools
+            .builder("e2fsck")
+            .args(["-f", "-n"])
+            .arg(&again.path)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .unwrap()
+            .success()
+    );
+    let recovered = disk::prepare(tools, &root, &lease, fixture.len() as u64, timeout, 0).await.unwrap();
+    assert!(recovered.recovered && !recovered.created);
+    assert_ne!(fs::metadata(&recovered.path).unwrap().ino(), before);
+    use std::io::{Seek, SeekFrom};
+    let mut old = old;
+    old.seek(SeekFrom::Start(0)).unwrap();
+    assert_eq!(sha256(old).unwrap(), old_digest, "The old inode must stay intact during recovery");
+    assert_ne!(sha256(fs::File::open(&recovered.path).unwrap()).unwrap(), old_digest);
+    assert!(
+        tools
+            .builder("e2fsck")
+            .args(["-f", "-n"])
+            .arg(&recovered.path)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .unwrap()
+            .success()
+    );
+    println!(
+        "Actual filesystems: ext4 create/reuse, active lease and unsafe input refusals, failed recovery preservation and staged upstream-fixture repair passed"
+    );
+}
+
+fn upstream_recovery_fixture() -> Vec<u8> {
+    let inputs: serde_json::Value =
+        serde_json::from_str(include_str!("../../templates/vm-tools/filesystem-inputs.json")).unwrap();
+    let owner = inputs["sources"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|source| source["origin"] == "e2fsprogs" && source["archive"] == true)
+        .unwrap();
+    let source = input("PRYX_VM_FILESYSTEM_COMPONENT").join("sources/e2fsprogs").join(owner["name"].as_str().unwrap());
+    assert_eq!(sha256(fs::File::open(&source).unwrap()).unwrap(), owner["sha256"].as_str().unwrap());
+    let mut archive = tar::Archive::new(flate2::read::GzDecoder::new(fs::File::open(source).unwrap()));
+    for entry in archive.entries().unwrap() {
+        let mut entry = entry.unwrap();
+        if entry.path().unwrap().ends_with("tests/f_bad_bbitmap/image.gz") {
+            // Keep this GPL upstream filesystem fixture a separate build input. No owner
+            // code or image bytes are copied into pryx or embedded in its executable.
+            let mut fixture = Vec::new();
+            flate2::read::GzDecoder::new(&mut entry).take(8 * 1024 * 1024 + 1).read_to_end(&mut fixture).unwrap();
+            assert!(!fixture.is_empty() && fixture.len() <= 8 * 1024 * 1024);
+            return fixture;
+        }
+    }
+    panic!("Pinned e2fsprogs source lacks its primary recovery fixture");
 }

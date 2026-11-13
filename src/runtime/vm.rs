@@ -7,7 +7,9 @@
 //! - `filesystems.rs`: verify the host-owned filesystem component before external execution.
 //! - `image.rs`: bounded private-pipe contract with the independent OCI helper.
 //! - `bundle.rs`: whole-release verification and lazy acquisition of pinned VM inputs.
+//! - `disk.rs`: leased ext4 creation, read-only validation and staged safe recovery.
 pub mod bundle;
+pub mod disk;
 pub mod filesystems;
 pub mod image;
 

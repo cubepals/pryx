@@ -69,7 +69,7 @@ fn invalid() -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, "VM bundle differs from its pinned inventory")
 }
 
-fn ancestors(path: &Path) -> io::Result<()> {
+pub(super) fn ancestors(path: &Path) -> io::Result<()> {
     if !path.is_absolute() {
         return Err(invalid());
     }

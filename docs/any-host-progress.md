@@ -2834,3 +2834,36 @@ job when publication is authorized. That job has not run in this task.
   Retain raw failed jobs and the cancellation inventory outside the repository; cancellations
   are not passes. Preserve 2969a46's full normal/host baseline and the latest HTTP/2 runs.
   Additional old ccd8221 control job 132137784482 has the known pre-regeneration docs drift.
+
+
+- Source 28e2ec4's full optional VM run
+  [43508458035](https://github.com/cubepals/pryx/actions/runs/43508458035), job 132172138729,
+  is green. All six Alpine/Debian KVM boots pass the unchanged exact HTTP/2 forwarding
+  assertions: 16 MiB binary file round trips and 64 KiB opaque payloads with replies after
+  client write EOF. All previous confinement/lease, authenticated process/file, host isolation,
+  signed shutdown/replay, read-only fsck and persistent-reboot assertions pass; both networked
+  boots still pass DHCP/DNS/HTTP and management denials. Whole same-source launcher bundle
+  acquisition/offline/corruption verification passes too. Summary: forwarding-28e2ec4.json;
+  raw evidence stays in that CI artifact. No production backend/edge/root/firewall/timing
+  success is inferred. PR 21 still has the same eighteen addressed scanner comments.
+
+
+- K25 writable-disk checkpoint: a host-owned preparation transaction holds the same kernel
+  lease as the monitor before touching data. New ext4 images are made beside current data,
+  verified read-only, fsynced and atomically published without replacing an existing name.
+  Existing valid disks keep their inode and bytes. Recovery uses the existing no-follow,
+  sparse copy and safe automatic preen on the staged image, followed by an independent
+  read-only check and atomic replacement. Size changes, unknown members, links, active
+  monitors, space-floor failures and unsafe recovery are refused. Cancellation leaves the
+  owned transaction running to completion; deadlines remain inside its bounded stages.
+- Actual local component/bundle acceptance passes in 6.49 s: 64 MiB ext4 create/reuse,
+  unchanged hashes, active lease/size/floor/link refusals, whole original-disk preservation
+  after failed recovery, and successful staged repair of e2fsprogs' own damaged-bitmap fixture.
+  The pinned source archive is hashed against its owning input before the bounded fixture
+  is read. No upstream code/data is copied into the repository or linked into pryxd. The
+  test-only tar dependency is an existing pinned package; the lock adds one dependency edge.
+  Full local Rust remains 498 passes, the same IPv6 failure and 33 ignored cases; strict
+  root/helper Clippy, fmt and actionlint pass. Existing optional bundle CI now runs these
+  actual filesystem assertions; no new gate/job, under one optional second and no PR minute.
+  This is still preparation only: production backend lifecycle, root jailer/helper confinement,
+  edge/data API integration and required production measurements are not yet proved.
