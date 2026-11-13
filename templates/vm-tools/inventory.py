@@ -14,6 +14,7 @@ import json
 import os
 from pathlib import Path
 import re
+import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -87,18 +88,20 @@ def source_commit(repository, tag):
     raise ValueError('Release tag indirection exceeds its bound')
 
 
-def archive_digest(asset, expected_digest):
+def archive_digest(asset, expected_digest, cache=None):
     expected_size = asset['size']
     if not isinstance(expected_size, int) or not 0 < expected_size <= MAX_ARCHIVE_BYTES:
         raise ValueError('VM candidate archive size exceeds its bound')
 
-    def read(response):
+    def read(response, destination=None):
         digest, size = hashlib.sha256(), 0
         while block := response.read(READ_BYTES):
             size += len(block)
             if size > expected_size:
                 raise ValueError('VM candidate archive exceeds its declared size')
             digest.update(block)
+            if destination is not None:
+                destination.write(block)
         if size != expected_size:
             raise ValueError('VM candidate archive is incomplete')
         actual = digest.hexdigest()
@@ -108,11 +111,30 @@ def archive_digest(asset, expected_digest):
         if declared is not None and declared != f'{digest.name}:{actual}':
             raise ValueError('VM candidate differs from its upstream release digest')
         return actual
+    if cache is not None:
+        cache.mkdir(parents=True, exist_ok=True, mode=0o700)
+        cached = cache / (expected_digest + '.archive')
+        if cached.exists():
+            with cached.open('rb') as source:
+                return read(source)
+
+        def save(response):
+            temporary = None
+            try:
+                with tempfile.NamedTemporaryFile(dir=cache, delete=False) as output:
+                    temporary = Path(output.name)
+                    actual = read(response, output)
+                temporary.replace(cached)
+                return actual
+            finally:
+                if temporary is not None:
+                    temporary.unlink(missing_ok=True)
+        return request(asset['browser_download_url'], save)
     # No API credential is attached to the public archive request or its redirects.
     return request(asset['browser_download_url'], read)
 
 
-def inventory(candidate):
+def inventory(candidate, cache=None):
     repository, tag = candidate['repository'], candidate['tag']
     if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repository):
         raise ValueError('Invalid upstream repository identity')
@@ -124,11 +146,14 @@ def inventory(candidate):
         names = [asset['name'] for asset in release['assets']]
         raise ValueError(f'Candidate must select one published archive: {names}')
     asset = assets[0]
-    result = {**candidate, 'sourceCommit': source_commit(repository, tag),
+    commit = source_commit(repository, tag)
+    if commit != candidate['sourceCommit']:
+        raise ValueError('Release source differs from its committed identity')
+    result = {**candidate, 'sourceCommit': commit,
               'releaseUrl': release['html_url'], 'assetId': asset['id'],
               'assetName': asset['name'], 'url': asset['browser_download_url'],
               'bytes': asset['size'], 'upstreamDigest': asset.get('digest'),
-              'sha256': archive_digest(asset, candidate['sha256']), 'executed': False}
+              'sha256': archive_digest(asset, candidate['sha256'], cache), 'executed': False}
     print(json.dumps(result), flush=True)
     return result
 
@@ -137,12 +162,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--catalog', type=Path, default=ROOT / 'candidates.json')
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--archive-cache', type=Path)
     args = parser.parse_args()
     report = {'scope': 'Primary published candidate archives, hashed but never executed; not VM-tier proof',
               'candidates': []}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     for candidate in json.loads(args.catalog.read_text()):
-        report['candidates'].append(inventory(candidate))
+        report['candidates'].append(inventory(candidate, args.archive_cache))
         args.output.write_text(json.dumps(report, indent=2) + '\n')
 
 

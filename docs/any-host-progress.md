@@ -2068,3 +2068,17 @@ job when publication is authorized. That job has not run in this task.
   checks and whitespace pass. Upstream release inventory is left for CI because
   this executor reaches only the pryx GitHub repository; no inventory success,
   published-kernel boot or network result is claimed locally.
+- K25 input source 13d4f5b has green published-archive inventory
+  [43437923851](https://github.com/cubepals/pryx/actions/runs/43437923851/job/131927717596).
+  The entire hosted job takes eleven seconds, verifying 7,606,252 Firecracker
+  bytes and 1,021,129,805 Kata bytes against both committed and actual upstream
+  digests. Retain input-inventory-13d4f5b.json and pin the observed source commits;
+  a moved tag is now refused. No monitor or kernel was executed in that result.
+- Extend that same optional job with a verified private archive cache and streamed
+  inspection. Only bounded regular kernel/monitor bytes become content-addressed
+  files; archive paths and links never become host paths. Preserve configurations,
+  links and exact member hashes for boot selection. The reviewed external zstd
+  command decodes the Kata archive. Local real tar/zstd controls pass for path
+  escape, untraversed links, configuration retention, repeated staging and corrupt
+  or truncated cache rejection; Python compilation, documentation checks,
+  actionlint and whitespace pass. Real published-member inspection is left to CI.

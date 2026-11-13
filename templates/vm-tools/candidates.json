@@ -8,7 +8,8 @@
     "licenceUrl": "https://github.com/firecracker-microvm/firecracker/blob/v1.18.0/LICENSE",
     "purpose": "Separate monitor and jailer; no Nitro or emulated fallback",
     "sha256": "1ac8eec866dd5eea14efecf6323e22b23eea24054545338a5b34bc5bca6623cd",
-    "digestSource": "https://github.com/firecracker-microvm/firecracker/releases/expanded_assets/v1.18.0"
+    "digestSource": "https://github.com/firecracker-microvm/firecracker/releases/expanded_assets/v1.18.0",
+    "sourceCommit": "eaf83bb718a559d324613d566eaf776b31a62340"
   },
   {
     "name": "kata-kernel-candidate",
@@ -22,6 +23,7 @@
     "configurationSource": "https://github.com/kata-containers/kata-containers/tree/4.3.1/tools/packaging/kernel",
     "purpose": "Published guest kernel only; boot/configuration proof required before selection",
     "sha256": "1463a2b86845f4d3d8e87f2f764ec59856fc0fee3520967a79ade32762be2e97",
-    "digestSource": "https://github.com/kata-containers/kata-containers/releases/expanded_assets/4.3.1"
+    "digestSource": "https://github.com/kata-containers/kata-containers/releases/expanded_assets/4.3.1",
+    "sourceCommit": "03cf2ec06a5d302f23af811744f6bcea49988bfb"
   }
 ]

@@ -29,7 +29,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 templates/vm-tools/inventory.py \
+            --archive-cache "$RUNNER_TEMP/vm-archives" \
             --output "$RUNNER_TEMP/vm-candidate-inventory.json" | tee "$RUNNER_TEMP/vm-input-inventory.log"
+      - name: Inspect published kernels and their archive configurations
+        run: |
+          zstd --version
+          python3 templates/vm-tools/inspect.py \
+            --inventory "$RUNNER_TEMP/vm-candidate-inventory.json" \
+            --archive-cache "$RUNNER_TEMP/vm-archives" \
+            --staged "$RUNNER_TEMP/vm-selected-files" \
+            --output "$RUNNER_TEMP/vm-archive-inspection.json" | tee "$RUNNER_TEMP/vm-archive-inspection.log"
       - name: Retain candidate identities and actual digests
         if: always()
         uses: ./.github/actions/upload-evidence
@@ -38,4 +47,6 @@ jobs:
           path: |
             ${{ runner.temp }}/vm-candidate-inventory.json
             ${{ runner.temp }}/vm-input-inventory.log
+            ${{ runner.temp }}/vm-archive-inspection.json
+            ${{ runner.temp }}/vm-archive-inspection.log
           if-no-files-found: error

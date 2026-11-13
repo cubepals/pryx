@@ -8,6 +8,7 @@ Parts (`vm-tools/`):
 
 - `candidates.json`: versioned primary monitor/kernel candidates, upstream archive digests and licences.
 - `inventory.py`: bounded primary metadata/archive acquisition, source identity and SHA-256.
+- `inspect.py`: bounded streamed member inspection and regular-file staging by content digest.
 
 The inventory workflow runs on `any-host` pushes while manual dispatch is unavailable before
 main. Its output records upstream asset identities, actual byte hashes and source commits.
