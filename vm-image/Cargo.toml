@@ -29,6 +29,10 @@ reqwest = { version = "0.12", default-features = false }
 rustls = { version = "0.23.45", default-features = false, features = ["ring", "std"] }
 rustix = { version = "1", features = ["process"] }
 
+[dev-dependencies]
+pryx-agent = { path = "../agent", default-features = false, features = ["server"] }
+base64 = "0.23"
+
 [lints.rust]
 unsafe_code = "deny"
 unreachable_pub = "warn"

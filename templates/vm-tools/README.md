@@ -17,6 +17,7 @@ Parts (`vm-tools/`):
 - `go.mod` and `go.sum`: checksum-pinned Go experiment dependencies.
 - `experiment/experiment.go`: application-owned report port for both fixture programs.
 - `cmd/config/main.go`: configuration through the monitor owner's generated models.
+- `cmd/agent/main.go`: bounded private-stdin HTTP transport through the SDK-owned vsock dialer.
 - `cmd/guest/main.go`: static PID 1 filesystem and vsock probe.
 - `kernel.py`: thirty real ordinary-user KVM boots and a disk-retaining reboot.
 - `network/`: separate network module, pinned inputs, licences, wrapper and guest probe (see its README).
@@ -29,6 +30,7 @@ Parts (`vm-tools/`):
 - `image-inputs.json`: actual upstream manifest digests for real daemonless Alpine/Debian image acceptance.
 - `cross-inputs.json` and `cross.py`: signed build-only musl headers/libc and complete source identity.
 - `kernel-source.json`: full published-kernel source archive pin from its primary checksum list.
+- `agent_acceptance.py`: verified published inputs for actual-agent KVM boots and durable disk reboots.
 - `bootstrap.py`: fixed read-only EROFS bootstrap from the actual static agent and its advertised marker.
 
 The inventory workflow runs on `any-host` pushes while manual dispatch is unavailable before

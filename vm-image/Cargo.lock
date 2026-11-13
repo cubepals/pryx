@@ -3228,12 +3228,14 @@ name = "pryx-vm-image"
 version = "0.0.0"
 dependencies = [
  "axum",
+ "base64 0.23.1",
  "flate2",
  "futures-util",
  "hex",
  "libc",
  "oci-client",
  "oci-spec",
+ "pryx-agent",
  "pryxd",
  "reqwest 0.12.28",
  "rustix",

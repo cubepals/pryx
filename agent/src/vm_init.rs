@@ -125,7 +125,12 @@ fn prepare(boot: &Boot) -> io::Result<File> {
     let work = DataDir::open(Path::new(WORK))?;
     let block = devices()?;
     let device = |id: &str| {
-        block.get(id).and_then(|path| path.to_str()).ok_or_else(|| invalid("VM kernel lacks a configured block serial"))
+        let mut matches = block.iter().filter(|(serial, _)| !serial.is_empty() && id.starts_with(serial.as_str()));
+        let path = matches.next().map(|(_, path)| path);
+        if matches.next().is_some() {
+            return Err(invalid("VM kernel block serial is ambiguous"));
+        }
+        path.and_then(|path| path.to_str()).ok_or_else(|| invalid("VM kernel lacks a configured block serial"))
     };
     filesystem(device(&boot.writes)?, Path::new("/write"), "ext4", MountFlags::NOSUID | MountFlags::NODEV, "")?;
     let sync = File::open("/write")?;

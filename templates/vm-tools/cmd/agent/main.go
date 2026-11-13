@@ -15,6 +15,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/firecracker-microvm/firecracker-go-sdk/client/models"
 	"github.com/firecracker-microvm/firecracker-go-sdk/vsock"
 )
 
@@ -29,6 +30,7 @@ type request struct {
 	Token      string          `json:"token"`
 	Body       json.RawMessage `json:"body"`
 	BinaryBody []byte          `json:"binaryBody"`
+	Stop       bool            `json:"stop"`
 }
 
 func run() error {
@@ -45,10 +47,13 @@ func run() error {
 	if err := decoder.Decode(&input); err != nil {
 		return fmt.Errorf("Invalid private agent request")
 	}
-	if input.Socket == "" || input.Port == 0 || input.Token == "" || input.Path == "" || input.Path[0] != '/' {
+	if input.Socket == "" || (!input.Stop && (input.Port == 0 || input.Token == "" || input.Path == "" || input.Path[0] != '/')) {
 		return fmt.Errorf("Incomplete private agent request")
 	}
 	transport := &http.Transport{DisableKeepAlives: true, DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+		if input.Stop {
+			return (&net.Dialer{}).DialContext(ctx, "unix", input.Socket)
+		}
 		return vsock.DialContext(ctx, input.Socket, input.Port)
 	}}
 	defer transport.CloseIdleConnections()
@@ -58,11 +63,22 @@ func run() error {
 	if input.BinaryBody != nil {
 		data = input.BinaryBody
 	}
+	if input.Stop {
+		// The generated SDK operations/create_sync_action.go owns this private API path.
+		const monitorActionsPath = "/actions"
+		input.Method, input.Path = http.MethodPut, monitorActionsPath
+		data, err = json.Marshal(&models.InstanceActionInfo{ActionType: new(models.InstanceActionInfoActionTypeSendCtrlAltDel)})
+		if err != nil {
+			return err
+		}
+	}
 	message, err := http.NewRequest(input.Method, "http://agent.pryx.invalid"+input.Path, bytes.NewReader(data))
 	if err != nil {
 		return fmt.Errorf("Invalid agent HTTP request")
 	}
-	message.Header.Set("Authorization", "Bearer "+input.Token)
+	if !input.Stop {
+		message.Header.Set("Authorization", "Bearer "+input.Token)
+	}
 	message.Header.Set("Content-Type", "application/json")
 	response, err := client.Do(message)
 	if err != nil {

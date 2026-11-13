@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"syscall"
 
 	"cubepals/pryx/vm-experiment/experiment"
 	"github.com/firecracker-microvm/firecracker-go-sdk/client/models"
@@ -24,6 +25,7 @@ func main() {
 	socket := flag.String("socket", "", "Private monitor vsock path")
 	tap := flag.String("tap", "", "Optional private network namespace TAP for the comparison")
 	metadata := flag.Bool("metadata", false, "Print experiment-owned transport metadata")
+	identities := flag.Bool("identities", false, "Print backing-file identities for the configured guest disks")
 	initMode := flag.String("init-mode", "", "Optional mode supported by the actual trusted guest executable")
 	var layers []*models.Drive
 	flag.Func("layer", "Additional read-only OCI drive as ID=PATH", func(value string) error {
@@ -39,6 +41,7 @@ func main() {
 		if err := json.NewEncoder(os.Stdout).Encode(map[string]any{
 			"reportPort": experiment.ReportPort, "networkPort": experiment.NetworkPort,
 			"rootDrive": experiment.RootDrive, "writeDrive": experiment.WriteDrive,
+			"guestCid":         vsock.Host + 1,
 			"network":          experiment.NetworkFixture(),
 			"networkBulkBytes": experiment.NetworkBulkBytes, "networkHello": experiment.NetworkHello,
 			"networkHelloPath": experiment.NetworkHelloPath, "networkBulkPath": experiment.NetworkBulkPath,
@@ -68,6 +71,7 @@ func main() {
 	config.Drives = append(config.Drives, layers...)
 	if *initMode != "" {
 		config.BootSource.BootArgs += " -- " + *initMode
+		config.Drives[1].CacheType = new(models.DriveCacheTypeWriteback)
 	}
 	if *tap != "" {
 		config.NetworkInterfaces = []*models.NetworkInterface{{
@@ -76,6 +80,27 @@ func main() {
 	}
 	if err := config.Validate(strfmt.Default); err != nil {
 		log.Fatal(err)
+	}
+	if *identities {
+		result := map[string]string{}
+		for _, drive := range config.Drives {
+			info, err := os.Stat(*drive.PathOnHost)
+			if err != nil {
+				log.Fatal(err)
+			}
+			stat, ok := info.Sys().(*syscall.Stat_t)
+			if !ok {
+				log.Fatal("Disk identity requires Linux file metadata")
+			}
+			// Firecracker 1.18.0 DiskProperties::build_device_id, in
+			// src/vmm/src/devices/virtio/block/virtio/device.rs, has no exported API.
+			// Send the full identity; guest sysfs supplies the actual virtio truncation.
+			result[*drive.DriveID] = fmt.Sprintf("%d%d%d", stat.Dev, stat.Rdev, stat.Ino)
+		}
+		if err := json.NewEncoder(os.Stdout).Encode(result); err != nil {
+			log.Fatal(err)
+		}
+		return
 	}
 	if err := json.NewEncoder(os.Stdout).Encode(config); err != nil {
 		log.Fatal(err)

@@ -2484,3 +2484,24 @@ job when publication is authorized. That job has not run in this task.
   Docker/KVM/distribution and the new guest-init lifecycle proof did not run here.
   Continue with real-KVM agent acceptance, then the complete VM bundle/backend,
   confinement, lifecycle and required timings before K26. Nothing is parked.
+
+- Correct the unadvertised init checkpoint's disk discovery before real boot:
+  Firecracker's API drive ID is not its kernel-visible serial. Use the pinned
+  monitor's actual backing-file identity and guest-reported truncation, refusing
+  missing, duplicate or ambiguous matches. The mutable disk selects the SDK's
+  Writeback cache mode so a successful guest flush reaches monitor fsync. Leave
+  the original minimal/network fixture configuration and cohorts unchanged.
+- Add explicit real-KVM Cargo acceptance to the existing optional VM job: boot
+  the actual static agent on both pinned OCI images, exercise authenticated
+  process/file APIs, check non-root guest identity and a different kernel, deny
+  host-file access and a host-process signal, send one typed monitor shutdown,
+  verify the boot-scoped signed clean-disk proof and read-only e2fsck, then boot
+  the same ext4 disk again and verify persistent data. Retain failed serial logs,
+  non-secret monitor configurations and the actual report as evidence. Secrets
+  stay in memory and bounded private stdin; no exec/write/stop HTTP retry occurs.
+  This acceptance compiles and passes strict helper Clippy locally; it did not
+  execute here because this machine has no KVM. CI proof is pending.
+- The optional job gains an estimated additional one minute for four actual
+  agent boots and shutdown checks, with zero ordinary PR minutes and no new gate
+  or test system. Production bundle acquisition, confinement, network/backend,
+  node lifecycle and thirty-sample production measurements remain required.

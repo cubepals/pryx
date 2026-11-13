@@ -17,7 +17,8 @@ pub fn marker() -> Vec<u8> {
     format!("pryx-vm-bootstrap-{VERSION}\n").into_bytes()
 }
 
-/// Drive IDs identify kernel virtio block serials, never host-selected guest paths.
+/// Full backing-file identities match the monitor's kernel-visible disk serial prefixes,
+/// never host-selected guest paths. A truncated or ambiguous match is refused.
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Boot {
