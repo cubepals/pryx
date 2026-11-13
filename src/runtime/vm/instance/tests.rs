@@ -128,6 +128,14 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
         assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Running);
         assert_eq!(exec(&runtime, &id, "printf durable > /data/retained; printf ready").await, b"ready");
         assert_eq!(exec(&runtime, &id, "grep -c '^processor' /proc/cpuinfo").await, b"2\n");
+        let observed = runtime.inspect(&id).await.unwrap().unwrap();
+        let snapshot = observed.agent_state.expect("Guest metadata must cross the real vsock forwarder");
+        assert!(snapshot.activity.at > 0);
+        assert_eq!(snapshot.activity.streams, 0);
+        assert!(snapshot.ports.targets.is_empty());
+        let polled = runtime.inspect(&id).await.unwrap().unwrap().agent_state.unwrap();
+        assert_eq!(polled.activity.at, snapshot.activity.at, "Node polling must not touch guest activity");
+
         runtime.stop(&id, &original_spec.stop_signal, Duration::from_secs(15)).await.unwrap();
         assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Exited);
         let copy = temporary.path().join(format!("copy{index}"));

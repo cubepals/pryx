@@ -2982,3 +2982,20 @@ job when publication is authorized. That job has not run in this task.
   Real-socket bounded-tail regression passes. Full local Rust: 500 passes, one unchanged
   IPv6 failure and 34 ignored; strict root/helper Clippy and fmt pass. Scanner still has
   eighteen addressed comments. Continue K25 backend/node integration while CI checks this head.
+
+
+- K25 node metadata: agent health adds a typed snapshot of port revision/HTTP assignments
+  and activity. Read it over the owned VM forwarder using Routes-scoped tokens, carry it
+  only in memory through ContainerInfo, and let existing node views use it instead of host
+  file reads. Stopped observations clear active streams. Existing backends retain their
+  descriptor-relative checkpoint reads. No fleet/public protocol field is renamed or removed.
+- Real local agent tests prove readiness polling adds no activity stream, returns current
+  activity, and never includes raw SSH leases in HTTP routing metadata. Extend the existing
+  real-KVM runtime test to require metadata through the forwarder and unchanged activity
+  on another node poll. Full local Rust: 500 passes, the unchanged IPv6 failure and 34 ignored;
+  strict Clippy/fmt pass. Real KVM execution of these additions awaits CI.
+- Read the remaining e701cb9 normal-CI failures: both are the already corrected tree facade
+  cycle; checksum refusals in their passing tests are expected assertions, not install failures.
+  Cancel superseded queued/running sources after preserving completed failure logs outside
+  the repository; retain 2969a46 evidence and the leaf-split/current normal runs. Scanner stays
+  at eighteen addressed comments. Continue stopped-disk file access and snapshot/export barriers.

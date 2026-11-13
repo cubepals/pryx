@@ -155,6 +155,7 @@ impl FakeRuntime {
 
     fn info(c: &FakeContainer) -> ContainerInfo {
         ContainerInfo {
+            agent_state: None,
             memory_enforced: Some(c.spec.memory_bytes > 0),
             cpu_enforced: Some(c.spec.nano_cpus.is_some_and(|quota| quota > 0) || c.spec.cpu_shares > 0),
             cgroup_parent: c.spec.cgroup_parent.clone(),

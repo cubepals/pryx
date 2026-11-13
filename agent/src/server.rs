@@ -98,6 +98,11 @@ pub fn router(agent: Arc<Agent>) -> Router {
 
 async fn health(State(agent): State<Arc<Agent>>, headers: HeaderMap) -> Json<serde_json::Value> {
     let mut value = serde_json::json!({"status":"ok","apiVersion":crate::contract::API_VERSION,"kernelsVersion":crate::kernels::VERSION,"toolsVersion":crate::tools::VERSION,"mountsPending":crate::tools::mounts_pending(&agent)});
+    value["state"] = serde_json::to_value(crate::state::Snapshot {
+        ports: agent.ports.snapshot().await,
+        activity: agent.telemetry.snapshot(),
+    })
+    .expect("Agent state serializes");
     if crate::process_policy::ipc_scoped() {
         value["processIpcScoped"] = true.into();
     }

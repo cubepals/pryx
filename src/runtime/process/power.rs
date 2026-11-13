@@ -244,6 +244,7 @@ impl ProcessRuntime {
             (alive && entry.native_browser == Some(true)).to_string(),
         );
         Ok(Some(ContainerInfo {
+            agent_state: None,
             memory_enforced: None,
             cpu_enforced: None,
             cgroup_parent: None,

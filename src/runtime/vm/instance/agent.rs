@@ -37,7 +37,11 @@ pub(super) async fn raw(
             epoch: boot.epoch,
             issued_at: now,
             expires_at: now + TOKEN_LIFETIME_SECONDS,
-            scope: Scope::Sandbox,
+            scope: if method == Method::GET && matches!(path, "/_pryx/health" | "/_pryx/ports") {
+                Scope::Routes
+            } else {
+                Scope::Sandbox
+            },
             max_ports: boot.spare_ports.len() as u16,
             max_exec_seconds: None,
             file: None,
@@ -69,6 +73,18 @@ pub(super) async fn raw(
     }
     Ok(bytes.to_vec())
 }
+pub(super) async fn snapshot(spec: &ContainerSpec) -> Result<pryx_agent::state::Snapshot, RuntimeError> {
+    #[derive(serde::Deserialize)]
+    struct Health {
+        state: pryx_agent::state::Snapshot,
+    }
+    let health: Health = serde_json::from_slice(
+        &raw(spec, Method::GET, "/_pryx/health", Value::Null, crate::runtime::ENGINE_PROBE_TIMEOUT).await?,
+    )
+    .map_err(error)?;
+    Ok(health.state)
+}
+
 impl VmRuntime {
     pub(super) async fn execute(
         &self,

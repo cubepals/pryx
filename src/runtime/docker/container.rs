@@ -39,6 +39,7 @@ pub(super) fn info_from(inspect: ContainerInspectResponse) -> ContainerInfo {
         .filter_map(|kv| kv.split_once('=').map(|(k, v)| (k.to_owned(), v.to_owned())))
         .collect();
     ContainerInfo {
+        agent_state: None,
         memory_enforced: inspect.host_config.as_ref().map(|host| host.memory.unwrap_or_default() > 0),
         cpu_enforced: inspect.host_config.as_ref().map(|host| {
             host.nano_cpus.unwrap_or_default() > 0

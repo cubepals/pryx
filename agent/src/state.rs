@@ -26,6 +26,13 @@ pub struct Activity {
     pub streams: u32,
 }
 
+/// Current non-secret routing and activity metadata, transported without mounting guest data.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct Snapshot {
+    pub ports: PortState,
+    pub activity: Activity,
+}
+
 pub fn read<T: serde::de::DeserializeOwned + Default>(directory: &DataDir, path: &str) -> io::Result<T> {
     let file = match directory.read(path) {
         Ok(file) => file,

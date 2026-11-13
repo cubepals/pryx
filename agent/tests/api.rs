@@ -65,7 +65,19 @@ async fn route_capabilities_allow_only_readiness_and_port_reads() {
             file: None,
         })
         .unwrap();
-    assert_eq!(call(&agent, &token, "GET", "/_pryx/health", Value::Null).await.0, StatusCode::OK);
+    let (status, health) = call(&agent, &token, "GET", "/_pryx/health", Value::Null).await;
+    assert_eq!(status, StatusCode::OK);
+    let state: pryx_agent::state::Snapshot = serde_json::from_value(health["state"].clone()).unwrap();
+    assert_eq!(state.activity.at, 0);
+    assert_eq!(state.activity.streams, 0);
+    assert_eq!(state.ports.revision, 0);
+    assert!(state.ports.targets.is_empty());
+    let active = agent.telemetry.active();
+    let (_, health) = call(&agent, &token, "GET", "/_pryx/health", Value::Null).await;
+    let state: pryx_agent::state::Snapshot = serde_json::from_value(health["state"].clone()).unwrap();
+    assert!(state.activity.at > 0);
+    assert_eq!(state.activity.streams, 1, "Polling must not acquire another activity stream");
+    drop(active);
     assert_eq!(call(&agent, &token, "GET", "/_pryx/ports", Value::Null).await.0, StatusCode::OK);
     assert_eq!(
         call(&agent, &token, "POST", "/_pryx/processes", json!({"command":"true"})).await.0,

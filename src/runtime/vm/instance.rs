@@ -57,6 +57,7 @@ struct Entry {
     started: Option<time::OffsetDateTime>,
     finished: Option<time::OffsetDateTime>,
     code: i64,
+    agent_state: Option<pryx_agent::state::Snapshot>,
 }
 // The runtime seam requires a numeric exit value even without a signed guest observation.
 const UNKNOWN_EXIT_CODE: i64 = -1;

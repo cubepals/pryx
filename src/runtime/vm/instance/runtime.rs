@@ -120,7 +120,16 @@ impl VmRuntime {
         } else {
             ContainerStatus::Created
         };
+        if status == ContainerStatus::Running {
+            if let Ok(snapshot) = agent::snapshot(&entry.spec).await {
+                entry.agent_state = Some(snapshot);
+            }
+        } else if let Some(snapshot) = &mut entry.agent_state {
+            snapshot.activity.streams = 0;
+        }
+        self.state.entries.lock().unwrap().insert(entry.id.clone(), entry.clone());
         Ok(Some(ContainerInfo {
+            agent_state: entry.agent_state,
             memory_enforced: Some(true),
             cpu_enforced: Some(true),
             cgroup_parent: None,
@@ -232,8 +241,10 @@ impl ContainerRuntime for VmRuntime {
         if entries.values().any(|entry| entry.spec.name == spec.name) {
             return Err(RuntimeError::Conflict("VM sandbox already exists".into()));
         }
-        entries
-            .insert(id.clone(), Entry { id: id.clone(), spec: spec.clone(), started: None, finished: None, code: 0 });
+        entries.insert(
+            id.clone(),
+            Entry { id: id.clone(), spec: spec.clone(), started: None, finished: None, code: 0, agent_state: None },
+        );
         Ok(id)
     }
     async fn start(&self, name: &str) -> Result<(), RuntimeError> {

@@ -146,6 +146,7 @@ pub enum ContainerStatus {
 /// A container as the runtime reports it right now.
 #[derive(Clone)]
 pub struct ContainerInfo {
+    pub(crate) agent_state: Option<pryx_agent::state::Snapshot>,
     pub(crate) memory_enforced: Option<bool>,
     pub(crate) cpu_enforced: Option<bool>,
     pub(crate) cgroup_parent: Option<String>,

@@ -100,14 +100,17 @@ impl Manager {
             endpoints: self.config.network.edge_ips.iter().map(|ip| endpoint(ip, p.host_port)).collect(),
         };
         let data = pryx_agent::paths::DataDir::open(&runtime.data_path(&self.store.data_dir(&record.id))).ok();
-        let ports: pryx_agent::state::PortState = data
-            .as_ref()
-            .and_then(|d| pryx_agent::state::read(d, pryx_agent::state::PORTS_PATH).ok())
-            .unwrap_or_default();
-        let activity: pryx_agent::state::Activity = data
-            .as_ref()
-            .and_then(|d| pryx_agent::state::read(d, pryx_agent::state::ACTIVITY_PATH).ok())
-            .unwrap_or_default();
+        let (ports, activity) = match &info.agent_state {
+            Some(snapshot) => (snapshot.ports.clone(), snapshot.activity.clone()),
+            None => (
+                data.as_ref()
+                    .and_then(|d| pryx_agent::state::read(d, pryx_agent::state::PORTS_PATH).ok())
+                    .unwrap_or_default(),
+                data.as_ref()
+                    .and_then(|d| pryx_agent::state::read(d, pryx_agent::state::ACTIVITY_PATH).ok())
+                    .unwrap_or_default(),
+            ),
+        };
         let spares: Vec<_> = record
             .ports
             .iter()

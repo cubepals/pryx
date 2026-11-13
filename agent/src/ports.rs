@@ -199,6 +199,19 @@ impl Ports {
         Exposed { port: target, slot: slot.port, url }
     }
 
+    pub async fn snapshot(&self) -> PortState {
+        let held = self.held.lock().await;
+        PortState {
+            revision: self.revision(),
+            targets: held
+                .iter()
+                .map(|slot| {
+                    slot.target.borrow().as_ref().and_then(|target| target.session.is_none().then_some(target.port))
+                })
+                .collect(),
+        }
+    }
+
     pub async fn list(&self) -> Vec<Exposed> {
         self.held
             .lock()
@@ -452,6 +465,9 @@ mod ssh_tests {
         };
         assert_eq!(ports.expose_ssh(AGENT_PORT + 2, "lease", 1).await.unwrap(), AGENT_PORT + 1);
         assert!(ports.list().await.is_empty());
+        let snapshot = ports.snapshot().await;
+        assert_eq!(snapshot.targets, vec![None], "SSH leases stay out of HTTP routing metadata");
+        assert_eq!(snapshot.revision, ports.revision());
         assert!(matches!(ports.expose(AGENT_PORT + 2, 1).await, Err(PortError::Invalid)));
         assert!(matches!(ports.unexpose(AGENT_PORT + 2).await, Err(PortError::Invalid)));
         let saved: PortState = state::read(&data, PORTS_PATH).unwrap();
@@ -459,5 +475,8 @@ mod ssh_tests {
         ports.unexpose_ssh("lease").await.unwrap();
         ports.expose(AGENT_PORT + 2, 1).await.unwrap();
         assert_eq!(ports.list().await.len(), 1);
+        let snapshot = ports.snapshot().await;
+        assert_eq!(snapshot.targets, vec![Some(AGENT_PORT + 2)]);
+        assert_eq!(snapshot.revision, ports.revision());
     }
 }
