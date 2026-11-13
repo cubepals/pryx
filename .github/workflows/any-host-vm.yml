@@ -1,0 +1,41 @@
+name: VM experiments
+
+on:
+  schedule:
+    - cron: '23 5 * * 2'
+  workflow_dispatch:
+  # A new workflow cannot be dispatched before main has it; branch pushes prove each step.
+  push:
+    branches: [any-host]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  inputs:
+    name: Published VM input inventory
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Hash primary published archives without executing them
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 templates/vm-tools/inventory.py \
+            --output "$RUNNER_TEMP/vm-candidate-inventory.json" | tee "$RUNNER_TEMP/vm-input-inventory.log"
+      - name: Retain candidate identities and actual digests
+        if: always()
+        uses: ./.github/actions/upload-evidence
+        with:
+          name: vm-input-inventory
+          path: |
+            ${{ runner.temp }}/vm-candidate-inventory.json
+            ${{ runner.temp }}/vm-input-inventory.log
+          if-no-files-found: error

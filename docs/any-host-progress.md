@@ -2049,3 +2049,22 @@ job when publication is authorized. That job has not run in this task.
   records before use. Debian's current pasta source is
   0.0~git20261002.cba3570-1, GPL-2.0-or-later with retained BSD-3-Clause checksum
   code. These are external-program spike candidates, not a shipped VM bundle.
+- Add a branch/scheduled-only VM input inventory workflow. Primary expanded-release
+  metadata supplies committed SHA-256 pins for Firecracker 1.18.0 x86_64 and
+  Kata 4.3.1 amd64. The first stage resolves source commits and streams both
+  archives through size/digest checks without extracting or executing them.
+  It retains partial candidate evidence if a later candidate fails. API credentials
+  stay on their HTTPS origin; public archive redirects carry no token and cannot
+  downgrade TLS. Real kernel/network experiments follow verified input identity.
+- This initial non-required VM workflow adds zero minutes to ordinary PR execution.
+  Its branch/weekly inventory job has a twenty-minute ceiling and an estimated
+  one-to-five-minute cost for primary metadata and roughly one GiB of archive
+  streaming; record actual hosted duration afterward. No settings, required checks,
+  release keys, version or tags change. The one-command installer is untouched.
+- Install the existing Go 1.27.3 build-tool pin from its primary archive after
+  verifying the published byte length and SHA-256. Build repository-pinned
+  actionlint 1.7.12 from its MIT source via the checksum-verified Go module proxy;
+  workflow validation passes. Local Python compilation, CLI help, documentation
+  checks and whitespace pass. Upstream release inventory is left for CI because
+  this executor reaches only the pryx GitHub repository; no inventory success,
+  published-kernel boot or network result is claimed locally.
