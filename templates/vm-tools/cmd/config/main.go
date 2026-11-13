@@ -20,10 +20,16 @@ func main() {
 	root := flag.String("root", "", "Read-only EROFS root")
 	writes := flag.String("writes", "", "Writable ext4 disk")
 	socket := flag.String("socket", "", "Private monitor vsock path")
+	tap := flag.String("tap", "", "Optional private network namespace TAP for the comparison")
 	metadata := flag.Bool("metadata", false, "Print experiment-owned transport metadata")
 	flag.Parse()
 	if *metadata {
-		if err := json.NewEncoder(os.Stdout).Encode(map[string]uint32{"reportPort": experiment.ReportPort}); err != nil {
+		if err := json.NewEncoder(os.Stdout).Encode(map[string]any{
+			"reportPort": experiment.ReportPort, "networkPort": experiment.NetworkPort,
+			"network":          experiment.NetworkFixture(),
+			"networkBulkBytes": experiment.NetworkBulkBytes, "networkHello": experiment.NetworkHello,
+			"networkHelloPath": experiment.NetworkHelloPath, "networkBulkPath": experiment.NetworkBulkPath,
+		}); err != nil {
 			log.Fatal(err)
 		}
 		return
@@ -45,6 +51,11 @@ func main() {
 		},
 		NetworkInterfaces: []*models.NetworkInterface{},
 		Vsock:             &models.Vsock{GuestCid: new(int64(vsock.Host + 1)), UdsPath: socket},
+	}
+	if *tap != "" {
+		config.NetworkInterfaces = []*models.NetworkInterface{{
+			IfaceID: new("network-spike"), HostDevName: tap, GuestMac: experiment.NetworkFixture().GuestMAC,
+		}}
 	}
 	if err := config.Validate(strfmt.Default); err != nil {
 		log.Fatal(err)

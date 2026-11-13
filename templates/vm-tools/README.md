@@ -19,6 +19,10 @@ Parts (`vm-tools/`):
 - `cmd/config/main.go`: configuration through the monitor owner's generated models.
 - `cmd/guest/main.go`: static PID 1 filesystem and vsock probe.
 - `kernel.py`: thirty real ordinary-user KVM boots and a disk-retaining reboot.
+- `network/`: separate network module, pinned inputs, licences, wrapper and guest probe (see its README).
+- `network_prepare.py`: verified Alpine tar and unchanged separate pasta source build.
+- `network_namespace.py`: private user-namespace bridge and TAP, with parent-bound monitor lifetime.
+- `network_compare.py`: thirty real guest samples per path, HTTP/DNS/throughput and management denial.
 
 The inventory workflow runs on `any-host` pushes while manual dispatch is unavailable before
 main. Its output records upstream asset identities, actual byte hashes and source commits.

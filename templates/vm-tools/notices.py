@@ -18,18 +18,21 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--go', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--module-root', type=Path, default=ROOT)
+    parser.add_argument('--catalog', type=Path, default=ROOT / 'spike-module-notices.json')
+    parser.add_argument('--packages', nargs='+', default=['./cmd/config', './cmd/guest'])
     args = parser.parse_args()
-    expected = json.loads((ROOT / 'spike-module-notices.json').read_text())
+    expected = json.loads(args.catalog.read_text())
     module_cache = Path(subprocess.check_output([str(args.go), 'env', 'GOMODCACHE'], text=True).strip())
     directories = subprocess.check_output([str(args.go), 'list', '-mod=readonly', '-deps', '-f',
                                             '{{if .Module}}{{.Module.Dir}}{{end}}',
-                                            './cmd/config', './cmd/guest'], cwd=ROOT, text=True).splitlines()
+                                            *args.packages], cwd=args.module_root, text=True).splitlines()
     actual = set()
     for value in sorted(set(directories)):
         if not value:
             continue
         path = Path(value)
-        if path.resolve() == ROOT.resolve():
+        if path.resolve() in {ROOT.resolve(), args.module_root.resolve()}:
             continue
         identity = str(path.relative_to(module_cache))
         records = [item for item in expected if item['module'] == identity]

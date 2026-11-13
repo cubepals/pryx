@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -104,6 +105,27 @@ func main() {
 		_ = unix.Reboot(unix.LINUX_REBOOT_CMD_RESTART)
 	}()
 	report := probe()
+	if _, err := os.Stat("/spike-network.json"); err == nil {
+		// Reuse the same EROFS/ext4 overlay in the network fixture, including writable DHCP state.
+		must(unix.Mount("", "/", "", unix.MS_REC|unix.MS_PRIVATE, ""))
+		must(os.MkdirAll("/merged/oldroot", 0o700))
+		for _, directory := range []string{"dev", "proc", "sys"} {
+			must(unix.Mount("/"+directory, "/merged/"+directory, "", unix.MS_MOVE, ""))
+		}
+		must(unix.PivotRoot("/merged", "/merged/oldroot"))
+		must(os.Chdir("/"))
+		must(unix.Unmount("/oldroot", unix.MNT_DETACH))
+		command := exec.Command("/netprobe", "--config", "/spike-network.json")
+		command.Env = append(os.Environ(), "PATH=/usr/sbin:/usr/bin:/sbin:/bin", "PRYX_VM_NETWORK_SPIKE=1")
+		command.Stderr = os.Stderr
+		output, err := command.Output()
+		must(err)
+		var network map[string]any
+		must(json.Unmarshal(output, &network))
+		report["network"] = network
+	} else if !os.IsNotExist(err) {
+		panic(err)
+	}
 	connection, err := vsock.Dial(vsock.Host, experiment.ReportPort, nil)
 	must(err)
 	defer connection.Close()

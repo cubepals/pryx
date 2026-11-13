@@ -46,9 +46,23 @@ def selected(selection, inspection, staged, key):
     return path
 
 
-def root_image(guest, work, mkfs):
+def root_image(guest, work, mkfs, base=None, additions=None):
     archive_path = work / 'root.tar'
     with tarfile.open(archive_path, 'w') as archive:
+        if base is not None:
+            # Feed the maintained filesystem builder a tar, never extract image paths on the host.
+            with tarfile.open(base, 'r|*') as upstream:
+                for member in upstream:
+                    if member.isfile():
+                        with upstream.extractfile(member) as source:
+                            archive.addfile(member, source)
+                    else:
+                        archive.addfile(member)
+        for name, path in (additions or {}).items():
+            entry = tarfile.TarInfo(name)
+            entry.mode, entry.size = 0o755 if name in {'netprobe', 'gvforwarder'} else 0o600, path.stat().st_size
+            with path.open('rb') as source:
+                archive.addfile(entry, source)
         for name in ['dev', 'proc', 'sys', 'write', 'lower', 'merged']:
             entry = tarfile.TarInfo(name)
             entry.type, entry.mode = tarfile.DIRTYPE, 0o755
@@ -67,25 +81,28 @@ def root_image(guest, work, mkfs):
     return path
 
 
-def boot(configurator, monitor, kernel, root, writes, work, label, expected_boots, report_port):
+def boot(configurator, monitor, kernel, root, writes, work, label, expected_boots, report_port,
+         tap=None, launcher=None, timeout=30, monitor_record=None):
     channel = work / 'v.sock'
     # Reboot leaves the device's sockets behind, never a live monitor to be adopted here.
     channel.unlink(missing_ok=True)
     host = Path(str(channel) + '_' + str(report_port))
     host.unlink(missing_ok=True)
-    config = command([configurator, '--kernel', kernel, '--root', root,
-                      '--writes', writes, '--socket', channel])
+    arguments = [configurator, '--kernel', kernel, '--root', root, '--writes', writes, '--socket', channel]
+    if tap:
+        arguments.extend(['--tap', tap])
+    config = command(arguments)
     config_path = work / 'machine.json'
     config_path.write_bytes(config)
     listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     listener.bind(str(host))
     listener.listen(1)
-    listener.settimeout(30)
+    listener.settimeout(timeout)
     process = None
     try:
         with (work / (label + '.serial.log')).open('wb') as serial:
             started = time.monotonic_ns()
-            process = subprocess.Popen([str(monitor), '--no-api', '--config-file', str(config_path)],
+            process = subprocess.Popen([*(launcher or []), str(monitor), '--no-api', '--config-file', str(config_path)],
                                        stdout=serial, stderr=subprocess.STDOUT)
             connection, _ = listener.accept()
             with connection:
@@ -103,7 +120,8 @@ def boot(configurator, monitor, kernel, root, writes, work, label, expected_boot
                     raise ValueError('Guest disk retention or PID 1 proof failed')
                 if report['kernel'] == platform.release():
                     raise ValueError('Guest is using the host kernel')
-                resident = (Path('/proc') / str(process.pid) / 'status').read_text()
+                monitor_pid = process.pid if monitor_record is None else json.loads(monitor_record.read_text())['monitorPid']
+                resident = (Path('/proc') / str(monitor_pid) / 'status').read_text()
                 rss = next(line for line in resident.splitlines() if line.startswith('VmRSS:'))
                 # Acknowledge once only after every guest assertion; this is not a retryable exec.
                 connection.sendall(b'stop\n')

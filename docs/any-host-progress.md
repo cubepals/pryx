@@ -12,7 +12,7 @@ Only recorded CI evidence establishes completion; a local pass alone does not.
 | K22 | done except | `7963826182e3f8e9037aea17d4716df15086bd81` | Normal push [43075452804](https://github.com/cubepals/pryx/actions/runs/43075452804) and PR [43075462394](https://github.com/cubepals/pryx/actions/runs/43075462394), Any host [43075452782](https://github.com/cubepals/pryx/actions/runs/43075452782), Rootless engines [43075452793](https://github.com/cubepals/pryx/actions/runs/43075452793) and [43075462656](https://github.com/cubepals/pryx/actions/runs/43075462656), all green; supplementary Measure [43063939164](https://github.com/cubepals/pryx/actions/runs/43063939164) on source 87400f3 is also green | Full normal CI including actual rootful Docker, Wasm, two-node, integrations and recovery; all 15 host jobs; Podman lifecycle/attacks, install/repeat/upgrade/outage/recovery/purge; controller refusals, copy-bound guarantees and 30 hosted engine samples | Main/release prohibited; unchanged credentialed cases | Standard rootless Docker data-owner mapping with dependent positive lifecycle/timings; rootless Docker internal ingress/network-policy. Three approaches each recorded; both remain named refusals until their post-K27 second try | Supported scope complete; K23 started |
 | K23 | done | `5945724a4ac8fbc28610292d701ffa7e9bffc040` | Normal push [43233699289](https://github.com/cubepals/pryx/actions/runs/43233699289) and PR [43233712859](https://github.com/cubepals/pryx/actions/runs/43233712859), Any host [43233699231](https://github.com/cubepals/pryx/actions/runs/43233699231), Rootless engines [43233699487](https://github.com/cubepals/pryx/actions/runs/43233699487) and [43233712730](https://github.com/cubepals/pryx/actions/runs/43233712730), CodeQL [43233712847](https://github.com/cubepals/pryx/actions/runs/43233712847), all green | Signed fresh ordinary-user installation without engine; actual pinned upstream Python/Node paths and host glibc; both SDKs, state/charts/errors/interrupt/restart, MCP/CLI; browser screenshot/forwarded CDP and guarantee; thirty process and container samples per tool; default-Docker kernels and namespace/required-browser refusals; neighbour isolation, purge, Alpine relocation; full normal CI and all sixteen host jobs | Main/release prohibited; unchanged credentialed cases | None; corrected relocatable bundle is complete, with no binary rewriting or private tool glibc | Complete; begin K24 immediately |
 | K24 | done | `53e83505f823cf4b92aca2b4a952cf084c636f32` | Normal PR [43421825320](https://github.com/cubepals/pryx/actions/runs/43421825320) and all sixteen Any-host jobs [43421813961](https://github.com/cubepals/pryx/actions/runs/43421813961), green | Signed user install, real SDK/CLI desktop and HTTP SSH/wake, noVNC/expiry, Chromium sandbox and neighbour privacy, OpenSSH PTY/keys/leases, configured doctor/placement, 30 samples per tool, unchanged container budgets, full normal and host matrix | Main/release prohibited; unchanged credentialed cases | None | Complete; begin K25 |
-| K25 | in progress | — | None yet; preparing published-input inventory and hosted kernel/network spikes | Read-only upstream/configuration/licence audit; current Firecracker CI kernel has EROFS disabled | All real VM boots/network measurements and backend acceptance; no local KVM | None | Pin published Kata kernel/monitor inputs, prove both rootless network candidates in CI, then build the VM tier |
+| K25 | in progress | — | Kernel spike [43442622901](https://github.com/cubepals/pryx/actions/runs/43442622901), source 9402ef5, green; complete milestone proof pending | Verified published inputs, thirty ordinary-user KVM EROFS/overlay/ext4/vsock boots and disk-retaining reboot | Network comparison and production VM bundle/backend/lifecycle/confinement/timings; no local KVM | None | Prove both rootless network candidates in CI, then build the VM tier |
 | K26 | not started | — | — | — | All | — | Complete brief after K25 |
 | K27 | not started | — | — | — | All | — | Complete brief after K26, then revisit every parked piece |
 
@@ -2145,3 +2145,34 @@ job when publication is authorized. That job has not run in this task.
   comparison, including both guest management-path denials, then the production
   lazy VM bundle, OCI conversion, agent/backend, confinement, lifecycle and timings.
   No VM feature is advertised, K25 remains in progress, and no piece is parked.
+- Build both network comparison programs plus gvisor-tap-vsock's unchanged guest
+  forwarder in a separate Go module, retaining its actual 22-module primary-notice
+  closure before execution. The existing kernel fixture keeps its dependency
+  selection. Record the Alpine 3.24.4 root archive digest and every actual APK
+  licence/source-build commit; compile unchanged pasta from its pinned upstream
+  source with the source version supplied through its documented Make variable.
+- The guest-facing vsock listener delegates only exported ConnectPath with the
+  maintained StdioProtocol. The separate private host management listener remains
+  usable; a fresh host-memory token guards the gateway API. The comparison requires
+  real guest management denials over both vsock and gateway IP. No token enters an
+  argument, image, environment, journal or report. Library API shapes and protocol
+  constants are imported; private fixture sizes and paths have one owning module.
+- Add the comparison to the same optional VM job: thirty samples each over the
+  same published kernel, Alpine EROFS/ext4 overlay, resource size and MTU. Report
+  safe HTTP latency, owner-sized 16-MiB throughput, actual outbound DNS, helper
+  preparation, validated guest report and RSS separately. Pasta creates its own
+  user/network namespace and private TAP bridge; assert it maps no host root and
+  does not use the host network namespace. Its monitor is parent-bound. Preserve
+  both paths and completed observations if either fails; success requires both.
+- Local final-binary checks pass for Go builds/vet, both exact notice closures,
+  pinned pasta source preparation and unprivileged Alpine-to-EROFS validation.
+  The real maintained proxy serves private management and denies guest-facing
+  stats/listener routes; actual loopback HTTP bodies use the owning fixture's
+  sizes. Python compilation, CLI help, documentation, complete actionlint with
+  ShellCheck 0.11.0 and whitespace pass. No local guest or TAP experiment ran.
+- The positive hosted pasta comparison enables user namespaces and the existing
+  tun device only on its disposable runner, as other positive capability fixtures
+  do. Product setup changes no host policy. The same optional branch/weekly job
+  adds zero ordinary PR minutes or required checks; estimated total three-to-six
+  minutes now includes ninety cold guests and compilation. Record actual time
+  and any real network failures after this push. Production VM support remains off.

@@ -17,7 +17,7 @@ defaults:
 
 jobs:
   inputs:
-    name: Published kernel boot spike
+    name: Published kernel and network spikes
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -71,6 +71,41 @@ jobs:
             --mkfs "$RUNNER_TEMP/vm-build-tools/erofs/usr/bin/mkfs.erofs" \
             --work "$RUNNER_TEMP/vm-kernel-spike" \
             --output "$RUNNER_TEMP/vm-kernel-spike.json" | tee "$RUNNER_TEMP/vm-kernel-spike.log"
+      - name: Prepare immutable network comparison inputs
+        run: |
+          python3 templates/vm-tools/network_prepare.py --root "$RUNNER_TEMP/vm-network-inputs" | tee "$RUNNER_TEMP/vm-network-inputs.log"
+      - name: Build maintained network wrappers and guest forwarder
+        working-directory: templates/vm-tools/network
+        env:
+          CGO_ENABLED: '0'
+          GOTOOLCHAIN: local
+        run: |
+          pryx_go="$RUNNER_TEMP/vm-build-tools/go/go/bin/go"
+          "$pryx_go" mod verify
+          python3 ../notices.py --go "$pryx_go" --module-root "$PWD" \
+            --catalog "$PWD/module-notices.json" --output "$RUNNER_TEMP/vm-network-notices" \
+            --packages ./cmd/proxy ./cmd/probe github.com/containers/gvisor-tap-vsock/cmd/vm
+          "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-network-proxy" ./cmd/proxy
+          "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-network-probe" ./cmd/probe
+          "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-gvforwarder" github.com/containers/gvisor-tap-vsock/cmd/vm
+      - name: Permit user namespaces on the positive comparison runner
+        run: |
+          # This disposable fixture compares a capability's positive path; product setup changes no host policy.
+          if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          sudo modprobe tun
+          test -c /dev/net/tun
+      - name: Compare pasta TAP and maintained vsock networking
+        run: |
+          python3 templates/vm-tools/network_compare.py \
+            --inspection "$RUNNER_TEMP/vm-archive-inspection.json" --staged "$RUNNER_TEMP/vm-selected-files" \
+            --configurator "$RUNNER_TEMP/vm-config" --guest "$RUNNER_TEMP/vm-guest" \
+            --mkfs "$RUNNER_TEMP/vm-build-tools/erofs/usr/bin/mkfs.erofs" \
+            --inputs "$RUNNER_TEMP/vm-network-inputs" --network-probe "$RUNNER_TEMP/vm-network-probe" \
+            --forwarder "$RUNNER_TEMP/vm-gvforwarder" --proxy "$RUNNER_TEMP/vm-network-proxy" \
+            --work "$RUNNER_TEMP/vm-network-spike" \
+            --output "$RUNNER_TEMP/vm-network-spike.json" | tee "$RUNNER_TEMP/vm-network-spike.log"
       - name: Retain candidate identities and actual digests
         if: always()
         uses: ./.github/actions/upload-evidence
@@ -86,4 +121,10 @@ jobs:
             ${{ runner.temp }}/vm-kernel-spike.json
             ${{ runner.temp }}/vm-kernel-spike.log
             ${{ runner.temp }}/vm-kernel-spike/*.serial.log
+            ${{ runner.temp }}/vm-network-inputs.log
+            ${{ runner.temp }}/vm-network-notices
+            ${{ runner.temp }}/vm-network-spike.json
+            ${{ runner.temp }}/vm-network-spike.log
+            ${{ runner.temp }}/vm-network-spike/**/*.log
+            ${{ runner.temp }}/vm-network-spike/**/namespace.json
           if-no-files-found: error
