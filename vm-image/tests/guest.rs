@@ -269,11 +269,7 @@ async fn boot(
     fs::write(&config_path, config).unwrap();
     let (key, encoded) = SigningKey::generate().unwrap();
     let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
-    let nonce = format!(
-        "guest-{round}-{}-{}",
-        SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos(),
-        std::process::id()
-    );
+    let nonce = uuid::Uuid::new_v4().simple().to_string();
     let sandbox = "vm-agent-acceptance";
     let token = key
         .sign(&Claims {
@@ -363,7 +359,9 @@ async fn boot(
     guest.ready().await;
     tokio::time::timeout(Duration::from_secs(1), sender).await.unwrap().unwrap();
     let kernel = exercise_guest(&guest, directory, round, uid, network_fixture.as_ref(), &bootstrap_metadata).await;
-    let replay = vm_shutdown::request(&key, &format!("{nonce}-other"), sandbox, 1);
+    let other_nonce = uuid::Uuid::new_v4().simple().to_string();
+    assert_ne!(nonce, other_nonce);
+    let replay = vm_shutdown::request(&key, &other_nonce, sandbox, 1);
     assert!(
         request(
             &guest.client,

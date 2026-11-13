@@ -118,14 +118,7 @@ func shutdown(input request) error {
 	if err := connection.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
 		return err
 	}
-	if _, err := io.Copy(connection, bytes.NewReader(input.Shutdown)); err != nil {
-		return err
-	}
-	half, ok := connection.(interface{ CloseWrite() error })
-	if !ok {
-		return fmt.Errorf("SDK transport does not support shutdown request EOF")
-	}
-	if err := half.CloseWrite(); err != nil {
+	if err := json.NewEncoder(connection).Encode(input.Shutdown); err != nil {
 		return err
 	}
 	var accepted bool

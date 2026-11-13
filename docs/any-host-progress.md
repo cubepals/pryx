@@ -2667,3 +2667,21 @@ job when publication is authorized. That job has not run in this task.
   Preserve artifact 14068977689, verified SHA-256 afc2b68a4bedc791b555545889c31401f8cbb66910b5697a6c9f3777f3d23b67,
   and its serial output in CI: no clean-disk proof is present. Investigate request EOF/
   half-close handling before claiming orderly shutdown; no deadline or assertion is loosened.
+
+- K25 shutdown framing correction: send one bounded JSON line rather than waiting for a
+  host half-close before replying. A real Unix-stream pair proves a valid signed request
+  receives its acknowledgement while the sender’s write side stays open. Host-CID, size,
+  signature, boot/epoch checks and the shared fifteen-second shutdown deadline remain.
+  Full local Rust has 495 passes and only the existing IPv6 EAFNOSUPPORT failure; strict
+  root/helper Clippy, fmt, Go build/vet and static agent/bootstrap construction pass. Actual
+  KVM proof is pending; no shutdown or reboot success is inferred from local framing checks.
+- Immediate scanner check finds PR comment 4567580276 on the real-guest fixture: replace
+  timestamp/prefix-derived boot and replay nonces with two independently generated UUIDs,
+  preserving the explicit inequality and all rejection/assertion paths. The already linked
+  UUID version is a direct helper dev dependency; its lock changes only that dependency edge.
+  Source 3cd50fa’s run 43489699301/job 132107275312 retains the same pre-correction EOF
+  shutdown failure; its new complete-source collection succeeds. Both rootless-engine runs
+  and CodeQL are green on 3cd50fa; full normal and host acceptance remain pending.
+- Reclaim unused root-package build variants with cargo clean after their checks complete:
+  target output shrinks from 11 GiB to 5.9 GiB and free workspace disk rises to 9.1 GiB.
+  Keep active inputs and current helper executables; no source or user data is removed.
