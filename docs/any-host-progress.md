@@ -1890,3 +1890,29 @@ job when publication is authorized. That job has not run in this task.
 - The hosted task machine failed a fourth time after d125752 with nothing unpushed. Work continues
   from that commit on a supervised machine that restarts the same task when it stops. No source
   change in this checkpoint.
+- On the supervised executor, inspect the completed d125752 normal push
+  [43325981612](https://github.com/cubepals/pryx/actions/runs/43325981612), PR
+  [43325989142](https://github.com/cubepals/pryx/actions/runs/43325989142), both
+  rootless runs and CodeQL: all green. Its Any-host producer
+  [131558422100](https://github.com/cubepals/pryx/actions/runs/43325981545/job/131558422100)
+  fails before the installed continuation: the page publishes negative target Y
+  coordinates while Chromium's outerHeight is zero. Preserve
+  desktop-geometry-d125752.json. Earlier 961649e/e52c76a installed failures are
+  the already corrected CLI loader problem; they establish no later SSH proof.
+- Wait for mapped browser dimensions and visible target centers before publishing
+  application geometry. A real local headful Chrome/Xvfb control holds the initial
+  outerHeight at zero for 250 ms after load: the original fixture emits negative
+  coordinates; the correction waits and emits valid coordinates from the actual
+  restored metrics. This is geometry diagnosis only, not confined desktop/input
+  or installed acceptance. All original hosted assertions and deadlines remain.
+- The supervised machine's Bun 1.4.3 full workspace check passes every stage except
+  the SSH stream test: its built-in ws adapter throws Not supported yet in Bun.
+  Install pinned Bun 1.4.4 to a disposable task directory from the npm distribution,
+  verifying its published SHA-512 integrity; the unchanged stream regression passes.
+  Repeat the complete check with the repository's pinned runtime and real local
+  PostgreSQL, preserving the initial mismatch failure.
+- With pinned Bun 1.4.4, the complete workspace check passes: 437 tests, one
+  existing compiled-assets skip, 8,415 assertions against real PostgreSQL; all
+  lint/type/generated-schema/docs/release stages pass. Current a421236 producer
+  131847490561 is green and its installed continuation is running. The mapped
+  geometry correction still requires its own hosted proof.

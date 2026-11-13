@@ -1,0 +1,53 @@
+{
+  "source": "d12575284143a6569b58e619a98029db9e694d9e",
+  "run": 43325981545,
+  "job": 131558422100,
+  "failure": "The page loaded before Chromium reported mapped outer window dimensions; the unchanged input deadline expired without click or text observations.",
+  "observations": [
+    {
+      "kind": "ready",
+      "input": {
+        "x": 254,
+        "y": -487
+      },
+      "button": {
+        "x": 250,
+        "y": -370
+      }
+    }
+  ],
+  "desktopPhase": "serve-desktop",
+  "deadlineSeconds": 40,
+  "localControl": {
+    "browser": "Google Chrome for Testing 153.0.8010.12",
+    "display": "Xvfb, 1280x720",
+    "simulation": "Hold the real browser outerHeight getter at zero until 250 ms after page load, then restore its real value.",
+    "previousFixture": {
+      "input": {
+        "x": 254,
+        "y": -519
+      },
+      "button": {
+        "x": 250,
+        "y": -402
+      }
+    },
+    "correctedFixture": {
+      "input": {
+        "x": 254,
+        "y": 256
+      },
+      "button": {
+        "x": 250,
+        "y": 373
+      },
+      "outerHeight": 719,
+      "innerHeight": 576
+    },
+    "scope": "Actual local headful browser geometry only; not confined product, application input, installed SDK or neighbour acceptance."
+  },
+  "notRun": [
+    "Installed continuation on this source (producer failed)",
+    "New geometry fixture under hosted complete process policy"
+  ]
+}
