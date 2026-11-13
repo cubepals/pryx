@@ -89,7 +89,10 @@ def source_commit(repository, tag):
 
 
 def archive_digest(asset, expected_digest, cache=None):
-    expected_size = asset['size']
+    return acquire(asset['browser_download_url'], asset['size'], expected_digest, asset.get('digest'), cache)
+
+
+def acquire(url, expected_size, expected_digest, declared_digest=None, cache=None):
     if not isinstance(expected_size, int) or not 0 < expected_size <= MAX_ARCHIVE_BYTES:
         raise ValueError('VM candidate archive size exceeds its bound')
 
@@ -107,8 +110,7 @@ def archive_digest(asset, expected_digest, cache=None):
         actual = digest.hexdigest()
         if actual != expected_digest:
             raise ValueError('VM candidate differs from its committed archive digest')
-        declared = asset.get('digest')
-        if declared is not None and declared != f'{digest.name}:{actual}':
+        if declared_digest is not None and declared_digest != f'{digest.name}:{actual}':
             raise ValueError('VM candidate differs from its upstream release digest')
         return actual
     if cache is not None:
@@ -129,9 +131,9 @@ def archive_digest(asset, expected_digest, cache=None):
             finally:
                 if temporary is not None:
                     temporary.unlink(missing_ok=True)
-        return request(asset['browser_download_url'], save)
+        return request(url, save)
     # No API credential is attached to the public archive request or its redirects.
-    return request(asset['browser_download_url'], read)
+    return request(url, read)
 
 
 def inventory(candidate, cache=None):

@@ -1,0 +1,35 @@
+{
+  "scope": "Kernel boot experiment; not production VM support",
+  "source": "60d5b50",
+  "run": 43440140299,
+  "job": 131935324964,
+  "monitor": {
+    "path": "release-v1.18.0-x86_64/firecracker-v1.18.0-x86_64",
+    "bytes": 3921872,
+    "kind": "file",
+    "sha256": "b33f46cd6d88834cf6a4f8d184f08f219809c636236bffd286d233a60602a2ba",
+    "prefixHex": "7f454c46020101000000000000000000"
+  },
+  "kernel": {
+    "path": "./opt/kata/share/kata-containers/vmlinux-6.18.56-208",
+    "bytes": 40865896,
+    "kind": "file",
+    "sha256": "f87d8359035cb7557b16a319e6431ea09b183e62268aef436bf8dc6530d786b6",
+    "prefixHex": "7f454c46020101000000000000000000"
+  },
+  "configuration": {
+    "path": "./opt/kata/share/kata-containers/config-6.18.56-208",
+    "bytes": 97258,
+    "kind": "file",
+    "sha256": "2bf817f4bc1b337727745709abf1d7c3fc1dfa4ba1561fcac4ff21653d14bfc0"
+  },
+  "requiredConfiguration": [
+    "CONFIG_EROFS_FS",
+    "CONFIG_OVERLAY_FS",
+    "CONFIG_EXT4_FS",
+    "CONFIG_VIRTIO_BLK",
+    "CONFIG_VIRTIO_MMIO",
+    "CONFIG_VIRTIO_VSOCKETS"
+  ],
+  "kernelVersion": "6.18.56"
+}

@@ -2082,3 +2082,25 @@ job when publication is authorized. That job has not run in this task.
   escape, untraversed links, configuration retention, repeated staging and corrupt
   or truncated cache rejection; Python compilation, documentation checks,
   actionlint and whitespace pass. Real published-member inspection is left to CI.
+- Source 60d5b50's archive inspection
+  [43440140299](https://github.com/cubepals/pryx/actions/runs/43440140299/job/131935324964)
+  is green in sixteen seconds. Retain archive-members-60d5b50.json. Kata's actual
+  vmlinux-6.18.56-208 has SHA-256 f87d8359035cb7557b16a319e6431ea09b183e62268aef436bf8dc6530d786b6;
+  its matching published config enables all six required filesystem/virtio options
+  built-in. Pin both member identities before execution. This still proves no boot.
+- Add the real ordinary-user KVM kernel spike to that same optional workflow:
+  thirty cold minimal boots, EROFS lower immutability, ext4-backed overlay writes,
+  actual guest-to-host vsock, differing kernel identity and one disk-retaining
+  reboot. Retain incremental reports and every serial log. No monitor confinement,
+  network comparison, OCI/agent runtime, production latency or VM feature is claimed.
+  The existing hosted KVM access setup affects only the disposable runner.
+- Build the static guest and SDK-typed configurator locally with pinned Go 1.27.3;
+  Go vet passes. Resolve and retain complete primary notices for the exact 23-module
+  checksum-pinned closure. Real local EROFS creation/extraction preserves the compiled
+  guest byte for byte and immutable marker; the generated configuration validates
+  against the upstream SDK and gives the guest no network interface. Python compilation,
+  documentation/whitespace and actionlint with actual ShellCheck 0.11.0 pass.
+- The kernel experiment still adds zero ordinary PR minutes or required checks.
+  Its branch/weekly job retains the twenty-minute ceiling; estimated two-to-five
+  minutes now includes private verified build tools and thirty boots. Record the
+  actual hosted cost and results, including failures. Local Docker/KVM remain unrun.

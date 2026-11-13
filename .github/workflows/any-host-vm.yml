@@ -17,7 +17,7 @@ defaults:
 
 jobs:
   inputs:
-    name: Published VM input inventory
+    name: Published kernel boot spike
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -39,6 +39,37 @@ jobs:
             --archive-cache "$RUNNER_TEMP/vm-archives" \
             --staged "$RUNNER_TEMP/vm-selected-files" \
             --output "$RUNNER_TEMP/vm-archive-inspection.json" | tee "$RUNNER_TEMP/vm-archive-inspection.log"
+      - name: Prepare pinned separate experiment tools
+        run: |
+          python3 templates/vm-tools/prepare.py --root "$RUNNER_TEMP/vm-build-tools" | tee "$RUNNER_TEMP/vm-tool-inputs.log"
+          dpkg-query -W zstd e2fsprogs
+      - name: Build the typed configuration and static guest probe
+        working-directory: templates/vm-tools
+        env:
+          CGO_ENABLED: '0'
+          GOTOOLCHAIN: local
+        run: |
+          pryx_go="$RUNNER_TEMP/vm-build-tools/go/go/bin/go"
+          "$pryx_go" mod verify
+          python3 notices.py --go "$pryx_go" --output "$RUNNER_TEMP/vm-spike-notices"
+          "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-config" ./cmd/config
+          "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-guest" ./cmd/guest
+      - name: Allow the ordinary runner user to open real KVM
+        run: |
+          sudo modprobe kvm
+          test -c /dev/kvm
+          sudo chown "$(id -u):$(id -g)" /dev/kvm
+          test "$(id -u)" -ne 0
+          test -r /dev/kvm && test -w /dev/kvm
+      - name: Boot EROFS overlay and vsock thirty times
+        run: |
+          python3 templates/vm-tools/kernel.py \
+            --inspection "$RUNNER_TEMP/vm-archive-inspection.json" \
+            --staged "$RUNNER_TEMP/vm-selected-files" \
+            --configurator "$RUNNER_TEMP/vm-config" --guest "$RUNNER_TEMP/vm-guest" \
+            --mkfs "$RUNNER_TEMP/vm-build-tools/erofs/usr/bin/mkfs.erofs" \
+            --work "$RUNNER_TEMP/vm-kernel-spike" \
+            --output "$RUNNER_TEMP/vm-kernel-spike.json" | tee "$RUNNER_TEMP/vm-kernel-spike.log"
       - name: Retain candidate identities and actual digests
         if: always()
         uses: ./.github/actions/upload-evidence
@@ -49,4 +80,9 @@ jobs:
             ${{ runner.temp }}/vm-input-inventory.log
             ${{ runner.temp }}/vm-archive-inspection.json
             ${{ runner.temp }}/vm-archive-inspection.log
+            ${{ runner.temp }}/vm-tool-inputs.log
+            ${{ runner.temp }}/vm-spike-notices
+            ${{ runner.temp }}/vm-kernel-spike.json
+            ${{ runner.temp }}/vm-kernel-spike.log
+            ${{ runner.temp }}/vm-kernel-spike/*.serial.log
           if-no-files-found: error

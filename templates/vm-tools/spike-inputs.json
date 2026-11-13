@@ -1,0 +1,18 @@
+{
+  "go": {
+    "version": "1.27.3",
+    "url": "https://go.dev/dl/go1.27.3.linux-amd64.tar.gz",
+    "sha256": "65efbc80fdc1fa2cd2631cad5b481777a68e8725f34e89f50fc6ac714e379b40",
+    "bytes": 70588678,
+    "licence": "BSD-3-Clause",
+    "digestSource": "https://go.dev/dl/?mode=json&include=all"
+  },
+  "erofs": {
+    "version": "1.7.1-1build2",
+    "url": "https://archive.ubuntu.com/ubuntu/pool/universe/e/erofs-utils/erofs-utils_1.7.1-1build2_amd64.deb",
+    "sha256": "ce1a7283a3ffc47bc832dfd77c4fba6a327f3928f1c90c64fe14e251251cfc3a",
+    "bytes": 110570,
+    "licence": "GPL-2.0-or-later, with Apache-2.0/public-domain library portions; separate executable",
+    "digestSource": "Ubuntu noble signed Packages metadata"
+  }
+}
