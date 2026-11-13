@@ -2880,3 +2880,19 @@ job when publication is authorized. That job has not run in this task.
   and the PR release image builds. Host run 43499581572's real booted Fedora/Debian/Ubuntu
   and several Docker/bootstrap cases pass; its remaining matrix is still active. These
   results establish that earlier doc regeneration, not the latest head's full acceptance.
+
+
+- K25 production monitor component: one owned Machine launches the verified static agent's
+  monitor mode with the host confinement plan on private stdin and boot secrets on a bounded,
+  one-shot Unix socket. It clears host environment, creates private serial output exclusively,
+  owns the child identity, cancels bootstrap listeners and retains kill-on-drop. Readiness
+  requires completed bootstrap delivery and a live monitor; timeout cancels and joins the
+  sender rather than leaving a detached secret listener. Process drop never certifies a clean
+  disk; the actual kernel lease remains authoritative until monitor exit.
+- Existing six-boot KVM acceptance now invokes that production component directly, retaining
+  its exact health/bootstrap deadlines, lease probes, authenticated shutdown, fsck, stream,
+  network and isolation assertions. Full local Rust keeps 498 passes, one unchanged IPv6
+  failure and 33 ignored cases; strict root/helper Clippy and fmt pass. Real execution of this
+  new host component awaits CI, not this no-KVM host. No new job/gate or measurable PR minute.
+  Continue ContainerRuntime integration, helper/launcher journal adoption, node data/agent
+  metadata forwarding, root jailer/firewall, release/installer wiring and production timings.

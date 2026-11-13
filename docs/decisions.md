@@ -1065,3 +1065,5 @@
 - K25: preserve kernel-reported sparse file holes after reflink refusal in the existing no-follow copy path, retaining apparent-byte admission and cancellation checks; VM snapshots and staged ext4 recovery must not allocate every unwritten guest block.
 
 - K25: serialize writable ext4 preparation with the monitor lease, check current disks read-only, run automatic preen only on a complete staged sparse copy, and publish after independent read-only verification and fsync; a damaged disk or resizing request is refused without replacing current data.
+
+- K25: share the production owned-monitor/bootstrap primitive with actual KVM acceptance, keeping verified inputs and the host confinement plan outside workload control; a dropped request cannot replay boot secrets or certify process/disk exit.

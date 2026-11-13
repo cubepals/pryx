@@ -9,7 +9,7 @@ use pryx_agent::{
     contract::{AGENT_PORT, IDEMPOTENCY_HEADER},
     process::{Command as GuestCommand, Start},
     vm_boot::{self, Boot, Network},
-    vm_monitor::{self, Plan, Role},
+    vm_monitor::{Plan, Role},
     vm_observation::{self, Proof},
     vm_shutdown,
 };
@@ -26,7 +26,6 @@ use std::{
 };
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    net::UnixListener,
     process::Command,
 };
 
@@ -443,16 +442,7 @@ async fn boot(
         network_arguments: None,
         network,
     };
-    let listener = UnixListener::bind(format!("{}_{port}", channel.display(), port = vm_boot::PORT)).unwrap();
-    let boot_bytes = serde_json::to_vec(&boot).unwrap();
-    assert!(boot_bytes.len() <= vm_boot::MAX_BYTES);
-    let sender = tokio::spawn(async move {
-        let (mut socket, _) = listener.accept().await.unwrap();
-        socket.write_all(&boot_bytes).await.unwrap();
-        socket.shutdown().await.unwrap();
-    });
     let serial_path = directory.join(format!("boot{round}.serial.log"));
-    let serial = fs::File::create(&serial_path).unwrap();
     let locks = directory.parent().unwrap().join("monitor-locks");
     match fs::DirBuilder::new().mode(0o700).create(&locks) {
         Ok(()) => (),
@@ -477,18 +467,16 @@ async fn boot(
         write: vec![writes.into()],
         role: Role::Ordinary,
     };
-    let mut monitor = Command::new(input("PRYX_VM_HOST_LAUNCHER"))
-        .arg(vm_monitor::MODE)
-        .stdin(Stdio::piped())
-        .stdout(serial.try_clone().unwrap())
-        .stderr(serial)
-        .kill_on_drop(true)
-        .spawn()
-        .unwrap();
-    let mut launcher = monitor.stdin.take().unwrap();
-    launcher.write_all(&serde_json::to_vec(&plan).unwrap()).await.unwrap();
-    launcher.shutdown().await.unwrap();
-    drop(launcher);
+    let mut monitor = pryxd::runtime::vm::machine::Machine::launch(
+        &input("PRYX_VM_HOST_LAUNCHER"),
+        &plan,
+        &channel,
+        &serial_path,
+        &boot,
+        tokio::time::Instant::now() + Duration::from_secs(15),
+    )
+    .await
+    .unwrap();
     let guest = Guest { channel, client: input("PRYX_VM_AGENT_CLIENT"), token: token.clone() };
     guest.ready().await;
     let lease = fs::OpenOptions::new().read(true).write(true).open(&lease_path).unwrap();
@@ -496,7 +484,7 @@ async fn boot(
         rustix::fs::flock(&lease, rustix::fs::FlockOperation::NonBlockingLockExclusive).unwrap_err(),
         rustix::io::Errno::WOULDBLOCK
     );
-    tokio::time::timeout(Duration::from_secs(1), sender).await.unwrap().unwrap();
+    monitor.bootstrapped(tokio::time::Instant::now() + Duration::from_secs(1)).await.unwrap();
     let kernel = exercise_guest(&guest, directory, round, uid, network_fixture.as_ref(), &bootstrap_metadata).await;
     exercise_forwarding(&guest, &metadata, &bootstrap_metadata).await;
     let other_nonce = uuid::Uuid::new_v4().simple().to_string();

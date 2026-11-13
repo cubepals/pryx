@@ -8,10 +8,12 @@
 //! - `image.rs`: bounded private-pipe contract with the independent OCI helper.
 //! - `bundle.rs`: whole-release verification and lazy acquisition of pinned VM inputs.
 //! - `disk.rs`: leased ext4 creation, read-only validation and staged safe recovery.
+//! - `machine.rs`: owned confined monitor process and one-shot private bootstrap.
 pub mod bundle;
 pub mod disk;
 pub mod filesystems;
 pub mod image;
+pub mod machine;
 
 pub fn error(problem: impl std::fmt::Display) -> super::RuntimeError {
     super::RuntimeError::Other(problem.to_string())
