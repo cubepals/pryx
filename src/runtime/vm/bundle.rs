@@ -22,6 +22,7 @@ const MAX_MANIFEST_BYTES: u64 = 1024 * 1024;
 const REQUIRED: &[&str] = &[
     "bin/firecracker",
     "bin/jailer",
+    "bin/vm-launcher",
     "bin/pryx-vm-image",
     "bin/vm-config",
     "bin/vm-transport",
@@ -52,6 +53,16 @@ struct Member {
 pub struct Bundle {
     root: PathBuf,
     filesystems: FilesystemTools,
+    bootstrap: Bootstrap,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Bootstrap {
+    pub agent_sha256: String,
+    pub image_sha256: String,
+    pub metadata: pryx_agent::bootstrap_capabilities::Capabilities,
+    pub network_probe: Option<String>,
 }
 
 fn invalid() -> io::Error {
@@ -162,7 +173,26 @@ impl Bundle {
         let component = root.join("filesystem");
         let digest = &expected[Path::new("filesystem/filesystem-manifest.json")].sha256;
         let filesystems = FilesystemTools::verified(&component, digest)?;
-        Ok(Self { root: root.into(), filesystems })
+        let bootstrap_member = &expected[Path::new("bootstrap/bootstrap.json")];
+        if bootstrap_member.bytes > MAX_MANIFEST_BYTES {
+            return Err(error(invalid()));
+        }
+        let bootstrap: Bootstrap =
+            serde_json::from_slice(&fs::read(root.join("bootstrap/bootstrap.json")).map_err(error)?).map_err(error)?;
+        if bootstrap.network_probe.is_some()
+            || bootstrap.agent_sha256 != expected[Path::new("bin/vm-launcher")].sha256
+            || bootstrap.image_sha256 != expected[Path::new("bootstrap/bootstrap.erofs")].sha256
+            || bootstrap.metadata.vm_init_version != pryx_agent::vm_boot::VERSION
+            || bootstrap.metadata.vm_monitor_version != pryx_agent::vm_monitor::VERSION
+            || bootstrap.metadata.vm_service_port_base != pryx_agent::vm_boot::SERVICE_PORT_BASE
+        {
+            return Err(error("VM launcher and trusted guest bootstrap are incompatible"));
+        }
+        Ok(Self { root: root.into(), filesystems, bootstrap })
+    }
+
+    pub fn bootstrap(&self) -> &Bootstrap {
+        &self.bootstrap
     }
 
     pub fn root(&self) -> &Path {

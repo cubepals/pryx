@@ -78,12 +78,14 @@ def build(args):
     shutil.copyfile(REPO / 'LICENSE.md', runtime / 'notices/pryx-LICENSE.md')
     metadata = json.loads((args.bootstrap / 'bootstrap.json').read_text())
     image = args.bootstrap / 'bootstrap.erofs'
-    if metadata['networkProbe'] is not None or package.digest(image) != metadata['imageSha256']:
+    if (metadata['networkProbe'] is not None or package.digest(image) != metadata['imageSha256']
+            or package.digest(args.launcher) != metadata['agentSha256']):
         raise ValueError('VM runtime requires a whole production bootstrap without test programs')
     (runtime / 'bootstrap').mkdir()
     shutil.copyfile(image, runtime / 'bootstrap/bootstrap.erofs')
     shutil.copyfile(args.bootstrap / 'bootstrap.json', runtime / 'bootstrap/bootstrap.json')
-    for source, name in [(args.image_helper, 'pryx-vm-image'), (args.configurator, 'vm-config'),
+    for source, name in [(args.launcher, 'vm-launcher'), (args.image_helper, 'pryx-vm-image'),
+                         (args.configurator, 'vm-config'),
                          (args.transport, 'vm-transport'), (args.network_proxy, 'network-proxy')]:
         static(source)
         shutil.copyfile(source, runtime / 'bin' / name)
@@ -106,7 +108,7 @@ def build(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ['output', 'source-output', 'sources', 'inspection', 'staged', 'filesystem-component',
-                 'sdk-notices', 'network-notices', 'bootstrap', 'image-helper', 'configurator', 'transport',
+                 'sdk-notices', 'network-notices', 'bootstrap', 'launcher', 'image-helper', 'configurator', 'transport',
                  'network-proxy', 'archive', 'source-archive', 'descriptor', 'source-descriptor']:
         parser.add_argument('--' + name, type=Path, required=True)
     parser.add_argument('--url-base', required=True)

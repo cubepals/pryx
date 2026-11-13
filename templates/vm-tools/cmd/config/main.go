@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
-// Command config emits spike configuration using the monitor owner's generated API models.
-// It does not implement a monitor client or enable production VM placement.
+// Command config emits launch configuration using the monitor owner's generated API models.
+// It neither implements monitor API shapes nor enables production VM placement.
 package main
 
 import (
@@ -19,6 +19,8 @@ import (
 )
 
 func main() {
+	memory := flag.Int64("memory-mib", 256, "Guest physical memory in MiB")
+	vcpus := flag.Int64("vcpus", 1, "Guest virtual CPU count")
 	kernel := flag.String("kernel", "", "Verified published guest kernel")
 	root := flag.String("root", "", "Read-only EROFS root")
 	writes := flag.String("writes", "", "Writable ext4 disk")
@@ -61,7 +63,7 @@ func main() {
 			KernelImagePath: kernel,
 			BootArgs:        "console=ttyS0 reboot=k panic=1 pci=off rootfstype=erofs init=/init ro",
 		},
-		MachineConfig: &models.MachineConfiguration{VcpuCount: new(int64(1)), MemSizeMib: new(int64(256))},
+		MachineConfig: &models.MachineConfiguration{VcpuCount: vcpus, MemSizeMib: memory},
 		Drives: []*models.Drive{
 			{DriveID: new(experiment.RootDrive), PathOnHost: root, IsReadOnly: new(true), IsRootDevice: new(true)},
 			{DriveID: new(experiment.WriteDrive), PathOnHost: writes, IsReadOnly: new(false), IsRootDevice: new(false)},

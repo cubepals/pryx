@@ -2770,3 +2770,23 @@ job when publication is authorized. That job has not run in this task.
 - Latest committed source 5fde98c has green VM, both rootless engines, CodeQL, core Rust,
   control workspaces and contract checks. Normal end-to-end/one-box and host bundle cases
   are still running or queued. PR 21 still has the same eighteen addressed scanner comments.
+
+
+- K25 portable-launch checkpoint: include the same static agent as bin/vm-launcher in the
+  separate VM distribution. The whole-bundle verifier requires it, ties its digest to the
+  trusted guest init, verifies the bootstrap image digest and rejects incompatible init,
+  monitor or service-port versions. Production bootstraps still exclude disposable probes.
+  The generated monitor model now takes explicit physical-memory and vCPU inputs, keeping
+  existing spike defaults. Placement and a production runtime remain unannounced.
+- Local bundle acquisition/offline/corruption acceptance passes in 6.44 s using verified CI
+  component bytes plus the current rebuilt launcher/bootstrap/transport, repackaged locally;
+  this is neither a release artifact nor real-KVM proof. The first extraction changed readonly
+  helper modes; restore their recorded modes before rebuilding, without loosening verification.
+  Actual launcher capability execution and generated configuration/owner validation pass.
+  Full local Rust remains 496 passes, one unchanged IPv6 failure and 33 ignored cases; strict
+  root/helper Clippy, fmt, Python compilation, Go build/vet and actionlint pass. Existing optional
+  CI assembles and verifies the complete same-source distribution; no added job/gate or PR minute.
+- Read source 858e068 run 43496424066/job 132130602591: its retained guest shutdown timeout
+  predates the already-proved ccd8221 reset/drain correction. Also read its control failure
+  132134747929 and 132134847610: generated API doc drift
+  predates 2969a46's regeneration. Do not count either old failure as a current-source pass.

@@ -20,6 +20,15 @@ async fn actual_bundle_acquires_whole_and_refuses_changed_inputs() {
         serde_json::from_slice(&fs::read(input("PRYX_VM_RUNTIME_DESCRIPTOR")).unwrap()).unwrap();
     let verified = Bundle::verified(&root, &artifact.manifest_sha256).unwrap();
     assert_eq!(verified.root(), root);
+    let launcher = std::process::Command::new(root.join("bin/vm-launcher"))
+        .arg(pryx_agent::bootstrap_capabilities::PROBE)
+        .output()
+        .unwrap();
+    assert!(launcher.status.success());
+    let capability: pryx_agent::bootstrap_capabilities::Capabilities =
+        serde_json::from_slice(&launcher.stdout).unwrap();
+    assert_eq!(capability.vm_monitor_version, verified.bootstrap().metadata.vm_monitor_version);
+    assert_eq!(capability.vm_service_port_base, pryx_agent::vm_boot::SERVICE_PORT_BASE);
     assert!(!verified.filesystems().identity().is_empty());
     let directory = tempfile::tempdir().unwrap();
     let cache = directory.path().join("cache");

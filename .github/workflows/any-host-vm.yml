@@ -198,6 +198,7 @@ jobs:
             --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" \
             --sdk-notices "$RUNNER_TEMP/vm-spike-notices" --network-notices "$RUNNER_TEMP/vm-network-notices" \
             --bootstrap "$RUNNER_TEMP/vm-runtime-bootstrap" \
+            --launcher target/x86_64-unknown-linux-musl/debug/pryx-agent \
             --image-helper target/x86_64-unknown-linux-musl/debug/pryx-vm-image \
             --configurator "$RUNNER_TEMP/vm-config" --transport "$RUNNER_TEMP/vm-agent-client" \
             --network-proxy "$RUNNER_TEMP/vm-network-proxy" --output "$RUNNER_TEMP/vm-runtime" \
