@@ -274,7 +274,10 @@
       "bytes": 1214,
       "sha256": "2a65e03b94217063d72fe998e5fb2e25cd01716078a3ba1b0ab574ab205111e6",
       "sha512": "a76f79b801497ad994746cf82bb6eaf86f9e1ae646e6819fbae8532a7f4eee53a96ac1d4e789ec8f66aea2a68027b0597f7a579b3369e01258da8accfce41370",
-      "archive": false
+      "archive": false,
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/8f79d39391b46d6dbf1800fb68b8212a21d5ee2e/main/musl/handle-aux-at_base.patch"
+      ]
     },
     {
       "origin": "musl",
@@ -283,7 +286,10 @@
       "bytes": 896,
       "sha256": "b2067680c66af9eb9f4fdc1fa5d9337a9fd62bdab2c437b416aa97d79eb884ee",
       "sha512": "83ec0f774dbb5d4f4d4b917d149ea0ef609d028d18ae7624e90fedda6e3174c91ade93751bfd376adfa2848155110fc4dd02b6790363b98e5395c4787e8731e8",
-      "archive": false
+      "archive": false,
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/8f79d39391b46d6dbf1800fb68b8212a21d5ee2e/main/musl/0001-add-stub-for-pthread_mutexattr_setprioceiling.patch"
+      ]
     },
     {
       "origin": "musl",
@@ -292,7 +298,10 @@
       "bytes": 738,
       "sha256": "92c8e965798ed516c15cb2a4e7c4ac45ec1eb68b6abff16c73adff2a3bae1b14",
       "sha512": "6eae45aa82db69bc96386aedf3d1bfe83dfa0a7b4b824326c1c7e1bab31100d635ed0e8930c26a1694697fad59167a42e2b5f3a2ac51b07e36d85f047e268cff",
-      "archive": false
+      "archive": false,
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/8f79d39391b46d6dbf1800fb68b8212a21d5ee2e/main/musl/fix-loongarch64-zero-len-extcontext.patch"
+      ]
     },
     {
       "origin": "musl",
@@ -301,7 +310,10 @@
       "bytes": 7506,
       "sha256": "1d0be2e72b9d5bd16546b923aa8af861d271322f01644716a81823bec4065c99",
       "sha512": "f7849abeab0e4eab992a80464afa07b9c8aae5cee76040523b9dbc0931435f28ea8f5792b8a4a0cd6d608ac2f37e3225e89afcb3171a0a6df44450ed57cee83b",
-      "archive": false
+      "archive": false,
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/8f79d39391b46d6dbf1800fb68b8212a21d5ee2e/main/musl/CVE-2026-6042.patch"
+      ]
     },
     {
       "origin": "musl",
@@ -310,7 +322,10 @@
       "bytes": 5594,
       "sha256": "1ee29f64f9ca8e8ad7c349779d661ff6b52126a27575d3586981357a52c406fb",
       "sha512": "a64ab7688d1a85e560b5687783df482d2467a79a74400da5a1601382847d6b4e6a79b7529a8dc80c46ddda8dc2a812f2261557fc8ee98dc3bdf7322761bd6d9c",
-      "archive": false
+      "archive": false,
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/8f79d39391b46d6dbf1800fb68b8212a21d5ee2e/main/musl/CVE-2026-40200.patch"
+      ]
     },
     {
       "origin": "musl",
@@ -319,7 +334,10 @@
       "bytes": 5943,
       "sha256": "0cf0090ab433e8f9ed08ae03a0c93aff557c1d3e347260f62a61a10281f5333b",
       "sha512": "df73a35b9da531021ad5b1a6aad12b9d8d69de2bed7fc91b1156d9727476ab25c0d3c2341d60488152ee8ccbddb83786e91fff950cdb177b9b04673da98fdc4e",
-      "archive": false
+      "archive": false,
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/8f79d39391b46d6dbf1800fb68b8212a21d5ee2e/main/musl/CVE-2026-107891.patch"
+      ]
     },
     {
       "origin": "musl",
@@ -328,7 +346,10 @@
       "bytes": 393,
       "sha256": "7065021e04a5060957b5c6907af671a7028230d91927fb0c25892cadd9312b7c",
       "sha512": "29da5e89358103846a42987c2a5ff26ec131e29a6a7a714cd0e2941baf1f1e5cd9b1ee66f488c8e222135031bf2de507d7d05b037ab65c30482147dba63d2e52",
-      "archive": false
+      "archive": false,
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/8f79d39391b46d6dbf1800fb68b8212a21d5ee2e/main/musl/ldconfig"
+      ]
     },
     {
       "origin": "musl",
@@ -337,7 +358,10 @@
       "bytes": 133,
       "sha256": "299a7d75a09de3e2e11e7fb4acc3182e4a14e868093d2f30938fce9bfcff13da",
       "sha512": "062bb49fa54839010acd4af113e20f7263dde1c8a2ca359b5fb2661ef9ed9d84a0f7c3bc10c25dcfa10bb3c5a4874588dff636ac43d5dbb3d748d75400756d0b",
-      "archive": false
+      "archive": false,
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/8f79d39391b46d6dbf1800fb68b8212a21d5ee2e/main/musl/__stack_chk_fail_local.c"
+      ]
     },
     {
       "origin": "musl",
@@ -346,7 +370,10 @@
       "bytes": 11614,
       "sha256": "d87d0cbb3690ae2c5d8cc218349fd8278b93855dd625deaf7ae50e320aad247c",
       "sha512": "0d80f37b34a35e3d14b012257c50862dfeb9d2c81139ea2dfa101d981d093b009b9fa450ba27a708ac59377a48626971dfc58e20a3799084a65777a0c32cbc7d",
-      "archive": false
+      "archive": false,
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/8f79d39391b46d6dbf1800fb68b8212a21d5ee2e/main/musl/getconf.c"
+      ]
     },
     {
       "origin": "musl",
@@ -355,7 +382,10 @@
       "bytes": 11656,
       "sha256": "a6171c2db641cdd99c164169d3c5c6ca323617483cedec4cbbe3eb39c5834df0",
       "sha512": "246e029350d4295147fe311108dcfb991ef130271b856040c1fb6a9955414f263d2a51f978b8ae91f52ff49705e8e4572b8f0e6939801fa854e3f095a67d3d64",
-      "archive": false
+      "archive": false,
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/8f79d39391b46d6dbf1800fb68b8212a21d5ee2e/main/musl/getent.c"
+      ]
     },
     {
       "origin": "musl",
@@ -364,7 +394,10 @@
       "bytes": 2577,
       "sha256": "f79a2930a2e5bb0624321589edf8b889d1e9b603e01e6b7ae214616605b3fdd7",
       "sha512": "9d42d66fb1facce2b85dad919be5be819ee290bd26ca2db00982b2f8e055a0196290a008711cbe2b18ec9eee8d2270e3b3a4692c5a1b807013baa5c2b70a2bbf",
-      "archive": false
+      "archive": false,
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/8f79d39391b46d6dbf1800fb68b8212a21d5ee2e/main/musl/iconv.c"
+      ]
     },
     {
       "origin": "util-linux",
@@ -382,7 +415,10 @@
       "bytes": 690,
       "sha256": "127c8a4bf9613bed2cec361a5e7f2d77db560a561d771f47e27c008c8eb2d722",
       "sha512": "c1c9cd816d20582438cda75a9c0ea4e687eee124e657172729aff410f52558be19cc5d649dae07c03f7618411e5aa6c23bcebc3fdf25529517a61b6b343966ef",
-      "archive": false
+      "archive": false,
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/d98c55af59055e6ca60fbe36e171546918709965/main/util-linux/utmps.patch"
+      ]
     },
     {
       "origin": "util-linux",
@@ -391,7 +427,10 @@
       "bytes": 965,
       "sha256": "46faf1198bd884d12c5d45019a5fec8dfdefeae6721d8c9f3da89921acdb2a6d",
       "sha512": "876bb9041eca1b2cca1e9aac898f282db576f7860aba690a95c0ac629d7c5b2cdeccba504dda87ff55c2a10b67165985ce16ca41a0694a267507e1e0cafd46d9",
-      "archive": false
+      "archive": false,
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/d98c55af59055e6ca60fbe36e171546918709965/main/util-linux/ttydefaults.h"
+      ]
     },
     {
       "origin": "util-linux",
@@ -400,7 +439,10 @@
       "bytes": 321,
       "sha256": "d34e754f2ea29b6377a06ca1d4c31a85767f08995b9bbe777b85c023c88d3343",
       "sha512": "401d2ccbdbfb0ebd573ac616c1077e2c2b79ff03e9221007759d8ac25eb522c401f705abbf7daac183d5e8017982b8ec5dd0a5ebad39507c5bb0a9f31f04ee97",
-      "archive": false
+      "archive": false,
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/d98c55af59055e6ca60fbe36e171546918709965/main/util-linux/rfkill.confd"
+      ]
     },
     {
       "origin": "util-linux",
@@ -409,7 +451,10 @@
       "bytes": 898,
       "sha256": "59637f63f66df13539d651166c33a9122c6de93ef0f102da471e97bdaff4fb04",
       "sha512": "b0e11226c611fd52d54f599a40d23c4f748d5bd6971732dba2d25581aedaf5d2c62bcb49515d175569ff9aa1cf49a3dff25d1a5d4dcd89428c7020fc7ea3a581",
-      "archive": false
+      "archive": false,
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/d98c55af59055e6ca60fbe36e171546918709965/main/util-linux/rfkill.initd"
+      ]
     },
     {
       "origin": "util-linux",
@@ -418,7 +463,10 @@
       "bytes": 202,
       "sha256": "e498158ef3a93838eaf24e7c6672178fa2e0f8602de799bfc18807fd729bc855",
       "sha512": "0c8e764308ac1d084ebb4246eb97203de983bc0170066c958a56b412d9fd2f98da7f78f059e59512542c56a2639d6b2da35eff6469a48ebce6b2c406e94a96a7",
-      "archive": false
+      "archive": false,
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/d98c55af59055e6ca60fbe36e171546918709965/main/util-linux/su-l.pamd"
+      ]
     },
     {
       "origin": "util-linux",
@@ -427,7 +475,10 @@
       "bytes": 373,
       "sha256": "e59c771511890f74e2fcd2de8c716fdc0e2d538f6a3dda1a9d54439e57185cda",
       "sha512": "bc05278acbe585bfc00c9ee8b898d7765273c2dec68be1d86cd93a9e939b9c41941d56420552f7197d4b785761d97f83c22128fa8de5bb14e6170d79e7f0ff10",
-      "archive": false
+      "archive": false,
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/d98c55af59055e6ca60fbe36e171546918709965/main/util-linux/fix-login.c.patch"
+      ]
     },
     {
       "origin": "util-linux",
@@ -436,7 +487,10 @@
       "bytes": 416,
       "sha256": "2de9f2ab0cde675ff79e260749a703e0da2372d256d68e2fa346833d2468c848",
       "sha512": "c0b66fb44512f10e15ede9f20dec9156234c957543f9761137e1ee307cf8238da475fb445affa5f12084ae2bcf47d4e58360b41d6b298043a03f6e8fe272d897",
-      "archive": false
+      "archive": false,
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/d98c55af59055e6ca60fbe36e171546918709965/main/util-linux/fix-nsenter.c.patch"
+      ]
     },
     {
       "origin": "util-linux",
@@ -445,7 +499,10 @@
       "bytes": 2201,
       "sha256": "062b4ce8fb648f1a1394a21e5183c538711f701ac39bb12e8617194bf2bf722a",
       "sha512": "9a08cbd209fd7699d7494a1b786ba3a7f2f08dd02ef4d3655a0acec7b8e5252dc3b78074c8183f237620428a7f0c3eae0c4cbe763b5d7740ea05cabf3b8470d4",
-      "archive": false
+      "archive": false,
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/d98c55af59055e6ca60fbe36e171546918709965/main/util-linux/PATCH-test_enosys-Handle-musl-libc-error-strings.patch"
+      ]
     },
     {
       "origin": "util-linux",
@@ -454,7 +511,10 @@
       "bytes": 2001,
       "sha256": "ef2f71793fd76ce3500ea8df37ada9d0b70958502a24173600667064bd0f7c7b",
       "sha512": "d45a279149e41a63fc55c8867ad3244ecd9cd6c18d217e9a87bb31e6172e29b338a8f5f302022cc6b741401cbdb25145a504ff654011dd17c66e5bb330ef19a7",
-      "archive": false
+      "archive": false,
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/d98c55af59055e6ca60fbe36e171546918709965/main/util-linux/0001-libblkid-minix-don-t-detect-erofs-images-as-minix.patch"
+      ]
     },
     {
       "origin": "util-linux",
@@ -463,7 +523,10 @@
       "bytes": 1375,
       "sha256": "8eb0b8970bdc6de9f924264444d07f93c500a9f1f602784056928229ec541461",
       "sha512": "c9fe03222466201ac0c91576db2fce79570e55fa985f166960a332e064603cacea640f2d55f20a310db3d72048baf9375147af67067f49f88d9a1c340388ef99",
-      "archive": false
+      "archive": false,
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/d98c55af59055e6ca60fbe36e171546918709965/main/util-linux/libmount-include.patch"
+      ]
     },
     {
       "origin": "util-linux",
@@ -472,7 +535,10 @@
       "bytes": 2975,
       "sha256": "bd5b45db9dbfb340622250e92a9f35dbfd9a3574045c4e89e3d034e2391f7697",
       "sha512": "d714aadf1b685fbd78d81bd446e871be0f1da78a0ae635b5e823ea632073dfbf3ab3eb30d71ad821342d46ff499fef56881bfc4ecaab3b786746aa9f06cf80f2",
-      "archive": false
+      "archive": false,
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/d98c55af59055e6ca60fbe36e171546918709965/main/util-linux/CVE-2026-78408.patch"
+      ]
     },
     {
       "origin": "libeconf",
@@ -490,7 +556,10 @@
       "bytes": 617,
       "sha256": "1bca81ded577887200a823273e6443fc630aa8e98fe522b0a9b5600db5742ec7",
       "sha512": "28431c1f80ee7815991584ef6307dabe593b4da58b9406e6f1a9cb30bfba3e925a48c83b0d3824427631bede5b1249b0c87e0d9fb55971d4ecf90805076b25dd",
-      "archive": false
+      "archive": false,
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/62db33049768522f381410614d59c7d732f72c3a/main/libeconf/musl-tests.patch"
+      ]
     },
     {
       "origin": "lz4",
@@ -537,63 +606,90 @@
       "name": "APKBUILD",
       "url": "https://git.alpinelinux.org/aports/plain/community/erofs-utils/APKBUILD?id=065ca2ca555806ea45d87fad133c88220a333d95",
       "bytes": 925,
-      "sha256": "4a2785ee3412c8bf28bb06d2e0ab1ea84e811195a15223d27ff8e741a8b47ad0"
+      "sha256": "4a2785ee3412c8bf28bb06d2e0ab1ea84e811195a15223d27ff8e741a8b47ad0",
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/065ca2ca555806ea45d87fad133c88220a333d95/community/erofs-utils/APKBUILD"
+      ]
     },
     {
       "origin": "e2fsprogs",
       "name": "APKBUILD",
       "url": "https://git.alpinelinux.org/aports/plain/main/e2fsprogs/APKBUILD?id=8683a6972cb245fbbdb535dad6435a9930bb9374",
       "bytes": 2516,
-      "sha256": "fdeebc52e727e071462ef6616e1d24064fb94a9ed4df88e0b16a3e77d1baa5f3"
+      "sha256": "fdeebc52e727e071462ef6616e1d24064fb94a9ed4df88e0b16a3e77d1baa5f3",
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/8683a6972cb245fbbdb535dad6435a9930bb9374/main/e2fsprogs/APKBUILD"
+      ]
     },
     {
       "origin": "musl",
       "name": "APKBUILD",
       "url": "https://git.alpinelinux.org/aports/plain/main/musl/APKBUILD?id=8f79d39391b46d6dbf1800fb68b8212a21d5ee2e",
       "bytes": 6495,
-      "sha256": "22c5adb3f3b68ab84e5ff7d20df68447063d1ecb5c7b39afd5a04a1dfd444a35"
+      "sha256": "22c5adb3f3b68ab84e5ff7d20df68447063d1ecb5c7b39afd5a04a1dfd444a35",
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/8f79d39391b46d6dbf1800fb68b8212a21d5ee2e/main/musl/APKBUILD"
+      ]
     },
     {
       "origin": "util-linux",
       "name": "APKBUILD",
       "url": "https://git.alpinelinux.org/aports/plain/main/util-linux/APKBUILD?id=d98c55af59055e6ca60fbe36e171546918709965",
       "bytes": 11509,
-      "sha256": "5347f9d386c8684e7f5cc160ae8595c5c3d3cfedcfdc758f5e022a46e560b944"
+      "sha256": "5347f9d386c8684e7f5cc160ae8595c5c3d3cfedcfdc758f5e022a46e560b944",
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/d98c55af59055e6ca60fbe36e171546918709965/main/util-linux/APKBUILD"
+      ]
     },
     {
       "origin": "libeconf",
       "name": "APKBUILD",
       "url": "https://git.alpinelinux.org/aports/plain/main/libeconf/APKBUILD?id=62db33049768522f381410614d59c7d732f72c3a",
       "bytes": 1012,
-      "sha256": "b54a5cbbccacc5bd6df56ae141e27fc7ca9ee08accc4c01d9420cc81ba9e8fba"
+      "sha256": "b54a5cbbccacc5bd6df56ae141e27fc7ca9ee08accc4c01d9420cc81ba9e8fba",
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/62db33049768522f381410614d59c7d732f72c3a/main/libeconf/APKBUILD"
+      ]
     },
     {
       "origin": "lz4",
       "name": "APKBUILD",
       "url": "https://git.alpinelinux.org/aports/plain/main/lz4/APKBUILD?id=1f16962f34234a77fab0f4651459c4381b4a0cd6",
       "bytes": 1199,
-      "sha256": "224936afd99a354d66019ac3ef6438981bb5a1231ee10a030344ffee7150ef09"
+      "sha256": "224936afd99a354d66019ac3ef6438981bb5a1231ee10a030344ffee7150ef09",
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/1f16962f34234a77fab0f4651459c4381b4a0cd6/main/lz4/APKBUILD"
+      ]
     },
     {
       "origin": "zlib",
       "name": "APKBUILD",
       "url": "https://git.alpinelinux.org/aports/plain/main/zlib/APKBUILD?id=bdf501c870a92a05c097857401f69c48c4810384",
       "bytes": 989,
-      "sha256": "f03e134596ecd53717a25715fd7b7616a0ad42a151246ee9c2a06242370ec51b"
+      "sha256": "f03e134596ecd53717a25715fd7b7616a0ad42a151246ee9c2a06242370ec51b",
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/bdf501c870a92a05c097857401f69c48c4810384/main/zlib/APKBUILD"
+      ]
     },
     {
       "origin": "apk-tools",
       "name": "APKBUILD",
       "url": "https://git.alpinelinux.org/aports/plain/main/apk-tools/APKBUILD?id=13685e8f2cf1c103cbba2fb9efcfcf19f4918df0",
       "bytes": 3962,
-      "sha256": "092d5c1a4957bf585a4c9d27a7c68cfa07e54cffeac57b1eec154675d54d50b0"
+      "sha256": "092d5c1a4957bf585a4c9d27a7c68cfa07e54cffeac57b1eec154675d54d50b0",
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/13685e8f2cf1c103cbba2fb9efcfcf19f4918df0/main/apk-tools/APKBUILD"
+      ]
     },
     {
       "origin": "openssl",
       "name": "APKBUILD",
       "url": "https://git.alpinelinux.org/aports/plain/main/openssl/APKBUILD?id=29b9ec24b1b5b39aeef51fa2a044210e2ec5258e",
       "bytes": 7297,
-      "sha256": "ea459c051ee8d846c06f1d47d09d0f737778502c01de88c9696e96a208de5943"
+      "sha256": "ea459c051ee8d846c06f1d47d09d0f737778502c01de88c9696e96a208de5943",
+      "mirrors": [
+        "https://raw.githubusercontent.com/alpinelinux/aports/29b9ec24b1b5b39aeef51fa2a044210e2ec5258e/main/openssl/APKBUILD"
+      ]
     }
   ],
   "notices": [

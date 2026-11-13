@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
+import urllib.error
 
 from inventory import ROOT, acquire
 
@@ -32,8 +33,17 @@ def checked_file(archive, member, expected):
 
 
 def local(item, cache):
-    digest = acquire(item['url'], item['bytes'], item['sha256'], cache=cache)
-    return cache / (digest + '.archive')
+    addresses = [item['url'], *item.get('mirrors', [])]
+    for index, address in enumerate(addresses):
+        print(json.dumps({'acquire': address, 'sha256': item['sha256']}), flush=True)
+        try:
+            digest = acquire(address, item['bytes'], item['sha256'], cache=cache)
+            return cache / (digest + '.archive')
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as error:
+            print(json.dumps({'sourceUnavailable': address, 'error': str(error)}), flush=True)
+            if index + 1 == len(addresses):
+                raise
+    raise AssertionError('Unreachable source selection')
 
 
 def source_inputs(catalog, cache, output):

@@ -2354,3 +2354,13 @@ job when publication is authorized. That job has not run in this task.
   Python compilation, complete actionlint/ShellCheck, docs and whitespace pass.
   Real KVM proof of these new builders remains pending. Production acquisition,
   monitor/kernel/network assembly and backend/agent/lifecycle remain incomplete.
+
+- Filesystem source 87a5a0b's VM job
+  [43463149416](https://github.com/cubepals/pryx/actions/runs/43463149416/job/132015121945)
+  stops during source acquisition with an actual redirected HTTP 403, before any
+  filesystem execution or new boot. The former failure diagnostic omitted the
+  input URL. Add per-input URL/digest diagnostics and Alpine's official GitHub
+  mirror for commit-addressed recipe/patch inputs, always at the same required
+  byte count and SHA-256. A real mirror request matches the reviewed patch's
+  original bytes. Digest/notice mismatches still fail without fallback. This is
+  a source availability repair, not a rerun claimed as successful.
