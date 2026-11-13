@@ -82,7 +82,6 @@ libc = "0.2.189"
 async-trait = "0.1"
 podman-api-stubs = "=0.9.0"
 oci-spec = { version = "=0.10.0", default-features = false, features = ["runtime"] }
-oci-client = { version = "=0.18.0", default-features = false, features = ["rustls-tls-no-provider"] }
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]
 kvm-ioctls = "=0.24.0"
@@ -129,6 +128,7 @@ panic = "abort"
 
 [workspace]
 members = ["agent"]
+exclude = ["vm-image"]
 default-members = [".", "agent"]
 resolver = "3"
 

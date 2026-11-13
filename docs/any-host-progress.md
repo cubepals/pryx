@@ -2429,3 +2429,18 @@ job when publication is authorized. That job has not run in this task.
   incomplete older run, preserve all failed/green experiment evidence, and keep
   the active implementation and the earlier full application baseline running.
   Cancellation is not counted as a successful check or milestone proof.
+
+- Source 8a9bc80's actual OCI acceptance and complete optional VM experiment
+  [43469169462](https://github.com/cubepals/pryx/actions/runs/43469169462) are green.
+  Both normal runs retain Structure failures in jobs 132037029037 and
+  132038401397: enabling oci-client's required tracing/log feature expands eleven
+  unchanged daemon functions beyond the existing cognitive-complexity threshold.
+  Preserve the gate and baseline. Move the unchanged OCI implementation and its
+  actual acceptance to independent vm-image/; the root workspace excludes that
+  helper so its registry dependency cannot change daemon features. Reuse the
+  node's verified filesystem component and atomic file publication. The optional
+  job builds/tests the helper with its own lock, from the same release source.
+- Source 8b2279f's complete Any-host matrix 43458372783 is now green, all sixteen
+  actual jobs including signed installed SDK/CLI acceptance and all host cells.
+  Its normal push and PR are also green as recorded above. This is the retained
+  application baseline, not production VM backend or init proof.

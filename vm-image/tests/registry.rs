@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Real public OCI registries and the signature-verified filesystem component, without an
 //! engine or root. The optional VM workflow stages these inputs and runs this acceptance.
-use pryxd::runtime::{
-    RuntimeError,
-    vm::{filesystems::FilesystemTools, image::Images},
-};
+use pryx_vm_image::image::Images;
+use pryxd::runtime::{RuntimeError, vm::filesystems::FilesystemTools};
 use std::{fs, os::unix::fs::PermissionsExt, path::PathBuf, time::Duration};
 
 #[tokio::test]
@@ -22,7 +20,7 @@ async fn real_oci_layers_are_verified_cached_and_corruption_is_refused() {
     let images = Images::new(staging.path().join("images"), tools).unwrap();
     let mut observations = Vec::new();
     let inputs: Vec<serde_json::Value> =
-        serde_json::from_str(include_str!("../templates/vm-tools/image-inputs.json")).unwrap();
+        serde_json::from_str(include_str!("../../templates/vm-tools/image-inputs.json")).unwrap();
     for input in inputs {
         let reference = input["reference"].as_str().unwrap();
         let image = images.prepare(reference, Duration::from_secs(120)).await.unwrap();

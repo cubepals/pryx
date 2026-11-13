@@ -4,10 +4,9 @@
 //!
 //! Parts (`vm/`):
 //! - `filesystems.rs`: verify the host-owned filesystem component before external execution.
-//! - `image.rs`: daemonless verified OCI blobs converted to digest-cached EROFS layers.
+//! The independent vm-image/ helper wraps OCI acquisition without changing daemon dependency features.
 pub mod filesystems;
-pub mod image;
 
-fn error(problem: impl std::fmt::Display) -> super::RuntimeError {
+pub fn error(problem: impl std::fmt::Display) -> super::RuntimeError {
     super::RuntimeError::Other(problem.to_string())
 }

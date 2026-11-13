@@ -40,7 +40,7 @@ fn regular(path: &Path) -> io::Result<File> {
     Ok(file)
 }
 
-pub(super) fn sha256(mut source: impl Read) -> io::Result<String> {
+pub fn sha256(mut source: impl Read) -> io::Result<String> {
     let mut digest = Context::new(&SHA256);
     let mut buffer = [0; 64 * 1024];
     loop {
@@ -137,7 +137,7 @@ impl FilesystemTools {
         &self.identity
     }
 
-    pub(super) fn builder(&self, program: &str) -> std::process::Command {
+    pub fn builder(&self, program: &str) -> std::process::Command {
         let mut command = std::process::Command::new(self.root.join("libraries/ld-musl-x86_64.so.1"));
         command
             .env_clear()

@@ -6,12 +6,12 @@ use super::{
     error,
     filesystems::{FilesystemTools, sha256},
 };
-use crate::runtime::RuntimeError;
 use axum::http::StatusCode;
 use futures_util::TryStreamExt;
 use oci_client::errors::{OciDistributionError, OciErrorCode};
 use oci_client::{Client, Reference, config::ConfigFile, manifest::OciDescriptor, secrets::RegistryAuth};
 use oci_spec::image::{Arch, Digest, DigestAlgorithm, Os};
+use pryxd::runtime::RuntimeError;
 use serde::{Deserialize, Serialize};
 use std::{
     fs::{self, File, OpenOptions},
@@ -177,7 +177,7 @@ impl Images {
             // A missing record never authenticates an existing image. A completed record
             // follows the synced image; cancellation or failure cannot publish partial data.
             fs::rename(generated, &path).map_err(error)?;
-            crate::durable::write_atomic(&record, &serde_json::to_vec(&saved).map_err(error)?, 0o600).map_err(error)?;
+            pryxd::durable::write_atomic(&record, &serde_json::to_vec(&saved).map_err(error)?, 0o600).map_err(error)?;
             layers.push(path);
         }
         Ok(PreparedImage { digest, layers, configuration })

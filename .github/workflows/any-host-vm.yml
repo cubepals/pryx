@@ -149,7 +149,7 @@ jobs:
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             target
-          key: vm-inputs-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}
+          key: vm-inputs-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'vm-image/Cargo.lock') }}
           restore-keys: vm-inputs-
       - name: Prepare real pinned Alpine and Debian OCI layers without an engine
         if: ${{ !cancelled() && steps.vm-rust.outcome == 'success' }}
@@ -159,10 +159,11 @@ jobs:
           CARGO_PROFILE_DEV_DEBUG: '0'
           CARGO_PROFILE_TEST_DEBUG: '0'
           CARGO_INCREMENTAL: '0'
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
         run: |
           PRYX_VM_FILESYSTEM_MANIFEST=$(sha256sum "$PRYX_VM_FILESYSTEM_COMPONENT/filesystem-manifest.json" | cut -d' ' -f1)
           export PRYX_VM_FILESYSTEM_MANIFEST
-          cargo test --locked --test vm_images -- --ignored --nocapture | tee "$RUNNER_TEMP/vm-image-acceptance.log"
+          cargo test --locked --manifest-path vm-image/Cargo.toml --test registry -- --ignored --nocapture | tee "$RUNNER_TEMP/vm-image-acceptance.log"
       - name: Retain candidate identities and actual digests
         if: always()
         uses: ./.github/actions/upload-evidence
