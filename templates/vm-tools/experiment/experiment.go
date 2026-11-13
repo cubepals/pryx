@@ -3,6 +3,8 @@
 package experiment
 
 const ReportPort uint32 = 11825
+const RootDrive = "root"
+const WriteDrive = "writes"
 
 const NetworkPort uint32 = 11826
 

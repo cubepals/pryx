@@ -3,15 +3,18 @@
 //! agent owns authentication, ports and protocols; this adapter only relays their bytes.
 use std::{io, net::Ipv4Addr};
 use tokio::{net::TcpStream, task::JoinSet};
-use tokio_vsock::{VMADDR_CID_ANY, VMADDR_CID_HOST, VsockAddr, VsockListener};
+use tokio_vsock::{VMADDR_CID_HOST, VsockAddr, VsockListener};
 
 pub(crate) struct Ingress {
     tasks: JoinSet<io::Result<()>>,
 }
 
 impl Ingress {
-    pub(crate) fn bind(ports: impl IntoIterator<Item = u16>) -> io::Result<Self> {
-        if rustix::process::getpid() != rustix::process::Pid::INIT {
+    pub(crate) fn bind(ports: impl IntoIterator<Item = u16>, cid: u32) -> io::Result<Self> {
+        if !crate::vm_boot::guest_cid(cid)
+            || (rustix::process::getpid() != rustix::process::Pid::INIT
+                && rustix::process::getppid() != Some(rustix::process::Pid::INIT))
+        {
             return Err(io::Error::new(io::ErrorKind::PermissionDenied, "VM ingress requires the guest supervisor"));
         }
         let mut tasks = JoinSet::new();
@@ -19,7 +22,7 @@ impl Ingress {
         // the listeners and no task can expose an incomplete set of forward slots.
         let listeners = ports
             .into_iter()
-            .map(|port| VsockListener::bind(VsockAddr::new(VMADDR_CID_ANY, u32::from(port))).map(|l| (port, l)))
+            .map(|port| VsockListener::bind(VsockAddr::new(cid, u32::from(port))).map(|l| (port, l)))
             .collect::<io::Result<Vec<_>>>()?;
         for (port, listener) in listeners {
             tasks.spawn(async move {
@@ -62,7 +65,7 @@ mod tests {
     #[tokio::test]
     async fn ordinary_host_process_cannot_enable_vm_ingress() {
         assert_ne!(rustix::process::getpid(), rustix::process::Pid::INIT);
-        let result = Ingress::bind([crate::contract::AGENT_PORT]);
+        let result = Ingress::bind([crate::contract::AGENT_PORT], VMADDR_CID_HOST + 1);
         assert!(matches!(result, Err(error) if error.kind() == io::ErrorKind::PermissionDenied));
     }
 }

@@ -192,6 +192,16 @@
     ]
   },
   {
+    "module": "github.com/sirupsen/logrus@v1.9.3",
+    "licence": "MIT",
+    "notices": [
+      {
+        "name": "LICENSE",
+        "sha256": "51a0c9ec7f8b7634181b8d4c03e5b5d204ac21d6e72f46c313973424664b2e6b"
+      }
+    ]
+  },
+  {
     "module": "go.mongodb.org/mongo-driver@v1.14.0",
     "licence": "Apache-2.0",
     "notices": [

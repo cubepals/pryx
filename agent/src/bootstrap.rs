@@ -21,6 +21,57 @@ use crate::ports::Ports;
 use crate::process::{Command, Event, Processes, Start};
 use crate::server::{Agent, router};
 
+type Bindings = BTreeMap<u16, Vec<IpAddr>>;
+type HttpTask = tokio::task::JoinHandle<io::Result<()>>;
+
+fn spawn_reaper(reaper: Arc<Agent>) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        let mut checkpoint = tokio::time::Instant::now();
+        loop {
+            reaper.processes.reap_orphans();
+            if checkpoint.elapsed() >= std::time::Duration::from_secs(1) {
+                let _ =
+                    crate::state::write(&reaper.data, crate::state::ACTIVITY_PATH, &reaper.telemetry.snapshot(), false);
+                checkpoint = tokio::time::Instant::now();
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+    })
+}
+
+async fn bind_spares(ports: &[u16], bindings: &Bindings) -> io::Result<Vec<(u16, Vec<tokio::net::TcpListener>)>> {
+    let mut spares = Vec::new();
+    for &port in ports {
+        let mut held = Vec::new();
+        for ip in &bindings[&port] {
+            held.push(tokio::net::TcpListener::bind((*ip, port)).await?);
+        }
+        spares.push((port, held));
+    }
+    Ok(spares)
+}
+
+async fn serve_http(
+    agent: Arc<Agent>,
+    port: u16,
+    bindings: &Bindings,
+    cid: Option<u32>,
+) -> io::Result<(Vec<HttpTask>, Option<crate::vm_ingress::Ingress>)> {
+    let mut listeners = Vec::new();
+    for ip in &bindings[&port] {
+        listeners.push(tokio::net::TcpListener::bind((*ip, port)).await?);
+    }
+    let ingress = cid.map(|cid| crate::vm_ingress::Ingress::bind(bindings.keys().copied(), cid)).transpose()?;
+    let mut servers = Vec::new();
+    for listener in listeners {
+        let listener = listener.tap_io(|socket| {
+            let _ = socket.set_nodelay(true);
+        });
+        servers.push(tokio::spawn(axum::serve(listener, router(agent.clone())).into_future()));
+    }
+    Ok((servers, ingress))
+}
+
 #[derive(Parser)]
 #[command(name = "pryx-agent", version)]
 pub struct Bootstrap {
@@ -50,12 +101,28 @@ pub struct Bootstrap {
     browser_sandbox: Option<bool>,
     #[arg(long = crate::bootstrap_capabilities::VSOCK_ARGUMENT)]
     vm_vsock: bool,
+    #[arg(long)]
+    vm_cid: Option<u32>,
     #[arg(last = true)]
     entrypoint: Vec<String>,
 }
 
 impl Bootstrap {
-    fn bindings(&self, process_tier: bool) -> io::Result<BTreeMap<u16, Vec<IpAddr>>> {
+    fn validate_host_policy(&self, forwarding: bool) -> Result<(), Box<dyn std::error::Error>> {
+        if self.browser_sandbox == Some(false) && std::env::var_os(crate::process_policy::POLICY_ENV).is_some() {
+            return Err("browser-sandbox cannot be disabled on the process tier".into());
+        }
+        if self.host_bindings.is_some() && !forwarding {
+            return Err("Process forwarding ownership channel is required".into());
+        }
+        Ok(())
+    }
+
+    pub(crate) fn vm_identity(&self) -> (&str, u64, &str) {
+        (&self.sandbox, self.epoch, &self.secret_env)
+    }
+
+    fn bindings(&self, process_tier: bool) -> io::Result<Bindings> {
         let expected = std::iter::once(self.port).chain(self.spare_ports.iter().copied()).collect::<BTreeSet<_>>();
         if expected.contains(&0) || expected.len() != self.spare_ports.len() + 1 {
             return Err(io::ErrorKind::InvalidInput.into());
@@ -89,25 +156,13 @@ pub async fn serve(
     args: Bootstrap,
     forward: Option<Arc<dyn crate::guest::Forward>>,
 ) -> Result<i32, Box<dyn std::error::Error>> {
-    if args.browser_sandbox == Some(false) && std::env::var_os(crate::process_policy::POLICY_ENV).is_some() {
-        return Err("browser-sandbox cannot be disabled on the process tier".into());
-    }
-    if args.host_bindings.is_some() && forward.is_none() {
-        return Err("Process forwarding ownership channel is required".into());
-    }
+    args.validate_host_policy(forward.is_some())?;
     let bindings = args.bindings(std::env::var_os(crate::process_policy::POLICY_ENV).is_some())?;
     let encoded = std::env::var(&args.secret_env).map_err(|_| "Agent signing material is missing")?;
     let key = SigningKey::from_encoded(&encoded)?;
     let logbook = Arc::new(crate::logbook::Logbook::open(&args.data)?);
     let telemetry = Arc::new(crate::telemetry::Telemetry::default());
-    let mut spares = Vec::new();
-    for port in args.spare_ports {
-        let mut held = Vec::new();
-        for ip in &bindings[&port] {
-            held.push(tokio::net::TcpListener::bind((*ip, port)).await?);
-        }
-        spares.push((port, held));
-    }
+    let spares = bind_spares(&args.spare_ports, &bindings).await?;
     let ports = Ports::bind_listeners(
         args.sandbox.clone(),
         args.domain,
@@ -134,77 +189,14 @@ pub async fn serve(
     });
     crate::tools::prepare(&agent, args.browser_sandbox.unwrap_or(true))
         .map_err(|_| "Native tool runtime directory failed")?;
-    let mut listeners = Vec::new();
-    for ip in &bindings[&args.port] {
-        listeners.push(tokio::net::TcpListener::bind((*ip, args.port)).await?);
-    }
-    let mut vm_ingress =
-        args.vm_vsock.then(|| crate::vm_ingress::Ingress::bind(bindings.keys().copied())).transpose()?;
-    let mut servers = Vec::new();
-    for listener in listeners {
-        let listener = listener.tap_io(|socket| {
-            let _ = socket.set_nodelay(true);
-        });
-        servers.push(tokio::spawn(axum::serve(listener, router(agent.clone())).into_future()));
-    }
+    let cid = args.vm_vsock.then_some(args.vm_cid.unwrap_or(tokio_vsock::VMADDR_CID_HOST + 1));
+    let (servers, mut vm_ingress) = serve_http(agent.clone(), args.port, &bindings, cid).await?;
     let mut term = signal(SignalKind::terminate())?;
     let mut interrupt = signal(SignalKind::interrupt())?;
-    let mount_gate = tokio::select! {
-        result=crate::tools::wait_mounts(&agent)=>result.map_err(|_|"Initial sandbox mounts failed"),
-        _=term.recv()=>Err("Terminated while preparing mounts"),
-        _=interrupt.recv()=>Err("Interrupted while preparing mounts"),
-    };
-    if let Err(error) = mount_gate {
-        terminate(&agent, libc::SIGKILL).await;
-        for server in servers {
-            server.abort()
-        }
-        return Err(error.into());
-    }
-    let entrypoint = if args.entrypoint.is_empty() {
-        None
-    } else {
-        Some(agent.processes.start(
-            Start {
-                command: Command::Argv(args.entrypoint),
-                env: Default::default(),
-                cwd: Some(args.entrypoint_cwd),
-                stdin: false,
-                pty: false,
-                cols: None,
-                rows: None,
-                timeout: None,
-            },
-            "entrypoint",
-            None,
-        )?)
-    };
-    let logs = if let Some(process) = &entrypoint {
-        let (replay, mut output) = process.subscribe().await;
-        Some(tokio::spawn(async move {
-            for event in replay {
-                log_output(event, &logbook).await;
-            }
-            while let Some(event) = output.recv().await {
-                log_output(event, &logbook).await;
-            }
-        }))
-    } else {
-        None
-    };
-    let reaper = agent.clone();
-    let reaper = tokio::spawn(async move {
-        let mut checkpoint = tokio::time::Instant::now();
-        loop {
-            reaper.processes.reap_orphans();
-            if checkpoint.elapsed() >= std::time::Duration::from_secs(1) {
-                let _ =
-                    crate::state::write(&reaper.data, crate::state::ACTIVITY_PATH, &reaper.telemetry.snapshot(), false);
-                checkpoint = tokio::time::Instant::now();
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-        }
-    });
+    prepare_mounts(&agent, &servers, &mut term, &mut interrupt).await?;
+    let entrypoint = start_entrypoint(&agent, args.entrypoint, args.entrypoint_cwd)?;
+    let logs = forward_entrypoint(&entrypoint, logbook).await;
+    let reaper = spawn_reaper(agent.clone());
     let exited = async {
         match &entrypoint {
             Some(process) if !args.keep_alive => process.wait().await.code.unwrap_or(1),
@@ -218,12 +210,7 @@ pub async fn serve(
         std::future::pending::<Result<i32, Box<dyn std::error::Error>>>().await
     };
     let result = tokio::select! {
-        error = async {
-            match vm_ingress.as_mut() {
-                Some(ingress) => ingress.failed().await,
-                None => std::future::pending().await,
-            }
-        } => Err(error.into()),
+        error = ingress_failure(&mut vm_ingress) => Err(error.into()),
         code = exited => Ok(code),
         result = warming => result,
         _ = term.recv() => { terminate(&agent, libc::SIGTERM).await; Ok(0) },
@@ -240,6 +227,77 @@ pub async fn serve(
         let _ = tokio::time::timeout(std::time::Duration::from_secs(1), logs).await;
     }
     result
+}
+
+async fn prepare_mounts(
+    agent: &Agent,
+    servers: &[HttpTask],
+    term: &mut tokio::signal::unix::Signal,
+    interrupt: &mut tokio::signal::unix::Signal,
+) -> Result<(), &'static str> {
+    let mount_gate = tokio::select! {
+        result=crate::tools::wait_mounts(agent)=>result.map_err(|_|"Initial sandbox mounts failed"),
+        _=term.recv()=>Err("Terminated while preparing mounts"),
+        _=interrupt.recv()=>Err("Interrupted while preparing mounts"),
+    };
+    if let Err(error) = mount_gate {
+        terminate(agent, libc::SIGKILL).await;
+        for server in servers {
+            server.abort()
+        }
+        return Err(error);
+    }
+    Ok(())
+}
+
+async fn ingress_failure(ingress: &mut Option<crate::vm_ingress::Ingress>) -> io::Error {
+    match ingress.as_mut() {
+        Some(ingress) => ingress.failed().await,
+        None => std::future::pending().await,
+    }
+}
+
+fn start_entrypoint(
+    agent: &Agent,
+    arguments: Vec<String>,
+    cwd: String,
+) -> Result<Option<Arc<crate::process::Process>>, crate::process::ProcessError> {
+    if arguments.is_empty() {
+        return Ok(None);
+    }
+    agent
+        .processes
+        .start(
+            Start {
+                command: Command::Argv(arguments),
+                env: Default::default(),
+                cwd: Some(cwd),
+                stdin: false,
+                pty: false,
+                cols: None,
+                rows: None,
+                timeout: None,
+            },
+            "entrypoint",
+            None,
+        )
+        .map(Some)
+}
+
+async fn forward_entrypoint(
+    entrypoint: &Option<Arc<crate::process::Process>>,
+    logbook: Arc<crate::logbook::Logbook>,
+) -> Option<tokio::task::JoinHandle<()>> {
+    let process = entrypoint.as_ref()?;
+    let (replay, mut output) = process.subscribe().await;
+    Some(tokio::spawn(async move {
+        for event in replay {
+            log_output(event, &logbook).await;
+        }
+        while let Some(event) = output.recv().await {
+            log_output(event, &logbook).await;
+        }
+    }))
 }
 
 async fn log_output(event: Event, logbook: &crate::logbook::Logbook) {

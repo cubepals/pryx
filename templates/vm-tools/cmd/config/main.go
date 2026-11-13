@@ -6,8 +6,10 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"cubepals/pryx/vm-experiment/experiment"
 	"github.com/firecracker-microvm/firecracker-go-sdk/client/models"
@@ -22,10 +24,21 @@ func main() {
 	socket := flag.String("socket", "", "Private monitor vsock path")
 	tap := flag.String("tap", "", "Optional private network namespace TAP for the comparison")
 	metadata := flag.Bool("metadata", false, "Print experiment-owned transport metadata")
+	initMode := flag.String("init-mode", "", "Optional mode supported by the actual trusted guest executable")
+	var layers []*models.Drive
+	flag.Func("layer", "Additional read-only OCI drive as ID=PATH", func(value string) error {
+		parts := strings.SplitN(value, "=", 2)
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			return fmt.Errorf("Invalid read-only drive argument")
+		}
+		layers = append(layers, &models.Drive{DriveID: new(parts[0]), PathOnHost: new(parts[1]), IsReadOnly: new(true), IsRootDevice: new(false)})
+		return nil
+	})
 	flag.Parse()
 	if *metadata {
 		if err := json.NewEncoder(os.Stdout).Encode(map[string]any{
 			"reportPort": experiment.ReportPort, "networkPort": experiment.NetworkPort,
+			"rootDrive": experiment.RootDrive, "writeDrive": experiment.WriteDrive,
 			"network":          experiment.NetworkFixture(),
 			"networkBulkBytes": experiment.NetworkBulkBytes, "networkHello": experiment.NetworkHello,
 			"networkHelloPath": experiment.NetworkHelloPath, "networkBulkPath": experiment.NetworkBulkPath,
@@ -46,11 +59,15 @@ func main() {
 		},
 		MachineConfig: &models.MachineConfiguration{VcpuCount: new(int64(1)), MemSizeMib: new(int64(256))},
 		Drives: []*models.Drive{
-			{DriveID: new("root"), PathOnHost: root, IsReadOnly: new(true), IsRootDevice: new(true)},
-			{DriveID: new("writes"), PathOnHost: writes, IsReadOnly: new(false), IsRootDevice: new(false)},
+			{DriveID: new(experiment.RootDrive), PathOnHost: root, IsReadOnly: new(true), IsRootDevice: new(true)},
+			{DriveID: new(experiment.WriteDrive), PathOnHost: writes, IsReadOnly: new(false), IsRootDevice: new(false)},
 		},
 		NetworkInterfaces: []*models.NetworkInterface{},
 		Vsock:             &models.Vsock{GuestCid: new(int64(vsock.Host + 1)), UdsPath: socket},
+	}
+	config.Drives = append(config.Drives, layers...)
+	if *initMode != "" {
+		config.BootSource.BootArgs += " -- " + *initMode
 	}
 	if *tap != "" {
 		config.NetworkInterfaces = []*models.NetworkInterface{{

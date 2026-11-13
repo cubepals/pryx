@@ -2444,3 +2444,43 @@ job when publication is authorized. That job has not run in this task.
   actual jobs including signed installed SDK/CLI acceptance and all host cells.
   Its normal push and PR are also green as recorded above. This is the retained
   application baseline, not production VM backend or init proof.
+
+- Source 6cb29c9's independent OCI workspace acceptance and complete optional VM
+  experiment [43473962412](https://github.com/cubepals/pryx/actions/runs/43473962412)
+  are green. Normal CI retains the doc_lazy_continuation/Parts-list failure in
+  jobs 132052890583 and 132052890494: move the VM module's explanatory prose before
+  its Parts list. Both rootless-engine runs and CodeQL on that source are green;
+  normal CI and the host matrix were still running at this checkpoint.
+- Build trusted VM init into the actual agent, guarded by PID 1, root and a
+  read-only bootstrap marker before any mount. Receive bounded bootstrap data
+  only from the host CID, mount EROFS/overlay/ext4 through checked guest paths,
+  run the authenticated agent without root in a root-owned pids-limited cgroup,
+  and bind ingress only to the explicit guest CID. Networking remains an explicit
+  refusal in this checkpoint; no VM isolation or backend is advertised.
+- Init kills and drains its command cgroup, checks syncfs on a disk descriptor
+  opened before workload writes, then signs a boot/sandbox/epoch-scoped shutdown
+  observation with the existing agent key before powering off. Actual-signature
+  tamper/replay checks and the host-side init refusal pass locally. The host VM
+  runtime does not yet consume this proof; real guest boot and shutdown still
+  require CI acceptance before any production guarantee.
+- Locally build the actual static PIE agent with the pinned Rust musl target and
+  unchanged host GCC against an originally signature-verified Alpine musl-dev
+  1.2.6-r3 private sysroot. The checked build script retains complete musl sources,
+  patches and notices first; no host installation or libc rewrite occurs. Build
+  the trusted EROFS bootstrap with the unchanged verified filesystem component,
+  using the agent's own advertised marker/mode. Both actual build steps pass here.
+  Retain a full pinned Linux 6.18.56 source input for the selected published kernel;
+  the final bundle also needs Kata's exact recipes/patches, not yet assembled.
+- Add a bounded private-stdin HTTP fixture through the pinned official SDK's vsock
+  dialer, preserving token privacy and disabling redirects/HTTP replay. Build/vet
+  the Go commands and retain the complete 24-module primary-notice closure locally;
+  extend only the existing optional job's command build, notice inventory,
+  static agent build and trusted bootstrap construction.
+  This checkpoint adds no PR job or required gate; ordinary PR cost remains zero,
+  with an estimated one additional cold optional-job minute for the static build.
+- The local full Rust run with actual agentOS assets again executes every test
+  binary without fail-fast. The existing IPv6 socket test still receives real
+  EAFNOSUPPORT on this executor; other suites pass. No test is skipped or loosened.
+  Docker/KVM/distribution and the new guest-init lifecycle proof did not run here.
+  Continue with real-KVM agent acceptance, then the complete VM bundle/backend,
+  confinement, lifecycle and required timings before K26. Nothing is parked.

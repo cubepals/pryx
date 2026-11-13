@@ -40,6 +40,9 @@
 //! - `bootstrap.rs`: entrypoint supervision and termination.
 //! - `bootstrap_capabilities.rs`: optional executable bootstrap argument discovery.
 //! - `vm_ingress.rs`: host-CID-only virtio-socket ingress to guest-loopback agent ports.
+//! - `vm_boot.rs`: private in-memory VM bootstrap contract, separate from fleet protocol and disk records.
+//! - `vm_init.rs`: trusted guest init, mount preparation and orderly non-root agent supervision.
+//! - `vm_observation.rs`: boot-scoped signed disk-shutdown observations.
 
 pub mod auth;
 #[cfg(feature = "server")]
@@ -84,7 +87,13 @@ pub mod state;
 #[cfg(feature = "server")]
 pub mod telemetry;
 #[cfg(feature = "server")]
+pub mod vm_boot;
+#[cfg(feature = "server")]
 mod vm_ingress;
+#[cfg(feature = "server")]
+pub mod vm_init;
+#[cfg(feature = "server")]
+pub mod vm_observation;
 
 #[cfg(feature = "server")]
 mod transfers;

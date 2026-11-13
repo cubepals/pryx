@@ -15,6 +15,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("{}", serde_json::to_string(&pryx_agent::bootstrap_capabilities::probe())?);
         return Ok(());
     }
+    if arguments.first().is_some_and(|a| a == pryx_agent::vm_boot::INIT_MODE) {
+        return pryx_agent::vm_init::run();
+    }
+    if arguments.first().is_some_and(|a| a == pryx_agent::vm_boot::AGENT_MODE) {
+        return pryx_agent::vm_init::agent(&arguments[1..]);
+    }
     let native_bootstrap = arguments.first().is_some_and(|a| a.starts_with("--") && a != "--version");
     let mappings = if native_bootstrap { pryx_agent::fuse_namespace::prepare()? } else { None };
     // Images run as the same sandbox user. Prevent their processes from reading the agent's

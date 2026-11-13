@@ -21,7 +21,7 @@ tokio-vsock = { version = "=0.7.3", optional = true }
 futures-util = { version = "0.3", default-features = false, features = ["sink"], optional = true }
 bytes = { version = "1", optional = true }
 uuid = { version = "1", features = ["v4"], optional = true }
-rustix = { version = "1", features = ["fs", "process", "thread", "mount"], optional = true }
+rustix = { version = "1", features = ["fs", "process", "thread", "mount", "system"], optional = true }
 portable-pty = { version = "0.9", optional = true }
 notify = { version = "8", optional = true }
 procfs = { version = "0.18", default-features = false, optional = true }
@@ -34,7 +34,7 @@ schemars = { version = "=1.2.3", optional = true }
 clap = { version = "4.6", features = ["derive"], optional = true }
 httparse = { version = "1", optional = true }
 landlock = { version = "0.4.7", optional = true }
-nix = { version = "=0.31.3", default-features = false, features = ["sched", "user"], optional = true }
+nix = { version = "=0.31.3", default-features = false, features = ["sched", "user", "hostname"], optional = true }
 ssh-key = { version = "=0.6.7", default-features = false, features = ["std", "ed25519", "getrandom"], optional = true }
 chrono = { version = "=0.4.45", default-features = false, features = ["std"], optional = true }
 percent-encoding = { version = "=2.3.2", optional = true }

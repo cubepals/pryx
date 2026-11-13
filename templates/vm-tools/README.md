@@ -27,6 +27,9 @@ Parts (`vm-tools/`):
 - `filesystem.py`: assemble unchanged helper ELFs and their separate musl closure after package signature verification.
 - `filesystem_check.py`: relocated EROFS round trip, populated ext4 integrity and actual library-resolution checks.
 - `image-inputs.json`: actual upstream manifest digests for real daemonless Alpine/Debian image acceptance.
+- `cross-inputs.json` and `cross.py`: signed build-only musl headers/libc and complete source identity.
+- `kernel-source.json`: full published-kernel source archive pin from its primary checksum list.
+- `bootstrap.py`: fixed read-only EROFS bootstrap from the actual static agent and its advertised marker.
 
 The inventory workflow runs on `any-host` pushes while manual dispatch is unavailable before
 main. Its output records upstream asset identities, actual byte hashes and source commits.

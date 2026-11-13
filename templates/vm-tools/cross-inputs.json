@@ -1,0 +1,9 @@
+{
+  "name": "musl-dev",
+  "version": "1.2.6-r3",
+  "licence": "MIT",
+  "sourceCommit": "8f79d39391b46d6dbf1800fb68b8212a21d5ee2e",
+  "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/musl-dev-1.2.6-r3.apk",
+  "bytes": 3422063,
+  "sha256": "310b51cff12e1d5ce5f135c558a82e2550427da5465bbd16c9ff9b05e63ee3d9"
+}
