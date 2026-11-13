@@ -2,6 +2,8 @@
 // Command probe measures the two network paths inside the real guest. The maintained
 // forwarder owns the TAP and packet framing; BusyBox owns DHCP on the virtio path.
 // Requests are safe GETs except deliberate, required-to-be-denied proxy management probes.
+//
+// Parts (`network/cmd/probe/`): main.go measures network paths; server.go serves opaque acceptance bytes.
 package main
 
 import (
@@ -214,9 +216,17 @@ func verify(fixture experiment.Network) error {
 }
 
 func main() {
+	echo := flag.Uint("echo", 0, "Serve the unprivileged forwarding fixture")
+	ready := flag.String("ready-file", "", "Private guest readiness file")
 	configuration := flag.String("config", "", "Private fixture configuration")
 	verifyOnly := flag.Bool("verify", false, "Verify a prepared network without privileged setup")
 	flag.Parse()
+	if *echo != 0 {
+		if err := serve(*echo, *ready); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	if !*verifyOnly && (os.Geteuid() != 0 || os.Getppid() != 1 || os.Getenv("PRYX_VM_NETWORK_SPIKE") != "1") {
 		log.Fatal("The network probe runs only under the trusted VM fixture's PID 1")
 	}

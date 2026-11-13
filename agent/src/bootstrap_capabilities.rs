@@ -40,6 +40,8 @@ pub struct Capabilities {
     pub vm_monitor_version: u16,
     #[serde(default)]
     pub vm_monitor_mode: String,
+    #[serde(default)]
+    pub vm_service_port_base: u32,
 }
 
 pub fn probe() -> Capabilities {
@@ -59,5 +61,6 @@ pub fn probe() -> Capabilities {
         vm_packet_program: crate::vm_boot::PACKET_PROGRAM.into(),
         vm_monitor_version: crate::vm_monitor::VERSION,
         vm_monitor_mode: crate::vm_monitor::MODE.into(),
+        vm_service_port_base: crate::vm_boot::SERVICE_PORT_BASE,
     }
 }

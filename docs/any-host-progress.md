@@ -2752,3 +2752,21 @@ job when publication is authorized. That job has not run in this task.
   in that CI artifact. This proves these inputs/fixtures on ccd8221, not the latest head’s
   normal/host workflows, production VM backend, root jailer/firewall or required timings.
   Continue production port forwarding and daemon lifecycle; K25 remains in progress.
+
+
+- K25 stream forwarding checkpoint: map application TCP ports above the complete TCP port
+  range in vsock, separate from init's private control channels. Preserve older bootstrap
+  defaults; the advertised private agent capability gives the recommended service base.
+  The maintained SDK dialer owns connection framing, while a separate bounded-concurrency
+  helper carries opaque TCP with backpressure, half-close and parent-bound lifetime. It
+  accepts only private/loopback host bind addresses and never retries application bytes.
+- Extend the existing six real-guest cases with a 16 MiB authenticated binary file round
+  trip and a declared-port service returning exact opaque bytes after client write EOF.
+  The disposable echo program stays out of production bundles. These new assertions await
+  actual KVM CI; existing shutdown, filesystem, isolation and replay assertions stay intact.
+  Full local Rust has 496 passes, the unchanged IPv6 socket failure and 33 ignored cases;
+  strict root/helper Clippy, fmt, Go build/vet and static-musl agent/bootstrap builds pass.
+  No new CI job or gate; estimated optional KVM cost is under ten seconds, no added PR minute.
+- Latest committed source 5fde98c has green VM, both rootless engines, CodeQL, core Rust,
+  control workspaces and contract checks. Normal end-to-end/one-box and host bundle cases
+  are still running or queued. PR 21 still has the same eighteen addressed scanner comments.

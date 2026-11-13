@@ -6,6 +6,11 @@ use serde::{Deserialize, Serialize};
 
 pub const VERSION: u16 = 1;
 pub const PORT: u32 = 11827;
+/// Keep application services outside the u16 control-port namespace.
+pub const SERVICE_PORT_BASE: u32 = u16::MAX as u32 + 1;
+pub fn service_port(port: u16) -> u32 {
+    SERVICE_PORT_BASE + u32::from(port)
+}
 pub const MAX_BYTES: usize = 256 * 1024;
 pub const MAX_LAYERS: usize = 128;
 pub const INIT_MODE: &str = "vm-init";

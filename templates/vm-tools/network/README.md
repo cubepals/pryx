@@ -10,7 +10,7 @@ Parts (`network/`):
 - `go.work` and `go.work.sum`: make both local fixture modules explicit for cache verification within this directory only.
 - `cmd/proxy/main.go`: separate guest packet transport and private host management listeners.
 - `cmd/guest/main.go`: trusted loopback and maintained DHCP setup without image-owned programs.
-- `cmd/probe/main.go`: guest DHCP/HTTP/throughput/DNS measurements and two management denials.
+- `cmd/probe/main.go` and `server.go`: guest network measurements, management denials and an unprivileged opaque TCP fixture.
 - `network.go`: the upstream API's unexported route names, with their source recorded.
 - `inputs.json`: immutable Alpine and pasta source inputs, plus Alpine's actual package licences/source commits.
 - `module-notices.json`: the exact dependency closure's complete primary-notice identities.

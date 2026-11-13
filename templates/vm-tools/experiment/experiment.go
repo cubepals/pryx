@@ -3,6 +3,9 @@
 package experiment
 
 const ReportPort uint32 = 11825
+const ForwardPort uint16 = 11829
+const ForwardPrefix = "opaque-prefix:"
+const ForwardSuffix = ":opaque-suffix"
 const RootDrive = "root"
 const WriteDrive = "writes"
 

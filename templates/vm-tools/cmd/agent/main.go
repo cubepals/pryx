@@ -2,12 +2,15 @@
 // Command agent carries one authenticated HTTP request through the maintained monitor
 // owner's vsock dialer. Credentials stay on bounded private stdin, never argv or logs.
 // It neither implements CONNECT framing nor retries an HTTP operation or follows redirects.
+//
+// Parts (`cmd/agent/`): main.go carries bounded requests; forward.go relays opaque TCP streams.
 package main
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"net"
@@ -33,10 +36,11 @@ type request struct {
 	Stop       bool            `json:"stop"`
 	Headers    http.Header     `json:"headers"`
 	Shutdown   json.RawMessage `json:"shutdown"`
+	Forward    *forwarding     `json:"forward"`
 }
 
-func run() error {
-	data, err := io.ReadAll(io.LimitReader(os.Stdin, maxRequestBytes+1))
+func run(source io.Reader) error {
+	data, err := io.ReadAll(io.LimitReader(source, maxRequestBytes+1))
 	if err != nil {
 		return err
 	}
@@ -48,6 +52,9 @@ func run() error {
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&input); err != nil {
 		return fmt.Errorf("Invalid private agent request")
+	}
+	if input.Forward != nil {
+		return forward(input)
 	}
 	if input.Shutdown != nil {
 		return shutdown(input)
@@ -132,7 +139,19 @@ func shutdown(input request) error {
 }
 
 func main() {
-	if err := run(); err != nil {
+	configuration := flag.String("forward-config", "", "Private non-secret forwarding configuration")
+	flag.Parse()
+	var source io.Reader = os.Stdin
+	if *configuration != "" {
+		file, err := os.Open(*configuration)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		defer file.Close()
+		source = file
+	}
+	if err := run(source); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

@@ -24,7 +24,11 @@ use std::{
     process::Stdio,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
-use tokio::{io::AsyncWriteExt, net::UnixListener, process::Command};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::UnixListener,
+    process::Command,
+};
 
 fn input(name: &str) -> PathBuf {
     std::env::var_os(name).unwrap_or_else(|| panic!("Stage {name}")).into()
@@ -67,7 +71,7 @@ struct Guest {
 
 impl Guest {
     async fn call(&self, method: Method, path: &str, body: Value, binary: Option<&[u8]>) -> (StatusCode, Vec<u8>) {
-        let mut message = json!({"socket": self.channel, "port": AGENT_PORT,
+        let mut message = json!({"socket": self.channel, "port": vm_boot::service_port(AGENT_PORT),
             "method": method.as_str(), "path": path, "token": self.token, "body": body});
         message["headers"] = json!({(IDEMPOTENCY_HEADER): [format!("once-{}", SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos())]});
         if let Some(binary) = binary {
@@ -82,7 +86,7 @@ impl Guest {
             // Only this safe health GET retries; exec, file writes and stop are sent once.
             let result = request(
                 &self.client,
-                json!({"socket": self.channel, "port": AGENT_PORT,
+                json!({"socket": self.channel, "port": vm_boot::service_port(AGENT_PORT),
                 "method": Method::GET.as_str(), "path": "/_pryx/health", "token": self.token}),
             )
             .await;
@@ -232,6 +236,103 @@ async fn exercise_guest(
     kernel
 }
 
+async fn exercise_forwarding(guest: &Guest, metadata: &Value, bootstrap: &Value) {
+    let echo_port = metadata["forwardPort"].as_u64().unwrap() as u16;
+    let ready = format!("forward-{}.ready", uuid::Uuid::new_v4().simple());
+    let probe = Path::new(vm_boot::BOOTSTRAP_ROOT).join(bootstrap["networkProbe"].as_str().unwrap());
+    let start = Start {
+        command: GuestCommand::Argv(vec![
+            probe.display().to_string(),
+            "--echo".into(),
+            echo_port.to_string(),
+            "--ready-file".into(),
+            format!("/data/{ready}"),
+        ]),
+        env: Default::default(),
+        cwd: Some("/data".into()),
+        stdin: false,
+        pty: false,
+        cols: None,
+        rows: None,
+        timeout: None,
+    };
+    assert_eq!(
+        guest.call(Method::POST, "/_pryx/processes", serde_json::to_value(start).unwrap(), None).await.0,
+        StatusCode::CREATED
+    );
+    let until = tokio::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        // Only the safe file GET retries. The process and payload are submitted once.
+        if guest.call(Method::GET, &format!("/_pryx/files/content?path={ready}"), Value::Null, None).await.0
+            == StatusCode::OK
+        {
+            break;
+        }
+        assert!(tokio::time::Instant::now() < until, "Declared-port service did not become ready");
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    let mut proxy = Command::new(&guest.client)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+    let bindings = [AGENT_PORT, echo_port].map(|port| {
+        json!({"host": Ipv4Addr::LOCALHOST,
+        "port": 0, "guestPort": vm_boot::service_port(port)})
+    });
+    let bytes = serde_json::to_vec(&json!({"socket": guest.channel,
+        "forward": {"bindings": bindings, "concurrency": 8, "parent": std::process::id()}}))
+    .unwrap();
+    let mut input = proxy.stdin.take().unwrap();
+    input.write_all(&bytes).await.unwrap();
+    input.shutdown().await.unwrap();
+    drop(input);
+    let mut bytes = Vec::new();
+    tokio::time::timeout(Duration::from_secs(5), proxy.stdout.take().unwrap().take(4097).read_to_end(&mut bytes))
+        .await
+        .unwrap()
+        .unwrap();
+    let addresses: Vec<String> = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(addresses.len(), 2);
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(Duration::from_secs(30))
+        .build()
+        .unwrap();
+    let path = format!("http://{}/_pryx/files/content?path=forwarded", addresses[0]);
+    let count = metadata["networkBulkBytes"].as_u64().unwrap() as usize;
+    let payload = (0..=u8::MAX).cycle().take(count).collect::<Vec<_>>();
+    let response = client
+        .put(&path)
+        .bearer_auth(&guest.token)
+        .header(IDEMPOTENCY_HEADER, uuid::Uuid::new_v4().to_string())
+        .body(payload.clone())
+        .send()
+        .await
+        .unwrap();
+    assert!(response.status().is_success());
+    let response = client.get(&path).bearer_auth(&guest.token).send().await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.bytes().await.unwrap().as_ref(), payload);
+    let mut stream = tokio::net::TcpStream::connect(&addresses[1]).await.unwrap();
+    let opaque = &payload[..64 * 1024];
+    stream.write_all(opaque).await.unwrap();
+    stream.shutdown().await.unwrap();
+    let mut response = Vec::new();
+    tokio::time::timeout(Duration::from_secs(5), stream.take((count + 1) as u64).read_to_end(&mut response))
+        .await
+        .unwrap()
+        .unwrap();
+    let mut expected = metadata["forwardPrefix"].as_str().unwrap().as_bytes().to_vec();
+    expected.extend_from_slice(opaque);
+    expected.extend_from_slice(metadata["forwardSuffix"].as_str().unwrap().as_bytes());
+    assert_eq!(response, expected, "TCP bytes after client EOF must be retained");
+    proxy.kill().await.unwrap();
+}
+
 async fn boot(
     tools: &FilesystemTools,
     image: &PreparedImage,
@@ -329,6 +430,10 @@ async fn boot(
             "vm.pryx.invalid".into(),
             "--port".into(),
             AGENT_PORT.to_string(),
+            "--vm-port-base".into(),
+            vm_boot::SERVICE_PORT_BASE.to_string(),
+            "--vm-ports".into(),
+            metadata["forwardPort"].as_u64().unwrap().to_string(),
             "--secret-env".into(),
             secret_env.into(),
             "--keep-alive".into(),
@@ -392,6 +497,7 @@ async fn boot(
     );
     tokio::time::timeout(Duration::from_secs(1), sender).await.unwrap().unwrap();
     let kernel = exercise_guest(&guest, directory, round, uid, network_fixture.as_ref(), &bootstrap_metadata).await;
+    exercise_forwarding(&guest, &metadata, &bootstrap_metadata).await;
     let other_nonce = uuid::Uuid::new_v4().simple().to_string();
     assert_ne!(nonce, other_nonce);
     let replay = vm_shutdown::request(&key, &other_nonce, sandbox, 1);
@@ -436,7 +542,7 @@ async fn boot(
     let check = check.arg("-f").arg("-n").arg(writes).output().unwrap();
     assert!(check.status.success(), "Stopped VM disk failed read-only integrity check");
     json!({"round": round, "kernel": kernel, "guestUid": uid, "signedCleanShutdown": true,
-        "monitorConfined": true, "monitorLeaseHeldUntilExit": true,
+        "streamingBinaryAndDeclaredTcp": true, "monitorConfined": true, "monitorLeaseHeldUntilExit": true,
         "authenticatedInitShutdown": true, "shutdownReplayRefused": true,
         "persistentFile": true, "hostFileDenied": true, "hostSignalDenied": true,
         "networked": networked, "dhcpDnsHttpAndManagementDenial": networked})

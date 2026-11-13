@@ -10,7 +10,7 @@ pub(crate) struct Ingress {
 }
 
 impl Ingress {
-    pub(crate) fn bind(ports: impl IntoIterator<Item = u16>, cid: u32) -> io::Result<Self> {
+    pub(crate) fn bind(ports: impl IntoIterator<Item = u16>, cid: u32, base: u32) -> io::Result<Self> {
         if !crate::vm_boot::guest_cid(cid)
             || (rustix::process::getpid() != rustix::process::Pid::INIT
                 && rustix::process::getppid() != Some(rustix::process::Pid::INIT))
@@ -22,7 +22,7 @@ impl Ingress {
         // the listeners and no task can expose an incomplete set of forward slots.
         let listeners = ports
             .into_iter()
-            .map(|port| VsockListener::bind(VsockAddr::new(cid, u32::from(port))).map(|l| (port, l)))
+            .map(|port| VsockListener::bind(VsockAddr::new(cid, base + u32::from(port))).map(|l| (port, l)))
             .collect::<io::Result<Vec<_>>>()?;
         for (port, listener) in listeners {
             tasks.spawn(async move {
@@ -65,7 +65,7 @@ mod tests {
     #[tokio::test]
     async fn ordinary_host_process_cannot_enable_vm_ingress() {
         assert_ne!(rustix::process::getpid(), rustix::process::Pid::INIT);
-        let result = Ingress::bind([crate::contract::AGENT_PORT], VMADDR_CID_HOST + 1);
+        let result = Ingress::bind([crate::contract::AGENT_PORT], VMADDR_CID_HOST + 1, 0);
         assert!(matches!(result, Err(error) if error.kind() == io::ErrorKind::PermissionDenied));
     }
 }

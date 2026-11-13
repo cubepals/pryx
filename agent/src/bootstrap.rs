@@ -56,12 +56,22 @@ async fn serve_http(
     port: u16,
     bindings: &Bindings,
     cid: Option<u32>,
+    service_base: u32,
+    extra_ports: &[u16],
 ) -> io::Result<(Vec<HttpTask>, Option<crate::vm_ingress::Ingress>)> {
     let mut listeners = Vec::new();
     for ip in &bindings[&port] {
         listeners.push(tokio::net::TcpListener::bind((*ip, port)).await?);
     }
-    let ingress = cid.map(|cid| crate::vm_ingress::Ingress::bind(bindings.keys().copied(), cid)).transpose()?;
+    let ingress = cid
+        .map(|cid| {
+            crate::vm_ingress::Ingress::bind(
+                bindings.keys().copied().chain(extra_ports.iter().copied()),
+                cid,
+                service_base,
+            )
+        })
+        .transpose()?;
     let mut servers = Vec::new();
     for listener in listeners {
         let listener = listener.tap_io(|socket| {
@@ -103,12 +113,25 @@ pub struct Bootstrap {
     vm_vsock: bool,
     #[arg(long)]
     vm_cid: Option<u32>,
+    #[arg(long, default_value_t = 0)]
+    vm_port_base: u32,
+    #[arg(long, value_delimiter = ',')]
+    vm_ports: Vec<u16>,
     #[arg(last = true)]
     entrypoint: Vec<String>,
 }
 
 impl Bootstrap {
     fn validate_host_policy(&self, forwarding: bool) -> Result<(), Box<dyn std::error::Error>> {
+        if (!self.vm_ports.is_empty() || self.vm_port_base != 0) && !self.vm_vsock {
+            return Err("VM port metadata requires its guest transport".into());
+        }
+        if (self.vm_port_base != 0 && self.vm_port_base < crate::vm_boot::SERVICE_PORT_BASE)
+            || self.vm_port_base.checked_add(u32::from(u16::MAX)).is_none()
+            || self.vm_ports.contains(&0)
+        {
+            return Err("VM service ports must be separate from private control ports".into());
+        }
         if self.browser_sandbox == Some(false) && std::env::var_os(crate::process_policy::POLICY_ENV).is_some() {
             return Err("browser-sandbox cannot be disabled on the process tier".into());
         }
@@ -190,7 +213,8 @@ pub async fn serve(
     crate::tools::prepare(&agent, args.browser_sandbox.unwrap_or(true))
         .map_err(|_| "Native tool runtime directory failed")?;
     let cid = args.vm_vsock.then_some(args.vm_cid.unwrap_or(tokio_vsock::VMADDR_CID_HOST + 1));
-    let (servers, mut vm_ingress) = serve_http(agent.clone(), args.port, &bindings, cid).await?;
+    let (servers, mut vm_ingress) =
+        serve_http(agent.clone(), args.port, &bindings, cid, args.vm_port_base, &args.vm_ports).await?;
     let mut term = signal(SignalKind::terminate())?;
     let mut interrupt = signal(SignalKind::interrupt())?;
     prepare_mounts(&agent, &servers, &mut term, &mut interrupt).await?;

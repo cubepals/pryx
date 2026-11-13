@@ -41,8 +41,9 @@ func main() {
 		if err := json.NewEncoder(os.Stdout).Encode(map[string]any{
 			"reportPort": experiment.ReportPort, "networkPort": experiment.NetworkPort,
 			"rootDrive": experiment.RootDrive, "writeDrive": experiment.WriteDrive,
-			"guestCid":         vsock.Host + 1,
-			"network":          experiment.NetworkFixture(),
+			"guestCid":    vsock.Host + 1,
+			"network":     experiment.NetworkFixture(),
+			"forwardPort": experiment.ForwardPort, "forwardPrefix": experiment.ForwardPrefix, "forwardSuffix": experiment.ForwardSuffix,
 			"networkBulkBytes": experiment.NetworkBulkBytes, "networkHello": experiment.NetworkHello,
 			"networkHelloPath": experiment.NetworkHelloPath, "networkBulkPath": experiment.NetworkBulkPath,
 		}); err != nil {
