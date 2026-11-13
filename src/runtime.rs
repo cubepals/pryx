@@ -335,6 +335,17 @@ pub trait ContainerRuntime: Send + Sync + 'static {
     fn uses_host_ports(&self) -> bool {
         self.is_process() || self.is_wasm()
     }
+    fn supports_data_exclude(&self) -> bool {
+        true
+    }
+    /// Block files need a cold copy even when the application says its writes are quiesced.
+    fn requires_stopped_data_copy(&self) -> bool {
+        false
+    }
+    /// Held through a data walk; a backend may fence writable compute with a kernel lease.
+    async fn data_copy_lease(&self, _sandbox: &str, _data: &std::path::Path) -> Result<Box<dyn Send>, RuntimeError> {
+        Ok(Box::new(()))
+    }
     fn data_path(&self, root: &std::path::Path) -> PathBuf {
         root.into()
     }

@@ -1077,3 +1077,5 @@
 - K25: drain monitor diagnostics through an owned bounded byte capture using the host log budget, retain final bytes and join capture before signature verification; real KVM secrecy checks require that their complete serial stream fit without truncation.
 
 - Transport VM port and activity snapshots in authenticated health reads with Routes scope; carry the typed in-memory observation through ContainerInfo so node views never need to mount a running guest disk or count polling as workload activity.
+
+- Copy VM disks only after orderly stop, staged recovery and independent read-only fsck, while holding the monitor lifetime lease; keep snapshot/export work owned across cancellation, reserve its running memory, and cold-resume only while execution and fencing authority remain valid.

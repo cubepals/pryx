@@ -43,9 +43,13 @@ impl Manager {
             .values()
             .filter(|r| Some(&r.id) != except)
             .filter(|r| {
-                state.observed.get(&r.id).and_then(|o| o.info.as_ref()).is_some_and(|i| {
-                    matches!(i.status, ContainerStatus::Running | ContainerStatus::Restarting | ContainerStatus::Paused)
-                })
+                state.copying.contains(&r.id)
+                    || state.observed.get(&r.id).and_then(|o| o.info.as_ref()).is_some_and(|i| {
+                        matches!(
+                            i.status,
+                            ContainerStatus::Running | ContainerStatus::Restarting | ContainerStatus::Paused
+                        )
+                    })
             })
             .map(|r| u64::from(r.spec.resources.memory_mb))
             .sum()

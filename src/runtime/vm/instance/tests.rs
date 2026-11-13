@@ -128,6 +128,10 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
         assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Running);
         assert_eq!(exec(&runtime, &id, "printf durable > /data/retained; printf ready").await, b"ready");
         assert_eq!(exec(&runtime, &id, "grep -c '^processor' /proc/cpuinfo").await, b"2\n");
+        assert!(
+            runtime.data_copy_lease(&original_spec.agent.as_ref().unwrap().sandbox, &data).await.is_err(),
+            "A running monitor must refuse a disk copy lease"
+        );
         let observed = runtime.inspect(&id).await.unwrap().unwrap();
         let snapshot = observed.agent_state.expect("Guest metadata must cross the real vsock forwarder");
         assert!(snapshot.activity.at > 0);
@@ -138,8 +142,12 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
 
         runtime.stop(&id, &original_spec.stop_signal, Duration::from_secs(15)).await.unwrap();
         assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Exited);
+        let sandbox = &original_spec.agent.as_ref().unwrap().sandbox;
+        let copy_lease = runtime.data_copy_lease(sandbox, &data).await.unwrap();
+        assert!(runtime.start(&id).await.is_err(), "A copy lease must fence another writable guest");
         let copy = temporary.path().join(format!("copy{index}"));
         crate::tree::copy_tree(&data, &copy, None, &[], &mut |_| Ok(())).unwrap();
+        drop(copy_lease);
         runtime.start(&id).await.unwrap();
         assert_eq!(exec(&runtime, &id, "cat /data/retained").await, b"durable");
         let fork_spec = spec(&copy, image["reference"].as_str().unwrap());

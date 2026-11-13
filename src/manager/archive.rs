@@ -20,12 +20,17 @@ impl Manager {
         request: ExportRequest,
         epoch: Option<u64>,
     ) -> Result<ExportResponse, NodeError> {
-        let lock = self.lock_for(&id);
-        let _guard = lock.lock().await;
-        let started = Instant::now();
-        let result = self.export_locked(&id, request, epoch).await;
-        self.metrics.operation("export", &result, started.elapsed());
-        result
+        let own = self.clone();
+        tokio::spawn(async move {
+            let lock = own.lock_for(&id);
+            let _guard = lock.lock().await;
+            let started = Instant::now();
+            let result = own.export_locked(&id, request, epoch).await;
+            own.metrics.operation("export", &result, started.elapsed());
+            result
+        })
+        .await
+        .map_err(|_| NodeError::Internal("Export task did not complete".into()))?
     }
 
     async fn export_locked(
@@ -41,6 +46,12 @@ impl Manager {
         }
         let record = self.record(id)?;
         check_epoch(&record, epoch, EpochRule::Exact)?;
+        if !request.exclude.is_empty() && !self.record_runtime(&record)?.supports_data_exclude() {
+            return Err(NodeError::Invalid(vec![FieldError {
+                field: "exclude".into(),
+                problem: "This backend exports a disk image; filtering guest paths is unavailable".into(),
+            }]));
+        }
         let running = self.observe(&record).await?.is_some_and(|i| {
             matches!(i.status, ContainerStatus::Running | ContainerStatus::Restarting | ContainerStatus::Paused)
         });
@@ -51,12 +62,16 @@ impl Manager {
             });
         }
         let (packed, parts) = self
-            .pack_and_put(
-                self.store.data_dir(id),
-                request.exclude,
-                &request.url,
-                &request.headers,
-                request.parts.as_ref(),
+            .copy_data(
+                &record,
+                running,
+                self.pack_and_put(
+                    self.store.data_dir(id),
+                    request.exclude,
+                    &request.url,
+                    &request.headers,
+                    request.parts.as_ref(),
+                ),
             )
             .await?;
         tracing::info!(

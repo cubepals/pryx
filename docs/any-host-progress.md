@@ -2999,3 +2999,23 @@ job when publication is authorized. That job has not run in this task.
   Cancel superseded queued/running sources after preserving completed failure logs outside
   the repository; retain 2969a46 evidence and the leaf-split/current normal runs. Scanner stays
   at eighteen addressed comments. Continue stopped-disk file access and snapshot/export barriers.
+
+
+- K25 snapshot/export barriers now stop VM compute even when application writes are quiesced,
+  stage recovery if required, independently verify ext4 and hold the actual monitor lifetime
+  lease throughout the existing no-follow copy/archive walk. A live monitor refuses that
+  lease; the real-KVM test now also requires it to fence a new boot until copying completes.
+  Disk-image exports explicitly refuse guest-path exclusions rather than silently ignore them.
+- Keep snapshot/export work and its workload lock owned across caller cancellation. Reserve
+  the running guest's memory through the copy and cold resume; recheck execution lease,
+  store lease and queued fences before starting it. On copy errors still attempt the one
+  authorized resume; on resume refusal keep compute stopped and expose the issue. Real local
+  HTTP-sink tests prove cancellation retains the lock/reservation and a fence prevents resume.
+  Full local Rust: 502 passes, the unchanged IPv6 failure and 34 ignored; strict Clippy/fmt
+  pass. Actual VM copy-lease assertions await the existing optional CI job.
+- Source 3372788 VM run 43525889729/job 132231412140 is green, proving bounded capture in
+  all eight runtime and six component boots. Summary: checks/measurements/k25/capture-3372788.json.
+  Read source 861dd13 normal-CI job 132226131822: the tree import cycle is gone and Control
+  workspaces passes, but Rust Structure flags transaction (118 lines) and launch_entry
+  (242), with a 100-line lint limit. Next split those functions in their own Move change;
+  retain the gate/baseline. Scanner remains at eighteen addressed findings. K25 is in progress.

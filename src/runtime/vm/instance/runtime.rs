@@ -193,6 +193,47 @@ impl ContainerRuntime for VmRuntime {
     fn uses_host_ports(&self) -> bool {
         true
     }
+    fn supports_data_exclude(&self) -> bool {
+        false
+    }
+    fn requires_stopped_data_copy(&self) -> bool {
+        true
+    }
+    async fn data_copy_lease(&self, sandbox: &str, data: &Path) -> Result<Box<dyn Send>, RuntimeError> {
+        let lease = self
+            .state
+            .root
+            .join("leases")
+            .join(format!("{}.lock", super::super::filesystems::sha256(sandbox.as_bytes()).map_err(error)?));
+        let path = data.join(super::super::disk::FILE);
+        let exists = match fs::symlink_metadata(&path) {
+            Ok(meta) => Some(meta.len()),
+            Err(problem) if problem.kind() == std::io::ErrorKind::NotFound => None,
+            Err(problem) => return Err(error(problem)),
+        };
+        if let Some(bytes) = exists {
+            let bundle = self.bundle().await?;
+            // Recovery changes only a staged complete copy; the original is atomically replaced.
+            super::super::disk::prepare(
+                bundle.filesystems(),
+                data,
+                &lease,
+                bytes,
+                self.state.settings.image_timeout,
+                self.state.settings.free_floor_bytes,
+            )
+            .await?;
+            let held = lock(&lease)?;
+            super::super::disk::verify(bundle.filesystems(), &path, self.state.settings.image_timeout).await?;
+            Ok(Box::new(held))
+        } else {
+            let held = lock(&lease)?;
+            if fs::read_dir(data).map_err(error)?.next().is_some() {
+                return Err(error("VM data directory contains an unrecognized file"));
+            }
+            Ok(Box::new(held))
+        }
+    }
     fn supports_agent(&self) -> bool {
         true
     }

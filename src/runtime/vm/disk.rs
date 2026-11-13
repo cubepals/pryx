@@ -71,6 +71,17 @@ async fn check(tools: &FilesystemTools, disk: &Path, deadline: Instant) -> Resul
     Ok(command(check, deadline).await?.success())
 }
 
+/// Caller holds the monitor's lifetime lease while verifying and copying this image.
+pub async fn verify(tools: &FilesystemTools, path: &Path, timeout: Duration) -> Result<(), RuntimeError> {
+    let _file = owned(path)?;
+    let deadline = Instant::now().checked_add(timeout).ok_or_else(|| error("Invalid VM disk deadline"))?;
+    if check(tools, path, deadline).await? {
+        Ok(())
+    } else {
+        Err(error("VM copy requires an independently verified stopped disk"))
+    }
+}
+
 /// Own the transaction until completion even if the requesting future is cancelled. Paths,
 /// sizes and tool identity are host-owned inputs admitted before this call, never guest paths.
 pub async fn prepare(

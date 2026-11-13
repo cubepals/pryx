@@ -1,0 +1,13 @@
+{
+  "source": "33727887d1857fce6501196cb7b15cb95c643948",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43525889729",
+  "job": 132231412140,
+  "what": "Bounded production monitor capture in the unchanged real KVM runtime and component lifecycle acceptance",
+  "result": "success",
+  "runtimeBoots": 8,
+  "componentBoots": 6,
+  "images": 2,
+  "decisiveAssertions": "Guest diagnostic completeness is required before all existing secrecy and signed-proof assertions; runtime cold wake, durable data, fork independence and immediate exit 7 remain required",
+  "scope": "Runtime seam and components; public node/edge and root paths remain unproved",
+  "rawEvidence": "Retained in the CI run artifact"
+}

@@ -27,6 +27,7 @@
 //! - `restarts.rs`: brings a workload back without being asked, after a crash or a host restart.
 //! - `fence.rs`: fences a copy a newer placement has superseded.
 //! - `delete.rs`: removes a workload, and its data when told to.
+//! - `copy.rs`: stopped-disk copy barriers, resume authority and memory reservations.
 //! - `archive.rs`: carries a data's data between this node and an object store.
 //! - `snapshots.rs`: local snapshots of a workload's data.
 //! - `exec.rs`: runs a command inside a running workload.
@@ -85,6 +86,7 @@ use crate::store::{AllocatedPort, PendingSpec, Phase, RECORD_VERSION, Store, Sus
 mod agent;
 mod agent_keys;
 mod archive;
+mod copy;
 mod delete;
 mod ensure;
 mod error;
@@ -198,6 +200,7 @@ struct State {
     stats: HashMap<WorkloadId, StatsSample>,
     disk: HashMap<WorkloadId, (u64, OffsetDateTime)>,
     stopping: HashSet<WorkloadId>,
+    copying: HashSet<WorkloadId>,
     last_failure: HashMap<WorkloadId, OffsetDateTime>,
     /// Failures waiting for their restart, and when it is due.
     restart_due: HashMap<WorkloadId, Instant>,
@@ -385,6 +388,7 @@ impl Manager {
                 stats: HashMap::new(),
                 disk: HashMap::new(),
                 stopping: HashSet::new(),
+                copying: HashSet::new(),
                 last_failure: HashMap::new(),
                 restart_due: HashMap::new(),
                 resuming: HashSet::new(),

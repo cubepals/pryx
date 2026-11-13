@@ -59,6 +59,7 @@ pub struct FakeRuntime {
     pub follows: std::sync::Arc<()>,
     /// When set, an unpause never returns, as one does whose cgroup freezer is stuck.
     pub hang_unpause: AtomicBool,
+    pub cold_data_copy: AtomicBool,
 }
 
 impl Default for FakeRuntime {
@@ -83,6 +84,7 @@ impl FakeRuntime {
             hold_follows: AtomicBool::new(false),
             follows: std::sync::Arc::new(()),
             hang_unpause: AtomicBool::new(false),
+            cold_data_copy: AtomicBool::new(false),
         }
     }
 
@@ -176,6 +178,9 @@ impl FakeRuntime {
 
 #[async_trait]
 impl ContainerRuntime for FakeRuntime {
+    fn requires_stopped_data_copy(&self) -> bool {
+        self.cold_data_copy.load(Ordering::SeqCst)
+    }
     fn isolation(&self) -> &'static str {
         self.isolation.as_str()
     }
