@@ -12,7 +12,7 @@ Only recorded CI evidence establishes completion; a local pass alone does not.
 | K22 | done except | `7963826182e3f8e9037aea17d4716df15086bd81` | Normal push [43075452804](https://github.com/cubepals/pryx/actions/runs/43075452804) and PR [43075462394](https://github.com/cubepals/pryx/actions/runs/43075462394), Any host [43075452782](https://github.com/cubepals/pryx/actions/runs/43075452782), Rootless engines [43075452793](https://github.com/cubepals/pryx/actions/runs/43075452793) and [43075462656](https://github.com/cubepals/pryx/actions/runs/43075462656), all green; supplementary Measure [43063939164](https://github.com/cubepals/pryx/actions/runs/43063939164) on source 87400f3 is also green | Full normal CI including actual rootful Docker, Wasm, two-node, integrations and recovery; all 15 host jobs; Podman lifecycle/attacks, install/repeat/upgrade/outage/recovery/purge; controller refusals, copy-bound guarantees and 30 hosted engine samples | Main/release prohibited; unchanged credentialed cases | Standard rootless Docker data-owner mapping with dependent positive lifecycle/timings; rootless Docker internal ingress/network-policy. Three approaches each recorded; both remain named refusals until their post-K27 second try | Supported scope complete; K23 started |
 | K23 | done | `5945724a4ac8fbc28610292d701ffa7e9bffc040` | Normal push [43233699289](https://github.com/cubepals/pryx/actions/runs/43233699289) and PR [43233712859](https://github.com/cubepals/pryx/actions/runs/43233712859), Any host [43233699231](https://github.com/cubepals/pryx/actions/runs/43233699231), Rootless engines [43233699487](https://github.com/cubepals/pryx/actions/runs/43233699487) and [43233712730](https://github.com/cubepals/pryx/actions/runs/43233712730), CodeQL [43233712847](https://github.com/cubepals/pryx/actions/runs/43233712847), all green | Signed fresh ordinary-user installation without engine; actual pinned upstream Python/Node paths and host glibc; both SDKs, state/charts/errors/interrupt/restart, MCP/CLI; browser screenshot/forwarded CDP and guarantee; thirty process and container samples per tool; default-Docker kernels and namespace/required-browser refusals; neighbour isolation, purge, Alpine relocation; full normal CI and all sixteen host jobs | Main/release prohibited; unchanged credentialed cases | None; corrected relocatable bundle is complete, with no binary rewriting or private tool glibc | Complete; begin K24 immediately |
 | K24 | done | `53e83505f823cf4b92aca2b4a952cf084c636f32` | Normal PR [43421825320](https://github.com/cubepals/pryx/actions/runs/43421825320) and all sixteen Any-host jobs [43421813961](https://github.com/cubepals/pryx/actions/runs/43421813961), green | Signed user install, real SDK/CLI desktop and HTTP SSH/wake, noVNC/expiry, Chromium sandbox and neighbour privacy, OpenSSH PTY/keys/leases, configured doctor/placement, 30 samples per tool, unchanged container budgets, full normal and host matrix | Main/release prohibited; unchanged credentialed cases | None | Complete; begin K25 |
-| K25 | not started | — | — | — | All | — | Complete brief after K24 |
+| K25 | in progress | — | None yet; preparing published-input inventory and hosted kernel/network spikes | Read-only upstream/configuration/licence audit; current Firecracker CI kernel has EROFS disabled | All real VM boots/network measurements and backend acceptance; no local KVM | None | Pin published Kata kernel/monitor inputs, prove both rootless network candidates in CI, then build the VM tier |
 | K26 | not started | — | — | — | All | — | Complete brief after K25 |
 | K27 | not started | — | — | — | All | — | Complete brief after K26, then revisit every parked piece |
 
@@ -2034,3 +2034,18 @@ job when publication is authorized. That job has not run in this task.
   spikes. Production main/release, version/tag changes and paid provisioning
   remain prohibited. The supervised executor ran no Docker or KVM locally,
   created no signing key, and committed with the configured identity unsigned.
+- K25 begins after K24's recorded complete green implementation. Re-read the
+  brief, host design, runtime seam/process journal/launch and current decisions.
+  Verify Firecracker 1.18.0, gvisor-tap-vsock 0.9.0 and the current official Go SDK
+  source through their primary releases/licences. No VM capability is announced.
+- Published Firecracker CI build 20261111-778a26c0594c-0 supplies kernel 6.18.62
+  and its config. The config enables overlay, virtio block and vsock but explicitly
+  disables EROFS. Preserve firecracker-kernel-candidate.json with the configuration
+  hash and primary URL; this is not a boot result. Inspect Kata's published
+  4.3.1 kernel next. No private kernel build, emulation or weaker filesystem path
+  is substituted. Local KVM and Docker execution remain unavailable by design.
+- Local filesystem tools are Ubuntu erofs-utils 1.7.1-1build2 and e2fsprogs
+  1.47.0-2.4~exp1ubuntu4.1; read their actual complete installed copyright
+  records before use. Debian's current pasta source is
+  0.0~git20261002.cba3570-1, GPL-2.0-or-later with retained BSD-3-Clause checksum
+  code. These are external-program spike candidates, not a shipped VM bundle.

@@ -1,0 +1,19 @@
+{
+  "project": "Firecracker CI kernel",
+  "version": "6.18.62",
+  "publishedBuild": "20261111-778a26c0594c-0",
+  "configUrl": "https://s3.amazonaws.com/spec.ccfc.min/firecracker-ci/20261111-778a26c0594c-0/x86_64/vmlinux-6.18.62.config",
+  "configSha256": "b5a0947b980942e8e60085b979b07476b7b08fc8c9024269bdda79f4473aa8a3",
+  "configuration": {
+    "CONFIG_EROFS_FS": "n",
+    "CONFIG_OVERLAY_FS": "y",
+    "CONFIG_VIRTIO_BLK": "y",
+    "CONFIG_VIRTIO_VSOCKETS": "y",
+    "CONFIG_VIRTIO_MMIO": "y",
+    "CONFIG_BLK_DEV_INITRD": "y",
+    "CONFIG_IKCONFIG_PROC": "y"
+  },
+  "selected": false,
+  "reason": "Published configuration disables EROFS; K25 requires actual EROFS/overlay/block/vsock boot proof and forbids building a private kernel.",
+  "scope": "Read-only primary-source configuration inspection. No kernel or VM executed locally; inspect the published Kata candidate next."
+}
