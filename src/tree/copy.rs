@@ -6,6 +6,14 @@ use super::*;
 use rustix::fs::{SeekFrom, seek};
 use std::os::unix::fs::PermissionsExt;
 
+impl Progress<'_> {
+    /// Keep descriptor copying inside this module; the walker never calls a child
+    /// which imports its progress and traversal types back from the parent.
+    fn copy(&mut self, source: &mut File, target: &File) -> io::Result<()> {
+        file(self, source, target)
+    }
+}
+
 /// The filesystem can't share blocks between these two files; copying is the only way.
 fn no_reflink(e: Errno) -> bool {
     matches!(e, Errno::OPNOTSUPP | Errno::XDEV | Errno::NOTTY | Errno::NOSYS | Errno::PERM)
@@ -103,7 +111,7 @@ pub fn reflink_supported(dir: &Path) -> bool {
 /// Copy holes with the kernel's own extent lookup, falling back when it is unsupported.
 /// Count apparent bytes in ROOM_STEP increments, including holes, so existing admission
 /// bounds and cancellation points still apply even when little disk space is allocated.
-pub(super) fn file(progress: &mut Progress<'_>, source: &mut File, mut target: &File) -> io::Result<()> {
+fn file(progress: &mut Progress<'_>, source: &mut File, mut target: &File) -> io::Result<()> {
     let size = source.metadata()?.len();
     let first = match seek(&*source, SeekFrom::Data(0)) {
         Ok(position) => Some(position),

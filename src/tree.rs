@@ -386,11 +386,6 @@ impl<'a> Progress<'a> {
     pub(crate) fn reading<R: Read>(&mut self, inner: R) -> impl Read {
         Counted { inner, progress: self }
     }
-
-    /// Copies a descriptor's bytes and holes, keeping the same apparent-byte admission.
-    fn copy(&mut self, file: &mut File, out: &File) -> io::Result<()> {
-        copy::file(self, file, out)
-    }
 }
 
 struct Counted<'p, 'a, R> {

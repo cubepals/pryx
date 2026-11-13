@@ -2867,3 +2867,16 @@ job when publication is authorized. That job has not run in this task.
   actual filesystem assertions; no new gate/job, under one optional second and no PR minute.
   This is still preparation only: production backend lifecycle, root jailer/helper confinement,
   edge/data API integration and required production measurements are not yet proved.
+
+
+- Normal CI caught the tree split's parent-to-child copy callback as a module cycle:
+  28e2ec4 jobs 132174819628/132174988142 fail Structure; control jobs 132174819638/
+  132174988278 pass their 438 tests but fail the same Structure gate. Read all four logs.
+  Move the remaining copy method into tree/copy.rs, leaving its behavior and assertions
+  unchanged. The parent now only reexports the copy API; no baseline or check is relaxed.
+  Full local Rust and strict root/helper Clippy are rerun before the fix is pushed.
+- Preserved source 2969a46 has every normal-CI job green on push run 43499581589 and
+  PR run 43499595059, including Rust/structure, control, real end-to-end, contract, one-box
+  and the PR release image builds. Host run 43499581572's real booted Fedora/Debian/Ubuntu
+  and several Docker/bootstrap cases pass; its remaining matrix is still active. These
+  results establish that earlier doc regeneration, not the latest head's full acceptance.
