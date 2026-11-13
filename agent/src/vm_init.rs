@@ -221,6 +221,7 @@ fn prepare(boot: &Boot) -> io::Result<File> {
     fs::write("/sys/fs/cgroup/cgroup.subtree_control", "+pids")?;
     fs::create_dir(CGROUP)?;
     fs::write(Path::new(CGROUP).join("pids.max"), boot.pids_limit.to_string())?;
+    crate::vm_network::prepare(&DataDir::open(Path::new("/"))?, boot.network.as_ref())?;
     if boot.read_only_root {
         mount::mount_remount("/", MountFlags::RDONLY | MountFlags::NODEV | MountFlags::NOSUID, "")?;
     }
@@ -286,6 +287,7 @@ async fn supervise(boot: Boot, writes: File) -> Result<(), Box<dyn std::error::E
         .ok_or("VM agent signing material is missing")?;
     let key = crate::auth::SigningKey::from_encoded(encoded)?;
     let kernel = fs::read_to_string("/proc/sys/kernel/osrelease")?.trim().to_owned();
+    let mut network = crate::vm_network::start(boot.network.as_ref()).await?;
     let mut term = signal(SignalKind::terminate())?;
     let mut interrupt = signal(SignalKind::interrupt())?;
     rustix::system::reboot(rustix::system::RebootCommand::CadOff)?;
@@ -306,7 +308,8 @@ async fn supervise(boot: Boot, writes: File) -> Result<(), Box<dyn std::error::E
         .kill_on_drop(true)
         .spawn()?;
     let mut result = tokio::select! { result = child.wait() => Some(result?),
-    _ = term.recv() => None, _ = interrupt.recv() => None };
+    _ = term.recv() => None, _ = interrupt.recv() => None,
+    error = crate::vm_network::failure(&mut network) => return Err(error.into()) };
     if let Some(pid) = child.id().and_then(|pid| Pid::from_raw(pid as i32)) {
         let _ = rustix::process::kill_process_group(pid, Signal::TERM);
         if let Ok(status) = tokio::time::timeout(Duration::from_secs(5), child.wait()).await {
@@ -328,6 +331,7 @@ async fn supervise(boot: Boot, writes: File) -> Result<(), Box<dyn std::error::E
         Some(status) => status,
         None => child.wait().await?,
     };
+    crate::vm_network::stop(network).await?;
     rustix::fs::syncfs(&writes)?;
     let proof = crate::vm_observation::sign(
         &key,

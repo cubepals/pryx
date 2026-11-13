@@ -157,7 +157,7 @@ async fn start(
     headers: HeaderMap,
     Json(body): Json<Start>,
 ) -> Result<Response, Failure> {
-    let key = headers.get("idempotency-key").and_then(|s| s.to_str().ok()).unwrap_or("");
+    let key = headers.get(crate::contract::IDEMPOTENCY_HEADER).and_then(|s| s.to_str().ok()).unwrap_or("");
     let process = agent.processes.start(body, key, claims.max_exec_seconds)?;
     Ok((StatusCode::CREATED, Json(process.view())).into_response())
 }

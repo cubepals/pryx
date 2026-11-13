@@ -1,0 +1,10 @@
+{
+  "source": "5d64d60",
+  "run": 43483785231,
+  "job": 132086766078,
+  "conclusion": "failure",
+  "artifact": 14067315957,
+  "artifactSha256": "81d8f3a6625c6574865bf9cdf94031b09742a64134e8bd78e9d1082a2daadddf",
+  "failure": "Fixture omits existing mandatory idempotency-key header; exec POST is correctly refused",
+  "proved": "Actual guest CID, EROFS/overlay/ext4 mounting, non-root agent startup, authenticated file round trip; no completed shutdown proof"
+}

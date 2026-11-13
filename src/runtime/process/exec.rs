@@ -49,7 +49,7 @@ impl ProcessRuntime {
         let mut headers = vec![
             ("authorization", format!("Bearer {token}")),
             ("content-type", "application/json".into()),
-            ("Idempotency-Key", uuid::Uuid::new_v4().to_string()),
+            (pryx_agent::contract::IDEMPOTENCY_HEADER, uuid::Uuid::new_v4().to_string()),
         ];
         if let Some(nonce) = nonce {
             headers.push((pryx_agent::process_observation::NONCE_HEADER, nonce.into()));

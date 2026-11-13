@@ -41,6 +41,7 @@
 //! - `bootstrap_capabilities.rs`: optional executable bootstrap argument discovery.
 //! - `vm_ingress.rs`: host-CID-only virtio-socket ingress to guest-loopback agent ports.
 //! - `vm_boot.rs`: private in-memory VM bootstrap contract, separate from fleet protocol and disk records.
+//! - `vm_network.rs`: trusted guest network readiness, resolver mounts and child lifetime.
 //! - `vm_init.rs`: trusted guest init, mount preparation and orderly non-root agent supervision.
 //! - `vm_observation.rs`: boot-scoped signed disk-shutdown observations.
 
@@ -92,6 +93,8 @@ pub mod vm_boot;
 mod vm_ingress;
 #[cfg(feature = "server")]
 pub mod vm_init;
+#[cfg(feature = "server")]
+mod vm_network;
 #[cfg(feature = "server")]
 pub mod vm_observation;
 

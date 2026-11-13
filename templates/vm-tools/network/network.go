@@ -4,11 +4,12 @@
 //
 // Parts (`network/`):
 // - cmd/proxy/main.go: maintained stack behind a restricted guest transport.
+// - cmd/guest/main.go: trusted guest loopback and maintained DHCP configuration.
 // - cmd/probe/main.go: real guest networking measurements and management denials.
 // - inputs.json: immutable Alpine and pasta source inputs.
 // - module-notices.json: pinned dependency closure and complete primary-notice digests.
 // - go.mod, go.sum: the separate comparison module and unchanged upstream forwarder tool.
-// - go.work: local main modules for network-directory cache verification.
+// - go.work, go.work.sum: local main modules for network-directory cache verification.
 // - README.md: experiment scope and listener boundaries.
 package networkfixture
 

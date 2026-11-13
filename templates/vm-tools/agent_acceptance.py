@@ -22,6 +22,7 @@ def main():
     parser.add_argument('--staged', type=Path, required=True)
     parser.add_argument('--configurator', type=Path, required=True)
     parser.add_argument('--client', type=Path, required=True)
+    parser.add_argument('--proxy', type=Path, required=True)
     parser.add_argument('--bootstrap', type=Path, required=True)
     parser.add_argument('--filesystem-component', type=Path, required=True)
     parser.add_argument('--work', type=Path, required=True)
@@ -40,6 +41,7 @@ def main():
         'PRYX_VM_BOOTSTRAP': str(args.bootstrap.resolve()),
         'PRYX_VM_CONFIGURATOR': str(args.configurator.resolve()),
         'PRYX_VM_AGENT_CLIENT': str(args.client.resolve()),
+        'PRYX_VM_NETWORK_PROXY': str(args.proxy.resolve()),
         'PRYX_VM_FILESYSTEM_COMPONENT': str(args.filesystem_component.resolve()),
         'PRYX_VM_FILESYSTEM_MANIFEST': hashlib.sha256(
             (args.filesystem_component / 'filesystem-manifest.json').read_bytes()).hexdigest(),

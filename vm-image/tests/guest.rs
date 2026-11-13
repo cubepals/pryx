@@ -6,9 +6,9 @@ use axum::http::{Method, StatusCode};
 use base64::{Engine, engine::general_purpose::STANDARD};
 use pryx_agent::{
     auth::{Claims, Scope, SigningKey, TOKEN_LIFETIME_SECONDS},
-    contract::AGENT_PORT,
+    contract::{AGENT_PORT, IDEMPOTENCY_HEADER},
     process::{Command as GuestCommand, Start},
-    vm_boot::{self, Boot},
+    vm_boot::{self, Boot, Network},
     vm_observation::{self, Proof},
 };
 use pryx_vm_image::image::{Images, PreparedImage};
@@ -16,6 +16,7 @@ use pryxd::runtime::vm::filesystems::FilesystemTools;
 use serde_json::{Value, json};
 use std::{
     fs,
+    net::Ipv4Addr,
     path::{Path, PathBuf},
     process::Stdio,
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -65,6 +66,7 @@ impl Guest {
     async fn call(&self, method: Method, path: &str, body: Value, binary: Option<&[u8]>) -> (StatusCode, Vec<u8>) {
         let mut message = json!({"socket": self.channel, "port": AGENT_PORT,
             "method": method.as_str(), "path": path, "token": self.token, "body": body});
+        message["headers"] = json!({(IDEMPOTENCY_HEADER): [format!("once-{}", SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos())]});
         if let Some(binary) = binary {
             message["binaryBody"] = STANDARD.encode(binary).into();
         }
@@ -126,7 +128,115 @@ fn verify_shutdown(log: &str, key: &SigningKey, encoded: &str, token: &str, nonc
     assert_eq!(proofs[0].observation.kernel, kernel);
 }
 
-async fn boot(tools: &FilesystemTools, image: &PreparedImage, directory: &Path, writes: &Path, round: usize) -> Value {
+struct NetworkFixture {
+    proxy: tokio::process::Child,
+    http: tokio::task::JoinHandle<()>,
+    configuration: Value,
+}
+
+impl Drop for NetworkFixture {
+    fn drop(&mut self) {
+        self.http.abort();
+    }
+}
+
+impl NetworkFixture {
+    async fn start(metadata: &Value, channel: &Path, directory: &Path, round: usize) -> Self {
+        let listener = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let body = metadata["networkHello"].as_str().unwrap().to_owned();
+        let router = axum::Router::new().route(
+            metadata["networkHelloPath"].as_str().unwrap(),
+            axum::routing::get(move || {
+                let body = body.clone();
+                async move { body }
+            }),
+        );
+        let http = tokio::spawn(async move {
+            axum::serve(listener, router).await.unwrap();
+        });
+        let mut configuration = metadata["network"].clone();
+        configuration["mode"] = "vsock".into();
+        configuration["url"] = format!("http://{}:{port}", configuration["host"].as_str().unwrap()).into();
+        let path = directory.join(format!("network{round}.json"));
+        fs::write(&path, serde_json::to_vec(&configuration).unwrap()).unwrap();
+        let transport = format!("{}_{port}", channel.display(), port = metadata["networkPort"].as_u64().unwrap());
+        let mut proxy = Command::new(input("PRYX_VM_NETWORK_PROXY"))
+            .arg("--config")
+            .arg(path)
+            .arg("--guest-socket")
+            .arg(&transport)
+            .arg("--control-socket")
+            .arg(directory.join(format!("control{round}.sock")))
+            .stdout(Stdio::null())
+            .stderr(fs::File::create(directory.join(format!("network{round}.log"))).unwrap())
+            .kill_on_drop(true)
+            .spawn()
+            .unwrap();
+        let until = tokio::time::Instant::now() + Duration::from_secs(5);
+        while !Path::new(&transport).exists() {
+            assert!(proxy.try_wait().unwrap().is_none(), "Maintained host network fixture exited");
+            assert!(tokio::time::Instant::now() < until, "Host packet transport did not appear");
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        Self { proxy, http, configuration }
+    }
+}
+
+async fn exercise_guest(
+    guest: &Guest,
+    directory: &Path,
+    round: usize,
+    uid: u32,
+    network_fixture: Option<&NetworkFixture>,
+    bootstrap_metadata: &Value,
+) -> String {
+    let bytes = b"Real VM file round trip with persistent ext4\n";
+    if round == 0 {
+        let (status, _) =
+            guest.call(Method::PUT, "/_pryx/files/content?path=roundtrip", Value::Null, Some(bytes)).await;
+        assert!(status.is_success());
+    }
+    let (status, body) = guest.call(Method::GET, "/_pryx/files/content?path=roundtrip", Value::Null, None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body, bytes);
+    if let Some(fixture) = network_fixture {
+        let bytes = serde_json::to_vec(&fixture.configuration).unwrap();
+        let (status, _) =
+            guest.call(Method::PUT, "/_pryx/files/content?path=network.json", Value::Null, Some(&bytes)).await;
+        assert!(status.is_success());
+        let probe = Path::new(vm_boot::BOOTSTRAP_ROOT).join(bootstrap_metadata["networkProbe"].as_str().unwrap());
+        guest
+            .command(vec![
+                probe.display().to_string(),
+                "--verify".into(),
+                "--config".into(),
+                "/data/network.json".into(),
+            ])
+            .await;
+    } else {
+        guest.command(vec!["/bin/sh".into(), "-c".into(), "test \"$(ls /sys/class/net)\" = lo".into()]).await;
+    }
+    let host_secret = directory.join("host-private-file");
+    fs::write(&host_secret, "Must remain outside the guest").unwrap();
+    guest.command(vec!["/bin/sh".into(), "-c".into(),
+        "test ! -e \"$1\" && ! kill -TERM \"$2\" 2>/dev/null && test \"$(id -u)\" = \"$3\" && uname -r > /data/kernel".into(),
+        "isolation-check".into(), host_secret.display().to_string(), std::process::id().to_string(), uid.to_string()]).await;
+    let (status, kernel) = guest.call(Method::GET, "/_pryx/files/content?path=kernel", Value::Null, None).await;
+    assert_eq!(status, StatusCode::OK);
+    let kernel = String::from_utf8(kernel).unwrap().trim().to_owned();
+    assert_ne!(kernel, fs::read_to_string("/proc/sys/kernel/osrelease").unwrap().trim());
+    kernel
+}
+
+async fn boot(
+    tools: &FilesystemTools,
+    image: &PreparedImage,
+    directory: &Path,
+    writes: &Path,
+    round: usize,
+    networked: bool,
+) -> Value {
     let configurator = input("PRYX_VM_CONFIGURATOR");
     let metadata: Value = serde_json::from_slice(&output(Command::new(&configurator).arg("--metadata")).await).unwrap();
     let bootstrap = input("PRYX_VM_BOOTSTRAP");
@@ -188,6 +298,14 @@ async fn boot(tools: &FilesystemTools, image: &PreparedImage, directory: &Path, 
     let secret_env = "PRYX_VM_ACCEPTANCE_KEY";
     environment.push((secret_env.into(), encoded.clone()));
     let uid = rustix::process::getuid().as_raw() + 1;
+    let network_fixture =
+        if networked { Some(NetworkFixture::start(&metadata, &channel, directory, round).await) } else { None };
+    let network = network_fixture.as_ref().map(|fixture| Network {
+        interface: "tap0".into(),
+        mac: fixture.configuration["guestMac"].as_str().unwrap().into(),
+        mtu: fixture.configuration["mtu"].as_u64().unwrap() as u32,
+        vsock_port: Some(metadata["networkPort"].as_u64().unwrap() as u32),
+    });
     let boot = Boot {
         version: vm_boot::VERSION,
         nonce: nonce.clone(),
@@ -218,6 +336,7 @@ async fn boot(tools: &FilesystemTools, image: &PreparedImage, directory: &Path, 
         ],
         environment,
         network_arguments: None,
+        network,
     };
     let listener = UnixListener::bind(format!("{}_{port}", channel.display(), port = vm_boot::PORT)).unwrap();
     let boot_bytes = serde_json::to_vec(&boot).unwrap();
@@ -242,36 +361,23 @@ async fn boot(tools: &FilesystemTools, image: &PreparedImage, directory: &Path, 
     let guest = Guest { channel, client: input("PRYX_VM_AGENT_CLIENT"), token: token.clone() };
     guest.ready().await;
     tokio::time::timeout(Duration::from_secs(1), sender).await.unwrap().unwrap();
-    let bytes = b"Real VM file round trip with persistent ext4\n";
-    if round == 0 {
-        let (status, _) =
-            guest.call(Method::PUT, "/_pryx/files/content?path=roundtrip", Value::Null, Some(bytes)).await;
-        assert!(status.is_success());
-    }
-    let (status, body) = guest.call(Method::GET, "/_pryx/files/content?path=roundtrip", Value::Null, None).await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(body, bytes);
-    let host_secret = directory.join("host-private-file");
-    fs::write(&host_secret, "Must remain outside the guest").unwrap();
-    guest.command(vec!["/bin/sh".into(), "-c".into(),
-        "test ! -e \"$1\" && ! kill -TERM \"$2\" 2>/dev/null && test \"$(id -u)\" = \"$3\" && uname -r > /data/kernel".into(),
-        "isolation-check".into(), host_secret.display().to_string(), std::process::id().to_string(), uid.to_string()]).await;
-    let (status, kernel) = guest.call(Method::GET, "/_pryx/files/content?path=kernel", Value::Null, None).await;
-    assert_eq!(status, StatusCode::OK);
-    let kernel = String::from_utf8(kernel).unwrap().trim().to_owned();
-    assert_ne!(kernel, fs::read_to_string("/proc/sys/kernel/osrelease").unwrap().trim());
+    let kernel = exercise_guest(&guest, directory, round, uid, network_fixture.as_ref(), &bootstrap_metadata).await;
     let (status, _) = request(&guest.client, json!({"socket": api, "stop": true})).await.unwrap();
     assert!(status.is_success());
     let status =
         tokio::time::timeout(Duration::from_secs(15), monitor.wait()).await.expect("VM did not power off").unwrap();
     assert!(status.success());
+    if let Some(mut fixture) = network_fixture {
+        fixture.proxy.kill().await.unwrap();
+    }
     let log = fs::read_to_string(&serial_path).unwrap();
     verify_shutdown(&log, &key, &encoded, &token, &nonce, sandbox, &kernel);
     let mut check = tools.builder("e2fsck");
     let check = check.arg("-f").arg("-n").arg(writes).output().unwrap();
     assert!(check.status.success(), "Stopped VM disk failed read-only integrity check");
     json!({"round": round, "kernel": kernel, "guestUid": uid, "signedCleanShutdown": true,
-        "persistentFile": true, "hostFileDenied": true, "hostSignalDenied": true})
+        "persistentFile": true, "hostFileDenied": true, "hostSignalDenied": true,
+        "networked": networked, "dhcpDnsHttpAndManagementDenial": networked})
 }
 
 #[tokio::test]
@@ -295,8 +401,9 @@ async fn actual_agent_boots_both_oci_images_and_reboots_synced_disks() {
         assert!(tools.builder("mke2fs").args(["-q", "-F", "-t", "ext4"]).arg(&writes).status().unwrap().success());
         let mut rounds = Vec::new();
         for round in 0..2 {
-            rounds.push(boot(&tools, &image, &directory, &writes, round).await);
+            rounds.push(boot(&tools, &image, &directory, &writes, round, false).await);
         }
+        rounds.push(boot(&tools, &image, &directory, &writes, 2, true).await);
         report.push(json!({"image": input["reference"], "manifestDigest": image.digest, "boots": rounds}));
     }
     fs::write(

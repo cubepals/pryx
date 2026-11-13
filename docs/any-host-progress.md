@@ -2555,3 +2555,30 @@ job when publication is authorized. That job has not run in this task.
   verify nested metadata, refusal to expose an outside symlink target, and bounded
   output from a large log. Keep the contract deadline and test unchanged; the
   unexplained archive-adoption failure still needs diagnosis if it recurs.
+
+- Source 5d64d60's actual KVM job 132086766078 in run 43483785231 now boots
+  the real non-root agent, mounts the actual OCI lowers/overlay/ext4 and passes
+  its authenticated file round trip. The fixture then receives the correct
+  UNPROCESSABLE_ENTITY refusal for its exec POST without the existing mandatory
+  idempotency key. Retain its serial log and artifact 14067315957 (SHA-256
+  81d8f3a6625c6574865bf9cdf94031b09742a64134e8bd78e9d1082a2daadddf).
+  Export the agent-owned header constant and submit each fixture request with
+  a fresh key, once; do not weaken the agent check or any acceptance assertion.
+- Wire host-owned guest network setup into init: bind its root-owned tmpfs
+  resolver through no-follow handles, run only trusted static bootstrap programs,
+  wait for private readiness EOF, monitor helper failure and stop it before disk
+  flush. Unexpected helper death withholds the clean-disk proof. Leave absent
+  networking with loopback alone, no outbound helper and no VMM network device.
+  Keep the earlier private raw-argument checkpoint field explicitly refused.
+- Extend the same actual-agent KVM acceptance with a third boot of each retained
+  disk using the selected vsock network, the maintained DHCP client and original
+  forwarder. A static unprivileged fixture checks actual HTTP, real public DNS,
+  gateway management denial and direct management denial without image-owned
+  tools. Plain boots assert that the guest has loopback alone. This fixture
+  network is not production confinement or hostname-egress-policy proof.
+  The existing optional job retains its original network cohorts and all earlier
+  assertions; estimated extra optional cost is under one minute, zero PR minutes.
+- Current local full Rust verification still completes every binary with only the
+  executor's unchanged AF_INET6/EAFNOSUPPORT failure. Strict root Clippy passes;
+  current helper Clippy, Go build/vet/notices and static-bootstrap construction
+  are checked before this step is pushed. No local KVM/Docker proof is claimed.

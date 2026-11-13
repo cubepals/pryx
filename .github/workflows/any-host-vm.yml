@@ -172,6 +172,8 @@ jobs:
           python3 templates/vm-tools/bootstrap.py \
             --agent target/x86_64-unknown-linux-musl/debug/pryx-agent \
             --network-helper "$RUNNER_TEMP/vm-network-guest" \
+            --forwarder "$RUNNER_TEMP/vm-gvforwarder" \
+            --network-probe "$RUNNER_TEMP/vm-network-probe" \
             --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" \
             --root "$RUNNER_TEMP/vm-agent-bootstrap" | tee "$RUNNER_TEMP/vm-agent-bootstrap.log"
       - name: Prepare real pinned Alpine and Debian OCI layers without an engine
@@ -198,7 +200,7 @@ jobs:
           python3 templates/vm-tools/agent_acceptance.py \
             --inspection "$RUNNER_TEMP/vm-archive-inspection.json" --staged "$RUNNER_TEMP/vm-selected-files" \
             --configurator "$RUNNER_TEMP/vm-config" --client "$RUNNER_TEMP/vm-agent-client" \
-            --bootstrap "$RUNNER_TEMP/vm-agent-bootstrap" \
+            --bootstrap "$RUNNER_TEMP/vm-agent-bootstrap" --proxy "$RUNNER_TEMP/vm-network-proxy" \
             --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" \
             --work "$RUNNER_TEMP/vm-guest-acceptance" | tee "$RUNNER_TEMP/vm-guest-acceptance.log"
       - name: Retain candidate identities and actual digests

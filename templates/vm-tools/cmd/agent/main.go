@@ -31,6 +31,7 @@ type request struct {
 	Body       json.RawMessage `json:"body"`
 	BinaryBody []byte          `json:"binaryBody"`
 	Stop       bool            `json:"stop"`
+	Headers    http.Header     `json:"headers"`
 }
 
 func run() error {
@@ -75,6 +76,10 @@ func run() error {
 	message, err := http.NewRequest(input.Method, "http://agent.pryx.invalid"+input.Path, bytes.NewReader(data))
 	if err != nil {
 		return fmt.Errorf("Invalid agent HTTP request")
+	}
+	message.Header = input.Headers.Clone()
+	if message.Header == nil {
+		message.Header = make(http.Header)
 	}
 	if !input.Stop {
 		message.Header.Set("Authorization", "Bearer "+input.Token)

@@ -34,6 +34,8 @@ pub struct Capabilities {
     pub vm_init_mode: String,
     #[serde(default)]
     pub vm_network_program: String,
+    #[serde(default)]
+    pub vm_packet_program: String,
 }
 
 pub fn probe() -> Capabilities {
@@ -50,5 +52,6 @@ pub fn probe() -> Capabilities {
         vm_boot_marker_path: crate::vm_boot::MARKER.into(),
         vm_init_mode: crate::vm_boot::INIT_MODE.into(),
         vm_network_program: crate::vm_boot::NETWORK_PROGRAM.into(),
+        vm_packet_program: crate::vm_boot::PACKET_PROGRAM.into(),
     }
 }

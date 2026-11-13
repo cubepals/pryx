@@ -16,7 +16,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/containers/gvisor-tap-vsock/pkg/types"
 	"github.com/insomniacslk/dhcp/dhcpv4/nclient4"
+	"github.com/mdlayher/vsock"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
@@ -58,7 +60,7 @@ func run() error {
 	mac := flag.String("mac", "", "Host-selected guest MAC")
 	mtu := flag.Int("mtu", 0, "Host-selected MTU")
 	forwarder := flag.String("forwarder", "", "Optional fixed trusted bootstrap forwarder")
-	endpoint := flag.String("endpoint", "", "Host-CID packet transport endpoint")
+	port := flag.Uint("vsock-port", 0, "Host-selected packet transport port")
 	resolver := flag.String("resolver", "", "Precreated root-owned resolver file")
 	flag.Parse()
 	if os.Geteuid() != 0 || os.Getppid() != 1 {
@@ -107,7 +109,11 @@ func run() error {
 	}
 	errors := make(chan error, 1)
 	if *forwarder != "" {
-		helper := exec.CommandContext(ctx, *forwarder, "-url", *endpoint, "-iface", *iface,
+		if *port == 0 {
+			return fmt.Errorf("Guest packet transport port is missing")
+		}
+		endpoint := fmt.Sprintf("vsock://%d:%d%s", vsock.Host, *port, types.ConnectPath)
+		helper := exec.CommandContext(ctx, *forwarder, "-url", endpoint, "-iface", *iface,
 			"-preexisting", "-stop-if-exist", "", "-mtu", fmt.Sprint(*mtu))
 		helper.Env = []string{}
 		helper.Stdout, helper.Stderr = os.Stderr, os.Stderr

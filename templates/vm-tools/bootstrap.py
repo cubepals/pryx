@@ -29,6 +29,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--agent', type=Path, required=True)
     parser.add_argument('--network-helper', type=Path, required=True)
+    parser.add_argument('--forwarder', type=Path, required=True)
+    parser.add_argument('--network-probe', type=Path)
     parser.add_argument('--filesystem-component', type=Path, required=True)
     parser.add_argument('--root', type=Path, required=True)
     args = parser.parse_args()
@@ -36,6 +38,8 @@ def main():
     static(agent)
     network_helper = args.network_helper.resolve(strict=True)
     static(network_helper)
+    forwarder = args.forwarder.resolve(strict=True)
+    static(forwarder)
     metadata = json.loads(subprocess.check_output([str(agent), 'bootstrap-probe'], timeout=10))
     if not metadata.get('vmInitVersion') or not metadata.get('vmVsock'):
         raise ValueError('This actual agent does not support VM bootstrap and transport')
@@ -49,7 +53,12 @@ def main():
             entry = tarfile.TarInfo(name)
             entry.type, entry.mode = tarfile.DIRTYPE, 0o755
             output.addfile(entry)
-        for name, executable in [('init', agent), (metadata['vmNetworkProgram'], network_helper)]:
+        programs = [('init', agent), (metadata['vmNetworkProgram'], network_helper),
+                    (metadata['vmPacketProgram'], forwarder)]
+        if args.network_probe is not None:
+            static(args.network_probe)
+            programs.append(('network-probe', args.network_probe))
+        for name, executable in programs:
             if PurePosixPath(name).name != name:
                 raise ValueError('Bootstrap executable names must be single components')
             entry = tarfile.TarInfo(name)
@@ -67,8 +76,9 @@ def main():
     report = {'scope': 'Trusted bootstrap image only; no VM runtime advertisement',
               'agentSha256': hashlib.sha256(agent.read_bytes()).hexdigest(),
               'networkHelperSha256': hashlib.sha256(network_helper.read_bytes()).hexdigest(),
+              'packetForwarderSha256': hashlib.sha256(forwarder.read_bytes()).hexdigest(),
               'imageSha256': hashlib.sha256(image.read_bytes()).hexdigest(),
-              'imageBytes': image.stat().st_size, 'metadata': metadata}
+              'imageBytes': image.stat().st_size, 'metadata': metadata, 'networkProbe': 'network-probe' if args.network_probe else None}
     (args.root / 'bootstrap.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps(report), flush=True)
 

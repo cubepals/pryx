@@ -9,6 +9,7 @@ pub const PORT: u32 = 11827;
 pub const MAX_BYTES: usize = 256 * 1024;
 pub const MAX_LAYERS: usize = 128;
 pub const INIT_MODE: &str = "vm-init";
+pub const PACKET_PROGRAM: &str = "gvforwarder";
 pub const NETWORK_PROGRAM: &str = "guest-network";
 pub const AGENT_MODE: &str = "vm-agent";
 pub const BOOTSTRAP_ROOT: &str = "/.pryx-bootstrap";
@@ -40,6 +41,8 @@ pub struct Boot {
     pub environment: Vec<(String, String)>,
     #[serde(default)]
     pub network_arguments: Option<Vec<String>>,
+    #[serde(default)]
+    pub network: Option<Network>,
 }
 
 pub fn guest_cid(cid: u32) -> bool {
@@ -50,4 +53,15 @@ pub fn guest_cid(cid: u32) -> bool {
             | tokio_vsock::VMADDR_CID_HYPERVISOR
             | tokio_vsock::VMADDR_CID_LOCAL
     )
+}
+
+/// Host-owned guest networking; absent means no network device or outbound helper.
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Network {
+    pub interface: String,
+    pub mac: String,
+    pub mtu: u32,
+    /// Present for the maintained vsock path; absent for a host-managed virtio TAP.
+    pub vsock_port: Option<u32>,
 }

@@ -187,10 +187,37 @@ func measure(fixture experiment.Network) (map[string]any, error) {
 	return report, nil
 }
 
+func verify(fixture experiment.Network) error {
+	client := &http.Client{Timeout: requestTimeout, Transport: &http.Transport{Proxy: nil}}
+	if _, err := checkedGet(client, fixture.URL+experiment.NetworkHelloPath, int64(len(experiment.NetworkHello))); err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	addresses, err := net.DefaultResolver.LookupHost(ctx, "example.com")
+	if err != nil || len(addresses) == 0 {
+		return fmt.Errorf("Actual guest DNS failed: %v", err)
+	}
+	port, err := net.LookupPort("tcp", "http")
+	if err != nil {
+		return err
+	}
+	if err := denied(client, "http://"+net.JoinHostPort(fixture.Gateway, strconv.Itoa(port))+networkfixture.ExposePath, http.StatusUnauthorized); err != nil {
+		return err
+	}
+	direct := &http.Client{Timeout: requestTimeout, Transport: &http.Transport{
+		DialContext: func(context.Context, string, string) (net.Conn, error) {
+			return vsock.Dial(vsock.Host, experiment.NetworkPort, nil)
+		},
+	}}
+	return denied(direct, "http://proxy"+networkfixture.ExposePath, http.StatusNotFound)
+}
+
 func main() {
 	configuration := flag.String("config", "", "Private fixture configuration")
+	verifyOnly := flag.Bool("verify", false, "Verify a prepared network without privileged setup")
 	flag.Parse()
-	if os.Geteuid() != 0 || os.Getppid() != 1 || os.Getenv("PRYX_VM_NETWORK_SPIKE") != "1" {
+	if !*verifyOnly && (os.Geteuid() != 0 || os.Getppid() != 1 || os.Getenv("PRYX_VM_NETWORK_SPIKE") != "1") {
 		log.Fatal("The network probe runs only under the trusted VM fixture's PID 1")
 	}
 	data, err := os.ReadFile(*configuration)
@@ -200,6 +227,12 @@ func main() {
 	var fixture experiment.Network
 	if err := json.Unmarshal(data, &fixture); err != nil {
 		log.Fatal(err)
+	}
+	if *verifyOnly {
+		if err := verify(fixture); err != nil {
+			log.Fatal(err)
+		}
+		return
 	}
 	report, err := measure(fixture)
 	if err != nil {
