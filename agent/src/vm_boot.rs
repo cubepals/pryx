@@ -11,6 +11,12 @@ pub const SERVICE_PORT_BASE: u32 = u16::MAX as u32 + 1;
 pub fn service_port(port: u16) -> u32 {
     SERVICE_PORT_BASE + u32::from(port)
 }
+/// HTTP/2 stream end markers avoid the monitor's bidirectional Unix EOF shutdown.
+pub const STREAM_PORT_BASE: u32 = SERVICE_PORT_BASE * 2;
+pub const STREAM_VERSION: u16 = 1;
+pub fn stream_port(port: u16) -> u32 {
+    STREAM_PORT_BASE + u32::from(port)
+}
 pub const MAX_BYTES: usize = 256 * 1024;
 pub const MAX_LAYERS: usize = 128;
 pub const INIT_MODE: &str = "vm-init";

@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Host-CID-only virtio-socket ingress for a VM with or without a network device. The existing
 //! agent owns authentication, ports and protocols; this adapter only relays their bytes.
+//!
+//! Parts (`vm_ingress/`):
+//! - `stream.rs`: maintained HTTP/2 CONNECT preserves independent stream shutdown.
+mod stream;
 use std::{io, net::Ipv4Addr};
 use tokio::{net::TcpStream, task::JoinSet};
 use tokio_vsock::{VMADDR_CID_HOST, VsockAddr, VsockListener};
@@ -22,9 +26,14 @@ impl Ingress {
         // the listeners and no task can expose an incomplete set of forward slots.
         let listeners = ports
             .into_iter()
-            .map(|port| VsockListener::bind(VsockAddr::new(cid, base + u32::from(port))).map(|l| (port, l)))
+            .flat_map(|port| {
+                let raw = (port, base + u32::from(port), false);
+                let stream = (base != 0).then_some((port, crate::vm_boot::stream_port(port), true));
+                std::iter::once(raw).chain(stream)
+            })
+            .map(|(port, address, framed)| VsockListener::bind(VsockAddr::new(cid, address)).map(|l| (port, l, framed)))
             .collect::<io::Result<Vec<_>>>()?;
-        for (port, listener) in listeners {
+        for (port, listener, framed) in listeners {
             tasks.spawn(async move {
                 let mut connections = JoinSet::new();
                 loop {
@@ -35,6 +44,9 @@ impl Ingress {
                                 continue;
                             }
                             connections.spawn(async move {
+                                if framed {
+                                    return stream::serve(peer, port).await;
+                                }
                                 let mut guest = TcpStream::connect((Ipv4Addr::LOCALHOST, port)).await?;
                                 guest.set_nodelay(true)?;
                                 tokio::io::copy_bidirectional(&mut peer, &mut guest).await?;

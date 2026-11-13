@@ -2800,3 +2800,21 @@ job when publication is authorized. That job has not run in this task.
   file round trip pass, but opaque TCP after client EOF receives no bytes. The pinned monitor
   source explicitly turns host EOF into shutdown of both directions. Preserve the assertion
   and fix the stream transport through maintained HTTP/2 CONNECT, not custom framing.
+
+
+- K25 TCP half-close correction: keep the underlying SDK-owned vsock connection open and
+  relay application streams through maintained HTTP/2 CONNECT. Hyper/h2 owns guest framing,
+  flow control and stream shutdown; the pinned Go standard library owns host framing on a
+  single ClientConn, without application-byte retries. A separate advertised private stream
+  port range/version preserves the earlier raw service transport. Host-CID, fixed TCP target
+  and private bind restrictions stay. Bundle verification requires the stream capability.
+- A real local Unix-stream HTTP/2 round trip passes a 64 KiB opaque payload and the reply
+  generated only after write EOF. This proves library stream semantics, not Firecracker or
+  the Go-to-Rust KVM path. Preserve the exact real-KVM byte assertions and all prior isolation,
+  auth, replay, disk and shutdown checks. Full local Rust: 497 passes, the existing IPv6 failure,
+  33 ignored cases; strict root/helper Clippy, fmt, Go build/vet, all 24 primary module notices
+  and static agent/bootstrap builds pass. No dependency package or version changes: lockfiles
+  add existing HTTP-library edges only. No new workflow/job/gate or added PR minute.
+- Also read fcce6bc run 43506802018's completed VM failure: whole same-source launcher bundle
+  assembles and verifies, then the same pre-correction opaque-EOF assertion fails. Raw evidence
+  remains in CI; forwarding-acd52ed.json records the decisive preceding measurement only.

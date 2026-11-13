@@ -280,7 +280,7 @@ async fn exercise_forwarding(guest: &Guest, metadata: &Value, bootstrap: &Value)
         .unwrap();
     let bindings = [AGENT_PORT, echo_port].map(|port| {
         json!({"host": Ipv4Addr::LOCALHOST,
-        "port": 0, "guestPort": vm_boot::service_port(port)})
+        "port": 0, "guestPort": vm_boot::stream_port(port)})
     });
     let bytes = serde_json::to_vec(&json!({"socket": guest.channel,
         "forward": {"bindings": bindings, "concurrency": 8, "parent": std::process::id()}}))
@@ -329,7 +329,8 @@ async fn exercise_forwarding(guest: &Guest, metadata: &Value, bootstrap: &Value)
     let mut expected = metadata["forwardPrefix"].as_str().unwrap().as_bytes().to_vec();
     expected.extend_from_slice(opaque);
     expected.extend_from_slice(metadata["forwardSuffix"].as_str().unwrap().as_bytes());
-    assert_eq!(response, expected, "TCP bytes after client EOF must be retained");
+    assert_eq!(response.len(), expected.len(), "TCP reply after client EOF changed length");
+    assert!(response == expected, "TCP bytes after client EOF must be retained");
     proxy.kill().await.unwrap();
 }
 

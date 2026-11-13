@@ -1059,3 +1059,5 @@
 - K25: Keep optional VM service addressing above the u16 TCP namespace and expose declared services only through host-owned private-address relays using the maintained SDK dialer; retain legacy bootstrap defaults, never map init control channels through service relays, and verify full binary transfer plus TCP replies after client EOF on real KVM.
 
 - K25: ship the same static agent as the VM host launcher and trusted guest init, verify their common digest and advertised private transport versions before use, and construct physical memory/vCPU settings through the monitor owner's generated models; this avoids host C-library assumptions and copied API shapes.
+
+- K25: carry opaque VM TCP streams with HTTP/2 CONNECT using the existing pinned hyper/h2 (MIT) and the pinned Go 1.27.3 standard library (BSD-3-Clause) libraries; the pinned Firecracker turns Unix EOF into bidirectional shutdown, so library-owned stream end markers preserve half-close without hand-written framing or application-byte retries.

@@ -3082,6 +3082,8 @@ dependencies = [
  "globset",
  "http-body-util",
  "httparse",
+ "hyper",
+ "hyper-util",
  "jupyter-protocol",
  "jupyter-zmq-client",
  "landlock",

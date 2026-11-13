@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -129,21 +130,45 @@ func relay(ctx context.Context, client net.Conn, path string, port uint32) error
 	defer guest.Close()
 	closeConnection := context.AfterFunc(ctx, func() { client.Close(); guest.Close() })
 	defer closeConnection()
-	// DialContext may retry connection establishment. Once application bytes start,
-	// each stream is submitted once, with ordinary half-close/backpressure semantics.
+	// The SDK owns connection establishment. HTTP/2 CONNECT owns half-close and
+	// flow control: Unix EOF would make the monitor close both vsock directions.
+	var protocols http.Protocols
+	protocols.SetUnencryptedHTTP2(true)
+	transport := &http.Transport{Protocols: &protocols, DisableCompression: true,
+		DialContext: func(context.Context, string, string) (net.Conn, error) { return guest, nil }}
+	connection, err := transport.NewClientConn(connecting, "http", "guest:")
+	if err != nil {
+		return err
+	}
+	defer connection.Close()
+	reader, writer := io.Pipe()
+	defer reader.Close()
+	defer writer.Close()
+	request, err := http.NewRequestWithContext(ctx, http.MethodConnect, "http://guest/", reader)
+	if err != nil {
+		return err
+	}
 	done := make(chan struct{})
 	go func() {
-		io.Copy(guest, client)
-		if half, ok := guest.(interface{ CloseWrite() error }); ok {
-			half.CloseWrite()
-		}
+		_, err := io.Copy(writer, client)
+		writer.CloseWithError(err)
 		close(done)
 	}()
-	_, err = io.Copy(client, guest)
+	// A ClientConn has exactly this connection and never retries an application stream.
+	response, err := connection.RoundTrip(request)
+	if err == nil {
+		if response.StatusCode != http.StatusOK {
+			err = fmt.Errorf("Guest refused TCP stream")
+		} else {
+			_, err = io.Copy(client, response.Body)
+		}
+		response.Body.Close()
+	}
 	if half, ok := client.(interface{ CloseWrite() error }); ok {
 		half.CloseWrite()
 	}
 	client.Close()
+	reader.Close()
 	guest.Close()
 	<-done
 	return err

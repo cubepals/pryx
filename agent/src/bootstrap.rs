@@ -126,7 +126,7 @@ impl Bootstrap {
         if (!self.vm_ports.is_empty() || self.vm_port_base != 0) && !self.vm_vsock {
             return Err("VM port metadata requires its guest transport".into());
         }
-        if (self.vm_port_base != 0 && self.vm_port_base < crate::vm_boot::SERVICE_PORT_BASE)
+        if (self.vm_port_base != 0 && self.vm_port_base != crate::vm_boot::SERVICE_PORT_BASE)
             || self.vm_port_base.checked_add(u32::from(u16::MAX)).is_none()
             || self.vm_ports.contains(&0)
         {
