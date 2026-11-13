@@ -11,7 +11,7 @@ Only recorded CI evidence establishes completion; a local pass alone does not.
 | K21 | done | `de3ef9dc13e955e96c2f7c1e530f800069ff50c0` | Normal CI [42885151433](https://github.com/cubepals/pryx/actions/runs/42885151433), Any host [42885151332](https://github.com/cubepals/pryx/actions/runs/42885151332), Measure [42885520235](https://github.com/cubepals/pryx/actions/runs/42885520235), all green | All normal jobs and aggregate; all thirteen host jobs; both complete measurement jobs, including historical budgets and three-tier collectors | Production main/release prohibited; unchanged credentialed cases | None | None |
 | K22 | done except | `7963826182e3f8e9037aea17d4716df15086bd81` | Normal push [43075452804](https://github.com/cubepals/pryx/actions/runs/43075452804) and PR [43075462394](https://github.com/cubepals/pryx/actions/runs/43075462394), Any host [43075452782](https://github.com/cubepals/pryx/actions/runs/43075452782), Rootless engines [43075452793](https://github.com/cubepals/pryx/actions/runs/43075452793) and [43075462656](https://github.com/cubepals/pryx/actions/runs/43075462656), all green; supplementary Measure [43063939164](https://github.com/cubepals/pryx/actions/runs/43063939164) on source 87400f3 is also green | Full normal CI including actual rootful Docker, Wasm, two-node, integrations and recovery; all 15 host jobs; Podman lifecycle/attacks, install/repeat/upgrade/outage/recovery/purge; controller refusals, copy-bound guarantees and 30 hosted engine samples | Main/release prohibited; unchanged credentialed cases | Standard rootless Docker data-owner mapping with dependent positive lifecycle/timings; rootless Docker internal ingress/network-policy. Three approaches each recorded; both remain named refusals until their post-K27 second try | Supported scope complete; K23 started |
 | K23 | done | `5945724a4ac8fbc28610292d701ffa7e9bffc040` | Normal push [43233699289](https://github.com/cubepals/pryx/actions/runs/43233699289) and PR [43233712859](https://github.com/cubepals/pryx/actions/runs/43233712859), Any host [43233699231](https://github.com/cubepals/pryx/actions/runs/43233699231), Rootless engines [43233699487](https://github.com/cubepals/pryx/actions/runs/43233699487) and [43233712730](https://github.com/cubepals/pryx/actions/runs/43233712730), CodeQL [43233712847](https://github.com/cubepals/pryx/actions/runs/43233712847), all green | Signed fresh ordinary-user installation without engine; actual pinned upstream Python/Node paths and host glibc; both SDKs, state/charts/errors/interrupt/restart, MCP/CLI; browser screenshot/forwarded CDP and guarantee; thirty process and container samples per tool; default-Docker kernels and namespace/required-browser refusals; neighbour isolation, purge, Alpine relocation; full normal CI and all sixteen host jobs | Main/release prohibited; unchanged credentialed cases | None; corrected relocatable bundle is complete, with no binary rewriting or private tool glibc | Complete; begin K24 immediately |
-| K24 | in progress | — | [43319847311](https://github.com/cubepals/pryx/actions/runs/43319847311): producer green; installed bundle running | Real headful click/text, noVNC/RFB/expiry, Chromium sandbox and neighbour privacy; native SSH command/PTY/host-key and agent lease revocation/expiry; placement/doctor regressions; full local checks | Complete current installed desktop/SSH/HTTP-edge wake, CLI/Python SSH and thirty-sample cohorts; latest full normal/host workflows | None | Finish installed acceptance and measurements, then final green CI; preserve container behavior and budgets |
+| K24 | in progress | — | Latest source f07c8c6: [43416258168](https://github.com/cubepals/pryx/actions/runs/43416258168) producer green, installed bundle running; normal core/contract/workspaces green | Real headful click/text, noVNC/RFB/expiry, Chromium sandbox and neighbour privacy; native SSH command/PTY/host-key and agent lease revocation/expiry; full hosted Rust/Docker, local pinned-Bun check | Complete installed CLI/Python SSH, thirty-sample cohorts and final normal/host aggregates | None | Finish installed acceptance and measurements, then final green CI; preserve container behavior and budgets |
 | K25 | not started | — | — | — | All | — | Complete brief after K24 |
 | K26 | not started | — | — | — | All | — | Complete brief after K25 |
 | K27 | not started | — | — | — | All | — | Complete brief after K26, then revisit every parked piece |
@@ -1927,3 +1927,23 @@ job when publication is authorized. That job has not run in this task.
   including all lint/type/generated-contract/docs/release checks. A separate
   final typecheck and whitespace check pass. Installed cohorts remain pending
   hosted execution; no partial or earlier-source result is promoted to completion.
+- Mapped-geometry source b404f56 has green complete producer
+  [131852405145](https://github.com/cubepals/pryx/actions/runs/43415551803/job/131852405145).
+  Its application reports actual outerHeight 719 and innerHeight 600 before
+  accepting coordinates, observes all 27 input events, and passes every noVNC,
+  expiry, Chromium sandbox and neighbour assertion, with thirteen real positive
+  aliases. Retain desktop-application-b404f56.json. Cancel only its queued bundle
+  continuation in favor of latest f07c8c6; this is producer proof, not aggregate.
+- After inspecting their completed jobs (all green), cancel superseded normal
+  runs 43415564162, 43415551815 and 43414083135 plus intermediate CodeQL
+  43415563657 to free runner capacity. Retain a421236 PR run 43414091255 and
+  installed run 43414083235 while latest-source workflows start. No canceled
+  remainder is treated as passing, and no completed failure was canceled.
+- Latest implementation f07c8c6 has green producer 131854811655 in
+  [43416258168](https://github.com/cubepals/pryx/actions/runs/43416258168), with
+  all 27 mapped-geometry application observations and complete desktop/SSH
+  confinement cases. Push core 131855019699 passes the complete Rust/Wasm suite,
+  real configured KVM probe and all 21 actual Docker cases; PR core is green too.
+  Both current contract/workspace jobs are green. Latest bundle 131859900624
+  is building; earlier a421236 bundle 131852252855 has reached signed-user
+  native acceptance. Neither installed outcome nor aggregate is inferred.
