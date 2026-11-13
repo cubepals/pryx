@@ -40,26 +40,14 @@ async fn output(command: &mut Command) -> Vec<u8> {
 }
 
 async fn request(client: &Path, message: Value) -> Result<(StatusCode, Vec<u8>), String> {
-    let mut child = Command::new(client)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true)
-        .spawn()
-        .map_err(|e| e.to_string())?;
-    child.stdin.take().unwrap().write_all(&serde_json::to_vec(&message).unwrap()).await.map_err(|e| e.to_string())?;
-    let result = tokio::time::timeout(Duration::from_secs(35), child.wait_with_output())
-        .await
-        .map_err(|_| "SDK request timed out")?
-        .map_err(|e| e.to_string())?;
-    if !result.status.success() {
-        return Err(String::from_utf8_lossy(&result.stderr).into_owned());
-    }
-    let response: Value = serde_json::from_slice(&result.stdout).map_err(|e| e.to_string())?;
-    let status = StatusCode::from_u16(response["status"].as_u64().ok_or("Missing HTTP status")? as u16)
-        .map_err(|e| e.to_string())?;
-    let body = STANDARD.decode(response["body"].as_str().ok_or("Missing HTTP body")?).map_err(|e| e.to_string())?;
-    Ok((status, body))
+    pryxd::runtime::vm::transport::request(
+        client,
+        &message,
+        Duration::from_secs(35),
+        pryx_agent::contract::CAPTURE_BYTES * 4,
+    )
+    .await
+    .map_err(|error| error.to_string())
 }
 
 struct Guest {
@@ -270,30 +258,18 @@ async fn exercise_forwarding(guest: &Guest, metadata: &Value, bootstrap: &Value)
         assert!(tokio::time::Instant::now() < until, "Declared-port service did not become ready");
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
-    let mut proxy = Command::new(&guest.client)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true)
-        .spawn()
-        .unwrap();
-    let bindings = [AGENT_PORT, echo_port].map(|port| {
-        json!({"host": Ipv4Addr::LOCALHOST,
-        "port": 0, "guestPort": vm_boot::stream_port(port)})
-    });
-    let bytes = serde_json::to_vec(&json!({"socket": guest.channel,
-        "forward": {"bindings": bindings, "concurrency": 8, "parent": std::process::id()}}))
+    let bindings = [AGENT_PORT, echo_port]
+        .map(|port| pryxd::runtime::vm::forward::Binding::service(Ipv4Addr::LOCALHOST.into(), 0, port).unwrap());
+    let mut proxy = pryxd::runtime::vm::forward::Forwarder::start(
+        &guest.client,
+        &guest.channel,
+        &bindings,
+        8,
+        tokio::time::Instant::now() + Duration::from_secs(5),
+    )
+    .await
     .unwrap();
-    let mut input = proxy.stdin.take().unwrap();
-    input.write_all(&bytes).await.unwrap();
-    input.shutdown().await.unwrap();
-    drop(input);
-    let mut bytes = Vec::new();
-    tokio::time::timeout(Duration::from_secs(5), proxy.stdout.take().unwrap().take(4097).read_to_end(&mut bytes))
-        .await
-        .unwrap()
-        .unwrap();
-    let addresses: Vec<String> = serde_json::from_slice(&bytes).unwrap();
+    let addresses = proxy.addresses().to_vec();
     assert_eq!(addresses.len(), 2);
     let client = reqwest::Client::builder()
         .no_proxy()
@@ -316,7 +292,7 @@ async fn exercise_forwarding(guest: &Guest, metadata: &Value, bootstrap: &Value)
     let response = client.get(&path).bearer_auth(&guest.token).send().await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(response.bytes().await.unwrap().as_ref(), payload);
-    let mut stream = tokio::net::TcpStream::connect(&addresses[1]).await.unwrap();
+    let mut stream = tokio::net::TcpStream::connect(addresses[1]).await.unwrap();
     let opaque = &payload[..64 * 1024];
     stream.write_all(opaque).await.unwrap();
     stream.shutdown().await.unwrap();
@@ -330,7 +306,7 @@ async fn exercise_forwarding(guest: &Guest, metadata: &Value, bootstrap: &Value)
     expected.extend_from_slice(metadata["forwardSuffix"].as_str().unwrap().as_bytes());
     assert_eq!(response.len(), expected.len(), "TCP reply after client EOF changed length");
     assert!(response == expected, "TCP bytes after client EOF must be retained");
-    proxy.kill().await.unwrap();
+    proxy.stop().await.unwrap();
 }
 
 async fn boot(

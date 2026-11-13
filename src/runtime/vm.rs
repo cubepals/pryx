@@ -9,11 +9,15 @@
 //! - `bundle.rs`: whole-release verification and lazy acquisition of pinned VM inputs.
 //! - `disk.rs`: leased ext4 creation, read-only validation and staged safe recovery.
 //! - `machine.rs`: owned confined monitor process and one-shot private bootstrap.
+//! - `transport.rs`: bounded one-shot SDK requests over private pipes.
+//! - `forward.rs`: owned private-address streaming forwarding processes.
 pub mod bundle;
 pub mod disk;
 pub mod filesystems;
+pub mod forward;
 pub mod image;
 pub mod machine;
+pub mod transport;
 
 pub fn error(problem: impl std::fmt::Display) -> super::RuntimeError {
     super::RuntimeError::Other(problem.to_string())

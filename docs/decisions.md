@@ -1067,3 +1067,5 @@
 - K25: serialize writable ext4 preparation with the monitor lease, check current disks read-only, run automatic preen only on a complete staged sparse copy, and publish after independent read-only verification and fsync; a damaged disk or resizing request is refused without replacing current data.
 
 - K25: share the production owned-monitor/bootstrap primitive with actual KVM acceptance, keeping verified inputs and the host confinement plan outside workload control; a dropped request cannot replay boot secrets or certify process/disk exit.
+
+- K25: keep bounded SDK control calls separate from an owned private-address HTTP/2 forwarding process, verify readiness against every admitted host binding, and use the same production adapters in real KVM acceptance; neither uncertain mutations nor application streams are replayed.

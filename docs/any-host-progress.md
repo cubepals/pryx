@@ -2896,3 +2896,17 @@ job when publication is authorized. That job has not run in this task.
   new host component awaits CI, not this no-KVM host. No new job/gate or measurable PR minute.
   Continue ContainerRuntime integration, helper/launcher journal adoption, node data/agent
   metadata forwarding, root jailer/firewall, release/installer wiring and production timings.
+
+
+- K25 production transport checkpoint: bounded SDK control requests carry credentials only
+  on private stdin, clear host environment, bound encoded/decoded responses and own helper
+  cancellation. Each mutation is submitted once. A separate owned forwarding process verifies
+  the exact count, private address and requested/ephemeral port of every readiness binding;
+  its opaque HTTP/2 streams and parent lifetime remain in the maintained helper.
+- The six-boot KVM fixture now uses both production adapters directly, keeping the existing
+  35-second control-call, five-second forwarding, exact byte, shutdown and other assertions.
+  Actual local Go-helper smoke proves a private listener is held until owned stop and its
+  port is released afterward, without simulating a VM or SDK reply. Whole bundle plus real
+  ext4/staged upstream-fixture recovery acceptance passes in 6.72 s. Full local Rust remains
+  498 passes, one unchanged IPv6 failure and 33 ignored cases; strict root/helper Clippy and
+  fmt pass. No new job/gate or added PR minute; real adapter/KVM proof awaits CI.

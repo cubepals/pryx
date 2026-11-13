@@ -43,6 +43,7 @@ async fn actual_bundle_acquires_whole_and_refuses_changed_inputs() {
     assert_eq!(capability.vm_monitor_version, verified.bootstrap().metadata.vm_monitor_version);
     assert_eq!(capability.vm_service_port_base, pryx_agent::vm_boot::SERVICE_PORT_BASE);
     assert!(!verified.filesystems().identity().is_empty());
+    forwarding(&root).await;
     writable_disk(verified.filesystems()).await;
     let directory = tempfile::tempdir().unwrap();
     let cache = directory.path().join("cache");
@@ -212,4 +213,30 @@ fn upstream_recovery_fixture() -> Vec<u8> {
         }
     }
     panic!("Pinned e2fsprogs source lacks its primary recovery fixture");
+}
+
+async fn forwarding(root: &std::path::Path) {
+    use pryxd::runtime::vm::forward::{Binding, Forwarder};
+    use std::net::Ipv4Addr;
+    assert!(Binding::service(Ipv4Addr::UNSPECIFIED.into(), 0, pryx_agent::contract::AGENT_PORT).is_err());
+    let directory = tempfile::tempdir().unwrap();
+    let bindings = [Binding::service(Ipv4Addr::LOCALHOST.into(), 0, pryx_agent::contract::AGENT_PORT).unwrap()];
+    let mut forwarder = Forwarder::start(
+        &root.join("bin/vm-transport"),
+        &directory.path().join("unused-vsock"),
+        &bindings,
+        1,
+        tokio::time::Instant::now() + Duration::from_secs(5),
+    )
+    .await
+    .unwrap();
+    assert!(forwarder.exited().unwrap().is_none());
+    let address = forwarder.addresses()[0];
+    assert_eq!(std::net::TcpListener::bind(address).unwrap_err().kind(), std::io::ErrorKind::AddrInUse);
+    forwarder.stop().await.unwrap();
+    let listener = std::net::TcpListener::bind(address).unwrap();
+    drop(listener);
+    println!(
+        "Actual SDK forwarder: private readiness, owned listener and port release passed; no VM transport is inferred"
+    );
 }
