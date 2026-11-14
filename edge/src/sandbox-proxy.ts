@@ -1,13 +1,14 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
+/** Direct agent HTTP/websocket relay. Verification precedes wake; exposed application forwards
+ * require an assigned spare. Route and output state stay in memory; this module has no control
+ * database client and makes no lifecycle call for a ready route. */
+
 import { StatusCodes } from 'http-status-codes'
 import WebSocket from 'ws'
 import { SECOND_MS } from '../../control/src/durations.ts'
 import { AGENT_ROUTE_PORT } from '../../control/src/edge-headers.ts'
-/** Direct agent HTTP/websocket relay. Verification precedes wake; exposed application forwards
- * require an assigned spare. Route and output state stay in memory; this module has no control
- * database client and makes no lifecycle call for a ready route. */
 import { WELCOME_DETAILS_PATH } from '../../control/src/welcome-path.ts'
 import nodeSchema from '../../openapi/node-writes.openapi.json'
 import type { Hold } from './hold.ts'
