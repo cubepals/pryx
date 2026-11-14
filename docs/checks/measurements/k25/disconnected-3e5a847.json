@@ -1,0 +1,11 @@
+{
+  "measurement": "Disconnected guest bootstrap inventory identity acceptance",
+  "commit": "3e5a847acde5920a8657c4028a4b5509a9110116",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43548264003",
+  "result": "failed",
+  "bundleSeconds": 0.27,
+  "runtimeSeconds": 5.1,
+  "decidingFailure": "The new whole-bundle compatibility check compares bootstrap build-mode inventory identity with the runtime packager read-only-mode inventory identity and refuses before runtime guest boot",
+  "correction": "One read-only inventory serializer feeds both bootstrap identity and packaged inventory; local nineteen-file identity equality and extracted unchanged nft version pass",
+  "limits": "Correction and production guest firewall/socket policy still require their own CI proof. Existing compatibility and corruption refusals are retained."
+}

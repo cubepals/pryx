@@ -109,6 +109,13 @@ def command(root, program, *arguments):
             str(root / 'libraries'), str(root / 'helpers' / program), *map(str, arguments)]
 
 
+def read_only_manifest(path):
+    entries = json.loads(path.read_text())
+    for entry in entries:
+        entry['mode'] &= 0o555
+    return (json.dumps(entries, indent=2) + '\n').encode()
+
+
 def component(packages, output):
     tools = output / 'tools'
     (tools / 'helpers').mkdir(parents=True)

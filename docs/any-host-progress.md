@@ -3454,3 +3454,17 @@ job when publication is authorized. That job has not run in this task.
   network helper and guest redirection policy before root TAP/jailer/firewall, protected
   installation/config/release, node/edge lifecycle and thirty production samples. K25 remains
   in progress and the tier stays unregistered.
+
+
+- K25 CI correction: source 3e5a847 VM run 43548264003/job 132304532895 fails bundle
+  acceptance in 0.27 s and runtime acquisition in 5.10 s, before runtime guest boot. The
+  bootstrap hashes the build inventory (writable owner modes), while bundle.py normalizes
+  modes to read-only and writes a different inventory. The new compatibility refusal is
+  correct; do not relax it. Summary: checks/measurements/k25/disconnected-3e5a847.json.
+- One read-only inventory serializer now feeds both builders. Local actual nineteen-file
+  equality reproduces the old digest difference, verifies the corrected identity against the
+  packager's existing normalization, and rebuilds/extracts the six-file trusted EROFS closure
+  (2,646,016 bytes) with unchanged nft version. Python compilation/whitespace pass. No new
+  jobs/gates, boots or material CI minutes; corrected actual guest proof remains pending.
+  Scanner remains eighteen addressed comments. Host packet-launcher changes are being checked
+  independently and remain uncommitted at this packaging-only checkpoint.

@@ -14,6 +14,7 @@ from pathlib import Path
 import shutil
 
 from bootstrap import static
+from filesystem import read_only_manifest
 from inventory import ROOT
 from kernel import selected
 import rust_notices
@@ -63,11 +64,11 @@ def build(args):
         raise ValueError('Published kernel configuration differs from its pin')
     (runtime / 'kernel/config').write_text(configuration)
     copy_tree(args.filesystem_component / 'tools', runtime / 'filesystem/tools')
-    filesystem_manifest = json.loads((args.filesystem_component / 'filesystem-manifest.json').read_text())
+    filesystem_manifest_bytes = read_only_manifest(args.filesystem_component / 'filesystem-manifest.json')
+    filesystem_manifest = json.loads(filesystem_manifest_bytes)
     for member in filesystem_manifest:
-        member['mode'] &= 0o555
         (runtime / 'filesystem' / member['path']).chmod(member['mode'])
-    (runtime / 'filesystem/filesystem-manifest.json').write_text(json.dumps(filesystem_manifest, indent=2) + '\n')
+    (runtime / 'filesystem/filesystem-manifest.json').write_bytes(filesystem_manifest_bytes)
     shutil.copyfile(args.filesystem_component / 'filesystem-manifest.json', sources / 'original-filesystem-manifest.json')
     copy_tree(args.filesystem_component / 'sources', sources / 'filesystem/sources')
     copy_tree(args.filesystem_component / 'notices', runtime / 'notices/filesystem')

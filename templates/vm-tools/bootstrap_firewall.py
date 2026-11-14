@@ -13,6 +13,8 @@ import re
 import subprocess
 import tarfile
 
+from filesystem import read_only_manifest
+
 
 def add(archive, component, metadata):
     root = PurePosixPath(metadata['vmFirewallDirectory'])
@@ -49,4 +51,4 @@ def add(archive, component, metadata):
         member.mode, member.size = 0o555, len(data)
         with path.open('rb') as source:
             archive.addfile(member, source)
-    return hashlib.sha256(manifest.read_bytes()).hexdigest()
+    return hashlib.sha256(read_only_manifest(manifest)).hexdigest()

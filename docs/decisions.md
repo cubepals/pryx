@@ -1131,3 +1131,5 @@
 - K25: after binding trusted ingress, synchronously filter every guest agent thread and descendant against new vsock sockets/socketpairs and io_uring setup; otherwise a workload could feed Ethernet directly to the host proxy around nftables. Trusted root init/forwarder remain outside that filter.
 
 - K25: own HTTP/TLS and UDP/TCP DNS listeners as one private gateway set, retaining Docker fixed ports/capacities and supporting VM ephemeral ports; retry only unserved ephemeral DNS-pair allocation collisions, and refuse public binds or zero capacity before binding.
+
+- K25: derive bootstrap and packaged filesystem identity from one read-only inventory serializer, because release packaging removes write bits and therefore changes the original build inventory hash; retain the exact compatibility refusal rather than overlooking mode changes.
