@@ -49,6 +49,15 @@ try {
   copyFileSync(archive, join(shared, 'image.tar.gz'), constants.COPYFILE_FICLONE)
   for (const name of ['pryx', 'SHA256SUMS', 'install.sh'])
     copyFileSync(resolve('dist', name), join(shared, name))
+  copyFileSync(process.execPath, join(shared, 'bun'))
+  await command([
+    process.execPath,
+    'build',
+    '--target=bun',
+    'control/tools/hosting-prepare-host.ts',
+    '--outfile',
+    join(shared, 'prepare-host.js'),
+  ])
   let acceleration = 'tcg,thread=multi'
   try {
     accessSync('/dev/kvm', constants.R_OK | constants.W_OK)
@@ -100,7 +109,7 @@ try {
       )
       .replace('pryx up --image', 'pryx up --image pryx-one-box-release')
     if (!shell || shell === shipped[2]) throw new Error('Cloud-init artifact substitution failed')
-    data.packages.push('python3', 'docker.io')
+    data.packages.push('python3')
     data.bootcmd = [
       ['mkdir', '-p', '/mnt/pryx-artifacts'],
       [
@@ -114,7 +123,7 @@ try {
       ],
     ]
     data.runcmd = [
-      ['systemctl', 'enable', '--now', 'docker'],
+      ['/mnt/pryx-artifacts/bun', '/mnt/pryx-artifacts/prepare-host.js'],
       ['docker', 'load', '-i', '/mnt/pryx-artifacts/image.tar.gz'],
       [
         'systemd-run',
