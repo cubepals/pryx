@@ -26,6 +26,7 @@ Parts (`vm-tools/`):
 - `network_compare.py`: thirty real guest samples per path, HTTP/DNS/throughput and management denial.
 - `filesystem-inputs.json`: pinned signed Alpine filesystem helpers, complete source/recipe inputs and notices.
 - `filesystem.py`: assemble unchanged helper ELFs and their separate musl closure after package signature verification.
+- `firewall.py`: build the pinned upstream batch-only nftables program against verified musl inputs.
 - `filesystem_check.py`: relocated EROFS round trip, populated ext4 integrity and actual library-resolution checks.
 - `image-inputs.json`: actual upstream manifest digests for real daemonless Alpine/Debian image acceptance.
 - `cross-inputs.json` and `cross.py`: signed build-only musl headers/libc and complete source identity.
@@ -35,6 +36,7 @@ Parts (`vm-tools/`):
 - `bundle.py`: separate inventoried static runtime (including the same-source host launcher) and complete corresponding-source archives, using the existing artifact packager.
 - `agent_acceptance.py`: verified published inputs for actual-agent KVM boots and durable disk reboots.
 - `bootstrap.py`: fixed read-only EROFS bootstrap from the actual static agent and its advertised marker.
+- `bootstrap_firewall.py`: select only nft's verified ELF closure for that trusted guest image.
 
 The inventory workflow runs on `any-host` pushes while manual dispatch is unavailable before
 main. Its output records upstream asset identities, actual byte hashes and source commits.

@@ -1,0 +1,15 @@
+{
+  "measurement": "Actual KVM interrupted-live adoption and failed-launch retirement",
+  "commit": "4feb0b77ba73ad6b1227637e534e8dc19c4add50",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43544571140",
+  "result": "passed",
+  "runtimeSeconds": 87.34,
+  "images": 2,
+  "checks": "Drop each live runtime owner, adopt Dead with unknown exit, occupy ingress and refuse startup, wait for the real monitor lease to retire, cold boot and verify retained binary and data files; prior lifecycle acceptance remains",
+  "otherAcceptanceSeconds": {
+    "bundle": 9.74,
+    "registry": 18.53,
+    "sixComponentBoots": 35.54
+  },
+  "limits": "Predates guest firewall packaging and policy, tier registration, root/network/edge lifecycle and thirty production timing samples. Ordinary CI remains queued."
+}

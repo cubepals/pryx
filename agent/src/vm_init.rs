@@ -317,6 +317,9 @@ async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Err
         .ok_or("VM agent signing material is missing")?;
     let key = crate::auth::SigningKey::from_encoded(encoded)?;
     let kernel = fs::read_to_string("/proc/sys/kernel/osrelease")?.trim().to_owned();
+    if boot.network.is_none() {
+        crate::vm_firewall::disconnected().await?;
+    }
     let mut network = crate::vm_network::start(boot.network.as_ref()).await?;
     let shutdown = crate::vm_shutdown::Listener::bind(boot.cid)?;
     let public_key = key.public_key();

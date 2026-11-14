@@ -3378,3 +3378,25 @@ job when publication is authorized. That job has not run in this task.
   stats-a91941b.json. Source af20fc0 VM run 43543882525 is green too, but normal CI must still
   prove manager admission's unit/integration assertions. Scanner remains eighteen addressed
   comments; later unfinished-launch and firewall-component sources await their own KVM results.
+
+
+- K25 disconnected guest policy: include the verified nftables executable, musl loader and
+  four dependency aliases in trusted bootstrap, selecting only inventoried ELF dependencies.
+  Protected bundle verification binds bootstrap metadata to the filesystem manifest and the
+  actual agent's additive policy/parser paths. Trusted PID 1 applies a bounded atomic inet
+  transaction before the non-root agent starts: IPv4/IPv6 input/output permit guest loopback,
+  other packets and forwarding drop. Existing network-enabled component fixtures are unchanged;
+  product network requests still refuse until their own policy and confinement work.
+- Local actual six-file EROFS build/extract/relocation passes (2,646,016 bytes), and extracted
+  nft reports the same version as the verified host component. Existing KVM acceptance now
+  checks that program's actual version and kernel refusal of workload ruleset flushing on
+  both images; successful boot requires the real root policy transaction. No additional
+  boots/jobs/gates, estimated under one optional minute, zero ordinary PR minutes. Full local
+  Rust: 520 passes, the unchanged IPv6 fixture failure and 34 ignored; strict Clippy modes,
+  fmt/Python compilation/whitespace pass. Actual guest policy proof remains pending.
+- Source 4feb0b7 VM run 43544571140/job 132292742011 is green: interrupted-live adoption,
+  occupied-ingress refusal, actual lease retirement and durable cold recovery on both images,
+  runtime 87.34 s. Summary: checks/measurements/k25/retirement-4feb0b7.json. Scanner remains
+  eighteen addressed comments; ordinary CI is still queued. Next implement network-enabled
+  policy and helper ownership, root jailer/TAP/firewall, protected install/config/release wiring,
+  full node/edge VM lifecycle and thirty production samples. K25 stays in progress.

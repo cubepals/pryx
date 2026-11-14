@@ -63,6 +63,8 @@ pub struct Bootstrap {
     pub image_sha256: String,
     pub metadata: pryx_agent::bootstrap_capabilities::Capabilities,
     pub network_probe: Option<String>,
+    #[serde(default)]
+    pub filesystem_manifest_sha256: String,
 }
 
 fn invalid() -> io::Error {
@@ -180,6 +182,7 @@ impl Bundle {
         let bootstrap: Bootstrap =
             serde_json::from_slice(&fs::read(root.join("bootstrap/bootstrap.json")).map_err(error)?).map_err(error)?;
         if bootstrap.network_probe.is_some()
+            || &bootstrap.filesystem_manifest_sha256 != digest
             || bootstrap.agent_sha256 != expected[Path::new("bin/vm-launcher")].sha256
             || bootstrap.image_sha256 != expected[Path::new("bootstrap/bootstrap.erofs")].sha256
             || bootstrap.metadata.vm_init_version != pryx_agent::vm_boot::VERSION
@@ -189,6 +192,10 @@ impl Bundle {
             || bootstrap.metadata.vm_stream_version != pryx_agent::vm_boot::STREAM_VERSION
             || bootstrap.metadata.vm_files_version != pryx_agent::bootstrap_capabilities::VM_FILES_VERSION
             || !bootstrap.metadata.vm_shutdown_signals
+            || bootstrap.metadata.vm_firewall_version != pryx_agent::vm_boot::FIREWALL_VERSION
+            || bootstrap.metadata.vm_firewall_directory != pryx_agent::vm_boot::FIREWALL_DIRECTORY
+            || bootstrap.metadata.vm_firewall_program != pryx_agent::vm_boot::FIREWALL_PROGRAM
+            || bootstrap.metadata.vm_firewall_loader != pryx_agent::vm_boot::FIREWALL_LOADER
         {
             return Err(error("VM launcher and trusted guest bootstrap are incompatible"));
         }

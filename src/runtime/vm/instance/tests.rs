@@ -111,6 +111,34 @@ async fn workload_log(runtime: &VmRuntime, id: &str) {
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
 }
+async fn guest_firewall(runtime: &VmRuntime, id: &str) {
+    use pryx_agent::vm_boot;
+    let bundle = runtime.bundle().await.unwrap();
+    let host = bundle.filesystems().builder("nft").arg("--version").output().unwrap();
+    assert!(host.status.success());
+    let root = Path::new(vm_boot::BOOTSTRAP_ROOT).join(vm_boot::FIREWALL_DIRECTORY);
+    let loader = root.join(vm_boot::FIREWALL_LOADER);
+    let libraries = loader.parent().unwrap();
+    let arguments: Vec<String> = [
+        loader.to_str().unwrap(),
+        "--library-path",
+        libraries.to_str().unwrap(),
+        root.join(vm_boot::FIREWALL_PROGRAM).to_str().unwrap(),
+        "--version",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect();
+    let version = runtime.exec(id, &arguments, Duration::from_secs(5), 4096).await.unwrap();
+    assert_eq!(version.exit_code, Some(0));
+    assert_eq!(version.stdout, host.stdout, "Guest uses the same unchanged verified nft program");
+    let mut flush = arguments;
+    flush.pop();
+    flush.extend(["flush".into(), "ruleset".into()]);
+    let refused = runtime.exec(id, &flush, Duration::from_secs(5), 4096).await.unwrap();
+    assert!(refused.exit_code.is_some_and(|code| code != 0));
+    assert!(!refused.timed_out && !refused.killed, "Guest policy is refused by the kernel");
+}
 #[tokio::test]
 #[ignore = "requires real KVM, verified VM archive and public registries; existing optional VM CI runs it"]
 async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
@@ -167,6 +195,7 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
         assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Created);
         runtime.start(&id).await.unwrap();
         assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Running);
+        guest_firewall(&runtime, &id).await;
         if index == 1 {
             assert_eq!(
                 exec(&runtime, &id, "while ! test -e /data/signal-ready; do sleep 0.01; done; cat /data/signal-ready")

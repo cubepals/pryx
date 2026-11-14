@@ -42,6 +42,7 @@
 //! - `vm_ingress.rs`: host-CID-only virtio-socket ingress to guest-loopback agent ports.
 //! - `vm_boot.rs`: private in-memory VM bootstrap contract, separate from fleet protocol and disk records.
 //! - `vm_network.rs`: trusted guest network readiness, resolver mounts and child lifetime.
+//! - `vm_firewall.rs`: host-owned guest packet policy from the verified bootstrap program.
 //! - `vm_init.rs`: trusted guest init, mount preparation and orderly non-root agent supervision.
 //! - `vm_observation.rs`: boot-scoped signed disk-shutdown observations.
 //! - `vm_metrics.rs`: optional read-only guest kernel resource counters.
@@ -92,6 +93,8 @@ pub mod state;
 pub mod telemetry;
 #[cfg(feature = "server")]
 pub mod vm_boot;
+#[cfg(feature = "server")]
+mod vm_firewall;
 #[cfg(feature = "server")]
 mod vm_ingress;
 #[cfg(feature = "server")]

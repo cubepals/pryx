@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: FSL-1.1-ALv2
 """Build the trusted read-only VM bootstrap from the actual static agent executable.
 
-Only fixed directories, the unchanged executable and its own advertised marker enter the
-image. OCI layers, environment values, workload configuration and keys never enter it.
+Only fixed programs, verified firewall libraries and the agent's marker enter the image.
+OCI layers, environment values, workload configuration and keys never enter it.
 """
 import argparse
 import hashlib
@@ -14,6 +14,7 @@ import subprocess
 import tarfile
 
 from filesystem import command
+from bootstrap_firewall import add as add_firewall
 
 # GNU readelf renders the ELF ABI's PT_INTERP segment with this documented type name.
 ELF_INTERPRETER_SEGMENT = 'INTERP'
@@ -69,6 +70,7 @@ def main():
         entry = tarfile.TarInfo(marker_path.name)
         entry.mode, entry.size = 0o444, len(data)
         output.addfile(entry, io.BytesIO(data))
+        filesystem_digest = add_firewall(output, args.filesystem_component, metadata)
     image = args.root / 'bootstrap.erofs'
     subprocess.run(command(args.filesystem_component / 'tools', 'mkfs.erofs',
                            '--tar=f', '--quiet', image, archive), check=True, timeout=60)
@@ -77,6 +79,7 @@ def main():
               'agentSha256': hashlib.sha256(agent.read_bytes()).hexdigest(),
               'networkHelperSha256': hashlib.sha256(network_helper.read_bytes()).hexdigest(),
               'packetForwarderSha256': hashlib.sha256(forwarder.read_bytes()).hexdigest(),
+              'filesystemManifestSha256': filesystem_digest,
               'imageSha256': hashlib.sha256(image.read_bytes()).hexdigest(),
               'imageBytes': image.stat().st_size, 'metadata': metadata, 'networkProbe': 'network-probe' if args.network_probe else None}
     (args.root / 'bootstrap.json').write_text(json.dumps(report, indent=2) + '\n')

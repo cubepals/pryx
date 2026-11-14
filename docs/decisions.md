@@ -1123,3 +1123,5 @@
 - K25: Build unchanged nftables 1.1.6 as a separate GPL-2.0 program with its maintained batch-only, no-JSON, embedded mini-GMP configuration (select mini-GMP's GPL-2.0-or-later option); use libnftnl 1.3.1 (GPL-2.0-or-later), libmnl 1.0.5 (LGPL-2.1-or-later) and the existing musl, retaining their full sources and recipes. The upstream GPLv2-only notice requires this compatible closure; no copyleft library is linked into pryx.
 
 - K25: Use signature-verified musl-dev 1.2.6-r3, matching libmnl/libnftnl development packages, Linux 7.0.0-r1 UAPI headers (GPL-2.0 with Linux-syscall-note) and flex 2.6.4-r8 (BSD-2-Clause) solely as firewall build inputs; retain their pinned archives, original notices and corresponding source, while selecting only actual nft/ELF dependencies for the runtime component.
+
+- K25: carry only nft's inventoried six-file ELF closure in the trusted read-only bootstrap, bind it to the host filesystem manifest and apply an atomic disconnected inet policy before launching the non-root agent; no image library or workload-selected rule reaches root.
