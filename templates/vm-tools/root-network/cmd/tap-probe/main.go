@@ -26,7 +26,6 @@ import (
 	"github.com/containernetworking/cni/pkg/version"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/vishvananda/netlink"
-	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 )
 
@@ -57,20 +56,6 @@ func links() (map[string]int, error) {
 		names[link.Attrs().Name] = link.Attrs().Index
 	}
 	return names, nil
-}
-
-func newNamespace() (netns.NsHandle, error) {
-	original, err := netns.Get()
-	if err != nil {
-		return netns.None(), err
-	}
-	defer original.Close()
-	created, err := netns.New()
-	if restored := netns.Set(original); err != nil || restored != nil {
-		created.Close()
-		return netns.None(), errors.Join(err, restored)
-	}
-	return created, nil
 }
 
 func tapLink(space ns.NetNS, name string) (netlink.Link, error) {
@@ -104,7 +89,7 @@ func probe(directory string, uid, gid uint32) error {
 	if _, exists := before[name]; exists {
 		return fmt.Errorf("TAP fixture name is occupied")
 	}
-	handle, err := newNamespace()
+	handle, err := rootnetwork.NewNamespace()
 	if err != nil {
 		return err
 	}

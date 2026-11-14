@@ -1203,3 +1203,5 @@
 - K25: carry own-kernel as a typed internal runtime observation (false for Docker), and announce VM memory/CPU/private-kernel guarantees only from that responding VM backend; memory-sleep remains off. Trust a protected root-owned installed agent for ordinary VM calls as for process calls, with every ancestor still checked.
 
 - K25: exercise the existing host systemd API (LGPL-2.1-or-later, separate installed programs) in a disposable bounded VM authority unit before installing any worker; rerun the unchanged real root lifecycle and CNI TAP checks with explicit devices/capabilities, readonly system/home and private temporary files. Preserve the main daemon unit and record the actual host version; this adds no shipped systemd component or production authority claim.
+
+- K25: move the unchanged anonymous namespace constructor into the root CNI experiment's named namespace module before extending its lifetime and listener ownership; retain the existing locked-thread call and every actual TAP assertion.

@@ -4021,3 +4021,7 @@ job when publication is authorized. That job has not run in this task.
   actionlint with ShellCheck and whitespace. No local systemd/root/KVM execution is
   claimed. Estimate up to one additional optional VM-job minute, zero ordinary PR minutes,
   no new job/gate. Actual authority proof and production worker integration remain pending.
+- Move the unchanged anonymous namespace constructor out of the TAP CLI before adding
+  scoped root listener ownership. The caller retains its existing locked-thread scope;
+  no behavior or assertion changes. Pinned Go build and vet, formatting and whitespace
+  pass. No new dependency, job or CI time; root execution remains the existing hosted case.
