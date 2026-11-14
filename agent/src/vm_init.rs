@@ -23,7 +23,7 @@ use std::{
 use tokio::io::AsyncReadExt;
 use tokio_vsock::{VMADDR_CID_HOST, VsockAddr, VsockStream};
 
-const CGROUP: &str = "/sys/fs/cgroup/pryx";
+use vm_boot::COMMAND_CGROUP as CGROUP;
 const WORK: &str = "/run/pryx-init";
 // Linux admin-guide/cgroup-v2.rst: populated=0 means no live process in this subtree.
 const EMPTY_CGROUP: &str = "populated 0";

@@ -25,6 +25,8 @@ pub const NETWORK_PROGRAM: &str = "guest-network";
 pub const AGENT_MODE: &str = "vm-agent";
 pub const BOOTSTRAP_ROOT: &str = "/.pryx-bootstrap";
 pub const MARKER: &str = "/pryx-vm-bootstrap";
+/// Trusted init's command cgroup, containing the non-root agent and its descendants.
+pub const COMMAND_CGROUP: &str = "/sys/fs/cgroup/pryx";
 
 pub fn marker() -> Vec<u8> {
     format!("pryx-vm-bootstrap-{VERSION}\n").into_bytes()

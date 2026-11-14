@@ -54,6 +54,7 @@ pub struct Capabilities {
     pub vm_shutdown_signals: bool,
 }
 
+#[cfg(feature = "server")]
 pub fn probe() -> Capabilities {
     Capabilities {
         browser_policy: true,

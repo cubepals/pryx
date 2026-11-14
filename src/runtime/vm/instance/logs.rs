@@ -119,6 +119,7 @@ mod tests {
         let boot = spec.agent.as_ref().unwrap();
         let signing = agent::key(&spec).unwrap();
         let agent = Arc::new(Agent {
+            vm_resources: false,
             sandbox: boot.sandbox.clone(),
             epoch: boot.epoch,
             public_key: signing.public_key(),

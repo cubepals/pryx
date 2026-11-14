@@ -111,6 +111,7 @@ async fn health(State(agent): State<Arc<Agent>>, headers: HeaderMap) -> Json<ser
     value["state"] = serde_json::to_value(crate::state::Snapshot {
         ports: agent.ports.snapshot().await,
         activity: agent.telemetry.snapshot(),
+        vm_resources: crate::vm_metrics::snapshot(agent.vm_resources),
     })
     .expect("Agent state serializes");
     if crate::process_policy::ipc_scoped() {

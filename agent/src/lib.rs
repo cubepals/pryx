@@ -44,6 +44,7 @@
 //! - `vm_network.rs`: trusted guest network readiness, resolver mounts and child lifetime.
 //! - `vm_init.rs`: trusted guest init, mount preparation and orderly non-root agent supervision.
 //! - `vm_observation.rs`: boot-scoped signed disk-shutdown observations.
+//! - `vm_metrics.rs`: optional read-only guest kernel resource counters.
 //! - `vm_shutdown.rs`: authenticated host-CID-only requests to trusted guest init.
 //! - `vm_monitor.rs`: host-owned monitor confinement and inherited lifetime lease.
 
@@ -95,6 +96,8 @@ pub mod vm_boot;
 mod vm_ingress;
 #[cfg(feature = "server")]
 pub mod vm_init;
+#[cfg(feature = "server")]
+mod vm_metrics;
 #[cfg(feature = "server")]
 pub mod vm_monitor;
 #[cfg(feature = "server")]

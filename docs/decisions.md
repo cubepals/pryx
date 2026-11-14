@@ -1111,3 +1111,7 @@
 - K25: Sign the selected VM shutdown signal with the boot identity, preserve the original TERM request/signature, and require verified bundle support before selecting INT; trusted guest init forwards the authenticated signal to the agent group before its existing bounded cgroup drain and disk proof.
 
 - K25: Stream only authenticated agent entrypoint frames for live VM logs; replay stopped logs through the manager's admitted data session, retaining workload/memory guards until owned maintenance cleanup completes, and reuse the process decoder for timestamps/tail filters rather than exposing monitor serial.
+
+- K25: Reuse pinned procfs 0.18.0 (MIT OR Apache-2.0) for guest CPU/memory/interface counters and the init-owned command cgroup's PID count; carry optional observations in Routes-scoped health without workload exec or activity, leave unavailable counters absent, and keep VM limits tied to admitted resources rather than observations.
+
+- K25: Compile executable bootstrap probing and the private browser PNG signature only with the agent's server feature; fs-only consumers retain metadata types but cannot reference VM/tool implementations that their build deliberately omits.

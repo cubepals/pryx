@@ -25,6 +25,7 @@ async fn remote_files_preserve_epochs_shapes_streams_and_owned_cleanup() {
     let root = f.manager.store.data_dir(&key);
     let (signing, encoded) = SigningKey::generate().unwrap();
     let agent = Arc::new(Agent {
+        vm_resources: false,
         sandbox: key.to_string(),
         epoch: 7,
         public_key: signing.public_key(),

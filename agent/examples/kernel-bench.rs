@@ -51,6 +51,7 @@ async fn main() {
         .unwrap();
     let telemetry = Arc::default();
     let agent = Arc::new(Agent {
+        vm_resources: false,
         file_tasks: Default::default(),
         shells: Default::default(),
         logs: Arc::new(pryx_agent::logbook::Logbook::open(dir.path()).unwrap()),

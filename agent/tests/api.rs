@@ -34,6 +34,7 @@ async fn fixture() -> (tempfile::TempDir, Arc<Agent>, String) {
         })
         .unwrap();
     let agent = Arc::new(Agent {
+        vm_resources: false,
         file_tasks: Default::default(),
         shells: Default::default(),
         logs: Arc::new(pryx_agent::logbook::Logbook::open(dir.path()).unwrap()),
@@ -69,6 +70,7 @@ async fn route_capabilities_allow_only_readiness_and_port_reads() {
     assert_eq!(status, StatusCode::OK);
     let state: pryx_agent::state::Snapshot = serde_json::from_value(health["state"].clone()).unwrap();
     assert_eq!(state.activity.at, 0);
+    assert!(state.vm_resources.is_none(), "Other tiers must not expose host-wide resource counters");
     assert_eq!(state.activity.streams, 0);
     assert_eq!(state.ports.revision, 0);
     assert!(state.ports.targets.is_empty());

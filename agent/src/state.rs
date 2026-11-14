@@ -31,6 +31,19 @@ pub struct Activity {
 pub struct Snapshot {
     pub ports: PortState,
     pub activity: Activity,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vm_resources: Option<VmResources>,
+}
+
+/// Guest kernel counters are observations, never evidence that host policy was enforced.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct VmResources {
+    pub cpu_total_ns: Option<u64>,
+    pub memory_usage: Option<u64>,
+    pub memory_inactive_file: Option<u64>,
+    pub pids: Option<u64>,
+    pub rx_bytes: Option<u64>,
+    pub tx_bytes: Option<u64>,
 }
 
 pub fn read<T: serde::de::DeserializeOwned + Default>(directory: &DataDir, path: &str) -> io::Result<T> {

@@ -3284,3 +3284,25 @@ job when publication is authorized. That job has not run in this task.
   not prove later cache identity, signals or logs. Scanner stays eighteen addressed comments.
   K25 remains in progress; continue stats/adoption failures, networking/root confinement,
   protected install/config wiring, full node/edge lifecycle and thirty production samples.
+
+
+- K25 guest stats: use the already pinned procfs library for CPU durations, RAM/cache and
+  interface counters, plus trusted init's command-cgroup PID count. Only VM bootstrap enables
+  these optional health observations. Routes-scoped sampling executes no workload command or
+  activity touch; stopped guests return no stale stats. Limits remain the admitted VM sizes.
+- Real kernel/library acceptance checks units, monotonic counters and disabled sampling; the
+  actual agent API confirms other tiers omit host counters. Existing KVM runtime acceptance now
+  checks positive CPU/RAM/PID/interface observations, admitted bounds, unchanged activity and
+  stopped absence. No additional boots/jobs/gates or material CI time. Actual guest proof is
+  pending. Full local Rust: 516 passes, the unchanged IPv6 fixture failure and 34 ignored;
+  strict Clippy modes/fmt/whitespace and the nineteen-test agent API pass, with no new daemon
+  length warning.
+- A supplementary fs-only agent build initially exposes server-only bootstrap references and
+  then the unused private PNG signature. Gate those executable-only items on server, retaining
+  metadata types; strict fs-only Clippy now passes. No CI job/check is added for this local probe.
+  Source 021d73c VM run 43539225548 remains active without a failed step; scanner stays eighteen.
+- Next finish VM adoption/failure acceptance and audit compute admission across caller
+  cancellation: Manager::start currently drops its workload guard when cancelled while the VM
+  runtime's owned launch may continue, and admission counts only observed/copying workloads.
+  The VM tier stays unregistered until those paths, networking/root policy, protected installer/
+  configuration and full node/edge lifecycle plus thirty production samples are proved.

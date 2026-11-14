@@ -42,4 +42,5 @@ pub const BROWSER_PORT: u16 = 9223;
 pub const TOOL_STARTUP: std::time::Duration = std::time::Duration::from_secs(30);
 pub const MAX_IMAGE_BYTES: usize = 4 * CAPTURE_BYTES;
 // PNG specification section 5.2.
+#[cfg(feature = "server")]
 pub(crate) const PNG: &[u8] = b"\x89PNG\r\n\x1a\n";

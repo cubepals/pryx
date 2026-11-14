@@ -399,9 +399,34 @@ impl ContainerRuntime for VmRuntime {
         self.entrypoint_logs(name, options)
     }
     async fn stats(&self, name: &str) -> Result<Option<RawStats>, RuntimeError> {
-        self.entry(name).map(|entry| {
-            Some(RawStats { memory_limit: u64::try_from(entry.spec.memory_bytes).ok(), ..Default::default() })
-        })
+        let entry = self.entry(name)?;
+        let transition = self.transition(&entry.id);
+        let _transition = transition.lock().await;
+        let live = self.state.live.lock().unwrap().get(&entry.id).cloned();
+        let Some(live) = live else { return Ok(None) };
+        let mut live = live.lock().await;
+        if live.monitor.exited().map_err(error)?.is_some() {
+            return Ok(None);
+        }
+        if live.forwarder.exited().map_err(error)?.is_some() {
+            return Err(RuntimeError::Unavailable("VM stats forwarding process exited".into()));
+        }
+        drop(live);
+        let resources = agent::snapshot(&entry.spec)
+            .await?
+            .vm_resources
+            .ok_or_else(|| RuntimeError::Unavailable("VM agent did not supply guest resource counters".into()))?;
+        Ok(Some(RawStats {
+            cpu_total_ns: resources.cpu_total_ns,
+            memory_usage: resources.memory_usage,
+            memory_inactive_file: resources.memory_inactive_file,
+            memory_limit: u64::try_from(entry.spec.memory_bytes).ok(),
+            pids: resources.pids,
+            pids_limit: u64::try_from(entry.spec.pids_limit).ok(),
+            rx_bytes: resources.rx_bytes,
+            tx_bytes: resources.tx_bytes,
+            ..Default::default()
+        }))
     }
     fn events(
         &self,

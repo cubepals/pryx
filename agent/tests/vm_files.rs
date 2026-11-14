@@ -38,6 +38,7 @@ async fn file_service_streams_data_without_executing_or_rewriting_workload_metad
         })
         .unwrap();
     let agent = Arc::new(Agent {
+        vm_resources: false,
         file_tasks: Default::default(),
         shells: Default::default(),
         telemetry: Arc::default(),

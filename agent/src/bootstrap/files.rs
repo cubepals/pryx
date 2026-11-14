@@ -31,6 +31,7 @@ impl Bootstrap {
         let key = SigningKey::from_encoded(&encoded)?;
         let temporary = PathBuf::from("/tmp");
         let agent = Arc::new(Agent {
+            vm_resources: false,
             file_tasks: Default::default(),
             shells: Default::default(),
             logs: Arc::new(crate::logbook::Logbook::open(&temporary)?),

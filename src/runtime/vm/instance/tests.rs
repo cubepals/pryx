@@ -199,9 +199,22 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
         assert!(snapshot.ports.targets.is_empty());
         let polled = runtime.inspect(&id).await.unwrap().unwrap().agent_state.unwrap();
         assert_eq!(polled.activity.at, snapshot.activity.at, "Node polling must not touch guest activity");
+        let resources = runtime.stats(&id).await.unwrap().unwrap();
+        assert!(resources.cpu_total_ns.unwrap() > 0);
+        assert!(resources.memory_usage.unwrap() > 0);
+        assert!(resources.memory_usage.unwrap() <= original_spec.memory_bytes as u64);
+        assert!(resources.pids.unwrap() > 0 && resources.pids.unwrap() <= original_spec.pids_limit as u64);
+        assert_eq!(resources.memory_limit, Some(original_spec.memory_bytes as u64));
+        assert!(resources.rx_bytes.is_some() && resources.tx_bytes.is_some());
+        assert_eq!(
+            runtime.inspect(&id).await.unwrap().unwrap().agent_state.unwrap().activity.at,
+            snapshot.activity.at,
+            "Resource polling must not touch workload activity"
+        );
 
         runtime.stop(&id, &original_spec.stop_signal, Duration::from_secs(15)).await.unwrap();
         assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Exited);
+        assert!(runtime.stats(&id).await.unwrap().is_none(), "Stopped guests must not return stale counters");
         let settings = runtime.state.settings.clone();
         drop(runtime);
         runtime = VmRuntime::new(temporary.path(), settings).await.unwrap();

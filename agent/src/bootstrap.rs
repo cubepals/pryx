@@ -226,6 +226,7 @@ pub async fn serve(
     .await?;
     ports.set_public_origin(args.public_origin);
     let agent = Arc::new(Agent {
+        vm_resources: args.vm_vsock,
         file_tasks: Default::default(),
         shells: Default::default(),
         public_key: key.public_key(),
