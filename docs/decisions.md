@@ -1189,3 +1189,7 @@
 - K25: evaluate CNI plugins 1.10.0 and CNI 1.3.1 (Apache-2.0) as separate pinned TAP/IPAM programs before root packet integration; the [maintained TAP plugin](https://github.com/containernetworking/plugins/blob/v1.10.0/plugins/main/tap/tap.go) owns device setup, and the initial existing-job probe verifies ordinary monitor access and identity-bound cleanup without changing routing, firewall, service authority or placement.
 
 - K25: keep the CNI TAP executable separate from the FSL probe and daemon; its upstream dependency filepath-securejoin 0.7.0 contains BSD-3-Clause and MPL-2.0 files, so retain both licences and the copying statement with all 19 exact module notices. The FSL probe does not import that dependency; no product bundle ships this experiment.
+
+- K25: exercise the real VM backend through the existing manager, immutable router and mutual-TLS node API before installation enables placement; announce its proved no-device policy and ordinary hostname path only when that backend exists, and export the existing epoch/delete header constants for Rust clients rather than restating their wire spellings.
+
+- K25: distinguish the ordinary image's installed tiers from the additive protocol enum in its mixed-tier fixture; preserve every container/process/wasm assertion and require an explicit VM request to receive the named no_room refusal on this no-KVM image.

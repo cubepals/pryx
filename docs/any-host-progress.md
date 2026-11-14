@@ -3937,3 +3937,25 @@ job when publication is authorized. That job has not run in this task.
   setup as intended. No local root or actual TAP success is claimed. Estimated under
   one additional optional VM-job minute (cold build unmeasured), zero ordinary PR minutes,
   no new job/gate. Positive device/ownership/cleanup proof remains pending in CI.
+- Add actual manager/router/mTLS node acceptance on both OCI images in the existing VM
+  job: explicit VM admission and unchanged ensure, stale epoch refusal, authenticated exec,
+  running/stopped/retained file access, memory-suspend refusal, cold restart, snapshot,
+  restore and confirmed deletion. The existing backend now exposes its proved no-device
+  policy and ordinary hostname path to admission; root hostname networking remains refused.
+  Existing wire header constants become public Rust items; their values and schemas stay
+  unchanged. Factory registration and actual edge acceptance remain unfinished.
+- Full normal CI for 03d2be4/run 43610812026 fails only Compose acceptance: the fixture
+  iterated the newly additive protocol enum and asked the no-KVM image for an imageless
+  VM. Every earlier installed-tier assertion remains; use the image owner's supported
+  tier set and add a valid image-backed VM request asserting no_room and the VM name.
+  All other jobs and the actual e2e, wasm, two-node, integration and lease steps pass.
+  Scanner comments remain eighteen. The first CNI device probe fails; its executing job
+  has not yet published a complete log, so no cause or positive TAP result is claimed.
+- This checkpoint's complete pinned Bun check passes against real Postgres: 438 tests,
+  one existing compiled-assets skip and 8,429 assertions. Full Rust with no-fail-fast
+  runs 531 passes, 41 ignored and two failures: the unchanged IPv6 fixture and a bootstrap
+  spare-listener assertion (a different case from the earlier first-request reset).
+  Both unexplained bootstrap observations remain recorded. Strict all-target Clippy,
+  new integration compilation, fmt, actionlint with ShellCheck and whitespace pass.
+  Real node/KVM acceptance cannot run locally; CI now executes it. Estimate up to two
+  additional optional VM-job minutes and zero ordinary PR minutes, with no new job/gate.

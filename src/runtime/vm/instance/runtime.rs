@@ -288,7 +288,10 @@ impl ContainerRuntime for VmRuntime {
         true
     }
     fn supports_network_policy(&self) -> bool {
-        false
+        true
+    }
+    fn supports_hostname_egress(&self) -> bool {
+        self.state.settings.monitor_owner.is_none()
     }
     fn data_owner(&self, _: &str) -> Result<Option<(u32, u32)>, RuntimeError> {
         Ok(Some((rustix::process::geteuid().as_raw(), rustix::process::getegid().as_raw())))

@@ -82,7 +82,7 @@ pub(crate) const IDEMPOTENCY_KEY_HEADER: &str = "idempotency-key";
 /// Names a request in the node's logs and in its answer; one is made when a client sends none.
 pub(crate) const REQUEST_ID_HEADER: &str = "x-request-id";
 /// Must echo the workload id for `DELETE …?data=delete`: data never goes on a single typo.
-pub(crate) const CONFIRM_DELETE_HEADER: &str = "x-blockly-confirm-delete-data";
+pub const CONFIRM_DELETE_HEADER: &str = "x-blockly-confirm-delete-data";
 /// Features a client may rely on, beyond protocol v1's base. Only ever added to (`features_only_grow`).
 pub(crate) const FEATURES: &[&str] = &[
     "exec-idempotency-key",
@@ -131,7 +131,7 @@ pub const CPU_LIMIT_PROBLEM: &str = "CPU ceilings and weights require container 
 /// The placement epoch a mutating request acts for: a fencing token the control plane issues,
 /// bumped each time a workload is placed anew (moved, recovered, or brought back). A node refuses
 /// a request older than the copy it holds, so a delayed or stale caller can't act on it.
-pub(crate) const EPOCH_HEADER: &str = "blocklyd-epoch";
+pub const EPOCH_HEADER: &str = "blocklyd-epoch";
 
 /// Label keys pryxd writes itself; a spec may not set anything under this prefix, so a
 /// request can never forge ownership of a container.

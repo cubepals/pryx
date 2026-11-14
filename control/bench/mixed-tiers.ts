@@ -5,13 +5,14 @@
 import { chmodSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { StatusCodes } from 'http-status-codes'
 import { IMAGE_NODE_CONFIG } from '../../deploy/image-state.ts'
+import { IMAGE_ISOLATIONS } from '../../deploy/image-tier.ts'
 import { privateDirectory } from '../../deploy/local-layout.ts'
-import { Pryx } from '../../sdk/typescript/src/index.ts'
+import { Pryx, PryxError } from '../../sdk/typescript/src/index.ts'
 import { freePort, until } from '../e2e/waits.ts'
 import { SECOND_MS } from '../src/durations.ts'
 import { GUARANTEES, type Guarantee } from '../src/guarantees.ts'
-import { ISOLATIONS } from '../src/isolation.ts'
 import { freshDatabase } from '../test/nodes.ts'
 
 type Command = (args: string[]) => Promise<string>
@@ -72,7 +73,7 @@ export async function mixedTierAcceptance(
       process: ['separate-users', 'memory-sleep'],
       wasm: [],
     }
-    for (const isolation of ISOLATIONS) {
+    for (const isolation of IMAGE_ISOLATIONS) {
       const box = await sdk.sandbox({
         isolation,
         ...(isolation === 'container' ? { image: 'alpine:3.22' } : {}),
@@ -87,6 +88,21 @@ export async function mixedTierAcceptance(
       await box.write('mixed-tier-proof', 'saved')
       if ((await box.read('mixed-tier-proof')) !== 'saved') throw new Error(`${isolation} data differs`)
     }
+    let vmRefused = false
+    try {
+      const vm = await sdk.sandbox({ isolation: 'vm', image: 'alpine:3.22' })
+      held.push(vm)
+    } catch (error) {
+      if (
+        !(error instanceof PryxError) ||
+        error.status !== StatusCodes.SERVICE_UNAVAILABLE ||
+        error.code !== 'no_room' ||
+        !error.message.includes('vm')
+      )
+        throw error
+      vmRefused = true
+    }
+    if (!vmRefused) throw new Error('The no-KVM image unexpectedly served a VM')
     const unnamed = await sdk.sandbox({ image: 'alpine:3.22' })
     held.push(unnamed)
     if (unnamed.isolation !== 'container')
@@ -100,7 +116,7 @@ export async function mixedTierAcceptance(
       )
         throw new Error('Mixed tiers did not remain running side by side')
     const cli = JSON.parse(await command(['docker', 'exec', name, 'pryx', 'doctor', '--json']))
-    for (const tier of ISOLATIONS)
+    for (const tier of IMAGE_ISOLATIONS)
       if (cli.tiers?.[tier]?.state !== 'on') throw new Error(`CLI doctor omitted available ${tier}`)
     const fixed = join(root, 'doctor-fixed')
     await command([
@@ -144,7 +160,7 @@ export async function mixedTierAcceptance(
         '--json',
       ]),
     )
-    for (const tier of ISOLATIONS)
+    for (const tier of IMAGE_ISOLATIONS)
       if (
         !doctor.checks.some(
           (check: { name: string; status: string }) =>
@@ -156,7 +172,8 @@ export async function mixedTierAcceptance(
     held.length = 0
     console.log(
       JSON.stringify({
-        mixedTiers: ISOLATIONS,
+        mixedTiers: IMAGE_ISOLATIONS,
+        vmRefused,
         sideBySide: true,
         guarantees: expected,
         doctors: true,

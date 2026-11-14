@@ -5,6 +5,7 @@ import { ISOLATIONS, type Isolation } from '../control/src/isolation.ts'
 
 export const NO_ENGINE_DEFAULT: 'process' | 'wasm' = 'process'
 type InstalledIsolation = Exclude<Isolation, 'vm'>
+export const IMAGE_ISOLATIONS = ISOLATIONS.filter((tier): tier is InstalledIsolation => tier !== 'vm')
 const VM_UNAVAILABLE = 'VM tier is not registered in this checkpoint; inspect the K25 acceptance record'
 
 export function imageTier(docker: boolean, override?: string): InstalledIsolation {
