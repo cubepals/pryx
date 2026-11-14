@@ -1281,3 +1281,5 @@
 - K25: export the agent’s existing authoritative non-public IPv4 boundary in additive private bootstrap metadata for the root bridge firewall; keep one IANA classification owner and default old metadata to an empty list, which root public-network setup must refuse rather than inventing a second list or accepting workload policy.
 
 - K25: move unchanged protected root program/directory checks from the scope command into root-network/authority.go before reusing them for fixed host-owned metadata readers; preserve every ownership, ancestry, type, mode and link-count condition.
+
+- K25: the real confined GNU API thread uses libc epoll_wait where musl uses epoll_pwait; replace the two unconstrained published event-wait rules with the equivalent native call, retaining every other constraint and trap default. Import both syscall identities from the pinned libc helper and preserve the boot/shutdown assertions.

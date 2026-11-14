@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: FSL-1.1-ALv2
-"""Translate the pinned monitor's restrictive policy to native thread signalling/join ABI.
+"""Translate the pinned monitor's restrictive policy to its equivalent native libc ABI.
 
 Keep every other syscall, argument constraint and trap default. GNU's empty upstream
 policy is never an input. The launcher's independent self-TGID restriction remains required.
@@ -32,7 +32,7 @@ def adapt(original, abi):
         raise ValueError('Published thread signal policy differs from the reviewed ABI')
     mapping = {abi['abort']: abi['abort'], kicks.pop(): abi['vcpu']}
     result = copy.deepcopy(original)
-    changed = {'signals': 0, 'joins': 0}
+    changed = {'signals': 0, 'joins': 0, 'eventWaits': 0}
     for profile in result.values():
         for rule in profile['filter']:
             if rule['syscall'] == 'tkill':
@@ -45,6 +45,12 @@ def adapt(original, abi):
                 rule['syscall'] = 'tgkill'
                 rule['comment'] = 'Native thread signalling; the launcher independently requires its own TGID'
                 changed['signals'] += 1
+            elif rule['syscall'] == 'epoll_pwait':
+                if rule.get('args'):
+                    raise ValueError('Unreviewed published event-wait constraints')
+                rule['syscall'] = 'epoll_wait'
+                rule['comment'] = 'Native libc event wait; no temporary signal-mask argument'
+                changed['eventWaits'] += 1
             elif rule['syscall'] == 'futex':
                 operations = [argument for argument in rule.get('args', [])
                               if argument['index'] == FUTEX_OPERATION_ARGUMENT
@@ -78,6 +84,8 @@ def main():
         'sourcePolicySha256': hashlib.sha256(original).hexdigest(),
         'nativePolicySha256': hashlib.sha256(output).hexdigest(),
         'adaptedRules': changed,
+        'nativeEventWaitSyscall': json.loads(args.abi.read_text())['epollWait'],
+        'publishedEventWaitSyscall': json.loads(args.abi.read_text())['epollPwait'],
         'ruleCounts': {name: len(profile['filter']) for name, profile in generated.items()},
         'otherSyscallsAndConstraintsChanged': False,
     }, indent=2) + '\n')

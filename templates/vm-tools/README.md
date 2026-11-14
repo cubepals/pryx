@@ -38,8 +38,8 @@ Parts (`vm-tools/`):
 - `rust_notices.py`: lock-authenticated registry archives and commit-verified Git trees with primary notices for an actual normal/build dependency graph; defaults to the helper’s musl graph.
 - `monitor-inputs.json`: pinned private GNU SDK, complete libc source, exact Buildroot recipe and primary notice inputs.
 - `monitor_prepare.py`: verify and privately relocate that separate build-only SDK without weakening its host-library guard.
-- `monitor_abi.rs`: build-only signal/futex values imported from the actual monitor and libc.
-- `monitor_policy.py`: preserve the restrictive published policy while substituting the equivalent native thread ABI.
+- `monitor_abi.rs`: build-only signal/futex/syscall values imported from the actual monitor and libc.
+- `monitor_policy.py`: preserve the restrictive published policy while substituting the equivalent native libc thread/event-wait ABI.
 - `monitor_build.py`: same-source static monitor build with an independently compiled embedded-policy check.
 - `monitor_component.py`: verify source/policy correspondence and embedded BPF before selecting a native build in the whole bundle.
 - `monitor_sources.py`: full monitor/Rust/libc sources, exact compilation recipes and primary notices.

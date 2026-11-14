@@ -23,8 +23,8 @@ The build uses the Rust version declared by the original monitor's `rust-toolcha
 Cargo.lock fixes its dependencies. Original registry archives and the full micro-http Git
 source are retained under `monitor-rust`; Cargo may fetch the same immutable inputs into its
 normal cache. Build-only libseccomp stays in host build tools. The monitor is a static PIE;
-its native signal/futex values are imported from its actual source/libc. The policy adapter
-retains the published trap-default policy and changes only the equivalent thread ABI. The
+its native signal/futex/syscall values are imported from its actual source/libc. The policy adapter
+retains the published trap-default policy and changes only the equivalent libc thread/event-wait ABI. The
 build independently recompiles this policy and requires those exact BPF bytes in the ELF.
 
 To change libc, follow the publisher's retained `compiler-recipe/README` and `defconfig`

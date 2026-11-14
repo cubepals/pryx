@@ -1,0 +1,15 @@
+{
+  "sourceCommit": "7e7fa0a",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43647775817",
+  "job": 132611305327,
+  "artifact": 14135598178,
+  "passed": "Complete same-source GNU build, source/notices assembly, bundle authentication and host ownership tests",
+  "failure": "Actual API thread traps on the native event-wait syscall before KVM boot; ordinary, jailed and public API cases refuse bootstrap",
+  "decidingValues": {
+    "nativeEventWaitSyscall": 232,
+    "publishedEventWaitSyscall": 281,
+    "affectedPolicyRules": 2
+  },
+  "local": "Reproduced the same failure through the actual confined launcher without KVM; equivalent event-wait substitution restores a live successful Unix HTTP API",
+  "notProved": "Confined guest boot/shutdown, root public forwarding/worker/placement or installed SDK and thirty-sample cohorts"
+}

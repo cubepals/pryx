@@ -4490,3 +4490,18 @@ job when publication is authorized. That job has not run in this task.
   their previous source; Go tests/build/vet and whitespace pass. Every ownership, ancestor,
   type, mode and link-count condition and all lifecycle behavior stay unchanged. No added
   dependency/job/gate or estimated CI time.
+
+- Source 7e7fa0a VM run 43647775817/job 132611305327 builds and authenticates the full GNU
+  bundle and source/notices distribution, then the actual API thread traps on native event
+  wait before guest boot. The ordinary, jailed, node API and bounded root runtime failures
+  share that cause. Summary: checks/measurements/k25/gnu-api-7e7fa0a.json; raw artifact 14135598178.
+- Reproduce the identical confined API-thread trap locally without KVM. Actual pinned libc
+  exports epoll_wait=232 and epoll_pwait=281; vmm-sys-util calls libc epoll_wait, which musl
+  implements through epoll_pwait. Replace only the two unconstrained equivalent event-wait
+  rules, preserving trap defaults and every other rule/constraint. Import identities from
+  the actual ABI helper and retain the full guest/monitor-shutdown assertions.
+- Full local native recipe and complete source/notices retention pass again. Static monitor
+  is 11,661,720 bytes; independently compiled restrictive BPF remains 3,442 bytes and is
+  embedded exactly. Actual confined Unix HTTP API returns success and remains live without
+  KVM. Component correspondence, Python syntax, Rust fmt and whitespace pass. Actual confined
+  guest boot and shutdown remain pending. No dependency/job/gate or added CI time in this fix.
