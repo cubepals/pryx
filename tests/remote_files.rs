@@ -73,76 +73,7 @@ async fn remote_files_preserve_epochs_shapes_streams_and_owned_cleanup() {
     let me = client(&pki.ca, CLIENT);
     let server = serve(f.manager.clone()).await;
     let path = "/v1/workloads/files/files/content?path=src/blob";
-    let bytes: Vec<u8> = (0..=u8::MAX).cycle().take(3 * 1024 * 1024).collect();
-    let result =
-        request(server.addr, &pki.ca.pem, Some(&me), "PUT", path, &[("blocklyd-epoch", "6")], Some(bytes.clone()))
-            .await
-            .unwrap();
-    assert_eq!(result.status, hyper::StatusCode::CONFLICT);
-    assert_eq!(f.fake.count_calls("files "), 0, "Epoch refusal must precede remote preparation");
-    let result =
-        request(server.addr, &pki.ca.pem, Some(&me), "PUT", path, &[("blocklyd-epoch", "7")], Some(bytes.clone()))
-            .await
-            .unwrap();
-    assert_eq!(result.status, hyper::StatusCode::NO_CONTENT, "{}", String::from_utf8_lossy(&result.body));
-    let result =
-        request(server.addr, &pki.ca.pem, Some(&me), "GET", path, &[("blocklyd-epoch", "7")], None).await.unwrap();
-    assert_eq!(result.status, hyper::StatusCode::OK);
-    assert_eq!(result.body, bytes);
-    let result = request(
-        server.addr,
-        &pki.ca.pem,
-        Some(&me),
-        "GET",
-        "/v1/workloads/files/files/list?path=src",
-        &[("blocklyd-epoch", "7")],
-        None,
-    )
-    .await
-    .unwrap();
-    assert_eq!(result.status, hyper::StatusCode::OK);
-    assert_eq!(result.json()["files"][0]["size"], bytes.len());
-    let result = request(
-        server.addr,
-        &pki.ca.pem,
-        Some(&me),
-        "GET",
-        "/v1/workloads/files/files/stat?path=missing",
-        &[("blocklyd-epoch", "7")],
-        None,
-    )
-    .await
-    .unwrap();
-    assert_eq!(result.status, hyper::StatusCode::NOT_FOUND);
-    assert_eq!(result.json()["error"]["code"], "file_not_found");
-    std::os::unix::fs::symlink("/etc", root.join("outside")).unwrap();
-    let result = request(
-        server.addr,
-        &pki.ca.pem,
-        Some(&me),
-        "GET",
-        "/v1/workloads/files/files/content?path=outside/passwd",
-        &[("blocklyd-epoch", "7")],
-        None,
-    )
-    .await
-    .unwrap();
-    assert_eq!(result.status, hyper::StatusCode::UNPROCESSABLE_ENTITY);
-    assert_eq!(f.fake.count_calls("start "), 0, "File access must not start workload compute");
-    let logs = request(server.addr, &pki.ca.pem, Some(&me), "GET", "/v1/workloads/files/logs?tail=1", &[], None)
-        .await
-        .unwrap();
-    assert_eq!(logs.status, hyper::StatusCode::OK);
-    let records: Vec<serde_json::Value> = logs
-        .body
-        .split(|byte| *byte == b'\n')
-        .filter(|line| !line.is_empty())
-        .map(|line| serde_json::from_slice(line).unwrap())
-        .collect();
-    assert_eq!(records[0]["stream"], "stderr");
-    assert_eq!(records[0]["line"], "last");
-    assert_eq!(f.manager.capacity().running_memory_mb, 0);
-    assert_eq!(f.fake.count_calls("start "), 0, "Stopped logs must not start workload compute");
+    file_roundtrip(&f, &server, &pki, &me, &root, path).await;
     hold.store(true, Ordering::SeqCst);
     let addr = server.addr;
     let caller = tokio::spawn(async move {
@@ -178,4 +109,83 @@ async fn remote_files_preserve_epochs_shapes_streams_and_owned_cleanup() {
     .await;
     tokio::time::timeout(Duration::from_secs(5), f.manager.start(key, Some(7))).await.unwrap().unwrap();
     agent_server.abort();
+}
+
+async fn file_roundtrip(
+    f: &support::Fixture,
+    server: &support::Server,
+    pki: &support::Pki,
+    me: &support::Identity,
+    root: &std::path::Path,
+    path: &str,
+) {
+    let bytes: Vec<u8> = (0..=u8::MAX).cycle().take(3 * 1024 * 1024).collect();
+    let result =
+        request(server.addr, &pki.ca.pem, Some(me), "PUT", path, &[("blocklyd-epoch", "6")], Some(bytes.clone()))
+            .await
+            .unwrap();
+    assert_eq!(result.status, hyper::StatusCode::CONFLICT);
+    assert_eq!(f.fake.count_calls("files "), 0, "Epoch refusal must precede remote preparation");
+    let result =
+        request(server.addr, &pki.ca.pem, Some(me), "PUT", path, &[("blocklyd-epoch", "7")], Some(bytes.clone()))
+            .await
+            .unwrap();
+    assert_eq!(result.status, hyper::StatusCode::NO_CONTENT, "{}", String::from_utf8_lossy(&result.body));
+    let result =
+        request(server.addr, &pki.ca.pem, Some(me), "GET", path, &[("blocklyd-epoch", "7")], None).await.unwrap();
+    assert_eq!(result.status, hyper::StatusCode::OK);
+    assert_eq!(result.body, bytes);
+    let result = request(
+        server.addr,
+        &pki.ca.pem,
+        Some(me),
+        "GET",
+        "/v1/workloads/files/files/list?path=src",
+        &[("blocklyd-epoch", "7")],
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(result.status, hyper::StatusCode::OK);
+    assert_eq!(result.json()["files"][0]["size"], bytes.len());
+    let result = request(
+        server.addr,
+        &pki.ca.pem,
+        Some(me),
+        "GET",
+        "/v1/workloads/files/files/stat?path=missing",
+        &[("blocklyd-epoch", "7")],
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(result.status, hyper::StatusCode::NOT_FOUND);
+    assert_eq!(result.json()["error"]["code"], "file_not_found");
+    std::os::unix::fs::symlink("/etc", root.join("outside")).unwrap();
+    let result = request(
+        server.addr,
+        &pki.ca.pem,
+        Some(me),
+        "GET",
+        "/v1/workloads/files/files/content?path=outside/passwd",
+        &[("blocklyd-epoch", "7")],
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(result.status, hyper::StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(f.fake.count_calls("start "), 0, "File access must not start workload compute");
+    let logs =
+        request(server.addr, &pki.ca.pem, Some(me), "GET", "/v1/workloads/files/logs?tail=1", &[], None).await.unwrap();
+    assert_eq!(logs.status, hyper::StatusCode::OK);
+    let records: Vec<serde_json::Value> = logs
+        .body
+        .split(|byte| *byte == b'\n')
+        .filter(|line| !line.is_empty())
+        .map(|line| serde_json::from_slice(line).unwrap())
+        .collect();
+    assert_eq!(records[0]["stream"], "stderr");
+    assert_eq!(records[0]["line"], "last");
+    assert_eq!(f.manager.capacity().running_memory_mb, 0);
+    assert_eq!(f.fake.count_calls("start "), 0, "Stopped logs must not start workload compute");
 }

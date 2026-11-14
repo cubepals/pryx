@@ -87,31 +87,43 @@ fn actual_root_mounts_retire_after_leases_and_recover_without_a_second_disk() {
     assert_eq!(fs::metadata(&disk).unwrap().ino(), original.ino());
     assert_eq!(fs::read(&disk).unwrap(), b"changed!");
     assert_eq!(fs::read(&source).unwrap(), b"read-only");
+    recover_after_tampering(&base, &disk, &source, &lifetime, owner, &inputs, &original);
+}
+
+fn recover_after_tampering(
+    base: &Path,
+    disk: &Path,
+    source: &Path,
+    lifetime: &Path,
+    owner: (u32, u32),
+    inputs: &BTreeMap<PathBuf, PathBuf>,
+    original: &fs::Metadata,
+) {
     let id = uuid::Uuid::new_v4().simple().to_string();
     let jail = Jail::prepare(Request {
-        base: &base,
+        base,
         id: &id,
         monitor: Path::new("firecracker.v1.18.0"),
-        disk: &disk,
-        lease: &lifetime,
+        disk,
+        lease: lifetime,
         owner,
-        readonly: &inputs,
+        readonly: inputs,
     })
     .unwrap();
     let path = jail.root().to_owned();
     drop(jail);
-    assert_eq!(fs::metadata(&disk).unwrap().uid(), owner.0);
-    let retained = data.join("retained");
-    fs::rename(&disk, &retained).unwrap();
-    std::os::unix::fs::symlink(&source, &disk).unwrap();
-    assert!(Jail::recover(&base, &id).is_err());
-    assert_eq!(fs::read(&source).unwrap(), b"read-only");
+    assert_eq!(fs::metadata(disk).unwrap().uid(), owner.0);
+    let retained = disk.parent().unwrap().join("retained");
+    fs::rename(disk, &retained).unwrap();
+    std::os::unix::fs::symlink(source, disk).unwrap();
+    assert!(Jail::recover(base, &id).is_err());
+    assert_eq!(fs::read(source).unwrap(), b"read-only");
     assert_eq!(fs::metadata(&retained).unwrap().uid(), owner.0);
-    fs::remove_file(&disk).unwrap();
-    fs::rename(retained, &disk).unwrap();
-    Jail::recover(&base, &id).unwrap();
+    fs::remove_file(disk).unwrap();
+    fs::rename(retained, disk).unwrap();
+    Jail::recover(base, &id).unwrap();
     assert!(!path.exists());
-    assert_eq!(fs::metadata(&disk).unwrap().uid(), rustix::process::Uid::ROOT.as_raw());
-    assert_eq!(fs::metadata(&disk).unwrap().ino(), original.ino());
-    assert_eq!(fs::metadata(&disk).unwrap().nlink(), 1);
+    assert_eq!(fs::metadata(disk).unwrap().uid(), rustix::process::Uid::ROOT.as_raw());
+    assert_eq!(fs::metadata(disk).unwrap().ino(), original.ino());
+    assert_eq!(fs::metadata(disk).unwrap().nlink(), 1);
 }

@@ -212,54 +212,7 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
         runtime = VmRuntime::new(temporary.path(), settings).await.unwrap();
         assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Created);
         runtime.start(&id).await.unwrap();
-        assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Running);
-        guest_firewall(&runtime, &id).await;
-        guest_socket_policy(&runtime, &original_spec, &id).await;
-        if index == 1 {
-            assert_eq!(
-                exec(&runtime, &id, "while ! test -e /data/signal-ready; do sleep 0.01; done; cat /data/signal-ready")
-                    .await,
-                b"ready"
-            );
-            workload_log(&runtime, &id).await;
-        }
-        assert_eq!(exec(&runtime, &id, "printf durable > /data/retained; printf ready").await, b"ready");
-        assert_eq!(exec(&runtime, &id, "grep -c '^processor' /proc/cpuinfo").await, b"2\n");
-        let active_files = runtime.data_service(file_request(&original_spec)).await.unwrap();
-        let response = active_files
-            .request(crate::runtime::files::Operation::Read, "retained", crate::http_client::empty())
-            .await
-            .unwrap();
-        assert_eq!(crate::http_client::read_body(response, 1024).await.unwrap(), "durable");
-        active_files.close().await.unwrap();
-        assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Running);
-        let mut wrong_epoch = file_request(&original_spec);
-        wrong_epoch.epoch += 1;
-        assert!(runtime.data_service(wrong_epoch).await.is_err());
-        assert!(
-            runtime.data_copy_lease(&original_spec.agent.as_ref().unwrap().sandbox, &data).await.is_err(),
-            "A running monitor must refuse a disk copy lease"
-        );
-        let observed = runtime.inspect(&id).await.unwrap().unwrap();
-        let snapshot = observed.agent_state.expect("Guest metadata must cross the real vsock forwarder");
-        assert!(snapshot.activity.at > 0);
-        assert_eq!(snapshot.activity.streams, 0);
-        assert!(snapshot.ports.targets.is_empty());
-        let polled = runtime.inspect(&id).await.unwrap().unwrap().agent_state.unwrap();
-        assert_eq!(polled.activity.at, snapshot.activity.at, "Node polling must not touch guest activity");
-        let resources = runtime.stats(&id).await.unwrap().unwrap();
-        assert!(resources.cpu_total_ns.unwrap() > 0);
-        assert!(resources.memory_usage.unwrap() > 0);
-        assert!(resources.memory_usage.unwrap() <= original_spec.memory_bytes as u64);
-        assert!(resources.pids.unwrap() > 0 && resources.pids.unwrap() <= original_spec.pids_limit as u64);
-        assert_eq!(resources.memory_limit, Some(original_spec.memory_bytes as u64));
-        assert!(resources.rx_bytes.is_some() && resources.tx_bytes.is_some());
-        assert_eq!(
-            runtime.inspect(&id).await.unwrap().unwrap().agent_state.unwrap().activity.at,
-            snapshot.activity.at,
-            "Resource polling must not touch workload activity"
-        );
-
+        observe_live(&runtime, &id, &original_spec, index).await;
         runtime.stop(&id, &original_spec.stop_signal, Duration::from_secs(15)).await.unwrap();
         assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Exited);
         assert!(runtime.stats(&id).await.unwrap().is_none(), "Stopped guests must not return stale counters");
@@ -277,49 +230,7 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
         crate::tree::copy_tree(&data, &copy, None, &[], &mut |_| Ok(())).unwrap();
         drop(copy_lease);
         eprintln!("VM runtime image {index}: file-only guest");
-        let files = runtime.open_files(&id).await.unwrap();
-        assert!(runtime.data_copy_lease(sandbox, &data).await.is_err(), "File service holds the real disk lease");
-        let response = files
-            .request(hyper::Method::GET, "/_pryx/files/content?path=retained", crate::http_client::empty())
-            .await
-            .unwrap();
-        assert_eq!(response.status(), hyper::StatusCode::OK);
-        assert_eq!(crate::http_client::read_body(response, 1024).await.unwrap(), "durable");
-        let response =
-            files.request(hyper::Method::POST, "/_pryx/processes", crate::http_client::full("{}")).await.unwrap();
-        assert_eq!(response.status(), hyper::StatusCode::NOT_FOUND);
-        let files = files.into_service().unwrap();
-        if index == 1 {
-            let response = files
-                .request(crate::runtime::files::Operation::Read, "signal", crate::http_client::empty())
-                .await
-                .unwrap();
-            assert_eq!(crate::http_client::read_body(response, 1024).await.unwrap(), "interrupted");
-            let response = files
-                .request(
-                    crate::runtime::files::Operation::Read,
-                    pryx_agent::logbook::LOG_PATH,
-                    crate::http_client::empty(),
-                )
-                .await
-                .unwrap();
-            let bytes = crate::http_client::read_body(response, pryx_agent::contract::CAPTURE_BYTES * 4).await.unwrap();
-            let chunks = crate::runtime::logs::records(&bytes, &crate::runtime::LogOptions::default()).unwrap();
-            assert!(chunks.iter().any(|chunk| chunk.bytes.ends_with(b" workload-log")));
-        }
-        let bytes: Vec<u8> = (0..=u8::MAX).cycle().take(pryx_agent::contract::MAX_REQUEST_BYTES + 1).collect();
-        let response = files
-            .request(crate::runtime::files::Operation::Write, "offline", crate::http_client::full(bytes.clone()))
-            .await
-            .unwrap();
-        assert_eq!(response.status(), hyper::StatusCode::NO_CONTENT);
-        let response = files
-            .request(crate::runtime::files::Operation::Read, "offline", crate::http_client::empty())
-            .await
-            .unwrap();
-        assert_eq!(crate::http_client::read_body(response, bytes.len()).await.unwrap().as_ref(), bytes);
-        files.close().await.unwrap();
-        drop(runtime.data_copy_lease(sandbox, &data).await.unwrap());
+        let bytes = offline_files(&runtime, &id, &original_spec, index).await;
         runtime.remove(&id).await.unwrap();
         let retained_files = runtime.data_service(file_request(&original_spec)).await.unwrap();
         assert!(runtime.inspect(&id).await.unwrap().is_none());
@@ -344,66 +255,9 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
         assert_eq!(exec(&runtime, &id, "cat /data/retained").await, b"durable");
         independent.remove(&fork).await.unwrap();
         eprintln!("VM runtime image {index}: interrupted live runtime and failed ingress");
-        let settings = runtime.state.settings.clone();
-        drop(runtime);
-        runtime = VmRuntime::new(temporary.path(), settings).await.unwrap();
-        let interrupted = runtime.inspect(&id).await.unwrap().unwrap();
-        assert_eq!(interrupted.status, ContainerStatus::Dead);
-        assert_eq!(interrupted.exit_code, UNKNOWN_EXIT_CODE, "Daemon loss must not invent a signed guest exit");
-        let deadline = tokio::time::Instant::now() + crate::runtime::ENGINE_PROBE_TIMEOUT;
-        let occupied = loop {
-            match TcpListener::bind((Ipv4Addr::LOCALHOST, original_spec.ports[0].host_port)) {
-                Ok(listener) => break listener,
-                Err(problem)
-                    if problem.kind() == std::io::ErrorKind::AddrInUse && tokio::time::Instant::now() < deadline =>
-                {
-                    tokio::time::sleep(Duration::from_millis(10)).await;
-                }
-                Err(problem) => panic!("Owned forwarder did not release its ingress: {problem}"),
-            }
-        };
-        assert!(runtime.start(&id).await.is_err(), "A real occupied ingress must refuse startup");
-        drop(occupied);
-        let deadline = tokio::time::Instant::now() + crate::runtime::ENGINE_PROBE_TIMEOUT;
-        loop {
-            match runtime.inspect(&id).await {
-                Ok(Some(info)) => {
-                    assert_eq!(info.status, ContainerStatus::Dead);
-                    assert_eq!(info.exit_code, UNKNOWN_EXIT_CODE);
-                    break;
-                }
-                Err(problem) if problem.is_unavailable() => {}
-                Ok(_) => panic!("Failed launch lost its runtime entry"),
-                Err(problem) => panic!("Unexpected failed-start error: {problem}"),
-            }
-            assert!(tokio::time::Instant::now() < deadline, "Failed launch did not release its real monitor lease");
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-        runtime.start(&id).await.unwrap();
-        assert_eq!(exec(&runtime, &id, "cat /data/retained").await, b"durable");
-        assert_eq!(exec(&runtime, &id, "wc -c < /data/offline").await, format!("{}\n", bytes.len()).as_bytes());
-        runtime.remove(&id).await.unwrap();
-        assert!(runtime.inspect(&id).await.unwrap().is_none());
-        assert!(data.join(super::super::disk::FILE).is_file());
+        runtime = interrupted(runtime, temporary.path(), &id, &original_spec, &bytes).await;
         eprintln!("VM runtime image {index}: immediate guest exit");
-        let job_data = temporary.path().join(format!("job{index}"));
-        directory(&job_data).unwrap();
-        let mut job_spec = spec(&job_data, image["reference"].as_str().unwrap());
-        job_spec.agent.as_mut().unwrap().keep_alive = false;
-        job_spec.entrypoint = Some(vec!["/bin/sh".into(), "-c".into(), "exit 7".into()]);
-        let job = runtime.create(&job_spec).await.unwrap();
-        runtime.start(&job).await.unwrap();
-        let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
-        loop {
-            let info = runtime.inspect(&job).await.unwrap().unwrap();
-            if info.status == ContainerStatus::Exited {
-                assert_eq!(info.exit_code, 7);
-                break;
-            }
-            assert!(tokio::time::Instant::now() < deadline, "Completed guest was not retired");
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-        runtime.remove(&job).await.unwrap();
+        immediate_exit(&runtime, temporary.path(), image["reference"].as_str().unwrap(), index).await;
         for unrestricted in [false, true] {
             super::network_acceptance::check(
                 &runtime,
@@ -556,4 +410,176 @@ fn retained_file_spec_has_only_host_owned_data_policy() {
     let (memory, cpus, _, _) = launch::resources(&prepared).unwrap();
     assert_eq!(memory, original.memory_bytes as u64 / (1024 * 1024));
     assert_eq!(cpus, 1);
+}
+
+async fn observe_live(runtime: &VmRuntime, id: &str, original_spec: &ContainerSpec, index: usize) {
+    let data = &original_spec.data_dir;
+    assert_eq!(runtime.inspect(id).await.unwrap().unwrap().status, ContainerStatus::Running);
+    guest_firewall(runtime, id).await;
+    guest_socket_policy(runtime, original_spec, id).await;
+    if index == 1 {
+        assert_eq!(
+            exec(runtime, id, "while ! test -e /data/signal-ready; do sleep 0.01; done; cat /data/signal-ready").await,
+            b"ready"
+        );
+        workload_log(runtime, id).await;
+    }
+    assert_eq!(exec(runtime, id, "printf durable > /data/retained; printf ready").await, b"ready");
+    assert_eq!(exec(runtime, id, "grep -c '^processor' /proc/cpuinfo").await, b"2\n");
+    let active_files = runtime.data_service(file_request(original_spec)).await.unwrap();
+    let response = active_files
+        .request(crate::runtime::files::Operation::Read, "retained", crate::http_client::empty())
+        .await
+        .unwrap();
+    assert_eq!(crate::http_client::read_body(response, 1024).await.unwrap(), "durable");
+    active_files.close().await.unwrap();
+    assert_eq!(runtime.inspect(id).await.unwrap().unwrap().status, ContainerStatus::Running);
+    let mut wrong_epoch = file_request(original_spec);
+    wrong_epoch.epoch += 1;
+    assert!(runtime.data_service(wrong_epoch).await.is_err());
+    assert!(
+        runtime.data_copy_lease(&original_spec.agent.as_ref().unwrap().sandbox, data).await.is_err(),
+        "A running monitor must refuse a disk copy lease"
+    );
+    observe_resources(runtime, id, original_spec).await;
+}
+
+async fn offline_files(runtime: &VmRuntime, id: &str, original_spec: &ContainerSpec, index: usize) -> Vec<u8> {
+    let sandbox = &original_spec.agent.as_ref().unwrap().sandbox;
+    let data = &original_spec.data_dir;
+    let files = runtime.open_files(id).await.unwrap();
+    assert!(runtime.data_copy_lease(sandbox, data).await.is_err(), "File service holds the real disk lease");
+    let response = files
+        .request(hyper::Method::GET, "/_pryx/files/content?path=retained", crate::http_client::empty())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), hyper::StatusCode::OK);
+    assert_eq!(crate::http_client::read_body(response, 1024).await.unwrap(), "durable");
+    let response =
+        files.request(hyper::Method::POST, "/_pryx/processes", crate::http_client::full("{}")).await.unwrap();
+    assert_eq!(response.status(), hyper::StatusCode::NOT_FOUND);
+    let files = files.into_service().unwrap();
+    if index == 1 {
+        let response =
+            files.request(crate::runtime::files::Operation::Read, "signal", crate::http_client::empty()).await.unwrap();
+        assert_eq!(crate::http_client::read_body(response, 1024).await.unwrap(), "interrupted");
+        let response = files
+            .request(crate::runtime::files::Operation::Read, pryx_agent::logbook::LOG_PATH, crate::http_client::empty())
+            .await
+            .unwrap();
+        let bytes = crate::http_client::read_body(response, pryx_agent::contract::CAPTURE_BYTES * 4).await.unwrap();
+        let chunks = crate::runtime::logs::records(&bytes, &crate::runtime::LogOptions::default()).unwrap();
+        assert!(chunks.iter().any(|chunk| chunk.bytes.ends_with(b" workload-log")));
+    }
+    let bytes: Vec<u8> = (0..=u8::MAX).cycle().take(pryx_agent::contract::MAX_REQUEST_BYTES + 1).collect();
+    let response = files
+        .request(crate::runtime::files::Operation::Write, "offline", crate::http_client::full(bytes.clone()))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), hyper::StatusCode::NO_CONTENT);
+    let response =
+        files.request(crate::runtime::files::Operation::Read, "offline", crate::http_client::empty()).await.unwrap();
+    assert_eq!(crate::http_client::read_body(response, bytes.len()).await.unwrap().as_ref(), bytes);
+    files.close().await.unwrap();
+    drop(runtime.data_copy_lease(sandbox, data).await.unwrap());
+    bytes
+}
+
+async fn interrupted(
+    runtime: VmRuntime,
+    root: &Path,
+    id: &str,
+    original_spec: &ContainerSpec,
+    bytes: &[u8],
+) -> VmRuntime {
+    let data = &original_spec.data_dir;
+    let settings = runtime.state.settings.clone();
+    drop(runtime);
+    let runtime = VmRuntime::new(root, settings).await.unwrap();
+    let interrupted = runtime.inspect(id).await.unwrap().unwrap();
+    assert_eq!(interrupted.status, ContainerStatus::Dead);
+    assert_eq!(interrupted.exit_code, UNKNOWN_EXIT_CODE, "Daemon loss must not invent a signed guest exit");
+    let occupied = occupied_ingress(original_spec.ports[0].host_port).await;
+    assert!(runtime.start(id).await.is_err(), "A real occupied ingress must refuse startup");
+    drop(occupied);
+    let deadline = tokio::time::Instant::now() + crate::runtime::ENGINE_PROBE_TIMEOUT;
+    loop {
+        match runtime.inspect(id).await {
+            Ok(Some(info)) => {
+                assert_eq!(info.status, ContainerStatus::Dead);
+                assert_eq!(info.exit_code, UNKNOWN_EXIT_CODE);
+                break;
+            }
+            Err(problem) if problem.is_unavailable() => {}
+            Ok(_) => panic!("Failed launch lost its runtime entry"),
+            Err(problem) => panic!("Unexpected failed-start error: {problem}"),
+        }
+        assert!(tokio::time::Instant::now() < deadline, "Failed launch did not release its real monitor lease");
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    runtime.start(id).await.unwrap();
+    assert_eq!(exec(&runtime, id, "cat /data/retained").await, b"durable");
+    assert_eq!(exec(&runtime, id, "wc -c < /data/offline").await, format!("{}\n", bytes.len()).as_bytes());
+    runtime.remove(id).await.unwrap();
+    assert!(runtime.inspect(id).await.unwrap().is_none());
+    assert!(data.join(super::super::disk::FILE).is_file());
+    runtime
+}
+
+async fn immediate_exit(runtime: &VmRuntime, root: &Path, image: &str, index: usize) {
+    let job_data = root.join(format!("job{index}"));
+    directory(&job_data).unwrap();
+    let mut job_spec = spec(&job_data, image);
+    job_spec.agent.as_mut().unwrap().keep_alive = false;
+    job_spec.entrypoint = Some(vec!["/bin/sh".into(), "-c".into(), "exit 7".into()]);
+    let job = runtime.create(&job_spec).await.unwrap();
+    runtime.start(&job).await.unwrap();
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    loop {
+        let info = runtime.inspect(&job).await.unwrap().unwrap();
+        if info.status == ContainerStatus::Exited {
+            assert_eq!(info.exit_code, 7);
+            break;
+        }
+        assert!(tokio::time::Instant::now() < deadline, "Completed guest was not retired");
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    runtime.remove(&job).await.unwrap();
+}
+
+async fn observe_resources(runtime: &VmRuntime, id: &str, original_spec: &ContainerSpec) {
+    let observed = runtime.inspect(id).await.unwrap().unwrap();
+    let snapshot = observed.agent_state.expect("Guest metadata must cross the real vsock forwarder");
+    assert!(snapshot.activity.at > 0);
+    assert_eq!(snapshot.activity.streams, 0);
+    assert!(snapshot.ports.targets.is_empty());
+    let polled = runtime.inspect(id).await.unwrap().unwrap().agent_state.unwrap();
+    assert_eq!(polled.activity.at, snapshot.activity.at, "Node polling must not touch guest activity");
+    let resources = runtime.stats(id).await.unwrap().unwrap();
+    assert!(resources.cpu_total_ns.unwrap() > 0);
+    assert!(resources.memory_usage.unwrap() > 0);
+    assert!(resources.memory_usage.unwrap() <= original_spec.memory_bytes as u64);
+    assert!(resources.pids.unwrap() > 0 && resources.pids.unwrap() <= original_spec.pids_limit as u64);
+    assert_eq!(resources.memory_limit, Some(original_spec.memory_bytes as u64));
+    assert!(resources.rx_bytes.is_some() && resources.tx_bytes.is_some());
+    assert_eq!(
+        runtime.inspect(id).await.unwrap().unwrap().agent_state.unwrap().activity.at,
+        snapshot.activity.at,
+        "Resource polling must not touch workload activity"
+    );
+}
+
+async fn occupied_ingress(port: u16) -> TcpListener {
+    let deadline = tokio::time::Instant::now() + crate::runtime::ENGINE_PROBE_TIMEOUT;
+    loop {
+        match TcpListener::bind((Ipv4Addr::LOCALHOST, port)) {
+            Ok(listener) => break listener,
+            Err(problem)
+                if problem.kind() == std::io::ErrorKind::AddrInUse && tokio::time::Instant::now() < deadline =>
+            {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+            Err(problem) => panic!("Owned forwarder did not release its ingress: {problem}"),
+        }
+    }
 }

@@ -28,19 +28,7 @@ pub(super) async fn check(runtime: &VmRuntime, root: &Path, image: &str, index: 
             "dns":profile["dns"], "privatePort":host.local_addr().unwrap().port(), "caFile":"/data/host-ca.pem"
         })
     };
-    let files = runtime.open_files(&id).await.unwrap();
-    for (path, bytes) in [
-        ("network-probe", fs::read(tests::input("PRYX_VM_POLICY_PROBE")).unwrap()),
-        ("network-fixture.json", serde_json::to_vec(&fixture).unwrap()),
-        ("host-ca.pem", fs::read(crate::http_client::public_bundle().unwrap()).unwrap()),
-    ] {
-        let response = files
-            .request(hyper::Method::PUT, &format!("/_pryx/files/content?path={path}"), crate::http_client::full(bytes))
-            .await
-            .unwrap();
-        assert_eq!(response.status(), hyper::StatusCode::NO_CONTENT);
-    }
-    files.close().await.unwrap();
+    upload_probe(runtime, &id, &fixture).await;
     let chmod = runtime
         .exec(&id, &["/bin/chmod".into(), "500".into(), "/data/network-probe".into()], Duration::from_secs(5), 4096)
         .await
@@ -64,4 +52,20 @@ pub(super) async fn check(runtime: &VmRuntime, root: &Path, image: &str, index: 
     runtime.stop(&id, &spec.stop_signal, Duration::from_secs(15)).await.unwrap();
     assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Exited);
     runtime.remove(&id).await.unwrap();
+}
+
+async fn upload_probe(runtime: &VmRuntime, id: &str, fixture: &serde_json::Value) {
+    let files = runtime.open_files(id).await.unwrap();
+    for (path, bytes) in [
+        ("network-probe", fs::read(tests::input("PRYX_VM_POLICY_PROBE")).unwrap()),
+        ("network-fixture.json", serde_json::to_vec(&fixture).unwrap()),
+        ("host-ca.pem", fs::read(crate::http_client::public_bundle().unwrap()).unwrap()),
+    ] {
+        let response = files
+            .request(hyper::Method::PUT, &format!("/_pryx/files/content?path={path}"), crate::http_client::full(bytes))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), hyper::StatusCode::NO_CONTENT);
+    }
+    files.close().await.unwrap();
 }
