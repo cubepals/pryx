@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: FSL-1.1-ALv2
 """Assemble separately pinned VM runtime and corresponding-source distributions.
 
-Only verified published monitor/kernel bytes and same-source static programs enter the runtime.
+Only the verified same-source confined monitor, published kernel and static programs enter the runtime.
 Original Linux, Kata recipes/patches, filesystem and registry sources stay in the source archive.
 This build does not publish a release or advertise a VM compute tier.
 """
@@ -18,6 +18,7 @@ from filesystem import read_only_manifest
 from inventory import ROOT
 from kernel import selected
 import rust_notices
+import monitor_component
 
 REPO = ROOT.parent.parent
 spec = importlib.util.spec_from_file_location('pryx_artifact_package', REPO / 'templates/process-tools/package.py')
@@ -53,12 +54,19 @@ def build(args):
     copy_tree(args.sources, sources)
     selection = json.loads((ROOT / 'kernel-selection.json').read_text())
     inspection = json.loads(args.inspection.read_text())
-    for key, relative in [('monitor', 'bin/firecracker'), ('jailer', 'bin/jailer'), ('kernel', 'kernel/vmlinux')]:
+    for key, relative in [('jailer', 'bin/jailer'), ('kernel', 'kernel/vmlinux')]:
         path = selected(selection, inspection, args.staged, key)
         destination = runtime / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(path, destination)
         destination.chmod(0o755 if key != 'kernel' else 0o444)
+    native_monitor = monitor_component.verified(args.monitor_component)
+    shutil.copyfile(native_monitor, runtime / 'bin/firecracker')
+    (runtime / 'bin/firecracker').chmod(0o755)
+    copy_tree(args.monitor_component / 'notices', runtime / 'notices/monitor')
+    copy_tree(args.monitor_component / 'sources', sources / 'monitor/sources')
+    for name in ['monitor.json', 'abi.json', 'policy.json', 'seccomp.json', 'seccomp_filter.bpf']:
+        shutil.copyfile(args.monitor_component / name, sources / 'monitor' / name)
     configuration = selected(selection, inspection, args.staged, 'configuration')
     if hashlib.sha256(configuration.encode()).hexdigest() != selection['configuration']['sha256']:
         raise ValueError('Published kernel configuration differs from its pin')
@@ -114,7 +122,7 @@ def build(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ['output', 'source-output', 'sources', 'inspection', 'staged', 'filesystem-component',
-                 'sdk-notices', 'network-notices', 'bootstrap', 'launcher', 'image-helper', 'configurator', 'transport',
+                 'sdk-notices', 'network-notices', 'monitor-component', 'bootstrap', 'launcher', 'image-helper', 'configurator', 'transport',
                  'root-network-notices', 'root-network-sources', 'root-scope', 'root-tap',
                  'network-proxy', 'archive', 'source-archive', 'descriptor', 'source-descriptor']:
         parser.add_argument('--' + name, type=Path, required=True)

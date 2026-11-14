@@ -16,7 +16,7 @@ done
 (cd templates/vm-tools/network && bash "$pryx_vm_recipe" network)
 (cd templates/vm-tools/root-network && bash "$pryx_vm_recipe" root-network)
 rustup toolchain install
-for pryx_vm_phase in bootstrap sources bundle; do
+for pryx_vm_phase in bootstrap sources native-monitor bundle; do
   bash "$pryx_vm_recipe" "$pryx_vm_phase"
 done
 mkdir -p "$pryx_vm_destination"

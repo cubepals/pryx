@@ -94,12 +94,20 @@ case "${1:?Name one VM build phase}" in
     python3 templates/vm-tools/sources.py --cache "$RUNNER_TEMP/vm-source-cache" \
       --output "$RUNNER_TEMP/vm-corresponding-sources" | tee "$RUNNER_TEMP/vm-corresponding-sources.log"
     ;;
+  native-monitor)
+    python3 templates/vm-tools/monitor_prepare.py --root "$RUNNER_TEMP/vm-monitor-sdk" \
+      --cache "$RUNNER_TEMP/vm-monitor-archives" | tee "$RUNNER_TEMP/vm-monitor-sdk.log"
+    python3 templates/vm-tools/monitor_build.py --sources "$RUNNER_TEMP/vm-corresponding-sources" \
+      --sdk "$RUNNER_TEMP/vm-monitor-sdk" --root "$RUNNER_TEMP/vm-native-monitor-build" \
+      --target-dir "$RUNNER_TEMP/vm-monitor-target" | tee "$RUNNER_TEMP/vm-native-monitor-build.log"
+    ;;
   bundle)
     python3 templates/vm-tools/bootstrap.py \
       --agent "${CARGO_TARGET_DIR:-target}/x86_64-unknown-linux-musl/debug/pryx-agent" \
       --network-helper "$RUNNER_TEMP/vm-network-guest" --forwarder "$RUNNER_TEMP/vm-gvforwarder" \
       --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" --root "$RUNNER_TEMP/vm-runtime-bootstrap"
     python3 templates/vm-tools/bundle.py \
+      --monitor-component "$RUNNER_TEMP/vm-native-monitor-build/component" \
       --inspection "$RUNNER_TEMP/vm-archive-inspection.json" --staged "$RUNNER_TEMP/vm-selected-files" \
       --sources "$RUNNER_TEMP/vm-corresponding-sources" --source-output "$RUNNER_TEMP/vm-bundle-sources" \
       --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" \

@@ -4445,3 +4445,20 @@ job when publication is authorized. That job has not run in this task.
 - These tools are not yet wired into bundle selection or a workflow. Actual confined KVM
   replay, whole-bundle selection and signed-host measurements remain; do not claim a VM
   milestone pass from a successful build. No CI job/gate or duration change in this step.
+
+- Wire the complete same-source GNU monitor component into both existing VM and signed
+  preview build recipes; leave the published jailer and kernel unchanged. Assembly rechecks
+  original commit/archive identity, complete ABI-translated restrictive policy, exact ELF/BPF
+  hashes and embedding, full pinned libc archive and required source/relinking notices. The
+  genuine upstream empty policy is refused beside an otherwise valid real component.
+- Actual local monitor --version under the unchanged Landlock/seccomp launcher succeeds;
+  this is startup proof only, without KVM. Python syntax, shell syntax, actionlint and
+  whitespace pass. Preserve build/ABI/policy receipts only as CI artifacts. Remove superseded
+  local prototype SDK/target outputs, restoring 3.6 GiB free disk.
+- Estimated addition: five minutes each in the existing optional VM and signed-preview
+  builds, zero normal required-PR minutes, no new job/gate or timeout change. Actual confined
+  guest boot/thread shutdown, both root image lifecycles and installed SDK/edge proof are
+  pending on this selection. Root placement/worker/unrestricted forwarding remain unfinished.
+- Latest normal source a06a5e1 has all completed checks green; control end-to-end is still
+  running its Rivet/celld step, so it is not yet an overall CI pass. Scanner comments remain
+  eighteen. Continue to push current builds while older workflow runs finish.

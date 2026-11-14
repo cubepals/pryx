@@ -41,6 +41,7 @@ Parts (`vm-tools/`):
 - `monitor_abi.rs`: build-only signal/futex values imported from the actual monitor and libc.
 - `monitor_policy.py`: preserve the restrictive published policy while substituting the equivalent native thread ABI.
 - `monitor_build.py`: same-source static monitor build with an independently compiled embedded-policy check.
+- `monitor_component.py`: verify source/policy correspondence and embedded BPF before selecting a native build in the whole bundle.
 - `monitor_sources.py`: full monitor/Rust/libc sources, exact compilation recipes and primary notices.
 - `monitor-REBUILD.md`: modification and relinking instructions for the separate GNU monitor.
 - `build.sh` and `release.sh`: common build phases and unpublished release assembly.
