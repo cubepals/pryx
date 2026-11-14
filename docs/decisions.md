@@ -1095,3 +1095,5 @@
 - K25: Use one authenticated streaming file-session transport with fixed operation routes and URL-owned query encoding; its backend cleanup task outlives cancelled close waits, so node guards can stay held through guest retirement without replaying a file mutation.
 
 - K25: Verify the non-root maintenance guest CID by explicitly binding and reading a library-owned vsock listener, retaining non-root/PID-1-parent checks; Linux rejects a nonlocal explicit CID, while the library’s device-query path opens root-only devtmpfs /dev/vsock. Keep device permissions and the root init’s original host-CID/device equality checks unchanged.
+
+- K25: Bound private file-session TCP/HTTP setup separately from upload duration; use the existing HTTP library for unbuffered data streams so slow/large files can outlive connection setup, while control/readiness calls retain their existing whole-call deadlines and mutations are still sent once.

@@ -214,6 +214,38 @@ pub(crate) async fn send(
     tokio::time::timeout(timeout, exchange).await.map_err(|_| ClientError::Timeout(redact(url), timeout))?
 }
 
+/// A private file stream bounds connection setup, not the time needed to upload its body.
+/// The caller owns body admission and session cleanup. No redirect or retry is performed.
+pub(crate) async fn local_stream(
+    endpoint: std::net::SocketAddr,
+    method: Method,
+    path: &str,
+    headers: &[(&str, String)],
+    body: Body,
+    timeout: Duration,
+) -> Result<Response<Incoming>, ClientError> {
+    let shown = redact(&format!("http://{endpoint}{path}"));
+    let establish = async {
+        let tcp = TcpStream::connect(endpoint).await.map_err(|e| ClientError::Connect(shown.clone(), e))?;
+        let _ = tcp.set_nodelay(true);
+        let (sender, connection) = hyper::client::conn::http1::handshake(TokioIo::new(tcp))
+            .await
+            .map_err(|e| ClientError::Http(shown.clone(), e.to_string()))?;
+        tokio::spawn(async move {
+            let _ = connection.await;
+        });
+        Ok::<_, ClientError>(sender)
+    };
+    let mut sender =
+        tokio::time::timeout(timeout, establish).await.map_err(|_| ClientError::Timeout(shown.clone(), timeout))??;
+    let mut request = Request::builder().method(method).uri(path).header(HOST, endpoint.to_string());
+    for (name, value) in headers {
+        request = request.header(*name, value);
+    }
+    let request = request.body(body).map_err(|e| ClientError::Http(shown.clone(), e.to_string()))?;
+    sender.send_request(request).await.map_err(|e| ClientError::Http(shown, e.to_string()))
+}
+
 /// Reads a whole (small) response body, refusing more than `limit` bytes.
 pub(crate) async fn read_body(response: Response<Incoming>, limit: usize) -> Result<Bytes, String> {
     Limited::new(response.into_body(), limit).collect().await.map(Collected::to_bytes).map_err(|e| e.to_string())

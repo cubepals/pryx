@@ -91,12 +91,13 @@ impl Service {
                 file: None,
             })
             .map_err(|_| RuntimeError::Other("Cannot authorize file service".into()))?;
-        http_client::send(
+        let path = format!("{}?{}", url.path(), url.query().unwrap_or_default());
+        http_client::local_stream(
+            self.endpoint,
             method,
-            url.as_str(),
+            &path,
             &[("authorization", format!("Bearer {token}"))],
             body,
-            None,
             self.timeout,
         )
         .await
@@ -157,7 +158,7 @@ mod tests {
         let held = gate.clone().lock_owned().await;
         let (finish, finishing) = tokio::sync::oneshot::channel();
         let (started, starting) = tokio::sync::oneshot::channel();
-        let service = Service::new(address, key, ("one".into(), 7), Duration::from_secs(5), async move {
+        let service = Service::new(address, key, ("one".into(), 7), Duration::from_secs(1), async move {
             let _ = started.send(());
             let _ = finishing.await;
             drop(held);
@@ -165,8 +166,13 @@ mod tests {
         })
         .unwrap();
         let bytes: Vec<u8> = (0..=u8::MAX).cycle().take(pryx_agent::contract::MAX_REQUEST_BYTES + 1).collect();
-        let response =
-            service.request(Operation::Write, "name&path=other", http_client::full(bytes.clone())).await.unwrap();
+        let payload = bytes.clone();
+        let delayed = futures_util::stream::once(async move {
+            tokio::time::sleep(Duration::from_millis(1100)).await;
+            Ok::<_, std::io::Error>(hyper::body::Frame::data(bytes::Bytes::from(payload)))
+        });
+        let body = BodyExt::boxed(http_body_util::StreamBody::new(delayed));
+        let response = service.request(Operation::Write, "name&path=other", body).await.unwrap();
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(http_client::read_body(response, bytes.len()).await.unwrap().as_ref(), bytes);
         assert_eq!(calls.load(Ordering::SeqCst), 1);

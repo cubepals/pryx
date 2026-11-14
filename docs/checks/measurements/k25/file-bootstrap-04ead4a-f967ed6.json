@@ -11,6 +11,11 @@
       "commit": "f967ed6",
       "ci": "https://github.com/cubepals/pryx/actions/runs/43531398107",
       "runtimeSecondsBeforeFailure": 15.36
+    },
+    {
+      "commit": "53b3da6",
+      "ci": "https://github.com/cubepals/pryx/actions/runs/43532126674",
+      "runtimeSecondsBeforeFailure": 12.93
     }
   ],
   "failure": "The monitor exited during file-service bootstrap. These sources delete the failed temporary serial capture before retaining it.",

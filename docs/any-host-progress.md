@@ -3146,3 +3146,19 @@ job when publication is authorized. That job has not run in this task.
   The current full run passes that test without changing it. Scanner stays eighteen addressed
   comments. Next finish node-session/retained-data access, including stream-duration handling,
   while real KVM CI verifies this correction. K25 is still in progress.
+
+
+- K25 stream duration: private file sessions now bound TCP/HTTP setup separately from the
+  upload body. The existing control/readiness client and its deadlines remain unchanged.
+  This prevents a valid slow upload from inheriting the small-control-call wall clock limit;
+  request bodies and response bodies still stream through the maintained HTTP library once.
+- The actual HTTP regression now withholds its body beyond a one-second connection deadline,
+  then verifies the full binary round trip, query encoding, one mutation and cleanup ownership
+  after cancelling close. Its current-source isolated run passes in 1.12 s. Full local Rust
+  is 509 passes, one unchanged IPv6 failure and 34 ignored; both strict Clippy modes, fmt and
+  whitespace checks pass. This adds about one second to an existing unit target, no job/gate.
+- Read failed VM source 53b3da6 run 43532126674/job 132252154171: journal restart checks
+  reach the same file-service bootstrap exit (12.93 s), not a journal parse failure. Preserve
+  it in the same short bootstrap-attempt summary. The later CID correction is still awaiting
+  its own actual KVM run. Scanner stays at eighteen addressed findings. Continue the node
+  backend file-session seam and retained-disk access before announcing a VM tier.
