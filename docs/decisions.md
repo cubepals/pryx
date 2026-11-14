@@ -1142,8 +1142,16 @@
 
 - K25: retain trusted network-fixture HTTP management refusals and require kernel EPERM for direct workload vsock when the actual agent advertises its socket policy; use a separate restricted verification mode so the stronger denial never turns into a skipped management assertion.
 
+- K25: retain the confined packet helper, private configuration directory and hostname gateways in one owned session until actual child exit; detached retirement survives cancelled stop waits, and readiness must equal the verified helper's own metadata rather than a copied host-side profile.
+
 - K25: serialize push and pull-request workflows by workflow name and ref without cancelling active runs, so superseded waiting branch runs collapse to the newest commit instead of exhausting the runner queue; main uses the same rule and workflows triggered only by schedules, dispatch or other events stay unchanged.
 
 - K25: stage the actual packet-helper acceptance executable under the fixture’s private directory with mode 0500 before launch, because hosted runner build/download paths may have writable ancestors; retain the launcher’s strict ancestor refusal unchanged.
 
 - K25: give the confined production packet helper only its private configuration file, since hostname resolution belongs to separate policy gateways; take DHCP ports directly from the pinned DHCP library, avoiding system resolver/service files with foreign-owned ancestors while preserving strict launcher checks and naming the refused path.
+
+- K25: build trusted guest hostname redirects and default public-IPv4 filtering before DHCP or image code, deriving standard ports from verified helper metadata and denied prefixes from the transfer-target owner; an internal policy enum distinguishes absent rules from explicit allowlists without relaxing Docker’s named policy.
+
+- K25: keep packet configuration in its own owned directory beside the monitor boot directory and bind the packet socket at the monitor’s actual port prefix, retaining helper resources through child retirement even when its caller cancels or drops the boot.
+
+- K25: capture only transport phases and admitted connection counts in test-built forwarding helpers, with no request bytes or credentials; preserve one-shot exec submission and existing deadlines while diagnosing intermittent KVM output reads.

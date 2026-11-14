@@ -388,6 +388,7 @@ async fn boot(
         mac: fixture.configuration["guestMac"].as_str().unwrap().into(),
         mtu: fixture.configuration["mtu"].as_u64().unwrap() as u32,
         vsock_port: Some(metadata["networkPort"].as_u64().unwrap() as u32),
+        policy: None,
     });
     let boot = Boot {
         version: vm_boot::VERSION,

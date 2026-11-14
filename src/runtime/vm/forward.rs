@@ -50,20 +50,23 @@ impl Forwarder {
         if bindings.is_empty() || concurrency == 0 {
             return Err(error("VM forwarding requires admitted bindings and positive concurrency"));
         }
-        let message = serde_json::to_vec(&serde_json::json!({"socket": socket,
-            "forward": {"bindings": bindings, "concurrency": concurrency, "parent": std::process::id()}}))
-        .map_err(error)?;
+        let configuration = serde_json::json!({"socket": socket,
+            "forward": {"bindings": bindings, "concurrency": concurrency, "parent": std::process::id()}});
+        #[cfg(test)]
+        let configuration = {
+            let mut configuration = configuration;
+            configuration["forward"]["diagnostics"] = true.into();
+            configuration
+        };
+        let message = serde_json::to_vec(&configuration).map_err(error)?;
         if message.len() > pryx_agent::contract::MAX_REQUEST_BYTES {
             return Err(error("VM forwarding configuration exceeds its bound"));
         }
-        let mut child = tokio::process::Command::new(binary)
-            .env_clear()
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .kill_on_drop(true)
-            .spawn()
-            .map_err(error)?;
+        let mut command = tokio::process::Command::new(binary);
+        command.env_clear().stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null()).kill_on_drop(true);
+        #[cfg(test)]
+        command.stderr(Stdio::inherit());
+        let mut child = command.spawn().map_err(error)?;
         let mut input = child.stdin.take().ok_or_else(|| error("Missing VM forwarding input pipe"))?;
         let output = child.stdout.take().ok_or_else(|| error("Missing VM forwarding readiness pipe"))?;
         let addresses = tokio::time::timeout_at(deadline, async {

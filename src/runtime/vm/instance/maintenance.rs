@@ -135,6 +135,7 @@ impl VmRuntime {
                 live: Live {
                     monitor,
                     forwarder,
+                    network: None,
                     _directory: directory,
                     serial,
                     channel,

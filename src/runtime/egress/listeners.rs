@@ -30,7 +30,7 @@ pub(in crate::runtime) async fn listen(
     address: IpAddr,
     ports: Ports,
     subnet: ipnet::IpNet,
-    policy: EgressPolicy,
+    policy: Policy,
     capacity: usize,
 ) -> io::Result<(Ports, DropGuard)> {
     let private = match address {
@@ -73,7 +73,7 @@ mod tests {
     #[tokio::test]
     async fn ephemeral_listeners_enforce_policy_and_retire_together() {
         let address = Ipv4Addr::LOCALHOST;
-        let policy = EgressPolicy { allow: vec![], deny: vec![] };
+        let policy = Policy::Names(EgressPolicy { allow: vec![], deny: vec![] });
         let (ports, lifetime) = listen(
             address.into(),
             Ports { http: 0, tls: 0, dns: 0 },
@@ -138,7 +138,7 @@ mod tests {
                 address.into(),
                 Ports { http: 0, tls: 0, dns: 0 },
                 ipnet::IpNet::new(Ipv4Addr::LOCALHOST.into(), u32::BITS as u8).unwrap(),
-                EgressPolicy { allow: vec![], deny: vec![] },
+                Policy::Names(EgressPolicy { allow: vec![], deny: vec![] }),
                 capacity,
             )
             .await;

@@ -14,13 +14,14 @@ const CONNECT: Duration = Duration::from_secs(5);
 fn denied() -> io::Error {
     io::ErrorKind::PermissionDenied.into()
 }
-pub(super) fn allowed(host: &str, policy: &EgressPolicy) -> bool {
+pub(super) fn allowed(host: &str, policy: &Policy) -> bool {
+    let Policy::Names(policy) = policy else { return true };
     fn matches(host: &str, rule: &str) -> bool {
         rule.strip_prefix("*.").map_or(host == rule, |suffix| host.ends_with(&format!(".{suffix}")))
     }
     !policy.deny.iter().any(|rule| matches(host, rule)) && policy.allow.iter().any(|rule| matches(host, rule))
 }
-async fn resolve(host: &str, port: u16, policy: &EgressPolicy) -> io::Result<Vec<SocketAddr>> {
+async fn resolve(host: &str, port: u16, policy: &Policy) -> io::Result<Vec<SocketAddr>> {
     if !allowed(host, policy) || host.parse::<IpAddr>().is_ok() {
         return Err(denied());
     }
@@ -36,7 +37,7 @@ pub(in crate::runtime) fn serve(
     listener: TcpListener,
     tls: bool,
     subnet: ipnet::IpNet,
-    policy: EgressPolicy,
+    policy: Policy,
     capacity: Arc<Semaphore>,
     cancel: CancellationToken,
 ) {
@@ -77,7 +78,7 @@ pub(in crate::runtime) fn serve(
         }
     });
 }
-async fn forward_http(request: Request, policy: &EgressPolicy) -> io::Result<Response> {
+async fn forward_http(request: Request, policy: &Policy) -> io::Result<Response> {
     let fields: Vec<_> = request.headers().get_all(hyper::header::HOST).iter().collect();
     if fields.len() != 1 {
         return Err(denied());
@@ -126,7 +127,7 @@ async fn forward_http(request: Request, policy: &EgressPolicy) -> io::Result<Res
     }
     response.body(Body::from_stream(upstream.bytes_stream())).map_err(io::Error::other)
 }
-async fn forward_tls(mut downstream: TcpStream, policy: &EgressPolicy) -> io::Result<()> {
+async fn forward_tls(mut downstream: TcpStream, policy: &Policy) -> io::Result<()> {
     let mut prefix = Vec::new();
     let host = tokio::time::timeout(CONNECT, async {
         loop {
@@ -228,10 +229,10 @@ mod tests {
     use super::*;
     #[test]
     fn deny_overrides_allow_and_wildcards_are_component_bounded() {
-        let policy = EgressPolicy {
+        let policy = Policy::Names(EgressPolicy {
             allow: vec!["*.example.com".into(), "example.org".into()],
             deny: vec!["private.example.com".into()],
-        };
+        });
         assert!(allowed("www.example.com", &policy));
         assert!(!allowed("example.com", &policy));
         assert!(!allowed("otherexample.com", &policy));
@@ -269,7 +270,7 @@ mod hello_tests {
     }
     #[tokio::test]
     async fn raw_ip_policy_entries_cannot_bypass_hostname_enforcement() {
-        let policy = EgressPolicy { allow: vec!["127.0.0.1".into()], deny: vec![] };
+        let policy = Policy::Names(EgressPolicy { allow: vec!["127.0.0.1".into()], deny: vec![] });
         assert_eq!(resolve("127.0.0.1", 80, &policy).await.unwrap_err().kind(), io::ErrorKind::PermissionDenied);
     }
 }

@@ -139,13 +139,16 @@ pub(crate) fn public_tls() -> Result<Arc<rustls::ClientConfig>, String> {
     if let Some(config) = CONFIG.get() {
         return Ok(config.clone());
     }
-    let bundle = ["/etc/ssl/certs/ca-certificates.crt", "/etc/ssl/cert.pem", "/etc/pki/tls/certs/ca-bundle.crt"]
+    let config = bundle_tls(public_bundle()?)?;
+    Ok(CONFIG.get_or_init(|| config).clone())
+}
+
+pub(crate) fn public_bundle() -> Result<&'static Path, String> {
+    ["/etc/ssl/certs/ca-certificates.crt", "/etc/ssl/cert.pem", "/etc/pki/tls/certs/ca-bundle.crt"]
         .into_iter()
         .map(Path::new)
-        .find(|p| p.exists())
-        .ok_or("no system CA bundle found")?;
-    let config = bundle_tls(bundle)?;
-    Ok(CONFIG.get_or_init(|| config).clone())
+        .find(|path| path.exists())
+        .ok_or_else(|| "no system CA bundle found".into())
 }
 
 /// TLS settings that trust the roots in `bundle`. A root that doesn't parse is left out, as rustls
@@ -324,6 +327,25 @@ impl JsonError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn a_timed_out_request_releases_its_actual_connection() {
+        use tokio::io::AsyncReadExt;
+        let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let url = format!("http://{}/pending", listener.local_addr().unwrap());
+        let peer = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = Vec::new();
+            socket.read_to_end(&mut request).await.unwrap();
+            assert!(!request.is_empty());
+        });
+        let error = get_small(&url, None, 4096, Duration::from_millis(100)).await.unwrap_err();
+        assert!(matches!(error, ClientError::Timeout(..)));
+        tokio::time::timeout(Duration::from_secs(1), peer)
+            .await
+            .expect("HTTP timeout retained the real peer connection")
+            .unwrap();
+    }
 
     /// A server that reads one request and answers every connection with `answer`, raw, then
     /// writes nothing more: it closes the connection if `close`, and otherwise holds it open.

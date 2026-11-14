@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -28,6 +29,7 @@ type forwarding struct {
 	Bindings    []binding `json:"bindings"`
 	Concurrency uint16    `json:"concurrency"`
 	Parent      uint32    `json:"parent"`
+	Diagnostics bool      `json:"diagnostics,omitempty"`
 }
 
 func forward(input request) error {
@@ -80,6 +82,7 @@ func forward(input request) error {
 		}
 	}()
 	capacity := make(chan struct{}, plan.Concurrency)
+	var sequence atomic.Uint64
 	var active sync.WaitGroup
 	var accepting sync.WaitGroup
 	accepting.Add(len(listeners))
@@ -99,12 +102,19 @@ func forward(input request) error {
 					client.Close()
 					continue
 				}
+				id := sequence.Add(1)
+				observe := func(stage string) {
+					if plan.Diagnostics {
+						fmt.Fprintf(os.Stderr, "VM ingress process=%d connection=%d service=%d stage=%s active=%d\n", os.Getpid(), id, port, stage, len(capacity))
+					}
+				}
+				observe("accepted")
 				active.Add(1)
 				go func() {
 					defer active.Done()
 					defer func() { <-capacity }()
 					defer client.Close()
-					if err := relay(ctx, client, input.Socket, port); err != nil {
+					if err := relay(ctx, client, input.Socket, port, plan.Diagnostics, observe); err != nil {
 						return
 					}
 				}()
@@ -120,7 +130,23 @@ func forward(input request) error {
 	return nil
 }
 
-func relay(ctx context.Context, client net.Conn, path string, port uint32) error {
+type observedReader struct {
+	io.Reader
+	first func()
+}
+
+func (reader *observedReader) Read(data []byte) (int, error) {
+	n, err := reader.Reader.Read(data)
+	if n > 0 && reader.first != nil {
+		reader.first()
+		reader.first = nil
+	}
+	return n, err
+}
+
+func relay(ctx context.Context, client net.Conn, path string, port uint32, diagnostics bool, observe func(string)) error {
+	defer observe("closed")
+	observe("dial")
 	connecting, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	guest, err := vsock.DialContext(connecting, path, port)
@@ -128,6 +154,7 @@ func relay(ctx context.Context, client net.Conn, path string, port uint32) error
 		return err
 	}
 	defer guest.Close()
+	observe("connected")
 	closeConnection := context.AfterFunc(ctx, func() { client.Close(); guest.Close() })
 	defer closeConnection()
 	// The SDK owns connection establishment. HTTP/2 CONNECT owns half-close and
@@ -141,6 +168,7 @@ func relay(ctx context.Context, client net.Conn, path string, port uint32) error
 		return err
 	}
 	defer connection.Close()
+	observe("h2-ready")
 	reader, writer := io.Pipe()
 	defer reader.Close()
 	defer writer.Close()
@@ -150,17 +178,28 @@ func relay(ctx context.Context, client net.Conn, path string, port uint32) error
 	}
 	done := make(chan struct{})
 	go func() {
-		_, err := io.Copy(writer, client)
+		var source io.Reader = client
+		if diagnostics {
+			source = &observedReader{Reader: source, first: func() { observe("input-first-byte") }}
+		}
+		_, err := io.Copy(writer, source)
 		writer.CloseWithError(err)
+		observe("input-eof")
 		close(done)
 	}()
 	// A ClientConn has exactly this connection and never retries an application stream.
 	response, err := connection.RoundTrip(request)
 	if err == nil {
+		observe("response")
 		if response.StatusCode != http.StatusOK {
 			err = fmt.Errorf("Guest refused TCP stream")
 		} else {
-			_, err = io.Copy(client, response.Body)
+			var source io.Reader = response.Body
+			if diagnostics {
+				source = &observedReader{Reader: source, first: func() { observe("output-first-byte") }}
+			}
+			_, err = io.Copy(client, source)
+			observe("output-eof")
 		}
 		response.Body.Close()
 	}

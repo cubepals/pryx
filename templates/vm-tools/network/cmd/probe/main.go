@@ -4,7 +4,8 @@
 // Requests are safe GETs except deliberate, required-to-be-denied proxy management probes.
 //
 // Parts (`network/cmd/probe/`): main.go measures network paths; server.go serves opaque
-// acceptance bytes; policy.go checks inherited packet-transport denials as a workload.
+// acceptance bytes; policy.go checks inherited packet-transport denials as a workload;
+// production.go attacks the immutable production guest policy.
 package main
 
 import (
@@ -234,7 +235,14 @@ func main() {
 	verifyOnly := flag.Bool("verify", false, "Verify a prepared network without privileged setup")
 	verifyRestricted := flag.Bool("verify-restricted", false, "Verify prepared networking and kernel refusal of direct packet transport")
 	policyOnly := flag.Bool("policy-only", false, "Check inherited unprivileged guest socket policy")
+	production := flag.String("production-policy", "", "Private production policy acceptance configuration")
 	flag.Parse()
+	if *production != "" {
+		if err := productionPolicy(*production); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	if *policyOnly {
 		if err := guestPolicy(); err != nil {
 			log.Fatal(err)

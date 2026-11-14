@@ -79,6 +79,9 @@ impl VmRuntime {
             }
         }
         live.forwarder.stop().await.map_err(error)?;
+        if let Some(network) = &mut live.network {
+            network.stop().await.map_err(error)?;
+        }
         let capture_deadline = if forced { Instant::now() + crate::runtime::ENGINE_PROBE_TIMEOUT } else { deadline };
         let capture = tokio::time::timeout_at(capture_deadline, live.monitor.finish_serial())
             .await
@@ -115,9 +118,17 @@ impl VmRuntime {
                 if live.forwarder.exited().map_err(error)?.is_some() {
                     return Err(RuntimeError::Unavailable("VM forwarding process exited".into()));
                 }
+                if let Some(network) = &mut live.network
+                    && network.exited().map_err(error)?.is_some()
+                {
+                    return Err(RuntimeError::Unavailable("VM packet helper exited".into()));
+                }
                 ContainerStatus::Running
             } else {
                 live.forwarder.stop().await.map_err(error)?;
+                if let Some(network) = &mut live.network {
+                    network.stop().await.map_err(error)?;
+                }
                 let result = tokio::time::timeout(crate::runtime::ENGINE_PROBE_TIMEOUT, live.monitor.finish_serial())
                     .await
                     .map_err(|_| RuntimeError::Timeout("VM diagnostics did not finish after monitor exit".into()))

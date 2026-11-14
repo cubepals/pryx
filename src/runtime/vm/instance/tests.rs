@@ -7,7 +7,7 @@ use futures_util::StreamExt as _;
 use std::net::{Ipv4Addr, TcpListener};
 use tokio::io::AsyncReadExt;
 
-fn input(name: &str) -> PathBuf {
+pub(super) fn input(name: &str) -> PathBuf {
     std::env::var_os(name).unwrap_or_else(|| panic!("Stage {name}")).into()
 }
 pub(super) fn spec(data: &Path, image: &str) -> ContainerSpec {
@@ -400,6 +400,16 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
         runtime.remove(&job).await.unwrap();
+        for unrestricted in [false, true] {
+            super::network_acceptance::check(
+                &runtime,
+                temporary.path(),
+                image["reference"].as_str().unwrap(),
+                index,
+                unrestricted,
+            )
+            .await;
+        }
     }
     server.abort();
     println!(

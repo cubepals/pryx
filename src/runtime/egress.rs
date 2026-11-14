@@ -10,6 +10,18 @@ pub(crate) mod dns;
 pub(crate) mod gateway;
 mod listeners;
 use crate::protocol::EgressPolicy;
+
+/// Host-selected policy; requests with explicit rules always use Names.
+#[derive(Clone)]
+pub(in crate::runtime) enum Policy {
+    Names(EgressPolicy),
+    Public,
+}
+impl From<EgressPolicy> for Policy {
+    fn from(policy: EgressPolicy) -> Self {
+        Self::Names(policy)
+    }
+}
 pub(in crate::runtime) use listeners::{Ports, listen};
 use std::{net::IpAddr, sync::Arc, time::Duration};
 use tokio::{net::TcpListener, sync::Semaphore};

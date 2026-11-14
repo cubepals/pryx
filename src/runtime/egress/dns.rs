@@ -97,7 +97,7 @@ fn refusal(message: &[u8], rcode: u8, end: Option<usize>) -> Option<Vec<u8>> {
 
 /// What the sandbox is told for `message`: the host resolver's answer for an allowed name, REFUSED
 /// for any other, SERVFAIL when the host resolver doesn't answer, nothing for a non-query.
-pub(super) async fn answer(message: &[u8], policy: &EgressPolicy, tcp: bool) -> Option<Vec<u8>> {
+pub(super) async fn answer(message: &[u8], policy: &Policy, tcp: bool) -> Option<Vec<u8>> {
     match question(message) {
         Ok(question) if gateway::allowed(&question.name, policy) => match forward(message, tcp).await {
             Ok(answer) => Some(answer),
@@ -163,7 +163,7 @@ pub(in crate::runtime) fn serve(
     udp: UdpSocket,
     tcp: TcpListener,
     subnet: ipnet::IpNet,
-    policy: EgressPolicy,
+    policy: Policy,
     capacity: Arc<Semaphore>,
     cancel: CancellationToken,
 ) {
@@ -228,8 +228,11 @@ mod tests {
         message
     }
 
-    fn policy() -> EgressPolicy {
-        EgressPolicy { allow: vec!["example.com".into(), "*.example.org".into()], deny: vec!["x.example.org".into()] }
+    fn policy() -> Policy {
+        Policy::Names(EgressPolicy {
+            allow: vec!["example.com".into(), "*.example.org".into()],
+            deny: vec!["x.example.org".into()],
+        })
     }
 
     #[test]

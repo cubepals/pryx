@@ -15,6 +15,7 @@
 //! - `runtime.rs`: runtime verbs, observations and bounded event polling.
 //! - `diagnostics.rs`: bounded credential-redacted serial CI artifacts, in test builds only.
 //! - `tests.rs`: actual KVM lifecycle acceptance through the runtime seam.
+//! - `network_acceptance.rs`: real workload packet flow and immutable egress attacks.
 mod agent;
 mod configuration;
 mod guest;
@@ -26,6 +27,8 @@ mod services;
 pub use maintenance::FileGuest;
 #[cfg(test)]
 mod diagnostics;
+#[cfg(test)]
+mod network_acceptance;
 mod runtime;
 #[cfg(test)]
 mod tests;
@@ -84,6 +87,7 @@ const UNKNOWN_EXIT_CODE: i64 = -1;
 struct Live {
     monitor: Machine,
     forwarder: Forwarder,
+    network: Option<super::network::Network>,
     _directory: tempfile::TempDir,
     serial: PathBuf,
     channel: PathBuf,

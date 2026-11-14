@@ -235,6 +235,8 @@ jobs:
       - name: Prove the production VM runtime seam on both OCI images
         if: ${{ !cancelled() && steps.vm-bundle.outcome == 'success' }}
         env:
+          PRYX_VM_HOST_PROXY: ${{ runner.temp }}/vm-network-proxy
+          PRYX_VM_HOST_LAUNCHER: ${{ runner.temp }}/vm-runtime/bin/vm-launcher
           PRYX_VM_RUNTIME_DIAGNOSTICS: ${{ runner.temp }}/vm-runtime-diagnostics
           PRYX_VM_POLICY_PROBE: ${{ runner.temp }}/vm-network-probe
           PRYX_VM_RUNTIME_DESCRIPTOR: ${{ runner.temp }}/vm-runtime.json
@@ -243,7 +245,9 @@ jobs:
           CARGO_PROFILE_TEST_DEBUG: '0'
           CARGO_INCREMENTAL: '0'
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
-        run: cargo test --locked --lib runtime::vm::instance::tests::actual_runtime_cold_boot_exec_stop_wake_copy_and_fork -- --ignored --nocapture | tee "$RUNNER_TEMP/vm-runtime-acceptance.log"
+        run: |
+          cargo test --locked --lib runtime::vm::network::tests -- --ignored --nocapture | tee "$RUNNER_TEMP/vm-network-ownership.log"
+          cargo test --locked --lib runtime::vm::instance::tests::actual_runtime_cold_boot_exec_stop_wake_copy_and_fork -- --ignored --nocapture | tee "$RUNNER_TEMP/vm-runtime-acceptance.log"
       - name: Prepare real pinned Alpine and Debian OCI layers without an engine
         if: ${{ !cancelled() && steps.vm-rust.outcome == 'success' }}
         env:
@@ -280,6 +284,7 @@ jobs:
           path: |
             ${{ runner.temp }}/vm-runtime-acceptance.log
             ${{ runner.temp }}/vm-host-policy.log
+            ${{ runner.temp }}/vm-network-ownership.log
             ${{ runner.temp }}/vm-runtime-diagnostics/*.serial.log
           if-no-files-found: warn
       - name: Retain candidate identities and actual digests

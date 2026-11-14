@@ -9,6 +9,8 @@
 //! - `bundle.rs`: whole-release verification and lazy acquisition of pinned VM inputs.
 //! - `disk.rs`: leased ext4 creation, read-only validation and staged safe recovery.
 //! - `machine.rs`: owned confined monitor process and one-shot private bootstrap.
+//! - `network.rs`: owned confined packet helper and hostname gateways.
+//! - `network_tests.rs`: real helper readiness, refusal and cancellation acceptance.
 //! - `serial.rs`: bounded monitor byte capture, drained before proof validation.
 //! - `transport.rs`: bounded one-shot SDK requests over private pipes.
 //! - `forward.rs`: owned private-address streaming forwarding processes.
@@ -20,6 +22,7 @@ pub mod forward;
 pub mod image;
 pub mod instance;
 pub mod machine;
+pub mod network;
 mod serial;
 pub mod transport;
 

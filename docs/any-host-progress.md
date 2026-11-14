@@ -15,7 +15,7 @@ and cancellation inventories mean their CI artifacts; no raw output is kept in t
 | K22 | done except | `7963826182e3f8e9037aea17d4716df15086bd81` | Normal push [43075452804](https://github.com/cubepals/pryx/actions/runs/43075452804) and PR [43075462394](https://github.com/cubepals/pryx/actions/runs/43075462394), Any host [43075452782](https://github.com/cubepals/pryx/actions/runs/43075452782), Rootless engines [43075452793](https://github.com/cubepals/pryx/actions/runs/43075452793) and [43075462656](https://github.com/cubepals/pryx/actions/runs/43075462656), all green; supplementary Measure [43063939164](https://github.com/cubepals/pryx/actions/runs/43063939164) on source 87400f3 is also green | Full normal CI including actual rootful Docker, Wasm, two-node, integrations and recovery; all 15 host jobs; Podman lifecycle/attacks, install/repeat/upgrade/outage/recovery/purge; controller refusals, copy-bound guarantees and 30 hosted engine samples | Main/release prohibited; unchanged credentialed cases | Standard rootless Docker data-owner mapping with dependent positive lifecycle/timings; rootless Docker internal ingress/network-policy. Three approaches each recorded; both remain named refusals until their post-K27 second try | Supported scope complete; K23 started |
 | K23 | done | `5945724a4ac8fbc28610292d701ffa7e9bffc040` | Normal push [43233699289](https://github.com/cubepals/pryx/actions/runs/43233699289) and PR [43233712859](https://github.com/cubepals/pryx/actions/runs/43233712859), Any host [43233699231](https://github.com/cubepals/pryx/actions/runs/43233699231), Rootless engines [43233699487](https://github.com/cubepals/pryx/actions/runs/43233699487) and [43233712730](https://github.com/cubepals/pryx/actions/runs/43233712730), CodeQL [43233712847](https://github.com/cubepals/pryx/actions/runs/43233712847), all green | Signed fresh ordinary-user installation without engine; actual pinned upstream Python/Node paths and host glibc; both SDKs, state/charts/errors/interrupt/restart, MCP/CLI; browser screenshot/forwarded CDP and guarantee; thirty process and container samples per tool; default-Docker kernels and namespace/required-browser refusals; neighbour isolation, purge, Alpine relocation; full normal CI and all sixteen host jobs | Main/release prohibited; unchanged credentialed cases | None; corrected relocatable bundle is complete, with no binary rewriting or private tool glibc | Complete; begin K24 immediately |
 | K24 | done | `53e83505f823cf4b92aca2b4a952cf084c636f32` | Normal PR [43421825320](https://github.com/cubepals/pryx/actions/runs/43421825320) and all sixteen Any-host jobs [43421813961](https://github.com/cubepals/pryx/actions/runs/43421813961), green | Signed user install, real SDK/CLI desktop and HTTP SSH/wake, noVNC/expiry, Chromium sandbox and neighbour privacy, OpenSSH PTY/keys/leases, configured doctor/placement, 30 samples per tool, unchanged container budgets, full normal and host matrix | Main/release prohibited; unchanged credentialed cases | None | Complete; begin K25 |
-| K25 | in progress | — | Kernel [43442622901](https://github.com/cubepals/pryx/actions/runs/43442622901) and thirty-per-path comparison [43450896770](https://github.com/cubepals/pryx/actions/runs/43450896770), green; repeated pasta stall retained | Verified published inputs, thirty ordinary-user KVM EROFS/overlay/ext4/vsock boots, disk reboot, both network cohorts and management denials | Production VM bundle/backend/lifecycle/confinement/timings; no local KVM | None | Both spikes have recorded decisions; build the VM tier and retain the unresolved alternative-path MAC issue |
+| K25 | in progress | — | Kernel [43442622901](https://github.com/cubepals/pryx/actions/runs/43442622901), comparison [43450896770](https://github.com/cubepals/pryx/actions/runs/43450896770), current VM seam/profile [43562677123](https://github.com/cubepals/pryx/actions/runs/43562677123), green | Verified inputs, ordinary-user published-kernel boots, actual OCI cold lifecycle/files/copy/fork/journals/logs/stats, guest nft/socket policy, confined host packet profile | Root/TAP/jailer, installed node/edge VM lifecycle, production network flow and thirty production samples; no local KVM | None | Finish production networking, root integration, protected configuration/install/release, tier registration, node/edge acceptance, measurements and full CI/transport proof |
 | K26 | not started | — | — | — | All | — | Complete brief after K25 |
 | K27 | not started | — | — | — | All | — | Complete brief after K26, then revisit every parked piece | Raw output belongs to the cited CI artifacts; the repository keeps only its summary.
 
@@ -3628,3 +3628,46 @@ job when publication is authorized. That job has not run in this task.
   tests pass (0.12 s). Strict all-target Clippy, static Go builds/vet, fmt, actionlint
   and whitespace pass. Current draft packet flow and guest nft transactions have not
   run locally; only hosted KVM may prove them. Normal CI remains queued/pending.
+
+- Source 080ebc1 VM run 43562677123/job 132349615376 is green, including all three
+  actual ordinary-host policy tests (0.12 s), bundle (9.62 s), complete real-KVM
+  runtime (85.01 s), registry (13.19 s) and component (34.82 s). Summary:
+  checks/measurements/k25/private-profile-080ebc1.json. CodeQL and rootless engine
+  checks are green; normal and Any-host workflows still wait behind earlier runs.
+- The latest queue rule holds the next overlapping push while those newest pushed-source
+  results are pending. The next local checkpoint consists of a move-only extraction
+  (bundle compatibility and service forwarding) followed by the K25 owned-network
+  implementation; their current combined local tree is being verified, not claimed as CI.
+- The network draft also supports default public IPv4 egress with private/link-local/
+  metadata/multicast/reserved destinations dropped, sharing the transfer-target module’s
+  one prefix boundary. Explicit hostname rules still select the original named policy.
+  Both modes keep DNS in owned host gateways, all guest IPv6/forwarding off, and workload
+  packet syscalls refused. The two extra cases per image preserve every original
+  disconnected case: four optional boots total, estimated up to two optional minutes,
+  zero ordinary PR minutes and no new jobs/gates. No VM host-firewall claim is added.
+- Actual local host-helper acceptance now includes cancellation/drop for internal and
+  monitor-prefix packet sockets, and occupied leases. The extra test first exposes an
+  unsafe default temp-directory mode; explicit 0700 fixes it without changing the
+  launcher. Configuration resources live beside the boot directory so its retirement
+  cannot remove them before actual helper exit. Both actual tests pass (0.13 s).
+- Both generated guest rulesets reach the pinned nft 1.1.6 parser with only the expected
+  unprivileged netlink refusal; an initially reserved chain name was corrected. This
+  does not prove a kernel transaction. A real stalled-HTTP regression confirms the host
+  client retires its socket on timeout (0.10 s), ruling out that local ownership
+  hypothesis without fixing the intermittent KVM output failure. Test-only forwarding
+  phases/capacity counters now go to existing CI diagnostics with no payloads, headers
+  or environment values; no submission retry or deadline changes are made.
+- Completed local checkpoint validation: full Rust 525 passes, the unchanged IPv6
+  fixture failure and 37 ignored; both actual helper/gateway tests pass, including four
+  internal/external endpoint retirement combinations plus lease contention. All-target,
+  default and fs-only strict Clippy, Go builds/vet, formatting, actionlint and whitespace
+  pass. Explicit complexity linting adds no daemon warnings; existing agent warnings are
+  unchanged in the daemon structure scope. The new HTTP socket-lifetime regression adds
+  about 0.10 s to normal Rust tests. KVM network rules/flow remain unproved until the
+  checkpoint is pushed and the existing optional VM job runs.
+- Save the move-only and implementation checkpoints locally while holding their push
+  for the newest pushed source’s pending normal CI. VM run 43562677123, CodeQL and
+  both rootless-engine runs on 080ebc1 are green; Any-host is now active. The queue
+  rule takes precedence over starting another overlapping run at the thirty-minute
+  checkpoint. Continue by reading that source’s outstanding results and PR 21 comments,
+  then push these checkpoints together once their workflow inputs may advance.

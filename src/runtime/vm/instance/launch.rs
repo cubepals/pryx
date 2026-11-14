@@ -31,9 +31,7 @@ pub(super) fn resources(spec: &ContainerSpec) -> Result<(u64, u32, u32, u32), Ru
     }
     let cpus = match spec.nano_cpus {
         Some(n) if n > 0 && n % NANO_CPU == 0 => u32::try_from(n / NANO_CPU).map_err(error)?,
-        Some(_) => {
-            return Err(error("VM guest-size CPU limits require a positive whole vCPU count"));
-        }
+        Some(_) => return Err(error("VM guest-size CPU limits require a positive whole vCPU count")),
         None => 1,
     };
     let (uid, gid) = spec.user.split_once(':').unwrap_or((&spec.user, &spec.user));
@@ -41,8 +39,8 @@ pub(super) fn resources(spec: &ContainerSpec) -> Result<(u64, u32, u32, u32), Ru
     if uid == 0 || gid == 0 {
         return Err(error("VM host policy requires non-root numeric guest IDs"));
     }
-    if !spec.internal_network || spec.egress.is_some() {
-        return Err(error("Production VM networking and hostname policy are not ready in this checkpoint"));
+    if spec.internal_network && spec.egress.is_some() {
+        return Err(error("A disconnected VM cannot request hostname egress"));
     }
     if !spec.packages.is_empty() {
         return Err(error("VM images provide their own packages; registry kernels are not enabled for this tier"));
@@ -81,6 +79,38 @@ impl VmRuntime {
         .await
     }
 
+    async fn network(
+        &self,
+        bundle: &Bundle,
+        directory: &Path,
+        lease: &Path,
+        entry: &Entry,
+        deadline: Instant,
+    ) -> Result<Option<super::super::network::Network>, RuntimeError> {
+        let socket = directory.join(format!("vsock_{}", pryx_agent::vm_boot::PACKET_PORT));
+        let network_lease = lease.with_extension("network.lock");
+        let network = if !entry.spec.internal_network {
+            Some(
+                super::super::network::Network::start(
+                    super::super::network::Paths {
+                        launcher: &bundle.root().join("bin/vm-launcher"),
+                        program: &bundle.root().join("bin/network-proxy"),
+                        boots: &self.state.root.join("boots"),
+                        lease: &network_lease,
+                        socket: Some(&socket),
+                    },
+                    entry.spec.egress.clone(),
+                    self.state.settings.ingress_connections,
+                    deadline,
+                )
+                .await?,
+            )
+        } else {
+            None
+        };
+        Ok(network)
+    }
+
     pub(super) async fn prepared(&self, image: &str, timeout: Duration) -> Result<Prepared, RuntimeError> {
         let bundle = self.bundle().await?;
         super::super::image::prepare(
@@ -106,6 +136,9 @@ impl VmRuntime {
                 return Ok(());
             }
             previous.forwarder.stop().await.map_err(error)?;
+            if let Some(network) = &mut previous.network {
+                network.stop().await.map_err(error)?;
+            }
             drop(previous);
             self.state.live.lock().unwrap().remove(&entry.id);
         }
@@ -129,6 +162,7 @@ impl VmRuntime {
         let serial = directory.path().join("serial");
         let config_path = directory.path().join("monitor.json");
         let deadline = Instant::now() + BOOT_TIMEOUT;
+        let network = self.network(&bundle, directory.path(), &lease, &entry, deadline).await?;
         let configuration = super::configuration::configure(
             &bundle,
             &image,
@@ -139,7 +173,8 @@ impl VmRuntime {
             deadline,
         )
         .await?;
-        let boot = super::guest::boot(&entry.spec, &entry.id, &image, &configuration, (uid, gid))?;
+        let mut boot = super::guest::boot(&entry.spec, &entry.id, &image, &configuration, (uid, gid))?;
+        boot.network = network.as_ref().map(super::super::network::Network::guest).transpose()?;
         let nonce = boot.nonce.clone();
         let plan = plan(&bundle, image.layers, disk.path, directory.path(), lease, &api, &config_path);
         entry.started = Some(crate::clock::now());
@@ -165,6 +200,7 @@ impl VmRuntime {
             Arc::new(tokio::sync::Mutex::new(Live {
                 monitor,
                 forwarder,
+                network,
                 _directory: directory,
                 serial,
                 channel,

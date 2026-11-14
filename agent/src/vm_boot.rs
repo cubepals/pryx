@@ -23,6 +23,8 @@ pub const INIT_MODE: &str = "vm-init";
 pub const PACKET_PROGRAM: &str = "gvforwarder";
 pub const NETWORK_PROGRAM: &str = "guest-network";
 pub const FIREWALL_VERSION: u16 = 1;
+pub const NETWORK_POLICY_VERSION: u16 = 1;
+pub const PACKET_PORT: u32 = 11830;
 pub const FIREWALL_DIRECTORY: &str = "firewall";
 pub const FIREWALL_PROGRAM: &str = "helpers/nft";
 pub const FIREWALL_LOADER: &str = "libraries/ld-musl-x86_64.so.1";
@@ -81,4 +83,29 @@ pub struct Network {
     pub mtu: u32,
     /// Present for the maintained vsock path; absent for a host-managed virtio TAP.
     pub vsock_port: Option<u32>,
+    /// Absent only for the independently trusted comparison fixture.
+    #[serde(default)]
+    pub policy: Option<NetworkPolicy>,
+}
+
+/// Port numbers come from the verified helper's executable metadata and admitted host gateways.
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Redirect {
+    pub source: u16,
+    pub target: u16,
+}
+
+/// Immutable guest redirects into host-owned hostname gateways. The workload never supplies it.
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct NetworkPolicy {
+    #[serde(default)]
+    pub unrestricted: bool,
+    pub host: std::net::Ipv4Addr,
+    pub http: Redirect,
+    pub tls: Redirect,
+    pub dns: Redirect,
+    pub dhcp_client: u16,
+    pub dhcp_server: u16,
 }

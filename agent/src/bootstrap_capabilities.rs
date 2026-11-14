@@ -67,6 +67,10 @@ pub struct Capabilities {
     pub vm_packet_proxy: bool,
     #[serde(default)]
     pub native_syscall_version: u16,
+    #[serde(default)]
+    pub vm_network_policy_version: u16,
+    #[serde(default)]
+    pub vm_packet_port: u32,
 }
 
 #[cfg(feature = "server")]
@@ -99,5 +103,7 @@ pub fn probe() -> Capabilities {
         vm_guest_policy_version: crate::vm_policy::VERSION,
         vm_packet_proxy: true,
         native_syscall_version: NATIVE_SYSCALL_VERSION,
+        vm_network_policy_version: crate::vm_boot::NETWORK_POLICY_VERSION,
+        vm_packet_port: crate::vm_boot::PACKET_PORT,
     }
 }

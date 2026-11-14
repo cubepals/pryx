@@ -149,7 +149,7 @@ impl Egress {
             gateway,
             egress::Ports { http: HTTP_PORT, tls: TLS_PORT, dns: DNS_PORT },
             subnet,
-            policy.clone(),
+            policy.clone().into(),
             MAX_CONNECTIONS,
         )
         .await

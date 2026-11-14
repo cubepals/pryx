@@ -118,6 +118,9 @@ fn compatible(bootstrap: &Bootstrap, expected: &BTreeMap<PathBuf, Member>, diges
         || bootstrap.metadata.vm_firewall_directory != pryx_agent::vm_boot::FIREWALL_DIRECTORY
         || bootstrap.metadata.vm_firewall_program != pryx_agent::vm_boot::FIREWALL_PROGRAM
         || bootstrap.metadata.vm_firewall_loader != pryx_agent::vm_boot::FIREWALL_LOADER
+        || bootstrap.metadata.vm_network_policy_version != pryx_agent::vm_boot::NETWORK_POLICY_VERSION
+        || bootstrap.metadata.vm_packet_port != pryx_agent::vm_boot::PACKET_PORT
+        || !bootstrap.metadata.vm_packet_proxy
         || bootstrap.metadata.vm_guest_policy_version != pryx_agent::vm_policy::VERSION
         || bootstrap.metadata.native_syscall_version != pryx_agent::bootstrap_capabilities::NATIVE_SYSCALL_VERSION
     {

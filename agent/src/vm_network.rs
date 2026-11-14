@@ -26,6 +26,22 @@ pub(crate) fn prepare(root: &DataDir, network: Option<&Network>) -> io::Result<(
     {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid host-owned guest network configuration"));
     }
+    if let Some(policy) = &network.policy {
+        let services = [policy.http.source, policy.tls.source, policy.dns.source];
+        let targets = [policy.http.target, policy.tls.target, policy.dns.target];
+        if !policy.host.is_private()
+            || services.contains(&0)
+            || targets.contains(&0)
+            || policy.dhcp_client == 0
+            || policy.dhcp_server == 0
+            || policy.dhcp_client == policy.dhcp_server
+            || services.contains(&policy.dhcp_server)
+            || services.iter().enumerate().any(|(index, port)| services[index + 1..].contains(port))
+            || targets.iter().enumerate().any(|(index, port)| targets[index + 1..].contains(port))
+        {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid host-owned guest network policy"));
+        }
+    }
     root.mkdir(DIRECTORY)?;
     root.chmod(DIRECTORY, 0o700)?;
     let source = root.write(RESOLVER)?;

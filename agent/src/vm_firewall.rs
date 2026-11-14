@@ -14,6 +14,87 @@ const DISCONNECTED: &[u8] = b"table inet pryx {
 ";
 
 pub(crate) async fn disconnected() -> io::Result<()> {
+    apply(DISCONNECTED).await
+}
+
+pub(crate) async fn redirected(network: &vm_boot::Network) -> io::Result<()> {
+    let policy = network.policy.as_ref().ok_or_else(|| io::Error::other("Missing trusted guest redirects"))?;
+    if policy.unrestricted {
+        return public_network(policy).await;
+    }
+    let rules = format!(
+        "table inet pryx {{
+ chain hostname_redirect {{ type nat hook output priority dstnat; policy accept;
+  oifname lo return;
+  meta nfproto ipv4 tcp dport {http} dnat ip to {host}:{http_target};
+  meta nfproto ipv4 tcp dport {tls} dnat ip to {host}:{tls_target};
+  meta nfproto ipv4 tcp dport {dns} dnat ip to {host}:{dns_target};
+  meta nfproto ipv4 udp dport {dns} dnat ip to {host}:{dns_target};
+ }}
+ chain input {{ type filter hook input priority filter; policy drop;
+  iifname lo accept;
+  ct state established,related accept;
+  udp sport {server} udp dport {client} accept;
+ }}
+ chain output {{ type filter hook output priority filter; policy drop;
+  oifname lo accept;
+  udp sport {client} udp dport {server} accept;
+  ip daddr {host} tcp dport {{ {http_target}, {tls_target}, {dns_target} }} accept;
+  ip daddr {host} udp dport {dns_target} accept;
+ }}
+ chain forward {{ type filter hook forward priority filter; policy drop; }}
+}}\n",
+        host = policy.host,
+        http = policy.http.source,
+        http_target = policy.http.target,
+        tls = policy.tls.source,
+        tls_target = policy.tls.target,
+        dns = policy.dns.source,
+        dns_target = policy.dns.target,
+        client = policy.dhcp_client,
+        server = policy.dhcp_server,
+    );
+    apply(rules.as_bytes()).await
+}
+
+async fn public_network(policy: &vm_boot::NetworkPolicy) -> io::Result<()> {
+    let blocked = crate::transfer_target::non_public_ipv4_networks()
+        .map(|(address, bits)| format!("{address}/{bits}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let rules = format!(
+        "table inet pryx {{
+ set non_public_v4 {{ type ipv4_addr; flags interval; elements = {{ {blocked} }}; }}
+ chain resolver_redirect {{ type nat hook output priority dstnat; policy accept;
+  oifname lo return;
+  meta nfproto ipv4 tcp dport {dns} dnat ip to {host}:{target};
+  meta nfproto ipv4 udp dport {dns} dnat ip to {host}:{target};
+ }}
+ chain input {{ type filter hook input priority filter; policy drop;
+  iifname lo accept;
+  ct state established,related accept;
+  udp sport {server} udp dport {client} accept;
+ }}
+ chain output {{ type filter hook output priority filter; policy drop;
+  oifname lo accept;
+  udp sport {client} udp dport {server} accept;
+  ip daddr {host} tcp dport {target} accept;
+  ip daddr {host} udp dport {target} accept;
+  ip daddr @non_public_v4 drop;
+  meta nfproto ipv4 accept;
+ }}
+ chain forward {{ type filter hook forward priority filter; policy drop; }}
+}}\n",
+        host = policy.host,
+        dns = policy.dns.source,
+        target = policy.dns.target,
+        client = policy.dhcp_client,
+        server = policy.dhcp_server,
+    );
+    apply(rules.as_bytes()).await
+}
+
+async fn apply(rules: &[u8]) -> io::Result<()> {
     let root = Path::new(vm_boot::BOOTSTRAP_ROOT).join(vm_boot::FIREWALL_DIRECTORY);
     let loader = root.join(vm_boot::FIREWALL_LOADER);
     let libraries = loader.parent().expect("fixed firewall loader has a parent");
@@ -30,7 +111,7 @@ pub(crate) async fn disconnected() -> io::Result<()> {
         .spawn()?;
     tokio::time::timeout(Duration::from_secs(5), async {
         let mut input = child.stdin.take().expect("private firewall input configured");
-        input.write_all(DISCONNECTED).await?;
+        input.write_all(rules).await?;
         input.shutdown().await?;
         drop(input);
         if !child.wait().await?.success() {

@@ -319,6 +319,8 @@ async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Err
     let kernel = fs::read_to_string("/proc/sys/kernel/osrelease")?.trim().to_owned();
     if boot.network.is_none() {
         crate::vm_firewall::disconnected().await?;
+    } else if let Some(network) = boot.network.as_ref().filter(|network| network.policy.is_some()) {
+        crate::vm_firewall::redirected(network).await?;
     }
     let mut network = crate::vm_network::start(boot.network.as_ref()).await?;
     let shutdown = crate::vm_shutdown::Listener::bind(boot.cid)?;
