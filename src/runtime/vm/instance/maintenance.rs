@@ -74,9 +74,16 @@ impl VmRuntime {
         let api = directory.path().join("api");
         let deadline = Instant::now() + launch::BOOT_TIMEOUT;
         let image = Prepared { digest: String::new(), layers: Vec::new(), configuration: Default::default() };
-        let configuration =
-            configuration::configure(&bundle, &image, &disk.path, &channel, &config_path, (memory, cpus), deadline)
-                .await?;
+        let configuration = configuration::configure(
+            &bundle,
+            &image,
+            &disk.path,
+            &channel,
+            configuration::Destination { output: &config_path, jail: None },
+            (memory, cpus),
+            deadline,
+        )
+        .await?;
         let mut boot = guest::boot(&entry.spec, &entry.id, &image, &configuration, (uid, gid))?;
         boot.arguments.push(format!("--{}", pryx_agent::bootstrap_capabilities::VM_FILES_ARGUMENT));
         let nonce = boot.nonce.clone();

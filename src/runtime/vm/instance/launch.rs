@@ -168,7 +168,7 @@ impl VmRuntime {
             &image,
             &disk.path,
             &channel,
-            &config_path,
+            super::configuration::Destination { output: &config_path, jail: None },
             (memory, cpus),
             deadline,
         )

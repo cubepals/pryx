@@ -195,7 +195,7 @@ pub(super) fn verified_exit(entry: &Entry, live: &Live) -> Result<i64, RuntimeEr
     }
 }
 
-fn shutdown_proof(
+pub(super) fn shutdown_proof(
     path: &Path,
     key: &str,
     nonce: &str,

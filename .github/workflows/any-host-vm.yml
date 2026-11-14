@@ -251,6 +251,9 @@ jobs:
       - name: Prove root jail disk staging and recovery
         if: ${{ !cancelled() && steps.vm-bundle.outcome == 'success' }}
         env:
+          PRYX_VM_RUNTIME_DESCRIPTOR: ${{ runner.temp }}/vm-runtime.json
+          PRYX_VM_RUNTIME_ARCHIVE: ${{ runner.temp }}/pryx-vm-linux-x64.tar.gz
+          PRYX_VM_RUNTIME_DIAGNOSTICS: ${{ runner.temp }}/vm-root-runtime-diagnostics
           CARGO_PROFILE_DEV_DEBUG: '0'
           CARGO_PROFILE_TEST_DEBUG: '0'
           CARGO_INCREMENTAL: '0'
@@ -259,8 +262,17 @@ jobs:
           PRYX_VM_ROOT_TEST_UID=$(id -u)
           PRYX_VM_ROOT_TEST_GID=$(id -g)
           export PRYX_VM_ROOT_TEST_UID PRYX_VM_ROOT_TEST_GID
-          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER='sudo --preserve-env=PRYX_VM_ROOT_TEST_UID,PRYX_VM_ROOT_TEST_GID --' \
-            cargo test --locked --lib runtime::vm::jail::tests::actual_root_mounts_retire_after_leases_and_recover_without_a_second_disk -- --ignored --nocapture | tee "$RUNNER_TEMP/vm-root-jail.log"
+          export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER='sudo --preserve-env=PRYX_VM_ROOT_TEST_UID,PRYX_VM_ROOT_TEST_GID,PRYX_VM_RUNTIME_DESCRIPTOR,PRYX_VM_RUNTIME_ARCHIVE,PRYX_VM_RUNTIME_DIAGNOSTICS --'
+          cargo test --locked --lib runtime::vm::jail::tests::actual_root_mounts_retire_after_leases_and_recover_without_a_second_disk -- --ignored --nocapture | tee "$RUNNER_TEMP/vm-root-jail.log"
+          cargo test --locked --lib runtime::vm::instance::root_acceptance::actual_jailer_boots_both_images_and_recovers_the_original_disk -- --ignored --nocapture | tee "$RUNNER_TEMP/vm-root-runtime.log"
+      - name: Hand redacted root monitor diagnostics to artifact upload
+        if: always()
+        env:
+          PRYX_VM_ROOT_DIAGNOSTICS: ${{ runner.temp }}/vm-root-runtime-diagnostics
+        run: |
+          if sudo test -d "$PRYX_VM_ROOT_DIAGNOSTICS"; then
+            sudo chown -R "$(id -u):$(id -g)" "$PRYX_VM_ROOT_DIAGNOSTICS"
+          fi
       - name: Prepare real pinned Alpine and Debian OCI layers without an engine
         if: ${{ !cancelled() && steps.vm-rust.outcome == 'success' }}
         env:
@@ -299,6 +311,8 @@ jobs:
             ${{ runner.temp }}/vm-host-policy.log
             ${{ runner.temp }}/vm-network-ownership.log
             ${{ runner.temp }}/vm-root-jail.log
+            ${{ runner.temp }}/vm-root-runtime.log
+            ${{ runner.temp }}/vm-root-runtime-diagnostics/
             ${{ runner.temp }}/vm-runtime-diagnostics/*.serial.log
           if-no-files-found: warn
       - name: Retain candidate identities and actual digests

@@ -16,6 +16,7 @@
 //! - `diagnostics.rs`: bounded credential-redacted serial CI artifacts, in test builds only.
 //! - `tests.rs`: actual KVM lifecycle acceptance through the runtime seam.
 //! - `network_acceptance.rs`: real workload packet flow and immutable egress attacks.
+//! - `root_acceptance.rs`: real jailed boots and original-disk ownership recovery.
 mod agent;
 mod configuration;
 #[cfg(test)]
@@ -27,6 +28,8 @@ mod logs;
 mod maintenance;
 #[cfg(test)]
 mod network_acceptance;
+#[cfg(test)]
+mod root_acceptance;
 mod runtime;
 mod services;
 #[cfg(test)]

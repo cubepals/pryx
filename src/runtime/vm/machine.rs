@@ -47,7 +47,26 @@ impl Machine {
         serial_limit: usize,
     ) -> Result<Self, RuntimeError> {
         private(&plan.directory)?;
-        if channel.parent() != Some(plan.directory.as_path()) || serial.parent() != Some(plan.directory.as_path()) {
+        let (socket_directory, socket_owner) = match &plan.role {
+            vm_monitor::Role::Ordinary => (plan.directory.clone(), None),
+            vm_monitor::Role::Jailer { uid, gid, id, base, monitor } => {
+                if !rustix::process::geteuid().is_root()
+                    || *uid == 0
+                    || *gid == 0
+                    || *uid == u32::MAX
+                    || *gid == u32::MAX
+                {
+                    return Err(error("Jailed VM bootstrap requires root and fixed non-root monitor identities"));
+                }
+                let monitor =
+                    monitor.file_name().and_then(|name| name.to_str()).ok_or_else(|| error("Invalid monitor name"))?;
+                let root = super::jail::root(base, monitor, id)?;
+                private(&root)?;
+                (root, Some((*uid, *gid)))
+            }
+            vm_monitor::Role::PacketProxy { .. } => return Err(error("A packet helper cannot bootstrap a VM")),
+        };
+        if channel.parent() != Some(socket_directory.as_path()) || serial.parent() != Some(plan.directory.as_path()) {
             return Err(error("VM listeners and serial output must stay in its private launch directory"));
         }
         let bytes = serde_json::to_vec(boot).map_err(error)?;
@@ -66,6 +85,9 @@ impl Machine {
         };
         let setup = (|| {
             fs::set_permissions(&listener_path, fs::Permissions::from_mode(0o600))?;
+            if let Some((uid, gid)) = socket_owner {
+                std::os::unix::fs::chown(&listener_path, Some(uid), Some(gid))?;
+            }
             let mut command = Command::new(launcher);
             command
                 .arg(vm_monitor::MODE)

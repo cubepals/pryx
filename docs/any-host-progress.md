@@ -3763,3 +3763,22 @@ job when publication is authorized. That job has not run in this task.
   strict all-target Clippy passes. No baseline exception, skipped assertion, job or
   gate is added. The next corrective push also carries the independently prepared
   root boot acceptance checkpoint after its complete local validation.
+- Root boot checkpoint composes the actual unchanged jailer with staged original disks,
+  generated configuration, one-shot bootstrap, authenticated ingress and signed shutdown.
+  Only the prebound bootstrap socket is handed to fixed host-selected non-root monitor
+  IDs; serial capture stays in the outer private directory. Existing ordinary launch
+  directory checks remain, and root path generation requires actual configurator metadata.
+- The existing optional root step now attempts both images twice, checking effective UID,
+  actual process root, live lease refusal, file contents across cold reboot, host-file and
+  signal refusal, a distinct guest kernel, signed disk shutdown and restoration of the
+  original disk's root ownership/inode. No real root/KVM case runs on this machine.
+  Estimated one extra optional minute, zero ordinary PR minutes, no new job or gate.
+  Artifact upload receives only the existing redacted serial tails, never bootstrap input.
+- Complete local checkpoint: 526 Rust passes, the unchanged host IPv6 fixture failure,
+  39 ignored; strict all-target/default Clippy, explicit daemon/integration length and
+  complexity diagnostics, fmt, actionlint with ShellCheck and whitespace checks pass.
+  Privileged boot and networking remain unproved. VM 43602659755 has finished with
+  the fixture failure above; Any-host 43602659763 still builds its runtime bundle.
+  Hold the next overlapping push for its current-source result under the queue rule.
+  Production root startup/tier registration remain refused; TAP/firewall, protected
+  install/release/configuration, node/edge acceptance and thirty samples remain unfinished.

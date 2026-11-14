@@ -14,6 +14,10 @@ pub(super) struct Configuration {
     pub identities: BTreeMap<String, String>,
     pub write_id: String,
 }
+pub(super) struct Destination<'a> {
+    pub output: &'a Path,
+    pub jail: Option<&'a Path>,
+}
 async fn output(mut command: Command, deadline: Instant) -> Result<Vec<u8>, RuntimeError> {
     command.env_clear().stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null()).kill_on_drop(true);
     tokio::time::timeout_at(deadline, async {
@@ -41,15 +45,23 @@ pub(super) async fn configure(
     image: &Prepared,
     disk: &Path,
     channel: &Path,
-    config_path: &Path,
+    destination: Destination<'_>,
     limits: (u64, u32),
     deadline: Instant,
 ) -> Result<Configuration, RuntimeError> {
+    let configurator = bundle.root().join("bin/vm-config");
+    let mut command = Command::new(&configurator);
+    command.arg("--metadata");
+    let metadata: Value = serde_json::from_slice(&output(command, deadline).await?).map_err(error)?;
+    if destination.jail.is_some() && metadata["jailPaths"] != true {
+        return Err(error("VM configurator does not advertise staged jail paths"));
+    }
+    let root = destination.jail.unwrap_or(bundle.root());
     let mut arguments = vec![
         "--kernel".into(),
-        bundle.root().join("kernel/vmlinux").display().to_string(),
+        root.join("kernel/vmlinux").display().to_string(),
         "--root".into(),
-        bundle.root().join("bootstrap/bootstrap.erofs").display().to_string(),
+        root.join("bootstrap/bootstrap.erofs").display().to_string(),
         "--writes".into(),
         disk.display().to_string(),
         "--socket".into(),
@@ -61,22 +73,21 @@ pub(super) async fn configure(
         "--vcpus".into(),
         limits.1.to_string(),
     ];
+    if let Some(jail) = destination.jail {
+        arguments.extend(["--jail-root".into(), jail.display().to_string()]);
+    }
     let ids = image.layers.iter().enumerate().map(|(i, _)| format!("layer{i}")).collect::<Vec<_>>();
     for (id, layer) in ids.iter().zip(&image.layers) {
         arguments.extend(["--layer".into(), format!("{id}={}", layer.display())]);
     }
-    let configurator = bundle.root().join("bin/vm-config");
     let mut command = Command::new(&configurator);
     command.args(&arguments);
     let config = output(command, deadline).await?;
-    crate::durable::write_atomic(config_path, &config, 0o600).map_err(error)?;
+    crate::durable::write_atomic(destination.output, &config, 0o600).map_err(error)?;
     let mut command = Command::new(&configurator);
     command.args(&arguments).arg("--identities");
     let identities: BTreeMap<String, String> =
         serde_json::from_slice(&output(command, deadline).await?).map_err(error)?;
-    let mut command = Command::new(&configurator);
-    command.arg("--metadata");
-    let metadata: Value = serde_json::from_slice(&output(command, deadline).await?).map_err(error)?;
     let cid = metadata["guestCid"]
         .as_u64()
         .and_then(|n| u32::try_from(n).ok())

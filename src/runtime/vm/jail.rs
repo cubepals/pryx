@@ -127,7 +127,7 @@ fn lease(path: &Path) -> Result<File, RuntimeError> {
 fn valid_id(id: &str) -> bool {
     uuid::Uuid::parse_str(id).is_ok_and(|value| value.simple().to_string() == id)
 }
-fn root(base: &Path, monitor: &str, id: &str) -> Result<PathBuf, RuntimeError> {
+pub(super) fn root(base: &Path, monitor: &str, id: &str) -> Result<PathBuf, RuntimeError> {
     if !valid_id(id)
         || monitor.is_empty()
         || Path::new(monitor).components().count() != 1
