@@ -1239,3 +1239,5 @@
 - K25: move the unchanged private scope advertisement/handoff schema into the root network component before adding its consumer, so descriptor roles and metadata types have one Go owner; preserve actual JSON bytes and every lifecycle operation.
 
 - K25: prove the actual root scope subprocess handoff and EOF/lease retirement inside the existing bounded system authority fixture, using the real CNI TAP and kernel flock; keep namespace descriptors alive while confirming explicit deletion, and close every received descriptor when SCM_RIGHTS is truncated. This is ownership proof, not a guest packet claim.
+
+- K25: identify the installed daemon by its direct executable or actual loader ELF payload, since tini also carries the wrapper path in its arguments; preserve the unique real-node assertion and guest signal-denial check.

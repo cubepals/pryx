@@ -4244,3 +4244,12 @@ job when publication is authorized. That job has not run in this task.
   acceptance remains pending in CI. Estimate under two optional VM seconds and zero normal
   PR minutes, no dependency/job/gate added. Source c718b74's VM run now contains the serial
   correction; its result and the older signed installation still need reading.
+
+- Signed-install source ea134a3, Any host run https://github.com/cubepals/pryx/actions/runs/43627526716,
+  job 132549993472: actual VM release, signed host archive, fresh ordinary-user install and
+  previous native acceptance finish. New VM admission succeeds, then its real-node lookup
+  matches both tini and its daemon. Require the daemon ELF payload (or direct executable),
+  preserving exactly one node and the unchanged guest signal/file/kernel assertions.
+- A real local supervisor/loader reproduction matches two processes before this correction
+  and only the payload after it. Full Bun check: 439 pass, one existing skip, 8,432 assertions;
+  actual installed SDK/edge/measurement acceptance still awaits CI. No job or gate added.

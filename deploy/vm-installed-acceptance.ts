@@ -39,8 +39,9 @@ function nodePid() {
     try {
       const status = readFileSync(`/proc/${name}/status`, 'utf8')
       if (Number(status.match(/^Uid:\s+(\d+)/m)?.[1]) !== process.getuid?.()) return []
+      // Tini carries the wrapper path too; only the loader carries the ELF payload.
       const argv = readFileSync(`/proc/${name}/cmdline`, 'utf8').split('\0')
-      return (argv.includes(nodeBinary) || argv.includes(`${nodeBinary}.real`)) &&
+      return (argv[0] === nodeBinary || argv.includes(`${nodeBinary}.real`)) &&
         argv.includes('serve') &&
         argv.includes(configured)
         ? [Number(name)]
