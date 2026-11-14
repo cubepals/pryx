@@ -60,6 +60,8 @@ pub struct Capabilities {
     pub vm_firewall_program: String,
     #[serde(default)]
     pub vm_firewall_loader: String,
+    #[serde(default)]
+    pub vm_guest_policy_version: u16,
 }
 
 #[cfg(feature = "server")]
@@ -89,5 +91,6 @@ pub fn probe() -> Capabilities {
         vm_firewall_directory: crate::vm_boot::FIREWALL_DIRECTORY.into(),
         vm_firewall_program: crate::vm_boot::FIREWALL_PROGRAM.into(),
         vm_firewall_loader: crate::vm_boot::FIREWALL_LOADER.into(),
+        vm_guest_policy_version: crate::vm_policy::VERSION,
     }
 }

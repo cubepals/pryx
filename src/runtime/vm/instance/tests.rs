@@ -139,6 +139,20 @@ async fn guest_firewall(runtime: &VmRuntime, id: &str) {
     assert!(refused.exit_code.is_some_and(|code| code != 0));
     assert!(!refused.timed_out && !refused.killed, "Guest policy is refused by the kernel");
 }
+async fn guest_socket_policy(runtime: &VmRuntime, spec: &ContainerSpec, id: &str) {
+    let files = runtime.data_service(file_request(spec)).await.unwrap();
+    let probe = fs::read(input("PRYX_VM_POLICY_PROBE")).unwrap();
+    let response = files
+        .request(crate::runtime::files::Operation::Write, "policy-probe", crate::http_client::full(probe))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), hyper::StatusCode::NO_CONTENT);
+    files.close().await.unwrap();
+    let result = exec(runtime, id, "chmod 500 /data/policy-probe; /data/policy-probe --policy-only").await;
+    let observed: BTreeMap<String, bool> = serde_json::from_slice(&result).unwrap();
+    assert!(observed["vsockSocketDenied"] && observed["vsockSocketpairDenied"] && observed["ioUringSetupDenied"]);
+    exec(runtime, id, "rm /data/policy-probe").await;
+}
 #[tokio::test]
 #[ignore = "requires real KVM, verified VM archive and public registries; existing optional VM CI runs it"]
 async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
@@ -196,6 +210,7 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
         runtime.start(&id).await.unwrap();
         assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Running);
         guest_firewall(&runtime, &id).await;
+        guest_socket_policy(&runtime, &original_spec, &id).await;
         if index == 1 {
             assert_eq!(
                 exec(&runtime, &id, "while ! test -e /data/signal-ready; do sleep 0.01; done; cat /data/signal-ready")

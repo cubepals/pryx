@@ -6,6 +6,7 @@
 // - cmd/proxy/main.go: maintained stack behind a restricted guest transport.
 // - cmd/guest/main.go: trusted guest loopback and maintained DHCP configuration.
 // - cmd/probe/main.go: real guest networking measurements and management denials.
+// - cmd/probe/policy.go: inherited packet-transport denials as an unprivileged workload.
 // - inputs.json: immutable Alpine and pasta source inputs.
 // - module-notices.json: pinned dependency closure and complete primary-notice digests.
 // - go.mod, go.sum: the separate comparison module and unchanged upstream forwarder tool.

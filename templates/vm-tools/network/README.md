@@ -11,6 +11,7 @@ Parts (`network/`):
 - `cmd/proxy/main.go`: separate guest packet transport and private host management listeners.
 - `cmd/guest/main.go`: trusted loopback and maintained DHCP setup without image-owned programs.
 - `cmd/probe/main.go` and `server.go`: guest network measurements, management denials and an unprivileged opaque TCP fixture.
+- `cmd/probe/policy.go`: unprivileged workload proof that new vsock sockets and io_uring setup are denied.
 - `network.go`: the upstream API's unexported route names, with their source recorded.
 - `inputs.json`: immutable Alpine and pasta source inputs, plus Alpine's actual package licences/source commits.
 - `module-notices.json`: the exact dependency closure's complete primary-notice identities.

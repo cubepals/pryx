@@ -1127,3 +1127,5 @@
 - K25: carry only nft's inventoried six-file ELF closure in the trusted read-only bootstrap, bind it to the host filesystem manifest and apply an atomic disconnected inet policy before launching the non-root agent; no image library or workload-selected rule reaches root.
 
 - K25: move existing hostname HTTP/TLS/DNS gateways into runtime egress before VM reuse, preserving policy/parser bodies and tests while leaving Docker bridge and firewall orchestration in its backend.
+
+- K25: after binding trusted ingress, synchronously filter every guest agent thread and descendant against new vsock sockets/socketpairs and io_uring setup; otherwise a workload could feed Ethernet directly to the host proxy around nftables. Trusted root init/forwarder remain outside that filter.

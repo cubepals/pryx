@@ -221,6 +221,7 @@ jobs:
         if: ${{ !cancelled() && steps.vm-bundle.outcome == 'success' }}
         env:
           PRYX_VM_RUNTIME_DIAGNOSTICS: ${{ runner.temp }}/vm-runtime-diagnostics
+          PRYX_VM_POLICY_PROBE: ${{ runner.temp }}/vm-network-probe
           PRYX_VM_RUNTIME_DESCRIPTOR: ${{ runner.temp }}/vm-runtime.json
           PRYX_VM_RUNTIME_ARCHIVE: ${{ runner.temp }}/pryx-vm-linux-x64.tar.gz
           CARGO_PROFILE_DEV_DEBUG: '0'

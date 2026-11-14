@@ -3409,3 +3409,26 @@ job when publication is authorized. That job has not run in this task.
   IPv6 fixture failure and 34 ignored; both strict Clippy modes, fmt and whitespace pass.
   No jobs/gates or material CI time added. Next wire the maintained ordinary-user packet
   helper and these same gateways to trusted guest policy; tier registration stays off.
+
+
+- K25 packet-transport bypass closure: nftables alone cannot constrain a workload that opens
+  its own vsock packet stream. After binding all trusted ingress listeners and before any
+  accept loop, apply the maintained seccompiler TSYNC filter to every agent thread: refuse
+  new AF_VSOCK sockets/socketpairs and io_uring setup. Descendants inherit it irreversibly;
+  root init/forwarder remain separate. Protected bundle metadata requires this actual parser/
+  policy version. Existing authenticated ingress continues through already bound listeners.
+- A real syscall regression passes across an already existing worker thread and exec children,
+  confirms TSYNC's kernel filter-count increase, keeps an open socket usable and permits TCP.
+  The static Go attack probe also passes locally in all three inherited filter contexts
+  (0.13 s combined targeted test). Full local Rust: 521 passes, the unchanged IPv6 fixture
+  failure and 34 ignored; both strict Clippy modes, Rust/Go formatting, Go build/test/vet,
+  actionlint and whitespace pass. No unsafe Rust or dependency additions are needed.
+- Existing optional KVM acceptance now uploads that same static fixture through the ordinary
+  streaming file service and executes it as the workload on each image; it must observe real
+  EPERM for socket, socketpair and io_uring setup before removal. The probe is outside the
+  production bundle/bootstrap. No extra boots/jobs/gates, estimated under ten optional seconds
+  and zero ordinary PR minutes. Actual guest proof remains pending. Source 8c11bb5 VM run
+  43547201050 has passed component build/relocation and remains active; scanner stays eighteen.
+  Next wire maintained user-mode networking to host-owned policy gateways, then root jailer/
+  TAP/firewall, protected install/config/release, node/edge lifecycle and thirty production
+  samples. K25 stays in progress and its tier remains unregistered.

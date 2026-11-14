@@ -3,7 +3,8 @@
 // forwarder owns the TAP and packet framing; BusyBox owns DHCP on the virtio path.
 // Requests are safe GETs except deliberate, required-to-be-denied proxy management probes.
 //
-// Parts (`network/cmd/probe/`): main.go measures network paths; server.go serves opaque acceptance bytes.
+// Parts (`network/cmd/probe/`): main.go measures network paths; server.go serves opaque
+// acceptance bytes; policy.go checks inherited packet-transport denials as a workload.
 package main
 
 import (
@@ -220,7 +221,14 @@ func main() {
 	ready := flag.String("ready-file", "", "Private guest readiness file")
 	configuration := flag.String("config", "", "Private fixture configuration")
 	verifyOnly := flag.Bool("verify", false, "Verify a prepared network without privileged setup")
+	policyOnly := flag.Bool("policy-only", false, "Check inherited unprivileged guest socket policy")
 	flag.Parse()
+	if *policyOnly {
+		if err := guestPolicy(); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	if *echo != 0 {
 		if err := serve(*echo, *ready); err != nil {
 			log.Fatal(err)

@@ -33,6 +33,7 @@ impl Ingress {
             })
             .map(|(port, address, framed)| VsockListener::bind(VsockAddr::new(cid, address)).map(|l| (port, l, framed)))
             .collect::<io::Result<Vec<_>>>()?;
+        crate::vm_policy::enter().map_err(|_| io::Error::other("VM packet-transport policy is unavailable"))?;
         for (port, listener, framed) in listeners {
             tasks.spawn(async move {
                 let mut connections = JoinSet::new();

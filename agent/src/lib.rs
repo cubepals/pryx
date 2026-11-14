@@ -43,6 +43,7 @@
 //! - `vm_boot.rs`: private in-memory VM bootstrap contract, separate from fleet protocol and disk records.
 //! - `vm_network.rs`: trusted guest network readiness, resolver mounts and child lifetime.
 //! - `vm_firewall.rs`: host-owned guest packet policy from the verified bootstrap program.
+//! - `vm_policy.rs`: inherited denial of new guest packet-transport sockets.
 //! - `vm_init.rs`: trusted guest init, mount preparation and orderly non-root agent supervision.
 //! - `vm_observation.rs`: boot-scoped signed disk-shutdown observations.
 //! - `vm_metrics.rs`: optional read-only guest kernel resource counters.
@@ -107,6 +108,8 @@ pub mod vm_monitor;
 mod vm_network;
 #[cfg(feature = "server")]
 pub mod vm_observation;
+#[cfg(feature = "server")]
+pub mod vm_policy;
 #[cfg(feature = "server")]
 pub mod vm_shutdown;
 
