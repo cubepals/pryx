@@ -65,10 +65,14 @@ export async function spawnNodes(at: {
     }
     const args = [bin, 'serve', '--config', path, '--log-format', 'pretty'],
       log = openSync(join(nodeDir, 'pryxd.log'), 'a')
-    const child = Bun.spawn(process.env.PRYXD_SUDO === '1' ? ['sudo', '-n', ...args] : args, {
-      stdout: log,
-      stderr: log,
-    })
+    // Process-tier acceptance runs the daemon as the ordinary CI user.
+    const child = Bun.spawn(
+      process.env.PRYXD_SUDO === '1' && options.tier !== 'process' ? ['sudo', '-n', ...args] : args,
+      {
+        stdout: log,
+        stderr: log,
+      },
+    )
     children.push({ child, path })
   }
   return children

@@ -41,14 +41,17 @@ export const sandboxProvider = pryxProvider()
 export const portAddress = (id: string, port: number) => pryxPortAddress(id, port)
 ```
 
-The patch uses persistent `/data` as the binding's working directory. Paths outside `/data`
-are refused by native file operations. The host's default tier applies; a caller can pass
+The binding uses the connected sandbox's persistent directory: `/data` on mounted tiers,
+or the agent's data directory on the process tier. Native file paths must stay inside that root.
+The host's default tier applies; a caller can pass
 `{ tier, template, require }` to the factory, along with optional `url` and `key` overrides.
 The current API predates K19's `require`/`guarantees` contract: every nonempty `require` is
 refused with `missing_guarantee` and the names, before creation. No requirement is silently dropped.
 Unavailable tiers and templates retain the API's reason. Container creation uses the project's
 configured `repoImage` when no template was named. A template used with this provider must
-mount its persistent storage at `/data`.
+mount its persistent storage at `/data` on mounted tiers. Use `sandbox.cwd` to resolve file
+paths and execution directories; the provider learns the process directory when connecting
+and leaves the optional provider-level `cwd` unset.
 
 Exec accepts absolute `cwd`, an explicit environment, a millisecond timeout and an AbortSignal.
 Undefined or zero timeout adds no provider deadline; the install's execution ceiling still

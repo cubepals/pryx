@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Rivet's sandbox adapter over the public SDK. It owns no actor state and never retries mutations.
- * File paths resolve inside persistent /data; execution and preview routing remain pryx's.
+ * File paths resolve inside persistent storage; execution and preview routing remain pryx's.
  */
 import { posix } from 'node:path'
 import { CommandStream, Pryx, PryxError, type Sandbox, type SandboxOptions } from '@cubepals/pryx'
@@ -45,7 +45,6 @@ export function pryxProvider(options: PryxProviderOptions = {}): SandboxProvider
   const api = client(options)
   return {
     name: 'pryx',
-    cwd,
     async create() {
       requireGuarantees(options)
       const defaults = (await api.project()).defaults
@@ -77,11 +76,11 @@ export function pryxProvider(options: PryxProviderOptions = {}): SandboxProvider
         )
       try {
         await ensureRunning(box)
+        return adapterSandbox(box, await workingDirectory(box))
       } catch (error) {
         if (missing(error)) return undefined
         throw error
       }
-      return adapterSandbox(box)
     },
     async suspend(_context, id) {
       let box: Sandbox
@@ -132,25 +131,36 @@ function missing(error: unknown) {
   )
 }
 
-function path(value: string) {
-  if (!posix.isAbsolute(value) || value.includes('\0'))
-    throw new TypeError('Sandbox file paths must be absolute paths inside /data')
-  const normalized = posix.normalize(value)
-  if (normalized !== cwd && !normalized.startsWith(`${cwd}/`))
-    throw new TypeError(`Sandbox file path is outside persistent /data: ${value}`)
-  return posix.relative(cwd, normalized) || '.'
+async function workingDirectory(box: Sandbox) {
+  if (box.isolation !== 'process') return cwd
+  // The process tier has no /data mount. Omitting cwd asks the agent for its data directory,
+  // even when a template configured another execution directory.
+  const result = await box.run(['pwd', '-P'], { cwd: undefined })
+  const directory = result.stdout.replace(/\n$/, '')
+  if (result.code !== 0 || result.stdoutTruncated || !posix.isAbsolute(directory) || directory.includes('\0'))
+    throw new PryxError(0, 'working_directory', 'Could not resolve persistent process storage')
+  return directory
 }
 
-function adapterSandbox(box: Sandbox): AdapterSandbox {
+function path(value: string, root: string) {
+  if (!posix.isAbsolute(value) || value.includes('\0'))
+    throw new TypeError('Sandbox file paths must be absolute paths inside persistent storage')
+  const normalized = posix.normalize(value)
+  if (normalized !== root && !normalized.startsWith(`${root}/`))
+    throw new TypeError(`Sandbox file path is outside persistent storage: ${value}`)
+  return posix.relative(root, normalized) || '.'
+}
+
+function adapterSandbox(box: Sandbox, root: string): AdapterSandbox {
   return {
-    cwd,
+    cwd: root,
     exec: (command, options) => exec(box, command, options),
-    readFile: (value) => box.files.readBytes(path(value)),
-    writeFile: (value, content) => box.files.write(path(value), content),
-    mkdir: (value) => box.files.mkdir(path(value)),
-    stat: async (value) => ({ isDirectory: (await box.files.stat(path(value))).kind === 'directory' }),
-    readdir: async (value) => (await box.files.list(path(value))).map((entry) => entry.name),
-    exists: (value) => box.files.exists(path(value)),
+    readFile: (value) => box.files.readBytes(path(value, root)),
+    writeFile: (value, content) => box.files.write(path(value, root), content),
+    mkdir: (value) => box.files.mkdir(path(value, root)),
+    stat: async (value) => ({ isDirectory: (await box.files.stat(path(value, root))).kind === 'directory' }),
+    readdir: async (value) => (await box.files.list(path(value, root))).map((entry) => entry.name),
+    exists: (value) => box.files.exists(path(value, root)),
   }
 }
 

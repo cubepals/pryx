@@ -7,7 +7,7 @@ Apache-2.0 OpenOrange commit `1cabf2e9db300361c9f0b751c7723da7eb706f5e`, read on
 
 The proposed change adds `ORANGE_SANDBOX_PROVIDER=pryx`, lazy SDK imports and validation of
 `PRYX_API_URL`/`PRYX_API_KEY`. Its Actor continues to store provider name and sandbox id. The
-public SDK owns lifecycle, execution and file access. The binding uses persistent `/data` and
+public SDK owns lifecycle, execution and file access. The binding uses the connected sandbox's persistent directory and
 native binary files and directory metadata, instead of requiring GNU file tools. Recursive
 list never descends into symlinks. Preview requests call `pryxPortAddress` and use pryx's edge,
 retaining request bodies, paths, query parameters and the edge URL's prefix. Git defaults to
