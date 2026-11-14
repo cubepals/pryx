@@ -4422,3 +4422,10 @@ job when publication is authorized. That job has not run in this task.
 - Normal CI source 672f884 is green (run 43639540665). Source a06a5e1 VM run 43641893944
   repeats only the retained strict monitor-shutdown failure; no new failure or scanner finding
   (eighteen comments). Do not treat either older result as a current whole-milestone pass.
+
+- Generalize the existing Rust corresponding-source collector to an explicit manifest/target/
+  root package while retaining its existing defaults. Actual GNU monitor graph: 111 external
+  packages retain original sources and nonempty primary-notice sets, including the complete
+  commit-verified micro-http tree. Existing helper graph: all 453 external packages still pass
+  archive authentication and primary-notice retention. Local Python syntax/whitespace pass.
+  No shipped monitor selection, new dependency, CI job/gate or estimated minute yet.

@@ -1267,3 +1267,5 @@
 - K25: apply the existing self-process signal and resource-change bounds to jailed monitors as well as ordinary monitors; jailed monitors can share a host UID, so jailer setup must not confer cross-process signal authority. Keep socket restrictions specific to ordinary monitors and require a real child-process kernel denial regression.
 
 - K25: start the installed retained-file HTTP fixture in /data and request its root path; Go FileServer redirects index.html and the existing edge client deliberately exposes responses directly, so keep the exact successful proof-body assertion.
+
+- K25: reuse the VM Rust-source collector for the monitor’s actual GNU normal/build dependency graph, retaining Cargo.lock-authenticated registry archives and the full commit-verified micro-http Git tree; keep the existing helper graph as the unchanged default and separate each component’s notices and archives.
