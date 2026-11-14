@@ -3918,3 +3918,22 @@ job when publication is authorized. That job has not run in this task.
   compilation, fmt and the complete dependency advisory/licence/source audit pass.
   Reclaim 4,608 MiB of obsolete executables/libraries before build output fills the disk.
   Updated root and VM-image locks retain prior versions and pin the new library closure.
+- Source 49215dc VM run 43613336100/job 132502939933 is green with the maintained
+  DNS transaction client: both-image ordinary lifecycle and named/default packet tests
+  (132.83 s), jailer (17.02 s), actual root runtime (36.43 s), registry (16.10 s) and
+  component agent (35.67 s). Summary: checks/measurements/k25/dns-runtime-49215dc.json.
+  This confirms this source's packet path, not the unexplained earlier bootstrap reset
+  or remaining deliverables. Rootless engines pass; full CI is still running with a
+  compose-service failure whose completed log is not yet available. Scanner remains eighteen.
+- Add an independent pinned CNI TAP experiment to the existing optional VM job. Its real
+  root case verifies the maintained plugin's result, ordinary fixed-owner monitor open,
+  one identity-checked deletion and unchanged neighbouring interfaces. It sets no routes,
+  IPAM, forwarding or firewall and enables no production backend. All nineteen actual
+  module notice texts are verified and retained separately; the upstream MPL dependency
+  stays in the separate TAP executable, outside the FSL probe's imports.
+- CNI local validation: both exact programs build statically with pinned Go 1.27.3;
+  go vet, module verification, complete notice verification, actionlint with ShellCheck,
+  formatting and whitespace pass. The ordinary-user invocation refuses before device
+  setup as intended. No local root or actual TAP success is claimed. Estimated under
+  one additional optional VM-job minute (cold build unmeasured), zero ordinary PR minutes,
+  no new job/gate. Positive device/ownership/cleanup proof remains pending in CI.

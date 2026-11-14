@@ -57,6 +57,17 @@ case "${1:?Name one VM build phase}" in
     "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-gvforwarder" github.com/containers/gvisor-tap-vsock/cmd/vm
     "$pryx_go" mod verify
     ;;
+  root-network)
+    pryx_go="$RUNNER_TEMP/vm-build-tools/go/go/bin/go"
+    "$pryx_go" mod verify
+    python3 ../notices.py --go "$pryx_go" --module-root "$PWD" \
+      --catalog "$PWD/module-notices.json" --output "$RUNNER_TEMP/vm-root-network-notices" \
+      --packages ./cmd/tap-probe github.com/containernetworking/plugins/plugins/main/tap
+    "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-root-cni/tap" github.com/containernetworking/plugins/plugins/main/tap
+    "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-root-tap-probe" ./cmd/tap-probe
+    "$pryx_go" vet ./cmd/tap-probe
+    "$pryx_go" mod verify
+    ;;
   bootstrap)
     python3 templates/vm-tools/cross.py --root "$RUNNER_TEMP/vm-cross" \
       --cache "$RUNNER_TEMP/vm-filesystem-archives" | tee "$RUNNER_TEMP/vm-cross.log"

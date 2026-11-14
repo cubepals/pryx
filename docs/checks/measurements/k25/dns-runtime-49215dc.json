@@ -1,0 +1,16 @@
+{
+  "source": "49215dcfda03364aaee27b5b61c74e79a9868597",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43613336100",
+  "job": 132502939933,
+  "result": "success",
+  "ran": "Both-image ordinary OCI lifecycle and named/default public IPv4 packet flow with the maintained DNS client; direct jailer and production root lifecycle, stopped-file access and daemon-loss recovery",
+  "ordinary_runtime_seconds": 132.83,
+  "root_staging_seconds": 0.05,
+  "root_jailer_seconds": 17.02,
+  "root_runtime_seconds": 36.43,
+  "registry_seconds": 16.1,
+  "component_seconds": 35.67,
+  "job_seconds": 848.0,
+  "unproved": "Root TAP/firewall, protected installed service authority and signed VM host relocation, tier registration/node-edge acceptance and thirty production latency/memory samples",
+  "raw_output": "CI artifacts only"
+}

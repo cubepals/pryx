@@ -21,6 +21,7 @@ Parts (`vm-tools/`):
 - `cmd/guest/main.go`: static PID 1 filesystem and vsock probe.
 - `kernel.py`: thirty real ordinary-user KVM boots and a disk-retaining reboot.
 - `network/`: separate network module, pinned inputs, licences, wrapper and guest probe (see its README).
+- `root-network/`: independent CNI TAP dependency and notice pins, plus a real-device CI probe; this does not configure production VM routing or firewall policy.
 - `network_prepare.py`: verified Alpine tar and unchanged separate pasta source build.
 - `network_namespace.py`: private user-namespace bridge and TAP, with parent-bound monitor lifetime.
 - `network_compare.py`: thirty real guest samples per path, HTTP/DNS/throughput and management denial.
