@@ -4,9 +4,16 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"syscall"
 
 	rootnetwork "cubepals/pryx/vm-root-network-experiment"
 	"github.com/containernetworking/plugins/pkg/ns"
@@ -97,4 +104,26 @@ func retiredBridge(space ns.NetNS, packet string, identity int) error {
 		}
 		return nil
 	})
+}
+
+func confinedPacketProof(ctx context.Context, program, agent string, queue *os.File, uid, gid uint32) error {
+	if err := rootnetwork.Ancestry(filepath.Dir(program)); err != nil {
+		return err
+	}
+	if err := rootnetwork.Executable(program); err != nil {
+		return err
+	}
+	command := exec.CommandContext(ctx, program, "--exact", "attached_queue_inherits_host_confinement_and_lease", "--ignored", "--nocapture")
+	command.Env = []string{"PATH=" + os.Getenv("PATH"), "PRYX_VM_PACKET_TEST_AGENT=" + agent}
+	command.Stderr = queue
+	var output bytes.Buffer
+	command.Stdout = io.MultiWriter(os.Stdout, &output)
+	command.SysProcAttr = &syscall.SysProcAttr{Credential: &syscall.Credential{Uid: uid, Gid: gid, Groups: []uint32{}}, Pdeathsig: syscall.SIGKILL}
+	if err := command.Run(); err != nil {
+		return err
+	}
+	if !strings.Contains(output.String(), "1 passed; 0 failed") {
+		return fmt.Errorf("Actual packet confinement proof did not execute its kernel test")
+	}
+	return nil
 }

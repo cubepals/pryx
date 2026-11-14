@@ -5,7 +5,7 @@
 //! separate Landlock/seccomp grants; root executes the unchanged jailer for the VMM.
 //!
 //! Parts (`vm_monitor/`):
-//! - `packet.rs`: inherited packet-listener validation and confinement.
+//! - `packet.rs`: inherited listener/TAP validation and packet-helper confinement.
 //! - `filter.rs`: preserve the inherited kernel lease and forbid cross-process host operations.
 //! - `namespace_tests.rs`: actual descriptor identity and namespace-type refusal checks.
 mod filter;
@@ -31,6 +31,9 @@ use std::{
 };
 
 pub const MODE: &str = "vm-monitor";
+// Linux's Universal TUN/TAP documentation names this device. Its actual device
+// number validates a passed queue; no copied major/minor value is used.
+pub const TUN_DEVICE: &str = "/dev/net/tun";
 pub const VERSION: u16 = 1;
 const MAX_PLAN_BYTES: u64 = 128 * 1024;
 
@@ -59,6 +62,9 @@ pub enum Role {
         monitor: PathBuf,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         namespace: Option<Namespace>,
+    },
+    PacketTap {
+        descriptor_argument: String,
     },
     PacketProxy {
         socket: PathBuf,
@@ -146,6 +152,9 @@ fn confine(plan: &Plan, kvm: bool) -> Result<(), Box<dyn std::error::Error>> {
     }
     let mut read = plan.read.clone();
     read.push(plan.program.clone());
+    if matches!(plan.role, Role::PacketTap { .. }) {
+        read.extend(packet::resolver_files()?);
+    }
     read.extend(
         [
             "/proc/cpuinfo",
@@ -202,7 +211,7 @@ pub fn launch() -> Result<(), Box<dyn std::error::Error>> {
         return Err("Monitor syscall policy cannot be replaced".into());
     }
     let jailer = matches!(plan.role, Role::Jailer { .. });
-    let packet_proxy = matches!(plan.role, Role::PacketProxy { .. });
+    let packet_proxy = matches!(plan.role, Role::PacketProxy { .. } | Role::PacketTap { .. });
     if jailer != rustix::process::geteuid().is_root() {
         return Err("Root VM monitors require the jailer".into());
     }
@@ -238,10 +247,14 @@ pub fn launch() -> Result<(), Box<dyn std::error::Error>> {
     let mut command = std::process::Command::new(&plan.program);
     command.env_clear().current_dir(&plan.directory);
     let mut packet_listener = None;
+    let mut packet_tap = None;
     match &plan.role {
         Role::Ordinary => confine(&plan, true)?,
         Role::PacketProxy { socket, descriptor_argument } => {
             packet_listener = Some(packet::listener(&plan, socket, descriptor_argument)?);
+        }
+        Role::PacketTap { descriptor_argument } => {
+            packet_tap = Some(packet::tap(&plan, descriptor_argument)?);
         }
         Role::Jailer { uid, gid, id, base, monitor, namespace } => {
             if *uid == 0
@@ -281,6 +294,9 @@ pub fn launch() -> Result<(), Box<dyn std::error::Error>> {
     command.args(&plan.arguments);
     if let (Some(listener), Role::PacketProxy { descriptor_argument, .. }) = (&packet_listener, &plan.role) {
         command.args([descriptor_argument, &listener.as_raw_fd().to_string()]);
+    }
+    if let (Some(queue), Role::PacketTap { descriptor_argument }) = (&packet_tap, &plan.role) {
+        command.args([descriptor_argument, &queue.as_raw_fd().to_string()]);
     }
     Err(command.exec().into())
 }

@@ -20,6 +20,7 @@ def run(*arguments, **options):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--cargo-artifacts', type=Path, required=True)
+    parser.add_argument('--packet-artifacts', type=Path, required=True)
     parser.add_argument('--work', type=Path, required=True)
     args = parser.parse_args()
     # Cargo's documented compiler-artifact message owns executable discovery.
@@ -29,6 +30,12 @@ def main():
                 and value['target']['name'] == 'pryxd' and value['profile']['test']]
     if len(binaries) != 1:
         raise ValueError('Expected exactly the actual daemon library test executable')
+    packet_artifacts = [json.loads(line) for line in args.packet_artifacts.read_text().splitlines()]
+    packet_tests = [Path(value['executable']) for value in packet_artifacts
+                    if value.get('reason') == 'compiler-artifact' and value.get('executable')
+                    and value['target']['name'] == 'vm_packet_tap' and value['profile']['test']]
+    if len(packet_tests) != 1:
+        raise ValueError('Expected exactly the actual agent packet-TAP test executable')
     source = Path(os.environ['RUNNER_TEMP'])
     name = 'pryx-vm-ci-' + uuid.uuid4().hex
     programs = Path('/usr/local/libexec') / name
@@ -42,6 +49,7 @@ def main():
     try:
         for original, target, mode in [
             (binaries[0], 'acceptance', '555'),
+            (packet_tests[0], 'packet-proof', '555'),
             (source / 'vm-root-tap-probe', 'tap-probe', '555'),
             (source / 'vm-root-scope', 'scope', '555'),
             (source / 'vm-root-cni/tap', 'tap', '555'),
@@ -97,7 +105,7 @@ def main():
                        '--scope-helper', str(programs / 'scope')]),
             ('bridge', [str(programs / 'tap-probe'), '--plugins', str(programs), '--uid', uid, '--gid', gid,
                         '--scope-helper', str(programs / 'scope'), '--bridge-agent', str(programs / 'bridge-agent'),
-                        '--bridge-packet', str(programs / 'bridge-packet')]),
+                        '--bridge-packet', str(programs / 'bridge-packet'), '--packet-proof', str(programs / 'packet-proof')]),
             ('adoption', [str(programs / 'acceptance'), '--exact',
                           'runtime::vm::root_scope::tests::actual_root_gateway_adoption_and_lease_retirement',
                           '--ignored', '--nocapture']),
@@ -117,7 +125,7 @@ def main():
         (args.work / 'summary.json').write_text(json.dumps({
             'systemd': observed, 'mainUnitChanged': False, 'separateTap': True,
             'separateRootRuntime': True, 'leaseBoundScope': True, 'images': 2, 'properties': properties,
-            'rootHostnamePackets': True, 'rootPublicBridgeDescriptors': True,
+            'rootHostnamePackets': True, 'rootPublicBridgeDescriptors': True, 'confinedOrdinaryPacketQueue': True,
             'unproved': 'Production worker transport, installed service and root unrestricted IP forwarding',
         }, indent=2) + '\n')
     finally:

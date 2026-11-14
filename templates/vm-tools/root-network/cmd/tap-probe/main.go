@@ -198,6 +198,7 @@ func probe(directory string, uid, gid uint32) error {
 }
 
 func main() {
+	packetProof := flag.String("packet-proof", "", "actual ordinary packet-TAP confinement test")
 	agent := flag.String("bridge-agent", "", "fixed protected bridge boundary agent")
 	packet := flag.String("bridge-packet", "", "fixed protected packet program")
 	scope := flag.String("scope-helper", "", "prove the protected scope subprocess and kernel lease")
@@ -219,7 +220,7 @@ func main() {
 			err = fmt.Errorf("Monitor IDs exceed their kernel type")
 		} else {
 			if *scope != "" {
-				err = scopeProbe(*scope, *directory, uint32(*uid), uint32(*gid), *agent, *packet)
+				err = scopeProbe(*scope, *directory, uint32(*uid), uint32(*gid), *agent, *packet, *packetProof)
 			} else if *gateways {
 				err = gatewayProbe(*directory, uint32(*uid), uint32(*gid))
 			} else {

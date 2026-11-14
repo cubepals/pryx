@@ -1287,3 +1287,5 @@
 - K25: build a two-port bridge only in the owned anonymous TAP namespace, with a nonpersistent no-PI/no-vnet-header packet queue; opaque inputs read the existing agent IPv4 boundary and packet program profile from protected root-owned executables. Install and read back default-drop bridge input/output/forward chains before granting descriptors once; keep host routing/forwarding untouched and retirement behind the actual monitor lease.
 
 - K25: move unchanged inherited packet-listener validation and confinement into vm_monitor/packet.rs before adding attached-queue support; preserve its exact private path/argument checks, permissions, close-on-exec transition and filesystem/syscall grants.
+
+- K25: add an advertised ordinary-user packet-TAP launch role, moving the inherited stderr carrier to a separately owned queue before restoring stderr to null; compare the actual kernel TUN device identity and retain stdin lease, Landlock, self-signal and outbound-only socket bounds. Grant only protected host resolver files to that role so the maintained stack can resolve DNS without a host NAT alias.

@@ -21,7 +21,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func scopeProbe(helper, directory string, uid, gid uint32, agent, packet string) error {
+func scopeProbe(helper, directory string, uid, gid uint32, agent, packet, packetProof string) error {
 	if os.Geteuid() != 0 || uid == 0 || gid == 0 || !filepath.IsAbs(helper) {
 		return fmt.Errorf("Scope acceptance requires root and fixed ordinary identities")
 	}
@@ -126,6 +126,14 @@ func scopeProbe(helper, directory string, uid, gid uint32, agent, packet string)
 	if agent != "" || packet != "" {
 		bridgeIdentity, err = inspectBridge(space, grant, roles)
 		if err != nil {
+			return err
+		}
+	}
+	if packetProof != "" {
+		if bridgeIdentity == 0 {
+			return fmt.Errorf("Packet confinement requires the actual bridge queue")
+		}
+		if err := confinedPacketProof(ctx, packetProof, agent, roles[rootnetwork.ScopePacketTap], uid, gid); err != nil {
 			return err
 		}
 	}

@@ -244,7 +244,9 @@ jobs:
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
         run: |
           cargo test --locked -p pryxd --lib --no-run --message-format=json > "$RUNNER_TEMP/vm-authority-artifacts.jsonl"
+          cargo test --locked -p pryx-agent --test vm_packet_tap --no-run --message-format=json > "$RUNNER_TEMP/vm-packet-artifacts.jsonl"
           python3 templates/vm-tools/root_authority.py --cargo-artifacts "$RUNNER_TEMP/vm-authority-artifacts.jsonl" \
+            --packet-artifacts "$RUNNER_TEMP/vm-packet-artifacts.jsonl" \
             --work "$RUNNER_TEMP/vm-root-authority"
       - name: Hand redacted root monitor diagnostics to artifact upload
         if: always()

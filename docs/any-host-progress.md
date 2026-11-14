@@ -4533,3 +4533,25 @@ job when publication is authorized. That job has not run in this task.
   descriptor inheritance and confinement order. Full Rust: 537 pass, unchanged host IPv6
   fixture failure, 43 ignored. Strict all-target Clippy, minimal-agent build, fmt and whitespace
   pass. No added dependency/job/gate or estimated CI time.
+
+- Add the advertised ordinary packet-TAP launcher role. Stderr transfers the actual queue
+  without unsafe post-fork code or reopening its TUN description; restore stderr to null,
+  compare actual kernel device identity, and retain the existing stdin lease, self-process
+  signalling, exact Landlock and outbound-only/no-bind socket restrictions. Only this new
+  role additionally reads protected host resolver configuration. Packet roles cannot enter
+  VM secret bootstrap. Old agent metadata defaults this parser capability to false.
+- A real ordinary-user regression rejects a regular carrier, executes no supplied program
+  and leaves its generated contents untouched. Add a separately ignored kernel integration
+  case: the bounded bridge fixture passes its actual queue to an ordinary test process,
+  which uses the real launcher to prove file/signal/Unix-socket/bind/lease denials, allowed
+  private work and original-namespace outbound TCP, descriptor inheritance and lease release.
+  Require the actual Rust test's one-pass result; no absent-device success or early return.
+- Full local Rust: 538 pass, unchanged host IPv6 fixture failure, 44 ignored. Strict all-target
+  Clippy, minimal-agent build, fmt, Go tests/build/vet, Python syntax, actionlint and whitespace
+  pass. The physical queue test remains CI-only. Estimated addition under two optional VM
+  seconds, no dependency/job/gate; root placement and worker/public packet integration remain.
+- Source 3f7ebe2 VM run 43651105141 passes ordinary lifecycle, root jail/runtime, public node
+  API and bounded root runtime. Only the retained strict shutdown assertion fails on actual
+  monitor status; the signed guest result is successful. A same-source local native thread
+  join under the exact compiled policy succeeds, while its maintained Killable kick traps
+  on libc getpid before tgkill. Keep the assertion and investigate that exact ABI dependency.

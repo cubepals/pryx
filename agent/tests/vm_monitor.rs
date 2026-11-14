@@ -350,3 +350,52 @@ async fn actual_packet_proxy_serves_its_inherited_private_socket() {
     fs::set_permissions(&configuration, fs::Permissions::from_mode(0o644)).unwrap();
     refused_proxy(&plan).await;
 }
+
+#[tokio::test]
+async fn packet_tap_rejects_a_regular_carrier_without_writing_it() {
+    let root = tempfile::tempdir().unwrap();
+    let work = root.path().join("work");
+    let locks = root.path().join("locks");
+    for path in [&work, &locks] {
+        fs::DirBuilder::new().mode(0o700).create(path).unwrap();
+    }
+    let proof = root.path().as_os_str().as_encoded_bytes();
+    let carrier = root.path().join("carrier");
+    fs::write(&carrier, proof).unwrap();
+    let file = fs::OpenOptions::new().read(true).write(true).open(&carrier).unwrap();
+    let python = std::process::Command::new("python3")
+        .args(["-c", "import os,sys; print(os.path.realpath(sys.executable))"])
+        .output()
+        .unwrap();
+    assert!(python.status.success());
+    let plan = Plan {
+        program: String::from_utf8(python.stdout).unwrap().trim().into(),
+        arguments: vec!["-c".into(), "print('unexpected execution', flush=True)".into()],
+        directory: work,
+        lock: locks.join("packet.lock"),
+        parent: std::process::id(),
+        read: ["/usr", "/bin", "/lib", "/lib64", "/etc/ld.so.cache"]
+            .into_iter()
+            .filter_map(|path| fs::canonicalize(path).ok())
+            .collect(),
+        write: vec![],
+        role: Role::PacketTap { descriptor_argument: "--queue".into() },
+    };
+    let mut child = Command::new(env!("CARGO_BIN_EXE_pryx-agent"))
+        .arg(MODE)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::from(file))
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+    let mut input = child.stdin.take().unwrap();
+    input.write_all(&serde_json::to_vec(&plan).unwrap()).await.unwrap();
+    input.shutdown().await.unwrap();
+    drop(input);
+    let result =
+        tokio::time::timeout(std::time::Duration::from_secs(5), child.wait_with_output()).await.unwrap().unwrap();
+    assert!(!result.status.success());
+    assert!(result.stdout.is_empty());
+    assert_eq!(fs::read(carrier).unwrap(), proof);
+}
