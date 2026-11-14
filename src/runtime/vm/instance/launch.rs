@@ -78,7 +78,7 @@ impl VmRuntime {
             drop(previous);
             self.state.live.lock().unwrap().remove(&entry.id);
         }
-        let entry = self.entry(name)?;
+        let mut entry = self.entry(name)?;
         let (memory, cpus, uid, gid) = resources(&entry.spec)?;
         let image = self.prepared(&entry.spec.image, self.state.settings.image_timeout).await?;
         let bundle = self.bundle().await?;
@@ -111,6 +111,10 @@ impl VmRuntime {
         let boot = super::guest::boot(&entry.spec, &entry.id, &image, &configuration, (uid, gid))?;
         let nonce = boot.nonce.clone();
         let plan = plan(&bundle, image.layers, disk.path, directory.path(), lease, &api, &config_path);
+        entry.started = Some(crate::clock::now());
+        entry.finished = None;
+        entry.code = UNKNOWN_EXIT_CODE;
+        self.save_entry(entry.clone())?;
         let mut monitor = Machine::launch(
             &bundle.root().join("bin/vm-launcher"),
             &plan,
@@ -155,10 +159,6 @@ impl VmRuntime {
                 killing: false,
             })),
         );
-        if let Some(entry) = self.state.entries.lock().unwrap().get_mut(&entry.id) {
-            entry.started = Some(crate::clock::now());
-            entry.finished = None;
-        }
         Ok(())
     }
 }

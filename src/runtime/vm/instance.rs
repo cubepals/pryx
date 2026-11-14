@@ -7,6 +7,7 @@
 //! - `configuration.rs`: generated SDK monitor configuration and drive identities.
 //! - `guest.rs`: private guest arguments and bootstrap assembly.
 //! - `launch.rs`: verified inputs, generated monitor configuration and guest bootstrap.
+//! - `journal.rs`: private durable specifications and conservative restart adoption.
 //! - `maintenance.rs`: leased file-only guests for stopped disks.
 //! - `agent.rs`: authenticated agent calls and one-shot compatibility exec.
 //! - `runtime.rs`: runtime verbs, observations and bounded event polling.
@@ -14,6 +15,7 @@
 mod agent;
 mod configuration;
 mod guest;
+mod journal;
 mod launch;
 mod maintenance;
 pub use maintenance::FileGuest;
@@ -57,13 +59,16 @@ struct State {
     transitions: Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>,
     live: Mutex<HashMap<String, Arc<tokio::sync::Mutex<Live>>>>,
 }
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct Entry {
     id: String,
     spec: ContainerSpec,
+    #[serde(default, with = "journal::timestamp")]
     started: Option<time::OffsetDateTime>,
+    #[serde(default, with = "journal::timestamp")]
     finished: Option<time::OffsetDateTime>,
     code: i64,
+    #[serde(default)]
     agent_state: Option<pryx_agent::state::Snapshot>,
 }
 // The runtime seam requires a numeric exit value even without a signed guest observation.
@@ -143,12 +148,12 @@ impl VmRuntime {
         let root = state.join("vm-runtime");
         directory(&root)?;
         let owner = lock(&root.join("owner.lock"))?;
-        for name in ["leases", "boots", "cache", "downloads", "images"] {
+        for name in ["leases", "boots", "cache", "downloads", "images", "entries"] {
             directory(&root.join(name))?;
         }
         // A predecessor's owned monitor must actually exit before any disk is opened.
-        // Parent-bound ordinary launches cannot survive daemon death; control supplies
-        // the spec again after restart, while its existing data directory stays intact.
+        // Parent-bound ordinary launches cannot survive daemon death. Private journals
+        // restore stopped specifications; disk safety still needs independent verification.
         let deadline = tokio::time::Instant::now() + crate::runtime::ENGINE_PROBE_TIMEOUT;
         for entry in fs::read_dir(root.join("leases")).map_err(error)? {
             let path = entry.map_err(error)?.path();
@@ -165,13 +170,14 @@ impl VmRuntime {
                 }
             }
         }
+        let entries = journal::load(&root)?;
         Ok(Self {
             state: Arc::new(State {
                 root,
                 settings,
                 _owner: owner,
                 bundle: tokio::sync::Mutex::new(None),
-                entries: Mutex::new(BTreeMap::new()),
+                entries: Mutex::new(entries),
                 transitions: Mutex::new(HashMap::new()),
                 live: Mutex::new(HashMap::new()),
             }),

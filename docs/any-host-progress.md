@@ -3077,3 +3077,23 @@ job when publication is authorized. That job has not run in this task.
   processes. Full Rust remains 505 passes, one known IPv6 failure and 34 ignored; strict Clippy
   in both modes, fmt and whitespace checks pass. CI must establish this fix, not a local retry.
   Resume K25 after this independent correction; its stopped-disk KVM proof is pending.
+
+
+- K25 runtime journals now durably retain specifications and credentials outside data/export
+  roots. Launch intent is on disk before compute starts; clean/forced observations and removal
+  are persisted, while an interrupted journal restores only an unknown exit status. Startup
+  still waits for every actual monitor lease to be released. Private journal reads are bounded,
+  no-follow, owner/mode/link checked and never quote rejected values.
+- Real local filesystem acceptance preserves subsecond timestamps and credentials, distinguishes
+  interrupted launches, and refuses public modes, hardlinks, symlinks, malformed values and
+  duplicate names without exposing the generated secret. Existing optional KVM acceptance now
+  restarts the actual runtime before first boot and after clean stop, preserves its ID/env/status,
+  and refuses a second owner. No new boots/jobs/gates or ordinary PR minutes. Full local Rust:
+  506 passes, one unchanged IPv6 failure, 34 ignored; strict Clippy modes/fmt pass, no new daemon
+  length warnings. Real journal adoption proof remains pending.
+- Read failed VM source 7cc98b6 run 43530436293/job 132246481239: runtime acceptance times out
+  waiting for an exec POST response within the original five seconds (16.71 s into the test).
+  Bundle, registry and six component boots still pass. This is an unresolved production-path
+  failure, not a pass; keep the deadline and add retained runtime-stage/monitor evidence before
+  diagnosing further. Runtime boot directories currently disappear when the failing test unwinds.
+  Scanner remains eighteen addressed comments. K25 stays in progress.

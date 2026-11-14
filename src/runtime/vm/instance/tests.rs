@@ -111,7 +111,7 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
     let server = tokio::spawn(async move {
         axum::serve(listener, router).await.unwrap();
     });
-    let runtime = VmRuntime::new(
+    let mut runtime = VmRuntime::new(
         temporary.path(),
         Settings { artifact, ingress_connections: 8, free_floor_bytes: 0, image_timeout: Duration::from_secs(120) },
     )
@@ -124,6 +124,11 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
         directory(&data).unwrap();
         let original_spec = spec(&data, image["reference"].as_str().unwrap());
         let id = runtime.create(&original_spec).await.unwrap();
+        let settings = runtime.state.settings.clone();
+        assert!(VmRuntime::new(temporary.path(), settings.clone()).await.is_err(), "Only one runtime may own journals");
+        drop(runtime);
+        runtime = VmRuntime::new(temporary.path(), settings).await.unwrap();
+        assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Created);
         runtime.start(&id).await.unwrap();
         assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Running);
         assert_eq!(exec(&runtime, &id, "printf durable > /data/retained; printf ready").await, b"ready");
@@ -142,6 +147,13 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
 
         runtime.stop(&id, &original_spec.stop_signal, Duration::from_secs(15)).await.unwrap();
         assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Exited);
+        let settings = runtime.state.settings.clone();
+        drop(runtime);
+        runtime = VmRuntime::new(temporary.path(), settings).await.unwrap();
+        let restored = runtime.inspect(&id).await.unwrap().unwrap();
+        assert_eq!(restored.status, ContainerStatus::Exited);
+        assert_eq!(restored.exit_code, 0);
+        assert_eq!(restored.env, original_spec.env.iter().cloned().collect());
         let sandbox = &original_spec.agent.as_ref().unwrap().sandbox;
         let copy_lease = runtime.data_copy_lease(sandbox, &data).await.unwrap();
         assert!(runtime.start(&id).await.is_err(), "A copy lease must fence another writable guest");
@@ -242,4 +254,62 @@ fn maintenance_has_private_fresh_credentials_and_no_workload_or_extra_ingress() 
     assert_eq!(maintenance.mount_path, original.mount_path);
     assert_eq!(maintenance.user, original.user);
     assert_eq!(maintenance.memory_bytes, original.memory_bytes);
+}
+
+#[test]
+fn private_journals_preserve_stopped_state_and_refuse_links_modes_and_invalid_values() {
+    use std::os::unix::fs::{PermissionsExt, symlink};
+    let root = tempfile::tempdir().unwrap();
+    let entries = root.path().join("entries");
+    directory(&entries).unwrap();
+    let now = crate::clock::now();
+    let mut entry = Entry {
+        id: format!("vm-{}", uuid::Uuid::new_v4().simple()),
+        spec: spec(root.path(), "invalid"),
+        started: Some(now),
+        finished: Some(now),
+        code: 7,
+        agent_state: None,
+    };
+    let path = entries.join(format!("{}.json", entry.id));
+    let write =
+        |entry: &Entry| crate::durable::write_atomic(&path, &serde_json::to_vec(entry).unwrap(), 0o600).unwrap();
+    write(&entry);
+    let loaded = journal::load(root.path()).unwrap();
+    assert_eq!(loaded[&entry.id].code, 7);
+    assert_eq!(loaded[&entry.id].started, Some(now));
+    assert_eq!(loaded[&entry.id].finished, Some(now));
+    assert_eq!(loaded[&entry.id].spec.env, entry.spec.env);
+    entry.finished = None;
+    write(&entry);
+    let interrupted = journal::load(root.path()).unwrap();
+    assert_eq!(interrupted[&entry.id].code, UNKNOWN_EXIT_CODE);
+    assert!(interrupted[&entry.id].finished.is_some());
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
+    assert!(journal::load(root.path()).is_err());
+    write(&entry);
+    let other = root.path().join("other");
+    fs::hard_link(&path, &other).unwrap();
+    assert!(journal::load(root.path()).is_err());
+    fs::remove_file(&other).unwrap();
+    fs::rename(&path, &other).unwrap();
+    symlink(&other, &path).unwrap();
+    assert!(journal::load(root.path()).is_err());
+    fs::remove_file(&path).unwrap();
+    write(&entry);
+    let secret = uuid::Uuid::new_v4().simple().to_string();
+    fs::write(&path, format!("{{\"env\":\"{secret}\"}}")).unwrap();
+    let error = journal::load(root.path()).err().unwrap().to_string();
+    assert_eq!(error, "Invalid private VM journal");
+    assert!(!error.contains(&secret));
+    write(&entry);
+    let mut duplicate = entry.clone();
+    duplicate.id = format!("vm-{}", uuid::Uuid::new_v4().simple());
+    crate::durable::write_atomic(
+        &entries.join(format!("{}.json", duplicate.id)),
+        &serde_json::to_vec(&duplicate).unwrap(),
+        0o600,
+    )
+    .unwrap();
+    assert!(journal::load(root.path()).is_err());
 }

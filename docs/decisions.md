@@ -1087,3 +1087,5 @@
 - K25: Serve stopped disks through a separate leased file-only guest with a fresh ephemeral signing key and private ephemeral relay; hold the transition lock through owned signed shutdown, keep cancellation cleanup alive, and never start or advertise workload compute for file access.
 
 - K24: Give the real SSH lease fixture a fresh loopback address so parallel localhost ephemeral allocation cannot claim its released address/port; retain the immediate rebind assertion and include the actual OS error on failure.
+
+- K25: Keep VM specifications and credentials in bounded private 0600 journals outside sandbox data, matching the existing process backend; persist launch intent before compute, restore unfinished launches only as unknown exits, and independently verify disks rather than invent a clean shutdown after daemon death.

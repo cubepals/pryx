@@ -10,7 +10,7 @@ use tokio::time::Instant;
 
 impl VmRuntime {
     pub(super) async fn stop_entry(&self, name: &str, grace: Duration, force: bool) -> Result<(), RuntimeError> {
-        let entry = self.entry(name)?;
+        let mut entry = self.entry(name)?;
         let transition = self.transition(&entry.id);
         let _transition = transition.lock().await;
         let live = self.state.live.lock().unwrap().get(&entry.id).cloned();
@@ -74,10 +74,12 @@ impl VmRuntime {
         let code = if forced { Ok(crate::runtime::exit_by(libc::SIGKILL)) } else { verified_exit(&entry, &live) };
         drop(live);
         self.state.live.lock().unwrap().remove(&entry.id);
-        if let Some(entry) = self.state.entries.lock().unwrap().get_mut(&entry.id) {
-            entry.code = code.as_ref().copied().unwrap_or(UNKNOWN_EXIT_CODE);
-            entry.finished = Some(crate::clock::now());
+        entry.code = code.as_ref().copied().unwrap_or(UNKNOWN_EXIT_CODE);
+        entry.finished = Some(crate::clock::now());
+        if let Some(snapshot) = &mut entry.agent_state {
+            snapshot.activity.streams = 0;
         }
+        self.save_entry(entry)?;
         capture.and(code.map(|_| ()))
     }
     async fn observe(&self, name: &str) -> Result<Option<ContainerInfo>, RuntimeError> {
@@ -112,7 +114,7 @@ impl VmRuntime {
                 entry.finished = Some(crate::clock::now());
                 drop(live);
                 self.state.live.lock().unwrap().remove(&entry.id);
-                self.state.entries.lock().unwrap().insert(entry.id.clone(), entry.clone());
+                self.save_entry(entry.clone())?;
                 if result.is_ok() { ContainerStatus::Exited } else { ContainerStatus::Dead }
             }
         } else if entry.started.is_some() {
@@ -282,10 +284,10 @@ impl ContainerRuntime for VmRuntime {
         if entries.values().any(|entry| entry.spec.name == spec.name) {
             return Err(RuntimeError::Conflict("VM sandbox already exists".into()));
         }
-        entries.insert(
-            id.clone(),
-            Entry { id: id.clone(), spec: spec.clone(), started: None, finished: None, code: 0, agent_state: None },
-        );
+        let entry =
+            Entry { id: id.clone(), spec: spec.clone(), started: None, finished: None, code: 0, agent_state: None };
+        self.persist_entry(&entry)?;
+        entries.insert(id.clone(), entry);
         Ok(id)
     }
     async fn start(&self, name: &str) -> Result<(), RuntimeError> {
@@ -333,8 +335,7 @@ impl ContainerRuntime for VmRuntime {
         if self.state.live.lock().unwrap().contains_key(&entry.id) {
             return Err(RuntimeError::Conflict("VM started while removal was waiting; its record is retained".into()));
         }
-        self.state.entries.lock().unwrap().remove(&entry.id);
-        Ok(())
+        self.forget_entry(&entry.id)
     }
     async fn inspect(&self, name: &str) -> Result<Option<ContainerInfo>, RuntimeError> {
         self.observe(name).await
