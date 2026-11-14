@@ -443,6 +443,21 @@ jobs:
         run: |
           python3 -m venv .venv-agent-python
           .venv-agent-python/bin/pip install -e sdk/python
+      - name: Build the site and Node SDK for live callers
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        id: site
+        run: |
+          bun run --cwd sdk/typescript build
+          bun site/check.ts
+      - name: Save the static site and file review
+        if: ${{ !cancelled() && steps.site.outcome == 'success' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pryx-site-review
+          path: |
+            site/dist/
+            site/review/
+          if-no-files-found: error
       - name: Validate hosting files and run welcome callers
         if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         shell: bash

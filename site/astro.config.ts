@@ -16,8 +16,17 @@ export default defineConfig({
       description: 'Sandboxes on Linux hosts you own.',
       customCss: ['./src/style.css'],
       sidebar: [
-        { label: 'Host pryx', link: '/hosting/' },
-        { label: 'Connect', items: [{ autogenerate: { directory: 'connect' } }] },
+        {
+          label: 'Host pryx',
+          items: [{ label: 'Overview', link: '/hosting/' }, { autogenerate: { directory: 'host' } }],
+        },
+        {
+          label: 'Connect',
+          items: [
+            { label: 'Choose a caller', link: '/connect/' },
+            { autogenerate: { directory: 'connect' } },
+          ],
+        },
         {
           label: 'Reference',
           items: [

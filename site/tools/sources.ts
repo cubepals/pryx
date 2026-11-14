@@ -73,12 +73,23 @@ export function callerBlocks() {
     .filter((file) => file.startsWith('docs/connect/'))
     .map((file) => {
       const document = fromMarkdown(source(file).body)
-      const codes = document.children.filter((node) => node.type === 'code')
+      type Node = { type: string; lang?: string | null; value?: string; children?: Node[] }
+      const codes: Array<{ language: string; code: string }> = []
+      const visit = (node: Node) => {
+        if (node.type === 'code') {
+          if (!node.lang || !node.value) throw new Error(`Unlabelled or empty caller block: ${file}`)
+          codes.push({ language: node.lang, code: node.value })
+        }
+        for (const child of node.children ?? []) visit(child)
+      }
+      visit(document)
       const steps = document.children.filter((node) => node.type === 'list').filter((node) => node.ordered)
+      if (codes.length !== 1 || steps.length !== 1 || steps[0]?.children.length !== 3)
+        throw new Error(`Caller guide needs three steps and one block: ${file}`)
       return {
         file,
         id: routeId(file),
-        codes: codes.map((node) => ({ language: node.lang, code: node.value })),
+        codes,
         steps: steps.map((list) => list.children.length),
       }
     })

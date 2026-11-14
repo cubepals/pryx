@@ -9,7 +9,7 @@ hero:
     - text: Host pryx
       link: hosting/
     - text: Connect your code
-      link: connect/rivet/
+      link: connect/
       variant: secondary
 ---
 
@@ -27,9 +27,9 @@ process tier without a nested engine when their kernel enforces its policy.
 ## Host where your state lives
 
 [Deploy on Render](https://render.com/deploy?repo=https://github.com/cubepals/pryx) ·
-[Railway](hosting.md#railway) · [Fly.io](hosting.md#flyio) ·
-[Koyeb](hosting.md#koyeb) · [Coolify](hosting.md#coolify) ·
-[A machine of your own](hosting.md#a-machine-of-your-own)
+[Railway](host/railway.md) · [Fly.io](host/fly.md) ·
+[Koyeb](host/koyeb.md) · [Coolify](host/coolify.md) ·
+[A machine of your own](host/own-machine.md)
 
 Render builds the source. The other links prepare the existing platform files; no catalog
 publication is implied. Keep the persistent volume. Read the reported tier before requesting

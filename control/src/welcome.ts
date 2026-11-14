@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
-/** Self-contained install welcome UI. Public HTML contains version and key location only;
+/** Self-contained install welcome UI. Public HTML contains version, optional versioned guides and key location;
  * authenticated details are fetched on demand. Credentials live only in the tab's closure. */
 
 import { createHash } from 'node:crypto'
@@ -9,6 +9,7 @@ import type { Db } from './database.ts'
 import { PRYX_VERSION } from './generated/release.ts'
 import type { Isolation } from './isolation.ts'
 import { authenticate } from './keys.ts'
+import { welcomeConnectGuides } from './site-address.ts'
 import { welcomeExamples } from './welcome-examples.ts'
 import { WELCOME_DETAILS_PATH } from './welcome-path.ts'
 
@@ -49,12 +50,17 @@ export function withWelcome<E extends Env>(
   options: {
     db: Db
     origin?: string
+    siteUrl?: string
     isolation?: Isolation
     platform?: string
     platformKey?: boolean
     boundary?: string
   },
 ) {
+  const guides = welcomeConnectGuides(options.siteUrl)
+  const guideLinks = guides.length
+    ? `<nav aria-label="Connect guides"><p>${guides.map((guide) => `<a rel="noreferrer" href="${htmlText(guide.url)}">${htmlText(guide.title)}</a>`).join(' · ')}</p></nav>`
+    : ''
   const location = options.platformKey
     ? (locations[options.platform ?? ''] ?? 'PRYX_BOOTSTRAP_API_KEY in the service environment settings')
     : 'the first successful startup in the service log (apiKey); on a server, the initial pryx up output'
@@ -72,7 +78,7 @@ export function withWelcome<E extends Env>(
       `default-src 'none'; script-src 'sha256-${scriptHash}'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'`,
     )
     return c.html(
-      `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>pryx runs here</title><style>:root{color-scheme:light dark;font:17px system-ui}body{max-width:54rem;margin:4rem auto;padding:0 1rem}input,button{font:inherit;padding:.6rem}pre{overflow:auto;padding:1rem;background:light-dark(#eee,#222)}section{margin:2rem 0}</style><h1>pryx runs here</h1><p>Version ${htmlText(PRYX_VERSION)}</p><p>Find this install's key in ${htmlText(location)}.</p><form><label>API key <input type="password" autocomplete="off" required maxlength="4096"></label> <button>Connect</button></form><p role="status" aria-live="polite"></p><main id="details"></main><script>${script}</script></html>`,
+      `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>pryx runs here</title><style>:root{color-scheme:light dark;font:17px system-ui}body{max-width:54rem;margin:4rem auto;padding:0 1rem}input,button{font:inherit;padding:.6rem}pre{overflow:auto;padding:1rem;background:light-dark(#eee,#222)}section{margin:2rem 0}</style><h1>pryx runs here</h1><p>Version ${htmlText(PRYX_VERSION)}</p><p>Find this install's key in ${htmlText(location)}.</p>${guideLinks}<form><label>API key <input type="password" autocomplete="off" required maxlength="4096"></label> <button>Connect</button></form><p role="status" aria-live="polite"></p><main id="details"></main><script>${script}</script></html>`,
     )
   })
   app.get(WELCOME_DETAILS_PATH, async (c) => {

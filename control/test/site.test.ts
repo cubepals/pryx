@@ -7,7 +7,8 @@ import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
 import { checkLinks } from '../../site/tools/html.ts'
 import { root, site, source, sourceFiles, verifySources } from '../../site/tools/sources.ts'
-import { siteAddress } from '../src/site-address.ts'
+import { PRYX_VERSION } from '../src/generated/release.ts'
+import { siteAddress, welcomeConnectGuides } from '../src/site-address.ts'
 
 test('canonical page coverage and body drift fail the site check', () => {
   const entries = sourceFiles().map((file) => ({
@@ -68,4 +69,19 @@ test('site addresses preserve base paths and refuse credential-bearing URLs', ()
     'https://docs.example.test/#key',
   ])
     expect(() => siteAddress(url)).toThrow()
+})
+
+test('welcome guide URLs name existing canonical pages of the running version', () => {
+  const ids = new Set(sourceFiles().map((file) => source(file).id))
+  expect(welcomeConnectGuides()).toEqual([])
+  for (const guide of welcomeConnectGuides('https://docs.example.test/manual/')) {
+    expect(ids.has(`connect/${guide.id}`)).toBe(true)
+    expect(guide.url).toBe(`https://docs.example.test/manual/v${PRYX_VERSION}/connect/${guide.id}/`)
+  }
+  try {
+    siteAddress('private-not-a-url')
+  } catch (error) {
+    expect(String(error)).not.toContain('private-not-a-url')
+    expect(Object.hasOwn(error as object, 'input')).toBe(false)
+  }
 })

@@ -10,6 +10,11 @@ import { MINUTE_MS, SECOND_MS } from './durations.ts'
 import { SandboxError } from './sandboxes.ts'
 import { jsonb, one, rows } from './sql.ts'
 import { deliver } from './webhook-target.ts'
+export const WEBHOOK_HEADERS = {
+  id: 'pryx-id',
+  timestamp: 'pryx-timestamp',
+  signature: 'pryx-signature',
+} as const
 export const webhookKinds = [
   'created',
   'running',
@@ -85,7 +90,11 @@ export class Webhooks {
           const status = await this.send(
             delivery.url,
             delivery.payload,
-            { 'pryx-id': delivery.id, 'pryx-timestamp': timestamp, 'pryx-signature': `v1=${signature}` },
+            {
+              [WEBHOOK_HEADERS.id]: delivery.id,
+              [WEBHOOK_HEADERS.timestamp]: timestamp,
+              [WEBHOOK_HEADERS.signature]: `v1=${signature}`,
+            },
             this.operatorHosts,
           )
           if (status >= StatusCodes.OK && status < StatusCodes.MULTIPLE_CHOICES) {

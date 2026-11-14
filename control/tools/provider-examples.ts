@@ -16,7 +16,9 @@ export async function runProviderExamples(options: { url: string; key: string })
   await run(['examples/rivet-provider.ts'])
   for (const file of ['docs/integrations/rivet.md', 'docs/connect/rivet.md']) {
     const blocks = [...readFileSync(file, 'utf8').matchAll(/^```([^\n]*)\n([\s\S]*?)^```/gm)]
-    if (blocks.length !== 2) throw new Error(`Expected two runnable connection examples in ${file}`)
+    const expected = file === 'docs/connect/rivet.md' ? 1 : 2
+    if (blocks.length !== expected)
+      throw new Error(`Expected ${expected} runnable connection examples in ${file}`)
     for (const block of blocks) {
       if (block[1] !== 'ts') throw new Error(`Unexecuted ${block[1]} block in ${file}`)
       await run(['-'], block[2])

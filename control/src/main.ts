@@ -157,6 +157,7 @@ export async function startControl(
   withWelcome(api.app, {
     db,
     origin: config.publicOrigin,
+    siteUrl: config.siteUrl,
     isolation: config.defaultIsolation,
     platform: process.env.PRYX_HOSTING_PLATFORM,
     platformKey: Boolean(process.env.PRYX_BOOTSTRAP_API_KEY),
