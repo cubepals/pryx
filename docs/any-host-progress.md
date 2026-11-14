@@ -4063,3 +4063,7 @@ job when publication is authorized. That job has not run in this task.
   determine why it fails. No environment, private record or guest credential is logged.
   Pinned Go test/build/vet and formatting pass; no root success is claimed. No added CI
   work beyond the existing failure observation; scanner remains eighteen.
+- Move the unchanged trusted DHCP lease application from the guest network process into
+  its named lease module before adding static TAP addressing. No DHCP request, deadline,
+  validation, resolver-write or lifetime behavior changes. Pinned Go guest build and vet,
+  formatting and whitespace pass; no new dependency/job/gate or CI time.

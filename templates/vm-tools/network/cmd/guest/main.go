@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 // Command guest configures networking inside the trusted VM before any image command runs.
+// Parts (`network/cmd/guest/`): main.go owns process lifetime and trusted device startup;
+// lease.go applies actual maintained DHCP lease values and writes the precreated resolver.
 // The maintained netlink and DHCP libraries own device setup and leases. The unchanged
 // gvisor forwarder owns all packet framing; this adapter never invokes an image's tools.
 package main
@@ -12,7 +14,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -22,37 +23,6 @@ import (
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
-
-func lease(link netlink.Link, value *nclient4.Lease, resolver string) error {
-	ack := value.ACK
-	mask := ack.SubnetMask()
-	if ack.YourIPAddr.To4() == nil || mask == nil || len(ack.Router()) == 0 || len(ack.DNS()) == 0 {
-		return fmt.Errorf("Guest DHCP lease lacks an IPv4 address, route or resolver")
-	}
-	address := &netlink.Addr{IPNet: &net.IPNet{IP: ack.YourIPAddr, Mask: mask}}
-	if err := netlink.AddrReplace(link, address); err != nil {
-		return err
-	}
-	route := &netlink.Route{LinkIndex: link.Attrs().Index, Gw: ack.Router()[0]}
-	if err := netlink.RouteReplace(route); err != nil {
-		return err
-	}
-	var data strings.Builder
-	for _, ip := range ack.DNS() {
-		if ip.To4() == nil {
-			return fmt.Errorf("Guest DHCP resolver is not IPv4")
-		}
-		fmt.Fprintf(&data, "nameserver %s\n", ip.String())
-	}
-	descriptor, err := unix.Open(resolver, unix.O_WRONLY|unix.O_TRUNC|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
-	if err != nil {
-		return err
-	}
-	file := os.NewFile(uintptr(descriptor), "guest resolver")
-	defer file.Close()
-	_, err = file.WriteString(data.String())
-	return err
-}
 
 func run() error {
 	loopbackOnly := flag.Bool("loopback-only", false, "Bring up only guest loopback and exit")

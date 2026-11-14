@@ -1209,3 +1209,5 @@
 - K25: scope a root TAP and its kernel listener sockets to an anonymous network namespace, hand their actual descriptors to the parent, and reuse the existing Rust hostname/DNS gateways and nft rules there; upstream dials stay in the parent namespace. This avoids a global route, address allocator, forwarding sysctl or alternate packet stack. First prove real descriptor handoff and thread-safe namespace lifetime separately.
 
 - K25: diagnose the separate authority fixture's EPERM at its unchanged credential-dropping exec with typed kernel UID/GID, capability and no-new-privileges observations; record no environment, arguments or private data, and preserve every unit restriction and ordinary-monitor requirement.
+
+- K25: move the unchanged DHCP lease application into its own guest network module before adding the host-selected static TAP path; retain the maintained DHCP client, every lease validation and the no-follow resolver write.
