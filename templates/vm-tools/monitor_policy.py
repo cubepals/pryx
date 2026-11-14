@@ -32,8 +32,9 @@ def adapt(original, abi):
         raise ValueError('Published thread signal policy differs from the reviewed ABI')
     mapping = {abi['abort']: abi['abort'], kicks.pop(): abi['vcpu']}
     result = copy.deepcopy(original)
-    changed = {'signals': 0, 'joins': 0, 'eventWaits': 0}
+    changed = {'signals': 0, 'signalIdentity': 0, 'joins': 0, 'eventWaits': 0}
     for profile in result.values():
+        signals_process = False
         for rule in profile['filter']:
             if rule['syscall'] == 'tkill':
                 arguments = rule.get('args', [])
@@ -45,6 +46,7 @@ def adapt(original, abi):
                 rule['syscall'] = 'tgkill'
                 rule['comment'] = 'Native thread signalling; the launcher independently requires its own TGID'
                 changed['signals'] += 1
+                signals_process = True
             elif rule['syscall'] == 'epoll_pwait':
                 if rule.get('args'):
                     raise ValueError('Unreviewed published event-wait constraints')
@@ -66,6 +68,12 @@ def adapt(original, abi):
                 rule['args'].append({'index': FUTEX_BITSET_ARGUMENT, 'type': 'dword', 'op': 'eq',
                                      'val': abi['futexBitsetAny'], 'comment': 'Full wait bitset only'})
                 changed['joins'] += 1
+        if signals_process:
+            if any(rule['syscall'] == 'getpid' for rule in profile['filter']):
+                raise ValueError('Published signal identity policy needs renewed review')
+            profile['filter'].append({'syscall': 'getpid',
+                'comment': 'GNU thread signalling reads only its own process identity before tgkill'})
+            changed['signalIdentity'] += 1
     if not all(changed.values()):
         raise ValueError('The expected native thread ABI substitutions were not found')
     return result, changed
@@ -84,6 +92,7 @@ def main():
         'sourcePolicySha256': hashlib.sha256(original).hexdigest(),
         'nativePolicySha256': hashlib.sha256(output).hexdigest(),
         'adaptedRules': changed,
+        'selfIdentitySyscall': json.loads(args.abi.read_text())['processId'],
         'nativeEventWaitSyscall': json.loads(args.abi.read_text())['epollWait'],
         'publishedEventWaitSyscall': json.loads(args.abi.read_text())['epollPwait'],
         'ruleCounts': {name: len(profile['filter']) for name, profile in generated.items()},

@@ -26,7 +26,7 @@ def verified(component):
     candidate = next(item for item in json.loads((ROOT / 'candidates.json').read_text()) if item['name'] == 'firecracker')
     receipt = json.loads((component / 'monitor.json').read_text())
     identity = json.loads((component / 'sources/inputs.json').read_text())[0]
-    if (receipt['sdk'] != inputs['sdk'] or receipt['target'] != inputs['target']
+    if (receipt.get('nativeThreadAbiVerified') is not True or receipt['sdk'] != inputs['sdk'] or receipt['target'] != inputs['target']
             or identity['repository'] != candidate['repository'] or identity['commit'] != candidate['sourceCommit']
             or any(receipt['source'][key] != identity[key] for key in ['repository', 'commit', 'sha256', 'bytes'])):
         raise ValueError('Native monitor build/source identity differs from its committed inputs')

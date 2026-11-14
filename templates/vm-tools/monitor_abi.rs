@@ -7,6 +7,7 @@ fn main() {
         "{}",
         serde_json::json!({
             "abort": libc::SIGABRT,
+            "processId": libc::SYS_getpid,
             "epollWait": libc::SYS_epoll_wait,
             "epollPwait": libc::SYS_epoll_pwait,
             "vcpu": vmm::utils::signal::sigrtmin() + vmm::vstate::vcpu::VCPU_RTSIG_OFFSET,

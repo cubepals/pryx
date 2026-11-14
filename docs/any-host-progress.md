@@ -4555,3 +4555,23 @@ job when publication is authorized. That job has not run in this task.
   monitor status; the signed guest result is successful. A same-source local native thread
   join under the exact compiled policy succeeds, while its maintained Killable kick traps
   on libc getpid before tgkill. Keep the assertion and investigate that exact ABI dependency.
+
+- Source 3f7ebe2 VM run 43651105141/job 132621161722 proves ordinary lifecycle, both root
+  images, mutual-TLS node API and bounded root hostname runtime with the GNU monitor. Only
+  the strict orderly-monitor status assertion fails (SIGSYS after signed successful guest
+  completion); the trace shows two successful vCPU real-time kicks and no denied signals.
+  Summary: checks/measurements/k25/native-shutdown-3f7ebe2.json; raw artifact 14137361344.
+- Reproduce native join success and maintained Killable kick failure under the exact local
+  compiled policy. Kernel SIGSYS identifies libc getpid before tgkill. Add only this read of
+  its own PID to the three native signal profiles, deriving its syscall identity from libc;
+  retain every existing rule/constraint, trap defaults and the independent self-TGID bound.
+- Add build-only real kicks and joins under the compiled VMM/API/vCPU filters, blocking the
+  delivery signal before creating threads and ensuring joins exercise native waits. The
+  actual local program also succeeds under the composed Landlock/seccomp launcher. Full
+  same-source recipe, complete source/notices collection and component correspondence pass.
+  Static monitor: 11,661,752 bytes, exact embedded restrictive BPF 3,466 bytes; three added
+  read-only identity rules, with all other changes limited to the recorded ABI substitutions.
+- Python syntax, standalone Rust formatting and whitespace pass. Existing build performs
+  this ABI check without KVM, adding under one optional build minute and no job/required
+  check/test framework. Real fixed guest shutdown and the new bridge/queue hardware proofs
+  remain pending; root worker/public placement and full installed cohorts remain unfinished.

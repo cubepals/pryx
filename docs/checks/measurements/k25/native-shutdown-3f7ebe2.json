@@ -1,0 +1,15 @@
+{
+  "sourceCommit": "3f7ebe2",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43651105141",
+  "job": 132621161722,
+  "artifact": 14137361344,
+  "passed": "Ordinary lifecycle, both root images, mutual-TLS node API and the bounded root hostname runtime",
+  "failure": "Focused shutdown has a verified successful guest result followed by monitor SIGSYS",
+  "threadTrace": {
+    "successfulVcpuRealtimeKicks": 2,
+    "deniedThreadSignals": 0
+  },
+  "localEvidence": "Actual native join under the compiled filter succeeds; the maintained Killable kick traps on the libc getpid syscall before tgkill",
+  "fix": "Add only the read of its own PID needed by native signalling in each of the three profiles; preserve self-TGID launcher bounds and all other rules",
+  "notProved": "Fixed hardware shutdown, public bridge packets/worker/placement or complete installed SDK and thirty-sample cohorts"
+}

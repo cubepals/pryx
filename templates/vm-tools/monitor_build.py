@@ -80,6 +80,7 @@ def build(args):
     example = source / 'src/vmm/examples/pryx_signal_abi.rs'
     example.parent.mkdir(exist_ok=True)
     shutil.copyfile(ROOT / 'monitor_abi.rs', example)
+    shutil.copyfile(ROOT / 'monitor_threads.rs', source / 'src/vmm/examples/pryx_native_threads.rs')
     abi = run(['cargo', 'run', '--locked', '--release', '--target', inputs['target'],
                '-p', 'vmm', '--example', 'pryx_signal_abi'], capture=True)
     (component / 'abi.json').write_text(abi)
@@ -92,6 +93,8 @@ def build(args):
     expected = component / 'seccomp_filter.bpf'
     run(['cargo', 'run', '--locked', '--release', '-p', 'seccompiler', '--bin', 'seccompiler-bin', '--',
          '--target-arch', 'x86_64', '--input-file', str(policy), '--output-file', str(expected)], host=True)
+    run(['cargo', 'run', '--locked', '--release', '--target', inputs['target'],
+         '-p', 'vmm', '--example', 'pryx_native_threads', '--', str(expected)])
     executable = target / inputs['target'] / 'release/firecracker'
     static(executable)
     if not expected.read_bytes() or expected.read_bytes() not in executable.read_bytes():
@@ -100,7 +103,7 @@ def build(args):
     shutil.copyfile(executable, component / 'bin/firecracker')
     (component / 'bin/firecracker').chmod(0o755)
     shutil.copyfile(policy, component / 'seccomp.json')
-    receipt = {'source': identity, 'sdk': inputs['sdk'], 'target': inputs['target'],
+    receipt = {'source': identity, 'sdk': inputs['sdk'], 'target': inputs['target'], 'nativeThreadAbiVerified': True,
                'rust': run(['rustc', '--version'], capture=True).strip(),
                'version': run([str(executable), '--version'], capture=True).splitlines()[0],
                'monitorSha256': digest(executable), 'monitorBytes': executable.stat().st_size,
