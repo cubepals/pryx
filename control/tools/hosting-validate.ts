@@ -21,7 +21,6 @@ const compose = Bun.spawnSync(
   {
     env: {
       ...process.env,
-      SERVICE_URL_PRYX: 'https://pryx.example.test',
       SERVICE_URL_PRYX_8080: 'https://pryx.example.test',
       SERVICE_PASSWORD_64_PRYX: 'validator-placeholder',
     },

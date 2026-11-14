@@ -4,7 +4,7 @@ services:
     image: ghcr.io/cubepals/pryx:0.1.0
     environment:
       - SERVICE_URL_PRYX_8080
-      - PRYX_PUBLIC_URL=${SERVICE_URL_PRYX}
+      - PRYX_PUBLIC_URL=${SERVICE_URL_PRYX_8080}
       - PRYX_BOOTSTRAP_API_KEY=${SERVICE_PASSWORD_64_PRYX}
       - PRYX_HOSTING_PLATFORM=coolify
       - PORT=8080
