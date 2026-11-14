@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Run the exact welcome-page MCP configuration with the reference client, then clean up.
  * Invoked by deployment acceptance only; not part of the CLI's public commands. */
+
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
+import { WELCOME_IMAGE } from '../../control/src/welcome-examples.ts'
 
 const configuration = JSON.parse(await new Response(Bun.stdin.stream()).text()).mcpServers.pryx
 const client = new Client({ name: 'pryx-hosting-ci', version: '1.0.0' })
@@ -22,7 +24,9 @@ const result = (value: unknown) => {
 let id: string | undefined
 try {
   await client.connect(transport)
-  id = result(await client.callTool({ name: 'sandbox_create', arguments: {} })).id
+  const project = result(await client.callTool({ name: 'project_usage', arguments: {} }))
+  const create = project.defaults.isolation === 'container' ? { image: WELCOME_IMAGE } : {}
+  id = result(await client.callTool({ name: 'sandbox_create', arguments: create })).id
   const run = result(await client.callTool({ name: 'sandbox_run', arguments: { id, command: 'echo hello' } }))
   if (run.code !== 0 || run.stdout.trim() !== 'hello') throw new Error('Welcome MCP hello differs')
 } finally {

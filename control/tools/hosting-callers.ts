@@ -33,8 +33,14 @@ async function run(command: string[], code?: string, environment = env) {
     child.stdin.write(code)
     child.stdin.end()
   }
-  const [output] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text()])
-  if (await child.exited) throw new Error(`Welcome caller ${command[0]} failed`)
+  const [output, errors] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ])
+  if (await child.exited)
+    throw new Error(
+      `Welcome caller ${command[0]} failed: ${errors.replaceAll(key, '[redacted]').slice(-2048)}`,
+    )
   return output
 }
 try {

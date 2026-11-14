@@ -9,9 +9,22 @@ import { MINUTE_MS, SECOND_MS } from '../src/durations.ts'
 
 async function command(args: string[], env = process.env) {
   const child = Bun.spawn(args, { env, stdout: 'pipe', stderr: 'pipe' })
-  const [stdout] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text()])
-  if (await child.exited) throw new Error(`Hosting command failed: ${args.slice(0, 2).join(' ')}`)
+  const [stdout, errors] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ])
+  if (await child.exited) {
+    const redacted = environmentSecrets(errors, env)
+    throw new Error(`Hosting command failed: ${args.slice(0, 2).join(' ')}: ${redacted.slice(-2048)}`)
+  }
   return stdout
+}
+function environmentSecrets(value: string, env: NodeJS.ProcessEnv) {
+  for (const name of ['PRYX_API_KEY', 'PRYX_BOOTSTRAP_API_KEY']) {
+    const key = env[name]
+    if (key) value = value.replaceAll(key, '[redacted]')
+  }
+  return value
 }
 const temporary = mkdtempSync(join(tmpdir(), 'pryx-hosting-image-'))
 const image = process.env.PRYX_IMAGE_TEST ?? 'pryx-static-test'

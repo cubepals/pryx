@@ -79,7 +79,7 @@ export function withWelcome<E extends Env>(
       return c.json({ error: 'A valid, active API key is required' }, StatusCodes.UNAUTHORIZED)
     return c.json({
       capabilities: `Default tier: ${options.isolation ?? 'container'}. Requests still undergo node admission and fail if their policy cannot be enforced. This release has no host probe report: additional tiers, namespaces, cgroup limits, KVM, browsers and desktops are unverified here. Process needs Landlock and seccomp; it cannot run container images or promise memory sleep. Wasm uses a virtual kernel, with no container images or public guest ingress. Container needs an engine and the host firewall policy. See the hosting guide for these boundaries.`,
-      examples: welcomeExamples(options.origin ?? new URL(c.req.url).origin),
+      examples: welcomeExamples(options.origin ?? new URL(c.req.url).origin, options.isolation),
     })
   })
 }

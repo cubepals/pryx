@@ -77,7 +77,7 @@ filesystem and its persistent `/var/lib/pryx` mount; the image user stays root. 
 adds no Docker daemon or KVM device. The process policy must pass on the actual guest kernel.
 
 Validation: the TOML is parsed locally in CI; Fly's remote configuration validation needs an
-app/account and is not reported as run. The container envelope and caller blocks run in CI;
+app/account and is not reported as run. Fly's current [validator source](https://github.com/superfly/flyctl/blob/master/internal/command/config/validate.go) requires a session and app name (checked 2026-11-14). The container envelope and caller blocks run in CI;
 these do not emulate a Fly microVM. Live deploy: not run.
 [Configuration](https://fly.io/docs/reference/configuration/),
 [volumes](https://fly.io/docs/volumes/overview/), [pricing](https://fly.io/docs/about/pricing/).
@@ -146,6 +146,6 @@ operator DNS/TLS setup and PRYX_PUBLIC_URL; this file does not invent a domain o
 No cloud-init provider or operating system can allocate a verified domain for a machine from
 this repository alone.
 
-Validation: cloud-init's own schema validation and scheduled boot of the file are CI checks;
+Validation: cloud-init's own schema validation and a scheduled/dispatched boot matrix of checksum-pinned Ubuntu 24.04 and 26.04 images are CI checks;
 no boot ran on the supervised development machine. Live deploy: not run.
 [cloud-init runcmd](https://docs.cloud-init.io/en/latest/reference/modules.html#runcmd).

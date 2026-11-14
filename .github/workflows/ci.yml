@@ -695,6 +695,14 @@ jobs:
           docker tag mirror.gcr.io/library/node:22 node:22
           python3 -m http.server 9876 --bind 127.0.0.1 --directory dist > "$RUNNER_TEMP/artifact-server.log" 2>&1 &
           printf 'Defaults env_keep += "PRYX_RELEASE_BASE_URL"\n' | sudo tee /etc/sudoers.d/pryx-ci-artifacts >/dev/null
+      - name: Boot cloud-init distribution matrix
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        env:
+          PRYX_CLOUD_INIT_IMAGE_ARCHIVE: ${{ runner.temp }}/pryx-one-box-image.tar.gz
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86 qemu-utils cloud-image-utils genisoimage cloud-init
+          bun control/bench/hosting-cloud-init.ts
       - name: Four-command quickstart and repeat install
         id: up
         run: |
