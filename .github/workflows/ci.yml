@@ -499,6 +499,7 @@ jobs:
           docker build -t alpine:pryx-python-interpreter templates/python-interpreter
           docker build -t alpine:pryx-node-interpreter templates/node-interpreter
       - name: Prepare the OpenOrange provider proposal
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         run: bun control/tools/open-orange-patch.ts
       - run: bun run e2e --reporter=junit --reporter-outfile "$RUNNER_TEMP/e2e.xml"
         if: ${{ !cancelled() && steps.static.outcome == 'success' }}

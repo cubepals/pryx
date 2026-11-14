@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Release image acceptance under recorded hosting envelopes, not a provider-kernel emulator.
  * Starts without added privileges and keeps one volume across a restart; runs every UI caller. */
+
 import { randomBytes } from 'node:crypto'
 import { appendFileSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { MINUTE_MS, SECOND_MS } from '../src/durations.ts'
+import { WELCOME_DETAILS_PATH } from '../src/welcome-path.ts'
 
 async function command(args: string[], env = process.env) {
   const child = Bun.spawn(args, { env, stdout: 'pipe', stderr: 'pipe' })
@@ -104,10 +106,10 @@ try {
         if (keys.length !== 1 || !keys[0]) throw new Error('Generated key not printed once')
         apiKey = keys[0]
       }
-      const details = await fetch(`${origin}/_pryx/welcome`, {
+      const details = await fetch(`${origin}${WELCOME_DETAILS_PATH}`, {
         headers: { authorization: `Bearer ${apiKey}` },
       })
-      if (!details.ok) throw new Error(`${platform} initial key refused`)
+      if (!details.ok) throw new Error(`${platform} welcome details returned HTTP ${details.status}`)
       await command([process.execPath, 'control/tools/hosting-callers.ts'], {
         ...process.env,
         PRYX_API_URL: origin,

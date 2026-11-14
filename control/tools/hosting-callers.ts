@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Execute examples returned by the running welcome endpoint. SDKs use this checkout's
  * release build; the Action's real composite shell is run with its verified local CLI. */
+
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { StatusCodes } from 'http-status-codes'
+import { WELCOME_DETAILS_PATH } from '../src/welcome-path.ts'
 
 const url = process.env.PRYX_API_URL as string
 const key = process.env.PRYX_API_KEY as string
@@ -12,9 +14,9 @@ if (!url || !key) throw new Error('Hosting acceptance requires URL and key')
 const publicPage = await fetch(url)
 if (!publicPage.ok || (await publicPage.text()).includes(key))
   throw new Error('Welcome leaked key or missing')
-const denied = await fetch(`${url}/_pryx/welcome`)
+const denied = await fetch(`${url}${WELCOME_DETAILS_PATH}`)
 if (denied.status !== StatusCodes.UNAUTHORIZED) throw new Error('Welcome details are public')
-const unlocked = await fetch(`${url}/_pryx/welcome`, { headers: { authorization: `Bearer ${key}` } })
+const unlocked = await fetch(`${url}${WELCOME_DETAILS_PATH}`, { headers: { authorization: `Bearer ${key}` } })
 if (!unlocked.ok) throw new Error('Platform key rejected')
 const encoded = await unlocked.text()
 if (encoded.includes(key)) throw new Error('Unlocked examples leaked key')

@@ -20,6 +20,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import images from '../../deploy/platforms/cloud-init/images.json'
 import { MINUTE_MS, SECOND_MS } from '../src/durations.ts'
+import { WELCOME_DETAILS_PATH } from '../src/welcome-path.ts'
 
 async function command(args: string[], env = process.env) {
   const child = Bun.spawn(args, { env, stdout: 'pipe', stderr: 'pipe' })
@@ -199,7 +200,7 @@ try {
       const page = await fetch(origin)
       if (!page.ok || !(await page.text()).includes('pryx runs here'))
         throw new Error('Boot did not end at welcome')
-      const privatePage = await fetch(`${origin}/_pryx/welcome`, {
+      const privatePage = await fetch(`${origin}${WELCOME_DETAILS_PATH}`, {
         headers: { authorization: `Bearer ${key}` },
       })
       if (!privatePage.ok) throw new Error('Boot key rejected')

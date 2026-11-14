@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Self-contained install welcome UI. Public HTML contains version and key location only;
  * authenticated details are fetched on demand. Credentials live only in the tab's closure. */
+
 import { createHash } from 'node:crypto'
 import type { Env, Hono } from 'hono'
 import { StatusCodes } from 'http-status-codes'
@@ -9,6 +10,7 @@ import { PRYX_VERSION } from './generated/release.ts'
 import type { Isolation } from './isolation.ts'
 import { authenticate } from './keys.ts'
 import { welcomeExamples } from './welcome-examples.ts'
+import { WELCOME_DETAILS_PATH } from './welcome-path.ts'
 
 const locations: Record<string, string> = {
   render: 'PRYX_BOOTSTRAP_API_KEY in Render → service → Environment',
@@ -22,7 +24,7 @@ const script = `document.querySelector('form').addEventListener('submit', async 
   const status = document.querySelector('[role="status"]');
   const details = document.querySelector('#details'); details.replaceChildren();
   try {
-    const response = await fetch('/_pryx/welcome', {headers: {Authorization: 'Bearer ' + key}, cache: 'no-store', credentials: 'omit', redirect: 'error'});
+    const response = await fetch(${JSON.stringify(WELCOME_DETAILS_PATH)}, {headers: {Authorization: 'Bearer ' + key}, cache: 'no-store', credentials: 'omit', redirect: 'error'});
     if (!response.ok) throw new Error('A valid, active API key is required.');
     const data = await response.json();
     const report = document.createElement('p'); report.textContent = data.capabilities; details.append(report);
@@ -56,7 +58,7 @@ export function withWelcome<E extends Env>(
   const location = options.platformKey
     ? (locations[options.platform ?? ''] ?? 'PRYX_BOOTSTRAP_API_KEY in the service environment settings')
     : 'the first successful startup in the service log (apiKey); on a server, the initial pryx up output'
-  app.use('/_pryx/*', async (c, next) => {
+  app.use(WELCOME_DETAILS_PATH, async (c, next) => {
     c.header('Cache-Control', 'no-store')
     c.header('Referrer-Policy', 'no-referrer')
     await next()
@@ -73,7 +75,7 @@ export function withWelcome<E extends Env>(
       `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>pryx runs here</title><style>:root{color-scheme:light dark;font:17px system-ui}body{max-width:54rem;margin:4rem auto;padding:0 1rem}input,button{font:inherit;padding:.6rem}pre{overflow:auto;padding:1rem;background:light-dark(#eee,#222)}section{margin:2rem 0}</style><h1>pryx runs here</h1><p>Version ${htmlText(PRYX_VERSION)}</p><p>Find this install's key in ${htmlText(location)}.</p><form><label>API key <input type="password" autocomplete="off" required maxlength="4096"></label> <button>Connect</button></form><p role="status" aria-live="polite"></p><main id="details"></main><script>${script}</script></html>`,
     )
   })
-  app.get('/_pryx/welcome', async (c) => {
+  app.get(WELCOME_DETAILS_PATH, async (c) => {
     const header = c.req.header('authorization') ?? ''
     const identity = header.startsWith('Bearer ') ? await authenticate(options.db, header.slice(7)) : null
     if (!identity || identity.expired)
