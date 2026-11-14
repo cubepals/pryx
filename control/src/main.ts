@@ -33,6 +33,7 @@ import { Sandboxes } from './sandboxes.ts'
 import { S3ArchiveStore } from './store.ts'
 import { StoreLeaseAuthority } from './store-lease.ts'
 import { S3LeaseBucket } from './store-lease-bucket.ts'
+import { withWelcome } from './welcome.ts'
 
 export async function startControl(
   config: ControlConfig = loadConfig(),
@@ -148,6 +149,13 @@ export async function startControl(
     repoImage: config.repoImage,
     webhookSealKey: config.providerSealKey,
     webhookAllowHosts: config.webhookAllowHosts,
+  })
+  withWelcome(api.app, {
+    db,
+    origin: config.publicOrigin,
+    isolation: config.defaultIsolation,
+    platform: process.env.PRYX_HOSTING_PLATFORM,
+    platformKey: Boolean(process.env.PRYX_BOOTSTRAP_API_KEY),
   })
   const edge = new EdgeService(db, sandboxes, config.publicDomain, config.edgePortRange, api.agents)
   api.app.route('/edge/v1', edgeApi(edge, config.edgeToken))

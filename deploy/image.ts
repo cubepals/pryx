@@ -30,7 +30,12 @@ async function serve() {
   const root = process.getuid?.() === 0 ? base : join(base, `uid-${process.getuid?.()}`)
   const publicPort = Number(process.env.PORT ?? 8080)
   const origin =
-    process.env.PRYX_PUBLIC_URL ?? process.env.RENDER_EXTERNAL_URL ?? `http://127.0.0.1:${publicPort}`
+    process.env.PRYX_PUBLIC_URL ??
+    process.env.RENDER_EXTERNAL_URL ??
+    (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : undefined) ??
+    (process.env.FLY_APP_NAME ? `https://${process.env.FLY_APP_NAME}.fly.dev` : undefined) ??
+    (process.env.KOYEB_PUBLIC_DOMAIN ? `https://${process.env.KOYEB_PUBLIC_DOMAIN}` : undefined) ??
+    `http://127.0.0.1:${publicPort}`
   const parsedOrigin = new URL(origin)
   if (
     !['http:', 'https:'].includes(parsedOrigin.protocol) ||
@@ -94,7 +99,7 @@ async function serve() {
     PRYX_CA_KEY: values.caKey,
     PRYX_OPERATOR_TOKEN: values.operator,
     PRYX_EDGE_TOKEN: values.edge,
-    PRYX_BOOTSTRAP_API_KEY: values.key,
+    PRYX_BOOTSTRAP_API_KEY: process.env.PRYX_BOOTSTRAP_API_KEY || values.key,
     PRYX_DEFAULT_ISOLATION: tier,
     PRYX_PUBLIC_URL: origin,
     PRYX_DEPLOYMENT: 'pryx',
@@ -231,7 +236,7 @@ control_ips = ["127.0.0.1"]
           : 'shared UID'
   console.log(`pryx listening on ${publicPort}; isolation=${tier}; ${boundary}`)
   const printed = join(root, 'private', 'key-printed')
-  if (!existsSync(printed)) {
+  if (!process.env.PRYX_BOOTSTRAP_API_KEY && !existsSync(printed)) {
     createPrivateFile(printed, 'printed\n')
     console.log(JSON.stringify({ apiUrl: origin, apiKey: values.key }))
   }

@@ -5,7 +5,7 @@
 docker run -p 8080:8080 ghcr.io/cubepals/pryx:0.1.0
 ```
 
-The first successful start prints the initial API key once. Set PRYX_API_URL to
+Open the public root address for the welcome page and caller examples. If PRYX_BOOTSTRAP_API_KEY is set, it supplies the first key and is never logged; otherwise the first successful start prints the initial API key once. See [hosting](hosting.md) for platform files and exact validation boundaries. Set PRYX_API_URL to
 `http://localhost:8080` and PRYX_API_KEY to that key in the CLI or SDK environment.
 `pryx run -- echo hello` uses the bundled userland. `pryx run --image alpine:3.22 -- echo hello`
 is refused on the process tier with the image error documented in [process-tier.md](process-tier.md).
@@ -60,7 +60,7 @@ web service, persistent state disk and managed Postgres:
 2. Keep its Standard web-service plan and disk; the bundled service and a default sandbox need
    more memory than a 512 MiB instance. Render creates the Postgres add-on and supplies its
    connection string through the Blueprint's DATABASE_URL reference.
-3. Wait for `/healthz` to become healthy, then read the first API key in the service log.
+3. Wait for `/healthz` to become healthy, then retrieve PRYX_BOOTSTRAP_API_KEY in the service Environment settings.
    The image uses Render's RENDER_EXTERNAL_URL automatically, so agent and port aliases use
    the service's verified HTTPS origin. Set PRYX_PUBLIC_URL explicitly when using a custom domain.
 4. Point the CLI/SDK at the service origin with that key. Run `pryx run -- echo hello` and

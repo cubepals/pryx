@@ -2,7 +2,9 @@
 services:
   - type: web
     name: pryx
-    runtime: docker
+    runtime: image
+    image:
+      url: ghcr.io/cubepals/pryx:0.1.0
     plan: standard
     healthCheckPath: /healthz
     disk:
@@ -10,6 +12,10 @@ services:
       mountPath: /var/lib/pryx
       sizeGB: 10
     envVars:
+      - key: PRYX_BOOTSTRAP_API_KEY
+        generateValue: true
+      - key: PRYX_HOSTING_PLATFORM
+        value: render
       - key: DATABASE_URL
         fromDatabase:
           name: pryx-database
