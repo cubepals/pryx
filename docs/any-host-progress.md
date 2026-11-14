@@ -4339,3 +4339,23 @@ job when publication is authorized. That job has not run in this task.
   These establish the libc/filter mismatch, not its occurrence inside the published VMM; the
   focused real KVM trace must confirm that. Full Rust: 536 pass, known host IPv6 fixture failure,
   43 ignored; strict all-target Clippy, fmt, actionlint and whitespace pass. Hardware pending.
+
+- Install hostname admission independently of guest rules in each anonymous TAP namespace,
+  through already pinned google/nftables 0.3.0. Input and forwarding default to drop; local
+  loopback and established guest traffic remain bounded to that namespace, and new guest
+  IPv4 traffic reaches only the actual HTTP/TLS/paired DNS gateway ports. IPv6/other input
+  and forwarding are denied. Original-host tables/routes/forwarding remain untouched.
+- Read back both base-chain drop policies/hooks/priorities and the installed input rules
+  before granting handles. The owner advertises parser support and reports actual firewall
+  confirmation only after this readback; both Go replay and Rust consumer require it.
+  Descriptor grant is attempted once, preventing later port/policy widening in the same scope.
+  Existing close-on-exec, lease-bound single DEL and cancellation behavior stay intact.
+- Go test/build/vet/verify and the complete nineteen-notice check pass; the actual linked
+  FSL scope still excludes both external TAP-only copyleft modules. No dependency version or
+  lock changes. Full Rust: 536 pass, known host IPv6 fixture failure, 43 ignored; strict
+  all-target Clippy, fmt, Python syntax, actionlint and whitespace pass. Actual nftables and
+  guest packet enforcement remain CI-only. Estimate under two optional VM seconds, zero
+  normal PR minutes and no new job/gate. Root unrestricted forwarding/worker/placement remain.
+- Read source 28bc3b1 signed-host run 43632314039/job 132564762833: it again reaches VM
+  admission, then fails the old two-process lookup. That source predates 052db0a; preserve
+  the failure without redoing its already pushed correction. Scanner comments remain eighteen.

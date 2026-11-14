@@ -16,6 +16,7 @@ const (
 )
 
 type ScopeMetadata struct {
+	HostFirewall     bool        `json:"hostFirewall"`
 	Descriptors      []ScopeRole `json:"descriptors"`
 	MaxDescriptors   int         `json:"maxDescriptors"`
 	MaxMetadataBytes int         `json:"maxMetadataBytes"`
@@ -23,10 +24,11 @@ type ScopeMetadata struct {
 }
 
 type ScopeHandoff struct {
-	Descriptors []ScopeRole `json:"descriptors"`
-	Profile     Profile     `json:"profile"`
-	Tap         string      `json:"tap"`
-	Version     int         `json:"version"`
+	HostFirewall bool        `json:"hostFirewall"`
+	Descriptors  []ScopeRole `json:"descriptors"`
+	Profile      Profile     `json:"profile"`
+	Tap          string      `json:"tap"`
+	Version      int         `json:"version"`
 }
 
 func scopeDescriptors() []ScopeRole {
@@ -34,9 +36,9 @@ func scopeDescriptors() []ScopeRole {
 }
 
 func ScopeAdvertisement() ScopeMetadata {
-	return ScopeMetadata{Descriptors: scopeDescriptors(), MaxDescriptors: MaxHandoffFiles, MaxMetadataBytes: MaxHandoffBytes, Version: ScopeVersion}
+	return ScopeMetadata{HostFirewall: true, Descriptors: scopeDescriptors(), MaxDescriptors: MaxHandoffFiles, MaxMetadataBytes: MaxHandoffBytes, Version: ScopeVersion}
 }
 
-func ScopeGrant(profile Profile, tap string) ScopeHandoff {
-	return ScopeHandoff{Descriptors: scopeDescriptors(), Profile: profile, Tap: tap, Version: ScopeVersion}
+func (scope *Scope) Grant() ScopeHandoff {
+	return ScopeHandoff{HostFirewall: scope.firewallConfirmed, Descriptors: scopeDescriptors(), Profile: scope.Profile, Tap: scope.Tap, Version: ScopeVersion}
 }

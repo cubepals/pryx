@@ -134,7 +134,7 @@ func grant(directory, state, lock string, uid, gid uint) (problem error) {
 			file.Close()
 		}
 	}()
-	metadata, err := json.Marshal(rootnetwork.ScopeGrant(scope.Profile, scope.Tap))
+	metadata, err := json.Marshal(scope.Grant())
 	if err != nil {
 		return err
 	}

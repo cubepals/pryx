@@ -37,15 +37,18 @@ type Profile struct {
 }
 
 type Scope struct {
-	Space         ns.NetNS
-	Profile       Profile
-	Tap           string
-	handle        netns.NsHandle
-	cni           *libcni.CNIConfig
-	configuration *libcni.NetworkConfig
-	invocation    *libcni.RuntimeConf
-	identity      int
-	attempted     bool
+	Space             ns.NetNS
+	Profile           Profile
+	Tap               string
+	handle            netns.NsHandle
+	cni               *libcni.CNIConfig
+	configuration     *libcni.NetworkConfig
+	invocation        *libcni.RuntimeConf
+	identity          int
+	attempted         bool
+	loopback          int
+	grantAttempted    bool
+	firewallConfirmed bool
 }
 
 func (scope *Scope) link() (netlink.Link, error) {
@@ -137,6 +140,7 @@ func (scope *Scope) configure(uid, gid uint32) error {
 		if err := netlink.LinkSetUp(loopback); err != nil {
 			return err
 		}
+		scope.loopback = loopback.Attrs().Index
 		prefix, err := netip.ParsePrefix(hostCIDR)
 		if err != nil {
 			return err

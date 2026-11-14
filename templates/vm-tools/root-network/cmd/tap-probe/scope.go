@@ -88,7 +88,7 @@ func scopeProbe(helper, directory string, uid, gid uint32) error {
 	if err := json.Unmarshal(metadata, &grant); err != nil {
 		return err
 	}
-	if grant.Version != rootnetwork.ScopeVersion || !slices.Equal(grant.Descriptors, rootnetwork.ScopeAdvertisement().Descriptors) || len(files) != len(grant.Descriptors) {
+	if !grant.HostFirewall || grant.Version != rootnetwork.ScopeVersion || !slices.Equal(grant.Descriptors, rootnetwork.ScopeAdvertisement().Descriptors) || len(files) != len(grant.Descriptors) {
 		return fmt.Errorf("Actual scope metadata differs from its protocol owner")
 	}
 	roles := map[rootnetwork.ScopeRole]*os.File{}

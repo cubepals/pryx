@@ -5,6 +5,7 @@ go 1.27.3
 require (
 	github.com/containernetworking/cni v1.3.1
 	github.com/containernetworking/plugins v1.10.0
+	github.com/google/nftables v0.3.0
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5
 	golang.org/x/sys v0.49.0
@@ -16,7 +17,6 @@ require (
 	github.com/coreos/go-iptables v0.8.0 // indirect
 	github.com/cyphar/filepath-securejoin v0.7.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
-	github.com/google/nftables v0.3.0 // indirect
 	github.com/mdlayher/netlink v1.11.2 // indirect
 	github.com/mdlayher/socket v0.6.1 // indirect
 	github.com/opencontainers/selinux v1.15.1 // indirect

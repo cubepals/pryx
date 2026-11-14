@@ -24,6 +24,8 @@ pub(super) enum Role {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct Advertisement {
+    #[serde(default)]
+    pub host_firewall: bool,
     pub descriptors: Vec<Role>,
     pub max_descriptors: usize,
     pub max_metadata_bytes: usize,
@@ -33,6 +35,8 @@ pub(super) struct Advertisement {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Metadata {
+    #[serde(default)]
+    host_firewall: bool,
     descriptors: Vec<Role>,
     profile: Value,
     tap: String,
@@ -55,6 +59,12 @@ pub(super) fn invalid() -> io::Error {
 
 impl Advertisement {
     pub(super) fn validate(&self) -> io::Result<()> {
+        if !self.host_firewall {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "Root TAP helper does not advertise its namespace firewall",
+            ));
+        }
         // This is the receiver's allocation ceiling, not the producer's protocol limit.
         const MAX_RECEIVED_FILES: usize = 32;
         if self.max_descriptors == 0
@@ -85,7 +95,10 @@ pub(super) fn receive(socket: impl AsFd, advertisement: &Advertisement) -> io::R
         return Err(invalid());
     }
     let metadata: Metadata = serde_json::from_slice(&payload[..message.bytes]).map_err(|_| invalid())?;
-    if metadata.version != advertisement.version || metadata.descriptors != advertisement.descriptors {
+    if !metadata.host_firewall
+        || metadata.version != advertisement.version
+        || metadata.descriptors != advertisement.descriptors
+    {
         return Err(invalid());
     }
     let mut files = Vec::new();

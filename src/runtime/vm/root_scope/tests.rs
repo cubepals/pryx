@@ -27,6 +27,7 @@ fn rejected_rights_close_every_delivered_file() {
     };
     let before = count();
     let metadata = Advertisement {
+        host_firewall: false,
         descriptors: vec![handoff::Role::Namespace],
         max_descriptors: 1,
         max_metadata_bytes: 64,
