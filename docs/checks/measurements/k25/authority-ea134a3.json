@@ -1,0 +1,13 @@
+{
+  "sourceCommit": "ea134a3",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43627526790",
+  "job": 132547377668,
+  "artifact": 14126794664,
+  "passed": "Both actual bounded system service TAP and transferred-listener cases; ordinary fixed UID, original handler namespace, identity-bound deletion, unchanged host neighbours",
+  "failures": [
+    "Ordinary file-only guest shutdown loses part of its signed clean-disk proof when monitor serial reports EAGAIN; earlier complete proofs are followed by vCPU-exit timeout panics",
+    "Separate bounded root lifecycle first start receives no bootstrap within the existing deadline; failed normal readiness currently loses bounded serial diagnostics"
+  ],
+  "next": "Independent serial draining, existing proof validation preserved, bounded startup-failure retention; no service restriction or timeout changed",
+  "notProved": "Bounded root lifecycle, root guest packets/firewall, installed signed VM or production measurements"
+}

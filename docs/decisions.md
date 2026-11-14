@@ -1231,3 +1231,7 @@
 - K25: move the unchanged hostname/DNS listener serving body into its own function before adding namespace-owned listener adoption; keep all existing bind validation, listener creation, gateway policy, capacities and cancellation behavior unchanged.
 
 - K25: add a separate root TAP-scope program using the already pinned permissive CNI/netlink libraries and external TAP plugin; deliver actual namespace/gateway descriptors over the inherited private socket, keep the parent lifetime pipe, and require the monitor's real exclusive kernel lease before one identity-bound DEL. This prepares hostname TAP integration without a global network change or production worker registration.
+
+- K25: drain bounded VM serial data on an independent native reader and publish only its bounded tail after EOF, so asynchronous scheduling and per-read filesystem writes cannot starve Firecracker's nonblocking serial output; preserve every existing signed shutdown-proof check and capture test. Use the existing Rustix socket API to prove draining while the async executor is deliberately held.
+
+- K25: retain the existing bounded redacted monitor diagnostics after failed regular VM readiness as already done for maintenance guests; retire the owned monitor and finish capture before temporary launch state disappears, without retrying bootstrap, changing readiness deadlines or weakening the root service profile.

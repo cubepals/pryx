@@ -5,18 +5,15 @@
 //! This is byte capture, not a guest protocol parser or a replacement for application logs.
 use std::{
     collections::VecDeque,
-    fs::OpenOptions,
-    io,
+    fs::{File, OpenOptions},
+    io::{self, Read, Seek, Write},
     os::unix::{fs::OpenOptionsExt, net::UnixStream},
     path::Path,
 };
-use tokio::{
-    io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
-    task::JoinHandle,
-};
+use tokio::sync::oneshot;
 
 pub(super) struct Capture {
-    task: Option<JoinHandle<io::Result<bool>>>,
+    task: Option<oneshot::Receiver<io::Result<bool>>>,
     result: Option<Result<bool, (io::ErrorKind, String)>>,
 }
 impl Capture {
@@ -45,55 +42,47 @@ pub(super) fn start(path: &Path, limit: usize) -> io::Result<(UnixStream, Captur
         .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
         .open(path)?;
     let (reader, writer) = UnixStream::pair()?;
-    reader.set_nonblocking(true)?;
-    let mut reader = tokio::net::UnixStream::from_std(reader)?;
-    let task = tokio::spawn(async move {
-        let mut file = tokio::fs::File::from_std(file);
-        let mut tail = VecDeque::new();
-        let mut buffer = [0; 16 * 1024];
-        let mut total = 0u64;
-        let mut unpublished = 0usize;
-        loop {
-            let size = reader.read(&mut buffer).await?;
-            if size == 0 {
-                break;
-            }
-            total = total.saturating_add(size as u64);
-            if size >= limit {
-                tail.clear();
-                tail.extend(&buffer[size - limit..size]);
-            } else {
-                let discard = tail.len().saturating_add(size).saturating_sub(limit);
-                tail.drain(..discard);
-                tail.extend(&buffer[..size]);
-            }
-            if total <= limit as u64 {
-                file.write_all(&buffer[..size]).await?;
-            } else {
-                unpublished = unpublished.saturating_add(size);
-                if unpublished >= limit {
-                    rewrite(&mut file, &tail).await?;
-                    unpublished = 0;
-                }
-            }
-        }
-        rewrite(&mut file, &tail).await?;
-        file.sync_data().await?;
-        Ok(total > limit as u64)
-    });
-    Ok((writer, Capture { task: Some(task), result: None }))
+    let (finished, observation) = oneshot::channel();
+    std::thread::Builder::new().name("pryx-vm-serial".into()).spawn(move || {
+        // Keep draining even if its async owner is cancelled; the owned monitor must
+        // retire without waiting for the executor or per-read filesystem I/O.
+        let _ = finished.send(drain(reader, file, limit));
+    })?;
+    Ok((writer, Capture { task: Some(observation), result: None }))
 }
-async fn rewrite(file: &mut tokio::fs::File, bytes: &VecDeque<u8>) -> io::Result<()> {
-    file.set_len(0).await?;
-    file.seek(io::SeekFrom::Start(0)).await?;
-    let (first, second) = bytes.as_slices();
-    file.write_all(first).await?;
-    file.write_all(second).await
+
+fn drain(mut reader: UnixStream, mut file: File, limit: usize) -> io::Result<bool> {
+    let mut tail = VecDeque::new();
+    let mut buffer = [0; 16 * 1024];
+    let mut total = 0u64;
+    loop {
+        let size = reader.read(&mut buffer)?;
+        if size == 0 {
+            break;
+        }
+        total = total.saturating_add(size as u64);
+        if size >= limit {
+            tail.clear();
+            tail.extend(&buffer[size - limit..size]);
+        } else {
+            let discard = tail.len().saturating_add(size).saturating_sub(limit);
+            tail.drain(..discard);
+            tail.extend(&buffer[..size]);
+        }
+    }
+    file.set_len(0)?;
+    file.seek(io::SeekFrom::Start(0))?;
+    let (first, second) = tail.as_slices();
+    file.write_all(first)?;
+    file.write_all(second)?;
+    file.sync_data()?;
+    Ok(total > limit as u64)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::io::AsyncWriteExt;
     #[tokio::test]
     async fn capture_bounds_real_socket_output_and_keeps_final_bytes() {
         let directory = tempfile::tempdir().unwrap();
@@ -109,5 +98,29 @@ mod tests {
         assert!(capture.finish().await.unwrap());
         assert_eq!(std::fs::read(path).unwrap(), bytes[bytes.len() - 4096..]);
         assert!(capture.finish().await.unwrap());
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn capture_drains_when_the_async_executor_cannot_progress() {
+        use std::{io::Write as _, sync::mpsc, time::Duration};
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("serial");
+        let (mut writer, mut capture) = start(&path, 4096).unwrap();
+        rustix::net::sockopt::set_socket_send_buffer_size(&writer, 4096).unwrap();
+        let window = rustix::net::sockopt::socket_send_buffer_size(&writer).unwrap();
+        let mut bytes = (0..=u8::MAX).cycle().take(window * 4).collect::<Vec<_>>();
+        bytes.extend_from_slice(uuid::Uuid::new_v4().as_bytes());
+        let expected = bytes[bytes.len() - 4096..].to_vec();
+        let (finished, observation) = mpsc::channel();
+        let producer = std::thread::spawn(move || {
+            let result = writer.write_all(&bytes);
+            drop(writer);
+            let _ = finished.send(result);
+        });
+        // Deliberately hold this executor: draining serial cannot depend on its progress.
+        observation.recv_timeout(Duration::from_secs(2)).unwrap().unwrap();
+        producer.join().unwrap();
+        assert!(capture.finish().await.unwrap());
+        assert_eq!(std::fs::read(path).unwrap(), expected);
     }
 }

@@ -137,9 +137,18 @@ impl VmRuntime {
             usize::try_from(u64::from(entry.spec.log_max_size_mb) * 1024 * 1024).map_err(error)?,
         )
         .await?;
-        let forwarder = self.forward(&bundle, &channel, &entry, deadline).await?;
-        monitor.delivered(deadline).await?;
-        ready(&mut monitor, &entry.spec, deadline).await?;
+        let readiness: Result<Forwarder, RuntimeError> = async {
+            let forwarder = self.forward(&bundle, &channel, &entry, deadline).await?;
+            monitor.delivered(deadline).await?;
+            ready(&mut monitor, &entry.spec, deadline).await?;
+            Ok(forwarder)
+        }
+        .await;
+        #[cfg(test)]
+        if readiness.is_err() {
+            diagnostics::failed(&mut monitor, &serial, &entry.spec).await;
+        }
+        let forwarder = readiness?;
 
         self.state.live.lock().unwrap().insert(
             entry.id.clone(),

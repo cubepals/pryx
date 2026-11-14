@@ -4199,3 +4199,25 @@ job when publication is authorized. That job has not run in this task.
   test; the serial capture path needs a concrete fix. All other listed root/node/image steps
   pass on that source. Scanner remains eighteen. The earlier 7a47e1c host-bundle failure is
   again the target-directory mismatch already fixed in ea134a3; its full log was read.
+
+- Reproduce serial starvation without KVM: a real bounded socket producer times out against
+  the old async collector when the current-thread executor is deliberately held. Replace only
+  its scheduling/I/O path with a dedicated native reader, bounded in-memory tail and one final
+  durable tail write after EOF. The same regression and the unchanged socket/bound/final-byte
+  case both pass (two tests in 0.01 s). Preserve every signed shutdown-proof requirement.
+- Regular startup failures now retain the same bounded redacted monitor tail as file-only
+  readiness failures: retire the owned monitor and finish capture before its temporary state
+  disappears. No bootstrap retry, deadline extension or service-profile change. The known
+  hosted failure summary is checks/measurements/k25/authority-ea134a3.json; actual root bootstrap
+  and monitor behavior must be checked in the next CI artifact, not inferred from local success.
+- Full Rust has 533 passes, the unchanged host IPv6 fixture failure and 41 ignored; both
+  bootstrap tests pass in this execution without erasing earlier intermittent failures.
+  Strict all-target Clippy, explicit daemon/integration complexity diagnostics, formatting
+  and whitespace pass (agent baseline findings unchanged). Remove 2.64 GiB of superseded
+  test executables before the feature rebuild; keep libraries/current output. No new dependency,
+  job or gate; reuse the locked Rustix socket API and add under one second of normal CI work.
+
+- The release-feature Clippy and locked standalone image-helper check also pass for the
+  collector change. Verify the scope program's actual linked Go graph excludes the external
+  TAP tool's copyleft modules. Hardware serial/boot and signed-install results remain pending;
+  no later green result is inferred from these local checks.
