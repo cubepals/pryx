@@ -3468,3 +3468,29 @@ job when publication is authorized. That job has not run in this task.
   jobs/gates, boots or material CI minutes; corrected actual guest proof remains pending.
   Scanner remains eighteen addressed comments. Host packet-launcher changes are being checked
   independently and remain uncommitted at this packaging-only checkpoint.
+
+
+- K25 host packet-launcher checkpoint: an additive private role prebinds one mode-0600 Unix
+  listener, then inherits its descriptor through exec. Keep the existing kernel lease and
+  parent-death signal. Apply the existing filesystem/dangerous-syscall policy without KVM,
+  no workload disk writes, deny other-process signals/limits, new Unix/vsock/raw sockets,
+  socketpairs, bind and listen; permit outbound IPv4/IPv6 clients. The actual program's
+  metadata will supply the descriptor argument. This is parser support, not VM availability.
+- A real ordinary-user host fixture proves inherited Unix acceptance and outbound TCP,
+  blocked bind/implicit-listen/Unix/vsock/netlink/socketpair, protected-file read and parent
+  signal refusal, private socket mode and kernel lease retirement. The original VMM fixture
+  still passes. Final local Rust: 524 passes, the unchanged IPv6 fixture failure and 34 ignored;
+  both strict Clippy modes/fmt/whitespace pass. No jobs/gates or material CI minutes added.
+  Actual maintained Go packet-helper behavior remains unproved and unwired.
+- The first full run also has an existing API handshake test's loopback TCP connect timeout
+  (523 passes, two failures). A syscall-traced targeted diagnostic passes in 2.08 s, and the
+  final complete run passes that test too. Add source/destination to its connection failure
+  diagnostic without changing assertions. The original timeout is unexplained, not fixed or
+  discarded; watch real CI and capture live sockets if it recurs. Raw traces remain outside
+  the repository.
+- Before exposing packet transport, close the audited x32 syscall-number bypass: seccompiler
+  validates the audit architecture but its deny rules currently miss the x32 number bit on
+  x86_64. The pinned guest kernel disables compatibility ABIs, but a supported host may not.
+  Then wire the owned maintained helper and guest policy, root TAP/jailer/firewall, protected
+  installer/config/release, node/edge lifecycle and thirty production samples. K25 stays in
+  progress. Packaging identity correction df3ae5c awaits its CI; scanner remains eighteen.

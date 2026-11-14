@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
-//! Closed host-side monitor launch with a lifetime kernel lease and host-owned confinement.
-//! The workload never selects these paths or arguments. Ordinary users inherit Landlock and
-//! seccomp; root executes the unchanged jailer with non-root IDs and its own VMM confinement.
+//! Closed host-side VM process launch with a lifetime kernel lease and host-owned confinement.
+//! The workload never selects these paths or arguments. Ordinary VMMs and packet proxies inherit
+//! separate Landlock/seccomp grants; root executes the unchanged jailer for the VMM.
 //!
 //! Parts (`vm_monitor/`):
 //! - `filter.rs`: preserve the inherited kernel lease and forbid cross-process host operations.
@@ -15,9 +15,13 @@ use serde::{Deserialize, Serialize};
 use std::{
     fs::{self, OpenOptions},
     io::{self, Read},
-    os::unix::{
-        fs::{MetadataExt, OpenOptionsExt},
-        process::CommandExt,
+    os::{
+        fd::AsRawFd,
+        unix::{
+            fs::{MetadataExt, OpenOptionsExt},
+            net::UnixListener,
+            process::CommandExt,
+        },
     },
     path::{Component, Path, PathBuf},
 };
@@ -44,6 +48,7 @@ pub struct Plan {
 pub enum Role {
     Ordinary,
     Jailer { uid: u32, gid: u32, id: String, base: PathBuf, monitor: PathBuf },
+    PacketProxy { socket: PathBuf, descriptor_argument: String },
 }
 
 fn invalid(message: &str) -> io::Error {
@@ -88,7 +93,7 @@ fn regular(path: &Path) -> io::Result<()> {
     Ok(())
 }
 
-fn confine(plan: &Plan) -> Result<(), Box<dyn std::error::Error>> {
+fn confine(plan: &Plan, kvm: bool) -> Result<(), Box<dyn std::error::Error>> {
     for path in plan.read.iter().chain(&plan.write) {
         if fs::symlink_metadata(path)?.is_dir() {
             ancestors(path)?;
@@ -112,7 +117,10 @@ fn confine(plan: &Plan) -> Result<(), Box<dyn std::error::Error>> {
     read.push(PathBuf::from(format!("/proc/{}", std::process::id())));
     read.retain(|path| path.exists());
     let mut write = plan.write.clone();
-    write.extend([plan.directory.clone(), PathBuf::from("/dev/kvm"), PathBuf::from("/dev/null")]);
+    write.extend([plan.directory.clone(), PathBuf::from("/dev/null")]);
+    if kvm {
+        write.push(PathBuf::from("/dev/kvm"));
+    }
     write.retain(|path| path.exists());
     let status = Ruleset::default()
         .set_compatibility(CompatLevel::HardRequirement)
@@ -151,6 +159,7 @@ pub fn launch() -> Result<(), Box<dyn std::error::Error>> {
         return Err("Monitor syscall policy cannot be replaced".into());
     }
     let jailer = matches!(plan.role, Role::Jailer { .. });
+    let packet_proxy = matches!(plan.role, Role::PacketProxy { .. });
     if jailer != rustix::process::geteuid().is_root() {
         return Err("Root VM monitors require the jailer".into());
     }
@@ -177,8 +186,25 @@ pub fn launch() -> Result<(), Box<dyn std::error::Error>> {
     }
     let mut command = std::process::Command::new(&plan.program);
     command.env_clear().current_dir(&plan.directory);
+    let mut packet_listener = None;
     match &plan.role {
-        Role::Ordinary => confine(&plan)?,
+        Role::Ordinary => confine(&plan, true)?,
+        Role::PacketProxy { socket, descriptor_argument } => {
+            if socket.parent() != Some(plan.directory.as_path())
+                || !plan.write.is_empty()
+                || descriptor_argument.strip_prefix("--").is_none_or(|name| {
+                    name.is_empty() || !name.bytes().all(|byte| byte.is_ascii_lowercase() || byte == b'-')
+                })
+                || plan.arguments.iter().any(|arg| arg.split('=').next() == Some(descriptor_argument.as_str()))
+            {
+                return Err("Packet proxy requires its own private listener and inherited descriptor".into());
+            }
+            let listener = UnixListener::bind(socket)?;
+            fs::set_permissions(socket, std::os::unix::fs::PermissionsExt::from_mode(0o600))?;
+            rustix::io::fcntl_setfd(&listener, rustix::io::FdFlags::empty())?;
+            confine(&plan, false)?;
+            packet_listener = Some(listener);
+        }
         Role::Jailer { uid, gid, id, base, monitor } => {
             if *uid == 0
                 || *gid == 0
@@ -208,6 +234,10 @@ pub fn launch() -> Result<(), Box<dyn std::error::Error>> {
             ]);
         }
     }
-    filter::enter(jailer)?;
-    Err(command.args(&plan.arguments).exec().into())
+    filter::enter(jailer, packet_proxy)?;
+    command.args(&plan.arguments);
+    if let (Some(listener), Role::PacketProxy { descriptor_argument, .. }) = (&packet_listener, &plan.role) {
+        command.args([descriptor_argument, &listener.as_raw_fd().to_string()]);
+    }
+    Err(command.exec().into())
 }

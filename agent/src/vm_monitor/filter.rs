@@ -3,6 +3,7 @@
 //! The monitor inherits its kernel lease on stdin through the unchanged jailer. Prevent
 //! closing, overwriting, unlocking or marking that descriptor close-on-exec. Ordinary-user
 //! monitors also cannot signal another process, change its limits or create network sockets.
+//! Packet proxies inherit one private listener and may create only outbound Internet sockets.
 use seccompiler::{
     BpfProgram, SeccompAction, SeccompCmpArgLen, SeccompCmpOp, SeccompCondition, SeccompFilter, SeccompRule,
 };
@@ -15,7 +16,7 @@ fn rule(argument: u8, operation: SeccompCmpOp, value: u32) -> SeccompRule {
     SeccompRule::new(vec![condition(argument, operation, value)]).expect("valid monitor rule")
 }
 
-pub(super) fn enter(jailer: bool) -> Result<(), Box<dyn std::error::Error>> {
+pub(super) fn enter(jailer: bool, packet_proxy: bool) -> Result<(), Box<dyn std::error::Error>> {
     let mut rules = BTreeMap::new();
     let input = libc::STDIN_FILENO as u32;
     rules.insert(libc::SYS_close, vec![rule(0, SeccompCmpOp::Eq, input)]);
@@ -58,7 +59,18 @@ pub(super) fn enter(jailer: bool) -> Result<(), Box<dyn std::error::Error>> {
                 condition(0, SeccompCmpOp::Ne, std::process::id()),
             ])?],
         );
-        rules.insert(libc::SYS_socket, vec![rule(0, SeccompCmpOp::Ne, libc::AF_UNIX as u32)]);
+        let domains: &[i32] = if packet_proxy { &[libc::AF_INET, libc::AF_INET6] } else { &[libc::AF_UNIX] };
+        rules.insert(
+            libc::SYS_socket,
+            vec![SeccompRule::new(
+                domains.iter().map(|domain| condition(0, SeccompCmpOp::Ne, *domain as u32)).collect(),
+            )?],
+        );
+        if packet_proxy {
+            for syscall in [libc::SYS_socketpair, libc::SYS_bind, libc::SYS_listen] {
+                rules.insert(syscall, vec![]);
+            }
+        }
     }
     let program: BpfProgram = SeccompFilter::new(
         rules,

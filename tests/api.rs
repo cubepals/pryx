@@ -134,7 +134,7 @@ async fn until_closed(
 async fn connect_from(source: &str, addr: SocketAddr) -> TcpStream {
     let socket = TcpSocket::new_v4().unwrap();
     socket.bind(format!("{source}:0").parse().unwrap()).unwrap();
-    socket.connect(addr).await.unwrap()
+    socket.connect(addr).await.unwrap_or_else(|error| panic!("TCP connection from {source} to {addr}: {error}"))
 }
 
 /// How many of `streams` the sandbox closes within `within`, though none sent a byte.

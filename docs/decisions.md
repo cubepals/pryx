@@ -1133,3 +1133,5 @@
 - K25: own HTTP/TLS and UDP/TCP DNS listeners as one private gateway set, retaining Docker fixed ports/capacities and supporting VM ephemeral ports; retry only unserved ephemeral DNS-pair allocation collisions, and refuse public binds or zero capacity before binding.
 
 - K25: derive bootstrap and packaged filesystem identity from one read-only inventory serializer, because release packaging removes write bits and therefore changes the original build inventory hash; retain the exact compatibility refusal rather than overlooking mode changes.
+
+- K25: reuse the host VM launcher for an ordinary-user packet-proxy role: prebind one private Unix listener and pass its descriptor, exclude KVM access, retain kernel lease and parent-death ownership, allow Internet clients and deny new listeners/Unix sockets plus cross-process host operations; the verified program supplies its descriptor argument name.
