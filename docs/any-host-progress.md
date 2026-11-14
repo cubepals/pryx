@@ -4377,3 +4377,26 @@ job when publication is authorized. That job has not run in this task.
   maintained GNU toolchain with its primary source/licence distributions rather than mixing
   host runtime libraries; full source/relinking obligations remain prerequisites. Latest
   code is pushed; root firewall hardware proof and focused monitor trace are still pending.
+
+- Source 672f884 VM run 43639540637/job 132584723226 proves the complete hostname TAP,
+  boundaries and namespace host firewall on both root images, including the unchanged bounded
+  service. Rust scope adoption also passes. Only the new focused orderly monitor stop fails:
+  signed successful guest result followed by failed VMM status. strace 6.8 records six denied
+  tkill calls (four vCPU kicks/finishes, two abort attempts), confirming the actual musl/filter
+  cause. Summary: checks/measurements/k25/firewall-signals-672f884.json. Keep that assertion.
+- Build an isolated static-PIE GNU prototype from the same original Firecracker 1.18 source,
+  Rust 1.97.0 and primary-SHA-verified Bootlin stable-2026.08-1 SDK. Its relocation catalogue
+  lists 38 absent auxiliary files; filter only absent entries before the unchanged relocation
+  script and verify actual compiler/sysroot paths. The SDK's unsafe host-library guard remains.
+  Apply the cross linker only through target rustflags, so host build tools retain host linkage.
+- Build-only monitor_abi.rs imports signal and futex constants from the actual pinned monitor
+  and libc. monitor_policy.py preserves the full published trap-default policy, replacing four
+  thread-signal rules and three equivalent pthread-join waits, with a full wait-bitset match;
+  every other syscall/constraint and rule count stays unchanged. The genuine upstream empty
+  policy is refused. This introduces no workload-controlled monitor option.
+- Local prototype: Firecracker 1.18.0 reports its version; ELF is static PIE with no interpreter,
+  and its 3,442-byte restrictive native BPF blob is embedded in the 11,661,840-byte binary.
+  Python syntax, Rust formatting and whitespace pass. This is no KVM or distribution proof:
+  complete source/notices/relinking inputs, composed self-process bounds for jailed monitors,
+  whole bundle integration and actual hardware replay remain. No new CI job/gate or minutes
+  are added by these build-only tools yet; GNU is not selected in the current distribution.

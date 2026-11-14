@@ -1,0 +1,17 @@
+{
+  "sourceCommit": "672f884",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43639540637",
+  "job": 132584723226,
+  "artifact": 14132685732,
+  "passed": "Both root images complete hostname TAP policy and boundary checks, including the bounded service and namespace-local input/forward firewall; actual Rust descriptor adoption also passes",
+  "rootImages": 2,
+  "failure": "Focused ordinary two-vCPU orderly stop has a verified successful guest result but failed actual monitor status",
+  "trace": {
+    "tool": "strace 6.8",
+    "deniedTkillCalls": 6,
+    "targets": "Four vCPU real-time signals and two monitor abort attempts",
+    "result": "EPERM"
+  },
+  "next": "Pinned static-GNU monitor with restrictive native thread ABI policy; keep the failing assertion and cross-process signal boundary",
+  "notProved": "GNU KVM replay, root unrestricted forwarding/installed worker/placement or complete signed SDK/30-sample cohorts"
+}
