@@ -1,0 +1,16 @@
+{
+  "source": "26fe17d97e205a38a06287c69bb41ff859563c23",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43607010966",
+  "job": 132483714047,
+  "ran": "Real-KVM Alpine runtime lifecycle and named network probe; root disk staging and first jailed Alpine boot; both OCI registry and component-agent boots",
+  "runtime_seconds": 43.78,
+  "runtime_result": "Alpine network probe exits zero; harness rejects two JSON records before the remaining cohorts",
+  "root_seconds": 5.97,
+  "root_result": "Jailed guest boots; process-root pathname assertion sees slash instead of the staged host path",
+  "bundle_seconds": 6.14,
+  "root_staging_seconds": 0.02,
+  "registry_seconds": 13.89,
+  "component_seconds": 30.02,
+  "unproved": "Complete both-image production network lifecycle and root reboot/ownership retirement; node/edge placement, root TAP/firewall and thirty production samples",
+  "raw_output": "CI artifacts only"
+}

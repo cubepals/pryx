@@ -40,7 +40,7 @@ func productionPolicy(path string) error {
 	if os.Geteuid() == 0 || fixture.Hostname == "" || fixture.Host == "" || fixture.PrivatePort == 0 || fixture.HTTP == 0 || fixture.DNS == 0 {
 		return fmt.Errorf("Production policy acceptance requires an ordinary workload and complete fixture")
 	}
-	if err := guestPolicy(); err != nil {
+	if err := checkGuestPolicy(); err != nil {
 		return err
 	}
 	certificate, err := os.ReadFile(fixture.CAFile)

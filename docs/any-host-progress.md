@@ -3823,3 +3823,19 @@ job when publication is authorized. That job has not run in this task.
   and 39 ignored; strict all-target Clippy, formatting and whitespace pass. The real-file
   discovery regression preserves explicit host configuration and retains broken-link refusals.
   No new dependency, CI job/gate or material CI time. Hosted validation is pending.
+- Source 26fe17d VM run 43607010966/job 132483714047 fails two new fixture checks:
+  Alpine's production network probe exits zero after all allow/deny/TLS/DNS checks, then its
+  harness rejects two JSON objects (43.78 s for the runtime case); the jailed guest boots
+  and passes workload probes, then the process-root pathname renders as slash (5.97 s).
+  Bundle acquisition, root staging, host policies, owned helpers, real registries and both
+  component-image boots pass. Summary: checks/measurements/k25/fixtures-26fe17d.json.
+  Scanner comments remain eighteen. Neither complete production lifecycle nor root boot
+  acceptance is proved by these partial results.
+- Correct the nested probe's extra output without removing a syscall or network assertion.
+  Compare actual process-root directory device/inode to the staged jail and additionally
+  require a distinct mount namespace; a pivoted root's displayed pathname alone does not
+  identify its directory. This retains the original confinement requirement.
+- Fixture correction validation: 529 local Rust passes, the unchanged IPv6 fixture
+  failure and 39 ignored; strict all-target Clippy, pinned static Go build/vet, formatting
+  and whitespace pass. No production deadline, retry, confinement, expectation, dependency
+  or job/gate changes; real corrected network and jail identity proof remain CI-only.

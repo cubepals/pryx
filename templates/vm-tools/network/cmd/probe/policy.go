@@ -11,7 +11,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func guestPolicy() error {
+func checkGuestPolicy() error {
 	if os.Geteuid() == 0 {
 		return fmt.Errorf("Guest policy proof requires an unprivileged workload")
 	}
@@ -33,6 +33,13 @@ func guestPolicy() error {
 	_, _, result := unix.Syscall(unix.SYS_IO_URING_SETUP, 1, 0, 0)
 	if result != unix.EPERM {
 		return fmt.Errorf("Guest io_uring setup denial: %v", result)
+	}
+	return nil
+}
+
+func guestPolicy() error {
+	if err := checkGuestPolicy(); err != nil {
+		return err
 	}
 	return json.NewEncoder(os.Stdout).Encode(map[string]bool{
 		"vsockSocketDenied": true, "vsockSocketpairDenied": true, "ioUringSetupDenied": true,

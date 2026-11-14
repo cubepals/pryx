@@ -278,7 +278,12 @@ impl Launch {
         let pid = monitor.pid().unwrap();
         let status = procfs::process::Process::new(pid.try_into().unwrap()).unwrap().status().unwrap();
         assert_eq!(status.euid, owner.0);
-        assert_eq!(fs::read_link(format!("/proc/{pid}/root")).unwrap(), self.jail.root());
+        // The jailer pivots a private mount namespace; its root symlink can render as "/"
+        // to this observer. The actual directory identity must still equal our staged jail.
+        let observed = fs::metadata(format!("/proc/{pid}/root")).unwrap();
+        let expected = fs::metadata(self.jail.root()).unwrap();
+        assert_eq!((observed.dev(), observed.ino()), (expected.dev(), expected.ino()));
+        assert_ne!(fs::read_link(format!("/proc/{pid}/ns/mnt")).unwrap(), fs::read_link("/proc/self/ns/mnt").unwrap());
         assert!(lock(&self.plan.lock).is_err(), "The actual jailed monitor retains its inherited lease");
         assert!(self.jail.retire().is_err(), "A live monitor cannot authorize disk ownership recovery");
     }
