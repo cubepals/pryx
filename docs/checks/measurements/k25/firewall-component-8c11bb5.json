@@ -1,0 +1,15 @@
+{
+  "measurement": "Pinned upstream nftables batch build in the verified relocatable filesystem component",
+  "commit": "8c11bb53a753717261b1d02ebed574a359540d9c",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43547201050",
+  "result": "passed",
+  "runtimeFiles": 19,
+  "checks": "Signature-checked package extraction; upstream no-CLI/no-JSON/mini-GMP build; actual relocated nft version and library resolution; EROFS round trip and ext4 integrity; complete sources/notices retained; all existing two-image KVM lifecycle acceptance",
+  "runtimeSeconds": 80.49,
+  "otherAcceptanceSeconds": {
+    "bundle": 9.53,
+    "registry": 17.18,
+    "sixComponentBoots": 32.42
+  },
+  "limits": "This source packages the host component only. Guest firewall inclusion/transaction, inherited vsock denials, production networking, root acceptance, tier registration and production timing samples are later work."
+}

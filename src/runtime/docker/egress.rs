@@ -7,19 +7,15 @@
 use super::*;
 use crate::{
     protocol::EgressPolicy,
-    runtime::egress::{dns, gateway},
+    runtime::egress::{self, dns},
 };
 use std::{
     io::Read,
     net::IpAddr,
     os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt},
-    sync::Arc,
 };
-use tokio::{
-    net::{TcpListener, UdpSocket},
-    sync::{Mutex, Semaphore},
-};
-use tokio_util::sync::{CancellationToken, DropGuard};
+use tokio::sync::Mutex;
+use tokio_util::sync::DropGuard;
 const PREFIX: &str = "pye";
 const TABLE: &str = "pryx_egress";
 const READY: &str = "/run/pryx-egress-v2";
@@ -149,16 +145,15 @@ impl Egress {
             .ok_or_else(|| error("missing gateway"))?;
         let gateway: IpAddr = config.gateway.ok_or_else(|| error("missing gateway"))?.parse().map_err(error)?;
         let subnet: ipnet::IpNet = config.subnet.ok_or_else(|| error("missing subnet"))?.parse().map_err(error)?;
-        let http = TcpListener::bind((gateway, HTTP_PORT)).await.map_err(error)?;
-        let tls = TcpListener::bind((gateway, TLS_PORT)).await.map_err(error)?;
-        let dns_udp = UdpSocket::bind((gateway, DNS_PORT)).await.map_err(error)?;
-        let dns_tcp = TcpListener::bind((gateway, DNS_PORT)).await.map_err(error)?;
-        let cancel = CancellationToken::new();
-        let guard = cancel.clone().drop_guard();
-        let capacity = Arc::new(Semaphore::new(MAX_CONNECTIONS));
-        gateway::serve(http, false, subnet, policy.clone(), capacity.clone(), cancel.clone());
-        gateway::serve(tls, true, subnet, policy.clone(), capacity, cancel.clone());
-        dns::serve(dns_udp, dns_tcp, subnet, policy.clone(), Arc::new(Semaphore::new(MAX_CONNECTIONS)), cancel);
+        let (_, guard) = egress::listen(
+            gateway,
+            egress::Ports { http: HTTP_PORT, tls: TLS_PORT, dns: DNS_PORT },
+            subnet,
+            policy.clone(),
+            MAX_CONNECTIONS,
+        )
+        .await
+        .map_err(error)?;
         held.insert(network.into(), (policy, gateway, guard));
         Ok(gateway)
     }

@@ -3432,3 +3432,25 @@ job when publication is authorized. That job has not run in this task.
   Next wire maintained user-mode networking to host-owned policy gateways, then root jailer/
   TAP/firewall, protected install/config/release, node/edge lifecycle and thirty production
   samples. K25 stays in progress and its tier remains unregistered.
+
+
+- K25 hostname gateway ownership: one private listener constructor owns HTTP, TLS and
+  paired UDP/TCP DNS before publishing readiness, then cancels the set together. Docker
+  keeps its fixed redirected ports and original capacities; VM callers can request ephemeral
+  endpoints. Refuse public binds/zero capacity. Bound the retry of unserved ephemeral DNS-pair
+  allocation collisions; fixed-port failures remain immediate. Hostname parsing, public
+  resolution pinning and deny precedence are unchanged. VM networking is not yet wired.
+- Two real-socket regressions exercise HTTP refusal, UDP/TCP resolver-owned refusal bytes,
+  actual retirement/rebinding of the complete set, and pre-bind public/zero-capacity refusal.
+  Final unchanged-source local Rust: 523 passes, the unchanged IPv6 fixture failure and
+  34 ignored; both strict Clippy modes, fmt and whitespace pass. No new daemon length warning,
+  jobs/gates or material CI time. Docker-backed behavior is still CI's proof, not local proof.
+- Source 8c11bb5 VM run 43547201050/job 132301174089 is green: verified upstream batch nft
+  build, nineteen-file relocated component, retained forty-two source inputs, EROFS/ext4
+  checks and all existing KVM runtime acceptance, 80.49 s. Summary: checks/measurements/
+  k25/firewall-component-8c11bb5.json. It predates guest firewall/socket-policy enforcement.
+  Source 3e5a847 VM run 43548264003 is now active; later sources remain queued. Scanner
+  remains eighteen addressed comments. Next implement the owned maintained user-mode
+  network helper and guest redirection policy before root TAP/jailer/firewall, protected
+  installation/config/release, node/edge lifecycle and thirty production samples. K25 remains
+  in progress and the tier stays unregistered.
