@@ -18,18 +18,17 @@
 //! - `network_acceptance.rs`: real workload packet flow and immutable egress attacks.
 mod agent;
 mod configuration;
+#[cfg(test)]
+mod diagnostics;
 mod guest;
 mod journal;
 mod launch;
 mod logs;
 mod maintenance;
-mod services;
-pub use maintenance::FileGuest;
-#[cfg(test)]
-mod diagnostics;
 #[cfg(test)]
 mod network_acceptance;
 mod runtime;
+mod services;
 #[cfg(test)]
 mod tests;
 use super::{
@@ -48,6 +47,18 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
+
+use tokio::sync::OwnedMutexGuard;
+
+pub struct FileGuest {
+    inner: Option<Inner>,
+}
+struct Inner {
+    entry: Entry,
+    live: Live,
+    bundle: Arc<Bundle>,
+    _transition: OwnedMutexGuard<()>,
+}
 
 #[derive(Clone)]
 pub struct Settings {

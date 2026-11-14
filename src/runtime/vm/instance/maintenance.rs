@@ -10,17 +10,7 @@ use pryx_agent::{
     vm_shutdown,
 };
 use std::net::Ipv4Addr;
-use tokio::{sync::OwnedMutexGuard, time::Instant};
-
-pub struct FileGuest {
-    inner: Option<Inner>,
-}
-struct Inner {
-    entry: Entry,
-    live: Live,
-    bundle: Arc<Bundle>,
-    _transition: OwnedMutexGuard<()>,
-}
+use tokio::time::Instant;
 
 pub(super) fn specification(original: &ContainerSpec) -> Result<ContainerSpec, RuntimeError> {
     let mut spec = original.clone();
