@@ -4227,3 +4227,20 @@ job when publication is authorized. That job has not run in this task.
   takes that owner's types/constants; no kernel or lifetime behavior changes. Pinned Go
   test/build/vet and whitespace pass, and the actual ordinary-user executable's metadata is
   byte-identical before/after the move. No dependency/job/gate or CI time is added.
+
+- Add bounded receiving of actual namespace/socket authority, closing every delivered FD
+  on truncated/rejected SCM_RIGHTS messages. The real ordinary-user kernel regression sends
+  excess rights and counts references to its unique file inode before/after; none leak.
+  Existing real listener-transfer acceptance remains unchanged. Pinned Go test/build/vet and
+  the unchanged nineteen-module notices pass, with both socket cases completing in 0.004 s.
+- Extend the existing bounded root-service replay with the actual scope subprocess: receive
+  its advertised owner-typed metadata and five close-on-exec handles; confirm a distinct
+  namespace and fixed ordinary-owner TAP open; close the parent lifetime pipe while the actual
+  monitor flock is held and require the same TAP to remain; unlock, observe helper exit and
+  explicit CNI deletion while the namespace FD stays open; preserve host neighbours. This
+  holds a real kernel lease, not a VM, and makes no guest packet claim. Raw scope.log remains
+  solely in the existing CI artifact. Every service restriction stays intact.
+- Python syntax/CLI, actionlint and whitespace pass locally; actual root/TUN/subprocess
+  acceptance remains pending in CI. Estimate under two optional VM seconds and zero normal
+  PR minutes, no dependency/job/gate added. Source c718b74's VM run now contains the serial
+  correction; its result and the older signed installation still need reading.

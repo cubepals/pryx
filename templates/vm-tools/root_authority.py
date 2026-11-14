@@ -43,6 +43,7 @@ def main():
         for original, target, mode in [
             (binaries[0], 'acceptance', '555'),
             (source / 'vm-root-tap-probe', 'tap-probe', '555'),
+            (source / 'vm-root-scope', 'scope', '555'),
             (source / 'vm-root-cni/tap', 'tap', '555'),
             (source / 'vm-runtime.json', 'vm-runtime.json', '444'),
             (source / 'pryx-vm-linux-x64.tar.gz', 'runtime.tar.gz', '444'),
@@ -83,6 +84,8 @@ def main():
         for suffix, command in [
             ('tap', [str(programs / 'tap-probe'), '--plugins', str(programs), '--uid', uid, '--gid', gid]),
             ('gateways', [str(programs / 'tap-probe'), '--plugins', str(programs), '--uid', uid, '--gid', gid, '--gateways']),
+            ('scope', [str(programs / 'tap-probe'), '--plugins', str(programs), '--uid', uid, '--gid', gid,
+                       '--scope-helper', str(programs / 'scope')]),
             ('runtime', [str(programs / 'acceptance'), '--exact',
                          'runtime::vm::instance::root_lifecycle::actual_root_runtime_cold_boot_files_and_daemon_loss',
                          '--ignored', '--nocapture']),
@@ -97,12 +100,12 @@ def main():
             raise ValueError('The authority fixture did not execute the real lifecycle')
         (args.work / 'summary.json').write_text(json.dumps({
             'systemd': observed, 'mainUnitChanged': False, 'separateTap': True,
-            'separateRootRuntime': True, 'images': 2, 'properties': properties,
+            'separateRootRuntime': True, 'leaseBoundScope': True, 'images': 2, 'properties': properties,
             'unproved': 'Production worker transport, installed service and root packet/firewall integration',
         }, indent=2) + '\n')
     finally:
         # Stop the exact owned units before removing their private state, even after failure.
-        for suffix in ['tap', 'gateways', 'runtime']:
+        for suffix in ['tap', 'gateways', 'scope', 'runtime']:
             subprocess.run(['sudo', 'systemctl', 'stop', name + '-' + suffix + '.service'],
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
             status = subprocess.run(['sudo', 'systemctl', 'show', name + '-' + suffix + '.service',

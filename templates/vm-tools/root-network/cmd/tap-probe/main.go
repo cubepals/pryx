@@ -198,6 +198,7 @@ func probe(directory string, uid, gid uint32) error {
 }
 
 func main() {
+	scope := flag.String("scope-helper", "", "prove the protected scope subprocess and kernel lease")
 	gateways := flag.Bool("gateways", false, "prove namespace-bound gateway descriptor ownership")
 	client := flag.String("gateway-client", "", "ordinary namespace gateway client")
 	proof := flag.String("proof", "", "live parent proof")
@@ -215,7 +216,9 @@ func main() {
 		if *uid > math.MaxUint32 || *gid > math.MaxUint32 {
 			err = fmt.Errorf("Monitor IDs exceed their kernel type")
 		} else {
-			if *gateways {
+			if *scope != "" {
+				err = scopeProbe(*scope, *directory, uint32(*uid), uint32(*gid))
+			} else if *gateways {
 				err = gatewayProbe(*directory, uint32(*uid), uint32(*gid))
 			} else {
 				err = probe(*directory, uint32(*uid), uint32(*gid))

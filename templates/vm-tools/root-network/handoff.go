@@ -45,3 +45,38 @@ func SendFiles(channel int, metadata []byte, files []*os.File) error {
 	}
 	return nil
 }
+
+// ReceiveFiles owns every received descriptor, including on truncated or rejected messages.
+func ReceiveFiles(channel int) (metadata []byte, files []*os.File, problem error) {
+	defer func() {
+		if problem != nil {
+			for _, file := range files {
+				file.Close()
+			}
+			files = nil
+		}
+	}()
+	payload := make([]byte, MaxHandoffBytes)
+	ancillary := make([]byte, len(unix.UnixRights(make([]int, MaxHandoffFiles)...)))
+	count, controls, flags, _, err := unix.Recvmsg(channel, payload, ancillary, unix.MSG_CMSG_CLOEXEC)
+	if err != nil {
+		return nil, nil, err
+	}
+	messages, err := unix.ParseSocketControlMessage(ancillary[:controls])
+	if err != nil {
+		return nil, files, err
+	}
+	for _, message := range messages {
+		descriptors, err := unix.ParseUnixRights(&message)
+		if err != nil {
+			return nil, files, err
+		}
+		for _, descriptor := range descriptors {
+			files = append(files, os.NewFile(uintptr(descriptor), "owned root handoff"))
+		}
+	}
+	if flags&(unix.MSG_TRUNC|unix.MSG_CTRUNC) != 0 || count == 0 || len(files) == 0 || len(files) > MaxHandoffFiles {
+		return nil, files, fmt.Errorf("Root scope handoff is truncated or outside its private bounds")
+	}
+	return payload[:count], files, nil
+}

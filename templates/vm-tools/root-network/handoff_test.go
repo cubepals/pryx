@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -96,5 +97,51 @@ func TestActualListenerSurvivesProducerClose(t *testing.T) {
 	}
 	if err := <-done; err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestTruncatedRightsCloseEveryReceivedFile(t *testing.T) {
+	pair, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_DGRAM|unix.SOCK_CLOEXEC, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unix.Close(pair[0])
+	defer unix.Close(pair[1])
+	file, err := os.CreateTemp(t.TempDir(), "owned-file-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := func() int {
+		paths, err := filepath.Glob("/proc/self/fd/*")
+		if err != nil {
+			t.Fatal(err)
+		}
+		total := 0
+		for _, path := range paths {
+			observed, err := os.Stat(path)
+			if err == nil && os.SameFile(info, observed) {
+				total++
+			}
+		}
+		return total
+	}
+	before := count()
+	rights := make([]int, MaxHandoffFiles+1)
+	for index := range rights {
+		rights[index] = int(file.Fd())
+	}
+	if err := unix.Sendmsg(pair[0], []byte("scope"), unix.UnixRights(rights...), nil, 0); err != nil {
+		t.Fatal(err)
+	}
+	if _, files, err := ReceiveFiles(pair[1]); err == nil || len(files) != 0 {
+		t.Fatal("Truncated authority was accepted")
+	}
+	if actual := count(); actual != before {
+		t.Fatalf("Truncated rights leaked owned files: before=%d after=%d", before, actual)
 	}
 }

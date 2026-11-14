@@ -1237,3 +1237,5 @@
 - K25: retain the existing bounded redacted monitor diagnostics after failed regular VM readiness as already done for maintenance guests; retire the owned monitor and finish capture before temporary launch state disappears, without retrying bootstrap, changing readiness deadlines or weakening the root service profile.
 
 - K25: move the unchanged private scope advertisement/handoff schema into the root network component before adding its consumer, so descriptor roles and metadata types have one Go owner; preserve actual JSON bytes and every lifecycle operation.
+
+- K25: prove the actual root scope subprocess handoff and EOF/lease retirement inside the existing bounded system authority fixture, using the real CNI TAP and kernel flock; keep namespace descriptors alive while confirming explicit deletion, and close every received descriptor when SCM_RIGHTS is truncated. This is ownership proof, not a guest packet claim.
