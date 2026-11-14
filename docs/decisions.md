@@ -1141,3 +1141,5 @@
 - K25: the maintained packet helper owns one isolated user-mode network profile and reports its addresses, link settings, standard service ports, bounds and private argument names as executable metadata; its production mode accepts only an inherited Unix listener and a bounded private parent/loopback/capacity file, exposing no management or gateway HTTP listener.
 
 - K25: retain trusted network-fixture HTTP management refusals and require kernel EPERM for direct workload vsock when the actual agent advertises its socket policy; use a separate restricted verification mode so the stronger denial never turns into a skipped management assertion.
+
+- K25: serialize push and pull-request workflows by workflow name and ref without cancelling active runs, so superseded waiting branch runs collapse to the newest commit instead of exhausting the runner queue; main uses the same rule and workflows triggered only by schedules, dispatch or other events stay unchanged.

@@ -17,6 +17,10 @@ on:
       - 'scripts/engine-ownership.py'
       - 'scripts/engine-api-probe.py'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
