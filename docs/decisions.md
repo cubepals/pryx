@@ -1143,3 +1143,5 @@
 - K25: retain trusted network-fixture HTTP management refusals and require kernel EPERM for direct workload vsock when the actual agent advertises its socket policy; use a separate restricted verification mode so the stronger denial never turns into a skipped management assertion.
 
 - K25: serialize push and pull-request workflows by workflow name and ref without cancelling active runs, so superseded waiting branch runs collapse to the newest commit instead of exhausting the runner queue; main uses the same rule and workflows triggered only by schedules, dispatch or other events stay unchanged.
+
+- K25: stage the actual packet-helper acceptance executable under the fixture’s private directory with mode 0500 before launch, because hosted runner build/download paths may have writable ancestors; retain the launcher’s strict ancestor refusal unchanged.

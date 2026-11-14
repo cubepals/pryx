@@ -1,0 +1,17 @@
+{
+  "measurement": "Hosted native ABI enforcement and VM acceptance",
+  "commit": "8dbf9f85",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43553918812",
+  "result": "host policies passed; runtime and component failed",
+  "hostPolicy": {
+    "guestThreadAndExecTests": 1,
+    "guestSeconds": 0.06,
+    "confinedMonitorAndPacketLauncherTests": 2,
+    "launcherSeconds": 0.03
+  },
+  "runtimeSeconds": 12.41,
+  "runtimeFailure": "After successful initial boot and workload syscall-policy probe, the safe exec-output GET receives no response head within its unchanged five-second bound. This repeats the unresolved df3ae5c transport failure; exec submission must not be repeated.",
+  "componentSeconds": 13.43,
+  "componentFailure": "The component retains the obsolete direct-vsock success expectation; the subsequent queued restricted-probe correction has not been proved yet.",
+  "remaining": "Owned production packet flow, trusted guest network policy, root TAP/jailer/firewall, protected installation/configuration/release, node/edge lifecycle, thirty samples and full green CI. Raw output remains in this run's artifacts."
+}

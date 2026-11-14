@@ -227,12 +227,17 @@ async fn actual_packet_proxy_serves_its_inherited_private_socket() {
     use tokio::io::AsyncReadExt;
     assert!(!rustix::process::geteuid().is_root());
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let program = PathBuf::from(std::env::var_os("PRYX_VM_HOST_PROXY").expect("Stage the pinned packet helper"));
+    let root = tempfile::tempdir().unwrap();
+    // The runner's download/build directory can have writable ancestors. Exercise
+    // the actual launcher only after staging into the same private boundary as an install.
+    let source = PathBuf::from(std::env::var_os("PRYX_VM_HOST_PROXY").expect("Stage the pinned packet helper"));
+    let program = root.path().join("network-proxy");
+    fs::copy(source, &program).unwrap();
+    fs::set_permissions(&program, fs::Permissions::from_mode(0o500)).unwrap();
     let metadata = std::process::Command::new(&program).arg("--metadata").env_clear().output().unwrap();
     assert!(metadata.status.success());
     let metadata: serde_json::Value = serde_json::from_slice(&metadata.stdout).unwrap();
     let profile = &metadata["production"];
-    let root = tempfile::tempdir().unwrap();
     let work = root.path().join("proxy");
     let locks = root.path().join("locks");
     for path in [&work, &locks] {

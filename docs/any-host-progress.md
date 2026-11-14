@@ -3567,3 +3567,39 @@ job when publication is authorized. That job has not run in this task.
   retirement across cancellation, wire trusted guest redirection with metadata gating and
   prove real KVM/network isolation, then root TAP/jailer/firewall, protected install/config/
   release, node/edge lifecycle, thirty samples and outstanding CI/transport diagnosis.
+
+
+- Queue correction source de03d30 serializes all six push/pull-request workflows by workflow
+  and ref with cancel-in-progress false. Scheduled/dispatch-only and other-event workflows
+  remain unchanged. Pinned actionlint 1.7.12 and whitespace checks pass; no jobs, gates or
+  execution minutes added. The unfinished K25 network ownership edits are kept outside this
+  small commit. Current-source CI/VM/engine/CodeQL runs are queued behind the prior active
+  source; do not push overlapping inputs until those newest-source results arrive, except
+  to fix their failures. PR 21 still has eighteen previously addressed scanner comments.
+- Preserved K25 owned-network implementation passes both actual maintained-helper tests
+  again locally in 0.07 s: cancelled/repeated stop, drop, active streams, private modes, real
+  lease retirement, complete gateway rebinding and occupied-lease refusal. Prior complete
+  local Rust run has 524 passes, the unchanged IPv6-unavailable fixture failure and 37
+  ignored; both strict Clippy modes and fmt/actionlint pass. Hosted ownership acceptance is
+  not yet committed or proved. Native-policy source 8dbf9f8's summary records hosted policy
+  success and repeated exec-output GET response-head failure, plus the obsolete component
+  probe expectation corrected in a later source; none is claimed fixed by a different pass.
+
+- Source 672a7c6 VM run 43557880933 fails the actual packet-helper host test before
+  readiness: the runner-temp executable has an unsafe ancestor. The strict production
+  refusal remains unchanged. Stage the built executable in the test’s private directory
+  with mode 0500, matching the protected installation boundary. Three actual local host
+  tests pass after staging; current-source VM run 43560345293 has the same pre-fix host
+  failure and remains running. This fix may be pushed while other checks wait under the
+  queue rule; no new jobs/gates or material execution minutes. Ownership work is still
+  independently uncommitted and must stage both of its actual fixture executables too.
+- The same 672a7c6 run passes bundle (7.33 s), registry (14.16 s), complete KVM
+  runtime (78.82 s) and restricted component acceptance (31.99 s). Summary:
+  checks/measurements/k25/closed-profile-672a7c6.json. This proves the restricted
+  component correction but not the closed host profile, production packet flow or a fix
+  for earlier intermittent exec-output failures. Raw output remains the run’s artifacts.
+- Private-staging correction validation: complete local Rust runs every target and reports
+  524 passes, the unchanged host IPv6-unavailable fixture failure and 37 ignored; no
+  assertion is skipped or weakened. All three actual host-policy tests pass in 0.65 s.
+  The independently preserved ownership tests also pass after staging both real programs
+  privately (0.58 s). Rust formatting, actionlint and whitespace checks pass.
