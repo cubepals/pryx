@@ -75,6 +75,9 @@ def build(args):
     copy_tree(args.sources / 'notices', runtime / 'notices/kernel-monitor')
     copy_tree(args.sdk_notices, runtime / 'notices/sdk')
     copy_tree(args.network_notices, runtime / 'notices/network')
+    copy_tree(args.root_network_notices, runtime / 'notices/root-network')
+    copy_tree(args.root_network_sources, sources / 'root-network/modules')
+    copy_tree(ROOT / 'root-network', sources / 'root-network/program')
     copy_tree(REPO / 'LICENSES', runtime / 'notices/licence-texts')
     shutil.copyfile(REPO / 'LICENSE.md', runtime / 'notices/pryx-LICENSE.md')
     metadata = json.loads((args.bootstrap / 'bootstrap.json').read_text())
@@ -87,8 +90,10 @@ def build(args):
     shutil.copyfile(args.bootstrap / 'bootstrap.json', runtime / 'bootstrap/bootstrap.json')
     for source, name in [(args.launcher, 'vm-launcher'), (args.image_helper, 'pryx-vm-image'),
                          (args.configurator, 'vm-config'),
-                         (args.transport, 'vm-transport'), (args.network_proxy, 'network-proxy')]:
+                         (args.transport, 'vm-transport'), (args.network_proxy, 'network-proxy'),
+                         (args.root_scope, 'root-scope'), (args.root_tap, 'root-cni/tap')]:
         static(source)
+        (runtime / 'bin' / name).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, runtime / 'bin' / name)
         (runtime / 'bin' / name).chmod(0o755)
     rust_notices.collect(runtime, sources)
@@ -110,6 +115,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ['output', 'source-output', 'sources', 'inspection', 'staged', 'filesystem-component',
                  'sdk-notices', 'network-notices', 'bootstrap', 'launcher', 'image-helper', 'configurator', 'transport',
+                 'root-network-notices', 'root-network-sources', 'root-scope', 'root-tap',
                  'network-proxy', 'archive', 'source-archive', 'descriptor', 'source-descriptor']:
         parser.add_argument('--' + name, type=Path, required=True)
     parser.add_argument('--url-base', required=True)

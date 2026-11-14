@@ -14,6 +14,7 @@ for pryx_vm_phase in inventory tools inspect filesystems; do
 done
 (cd templates/vm-tools && bash "$pryx_vm_recipe" configurator)
 (cd templates/vm-tools/network && bash "$pryx_vm_recipe" network)
+(cd templates/vm-tools/root-network && bash "$pryx_vm_recipe" root-network)
 rustup toolchain install
 for pryx_vm_phase in bootstrap sources bundle; do
   bash "$pryx_vm_recipe" "$pryx_vm_phase"

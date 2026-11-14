@@ -1243,3 +1243,5 @@
 - K25: identify the installed daemon by its direct executable or actual loader ELF payload, since tini also carries the wrapper path in its arguments; preserve the unique real-node assertion and guest signal-denial check.
 
 - K25: additionally hide /proc/misc from the separate root authority, preventing the pinned jailer from auto-exposing optional userfaultfd/Nitro devices; cold boot uses neither, so retain the closed KVM/TUN-only device policy and existing capability ceiling.
+
+- K25: package the pinned root scope and separate CNI TAP executables in the lazy VM archive with all nineteen primary module notices and original Go-authenticated source zips; keep MPL code only in the external TAP program, include the scope sources/locks, and leave old ordinary bundles compatible and root placement off until integration is proved.

@@ -63,6 +63,7 @@ case "${1:?Name one VM build phase}" in
     "$pryx_go" mod verify
     python3 ../notices.py --go "$pryx_go" --module-root "$PWD" \
       --catalog "$PWD/module-notices.json" --output "$RUNNER_TEMP/vm-root-network-notices" \
+      --sources "$RUNNER_TEMP/vm-root-network-sources" \
       --packages ./cmd/tap-probe ./cmd/scope github.com/containernetworking/plugins/plugins/main/tap
     "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-root-cni/tap" github.com/containernetworking/plugins/plugins/main/tap
     "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-root-tap-probe" ./cmd/tap-probe
@@ -103,6 +104,9 @@ case "${1:?Name one VM build phase}" in
       --sources "$RUNNER_TEMP/vm-corresponding-sources" --source-output "$RUNNER_TEMP/vm-bundle-sources" \
       --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" \
       --sdk-notices "$RUNNER_TEMP/vm-spike-notices" --network-notices "$RUNNER_TEMP/vm-network-notices" \
+      --root-network-notices "$RUNNER_TEMP/vm-root-network-notices" \
+      --root-network-sources "$RUNNER_TEMP/vm-root-network-sources" \
+      --root-scope "$RUNNER_TEMP/vm-root-scope" --root-tap "$RUNNER_TEMP/vm-root-cni/tap" \
       --bootstrap "$RUNNER_TEMP/vm-runtime-bootstrap" \
       --launcher "${CARGO_TARGET_DIR:-target}/x86_64-unknown-linux-musl/debug/pryx-agent" \
       --image-helper "${CARGO_TARGET_DIR:-target}/x86_64-unknown-linux-musl/debug/pryx-vm-image" \

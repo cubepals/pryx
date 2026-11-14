@@ -4265,3 +4265,14 @@ job when publication is authorized. That job has not run in this task.
   passing lifecycle assertions do not establish their cause. Python compilation, actionlint
   and whitespace pass for the authority change; actual bounded boot remains pending. No
   job/gate or meaningful CI time added. Scanner comments remain eighteen.
+
+- Prepare the actual lazy distribution for root TAP integration: package static scope and
+  separate CNI TAP binaries, all nineteen module notices and their Go-authenticated original
+  zip archives, plus the scope program/locks. Both VM and signed-preview recipes use the same
+  phase. No new mandatory member is imposed on old ordinary bundles and root placement stays
+  off. The MPL dependency remains exclusively in the external TAP tool, never FSL-linked.
+- Local real root-module test/build/vet/verify, static-ELF checks and complete nineteen-source
+  collection pass; source zips total 9.7 MiB, executables 8.0/8.6 MiB before archive compression.
+  Ordinary networking's unchanged twenty-four-notice check, Python syntax/CLI, ShellCheck,
+  actionlint and whitespace pass. Whole archive acceptance remains CI's. Estimate under one
+  additional optional signed-build minute, zero normal PR minutes; no new job or gate.
