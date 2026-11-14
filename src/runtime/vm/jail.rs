@@ -271,15 +271,18 @@ fn bind(source: &Path, target: &Path, readonly: bool) -> Result<(), RuntimeError
     }
     mount::mount_remount(target, flags, "").map_err(error)
 }
+fn destination(root: &Path, relative: &Path) -> Result<PathBuf, RuntimeError> {
+    if relative.as_os_str().is_empty()
+        || relative.components().any(|part| !matches!(part, Component::Normal(_)))
+        || relative == Path::new(disk::FILE)
+    {
+        return Err(error("Invalid root jail read-only destination"));
+    }
+    Ok(root.join(relative))
+}
 fn stage(root: &Path, record: &Record, readonly: &BTreeMap<PathBuf, PathBuf>, disk: &File) -> Result<(), RuntimeError> {
     for (relative, source) in readonly {
-        if relative.as_os_str().is_empty()
-            || relative.components().any(|part| !matches!(part, Component::Normal(_)))
-            || relative == Path::new(disk::FILE)
-        {
-            return Err(error("Invalid root jail read-only destination"));
-        }
-        bind(source, &root.join(relative), true)?;
+        bind(source, &destination(root, relative)?, true)?;
     }
     bind(&record.disk, &root.join(disk::FILE), false)?;
     std::os::unix::fs::fchown(disk, Some(record.owner.0), Some(record.owner.1)).map_err(error)
