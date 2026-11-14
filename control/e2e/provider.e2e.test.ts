@@ -16,7 +16,7 @@ test(
   'sandbox provider methods, cancellation, streams, persistence and preview',
   async () => {
     expect(ready).toBe(true)
-    const c = await agentDeployment(undefined, { repoImage: 'alpine:3.22', localPreviews: true })
+    const c = await agentDeployment(undefined, { repoImage: 'alpine:pryx-tls', localPreviews: true })
     const options = { url: c.d.control.apiUrl, key: c.d.credential.key }
     const provider = pryxProvider(options)
     let id: string | undefined
