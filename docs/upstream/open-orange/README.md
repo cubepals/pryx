@@ -23,7 +23,7 @@ adapter bridge maps combined output to stdout; this patch retains that behavior.
 `Files.stat/lstat` metadata stays partial. Session/code-context and container-only methods
 keep their existing refusals.
 
-pryx's existing CI e2e job applies this exact patch to digest-verified upstream files, builds
+pryx's existing CI e2e job applies this exact patch to digest-verified upstream files, typechecks and builds
 the registration and exercises its create/connect, binary files, directory listing, execution,
 edge preview and destroy against the same real pryx deployment as the SDK provider. It does
 not bundle or run OpenOrange or Rivet's control plane in a pryx installation. The local command

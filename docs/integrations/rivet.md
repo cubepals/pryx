@@ -18,7 +18,7 @@ export const sandboxProvider = pryxProvider()
 ```
 
 Run the complete lifecycle example with `bun examples/rivet-provider.ts`. It needs no model
-key. The provider holds no per-Actor state. `create` returns an id, `connect` wakes a sleeping
+key. The provider holds no per-Actor state. `create` returns an id, `connect` starts stopped compute or wakes a sleeping
 sandbox, `suspend` sleeps it with data kept, and `destroy` deletes it. Connecting to a deleted
 or expired sandbox returns `undefined`; authentication, placement and transport failures throw.
 A missing sandbox makes suspend/destroy a no-op. Mutations are sent once.

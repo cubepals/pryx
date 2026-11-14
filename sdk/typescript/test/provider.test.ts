@@ -33,14 +33,16 @@ function fixture() {
           expiresAt: Date.now() / SECOND_MS + 60,
         })
       if (url.pathname === '/_pryx/ports') return Response.json({ url: 'https://preview.pryx.test/app' })
-      if (url.pathname.endsWith('/wake')) state = 'running'
+      if (url.pathname.endsWith('/wake') || url.pathname.endsWith('/start')) state = 'running'
       if (url.pathname.endsWith('/sleep')) state = 'sleeping'
       if (request.method === 'DELETE') status = StatusCodes.NOT_FOUND
       if (url.pathname === '/_pryx/files/stat') return Response.json({ kind: 'directory', name: 'dir' })
       if (url.pathname === '/_pryx/files/list') return Response.json({ files: [{ name: 'file' }] })
       const view = { id: 'box', state, isolation: 'container', endpoints: [] }
       return Response.json(
-        url.pathname.endsWith('/wake') || url.pathname.endsWith('/sleep') ? { sandbox: view } : view,
+        url.pathname.endsWith('/wake') || url.pathname.endsWith('/sleep') || url.pathname.endsWith('/start')
+          ? { sandbox: view }
+          : view,
       )
     },
   })
@@ -48,6 +50,9 @@ function fixture() {
     calls,
     server,
     options: { url: server.url.href, key: 'secret' },
+    stop: () => {
+      state = 'stopped'
+    },
     refuse: (value: number) => {
       status = value
     },
@@ -70,10 +75,17 @@ test('provider maps lifecycle, paths, defaults and edge preview', async () => {
     expect(() => box.readFile('/etc/passwd')).toThrow('outside persistent')
     expect(() => box.writeFile('/data/../outside', 'text')).toThrow('outside persistent')
     expect(() => box.mkdir('relative')).toThrow('absolute')
+    f.stop()
+    await provider.connect(actor, 'box')
+    expect(f.calls.filter((c) => c.path.endsWith('/start'))).toHaveLength(1)
     await provider.suspend?.(actor, 'box')
     expect(f.calls.filter((c) => c.path.endsWith('/wake'))).toHaveLength(1)
     await pryxPortAddress('box', 8080, f.options)
     await provider.destroy?.(actor, 'box')
+    expect(await provider.connect(actor, 'box')).toBeUndefined()
+    await provider.destroy?.(actor, 'box')
+    await provider.suspend?.(actor, 'box')
+    f.refuse(StatusCodes.GONE)
     expect(await provider.connect(actor, 'box')).toBeUndefined()
   } finally {
     f.server.stop(true)

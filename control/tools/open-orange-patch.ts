@@ -41,6 +41,36 @@ const applied = Bun.spawn(
 )
 if (await applied.exited) throw new Error('Prepared OpenOrange patch no longer applies')
 const provider = join(output, 'packages/runtime-node/src/modules/cloudflare-sandbox/providers.ts')
+function declaration(workspace: string, name: string) {
+  const folder = join(root, workspace, 'node_modules', name)
+  const { types } = JSON.parse(readFileSync(join(folder, 'package.json'), 'utf8')) as { types: string }
+  return join(folder, types)
+}
+const config = join(output, 'tsconfig.json')
+writeFileSync(
+  config,
+  JSON.stringify({
+    extends: join(root, 'tsconfig.json'),
+    compilerOptions: {
+      baseUrl: root,
+      paths: {
+        '@rivet-dev/sandbox-adapter': [declaration('sdk/typescript', '@rivet-dev/sandbox-adapter')],
+        '@rivet-dev/agentos-core': [declaration('integrations/rivet', '@rivet-dev/agentos-core')],
+      },
+    },
+    include: [provider],
+    exclude: [],
+  }),
+)
+const checked = Bun.spawn(
+  [process.execPath, join(root, 'node_modules/typescript/bin/tsc'), '--project', config],
+  {
+    cwd: root,
+    stdout: 'inherit',
+    stderr: 'inherit',
+  },
+)
+if (await checked.exited) throw new Error('Prepared OpenOrange provider types no longer compile')
 const built = await Bun.build({
   entrypoints: [provider],
   packages: 'external',
@@ -53,7 +83,8 @@ writeFileSync(
   JSON.stringify({
     commit: manifest.commit,
     patchApplied: true,
+    typechecked: true,
     provider: join(output, 'built/providers.js'),
   }),
 )
-console.log(`OpenOrange ${manifest.commit}: patch applies and provider bridge builds`)
+console.log(`OpenOrange ${manifest.commit}: patch applies, provider bridge typechecks and builds`)

@@ -75,13 +75,11 @@ export function pryxProvider(options: PryxProviderOptions = {}): SandboxProvider
           'isolation_mismatch',
           `Required tier: ${options.tier}; sandbox tier: ${box.isolation}`,
         )
-      if (['sleeping', 'resting'].includes(box.state)) {
-        try {
-          await box.wake()
-        } catch (error) {
-          if (missing(error)) return undefined
-          throw error
-        }
+      try {
+        await ensureRunning(box)
+      } catch (error) {
+        if (missing(error)) return undefined
+        throw error
       }
       return adapterSandbox(box)
     },
@@ -118,8 +116,13 @@ export async function pryxPortAddress(id: string, port: number, options: PryxPro
       'isolation_mismatch',
       `Required tier: ${options.tier}; sandbox tier: ${box.isolation}`,
     )
-  if (['sleeping', 'resting'].includes(box.state)) await box.wake()
+  await ensureRunning(box)
   return box.expose(port)
+}
+
+async function ensureRunning(box: Sandbox) {
+  if (box.state === 'stopped') await box.start()
+  else if (['sleeping', 'resting'].includes(box.state)) await box.wake()
 }
 
 function missing(error: unknown) {
