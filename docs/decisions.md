@@ -1165,3 +1165,5 @@
 - K25: emit jail-relative monitor paths through the pinned generated SDK only after collecting real staged backing-file identities; seal generated configuration with the same root-owned mount record before jailer startup, and retain the executable's complete basename as required by the unchanged jailer layout.
 
 - K25: defer guest HTTP/2 startup until a maintained buffered reader receives client bytes, retaining them for hyper's own validation; the pinned Firecracker SDK discards its temporary acknowledgement buffer, so eager server settings can otherwise be lost. Preserve the SDK, stream framing, one-shot mutations and existing deadlines.
+
+- K25: split lifecycle, live observations, stopped files, interruption recovery, remote-file API assertions and jail tamper recovery into separate test phases without changing assertions or the structure baseline; upload network probes through the existing live data service because file-only guest creation deliberately refuses running VMs.

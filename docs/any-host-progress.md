@@ -3746,3 +3746,20 @@ job when publication is authorized. That job has not run in this task.
   until the client starts and still transfers the complete binary reply after EOF.
   It passes in the full local run above. No retries, new framing, deadline changes,
   dependency, job or gate; 0.03 s added to the existing test. Hosted proof is pending.
+- Source 9414133 VM run 43602659755/job 132470548765 completes Alpine's full
+  disconnected lifecycle through maintenance, independent fork, interrupted recovery
+  and immediate exit without the earlier transport stall. It then fails at the new
+  hostname-network fixture's stopped-only open_files call on the running guest.
+  Preserve that production refusal and upload through the existing live data service.
+  Root configuration staging/recovery passes (0.02 s); host policy, owned network,
+  bundle, registry and component acceptance also pass. Summary:
+  checks/measurements/k25/transport-9414133.json. Both-image reliability and real
+  production packet-flow acceptance remain pending; scanner comments remain eighteen.
+- Normal CI 43602659788 passes actionlint and fails four existing structure ratchets:
+  remote-file/runtime fixture lengths and network/jail fixture complexity. The separate
+  move-only checkpoint 9158887 splits those phases with every assertion preserved.
+  The real remote-file integration case passes locally (0.50 s); explicit Clippy
+  length/complexity diagnostics now report no daemon or integration findings, and
+  strict all-target Clippy passes. No baseline exception, skipped assertion, job or
+  gate is added. The next corrective push also carries the independently prepared
+  root boot acceptance checkpoint after its complete local validation.

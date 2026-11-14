@@ -1,0 +1,18 @@
+{
+  "commit": "941413391cdaccee16690f7afb21cd5506b152fc",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43602659755",
+  "ran": {
+    "host_policy": "3 passed in 0.07 s",
+    "owned_network": "2 passed in 0.11 s",
+    "bundle": "passed in 6.29 s",
+    "registry": "passed in 10.08 s",
+    "component": "passed in 30.83 s",
+    "root_configuration_staging": "passed in 0.02 s",
+    "runtime": "40.24 s: Alpine disconnected lifecycle, maintenance, independent fork, interruption recovery and immediate exit completed without the earlier transport stall; hostname-network boot then refused its fixture calling stopped-only open_files on a running guest"
+  },
+  "normal_ci": {
+    "url": "https://github.com/cubepals/pryx/actions/runs/43602659788",
+    "failure": "four structure findings: two test function lengths and two test complexity limits; actionlint passes"
+  },
+  "limits": "This partial lifecycle run does not establish both-image transport reliability, production network flow, root jailer boot or milestone completion. Raw logs remain CI artifacts."
+}

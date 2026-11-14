@@ -69,7 +69,7 @@ pub(super) fn spec(data: &Path, image: &str) -> ContainerSpec {
         oom_score_adj: 0,
     }
 }
-fn file_request(spec: &ContainerSpec) -> crate::runtime::files::Request {
+pub(super) fn file_request(spec: &ContainerSpec) -> crate::runtime::files::Request {
     let agent = spec.agent.as_ref().unwrap();
     crate::runtime::files::Request {
         name: spec.name.clone(),
