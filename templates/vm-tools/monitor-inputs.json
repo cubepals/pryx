@@ -1,0 +1,53 @@
+{
+  "target": "x86_64-unknown-linux-gnu",
+  "sdk": {
+    "name": "x86-64--glibc--stable-2026.08-1",
+    "url": "https://toolchains.bootlin.com/downloads/releases/toolchains/x86-64/tarballs/x86-64--glibc--stable-2026.08-1.tar.xz",
+    "bytes": 102296280,
+    "sha256": "cde893afab04ac7dcd15c46aac214ff550441b982536124c88a71146a0eeedd3",
+    "components": {
+      "binutils": "2.45.1",
+      "gcc": "15.3.0",
+      "gdb": "16.3",
+      "glibc": "2.44-36-g2d5421ffca8893534d5e02ad38c28acd8e778fa3",
+      "linux-headers": "5.10.269"
+    },
+    "sourceRoot": "https://toolchains.bootlin.com/downloads/releases/sources/",
+    "licenceRoot": "https://toolchains.bootlin.com/downloads/releases/licenses/"
+  },
+  "glibc": {
+    "url": "https://toolchains.bootlin.com/downloads/releases/sources/glibc-2.44-36-g2d5421ffca8893534d5e02ad38c28acd8e778fa3/glibc-2.44-36-g2d5421ffca8893534d5e02ad38c28acd8e778fa3-git4.tar.gz",
+    "bytes": 41529119,
+    "sha256": "39f6808e31a02da42f774912c6754ea22d5f076c4e935b1e233f3602d4d772c0"
+  },
+  "recipe": {
+    "name": "buildroot-toolchains",
+    "repository": "bootlin/buildroot-toolchains",
+    "sourceCommit": "48bfc2c656979dbbb24277ffc6746ea7a6af4a50",
+    "tag": "toolchains.bootlin.com-2026.08-1"
+  },
+  "buildFiles": {
+    "defconfig": {
+      "url": "https://toolchains.bootlin.com/downloads/releases/toolchains/x86-64/build_fragments/x86-64--glibc--stable-2026.08-1.defconfig",
+      "bytes": 549,
+      "sha256": "ab1a3eec75d196b892fa2cc6f519fa5055b0bbd0424e3598f8087f5cebe4b8da"
+    },
+    "README": {
+      "url": "https://toolchains.bootlin.com/downloads/releases/toolchains/x86-64/readmes/x86-64--glibc--stable-2026.08-1.txt",
+      "bytes": 1093,
+      "sha256": "fa0b24cb67e660a5aebe2f4d4705b5a7ca2e5860e2e0405ddf6fddad40d4a41a"
+    }
+  },
+  "notices": {
+    "gcc/COPYING.RUNTIME": {
+      "url": "https://toolchains.bootlin.com/downloads/releases/licenses/gcc-final-15.3.0/COPYING.RUNTIME",
+      "bytes": 3324,
+      "sha256": "9d6b43ce4d8de0c878bf16b54d8e7a10d9bd42b75178153e3af6a815bdc90f74"
+    },
+    "gcc/COPYING3": {
+      "url": "https://toolchains.bootlin.com/downloads/releases/licenses/gcc-final-15.3.0/COPYING3",
+      "bytes": 35147,
+      "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
+    }
+  }
+}

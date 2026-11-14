@@ -4429,3 +4429,19 @@ job when publication is authorized. That job has not run in this task.
   commit-verified micro-http tree. Existing helper graph: all 453 external packages still pass
   archive authentication and primary-notice retention. Local Python syntax/whitespace pass.
   No shipped monitor selection, new dependency, CI job/gate or estimated minute yet.
+
+- Add repeatable build-only GNU SDK preparation and same-source monitor compilation, with
+  private libseccomp discovery and separate host/target compiler flags. Actual local recipe
+  builds Firecracker 1.18.0 with upstream Rust 1.97.0, static PIE/no interpreter, 11,661,840
+  bytes. Independent upstream seccompiler output exactly matches the embedded restrictive
+  3,442-byte BPF (SHA-256 460d475f8135ec8937510ac98654fef20d7687b07d8ebd034e0a2b3c2668abd1).
+- Retain all 111 external normal/build Rust dependencies, original Firecracker source,
+  complete pinned glibc source, exact commit-verified Buildroot recipes/configuration,
+  primary GCC runtime exception and Rust standard-library copyright/licence texts. Verify
+  actual Buildroot source-override support and provide modification/relinking instructions.
+  Rust 1.97 supplies HTML copyright files; retain those actual primary files and all texts.
+  The separate compiler SDK is not redistributed. Full 167-package metadata review includes
+  build-only examples; all declare permitted alternatives. Python syntax/whitespace pass.
+- These tools are not yet wired into bundle selection or a workflow. Actual confined KVM
+  replay, whole-bundle selection and signed-host measurements remain; do not claim a VM
+  milestone pass from a successful build. No CI job/gate or duration change in this step.

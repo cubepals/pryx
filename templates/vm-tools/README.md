@@ -36,6 +36,14 @@ Parts (`vm-tools/`):
 - `kernel-source.json`: full published-kernel source archive pin from its primary checksum list.
 - `sources.py`: original Linux archive plus complete commit-verified Kata recipes/patches and monitor source trees.
 - `rust_notices.py`: lock-authenticated registry archives and commit-verified Git trees with primary notices for an actual normal/build dependency graph; defaults to the helper’s musl graph.
+- `monitor-inputs.json`: pinned private GNU SDK, complete libc source, exact Buildroot recipe and primary notice inputs.
+- `monitor_prepare.py`: verify and privately relocate that separate build-only SDK without weakening its host-library guard.
+- `monitor_abi.rs`: build-only signal/futex values imported from the actual monitor and libc.
+- `monitor_policy.py`: preserve the restrictive published policy while substituting the equivalent native thread ABI.
+- `monitor_build.py`: same-source static monitor build with an independently compiled embedded-policy check.
+- `monitor_sources.py`: full monitor/Rust/libc sources, exact compilation recipes and primary notices.
+- `monitor-REBUILD.md`: modification and relinking instructions for the separate GNU monitor.
+- `build.sh` and `release.sh`: common build phases and unpublished release assembly.
 - `bundle.py`: separate inventoried static runtime (including the same-source host launcher) and complete corresponding-source archives, using the existing artifact packager.
 - `agent_acceptance.py`: verified published inputs for actual-agent KVM boots and durable disk reboots.
 - `bootstrap.py`: fixed read-only EROFS bootstrap from the actual static agent and its advertised marker.

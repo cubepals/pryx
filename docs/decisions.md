@@ -1269,3 +1269,7 @@
 - K25: start the installed retained-file HTTP fixture in /data and request its root path; Go FileServer redirects index.html and the existing edge client deliberately exposes responses directly, so keep the exact successful proof-body assertion.
 
 - K25: reuse the VM Rust-source collector for the monitor’s actual GNU normal/build dependency graph, retaining Cargo.lock-authenticated registry archives and the full commit-verified micro-http Git tree; keep the existing helper graph as the unchanged default and separate each component’s notices and archives.
+
+- K25: retain Bootlin’s complete glibc source, its exact commit-verified Buildroot compilation recipes/configuration (GPL-2.0-or-later, separate source files only), and primary glibc/GCC runtime notices alongside the monitor sources; download the pinned compiler as a separate build input and do not redistribute the SDK. Provide rebuild/relink instructions and Rust standard-library notices with the separate monitor.
+
+- K25: keep native-monitor source preparation, compilation and source/notice retention separate; compile the expected policy independently through the actual upstream seccompiler and require its exact BPF bytes inside the static ELF. Host tools keep host linkage, Rust uses the upstream pin, and the complete 167-package metadata (including build-only examples) has permitted Apache/MIT/BSD/ISC alternatives with required Unicode notices.
