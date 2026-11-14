@@ -8,6 +8,7 @@
 //! - `guest.rs`: private guest arguments and bootstrap assembly.
 //! - `launch.rs`: verified inputs, generated monitor configuration and guest bootstrap.
 //! - `journal.rs`: private durable specifications and conservative restart adoption.
+//! - `services.rs`: host-owned active and retained-disk file sessions.
 //! - `maintenance.rs`: leased file-only guests for stopped disks.
 //! - `agent.rs`: authenticated agent calls and one-shot compatibility exec.
 //! - `runtime.rs`: runtime verbs, observations and bounded event polling.
@@ -19,6 +20,7 @@ mod guest;
 mod journal;
 mod launch;
 mod maintenance;
+mod services;
 pub use maintenance::FileGuest;
 #[cfg(test)]
 mod diagnostics;

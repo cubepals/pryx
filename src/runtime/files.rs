@@ -8,6 +8,22 @@ use hyper::{Method, Response, body::Incoming};
 use pryx_agent::auth::{Claims, Scope, SigningKey, TOKEN_LIFETIME_SECONDS};
 use std::{future::Future, net::SocketAddr, time::Duration};
 
+/// Host-owned data identity and resource bounds; no workload command, image or secret enters it.
+#[derive(Clone)]
+pub struct Request {
+    pub name: String,
+    pub sandbox: String,
+    pub epoch: u64,
+    pub data_dir: std::path::PathBuf,
+    pub mount_path: String,
+    pub user: String,
+    pub memory_bytes: i64,
+    pub storage_bytes: u64,
+    pub pids_limit: i64,
+    pub tmp_size_mb: u32,
+    pub log_max_size_mb: u32,
+}
+
 pub enum Operation {
     Read,
     Write,

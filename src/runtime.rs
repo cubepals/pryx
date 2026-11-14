@@ -348,6 +348,12 @@ pub trait ContainerRuntime: Send + Sync + 'static {
     async fn data_copy_lease(&self, _sandbox: &str, _data: &std::path::Path) -> Result<Box<dyn Send>, RuntimeError> {
         Ok(Box::new(()))
     }
+    fn uses_remote_data(&self) -> bool {
+        false
+    }
+    async fn data_service(&self, _request: files::Request) -> Result<files::Service, RuntimeError> {
+        Err(RuntimeError::Other("This backend has no remote file service".into()))
+    }
     fn data_path(&self, root: &std::path::Path) -> PathBuf {
         root.into()
     }

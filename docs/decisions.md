@@ -1097,3 +1097,5 @@
 - K25: Verify the non-root maintenance guest CID by explicitly binding and reading a library-owned vsock listener, retaining non-root/PID-1-parent checks; Linux rejects a nonlocal explicit CID, while the library’s device-query path opens root-only devtmpfs /dev/vsock. Keep device permissions and the root init’s original host-CID/device equality checks unchanged.
 
 - K25: Bound private file-session TCP/HTTP setup separately from upload duration; use the existing HTTP library for unbuffered data streams so slow/large files can outlive connection setup, while control/readiness calls retain their existing whole-call deadlines and mutations are still sent once.
+
+- K25: Make remote data access an explicit backend seam: reuse a live agent under its transition guard, or construct a layerless file guest solely from host-owned data identity and resource bounds; retained disks need no workload image, original environment or temporary runtime record.

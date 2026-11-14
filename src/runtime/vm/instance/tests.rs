@@ -68,6 +68,22 @@ fn spec(data: &Path, image: &str) -> ContainerSpec {
         oom_score_adj: 0,
     }
 }
+fn file_request(spec: &ContainerSpec) -> crate::runtime::files::Request {
+    let agent = spec.agent.as_ref().unwrap();
+    crate::runtime::files::Request {
+        name: spec.name.clone(),
+        sandbox: agent.sandbox.clone(),
+        epoch: agent.epoch,
+        data_dir: spec.data_dir.clone(),
+        mount_path: spec.mount_path.clone(),
+        user: spec.user.clone(),
+        memory_bytes: spec.memory_bytes,
+        storage_bytes: spec.storage_bytes,
+        pids_limit: spec.pids_limit,
+        tmp_size_mb: spec.tmp_size_mb,
+        log_max_size_mb: spec.log_max_size_mb,
+    }
+}
 async fn exec(runtime: &VmRuntime, id: &str, script: &str) -> Vec<u8> {
     eprintln!("VM runtime exec: {script}");
     let output = runtime
@@ -135,6 +151,17 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
         assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Running);
         assert_eq!(exec(&runtime, &id, "printf durable > /data/retained; printf ready").await, b"ready");
         assert_eq!(exec(&runtime, &id, "grep -c '^processor' /proc/cpuinfo").await, b"2\n");
+        let active_files = runtime.data_service(file_request(&original_spec)).await.unwrap();
+        let response = active_files
+            .request(crate::runtime::files::Operation::Read, "retained", crate::http_client::empty())
+            .await
+            .unwrap();
+        assert_eq!(crate::http_client::read_body(response, 1024).await.unwrap(), "durable");
+        active_files.close().await.unwrap();
+        assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Running);
+        let mut wrong_epoch = file_request(&original_spec);
+        wrong_epoch.epoch += 1;
+        assert!(runtime.data_service(wrong_epoch).await.is_err());
         assert!(
             runtime.data_copy_lease(&original_spec.agent.as_ref().unwrap().sandbox, &data).await.is_err(),
             "A running monitor must refuse a disk copy lease"
@@ -188,6 +215,17 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
         assert_eq!(crate::http_client::read_body(response, bytes.len()).await.unwrap().as_ref(), bytes);
         files.close().await.unwrap();
         drop(runtime.data_copy_lease(sandbox, &data).await.unwrap());
+        runtime.remove(&id).await.unwrap();
+        let retained_files = runtime.data_service(file_request(&original_spec)).await.unwrap();
+        assert!(runtime.inspect(&id).await.unwrap().is_none());
+        assert!(runtime.list(&[]).await.unwrap().is_empty(), "Maintenance must not create a runtime entry");
+        let response = retained_files
+            .request(crate::runtime::files::Operation::Read, "offline", crate::http_client::empty())
+            .await
+            .unwrap();
+        assert_eq!(crate::http_client::read_body(response, bytes.len()).await.unwrap().as_ref(), bytes);
+        retained_files.close().await.unwrap();
+        let id = runtime.create(&original_spec).await.unwrap();
         runtime.start(&id).await.unwrap();
         assert_eq!(exec(&runtime, &id, "wc -c < /data/offline").await, format!("{}\n", bytes.len()).as_bytes());
         assert_eq!(exec(&runtime, &id, "cat /data/retained").await, b"durable");
@@ -318,4 +356,24 @@ fn private_journals_preserve_stopped_state_and_refuse_links_modes_and_invalid_va
     )
     .unwrap();
     assert!(journal::load(root.path()).is_err());
+}
+
+#[test]
+fn retained_file_spec_has_only_host_owned_data_policy() {
+    let root = tempfile::tempdir().unwrap();
+    let original = spec(root.path(), "workload-image");
+    let minimal = services::specification(file_request(&original), std::env::current_exe().unwrap());
+    assert!(minimal.image.is_empty() && minimal.env.is_empty() && minimal.labels.is_empty());
+    assert!(minimal.packages.is_empty() && minimal.ports.is_empty());
+    assert!(minimal.entrypoint.as_ref().unwrap().is_empty());
+    assert_eq!(minimal.user, original.user);
+    assert_eq!(minimal.data_dir, original.data_dir);
+    assert_eq!(minimal.memory_bytes, original.memory_bytes);
+    assert_eq!(minimal.storage_bytes, original.storage_bytes);
+    let prepared = maintenance::specification(&minimal).unwrap();
+    assert_eq!(prepared.env.len(), 1);
+    assert_ne!(agent::key(&prepared).unwrap().public_key(), agent::key(&original).unwrap().public_key());
+    let (memory, cpus, _, _) = launch::resources(&prepared).unwrap();
+    assert_eq!(memory, original.memory_bytes as u64 / (1024 * 1024));
+    assert_eq!(cpus, 1);
 }

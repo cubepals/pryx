@@ -82,7 +82,7 @@ impl VmRuntime {
         self.save_entry(entry)?;
         capture.and(code.map(|_| ()))
     }
-    async fn observe(&self, name: &str) -> Result<Option<ContainerInfo>, RuntimeError> {
+    pub(super) async fn observe(&self, name: &str) -> Result<Option<ContainerInfo>, RuntimeError> {
         let entry = match self.entry(name) {
             Ok(entry) => entry,
             Err(RuntimeError::NotFound(_)) => return Ok(None),
@@ -194,6 +194,16 @@ impl ContainerRuntime for VmRuntime {
     }
     fn uses_host_ports(&self) -> bool {
         true
+    }
+    fn uses_remote_data(&self) -> bool {
+        true
+    }
+    async fn data_service(
+        &self,
+        request: crate::runtime::files::Request,
+    ) -> Result<crate::runtime::files::Service, RuntimeError> {
+        let own = self.clone();
+        tokio::spawn(async move { own.serve_files(request).await }).await.map_err(error)?
     }
     fn supports_data_exclude(&self) -> bool {
         false

@@ -53,10 +53,17 @@ impl VmRuntime {
     async fn file_guest(&self, name: &str) -> Result<FileGuest, RuntimeError> {
         let entry = self.entry(name)?;
         let transition = self.transition(&entry.id).lock_owned().await;
-        let mut entry = self.entry(&entry.id)?;
+        let entry = self.entry(&entry.id)?;
         if self.state.live.lock().unwrap().contains_key(&entry.id) {
             return Err(RuntimeError::Conflict("A running VM must serve files through its existing agent".into()));
         }
+        self.launch_files(entry, transition).await
+    }
+    pub(super) async fn launch_files(
+        &self,
+        mut entry: Entry,
+        transition: OwnedMutexGuard<()>,
+    ) -> Result<FileGuest, RuntimeError> {
         entry.spec = specification(&entry.spec)?;
         let (memory, cpus, uid, gid) = launch::resources(&entry.spec)?;
         let bundle = self.bundle().await?;

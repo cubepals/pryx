@@ -3162,3 +3162,20 @@ job when publication is authorized. That job has not run in this task.
   it in the same short bootstrap-attempt summary. The later CID correction is still awaiting
   its own actual KVM run. Scanner stays at eighteen addressed findings. Continue the node
   backend file-session seam and retained-disk access before announcing a VM tier.
+
+
+- K25 backend file-session seam: an explicit remote-data capability defaults off for existing
+  backends. VM requests reuse an authenticated running agent under its transition guard, or
+  launch a layerless guest for stopped/retained disks using only host-owned data identity and
+  resource bounds. Refuse a mismatch with an existing sandbox/epoch/data path. Retained access
+  creates no compute journal, inventory entry, workload command or image pull. Node handlers
+  and their owned workload/memory guards are the next integration step; the tier stays unwired.
+- Local policy acceptance proves that retained-file construction carries no image, workload
+  environment, labels, packages or extra ports and keeps admitted user/disk/memory bounds with
+  a fresh signing key. Full Rust: 510 passes, one unchanged IPv6 failure, 34 ignored; strict
+  Clippy modes/fmt and daemon length probe pass. Existing KVM acceptance now also reads a live
+  agent, refuses an epoch mismatch, removes compute, reads retained binary data without an
+  inventory entry, recreates compute and cold-boots it. Two additional maintenance boots in
+  that existing optional job, estimated under fifteen seconds; zero ordinary PR minutes or
+  new gates/jobs. Real execution is pending, as is the earlier CID fix. Scanner remains eighteen
+  addressed findings. No public/fleet/edge protocol shape changes in this checkpoint.
