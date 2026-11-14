@@ -55,7 +55,7 @@ impl VmRuntime {
         transition: OwnedMutexGuard<()>,
     ) -> Result<FileGuest, RuntimeError> {
         entry.spec = specification(&entry.spec)?;
-        let (memory, cpus, uid, gid) = launch::resources(&entry.spec)?;
+        let (memory, cpus, uid, gid) = monitor::resources(&entry.spec)?;
         let bundle = self.bundle().await?;
         let lease = self.lease(&entry)?;
         let disk = super::super::disk::prepare(
@@ -87,7 +87,7 @@ impl VmRuntime {
         let mut boot = guest::boot(&entry.spec, &entry.id, &image, &configuration, (uid, gid))?;
         boot.arguments.push(format!("--{}", pryx_agent::bootstrap_capabilities::VM_FILES_ARGUMENT));
         let nonce = boot.nonce.clone();
-        let plan = launch::plan(&bundle, Vec::new(), disk.path, directory.path(), lease, &api, &config_path);
+        let plan = monitor::plan(&bundle, Vec::new(), disk.path, directory.path(), lease, &api, &config_path);
         let mut monitor = Machine::launch(
             &bundle.root().join("bin/vm-launcher"),
             &plan,

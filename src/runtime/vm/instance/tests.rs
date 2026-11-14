@@ -407,7 +407,7 @@ fn retained_file_spec_has_only_host_owned_data_policy() {
     let prepared = maintenance::specification(&minimal).unwrap();
     assert_eq!(prepared.env.len(), 1);
     assert_ne!(agent::key(&prepared).unwrap().public_key(), agent::key(&original).unwrap().public_key());
-    let (memory, cpus, _, _) = launch::resources(&prepared).unwrap();
+    let (memory, cpus, _, _) = monitor::resources(&prepared).unwrap();
     assert_eq!(memory, original.memory_bytes as u64 / (1024 * 1024));
     assert_eq!(cpus, 1);
 }

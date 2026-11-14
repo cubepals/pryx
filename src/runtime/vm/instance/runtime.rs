@@ -319,7 +319,7 @@ impl ContainerRuntime for VmRuntime {
         self.prepared(image, timeout).await.map(|_| true)
     }
     async fn create(&self, spec: &ContainerSpec) -> Result<String, RuntimeError> {
-        launch::resources(spec)?;
+        monitor::resources(spec)?;
         if spec.agent.is_none() {
             return Err(error("VM requires its authenticated agent"));
         }

@@ -72,7 +72,7 @@ impl Host<'_> {
         let serial = directory.path().join("serial");
         let config = directory.path().join("monitor.json");
         let deadline = tokio::time::Instant::now() + launch::BOOT_TIMEOUT;
-        let (memory, cpus, uid, gid) = launch::resources(spec).unwrap();
+        let (memory, cpus, uid, gid) = monitor::resources(spec).unwrap();
         let configuration = configuration::configure(
             self.bundle,
             &staged,

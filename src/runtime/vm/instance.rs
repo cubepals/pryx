@@ -6,6 +6,7 @@
 //! Parts (`instance/`):
 //! - `configuration.rs`: generated SDK monitor configuration and drive identities.
 //! - `guest.rs`: private guest arguments and bootstrap assembly.
+//! - `monitor.rs`: admitted resources and the host-owned monitor confinement plan.
 //! - `launch.rs`: verified inputs, generated monitor configuration and guest bootstrap.
 //! - `journal.rs`: private durable specifications and conservative restart adoption.
 //! - `services.rs`: host-owned active and retained-disk file sessions.
@@ -26,6 +27,7 @@ mod journal;
 mod launch;
 mod logs;
 mod maintenance;
+mod monitor;
 #[cfg(test)]
 mod network_acceptance;
 #[cfg(test)]

@@ -33,7 +33,7 @@ fn read(path: &Path) -> Result<Entry, RuntimeError> {
     if !identifier(&entry.id) || path.file_stem() != Some(std::ffi::OsStr::new(&entry.id)) {
         return Err(error("VM journal filename differs from its identity"));
     }
-    launch::resources(&entry.spec)?;
+    monitor::resources(&entry.spec)?;
     agent::key(&entry.spec)?;
     Ok(entry)
 }
