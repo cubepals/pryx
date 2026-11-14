@@ -3,14 +3,15 @@
  * File paths resolve inside persistent /data; execution and preview routing remain pryx's.
  */
 import { posix } from 'node:path'
+import { CommandStream, Pryx, PryxError, type Sandbox, type SandboxOptions } from '@cubepals/pryx'
 import type {
   Sandbox as AdapterSandbox,
   SandboxExecOptions,
   SandboxProvider,
 } from '@rivet-dev/sandbox-adapter'
 import { StatusCodes } from 'http-status-codes'
-import { Pryx, PryxError, type Sandbox, type SandboxOptions } from './index.ts'
-import { CommandStream } from './run.ts'
+import { bytes } from './agent.ts'
+import { SDK_DEFAULTS } from './generated/defaults.ts'
 
 export type PryxProviderOptions = {
   url?: string
@@ -65,7 +66,7 @@ export function pryxProvider(options: PryxProviderOptions = {}): SandboxProvider
       try {
         box = await api.sandbox(id, { wake: false })
       } catch (error) {
-        if (error instanceof PryxError && error.status === StatusCodes.NOT_FOUND) return undefined
+        if (missing(error)) return undefined
         throw error
       }
       if (options.tier && box.isolation !== options.tier)
@@ -74,14 +75,35 @@ export function pryxProvider(options: PryxProviderOptions = {}): SandboxProvider
           'isolation_mismatch',
           `Required tier: ${options.tier}; sandbox tier: ${box.isolation}`,
         )
-      if (['sleeping', 'resting'].includes(box.state)) await box.wake()
+      if (['sleeping', 'resting'].includes(box.state)) {
+        try {
+          await box.wake()
+        } catch (error) {
+          if (missing(error)) return undefined
+          throw error
+        }
+      }
       return adapterSandbox(box)
     },
     async suspend(_context, id) {
-      await (await api.sandbox(id, { wake: false })).sleep()
+      let box: Sandbox
+      try {
+        box = await api.sandbox(id, { wake: false })
+      } catch (error) {
+        if (missing(error)) return
+        throw error
+      }
+      await box.sleep()
     },
     async destroy(_context, id) {
-      await (await api.sandbox(id, { wake: false })).delete()
+      let box: Sandbox
+      try {
+        box = await api.sandbox(id, { wake: false })
+      } catch (error) {
+        if (missing(error)) return
+        throw error
+      }
+      await box.delete()
     },
   }
 }
@@ -89,14 +111,22 @@ export function pryxProvider(options: PryxProviderOptions = {}): SandboxProvider
 /** Publish a sandbox port through pryx's edge, preserving its policy and capacity refusals. */
 export async function pryxPortAddress(id: string, port: number, options: PryxProviderOptions = {}) {
   requireGuarantees(options)
-  const box = await client(options).sandbox(id)
+  const box = await client(options).sandbox(id, { wake: false })
   if (options.tier && box.isolation !== options.tier)
     throw new PryxError(
       StatusCodes.CONFLICT,
       'isolation_mismatch',
       `Required tier: ${options.tier}; sandbox tier: ${box.isolation}`,
     )
+  if (['sleeping', 'resting'].includes(box.state)) await box.wake()
   return box.expose(port)
+}
+
+function missing(error: unknown) {
+  return (
+    error instanceof PryxError &&
+    (error.status === StatusCodes.NOT_FOUND || error.status === StatusCodes.GONE)
+  )
 }
 
 function path(value: string) {
@@ -123,14 +153,19 @@ function adapterSandbox(box: Sandbox): AdapterSandbox {
 
 async function exec(box: Sandbox, command: string, options: SandboxExecOptions) {
   if (options.signal?.aborted) throw new Error('aborted')
+  if (!posix.isAbsolute(options.cwd)) throw new TypeError('Exec cwd must be an absolute path')
   if (options.timeoutMs !== undefined && (!Number.isFinite(options.timeoutMs) || options.timeoutMs < 0))
     throw new TypeError('timeoutMs must be finite and nonnegative')
   const process = await box.spawn(command, { cwd: options.cwd, env: options.env })
   let killed: Promise<void> | undefined
   let timedOut = false
+  let observing = true
+  const observation = new AbortController()
+  const killFailure = Promise.withResolvers<never>()
+  void killFailure.promise.catch(() => {})
   const kill = () => {
     killed ??= process.kill()
-    void killed.catch(() => {})
+    void killed.catch(killFailure.reject)
     return killed
   }
   const abort = () => {
@@ -138,16 +173,35 @@ async function exec(box: Sandbox, command: string, options: SandboxExecOptions) 
   }
   options.signal?.addEventListener('abort', abort, { once: true })
   if (options.signal?.aborted) abort()
-  const timer = options.timeoutMs
-    ? setTimeout(() => {
-        timedOut = true
-        void kill()
-      }, options.timeoutMs)
-    : undefined
-  const stream = new CommandStream(Promise.resolve(process))
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const deadline = performance.now() + (options.timeoutMs ?? 0)
+  const checkDeadline = () => {
+    const remaining = deadline - performance.now()
+    if (remaining <= 0) {
+      timedOut = true
+      void kill()
+    } else {
+      // Bounded slices keep long caller deadlines within the JavaScript timer range.
+      timer = setTimeout(
+        checkDeadline,
+        Math.min(remaining, SDK_DEFAULTS.runTimeoutSeconds * SDK_DEFAULTS.secondMs),
+      )
+    }
+  }
+  if (options.timeoutMs) checkDeadline()
+  const stream = new CommandStream(
+    Promise.resolve({
+      async *events() {
+        for await (const event of process.events(observation.signal)) {
+          if (observing && event.type === 'output') options.onData?.(bytes(event.bytes))
+          yield event
+        }
+      },
+    }),
+    false,
+  )
   try {
-    for await (const chunk of stream) options.onData?.(new TextEncoder().encode(chunk.data))
-    const result = await stream.result()
+    const result = await Promise.race([stream.result(), killFailure.promise])
     await killed
     if (options.signal?.aborted) throw new Error('aborted')
     if (result.stdoutTruncated || result.stderrTruncated)
@@ -162,6 +216,8 @@ async function exec(box: Sandbox, command: string, options: SandboxExecOptions) 
     await kill()
     throw error
   } finally {
+    observing = false
+    observation.abort()
     clearTimeout(timer)
     options.signal?.removeEventListener('abort', abort)
   }

@@ -1,0 +1,11 @@
+{
+  "version": "1.0.2",
+  "commit": "1cabf2e9db300361c9f0b751c7723da7eb706f5e",
+  "license": "Apache-2.0",
+  "files": {
+    "packages/runtime-node/src/modules/cloudflare-sandbox/providers.ts": "9447bf378a5953170c04d021838dd0b5456083e3de4d564c125b56f478dc80bd",
+    "packages/runtime-node/src/modules/cloudflare-sandbox/index.ts": "5c4c930b7d9089b341808ee0b49659af0b3971e7b9ddc063604b57691c507f80",
+    "packages/runtime-node/src/internal/runtime-settings.ts": "cd2949731721a1231af98621c8f4fe32af2ed7748cbae3057429d9bf8a416fc9",
+    "packages/runtime-node/src/internal/close-hooks.ts": "562545c8136725b55ff1e44f9eef07113650fed464465bc47a01410bae101871"
+  }
+}

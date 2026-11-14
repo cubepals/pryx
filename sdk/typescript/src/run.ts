@@ -49,7 +49,7 @@ export class CommandStream implements AsyncIterable<Chunk> {
   #streamFailure?: PryxError
   #wake?: () => void
   #result: Promise<RunResult>
-  constructor(process: Promise<Process>, observe = true) {
+  constructor(process: Promise<Pick<Process, 'events'>>, observe = true) {
     this.#result = (async () => {
       const result: RunResult = {
         stdout: '',

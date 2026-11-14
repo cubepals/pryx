@@ -34,7 +34,8 @@ export type {
   KernelView,
 } from './kernels.ts'
 export type { LogRecord, LogsOptions } from './logs.ts'
-export type { Chunk, CommandStream, RunOptions, RunResult } from './run.ts'
+export type { Chunk, RunOptions, RunResult } from './run.ts'
+export { CommandStream } from './run.ts'
 export type { TemplateOptions, TemplateView } from './template.ts'
 export type {
   ExecEvent,

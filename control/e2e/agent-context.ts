@@ -13,6 +13,7 @@ export async function agentDeployment(
     webhookAllowHosts?: string[]
     egressPolicy?: boolean
     nativeTools?: boolean
+    localPreviews?: boolean
     repoImage?: string
   } = {},
 ) {

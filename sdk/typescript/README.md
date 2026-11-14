@@ -135,3 +135,9 @@ Git defaults to `repo`; clone changes that handle’s path. Tokens use a one-cal
 Shells use serialized pipes with independent stdout/stderr markers; [measured latency](../../docs/checks/k16.md) includes fresh processes and persistent sessions. Search/tar budgets and link refusals are in [agent security](../../docs/agent.md).
 Container hostname egress requires the advertised host firewall feature; process and wasm refuse it with the tier named. Webhook signatures and retry limits are in [the API reference](../../docs/api.md).
 Git clone/push/pull default to five minutes; other Git operations use the normal command budget. Every method accepts a timeout override. Wasm clones keep metadata in persistent guest storage and checkout files in data; both survive stop and snapshots. Automatic background maintenance and all Git trace destinations are disabled during helper calls.
+
+Rivet's sandbox provider is a separate entry point, `@cubepals/pryx/provider`:
+`pryxProvider()` reads `PRYX_API_URL` and `PRYX_API_KEY`; `pryxPortAddress(id, port)` returns
+an edge preview. See [the integration guide](../../docs/integrations/rivet.md) and
+[the runnable example](../../examples/rivet-provider.ts), including the current OpenOrange
+registration and required-guarantee boundaries.

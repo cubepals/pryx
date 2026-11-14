@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** K30 acceptance uses a real daemon, control and edge in this job. No provider method is mocked. */
 import { expect, test } from 'bun:test'
+import { resolve } from 'node:path'
 import { pryxPortAddress, pryxProvider } from '../../sdk/typescript/src/provider.ts'
 import { MINUTE_MS, SECOND_MS } from '../src/durations.ts'
+import { runProviderExamples } from '../tools/provider-examples.ts'
 import { agentDeployment } from './agent-context.ts'
 import { ready } from './deployment.ts'
 import { deploymentDiagnostics } from './diagnostics.ts'
@@ -14,7 +16,7 @@ test(
   'sandbox provider methods, cancellation, streams, persistence and preview',
   async () => {
     expect(ready).toBe(true)
-    const c = await agentDeployment(undefined, { repoImage: 'alpine:3.22' })
+    const c = await agentDeployment(undefined, { repoImage: 'alpine:3.22', localPreviews: true })
     const options = { url: c.d.control.apiUrl, key: c.d.credential.key }
     const provider = pryxProvider(options)
     let id: string | undefined
@@ -79,8 +81,9 @@ test(
       const awake = await provider.connect(actor, id)
       if (!awake) throw new Error('Sleeping sandbox disappeared')
       expect(new TextDecoder().decode(await awake.readFile('/data/work/kept'))).toBe('kept\0bytes\n')
-      const web = await raw.spawn(webCommand())
-      await raw.write('index.html', 'provider-preview')
+      const resumedRaw = await c.sdk.sandbox(id)
+      const web = await resumedRaw.spawn(webCommand())
+      await resumedRaw.write('index.html', 'provider-preview')
       await web.waitForPort(3000, { mode: 'http', timeout: '30s' })
       const address = await pryxPortAddress(id, 3000, options)
       expect(await (await c.app(address)).text()).toBe('provider-preview')
@@ -88,6 +91,67 @@ test(
       await provider.destroy?.(actor, id)
       expect(await provider.connect(actor, id)).toBeUndefined()
       id = undefined
+      await runProviderExamples(options)
+      const patched = (await import(resolve('target/k30-open-orange/built/providers.js'))) as {
+        sandboxProviderFromEnvironment(env: Record<string, string>): {
+          create(owner: string): Promise<string>
+          connect(
+            owner: string,
+            id: string,
+          ): Promise<
+            | {
+                cwd: string
+                writeFile(path: string, bytes: Uint8Array): Promise<void>
+                readFile(path: string): Promise<Uint8Array>
+                list(path: string, recursive: boolean): Promise<{ name: string }[]>
+                rename(from: string, to: string): Promise<void>
+                deleteFile(path: string): Promise<void>
+                previewFetch(port: number, request: Request): Promise<Response>
+              }
+            | undefined
+          >
+          destroy(owner: string, id: string): Promise<void>
+        }
+      }
+      const orange = patched.sandboxProviderFromEnvironment({
+        ORANGE_SANDBOX_PROVIDER: 'pryx',
+        PRYX_API_URL: options.url,
+        PRYX_API_KEY: options.key,
+      })
+      const orangeId = await orange.create(actor.actorId)
+      try {
+        const backend = await orange.connect(actor.actorId, orangeId)
+        if (!backend) throw new Error('Patched binding lost the sandbox')
+        expect(backend.cwd).toBe('/data')
+        const binary = new Uint8Array([0, 255, 254, 128])
+        await backend.writeFile('/data/binary', binary)
+        expect(await backend.readFile('/data/binary')).toEqual(binary)
+        expect((await backend.list('/data', true)).map((entry) => entry.name)).toContain('binary')
+        await backend.rename('/data/binary', '/data/moved')
+        expect(await backend.readFile('/data/moved')).toEqual(binary)
+        await backend.deleteFile('/data/moved')
+        const orangeRaw = await c.sdk.sandbox(orangeId)
+        await orangeRaw.write(
+          'cgi-bin/echo',
+          '#!/bin/sh\nprintf "Content-Type: text/plain\\r\\n\\r\\n"\nprintf "%s:%s:" "$REQUEST_METHOD" "$QUERY_STRING"\ncat\n',
+        )
+        expect((await orangeRaw.run('chmod +x /data/cgi-bin/echo')).code).toBe(0)
+        const web = await orangeRaw.spawn(webCommand())
+        await web.waitForPort(3000, { mode: 'tcp', timeout: '30s' })
+        try {
+          const response = await backend.previewFetch(
+            3000,
+            new Request('http://binding/cgi-bin/echo?value=hello', { method: 'POST', body: 'payload' }),
+          )
+          expect(response.ok).toBe(true)
+          expect(await response.text()).toBe('POST:value=hello:payload')
+        } finally {
+          await web.kill()
+        }
+      } finally {
+        await orange.destroy(actor.actorId, orangeId)
+      }
+      expect(await orange.connect(actor.actorId, orangeId)).toBeUndefined()
       await expect(pryxProvider({ ...options, require: ['separate-users'] }).create(actor)).rejects.toThrow(
         'separate-users',
       )

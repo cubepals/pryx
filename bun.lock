@@ -6,6 +6,7 @@
       "name": "pryx",
       "devDependencies": {
         "@biomejs/biome": "2.4.8",
+        "@cubepals/pryx": "workspace:*",
         "@types/bun": "1.3.8",
         "@types/content-disposition": "0.5.9",
         "@types/node": "24.10.1",

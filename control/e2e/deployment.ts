@@ -33,6 +33,7 @@ export const ready = Boolean(
 export const LEASE_TEST = { seconds: 10, renewSeconds: 3 }
 export async function deployment(
   options: {
+    localPreviews?: boolean
     repoImage?: string
     webhookAllowHosts?: string[]
     egressPolicy?: boolean
@@ -112,7 +113,9 @@ export async function deployment(
     bin: options.binary ?? bin,
     options: {
       ...options,
-      ...(options.nativeTools ? { agentPublicOrigin: `http://127.0.0.1:${edgePort}` } : {}),
+      ...(options.nativeTools || options.localPreviews
+        ? { agentPublicOrigin: `http://127.0.0.1:${edgePort}` }
+        : {}),
     },
     pems,
     control,
