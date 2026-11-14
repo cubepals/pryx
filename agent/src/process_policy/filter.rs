@@ -96,7 +96,7 @@ fn variant(network_off: bool, browser: bool, desktop: bool) -> Result<(), Box<dy
     let program: BpfProgram =
         SeccompFilter::new(rules, SeccompAction::Allow, SeccompAction::Errno(libc::EPERM as u32), architecture)?
             .try_into()?;
-    seccompiler::apply_filter(&program)?;
+    crate::syscall_abi::apply(&program)?;
     let clone3: BpfProgram = SeccompFilter::new(
         [(libc::SYS_clone3, vec![])].into_iter().collect(),
         SeccompAction::Allow,
@@ -104,7 +104,7 @@ fn variant(network_off: bool, browser: bool, desktop: bool) -> Result<(), Box<dy
         architecture,
     )?
     .try_into()?;
-    seccompiler::apply_filter(&clone3)?;
+    crate::syscall_abi::apply(&clone3)?;
     Ok(())
 }
 
@@ -169,7 +169,7 @@ pub(super) fn child(supervisor: u32) -> Result<(), Box<dyn std::error::Error>> {
         std::env::consts::ARCH.try_into()?,
     )?
     .try_into()?;
-    seccompiler::apply_filter(&program)?;
+    crate::syscall_abi::apply(&program)?;
     // libzmq reasserts inherited SCHED_OTHER for each thread and aborts on EPERM.
     // Report this request as a no-op: no target's scheduler or host-selected nice value
     // can change. Every other scheduling request retains the denial above.
@@ -182,7 +182,7 @@ pub(super) fn child(supervisor: u32) -> Result<(), Box<dyn std::error::Error>> {
         std::env::consts::ARCH.try_into()?,
     )?
     .try_into()?;
-    seccompiler::apply_filter(&inherited_scheduler)?;
+    crate::syscall_abi::apply(&inherited_scheduler)?;
     Ok(())
 }
 

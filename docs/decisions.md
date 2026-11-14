@@ -1135,3 +1135,5 @@
 - K25: derive bootstrap and packaged filesystem identity from one read-only inventory serializer, because release packaging removes write bits and therefore changes the original build inventory hash; retain the exact compatibility refusal rather than overlooking mode changes.
 
 - K25: reuse the host VM launcher for an ordinary-user packet-proxy role: prebind one private Unix listener and pass its descriptor, exclude KVM access, retain kernel lease and parent-death ownership, allow Internet clients and deny new listeners/Unix sockets plus cross-process host operations; the verified program supplies its descriptor argument name.
+
+- K25: use the already locked linux-raw-sys 0.12.1 UAPI constants directly under its MIT option for the x32 syscall bit; prepend a three-instruction ABI policy to seccompiler's generated filter because its syscall rules cannot express number-bit checks, retaining its unchanged architecture validation and installer.

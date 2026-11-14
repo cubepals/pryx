@@ -8,6 +8,7 @@ pub const BROWSER_ARGUMENT: &str = "browser-sandbox";
 pub const VSOCK_ARGUMENT: &str = "vm-vsock";
 pub const VM_FILES_ARGUMENT: &str = "vm-files-only";
 pub const VM_FILES_VERSION: u16 = 1;
+pub const NATIVE_SYSCALL_VERSION: u16 = 1;
 
 #[derive(Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -64,6 +65,8 @@ pub struct Capabilities {
     pub vm_guest_policy_version: u16,
     #[serde(default)]
     pub vm_packet_proxy: bool,
+    #[serde(default)]
+    pub native_syscall_version: u16,
 }
 
 #[cfg(feature = "server")]
@@ -95,5 +98,6 @@ pub fn probe() -> Capabilities {
         vm_firewall_loader: crate::vm_boot::FIREWALL_LOADER.into(),
         vm_guest_policy_version: crate::vm_policy::VERSION,
         vm_packet_proxy: true,
+        native_syscall_version: NATIVE_SYSCALL_VERSION,
     }
 }

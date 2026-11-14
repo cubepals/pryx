@@ -197,6 +197,7 @@ impl Bundle {
             || bootstrap.metadata.vm_firewall_program != pryx_agent::vm_boot::FIREWALL_PROGRAM
             || bootstrap.metadata.vm_firewall_loader != pryx_agent::vm_boot::FIREWALL_LOADER
             || bootstrap.metadata.vm_guest_policy_version != pryx_agent::vm_policy::VERSION
+            || bootstrap.metadata.native_syscall_version != pryx_agent::bootstrap_capabilities::NATIVE_SYSCALL_VERSION
         {
             return Err(error("VM launcher and trusted guest bootstrap are incompatible"));
         }

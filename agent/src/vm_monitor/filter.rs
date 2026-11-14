@@ -79,6 +79,6 @@ pub(super) fn enter(jailer: bool, packet_proxy: bool) -> Result<(), Box<dyn std:
         std::env::consts::ARCH.try_into()?,
     )?
     .try_into()?;
-    seccompiler::apply_filter(&program)?;
+    crate::syscall_abi::apply(&program)?;
     Ok(())
 }

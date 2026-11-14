@@ -3088,6 +3088,7 @@ dependencies = [
  "jupyter-zmq-client",
  "landlock",
  "libc",
+ "linux-raw-sys",
  "nix 0.31.3",
  "notify",
  "percent-encoding",

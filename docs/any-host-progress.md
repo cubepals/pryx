@@ -3494,3 +3494,28 @@ job when publication is authorized. That job has not run in this task.
   Then wire the owned maintained helper and guest policy, root TAP/jailer/firewall, protected
   installer/config/release, node/edge lifecycle and thirty production samples. K25 stays in
   progress. Packaging identity correction df3ae5c awaits its CI; scanner remains eighteen.
+
+
+- K25 native ABI enforcement: prepend a three-instruction x32-number refusal to every
+  seccompiler policy installation, keeping its architecture validation and installer. The
+  x32 bit comes from the already locked linux-raw-sys 0.12.1 under its MIT option; both
+  lockfiles add only that direct dependency edge, no package version. All process, FUSE,
+  monitor, packet-proxy and guest TSYNC paths use the same wrapper. Protected VM bundles
+  require the actual agent's additive native-syscall parser/policy version before use.
+- This host reports no inherited seccomp filter: unfiltered x32 getpid returns ENOSYS,
+  while real installed policies return EPERM and native getpid remains usable. Existing
+  real regressions now check that distinction in the host VMM and across existing guest-
+  supervisor threads/exec, preserving every earlier refusal. Full local Rust: 524 passes,
+  the unchanged IPv6 fixture failure and 34 ignored; final monitor pair passes in 0.05 s,
+  both strict Clippy modes, fs-only Clippy, fmt/actionlint/whitespace and the full dependency
+  advisory/license/bans/sources audit pass. The independent image helper builds; its three
+  real acceptance cases remain ignored locally. The earlier API timeout does not recur in
+  this full run and remains recorded as unexplained.
+- Existing optional VM CI now runs the actual host-policy tests and retains their raw log,
+  estimated two additional optional minutes, zero ordinary PR minutes or new jobs/gates.
+  They provide CI proof while normal workflows remain queued. This source's actual KVM/
+  bundle and hosted policy proof are pending. About one GiB of obsolete pre-ABI test
+  executables and the completed audit-tool build output are removed; the pinned audit
+  executable is retained. Next wire the owned maintained packet helper and guest policy,
+  root TAP/jailer/firewall, protected install/config/release, node/edge lifecycle and thirty
+  production samples. K25 remains in progress with its tier unregistered.

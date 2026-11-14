@@ -25,7 +25,7 @@ pub(crate) fn enter() -> Result<(), Box<dyn std::error::Error>> {
         std::env::consts::ARCH.try_into()?,
     )?
     .try_into()?;
-    seccompiler::apply_filter_all_threads(&program)?;
+    crate::syscall_abi::apply_all_threads(&program)?;
     Ok(())
 }
 
@@ -49,7 +49,8 @@ mod tests {
         let error =
             vsock::VsockStream::connect_with_cid_port(tokio_vsock::VMADDR_CID_HOST, crate::vm_boot::PORT).unwrap_err();
         assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
-        let output = Command::new("python3")
+        let mut command = Command::new("python3");
+        command
             .args([
                 "-c",
                 r#"
@@ -66,11 +67,16 @@ libc = ctypes.CDLL(None, use_errno=True)
 libc.syscall.restype = ctypes.c_long
 assert libc.syscall(int(sys.argv[1]), 1, ctypes.c_void_p()) == -1
 assert ctypes.get_errno() == errno.EPERM
+if len(sys.argv) > 2:
+    assert libc.syscall(int(sys.argv[3])) > 0
+    assert libc.syscall(int(sys.argv[2]) | int(sys.argv[3])) == -1
+    assert ctypes.get_errno() == errno.EPERM
 "#,
             ])
-            .arg(libc::SYS_io_uring_setup.to_string())
-            .output()
-            .unwrap();
+            .arg(libc::SYS_io_uring_setup.to_string());
+        #[cfg(target_arch = "x86_64")]
+        command.args([linux_raw_sys::general::__X32_SYSCALL_BIT.to_string(), libc::SYS_getpid.to_string()]);
+        let output = command.output().unwrap();
         assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
         assert!(std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).is_ok());
     }

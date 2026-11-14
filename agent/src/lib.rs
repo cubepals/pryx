@@ -12,6 +12,7 @@
 //! - `state.rs`: bounded, non-secret persistent checkpoints.
 //! - `telemetry.rs`: in-memory activity and stream ownership.
 //! - `process.rs`: supervised process trees, streams, stdin and completion.
+//! - `syscall_abi.rs`: native syscall ABI checks around maintained seccompiler policies.
 //! - `process_policy.rs`: process-tier filesystem, syscall and sampled resource restrictions.
 //! - `process_tools.rs`: host-bound native bundle acquisition and private runtime inputs.
 //! - `process_tool_policy.rs`: independent native artifact/cache policy types and parser version.
@@ -90,6 +91,8 @@ pub mod schema;
 pub mod server;
 #[cfg(feature = "fs")]
 pub mod state;
+#[cfg(feature = "server")]
+mod syscall_abi;
 #[cfg(feature = "server")]
 pub mod telemetry;
 #[cfg(feature = "server")]

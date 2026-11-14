@@ -174,7 +174,7 @@ pub fn worker(argv: &mut [String]) -> io::Result<std::fs::File> {
     )
     .map_err(io::Error::other)?;
     let program: BpfProgram = filter.try_into().map_err(io::Error::other)?;
-    seccompiler::apply_filter(&program).map_err(io::Error::other)?;
+    crate::syscall_abi::apply(&program).map_err(io::Error::other)?;
     let at = argv
         .iter()
         .position(|arg| {

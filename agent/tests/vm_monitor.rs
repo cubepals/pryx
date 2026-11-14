@@ -47,7 +47,7 @@ async fn confined_host_process_cannot_escape_or_release_its_lease() {
         .filter_map(|path| fs::canonicalize(path).ok())
         .collect();
     let script = r#"
-import errno,fcntl,os,socket,sys,time
+import ctypes,errno,fcntl,os,socket,sys,time
 
 def denied(call):
     try: call()
@@ -63,13 +63,25 @@ denied(lambda: fcntl.fcntl(0,fcntl.F_SETFD,fcntl.FD_CLOEXEC))
 null=os.open('/dev/null',os.O_RDWR)
 denied(lambda: os.dup2(null,0))
 os.close(null)
+if len(sys.argv)>3:
+    libc=ctypes.CDLL(None,use_errno=True)
+    libc.syscall.restype=ctypes.c_long
+    assert libc.syscall(int(sys.argv[4]))>0
+    assert libc.syscall(int(sys.argv[3])|int(sys.argv[4]))==-1
+    assert ctypes.get_errno()==errno.EPERM
 with open('owned','w') as output: output.write('allowed')
 print('confined and lease retained',flush=True)
 time.sleep(30)
 "#;
+    let arguments = vec!["-c".into(), script.into(), secret.display().to_string(), std::process::id().to_string()];
+    #[cfg(target_arch = "x86_64")]
+    let arguments = arguments
+        .into_iter()
+        .chain([linux_raw_sys::general::__X32_SYSCALL_BIT.to_string(), libc::SYS_getpid.to_string()])
+        .collect();
     let plan = Plan {
         program,
-        arguments: vec!["-c".into(), script.into(), secret.display().to_string(), std::process::id().to_string()],
+        arguments,
         directory: work.clone(),
         lock: locks.join("monitor.lock"),
         parent: std::process::id(),

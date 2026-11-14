@@ -154,6 +154,16 @@ jobs:
             target
           key: vm-inputs-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'vm-image/Cargo.lock') }}
           restore-keys: vm-inputs-
+      - name: Prove ordinary host VM process policies
+        if: ${{ !cancelled() && steps.vm-rust.outcome == 'success' }}
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+          CARGO_PROFILE_DEV_DEBUG: '0'
+          CARGO_PROFILE_TEST_DEBUG: '0'
+          CARGO_INCREMENTAL: '0'
+        run: |
+          cargo test --locked -p pryx-agent --lib vm_policy::tests -- --nocapture | tee "$RUNNER_TEMP/vm-host-policy.log"
+          cargo test --locked -p pryx-agent --test vm_monitor -- --nocapture | tee -a "$RUNNER_TEMP/vm-host-policy.log"
       - name: Build the actual static agent and trusted bootstrap
         id: vm-bootstrap
         if: ${{ !cancelled() && steps.vm-rust.outcome == 'success' }}
@@ -264,6 +274,7 @@ jobs:
           name: vm-runtime-diagnostics
           path: |
             ${{ runner.temp }}/vm-runtime-acceptance.log
+            ${{ runner.temp }}/vm-host-policy.log
             ${{ runner.temp }}/vm-runtime-diagnostics/*.serial.log
           if-no-files-found: warn
       - name: Retain candidate identities and actual digests
