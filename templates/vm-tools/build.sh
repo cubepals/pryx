@@ -81,7 +81,7 @@ case "${1:?Name one VM build phase}" in
     cargo build --locked -p pryx-agent --target x86_64-unknown-linux-musl
     cargo build --locked --manifest-path vm-image/Cargo.toml --target x86_64-unknown-linux-musl
     python3 templates/vm-tools/bootstrap.py \
-      --agent target/x86_64-unknown-linux-musl/debug/pryx-agent \
+      --agent "${CARGO_TARGET_DIR:-target}/x86_64-unknown-linux-musl/debug/pryx-agent" \
       --network-helper "$RUNNER_TEMP/vm-network-guest" \
       --forwarder "$RUNNER_TEMP/vm-gvforwarder" \
       --network-probe "$RUNNER_TEMP/vm-network-probe" \
@@ -94,7 +94,7 @@ case "${1:?Name one VM build phase}" in
     ;;
   bundle)
     python3 templates/vm-tools/bootstrap.py \
-      --agent target/x86_64-unknown-linux-musl/debug/pryx-agent \
+      --agent "${CARGO_TARGET_DIR:-target}/x86_64-unknown-linux-musl/debug/pryx-agent" \
       --network-helper "$RUNNER_TEMP/vm-network-guest" --forwarder "$RUNNER_TEMP/vm-gvforwarder" \
       --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" --root "$RUNNER_TEMP/vm-runtime-bootstrap"
     python3 templates/vm-tools/bundle.py \
@@ -103,8 +103,8 @@ case "${1:?Name one VM build phase}" in
       --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" \
       --sdk-notices "$RUNNER_TEMP/vm-spike-notices" --network-notices "$RUNNER_TEMP/vm-network-notices" \
       --bootstrap "$RUNNER_TEMP/vm-runtime-bootstrap" \
-      --launcher target/x86_64-unknown-linux-musl/debug/pryx-agent \
-      --image-helper target/x86_64-unknown-linux-musl/debug/pryx-vm-image \
+      --launcher "${CARGO_TARGET_DIR:-target}/x86_64-unknown-linux-musl/debug/pryx-agent" \
+      --image-helper "${CARGO_TARGET_DIR:-target}/x86_64-unknown-linux-musl/debug/pryx-vm-image" \
       --configurator "$RUNNER_TEMP/vm-config" --transport "$RUNNER_TEMP/vm-agent-client" \
       --network-proxy "$RUNNER_TEMP/vm-network-proxy" --output "$RUNNER_TEMP/vm-runtime" \
       --archive "$RUNNER_TEMP/pryx-vm-linux-x64.tar.gz" --source-archive "$RUNNER_TEMP/pryx-vm-sources.tar.gz" \

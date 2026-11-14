@@ -1225,3 +1225,5 @@
 - K25: collect thirty installed cached-image cold creates/first outputs, agent true calls, cold wakes, existing 100 MB snapshot/fork cohorts and idle supervisor-tree PSS; a disposable Unix peer-credential fixture lets only the fixed install account request aggregate memory for its own process root, using the existing root CI sampler without relaxing monitor confinement or granting sudo. Keep raw and partial samples only in CI artifacts.
 
 - K25: let the kernel choose ephemeral internal root-gateway listener ports, pairing DNS UDP to the actual DNS TCP port, and derive the client destination from the transferred listener itself; guest service redirects use actual admitted targets, so low-port bind authority is unnecessary and the bounded worker keeps its existing capability ceiling.
+
+- K25: resolve VM bootstrap/runtime program inputs from Cargo's actual configured target directory, defaulting to target; the signed preview intentionally isolates compilation outside the Docker context, so packaging must not read a different or stale target tree.

@@ -4160,3 +4160,11 @@ job when publication is authorized. That job has not run in this task.
   Pinned root-network Go test/build/vet, Python syntax, actionlint and whitespace pass locally;
   actual namespace/service replay remains the existing CI fixture. No new job/gate or CI time.
   Scanner remains eighteen.
+
+- Inspect the signed-preview recipe before its result: Cargo writes outside the checkout
+  under its configured target directory, but four packaging inputs still spelled target/.
+  Read those inputs from the same CARGO_TARGET_DIR (default target) so bootstrap and whole
+  runtime inventory cannot select a stale/different program tree. Both real Cargo metadata
+  documents agree on the configured directory. Shell syntax, ShellCheck, actionlint and
+  whitespace pass; no local engine build or added job/gate/time is claimed. Push immediately
+  while the prior signed-preview build is still running.
