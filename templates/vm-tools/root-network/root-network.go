@@ -7,6 +7,7 @@
 // bounded descriptor delivery and its real-socket acceptance; module-notices.json pins
 // original licence texts; cmd/tap-probe/main.go checks actual
 // device creation, ordinary-owner open and identity-bound cleanup in the existing VM CI job.
+// protocol.go owns the unchanged private metadata shapes and descriptor roles;
 // cmd/scope/main.go grants actual namespace/listener descriptors and waits on the monitor lease
 // before retiring one scope; it is not installed or registered as a production worker.
 // scope.go owns one private TAP and local addressing; listeners.go binds actual gateway

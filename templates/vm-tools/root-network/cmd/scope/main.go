@@ -20,10 +20,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const version = 1
-
-var descriptors = []string{"namespace", "http", "tls", "dnsTcp", "dnsUdp"}
-
 func ancestry(path string) error {
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
 		return fmt.Errorf("Scope paths require canonical absolute host directories")
@@ -138,7 +134,7 @@ func grant(directory, state, lock string, uid, gid uint) (problem error) {
 			file.Close()
 		}
 	}()
-	metadata, err := json.Marshal(map[string]any{"version": version, "profile": scope.Profile, "tap": scope.Tap, "descriptors": descriptors})
+	metadata, err := json.Marshal(rootnetwork.ScopeGrant(scope.Profile, scope.Tap))
 	if err != nil {
 		return err
 	}
@@ -163,7 +159,7 @@ func main() {
 	flag.Parse()
 	var err error
 	if *metadata {
-		err = json.NewEncoder(os.Stdout).Encode(map[string]any{"version": version, "descriptors": descriptors, "maxMetadataBytes": rootnetwork.MaxHandoffBytes})
+		err = json.NewEncoder(os.Stdout).Encode(rootnetwork.ScopeAdvertisement())
 	} else {
 		err = grant(*directory, *state, *lock, *uid, *gid)
 	}

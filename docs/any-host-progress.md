@@ -4221,3 +4221,9 @@ job when publication is authorized. That job has not run in this task.
   collector change. Verify the scope program's actual linked Go graph excludes the external
   TAP tool's copyleft modules. Hardware serial/boot and signed-install results remain pending;
   no later green result is inferred from these local checks.
+
+- Move the unchanged private root-scope metadata shapes, version and descriptor roles to
+  their owning protocol module before adding a process consumer. Producer construction now
+  takes that owner's types/constants; no kernel or lifetime behavior changes. Pinned Go
+  test/build/vet and whitespace pass, and the actual ordinary-user executable's metadata is
+  byte-identical before/after the move. No dependency/job/gate or CI time is added.

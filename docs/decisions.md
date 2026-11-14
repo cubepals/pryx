@@ -1235,3 +1235,5 @@
 - K25: drain bounded VM serial data on an independent native reader and publish only its bounded tail after EOF, so asynchronous scheduling and per-read filesystem writes cannot starve Firecracker's nonblocking serial output; preserve every existing signed shutdown-proof check and capture test. Use the existing Rustix socket API to prove draining while the async executor is deliberately held.
 
 - K25: retain the existing bounded redacted monitor diagnostics after failed regular VM readiness as already done for maintenance guests; retire the owned monitor and finish capture before temporary launch state disappears, without retrying bootstrap, changing readiness deadlines or weakening the root service profile.
+
+- K25: move the unchanged private scope advertisement/handoff schema into the root network component before adding its consumer, so descriptor roles and metadata types have one Go owner; preserve actual JSON bytes and every lifecycle operation.
