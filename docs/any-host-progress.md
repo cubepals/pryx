@@ -4129,3 +4129,21 @@ job when publication is authorized. That job has not run in this task.
   all older kernel/image checks pass; read its full failure log. The later identity correction
   is first running in 3d56dec's VM run 43624395623 and is not proved by the old run.
   Scanner remains eighteen.
+
+- Add thirty real signed-install VM samples per cold-create/running, create/validated first
+  output, agent true, cold wake, 100 MB snapshot/fork and idle supervisor-tree PSS point.
+  Reuse the existing benchmark's repetition count, payload and snapshot/fork implementation;
+  wake timing excludes the preceding stop. Record cached immutable runtime/image context,
+  source/run URL, host envelope, absolute PSS and paired pre-create increments. Require thirty
+  successful samples for every point; retain incomplete counts and operation on failure.
+- A CI-only Unix listener authenticates kernel peer UID, permits only a live process root
+  owned by the fixed install account, and invokes the existing aggregate PSS sampler as the
+  parent runner's administrator. It accepts no paths/programs and grants no sudo to the user.
+  This includes nondumpable monitors without changing their confinement. Locally, real Unix
+  credentials, private socket mode, actual owned-process PSS and an invalid-root refusal pass
+  as the ordinary user. The cross-UID privileged instance remains hosted-only.
+- Full pinned Bun check passes (439 tests, one existing skip, 8,432 assertions); fixture
+  bundling, Python syntax, ShellCheck/actionlint and whitespace pass. Raw/partial metric files
+  are copied only to the existing CI artifact. No VM timing is claimed locally. Estimate ten
+  further optional Any-host minutes, zero normal PR minutes and no new job/gate; the current
+  eighty-minute job deadline remains. Hardware samples must be read before updating tier tables.

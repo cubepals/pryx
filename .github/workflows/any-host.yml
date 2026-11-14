@@ -285,6 +285,8 @@ jobs:
       - name: Run the signed ordinary-user install and native SDK acceptance
         env:
           PRYX_NATIVE_VM: 'on'
+          PRYX_VM_SOURCE: ${{ github.sha }}
+          PRYX_VM_CI_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: bash deploy/native-host-acceptance.sh
       - name: Native kernels and browser refusal in the default image profile
         run: |
@@ -304,6 +306,8 @@ jobs:
           path: |
             ${{ runner.temp }}/native-user-acceptance.log
             ${{ runner.temp }}/native-process-measurements.json
+            ${{ runner.temp }}/vm-installed-measurements.json
+            ${{ runner.temp }}/vm-memory-fixture.log
             ${{ runner.temp }}/native-host-artifact-server.log
             ${{ runner.temp }}/native-host-release-server.log
             ${{ runner.temp }}/native-python-sdk-install.log

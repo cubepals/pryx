@@ -15,6 +15,7 @@ import { MINUTE_MS, SECOND_MS } from '../control/src/durations.ts'
 import { Pryx, type Sandbox } from '../sdk/typescript/src/index.ts'
 import inputs from '../templates/vm-tools/image-inputs.json'
 import { hostProbe } from './host-probe.ts'
+import { vmMeasurements } from './vm-installed-measurements.ts'
 
 const credential = readClientConfig()
 const installed = readInstallation(userPaths())
@@ -165,6 +166,7 @@ async function lifecycle(image: (typeof inputs)[number], network: 'internet' | '
 
 try {
   for (const [index, image] of inputs.entries()) await lifecycle(image, index === 0 ? 'none' : 'internet')
+  await vmMeasurements(sdk, installed)
 } finally {
   apps.close()
   rmSync(privateRoot, { recursive: true })
