@@ -43,6 +43,11 @@ trap cleanup EXIT
 curl --retry 5 --retry-connrefused --retry-delay 1 -fsS http://127.0.0.1:9876/install.sh > /dev/null
 curl --retry 5 --retry-connrefused --retry-delay 1 --head -fsS https://127.0.0.1:9877/pryx-process-tools-linux-x64.tar.gz > /dev/null
 sudo useradd --create-home --shell /bin/bash pryxtools
+if [ "${PRYX_NATIVE_VM:-off}" = on ]; then
+  sudo modprobe kvm
+  test -c /dev/kvm
+  sudo chown pryxtools:pryxtools /dev/kvm
+fi
 pryx_native_fixture=$(mktemp -d /tmp/pryx-native-acceptance.XXXXXX)
 chmod 755 "$pryx_native_fixture"
 mkdir -p "$pryx_native_fixture/deploy" "$pryx_native_fixture/templates/process-tools" \
@@ -58,11 +63,17 @@ find "$pryx_native_fixture" -type d -exec chmod 755 {} +
 find "$pryx_native_fixture" -type f -exec chmod 644 {} +
 bun build --compile deploy/native-tools-acceptance.ts --outfile "$pryx_native_fixture/acceptance"
 chmod 755 "$pryx_native_fixture/acceptance"
+if [ "${PRYX_NATIVE_VM:-off}" = on ]; then
+  bun build --compile deploy/vm-installed-acceptance.ts --outfile "$pryx_native_fixture/vm-acceptance"
+  chmod 755 "$pryx_native_fixture/vm-acceptance"
+  (cd templates/vm-tools && CGO_ENABLED=0 GOTOOLCHAIN=local "$RUNNER_TEMP/vm-build-tools/go/go/bin/go" \
+    build -mod=readonly -trimpath -o "$pryx_native_fixture/vm-http" ./cmd/serve)
+fi
 printf '%s\n' "$pryx_native_fixture" > "$RUNNER_TEMP/native-fixture-path"
 sudo cp -a sdk/python /home/pryxtools/sdk-source
 sudo chown -R pryxtools:pryxtools /home/pryxtools/sdk-source
 cd "$pryx_native_fixture"
 sudo -u pryxtools -H env -i HOME=/home/pryxtools PATH=/usr/local/bin:/usr/bin:/bin \
   PRYX_NATIVE_ACCEPTANCE_BIN="$pryx_native_fixture/acceptance" PRYX_PYTHON=/home/pryxtools/sdk-python/bin/python \
-  PRYX_NATIVE_BROWSER=on PRYX_NATIVE_MEASUREMENTS=/home/pryxtools/native-process-measurements.json \
+  PRYX_NATIVE_BROWSER=on PRYX_NATIVE_VM="${PRYX_NATIVE_VM:-off}" PRYX_NATIVE_MEASUREMENTS=/home/pryxtools/native-process-measurements.json \
   /bin/sh deploy/native-user-acceptance.sh | tee "$RUNNER_TEMP/native-user-acceptance.log"

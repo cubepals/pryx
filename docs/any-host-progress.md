@@ -4107,3 +4107,25 @@ job when publication is authorized. That job has not run in this task.
   signed build requires CI's engine and is not claimed locally. Estimate fifteen additional
   minutes in the existing optional Any-host bundle job, zero normal PR minutes and no new
   job/gate; raise that job's deadline from sixty to eighty minutes without changing its tests.
+
+- Add actual signed-user VM acceptance to the existing optional Any-host fixture: grant its
+  fresh disposable account KVM access, then use the installed auto node through the public SDK
+  and edge for both pinned Alpine/Debian images. Retain all existing native-tool/default-image
+  assertions. Check own-kernel/resource/PID/network requirements, absent memory-sleep, the
+  actual installed node PID and a host-only file denied in guest, different kernel release,
+  both Python client modes, file retention, declared HTTP ingress, edge-triggered cold wake,
+  snapshot/fork and confirmed SDK deletion. A standard static Go HTTP workload survives only
+  on guest disk; no image package is installed or substituted. No local KVM success is claimed.
+- Real GNU tar locally shows mode 444 becomes 400 under the installer's private 077 umask.
+  Restore the authenticated VM descriptor to canonical readonly mode after all archive checks;
+  a new real signed-archive subprocess check proves that case without changing global test umask.
+  Full pinned Bun check passes (439 tests, one existing skip, 8,432 assertions), including that
+  test and every existing case. Final typecheck, fixture bundling, Python syntax, pinned Go
+  build/vet plus a real HTTP random-challenge round trip, ShellCheck and actionlint pass.
+  Estimate two additional optional minutes, zero normal PR minutes, no new job/gate. Installed
+  hardware acceptance remains pending and thirty production samples are the next fixture step.
+- Source 6503350 VM run 43622589059/job 132534580924 fails only the already diagnosed
+  separate-authority TAP child spawn. Its ordinary runtime, root jail/runtime, node API and
+  all older kernel/image checks pass; read its full failure log. The later identity correction
+  is first running in 3d56dec's VM run 43624395623 and is not proved by the old run.
+  Scanner remains eighteen.

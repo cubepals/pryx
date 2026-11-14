@@ -49,6 +49,7 @@ else
   python3 -m pip install --user --break-system-packages --no-cache-dir "$HOME/sdk-source" > "$HOME/sdk-install.log" 2>&1
 fi
 "${PRYX_NATIVE_ACCEPTANCE_BIN:?}"
+if [ "${PRYX_NATIVE_VM:-off}" = on ]; then ./vm-acceptance; fi
 "$cli" down --purge > "$HOME/native-purge.log" 2>&1
 test ! -e "$HOME/.config/pryx"
 test ! -e "$HOME/.local/share/pryx"

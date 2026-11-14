@@ -1217,3 +1217,7 @@
 - K25: omit the redundant User=root and Group=root transition in the separate system authority fixture; systemd v255 src/core/exec-invoke.c keep_seccomp_privileges drops CAP_SETUID after an explicit user transition when ambient capabilities are empty, matching the actual failed capget. System services still default to root and both fixtures assert root; retain the exact capability ceiling, empty ambient set and every other restriction.
 
 - K25: build the same separate VM release recipe inside the existing signed Any-host preview job and serve its hash-pinned runtime over the existing private TLS fixture; only the immutable descriptor enters the signed host/bootstrap archives. This avoids cross-workflow artifacts from a different commit and proves the actual release packaging path without a new job or gate.
+
+- K25: prove signed ordinary-user VM admission through the unchanged installed public API and edge on both pinned images, using a standard Go HTTP fixture (the existing pinned BSD-licensed Go toolchain) persisted in guest data for cold entrypoint restart; keep both Python SDK modes, real node PID/file denial, different-kernel checks, snapshot/fork and deletion. Grant KVM only to the disposable CI account, never to product installation.
+
+- K25: restore the signed VM descriptor to its canonical readonly mode after private authenticated host-bundle extraction; real GNU tar applies the installer umask (444 becomes 400 under 077), so normalize only that regular descriptor, preserving archive path/type checks and all installation privacy.

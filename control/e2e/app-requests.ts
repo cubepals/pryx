@@ -6,7 +6,7 @@ import { Readable } from 'node:stream'
 export class AppRequests {
   private readonly pools = new Map<string, Agent>()
   constructor(readonly origin: string) {}
-  get(target: string): Promise<Response> {
+  get(target: string, signal?: AbortSignal): Promise<Response> {
     const url = new URL(target)
     let agent = this.pools.get(url.origin)
     if (!agent) {
@@ -16,7 +16,7 @@ export class AppRequests {
     return new Promise((resolve, reject) => {
       const pending = request(
         new URL(`${url.pathname}${url.search}`, this.origin),
-        { agent, headers: { host: url.host } },
+        { agent, headers: { host: url.host }, signal },
         (response) => {
           const headers = new Headers()
           for (let i = 0; i < response.rawHeaders.length; i += 2)

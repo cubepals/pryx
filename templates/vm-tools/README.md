@@ -18,6 +18,7 @@ Parts (`vm-tools/`):
 - `experiment/experiment.go`: application-owned report port for both fixture programs.
 - `cmd/config/main.go`: configuration through the monitor owner's generated models.
 - `cmd/agent/main.go` and `forward.go`: bounded private requests and opaque private-address TCP relays through the SDK-owned vsock dialer.
+- `cmd/serve/main.go`: standard HTTP application fixture for the signed installed VM/edge case.
 - `cmd/guest/main.go`: static PID 1 filesystem and vsock probe.
 - `kernel.py`: thirty real ordinary-user KVM boots and a disk-retaining reboot.
 - `network/`: separate network module, pinned inputs, licences, wrapper and guest probe (see its README).

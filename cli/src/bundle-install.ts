@@ -1,7 +1,17 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Privately stage a signature-verified host release, then move it into its digest directory.
  * State, credentials and the active installation record are not changed here. */
-import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync } from 'node:fs'
+import {
+  chmodSync,
+  cpSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+} from 'node:fs'
 import { join } from 'node:path'
 import { PRYX_VERSION } from '../../control/src/generated/release.ts'
 import { bundleFiles } from './bundle-download.ts'
@@ -55,6 +65,12 @@ export async function stageBundle(
     })
     const [, status] = await Promise.all([new Response(extract.stderr).text(), extract.exited])
     if (status) throw new Error('Host bundle extraction failed')
+    const vm = join(unpacked, 'bin/vm-bundle.json')
+    if (existsSync(vm)) {
+      if (!lstatSync(vm).isFile()) throw new Error('Signed VM descriptor must be a regular file')
+      // tar applies the caller's umask; the verified VM pin has one canonical readonly mode.
+      chmodSync(vm, 0o444)
+    }
     const metadata = JSON.parse(readFileSync(join(unpacked, 'bundle.json'), 'utf8')) as BundleMetadata
     if (
       metadata.version !== version ||

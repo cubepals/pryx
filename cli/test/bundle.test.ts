@@ -43,6 +43,7 @@ async function fixture() {
         postgres: { major: '17', version: '17.11.0' },
       }),
       'bin/sentinel': 'must never execute during verification',
+      'bin/vm-bundle.json': '{}',
     },
     { compress: 'gzip' },
   )
@@ -69,6 +70,42 @@ test('a real signed archive stages without activating or writing state', async (
     expect(existsSync(f.paths.state)).toBe(false)
     expect(existsSync(f.paths.data)).toBe(false)
     rmSync(staged.temporary, { recursive: true })
+  } finally {
+    f.close()
+  }
+})
+
+test('signed VM pins keep their readonly mode under a private installer umask', async () => {
+  const f = await fixture()
+  try {
+    const script = `
+      import {statSync,rmSync} from 'node:fs';
+      import {join} from 'node:path';
+      const {stageBundle}=await import(process.argv[1]);
+      process.umask(0o077);
+      const {paths,source,trustedKeys}=JSON.parse(process.argv[2]);
+      const staged=await stageBundle(paths,{source,trustedKeys});
+      console.log(statSync(join(staged.unpacked,'bin/vm-bundle.json')).mode & 0o777);
+      rmSync(staged.temporary,{recursive:true});
+    `
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        '-e',
+        script,
+        join(import.meta.dir, '../src/bundle-install.ts'),
+        JSON.stringify({ paths: f.paths, source: f.source, trustedKeys: f.trustedKeys }),
+      ],
+      { stdout: 'pipe', stderr: 'pipe' },
+    )
+    const [status, output, error] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ])
+    expect(error).toBe('')
+    expect(status).toBe(0)
+    expect(Number(output.trim())).toBe(0o444)
   } finally {
     f.close()
   }

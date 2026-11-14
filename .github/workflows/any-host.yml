@@ -283,6 +283,8 @@ jobs:
           (cd host-artifacts && sha256sum -- * > SHA256SUMS)
           du -h host-artifacts/* | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Run the signed ordinary-user install and native SDK acceptance
+        env:
+          PRYX_NATIVE_VM: 'on'
         run: bash deploy/native-host-acceptance.sh
       - name: Native kernels and browser refusal in the default image profile
         run: |
