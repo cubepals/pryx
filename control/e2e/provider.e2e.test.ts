@@ -137,18 +137,23 @@ test(
         const orangeRaw = await c.sdk.sandbox(orangeId)
         await orangeRaw.write(
           'cgi-bin/echo',
-          '#!/bin/sh\nprintf "Content-Type: text/plain\\r\\n\\r\\n"\nprintf "%s:%s:" "$REQUEST_METHOD" "$QUERY_STRING"\ncat\n',
+          '#!/bin/sh\nprintf "Content-Type: text/plain\\r\\n\\r\\n"\nprintf "%s:%s:%s:" "$HTTP_HOST" "$REQUEST_METHOD" "$QUERY_STRING"\ncat\n',
         )
         expect((await orangeRaw.run('chmod +x /data/cgi-bin/echo')).code).toBe(0)
         const web = await orangeRaw.spawn(webCommand())
         await web.waitForPort(3000, { mode: 'tcp', timeout: '30s' })
         try {
+          const previewHost = new URL(await pryxPortAddress(orangeId, 3000, options)).host
           const response = await backend.previewFetch(
             3000,
-            new Request('http://binding/cgi-bin/echo?value=hello', { method: 'POST', body: 'payload' }),
+            new Request('http://binding/cgi-bin/echo?value=hello', {
+              method: 'POST',
+              headers: { host: 'binding.invalid' },
+              body: 'payload',
+            }),
           )
           expect(response.ok).toBe(true)
-          expect(await response.text()).toBe('POST:value=hello:payload')
+          expect(await response.text()).toBe(`${previewHost}:POST:value=hello:payload`)
         } finally {
           await web.kill()
         }
