@@ -256,8 +256,9 @@ jobs:
           CARGO_INCREMENTAL: '0'
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
         run: |
-          export PRYX_VM_ROOT_TEST_UID="$(id -u)"
-          export PRYX_VM_ROOT_TEST_GID="$(id -g)"
+          PRYX_VM_ROOT_TEST_UID=$(id -u)
+          PRYX_VM_ROOT_TEST_GID=$(id -g)
+          export PRYX_VM_ROOT_TEST_UID PRYX_VM_ROOT_TEST_GID
           CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER='sudo --preserve-env=PRYX_VM_ROOT_TEST_UID,PRYX_VM_ROOT_TEST_GID --' \
             cargo test --locked --lib runtime::vm::jail::tests::actual_root_mounts_retire_after_leases_and_recover_without_a_second_disk -- --ignored --nocapture | tee "$RUNNER_TEMP/vm-root-jail.log"
       - name: Prepare real pinned Alpine and Debian OCI layers without an engine
