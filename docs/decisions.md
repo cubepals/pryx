@@ -1241,3 +1241,5 @@
 - K25: prove the actual root scope subprocess handoff and EOF/lease retirement inside the existing bounded system authority fixture, using the real CNI TAP and kernel flock; keep namespace descriptors alive while confirming explicit deletion, and close every received descriptor when SCM_RIGHTS is truncated. This is ownership proof, not a guest packet claim.
 
 - K25: identify the installed daemon by its direct executable or actual loader ELF payload, since tini also carries the wrapper path in its arguments; preserve the unique real-node assertion and guest signal-denial check.
+
+- K25: additionally hide /proc/misc from the separate root authority, preventing the pinned jailer from auto-exposing optional userfaultfd/Nitro devices; cold boot uses neither, so retain the closed KVM/TUN-only device policy and existing capability ceiling.

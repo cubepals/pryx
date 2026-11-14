@@ -4253,3 +4253,15 @@ job when publication is authorized. That job has not run in this task.
 - A real local supervisor/loader reproduction matches two processes before this correction
   and only the payload after it. Full Bun check: 439 pass, one existing skip, 8,432 assertions;
   actual installed SDK/edge/measurement acceptance still awaits CI. No job or gate added.
+
+- Source c718b74 VM run 43631238912/job 132558740027 passes ordinary lifecycle, factory,
+  public node API, root lifecycle outside systemd and bounded TAP/gateway cases. Retained
+  startup serial now identifies the bounded-root failure: the pinned jailer auto-creates
+  /dev/userfaultfd from /proc/misc and the closed KVM/TUN device policy correctly denies it.
+  Add InaccessiblePaths=/proc/misc, a further restriction that prevents optional device
+  discovery; keep every device/capability limit, deadline and assertion. No upstream patch.
+- Summary: checks/measurements/k25/authority-c718b74.json. Ordinary serial proofs survive this
+  run, but monitor vCPU-exit timeout panics remain in the raw artifact and need investigation;
+  passing lifecycle assertions do not establish their cause. Python compilation, actionlint
+  and whitespace pass for the authority change; actual bounded boot remains pending. No
+  job/gate or meaningful CI time added. Scanner comments remain eighteen.

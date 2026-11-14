@@ -52,12 +52,16 @@ def main():
         # A system service defaults to root. Avoid a redundant identity transition:
         # systemd drops CAP_SETUID during its temporary seccomp-authority setup after
         # explicit User= even for root (v255 src/core/exec-invoke.c). Ambient stays empty.
+        # The pinned jailer auto-exposes optional devices listed in /proc/misc.
+        # Hide that catalogue: cold VM boot needs neither userfaultfd nor Nitro enclaves.
+        # Keep DevicePolicy closed with only KVM/TUN, including creation permissions.
         properties = [
             'Type=exec', 'NoNewPrivileges=yes',
             'ProtectSystem=strict', 'ProtectHome=yes', 'PrivateTmp=yes', 'PrivateDevices=no',
             'ProtectKernelTunables=yes', 'ProtectKernelModules=yes', 'ProtectKernelLogs=yes',
             'ProtectControlGroups=yes', 'ProtectClock=yes', 'ProtectHostname=yes',
             'RestrictNamespaces=mnt net', 'RestrictRealtime=yes', 'RestrictSUIDSGID=yes',
+            'InaccessiblePaths=/proc/misc',
             'LockPersonality=yes', 'MemoryDenyWriteExecute=yes', 'SystemCallArchitectures=native',
             'RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK',
             'DevicePolicy=closed', 'DeviceAllow=/dev/kvm rwm', 'DeviceAllow=/dev/net/tun rwm',

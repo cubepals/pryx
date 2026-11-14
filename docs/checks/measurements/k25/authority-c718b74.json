@@ -1,0 +1,15 @@
+{
+  "sourceCommit": "c718b74",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43631238912",
+  "job": 132558740027,
+  "artifact": 14128886770,
+  "passed": "Ordinary runtime, configured factory, public node API, root runtime outside the bounded service and bounded TAP/gateway cases",
+  "failure": "Bounded root first boot: the pinned jailer auto-creates optional /dev/userfaultfd, denied by unchanged closed KVM/TUN device policy",
+  "observed": {
+    "retainedOrdinarySerialFiles": 20,
+    "filesWithMonitorVcpuExitPanic": 14,
+    "filesWithSerialEagain": 0
+  },
+  "next": "Further restrict worker visibility of optional device catalogue /proc/misc; keep closed device access, capability ceiling and every lifecycle assertion",
+  "notProved": "Root bounded lifecycle, root packets/firewall, installed SDK/edge lifecycle and 30-sample cohorts; monitor exit timeout cause unresolved"
+}
