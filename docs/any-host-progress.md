@@ -3068,3 +3068,12 @@ job when publication is authorized. That job has not run in this task.
   the OS error. All other Rust targets pass. Preserve this CI failure and investigate the
   shared ephemeral-port fixture independently before claiming the aggregate green. Scanner
   remains eighteen addressed comments; K25 and public node/edge integration remain in progress.
+
+
+- K24 CI fixture correction kept in its own commit: the scoped SSH lease fixture now binds a
+  fresh loopback address, separating its final immediate-rebind check from other localhost
+  ephemeral allocation. Preserve every reservation, byte, stopped-connect and release assertion;
+  retain the OS error if rebind fails. Local stress passes 64 invocations in eight concurrent
+  processes. Full Rust remains 505 passes, one known IPv6 failure and 34 ignored; strict Clippy
+  in both modes, fmt and whitespace checks pass. CI must establish this fix, not a local retry.
+  Resume K25 after this independent correction; its stopped-disk KVM proof is pending.

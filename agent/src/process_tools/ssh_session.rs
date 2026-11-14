@@ -61,7 +61,11 @@ mod tests {
             std::os::unix::net::UnixListener::bind_addr(&SocketAddr::from_abstract_name(&address).unwrap()).unwrap();
         listener.set_nonblocking(true).unwrap();
         let listener = tokio::net::UnixListener::from_std(listener).unwrap();
-        let held = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        // Other concurrent tests allocate ephemeral ports on localhost. Use a fresh
+        // loopback address so they cannot claim this fixture's port after its release.
+        let mut octets = std::net::Ipv4Addr::LOCALHOST.octets();
+        octets[1..].copy_from_slice(&uuid::Uuid::new_v4().as_bytes()[..3]);
+        let held = tokio::net::TcpListener::bind((std::net::Ipv4Addr::from(octets), 0)).await.unwrap();
         let port = held.local_addr().unwrap();
         let child = std::process::Command::new("/bin/sleep").arg("30").spawn().unwrap();
         let session = Ssh::new(Launch { directory: root.path().into(), address }, child, held);
@@ -80,6 +84,6 @@ mod tests {
         assert!(!session.running());
         assert_eq!(session.connect().await.unwrap_err().kind(), std::io::ErrorKind::NotConnected);
         drop(session);
-        assert!(tokio::net::TcpListener::bind(port).await.is_ok());
+        tokio::net::TcpListener::bind(port).await.expect("Dropping the SSH lease must immediately release its port");
     }
 }

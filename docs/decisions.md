@@ -1085,3 +1085,5 @@
 - Read stopped VM data in a dedicated authenticated file-only guest with no image layers, network, entrypoint, tools, spare ports or persistent telemetry; reuse existing descriptor-relative handlers and advertise parser support in verified bundle metadata before host code may select it.
 
 - K25: Serve stopped disks through a separate leased file-only guest with a fresh ephemeral signing key and private ephemeral relay; hold the transition lock through owned signed shutdown, keep cancellation cleanup alive, and never start or advertise workload compute for file access.
+
+- K24: Give the real SSH lease fixture a fresh loopback address so parallel localhost ephemeral allocation cannot claim its released address/port; retain the immediate rebind assertion and include the actual OS error on failure.
