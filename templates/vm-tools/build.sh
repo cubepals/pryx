@@ -96,7 +96,9 @@ case "${1:?Name one VM build phase}" in
       --network-proxy "$RUNNER_TEMP/vm-network-proxy" --output "$RUNNER_TEMP/vm-runtime" \
       --archive "$RUNNER_TEMP/pryx-vm-linux-x64.tar.gz" --source-archive "$RUNNER_TEMP/pryx-vm-sources.tar.gz" \
       --descriptor "$RUNNER_TEMP/vm-runtime.json" --source-descriptor "$RUNNER_TEMP/vm-sources.json" \
-      --url-base https://github.com/cubepals/pryx/releases/download/preview | tee "$RUNNER_TEMP/vm-bundle.log"
+      --url-base "${PRYX_VM_RELEASE_BASE_URL:-https://github.com/cubepals/pryx/releases/download/preview}" | tee "$RUNNER_TEMP/vm-bundle.log"
+    cp "$RUNNER_TEMP/vm-runtime.json" deploy/vm/vm-bundle.json
+    chmod 0444 deploy/vm/vm-bundle.json
     ;;
   *) echo "Unknown VM build phase" >&2; exit 1 ;;
 esac

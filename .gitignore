@@ -1,5 +1,6 @@
 /target
 /deploy/process-tools/process-tools.json
+/deploy/vm/vm-bundle.json
 
 node_modules/
 /dist

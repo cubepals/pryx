@@ -5,9 +5,10 @@
 use pryxd::runtime::{
     RuntimeError,
     vm::{
-        bundle::{Artifact, Bundle},
+        bundle::Bundle,
         disk,
         filesystems::sha256,
+        policy,
     },
 };
 use std::{
@@ -29,8 +30,10 @@ async fn actual_bundle_acquires_whole_and_refuses_changed_inputs() {
     let _ = rustls::crypto::ring::default_provider().install_default();
     let root = input("PRYX_VM_RUNTIME");
     let archive = input("PRYX_VM_RUNTIME_ARCHIVE");
-    let mut artifact: Artifact =
-        serde_json::from_slice(&fs::read(input("PRYX_VM_RUNTIME_DESCRIPTOR")).unwrap()).unwrap();
+    let mut artifact = policy::descriptor(&pryxd::config::VmConfig {
+        bundle: Some(input("PRYX_VM_RUNTIME_DESCRIPTOR")),
+    })
+    .unwrap();
     let verified = Bundle::verified(&root, &artifact.manifest_sha256).unwrap();
     assert_eq!(verified.root(), root);
     let launcher = std::process::Command::new(root.join("bin/vm-launcher"))

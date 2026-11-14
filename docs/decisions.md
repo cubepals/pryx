@@ -1171,3 +1171,5 @@
 - K25: bind the root guest's one-shot bootstrap socket at the validated jail location and transfer only that socket to the fixed non-root monitor identity; keep serial capture outside the jail, gate jail-relative configuration on executable metadata and prove unchanged jailer boots before enabling root placement or changing host service authority.
 
 - K25: take VM archive pins only from one bounded immutable descriptor named by host configuration and installed with the signed release; reuse the artifact owner's type and acquisition validation, refuse unsafe files before reading, and leave an absent descriptor off without making KVM or downloads a startup requirement.
+
+- K25: share the exact VM workflow build phases with release assembly, keep its runtime and corresponding sources as separate lazy assets, and carry only a mode-0444 descriptor in signed host/bootstrap archives; source-only builds leave it absent, and acquisition remains off until placement acceptance.

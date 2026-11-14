@@ -163,6 +163,10 @@ def main():
         tools = Path('/usr/local/lib/pryx/process-tools.json')
         if tools.exists():
             shutil.copy2(tools, bundle.root / 'bin/process-tools.json')
+        vm = Path('/usr/local/lib/pryx/vm-bundle.json')
+        if vm.exists():
+            shutil.copy2(vm, bundle.root / 'bin/vm-bundle.json')
+            (bundle.root / 'bin/vm-bundle.json').chmod(0o444)
         for name in ['pryxd.sig', 'pryxd.bootstrap.sig']:
             if Path('/' + name).exists():
                 shutil.copy2('/' + name, bundle.root / 'bin' / name)
@@ -189,6 +193,8 @@ def main():
         shutil.copytree(bundle.root / 'lib', bootstrap / 'lib')
         if tools.exists():
             shutil.copy2(tools, bootstrap / 'bin/process-tools.json')
+        if vm.exists():
+            shutil.copy2(bundle.root / 'bin/vm-bundle.json', bootstrap / 'bin/vm-bundle.json')
         shutil.copytree(bundle.root / 'licenses', bootstrap / 'licenses')
         pack(bootstrap, destination / 'pryx-bootstrap-linux-x64.tar.gz')
 

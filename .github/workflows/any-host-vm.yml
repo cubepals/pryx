@@ -153,7 +153,7 @@ jobs:
         env:
           PRYX_VM_RUNTIME: ${{ runner.temp }}/vm-runtime
           PRYX_VM_RUNTIME_ARCHIVE: ${{ runner.temp }}/pryx-vm-linux-x64.tar.gz
-          PRYX_VM_RUNTIME_DESCRIPTOR: ${{ runner.temp }}/vm-runtime.json
+          PRYX_VM_RUNTIME_DESCRIPTOR: ${{ github.workspace }}/deploy/vm/vm-bundle.json
           PRYX_VM_FILESYSTEM_COMPONENT: ${{ runner.temp }}/vm-filesystem-component
           CARGO_PROFILE_DEV_DEBUG: '0'
           CARGO_PROFILE_TEST_DEBUG: '0'

@@ -1,0 +1,5 @@
+VM metadata is generated from verified same-source release archives before image packaging.
+Only vm-bundle.json enters the signed host and bootstrap archives beside pryx-agent.
+The monitor, published kernel, bootstrap, filesystem and network programs remain in the
+separate lazy runtime asset. Corresponding sources remain in their own release asset.
+A source-only image build without this generated descriptor keeps VM acquisition unavailable.

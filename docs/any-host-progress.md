@@ -3794,3 +3794,24 @@ job when publication is authorized. That job has not run in this task.
   descriptor production and actual node registration remain unfinished. Current-source
   Any-host 43602659763 has built its bundle and is running signed installation/native
   SDK acceptance; hold the overlapping push until its result is available.
+
+- Restart checkpoint: all six existing push/PR workflow concurrency blocks match the requested
+  group and cancellation policy; de03d30 already records that fix. Actionlint passes, including
+  ShellCheck after locating the existing local binary. Push the six inherited local checkpoints
+  at 26fe17d immediately instead of retaining the superseded hold rule above. Its VM run
+  43607010966, normal CI 43607011025 and engine run 43607011030 are pending; scanner comments
+  remain eighteen. Move-only f2d5d2f extracts the same VM build commands with unchanged phase
+  order, environment, paths, assertions and failure conditions; it is pushed too.
+- Release packaging checkpoint reuses those build phases without KVM or host-policy changes.
+  Runtime and corresponding-source archives join the release assets; the immutable descriptor
+  alone enters the image and signed host/bootstrap archives. Existing optional bundle acceptance
+  now reads that generated installed descriptor through the production policy reader before
+  whole-bundle verification. No new job/gate or ordinary PR time; release-only overhead is
+  estimated at 5–10 minutes and needs actual CI timing. Real release/publication is unexecuted
+  and prohibited here. Signed host relocation, automatic descriptor configuration and placement
+  remain unfinished; this checkpoint must not be counted as their proof.
+- Local packaging validation: complete root Rust run has 528 passes, the unchanged IPv6
+  fixture failure and 39 ignored; vm-image has 14 passes and 2 existing ignored acceptance
+  cases. Strict all-target Clippy, fmt, actionlint with ShellCheck, standalone build-recipe
+  ShellCheck, Python compilation and whitespace pass. Remove 463 MiB of obsolete benchmark
+  executables. Full image packaging and signed installation still need CI evidence.
