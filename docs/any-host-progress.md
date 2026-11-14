@@ -4359,3 +4359,21 @@ job when publication is authorized. That job has not run in this task.
 - Read source 28bc3b1 signed-host run 43632314039/job 132564762833: it again reaches VM
   admission, then fails the old two-process lookup. That source predates 052db0a; preserve
   the failure without redoing its already pushed correction. Scanner comments remain eighteen.
+
+- Source dceb3a0 VM run 43636963405/job 132579034085 proves ordinary runtime, public node
+  API and both root images' hostname TAP policy checks outside systemd (48.70 s), plus actual
+  Rust scope adoption inside the bounded service (0.31 s). The old twenty-minute ceiling
+  cancels the bounded runtime during image one's first boot after image zero. The ceiling
+  correction is already pushed in 1bf2586. Summary: checks/measurements/k25/hostname-tap-dceb3a0.json.
+- Evaluate original pinned Firecracker source eaf83bb718a559d324613d566eaf776b31a62340,
+  authenticated from the CI corresponding-source artifact. Its GNU target is supported, but
+  has no default seccomp profile; debug also selects an empty policy. Do not distribute that
+  weaker configuration. A local static-GNU compilation stops at a missing development link
+  for build-time libseccomp, before producing a monitor. Review the 116 normal/build package
+  licences first. Original sources, metadata and raw output stay outside this repository.
+- The published allowlist contains only tkill (SIGABRT and the vCPU real-time signal), so a
+  GNU solution must preserve its full policy and adapt only the equivalent thread-signal ABI
+  while retaining self-process bounds. GNU has not been selected or shipped. Evaluate a pinned
+  maintained GNU toolchain with its primary source/licence distributions rather than mixing
+  host runtime libraries; full source/relinking obligations remain prerequisites. Latest
+  code is pushed; root firewall hardware proof and focused monitor trace are still pending.

@@ -1,0 +1,16 @@
+{
+  "sourceCommit": "dceb3a0",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43636963405",
+  "job": 132579034085,
+  "artifact": 14130683938,
+  "passed": {
+    "ordinaryRuntime": true,
+    "publicNodeApi": true,
+    "rootOutsideUnitBothImagesHostnameChecks": true,
+    "rustScopeAdoption": true
+  },
+  "outsideRootLifecycleSeconds": 48.7,
+  "rustScopeAdoptionSeconds": 0.31,
+  "notComplete": "The old twenty-minute job ceiling cancels the bounded runtime after image zero and at image one first boot; the thirty-minute ceiling is in 1bf2586",
+  "notProved": "Complete bounded root hostname replay, namespace host firewall added later, default-IP forwarding, installed worker and complete signed SDK/measurement cohorts"
+}
