@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 // Command config emits launch configuration using the monitor owner's generated API models.
 // It neither implements monitor API shapes nor enables production VM placement.
+//
+// Parts (`cmd/config/`): main.go assembles owner models; output.go reports metadata and
+// identities; jail.go maps staged host inputs into the monitor mount namespace.
 package main
 
 import (
@@ -26,6 +29,7 @@ func main() {
 	socket := flag.String("socket", "", "Private monitor vsock path")
 	tap := flag.String("tap", "", "Optional private network namespace TAP for the comparison")
 	metadata := flag.Bool("metadata", false, "Print experiment-owned transport metadata")
+	jailRoot := flag.String("jail-root", "", "Optional host jail root for monitor paths")
 	identities := flag.Bool("identities", false, "Print backing-file identities for the configured guest disks")
 	initMode := flag.String("init-mode", "", "Optional mode supported by the actual trusted guest executable")
 	var layers []*models.Drive
@@ -76,6 +80,11 @@ func main() {
 	if *identities {
 		printIdentities(config)
 		return
+	}
+	if *jailRoot != "" {
+		if err := jailPaths(&config, *jailRoot); err != nil {
+			log.Fatal(err)
+		}
 	}
 	if err := json.NewEncoder(os.Stdout).Encode(config); err != nil {
 		log.Fatal(err)

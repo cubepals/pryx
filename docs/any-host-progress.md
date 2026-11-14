@@ -3715,3 +3715,27 @@ job when publication is authorized. That job has not run in this task.
 - Push the K25 move/network/lease/cycle/staging checkpoints together as the fix for
   080ebc1's actual normal-CI structure failures. Their hosted results are pending; do
   not count the previous source's green VM runs as proof of these changes.
+
+- Restart audit: the requested workflow queue correction is already committed at
+  de03d30 and all six push/pull-request workflows retain its exact concurrency group.
+  Source 1fdfd23 has green Any-host, CodeQL and both engine runs. Normal push CI
+  43569904158 and PR CI 43569909213 fail ShellCheck SC2155 on the root test's two
+  combined declaration/assignment exports; their control, deployment, supply-chain
+  and contract jobs pass. No outstanding run prevents the next corrective push.
+- VM run 43569904159/job 132371802114 proves actual root bind mounts, original-disk
+  handoff, live-lease refusal and tamper-safe recovery (0.03 s), all three host-policy
+  tests and both owned-helper tests (0.13 s). Runtime acceptance fails after 39.14 s
+  waiting six seconds for an exec wait response. The forwarding trace reaches client
+  bytes after connection but receives no HTTP/2 response. This does not prove packet
+  flow or resolve the earlier output stalls. Summary:
+  checks/measurements/k25/root-staging-1fdfd23.json. Scanner comments remain eighteen.
+- Preserve the unfinished root configuration checkpoint: generated SDK paths may be
+  mapped into the jail after collecting real backing-file identities; generated
+  configuration joins the durable read-only mount record before ownership handoff.
+  The jail layout keeps the monitor's full basename, including version suffixes.
+  Actual local SDK build/vet and configuration/identity/sibling-escape checks pass.
+  Combined-tree full Rust runs every target: 526 pass, the unchanged host IPv6 fixture
+  failure, 38 ignored. Strict all-target and default Clippy, fmt, actionlint with
+  ShellCheck and whitespace checks pass. Root configuration mount/boot proof remains
+  CI-only; production root startup stays refused. Remove 207 MiB of obsolete duplicate
+  executables while keeping the current build outputs.

@@ -1161,3 +1161,5 @@
 - K25: keep shared VM file-session types in their parent and call egress listeners through their owning module, removing both structure-checker import cycles without a baseline exception; retain the pinned checker with existing CI evidence so its exact input can be inspected on restricted hosts.
 
 - K25: stage root-jailer disks with host-owned bind mounts and a private durable inode/ownership record, retaining one original writable disk across filesystems; recover only after its kernel lease is free and validate mount identities before unmounting or restoring ownership. Reuse procfs 0.18.0 (MIT OR Apache-2.0) for mountinfo and existing rustix mount wrappers rather than parse the kernel format or add a mount implementation.
+
+- K25: emit jail-relative monitor paths through the pinned generated SDK only after collecting real staged backing-file identities; seal generated configuration with the same root-owned mount record before jailer startup, and retain the executable's complete basename as required by the unchanged jailer layout.

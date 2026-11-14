@@ -189,7 +189,7 @@ impl Jail {
             return Err(error("Root jailer requires fixed non-root monitor identities"));
         }
         let monitor =
-            monitor.file_stem().and_then(|name| name.to_str()).ok_or_else(|| error("Invalid monitor name"))?;
+            monitor.file_name().and_then(|name| name.to_str()).ok_or_else(|| error("Invalid monitor name"))?;
         let root = root(base, monitor, id)?;
         directory(&base.join(RECORDS))?;
         match fs::symlink_metadata(record_path(base, id)?) {
@@ -242,6 +242,29 @@ impl Jail {
     }
     pub fn root(&self) -> &Path {
         &self.root
+    }
+    /// Seal generated configuration after staged paths have supplied real disk identities.
+    /// This runs before the jailer changes root ownership or starts the monitor.
+    pub fn add_readonly(&mut self, relative: &Path, source: &Path) -> Result<(), RuntimeError> {
+        root_only()?;
+        private(&self.root)?;
+        let mut record = load(&self.base, &self.id)?;
+        let _lease = lease(&record.lease)?;
+        let target = destination(&self.root, relative)?;
+        match fs::symlink_metadata(&target) {
+            Ok(_) => return Err(error("Root jail input destination already exists")),
+            Err(problem) if problem.kind() == io::ErrorKind::NotFound => (),
+            Err(problem) => return Err(error(problem)),
+        }
+        let file = regular(source)?;
+        let info = file.metadata().map_err(error)?;
+        if info.uid() != rustix::process::Uid::ROOT.as_raw() || info.mode() & 0o222 != 0 {
+            return Err(error("Root jail read-only input is mutable or not root-owned"));
+        }
+        record.inputs.push(Identity::of(&info));
+        // Recovery must already know the input if a mount or remount fails.
+        save(&self.base, &record)?;
+        bind(source, &target, true)
     }
     /// No Drop cleanup: the actual monitor lease, rather than object lifetime, authorizes retirement.
     pub fn retire(&mut self) -> Result<(), RuntimeError> {

@@ -17,6 +17,7 @@ import (
 
 func printMetadata() {
 	if err := json.NewEncoder(os.Stdout).Encode(map[string]any{
+		"jailPaths":  true,
 		"reportPort": experiment.ReportPort, "networkPort": experiment.NetworkPort,
 		"rootDrive": experiment.RootDrive, "writeDrive": experiment.WriteDrive,
 		"guestCid":    vsock.Host + 1,

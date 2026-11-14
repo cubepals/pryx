@@ -1,0 +1,16 @@
+{
+  "commit": "1fdfd230d84cdc6d85d37bc70e9138358e6d4542",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43569904159",
+  "ran": {
+    "host_policy": "3 passed",
+    "owned_network": "2 passed in 0.13 s",
+    "root_disk_staging": "1 passed in 0.03 s",
+    "runtime": "failed after 39.14 s: authenticated exec wait response timed out after 6 s; forwarding connected and sent client bytes but received no HTTP/2 response"
+  },
+  "other_ci": {
+    "push": "https://github.com/cubepals/pryx/actions/runs/43569904158",
+    "pull_request": "https://github.com/cubepals/pryx/actions/runs/43569909213",
+    "result": "both fail ShellCheck SC2155 on root fixture identity exports; control, e2e, one-box, supply-chain and contract pass; Any host, both rootless engine runs and CodeQL pass"
+  },
+  "limits": "Root staging is not jailer boot or TAP proof. Runtime/network acceptance is incomplete; earlier transport failures remain recorded. Raw output is retained in CI artifacts."
+}
