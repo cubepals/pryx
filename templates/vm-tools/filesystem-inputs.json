@@ -237,6 +237,81 @@
       "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/zlib-1.4-r0.apk",
       "bytes": 56761,
       "sha256": "7b05bc778b8b25cd880835b40114182bd4d1581717504d0129c810c0a14291cb"
+    },
+    {
+      "name": "libnftnl",
+      "version": "1.3.1-r0",
+      "origin": "libnftnl",
+      "sourceCommit": "80fae26950fd406b1645cfa15aa6eba0b850ecef",
+      "licence": "GPL-2.0-or-later",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/libnftnl-1.3.1-r0.apk",
+      "bytes": 67237,
+      "sha256": "2f4cf35959fde00fdba0dd35ef12a6739739b504e8319c97e30bd4834f98d924"
+    },
+    {
+      "name": "libmnl",
+      "version": "1.0.5-r2",
+      "origin": "libmnl",
+      "sourceCommit": "fc95c59998285564fbcb0bfb2443898c62e10171",
+      "licence": "LGPL-2.1-or-later",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/libmnl-1.0.5-r2.apk",
+      "bytes": 9023,
+      "sha256": "3693162ff7c27998dbbb2da1c4bd9072079cd55af1fa3d6d2ade51d276e20157"
+    },
+    {
+      "name": "libmnl-dev",
+      "version": "1.0.5-r2",
+      "origin": "libmnl",
+      "sourceCommit": "fc95c59998285564fbcb0bfb2443898c62e10171",
+      "licence": "LGPL-2.1-or-later",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/libmnl-dev-1.0.5-r2.apk",
+      "bytes": 3856,
+      "sha256": "2f152fbec3afa23b6c6bacccb164444652f879f84f5954270c1eb43f3f23aa20",
+      "buildOnly": true
+    },
+    {
+      "name": "libnftnl-dev",
+      "version": "1.3.1-r0",
+      "origin": "libnftnl",
+      "sourceCommit": "80fae26950fd406b1645cfa15aa6eba0b850ecef",
+      "licence": "GPL-2.0-or-later",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/libnftnl-dev-1.3.1-r0.apk",
+      "bytes": 108180,
+      "sha256": "3959602fe4f90c13ab2e255ef11f5a9604215cb35e98d120e71460a5883f52dd",
+      "buildOnly": true
+    },
+    {
+      "name": "linux-headers",
+      "version": "7.0.0-r1",
+      "origin": "linux-headers",
+      "sourceCommit": "4568bf119fd5a67f5d895a2a68a1dcf8b7bfa606",
+      "licence": "GPL-2.0-only",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/linux-headers-7.0.0-r1.apk",
+      "bytes": 2000169,
+      "sha256": "c4535f3f0dc6fd4d80efa7ff2a7a72a2d3f8dae31e2587c0785cc3243889cdf2",
+      "buildOnly": true
+    },
+    {
+      "name": "flex",
+      "version": "2.6.4-r8",
+      "origin": "flex",
+      "sourceCommit": "f0dedbda461817821fef04821eacac4212929934",
+      "licence": "BSD-2-Clause",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/flex-2.6.4-r8.apk",
+      "bytes": 107739,
+      "sha256": "18694dcfa86e5ffe689e81be088ec2b7d6c632d76f645e860cec9ad8eaa32225",
+      "buildOnly": true
+    },
+    {
+      "name": "musl-dev",
+      "version": "1.2.6-r3",
+      "licence": "MIT",
+      "sourceCommit": "8f79d39391b46d6dbf1800fb68b8212a21d5ee2e",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/musl-dev-1.2.6-r3.apk",
+      "bytes": 3422063,
+      "sha256": "310b51cff12e1d5ce5f135c558a82e2550427da5465bbd16c9ff9b05e63ee3d9",
+      "origin": "musl",
+      "buildOnly": true
     }
   ],
   "sources": [
@@ -578,6 +653,135 @@
       "sha256": "02dd159783677a749c04adbdd02b55b8a2bcc7e054f51b76b549199a916ad584",
       "sha512": "13f02285da85956ff722d814695b96807aff7a511ebf4b6d98cf708c353920666093cc18b6653cd7992c8e75c103f7b4baf2de3a105c2db9dcd62bab2c940859",
       "archive": true
+    },
+    {
+      "origin": "nftables",
+      "name": "nftables-1.1.6.tar.xz",
+      "url": "https://distfiles.alpinelinux.org/distfiles/v3.24/nftables-1.1.6.tar.xz",
+      "bytes": 1025092,
+      "sha256": "372931bda8556b310636a2f9020adc710f9bab66f47efe0ce90bff800ac2530c",
+      "sha512": "8d0a833d0ae2b6ac82e0da8bb74ffb69679e49a938b86a75d4ee3d81343400a95fe064cf95d60d22df30370779e524b31497a9c89a516d9bff645f3f83bb6bb1",
+      "archive": true
+    },
+    {
+      "origin": "nftables",
+      "name": "nftables.confd",
+      "url": "https://git.alpinelinux.org/aports/plain/main/nftables/nftables.confd?id=e0326a8ae770e02742daadffe8a8e64d8290ce06",
+      "bytes": 1517,
+      "sha256": "dbc81dde9268f9d79ae01d217db4f88a0e3e8ce6344dcb74be338220f331d7f2",
+      "sha512": "5a298ea01df60b434791fea94306d5b14f7ce684329e4122cc78bb52d1c272fcc48b06eaae154fd082c05f7030792fe42e73814caf3c7be3c446bb265fe25642",
+      "archive": false,
+      "mirrors": [
+        "https://gitlab.alpinelinux.org/api/v4/projects/alpine%2Faports/repository/files/main%2Fnftables%2Fnftables.confd/raw?ref=e0326a8ae770e02742daadffe8a8e64d8290ce06"
+      ]
+    },
+    {
+      "origin": "nftables",
+      "name": "nftables.initd",
+      "url": "https://git.alpinelinux.org/aports/plain/main/nftables/nftables.initd?id=e0326a8ae770e02742daadffe8a8e64d8290ce06",
+      "bytes": 3638,
+      "sha256": "ffc3bba3fc17d93c251711529331321d53e2e67c52485afbf00911468aad86c2",
+      "sha512": "e27105fb6a520d40392cbc61fa84ec79e4ce17f81991f69e381efce0e8a121e6a76fce2b69f6164b5b650653d4f3cdc7f33927676b4f7e27f6c674f9ccaa6bc5",
+      "archive": false,
+      "mirrors": [
+        "https://gitlab.alpinelinux.org/api/v4/projects/alpine%2Faports/repository/files/main%2Fnftables%2Fnftables.initd/raw?ref=e0326a8ae770e02742daadffe8a8e64d8290ce06"
+      ]
+    },
+    {
+      "origin": "nftables",
+      "name": "nftables.nft",
+      "url": "https://git.alpinelinux.org/aports/plain/main/nftables/nftables.nft?id=e0326a8ae770e02742daadffe8a8e64d8290ce06",
+      "bytes": 1998,
+      "sha256": "e3127d538fc434eed0a22f7acd8534c9f9601a52a101f814c274fe6bd980f918",
+      "sha512": "b524c124a11f870ae789d5ad05de8a49d365d6c2cb3cd94c21669c5ae0e453481c671a1700ee6518372b10c491b50c5d81ea59fa941092a9161d1b13be7a13b6",
+      "archive": false,
+      "mirrors": [
+        "https://gitlab.alpinelinux.org/api/v4/projects/alpine%2Faports/repository/files/main%2Fnftables%2Fnftables.nft/raw?ref=e0326a8ae770e02742daadffe8a8e64d8290ce06"
+      ]
+    },
+    {
+      "origin": "nftables",
+      "name": "systemd-service-etc-nftables-nft.patch",
+      "url": "https://git.alpinelinux.org/aports/plain/main/nftables/systemd-service-etc-nftables-nft.patch?id=e0326a8ae770e02742daadffe8a8e64d8290ce06",
+      "bytes": 1443,
+      "sha256": "49ba97fa07df83490049b6e9859213d521193ba9a7316cb4bad1c9265a9043e9",
+      "sha512": "3783823b8f6a97f848669dc965976428d87599121761c5c34dd1fc53c02d6edaf1fa86eda9578387360e417b49115a67f0572c7098e7e9dc170e1b8dad1cb006",
+      "archive": false,
+      "mirrors": [
+        "https://gitlab.alpinelinux.org/api/v4/projects/alpine%2Faports/repository/files/main%2Fnftables%2Fsystemd-service-etc-nftables-nft.patch/raw?ref=e0326a8ae770e02742daadffe8a8e64d8290ce06"
+      ]
+    },
+    {
+      "origin": "libnftnl",
+      "name": "libnftnl-1.3.1.tar.xz",
+      "url": "https://distfiles.alpinelinux.org/distfiles/v3.24/libnftnl-1.3.1.tar.xz",
+      "bytes": 349096,
+      "sha256": "607da28dba66fbdeccf8ef1395dded9077e8d19f2995f9a4d45a9c2f0bcffba8",
+      "sha512": "a4e689b003cc2ae2ecf203335265f337d6de7a50af5410d649a567535c109d08ee9dbae9e8572b1af8c67f09ea27877ca059e04ed3b1c12183ef7b4185bdd10f",
+      "archive": true
+    },
+    {
+      "origin": "libmnl",
+      "name": "libmnl-1.0.5.tar.bz2",
+      "url": "https://distfiles.alpinelinux.org/distfiles/v3.24/libmnl-1.0.5.tar.bz2",
+      "bytes": 314791,
+      "sha256": "274b9b919ef3152bfb3da3a13c950dd60d6e2bcd54230ffeca298d03b40d0525",
+      "sha512": "16fa48e74c9da7724a85c655dfb0abd8369392627934639d65de951543e1447ac3e048d231248f1ce8861443c2ef62654a85a81feeedbbffaf2e5744f6cf4c9f",
+      "archive": true
+    },
+    {
+      "origin": "libmnl",
+      "name": "musl-fix-headers.patch",
+      "url": "https://git.alpinelinux.org/aports/plain/main/libmnl/musl-fix-headers.patch?id=fc95c59998285564fbcb0bfb2443898c62e10171",
+      "bytes": 377,
+      "sha256": "9e66c74e9ef839d6daa2e56697c5e9620e25714a8511ed43763e010b4963c4e2",
+      "sha512": "984307f6a40bdd1231cf97ac84719eefaf436544bcad3a52f8590ab73676ac3064f44af65b57dfb7920aa3c84a44977e385410faf354a0a64efc5364b4314496",
+      "archive": false,
+      "mirrors": [
+        "https://gitlab.alpinelinux.org/api/v4/projects/alpine%2Faports/repository/files/main%2Flibmnl%2Fmusl-fix-headers.patch/raw?ref=fc95c59998285564fbcb0bfb2443898c62e10171"
+      ]
+    },
+    {
+      "origin": "linux-headers",
+      "name": "linux-7.0.tar.xz",
+      "url": "https://distfiles.alpinelinux.org/distfiles/v3.24/linux-7.0.tar.xz",
+      "bytes": 157143652,
+      "sha256": "bb7f6d80b387c757b7d14bb93028fcb90f793c5c0d367736ee815a100b3891f0",
+      "sha512": "8c85b708342f8f09ca25b2234b22e93b62b144a9ef919fbb21827f52fa47498e778c79db1559524dd7fb360f95b2ce174171443c1859656c281be41d2b6c5a0b",
+      "archive": true
+    },
+    {
+      "origin": "linux-headers",
+      "name": "revert-broken-uapi.patch",
+      "url": "https://git.alpinelinux.org/aports/plain/main/linux-headers/revert-broken-uapi.patch?id=4568bf119fd5a67f5d895a2a68a1dcf8b7bfa606",
+      "bytes": 248,
+      "sha256": "137558d157f2ac5a32ab4d034ad08e6e7a796c703ccadf73bfbff3f869cde4b6",
+      "sha512": "c1fc9a8a0b42dacad51ceb13785f54dfce89369fe082e6457b80a1f75b02704415d397b5df48ca3fdf361ec8c1b72c196b5033bca0325e39d026bcc357d89452",
+      "archive": false,
+      "mirrors": [
+        "https://gitlab.alpinelinux.org/api/v4/projects/alpine%2Faports/repository/files/main%2Flinux-headers%2Frevert-broken-uapi.patch/raw?ref=4568bf119fd5a67f5d895a2a68a1dcf8b7bfa606"
+      ]
+    },
+    {
+      "origin": "linux-headers",
+      "name": "0003-remove-inclusion-of-sysinfo.h-in-kernel.h.patch",
+      "url": "https://git.alpinelinux.org/aports/plain/main/linux-headers/0003-remove-inclusion-of-sysinfo.h-in-kernel.h.patch?id=4568bf119fd5a67f5d895a2a68a1dcf8b7bfa606",
+      "bytes": 887,
+      "sha256": "e9827c3f919866bb63b05b9eeacfc8e04f560f467c9456e7b283f432b5dc9a7e",
+      "sha512": "607c074d72aca88fea9ecdbd62198d8f7857daca75e5d027966e0a9997338d6ac8ce0a1e9114b19232b390751d05acca09e28b0cfad2a12d5942f5575a9f4684",
+      "archive": false,
+      "mirrors": [
+        "https://gitlab.alpinelinux.org/api/v4/projects/alpine%2Faports/repository/files/main%2Flinux-headers%2F0003-remove-inclusion-of-sysinfo.h-in-kernel.h.patch/raw?ref=4568bf119fd5a67f5d895a2a68a1dcf8b7bfa606"
+      ]
+    },
+    {
+      "origin": "flex",
+      "name": "flex-2.6.4.tar.gz",
+      "url": "https://distfiles.alpinelinux.org/distfiles/v3.24/flex-2.6.4.tar.gz",
+      "bytes": 1419096,
+      "sha256": "e87aae032bf07c26f85ac0ed3250998c37621d95f8bd748b31f15b33c45ee995",
+      "sha512": "e9785f3d620a204b7d20222888917dc065c2036cae28667065bf7862dfa1b25235095a12fd04efdbd09bfd17d3452e6b9ef953a8c1137862ff671c97132a082e",
+      "archive": true
     }
   ],
   "bootstrapSources": [
@@ -689,6 +893,56 @@
       "sha256": "ea459c051ee8d846c06f1d47d09d0f737778502c01de88c9696e96a208de5943",
       "mirrors": [
         "https://raw.githubusercontent.com/alpinelinux/aports/29b9ec24b1b5b39aeef51fa2a044210e2ec5258e/main/openssl/APKBUILD"
+      ]
+    },
+    {
+      "origin": "nftables",
+      "name": "APKBUILD",
+      "url": "https://git.alpinelinux.org/aports/plain/main/nftables/APKBUILD?id=e0326a8ae770e02742daadffe8a8e64d8290ce06",
+      "bytes": 2888,
+      "sha256": "29fb632bcbda52b3ecd63249b6f6599f906cd8a61e88667313aec0fd10365884",
+      "mirrors": [
+        "https://gitlab.alpinelinux.org/api/v4/projects/alpine%2Faports/repository/files/main%2Fnftables%2FAPKBUILD/raw?ref=e0326a8ae770e02742daadffe8a8e64d8290ce06"
+      ]
+    },
+    {
+      "origin": "libnftnl",
+      "name": "APKBUILD",
+      "url": "https://git.alpinelinux.org/aports/plain/main/libnftnl/APKBUILD?id=80fae26950fd406b1645cfa15aa6eba0b850ecef",
+      "bytes": 1105,
+      "sha256": "f4bc04181278e42afb7628b082f4573fac5507b1428397d6ecbdc1c7c9ff0462",
+      "mirrors": [
+        "https://gitlab.alpinelinux.org/api/v4/projects/alpine%2Faports/repository/files/main%2Flibnftnl%2FAPKBUILD/raw?ref=80fae26950fd406b1645cfa15aa6eba0b850ecef"
+      ]
+    },
+    {
+      "origin": "libmnl",
+      "name": "APKBUILD",
+      "url": "https://git.alpinelinux.org/aports/plain/main/libmnl/APKBUILD?id=fc95c59998285564fbcb0bfb2443898c62e10171",
+      "bytes": 1054,
+      "sha256": "12057e9f88b2cafed69dfa1f2581dd640027eec5dbd7e722a64081c72ec431e5",
+      "mirrors": [
+        "https://gitlab.alpinelinux.org/api/v4/projects/alpine%2Faports/repository/files/main%2Flibmnl%2FAPKBUILD/raw?ref=fc95c59998285564fbcb0bfb2443898c62e10171"
+      ]
+    },
+    {
+      "origin": "linux-headers",
+      "name": "APKBUILD",
+      "url": "https://git.alpinelinux.org/aports/plain/main/linux-headers/APKBUILD?id=4568bf119fd5a67f5d895a2a68a1dcf8b7bfa606",
+      "bytes": 1698,
+      "sha256": "5bad4305b9cb1f088796ddb1af3a31399f81f0953662f3b39aec32bc672a9624",
+      "mirrors": [
+        "https://gitlab.alpinelinux.org/api/v4/projects/alpine%2Faports/repository/files/main%2Flinux-headers%2FAPKBUILD/raw?ref=4568bf119fd5a67f5d895a2a68a1dcf8b7bfa606"
+      ]
+    },
+    {
+      "origin": "flex",
+      "name": "APKBUILD",
+      "url": "https://git.alpinelinux.org/aports/plain/main/flex/APKBUILD?id=f0dedbda461817821fef04821eacac4212929934",
+      "bytes": 1138,
+      "sha256": "e63655691469fc840a73cae7d3e8fb0fac64e13ce634aecd932a830286dca21d",
+      "mirrors": [
+        "https://gitlab.alpinelinux.org/api/v4/projects/alpine%2Faports/repository/files/main%2Fflex%2FAPKBUILD/raw?ref=f0dedbda461817821fef04821eacac4212929934"
       ]
     }
   ],
@@ -993,6 +1247,70 @@
       "path": "openssl-3.5.9/util/perl/OpenSSL/copyright.pm",
       "bytes": 1145,
       "sha256": "04213b69dbebc8ba0dd8a6216af1d9422f9b63619c1cf2f1d8aa107b83bbb608"
+    },
+    {
+      "origin": "nftables",
+      "archive": "nftables-1.1.6.tar.xz",
+      "path": "nftables-1.1.6/COPYING",
+      "bytes": 18341,
+      "sha256": "4ee1e51baf5f3166712fa0c3e01338c7257e50ddef245d28bb14ad68f6070ba5"
+    },
+    {
+      "origin": "libnftnl",
+      "archive": "libnftnl-1.3.1.tar.xz",
+      "path": "libnftnl-1.3.1/COPYING",
+      "bytes": 18008,
+      "sha256": "98193898c663001eff2fdcfb676e210c13042bc1a05e8d570c363efa396f8e24"
+    },
+    {
+      "origin": "libmnl",
+      "archive": "libmnl-1.0.5.tar.bz2",
+      "path": "libmnl-1.0.5/COPYING",
+      "bytes": 26530,
+      "sha256": "dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551"
+    },
+    {
+      "origin": "linux-headers",
+      "archive": "linux-7.0.tar.xz",
+      "path": "linux-7.0/COPYING",
+      "bytes": 496,
+      "sha256": "fb5a425bd3b3cd6071a3a9aff9909a859e7c1158d54d32e07658398cd67eb6a0"
+    },
+    {
+      "origin": "linux-headers",
+      "archive": "linux-7.0.tar.xz",
+      "path": "linux-7.0/LICENSES/preferred/GPL-2.0",
+      "bytes": 18600,
+      "sha256": "8780e78a1a737e127f25a65f6d95269bffd36158dc261114de7859b490bfc5aa"
+    },
+    {
+      "origin": "linux-headers",
+      "archive": "linux-7.0.tar.xz",
+      "path": "linux-7.0/LICENSES/exceptions/Linux-syscall-note",
+      "bytes": 1258,
+      "sha256": "8e378ab93586eb55135d3bc119cce787f7324f48394777d00c34fa3d0be3303f"
+    },
+    {
+      "origin": "flex",
+      "archive": "flex-2.6.4.tar.gz",
+      "path": "flex-2.6.4/COPYING",
+      "bytes": 1855,
+      "sha256": "97fd685958d93be7f8dab939bb8161dbd6afb0718c63bfc337c24321aea44273"
     }
-  ]
+  ],
+  "firewall": {
+    "origin": "nftables",
+    "version": "1.1.6",
+    "archive": "nftables-1.1.6.tar.xz",
+    "configure": [
+      "--without-cli",
+      "--with-mini-gmp",
+      "--without-json",
+      "--disable-man-doc",
+      "--disable-debug",
+      "--disable-static",
+      "--enable-shared",
+      "--prefix=/usr"
+    ]
+  }
 }

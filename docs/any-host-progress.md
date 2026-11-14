@@ -3353,3 +3353,28 @@ job when publication is authorized. That job has not run in this task.
   network/confinement paths, protected configuration/install/release wiring, actual node/edge
   lifecycle and thirty production samples. The published kernel's retained configuration has
   built-in nftables/NAT/redirect support; use maintained firewall tooling for guest policy.
+
+
+- K25 firewall component preparation: build unchanged nftables 1.1.6 with its documented
+  batch/no-JSON/embedded-mini-GMP profile. Upstream's notice retains GPLv2-only code, while
+  Alpine's nft executable links GPLv3 Readline; the separate upstream build selects mini-GMP's
+  compatible GPLv2 option and needs only existing musl plus pinned libmnl/libnftnl. It links
+  nothing into pryx. Retain complete sources/notices/recipes for runtime and build inputs,
+  including Linux UAPI headers; the published guest kernel is neither changed nor built.
+- Actual ordinary-user signature-checked component build and relocation pass: nineteen runtime
+  files, working nft version output, EROFS round trip (4,096 bytes) and ext4 check (128 MiB).
+  Every one of the prior fifteen filesystem members remains byte-identical. Readline, shared
+  GMP, JSON and development programs are outside the actual ELF closure. Real OCI/cache/
+  corruption acceptance with this expanded verified component passes locally in 22.10 s.
+  Python compilation/whitespace checks pass. This is packaging proof, not guest firewall proof.
+- The existing optional VM workflow automatically runs this builder/relocation check; estimate
+  one to two additional optional minutes for source compilation, the retained 150-MiB UAPI
+  source and artifact transport. Zero new jobs/gates or ordinary PR minutes. The prototype
+  output is removed after validation; about four GiB remain free. Next include the verified nft
+  closure in trusted bootstrap and prove immutable guest policy through real KVM before network
+  availability is announced. K25 remains in progress.
+- Source a91941b VM run 43542004659/job 132284453447 is green: real guest stats and unchanged
+  activity/bounds/stopped absence, runtime 78.29 s. Summary: checks/measurements/k25/
+  stats-a91941b.json. Source af20fc0 VM run 43543882525 is green too, but normal CI must still
+  prove manager admission's unit/integration assertions. Scanner remains eighteen addressed
+  comments; later unfinished-launch and firewall-component sources await their own KVM results.

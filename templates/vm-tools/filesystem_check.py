@@ -39,7 +39,7 @@ def main():
             if path.is_symlink() or hashlib.sha256(path.read_bytes()).hexdigest() != entry['sha256']:
                 raise ValueError('Relocated filesystem component differs from its inventory')
         loaded = {}
-        for program in ['mkfs.erofs', 'fsck.erofs', 'mke2fs', 'e2fsck']:
+        for program in ['mkfs.erofs', 'fsck.erofs', 'mke2fs', 'e2fsck', 'nft']:
             result = subprocess.run([str(tools / 'libraries/ld-musl-x86_64.so.1'), '--library-path',
                                      str(tools / 'libraries'), '--list', str(tools / 'helpers' / program)],
                                     check=True, capture_output=True, text=True, timeout=10)
@@ -77,10 +77,12 @@ def main():
         environment = {**os.environ, 'MKE2FS_CONFIG': str(tools / 'config/mke2fs.conf')}
         run(tools, 'mke2fs', '-q', '-t', 'ext4', '-F', '-d', source, disk, environment=environment)
         checked = run(tools, 'e2fsck', '-fn', disk)
+        firewall = run(tools, 'nft', '--version')
         report = {'scope': 'Relocated filesystem component only; not production VM lifecycle',
                   'uid': os.geteuid(), 'status': 'success', 'files': len(manifest),
                   'loaded': loaded, 'erofsBytes': erofs.stat().st_size,
-                  'ext4Bytes': disk.stat().st_size, 'ext4Check': checked.stdout + checked.stderr}
+                  'ext4Bytes': disk.stat().st_size, 'ext4Check': checked.stdout + checked.stderr,
+                  'firewall': firewall.stdout.strip()}
         args.output.write_text(json.dumps(report, indent=2) + '\n')
         print(json.dumps(report), flush=True)
 

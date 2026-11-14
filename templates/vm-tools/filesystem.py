@@ -21,6 +21,7 @@ import tempfile
 import urllib.error
 
 from inventory import ROOT, acquire
+from firewall import build as build_firewall
 
 
 def checked_file(archive, member, expected):
@@ -115,6 +116,7 @@ def component(packages, output):
     pending = deque([('usr/bin/mkfs.erofs', 'helpers/mkfs.erofs'),
                      ('usr/bin/fsck.erofs', 'helpers/fsck.erofs'),
                      ('sbin/mke2fs', 'helpers/mke2fs'), ('sbin/e2fsck', 'helpers/e2fsck'),
+                     ('usr/sbin/nft', 'helpers/nft'),
                      ('lib/ld-musl-x86_64.so.1', 'libraries/ld-musl-x86_64.so.1')])
     while pending:
         original, relative = pending.popleft()
@@ -138,7 +140,7 @@ def component(packages, output):
             pending.append((str(library.relative_to(packages)), 'libraries/' + name))
     (tools / 'config').mkdir()
     shutil.copyfile(packages / 'etc/mke2fs.conf', tools / 'config/mke2fs.conf')
-    for program, option in [('mkfs.erofs', '--version'), ('mke2fs', '-V')]:
+    for program, option in [('mkfs.erofs', '--version'), ('mke2fs', '-V'), ('nft', '--version')]:
         subprocess.run(command(tools, program, option), check=True, timeout=10)
     return tools
 
@@ -175,6 +177,7 @@ def main():
         subprocess.run([*keeper, '--keys-dir', str(verifier / 'etc/apk/keys'),
                         '--no-network', 'extract', '--no-chown', '--destination', str(extracted),
                         *map(str, packages)], check=True, timeout=60)
+        build_firewall(catalog, extracted, args.root / 'sources', staging)
         tools = component(extracted, args.root)
     inventory = []
     for path in sorted(tools.rglob('*')):
