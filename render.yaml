@@ -2,9 +2,7 @@
 services:
   - type: web
     name: pryx
-    runtime: image
-    image:
-      url: ghcr.io/cubepals/pryx:0.1.0
+    runtime: docker
     plan: standard
     healthCheckPath: /healthz
     disk:
