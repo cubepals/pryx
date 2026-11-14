@@ -60,7 +60,7 @@ async fn confined_host_process_cannot_escape_or_release_its_lease() {
         .filter_map(|path| fs::canonicalize(path).ok())
         .collect();
     let script = r#"
-import ctypes,errno,fcntl,os,socket,sys,time
+import ctypes,errno,fcntl,os,socket,sys,termios,time
 
 def denied(call):
     try: call()
@@ -73,6 +73,10 @@ denied(lambda: socket.socket(socket.AF_INET,socket.SOCK_STREAM))
 denied(lambda: os.close(0))
 denied(lambda: fcntl.flock(0,fcntl.LOCK_UN))
 denied(lambda: fcntl.fcntl(0,fcntl.F_SETFD,fcntl.FD_CLOEXEC))
+denied(lambda: fcntl.ioctl(0,termios.FIOCLEX))
+try: os.write(0,b'lease write must fail')
+except OSError as error: assert error.errno==errno.EBADF
+else: raise AssertionError('Inherited lease permitted writes')
 null=os.open('/dev/null',os.O_RDWR)
 denied(lambda: os.dup2(null,0))
 os.close(null)
@@ -150,7 +154,7 @@ async fn packet_proxy_inherits_only_its_listener_and_cannot_bind() {
         .collect();
     let peer = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await.unwrap();
     let script = r#"
-import errno,os,socket,sys,time
+import errno,fcntl,os,socket,sys,termios,time
 
 def denied(call):
     try: call()
@@ -159,6 +163,10 @@ def denied(call):
 
 denied(lambda: open(sys.argv[1]).read())
 denied(lambda: os.kill(int(sys.argv[2]),0))
+denied(lambda: fcntl.ioctl(0,termios.FIOCLEX))
+try: os.write(0,b'lease write must fail')
+except OSError as error: assert error.errno==errno.EBADF
+else: raise AssertionError('Inherited packet lease permitted writes')
 for family in (socket.AF_UNIX,socket.AF_VSOCK,socket.AF_NETLINK):
     denied(lambda: socket.socket(family,socket.SOCK_STREAM))
 denied(lambda: socket.socketpair())

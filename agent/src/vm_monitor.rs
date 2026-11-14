@@ -163,7 +163,7 @@ pub fn launch() -> Result<(), Box<dyn std::error::Error>> {
     if jailer != rustix::process::geteuid().is_root() {
         return Err("Root VM monitors require the jailer".into());
     }
-    let lock = OpenOptions::new()
+    let created = OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
@@ -171,10 +171,18 @@ pub fn launch() -> Result<(), Box<dyn std::error::Error>> {
         .mode(0o600)
         .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
         .open(&plan.lock)?;
-    let meta = lock.metadata()?;
+    let meta = created.metadata()?;
     if !meta.is_file() || meta.uid() != rustix::process::geteuid().as_raw() || meta.mode() & 0o077 != 0 {
         return Err("Monitor lease must be a private owned regular file".into());
     }
+    // Creation needs a writable open, but the inherited descriptor grants no writes
+    // outside the monitor's filesystem boundary. Verify the reopened inode before locking.
+    let lock = OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK).open(&plan.lock)?;
+    let opened = lock.metadata()?;
+    if opened.dev() != meta.dev() || opened.ino() != meta.ino() {
+        return Err("Monitor lease changed while opening its read-only descriptor".into());
+    }
+    drop(created);
     rustix::fs::flock(&lock, rustix::fs::FlockOperation::NonBlockingLockExclusive)?;
     rustix::stdio::dup2_stdin(&lock)?;
     // The jailer deliberately preserves only stdio. The lease therefore lives on

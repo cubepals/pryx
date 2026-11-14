@@ -1155,3 +1155,5 @@
 - K25: keep packet configuration in its own owned directory beside the monitor boot directory and bind the packet socket at the monitor’s actual port prefix, retaining helper resources through child retirement even when its caller cancels or drops the boot.
 
 - K25: capture only transport phases and admitted connection counts in test-built forwarding helpers, with no request bytes or credentials; preserve one-shot exec submission and existing deadlines while diagnosing intermittent KVM output reads.
+
+- K25: inherit the monitor lease through a verified read-only reopen and deny stdin ioctls plus io_uring setup for every monitor role; FIOCLEX otherwise bypasses the fcntl-only close-on-exec guard and can release the live child’s lock, while synchronous pinned block I/O needs no ring.

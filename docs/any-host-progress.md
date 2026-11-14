@@ -3671,3 +3671,18 @@ job when publication is authorized. That job has not run in this task.
   rule takes precedence over starting another overlapping run at the thirty-minute
   checkpoint. Continue by reading that source’s outstanding results and PR 21 comments,
   then push these checkpoints together once their workflow inputs may advance.
+
+- K25 root-path investigation reproduces a lease-release bypass on the actual ordinary
+  launcher: FIOCLEX on stdin, followed by exec, releases the exclusive lock while the
+  child remains alive. Preserve that failed local observation. Reopen the lease
+  read-only after creation, verify device/inode identity before locking, reject stdin
+  ioctls and new io_uring setup in every role. Existing monitor and packet fixtures now
+  require actual kernel refusal plus EBADF on lease writes; their three real tests
+  pass in 0.09 s. Current full local Rust: 525 passes, unchanged IPv6 failure and 37
+  ignored; strict all-target Clippy passes. No new dependency/jobs/gates or material
+  CI time. Hosted fixed-lease and actual monitor proof remain pending.
+- These checkpoints remain local while waiting for normal CI on pushed source 080ebc1.
+  Its PR CI has reached queued, push CI remains pending, and Any-host is active. Root
+  jailer integration is still unavailable: writable disk ownership/recovery must remain
+  protected, and the base root service intentionally lacks the jailer’s capabilities.
+  Do not relax a spec or bypass the jailer to make that path appear available.

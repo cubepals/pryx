@@ -20,6 +20,10 @@ pub(super) fn enter(jailer: bool, packet_proxy: bool) -> Result<(), Box<dyn std:
     let mut rules = BTreeMap::new();
     let input = libc::STDIN_FILENO as u32;
     rules.insert(libc::SYS_close, vec![rule(0, SeccompCmpOp::Eq, input)]);
+    rules.insert(libc::SYS_ioctl, vec![rule(0, SeccompCmpOp::Eq, input)]);
+    // The host selects synchronous block I/O. An asynchronous close must not
+    // bypass the lease descriptor's syscall restrictions, including under the jailer.
+    rules.insert(libc::SYS_io_uring_setup, vec![]);
     rules.insert(libc::SYS_close_range, vec![rule(0, SeccompCmpOp::Eq, input)]);
     let overwrite_input =
         SeccompRule::new(vec![condition(1, SeccompCmpOp::Eq, input), condition(0, SeccompCmpOp::Ne, input)])?;
