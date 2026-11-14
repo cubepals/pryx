@@ -433,6 +433,7 @@ impl ContainerRuntime for DockerRuntime {
             *self.metadata_version.lock().unwrap() = Some(version.clone());
         }
         let mut result = RuntimeInfo {
+            own_kernel: false,
             podman,
             podman_version,
             container_policy_problem: (podman && native.is_none()).then(|| PODMAN_POLICY_PROBLEM.into()),

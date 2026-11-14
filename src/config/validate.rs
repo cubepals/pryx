@@ -34,6 +34,9 @@ impl Config {
     }
 
     fn validate_backend_selection(&self) -> Result<(), ConfigError> {
+        if self.runtime == super::RuntimeKind::Vm && self.store_lease.enabled {
+            return Err(ConfigError::Invalid("VM tier requires store leases off".into()));
+        }
         if self.vm.bundle.as_ref().is_some_and(|path| !path.is_absolute()) {
             return Err(ConfigError::Invalid("VM bundle descriptor requires an absolute host-installed path".into()));
         }

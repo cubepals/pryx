@@ -12,6 +12,7 @@ pub(super) async fn checks(config: &Config) -> Vec<Check> {
         ("container", "tier.container", RuntimeKind::Container),
         ("process", "tier.process", RuntimeKind::Process),
         ("wasm", "tier.wasm", RuntimeKind::Wasm),
+        ("vm", "tier.vm", RuntimeKind::Vm),
     ] {
         if config.runtime != RuntimeKind::Auto && config.runtime != explicit {
             checks.push(Check::warn(

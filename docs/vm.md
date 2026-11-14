@@ -2,8 +2,9 @@
 
 # Virtual machines
 
-The VM backend is under construction in K25 and is not registered for placement.
-Requests naming `vm` are refused; other tiers remain available. The
+The VM backend is under construction in K25. Eligible ordinary-user hosts with
+installed VM pins serve it in auto mode or with host configuration `runtime = "vm"`.
+Hosts missing its prerequisites refuse requests naming `vm`; other tiers remain available. The
 [progress record](any-host-progress.md) identifies the exact commits and CI evidence,
 including incomplete acceptance and measurements.
 
@@ -42,11 +43,12 @@ recovery works on a complete staged copy before replacing current data. A
 boot-scoped signed shutdown proves clean guest flushing. Daemon loss or an
 uncertain launch never invents that proof. Memory-preserving sleep is outside K25.
 
-Networking is still under acceptance. Disconnected guests receive no network
+Disconnected guests receive no network
 device or outbound helper. The ordinary-user implementation wraps the maintained
 packet helper and host-owned hostname gateways, with trusted guest rules installed
 before image code. Guest packet-vsock access is denied to workloads. Production
-packet-flow, root TAP/firewall and node/edge acceptance remain unfinished.
+packet flow passes on both CI images. Root TAP/firewall, the installed lifecycle and
+complete node/edge acceptance remain unfinished.
 
 The existing optional VM workflow runs the real KVM, registry, bundle, confinement
 and disk cases. Root staging and jailed boot use real root authority there.

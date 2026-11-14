@@ -7,15 +7,9 @@ mod support;
 use hyper::StatusCode;
 use pryxd::manager::Records;
 use pryxd::protocol::{CONFIRM_DELETE_HEADER, DataDisposition, EPOCH_HEADER, Guarantee};
-use pryxd::runtime::{
-    router::Router,
-    vm::{
-        bundle::Artifact,
-        instance::{Settings, VmRuntime},
-    },
-};
+use pryxd::runtime::vm::bundle::Artifact;
 use serde_json::{Value, json};
-use std::{fs, net::Ipv4Addr, path::PathBuf, sync::Arc, time::Duration};
+use std::{fs, net::Ipv4Addr, os::unix::fs::PermissionsExt, path::PathBuf};
 
 fn input(name: &str) -> PathBuf {
     std::env::var_os(name).unwrap_or_else(|| panic!("Stage {name}")).into()
@@ -82,32 +76,24 @@ async fn actual_vm_node_tls_admission_files_epochs_and_snapshot_restore() {
     let _ = rustls::crypto::ring::default_provider().install_default();
     let root = tempfile::tempdir().unwrap();
     let (artifact, distribution) = archive().await;
+    let descriptor = root.path().join("vm-bundle.json");
+    fs::write(&descriptor, serde_json::to_vec(&artifact).unwrap()).unwrap();
+    fs::set_permissions(&descriptor, fs::Permissions::from_mode(0o444)).unwrap();
     let agent = input("PRYX_VM_HOST_LAUNCHER");
     let uid = rustix::process::geteuid().as_raw().checked_add(1).unwrap();
     let extra = format!(
-        "runtime = 'auto'\n[workloads]\nagent_binary = '{}'\nuser = '{uid}:{uid}'\nallowed_images = ['docker.io/library/alpine@', 'docker.io/library/debian@']\ndefault_spare_ports = 0\n",
+        "runtime = 'vm'\n[vm]\nbundle = '{}'\n[workloads]\nagent_binary = '{}'\nuser = '{uid}:{uid}'\nallowed_images = ['docker.io/library/alpine@', 'docker.io/library/debian@']\ndefault_spare_ports = 0\n",
+        descriptor.display(),
         agent.display()
     );
     let config = support::config(root.path(), &extra);
     fs::create_dir_all(&config.state_dir).unwrap();
-    let runtime = Arc::new(
-        VmRuntime::new(
-            &config.state_dir,
-            Settings {
-                artifact,
-                ingress_connections: 8,
-                free_floor_bytes: 0,
-                image_timeout: Duration::from_secs(120),
-                monitor_owner: None,
-            },
-        )
-        .await
-        .unwrap(),
-    );
-    let router = Arc::new(Router::new(vec![runtime]).unwrap());
+    let runtime = pryxd::runtime::configured::create(&config).await.unwrap();
+    assert_eq!(runtime.isolation(), "vm");
+    automatic(&config).await;
     let manager = support::manager_probed(
         root.path(),
-        router,
+        runtime,
         &extra,
         pryxd::ports::bind_probe(vec![Ipv4Addr::LOCALHOST.into()]),
     );
@@ -119,6 +105,9 @@ async fn actual_vm_node_tls_admission_files_epochs_and_snapshot_restore() {
     let health = node.call("GET", "/v1/health", None, StatusCode::OK).await;
     assert_eq!(health["status"], "ok");
     assert!(health["features"].as_array().unwrap().contains(&json!("tier-vm")));
+    for guarantee in [Guarantee::OwnKernel, Guarantee::MemoryLimit, Guarantee::CpuLimit] {
+        assert!(health["features"].as_array().unwrap().contains(&serde_json::to_value(guarantee).unwrap()));
+    }
     assert!(!health["features"].as_array().unwrap().contains(&serde_json::to_value(Guarantee::MemorySleep).unwrap()));
     let images: Vec<Value> = serde_json::from_str(include_str!("../templates/vm-tools/image-inputs.json")).unwrap();
     for (index, image) in images.iter().enumerate() {
@@ -128,6 +117,19 @@ async fn actual_vm_node_tls_admission_files_epochs_and_snapshot_restore() {
     node.server.task.await.unwrap();
     drop(manager);
     distribution.abort();
+}
+
+async fn automatic(config: &pryxd::config::Config) {
+    let mut automatic = config.clone();
+    automatic.runtime = pryxd::config::RuntimeKind::Auto;
+    automatic.state_dir = config.state_dir.join("automatic");
+    fs::create_dir_all(&automatic.state_dir).unwrap();
+    automatic.docker.enabled = false;
+    automatic.wasm.distribution = automatic.state_dir.join("absent-wasm");
+    let runtime = pryxd::runtime::configured::create(&automatic).await.unwrap();
+    assert!(runtime.multi_tier());
+    assert!(runtime.backend("vm").is_some());
+    assert_eq!(runtime.isolation(), "process", "The existing default remains first");
 }
 
 async fn lifecycle(node: &Node, index: usize, image: &str) {

@@ -19,7 +19,7 @@
 //! - `fake.rs`: an in-memory runtime for tests, with the Docker behaviour pryxd depends on.
 //! - `wasm.rs`: virtual agentOS VMs through a separately verified sidecar.
 //! - `process.rs`: namespace-free process tier and private runtime journal.
-//! - `vm.rs`: verified VM image inputs; compute remains unavailable until backend acceptance.
+//! - `vm.rs`: verified cold-boot VM inputs and compute on eligible KVM hosts.
 
 mod agent_metadata;
 pub(crate) use agent_metadata::{process_ssh_supported, protected as protected_agent};
@@ -252,6 +252,7 @@ pub struct RuntimeInfo {
     pub(crate) memory_limit: bool,
     pub(crate) cpu_limit: bool,
     pub(crate) pids_limit: bool,
+    pub(crate) own_kernel: bool,
     pub(crate) version: Option<String>,
     pub(crate) api_version: Option<String>,
     pub(crate) cgroup_version: Option<String>,

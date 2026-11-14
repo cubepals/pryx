@@ -3,15 +3,16 @@
 # Sandbox tiers
 
 A node with `runtime = "auto"` serves every backend its measured host capabilities permit.
-Container, process and Wasm workloads can coexist under one capacity and reservation ledger.
+Container, VM, process and Wasm workloads can coexist under one capacity and reservation ledger.
 Each workload keeps its chosen tier for its lifetime and reports that tier's guarantees.
 A named unavailable tier is refused; it is never substituted.
 
-For an unnamed request, control chooses container, then process, then Wasm among healthy nodes
-that meet `require` and accept the supplied source: images need containers, image-free requests
+For an unnamed request, control chooses container, then VM, then process, then Wasm among healthy nodes
+that meet `require` and accept the supplied source: images need containers or VMs, image-free requests
 use process or Wasm, and package requests need Wasm. Snapshots and templates retain their saved
-tier. VM joins that order between container and process when available in K25.
-The [VM backend](vm.md) remains unregistered while its acceptance is incomplete.
+tier. The [VM backend](vm.md) needs working KVM, ordinary-user monitor confinement and
+installed immutable bundle pins. Root VM service authority and complete K25 acceptance
+remain unfinished; production measurements are not yet available.
 `PRYX_DEFAULT_ISOLATION=process` fixes one tier; a comma-separated list changes the priority.
 Local installations retain this preference across user-manager restarts and upgrades.
 The image and new local installations use auto mode. Without an engine, the usual first choice

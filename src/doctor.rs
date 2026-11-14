@@ -177,6 +177,7 @@ pub async fn run(options: &Options) -> Report {
                 .gating(),
             });
         }
+        (crate::config::RuntimeKind::Vm, _) => (),
         (_, Some(runtime)) => {
             checks.extend(docker::checks(runtime.as_ref(), &config.docker.network, daemon_json).await)
         }

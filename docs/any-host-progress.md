@@ -3978,3 +3978,28 @@ job when publication is authorized. That job has not run in this task.
   assertions remain. No /var/run namespace mount, route, IPAM or firewall is introduced.
   The unchanged nineteen-module notice inventory verifies, both programs compile, go vet
   and module verification pass; actual root TAP proof still awaits CI. Cost unchanged.
+- Source b303a67 VM run 43616042524/job 132511206720 proves the actual mTLS node
+  acceptance on both images in 32.13 s: unchanged ensure, epoch fencing, authenticated
+  exec, running/stopped/retained files, cold restart, snapshot/restore and confirmed
+  deletion. Summary: checks/measurements/k25/node-api-b303a67.json. Its only failed
+  step is the older same-namespace CNI fixture; the later namespace fix is not proved
+  by this source. Scanner remains eighteen.
+- Wire the ordinary VM into host configuration and auto construction. Eligibility requires
+  actual KVM VM creation, enforced Landlock, protected agent and immutable descriptor;
+  no artifact is downloaded by discovery. Root selection remains off with its named
+  service/TAP/firewall reason. The legacy default backend stays first; control places
+  eligible image-backed requests on VM after container. Existing deployments retain
+  their saved preference. Doctors include VM and explain off states without requiring
+  it for pryx startup. Announce typed own-kernel and VM size enforcement only from the
+  responding backend; memory-sleep stays off. Signed installation and root remain incomplete.
+- Strengthen the existing real-node fixture to use the actual configuration factory and
+  immutable descriptor, verify automatic discovery beside process without changing its
+  legacy default, and assert own-kernel/memory/CPU announcements. Full pinned Bun check
+  passes (438 tests, one existing skip, 8,429 assertions). Full Rust has 532 passes,
+  41 ignored and only the unchanged host IPv6 fixture failure; both bootstrap cases
+  pass in this execution without removing their earlier unexplained failures.
+  Strict all-target Clippy and explicit daemon/integration structure diagnostics pass;
+  existing agent-side complexity findings remain in its baseline. Latest standalone and
+  configured probe/doctor checks pass; the real local CLI reports VM off for missing
+  /dev/kvm while process stays on. No local KVM claim. No added job or material CI cost;
+  hosted factory/placement acceptance remains pending.

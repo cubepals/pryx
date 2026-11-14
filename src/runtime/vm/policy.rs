@@ -14,6 +14,28 @@ use std::{
 // A host-policy descriptor is small metadata; this is its own read bound, not an archive limit.
 const MAX_DESCRIPTOR_BYTES: u64 = 16 * 1024;
 
+pub(crate) fn settings(config: &crate::config::Config) -> Result<super::instance::Settings, RuntimeError> {
+    super::instance::VmRuntime::kvm()?;
+    if rustix::process::geteuid().is_root() {
+        return Err(RuntimeError::Unavailable(
+            "Root VM service authority and TAP/firewall integration are not available".into(),
+        ));
+    }
+    if !pryx_agent::process_capabilities::probe().filesystem {
+        return Err(RuntimeError::Unavailable(pryx_agent::process_capabilities::FILESYSTEM_UNAVAILABLE.into()));
+    }
+    if crate::runtime::protected_agent(&config.workloads.agent_binary, true).is_none() {
+        return Err(RuntimeError::Unavailable("VM requires a protected host agent executable".into()));
+    }
+    Ok(super::instance::Settings {
+        artifact: descriptor(&config.vm)?,
+        ingress_connections: super::instance::INGRESS_CONNECTIONS,
+        free_floor_bytes: config.capacity.min_free_disk_mb.saturating_mul(1024 * 1024),
+        image_timeout: std::time::Duration::from_secs(config.docker.pull_timeout_seconds),
+        monitor_owner: None,
+    })
+}
+
 pub fn descriptor(config: &VmConfig) -> Result<Artifact, RuntimeError> {
     let path = config.bundle.as_ref().ok_or_else(|| {
         RuntimeError::Unavailable("The signed host installation has no pinned VM bundle descriptor".into())

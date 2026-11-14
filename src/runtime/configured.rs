@@ -9,7 +9,9 @@ pub async fn create(config: &Config) -> anyhow::Result<Arc<dyn ContainerRuntime>
     if config.runtime == RuntimeKind::Auto {
         return auto(config).await;
     }
-    let runtime: Arc<dyn ContainerRuntime> = if config.runtime == RuntimeKind::Wasm {
+    let runtime: Arc<dyn ContainerRuntime> = if config.runtime == RuntimeKind::Vm {
+        Arc::new(super::vm::instance::VmRuntime::new(&config.state_dir, super::vm::policy::settings(config)?).await?)
+    } else if config.runtime == RuntimeKind::Wasm {
         Arc::new(crate::runtime::wasm::WasmRuntime::new(&config.state_dir, &config.wasm).await?)
     } else if config.runtime == RuntimeKind::Process {
         Arc::new(crate::runtime::process::ProcessRuntime::new(&config.state_dir, config.process.clone())?)
@@ -58,6 +60,13 @@ pub async fn availability(config: &Config) -> std::collections::BTreeMap<&'stati
     std::collections::BTreeMap::from([
         ("container", container),
         ("process", (process.state != State::On).then_some(process.evidence)),
+        ("vm", {
+            if matches!(config.runtime, RuntimeKind::Auto | RuntimeKind::Vm) {
+                super::vm::policy::settings(config).err().map(|problem| problem.to_string())
+            } else {
+                Some("configuration selects another tier".into())
+            }
+        }),
         ("wasm", {
             if matches!(config.runtime, RuntimeKind::Auto | RuntimeKind::Wasm) {
                 let wasm = wasm_available(&config.wasm);
@@ -89,7 +98,7 @@ async fn auto(config: &Config) -> anyhow::Result<Arc<dyn ContainerRuntime>> {
     }
     let mut backends = Vec::new();
     let mut reasons = Vec::new();
-    for tier in ["container", "process", "wasm"] {
+    for tier in ["container", "process", "wasm", "vm"] {
         if let Some(reason) = &available[tier] {
             reasons.push(format!("{tier}: {reason}"));
             continue;
@@ -98,6 +107,7 @@ async fn auto(config: &Config) -> anyhow::Result<Arc<dyn ContainerRuntime>> {
         single.runtime = match tier {
             "container" => RuntimeKind::Container,
             "process" => RuntimeKind::Process,
+            "vm" => RuntimeKind::Vm,
             _ => RuntimeKind::Wasm,
         };
         // Boxing closes only the construction recursion; workload dispatch remains the router.

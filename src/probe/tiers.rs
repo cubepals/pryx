@@ -28,9 +28,19 @@ pub(super) fn read(report: &mut Report) {
         config.distribution = path.into();
     }
     let wasm = crate::runtime::configured::wasm_available(&config);
+    let vm = report.capabilities.get("kvm").filter(|capability| capability.state != State::On).cloned().unwrap_or_else(
+        || {
+            Capability::new(
+                State::Off,
+                "VM requires a configured immutable host bundle descriptor",
+                "Run pryx doctor with the installed node configuration",
+            )
+        },
+    );
     report.tiers = std::collections::BTreeMap::from([
         ("container".into(), container),
         ("process".into(), process),
         ("wasm".into(), wasm),
+        (crate::protocol::Isolation::Vm.as_str().into(), vm),
     ]);
 }

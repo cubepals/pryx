@@ -17,6 +17,9 @@ impl Manager {
         if self.runtime.is_wasm() {
             features.extend(["wasm-tier".into(), "wasm-packages".into()]);
         }
+        if self.runtime.isolation() == crate::protocol::Isolation::Vm.as_str() {
+            features.push("vm-tier".into());
+        }
         if self.runtime.is_process() {
             if pryx_agent::process_capabilities::probe().network {
                 features.push("process-network-landlock".into());
@@ -183,14 +186,15 @@ impl Manager {
         let tier_info = self.runtime.tier_info(tier);
         let info = if self.runtime.multi_tier() { tier_info.as_ref() } else { info.as_ref() };
         let container = tier == "container";
+        let vm = tier == crate::protocol::Isolation::Vm.as_str() && info.as_ref().is_some_and(|info| info.own_kernel);
         G::ALL
             .into_iter()
             .map(|guarantee| {
                 let on = match guarantee {
                     G::SeparateUsers => tier == "process" && probe.on("separate-users"),
-                    G::MemoryLimit => container && info.as_ref().is_some_and(|info| info.memory_limit),
-                    G::CpuLimit => container && info.as_ref().is_some_and(|info| info.cpu_limit),
-                    G::PrivateNetwork | G::PrivatePids => container,
+                    G::MemoryLimit => (container || vm) && info.as_ref().is_some_and(|info| info.memory_limit),
+                    G::CpuLimit => (container || vm) && info.as_ref().is_some_and(|info| info.cpu_limit),
+                    G::PrivateNetwork | G::PrivatePids => container || vm,
                     G::HostFirewall => {
                         container && info.as_ref().is_some_and(|info| !info.rootless) && probe.on("host-firewall")
                     }
@@ -202,7 +206,7 @@ impl Manager {
                         (container && self.config.docker.native_tools_seccomp.is_some() && probe.on("user-namespaces"))
                             || (tier == "process" && probe.on(pryx_agent::process_tool_policy::BROWSER_CAPABILITY))
                     }
-                    G::OwnKernel => false,
+                    G::OwnKernel => vm,
                 };
                 (guarantee, on)
             })

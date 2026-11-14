@@ -1197,3 +1197,7 @@
 - K25: capture the actual child exit and the same bounded redacted stderr when the existing bootstrap spare-connect assertion fails, preserving its single connect, addresses and original success requirement; focused success does not erase the full-suite failure.
 
 - K25: give CNI its required distinct network namespace through pinned netns/ns libraries, retain its parent descriptor through one ADD/open/DEL sequence, and let kernel descriptor retirement bound failed partial setup; observe target links inside that namespace and keep neighbour checks in the original namespace. No named global namespace, routing or host policy is changed.
+
+- K25: register the ordinary-user VM backend only with actual KVM creation, enforced monitor Landlock, a protected host agent and an immutable installed descriptor; lazy acquisition still verifies the whole runtime before execution. Root factory selection retains its named service/TAP refusal, while auto keeps its existing legacy backend first and control prefers image-capable VM after container.
+
+- K25: carry own-kernel as a typed internal runtime observation (false for Docker), and announce VM memory/CPU/private-kernel guarantees only from that responding VM backend; memory-sleep remains off. Trust a protected root-owned installed agent for ordinary VM calls as for process calls, with every ancestor still checked.

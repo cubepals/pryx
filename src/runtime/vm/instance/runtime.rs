@@ -303,6 +303,7 @@ impl ContainerRuntime for VmRuntime {
             memory_limit: true,
             cpu_limit: true,
             pids_limit: true,
+            own_kernel: true,
             version: Some(env!("CARGO_PKG_VERSION").into()),
             storage_driver: Some("vm".into()),
             security_options: if self.state.settings.monitor_owner.is_some() {

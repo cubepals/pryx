@@ -17,7 +17,7 @@
 //! - `serial.rs`: bounded monitor byte capture, drained before proof validation.
 //! - `transport.rs`: bounded one-shot SDK requests over private pipes.
 //! - `forward.rs`: owned private-address streaming forwarding processes.
-//! - `instance.rs`: cold-boot runtime under construction, outside automatic tier selection.
+//! - `instance.rs`: cold-boot runtime, gated by host KVM, confinement and installed pins.
 pub mod bundle;
 pub mod disk;
 pub mod filesystems;

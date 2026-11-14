@@ -23,7 +23,10 @@ impl Manager {
         if runtime.is_wasm() {
             return std::env::current_exe().ok();
         }
-        crate::runtime::protected_agent(&self.config.workloads.agent_binary, runtime.is_process())
+        crate::runtime::protected_agent(
+            &self.config.workloads.agent_binary,
+            runtime.is_process() || runtime.isolation() == crate::protocol::Isolation::Vm.as_str(),
+        )
     }
 
     pub(super) fn requested_ports(&self, spec: &WorkloadSpec, runtime: &dyn ContainerRuntime) -> Vec<PortSpec> {

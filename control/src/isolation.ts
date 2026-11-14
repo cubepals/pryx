@@ -8,8 +8,7 @@ export const CPU_LIMIT_PROBLEM = nodeSchema['x-pryx-resources'].cpuLimitProblem
 export type Isolation = components['schemas']['Isolation']
 export const ISOLATIONS = nodeReads.components.schemas.Isolation.enum as [Isolation, ...Isolation[]]
 export type IsolationDefault = Isolation | readonly Isolation[]
-// The VM priority is inserted when that backend is available (K25).
-export const DEFAULT_ISOLATION_ORDER: readonly Isolation[] = ['container', 'process', 'wasm']
+export const DEFAULT_ISOLATION_ORDER: readonly Isolation[] = ['container', 'vm', 'process', 'wasm']
 export const isolationOrder = (preference: IsolationDefault) =>
   typeof preference === 'string' ? [preference] : preference
 export function nodeIsolation(features: readonly string[]): Isolation {

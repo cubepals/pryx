@@ -11,6 +11,7 @@ pub enum RuntimeKind {
     Auto,
     Process,
     Wasm,
+    Vm,
 }
 
 #[derive(Clone, Debug, Deserialize)]

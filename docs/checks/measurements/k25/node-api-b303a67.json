@@ -1,0 +1,11 @@
+{
+  "source": "b303a67390efe97ac964cbc12759d905ea87644b",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43616042524",
+  "job": 132511206720,
+  "result": "node API success; workflow fails only the older CNI fixture",
+  "ran": "Real VM backend behind the manager/router and mutual-TLS node API on both immutable Alpine and Debian image inputs; unchanged ensure, stale epochs, authenticated exec, running/stopped/retained files, memory-suspend refusal, cold restart, snapshot/restore and confirmed deletion",
+  "node_api_seconds": 32.13,
+  "images": 2,
+  "unproved": "Later host-configured backend construction and automatic discovery; signed installed host relocation, actual edge, root TAP/firewall/authority and thirty production measurements",
+  "raw_output": "CI artifacts only"
+}

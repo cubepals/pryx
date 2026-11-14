@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
-//! Cold-boot VM lifecycle behind the existing runtime seam. This backend is deliberately
-//! unregistered until node data APIs, root policy and acceptance are complete. Host-owned
-//! pins, one lifetime lease per sandbox and owned children prevent a second writable guest.
+//! Cold-boot VM lifecycle behind the existing runtime seam, selected by verified host
+//! prerequisites. Root service integration stays unavailable. Host-owned pins, one lifetime
+//! lease per sandbox and owned children prevent a second writable guest.
 //!
 //! Parts (`instance/`):
 //! - `configuration.rs`: generated SDK monitor configuration and drive identities.
@@ -76,6 +76,8 @@ pub struct Settings {
     pub image_timeout: Duration,
     pub monitor_owner: Option<(u32, u32)>,
 }
+// The runtime owns this bounded host ingress budget; workloads cannot increase it.
+pub(super) const INGRESS_CONNECTIONS: u16 = 64;
 #[derive(Clone)]
 pub struct VmRuntime {
     state: Arc<State>,
@@ -222,7 +224,7 @@ impl VmRuntime {
             }),
         })
     }
-    fn kvm() -> Result<(), RuntimeError> {
+    pub(crate) fn kvm() -> Result<(), RuntimeError> {
         #[cfg(target_arch = "x86_64")]
         {
             kvm_ioctls::Kvm::new()

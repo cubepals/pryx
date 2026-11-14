@@ -106,6 +106,7 @@ pub async fn for_config(config: &crate::config::Config) -> Report {
         crate::config::RuntimeKind::Container => Some("container"),
         crate::config::RuntimeKind::Process => Some("process"),
         crate::config::RuntimeKind::Wasm => Some("wasm"),
+        crate::config::RuntimeKind::Vm => Some("vm"),
     };
     for (tier, reason) in available {
         let capability = if let Some(selected) = selected.filter(|selected| *selected != tier) {
