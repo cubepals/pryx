@@ -6,17 +6,18 @@
 //! Parts (`instance/`):
 //! - `configuration.rs`: generated SDK monitor configuration and drive identities.
 //! - `guest.rs`: private guest arguments and bootstrap assembly.
-//! - `monitor.rs`: admitted resources and the host-owned monitor confinement plan.
 //! - `launch.rs`: verified inputs, generated monitor configuration and guest bootstrap.
 //! - `journal.rs`: private durable specifications and conservative restart adoption.
 //! - `services.rs`: host-owned active and retained-disk file sessions.
 //! - `maintenance.rs`: leased file-only guests for stopped disks.
 //! - `agent.rs`: authenticated agent calls and one-shot compatibility exec.
+//! - `monitor.rs`: host-selected ordinary/jailer launch paths and retired-disk recovery.
 //! - `logs.rs`: bounded guest entrypoint replay and live output.
 //! - `runtime.rs`: runtime verbs, observations and bounded event polling.
 //! - `diagnostics.rs`: bounded credential-redacted serial CI artifacts, in test builds only.
 //! - `tests.rs`: actual KVM lifecycle acceptance through the runtime seam.
 //! - `network_acceptance.rs`: real workload packet flow and immutable egress attacks.
+//! - `root_lifecycle.rs`: real root runtime, file maintenance and daemon-loss recovery.
 //! - `root_acceptance.rs`: real jailed boots and original-disk ownership recovery.
 mod agent;
 mod configuration;
@@ -32,6 +33,8 @@ mod monitor;
 mod network_acceptance;
 #[cfg(test)]
 mod root_acceptance;
+#[cfg(test)]
+mod root_lifecycle;
 mod runtime;
 mod services;
 #[cfg(test)]
@@ -71,6 +74,7 @@ pub struct Settings {
     pub ingress_connections: u16,
     pub free_floor_bytes: u64,
     pub image_timeout: Duration,
+    pub monitor_owner: Option<(u32, u32)>,
 }
 #[derive(Clone)]
 pub struct VmRuntime {
@@ -102,6 +106,7 @@ const UNKNOWN_EXIT_CODE: i64 = -1;
 
 struct Live {
     monitor: Machine,
+    jail: Option<super::jail::Jail>,
     forwarder: Forwarder,
     network: Option<super::network::Network>,
     _directory: tempfile::TempDir,
@@ -171,11 +176,7 @@ fn lock(path: &Path) -> Result<File, RuntimeError> {
 }
 impl VmRuntime {
     pub async fn new(state: &Path, settings: Settings) -> Result<Self, RuntimeError> {
-        if rustix::process::geteuid().is_root() {
-            return Err(RuntimeError::Unavailable(
-                "Root VM jailer and firewall integration is not available in this checkpoint".into(),
-            ));
-        }
+        monitor::owner(settings.monitor_owner)?;
         if settings.ingress_connections == 0 {
             return Err(error("VM ingress concurrency must be positive"));
         }
@@ -183,7 +184,7 @@ impl VmRuntime {
         let root = state.join("vm-runtime");
         directory(&root)?;
         let owner = lock(&root.join("owner.lock"))?;
-        for name in ["leases", "boots", "cache", "downloads", "images", "entries"] {
+        for name in ["leases", "boots", "cache", "downloads", "images", "entries", "jails"] {
             directory(&root.join(name))?;
         }
         // A predecessor's owned monitor must actually exit before any disk is opened.
@@ -204,6 +205,9 @@ impl VmRuntime {
                     Err(problem) => return Err(problem),
                 }
             }
+        }
+        if settings.monitor_owner.is_some() {
+            super::jail::Jail::recover_all(&root.join("jails"))?;
         }
         let entries = journal::load(&root)?;
         Ok(Self {

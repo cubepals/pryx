@@ -20,7 +20,7 @@ impl VmRuntime {
         let transition = self.transition(&entry.id);
         let _transition = transition.lock().await;
         let live = self.state.live.lock().unwrap().get(&entry.id).cloned();
-        let Some(live) = live else { return Ok(()) };
+        let Some(live) = live else { return self.recover_disk(&entry.spec.data_dir) };
         let mut live = live.lock().await;
         let deadline = Instant::now() + grace;
         let already_exited = live.monitor.exited().map_err(error)?.is_some();
@@ -88,6 +88,7 @@ impl VmRuntime {
             .map_err(|_| RuntimeError::Timeout("VM diagnostics did not finish after monitor exit".into()))
             .and_then(|result| result.map_err(error));
         let code = if forced { Ok(crate::runtime::exit_by(libc::SIGKILL)) } else { verified_exit(&entry, &live) };
+        live.retire_jail()?;
         drop(live);
         self.state.live.lock().unwrap().remove(&entry.id);
         entry.code = code.as_ref().copied().unwrap_or(UNKNOWN_EXIT_CODE);
@@ -136,6 +137,7 @@ impl VmRuntime {
                     .and_then(|_| verified_exit(&entry, &live));
                 entry.code = result.as_ref().copied().unwrap_or(UNKNOWN_EXIT_CODE);
                 entry.finished = Some(crate::clock::now());
+                live.retire_jail()?;
                 drop(live);
                 self.state.live.lock().unwrap().remove(&entry.id);
                 self.save_entry(entry.clone())?;
@@ -252,6 +254,7 @@ impl ContainerRuntime for VmRuntime {
             .root
             .join("leases")
             .join(format!("{}.lock", super::super::filesystems::sha256(sandbox.as_bytes()).map_err(error)?));
+        self.recover_disk(data)?;
         let path = data.join(super::super::disk::FILE);
         let exists = match fs::symlink_metadata(&path) {
             Ok(meta) => Some(meta.len()),
@@ -293,18 +296,27 @@ impl ContainerRuntime for VmRuntime {
     async fn info(&self) -> Result<RuntimeInfo, RuntimeError> {
         Self::kvm()?;
         Ok(RuntimeInfo {
-            rootless: true,
+            rootless: self.state.settings.monitor_owner.is_none(),
             memory_limit: true,
             cpu_limit: true,
             pids_limit: true,
             version: Some(env!("CARGO_PKG_VERSION").into()),
             storage_driver: Some("vm".into()),
-            security_options: vec!["own-kernel".into(), "landlock".into(), "seccomp".into()],
+            security_options: if self.state.settings.monitor_owner.is_some() {
+                vec!["own-kernel".into(), "jailer".into(), "seccomp".into()]
+            } else {
+                vec!["own-kernel".into(), "landlock".into(), "seccomp".into()]
+            },
             ..Default::default()
         })
     }
     async fn resource_limits(&self) -> Result<Option<limits::ResourceLimits>, RuntimeError> {
-        Ok(Some(limits::ResourceLimits { memory: true, cpu: true, pids: true, rootless: true }))
+        Ok(Some(limits::ResourceLimits {
+            memory: true,
+            cpu: true,
+            pids: true,
+            rootless: self.state.settings.monitor_owner.is_none(),
+        }))
     }
     async fn ensure_network(&self, _: &str, _: &BTreeMap<String, String>) -> Result<NetworkReport, RuntimeError> {
         Ok(NetworkReport { isolated: true })

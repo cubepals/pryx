@@ -20,6 +20,8 @@ fn ordinary_user_is_refused_before_root_jail_mutation() {
         readonly: &BTreeMap::new(),
     });
     assert!(matches!(result, Err(RuntimeError::Unavailable(_))));
+    assert!(matches!(Jail::recover_all(&base), Err(RuntimeError::Unavailable(_))));
+    assert!(matches!(Jail::recover_disk(&base, &root.path().join(disk::FILE)), Err(RuntimeError::Unavailable(_))));
     assert!(!base.exists());
 }
 
@@ -65,6 +67,9 @@ fn actual_root_mounts_retire_after_leases_and_recover_without_a_second_disk() {
     let held = lease(&lifetime).unwrap();
     assert!(matches!(jail.add_readonly(Path::new("configuration"), &configuration), Err(RuntimeError::Conflict(_))));
     assert!(matches!(jail.retire(), Err(RuntimeError::Conflict(_))));
+    assert!(matches!(Jail::recover_all(&base), Err(RuntimeError::Conflict(_))));
+    assert!(matches!(Jail::recover_disk(&base, &disk), Err(RuntimeError::Conflict(_))));
+    Jail::recover_disk(&base, &data.join("another-disk")).unwrap();
     assert_eq!(fs::metadata(&disk).unwrap().uid(), owner.0);
     drop(held);
     jail.add_readonly(Path::new("configuration"), &configuration).unwrap();

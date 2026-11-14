@@ -1179,3 +1179,5 @@
 - K25: emit one production network result after the unchanged packet-syscall checks, retaining the standalone policy probe's own result; verify the jailer's pivoted root by its device/inode and a distinct mount namespace because procfs can render that root as a namespace-relative slash (the [pinned jailer](https://github.com/firecracker-microvm/firecracker/blob/v1.18.0/src/jailer/src/chroot.rs) unshares mounts, bind-mounts its root and pivots into it).
 
 - K25: add vm to the existing optional isolation enum and generated public/SDK contracts, take control's spelling list from the Rust schema, and require the node's matching tier announcement before sending a VM spec; keep production host selection refused and its default order unchanged until compute acceptance.
+
+- K25: prepare ordinary and root monitors through one acyclic policy module; root uses the unchanged jailer and fixed host-selected non-root IDs, retains mounts until actual monitor lease retirement, and recovers published records before adoption or disk access. Keep root TAP/firewall and service authority refused independently; add no capability to the existing daemon unit.

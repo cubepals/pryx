@@ -1,10 +1,144 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
-//! Admitted monitor resources and the host-owned ordinary confinement plan. This module
-//! does not acquire images, launch compute, select a tier or change host authority.
+//! Prepare ordinary or jailed monitor paths from host policy and verified backing files.
+//! Disk ownership recovery requires actual lease retirement; this never grants host authority,
+//! implements root networking, registers placement or accepts workload-selected monitor IDs.
 use super::*;
 use crate::runtime::Proto;
+use crate::runtime::vm::{disk, jail};
 use pryx_agent::vm_monitor::{Plan, Role};
+use std::os::unix::fs::PermissionsExt;
+use tokio::time::Instant;
+
+pub(super) struct Launch {
+    pub channel: PathBuf,
+    pub configuration: configuration::Configuration,
+    pub plan: Plan,
+    pub jail: Option<jail::Jail>,
+}
+
+pub(super) fn owner(owner: Option<(u32, u32)>) -> Result<(), RuntimeError> {
+    match (rustix::process::geteuid().is_root(), owner) {
+        (false, None) => Ok(()),
+        (true, Some((uid, gid)))
+            if uid != rustix::process::Uid::ROOT.as_raw()
+                && gid != rustix::process::Gid::ROOT.as_raw()
+                && uid != u32::MAX
+                && gid != u32::MAX =>
+        {
+            Ok(())
+        }
+        _ => Err(RuntimeError::Unavailable(
+            "Root VM launch requires fixed non-root host monitor IDs; ordinary users cannot select them".into(),
+        )),
+    }
+}
+
+impl VmRuntime {
+    pub(super) fn recover_disk(&self, data: &Path) -> Result<(), RuntimeError> {
+        if self.state.settings.monitor_owner.is_some() {
+            jail::Jail::recover_disk(&self.state.root.join("jails"), &data.join(disk::FILE))?;
+        }
+        Ok(())
+    }
+
+    pub(super) async fn prepare_monitor(
+        &self,
+        bundle: &Bundle,
+        entry: &Entry,
+        image: &Prepared,
+        directory: &Path,
+        disk: &Path,
+        deadline: Instant,
+    ) -> Result<Launch, RuntimeError> {
+        let (memory, cpus, _, _) = resources(&entry.spec)?;
+        let lease = self.lease(entry)?;
+        let output = directory.join("monitor.json");
+        if let Some(owner) = self.state.settings.monitor_owner {
+            if !entry.spec.internal_network || entry.spec.egress.is_some() {
+                return Err(RuntimeError::Unavailable("Root VM TAP/firewall integration is not available".into()));
+            }
+            let id = entry.id.strip_prefix("vm-").ok_or_else(|| error("Invalid root VM identity"))?;
+            let monitor = bundle.root().join("bin/firecracker");
+            let base = self.state.root.join("jails");
+            let mut readonly = BTreeMap::from([
+                (PathBuf::from("kernel/vmlinux"), bundle.root().join("kernel/vmlinux")),
+                (PathBuf::from("bootstrap/bootstrap.erofs"), bundle.root().join("bootstrap/bootstrap.erofs")),
+            ]);
+            for (index, layer) in image.layers.iter().enumerate() {
+                readonly.insert(PathBuf::from(format!("layers/{index}")), layer.clone());
+            }
+            let mut jail = jail::Jail::prepare(jail::Request {
+                base: &base,
+                id,
+                monitor: &monitor,
+                disk,
+                lease: &lease,
+                owner,
+                readonly: &readonly,
+            })?;
+            let root = jail.root().to_owned();
+            let staged = Prepared {
+                digest: image.digest.clone(),
+                configuration: image.configuration.clone(),
+                layers: image
+                    .layers
+                    .iter()
+                    .enumerate()
+                    .map(|(index, _)| root.join(format!("layers/{index}")))
+                    .collect(),
+            };
+            let channel = root.join("vsock");
+            let configuration = configuration::configure(
+                bundle,
+                &staged,
+                &root.join(disk::FILE),
+                &channel,
+                configuration::Destination { output: &output, jail: Some(&root) },
+                (memory, cpus),
+                deadline,
+            )
+            .await?;
+            fs::set_permissions(&output, fs::Permissions::from_mode(0o444)).map_err(error)?;
+            jail.add_readonly(Path::new("monitor.json"), &output)?;
+            let plan = Plan {
+                program: bundle.root().join("bin/jailer"),
+                arguments: vec!["--api-sock".into(), "/api".into(), "--config-file".into(), "/monitor.json".into()],
+                directory: directory.into(),
+                lock: lease,
+                parent: std::process::id(),
+                read: Vec::new(),
+                write: Vec::new(),
+                role: Role::Jailer { uid: owner.0, gid: owner.1, id: id.into(), base, monitor },
+            };
+            Ok(Launch { channel, configuration, plan, jail: Some(jail) })
+        } else {
+            let channel = directory.join("vsock");
+            let configuration = configuration::configure(
+                bundle,
+                image,
+                disk,
+                &channel,
+                configuration::Destination { output: &output, jail: None },
+                (memory, cpus),
+                deadline,
+            )
+            .await?;
+            let plan =
+                plan(bundle, image.layers.clone(), disk.into(), directory, lease, &directory.join("api"), &output);
+            Ok(Launch { channel, configuration, plan, jail: None })
+        }
+    }
+}
+
+impl Live {
+    pub(super) fn retire_jail(&mut self) -> Result<(), RuntimeError> {
+        if let Some(jail) = &mut self.jail {
+            jail.retire()?;
+        }
+        Ok(())
+    }
+}
 
 // Docker Engine HostConfig.NanoCpus uses billionths of a CPU; Bollard exports no conversion constant.
 const NANO_CPU: i64 = 1_000_000_000;
@@ -78,5 +212,21 @@ pub(super) fn plan(
         read,
         write: vec![disk],
         role: Role::Ordinary,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fixed_host_monitor_ids_cannot_be_selected_by_an_ordinary_caller() {
+        assert!(owner(Some((rustix::process::Uid::ROOT.as_raw(), rustix::process::Gid::ROOT.as_raw()))).is_err());
+        assert!(owner(Some((u32::MAX, u32::MAX))).is_err());
+        let root = rustix::process::geteuid().is_root();
+        let uid = rustix::process::geteuid().as_raw().checked_add(1).unwrap();
+        let gid = rustix::process::getegid().as_raw().checked_add(1).unwrap();
+        assert_eq!(owner(Some((uid, gid))).is_ok(), root);
+        assert_eq!(owner(None).is_ok(), !root);
     }
 }

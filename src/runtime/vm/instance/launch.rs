@@ -95,14 +95,16 @@ impl VmRuntime {
             if let Some(network) = &mut previous.network {
                 network.stop().await.map_err(error)?;
             }
+            previous.retire_jail()?;
             drop(previous);
             self.state.live.lock().unwrap().remove(&entry.id);
         }
         let mut entry = self.entry(name)?;
-        let (memory, cpus, uid, gid) = monitor::resources(&entry.spec)?;
+        let (_, _, uid, gid) = monitor::resources(&entry.spec)?;
         let image = self.prepared(&entry.spec.image, self.state.settings.image_timeout).await?;
         let bundle = self.bundle().await?;
         let lease = self.lease(&entry)?;
+        self.recover_disk(&entry.spec.data_dir)?;
         let disk = super::super::disk::prepare(
             bundle.filesystems(),
             &entry.spec.data_dir,
@@ -113,26 +115,14 @@ impl VmRuntime {
         )
         .await?;
         let directory = boot_directory(&self.state.root.join("boots"))?;
-        let channel = directory.path().join("vsock");
-        let api = directory.path().join("api");
         let serial = directory.path().join("serial");
-        let config_path = directory.path().join("monitor.json");
         let deadline = Instant::now() + BOOT_TIMEOUT;
+        let monitor::Launch { channel, configuration, plan, jail } =
+            self.prepare_monitor(&bundle, &entry, &image, directory.path(), &disk.path, deadline).await?;
         let network = self.network(&bundle, directory.path(), &lease, &entry, deadline).await?;
-        let configuration = super::configuration::configure(
-            &bundle,
-            &image,
-            &disk.path,
-            &channel,
-            super::configuration::Destination { output: &config_path, jail: None },
-            (memory, cpus),
-            deadline,
-        )
-        .await?;
         let mut boot = super::guest::boot(&entry.spec, &entry.id, &image, &configuration, (uid, gid))?;
         boot.network = network.as_ref().map(super::super::network::Network::guest).transpose()?;
         let nonce = boot.nonce.clone();
-        let plan = monitor::plan(&bundle, image.layers, disk.path, directory.path(), lease, &api, &config_path);
         entry.started = Some(crate::clock::now());
         entry.finished = None;
         entry.code = UNKNOWN_EXIT_CODE;
@@ -155,6 +145,7 @@ impl VmRuntime {
             entry.id.clone(),
             Arc::new(tokio::sync::Mutex::new(Live {
                 monitor,
+                jail,
                 forwarder,
                 network,
                 _directory: directory,

@@ -3858,3 +3858,30 @@ job when publication is authorized. That job has not run in this task.
   and whitespace pass. Local structure-source acquisition returns HTTP 403; the actual
   pinned structure gates remain required in CI. No new dependency/job/gate or material
   CI time; none of these checks establishes production VM availability.
+- Move-only 2ffc2ef extracts the unchanged admitted-resource and ordinary-plan bodies,
+  including their original conversion constant, before adding root orchestration. Local
+  full Rust has 529 passes, the unchanged IPv6 fixture failure and 39 ignored; strict
+  all-target Clippy, fmt and whitespace pass. This avoids a launch/monitor module cycle.
+- Root runtime checkpoint routes host-selected root monitors through the same jailed
+  configuration/bootstrap as the existing real boot fixture, retaining ownership records
+  through normal stop, observed exit, file-only guests and daemon-loss recovery. An
+  ordinary caller cannot select host monitor IDs. Recovery matches one disk or all private
+  published records, verifies kernel leases, then restores the one original disk's owner.
+  Root network requests retain the explicit TAP/firewall refusal; no existing service
+  hardening or capability is changed, and placement remains unregistered.
+- Extend the existing optional root step with the actual production runtime on both
+  images: live confinement/lease assertions, three cold generations, stopped-file reads,
+  original ownership/inode checks and daemon loss yielding Dead before safe cold recovery.
+  All existing direct jailer and root staging assertions remain. Estimated up to one
+  extra optional minute, zero ordinary PR minutes, no new job or gate. This machine
+  cannot run those root/KVM cases; hosted proof remains pending.
+- The older dec482a VM run 43607992241/job 132486980244 repeats only the two fixture
+  failures already corrected in f98b722 (runtime 45.43 s, jailer 5.93 s); preserve its
+  logs in CI. The next active a4b84a7 VM run includes both corrections. Scanner comments
+  remain eighteen. These source-specific partial results do not establish this checkpoint.
+- Current root-runtime local validation: 530 Rust passes, the unchanged host IPv6 fixture
+  failure and 40 ignored (the added case requires actual root/KVM). Ordinary-user root
+  recovery refusal and fixed-monitor-ID policy execute locally. Strict all-target Clippy
+  and explicit daemon/integration length/complexity diagnostics pass without new findings;
+  fmt, actionlint with ShellCheck and whitespace pass. No real root/KVM lifecycle is
+  claimed on this machine, and no existing assertion, timeout or retry is weakened.

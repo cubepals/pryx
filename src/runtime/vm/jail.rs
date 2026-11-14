@@ -274,6 +274,37 @@ impl Jail {
         }
         Ok(())
     }
+    /// Recover retained mounts before root runtime adoption, after actual monitor retirement.
+    pub fn recover_all(base: &Path) -> Result<(), RuntimeError> {
+        Self::recover_matching(base, None)
+    }
+    pub fn recover_disk(base: &Path, disk: &Path) -> Result<(), RuntimeError> {
+        Self::recover_matching(base, Some(disk))
+    }
+    fn recover_matching(base: &Path, disk: Option<&Path>) -> Result<(), RuntimeError> {
+        root_only()?;
+        private(base)?;
+        let records = base.join(RECORDS);
+        match fs::symlink_metadata(&records) {
+            Err(problem) if problem.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Err(problem) => return Err(error(problem)),
+            Ok(_) => private(&records)?,
+        }
+        for path in fs::read_dir(&records).map_err(error)? {
+            let path = path.map_err(error)?.path();
+            let id =
+                path.file_stem().and_then(|id| id.to_str()).ok_or_else(|| error("Invalid root jail record name"))?;
+            if path.extension().is_none_or(|extension| extension != "json") {
+                // Atomic publication may leave a temporary; no mount precedes its JSON record.
+                continue;
+            }
+            let record = load(base, id)?;
+            if disk.is_none_or(|disk| disk == record.disk) {
+                Self::recover(base, id)?;
+            }
+        }
+        Ok(())
+    }
     pub fn recover(base: &Path, id: &str) -> Result<(), RuntimeError> {
         root_only()?;
         let record = load(base, id)?;

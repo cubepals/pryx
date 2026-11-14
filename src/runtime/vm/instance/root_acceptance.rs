@@ -173,7 +173,7 @@ impl Host<'_> {
     }
 }
 
-async fn probe(spec: &ContainerSpec, host_file: &Path, retained: bool) -> Result<(), RuntimeError> {
+pub(super) async fn probe(spec: &ContainerSpec, host_file: &Path, retained: bool) -> Result<(), RuntimeError> {
     if retained {
         let file =
             agent::raw(spec, Method::GET, "/_pryx/files/content?path=retained", Value::Null, Duration::from_secs(5))

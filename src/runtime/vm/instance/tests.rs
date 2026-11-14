@@ -188,7 +188,13 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
     let (artifact, server) = artifact_server().await;
     let mut runtime = VmRuntime::new(
         temporary.path(),
-        Settings { artifact, ingress_connections: 8, free_floor_bytes: 0, image_timeout: Duration::from_secs(120) },
+        Settings {
+            monitor_owner: None,
+            artifact,
+            ingress_connections: 8,
+            free_floor_bytes: 0,
+            image_timeout: Duration::from_secs(120),
+        },
     )
     .await
     .unwrap();

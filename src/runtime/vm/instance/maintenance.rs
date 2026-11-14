@@ -55,9 +55,10 @@ impl VmRuntime {
         transition: OwnedMutexGuard<()>,
     ) -> Result<FileGuest, RuntimeError> {
         entry.spec = specification(&entry.spec)?;
-        let (memory, cpus, uid, gid) = monitor::resources(&entry.spec)?;
+        let (_, _, uid, gid) = monitor::resources(&entry.spec)?;
         let bundle = self.bundle().await?;
         let lease = self.lease(&entry)?;
+        self.recover_disk(&entry.spec.data_dir)?;
         let disk = super::super::disk::prepare(
             bundle.filesystems(),
             &entry.spec.data_dir,
@@ -68,26 +69,14 @@ impl VmRuntime {
         )
         .await?;
         let directory = boot_directory(&self.state.root.join("boots"))?;
-        let channel = directory.path().join("vsock");
         let serial = directory.path().join("serial");
-        let config_path = directory.path().join("monitor.json");
-        let api = directory.path().join("api");
         let deadline = Instant::now() + launch::BOOT_TIMEOUT;
         let image = Prepared { digest: String::new(), layers: Vec::new(), configuration: Default::default() };
-        let configuration = configuration::configure(
-            &bundle,
-            &image,
-            &disk.path,
-            &channel,
-            configuration::Destination { output: &config_path, jail: None },
-            (memory, cpus),
-            deadline,
-        )
-        .await?;
+        let monitor::Launch { channel, configuration, plan, jail } =
+            self.prepare_monitor(&bundle, &entry, &image, directory.path(), &disk.path, deadline).await?;
         let mut boot = guest::boot(&entry.spec, &entry.id, &image, &configuration, (uid, gid))?;
         boot.arguments.push(format!("--{}", pryx_agent::bootstrap_capabilities::VM_FILES_ARGUMENT));
         let nonce = boot.nonce.clone();
-        let plan = monitor::plan(&bundle, Vec::new(), disk.path, directory.path(), lease, &api, &config_path);
         let mut monitor = Machine::launch(
             &bundle.root().join("bin/vm-launcher"),
             &plan,
@@ -131,6 +120,7 @@ impl VmRuntime {
                 _transition: transition,
                 live: Live {
                     monitor,
+                    jail,
                     forwarder,
                     network: None,
                     _directory: directory,
@@ -223,6 +213,7 @@ impl Inner {
             .await
             .map_err(|_| RuntimeError::Timeout("VM file service diagnostics did not finish".into()))?
             .map_err(error)?;
+        self.live.retire_jail()?;
         result?;
         runtime::verified_exit(&self.entry, &self.live).map(|_| ())
     }
