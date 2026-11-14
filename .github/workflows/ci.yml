@@ -156,7 +156,10 @@ jobs:
         uses: ./.github/actions/upload-evidence
         with:
           name: process-ipc-design
-          path: ${{ runner.temp }}/process-ipc-design.json
+          path: |
+            ${{ runner.temp }}/process-ipc-design.json
+            ${{ runner.temp }}/check-structure.ts
+            target/check-control-structure.ts
           if-no-files-found: warn
       - name: CLI doctor uses the real host document
         run: |

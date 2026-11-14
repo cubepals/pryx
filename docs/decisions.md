@@ -1157,3 +1157,5 @@
 - K25: capture only transport phases and admitted connection counts in test-built forwarding helpers, with no request bytes or credentials; preserve one-shot exec submission and existing deadlines while diagnosing intermittent KVM output reads.
 
 - K25: inherit the monitor lease through a verified read-only reopen and deny stdin ioctls plus io_uring setup for every monitor role; FIOCLEX otherwise bypasses the fcntl-only close-on-exec guard and can release the live child’s lock, while synchronous pinned block I/O needs no ring.
+
+- K25: keep shared VM file-session types in their parent and call egress listeners through their owning module, removing both structure-checker import cycles without a baseline exception; retain the pinned checker with existing CI evidence so its exact input can be inspected on restricted hosts.

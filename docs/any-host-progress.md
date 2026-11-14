@@ -3686,3 +3686,14 @@ job when publication is authorized. That job has not run in this task.
   jailer integration is still unavailable: writable disk ownership/recovery must remain
   protected, and the base root service intentionally lacks the jailer’s capabilities.
   Do not relax a spec or bypass the jailer to make that path appear available.
+
+- Source 080ebc1 normal CI reports two real module cycles in the structure gate: VM
+  file-session parent/maintenance and egress parent/listeners/gateways. Move the session
+  types into their parent, then import listeners through their owner instead of a parent
+  re-export. The baseline is unchanged. Push run 43562677087 and PR run 43562681164
+  stop Rust/control checks at those cycles; their remaining end-to-end jobs are still
+  running. Any-host, VM, CodeQL and both rootless-engine runs on that source are green.
+  PR 21 still has the same eighteen previously addressed nonce findings. Preserve the
+  exact pinned structure script in the existing CI artifact, without adding a gate.
+  Local strict all-target Clippy passes; full Rust verification follows with the root
+  staging checkpoint. These fixes permit the next push under the queue rule.

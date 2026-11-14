@@ -26,7 +26,7 @@ pub struct Network {
     child: Option<Child>,
     resources: Option<Resources>,
     profile: Value,
-    ports: crate::runtime::egress::Ports,
+    ports: crate::runtime::egress::listeners::Ports,
     socket: PathBuf,
     retirement: Option<tokio::sync::watch::Receiver<Option<Result<(), String>>>>,
     runtime: tokio::runtime::Handle,
@@ -123,9 +123,9 @@ impl Network {
             .map_err(error)?;
         let config = directory.path().join("network.json");
         crate::durable::write_atomic(&config, &configuration, 0o600).map_err(error)?;
-        let (ports, gateways) = crate::runtime::egress::listen(
+        let (ports, gateways) = crate::runtime::egress::listeners::listen(
             Ipv4Addr::LOCALHOST.into(),
-            crate::runtime::egress::Ports { http: 0, tls: 0, dns: 0 },
+            crate::runtime::egress::listeners::Ports { http: 0, tls: 0, dns: 0 },
             ipnet::IpNet::new(Ipv4Addr::LOCALHOST.into(), u32::BITS as u8).map_err(error)?,
             policy.map_or(crate::runtime::egress::Policy::Public, crate::runtime::egress::Policy::Names),
             usize::from(capacity),

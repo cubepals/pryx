@@ -7,7 +7,7 @@
 use super::*;
 use crate::{
     protocol::EgressPolicy,
-    runtime::egress::{self, dns},
+    runtime::egress::{dns, listeners},
 };
 use std::{
     io::Read,
@@ -145,9 +145,9 @@ impl Egress {
             .ok_or_else(|| error("missing gateway"))?;
         let gateway: IpAddr = config.gateway.ok_or_else(|| error("missing gateway"))?.parse().map_err(error)?;
         let subnet: ipnet::IpNet = config.subnet.ok_or_else(|| error("missing subnet"))?.parse().map_err(error)?;
-        let (_, guard) = egress::listen(
+        let (_, guard) = listeners::listen(
             gateway,
-            egress::Ports { http: HTTP_PORT, tls: TLS_PORT, dns: DNS_PORT },
+            listeners::Ports { http: HTTP_PORT, tls: TLS_PORT, dns: DNS_PORT },
             subnet,
             policy.clone().into(),
             MAX_CONNECTIONS,

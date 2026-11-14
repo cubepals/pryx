@@ -8,7 +8,7 @@
 //! - `listeners.rs`: private fixed/ephemeral listener sets and their shared lifetime.
 pub(crate) mod dns;
 pub(crate) mod gateway;
-mod listeners;
+pub(in crate::runtime) mod listeners;
 use crate::protocol::EgressPolicy;
 
 /// Host-selected policy; requests with explicit rules always use Names.
@@ -22,7 +22,6 @@ impl From<EgressPolicy> for Policy {
         Self::Names(policy)
     }
 }
-pub(in crate::runtime) use listeners::{Ports, listen};
 use std::{net::IpAddr, sync::Arc, time::Duration};
 use tokio::{net::TcpListener, sync::Semaphore};
 use tokio_util::sync::CancellationToken;
