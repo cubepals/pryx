@@ -3,7 +3,8 @@
 // profile. Only the comparison exposes separate host management. Neither path implements
 // packet framing or a network stack, and the production VM tier remains unregistered.
 //
-// Parts (`cmd/proxy/`): main.go keeps the comparison fixture; production.go owns the closed runtime profile.
+// Parts (`cmd/proxy/`): main.go keeps the comparison fixture; production.go owns the closed
+// runtime profile; tap.go adopts an attached TAP queue for the maintained raw packet transport.
 package main
 
 import (
@@ -34,6 +35,7 @@ func main() {
 	metadata := flag.Bool("metadata", false, "Export the upstream API's unexported route names")
 	production := flag.String(productionFlag, "", "Host-owned runtime configuration")
 	descriptor := flag.Int(descriptorFlag, -1, "Inherited private packet listener")
+	tapDescriptor := flag.Int(tapDescriptorFlag, -1, "Inherited attached private TAP queue")
 	flag.Parse()
 	if *metadata {
 		profile, err := productionMetadata()
@@ -49,6 +51,15 @@ func main() {
 		return
 	}
 	if *production != "" {
+		if *tapDescriptor >= 0 {
+			if *descriptor >= 0 {
+				log.Fatal("Packet listener and TAP transports are mutually exclusive")
+			}
+			if err := serveTap(*production, *tapDescriptor); err != nil {
+				log.Fatal(err)
+			}
+			return
+		}
 		if err := serveProduction(*production, *descriptor); err != nil {
 			log.Fatal(err)
 		}

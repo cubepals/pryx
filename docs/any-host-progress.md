@@ -4462,3 +4462,17 @@ job when publication is authorized. That job has not run in this task.
 - Latest normal source a06a5e1 has all completed checks green; control end-to-end is still
   running its Rivet/celld step, so it is not yet an overall CI pass. Scanner comments remain
   eighteen. Continue to push current builds while older workflow runs finish.
+
+- Prepare a closed inherited-TAP packet parser in the existing pinned network executable.
+  The actual kernel must report the granted interface and TAP/no-packet-info flags; set
+  nonblocking before Go adopts the descriptor so close can interrupt reads. Only a net.Conn
+  adapter is ours: gvisor-tap-vsock's existing BESS path owns parsing, switching and forwarding.
+  No management listener, NAT-to-host alias, device open or namespace change is exposed.
+- Add optional parser metadata/configuration fields without changing the ordinary listener
+  path. Actual maintained stack over kernel SOCK_SEQPACKET returns the owner-encoded ARP reply
+  and its reader retires on close; a real regular file receives kernel ENOTTY. Go tests,
+  build, vet, module verification and all 24 complete primary-notice checks pass. Existing
+  optional network build runs these tests; estimated addition under one second, no job/gate.
+- Root bridge/firewall descriptor handoff, confined ordinary proxy and privileged worker
+  integration remain unfinished; this parser enables no root placement. Latest source
+  7e7fa0a VM and normal CI are running, signed-host work pending, scanner comments still eighteen.

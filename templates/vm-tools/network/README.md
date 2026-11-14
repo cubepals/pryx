@@ -22,3 +22,9 @@ Parts (`network/`):
 The gateway management token stays in host memory. The guest-facing Unix listener accepts
 only the library's packet-connect route; mapping its unrestricted host Mux into vsock would
 also expose management. The library owns every frame and TCP/IP operation.
+
+The additional closed TAP parser adopts only an already attached inherited queue, verifies
+its name and TAP/no-packet-info flags with the real kernel, and uses the existing maintained
+BESS packet transport. It creates no management listener or host NAT alias. Its ordinary-user
+process, root bridge/firewall handoff and worker placement still require integration and real
+privileged acceptance; parser metadata alone does not advertise those host capabilities.

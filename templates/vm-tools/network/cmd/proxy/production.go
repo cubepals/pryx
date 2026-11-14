@@ -29,6 +29,7 @@ const productionFlag = "production"
 const maxConfiguration = 64 * 1024
 
 type runtimeProfile struct {
+	TapDescriptorArgument string `json:"tapDescriptorArgument,omitempty"`
 	Version               uint16 `json:"version"`
 	DescriptorArgument    string `json:"descriptorArgument"`
 	ConfigurationArgument string `json:"configurationArgument"`
@@ -50,7 +51,8 @@ type runtimeProfile struct {
 
 func productionMetadata() (runtimeProfile, error) {
 	profile := runtimeProfile{
-		Version: 1, DescriptorArgument: "--" + descriptorFlag,
+		TapDescriptorArgument: "--" + tapDescriptorFlag,
+		Version:               1, DescriptorArgument: "--" + descriptorFlag,
 		ConfigurationArgument: "--" + productionFlag, MaxConfigurationBytes: maxConfiguration,
 		// This subnet exists only within each independent maintained user-mode stack.
 		Subnet: "192.168.127.0/24", Gateway: "192.168.127.1", Device: "192.168.127.2", Host: "192.168.127.254",
@@ -73,9 +75,10 @@ func productionMetadata() (runtimeProfile, error) {
 }
 
 type runtimeConfiguration struct {
-	Parent      int    `json:"parent"`
-	Host        string `json:"host"`
-	Concurrency uint16 `json:"concurrency"`
+	TapInterface string `json:"tapInterface,omitempty"`
+	Parent       int    `json:"parent"`
+	Host         string `json:"host"`
+	Concurrency  uint16 `json:"concurrency"`
 }
 
 func readRuntime(path string) (runtimeConfiguration, error) {
