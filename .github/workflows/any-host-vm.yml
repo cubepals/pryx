@@ -31,46 +31,20 @@ jobs:
       - name: Hash primary published archives without executing them
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          python3 templates/vm-tools/inventory.py \
-            --archive-cache "$RUNNER_TEMP/vm-archives" \
-            --output "$RUNNER_TEMP/vm-candidate-inventory.json" | tee "$RUNNER_TEMP/vm-input-inventory.log"
+        run: bash "$GITHUB_WORKSPACE/templates/vm-tools/build.sh" inventory
       - name: Prepare pinned separate experiment tools
-        run: |
-          python3 templates/vm-tools/prepare.py --root "$RUNNER_TEMP/vm-build-tools" | tee "$RUNNER_TEMP/vm-tool-inputs.log"
-          dpkg-query -W e2fsprogs
+        run: bash "$GITHUB_WORKSPACE/templates/vm-tools/build.sh" tools
       - name: Inspect published kernels and their archive configurations
-        run: |
-          "$RUNNER_TEMP/vm-build-tools/zstd/usr/bin/zstd" --version
-          python3 templates/vm-tools/archive_inspection.py \
-            --zstd "$RUNNER_TEMP/vm-build-tools/zstd/usr/bin/zstd" \
-            --inventory "$RUNNER_TEMP/vm-candidate-inventory.json" \
-            --archive-cache "$RUNNER_TEMP/vm-archives" \
-            --staged "$RUNNER_TEMP/vm-selected-files" \
-            --output "$RUNNER_TEMP/vm-archive-inspection.json" | tee "$RUNNER_TEMP/vm-archive-inspection.log"
+        run: bash "$GITHUB_WORKSPACE/templates/vm-tools/build.sh" inspect
       - name: Build the typed configuration and static guest probe
         working-directory: templates/vm-tools
         env:
           CGO_ENABLED: '0'
           GOTOOLCHAIN: local
-        run: |
-          pryx_go="$RUNNER_TEMP/vm-build-tools/go/go/bin/go"
-          "$pryx_go" mod verify
-          python3 notices.py --go "$pryx_go" --output "$RUNNER_TEMP/vm-spike-notices" \
-            --packages ./cmd/config ./cmd/guest ./cmd/agent
-          "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-config" ./cmd/config
-          "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-guest" ./cmd/guest
-          "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-agent-client" ./cmd/agent
-          "$pryx_go" mod verify
+        run: bash "$GITHUB_WORKSPACE/templates/vm-tools/build.sh" configurator
       - name: Build and relocate the unchanged VM filesystem component
         id: filesystems
-        run: |
-          python3 templates/vm-tools/filesystem.py \
-            --cache "$RUNNER_TEMP/vm-filesystem-archives" \
-            --root "$RUNNER_TEMP/vm-filesystem-component" | tee "$RUNNER_TEMP/vm-filesystem-component.log"
-          python3 templates/vm-tools/filesystem_check.py \
-            --component "$RUNNER_TEMP/vm-filesystem-component" \
-            --output "$RUNNER_TEMP/vm-filesystem-check.json"
+        run: bash "$GITHUB_WORKSPACE/templates/vm-tools/build.sh" filesystems
       - name: Allow the ordinary runner user to open real KVM
         run: |
           sudo modprobe kvm
@@ -88,24 +62,13 @@ jobs:
             --work "$RUNNER_TEMP/vm-kernel-spike" \
             --output "$RUNNER_TEMP/vm-kernel-spike.json" | tee "$RUNNER_TEMP/vm-kernel-spike.log"
       - name: Prepare immutable network comparison inputs
-        run: |
-          python3 templates/vm-tools/network_prepare.py --root "$RUNNER_TEMP/vm-network-inputs" | tee "$RUNNER_TEMP/vm-network-inputs.log"
+        run: bash "$GITHUB_WORKSPACE/templates/vm-tools/build.sh" network-inputs
       - name: Build maintained network wrappers and guest forwarder
         working-directory: templates/vm-tools/network
         env:
           CGO_ENABLED: '0'
           GOTOOLCHAIN: local
-        run: |
-          pryx_go="$RUNNER_TEMP/vm-build-tools/go/go/bin/go"
-          "$pryx_go" mod verify
-          python3 ../notices.py --go "$pryx_go" --module-root "$PWD" \
-            --catalog "$PWD/module-notices.json" --output "$RUNNER_TEMP/vm-network-notices" \
-            --packages ./cmd/proxy ./cmd/probe ./cmd/guest github.com/containers/gvisor-tap-vsock/cmd/vm
-          "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-network-proxy" ./cmd/proxy
-          "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-network-probe" ./cmd/probe
-          "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-network-guest" ./cmd/guest
-          "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-gvforwarder" github.com/containers/gvisor-tap-vsock/cmd/vm
-          "$pryx_go" mod verify
+        run: bash "$GITHUB_WORKSPACE/templates/vm-tools/build.sh" network
       - name: Permit user namespaces on the positive comparison runner
         id: network-prerequisites
         run: |
@@ -176,50 +139,15 @@ jobs:
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
           CARGO_PROFILE_DEV_DEBUG: '0'
           CARGO_INCREMENTAL: '0'
-        run: |
-          python3 templates/vm-tools/cross.py --root "$RUNNER_TEMP/vm-cross" \
-            --cache "$RUNNER_TEMP/vm-filesystem-archives" | tee "$RUNNER_TEMP/vm-cross.log"
-          rustup target add x86_64-unknown-linux-musl
-          export CC_x86_64_unknown_linux_musl=cc
-          export CFLAGS_x86_64_unknown_linux_musl="--sysroot=$RUNNER_TEMP/vm-cross/sysroot"
-          export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=cc
-          export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="-C link-arg=--sysroot=$RUNNER_TEMP/vm-cross/sysroot"
-          cargo build --locked -p pryx-agent --target x86_64-unknown-linux-musl
-          cargo build --locked --manifest-path vm-image/Cargo.toml --target x86_64-unknown-linux-musl
-          python3 templates/vm-tools/bootstrap.py \
-            --agent target/x86_64-unknown-linux-musl/debug/pryx-agent \
-            --network-helper "$RUNNER_TEMP/vm-network-guest" \
-            --forwarder "$RUNNER_TEMP/vm-gvforwarder" \
-            --network-probe "$RUNNER_TEMP/vm-network-probe" \
-            --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" \
-            --root "$RUNNER_TEMP/vm-agent-bootstrap" | tee "$RUNNER_TEMP/vm-agent-bootstrap.log"
+        run: bash "$GITHUB_WORKSPACE/templates/vm-tools/build.sh" bootstrap
       - name: Retain complete published-kernel sources and exact recipes
         id: vm-sources
         if: ${{ !cancelled() && steps.filesystems.outcome == 'success' }}
-        run: |
-          python3 templates/vm-tools/sources.py --cache "$RUNNER_TEMP/vm-source-cache" \
-            --output "$RUNNER_TEMP/vm-corresponding-sources" | tee "$RUNNER_TEMP/vm-corresponding-sources.log"
+        run: bash "$GITHUB_WORKSPACE/templates/vm-tools/build.sh" sources
       - name: Assemble separately inventoried VM runtime and source archives
         id: vm-bundle
         if: ${{ !cancelled() && steps.vm-bootstrap.outcome == 'success' && steps.vm-sources.outcome == 'success' }}
-        run: |
-          python3 templates/vm-tools/bootstrap.py \
-            --agent target/x86_64-unknown-linux-musl/debug/pryx-agent \
-            --network-helper "$RUNNER_TEMP/vm-network-guest" --forwarder "$RUNNER_TEMP/vm-gvforwarder" \
-            --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" --root "$RUNNER_TEMP/vm-runtime-bootstrap"
-          python3 templates/vm-tools/bundle.py \
-            --inspection "$RUNNER_TEMP/vm-archive-inspection.json" --staged "$RUNNER_TEMP/vm-selected-files" \
-            --sources "$RUNNER_TEMP/vm-corresponding-sources" --source-output "$RUNNER_TEMP/vm-bundle-sources" \
-            --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" \
-            --sdk-notices "$RUNNER_TEMP/vm-spike-notices" --network-notices "$RUNNER_TEMP/vm-network-notices" \
-            --bootstrap "$RUNNER_TEMP/vm-runtime-bootstrap" \
-            --launcher target/x86_64-unknown-linux-musl/debug/pryx-agent \
-            --image-helper target/x86_64-unknown-linux-musl/debug/pryx-vm-image \
-            --configurator "$RUNNER_TEMP/vm-config" --transport "$RUNNER_TEMP/vm-agent-client" \
-            --network-proxy "$RUNNER_TEMP/vm-network-proxy" --output "$RUNNER_TEMP/vm-runtime" \
-            --archive "$RUNNER_TEMP/pryx-vm-linux-x64.tar.gz" --source-archive "$RUNNER_TEMP/pryx-vm-sources.tar.gz" \
-            --descriptor "$RUNNER_TEMP/vm-runtime.json" --source-descriptor "$RUNNER_TEMP/vm-sources.json" \
-            --url-base https://github.com/cubepals/pryx/releases/download/preview | tee "$RUNNER_TEMP/vm-bundle.log"
+        run: bash "$GITHUB_WORKSPACE/templates/vm-tools/build.sh" bundle
       - name: Verify whole runtime, lazy acquisition and corruption refusals
         if: ${{ !cancelled() && steps.vm-bundle.outcome == 'success' }}
         env:
