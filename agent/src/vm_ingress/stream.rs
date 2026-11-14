@@ -6,6 +6,7 @@ use http_body_util::Empty;
 use hyper::{Method, Request, Response, StatusCode, body::Incoming, server::conn::http2, service::service_fn};
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use std::{convert::Infallible, io, net::Ipv4Addr};
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::TcpStream;
 
 async fn connect(mut request: Request<Incoming>, port: u16) -> Result<Response<Empty<Bytes>>, Infallible> {
@@ -34,6 +35,13 @@ pub(super) async fn serve(
     socket: impl tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
     port: u16,
 ) -> io::Result<()> {
+    // The pinned host SDK discards its temporary acknowledgement reader. Wait for
+    // client bytes so HTTP/2 settings cannot be consumed by that reader. Preserve
+    // the buffered bytes and let hyper validate the client preface itself.
+    let mut socket = BufReader::new(socket);
+    if socket.fill_buf().await?.is_empty() {
+        return Ok(());
+    }
     http2::Builder::new(TokioExecutor::new())
         .serve_connection(TokioIo::new(socket), service_fn(move |request| connect(request, port)))
         .await
@@ -57,8 +65,13 @@ mod tests {
             stream.write_all(&input).await.unwrap();
             stream.shutdown().await.unwrap();
         });
-        let (host, guest) = tokio::net::UnixStream::pair().unwrap();
+        let (mut host, guest) = tokio::net::UnixStream::pair().unwrap();
         let server = tokio::spawn(serve(guest, port));
+        let mut byte = [0];
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(30), host.read(&mut byte)).await.is_err(),
+            "Guest must not send HTTP/2 settings into the SDK's acknowledgement reader"
+        );
         let (mut sender, connection) =
             hyper::client::conn::http2::handshake(TokioExecutor::new(), TokioIo::new(host)).await.unwrap();
         let client = tokio::spawn(connection);

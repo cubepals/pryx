@@ -3739,3 +3739,10 @@ job when publication is authorized. That job has not run in this task.
   ShellCheck and whitespace checks pass. Root configuration mount/boot proof remains
   CI-only; production root startup stays refused. Remove 207 MiB of obsolete duplicate
   executables while keeping the current build outputs.
+- Transport investigation finds the pinned SDK's acknowledgement reader is discarded
+  after ReadString; eager HTTP/2 server settings can be consumed with that response.
+  Buffer the first client bytes before invoking hyper, retaining them for its own
+  preface validation. The real Unix-pair regression proves the guest stays silent
+  until the client starts and still transfers the complete binary reply after EOF.
+  It passes in the full local run above. No retries, new framing, deadline changes,
+  dependency, job or gate; 0.03 s added to the existing test. Hosted proof is pending.
