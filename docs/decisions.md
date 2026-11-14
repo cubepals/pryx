@@ -1277,3 +1277,5 @@
 - K25: select only the fully sourced same-version static GNU monitor in VM and signed-preview bundles, preserving the published jailer/kernel and every launcher bound; recheck the original source, complete translated trap policy and exact embedded BPF before assembly, rejecting the real upstream empty policy. Use the same build phase in both existing workflows, with no new job/gate and an estimated five extra minutes per optional build.
 
 - K25: reuse pinned gvisor-tap-vsock 0.9.0’s existing non-stream BESS transport for an inherited, kernel-verified attached TAP queue; the adapter only implements net.Conn and never parses frames, opens a device, changes namespace or exposes management/NAT-to-host services. This prepares a root bridge path without another dependency or enabling root placement.
+
+- K25: export the agent’s existing authoritative non-public IPv4 boundary in additive private bootstrap metadata for the root bridge firewall; keep one IANA classification owner and default old metadata to an empty list, which root public-network setup must refuse rather than inventing a second list or accepting workload policy.

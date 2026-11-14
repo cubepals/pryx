@@ -4476,3 +4476,11 @@ job when publication is authorized. That job has not run in this task.
 - Root bridge/firewall descriptor handoff, confined ordinary proxy and privileged worker
   integration remain unfinished; this parser enables no root placement. Latest source
   7e7fa0a VM and normal CI are running, signed-host work pending, scanner comments still eighteen.
+
+- Export the authoritative transfer/guest-firewall non-public IPv4 boundary in additive
+  private bootstrap metadata. The actual built agent exports fourteen owner-defined prefixes;
+  old executables default to an empty list, which root public setup must refuse. No public
+  node/API schema or requested policy is changed and no duplicate address list is introduced.
+- Full Rust: 537 pass, unchanged host IPv6 fixture failure, 43 ignored. Strict all-target
+  Clippy, minimal-agent build, fmt and whitespace pass. No new dependency/job/gate or estimated
+  CI minute. Root bridge/worker integration and whole GNU monitor hardware proof remain.
