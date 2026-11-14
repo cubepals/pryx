@@ -211,6 +211,16 @@ impl Scope {
             self.resources.as_ref().and_then(|resources| resources.namespace.as_ref()).ok_or_else(handoff::invalid)?;
         Ok(PathBuf::from(format!("/proc/{}/fd/{}", std::process::id(), namespace.as_raw_fd())))
     }
+    pub fn monitor_namespace(&self) -> io::Result<pryx_agent::vm_monitor::Namespace> {
+        let namespace =
+            self.resources.as_ref().and_then(|resources| resources.namespace.as_ref()).ok_or_else(handoff::invalid)?;
+        let identity = rustix::fs::fstat(namespace)?;
+        Ok(pryx_agent::vm_monitor::Namespace {
+            descriptor: namespace.as_raw_fd(),
+            device: identity.st_dev,
+            inode: identity.st_ino,
+        })
+    }
     pub fn profile(&self) -> &Value {
         &self.profile
     }

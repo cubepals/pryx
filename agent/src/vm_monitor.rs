@@ -6,7 +6,10 @@
 //!
 //! Parts (`vm_monitor/`):
 //! - `filter.rs`: preserve the inherited kernel lease and forbid cross-process host operations.
+//! - `namespace_tests.rs`: actual descriptor identity and namespace-type refusal checks.
 mod filter;
+#[cfg(test)]
+mod namespace_tests;
 use landlock::{
     ABI, Access, AccessFs, CompatLevel, Compatible, Ruleset, RulesetAttr, RulesetCreatedAttr, RulesetStatus,
     path_beneath_rules,
@@ -47,8 +50,47 @@ pub struct Plan {
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub enum Role {
     Ordinary,
-    Jailer { uid: u32, gid: u32, id: String, base: PathBuf, monitor: PathBuf },
-    PacketProxy { socket: PathBuf, descriptor_argument: String },
+    Jailer {
+        uid: u32,
+        gid: u32,
+        id: String,
+        base: PathBuf,
+        monitor: PathBuf,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        namespace: Option<Namespace>,
+    },
+    PacketProxy {
+        socket: PathBuf,
+        descriptor_argument: String,
+    },
+}
+
+/// A retained parent descriptor, identified by the actual kernel inode, never a workload path.
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Namespace {
+    pub descriptor: i32,
+    pub device: u64,
+    pub inode: u64,
+}
+
+fn enter_namespace(namespace: &Namespace, parent: u32) -> io::Result<()> {
+    if namespace.descriptor <= libc::STDERR_FILENO {
+        return Err(invalid("Invalid retained network namespace descriptor"));
+    }
+    let file = fs::File::open(format!("/proc/{parent}/fd/{}", namespace.descriptor))?;
+    let identity = file.metadata()?;
+    if identity.dev() != namespace.device
+        || identity.ino() != namespace.inode
+        || rustix::fs::fstatfs(&file)?.f_type != libc::NSFS_MAGIC
+    {
+        return Err(invalid("Retained network namespace identity changed"));
+    }
+    rustix::thread::move_into_link_name_space(
+        std::os::fd::AsFd::as_fd(&file),
+        Some(rustix::thread::LinkNameSpaceType::Network),
+    )?;
+    Ok(())
 }
 
 fn invalid(message: &str) -> io::Error {
@@ -213,7 +255,7 @@ pub fn launch() -> Result<(), Box<dyn std::error::Error>> {
             confine(&plan, false)?;
             packet_listener = Some(listener);
         }
-        Role::Jailer { uid, gid, id, base, monitor } => {
+        Role::Jailer { uid, gid, id, base, monitor, namespace } => {
             if *uid == 0
                 || *gid == 0
                 || *uid == u32::MAX
@@ -226,6 +268,11 @@ pub fn launch() -> Result<(), Box<dyn std::error::Error>> {
             }
             private(base)?;
             regular(monitor)?;
+            // The actual monitor lease was acquired before opening the retained handle.
+            // Only this short-lived launcher enters it; the daemon keeps its original namespace.
+            if let Some(namespace) = namespace {
+                enter_namespace(namespace, plan.parent)?;
+            }
             // The unchanged jailer CLI owns these documented flags, with no exported constants.
             command.args([
                 "--id",

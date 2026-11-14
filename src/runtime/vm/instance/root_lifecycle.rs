@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Actual root runtime lifecycle, stopped-file maintenance and conservative daemon-loss
 //! recovery. The existing optional VM job supplies root, KVM and verified OCI inputs;
-//! these checks do not prove root TAP/firewall or installed service authority.
+//! hostname TAP packets run after each disconnected lifecycle; installed worker authority
+//! and unrestricted forwarding remain separate prerequisites.
 use super::*;
 use crate::runtime::{ContainerRuntime, ContainerStatus};
 use http_body_util::BodyExt as _;
@@ -85,6 +86,8 @@ async fn actual_root_runtime_cold_boot_files_and_daemon_loss() {
         cold_boot(&runtime, &spec, &id, &host, true).await;
         runtime.remove(&id).await.unwrap();
         assert!(runtime.inspect(&id).await.unwrap().is_none());
+        super::network_acceptance::check(&runtime, root.path(), input["reference"].as_str().unwrap(), index, false)
+            .await;
     }
     server.abort();
 }

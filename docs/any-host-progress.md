@@ -4299,3 +4299,25 @@ job when publication is authorized. That job has not run in this task.
   before root TAP reuse. Preserve every owner-sourced port, timeout, validation and ordinary
   network path. Full Rust remains 534 pass, the known host IPv6 fixture failure and 42 ignored;
   strict all-target Clippy, fmt and whitespace pass. No dependency/job/gate or CI time added.
+
+- Source 28bc3b1 VM run 43632314063/job 132562612034 proves the actual bounded scope
+  subprocess grant, ordinary-owner TAP open, lease-blocked retirement, explicit deletion and
+  neighbour preservation. Summary: checks/measurements/k25/scope-28bc3b1.json. Later root boot
+  still fails the known optional userfaultfd creation; the /proc/misc restriction was not in
+  that source. Source f322326's VM job was cancelled, so it establishes no bounded boot pass.
+- Connect root hostname-policy guests to the actual private TAP and existing namespace-owned
+  gateways. The short-lived launcher acquires the monitor lease before opening an inode-checked
+  retained parent namespace handle, enters only that network namespace through Rustix and
+  executes the unchanged jailer. The daemon never enters it. Fixed monitor IDs remain host-owned.
+  Advertise optional namespace parser support in actual helper metadata; omit the field for
+  old/no-network plans. Guest addresses/MAC and service ports come from their verified owners.
+- Keep root unrestricted forwarding as a named refusal and root factory placement off. Extend
+  the existing real root lifecycle on both pinned images with the unchanged nine hostname
+  policy checks, actual VMM namespace/ordinary UID checks and host file/signal/kernel probes;
+  repeat inside the bounded service. The generated configurator advertises and validates the
+  supplied TAP/MAC. Installed worker, host firewall/default-IP path and root placement remain.
+- Local full Rust: 536 pass, unchanged host IPv6 fixture failure, 42 ignored. Both new real
+  namespace-inode/type security cases pass. Strict all-target Clippy, minimal-agent build,
+  daemon/integration structure diagnostics, fmt, Go build/vet, actual SDK configuration with
+  a random MAC, Python syntax, actionlint and whitespace pass. Estimate under one additional
+  optional VM minute, zero normal PR minutes, no dependency/job/gate. Hardware results pending.

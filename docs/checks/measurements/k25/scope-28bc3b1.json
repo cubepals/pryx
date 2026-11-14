@@ -1,0 +1,16 @@
+{
+  "sourceCommit": "28bc3b1",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43632314063",
+  "job": 132562612034,
+  "artifact": 14129222808,
+  "measurement": "Actual bounded root scope subprocess and CNI TAP lifetime",
+  "passed": {
+    "actualSubprocessGrant": true,
+    "ordinaryOwnerOpened": true,
+    "leaseBlockedRetirement": true,
+    "explicitDeleteConfirmed": true,
+    "neighboursUnchanged": true
+  },
+  "failure": "Later bounded root cold boot still fails optional userfaultfd mknod; the catalogue restriction was not in this source",
+  "notProved": "Guest TAP packets, host firewall, root worker installation, unrestricted forwarding or installed SDK/edge cohorts"
+}

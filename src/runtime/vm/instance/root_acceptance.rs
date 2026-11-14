@@ -78,7 +78,7 @@ impl Host<'_> {
             &staged,
             &root.join(disk::FILE),
             &channel,
-            configuration::Destination { output: &config, jail: Some(&root) },
+            configuration::Destination { output: &config, jail: Some(&root), tap: None },
             (memory, cpus),
             deadline,
         )
@@ -95,7 +95,7 @@ impl Host<'_> {
             parent: std::process::id(),
             read: Vec::new(),
             write: Vec::new(),
-            role: vm_monitor::Role::Jailer { uid: self.owner.0, gid: self.owner.1, id, base, monitor },
+            role: vm_monitor::Role::Jailer { uid: self.owner.0, gid: self.owner.1, id, base, monitor, namespace: None },
         };
         Launch { jail, disk: disk.path, identity, _directory: directory, plan, boot, channel, serial, deadline }
     }

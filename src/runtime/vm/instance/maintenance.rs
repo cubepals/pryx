@@ -72,8 +72,15 @@ impl VmRuntime {
         let serial = directory.path().join("serial");
         let deadline = Instant::now() + launch::BOOT_TIMEOUT;
         let image = Prepared { digest: String::new(), layers: Vec::new(), configuration: Default::default() };
-        let monitor::Launch { channel, configuration, plan, jail } =
-            self.prepare_monitor(&bundle, &entry, &image, directory.path(), &disk.path, deadline).await?;
+        let monitor::Launch { channel, configuration, plan, jail } = self
+            .prepare_monitor(
+                &bundle,
+                &entry,
+                &image,
+                monitor::Inputs { directory: directory.path(), disk: &disk.path, network: None },
+                deadline,
+            )
+            .await?;
         let mut boot = guest::boot(&entry.spec, &entry.id, &image, &configuration, (uid, gid))?;
         boot.arguments.push(format!("--{}", pryx_agent::bootstrap_capabilities::VM_FILES_ARGUMENT));
         let nonce = boot.nonce.clone();

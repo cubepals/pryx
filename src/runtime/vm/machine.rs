@@ -49,7 +49,7 @@ impl Machine {
         private(&plan.directory)?;
         let (socket_directory, socket_owner) = match &plan.role {
             vm_monitor::Role::Ordinary => (plan.directory.clone(), None),
-            vm_monitor::Role::Jailer { uid, gid, id, base, monitor } => {
+            vm_monitor::Role::Jailer { uid, gid, id, base, monitor, .. } => {
                 if !rustix::process::geteuid().is_root()
                     || *uid == 0
                     || *gid == 0

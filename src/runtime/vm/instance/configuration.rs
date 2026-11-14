@@ -17,6 +17,7 @@ pub(super) struct Configuration {
 pub(super) struct Destination<'a> {
     pub output: &'a Path,
     pub jail: Option<&'a Path>,
+    pub tap: Option<(&'a str, &'a str)>,
 }
 async fn output(mut command: Command, deadline: Instant) -> Result<Vec<u8>, RuntimeError> {
     command.env_clear().stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null()).kill_on_drop(true);
@@ -56,6 +57,9 @@ pub(super) async fn configure(
     if destination.jail.is_some() && metadata["jailPaths"] != true {
         return Err(error("VM configurator does not advertise staged jail paths"));
     }
+    if destination.tap.is_some() && metadata["tapConfiguration"] != true {
+        return Err(error("VM configurator does not advertise host-owned TAP configuration"));
+    }
     let root = destination.jail.unwrap_or(bundle.root());
     let mut arguments = vec![
         "--kernel".into(),
@@ -75,6 +79,9 @@ pub(super) async fn configure(
     ];
     if let Some(jail) = destination.jail {
         arguments.extend(["--jail-root".into(), jail.display().to_string()]);
+    }
+    if let Some((tap, mac)) = destination.tap {
+        arguments.extend(["--tap".into(), tap.into(), "--guest-mac".into(), mac.into()]);
     }
     let ids = image.layers.iter().enumerate().map(|(i, _)| format!("layer{i}")).collect::<Vec<_>>();
     for (id, layer) in ids.iter().zip(&image.layers) {

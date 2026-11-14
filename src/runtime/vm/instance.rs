@@ -12,6 +12,7 @@
 //! - `maintenance.rs`: leased file-only guests for stopped disks.
 //! - `agent.rs`: authenticated agent calls and one-shot compatibility exec.
 //! - `monitor.rs`: host-selected ordinary/jailer launch paths and retired-disk recovery.
+//! - `network.rs`: host-selected ordinary packet or leased root TAP connections.
 //! - `logs.rs`: bounded guest entrypoint replay and live output.
 //! - `runtime.rs`: runtime verbs, observations and bounded event polling.
 //! - `diagnostics.rs`: bounded credential-redacted serial CI artifacts, in test builds only.
@@ -29,6 +30,7 @@ mod launch;
 mod logs;
 mod maintenance;
 mod monitor;
+mod network;
 #[cfg(test)]
 mod network_acceptance;
 #[cfg(test)]
@@ -110,7 +112,7 @@ struct Live {
     monitor: Machine,
     jail: Option<super::jail::Jail>,
     forwarder: Forwarder,
-    network: Option<super::network::Network>,
+    network: Option<network::Network>,
     _directory: tempfile::TempDir,
     serial: PathBuf,
     channel: PathBuf,

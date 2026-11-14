@@ -28,6 +28,7 @@ func main() {
 	writes := flag.String("writes", "", "Writable ext4 disk")
 	socket := flag.String("socket", "", "Private monitor vsock path")
 	tap := flag.String("tap", "", "Optional private network namespace TAP for the comparison")
+	guestMAC := flag.String("guest-mac", "", "Optional host-owned TAP guest MAC")
 	metadata := flag.Bool("metadata", false, "Print experiment-owned transport metadata")
 	jailRoot := flag.String("jail-root", "", "Optional host jail root for monitor paths")
 	identities := flag.Bool("identities", false, "Print backing-file identities for the configured guest disks")
@@ -73,6 +74,9 @@ func main() {
 		config.NetworkInterfaces = []*models.NetworkInterface{{
 			IfaceID: new("network-spike"), HostDevName: tap, GuestMac: experiment.NetworkFixture().GuestMAC,
 		}}
+		if *guestMAC != "" {
+			config.NetworkInterfaces[0].GuestMac = *guestMAC
+		}
 	}
 	if err := config.Validate(strfmt.Default); err != nil {
 		log.Fatal(err)

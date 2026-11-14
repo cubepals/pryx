@@ -17,6 +17,12 @@ pub(super) struct Launch {
     pub jail: Option<jail::Jail>,
 }
 
+pub(super) struct Inputs<'a> {
+    pub directory: &'a Path,
+    pub disk: &'a Path,
+    pub network: Option<&'a network::Network>,
+}
+
 pub(super) fn owner(owner: Option<(u32, u32)>) -> Result<(), RuntimeError> {
     match (rustix::process::geteuid().is_root(), owner) {
         (false, None) => Ok(()),
@@ -47,15 +53,15 @@ impl VmRuntime {
         bundle: &Bundle,
         entry: &Entry,
         image: &Prepared,
-        directory: &Path,
-        disk: &Path,
+        inputs: Inputs<'_>,
         deadline: Instant,
     ) -> Result<Launch, RuntimeError> {
+        let Inputs { directory, disk, network } = inputs;
         let (memory, cpus, _, _) = resources(&entry.spec)?;
         let lease = self.lease(entry)?;
         let output = directory.join("monitor.json");
         if let Some(owner) = self.state.settings.monitor_owner {
-            if !entry.spec.internal_network || entry.spec.egress.is_some() {
+            if !entry.spec.internal_network && (entry.spec.egress.is_none() || network.is_none()) {
                 return Err(RuntimeError::Unavailable("Root VM TAP/firewall integration is not available".into()));
             }
             let id = entry.id.strip_prefix("vm-").ok_or_else(|| error("Invalid root VM identity"))?;
@@ -94,7 +100,11 @@ impl VmRuntime {
                 &staged,
                 &root.join(disk::FILE),
                 &channel,
-                configuration::Destination { output: &output, jail: Some(&root) },
+                configuration::Destination {
+                    output: &output,
+                    jail: Some(&root),
+                    tap: network.map(network::Network::tap).transpose()?.flatten(),
+                },
                 (memory, cpus),
                 deadline,
             )
@@ -109,7 +119,14 @@ impl VmRuntime {
                 parent: std::process::id(),
                 read: Vec::new(),
                 write: Vec::new(),
-                role: Role::Jailer { uid: owner.0, gid: owner.1, id: id.into(), base, monitor },
+                role: Role::Jailer {
+                    uid: owner.0,
+                    gid: owner.1,
+                    id: id.into(),
+                    base,
+                    monitor,
+                    namespace: network.map(network::Network::namespace).transpose()?.flatten(),
+                },
             };
             Ok(Launch { channel, configuration, plan, jail: Some(jail) })
         } else {
@@ -119,7 +136,7 @@ impl VmRuntime {
                 image,
                 disk,
                 &channel,
-                configuration::Destination { output: &output, jail: None },
+                configuration::Destination { output: &output, jail: None, tap: None },
                 (memory, cpus),
                 deadline,
             )

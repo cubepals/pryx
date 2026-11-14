@@ -1249,3 +1249,5 @@
 - K25: adopt the root helper's actual namespace and HTTP/TLS/DNS descriptors with Rustix owned close-on-exec handles and the existing hostname listeners in the original namespace; an independent EOF/lease reaper retains authority across cancellation and preserves resources on unconfirmed exit, with root placement still gated off.
 
 - K25: move unchanged packet-executable metadata loading and trusted guest profile assembly into their named module before root TAP reuse; all service ports still come from the verified owning executable, with identical ordinary-user behavior.
+
+- K25: connect root hostname-policy guests to the leased CNI TAP and existing gateways, sourcing static addresses/MAC from that scope and service ports from the verified packet executable; only the short-lived root launcher enters the inode-checked namespace after acquiring the monitor lease, then executes the unchanged jailer. Announce this optional private launch field in actual bootstrap metadata and retain the root unrestricted-forwarding refusal and disabled root placement.

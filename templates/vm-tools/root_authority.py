@@ -45,6 +45,7 @@ def main():
             (source / 'vm-root-tap-probe', 'tap-probe', '555'),
             (source / 'vm-root-scope', 'scope', '555'),
             (source / 'vm-root-cni/tap', 'tap', '555'),
+            (source / 'vm-network-probe', 'network-probe', '555'),
             (source / 'vm-runtime.json', 'vm-runtime.json', '444'),
             (source / 'pryx-vm-linux-x64.tar.gz', 'runtime.tar.gz', '444'),
         ]:
@@ -76,6 +77,7 @@ def main():
             'PRYX_VM_RUNTIME_ARCHIVE': str(programs / 'runtime.tar.gz'),
             'PRYX_VM_RUNTIME_DIAGNOSTICS': str(state / 'diagnostics'),
             'PRYX_VM_ROOT_SCOPE_TEST_PROGRAM': str(programs / 'scope'),
+            'PRYX_VM_POLICY_PROBE': str(programs / 'network-probe'),
         }
         observed = subprocess.check_output(['systemd', '--version'], text=True).splitlines()[0]
         (args.work / 'profile.json').write_text(json.dumps({
@@ -110,7 +112,8 @@ def main():
         (args.work / 'summary.json').write_text(json.dumps({
             'systemd': observed, 'mainUnitChanged': False, 'separateTap': True,
             'separateRootRuntime': True, 'leaseBoundScope': True, 'images': 2, 'properties': properties,
-            'unproved': 'Production worker transport, installed service and root packet/firewall integration',
+            'rootHostnamePackets': True,
+            'unproved': 'Production worker transport, installed service and root unrestricted IP forwarding',
         }, indent=2) + '\n')
     finally:
         # Stop the exact owned units before removing their private state, even after failure.

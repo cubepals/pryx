@@ -42,11 +42,26 @@ impl VmRuntime {
         lease: &Path,
         entry: &Entry,
         deadline: Instant,
-    ) -> Result<Option<super::super::network::Network>, RuntimeError> {
+    ) -> Result<Option<network::Network>, RuntimeError> {
+        if !entry.spec.internal_network && self.state.settings.monitor_owner.is_some() {
+            let policy = entry.spec.egress.clone().ok_or_else(|| {
+                RuntimeError::Unavailable("Root VM unrestricted TAP forwarding is not available".into())
+            })?;
+            return network::Network::root(
+                &self.state.settings,
+                bundle,
+                &self.state.root.join("boots"),
+                lease,
+                policy,
+                deadline,
+            )
+            .await
+            .map(Some);
+        }
         let socket = directory.join(format!("vsock_{}", pryx_agent::vm_boot::PACKET_PORT));
         let network_lease = lease.with_extension("network.lock");
         let network = if !entry.spec.internal_network {
-            Some(
+            Some(network::Network::User(
                 super::super::network::Network::start(
                     super::super::network::Paths {
                         launcher: &bundle.root().join("bin/vm-launcher"),
@@ -60,7 +75,7 @@ impl VmRuntime {
                     deadline,
                 )
                 .await?,
-            )
+            ))
         } else {
             None
         };
@@ -117,11 +132,18 @@ impl VmRuntime {
         let directory = boot_directory(&self.state.root.join("boots"))?;
         let serial = directory.path().join("serial");
         let deadline = Instant::now() + BOOT_TIMEOUT;
-        let monitor::Launch { channel, configuration, plan, jail } =
-            self.prepare_monitor(&bundle, &entry, &image, directory.path(), &disk.path, deadline).await?;
         let network = self.network(&bundle, directory.path(), &lease, &entry, deadline).await?;
+        let monitor::Launch { channel, configuration, plan, jail } = self
+            .prepare_monitor(
+                &bundle,
+                &entry,
+                &image,
+                monitor::Inputs { directory: directory.path(), disk: &disk.path, network: network.as_ref() },
+                deadline,
+            )
+            .await?;
         let mut boot = super::guest::boot(&entry.spec, &entry.id, &image, &configuration, (uid, gid))?;
-        boot.network = network.as_ref().map(super::super::network::Network::guest).transpose()?;
+        boot.network = network.as_ref().map(network::Network::guest).transpose()?;
         let nonce = boot.nonce.clone();
         entry.started = Some(crate::clock::now());
         entry.finished = None;

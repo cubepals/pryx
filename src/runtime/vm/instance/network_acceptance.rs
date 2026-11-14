@@ -22,12 +22,16 @@ pub(super) async fn check(runtime: &VmRuntime, root: &Path, image: &str, index: 
     let fixture = {
         let live = runtime.state.live.lock().unwrap()[&id].clone();
         let live = live.lock().await;
+        root_monitor(runtime, &live);
         let profile = live.network.as_ref().unwrap().profile();
         json!({
             "unrestricted":unrestricted, "hostname":"example.com", "host":profile["host"], "http":profile["http"],
             "dns":profile["dns"], "privatePort":host.local_addr().unwrap().port(), "caFile":"/data/host-ca.pem"
         })
     };
+    if runtime.state.settings.monitor_owner.is_some() {
+        super::root_acceptance::probe(&spec, &root.join("host-only"), false).await.unwrap();
+    }
     upload_probe(runtime, &spec, &fixture).await;
     let chmod = runtime
         .exec(&id, &["/bin/chmod".into(), "500".into(), "/data/network-probe".into()], Duration::from_secs(5), 4096)
@@ -52,6 +56,18 @@ pub(super) async fn check(runtime: &VmRuntime, root: &Path, image: &str, index: 
     runtime.stop(&id, &spec.stop_signal, Duration::from_secs(15)).await.unwrap();
     assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Exited);
     runtime.remove(&id).await.unwrap();
+}
+
+fn root_monitor(runtime: &VmRuntime, live: &Live) {
+    if let Some(owner) = runtime.state.settings.monitor_owner {
+        let namespace = live.network.as_ref().unwrap().namespace().unwrap().unwrap();
+        let pid = live.monitor.pid().unwrap();
+        let actual = fs::metadata(format!("/proc/{pid}/ns/net")).unwrap();
+        let parent = fs::metadata("/proc/self/ns/net").unwrap();
+        assert_eq!((actual.dev(), actual.ino()), (namespace.device, namespace.inode));
+        assert_ne!((actual.dev(), actual.ino()), (parent.dev(), parent.ino()));
+        assert_eq!(procfs::process::Process::new(pid.try_into().unwrap()).unwrap().status().unwrap().euid, owner.0);
+    }
 }
 
 async fn upload_probe(runtime: &VmRuntime, spec: &ContainerSpec, fixture: &serde_json::Value) {
