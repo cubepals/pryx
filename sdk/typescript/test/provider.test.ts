@@ -116,6 +116,7 @@ test('exec streams before exit, kills once on deadlines and aborts, and cleans l
   let abortOnStart: AbortController | undefined
   let payload = 'live'
   let rejectKill = false
+  let closeOutput = false
   let kills = 0
   let starts = 0
   const result = (killed: boolean) => ({
@@ -149,6 +150,10 @@ test('exec streams before exit, kills once on deadlines and aborts, and cleans l
         return new Response(
           new ReadableStream({
             async start(controller) {
+              if (closeOutput) {
+                controller.close()
+                return
+              }
               controller.enqueue(
                 new TextEncoder().encode(
                   `${JSON.stringify({ type: 'output', stream: 'stdout', bytes: btoa(payload) })}\n`,
@@ -245,6 +250,11 @@ test('exec streams before exit, kills once on deadlines and aborts, and cleans l
     )
     finish(false)
     expect(kills).toBe(5)
+    closeOutput = true
+    await expect(box.exec('lost-output', { cwd: '/data' })).rejects.toMatchObject({
+      code: 'exec_interrupted',
+    })
+    expect(kills).toBe(6)
   } finally {
     server.stop(true)
   }

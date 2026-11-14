@@ -216,7 +216,8 @@ async function exec(box: Sandbox, command: string, options: SandboxExecOptions) 
       stderr: result.stderr,
     }
   } catch (error) {
-    await kill()
+    // A failed cleanup must not hide an unknown command outcome or a caller's callback error.
+    await kill().catch(() => {})
     throw error
   } finally {
     observing = false
