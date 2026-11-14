@@ -7,6 +7,7 @@
 //! microVM backend would be a third, and the protocol would not change.
 //!
 //! Parts (`runtime/`):
+//! - `logs.rs`: agent entrypoint record decoding.
 //! - `files.rs`: owned authenticated streaming file sessions.
 //! - `agent_metadata.rs`: bounded optional parser support from the configured executable.
 //! - `router.rs`: immutable workload routes over the available backends.
@@ -28,6 +29,7 @@ pub mod engine;
 pub mod fake;
 pub mod files;
 pub mod limits;
+pub(crate) mod logs;
 pub mod process;
 pub mod router;
 pub mod vm;

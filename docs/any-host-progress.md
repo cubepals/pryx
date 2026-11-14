@@ -3251,3 +3251,11 @@ job when publication is authorized. That job has not run in this task.
   signal constructor; the library's checked from_named_raw resolves it without unsafe conversion.
   CI 43539225548 at 021d73c remains queued; scanner stays eighteen addressed comments. K25 is
   still in progress; continue VM logs/stats and the other pending production integration.
+
+
+- K25 move-only preparation: move the unchanged persistent-entrypoint decoder and its existing
+  tests from the process backend into runtime/logs.rs; the process reader retains its original
+  descriptor, bounds, rotation detection and following. Current local Rust is 513 passes, the
+  unchanged IPv6 fixture failure and 34 ignored; both strict Clippy modes/fmt/whitespace pass.
+  No workflow, gate or runtime behaviour changes. VM log transport and admitted stopped-disk
+  replay are next. Source 73d00ba VM run 43539908502 remains queued; scanner stays eighteen.
