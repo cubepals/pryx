@@ -139,6 +139,24 @@ try {
         '/mnt/pryx-artifacts',
       ],
       [
+        'curl',
+        '--fail',
+        '--silent',
+        '--show-error',
+        '--retry',
+        '10',
+        '--retry-connrefused',
+        '--retry-delay',
+        String(SECOND_MS / SECOND_MS),
+        '--retry-max-time',
+        String(MINUTE_MS / SECOND_MS),
+        '--max-time',
+        String((5 * SECOND_MS) / SECOND_MS),
+        '--output',
+        '/dev/null',
+        'http://127.0.0.1:9876/install.sh',
+      ],
+      [
         'env',
         'PRYX_RELEASE_BASE_URL=http://127.0.0.1:9876',
         `PRYX_BOOTSTRAP_API_KEY=${key}`,
@@ -186,7 +204,9 @@ try {
       const deadline = Date.now() + 25 * MINUTE_MS
       let healthy = false
       while (Date.now() < deadline && vm.exitCode === null) {
-        const response = await fetch(`${origin}/healthz`).catch(() => undefined)
+        const response = await fetch(`${origin}/healthz`, {
+          signal: AbortSignal.timeout(5 * SECOND_MS),
+        }).catch(() => undefined)
         if (response?.ok) {
           healthy = true
           break
