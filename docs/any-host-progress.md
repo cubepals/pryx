@@ -3964,3 +3964,17 @@ job when publication is authorized. That job has not run in this task.
   The focused two-case bootstrap check passes (0.45 s), with the same agentOS environment;
   that is diagnostic validation, not a claimed cause or fix. Targeted strict Clippy and
   formatting pass. Real engine/KVM validation stays in CI.
+- Source 4983d3b VM run 43614962673/job 132507902901 fails only the new CNI
+  fixture: CNI requires its target namespace to differ from the plugin's own namespace.
+  The dispatcher emits an interface result followed by that refusal, not usable success.
+  Both-image ordinary runtime (122.98 s), direct jailer (16.67 s), production root runtime
+  (33.94 s), bundle, registry and component cases pass independently. Summary:
+  checks/measurements/k25/cni-tap-4983d3b.json. Scanner remains eighteen.
+- Correct the fixture to create a separate anonymous namespace through maintained netns,
+  restore the caller namespace, retain the actual namespace descriptor through the entire
+  operation, observe the target interface there and spawn the ordinary monitor-open child
+  inside it. The kernel owns cleanup after last descriptor retirement, including a partial
+  ADD refusal; normal DEL remains one identity-checked submission. Original-host neighbour
+  assertions remain. No /var/run namespace mount, route, IPAM or firewall is introduced.
+  The unchanged nineteen-module notice inventory verifies, both programs compile, go vet
+  and module verification pass; actual root TAP proof still awaits CI. Cost unchanged.

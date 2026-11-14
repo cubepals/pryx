@@ -6,6 +6,7 @@ require (
 	github.com/containernetworking/cni v1.3.1
 	github.com/containernetworking/plugins v1.10.0
 	github.com/vishvananda/netlink v1.3.1
+	github.com/vishvananda/netns v0.0.5
 	golang.org/x/sys v0.49.0
 )
 
@@ -21,7 +22,6 @@ require (
 	github.com/opencontainers/selinux v1.15.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/safchain/ethtool v0.7.0 // indirect
-	github.com/vishvananda/netns v0.0.5 // indirect
 	go.opentelemetry.io/otel v1.47.0 // indirect
 	go.opentelemetry.io/otel/trace v1.47.0 // indirect
 	golang.org/x/net v0.59.0 // indirect

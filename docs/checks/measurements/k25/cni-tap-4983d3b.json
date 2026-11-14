@@ -1,0 +1,13 @@
+{
+  "source": "4983d3b2dc009f7446fc54102f3ad26a7ddc33af",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43614962673",
+  "job": 132507902901,
+  "result": "failure",
+  "ran": "Pinned CNI TAP ADD directed at the plugin caller namespace; both-image ordinary and root VM acceptance independently continued",
+  "tap_result": "The maintained CNI dispatcher refuses the same network namespace after ADD produced an interface result; no ordinary-owner open or safe cleanup success is established",
+  "ordinary_runtime_seconds": 122.98,
+  "root_jailer_seconds": 16.67,
+  "root_runtime_seconds": 33.94,
+  "unproved": "CNI TAP acceptance in a distinct namespace and production root routing/firewall/lifetime ownership; later node HTTP fixture",
+  "raw_output": "CI artifacts only"
+}

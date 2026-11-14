@@ -26,6 +26,7 @@ import (
 	"github.com/containernetworking/cni/pkg/version"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/vishvananda/netlink"
+	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 )
 
@@ -58,6 +59,30 @@ func links() (map[string]int, error) {
 	return names, nil
 }
 
+func newNamespace() (netns.NsHandle, error) {
+	original, err := netns.Get()
+	if err != nil {
+		return netns.None(), err
+	}
+	defer original.Close()
+	created, err := netns.New()
+	if restored := netns.Set(original); err != nil || restored != nil {
+		created.Close()
+		return netns.None(), errors.Join(err, restored)
+	}
+	return created, nil
+}
+
+func tapLink(space ns.NetNS, name string) (netlink.Link, error) {
+	var link netlink.Link
+	err := space.Do(func(ns.NetNS) error {
+		var err error
+		link, err = netlink.LinkByName(name)
+		return err
+	})
+	return link, err
+}
+
 func probe(directory string, uid, gid uint32) error {
 	if os.Geteuid() != 0 || uid == 0 || gid == 0 || uid == ^uint32(0) || gid == ^uint32(0) {
 		return fmt.Errorf("Root TAP acceptance requires root and fixed non-root monitor IDs")
@@ -79,7 +104,14 @@ func probe(directory string, uid, gid uint32) error {
 	if _, exists := before[name]; exists {
 		return fmt.Errorf("TAP fixture name is occupied")
 	}
-	space, err := ns.GetCurrentNS()
+	handle, err := newNamespace()
+	if err != nil {
+		return err
+	}
+	defer handle.Close()
+	// The parent retains this namespace descriptor through ADD, monitor open and DEL.
+	// CNI requires a target namespace distinct from the plugin's own namespace.
+	space, err := ns.GetNS(fmt.Sprintf("/proc/%d/fd/%d", os.Getpid(), int(handle)))
 	if err != nil {
 		return err
 	}
@@ -106,7 +138,7 @@ func probe(directory string, uid, gid uint32) error {
 	if err != nil {
 		return err
 	}
-	link, err := netlink.LinkByName(name)
+	link, err := tapLink(space, name)
 	if err != nil {
 		return err
 	}
@@ -117,7 +149,7 @@ func probe(directory string, uid, gid uint32) error {
 			return fmt.Errorf("TAP cleanup was already submitted")
 		}
 		attempted = true
-		observed, err := netlink.LinkByName(name)
+		observed, err := tapLink(space, name)
 		if err != nil {
 			return err
 		}
@@ -146,15 +178,20 @@ func probe(directory string, uid, gid uint32) error {
 	if err != nil {
 		return err
 	}
-	child := exec.CommandContext(ctx, executable, "--open", name)
-	child.SysProcAttr = &syscall.SysProcAttr{Credential: &syscall.Credential{Uid: uid, Gid: gid, Groups: []uint32{}}}
-	if output, err := child.CombinedOutput(); err != nil {
-		return fmt.Errorf("Ordinary monitor TAP open: %w: %s", err, output)
+	if err := space.Do(func(ns.NetNS) error {
+		child := exec.CommandContext(ctx, executable, "--open", name)
+		child.SysProcAttr = &syscall.SysProcAttr{Credential: &syscall.Credential{Uid: uid, Gid: gid, Groups: []uint32{}}}
+		if output, err := child.CombinedOutput(); err != nil {
+			return fmt.Errorf("Ordinary monitor TAP open: %w: %s", err, output)
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
 	if err := cleanup(); err != nil {
 		return err
 	}
-	_, err = netlink.LinkByName(name)
+	_, err = tapLink(space, name)
 	var absent netlink.LinkNotFoundError
 	if !errors.As(err, &absent) {
 		return fmt.Errorf("Retired TAP is still observable: %v", err)

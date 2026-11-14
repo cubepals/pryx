@@ -1195,3 +1195,5 @@
 - K25: distinguish the ordinary image's installed tiers from the additive protocol enum in its mixed-tier fixture; preserve every container/process/wasm assertion and require an explicit VM request to receive the named no_room refusal on this no-KVM image.
 
 - K25: capture the actual child exit and the same bounded redacted stderr when the existing bootstrap spare-connect assertion fails, preserving its single connect, addresses and original success requirement; focused success does not erase the full-suite failure.
+
+- K25: give CNI its required distinct network namespace through pinned netns/ns libraries, retain its parent descriptor through one ADD/open/DEL sequence, and let kernel descriptor retirement bound failed partial setup; observe target links inside that namespace and keep neighbour checks in the original namespace. No named global namespace, routing or host policy is changed.
