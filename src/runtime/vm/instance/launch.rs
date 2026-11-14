@@ -31,7 +31,9 @@ pub(super) fn resources(spec: &ContainerSpec) -> Result<(u64, u32, u32, u32), Ru
     }
     let cpus = match spec.nano_cpus {
         Some(n) if n > 0 && n % NANO_CPU == 0 => u32::try_from(n / NANO_CPU).map_err(error)?,
-        Some(_) => return Err(error("VM guest-size CPU limits require a positive whole vCPU count")),
+        Some(_) => {
+            return Err(error("VM guest-size CPU limits require a positive whole vCPU count"));
+        }
         None => 1,
     };
     let (uid, gid) = spec.user.split_once(':').unwrap_or((&spec.user, &spec.user));
@@ -52,6 +54,33 @@ pub(super) fn resources(spec: &ContainerSpec) -> Result<(u64, u32, u32, u32), Ru
 }
 
 impl VmRuntime {
+    async fn forward(
+        &self,
+        bundle: &Bundle,
+        channel: &Path,
+        entry: &Entry,
+        deadline: Instant,
+    ) -> Result<Forwarder, RuntimeError> {
+        let bindings = entry
+            .spec
+            .ports
+            .iter()
+            .flat_map(|port: &PortBinding| {
+                port.host_ips
+                    .iter()
+                    .map(move |ip| super::super::forward::Binding::service(*ip, port.host_port, port.container_port))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Forwarder::start(
+            &bundle.root().join("bin/vm-transport"),
+            channel,
+            &bindings,
+            self.state.settings.ingress_connections,
+            deadline,
+        )
+        .await
+    }
+
     pub(super) async fn prepared(&self, image: &str, timeout: Duration) -> Result<Prepared, RuntimeError> {
         let bundle = self.bundle().await?;
         super::super::image::prepare(
@@ -127,24 +156,7 @@ impl VmRuntime {
             usize::try_from(u64::from(entry.spec.log_max_size_mb) * 1024 * 1024).map_err(error)?,
         )
         .await?;
-        let bindings = entry
-            .spec
-            .ports
-            .iter()
-            .flat_map(|port: &PortBinding| {
-                port.host_ips
-                    .iter()
-                    .map(move |ip| super::super::forward::Binding::service(*ip, port.host_port, port.container_port))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let forwarder = Forwarder::start(
-            &bundle.root().join("bin/vm-transport"),
-            &channel,
-            &bindings,
-            self.state.settings.ingress_connections,
-            deadline,
-        )
-        .await?;
+        let forwarder = self.forward(&bundle, &channel, &entry, deadline).await?;
         monitor.delivered(deadline).await?;
         ready(&mut monitor, &entry.spec, deadline).await?;
 
