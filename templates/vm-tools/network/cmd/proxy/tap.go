@@ -39,7 +39,7 @@ func attachedTap(descriptor int, name string) (*os.File, error) {
 	if err == nil {
 		err = unix.IoctlIfreq(descriptor, unix.TUNGETIFF, request)
 	}
-	if err == nil && (request.Name() != name || request.Uint16()&(unix.IFF_TAP|unix.IFF_TUN|unix.IFF_NO_PI) != unix.IFF_TAP|unix.IFF_NO_PI) {
+	if err == nil && (request.Name() != name || request.Uint16()&(unix.IFF_TAP|unix.IFF_TUN|unix.IFF_NO_PI|unix.IFF_VNET_HDR) != unix.IFF_TAP|unix.IFF_TUN|unix.IFF_NO_PI|unix.IFF_VNET_HDR) {
 		err = fmt.Errorf("Actual inherited TAP identity or packet format differs from its grant")
 	}
 	if err == nil {

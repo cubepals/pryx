@@ -21,7 +21,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func scopeProbe(helper, directory string, uid, gid uint32) error {
+func scopeProbe(helper, directory string, uid, gid uint32, agent, packet string) error {
 	if os.Geteuid() != 0 || uid == 0 || gid == 0 || !filepath.IsAbs(helper) {
 		return fmt.Errorf("Scope acceptance requires root and fixed ordinary identities")
 	}
@@ -53,6 +53,9 @@ func scopeProbe(helper, directory string, uid, gid uint32) error {
 	defer cancel()
 	command := exec.CommandContext(ctx, helper, "--plugins", directory, "--state", work,
 		"--lease", held.Name(), "--uid", fmt.Sprint(uid), "--gid", fmt.Sprint(gid))
+	if agent != "" || packet != "" {
+		command.Args = append(command.Args, "--bridge-agent", agent, "--bridge-packet", packet)
+	}
 	command.Stdout, command.Stderr = sender, os.Stderr
 	input, err := command.StdinPipe()
 	if err != nil {
@@ -88,7 +91,11 @@ func scopeProbe(helper, directory string, uid, gid uint32) error {
 	if err := json.Unmarshal(metadata, &grant); err != nil {
 		return err
 	}
-	if !grant.HostFirewall || grant.Version != rootnetwork.ScopeVersion || !slices.Equal(grant.Descriptors, rootnetwork.ScopeAdvertisement().Descriptors) || len(files) != len(grant.Descriptors) {
+	expected := rootnetwork.ScopeAdvertisement().Descriptors
+	if agent != "" || packet != "" {
+		expected = rootnetwork.ScopeAdvertisement().BridgeDescriptors
+	}
+	if !grant.HostFirewall || grant.Version != rootnetwork.ScopeVersion || !slices.Equal(grant.Descriptors, expected) || len(files) != len(grant.Descriptors) {
 		return fmt.Errorf("Actual scope metadata differs from its protocol owner")
 	}
 	roles := map[rootnetwork.ScopeRole]*os.File{}
@@ -115,6 +122,13 @@ func scopeProbe(helper, directory string, uid, gid uint32) error {
 		return err
 	}
 	defer space.Close()
+	bridgeIdentity := 0
+	if agent != "" || packet != "" {
+		bridgeIdentity, err = inspectBridge(space, grant, roles)
+		if err != nil {
+			return err
+		}
+	}
 	link, err := tapLink(space, grant.Tap)
 	if err != nil {
 		return err
@@ -159,6 +173,11 @@ func scopeProbe(helper, directory string, uid, gid uint32) error {
 	if !errors.As(err, &absent) {
 		return fmt.Errorf("Retired scope TAP remains observable: %v", err)
 	}
+	if bridgeIdentity != 0 {
+		if err := retiredBridge(space, grant.PacketTap, bridgeIdentity); err != nil {
+			return err
+		}
+	}
 	after, err := links()
 	if err != nil {
 		return err
@@ -172,5 +191,5 @@ func scopeProbe(helper, directory string, uid, gid uint32) error {
 		}
 	}
 	return json.NewEncoder(os.Stdout).Encode(map[string]bool{"actualSubprocessGrant": true,
-		"ordinaryOwnerOpened": true, "leaseBlockedRetirement": true, "explicitDeleteConfirmed": true, "neighboursUnchanged": true})
+		"ordinaryOwnerOpened": true, "leaseBlockedRetirement": true, "explicitDeleteConfirmed": true, "neighboursUnchanged": true, "bridgeDescriptorsAndFirewall": bridgeIdentity != 0})
 }

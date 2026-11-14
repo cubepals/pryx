@@ -40,7 +40,7 @@ func lease(path string) (*os.File, error) {
 	return file, nil
 }
 
-func grant(directory, state, lock string, uid, gid uint) (problem error) {
+func grant(directory, state, lock string, uid, gid uint, agent, packet string) (problem error) {
 	if os.Geteuid() != 0 || uid == 0 || gid == 0 || uint64(uid) >= uint64(^uint32(0)) || uint64(gid) >= uint64(^uint32(0)) {
 		return fmt.Errorf("Root scope requires root and fixed ordinary monitor identities")
 	}
@@ -70,7 +70,7 @@ func grant(directory, state, lock string, uid, gid uint) (problem error) {
 	}()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	scope, err := rootnetwork.Open(ctx, directory, cache, "vm0", uint32(uid), uint32(gid))
+	scope, err := openScope(ctx, directory, cache, uint32(uid), uint32(gid), agent, packet)
 	if err != nil {
 		return err
 	}
@@ -118,12 +118,14 @@ func main() {
 	lock := flag.String("lease", "", "Private actual monitor lifetime lease")
 	uid := flag.Uint("uid", 0, "Host-selected ordinary monitor UID")
 	gid := flag.Uint("gid", 0, "Host-selected ordinary monitor GID")
+	agent := flag.String("bridge-agent", "", "Fixed protected agent supplying the host IPv4 boundary")
+	packet := flag.String("bridge-packet", "", "Fixed protected maintained packet program")
 	flag.Parse()
 	var err error
 	if *metadata {
 		err = json.NewEncoder(os.Stdout).Encode(rootnetwork.ScopeAdvertisement())
 	} else {
-		err = grant(*directory, *state, *lock, *uid, *gid)
+		err = grant(*directory, *state, *lock, *uid, *gid, *agent, *packet)
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

@@ -9,9 +9,14 @@
 // device creation, ordinary-owner open and identity-bound cleanup in the existing VM CI job.
 // protocol.go owns the unchanged private metadata shapes and descriptor roles;
 // cmd/scope/main.go grants actual namespace/listener descriptors and waits on the monitor lease
-// before retiring one scope; cmd/tap-probe/scope.go checks that actual process and lease.
+// before retiring one scope; cmd/tap-probe/scope.go checks that actual process and lease;
+// cmd/tap-probe/bridge.go checks actual bridge topology, firewall hooks and retirement.
 // It is not installed or registered as a production worker.
+// boundary.go reads opaque policy inputs from fixed protected executables; bridge.go owns
+// the two-port anonymous L2 bridge and queue; bridge_firewall.go installs its independent
+// public IPv4 boundary; cmd/scope/bridge.go selects that private parser path.
 // authority.go owns unchanged protected root program/directory checks.
+// firewall.go owns hostname-gateway admission and kernel readback.
 // scope.go owns one private TAP and local addressing; listeners.go binds actual gateway
 // descriptors there; credentials.go reads actual drop-user authority on fixture failure; cmd/tap-probe/gateways.go checks serving them in the parent namespace.
 package rootnetwork

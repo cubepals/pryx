@@ -46,6 +46,8 @@ def main():
             (source / 'vm-root-scope', 'scope', '555'),
             (source / 'vm-root-cni/tap', 'tap', '555'),
             (source / 'vm-network-probe', 'network-probe', '555'),
+            (source / 'vm-runtime/bin/vm-launcher', 'bridge-agent', '555'),
+            (source / 'vm-runtime/bin/network-proxy', 'bridge-packet', '555'),
             (source / 'vm-runtime.json', 'vm-runtime.json', '444'),
             (source / 'pryx-vm-linux-x64.tar.gz', 'runtime.tar.gz', '444'),
         ]:
@@ -93,6 +95,9 @@ def main():
             ('gateways', [str(programs / 'tap-probe'), '--plugins', str(programs), '--uid', uid, '--gid', gid, '--gateways']),
             ('scope', [str(programs / 'tap-probe'), '--plugins', str(programs), '--uid', uid, '--gid', gid,
                        '--scope-helper', str(programs / 'scope')]),
+            ('bridge', [str(programs / 'tap-probe'), '--plugins', str(programs), '--uid', uid, '--gid', gid,
+                        '--scope-helper', str(programs / 'scope'), '--bridge-agent', str(programs / 'bridge-agent'),
+                        '--bridge-packet', str(programs / 'bridge-packet')]),
             ('adoption', [str(programs / 'acceptance'), '--exact',
                           'runtime::vm::root_scope::tests::actual_root_gateway_adoption_and_lease_retirement',
                           '--ignored', '--nocapture']),
@@ -112,12 +117,12 @@ def main():
         (args.work / 'summary.json').write_text(json.dumps({
             'systemd': observed, 'mainUnitChanged': False, 'separateTap': True,
             'separateRootRuntime': True, 'leaseBoundScope': True, 'images': 2, 'properties': properties,
-            'rootHostnamePackets': True,
+            'rootHostnamePackets': True, 'rootPublicBridgeDescriptors': True,
             'unproved': 'Production worker transport, installed service and root unrestricted IP forwarding',
         }, indent=2) + '\n')
     finally:
         # Stop the exact owned units before removing their private state, even after failure.
-        for suffix in ['tap', 'gateways', 'scope', 'adoption', 'runtime']:
+        for suffix in ['tap', 'gateways', 'scope', 'bridge', 'adoption', 'runtime']:
             subprocess.run(['sudo', 'systemctl', 'stop', name + '-' + suffix + '.service'],
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
             status = subprocess.run(['sudo', 'systemctl', 'show', name + '-' + suffix + '.service',

@@ -22,7 +22,7 @@ Parts (`vm-tools/`):
 - `cmd/guest/main.go`: static PID 1 filesystem and vsock probe.
 - `kernel.py`: thirty real ordinary-user KVM boots and a disk-retaining reboot.
 - `network/`: separate network module, pinned inputs, licences, wrapper and guest probe (see its README).
-- `root-network/`: independent CNI TAP dependency and notice pins, plus real-device CI probes and a lease-bound descriptor-grant program; this does not configure production VM routing or firewall policy.
+- `root-network/`: independent CNI TAP dependency and notice pins, plus real-device CI probes, namespace hostname gateways and a lease-bound two-port bridge descriptor program; root placement and production worker integration remain disabled.
 - `root_authority.py`: replay the unchanged root lifecycle and TAP fixture in a separate bounded systemd unit, without installing a worker or changing the daemon unit.
 - `network_prepare.py`: verified Alpine tar and unchanged separate pasta source build.
 - `network_namespace.py`: private user-namespace bridge and TAP, with parent-bound monitor lifetime.

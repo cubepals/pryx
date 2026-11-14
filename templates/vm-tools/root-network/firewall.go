@@ -106,12 +106,15 @@ func (scope *Scope) secure(ports Ports) error {
 	return nil
 }
 
-func confirmChains(connection *nftables.Conn, table *nftables.Table, input, forward *nftables.Chain) error {
+func confirmChains(connection *nftables.Conn, table *nftables.Table, wanted ...*nftables.Chain) error {
 	chains, err := connection.ListChainsOfTableFamily(table.Family)
 	if err != nil {
 		return err
 	}
-	required := map[string]*nftables.Chain{input.Name: input, forward.Name: forward}
+	required := map[string]*nftables.Chain{}
+	for _, chain := range wanted {
+		required[chain.Name] = chain
+	}
 	for _, actual := range chains {
 		if actual.Table.Name != table.Name || actual.Table.Family != table.Family {
 			continue

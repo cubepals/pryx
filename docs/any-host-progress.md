@@ -4505,3 +4505,25 @@ job when publication is authorized. That job has not run in this task.
   embedded exactly. Actual confined Unix HTTP API returns success and remains live without
   KVM. Component correspondence, Python syntax, Rust fmt and whitespace pass. Actual confined
   guest boot and shutdown remain pending. No dependency/job/gate or added CI time in this fix.
+
+- Prepare the root public-network bridge as two TAP ports in the existing owned anonymous
+  namespace. The CNI monitor TAP retains identity-bound deletion; a nonpersistent packet TAP
+  retains one no-PI/no-vnet-header queue. Remove initial local IPv4 addressing before grants,
+  use the actual packet program's MTU/MAC/IP profile and refuse a kernel-bridge MAC collision.
+- Opaque bridge inputs read the authoritative IPv4 exclusions and network profile from
+  fixed protected root-owned executables. No request can replace that boundary. The private
+  bridge has default-drop input/output/forward hooks, fixed ports/MAC/IP peers, gateway DNS
+  and public IPv4 admission; other EtherTypes/IPv6 and private IP traffic drop. Install and
+  read back rules before a single descriptor grant, with explicit cleanup behind the actual
+  monitor lease. Original-host routes, forwarding settings and firewall remain untouched.
+- Add the bridge parser to the existing private scope command, announcing its two descriptor
+  roles separately while preserving old hostname grants. Extend the existing bounded root
+  fixture to inspect actual queue/type/flags, topology/MTU/no IPv4 addresses, kernel drop hooks
+  and lease-blocked explicit deletion with received descriptors still held. This is no packet
+  forwarding claim; real hardware and packet enforcement remain pending.
+- Local Go tests/build/vet, module verification, all nineteen primary-notice checks, Python
+  syntax and whitespace pass. FSL scope still excludes both external TAP-only copyleft
+  modules. The maintained netlink single-queue defaults omit no-PI: request it explicitly and
+  reject either packet-info or vnet framing in the ordinary reader. No dependency/job/gate;
+  estimate under five extra optional VM seconds. Root placement, confined packet handoff,
+  actual public TCP/UDP/denial traffic, installed worker and full thirty-sample cohorts remain.
