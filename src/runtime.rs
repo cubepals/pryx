@@ -7,6 +7,7 @@
 //! microVM backend would be a third, and the protocol would not change.
 //!
 //! Parts (`runtime/`):
+//! - `files.rs`: owned authenticated streaming file sessions.
 //! - `agent_metadata.rs`: bounded optional parser support from the configured executable.
 //! - `router.rs`: immutable workload routes over the available backends.
 //! - `configured.rs`: construction from host-owned backend settings.
@@ -25,6 +26,7 @@ pub mod docker;
 pub mod engine;
 #[cfg(any(test, feature = "fake"))]
 pub mod fake;
+pub mod files;
 pub mod limits;
 pub mod process;
 pub mod router;

@@ -134,6 +134,17 @@ impl VmRuntime {
     }
 }
 impl FileGuest {
+    pub fn into_service(self) -> Result<crate::runtime::files::Service, RuntimeError> {
+        let inner = self.inner.as_ref().ok_or_else(|| error("VM file service is closed"))?;
+        let boot = inner.entry.spec.agent.as_ref().ok_or_else(|| error("VM file service identity is missing"))?;
+        crate::runtime::files::Service::new(
+            inner.live.forwarder.addresses()[0],
+            agent::key(&inner.entry.spec)?,
+            (boot.sandbox.clone(), boot.epoch),
+            launch::BOOT_TIMEOUT,
+            self.close(),
+        )
+    }
     /// Each file mutation is submitted once. The caller owns stream limits and admission.
     pub async fn request(
         &self,

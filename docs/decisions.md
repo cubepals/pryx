@@ -1091,3 +1091,5 @@
 - K25: Keep VM specifications and credentials in bounded private 0600 journals outside sandbox data, matching the existing process backend; persist launch intent before compute, restore unfinished launches only as unknown exits, and independently verify disks rather than invent a clean shutdown after daemon death.
 
 - K25: Retain bounded monitor serial tails only in the existing optional VM CI artifact, redacting all launch environment values and incomplete boundary lines; add fixture stage markers without changing production logging, request deadlines or mutation retry policy.
+
+- K25: Use one authenticated streaming file-session transport with fixed operation routes and URL-owned query encoding; its backend cleanup task outlives cancelled close waits, so node guards can stay held through guest retirement without replaying a file mutation.

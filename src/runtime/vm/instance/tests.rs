@@ -171,20 +171,21 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
             .unwrap();
         assert_eq!(response.status(), hyper::StatusCode::OK);
         assert_eq!(crate::http_client::read_body(response, 1024).await.unwrap(), "durable");
+        let response =
+            files.request(hyper::Method::POST, "/_pryx/processes", crate::http_client::full("{}")).await.unwrap();
+        assert_eq!(response.status(), hyper::StatusCode::NOT_FOUND);
+        let files = files.into_service().unwrap();
         let bytes: Vec<u8> = (0..=u8::MAX).cycle().take(pryx_agent::contract::MAX_REQUEST_BYTES + 1).collect();
         let response = files
-            .request(hyper::Method::PUT, "/_pryx/files/content?path=offline", crate::http_client::full(bytes.clone()))
+            .request(crate::runtime::files::Operation::Write, "offline", crate::http_client::full(bytes.clone()))
             .await
             .unwrap();
         assert_eq!(response.status(), hyper::StatusCode::NO_CONTENT);
         let response = files
-            .request(hyper::Method::GET, "/_pryx/files/content?path=offline", crate::http_client::empty())
+            .request(crate::runtime::files::Operation::Read, "offline", crate::http_client::empty())
             .await
             .unwrap();
         assert_eq!(crate::http_client::read_body(response, bytes.len()).await.unwrap().as_ref(), bytes);
-        let response =
-            files.request(hyper::Method::POST, "/_pryx/processes", crate::http_client::full("{}")).await.unwrap();
-        assert_eq!(response.status(), hyper::StatusCode::NOT_FOUND);
         files.close().await.unwrap();
         drop(runtime.data_copy_lease(sandbox, &data).await.unwrap());
         runtime.start(&id).await.unwrap();

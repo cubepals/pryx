@@ -3109,3 +3109,19 @@ job when publication is authorized. That job has not run in this task.
   fmt, actionlint and whitespace checks pass. Workflow changes only extend existing artifact
   retention; no new gate/job or material CI time. Failure summary: checks/measurements/k25/
   runtime-7cc98b6.json. Stopped-file service and journal adoption still await actual KVM CI.
+
+
+- K25 node-file transport preparation: a shared authenticated file session offers only four
+  fixed operation routes and encodes paths through the URL library. It streams bodies without
+  JSON-sized buffering, sends each mutation once, and owns backend cleanup independently of
+  caller cancellation. The stopped guest can now become this session without releasing its
+  transition/disk lease. Node API handlers are not yet connected and no VM tier is announced.
+- A real local HTTP server proves scoped authentication, query-injection-safe path encoding,
+  a binary response above the JSON limit, one mutation, and retention of the backend guard
+  after cancelling a close wait. Full Rust: 508 passes, one unchanged IPv6 failure, 34 ignored;
+  both strict Clippy modes/fmt pass. Existing KVM acceptance now uses this same session for its
+  stopped-disk binary transfer; no new boot/job/gate or material CI time. Real proof is pending.
+- Source 04ead4a VM run 43531094740/job 132248711101 has failed its runtime step; other steps
+  are still active and GitHub's job-log endpoint currently returns 404. Read that completed
+  failure as soon as the log is published. Do not infer the cause or a successful file guest.
+  Scanner remains eighteen addressed comments. Continue K25 node-session integration.
