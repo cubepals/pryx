@@ -157,13 +157,14 @@ jobs:
       - name: Prove ordinary host VM process policies
         if: ${{ !cancelled() && steps.vm-rust.outcome == 'success' }}
         env:
+          PRYX_VM_HOST_PROXY: ${{ runner.temp }}/vm-network-proxy
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
           CARGO_PROFILE_DEV_DEBUG: '0'
           CARGO_PROFILE_TEST_DEBUG: '0'
           CARGO_INCREMENTAL: '0'
         run: |
           cargo test --locked -p pryx-agent --lib vm_policy::tests -- --nocapture | tee "$RUNNER_TEMP/vm-host-policy.log"
-          cargo test --locked -p pryx-agent --test vm_monitor -- --nocapture | tee -a "$RUNNER_TEMP/vm-host-policy.log"
+          cargo test --locked -p pryx-agent --test vm_monitor -- --include-ignored --nocapture | tee -a "$RUNNER_TEMP/vm-host-policy.log"
       - name: Build the actual static agent and trusted bootstrap
         id: vm-bootstrap
         if: ${{ !cancelled() && steps.vm-rust.outcome == 'success' }}

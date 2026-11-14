@@ -25,6 +25,19 @@ async fn launch(plan: &Plan) -> Child {
     child
 }
 
+async fn refused_proxy(plan: &Plan) {
+    let proxy = launch(plan).await;
+    let result =
+        tokio::time::timeout(std::time::Duration::from_secs(5), proxy.wait_with_output()).await.unwrap().unwrap();
+    assert!(!result.status.success());
+    assert!(result.stdout.is_empty(), "A refused packet helper must not publish readiness");
+    if let Role::PacketProxy { socket, .. } = &plan.role
+        && let Err(error) = fs::remove_file(socket)
+    {
+        assert_eq!(error.kind(), std::io::ErrorKind::NotFound);
+    }
+}
+
 #[tokio::test]
 async fn confined_host_process_cannot_escape_or_release_its_lease() {
     assert!(!rustix::process::geteuid().is_root(), "Run ordinary-user monitor checks without root");
@@ -205,4 +218,126 @@ time.sleep(30)
     proxy.kill().await.unwrap();
     proxy.wait().await.unwrap();
     rustix::fs::flock(&lease, rustix::fs::FlockOperation::NonBlockingLockExclusive).unwrap();
+}
+
+#[tokio::test]
+#[ignore = "requires the separately built pinned Go packet helper; optional VM CI supplies it"]
+async fn actual_packet_proxy_serves_its_inherited_private_socket() {
+    use std::{collections::BTreeSet, os::unix::fs::PermissionsExt, time::Duration};
+    use tokio::io::AsyncReadExt;
+    assert!(!rustix::process::geteuid().is_root());
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let program = PathBuf::from(std::env::var_os("PRYX_VM_HOST_PROXY").expect("Stage the pinned packet helper"));
+    let metadata = std::process::Command::new(&program).arg("--metadata").env_clear().output().unwrap();
+    assert!(metadata.status.success());
+    let metadata: serde_json::Value = serde_json::from_slice(&metadata.stdout).unwrap();
+    let profile = &metadata["production"];
+    let root = tempfile::tempdir().unwrap();
+    let work = root.path().join("proxy");
+    let locks = root.path().join("locks");
+    for path in [&work, &locks] {
+        fs::DirBuilder::new().mode(0o700).create(path).unwrap();
+    }
+    let configuration = work.join("network.json");
+    let valid = serde_json::json!({
+        "parent":std::process::id(),"host":std::net::Ipv4Addr::LOCALHOST.to_string(),"concurrency":2
+    });
+    fs::write(&configuration, serde_json::to_vec(&valid).unwrap()).unwrap();
+    fs::set_permissions(&configuration, fs::Permissions::from_mode(0o600)).unwrap();
+    let mut read = vec![configuration.clone()];
+    read.extend(
+        ["/etc/services", "/etc/resolv.conf", "/etc/hosts", "/etc/nsswitch.conf", "/etc/gai.conf"]
+            .into_iter()
+            .filter_map(|path| fs::canonicalize(path).ok()),
+    );
+    let socket = work.join("packet");
+    let plan = Plan {
+        program,
+        arguments: vec![profile["configurationArgument"].as_str().unwrap().into(), configuration.display().to_string()],
+        directory: work,
+        lock: locks.join("packet.lock"),
+        parent: std::process::id(),
+        read,
+        write: Vec::new(),
+        role: Role::PacketProxy {
+            socket: socket.clone(),
+            descriptor_argument: profile["descriptorArgument"].as_str().unwrap().into(),
+        },
+    };
+    let mut proxy = launch(&plan).await;
+    let output = proxy.stdout.take().unwrap();
+    let mut bytes = Vec::new();
+    tokio::time::timeout(
+        Duration::from_secs(5),
+        output.take(pryx_agent::contract::MAX_REQUEST_BYTES as u64 + 1).read_to_end(&mut bytes),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    if bytes.is_empty() {
+        let result = proxy.wait_with_output().await.unwrap();
+        panic!("Actual packet helper exited: {}", String::from_utf8_lossy(&result.stderr));
+    }
+    assert!(bytes.len() <= pryx_agent::contract::MAX_REQUEST_BYTES);
+    assert_eq!(serde_json::from_slice::<serde_json::Value>(&bytes).unwrap(), *profile);
+    assert!(proxy.try_wait().unwrap().is_none());
+    let owned = procfs::process::Process::new(proxy.id().unwrap() as i32)
+        .unwrap()
+        .fd()
+        .unwrap()
+        .map(|entry| entry.unwrap())
+        .filter_map(|entry| match entry.target {
+            procfs::process::FDTarget::Socket(inode) => Some(inode),
+            _ => None,
+        })
+        .collect::<BTreeSet<_>>();
+    let tcp = procfs::net::tcp().unwrap().into_iter().map(|entry| entry.inode);
+    let udp = procfs::net::udp().unwrap().into_iter().map(|entry| entry.inode);
+    assert!(!tcp.chain(udp).any(|inode| owned.contains(&inode)), "Packet helper opened a host IPv4 socket at startup");
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .unix_socket(socket.as_path())
+        .timeout(Duration::from_secs(2))
+        .build()
+        .unwrap();
+    for (method, path) in [
+        (reqwest::Method::GET, "/"),
+        (reqwest::Method::POST, metadata["exposePath"].as_str().unwrap()),
+        (reqwest::Method::GET, metadata["statsPath"].as_str().unwrap()),
+    ] {
+        let response = client.request(method, format!("http://packet{path}")).send().await.unwrap();
+        assert_eq!(response.status(), reqwest::StatusCode::NOT_FOUND);
+    }
+    let lease = fs::OpenOptions::new().read(true).write(true).open(&plan.lock).unwrap();
+    assert_eq!(
+        rustix::fs::flock(&lease, rustix::fs::FlockOperation::NonBlockingLockExclusive).unwrap_err(),
+        rustix::io::Errno::WOULDBLOCK
+    );
+    proxy.kill().await.unwrap();
+    proxy.wait().await.unwrap();
+    rustix::fs::flock(&lease, rustix::fs::FlockOperation::NonBlockingLockExclusive).unwrap();
+    drop(lease);
+    drop(client);
+    fs::remove_file(&socket).unwrap();
+    for (field, value) in [
+        ("parent", serde_json::json!(0)),
+        ("host", serde_json::json!(std::net::Ipv4Addr::BROADCAST.to_string())),
+        ("concurrency", serde_json::json!(0)),
+        ("extra", serde_json::json!(true)),
+    ] {
+        let mut invalid = valid.clone();
+        invalid[field] = value;
+        fs::write(&configuration, serde_json::to_vec(&invalid).unwrap()).unwrap();
+        refused_proxy(&plan).await;
+    }
+    let mut trailing = serde_json::to_vec(&valid).unwrap();
+    trailing.extend_from_slice(b"{}");
+    fs::write(&configuration, trailing).unwrap();
+    refused_proxy(&plan).await;
+    let limit = usize::try_from(profile["maxConfigurationBytes"].as_u64().unwrap()).unwrap();
+    fs::write(&configuration, vec![b' '; limit + 1]).unwrap();
+    refused_proxy(&plan).await;
+    fs::write(&configuration, serde_json::to_vec(&valid).unwrap()).unwrap();
+    fs::set_permissions(&configuration, fs::Permissions::from_mode(0o644)).unwrap();
+    refused_proxy(&plan).await;
 }

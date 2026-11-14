@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
-// Command proxy wraps the maintained virtual network for the vsock experiment. The guest
-// reaches only its packet-connect route; management stays on a separate private host socket.
-// It implements neither packet framing nor a network stack and enables no product tier.
+// Command proxy wraps the maintained virtual network for comparison and a closed runtime
+// profile. Only the comparison exposes separate host management. Neither path implements
+// packet framing or a network stack, and the production VM tier remains unregistered.
+//
+// Parts (`cmd/proxy/`): main.go keeps the comparison fixture; production.go owns the closed runtime profile.
 package main
 
 import (
@@ -30,11 +32,24 @@ func main() {
 	guestSocket := flag.String("guest-socket", "", "Guest-facing packet transport Unix listener")
 	controlSocket := flag.String("control-socket", "", "Separate private host-only management listener")
 	metadata := flag.Bool("metadata", false, "Export the upstream API's unexported route names")
+	production := flag.String(productionFlag, "", "Host-owned runtime configuration")
+	descriptor := flag.Int(descriptorFlag, -1, "Inherited private packet listener")
 	flag.Parse()
 	if *metadata {
-		if err := json.NewEncoder(os.Stdout).Encode(map[string]string{
+		profile, err := productionMetadata()
+		if err != nil {
+			log.Fatal(err)
+		}
+		if err := json.NewEncoder(os.Stdout).Encode(map[string]any{
 			"exposePath": networkfixture.ExposePath, "statsPath": networkfixture.StatsPath,
+			"production": profile,
 		}); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+	if *production != "" {
+		if err := serveProduction(*production, *descriptor); err != nil {
 			log.Fatal(err)
 		}
 		return

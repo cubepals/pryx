@@ -3543,3 +3543,27 @@ job when publication is authorized. That job has not run in this task.
   extend the existing test bound. Scanner remains eighteen. K25 remains in progress; next
   wire owned production networking, then root/TAP/jailer, protected configuration/install,
   node/edge lifecycle, thirty samples and all outstanding CI/transport proof.
+
+
+- K25 maintained host packet profile: metadata owns its isolated virtual addresses/MACs,
+  interface, upstream-default MTU, library-resolved HTTP/TLS/DNS/DHCP ports, configuration
+  bound and private argument names. Production accepts only an inherited private Unix
+  listener, ordinary UID, actual parent and bounded private loopback/capacity file. It never
+  publishes host management or gateway HTTP services; the comparison path retains those
+  independently protected fixtures. No packet/framing/stack implementation is added.
+- Real static helper under the closed launcher passes: readiness equals actual executable
+  metadata, no host IPv4 socket at startup, private HTTP management/stats/root routes refuse,
+  and the kernel lease retires only with the helper. Actual invalid parent/host/capacity,
+  unknown fields, trailing data, oversize and non-private modes all refuse without readiness.
+  All three host tests pass in 0.12 s. The new case is ignored by normal Rust tests and
+  explicitly included in the existing optional VM job with its built pinned artifact.
+- Full local Rust: 524 passes, unchanged IPv6 fixture failure and 35 ignored; final host
+  acceptance, both strict Clippy modes, Go build/vet, fmt/actionlint/whitespace pass. A test
+  HTTP client initially lacks its explicit rustls provider; install the existing ring provider,
+  keeping certificate behavior. No new dependency/job/gate or material CI time beyond the
+  already estimated host-policy build. Actual hosted profile proof remains pending.
+- This is helper readiness, not packet-flow or egress-policy proof. Product VM networking
+  still refuses and its tier remains unregistered. Next own helper plus policy-gateway
+  retirement across cancellation, wire trusted guest redirection with metadata gating and
+  prove real KVM/network isolation, then root TAP/jailer/firewall, protected install/config/
+  release, node/edge lifecycle, thirty samples and outstanding CI/transport diagnosis.
