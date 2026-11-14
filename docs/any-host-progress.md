@@ -4147,3 +4147,16 @@ job when publication is authorized. That job has not run in this task.
   are copied only to the existing CI artifact. No VM timing is claimed locally. Estimate ten
   further optional Any-host minutes, zero normal PR minutes and no new job/gate; the current
   eighty-minute job deadline remains. Hardware samples must be read before updating tier tables.
+
+- Source 3d56dec VM run 43624395623/job 132538810914 confirms the separate bounded
+  service now opens its TAP as the fixed ordinary monitor identity, deletes exactly that
+  TAP and preserves host neighbours. The actual host is systemd 255.4-1ubuntu8.18. Its next
+  gateway unit fails binding internal HTTP port 80 because the fixed capability ceiling
+  deliberately lacks low-port bind authority. Artifact 14126580075, summary
+  checks/measurements/k25/authority-3d56dec.json. The separate root lifecycle has not run yet.
+- Use kernel-selected ephemeral internal gateway listeners, retain actual UDP/TCP DNS pairing
+  and get the ordinary client's destination from its transferred listener. Guest-visible HTTP,
+  TLS and DNS service numbers are unchanged; no capability or unit restriction is loosened.
+  Pinned root-network Go test/build/vet, Python syntax, actionlint and whitespace pass locally;
+  actual namespace/service replay remains the existing CI fixture. No new job/gate or CI time.
+  Scanner remains eighteen.

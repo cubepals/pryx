@@ -15,9 +15,10 @@ import (
 type Ports struct{ HTTP, TLS, DNS uint16 }
 
 // Files returns owned namespace, HTTP, TLS, DNS-TCP and DNS-UDP descriptors, in that order.
+// Zero requests kernel-owned ephemeral ports; DNS UDP shares the actual TCP port.
 func (scope *Scope) Files(ports Ports) ([]*os.File, error) {
-	if ports.HTTP == 0 || ports.TLS == 0 || ports.DNS == 0 || ports.HTTP == ports.TLS || ports.HTTP == ports.DNS || ports.TLS == ports.DNS {
-		return nil, fmt.Errorf("Root gateways require three distinct admitted nonzero ports")
+	if (ports.HTTP != 0 && (ports.HTTP == ports.TLS || ports.HTTP == ports.DNS)) || (ports.TLS != 0 && ports.TLS == ports.DNS) {
+		return nil, fmt.Errorf("Fixed root gateway ports must be distinct")
 	}
 	descriptor, err := unix.FcntlInt(uintptr(scope.handle), unix.F_DUPFD_CLOEXEC, 0)
 	if err != nil {
@@ -26,10 +27,14 @@ func (scope *Scope) Files(ports Ports) ([]*os.File, error) {
 	files := []*os.File{os.NewFile(uintptr(descriptor), "owned root namespace")}
 	err = scope.Space.Do(func(ns.NetNS) error {
 		address := net.ParseIP(scope.Profile.Host)
-		for _, port := range []uint16{ports.HTTP, ports.TLS, ports.DNS} {
+		var dns int
+		for index, port := range []uint16{ports.HTTP, ports.TLS, ports.DNS} {
 			listener, err := net.ListenTCP("tcp4", &net.TCPAddr{IP: address, Port: int(port)})
 			if err != nil {
 				return err
+			}
+			if index == 2 {
+				dns = listener.Addr().(*net.TCPAddr).Port
 			}
 			file, err := listener.File()
 			listener.Close()
@@ -38,7 +43,7 @@ func (scope *Scope) Files(ports Ports) ([]*os.File, error) {
 			}
 			files = append(files, file)
 		}
-		socket, err := net.ListenUDP("udp4", &net.UDPAddr{IP: address, Port: int(ports.DNS)})
+		socket, err := net.ListenUDP("udp4", &net.UDPAddr{IP: address, Port: dns})
 		if err != nil {
 			return err
 		}

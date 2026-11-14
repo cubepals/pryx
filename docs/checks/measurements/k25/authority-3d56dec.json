@@ -1,0 +1,11 @@
+{
+  "sourceCommit": "3d56dec",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43624395623",
+  "job": 132538810914,
+  "artifact": 14126580075,
+  "hostSystemd": "255.4-1ubuntu8.18",
+  "ran": "Separate unchanged bounded system service: fixed ordinary-owner TAP open, exact deletion and neighbour preservation now pass",
+  "failure": "The next transferred-gateway fixture tries internal HTTP service port 80 without low-port bind authority and is refused",
+  "notProved": "Separate root lifecycle, production worker or root guest packet/firewall integration",
+  "next": "Choose ephemeral internal kernel listener ports, preserve paired DNS and every service restriction"
+}

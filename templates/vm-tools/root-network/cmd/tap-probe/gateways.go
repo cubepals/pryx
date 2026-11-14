@@ -103,18 +103,7 @@ func gatewayProbe(directory string, uid, gid uint32) error {
 			_ = scope.Close(ctx)
 		}
 	}()
-	var ports rootnetwork.Ports
-	for _, entry := range []struct {
-		service string
-		target  *uint16
-	}{{"http", &ports.HTTP}, {"https", &ports.TLS}, {"domain", &ports.DNS}} {
-		port, err := net.LookupPort("tcp", entry.service)
-		if err != nil {
-			return err
-		}
-		*entry.target = uint16(port)
-	}
-	files, err := scope.Files(ports)
+	files, err := scope.Files(rootnetwork.Ports{})
 	if err != nil {
 		return err
 	}
@@ -166,7 +155,7 @@ func gatewayProbe(directory string, uid, gid uint32) error {
 		return err
 	}
 	err = scope.Space.Do(func(ns.NetNS) error {
-		child := exec.CommandContext(ctx, executable, "--gateway-client", net.JoinHostPort(scope.Profile.Host, fmt.Sprint(ports.HTTP)), "--proof", proof)
+		child := exec.CommandContext(ctx, executable, "--gateway-client", listener.Addr().String(), "--proof", proof)
 		child.SysProcAttr = &syscall.SysProcAttr{Credential: &syscall.Credential{Uid: uid, Gid: gid, Groups: []uint32{}}}
 		if output, err := child.CombinedOutput(); err != nil {
 			observed, _ := json.Marshal(rootnetwork.Credentials())
