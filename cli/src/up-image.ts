@@ -82,7 +82,10 @@ export async function upImage(args: string[], domain: string, run: InstallComman
       Object.entries(process.env).filter(
         ([key, value]) =>
           value !== undefined &&
-          (key === 'DATABASE_URL' || /^S3_(ENDPOINT|BUCKET|ACCESS_KEY|SECRET_KEY)$/.test(key)),
+          (key === 'DATABASE_URL' ||
+            key === 'PRYX_BOOTSTRAP_API_KEY' ||
+            key === 'PRYX_HOSTING_PLATFORM' ||
+            /^S3_(ENDPOINT|BUCKET|ACCESS_KEY|SECRET_KEY)$/.test(key)),
       ),
     ) as Record<string, string>),
   }
@@ -122,7 +125,9 @@ export async function upImage(args: string[], domain: string, run: InstallComman
   const metadata = lstatSync(privatePath)
   if (!metadata.isFile() || metadata.uid !== 0 || metadata.mode & 0o077)
     throw new Error('Unsafe image credentials')
-  const key = (JSON.parse(readFileSync(privatePath, 'utf8')) as { key: string }).key
+  const key =
+    process.env.PRYX_BOOTSTRAP_API_KEY ||
+    (JSON.parse(readFileSync(privatePath, 'utf8')) as { key: string }).key
   const home = callerHomeAndDropPrivileges()
   const credentialPath = writeClientConfig({ url, key }, join(home, '.config/pryx/client.json'))
   console.log(JSON.stringify({ api: url, image, credentialPath }))

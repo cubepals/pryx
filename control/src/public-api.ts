@@ -59,7 +59,7 @@ export function createPublicApi(options: {
   agents.initializeMounts = (id, project, credential) => mounts.initialize(id, project, credential)
   model.mounts = mounts
   model.mountReady = (id, project) =>
-    agents.token(id, project, options.publicOrigin ?? 'https://pryx.invalid')
+    agents.controlToken(id, project, options.publicOrigin ?? 'https://pryx.invalid')
   boxes.afterRunning = (id, project) => model.mountReady?.(id, project) ?? Promise.resolve()
   const ssh = new NativeSsh(db, boxes, agents, domain, options.edgePortRange)
   const codeTemplates = new CodeTemplates(db, boxes)

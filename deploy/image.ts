@@ -30,7 +30,12 @@ async function serve() {
   const root = process.getuid?.() === 0 ? base : join(base, `uid-${process.getuid?.()}`)
   const publicPort = Number(process.env.PORT ?? 8080)
   const origin =
-    process.env.PRYX_PUBLIC_URL ?? process.env.RENDER_EXTERNAL_URL ?? `http://127.0.0.1:${publicPort}`
+    process.env.PRYX_PUBLIC_URL ??
+    process.env.RENDER_EXTERNAL_URL ??
+    (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : undefined) ??
+    (process.env.FLY_APP_NAME ? `https://${process.env.FLY_APP_NAME}.fly.dev` : undefined) ??
+    (process.env.KOYEB_PUBLIC_DOMAIN ? `https://${process.env.KOYEB_PUBLIC_DOMAIN}` : undefined) ??
+    `http://127.0.0.1:${publicPort}`
   const parsedOrigin = new URL(origin)
   if (
     !['http:', 'https:'].includes(parsedOrigin.protocol) ||
@@ -53,6 +58,14 @@ async function serve() {
       stderr: 'ignore',
     }).exitCode === 0
   const tier = imageTier(docker, process.env.PRYX_DEFAULT_TIER)
+  const boundary =
+    tier === 'wasm'
+      ? 'virtual kernel; shared sidecar'
+      : tier === 'container'
+        ? 'container namespaces and cgroups'
+        : process.getuid?.() === 0
+          ? 'per-sandbox UIDs'
+          : 'shared UID'
   let memory = totalmem()
   try {
     const limit = Number(readFileSync('/sys/fs/cgroup/memory.max', 'utf8').trim())
@@ -94,7 +107,7 @@ async function serve() {
     PRYX_CA_KEY: values.caKey,
     PRYX_OPERATOR_TOKEN: values.operator,
     PRYX_EDGE_TOKEN: values.edge,
-    PRYX_BOOTSTRAP_API_KEY: values.key,
+    PRYX_BOOTSTRAP_API_KEY: process.env.PRYX_BOOTSTRAP_API_KEY || values.key,
     PRYX_DEFAULT_ISOLATION: tier,
     PRYX_PUBLIC_URL: origin,
     PRYX_DEPLOYMENT: 'pryx',
@@ -109,6 +122,7 @@ async function serve() {
     S3_SECRET_KEY: storage.s3.secretAccessKey,
   })
   const control = await startControl(config, {
+    welcomeBoundary: boundary,
     gatewayHealth: () =>
       Response.json({
         status: 'ok',
@@ -187,7 +201,10 @@ control_ips = ["127.0.0.1"]
     httpPort: 0,
     metricsPort: 0,
   })
-  if (control.edge.agents) control.edge.agents.localOrigin = origin
+  if (control.edge.agents) {
+    control.edge.agents.localOrigin = origin
+    control.edge.agents.localGatewayOrigin = `http://127.0.0.1:${publicPort}`
+  }
   edge.agents.useControl(control.apiUrl)
   startupStage = 'gateway'
   const gateway = await front({
@@ -221,17 +238,9 @@ control_ips = ["127.0.0.1"]
     void child.exited.then(() => {
       if (!stopping) void shutdown(1)
     })
-  const boundary =
-    tier === 'wasm'
-      ? 'virtual kernel; shared sidecar'
-      : tier === 'container'
-        ? 'container namespaces and cgroups'
-        : process.getuid?.() === 0
-          ? 'per-sandbox UIDs'
-          : 'shared UID'
   console.log(`pryx listening on ${publicPort}; isolation=${tier}; ${boundary}`)
   const printed = join(root, 'private', 'key-printed')
-  if (!existsSync(printed)) {
+  if (!process.env.PRYX_BOOTSTRAP_API_KEY && !existsSync(printed)) {
     createPrivateFile(printed, 'printed\n')
     console.log(JSON.stringify({ apiUrl: origin, apiKey: values.key }))
   }

@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && 'dispatch' || 'ci' }}
   cancel-in-progress: false
 
 permissions:
@@ -21,6 +21,7 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  PRYX_CLOUD_INIT_PACKAGE: cloud-init=26.2-0ubuntu1~24.04.2
 
 jobs:
   # A change to nothing but prose skips the rest. `check` still reports, so it can stay required.
@@ -443,6 +444,33 @@ jobs:
         run: |
           python3 -m venv .venv-agent-python
           .venv-agent-python/bin/pip install -e sdk/python
+      - name: Validate hosting files and run welcome callers
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        shell: bash
+        run: |
+          umask 077
+          hosting_log="$RUNNER_TEMP/hosting-acceptance.log"
+          report_hosting_failure() {
+            status=$?
+            if [ "$status" -ne 0 ] && [ -f "$hosting_log" ]; then
+              {
+                printf '\n### Hosting acceptance failure\n\n```text\n'
+                tail -n 40 "$hosting_log"
+                printf '\n```\n'
+              } >> "$GITHUB_STEP_SUMMARY"
+              message=$(tail -n 40 "$hosting_log")
+              message=${message//'%'/'%25'}
+              message=${message//$'\r'/'%0D'}
+              message=${message//$'\n'/'%0A'}
+              printf '::error title=Hosting acceptance failed::%s\n' "$message"
+            fi
+            return "$status"
+          }
+          trap report_hosting_failure EXIT
+          sudo apt-get update 2>&1 | tee "$hosting_log"
+          sudo apt-get install -y "$PRYX_CLOUD_INIT_PACKAGE" 2>&1 | tee -a "$hosting_log"
+          bun control/tools/hosting-validate.ts 2>&1 | tee -a "$hosting_log"
+          bun control/bench/hosting-image.ts 2>&1 | tee -a "$hosting_log"
       # These carry the same condition as the suite they feed: a live Hetzner failure above must
       # not skip them, or the suite runs without its images and fails for the wrong reason.
       - name: Prepare native tool host policy
@@ -492,6 +520,7 @@ jobs:
           docker build -t alpine:pryx-python-interpreter templates/python-interpreter
           docker build -t alpine:pryx-node-interpreter templates/node-interpreter
       - name: Prepare the OpenOrange provider proposal
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         run: bun control/tools/open-orange-patch.ts
       - run: bun run e2e --reporter=junit --reporter-outfile "$RUNNER_TEMP/e2e.xml"
         if: ${{ !cancelled() && steps.static.outcome == 'success' }}
@@ -688,6 +717,14 @@ jobs:
           docker tag mirror.gcr.io/library/node:22 node:22
           python3 -m http.server 9876 --bind 127.0.0.1 --directory dist > "$RUNNER_TEMP/artifact-server.log" 2>&1 &
           printf 'Defaults env_keep += "PRYX_RELEASE_BASE_URL"\n' | sudo tee /etc/sudoers.d/pryx-ci-artifacts >/dev/null
+      - name: Boot cloud-init distribution matrix
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        env:
+          PRYX_CLOUD_INIT_IMAGE_ARCHIVE: ${{ runner.temp }}/pryx-one-box-image.tar.gz
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86 qemu-utils cloud-image-utils genisoimage "$PRYX_CLOUD_INIT_PACKAGE"
+          bun control/bench/hosting-cloud-init.ts
       - name: Four-command quickstart and repeat install
         id: up
         run: |

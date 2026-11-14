@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: FSL-1.1-ALv2
+services:
+  pryx:
+    image: ghcr.io/cubepals/pryx:0.1.0
+    environment:
+      - SERVICE_URL_PRYX_8080
+      - PRYX_PUBLIC_URL=${SERVICE_URL_PRYX_8080}
+      - PRYX_BOOTSTRAP_API_KEY=${SERVICE_PASSWORD_64_PRYX}
+      - PRYX_HOSTING_PLATFORM=coolify
+      - PORT=8080
+    volumes:
+      - pryx-state:/var/lib/pryx
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, 'http://127.0.0.1:8080/healthz']
+      interval: 30s
+      timeout: 5s
+      retries: 6
+      start_period: 60s
+    restart: unless-stopped
+volumes:
+  pryx-state:

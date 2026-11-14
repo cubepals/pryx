@@ -23,6 +23,7 @@ export const sandboxTokenSchema = z.object({
 })
 export class Agents {
   localOrigin?: string
+  localGatewayOrigin?: string
   initializeMounts?: (
     id: string,
     project: string,
@@ -57,6 +58,16 @@ export class Agents {
       `/v1/workloads/${id}/files/${operation}?${new URLSearchParams({ path })}`,
       { epoch: decodeHandle(row.handle).epoch, signal, body },
     )
+  }
+
+  private controlCredential(id: string, credential: z.infer<typeof sandboxTokenSchema>) {
+    return this.localGatewayOrigin
+      ? { ...credential, url: `${this.localGatewayOrigin}/sandboxes/${id}` }
+      : credential
+  }
+
+  async controlToken(id: string, project: string, requestUrl: string) {
+    return this.controlCredential(id, await this.token(id, project, requestUrl))
   }
 
   async token(id: string, project: string, requestUrl: string) {
@@ -102,12 +113,13 @@ export class Agents {
     }
     let mountsPending = false
     if (row.state === 'running') {
+      const readinessUrl = this.controlCredential(id, credential).url
       const deadline = Date.now() + 5 * SECOND_MS
       let ready = false
       let last = 'no response'
       while (Date.now() < deadline) {
         try {
-          const response = await fetch(`${credential.url}/_pryx/health`, {
+          const response = await fetch(`${readinessUrl}/_pryx/health`, {
             headers: { authorization: `Bearer ${credential.token}` },
             signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
             redirect: 'manual',
@@ -139,7 +151,7 @@ export class Agents {
         throw new SandboxError('not_running', `Agent route did not become ready (${last})`)
       }
     }
-    if (mountsPending) await this.initializeMounts?.(id, project, credential)
+    if (mountsPending) await this.initializeMounts?.(id, project, this.controlCredential(id, credential))
     return credential
   }
 

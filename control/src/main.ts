@@ -33,10 +33,15 @@ import { Sandboxes } from './sandboxes.ts'
 import { S3ArchiveStore } from './store.ts'
 import { StoreLeaseAuthority } from './store-lease.ts'
 import { S3LeaseBucket } from './store-lease-bucket.ts'
+import { withWelcome } from './welcome.ts'
 
 export async function startControl(
   config: ControlConfig = loadConfig(),
-  options: { providers?: ReadonlyMap<string, Provider>; gatewayHealth?: () => Response } = {},
+  options: {
+    providers?: ReadonlyMap<string, Provider>
+    gatewayHealth?: () => Response
+    welcomeBoundary?: string
+  } = {},
 ) {
   const pool = createPool(config.database)
   const lockPool = createPool(config.database)
@@ -149,6 +154,14 @@ export async function startControl(
     webhookSealKey: config.providerSealKey,
     webhookAllowHosts: config.webhookAllowHosts,
   })
+  withWelcome(api.app, {
+    db,
+    origin: config.publicOrigin,
+    isolation: config.defaultIsolation,
+    platform: process.env.PRYX_HOSTING_PLATFORM,
+    platformKey: Boolean(process.env.PRYX_BOOTSTRAP_API_KEY),
+    boundary: options.welcomeBoundary,
+  })
   const edge = new EdgeService(db, sandboxes, config.publicDomain, config.edgePortRange, api.agents)
   api.app.route('/edge/v1', edgeApi(edge, config.edgeToken))
   if (options.gatewayHealth) api.app.get('/healthz', () => options.gatewayHealth?.() as Response)
@@ -176,7 +189,7 @@ export async function startControl(
         await scaling.tick()
         await sandboxes.upkeep()
         await api.mounts.maintain((id, project) =>
-          api.agents.token(id, project, config.publicOrigin ?? 'https://pryx.invalid'),
+          api.agents.controlToken(id, project, config.publicOrigin ?? 'https://pryx.invalid'),
         )
         await api.model.warmTemplates()
         await api.webhooks.tick()

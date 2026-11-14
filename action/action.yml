@@ -8,7 +8,7 @@ inputs:
     description: Public API key
     required: true
   image:
-    description: Sandbox image (ignored with from-snapshot)
+    description: Sandbox image (empty uses the default tier; ignored with from-snapshot)
     default: alpine:3.22
   run:
     description: Shell command executed inside the sandbox
@@ -54,7 +54,11 @@ runs:
         (cd "$dir" && awk '$2 == "pryx"' SHA256SUMS | sha256sum -c --status)
         chmod 0755 "$dir/pryx"
         args=(run)
-        if [ -n "$PRYX_FROM_SNAPSHOT" ]; then args+=(--from-snapshot "$PRYX_FROM_SNAPSHOT"); else args+=(--image "$PRYX_IMAGE"); fi
+        if [ -n "$PRYX_FROM_SNAPSHOT" ]; then
+          args+=(--from-snapshot "$PRYX_FROM_SNAPSHOT")
+        elif [ -n "$PRYX_IMAGE" ]; then
+          args+=(--image "$PRYX_IMAGE")
+        fi
         case "$PRYX_SNAPSHOT" in
           true) args+=(--snapshot --snapshot-output "$dir/snapshot") ;;
           false) ;;

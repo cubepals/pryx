@@ -1,0 +1,7 @@
+#cloud-config
+# SPDX-License-Identifier: FSL-1.1-ALv2
+# Runs once as root. The current installer has no presets; it installs the server path.
+package_update: true
+packages: [curl, ca-certificates]
+runcmd:
+  - [sh, -c, 'curl --fail --silent --show-error --location https://github.com/cubepals/pryx/releases/latest/download/install.sh -o /run/pryx-install.sh && sh /run/pryx-install.sh && pryx up --image']

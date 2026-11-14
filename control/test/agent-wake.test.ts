@@ -15,6 +15,24 @@ import { jsonb } from '../src/sql.ts'
 import type { WorkloadView } from '../src/wire.ts'
 import { publicContext } from './public-context.ts'
 
+test(
+  'agent readiness uses the internal gateway while credentials keep the public origin',
+  async () => {
+    const c = await publicContext()
+    try {
+      c.agents.localGatewayOrigin = c.agents.localOrigin
+      c.agents.localOrigin = 'https://hosting.example.invalid'
+      const made = await (await c.request('/sandboxes', 'POST', { image: 'alpine:3.22' })).json()
+      const response = await c.request(`/sandboxes/${made.id}/token`, 'POST', {})
+      expect(response.status).toBe(StatusCodes.OK)
+      expect((await response.json()).url).toBe(`https://hosting.example.invalid/sandboxes/${made.id}`)
+    } finally {
+      await c.close()
+    }
+  },
+  10 * SECOND_MS,
+)
+
 test('a sleeping agent request wakes through control and retains its capability', async () => {
   const c = await publicContext()
   const made = (await (await c.request('/sandboxes', 'POST', { image: 'alpine:3.22' })).json()) as {

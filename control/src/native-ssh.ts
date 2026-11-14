@@ -40,7 +40,7 @@ export class NativeSsh {
     if (!box.handle || box.state !== 'running')
       throw new SandboxError('not_running', 'SSH registration needs a running sandbox')
     const ref = decodeHandle(box.handle),
-      credential = await this.agents.token(id, project, requestUrl)
+      credential = await this.agents.controlToken(id, project, requestUrl)
     const response = await fetch(`${credential.url}/_pryx/ssh/${body.id}`, {
       headers: { authorization: `Bearer ${credential.token}` },
       redirect: 'manual',
@@ -131,7 +131,7 @@ export class NativeSsh {
     // Retiring the edge route closes active sessions even when the sandbox is stopped.
     const box = await this.boxes.record(id, project)
     if (box.state === 'running') {
-      const credential = await this.agents.token(id, project, requestUrl)
+      const credential = await this.agents.controlToken(id, project, requestUrl)
       const response = await fetch(`${credential.url}/_pryx/ssh`, {
         method: 'DELETE',
         headers: { authorization: `Bearer ${credential.token}` },

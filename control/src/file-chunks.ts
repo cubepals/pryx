@@ -55,7 +55,7 @@ export class FileChunks {
         signal,
         body === undefined ? undefined : (new Response(body).body ?? undefined),
       )
-    const token = await this.agents.token(id, project, requestUrl)
+    const token = await this.agents.controlToken(id, project, requestUrl)
     const response = await fetch(`${token.url}/_pryx/files/content?${new URLSearchParams({ path })}`, {
       method: body === undefined ? 'GET' : 'PUT',
       body,
