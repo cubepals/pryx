@@ -3811,7 +3811,7 @@ job when publication is authorized. That job has not run in this task.
   and prohibited here. Signed host relocation, automatic descriptor configuration and placement
   remain unfinished; this checkpoint must not be counted as their proof.
 - Local packaging validation: complete root Rust run has 528 passes, the unchanged IPv6
-  fixture failure and 39 ignored; vm-image has 14 passes and 2 existing ignored acceptance
-  cases. Strict all-target Clippy, fmt, actionlint with ShellCheck, standalone build-recipe
+  fixture failure and 39 ignored; vm-image compiles successfully with zero executed tests and its three existing
+  CI-only acceptance cases ignored. Strict all-target Clippy, fmt, actionlint with ShellCheck, standalone build-recipe
   ShellCheck, Python compilation and whitespace pass. Remove 463 MiB of obsolete benchmark
   executables. Full image packaging and signed installation still need CI evidence.
