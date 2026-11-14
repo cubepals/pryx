@@ -4294,3 +4294,8 @@ job when publication is authorized. That job has not run in this task.
   lease. Both exact Rust replays must actually execute. This is gateway/ownership proof,
   still not guest packet, installed worker or default-IP forwarding proof. Estimate under
   five optional VM seconds, zero normal PR minutes and no new job/gate. Hosted result pending.
+
+- Move unchanged packet metadata reads and guest-profile assembly into packet_profile.rs
+  before root TAP reuse. Preserve every owner-sourced port, timeout, validation and ordinary
+  network path. Full Rust remains 534 pass, the known host IPv6 fixture failure and 42 ignored;
+  strict all-target Clippy, fmt and whitespace pass. No dependency/job/gate or CI time added.

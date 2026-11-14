@@ -15,7 +15,7 @@ use std::{
     process::{ExitStatus, Stdio},
 };
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::AsyncWriteExt,
     process::{Child, Command},
     time::Instant,
 };
@@ -35,15 +35,6 @@ pub struct Network {
 struct Resources {
     _gateways: DropGuard,
     _directory: tempfile::TempDir,
-}
-
-async fn read(mut output: impl tokio::io::AsyncRead + Unpin, limit: usize) -> Result<Value, RuntimeError> {
-    let mut bytes = Vec::new();
-    (&mut output).take(limit as u64 + 1).read_to_end(&mut bytes).await.map_err(error)?;
-    if bytes.len() > limit {
-        return Err(error("VM packet helper output exceeds its bound"));
-    }
-    serde_json::from_slice(&bytes).map_err(error)
 }
 
 fn argument(profile: &Value, field: &str) -> Result<String, RuntimeError> {
@@ -81,26 +72,7 @@ impl Network {
         if rustix::process::geteuid().is_root() || capacity == 0 {
             return Err(error("VM user-mode networking requires an ordinary user and positive capacity"));
         }
-        // Query the verified executable, never a workload-selected network description.
-        let mut metadata = Command::new(program)
-            .arg("--metadata")
-            .env_clear()
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .kill_on_drop(true)
-            .spawn()
-            .map_err(error)?;
-        let profile = tokio::time::timeout_at(deadline, async {
-            let output = metadata.stdout.take().ok_or_else(|| error("Missing packet helper metadata pipe"))?;
-            let metadata_value = read(output, pryx_agent::contract::MAX_REQUEST_BYTES).await?;
-            if !metadata.wait().await.map_err(error)?.success() || !metadata_value["production"].is_object() {
-                return Err(error("VM packet helper did not export its production profile"));
-            }
-            Ok(metadata_value["production"].clone())
-        })
-        .await
-        .map_err(|_| RuntimeError::Timeout("VM packet helper metadata exceeded its deadline".into()))??;
+        let profile = super::packet_profile::load(program, deadline).await?;
         let configuration_argument = argument(&profile, "configurationArgument")?;
         let descriptor_argument = argument(&profile, "descriptorArgument")?;
         if configuration_argument == descriptor_argument {
@@ -179,7 +151,7 @@ impl Network {
         input.shutdown().await.map_err(error)?;
         drop(input);
         let output = child.stdout.take().ok_or_else(|| error("Missing packet helper readiness pipe"))?;
-        if read(output, pryx_agent::contract::MAX_REQUEST_BYTES).await? != self.profile
+        if super::packet_profile::read(output, pryx_agent::contract::MAX_REQUEST_BYTES).await? != self.profile
             || child.try_wait().map_err(error)?.is_some()
         {
             return Err(error("VM packet helper readiness differs from its executable metadata"));
@@ -198,36 +170,7 @@ impl Network {
         (self.ports.http, self.ports.tls, self.ports.dns)
     }
     pub fn guest(&self) -> Result<pryx_agent::vm_boot::Network, RuntimeError> {
-        use pryx_agent::vm_boot::{self, NetworkPolicy, Redirect};
-        let text = |name: &str| {
-            self.profile[name].as_str().ok_or_else(|| error("VM packet helper omitted its network profile"))
-        };
-        let port = |name: &str| {
-            self.profile[name]
-                .as_u64()
-                .and_then(|port| u16::try_from(port).ok())
-                .filter(|port| *port != 0)
-                .ok_or_else(|| error("VM packet helper omitted its service port"))
-        };
-        Ok(vm_boot::Network {
-            static_ipv4: None,
-            interface: text("interface")?.into(),
-            mac: text("guestMac")?.into(),
-            mtu: self.profile["mtu"]
-                .as_u64()
-                .and_then(|mtu| u32::try_from(mtu).ok())
-                .ok_or_else(|| error("VM packet helper omitted its MTU"))?,
-            vsock_port: Some(vm_boot::PACKET_PORT),
-            policy: Some(NetworkPolicy {
-                unrestricted: self.unrestricted,
-                host: text("host")?.parse().map_err(error)?,
-                http: Redirect { source: port("http")?, target: self.ports.http },
-                tls: Redirect { source: port("tls")?, target: self.ports.tls },
-                dns: Redirect { source: port("dns")?, target: self.ports.dns },
-                dhcp_client: port("dhcpClient")?,
-                dhcp_server: port("dhcpServer")?,
-            }),
-        })
+        super::packet_profile::guest(&self.profile, &self.ports, self.unrestricted)
     }
     pub fn exited(&mut self) -> io::Result<Option<ExitStatus>> {
         self.child.as_mut().ok_or_else(|| io::Error::other("VM packet helper has retired"))?.try_wait()

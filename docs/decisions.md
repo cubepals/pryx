@@ -1247,3 +1247,5 @@
 - K25: package the pinned root scope and separate CNI TAP executables in the lazy VM archive with all nineteen primary module notices and original Go-authenticated source zips; keep MPL code only in the external TAP program, include the scope sources/locks, and leave old ordinary bundles compatible and root placement off until integration is proved.
 
 - K25: adopt the root helper's actual namespace and HTTP/TLS/DNS descriptors with Rustix owned close-on-exec handles and the existing hostname listeners in the original namespace; an independent EOF/lease reaper retains authority across cancellation and preserves resources on unconfirmed exit, with root placement still gated off.
+
+- K25: move unchanged packet-executable metadata loading and trusted guest profile assembly into their named module before root TAP reuse; all service ports still come from the verified owning executable, with identical ordinary-user behavior.

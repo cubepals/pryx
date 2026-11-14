@@ -13,6 +13,7 @@
 //! - `jail.rs`: root-only bind mounts, disk ownership and durable jail recovery.
 //! - `jail_tests.rs`: actual root inode/mount/ownership acceptance and ordinary-user refusal.
 //! - `network.rs`: owned confined packet helper and hostname gateways.
+//! - `packet_profile.rs`: verified executable metadata and trusted guest profile assembly.
 //! - `network_tests.rs`: real helper readiness, refusal and cancellation acceptance.
 //! - `root_scope.rs`: root helper lifetime and adopted namespace/gateway authority.
 //! - `serial.rs`: bounded monitor byte capture, drained before proof validation.
@@ -28,6 +29,7 @@ pub mod instance;
 pub mod jail;
 pub mod machine;
 pub mod network;
+mod packet_profile;
 pub mod policy;
 pub mod root_scope;
 mod serial;
