@@ -175,6 +175,9 @@ pub struct UpgradeOffer {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct WorkloadReport {
+    /// Copy-bound guarantees, announced by rootless engines rather than inferred from node capacity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) guarantees: Option<BTreeMap<super::Guarantee, bool>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) metrics: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

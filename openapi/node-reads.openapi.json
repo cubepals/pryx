@@ -283,6 +283,15 @@
         ],
         "type": "object"
       },
+      "Isolation": {
+        "description": "The backend a workload asks for. An omitted choice retains the host's default.",
+        "enum": [
+          "container",
+          "process",
+          "wasm"
+        ],
+        "type": "string"
+      },
       "NetworkMode": {
         "enum": [
           "internet",
@@ -379,6 +388,13 @@
       "Resources": {
         "additionalProperties": false,
         "properties": {
+          "allowUnenforcedMemory": {
+            "description": "Accept missing memory enforcement only on an engine without its controller. A capable\nengine still enforces memoryMb. Sent only after unenforced-memory is announced.",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "cpuMillis": {
             "default": null,
             "description": "CPU ceiling in thousandths of a core (CFS quota). Also what the JVM counts as its\nprocessors. Absent: no ceiling, weight only.",
@@ -409,7 +425,7 @@
             ]
           },
           "memoryMb": {
-            "description": "Hard memory limit (no swap). Expressed in MiB.",
+            "description": "Hard memory limit (no swap), in MiB; admission reservation when unenforced memory is explicitly accepted.",
             "format": "uint32",
             "minimum": 0,
             "type": "integer"
@@ -772,6 +788,18 @@
             "description": "An image reference. Must match the host's `allowed_images` prefixes.",
             "type": "string"
           },
+          "isolation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Isolation"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Sent only after the node announces multi-tier."
+          },
           "labels": {
             "additionalProperties": {
               "type": "string"
@@ -797,6 +825,13 @@
               "$ref": "#/components/schemas/PortSpec"
             },
             "type": "array"
+          },
+          "requireBrowserSandbox": {
+            "description": "Sent only after native-browser-policy is announced; never authorizes disabling a sandbox.",
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "resources": {
             "$ref": "#/components/schemas/Resources"
@@ -883,11 +918,16 @@
     "tokenLifetimeSeconds": 300,
     "tokenPrefix": "pa1"
   },
+  "x-pryx-native-tools": {
+    "desktopFeature": "native-desktop",
+    "sshFeature": "native-ssh"
+  },
   "x-pryx-network": {
     "defaultPortRange": [
       42000,
       42999
-    ]
+    ],
+    "policyFeature": "network-policy"
   },
   "x-pryx-process": {
     "imageProblem": "this host runs the process tier; images are not available"
@@ -895,7 +935,13 @@
   "x-pryx-resources": {
     "cpuLimitProblem": "CPU ceilings and weights require container isolation",
     "defaultMinMemoryMb": 256,
-    "minCpuMillis": 100
+    "minCpuMillis": 100,
+    "nativeBrowserPolicyFeature": "native-browser-policy",
+    "observedGuaranteesFeature": "observed-resource-limits",
+    "unenforcedMemoryFeature": "unenforced-memory"
+  },
+  "x-pryx-tiers": {
+    "capabilityScopePrefix": "tier-capabilities:"
   },
   "x-pryx-wasm": {
     "imageProblem": "this host runs the wasm tier; images are not available",

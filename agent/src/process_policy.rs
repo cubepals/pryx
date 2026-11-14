@@ -6,19 +6,31 @@
 //! Parts (`process_policy/`):
 //! - `filter.rs`: deny dangerous syscalls and namespace creation.
 //! - `watchdog.rs`: resident-memory sampling outside the filesystem-restricted worker threads.
+/// Default host virtual-address ceiling, shared with native-tool acceptance.
+pub const DEFAULT_ADDRESS_SPACE_MB: u64 = 8 * 1024 * 1024;
+
 mod filter;
 mod watchdog;
 use landlock::{
     ABI, Access, AccessFs, AccessNet, CompatLevel, Compatible, Ruleset, RulesetAttr, RulesetCreatedAttr, RulesetStatus,
-    path_beneath_rules,
+    Scope, path_beneath_rules,
 };
 use rustix::process::{Resource, Rlimit, setrlimit};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::{
+    path::PathBuf,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 pub const POLICY_ENV: &str = "PRYX_PROCESS_POLICY";
 pub const NETWORK_ENV: &str = "PRYX_PROCESS_NETWORK_OFF";
-#[derive(Clone, Debug, Deserialize, Serialize)]
+static IPC_SCOPED: AtomicBool = AtomicBool::new(false);
+
+/// An installed supervisor restriction, distinct from the disposable capability probe.
+pub fn ipc_scoped() -> bool {
+    IPC_SCOPED.load(Ordering::Acquire)
+}
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Policy {
     pub data: PathBuf,
@@ -29,9 +41,67 @@ pub struct Policy {
     pub cpu_seconds: u64,
     pub nice: i32,
     pub network_off: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tools: Option<crate::process_tool_policy::Policy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub require_ipc_scope: Option<bool>,
+}
+
+/// A trusted tool worker and its supervisor must inherit the same private abstract-socket domain.
+pub fn scope() -> Result<(), Box<dyn std::error::Error>> {
+    if ipc_scoped() {
+        return Ok(());
+    }
+    if !crate::process_capabilities::private_ipc_probe().supported() {
+        return Err("Native process tools require enforced Landlock abstract-socket isolation".into());
+    }
+    let status = Ruleset::default()
+        .set_compatibility(CompatLevel::HardRequirement)
+        .scope(Scope::AbstractUnixSocket)?
+        .create()?
+        .restrict_self()?;
+    if status.ruleset != RulesetStatus::FullyEnforced {
+        return Err("Native process tools require enforced Landlock abstract-socket isolation".into());
+    }
+    IPC_SCOPED.store(true, Ordering::Release);
+    Ok(())
+}
+
+/// The monitor uses an exact filesystem policy, then inherits the ordinary dangerous-syscall denials.
+pub(crate) fn monitor() -> Result<(), Box<dyn std::error::Error>> {
+    filter::apply(false)
 }
 
 pub fn enter(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
+    enter_variant(policy, false, false, false)
+}
+
+/// The fixed helper has already installed private user, mount, PID and proc namespaces.
+pub fn browser(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
+    enter_variant(policy, true, false, true)
+}
+
+/// The fixed desktop helper has a private temporary mount and inherits its supervisor's IPC scope.
+pub fn desktop(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
+    enter_variant(policy, false, true, true)
+}
+
+/// The closed desktop supervisor also launches sandboxed Chromium in its private proc/root.
+pub fn desktop_browser(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
+    enter_variant(policy, true, true, true)
+}
+
+/// A closed tool child inherits its supervisor's scope and keeps every ordinary guest rule.
+pub fn inherited(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
+    enter_variant(policy, false, false, true)
+}
+
+fn enter_variant(
+    policy: &Policy,
+    browser: bool,
+    desktop: bool,
+    inherited: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     if !crate::process_capabilities::probe().filesystem {
         return Err(crate::process_capabilities::FILESYSTEM_UNAVAILABLE.into());
     }
@@ -69,15 +139,45 @@ pub fn enter(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
     let mut read: Vec<PathBuf> = read.into_iter().map(PathBuf::from).filter(|p| p.exists()).collect();
     read.push(std::env::current_exe()?);
     read.push(PathBuf::from(format!("/proc/{}/task", std::process::id())));
-    let write = [
+    if let Some(tools) = &policy.tools
+        && tools.unavailable.is_none()
+    {
+        read.push(tools.cache.clone());
+    }
+    if inherited {
+        read.push(PathBuf::from(crate::process_tool_policy::SSH_AUTH_DIRECTORY));
+    }
+    if browser {
+        read.extend([PathBuf::from("/proc"), PathBuf::from("/sys/devices/system/cpu")]);
+    }
+    let mut write = vec![
         policy.data.as_path(),
         std::path::Path::new("/dev/null"),
         std::path::Path::new("/dev/pts"),
         std::path::Path::new("/dev/ptmx"),
     ];
-    let status = Ruleset::default()
-        .set_compatibility(CompatLevel::HardRequirement)
-        .handle_access(AccessFs::from_all(abi))?
+    if let Some(tools) = &policy.tools
+        && tools.unavailable.is_none()
+    {
+        write.push(tools.scratch.as_path());
+    }
+    if browser {
+        write.extend([std::path::Path::new("/proc"), std::path::Path::new("/dev/shm")]);
+    }
+    if desktop {
+        write.extend([std::path::Path::new("/tmp"), std::path::Path::new("/dev/shm")]);
+    }
+    let scoped =
+        inherited || browser || desktop || ipc_scoped() || crate::process_capabilities::private_ipc_probe().supported();
+    if policy.require_ipc_scope == Some(true) && !scoped {
+        return Err("This process requires enforced private IPC before guest execution".into());
+    }
+    let mut rules =
+        Ruleset::default().set_compatibility(CompatLevel::HardRequirement).handle_access(AccessFs::from_all(abi))?;
+    if scoped && !inherited && !browser && !desktop && !ipc_scoped() {
+        rules = rules.scope(Scope::AbstractUnixSocket)?;
+    }
+    let status = rules
         .create()?
         .add_rules(path_beneath_rules(read, AccessFs::from_read(abi)))?
         .add_rules(path_beneath_rules(write, AccessFs::from_all(abi)))?
@@ -85,7 +185,14 @@ pub fn enter(policy: &Policy) -> Result<(), Box<dyn std::error::Error>> {
     if status.ruleset != RulesetStatus::FullyEnforced {
         return Err("Landlock filesystem policy is unavailable".into());
     }
-    filter::apply(false)?;
+    if browser {
+        filter::browser()?;
+    } else if desktop {
+        filter::desktop()?;
+    } else {
+        filter::apply(false)?;
+    }
+    IPC_SCOPED.store(scoped, Ordering::Release);
     Ok(())
 }
 

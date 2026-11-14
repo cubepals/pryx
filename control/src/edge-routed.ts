@@ -6,7 +6,7 @@ import { sql } from 'drizzle-orm'
 import type { Db } from './database.ts'
 import { SECOND_MS } from './durations.ts'
 import type { SandboxState } from './sandboxes.ts'
-import { one } from './sql.ts'
+import { jsonb, one } from './sql.ts'
 export const EDGE_SAID_EVERY_MS = 20 * SECOND_MS
 export const EDGE_SEEN_MS = 2 * EDGE_SAID_EVERY_MS + 5 * SECOND_MS
 export const EDGE_BEHIND_MS = 15 * SECOND_MS
@@ -21,8 +21,8 @@ export async function routesPending(db: Db, id: string): Promise<boolean> {
   )
   return Boolean(waiting)
 }
-export async function sawEdge(db: Db, id: string, held: number | null) {
+export async function sawEdge(db: Db, id: string, held: number | null, features: string[] = []) {
   await db.execute(
-    sql`INSERT INTO edges(id,held,synced_at) VALUES(${id},${held},(SELECT created_at FROM edge_route_lists WHERE version=${held})) ON CONFLICT(id) DO UPDATE SET seen_at=clock_timestamp(),held=GREATEST(edges.held,excluded.held),synced_at=GREATEST(edges.synced_at,excluded.synced_at)`,
+    sql`INSERT INTO edges(id,held,synced_at,features) VALUES(${id},${held},(SELECT created_at FROM edge_route_lists WHERE version=${held}),${jsonb(features)}) ON CONFLICT(id) DO UPDATE SET seen_at=clock_timestamp(),held=GREATEST(edges.held,excluded.held),synced_at=GREATEST(edges.synced_at,excluded.synced_at),features=EXCLUDED.features`,
   )
 }

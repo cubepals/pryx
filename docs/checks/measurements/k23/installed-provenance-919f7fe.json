@@ -1,0 +1,16 @@
+{
+  "measurement": "installed provenance 919f7fe",
+  "commit": "919f7fe51b6d85111ef08cf26c9aa1e31482ab96",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43204171378",
+  "result": {
+    "jobConclusion": "failure",
+    "artifact.id": 13939307648,
+    "observed.protectedDescriptor": true,
+    "priorChecksCompleted.hostGlibcEqualsGetconf": true,
+    "priorChecksCompleted.actualPythonNodeCacheExecutablePaths": true,
+    "priorChecksCompleted.browserPng": true,
+    "priorChecksCompleted.forwardedCdpAndExactChromeVersion": true,
+    "priorChecksCompleted.bothPythonBrowserModes": true,
+    "limitations": "This proves installed functionality, not passing guarantees, a complete K23 milestone or release publication."
+  }
+}

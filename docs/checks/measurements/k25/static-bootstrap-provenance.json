@@ -1,0 +1,9 @@
+{
+  "measurement": "Published input spikes, real OCI preparation and actual static bootstrap build; guest init boot not yet run",
+  "commit": "9496dbf2925f5447341885fcf2106b054e4895d9",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43480235917",
+  "result": {
+    "conclusion": "success",
+    "scope": "Published input spikes, real OCI preparation and actual static bootstrap build; guest init boot not yet run"
+  }
+}

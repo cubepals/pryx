@@ -7,6 +7,15 @@ use seccompiler::{
 use std::collections::BTreeMap;
 
 pub(super) fn apply(network_off: bool) -> Result<(), Box<dyn std::error::Error>> {
+    variant(network_off, false, false)
+}
+pub(super) fn browser() -> Result<(), Box<dyn std::error::Error>> {
+    variant(false, true, false)
+}
+pub(super) fn desktop() -> Result<(), Box<dyn std::error::Error>> {
+    variant(false, false, true)
+}
+fn variant(network_off: bool, browser: bool, desktop: bool) -> Result<(), Box<dyn std::error::Error>> {
     let mut rules = BTreeMap::new();
     for syscall in [
         libc::SYS_mount,
@@ -46,7 +55,38 @@ pub(super) fn apply(network_off: bool) -> Result<(), Box<dyn std::error::Error>>
     ] {
         rules.insert(syscall, vec![]);
     }
-    rules.insert(libc::SYS_clone, clone_rules());
+    if browser {
+        // Namespace operations are confined by the maintained helper's private root and IDs.
+        // Ordinary commands retain every original denial and cannot invoke this trusted worker.
+        for syscall in [
+            libc::SYS_mount,
+            libc::SYS_umount2,
+            libc::SYS_pivot_root,
+            libc::SYS_chroot,
+            libc::SYS_unshare,
+            libc::SYS_setns,
+            libc::SYS_setuid,
+            libc::SYS_setgid,
+            libc::SYS_setreuid,
+            libc::SYS_setregid,
+            libc::SYS_setresuid,
+            libc::SYS_setresgid,
+            libc::SYS_setgroups,
+            libc::SYS_capset,
+        ] {
+            rules.remove(&syscall);
+        }
+    } else {
+        rules.insert(libc::SYS_clone, clone_rules());
+        if desktop {
+            // Xorg's Popen drops to its existing real IDs before executing the pinned xkbcomp.
+            // Permit only those same IDs; all other identity and namespace denials remain.
+            rules
+                .insert(libc::SYS_setuid, vec![argument_rule(0, SeccompCmpOp::Ne, rustix::process::getuid().as_raw())]);
+            rules
+                .insert(libc::SYS_setgid, vec![argument_rule(0, SeccompCmpOp::Ne, rustix::process::getgid().as_raw())]);
+        }
+    }
     if network_off {
         for syscall in [libc::SYS_connect, libc::SYS_bind, libc::SYS_sendto, libc::SYS_sendmsg, libc::SYS_sendmmsg] {
             rules.insert(syscall, vec![]);
@@ -56,7 +96,7 @@ pub(super) fn apply(network_off: bool) -> Result<(), Box<dyn std::error::Error>>
     let program: BpfProgram =
         SeccompFilter::new(rules, SeccompAction::Allow, SeccompAction::Errno(libc::EPERM as u32), architecture)?
             .try_into()?;
-    seccompiler::apply_filter(&program)?;
+    crate::syscall_abi::apply(&program)?;
     let clone3: BpfProgram = SeccompFilter::new(
         [(libc::SYS_clone3, vec![])].into_iter().collect(),
         SeccompAction::Allow,
@@ -64,7 +104,7 @@ pub(super) fn apply(network_off: bool) -> Result<(), Box<dyn std::error::Error>>
         architecture,
     )?
     .try_into()?;
-    seccompiler::apply_filter(&clone3)?;
+    crate::syscall_abi::apply(&clone3)?;
     Ok(())
 }
 
@@ -97,13 +137,13 @@ pub(super) fn child(supervisor: u32) -> Result<(), Box<dyn std::error::Error>> {
         libc::SYS_tkill,
         libc::SYS_pidfd_send_signal,
         libc::SYS_setpriority,
-        libc::SYS_sched_setscheduler,
         libc::SYS_sched_setparam,
         libc::SYS_sched_setattr,
         libc::SYS_sched_setaffinity,
     ] {
         rules.insert(syscall, vec![]);
     }
+    rules.insert(libc::SYS_sched_setscheduler, vec![argument_rule(1, SeccompCmpOp::Ne, libc::SCHED_OTHER as u32)]);
     for syscall in [libc::SYS_tgkill, libc::SYS_rt_tgsigqueueinfo] {
         rules.insert(syscall, vec![argument_rule(0, SeccompCmpOp::Eq, supervisor)]);
     }
@@ -129,7 +169,20 @@ pub(super) fn child(supervisor: u32) -> Result<(), Box<dyn std::error::Error>> {
         std::env::consts::ARCH.try_into()?,
     )?
     .try_into()?;
-    seccompiler::apply_filter(&program)?;
+    crate::syscall_abi::apply(&program)?;
+    // libzmq reasserts inherited SCHED_OTHER for each thread and aborts on EPERM.
+    // Report this request as a no-op: no target's scheduler or host-selected nice value
+    // can change. Every other scheduling request retains the denial above.
+    let inherited_scheduler: BpfProgram = SeccompFilter::new(
+        [(libc::SYS_sched_setscheduler, vec![argument_rule(1, SeccompCmpOp::Eq, libc::SCHED_OTHER as u32)])]
+            .into_iter()
+            .collect(),
+        SeccompAction::Allow,
+        SeccompAction::Errno(0),
+        std::env::consts::ARCH.try_into()?,
+    )?
+    .try_into()?;
+    crate::syscall_abi::apply(&inherited_scheduler)?;
     Ok(())
 }
 
@@ -143,6 +196,81 @@ fn argument_rule(argument: u8, op: SeccompCmpOp, value: u32) -> SeccompRule {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn desktop_allows_only_the_xorg_helpers_existing_ids() {
+        for desktop in [false, true] {
+            let output = std::thread::spawn(move || {
+                variant(false, false, desktop).unwrap();
+                std::process::Command::new("python3")
+                    .args([
+                        "-c",
+                        r#"
+import os
+allowed=os.environ['DESKTOP']=='true'
+for change,identity in [(os.setuid,os.getuid()),(os.setgid,os.getgid())]:
+    try: change(identity)
+    except PermissionError: assert not allowed
+    else: assert allowed
+    try: change(identity+1)
+    except PermissionError: pass
+    else: raise AssertionError('Foreign identity must remain denied')
+try: os.setresuid(os.getuid(),os.getuid(),os.getuid())
+except PermissionError: pass
+else: raise AssertionError('Other credential operations must remain denied')
+"#,
+                    ])
+                    .env("DESKTOP", desktop.to_string())
+                    .output()
+                    .unwrap()
+            })
+            .join()
+            .unwrap();
+            assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        }
+    }
+
+    #[test]
+    fn inherited_scheduler_requests_cannot_reschedule_foreign_processes() {
+        use std::io::{BufRead, BufReader};
+        let mut foreign = std::process::Command::new("python3")
+            .args(["-c", "import os,time; os.sched_setscheduler(0,os.SCHED_BATCH,os.sched_param(0)); print('ready',flush=True); time.sleep(30)"])
+            .stdout(std::process::Stdio::piped())
+            .spawn().unwrap();
+        let mut ready = String::new();
+        BufReader::new(foreign.stdout.take().unwrap()).read_line(&mut ready).unwrap();
+        assert_eq!(ready.trim(), "ready");
+        let target = foreign.id();
+        let result = std::thread::spawn(move || {
+            apply(false).unwrap();
+            child(std::process::id()).unwrap();
+            std::process::Command::new("python3")
+                .args([
+                    "-c",
+                    r#"
+import os
+target=int(os.environ['FOREIGN'])
+before=os.getpriority(os.PRIO_PROCESS,0)
+assert os.sched_getscheduler(target)==os.SCHED_BATCH
+os.sched_setscheduler(0,os.SCHED_OTHER,os.sched_param(0))
+os.sched_setscheduler(target,os.SCHED_OTHER,os.sched_param(0))
+assert os.sched_getscheduler(target)==os.SCHED_BATCH
+assert os.getpriority(os.PRIO_PROCESS,0)==before
+try: os.sched_setscheduler(target,os.SCHED_IDLE,os.sched_param(0))
+except PermissionError: pass
+else: raise AssertionError('Scheduling changes must remain denied')
+"#,
+                ])
+                .env("FOREIGN", target.to_string())
+                .output()
+                .unwrap()
+        })
+        .join();
+        foreign.kill().unwrap();
+        foreign.wait().unwrap();
+        let output = result.unwrap();
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    }
 
     #[test]
     fn guest_signals_cannot_reach_supervisor_threads() {

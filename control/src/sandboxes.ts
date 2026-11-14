@@ -13,8 +13,9 @@ import type pg from 'pg'
 import nodeSchema from '../../openapi/node-reads.openapi.json'
 import { type Db, type Queryable, UNIQUE_VIOLATION } from './database.ts'
 import { MINUTE_S, SECOND_MS } from './durations.ts'
+import { type Guarantee, workloadGuarantees } from './guarantees.ts'
 import { decodeHandle, decodeSnapshot } from './handle.ts'
-import type { NodeClient } from './node-client.ts'
+import { type NodeClient, NodeRefused } from './node-client.ts'
 import { ensureProject, type ProjectAdmission } from './project-admission.ts'
 import { unitsFor } from './project-model.ts'
 import { getNode } from './registry.ts'
@@ -33,6 +34,9 @@ import { TRANSFER_MS } from './workload-api.ts'
 
 export const SESSION_LIVE_SECONDS = 2 * MINUTE_S
 export type SandboxSpec = WorkloadSpec & {
+  resourceDefaults?: RuntimeSpec['resourceDefaults']
+  require?: Guarantee[]
+  requiredTools?: import('./tool-capabilities.ts').RequiredTool[]
   image: string
   isolation?: import('./isolation.ts').Isolation
   fuseMounts?: boolean
@@ -53,6 +57,7 @@ export type SandboxState =
   | 'restoring'
   | 'failed'
 export interface Sandbox {
+  guarantees?: Record<Guarantee, boolean>
   name?: string
   labels?: Record<string, string>
   metadata?: Record<string, unknown>
@@ -108,6 +113,9 @@ export class SandboxError extends Error {
 export function runtimeSpec(spec: SandboxSpec): RuntimeSpec {
   const defaults = nodeSchema.components.schemas.WorkloadSpec.properties
   return {
+    require: spec.require,
+    ...(spec.requiredTools?.length ? { requiredTools: spec.requiredTools } : {}),
+    ...(spec.resourceDefaults ? { resourceDefaults: spec.resourceDefaults } : {}),
     image: spec.image,
     ...(spec.fuseMounts ? { fuseMounts: true } : {}),
     packages: spec.packages,
@@ -215,21 +223,24 @@ export class Sandboxes {
   }
   async view(row: SandboxRow): Promise<Sandbox> {
     const ref = row.handle ? decodeHandle(row.handle) : null
+    const tier = row.spec.isolation ?? 'container'
     const observed = ref?.node
-      ? await one<{ report: WorkloadReport }>(
+      ? await one<{ features: string[]; report: WorkloadReport | null }>(
           this.db,
-          sql`SELECT report FROM fleet_observations WHERE workload = ${row.id} AND node_id = ${ref.node} AND epoch = ${ref.epoch}`,
+          sql`SELECT n.features,o.report FROM fleet_nodes n LEFT JOIN fleet_observations o
+            ON o.node_id=n.id AND o.workload=${row.id} AND o.epoch=${ref.epoch} WHERE n.id=${ref.node}`,
         )
       : null
     return {
       name: row.spec.name,
+      guarantees: workloadGuarantees(observed?.features ?? [], tier, observed?.report?.guarantees),
       labels: row.spec.labels,
       metadata: row.spec.metadata,
       workdir: row.spec.workdir ?? undefined,
       user: row.spec.user ?? undefined,
       idle: row.spec.idle,
       autoDelete: row.spec.autoDelete,
-      isolation: row.spec.isolation ?? 'container',
+      isolation: tier,
       id: row.id,
       files: row.handle
         ? this.engine.nodeAddress(row.handle)?.features?.includes('files') || undefined
@@ -247,8 +258,8 @@ export class Sandboxes {
           }))
         : [],
       usage: row.usage,
-      issues: observed?.report.issues ?? [],
-      ...(observed?.report.exit ? { exit: observed.report.exit } : {}),
+      issues: observed?.report?.issues ?? [],
+      ...(observed?.report?.exit ? { exit: observed.report.exit } : {}),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       expiresAt: row.expires_at,
@@ -439,7 +450,11 @@ export class Sandboxes {
         }
       } catch (error) {
         await this.state(id, row.state)
-        if (error instanceof RuntimeFull && !row.quota_running) await this.projects?.stopped(id)
+        if (
+          !row.quota_running &&
+          (error instanceof RuntimeFull || (error instanceof NodeRefused && error.code === 'unsupported'))
+        )
+          await this.projects?.stopped(id)
         if (error instanceof RuntimeFull) await this.placement?.refused(row.region, row.spec)
         throw error
       }

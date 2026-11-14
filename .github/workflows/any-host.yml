@@ -1,0 +1,584 @@
+name: Any host
+
+on:
+  schedule:
+    - cron: '41 4 * * 2'
+  workflow_dispatch:
+  # A new workflow cannot be dispatched before main has it. Branch pushes prove this build now.
+  push:
+    branches: [any-host]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  process-tools:
+    name: Relocatable upstream process tools
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    outputs:
+      descriptor: ${{ steps.package.outputs.descriptor }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Assemble verified upstream runtimes
+        run: |
+          python3 -m unittest discover -s templates/process-tools -p '*_test.py'
+          python3 templates/process-tools/build.py --cache "$RUNNER_TEMP/tool-inputs" --output "$RUNNER_TEMP/process-tools"
+      - name: Package the separate lazy tool artifact
+        id: package
+        run: |
+          python3 templates/process-tools/sources.py --runtime "$RUNNER_TEMP/process-tools" \
+            --cache "$RUNNER_TEMP/tool-inputs" --output "$RUNNER_TEMP/process-tool-sources" \
+            --archive "$RUNNER_TEMP/pryx-process-tools-sources.tar.gz" \
+            --descriptor "$RUNNER_TEMP/process-tool-sources.json"
+          python3 - <<'PY' > "$RUNNER_TEMP/tool-release-url"
+          import tomllib
+          with open('Cargo.toml', 'rb') as source:
+              cargo = tomllib.load(source)
+          version = cargo['workspace']['package']['version']
+          print(f'https://github.com/cubepals/pryx/releases/download/v{version}/pryx-process-tools-linux-x64.tar.gz')
+          PY
+          python3 templates/process-tools/package.py --root "$RUNNER_TEMP/process-tools" \
+            --archive "$RUNNER_TEMP/pryx-process-tools-linux-x64.tar.gz" \
+            --descriptor "$RUNNER_TEMP/process-tools.json" --url "$(cat "$RUNNER_TEMP/tool-release-url")"
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os
+          from pathlib import Path
+          descriptor = json.loads((Path(os.environ['RUNNER_TEMP']) / 'process-tools.json').read_text())
+          print('descriptor=' + json.dumps(descriptor, separators=(',', ':')))
+          PY
+      - name: Run both real kernels after physical relocation
+        run: |
+          test "$(id -u)" -ne 0
+          moved="$RUNNER_TEMP/ordinary user tools moved to a substantially longer path"
+          mv "$RUNNER_TEMP/process-tools" "$moved"
+          "$moved/bin/python3" templates/process-tools/smoke.py "$moved" | tee "$RUNNER_TEMP/upstream-kernels.jsonl"
+          "$moved/bin/node" -e 'const assert=require("node:assert/strict");assert.equal(require("node:child_process").execFileSync(process.execPath,["-p","6*7"],{encoding:"utf8"}).trim(),"42")'
+          "$moved/bin/chrome-headless-shell" --version
+          cp "$moved/manifest.json" "$RUNNER_TEMP/upstream-tool-manifest.json"
+      - name: Run Chromium over its debugging pipe
+        run: |
+          # This positive fixture needs a host that permits the namespace capability.
+          # Product installation changes no sysctl; default-profile negative cases remain.
+          if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          moved="$RUNNER_TEMP/ordinary user tools moved to a substantially longer path"
+          "$moved/bin/node" "$moved/browser-client/smoke.mjs" "$moved" | tee "$RUNNER_TEMP/upstream-browser.jsonl"
+      - name: Run tools through the complete process policy
+        env:
+          PRYX_NATIVE_TOOL_DESCRIPTOR: ${{ runner.temp }}/native-distribution/fixture-process-tools.json
+          CARGO_PROFILE_DEV_DEBUG: '0'
+          CARGO_PROFILE_TEST_DEBUG: '0'
+          CARGO_INCREMENTAL: '0'
+        run: |
+          mkdir "$RUNNER_TEMP/native-distribution"
+          ln "$RUNNER_TEMP/pryx-process-tools-linux-x64.tar.gz" "$RUNNER_TEMP/native-distribution/process-tools.tar.gz"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP'])
+          descriptor = json.loads((root / 'process-tools.json').read_text())
+          descriptor['url'] = 'https://127.0.0.1:9877/process-tools.tar.gz'
+          (root / 'native-distribution/fixture-process-tools.json').write_text(json.dumps(descriptor))
+          PY
+          trust="$RUNNER_TEMP/native-artifact-trust"
+          mkdir -m 700 "$trust"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj '/CN=Pryx CI tool CA' \
+            -keyout "$trust/ca.key" -out "$trust/ca.crt" > "$trust/openssl.log" 2>&1
+          openssl req -newkey rsa:2048 -nodes -subj '/CN=127.0.0.1' \
+            -keyout "$trust/server.key" -out "$trust/server.csr" >> "$trust/openssl.log" 2>&1
+          printf '%s\n' 'subjectAltName=IP:127.0.0.1' 'extendedKeyUsage=serverAuth' > "$trust/extensions"
+          openssl x509 -req -in "$trust/server.csr" -CA "$trust/ca.crt" -CAkey "$trust/ca.key" \
+            -CAcreateserial -days 1 -extfile "$trust/extensions" -out "$trust/server.crt" >> "$trust/openssl.log" 2>&1
+          python3 deploy/tool-artifact-server.py --port 9877 --directory "$RUNNER_TEMP/native-distribution" \
+            --certificate "$trust/server.crt" --key "$trust/server.key" > "$RUNNER_TEMP/native-artifact-server.log" 2>&1 &
+          artifact_server=$!
+          trap 'kill "$artifact_server"; wait "$artifact_server" || true' EXIT
+          curl --retry 5 --retry-connrefused --retry-delay 1 --cacert "$trust/ca.crt" -fsS https://127.0.0.1:9877/fixture-process-tools.json > /dev/null
+          if curl --silent --show-error --max-time 5 https://127.0.0.1:9877/fixture-process-tools.json > /dev/null 2> "$trust/untrusted.log"; then
+            echo 'Untrusted fixture certificate was accepted' >&2
+            exit 1
+          fi
+          # Disposable runner prerequisite only; product installation never changes host trust.
+          sudo install -m 644 "$trust/ca.crt" /usr/local/share/ca-certificates/pryx-ci-native-tools.crt
+          sudo update-ca-certificates
+          cargo test --locked -p pryx-agent --test native_process -- --ignored --nocapture --test-threads=1 2>&1 | tee "$RUNNER_TEMP/native-process-acceptance.log"
+      - name: Record the real X11 display transport design
+        env:
+          PRYX_DESKTOP_DESIGN_FIXTURE: ${{ runner.temp }}/desktop-design-fixture
+          PRYX_DESKTOP_DESIGN_REPORT: ${{ runner.temp }}/desktop-design.json
+          PRYX_DESKTOP_DESIGN_REQUIRE_POLICY: '1'
+          CARGO_PROFILE_DEV_DEBUG: '0'
+          CARGO_PROFILE_TEST_DEBUG: '0'
+          CARGO_INCREMENTAL: '0'
+        run: |
+          moved="$RUNNER_TEMP/ordinary user tools moved to a substantially longer path"
+          python3 templates/process-tools/desktop-fixture.py --cache "$RUNNER_TEMP/tool-inputs" \
+            --output "$PRYX_DESKTOP_DESIGN_FIXTURE" --libraries "$moved/libraries/lib"
+          cargo test --locked -p pryx-agent --test desktop_design -- --ignored --nocapture
+      - name: Stage X11 tools without publishing or enabling them
+        run: |
+          moved="$RUNNER_TEMP/ordinary user tools moved to a substantially longer path"
+          python3 templates/process-tools/desktop.py --cache "$RUNNER_TEMP/tool-inputs" \
+            --output "$RUNNER_TEMP/desktop-component" --libraries "$moved/libraries/lib" \
+            --report "$RUNNER_TEMP/desktop-component-before-move.json"
+          relocated="$RUNNER_TEMP/desktop tools relocated to a substantially longer path"
+          mv "$RUNNER_TEMP/desktop-component" "$relocated"
+          python3 templates/process-tools/desktop.py --smoke-only --output "$relocated" \
+            --report "$RUNNER_TEMP/desktop-component.json"
+          PRYX_DESKTOP_TEST_COMPONENT="$relocated" PRYX_DESKTOP_TEST_SOURCE_CACHE="$RUNNER_TEMP/tool-inputs" \
+            python3 -m unittest discover -s templates/process-tools -p 'desktop*_test.py'
+          PRYX_DESKTOP_TEST_COMPONENT="$relocated" PRYX_DESKTOP_TEST_BASE="$moved" \
+            PRYX_DESKTOP_LIVE_REPORT="$RUNNER_TEMP/desktop-live.json" \
+            CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0 \
+            cargo test --locked -p pryx-agent --test desktop_live \
+              private_temporary_x11_allows_own_client_and_denies_same_uid_neighbour -- --ignored --nocapture
+      - name: Stage the complete desktop programs and source closure
+        id: desktop-component
+        run: |
+          moved="$RUNNER_TEMP/ordinary user tools moved to a substantially longer path"
+          relocated="$moved/desktop"
+          cp "$RUNNER_TEMP/process-tool-sources/desktop-full/manifest.json" "$RUNNER_TEMP/desktop-full-sources.json"
+          python3 templates/process-tools/desktop_full.py --smoke-only --output "$relocated" \
+            --report "$RUNNER_TEMP/desktop-full-component.json"
+          PRYX_DESKTOP_FULL_TEST_COMPONENT="$relocated" \
+            python3 -m unittest discover -s templates/process-tools -p 'desktop_full_test.py'
+      - name: Run actual headful input and desktop privacy
+        if: ${{ !cancelled() && steps.desktop-component.outcome == 'success' }}
+        run: |
+          moved="$RUNNER_TEMP/ordinary user tools moved to a substantially longer path"
+          PRYX_DESKTOP_APPLICATION_BUNDLE="$moved" \
+            PRYX_DESKTOP_APPLICATION_REPORT="$RUNNER_TEMP/desktop-application.json" \
+            CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0 \
+            cargo test --locked -p pryx-agent --test desktop_application \
+              real_headful_input_vnc_and_neighbour_privacy -- --ignored --nocapture
+      - name: Run actual private OpenSSH commands and PTY
+        if: ${{ !cancelled() && steps.desktop-component.outcome == 'success' }}
+        run: |
+          moved="$RUNNER_TEMP/ordinary user tools moved to a substantially longer path"
+          PRYX_DESKTOP_APPLICATION_BUNDLE="$moved" \
+            PRYX_NATIVE_SSH_REPORT="$RUNNER_TEMP/native-ssh-worker.json" \
+            CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0 \
+            cargo test --locked -p pryx-agent --test ssh_process \
+              real_native_ssh_command_pty_and_same_uid_privacy -- --ignored --nocapture
+      - name: Retain the verified runtime for installed-product acceptance
+        uses: ./.github/actions/upload-evidence
+        with:
+          name: process-tool-runtime
+          path: ${{ runner.temp }}/pryx-process-tools-linux-x64.tar.gz
+          compression-level: '0'
+          if-no-files-found: error
+      - name: Retain the separate corresponding-source distribution
+        if: always()
+        uses: ./.github/actions/upload-evidence
+        with:
+          name: process-tool-sources
+          path: ${{ runner.temp }}/pryx-process-tools-sources.tar.gz
+          compression-level: '0'
+          if-no-files-found: error
+      - name: Retain ordinary-user bundle observations
+        if: always()
+        uses: ./.github/actions/upload-evidence
+        with:
+          name: upstream-process-tools
+          path: |
+            ${{ runner.temp }}/upstream-kernels.jsonl
+            ${{ runner.temp }}/upstream-browser.jsonl
+            ${{ runner.temp }}/upstream-tool-manifest.json
+            ${{ runner.temp }}/process-tools.json
+            ${{ runner.temp }}/process-tool-sources.json
+            ${{ runner.temp }}/native-process-acceptance.log
+            ${{ runner.temp }}/native-artifact-server.log
+            ${{ runner.temp }}/desktop-design.json
+            ${{ runner.temp }}/desktop-component.json
+            ${{ runner.temp }}/desktop-live.json
+            ${{ runner.temp }}/desktop-full-component.json
+            ${{ runner.temp }}/desktop-full-sources.json
+            ${{ runner.temp }}/desktop-application.json
+            ${{ runner.temp }}/native-ssh-worker.json
+          if-no-files-found: error
+  bundle:
+    name: Bundle runtime acceptance
+    needs: process-tools
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      parts: ${{ steps.transport.outputs.count }}
+      manifest: ${{ steps.transport.outputs.manifest }}
+      transport: ${{ steps.transport.outputs.transport }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Release compilation space
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+      - name: Artifact acquisition rejects incomplete reads
+        run: bash deploy/host-artifacts.test.sh
+      - name: Create an isolated preview signing identity
+        run: |
+          openssl genpkey -algorithm ED25519 -out "$RUNNER_TEMP/preview.key"
+          openssl pkey -in "$RUNNER_TEMP/preview.key" -pubout -out "$RUNNER_TEMP/preview.pub"
+      - name: Fetch the producing job's native runtime
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: process-tool-runtime
+          path: ${{ runner.temp }}/native-distribution
+          digest-mismatch: error
+      - name: Build the same programs as the release image
+        env:
+          PRYX_NATIVE_DESCRIPTOR: ${{ needs.process-tools.outputs.descriptor }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          descriptor = json.loads(os.environ['PRYX_NATIVE_DESCRIPTOR'])
+          import hashlib
+          runtime = Path(os.environ['RUNNER_TEMP']) / 'native-distribution/pryx-process-tools-linux-x64.tar.gz'
+          with runtime.open('rb') as stream:
+              assert hashlib.file_digest(stream, 'sha256').hexdigest() == descriptor['sha256']
+          assert runtime.stat().st_size == descriptor['bytes']
+          # The same preview descriptor enters the signed bundle; production keeps its release URL.
+          descriptor['url'] = 'https://127.0.0.1:9877/pryx-process-tools-linux-x64.tar.gz'
+          Path('deploy/process-tools/process-tools.json').write_text(json.dumps(descriptor) + '\n')
+          PY
+          started=$(date +%s)
+          docker build --target bundle --build-arg "PRYX_PREVIEW_PUBLIC_KEY=$(cat "$RUNNER_TEMP/preview.pub")" -t pryx-host-bundle .
+          mkdir host-artifacts
+          id=$(docker create pryx-host-bundle)
+          docker cp "$id:/bundle/." host-artifacts/
+          docker rm -v "$id"
+          docker run --rm --entrypoint /bin/sh pryx-host-bundle -c 'cat /source/deploy/postgresql.json' > host-artifacts/postgresql.json
+          docker run --rm --entrypoint /usr/local/bin/pryx pryx-host-bundle --version
+          echo "Bundle build: $(($(date +%s)-started)) seconds" | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile
+      - name: Sign the preview archive and finish its manifest
+        run: |
+          bun control/tools/bundle-sign.ts host-artifacts "$RUNNER_TEMP/preview.key"
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)
+          sed "s/__PRYX_VERSION__/$version/g" deploy/install.sh > host-artifacts/install.sh
+          (cd host-artifacts && sha256sum -- * > SHA256SUMS)
+          du -h host-artifacts/* | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Run the signed ordinary-user install and native SDK acceptance
+        run: bash deploy/native-host-acceptance.sh
+      - name: Native kernels and browser refusal in the default image profile
+        run: |
+          fixture=$(cat "$RUNNER_TEMP/native-fixture-path")
+          docker run --rm --entrypoint /bin/bash \
+            --mount "type=bind,source=$fixture,target=/test,readonly" \
+            --mount "type=bind,source=$PWD/host-artifacts,target=/artifacts,readonly" \
+            --mount "type=bind,source=$RUNNER_TEMP/native-distribution,target=/native-artifacts,readonly" \
+            --mount "type=bind,source=$RUNNER_TEMP/native-host-trust,target=/fixture-trust,readonly" \
+            --mount "type=bind,source=/etc/ssl/certs/ca-certificates.crt,target=/etc/ssl/certs/ca-certificates.crt,readonly" \
+            pryx-host-bundle /test/deploy/native-container-acceptance.sh | tee "$RUNNER_TEMP/native-default-image.log"
+      - name: Retain installed native observations and all thirty samples
+        if: always()
+        uses: ./.github/actions/upload-evidence
+        with:
+          name: installed-native-tools
+          path: |
+            ${{ runner.temp }}/native-user-acceptance.log
+            ${{ runner.temp }}/native-process-measurements.json
+            ${{ runner.temp }}/native-host-artifact-server.log
+            ${{ runner.temp }}/native-host-release-server.log
+            ${{ runner.temp }}/native-python-sdk-install.log
+            ${{ runner.temp }}/native-default-image.log
+          if-no-files-found: error
+      - name: Relocation in the image userland
+        run: |
+          docker run --rm --entrypoint /bin/sh \
+            --mount "type=bind,source=$PWD/host-artifacts,target=/artifacts,readonly" \
+            --mount "type=bind,source=$PWD/deploy/bundle-smoke.sh,target=/bundle-smoke.sh,readonly" \
+            pryx-host-bundle /bundle-smoke.sh
+      - name: Relocation in Alpine with the default profile
+        run: |
+          docker run --rm --entrypoint /bin/sh \
+            --mount "type=bind,source=$PWD/host-artifacts,target=/artifacts,readonly" \
+            --mount "type=bind,source=$PWD/deploy/bundle-smoke.sh,target=/bundle-smoke.sh,readonly" \
+            mirror.gcr.io/library/alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf /bundle-smoke.sh
+      - name: Split transport below the connector download limit
+        id: transport
+        run: |
+          mkdir host-parts
+          tar -cf host-transport.tar -C host-artifacts .
+          split --bytes=256M --numeric-suffixes --suffix-length=1 host-transport.tar host-parts/part
+          (cd host-parts && sha256sum part* > PARTS.sha256)
+          sha256sum host-transport.tar > host-parts/TRANSPORT.sha256
+          count=$(find host-parts -name 'part*' -type f | wc -l)
+          test "$count" -le 4
+          {
+            echo "count=$count"
+            echo "manifest=$(sha256sum host-parts/PARTS.sha256 | cut -d ' ' -f1)"
+            echo "transport=$(sha256sum host-transport.tar | cut -d ' ' -f1)"
+          } >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/upload-evidence
+        with:
+          name: host-bundle-preview-0
+          path: |
+            host-parts/part0
+            host-parts/*.sha256
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+      - uses: ./.github/actions/upload-evidence
+        if: fromJSON(steps.transport.outputs.count) > 1
+        with:
+          name: host-bundle-preview-1
+          path: |
+            host-parts/part1
+            host-parts/*.sha256
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+      - uses: ./.github/actions/upload-evidence
+        if: fromJSON(steps.transport.outputs.count) > 2
+        with:
+          name: host-bundle-preview-2
+          path: |
+            host-parts/part2
+            host-parts/*.sha256
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+      - uses: ./.github/actions/upload-evidence
+        if: fromJSON(steps.transport.outputs.count) > 3
+        with:
+          name: host-bundle-preview-3
+          path: |
+            host-parts/part3
+            host-parts/*.sha256
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+
+
+  containers:
+    name: Ordinary user in ${{ matrix.distro }} Docker
+    needs: bundle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: Debian
+            image: debian:trixie-slim@sha256:7378260c0a098d27ac206225db5e7d92b8c7c84ea7afccc86eeb513756bbd392
+          - distro: Ubuntu
+            image: mirror.gcr.io/library/ubuntu:24.04@sha256:78d4744ead1f5b19b04d0df558ab182a5300903900755e515b2ca4d10eb2044d
+          - distro: Fedora
+            image: registry.fedoraproject.org/fedora:44@sha256:acb5e2218545b173cb73206435c64cb43d493df508b9d875c2dff1c44c82867f
+          - distro: Alpine
+            image: mirror.gcr.io/library/alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf
+          - distro: Alpine with Landlock denied
+            image: mirror.gcr.io/library/alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf
+            mode: unsupported
+          - distro: Ubuntu with Landlock denied
+            image: mirror.gcr.io/library/ubuntu:24.04@sha256:78d4744ead1f5b19b04d0df558ab182a5300903900755e515b2ca4d10eb2044d
+            mode: wasm
+          - distro: Debian root preset
+            image: debian:trixie-slim@sha256:7378260c0a098d27ac206225db5e7d92b8c7c84ea7afccc86eeb513756bbd392
+            mode: root
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch every producing-job archive part
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRYX_EXPECTED_PARTS: ${{ needs.bundle.outputs.parts }}
+          PRYX_PARTS_MANIFEST: ${{ needs.bundle.outputs.manifest }}
+          PRYX_TRANSPORT_DIGEST: ${{ needs.bundle.outputs.transport }}
+        run: bash deploy/host-artifacts.sh
+      - name: Verify and reconstruct the release transport
+        run: |
+          (cd host-parts && sha256sum -c PARTS.sha256)
+          cat host-parts/part? > host-transport.tar
+          sha256sum -c host-parts/TRANSPORT.sha256
+          mkdir host-artifacts
+          tar -xf host-transport.tar -C host-artifacts
+          (cd host-artifacts && sha256sum -c SHA256SUMS)
+      - name: One command, hello, repeat, upgrade and purge
+        env:
+          TEST_IMAGE: ${{ matrix.image }}
+          TEST_MODE: ${{ matrix.mode || 'default' }}
+        run: |
+          profile=()
+          if [ "$TEST_MODE" = unsupported ] || [ "$TEST_MODE" = wasm ]; then
+            python3 - <<'PY' > unsupported-profile.json
+          import errno, json
+          print(json.dumps({'defaultAction': 'SCMP_ACT_ALLOW', 'syscalls': [{
+            'names': ['landlock_create_ruleset', 'landlock_add_rule', 'landlock_restrict_self'],
+            'action': 'SCMP_ACT_ERRNO', 'errnoRet': errno.EPERM}]}))
+          PY
+            profile=(--security-opt "seccomp=$PWD/unsupported-profile.json")
+            if [ "$TEST_MODE" = unsupported ]; then profile+=(-e PRYX_UNSUPPORTED=1)
+            else profile+=(-e PRYX_EXPECT_WASM=1); fi
+          fi
+          if [ "$TEST_MODE" = root ]; then profile+=(-e PRYX_TEST_ROOT_MODE=1 -e PORT=80); fi
+          docker run --rm "${profile[@]}" \
+            --env "PRYX_TEST_UBUNTU_MIRROR=$(jq -r .ubuntuMirror .github/engine-versions.json)" \
+            --env "PRYX_TEST_UBUNTU_FALLBACK_MIRROR=$(jq -r .ubuntuFallbackMirror .github/engine-versions.json)" \
+            --env PRYX_TEST_APT_CA=/pryx-ci-ca.pem \
+            --mount "type=bind,source=/etc/ssl/certs/ca-certificates.crt,target=/pryx-ci-ca.pem,readonly" \
+            --mount "type=bind,source=$PWD/host-artifacts,target=/artifacts,readonly" \
+            --mount "type=bind,source=$PWD/deploy/container-acceptance.sh,target=/container-acceptance.sh,readonly" \
+            --mount "type=bind,source=$PWD/deploy/local-acceptance.sh,target=/local-acceptance.sh,readonly" \
+            --mount "type=bind,source=$PWD/deploy/local-diagnostics.py,target=/local-diagnostics.py,readonly" \
+            --mount "type=bind,source=$PWD/deploy/unsupported-acceptance.py,target=/unsupported-acceptance.py,readonly" \
+            "$TEST_IMAGE" sh /container-acceptance.sh | tee acceptance.txt
+          cat acceptance.txt >> "$GITHUB_STEP_SUMMARY"
+
+  booted:
+    name: Ordinary user in booted ${{ matrix.distro }}
+    needs: bundle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: Debian 13
+            image: debian/13/cloud
+          - distro: Ubuntu 24.04
+            image: ubuntu/24.04/cloud
+          - distro: Fedora 44
+            image: fedora/44/cloud
+          - distro: Alpine 3.24
+            image: alpine/3.24
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch every producing-job archive part
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRYX_EXPECTED_PARTS: ${{ needs.bundle.outputs.parts }}
+          PRYX_PARTS_MANIFEST: ${{ needs.bundle.outputs.manifest }}
+          PRYX_TRANSPORT_DIGEST: ${{ needs.bundle.outputs.transport }}
+        run: bash deploy/host-artifacts.sh
+      - name: Verify and reconstruct the release transport
+        run: |
+          (cd host-parts && sha256sum -c PARTS.sha256)
+          cat host-parts/part? > host-transport.tar
+          sha256sum -c host-parts/TRANSPORT.sha256
+          mkdir host-artifacts
+          tar -xf host-transport.tar -C host-artifacts
+          (cd host-artifacts && sha256sum -c SHA256SUMS)
+      - name: Boot and run the ordinary-user acceptance
+        env:
+          TEST_IMAGE: ${{ matrix.image }}
+        run: bash deploy/booted-acceptance.sh "$TEST_IMAGE"
+
+  user-engine:
+    name: User preset with rootless ${{ matrix.engine }}
+    needs: bundle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: [docker, podman]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch every producing-job archive part
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRYX_EXPECTED_PARTS: ${{ needs.bundle.outputs.parts }}
+          PRYX_PARTS_MANIFEST: ${{ needs.bundle.outputs.manifest }}
+          PRYX_TRANSPORT_DIGEST: ${{ needs.bundle.outputs.transport }}
+        run: bash deploy/host-artifacts.sh
+      - name: Verify and reconstruct the release transport
+        run: |
+          (cd host-parts && sha256sum -c PARTS.sha256)
+          cat host-parts/part? > host-transport.tar
+          sha256sum -c host-parts/TRANSPORT.sha256
+          mkdir host-artifacts
+          tar -xf host-transport.tar -C host-artifacts
+          (cd host-artifacts && sha256sum -c SHA256SUMS)
+      - name: Start the engine as the runner user
+        run: bash scripts/setup-test-engine.sh "${{ matrix.engine }}"
+      - name: One command, image or refusal, repeat, upgrade and purge
+        env:
+          PRYX_EXPECT_CONTAINER: ${{ matrix.engine == 'podman' && 'on' || 'off' }}
+          PRYX_ENGINE_OUTAGE_PROBE: ${{ github.workspace }}/deploy/engine-outage.py
+        run: |
+          sudo install -m 644 deploy/local-diagnostics.py /local-diagnostics.py
+          python3 -m http.server 9876 --bind 127.0.0.1 --directory host-artifacts > "$RUNNER_TEMP/artifact-server.log" 2>&1 &
+          server=$!
+          trap 'kill "$server"' EXIT
+          curl --retry 5 --retry-connrefused --retry-delay 1 --max-time 10 -fsS http://127.0.0.1:9876/install.sh -o /dev/null
+          sh deploy/local-acceptance.sh | tee acceptance.txt
+          cat acceptance.txt >> "$GITHUB_STEP_SUMMARY"
+
+  server:
+    name: Domainless sudo bootstrap
+    needs: bundle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch every producing-job archive part
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRYX_EXPECTED_PARTS: ${{ needs.bundle.outputs.parts }}
+          PRYX_PARTS_MANIFEST: ${{ needs.bundle.outputs.manifest }}
+          PRYX_TRANSPORT_DIGEST: ${{ needs.bundle.outputs.transport }}
+        run: bash deploy/host-artifacts.sh
+      - name: Verify and reconstruct the release transport
+        run: |
+          (cd host-parts && sha256sum -c PARTS.sha256)
+          cat host-parts/part? > host-transport.tar
+          sha256sum -c host-parts/TRANSPORT.sha256
+          mkdir host-artifacts runtime server-artifacts
+          tar -xf host-transport.tar -C host-artifacts
+          (cd host-artifacts && sha256sum -c SHA256SUMS)
+          tar -xzf host-artifacts/pryx-bundle-linux-x64.tar.gz -C runtime
+          for name in pryxd pryx-agent; do cp "runtime/bin/$name" "server-artifacts/$name"; done
+          for name in pryx pryx-control pryx-edge; do cp "runtime/bin/$name.real" "server-artifacts/$name"; done
+          tar -czf server-artifacts/pryx-control-assets.tar.gz -C runtime control
+          cp host-artifacts/install.sh server-artifacts/install.sh
+          # Like the existing one-box preview, local enrollment never claims remote release trust.
+          head -c 64 /dev/zero > server-artifacts/pryxd.sig
+          head -c 64 /dev/zero > server-artifacts/pryxd.bootstrap.sig
+          (cd server-artifacts && sha256sum -- * > SHA256SUMS)
+      - name: Install with sudo, run hello through aliases and repeat
+        run: |
+          umask 077
+          docker pull -q mirror.gcr.io/library/alpine:3.22
+          docker tag mirror.gcr.io/library/alpine:3.22 alpine:3.22
+          python3 -m http.server 9876 --bind 127.0.0.1 --directory server-artifacts > "$RUNNER_TEMP/artifact-server.log" 2>&1 &
+          printf 'Defaults env_keep += "PRYX_RELEASE_BASE_URL"\n' | sudo tee /etc/sudoers.d/pryx-ci-artifacts >/dev/null
+          export PRYX_RELEASE_BASE_URL=http://127.0.0.1:9876
+          started=$(date +%s)
+          curl --retry 5 --retry-connrefused -fsS "$PRYX_RELEASE_BASE_URL/install.sh" | sudo sh | tee "$RUNNER_TEMP/first-install.log" >/dev/null
+          [ "$(pryx run --image alpine:3.22 -- echo hello)" = hello ]
+          key_before=$(pryx config key | sha256sum)
+          sudo pryx up --preset server | tee "$RUNNER_TEMP/repeat-install.log" >/dev/null
+          [ "$(pryx config key | sha256sum)" = "$key_before" ]
+          if grep -q '^export PRYX_API_KEY=pryx_' "$RUNNER_TEMP/repeat-install.log"; then echo 'Repeated initial key'; exit 1; fi
+          [ "$(pryx run --image alpine:3.22 -- echo hello)" = hello ]
+          echo "Domainless server seconds to hello: $(($(date +%s)-started))" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Private-service diagnostics after failure
+        if: failure()
+        run: |
+          for unit in pryxd pryx-control pryx-edge pryx-postgres pryx-store; do
+            sudo systemctl status "$unit" --no-pager --lines=0 || true
+          done

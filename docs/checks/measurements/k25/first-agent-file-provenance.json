@@ -1,0 +1,9 @@
+{
+  "measurement": "first agent file provenance",
+  "commit": "5d64d60",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43483785231",
+  "result": {
+    "conclusion": "failure",
+    "failure": "Fixture omits existing mandatory idempotency-key header; exec POST is correctly refused"
+  }
+}

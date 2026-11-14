@@ -1,0 +1,9 @@
+{
+  "measurement": "Baseline application and all host cells before the VM backend exists; not VM acceptance",
+  "commit": "60d5b50884d86887d90c5fc5055873ddfa1c31d6",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43440140287",
+  "result": {
+    "conclusion": "success",
+    "scope": "Baseline application and all host cells before the VM backend exists; not VM acceptance"
+  }
+}

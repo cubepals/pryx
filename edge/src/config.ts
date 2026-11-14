@@ -13,6 +13,7 @@ export function edgeConfig(env: Record<string, string | undefined> = process.env
   return z
     .object({
       control: z.url(),
+      publicOrigin: z.url().optional(),
       token: z.string().min(32),
       id: z.string().min(1).max(128),
       host: z.string(),
@@ -46,6 +47,7 @@ export function edgeConfig(env: Record<string, string | undefined> = process.env
       agentTlsCert: env.PRYX_EDGE_AGENT_TLS_CERT,
       agentTlsKey: env.PRYX_EDGE_AGENT_TLS_KEY,
       control: env.PRYX_CONTROL_URL ?? 'http://127.0.0.1:8082',
+      publicOrigin: env.PRYX_PUBLIC_URL,
       token: env.PRYX_EDGE_TOKEN,
       id: env.PRYX_EDGE_ID ?? hostname(),
       host: env.PRYX_EDGE_HOST ?? '0.0.0.0',

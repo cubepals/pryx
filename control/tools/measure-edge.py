@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: FSL-1.1-ALv2
-"""Measure default client waits against a listener that never writes. Capped observations are censored."""
+"""Measure default client waits against a listener that never writes; capped observations are censored.
+
+Raw observations go to the configured output or a temporary file, never the repository by default.
+This diagnostic collector does not define product timeout policy.
+"""
 import asyncio, json, os, pathlib, shutil, signal, subprocess, tempfile, time
 
 CAP = 15
@@ -47,7 +51,7 @@ async def main():
     for name,args in [('curl',['curl','--version']),('Node fetch',['node','--version']),('Python requests',['python3','-c','import requests;print(requests.__version__)']),('Go net/http',['go','version']),('Chrome',['chromium','--version']),('OpenSSH',['ssh','-V'])]:
       p=subprocess.run(args,capture_output=True,text=True);output['versions'][name]=(p.stdout+p.stderr).splitlines()[0]
     output['missing']={'Safari':'Unavailable on this Linux host; no Safari measurement was run.'}
-    path=pathlib.Path('docs/checks/edge-clients.json');path.write_text(json.dumps(output,indent=2)+'\n')
+    path=pathlib.Path(os.environ.get('PRYX_EDGE_MEASUREMENTS', str(pathlib.Path(tempfile.gettempdir()) / 'pryx-edge-clients.json')));path.write_text(json.dumps(output,indent=2)+'\n')
     for client,kind in sorted({(r['client'],r['kind']) for r in results}):
       group=[r for r in results if r['client']==client and r['kind']==kind]
       values=sorted(r['seconds'] for r in group)

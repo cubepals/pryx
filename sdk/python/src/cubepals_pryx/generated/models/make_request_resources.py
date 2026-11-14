@@ -19,7 +19,11 @@ T = TypeVar("T", bound="MakeRequestResources")
 class MakeRequestResources:
     """
     Attributes:
-        memory_mb (int): Hard memory limit (no swap). Expressed in MiB.
+        memory_mb (int): Hard memory limit (no swap), in MiB; admission reservation when unenforced memory is explicitly
+            accepted.
+        allow_unenforced_memory (Union[None, Unset, bool]): Accept missing memory enforcement only on an engine without
+            its controller. A capable
+            engine still enforces memoryMb. Sent only after unenforced-memory is announced.
         cpu_millis (Union[None, Unset, int]): CPU ceiling in thousandths of a core (CFS quota). Also what the JVM counts
             as its
             processors. Absent: no ceiling, weight only.
@@ -32,6 +36,7 @@ class MakeRequestResources:
     """
 
     memory_mb: int
+    allow_unenforced_memory: Union[None, Unset, bool] = UNSET
     cpu_millis: Union[None, Unset, int] = UNSET
     cpu_reservation_millis: Union[None, Unset, int] = UNSET
     cpu_weight: Union[None, Unset, int] = UNSET
@@ -39,6 +44,12 @@ class MakeRequestResources:
 
     def to_dict(self) -> dict[str, Any]:
         memory_mb = self.memory_mb
+
+        allow_unenforced_memory: Union[None, Unset, bool]
+        if isinstance(self.allow_unenforced_memory, Unset):
+            allow_unenforced_memory = UNSET
+        else:
+            allow_unenforced_memory = self.allow_unenforced_memory
 
         cpu_millis: Union[None, Unset, int]
         if isinstance(self.cpu_millis, Unset):
@@ -71,6 +82,8 @@ class MakeRequestResources:
                 "memoryMb": memory_mb,
             }
         )
+        if allow_unenforced_memory is not UNSET:
+            field_dict["allowUnenforcedMemory"] = allow_unenforced_memory
         if cpu_millis is not UNSET:
             field_dict["cpuMillis"] = cpu_millis
         if cpu_reservation_millis is not UNSET:
@@ -86,6 +99,17 @@ class MakeRequestResources:
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
         memory_mb = d.pop("memoryMb")
+
+        def _parse_allow_unenforced_memory(data: object) -> Union[None, Unset, bool]:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(Union[None, Unset, bool], data)
+
+        allow_unenforced_memory = _parse_allow_unenforced_memory(
+            d.pop("allowUnenforcedMemory", UNSET)
+        )
 
         def _parse_cpu_millis(data: object) -> Union[None, Unset, int]:
             if data is None:
@@ -127,6 +151,7 @@ class MakeRequestResources:
 
         make_request_resources = cls(
             memory_mb=memory_mb,
+            allow_unenforced_memory=allow_unenforced_memory,
             cpu_millis=cpu_millis,
             cpu_reservation_millis=cpu_reservation_millis,
             cpu_weight=cpu_weight,

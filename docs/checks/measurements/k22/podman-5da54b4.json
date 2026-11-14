@@ -1,0 +1,22 @@
+{
+  "measurement": "direct node manager, locally available image, serial workloads, no public edge",
+  "commit": "5da54b4afd80411868b55479e7d33147da697bd6",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43052744144",
+  "result": {
+    "samples.createMs": {
+      "n": 30,
+      "p50": 3900.075,
+      "p90": 3987.132
+    },
+    "samples.execMs": {
+      "n": 30,
+      "p50": 44.208,
+      "p90": 47.895
+    },
+    "samples.networkMs": {
+      "n": 30,
+      "p50": 2.879,
+      "p90": 3.027
+    }
+  }
+}

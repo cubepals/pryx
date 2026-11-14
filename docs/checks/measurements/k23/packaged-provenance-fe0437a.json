@@ -1,0 +1,8 @@
+{
+  "measurement": "Pinned packaging plus relocated upstream tools as UID 1001; installed Pryx process policy, edge, SDKs, neighbours and thirty samples remain pending",
+  "commit": "fe0437aeb4bfaa44e82eeb0a2dc6595180b42c1c",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43177305638",
+  "result": {
+    "scope": "Pinned packaging plus relocated upstream tools as UID 1001; installed Pryx process policy, edge, SDKs, neighbours and thirty samples remain pending"
+  }
+}

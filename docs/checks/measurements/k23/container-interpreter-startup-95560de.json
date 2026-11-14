@@ -1,0 +1,17 @@
+{
+  "measurement": "create-to-first-image",
+  "commit": "95560de94e75547db25f6e545f433ceb41ad8006",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43219637379",
+  "result": {
+    "summary.python": {
+      "n": 30,
+      "p50Ms": 1423.978,
+      "p90Ms": 1490.639
+    },
+    "summary.javascript": {
+      "n": 30,
+      "p50Ms": 773.928,
+      "p90Ms": 823.825
+    }
+  }
+}

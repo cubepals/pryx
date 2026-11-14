@@ -35,10 +35,10 @@ use super::identity::Credentials;
 use crate::http_client as client;
 use crate::ids::{NodeId, WorkloadId};
 use crate::manager::{Lifecycle, Manager};
-use crate::protocol::ProtocolVersions;
 use crate::protocol::WorkloadState;
 use crate::protocol::wire::FLEET_API;
 use crate::protocol::wire::{Fence, HeartbeatRequest, HeartbeatResponse, WorkloadReport};
+use crate::protocol::{Isolation, ProtocolVersions};
 use crate::upgrade::Upgrader;
 
 /// The soonest a beat follows the one before when what it reports changed.
@@ -75,25 +75,33 @@ pub fn heartbeat_report(
 }
 
 fn workload_reports(manager: &Manager) -> Vec<WorkloadReport> {
+    let observed_limits = manager.features().iter().any(|f| f == crate::protocol::OBSERVED_RESOURCE_LIMITS_FEATURE);
     manager
         .list(None)
         .into_iter()
-        .map(|v| WorkloadReport {
-            metrics: manager.cached_metrics(&v.id),
-            agent: v.agent,
-            id: v.id.to_string(),
-            epoch: v.epoch,
-            superseded_by: v.superseded_by,
-            state: v.state,
-            spec_digest: v.spec_digest,
-            generation: v.generation,
-            memory_mb: v.resources.memory_mb,
-            restart_count: v.restart_count,
-            exit: v.exit,
-            last_failure_at: v.last_failure_at,
-            changed_at: v.changed_at,
-            ports: v.ports.iter().map(|p| (p.name.clone(), p.host_port)).collect(),
-            issues: v.issues,
+        .map(|v| {
+            let tier = v.isolation.as_deref().unwrap_or(Isolation::Container.as_str());
+            let browser = [Isolation::Container.as_str(), Isolation::Process.as_str()].contains(&tier)
+                && manager.browser_policy_observed(&v.id);
+            WorkloadReport {
+                guarantees: ((observed_limits && tier == Isolation::Container.as_str()) || browser)
+                    .then_some(v.guarantees),
+                metrics: manager.cached_metrics(&v.id),
+                agent: v.agent,
+                id: v.id.to_string(),
+                epoch: v.epoch,
+                superseded_by: v.superseded_by,
+                state: v.state,
+                spec_digest: v.spec_digest,
+                generation: v.generation,
+                memory_mb: v.resources.memory_mb,
+                restart_count: v.restart_count,
+                exit: v.exit,
+                last_failure_at: v.last_failure_at,
+                changed_at: v.changed_at,
+                ports: v.ports.iter().map(|p| (p.name.clone(), p.host_port)).collect(),
+                issues: v.issues,
+            }
         })
         .collect()
 }
@@ -173,6 +181,7 @@ pub async fn run(
     let mut failing_since: Option<u64> = None;
     loop {
         seq += 1;
+        manager.refresh_firewall().await;
         let mut request: HeartbeatRequest = heartbeat_report(&manager, &node_id, &session, boot.clone(), seq);
         request.upgrade_failed = upgrader.failure();
         let reported = Gist::of(&request.workloads);

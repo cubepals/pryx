@@ -3,27 +3,25 @@
  * is sent once; private SSH keys are deliberately absent from ordinary serialization. */
 import type { Agent } from './agent.ts'
 import type { components } from './generated/agent.ts'
+import type { components as PublicComponents } from './generated/api.ts'
 import { TOOL_DEFAULTS } from './generated/tools.ts'
 import type { Transport } from './transport.ts'
+import { PryxError } from './transport.ts'
 
 type Schemas = components['schemas']
 export type ToolAccess = Schemas['ToolAccess']
 export type Mount = Schemas['MountView']
-export type SshAddress = {
-  id: string
-  host: string
-  port: number
-  user: string
-  hostKey: string
-  expiresAt: number
-}
+export type SshAddress = PublicComponents['schemas']['SshAddress']
 export class SshAccess {
   #key: string
+  #connect?: (attach?: (socket: WebSocket) => void) => Promise<WebSocket>
   constructor(
     readonly address: SshAddress,
     key: string,
+    connect?: (attach?: (socket: WebSocket) => void) => Promise<WebSocket>,
   ) {
     this.#key = key
+    this.#connect = connect
   }
   get id() {
     return this.address.id
@@ -45,6 +43,17 @@ export class SshAccess {
   }
   get key() {
     return this.#key
+  }
+  get transport() {
+    return this.address.transport ?? 'tcp'
+  }
+  get webSocketUrl() {
+    return this.address.webSocketUrl
+  }
+  connect(attach?: (socket: WebSocket) => void) {
+    if (!this.address.webSocketUrl || !this.#connect)
+      throw new PryxError(0, 'unsupported', 'This SSH lease does not advertise WebSocket transport')
+    return this.#connect(attach)
   }
   toJSON() {
     return this.address
@@ -81,13 +90,22 @@ export function nativeTools(agent: Agent, api: Transport, id: string) {
     async () => {
       const created = await request<Schemas['SshCreated']>('ssh')
       try {
-        return new SshAccess(await api.request<SshAddress>(path, 'POST', { id: created.id }), created.key)
+        return new SshAccess(
+          await api.request<SshAddress>(path, 'POST', { id: created.id }),
+          created.key,
+          (attach) => agent.socket(`/_pryx/ssh/${encodeURIComponent(created.id)}/connect`, attach),
+        )
       } catch (error) {
         await agent.request(`/_pryx/ssh/${encodeURIComponent(created.id)}`, 'DELETE').catch(() => {})
         throw error
       }
     },
-    { revoke: () => api.request<{ revoked: boolean }>(path, 'DELETE') },
+    {
+      revoke: () => api.request<{ revoked: boolean }>(path, 'DELETE'),
+      connect: (lease: string, attach?: (socket: WebSocket) => void) =>
+        agent.socket(`/_pryx/ssh/${encodeURIComponent(lease)}/connect`, attach),
+      connection: (lease: string) => agent.connection(`/_pryx/ssh/${encodeURIComponent(lease)}/connect`),
+    },
   )
   return {
     desktop,

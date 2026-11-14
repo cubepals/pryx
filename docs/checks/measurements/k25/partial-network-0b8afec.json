@@ -1,0 +1,97 @@
+{
+  "measurement": "Minimal network fixtures only; no production VM/policy/confinement proof",
+  "commit": "0b8afec",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43452903447",
+  "result": {
+    "vsock.samples.helperAndGuestReportMs": {
+      "n": 30,
+      "p50": 848.495,
+      "p90": 929.841
+    },
+    "vsock.samples.helperPreparationMs": {
+      "n": 30,
+      "p50": 21.988,
+      "p90": 22.099
+    },
+    "vsock.samples.launchToFilesystemVsockReportMs": {
+      "n": 30,
+      "p50": 826.396,
+      "p90": 908.099
+    },
+    "vsock.samples.network.bulkBytes": {
+      "n": 30,
+      "p50": 16777216,
+      "p90": 16777216
+    },
+    "vsock.samples.network.bulkMiBPerSecond": {
+      "n": 30,
+      "p50": 101.441,
+      "p90": 104.996
+    },
+    "vsock.samples.network.bulkMs": {
+      "n": 30,
+      "p50": 157.275,
+      "p90": 163.72
+    },
+    "vsock.samples.network.dnsMs": {
+      "n": 30,
+      "p50": 2.675,
+      "p90": 3.592
+    },
+    "vsock.samples.network.httpMs": {
+      "n": 30,
+      "p50": 0.65,
+      "p90": 0.725
+    },
+    "vsock.samples.network.readyMs": {
+      "n": 30,
+      "p50": 108.313,
+      "p90": 109.58
+    },
+    "pasta.samples.helperAndGuestReportMs": {
+      "n": 13,
+      "p50": 876.492,
+      "p90": 926.631
+    },
+    "pasta.samples.helperPreparationMs": {
+      "n": 13,
+      "p50": 0,
+      "p90": 0
+    },
+    "pasta.samples.launchToFilesystemVsockReportMs": {
+      "n": 13,
+      "p50": 876.492,
+      "p90": 926.631
+    },
+    "pasta.samples.network.bulkBytes": {
+      "n": 13,
+      "p50": 16777216,
+      "p90": 16777216
+    },
+    "pasta.samples.network.bulkMiBPerSecond": {
+      "n": 13,
+      "p50": 95.712,
+      "p90": 119.017
+    },
+    "pasta.samples.network.bulkMs": {
+      "n": 13,
+      "p50": 167.169,
+      "p90": 208.509
+    },
+    "pasta.samples.network.dnsMs": {
+      "n": 13,
+      "p50": 1.981,
+      "p90": 2.216
+    },
+    "pasta.samples.network.httpMs": {
+      "n": 13,
+      "p50": 0.372,
+      "p90": 0.415
+    },
+    "pasta.samples.network.readyMs": {
+      "n": 13,
+      "p50": 61.543,
+      "p90": 61.863
+    }
+  }
+}

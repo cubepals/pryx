@@ -1,0 +1,10 @@
+{
+  "measurement": "Both relocated upstream kernels and browser pass; full agent policy proves state, PNGs, same-UID neighbour refusal, forwarded CDP and namespace-policy refusal without acquisition. Signed installed-product evidence is retained separately on the same source.",
+  "commit": "95560de94e75547db25f6e545f433ceb41ad8006",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43219637379",
+  "result": {
+    "jobConclusion": "success",
+    "artifact.id": 13946510445,
+    "scope": "Both relocated upstream kernels and browser pass; full agent policy proves state, PNGs, same-UID neighbour refusal, forwarded CDP and namespace-policy refusal without acquisition. Signed installed-product evidence is ret\u2026"
+  }
+}

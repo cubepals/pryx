@@ -1,0 +1,21 @@
+{
+  "measurement": "desktop application 35b8b15",
+  "commit": "35b8b15",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43319847311",
+  "result": {
+    "elapsedSeconds": 3.56,
+    "componentNssDatabase": true,
+    "report.neighbour.ownerCookieReadDenied": true,
+    "report.owner.expiredConnectionClosed": true,
+    "report.owner.expiredReconnectDenied": true,
+    "report.owner.headfulApplication": true,
+    "report.owner.novncPage": true,
+    "report.owner.privateCommandAuthentication": true,
+    "report.owner.screenshot": true,
+    "report.owner.vncGreeting": true,
+    "report.rendererNoNewPrivileges": true,
+    "report.rendererOwnSeccomp": true,
+    "report.scope": "Staged actual native worker; installed SDK/edge acceptance still required",
+    "report.unconfinedLiveAliases": 13
+  }
+}

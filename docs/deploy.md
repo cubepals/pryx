@@ -9,13 +9,14 @@ The first successful start prints the initial API key once. Set PRYX_API_URL to
 `http://localhost:8080` and PRYX_API_KEY to that key in the CLI or SDK environment.
 `pryx run -- echo hello` uses the bundled userland. `pryx run --image alpine:3.22 -- echo hello`
 is refused on the process tier with the image error documented in [process-tier.md](process-tier.md).
-The image also contains agentOS VMs. Set `PRYX_DEFAULT_TIER=wasm` at image startup to use them
-without an engine or added privileges. A usable Docker socket selects container automatically;
-`PRYX_DEFAULT_TIER=container|process|wasm` overrides that choice. Sandbox requests select a
-provided tier with `isolation`; they cannot enable a missing host runtime. Wasm refuses an image
+The image serves process and agentOS VMs together where their probes succeed, and container
+workloads where the host engine is usable. Control chooses an eligible tier for an unnamed
+request and reports the result. A request with `isolation` fixes its tier; a missing runtime is
+refused by name. `pryx doctor` lists what this host supports and why a tier is off. Advanced
+priority and single-backend overrides are documented in [tiers.md](tiers.md). Wasm refuses an image
 and accepts optional `packages` registry names instead. See [tiers.md](tiers.md) for the measured
 default and capabilities and [agentos.md](agentos.md) for persistence and ingress limits.
-The existing host installer and four-command README quickstart remain available.
+The [one-command installer](install.md) runs the same supervisor as an ordinary user or provisions a systemd server as root.
 
 Docker creates the image's state volume automatically. For a named persistent volume:
 
@@ -38,7 +39,7 @@ URL prefix. Declared HTTP ports use the public hostnames returned by the API; co
 and preserve the Host header through the TLS terminator. The configured PRYX_PUBLIC_URL
 hostname stays reserved for control routing, including when a declared hostname collides.
 TLS and raw TCP fronts are disabled in the image. Standalone host edges
-can still use wildcard DNS, certificates and raw fronts as documented in [agent.md](agent.md).
+can still use wildcard DNS, certificates and raw fronts as documented in [agent.md](agent.md). Raw output belongs to the cited CI artifacts; the repository keeps only its summary.
 
 New image state derives its private node listener pool below the kernel's outgoing ephemeral
 range without changing sysctls. Restart preserves the stored pool, including older implicit

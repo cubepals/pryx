@@ -1,0 +1,16 @@
+{
+  "measurement": "Trusted bootstrap image only; no VM runtime advertisement",
+  "commit": "9496dbf",
+  "ci": "Not recorded; local or inventory evidence, not a CI pass",
+  "result": {
+    "scope": "Trusted bootstrap image only; no VM runtime advertisement",
+    "imageBytes": 61771776,
+    "metadata.browserPolicy": true,
+    "metadata.processToolsVersion": 1,
+    "metadata.processBrowserVersion": 1,
+    "metadata.processDesktopVersion": 1,
+    "metadata.processSshVersion": 1,
+    "metadata.vmVsock": true,
+    "metadata.vmInitVersion": 1
+  }
+}

@@ -3,10 +3,13 @@
 use super::*;
 
 pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Result<String, RuntimeError> {
+    let info = runtime.info().await?;
+    check_engine_policy(runtime, spec, &info)?;
     let mut prepared = spec.clone();
     let resolver = runtime.egress.prepare(runtime, &mut prepared).await?;
     let spec = &prepared;
-    if spec.internal_network {
+    // Native Podman create owns a separate bridge and published ingress for each workload.
+    if spec.internal_network && !info.podman {
         runtime.ensure_internal_network(&spec.network, &spec.labels).await?;
     }
     let mut spec = spec.clone();
@@ -20,6 +23,7 @@ pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Res
     if let Some(agent) = &spec.agent {
         let image = quick("inspect image", runtime.docker()?.inspect_image(&spec.image)).await?;
         let config = image.config.unwrap_or_default();
+        let browser = browser_policy::mode(runtime, &spec, config.env.as_deref()).await?;
         let original = if agent.keep_alive {
             Vec::new()
         } else {
@@ -60,15 +64,63 @@ pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Res
             entrypoint.push("--".into());
             entrypoint.extend(original);
         }
+        browser_policy::bind(browser, &mut entrypoint, &mut spec.labels);
         spec.entrypoint = Some(entrypoint);
+    }
+    if info.podman {
+        return podman::create(runtime, &spec, &info).await;
     }
     let options = CreateContainerOptionsBuilder::new().name(&spec.name).build();
     let mut body = body_of(&spec);
     runtime.native_tools.apply(&mut body);
+    if let Some(host) = body.host_config.as_mut() {
+        if !info.memory_limit {
+            host.memory = None;
+            host.memory_swap = None;
+        }
+        if !info.cpu_limit {
+            host.cpu_shares = None;
+        }
+        if !info.pids_limit {
+            host.pids_limit = None;
+        }
+    }
     // Docker's embedded resolver forwards to this one, from the container's side of the bridge.
     if let (Some(resolver), Some(host)) = (resolver, body.host_config.as_mut()) {
         host.dns = Some(vec![resolver.to_string()]);
     }
     let created = quick("create", runtime.docker()?.create_container(Some(options), body)).await?;
     Ok(created.id)
+}
+
+fn check_engine_policy(runtime: &DockerRuntime, spec: &ContainerSpec, info: &RuntimeInfo) -> Result<(), RuntimeError> {
+    if let Some(problem) = &info.container_policy_problem {
+        return Err(RuntimeError::Other(problem.clone()));
+    }
+    if info.rootless && !info.podman && spec.internal_network {
+        return Err(RuntimeError::Other(
+            "network-policy is unavailable: rootless Docker cannot provide private internal ingress; use a supported Podman engine".into(),
+        ));
+    }
+    if !info.memory_limit && spec.allow_unenforced_memory != Some(true) {
+        return Err(RuntimeError::Other(format!(
+            "{} is unavailable on this engine",
+            crate::protocol::Guarantee::MemoryLimit.feature()
+        )));
+    }
+    if !info.cpu_limit && (spec.nano_cpus.is_some() || spec.require_cpu_limit) {
+        return Err(RuntimeError::Other(format!(
+            "{} is unavailable on this engine",
+            crate::protocol::Guarantee::CpuLimit.feature()
+        )));
+    }
+    if !info.pids_limit && spec.require_pids_limit {
+        return Err(RuntimeError::Other("pids-limit is unavailable on this engine".into()));
+    }
+    if (info.rootless || info.podman) && (spec.egress.is_some() || runtime.native_tools.fuse()) {
+        return Err(RuntimeError::Other(
+            "host-firewall and native FUSE require a supported rootful Docker engine".into(),
+        ));
+    }
+    Ok(())
 }

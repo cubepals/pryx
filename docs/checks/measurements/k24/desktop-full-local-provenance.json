@@ -1,0 +1,12 @@
+{
+  "measurement": "Local staged component; not installed, confined, published or announced",
+  "commit": "recorded in 78177e5; measurement revision not recorded",
+  "ci": "Not recorded; local or inventory evidence, not a CI pass",
+  "result": {
+    "scope": "Local staged component; not installed, confined, published or announced",
+    "sourceVersions": 112,
+    "sourceArchives": 370,
+    "selectedElfs": 159,
+    "pythonTests": 7
+  }
+}

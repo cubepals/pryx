@@ -8,8 +8,9 @@ import { z } from 'zod'
 import nodeSchema from '../../openapi/node-writes.openapi.json'
 import { AUTOSCALE_DEFAULTS } from './autoscale.ts'
 import { DEFAULT_EDGE_PORT_RANGE } from './edge-addresses.ts'
+import { GUARANTEES } from './guarantees.ts'
 import { THRESHOLDS } from './health.ts'
-import { ISOLATIONS } from './isolation.ts'
+import { DEFAULT_ISOLATION_ORDER, ISOLATIONS } from './isolation.ts'
 import { splitAddress } from './node-client.ts'
 import { DEFAULTS } from './placement.ts'
 import { limitsSchema, projectDefaults, UNIT_DEFAULTS } from './project-model.ts'
@@ -35,7 +36,16 @@ export const DEFAULT_REPO_IMAGE =
   'docker.io/alpine/git@sha256:ac6c828f15d82775d204d3d75112e1d34af8945da80ccf922713c9891ba68e7a'
 const schema = z.object({
   repoImage: z.string().min(1).default(DEFAULT_REPO_IMAGE),
-  defaultIsolation: z.enum(ISOLATIONS).default('container'),
+  defaultIsolation: z
+    .preprocess(
+      (value) =>
+        typeof value === 'string' && value.includes(',')
+          ? value.split(',').map((tier) => tier.trim())
+          : value,
+      z.union([z.enum(ISOLATIONS), z.array(z.enum(ISOLATIONS)).min(1)]),
+    )
+    .default([...DEFAULT_ISOLATION_ORDER]),
+  require: z.array(z.enum(GUARANTEES)).default([]),
   publicOrigin: z.url().optional(),
   database: z.string().min(1),
   deployment: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/),
@@ -106,6 +116,9 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     repoImage: env.PRYX_REPO_IMAGE,
     webhookAllowHosts: (env.PRYX_WEBHOOK_ALLOW_HOSTS ?? '').split(',').filter(Boolean),
     defaultIsolation: env.PRYX_DEFAULT_ISOLATION,
+    require: env.PRYX_REQUIRE?.split(',')
+      .map((name) => name.trim())
+      .filter(Boolean),
     publicOrigin: env.PRYX_PUBLIC_URL,
     deployment: env.PRYX_DEPLOYMENT ?? 'pryx',
     caCert: env.PRYX_CA_CERT?.replaceAll('\\n', '\n'),

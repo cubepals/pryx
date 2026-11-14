@@ -4,25 +4,18 @@
 //! answers only the policy's names, and drops every other new bridge connection. The container's
 //! embedded resolver forwards to that resolver too (`--dns`), so no name leaves the host unchecked.
 //! The sandbox cannot opt out with proxy variables, DNS answers, raw IPs or another bridge's gateway.
-//!
-//! Parts (`egress/`):
-//! - `gateway.rs`: HTTP/TLS forwarding and public DNS pinning.
-//! - `dns.rs`: the policy-checked resolver on the bridge's gateway.
-mod dns;
-mod gateway;
 use super::*;
-use crate::protocol::EgressPolicy;
+use crate::{
+    protocol::EgressPolicy,
+    runtime::egress::{dns, listeners},
+};
 use std::{
     io::Read,
     net::IpAddr,
     os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt},
-    sync::Arc,
 };
-use tokio::{
-    net::{TcpListener, UdpSocket},
-    sync::{Mutex, Semaphore},
-};
-use tokio_util::sync::{CancellationToken, DropGuard};
+use tokio::sync::Mutex;
+use tokio_util::sync::DropGuard;
 const PREFIX: &str = "pye";
 const TABLE: &str = "pryx_egress";
 const READY: &str = "/run/pryx-egress-v2";
@@ -152,16 +145,15 @@ impl Egress {
             .ok_or_else(|| error("missing gateway"))?;
         let gateway: IpAddr = config.gateway.ok_or_else(|| error("missing gateway"))?.parse().map_err(error)?;
         let subnet: ipnet::IpNet = config.subnet.ok_or_else(|| error("missing subnet"))?.parse().map_err(error)?;
-        let http = TcpListener::bind((gateway, HTTP_PORT)).await.map_err(error)?;
-        let tls = TcpListener::bind((gateway, TLS_PORT)).await.map_err(error)?;
-        let dns_udp = UdpSocket::bind((gateway, DNS_PORT)).await.map_err(error)?;
-        let dns_tcp = TcpListener::bind((gateway, DNS_PORT)).await.map_err(error)?;
-        let cancel = CancellationToken::new();
-        let guard = cancel.clone().drop_guard();
-        let capacity = Arc::new(Semaphore::new(MAX_CONNECTIONS));
-        gateway::serve(http, false, subnet, policy.clone(), capacity.clone(), cancel.clone());
-        gateway::serve(tls, true, subnet, policy.clone(), capacity, cancel.clone());
-        dns::serve(dns_udp, dns_tcp, subnet, policy.clone(), Arc::new(Semaphore::new(MAX_CONNECTIONS)), cancel);
+        let (_, guard) = listeners::listen(
+            gateway,
+            listeners::Ports { http: HTTP_PORT, tls: TLS_PORT, dns: DNS_PORT },
+            subnet,
+            policy.clone().into(),
+            MAX_CONNECTIONS,
+        )
+        .await
+        .map_err(error)?;
         held.insert(network.into(), (policy, gateway, guard));
         Ok(gateway)
     }

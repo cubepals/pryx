@@ -38,10 +38,44 @@ impl fmt::Debug for Secret {
     }
 }
 
+/// The backend a workload asks for. An omitted choice retains the host's default.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(rename_all = "lowercase")]
+pub enum Isolation {
+    Container,
+    Process,
+    Wasm,
+}
+impl Isolation {
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "container" => Some(Self::Container),
+            "process" => Some(Self::Process),
+            "wasm" => Some(Self::Wasm),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Container => "container",
+            Self::Process => "process",
+            Self::Wasm => "wasm",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize)]
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct WorkloadSpec {
+    /// Sent only after the node announces multi-tier.
+    #[serde(default)]
+    pub(crate) isolation: Option<Isolation>,
+    /// Sent only after native-browser-policy is announced; never authorizes disabling a sandbox.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) require_browser_sandbox: Option<bool>,
     /// An image reference. Must match the host's `allowed_images` prefixes.
     #[serde(default)]
     pub(crate) image: String,
@@ -90,8 +124,12 @@ pub struct WorkloadSpec {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct Resources {
-    /// Hard memory limit (no swap). Expressed in MiB.
+    /// Hard memory limit (no swap), in MiB; admission reservation when unenforced memory is explicitly accepted.
     pub(crate) memory_mb: u32,
+    /// Accept missing memory enforcement only on an engine without its controller. A capable
+    /// engine still enforces memoryMb. Sent only after unenforced-memory is announced.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) allow_unenforced_memory: Option<bool>,
     /// CPU ceiling in thousandths of a core (CFS quota). Also what the JVM counts as its
     /// processors. Absent: no ceiling, weight only.
     #[serde(default)]
@@ -228,6 +266,8 @@ impl WorkloadSpec {
     /// The spec as pryxd keeps it: secret values dropped, names kept.
     pub fn record(&self) -> SpecRecord {
         SpecRecord {
+            isolation: self.isolation,
+            require_browser_sandbox: self.require_browser_sandbox,
             image: self.image.clone(),
             packages: self.packages.clone(),
             entrypoint: self.entrypoint.clone(),
@@ -262,6 +302,10 @@ impl WorkloadSpec {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SpecRecord {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) isolation: Option<Isolation>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) require_browser_sandbox: Option<bool>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) packages: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -303,6 +347,8 @@ impl SpecRecord {
             .map(|name| secrets.get(name).map(|value| (name.clone(), Secret(value.clone()))))
             .collect::<Option<BTreeMap<_, _>>>()?;
         Some(WorkloadSpec {
+            isolation: self.isolation,
+            require_browser_sandbox: self.require_browser_sandbox,
             image: self.image.clone(),
             packages: self.packages.clone(),
             entrypoint: self.entrypoint.clone(),
@@ -354,6 +400,34 @@ mod tests {
 
     pub(super) fn spec(value: serde_json::Value) -> WorkloadSpec {
         serde_json::from_value(value).expect("parses")
+    }
+
+    #[test]
+    fn isolation_is_optional_but_an_explicit_choice_survives_recovery() {
+        let legacy = spec(example_spec()).record();
+        assert!(serde_json::to_value(&legacy).unwrap().get("isolation").is_none());
+        let mut value = example_spec();
+        value["isolation"] = "process".into();
+        let record = spec(value).record();
+        assert_ne!(record.digest(), legacy.digest());
+        assert_eq!(record.isolation, Some(Isolation::Process));
+        let secrets = BTreeMap::from([("APP_TOKEN".into(), "private".into())]);
+        assert_eq!(record.with_secrets(&secrets, None).unwrap().isolation, Some(Isolation::Process));
+        let mut value = example_spec();
+        value["isolation"] = "unknown".into();
+        assert!(serde_json::from_value::<WorkloadSpec>(value).is_err());
+    }
+
+    #[test]
+    fn browser_requirement_keeps_legacy_bytes_and_survives_recovery() {
+        let legacy = spec(example_spec()).record();
+        assert!(serde_json::to_value(&legacy).unwrap().get("requireBrowserSandbox").is_none());
+        let mut value = example_spec();
+        value["requireBrowserSandbox"] = true.into();
+        let record = spec(value).record();
+        assert_ne!(record.digest(), legacy.digest());
+        let secrets = BTreeMap::from([("APP_TOKEN".into(), "private".into())]);
+        assert_eq!(record.with_secrets(&secrets, None).unwrap().require_browser_sandbox, Some(true));
     }
 
     #[test]

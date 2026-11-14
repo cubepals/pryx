@@ -1,0 +1,12 @@
+{
+  "measurement": "Minimal ordinary-user kernel fixture only; not production VM-tier proof",
+  "commit": "9402ef5",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43442622901",
+  "result": {
+    "conclusion": "success",
+    "scope": "Minimal ordinary-user kernel fixture only; not production VM-tier proof",
+    "coldP50Ms": 717.035,
+    "coldP90Ms": 725.265,
+    "diskRebootMs": 724.471
+  }
+}

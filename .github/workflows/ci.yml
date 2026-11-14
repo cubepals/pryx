@@ -12,6 +12,10 @@ on:
     - cron: '23 5 * * 1'
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
@@ -124,7 +128,8 @@ jobs:
       - name: Durations and comments
         run: |
           if git grep -nE '\b(3_?600|86_?400|604_?800)\b|\b60 ?\* ?60\b' -- '*.rs'; then exit 1; fi
-          if git grep -niE "owner'?s decision|owner decided|per the owner|as requested" -- . ':!.github/workflows/ci.yml'; then exit 1; fi
+          # This digest-locked upstream legal text contains the literal phrase; preserve it verbatim.
+          if git grep -niE "owner'?s decision|owner decided|per the owner|as requested" -- . ':!.github/workflows/ci.yml' ':!templates/process-tools/notices/desktop-full/libglib2.0-0.copyright'; then exit 1; fi
       - name: Structure
         run: |
           curl -fsSL https://raw.githubusercontent.com/cubepals/cubepals/e264c475d05aa31ec8871b2ceb8c421cf7370200/scripts/check-structure.ts \
@@ -135,14 +140,46 @@ jobs:
       # test binary runs even after one fails, so a failure can't hide the others.
       - name: Stage the verified agentOS distribution
         run: python3 scripts/fetch-agentos.py "$RUNNER_TEMP/agentos"
+      # K19 uses the free hosted runner's real KVM device; no VM service or paid runner.
+      - name: Allow the runner user to probe KVM
+        run: |
+          sudo modprobe kvm
+          test -c /dev/kvm
+          sudo chown "$(id -u):$(id -g)" /dev/kvm
       - run: cargo test --locked --no-fail-fast
         env:
           PRYX_AGENTOS_DISTRIBUTION: ${{ runner.temp }}/agentos
+          PRYX_PROBE_KVM: 'on'
+          PRYX_PRIVATE_IPC_REPORT: ${{ runner.temp }}/process-ipc-design.json
+      - name: Save process IPC design evidence
+        if: always()
+        uses: ./.github/actions/upload-evidence
+        with:
+          name: process-ipc-design
+          path: |
+            ${{ runner.temp }}/process-ipc-design.json
+            ${{ runner.temp }}/check-structure.ts
+            target/check-control-structure.ts
+          if-no-files-found: warn
+      - name: CLI doctor uses the real host document
+        run: |
+          bun install --frozen-lockfile
+          PRYX_PRYXD_BIN="$PWD/target/debug/pryxd" bun cli/src/main.ts doctor --json > "$RUNNER_TEMP/host-probe.json"
+          jq -e '.capabilities.kvm.state == "on"' "$RUNNER_TEMP/host-probe.json"
+          jq -e '.tiers | has("container") and has("process") and has("wasm")' "$RUNNER_TEMP/host-probe.json"
       # Against the runner's own Docker daemon: hardening, limits, the OOM killer, isolation,
       # restarts. They chown data directories, so Cargo's runner starts the test binary as root;
       # Cargo itself, and so target/, stays the runner's.
       - name: Docker integration tests
         run: CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER=sudo cargo test --locked --test docker -- --ignored --test-threads 2
+      - name: Docker and kernel failure evidence
+        if: failure()
+        run: |
+          sudo journalctl -u docker --since '-10 min' --no-pager -n 80
+          docker version
+          docker info --format '{{json .CgroupVersion}} {{json .CgroupDriver}}'
+          timeout 15s docker events --format '{{.TimeNano}} {{.Action}} {{.Actor.ID}}' --since 10m --until "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --filter type=container --filter event=oom
+          sudo dmesg --ctime | tail -240
 
   supply-chain:
     name: Dependency licences and advisories
@@ -252,6 +289,18 @@ jobs:
         working-directory: cubepals
         env:
           BLOCKLYD_BIN: ${{ github.workspace }}/pryxd/target/debug/pryxd
+          BLOCKLYD_E2E_KEEP: '1'
+      - name: Bounded upstream fixture diagnostics
+        if: failure()
+        run: |
+          for directory in /tmp/blockly-e2e*; do
+            [ -d "$directory" ] || continue
+            sudo python3 pryxd/deploy/local-diagnostics.py "$directory"
+          done
+          directory="$RUNNER_TEMP/contract-diagnostics"
+          install -d -m 700 "$directory"
+          docker logs --tail 80 s3 > "$directory/s3.log" 2>&1 || true
+          python3 pryxd/deploy/local-diagnostics.py "$directory"
 
   # The image a release publishes builds, and its binary is static. Not on main's own push, where
   # release.yml builds it.
@@ -492,12 +541,13 @@ jobs:
           PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
           PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
           PRYX_INTERPRETER_MEASUREMENTS: ${{ runner.temp }}/interpreter-measurements.json
+          PRYX_INTERPRETER_IMAGE_MEASUREMENTS: ${{ runner.temp }}/interpreter-create-to-image.json
           PRYX_NATIVE_MEASUREMENTS: ${{ runner.temp }}/native-tools-measurements.json
           PRYX_COMPARE_LINKS: ${{ runner.temp }}/compare-links.json
           PRYX_NATIVE_TOOLS_SECCOMP: /usr/local/lib/pryx/native-tools-seccomp.json
       - name: Save native tool measurements and citations
         if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: ./.github/actions/upload-evidence
         with:
           name: native-tools-measurements
           path: |
@@ -513,10 +563,12 @@ jobs:
           fi
       - name: Save interpreter measurements
         if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: ./.github/actions/upload-evidence
         with:
           name: interpreter-measurements
-          path: ${{ runner.temp }}/interpreter-measurements.json
+          path: |
+            ${{ runner.temp }}/interpreter-measurements.json
+            ${{ runner.temp }}/interpreter-create-to-image.json
           if-no-files-found: error
       - name: Summarize interpreter measurements
         if: always()
@@ -584,7 +636,7 @@ jobs:
 
       - name: Save native celld measurements
         if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: ./.github/actions/upload-evidence
         with:
           name: celld-native-measurements
           path: |
@@ -628,6 +680,8 @@ jobs:
 
   one-box:
     name: One box and Action
+    env:
+      PRYX_HTTP_DIAGNOSTICS: '1'
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-24.04
@@ -678,15 +732,16 @@ jobs:
           docker pull -q mirror.gcr.io/library/node:22
           docker tag mirror.gcr.io/library/node:22 node:22
           python3 -m http.server 9876 --bind 127.0.0.1 --directory dist > "$RUNNER_TEMP/artifact-server.log" 2>&1 &
-          printf 'Defaults env_keep += "PRYX_RELEASE_BASE_URL"\n' | sudo tee /etc/sudoers.d/pryx-ci-artifacts >/dev/null
-      - name: Four-command quickstart and repeat install
+          printf 'Defaults env_keep += "PRYX_RELEASE_BASE_URL PRYX_DOMAIN PRYX_PROBE_DIAGNOSTICS"\n' | sudo tee /etc/sudoers.d/pryx-ci-artifacts >/dev/null
+      - name: One-command quickstart and repeat install
         id: up
         run: |
           started=$(date +%s)
           export PRYX_RELEASE_BASE_URL=http://127.0.0.1:9876
+          export PRYX_PROBE_DIAGNOSTICS=1
+          export PRYX_DOMAIN=sandboxes.example.com
           # Only the download origin is replaced for this unreleased build.
-          curl --retry 5 --retry-connrefused -fsSL "$PRYX_RELEASE_BASE_URL/install.sh" | sh
-          output=$(sudo pryx up --domain sandboxes.example.com)
+          output=$(curl --retry 5 --retry-connrefused -fsSL "$PRYX_RELEASE_BASE_URL/install.sh" | sudo sh)
           key=$(printf '%s\n' "$output" | sed -n 's/^export PRYX_API_KEY=//p')
           [ -n "$key" ]
           printf '::add-mask::%s\n' "$key"
@@ -744,7 +799,23 @@ jobs:
 
       - name: Service journals on failure
         if: failure()
-        run: sudo journalctl -u pryx-control -u pryx-edge -u pryx-postgres -u pryx-store -u pryxd --no-pager -n 150
+        run: |
+          sudo journalctl -u pryx-control -u pryx-edge -u pryx-postgres -u pryx-store -u pryxd --no-pager -n 150
+          free -m
+          ps -eo pid,ppid,comm,rss --sort=-rss | head -20
+          sudo journalctl -k --since '-5 min' --no-pager -n 100 | grep -Ei 'oom|killed process|out of memory' || true
+          bun -e '
+            import { edgeConfig } from "./edge/src/config.ts"
+            import { SECOND_MS } from "./control/src/durations.ts"
+            const config = edgeConfig({ PRYX_EDGE_TOKEN: "diagnostics".repeat(4) })
+            try {
+              const response = await fetch("http://" + config.metricsHost + ":" + config.metricsPort + "/metrics", {
+                signal: AbortSignal.timeout(5 * SECOND_MS),
+              })
+              if (!response.ok) throw new Error("Metrics unavailable")
+              console.log(await response.text())
+            } catch { console.log("Edge metrics unavailable") }
+          '
 
   image:
     name: Release image builds

@@ -1,0 +1,18 @@
+[
+  {
+    "name": "bubblewrap",
+    "version": "0.13.1",
+    "build": "haf0a511_0",
+    "url": "https://conda.anaconda.org/conda-forge/linux-64/bubblewrap-0.13.1-haf0a511_0.conda",
+    "sha256": "32ceb8953a90ef961d6111a097ef23b5c9fda051c2e03e2735f40ced2fde7357",
+    "bytes": 53326,
+    "declaredLicence": "LGPL-2.0-or-later (LGPL-2.1-or-later selected)",
+    "notices": [
+      {
+        "path": "info/licenses/COPYING",
+        "sha256": "dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551",
+        "bytes": 26530
+      }
+    ]
+  }
+]

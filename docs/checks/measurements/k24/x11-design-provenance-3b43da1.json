@@ -1,0 +1,10 @@
+{
+  "measurement": "Unchanged pinned Xvfb/xdotool load and reject private-path displays under complete filesystem/private-IPC policy as UID1001. No live endpoint, neighbour or headful Chromium acceptance is established by this argument probe. Full source CI remains in progress.",
+  "commit": "3b43da1eb67bdfb47a66db58ffc45d48d6c3a918",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43245895630",
+  "result": {
+    "jobConclusion": "success",
+    "artifact.id": 13956942717,
+    "scope": "Unchanged pinned Xvfb/xdotool load and reject private-path displays under complete filesystem/private-IPC policy as UID1001. No live endpoint, neighbour or headful Chromium acceptance is established by this argument prob\u2026"
+  }
+}

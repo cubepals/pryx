@@ -1,0 +1,34 @@
+// SPDX-License-Identifier: FSL-1.1-ALv2
+//! Verified inputs for the VM backend. Image preparation does not register a compute tier,
+//! choose an alternative isolation, or announce that a monitor is confined and ready.
+//! The independent vm-image/ helper wraps OCI acquisition without changing daemon dependency features.
+//!
+//! Parts (`vm/`):
+//! - `filesystems.rs`: verify the host-owned filesystem component before external execution.
+//! - `image.rs`: bounded private-pipe contract with the independent OCI helper.
+//! - `bundle.rs`: whole-release verification and lazy acquisition of pinned VM inputs.
+//! - `disk.rs`: leased ext4 creation, read-only validation and staged safe recovery.
+//! - `machine.rs`: owned confined monitor process and one-shot private bootstrap.
+//! - `jail.rs`: root-only bind mounts, disk ownership and durable jail recovery.
+//! - `jail_tests.rs`: actual root inode/mount/ownership acceptance and ordinary-user refusal.
+//! - `network.rs`: owned confined packet helper and hostname gateways.
+//! - `network_tests.rs`: real helper readiness, refusal and cancellation acceptance.
+//! - `serial.rs`: bounded monitor byte capture, drained before proof validation.
+//! - `transport.rs`: bounded one-shot SDK requests over private pipes.
+//! - `forward.rs`: owned private-address streaming forwarding processes.
+//! - `instance.rs`: cold-boot runtime under construction, outside automatic tier selection.
+pub mod bundle;
+pub mod disk;
+pub mod filesystems;
+pub mod forward;
+pub mod image;
+pub mod instance;
+pub mod jail;
+pub mod machine;
+pub mod network;
+mod serial;
+pub mod transport;
+
+pub fn error(problem: impl std::fmt::Display) -> super::RuntimeError {
+    super::RuntimeError::Other(problem.to_string())
+}

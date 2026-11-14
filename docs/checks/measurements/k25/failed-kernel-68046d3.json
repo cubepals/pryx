@@ -1,0 +1,15 @@
+{
+  "measurement": "Minimal ordinary-user kernel fixture only; not production VM-tier proof",
+  "commit": "68046d3",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43441847267",
+  "result": {
+    "scope": "Minimal ordinary-user kernel fixture only; not production VM-tier proof",
+    "selection.scope": "Kernel boot experiment; not production VM support",
+    "selection.monitor.bytes": 3921872,
+    "selection.kernel.bytes": 40865896,
+    "status": "failure",
+    "imagePreparationMs": 30.635,
+    "rootBytes": 4452352,
+    "failure": "timed out"
+  }
+}

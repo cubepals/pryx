@@ -1,0 +1,142 @@
+{
+  "name": "micromamba",
+  "version": "2.10.0",
+  "build": "0",
+  "role": "External unmodified build-time solver; never linked into pryx or included in the runtime tool bundle",
+  "license": "BSD-3-Clause AND MIT AND OpenSSL",
+  "source": "https://github.com/mamba-org/mamba/tree/2.10.0",
+  "feedstockCommit": "fb9532644220b0c7261e072339de9c124f7bf8cb",
+  "platform": "linux-64",
+  "requires": "__glibc >=2.17,<3.0.a0",
+  "url": "https://conda.anaconda.org/conda-forge/linux-64/micromamba-2.10.0-0.tar.bz2",
+  "fallback": "https://github.com/mamba-org/micromamba-releases/releases/download/2.10.0-0/micromamba-linux-64.tar.bz2",
+  "sha256": "9a97976244929bbae28fb1fae504e74a3e7e6d1932870e3a03321f01b7fbd07b",
+  "digestSources": [
+    "https://api.anaconda.org/release/conda-forge/micromamba/2.10.0",
+    "https://api.github.com/repos/mamba-org/micromamba-releases/releases/assets/679631394"
+  ],
+  "sidecarDiscrepancy": {
+    "url": "https://github.com/mamba-org/micromamba-releases/releases/download/2.10.0-0/micromamba-linux-64.tar.bz2.sha256",
+    "content": "701f39c06f8e6a670a0e186c8479b9e5c0502a2f0cda6cef65d83bdd2875e8bd",
+    "sidecarSha256": "3930bbf172214d7f3764019c9c7a7455efcbc968885f4961f32597c16b0505ee",
+    "resolution": "The two package-owner metadata sources agree on the payload digest above, independently verified against downloaded bytes; do not use the inconsistent sidecar as the payload pin."
+  },
+  "noticesReadBeforeExecution": true,
+  "noticeRetention": "Retain the complete unmodified archive and its info/licenses tree in the build cache; retain the notices if redistributing this build tool. No upstream implementation is copied into repository source.",
+  "notices": [
+    {
+      "path": "info/licenses/C_ARES_LICENSE.txt",
+      "bytes": 766,
+      "sha256": "db4eb63fe09daebdf57d3f79b091bb5ee5070c0d761040e83264e648d307af4c",
+      "licenceReview": "MIT"
+    },
+    {
+      "path": "info/licenses/REPROC_LICENSE.txt",
+      "bytes": 1065,
+      "sha256": "8f91afbe266bebac2cf1b220e0e67ace4cb9a97d2b21940abef20eb6691cfa91",
+      "licenceReview": "MIT"
+    },
+    {
+      "path": "info/licenses/NLOHMANN_JSON_LICENSE.txt",
+      "bytes": 1076,
+      "sha256": "50be9457e5c9faaba5e60d9c73f8eabe9e0737a2d9c3e58357d856661862c18e",
+      "licenceReview": "MIT"
+    },
+    {
+      "path": "info/licenses/CURL_LICENSE.txt",
+      "bytes": 1085,
+      "sha256": "f99df84b5588ba485e82a5d52666ee875c1f307789d05776c00a4ba8e9c50c51",
+      "licenceReview": "curl"
+    },
+    {
+      "path": "info/licenses/ZLIB_LICENSE.txt",
+      "bytes": 1098,
+      "sha256": "96302669dd680efcb8b3fa845cb735d32efc939357252915eec5fbd84b574343",
+      "licenceReview": "Zlib"
+    },
+    {
+      "path": "info/licenses/LIBNGHTTP2_LICENSE.txt",
+      "bytes": 1156,
+      "sha256": "6b94f3abc1aabd0c72a7c7d92a77f79dda7c8a0cb3df839a97890b4116a2de2a",
+      "licenceReview": "MIT"
+    },
+    {
+      "path": "info/licenses/LIBLZ4_LICENSE.txt",
+      "bytes": 1311,
+      "sha256": "d15d99c8dc6b0ec22174c0e563a95bc40f9363ca7f9d9d793bb5c5a8e8d0af71",
+      "licenceReview": "BSD-2-Clause"
+    },
+    {
+      "path": "info/licenses/SPDLOG_LICENSE.txt",
+      "bytes": 1321,
+      "sha256": "10318e99901f483e537ec442f34afcca1b4cf4dbf48426a8a7b3b3662c1f25d6",
+      "licenceReview": "MIT"
+    },
+    {
+      "path": "info/licenses/FMT_LICENSE.txt",
+      "bytes": 1407,
+      "sha256": "f694a33f25ac0bacf22043b114bbeb9f6296189ea40b42409269c73192977bdf",
+      "licenceReview": "MIT with optional object-code notice exception"
+    },
+    {
+      "path": "info/licenses/LIBSOLV_LICENSE.txt",
+      "bytes": 1408,
+      "sha256": "439e959abfac39ff8db43489a2a89ae1a02c970dd7412d48f03e5a41d0377bd7",
+      "licenceReview": "BSD-3-Clause"
+    },
+    {
+      "path": "info/licenses/mamba/LICENSE",
+      "bytes": 1483,
+      "sha256": "41fd98a468e39d319911bd94f4e65d6ad6a7ea66559dd5aa4112f138ff9b629a",
+      "licenceReview": "BSD-3-Clause"
+    },
+    {
+      "path": "info/licenses/ZSTD_LICENSE.txt",
+      "bytes": 1530,
+      "sha256": "2c1a7fa704df8f3a606f6fc010b8b5aaebf403f3aeec339a12048f1ba7331a0b",
+      "licenceReview": "BSD-3-Clause"
+    },
+    {
+      "path": "info/licenses/CLI11_LICENSE.txt",
+      "bytes": 1585,
+      "sha256": "78a37a652dd5425dbcdd47a742557911ed0b52cce7d1b10cc24a2afbe3b74668",
+      "licenceReview": "BSD-3-Clause"
+    },
+    {
+      "path": "info/licenses/LIBEV_LICENSE.txt",
+      "bytes": 2055,
+      "sha256": "c4dd1a5bc38b041a320b93c5d6c08f5c41a63f2ce718ee16cfcb757fad448199",
+      "licenceReview": "BSD-2-Clause option selected"
+    },
+    {
+      "path": "info/licenses/LIBARCHIVE_LICENSE.txt",
+      "bytes": 3115,
+      "sha256": "1b98d481c1869be2c21a6b8ff4da07a4b727d56399788e507284459d1944083c",
+      "licenceReview": "BSD-2-Clause, BSD-3-Clause and permissive per-file grants"
+    },
+    {
+      "path": "info/licenses/LIBOPENSSL_LICENSE.txt",
+      "bytes": 6121,
+      "sha256": "c32913b33252e71190af2066f08115c69bc9fddadf3bf29296e20c835389841c",
+      "licenceReview": "OpenSSL AND SSLeay"
+    },
+    {
+      "path": "info/licenses/TL_EXPECTED_LICENSE.txt",
+      "bytes": 7047,
+      "sha256": "6d489af6292662d9e36d34ce49423784984a5f6e41d7b58f49b01264df59fa03",
+      "licenceReview": "CC0-1.0"
+    },
+    {
+      "path": "info/licenses/LIBOPENSSL_3_LICENSE.txt",
+      "bytes": 10174,
+      "sha256": "52eeafa7b5a62df969135fa730531eed25f041a6208184993271b6d429e470c7",
+      "licenceReview": "Apache-2.0"
+    },
+    {
+      "path": "info/licenses/KRB5_LICENSE.txt",
+      "bytes": 61638,
+      "sha256": "71a926bd0177d15890e237ebd66c916a0e3bde6db25c7f4b0549e3a16ee3c3a6",
+      "licenceReview": "MIT, BSD-2/3/4-Clause, ISC, OLDAP-2.8 and retained historical permissive grants; documentation CC-BY-SA-3.0; libev BSD option selected"
+    }
+  ]
+}

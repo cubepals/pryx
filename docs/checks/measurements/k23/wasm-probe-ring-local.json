@@ -1,0 +1,20 @@
+{
+  "measurement": "One local diagnostic pair over the actual pinned agentOS distribution, using the debug pryxd host probe; filesystem cache state is uncontrolled. This is separate from the thirty-sample sandbox startup cohorts. Hosted correction proof remains required.",
+  "commit": "2db00ba676215671c555f1d3a4e62ed0b23e14bb",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43201264196",
+  "result": {
+    "scope": "One local diagnostic pair over the actual pinned agentOS distribution, using the debug pryxd host probe; filesystem cache state is uncontrolled. This is separate from the thirty-sample sandbox startup cohorts. Hosted cor\u2026",
+    "verifiedFiles": 9,
+    "verifiedBytes": 695545065,
+    "probeDeadlineSeconds": 30,
+    "before.wholeProbeSeconds": 25.329,
+    "before.userCpuSeconds": 20.841,
+    "before.systemCpuSeconds": 4.025,
+    "before.distributionSeconds": 25.109,
+    "after.wallSeconds": 0.874,
+    "after.userSeconds": 0.608,
+    "after.sysSeconds": 0.193,
+    "after.distributionSeconds": 0.768,
+    "capabilityAndTierStatesUnchanged": true
+  }
+}

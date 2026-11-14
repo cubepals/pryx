@@ -5,6 +5,7 @@
 /** A node; unless `over` says otherwise, every server placed on it runs. */
 
 import { describe, expect, test } from 'bun:test'
+import contract from '../../openapi/node-writes.openapi.json'
 import {
   cpuRequest,
   DEFAULTS,
@@ -13,6 +14,7 @@ import {
   selectNode,
   startRefusal,
 } from '../src/placement.ts'
+import { toolFeatures } from '../src/tool-capabilities.ts'
 
 function node(
   id: string,
@@ -67,6 +69,13 @@ const request = (over: Partial<PlacementRequest> = {}): PlacementRequest => ({
 })
 
 describe('selectNode', () => {
+  test('separate-users is refused on a process node sharing its uid', () => {
+    const target = node('process', { features: ['placement-epochs', 'process-tier', 'process-shared-uid'] })
+    const decision = selectNode(request({ isolation: 'process', require: ['separate-users'] }), [target])
+    expect(decision.node).toBeNull()
+    expect(decision.considered[0]?.reason).toContain('separate-users')
+    expect(selectNode(request({ isolation: 'process' }), [target]).node?.id).toBe(target.id)
+  })
   test('hard CPU limits cannot be placed on a tier without cgroups', () => {
     for (const isolation of ['process', 'wasm'] as const) {
       const target = node(isolation, { features: ['placement-epochs', `${isolation}-tier`] })
@@ -301,4 +310,70 @@ describe('selectNode', () => {
     expect(cpuRequest(3072, 333)).toBe(999)
     expect(cpuRequest(1024, 500)).toBe(500)
   })
+})
+
+test('mixed tiers share capacity and keep enforcement scoped to the requested tier', () => {
+  const mixed = node('mixed', {
+    features: [
+      'placement-epochs',
+      'multi-tier',
+      'tier-container',
+      'tier-process',
+      'tier-wasm',
+      'private-network',
+      'tier-container:private-network',
+      'tier-container:cpu-limit',
+    ],
+  })
+  for (const isolation of ['container', 'process', 'wasm'] as const)
+    expect(selectNode(request({ isolation }), [mixed]).node?.id).toBe('mixed')
+  expect(
+    selectNode(request({ isolation: 'container', require: ['private-network'] }), [mixed]).node?.id,
+  ).toBe('mixed')
+  for (const isolation of ['process', 'wasm'] as const) {
+    const denied = selectNode(request({ isolation, require: ['private-network'] }), [mixed])
+    expect(denied.node).toBeNull()
+    expect(denied.considered[0]?.missingGuarantees).toEqual(['private-network'])
+    expect(selectNode(request({ isolation, cpuLimits: true }), [mixed]).node).toBeNull()
+  }
+  mixed.running.memoryMb = mixed.capacity.allocatableMemoryMb
+  for (const isolation of ['container', 'process', 'wasm'] as const)
+    expect(selectNode(request({ isolation }), [mixed]).node).toBeNull()
+})
+
+test('backend capabilities cannot leak from another tier on the same node', () => {
+  const mixed = node('mixed', {
+    features: [
+      'placement-epochs',
+      'multi-tier',
+      'tier-capabilities:network-policy',
+      'tier-container',
+      'tier-process',
+      'network-policy',
+      'tier-process:network-policy',
+    ],
+  })
+  const needs = ['placement-epochs', 'network-policy']
+  expect(selectNode(request({ isolation: 'container', needs }), [mixed]).node).toBeNull()
+  expect(selectNode(request({ isolation: 'process', needs }), [mixed]).node?.id).toBe('mixed')
+  mixed.features = mixed.features.filter((name) => name !== 'tier-capabilities:network-policy')
+  expect(selectNode(request({ isolation: 'container', needs }), [mixed]).node?.id).toBe('mixed')
+})
+
+test('native tool placement selects only the tier with observed tool support', () => {
+  const needs = toolFeatures(['desktop', 'ssh'])
+  const base = [
+    'placement-epochs',
+    'multi-tier',
+    'tier-process',
+    'tier-container',
+    ...needs.map((feature) => `${contract['x-pryx-tiers'].capabilityScopePrefix}${feature}`),
+  ]
+  const eligible = node('ready', {
+    features: [...base, ...needs.map((feature) => `tier-process:${feature}`)],
+  })
+  const missing = node('off', { features: base })
+  expect(selectNode(request({ isolation: 'process', needs }), [missing, eligible]).node?.id).toBe('ready')
+  expect(selectNode(request({ isolation: 'process', needs }), [missing]).node).toBeNull()
+  expect(selectNode(request({ isolation: 'container', needs }), [eligible]).node).toBeNull()
 })

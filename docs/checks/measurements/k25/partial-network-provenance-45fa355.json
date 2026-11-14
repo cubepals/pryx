@@ -1,0 +1,9 @@
+{
+  "measurement": "All thirty vsock guests pass both management denials, HTTP, bulk and DNS; first pasta guest reaches DHCP with an interface still down; total comparison fails",
+  "commit": "45fa355",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43447042201",
+  "result": {
+    "conclusion": "failure",
+    "scope": "All thirty vsock guests pass both management denials, HTTP, bulk and DNS; first pasta guest reaches DHCP with an interface still down; total comparison fails"
+  }
+}

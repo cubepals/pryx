@@ -11,7 +11,15 @@ import { runInstallCommand, up } from '../src/up.ts'
 import { FLEET_PRYXD_BIN, installBinary, RELEASE_FILES, releaseFiles } from '../src/up-assets.ts'
 import { configurations } from '../src/up-config.ts'
 import { readEnvironment, writeChanged, writeEnvironment } from '../src/up-files.ts'
+import { hostInstallProblem } from '../src/up-host.ts'
 import { container, service } from '../src/up-units.ts'
+
+test('unsupported distributions name missing packages before installation', () => {
+  expect(hostInstallProblem(false, false, 'fedora')).toContain('Missing Docker and nftables')
+  expect(hostInstallProblem(true, false, 'fedora')).toContain('Missing nftables')
+  expect(hostInstallProblem(true, true, 'fedora')).toBeNull()
+  expect(hostInstallProblem(false, false, 'debian')).toBeNull()
+})
 
 test('check mode reports prerequisites without generating credentials', async () => {
   const result = await up(['--check', '--domain', 'pryx.test'])

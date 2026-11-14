@@ -1,0 +1,8 @@
+{
+  "measurement": "Disposable independent Landlock domains prove owner reachability and scoped-neighbour refusal. This precedes installation of scope in real supervisor policy; it does not prove native readiness or legacy-peer isolation.",
+  "commit": "973b42c95c81946ae4e1c7ba18c3468a0cca4cf8",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43092205527",
+  "result": {
+    "interpretation": "Disposable independent Landlock domains prove owner reachability and scoped-neighbour refusal. This precedes installation of scope in real supervisor policy; it does not prove native readiness or legacy-peer isolation."
+  }
+}

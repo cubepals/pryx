@@ -1,0 +1,8 @@
+{
+  "origin": "linux",
+  "version": "6.18.56",
+  "url": "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.18.56.tar.xz",
+  "bytes": 154807564,
+  "sha256": "4633bbda2ab95eaf2a7af4041236451d6759c72e6946265531af4b3aacefbf89",
+  "digestSource": "https://cdn.kernel.org/pub/linux/kernel/v6.x/sha256sums.asc"
+}

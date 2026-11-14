@@ -54,6 +54,8 @@ pub struct SshView {
     pub host_key: String,
     pub expires_at: i64,
     pub running: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub web_socket: Option<bool>,
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]

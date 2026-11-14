@@ -7,15 +7,34 @@
 //! microVM backend would be a third, and the protocol would not change.
 //!
 //! Parts (`runtime/`):
+//! - `logs.rs`: agent entrypoint record decoding.
+//! - `files.rs`: owned authenticated streaming file sessions.
+//! - `agent_metadata.rs`: bounded optional parser support from the configured executable.
+//! - `router.rs`: immutable workload routes over the available backends.
+//! - `configured.rs`: construction from host-owned backend settings.
+//! - `limits.rs`: refusal of limits an engine cannot enforce.
+//! - `egress.rs`: hostname-checked HTTP/TLS gateways and DNS resolution.
+//! - `engine.rs`: ordered local engine discovery and bounded read-only selection.
 //! - `docker.rs`: the Docker Engine API, over the local unix socket.
 //! - `fake.rs`: an in-memory runtime for tests, with the Docker behaviour pryxd depends on.
 //! - `wasm.rs`: virtual agentOS VMs through a separately verified sidecar.
 //! - `process.rs`: namespace-free process tier and private runtime journal.
+//! - `vm.rs`: verified VM image inputs; compute remains unavailable until backend acceptance.
 
+mod agent_metadata;
+pub(crate) use agent_metadata::{process_ssh_supported, protected as protected_agent};
+pub mod configured;
 pub mod docker;
+pub(crate) mod egress;
+pub mod engine;
 #[cfg(any(test, feature = "fake"))]
 pub mod fake;
+pub mod files;
+pub mod limits;
+pub(crate) mod logs;
 pub mod process;
+pub mod router;
+pub mod vm;
 pub mod wasm;
 
 use std::collections::BTreeMap;
@@ -29,6 +48,9 @@ use futures_util::stream::BoxStream;
 use time::OffsetDateTime;
 
 use crate::protocol::{Health, Proto};
+
+/// Shared read-only health deadline for engine discovery and local ownership proof.
+pub const ENGINE_PROBE_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// Everything needed to make one workload's container. Hardening is not optional here: the
 /// manager always fills it from host policy.
@@ -50,6 +72,18 @@ pub struct ContainerSpec {
     pub labels: BTreeMap<String, String>,
     pub(crate) user: String,
     pub(crate) memory_bytes: i64,
+    #[serde(default)]
+    pub(crate) storage_bytes: u64,
+    #[serde(default)]
+    pub(crate) cpu_weight_requested: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) allow_unenforced_memory: Option<bool>,
+    #[serde(default)]
+    pub(crate) require_cpu_limit: bool,
+    #[serde(default)]
+    pub(crate) require_pids_limit: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) require_browser_sandbox: Option<bool>,
     pub(crate) nano_cpus: Option<i64>,
     pub(crate) cpu_shares: i64,
     pub(crate) pids_limit: i64,
@@ -118,6 +152,9 @@ pub enum ContainerStatus {
 /// A container as the runtime reports it right now.
 #[derive(Clone)]
 pub struct ContainerInfo {
+    pub(crate) agent_state: Option<pryx_agent::state::Snapshot>,
+    pub(crate) memory_enforced: Option<bool>,
+    pub(crate) cpu_enforced: Option<bool>,
     pub(crate) cgroup_parent: Option<String>,
     pub(crate) id: String,
     pub(crate) name: String,
@@ -206,6 +243,15 @@ pub struct RuntimeEvent {
 
 #[derive(Clone, Debug, Default)]
 pub struct RuntimeInfo {
+    pub(crate) podman: bool,
+    pub(crate) podman_version: Option<String>,
+    pub(crate) container_policy_problem: Option<String>,
+    pub(crate) rootless: bool,
+    pub(crate) local_process_ids: Option<bool>,
+    pub(crate) unprivileged_ports: Option<bool>,
+    pub(crate) memory_limit: bool,
+    pub(crate) cpu_limit: bool,
+    pub(crate) pids_limit: bool,
     pub(crate) version: Option<String>,
     pub(crate) api_version: Option<String>,
     pub(crate) cgroup_version: Option<String>,
@@ -240,8 +286,17 @@ pub enum RuntimeError {
     /// A start refused because a host port the container binds is taken.
     #[error("runtime refused ({status}): {message}")]
     PortTaken { status: u16, message: String },
+    #[error("VM image cache verification failed")]
+    ImageCacheInvalid,
     #[error("{0}")]
     Other(String),
+}
+
+/// A complete inventory of each responding backend, with unreadable tiers kept distinct from
+/// an empty inventory. Callers must leave those tiers' records and observations untouched.
+pub struct Inventory {
+    pub containers: Vec<ContainerInfo>,
+    pub unavailable: BTreeMap<String, String>,
 }
 
 /// The exit code a container's process ends with when `signal` ends it: 128 plus the signal's
@@ -258,6 +313,25 @@ impl RuntimeError {
 
 #[async_trait]
 pub trait ContainerRuntime: Send + Sync + 'static {
+    fn multi_tier(&self) -> bool {
+        false
+    }
+    fn backend(&self, _tier: &str) -> Option<std::sync::Arc<dyn ContainerRuntime>> {
+        None
+    }
+    fn tiers(&self) -> Vec<&'static str> {
+        vec![self.isolation()]
+    }
+    fn tier_info(&self, _tier: &str) -> Option<RuntimeInfo> {
+        None
+    }
+    fn bound_isolation(&self, _name: &str) -> Option<&'static str> {
+        Some(self.isolation())
+    }
+    fn bind(&self, _name: &str, _id: Option<&str>, _tier: &str) -> Result<(), RuntimeError> {
+        Ok(())
+    }
+
     fn is_wasm(&self) -> bool {
         false
     }
@@ -266,6 +340,23 @@ pub trait ContainerRuntime: Send + Sync + 'static {
     }
     fn uses_host_ports(&self) -> bool {
         self.is_process() || self.is_wasm()
+    }
+    fn supports_data_exclude(&self) -> bool {
+        true
+    }
+    /// Block files need a cold copy even when the application says its writes are quiesced.
+    fn requires_stopped_data_copy(&self) -> bool {
+        false
+    }
+    /// Held through a data walk; a backend may fence writable compute with a kernel lease.
+    async fn data_copy_lease(&self, _sandbox: &str, _data: &std::path::Path) -> Result<Box<dyn Send>, RuntimeError> {
+        Ok(Box::new(()))
+    }
+    fn uses_remote_data(&self) -> bool {
+        false
+    }
+    async fn data_service(&self, _request: files::Request) -> Result<files::Service, RuntimeError> {
+        Err(RuntimeError::Other("This backend has no remote file service".into()))
     }
     fn data_path(&self, root: &std::path::Path) -> PathBuf {
         root.into()
@@ -276,6 +367,12 @@ pub trait ContainerRuntime: Send + Sync + 'static {
     }
     fn is_process(&self) -> bool {
         false
+    }
+    async fn native_browser(&self, _binary: &std::path::Path) -> Result<(), RuntimeError> {
+        Err(RuntimeError::Other("Native process browser is unavailable on this backend".into()))
+    }
+    async fn native_desktop(&self, _binary: &std::path::Path) -> Result<(), RuntimeError> {
+        Err(RuntimeError::Other("This runtime does not provide a native process desktop".into()))
     }
     fn data_owner(&self, _id: &str) -> Result<Option<(u32, u32)>, RuntimeError> {
         Ok(None)
@@ -298,6 +395,23 @@ pub trait ContainerRuntime: Send + Sync + 'static {
         _labels: &BTreeMap<String, String>,
     ) -> Result<(), RuntimeError> {
         Err(RuntimeError::Other("This runtime has no internal network".into()))
+    }
+    async fn resource_limits(&self) -> Result<Option<limits::ResourceLimits>, RuntimeError> {
+        Ok(None)
+    }
+    /// Health of the served tiers. A router may answer while one independent tier is down.
+    async fn serving_info(&self) -> Result<RuntimeInfo, RuntimeError> {
+        self.info().await
+    }
+    fn tier_ready(&self, _tier: &str) -> bool {
+        true
+    }
+    fn tier_era(&self, _tier: &str) -> u64 {
+        0
+    }
+    fn tier_unavailable(&self, _tier: &str) {}
+    async fn inventory(&self, labels: &[String]) -> Result<Inventory, RuntimeError> {
+        Ok(Inventory { containers: self.list(labels).await?, unavailable: BTreeMap::new() })
     }
     async fn info(&self) -> Result<RuntimeInfo, RuntimeError>;
     async fn ensure_network(

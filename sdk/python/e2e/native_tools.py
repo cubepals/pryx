@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: FSL-1.1-ALv2
 """Use the real native tool routes from both Python context modes."""
-import asyncio,inspect,os
+import asyncio,inspect,json,os
 from cubepals_pryx import Pryx
 PNG=b'\x89PNG\r\n\x1a\n'
 async def exercise(client,mode):
@@ -11,6 +11,16 @@ async def exercise(client,mode):
         assert (await take(box.desktop.screenshot())).startswith(PNG)
         await take(box.desktop.click(20,20));await take(box.desktop.type('python'));await take(box.desktop.key('Return'));await take(box.desktop.move(30,30));await take(box.desktop.scroll(0,1))
         assert (await take(box.desktop()))['url']
+    elif kind=='native-desktop':
+        points=json.loads(os.environ['PRYX_DESKTOP_POINTS'])
+        assert (await take(box.desktop.screenshot())).startswith(PNG)
+        await take(box.desktop.click(points['input']['x'],points['input']['y']))
+        await take(box.desktop.key('ctrl+a'))
+        await take(box.desktop.type(f'Python {mode} native desktop'))
+        await take(box.desktop.key('Return'))
+        await take(box.desktop.click(points['button']['x'],points['button']['y']))
+        await take(box.desktop.move(30,30));await take(box.desktop.scroll(0,1))
+        assert (await take(box.desktop()))['url']
     elif kind=='browser':
         assert (await take(box.browser.screenshot('http://127.0.0.1:3000'))).startswith(PNG)
         assert (await take(box.browser()))['url']
@@ -20,6 +30,11 @@ async def exercise(client,mode):
         assert result.code==0 and result.stdout=='seed'
     elif kind=='ssh':
         access=await take(box.ssh());assert access.key.startswith('-----BEGIN OPENSSH PRIVATE KEY-----');assert access.host and access.port;assert 'PRIVATE KEY' not in repr(access)
+        if os.environ.get('PRYX_TOOLS_HTTP_SSH')=='1':
+            assert access.transport=='websocket'
+            connection=await take(access.connect())
+            try: assert (await take(connection.recv())).startswith(b'SSH-2.0-OpenSSH_')
+            finally: await take(connection.close())
         await take(box.ssh.revoke())
     else:raise AssertionError('Unknown tool case')
 with Pryx(url=os.environ['PRYX_API_URL'],key=os.environ['PRYX_API_KEY']) as client:asyncio.run(exercise(client,'sync'))

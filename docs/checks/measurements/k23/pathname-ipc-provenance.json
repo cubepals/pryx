@@ -1,0 +1,8 @@
+{
+  "measurement": "Actual same-UID pathname socket connect is reachable despite denied file read under enforced Landlock; this is unsafe for shared-UID native tools.",
+  "commit": "31596de34f22b33c26d225a6feb7eb37ba5b6cbc",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43085610454",
+  "result": {
+    "interpretation": "Actual same-UID pathname socket connect is reachable despite denied file read under enforced Landlock; this is unsafe for shared-UID native tools."
+  }
+}

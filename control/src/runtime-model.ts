@@ -31,6 +31,10 @@ interface PortSpec {
 }
 
 export interface RuntimeSpec {
+  /** Original public request intent, persisted before unit defaults. Absent on legacy records. */
+  resourceDefaults?: { memory: boolean; cpu: boolean }
+  require?: readonly import('./guarantees.ts').Guarantee[]
+  requiredTools?: readonly import('./tool-capabilities.ts').RequiredTool[]
   fuseMounts?: boolean
   isolation?: import('./isolation.ts').Isolation
   agent?: import('./wire.ts').WorkloadSpec['agent']
@@ -47,6 +51,7 @@ export interface RuntimeSpec {
   secrets: Readonly<Record<string, string>>
   resources: {
     memoryMb: number
+    allowUnenforcedMemory?: boolean | null
     cpuMillis?: number | null
     cpuReservationMillis?: number | null
     cpuWeight?: number | null
@@ -502,7 +507,13 @@ export class RuntimeUnsupported extends Error {
  * a wait passes it, and the owner is told so rather than what the provider said.
  */
 export class RuntimeFull extends Error {
-  constructor(provider: string, detail: string) {
+  constructor(
+    provider: string,
+    detail: string,
+    readonly missingGuarantees: readonly import('./guarantees.ts').Guarantee[] = [],
+    readonly missingIsolation?: import('./isolation.ts').Isolation,
+    readonly requiredTools: readonly import('./tool-capabilities.ts').RequiredTool[] = [],
+  ) {
     super(`The ${provider} runtime has no room: ${detail}`)
     this.name = 'RuntimeFull'
   }

@@ -113,6 +113,9 @@ mod tests {
 
     fn exited(code: i64, oom: bool, finished: &str) -> ContainerInfo {
         ContainerInfo {
+            agent_state: None,
+            memory_enforced: None,
+            cpu_enforced: None,
             cgroup_parent: None,
             id: "c".into(),
             name: "n".into(),

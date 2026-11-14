@@ -67,12 +67,19 @@ async fn authenticate(State(agent): State<Arc<Agent>>, mut request: Request, nex
     Response::from_parts(parts, Body::from_stream(stream))
 }
 
+/// Trusted maintenance guests expose data operations and readiness only.
+pub fn files_router(agent: Arc<Agent>) -> Router {
+    Router::new()
+        .route("/_pryx/health", get(health))
+        .merge(crate::files::data_routes())
+        .layer(DefaultBodyLimit::max(crate::contract::MAX_REQUEST_BYTES))
+        .route_layer(middleware::from_fn_with_state(agent.clone(), authenticate))
+        .with_state(agent)
+}
+
 pub fn router(agent: Arc<Agent>) -> Router {
     let router = Router::new()
-        .route(
-            "/_pryx/health",
-            get(|State(agent):State<Arc<Agent>>| async move { Json(serde_json::json!({"status":"ok","apiVersion":crate::contract::API_VERSION,"kernelsVersion":crate::kernels::VERSION,"toolsVersion":crate::tools::VERSION,"mountsPending":crate::tools::mounts_pending(&agent)})) }),
-        )
+        .route("/_pryx/health", get(health))
         .route("/_pryx/logs", get(logs))
         .route("/_pryx/processes", get(list).post(start))
         .route("/_pryx/processes/{id}", get(view))
@@ -97,6 +104,37 @@ pub fn router(agent: Arc<Agent>) -> Router {
         .layer(DefaultBodyLimit::max(crate::contract::MAX_REQUEST_BYTES))
         .route_layer(middleware::from_fn_with_state(agent.clone(), authenticate))
         .with_state(agent)
+}
+
+async fn health(State(agent): State<Arc<Agent>>, headers: HeaderMap) -> Json<serde_json::Value> {
+    let mut value = serde_json::json!({"status":"ok","apiVersion":crate::contract::API_VERSION,"kernelsVersion":crate::kernels::VERSION,"toolsVersion":crate::tools::VERSION,"mountsPending":crate::tools::mounts_pending(&agent)});
+    value["state"] = serde_json::to_value(crate::state::Snapshot {
+        ports: agent.ports.snapshot().await,
+        activity: agent.telemetry.snapshot(),
+        vm_resources: crate::vm_metrics::snapshot(agent.vm_resources),
+    })
+    .expect("Agent state serializes");
+    if crate::process_policy::ipc_scoped() {
+        value["processIpcScoped"] = true.into();
+    }
+    if let Some(nonce) = headers
+        .get(crate::process_observation::NONCE_HEADER)
+        .and_then(|value| value.to_str().ok())
+        .filter(|nonce| crate::process_observation::nonce_valid(nonce))
+    {
+        let proof = crate::process_observation::sign(
+            &agent.key,
+            crate::process_observation::Observation {
+                nonce: nonce.into(),
+                sandbox: agent.sandbox.clone(),
+                epoch: agent.epoch,
+                pid: std::process::id(),
+                ipc_scoped: crate::process_policy::ipc_scoped(),
+            },
+        );
+        value["processObservation"] = serde_json::to_value(proof).expect("fixed observation serializes");
+    }
+    Json(value)
 }
 
 async fn list(State(agent): State<Arc<Agent>>) -> Json<serde_json::Value> {
@@ -135,7 +173,7 @@ async fn start(
     headers: HeaderMap,
     Json(body): Json<Start>,
 ) -> Result<Response, Failure> {
-    let key = headers.get("idempotency-key").and_then(|s| s.to_str().ok()).unwrap_or("");
+    let key = headers.get(crate::contract::IDEMPOTENCY_HEADER).and_then(|s| s.to_str().ok()).unwrap_or("");
     let process = agent.processes.start(body, key, claims.max_exec_seconds)?;
     Ok((StatusCode::CREATED, Json(process.view())).into_response())
 }
@@ -225,10 +263,12 @@ async fn websocket(
 ) -> Result<Response, Failure> {
     let process = agent.processes.get(&id)?;
     let active = agent.telemetry.active();
-    Ok(upgrade.protocols(["pryx"]).max_message_size(64 * 1024).on_upgrade(move |socket| async move {
-        let _active = active;
-        attached(socket, process).await
-    }))
+    Ok(upgrade.protocols([crate::contract::WEBSOCKET_PROTOCOL]).max_message_size(64 * 1024).on_upgrade(
+        move |socket| async move {
+            let _active = active;
+            attached(socket, process).await
+        },
+    ))
 }
 
 async fn terminal(
@@ -252,10 +292,12 @@ async fn terminal(
         claims.max_exec_seconds,
     )?;
     let active = agent.telemetry.active();
-    Ok(upgrade.protocols(["pryx"]).max_message_size(64 * 1024).on_upgrade(move |socket| async move {
-        let _active = active;
-        attached(socket, process).await
-    }))
+    Ok(upgrade.protocols([crate::contract::WEBSOCKET_PROTOCOL]).max_message_size(64 * 1024).on_upgrade(
+        move |socket| async move {
+            let _active = active;
+            attached(socket, process).await
+        },
+    ))
 }
 
 #[derive(Deserialize)]

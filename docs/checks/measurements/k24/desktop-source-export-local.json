@@ -1,0 +1,11 @@
+{
+  "measurement": "Corresponding-source staging only; no runtime publication or desktop availability",
+  "commit": "recorded in 1216943; measurement revision not recorded",
+  "ci": "Not recorded; local or inventory evidence, not a CI pass",
+  "result": {
+    "format": 1,
+    "sourceVersions": 22,
+    "archiveInputs": 74,
+    "scope": "Corresponding-source staging only; no runtime publication or desktop availability"
+  }
+}

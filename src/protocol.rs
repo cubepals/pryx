@@ -23,6 +23,7 @@
 //! - `store_lease.rs`: optional ephemeral store authority and its versioned object.
 //! - `exec.rs`: running one command inside a workload.
 //! - `agent.rs`: optional agent bootstrap, tokens and file metadata.
+//! - `guarantees.rs`: additive measured enforcement names shared with the public contract.
 //! - `node.rs`: what the node reports about itself.
 //! - `wire.rs`: what a node and its control plane send each other: enrollment, heartbeats, renewal.
 //! - `schema.rs`: tests only; these types as the OpenAPI documents the control plane's TypeScript
@@ -32,6 +33,7 @@ use serde::{Deserialize, Serialize};
 
 mod agent;
 mod exec;
+mod guarantees;
 mod lifecycle;
 mod node;
 #[cfg(test)]
@@ -44,6 +46,7 @@ mod workload;
 
 pub use agent::*;
 pub use exec::*;
+pub use guarantees::*;
 pub use lifecycle::*;
 pub use node::*;
 pub use spec::*;
@@ -54,6 +57,18 @@ pub use workload::*;
 pub(crate) const PROTOCOL_VERSION: u32 = 1;
 /// The existing minimum requested CPU rate, shared by all runtime policies.
 pub const MIN_CPU_MILLIS: u32 = 100;
+/// Opt-in acceptance of a memory reservation on an engine without memory enforcement.
+pub const UNENFORCED_MEMORY_FEATURE: &str = "unenforced-memory";
+/// Rootless resource guarantees are bounded by observations of each workload copy.
+pub(crate) const OBSERVED_RESOURCE_LIMITS_FEATURE: &str = "observed-resource-limits";
+/// Native browser guarantees include the immutable policy bound to the observed workload copy.
+pub(crate) const NATIVE_DESKTOP_FEATURE: &str = "native-desktop";
+pub(crate) const NATIVE_SSH_FEATURE: &str = "native-ssh";
+pub(crate) const NATIVE_BROWSER_POLICY_FEATURE: &str = "native-browser-policy";
+/// Per-feature announcement that availability is qualified by a tier on mixed nodes.
+pub(crate) const TIER_CAPABILITY_SCOPE_PREFIX: &str = "tier-capabilities:";
+/// Availability of network none with retained private ingress.
+pub(crate) const NETWORK_POLICY_FEATURE: &str = "network-policy";
 /// Default host memory floor; the operator may configure a different policy.
 pub const DEFAULT_MIN_MEMORY_MB: u32 = 256;
 /// Default inclusive host listener pool, also used for legacy image configurations.
@@ -89,6 +104,8 @@ pub(crate) const FEATURES: &[&str] = &[
     "cpu-reservation",
     "workload-options",
     "workload-metrics",
+    "multi-tier",
+    UNENFORCED_MEMORY_FEATURE,
 ];
 
 impl ProtocolVersions {

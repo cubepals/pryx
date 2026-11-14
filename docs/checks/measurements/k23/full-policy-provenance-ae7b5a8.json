@@ -1,0 +1,8 @@
+{
+  "measurement": "Full-policy kernels, browser screenshot, forwarded CDP, same-UID owner/neighbour channels and no-fetch namespace refusal; signed installed-product SDKs and thirty samples remain pending",
+  "commit": "ae7b5a8af3d9742d466a021c2a31f57a61f37418",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43194460133",
+  "result": {
+    "scope": "Full-policy kernels, browser screenshot, forwarded CDP, same-UID owner/neighbour channels and no-fetch namespace refusal; signed installed-product SDKs and thirty samples remain pending"
+  }
+}

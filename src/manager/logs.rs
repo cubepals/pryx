@@ -32,12 +32,23 @@ impl Manager {
         let tail = tail.map(|t| t.min(MAX_LOG_TAIL)).or(if follow { Some(0) } else { Some(200) });
         let (tx, mut rx) = mpsc::channel::<LogRecord>(256);
         let this = self.clone();
+        let id = id.clone();
         let name = record.container_name.clone();
         tokio::spawn(async move {
             let mut options = LogOptions { tail, since_unix: since, follow };
             let mut last_start = this.runtime.inspect(&name).await.ok().flatten().and_then(|i| i.started_at);
             loop {
-                let mut stream = this.runtime.logs(&name, options.clone());
+                let prepared = tokio::select! {
+                    () = tx.closed() => return,
+                    result = this.log_stream(&id, &name, options.clone()) => result,
+                };
+                let mut stream = match prepared {
+                    Ok(stream) => stream,
+                    Err(problem) => {
+                        let _ = tx.send(LogRecord::Event { event: "error".into(), reason: problem.to_string() }).await;
+                        return;
+                    }
+                };
                 loop {
                     // A client gone while the workload prints nothing is noticed now, not at its
                     // next line, which on an idle sandbox may be hours away.
@@ -101,6 +112,57 @@ impl Manager {
             }
         });
         Ok(futures_util::stream::poll_fn(move |cx| rx.poll_recv(cx)).boxed())
+    }
+
+    async fn log_stream(
+        self: &Arc<Self>,
+        id: &WorkloadId,
+        name: &str,
+        options: LogOptions,
+    ) -> Result<BoxStream<'static, Result<crate::runtime::LogChunk, crate::runtime::RuntimeError>>, NodeError> {
+        let record = self.record(id)?;
+        let runtime = self.record_runtime(&record)?;
+        if !runtime.uses_remote_data()
+            || runtime
+                .inspect(name)
+                .await?
+                .is_some_and(|info| matches!(info.status, ContainerStatus::Running | ContainerStatus::Paused))
+        {
+            return Ok(runtime.logs(name, options));
+        }
+        let access = self.data_access(id, record.epoch).await?;
+        let result = async {
+            let files::DataLocation::Remote(service) = access.location() else {
+                return Err(NodeError::Internal("Remote log replay has no data service".into()));
+            };
+            let response = service
+                .request(
+                    crate::runtime::files::Operation::Read,
+                    pryx_agent::logbook::LOG_PATH,
+                    crate::http_client::empty(),
+                )
+                .await?;
+            if response.status() == hyper::StatusCode::NOT_FOUND {
+                return Ok(Vec::new());
+            }
+            if !response.status().is_success() {
+                return Err(NodeError::Internal(format!("Agent refused entrypoint log replay: {}", response.status())));
+            }
+            let bytes = tokio::time::timeout(
+                crate::runtime::ENGINE_PROBE_TIMEOUT,
+                crate::http_client::read_body(response, pryx_agent::contract::CAPTURE_BYTES * 4),
+            )
+            .await
+            .map_err(|_| NodeError::Internal("Entrypoint log replay exceeded its deadline".into()))?
+            .map_err(NodeError::Internal)?;
+            let end = bytes.iter().rposition(|b| *b == b'\n').map_or(0, |index| index + 1);
+            crate::runtime::logs::records(&bytes[..end], &options).map_err(Into::into)
+        }
+        .await;
+        let cleanup = access.finish().await;
+        let chunks = result?;
+        cleanup?;
+        Ok(futures_util::stream::iter(chunks.into_iter().map(Ok)).boxed())
     }
 }
 

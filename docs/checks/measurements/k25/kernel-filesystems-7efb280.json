@@ -1,0 +1,17 @@
+{
+  "measurement": "Minimal ordinary-user kernel fixture only; not production VM-tier proof",
+  "commit": "7efb280ccc1921d9fc57aea98ce817b5e2417046",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43464154294",
+  "result": {
+    "samples.launchToFilesystemVsockReportMs": {
+      "n": 30,
+      "p50": 447.283,
+      "p90": 450.807
+    },
+    "wake.launchToFilesystemVsockReportMs": {
+      "n": 1,
+      "p50": 452.19,
+      "p90": 452.19
+    }
+  }
+}

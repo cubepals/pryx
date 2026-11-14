@@ -1,1 +1,10 @@
-{"context":"local unprivileged host, debug daemon, compiled CLI, wasm default; n=1","source":"b8796d1a68df976f7e85644891d034ac8cae6129","command":"pryx run -- echo hello","code":0,"stdout":"hello\n","stderr":"","firstByteMs":5922.301761999999,"totalMs":6128.519344}
+{
+  "measurement": "local unprivileged host, debug daemon, compiled CLI, wasm default; n=1",
+  "commit": "b8796d1a68df976f7e85644891d034ac8cae6129",
+  "ci": "Not recorded; local or inventory evidence, not a CI pass",
+  "result": {
+    "code": 0,
+    "firstByteMs": 5922.302,
+    "totalMs": 6128.519
+  }
+}

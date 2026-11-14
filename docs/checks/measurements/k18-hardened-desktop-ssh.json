@@ -1,30 +1,15 @@
 {
-  "scope": "extra local hardened-container diagnostics, not full deployment acceptance or a speed cohort",
-  "agentCommit": "0c0be4ac622ff9bbc8b131e11c52b383f259e76f",
-  "workBranchCommit": "4265e1c55f51500cb33bc45a215c7fe2e91cdcc5",
-  "recordedUtc": "2026-11-08T05:03:55.859859+00:00",
-  "image": "sha256:c48abec3c58b90f44b46981d08aea8d791101faef58239f6cd40a3201b7993c4",
-  "imageNote": "Locally built before the JWM menu command changed; the terminal was started explicitly through the agent for the input regression. CI builds the current template.",
-  "policy": {
-    "user": "1000:1000",
-    "capDrop": "ALL",
-    "readOnlyRoot": true,
-    "noNewPrivileges": true,
-    "seccomp": "deploy/native-tools-seccomp.json",
-    "nativeFuse": true
-  },
-  "ordinaryChild": {
-    "capEff": "0000000000000000",
-    "noNewPrivileges": true
-  },
-  "passed": [
-    "PASS actual desktop agent PNG 13574",
-    "PASS actual agent desktop click/type/key and noVNC lease",
-    "PASS actual image SSH key authentication and command through guarded spare relay",
-    "PASS actual image OpenSSH revoke"
-  ],
-  "screenshotBytes": 13574,
-  "privateKeyHandling": "in-memory SSH lease passed only to ssh-add stdin; only the public host key is written to a temporary file",
-  "diagnosticNote": "Uses the previously audited local GNU debug agent with read-only glibc loader/libc/libm bindings; CI uses the static musl release agent.",
-  "rawProbeLogSha256": "38def2eeee3d1e0e78bc8ba3fea9d0c26d8b013baa8fdf300e99a46c8fecc0b4"
+  "measurement": "extra local hardened-container diagnostics, not full deployment acceptance or a speed cohort",
+  "commit": "recorded in 3c1c6d2; measurement revision not recorded",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/42327917730",
+  "result": {
+    "scope": "extra local hardened-container diagnostics, not full deployment acceptance or a speed cohort",
+    "imageNote": "Locally built before the JWM menu command changed; the terminal was started explicitly through the agent for the input regression. CI builds the current template.",
+    "policy.readOnlyRoot": true,
+    "policy.noNewPrivileges": true,
+    "policy.nativeFuse": true,
+    "ordinaryChild.noNewPrivileges": true,
+    "screenshotBytes": 13574,
+    "diagnosticNote": "Uses the previously audited local GNU debug agent with read-only glibc loader/libc/libm bindings; CI uses the static musl release agent."
+  }
 }

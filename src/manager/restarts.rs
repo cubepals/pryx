@@ -90,25 +90,31 @@ impl Manager {
         }
         // Admitted like any start: memory the host gave out since the failure isn't taken back.
         // Refused, the workload stays crashed, and says why.
-        if let Err(e) = self.admit(id, u64::from(record.spec.resources.memory_mb)) {
-            tracing::warn!(workload = %id, error = %e, "not restarting after a failure: no room for it now");
-            self.set_issue(
-                id,
-                Issue::new(IssueCode::InsufficientCapacity, format!("not restarted after a failure: {e}")),
-            );
-            return Restart::Done;
-        }
+        let mut reservation = match self.reserve_start(id, u64::from(record.spec.resources.memory_mb)) {
+            Ok(reservation) => reservation,
+            Err(e) => {
+                tracing::warn!(workload = %id, error = %e, "not restarting after a failure: no room for it now");
+                self.set_issue(
+                    id,
+                    Issue::new(IssueCode::InsufficientCapacity, format!("not restarted after a failure: {e}")),
+                );
+                return Restart::Done;
+            }
+        };
         self.count_restart(id, attempt + 1).await;
         if self.require_store_lease(&record).is_err() {
             return Restart::Done;
         }
+        reservation.launching();
         match self.note(self.runtime.start(&record.container_name).await) {
             Ok(()) => {
                 tracing::warn!(workload = %id, attempt = attempt + 1, exit = info.exit_code, "restarted after a failure")
             }
             Err(e) => tracing::warn!(workload = %id, error = %e, "couldn't restart after a failure"),
         }
-        let _ = self.observe(&record).await;
+        if self.observe(&record).await.is_ok() {
+            reservation.observed();
+        }
         Restart::Done
     }
 
@@ -199,20 +205,26 @@ impl Manager {
             self.state.lock().unwrap().resuming.remove(id);
             return Restart::Done;
         }
-        if let Err(e) = self.admit(id, u64::from(record.spec.resources.memory_mb)) {
-            tracing::warn!(workload = %id, error = %e, "not resuming: no room for it now");
-            self.give_up_resume(&record).await;
-            return Restart::Done;
-        }
+        let mut reservation = match self.reserve_start(id, u64::from(record.spec.resources.memory_mb)) {
+            Ok(reservation) => reservation,
+            Err(e) => {
+                tracing::warn!(workload = %id, error = %e, "not resuming: no room for it now");
+                self.give_up_resume(&record).await;
+                return Restart::Done;
+            }
+        };
         self.state.lock().unwrap().resuming.remove(id);
         if self.require_store_lease(&record).is_err() {
             return Restart::Done;
         }
+        reservation.launching();
         match self.note(self.runtime.start(&record.container_name).await) {
             Ok(()) => tracing::info!(workload = %id, "resumed: the host restarted under it"),
             Err(e) => tracing::warn!(workload = %id, error = %e, "couldn't resume after the host restarted"),
         }
-        let _ = self.observe(&record).await;
+        if self.observe(&record).await.is_ok() {
+            reservation.observed();
+        }
         Restart::Done
     }
 

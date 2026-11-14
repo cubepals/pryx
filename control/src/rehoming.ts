@@ -20,7 +20,7 @@ import type { ArchiveRow, Archives } from './archives.ts'
 import type { Db, Tx } from './database.ts'
 import { decodeHandle, decodeSnapshot, type FleetRef } from './handle.ts'
 import { type Ledger, nextEpoch, type PlacementRow, placementOf, rehome, StaleHandle } from './ledger.ts'
-import { describe, type NodeChoice } from './node-choice.ts'
+import { describe, missingGuarantees, type NodeChoice, placementRefused } from './node-choice.ts'
 import { NodeRefused, NodeUnreachable } from './node-client.ts'
 import type { Considered, PlacementRequest } from './placement.ts'
 import { getNode, lockRegion, type NodeRow } from './registry.ts'
@@ -129,7 +129,7 @@ export class Rehoming {
       if (row.state !== 'released' && row.state !== 'displaced')
         throw new Error(`The placement is ${row.state}`)
       const decision = await this.#choice.choose(t, request)
-      if (decision.node === null) throw new RuntimeFull(this.#provider, describe(decision.considered))
+      if (decision.node === null) throw placementRefused(this.#provider, decision.considered)
       const to = {
         node: decision.node.id,
         epoch: await nextEpoch(t, ref.key),
@@ -245,6 +245,7 @@ export class Rehoming {
       throw new RuntimeFull(
         this.#provider,
         `${node.name} refused it for room; elsewhere: ${describe(again.considered)}`,
+        missingGuarantees(again.considered),
       )
     return again.row
   }
@@ -281,7 +282,7 @@ export class Rehoming {
     if (tooBig !== null) throw await this.#declineMove(current, tooBig)
     // Room first, so a move with nowhere to go doesn't stop the server for nothing.
     const precheck = await this.#choice.choose(this.#db, request)
-    if (precheck.node === null) throw new RuntimeFull(this.#provider, describe(precheck.considered))
+    if (precheck.node === null) throw placementRefused(this.#provider, precheck.considered)
     await progress.step('storage')
     const view = await this.#api.view(source, ref.key)
     const wasRunning = view.state === 'running'
@@ -321,7 +322,7 @@ export class Rehoming {
     if (moved.row === null) {
       await this.#archives.discardExport(archive)
       if (wasRunning) await this.#admission.startOn(source, ref.key, ref.epoch, source.region_key)
-      throw new RuntimeFull(this.#provider, describe(moved.considered))
+      throw placementRefused(this.#provider, moved.considered)
     }
     return this.finish(moved.row, spec, progress)
   }
@@ -537,7 +538,7 @@ export class Rehoming {
         considered: decision.considered,
       }
     })
-    if (rebuilt.row === null) throw new RuntimeFull(this.#provider, describe(rebuilt.considered))
+    if (rebuilt.row === null) throw placementRefused(this.#provider, rebuilt.considered)
     return this.finish(rebuilt.row, spec, progress)
   }
 

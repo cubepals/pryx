@@ -8,8 +8,13 @@ import { join } from 'node:path'
 import { setTimeout as pause } from 'node:timers/promises'
 import type { Pryx } from '@cubepals/pryx'
 import { SECOND_MS } from '../../control/src/durations.ts'
+import { bundleBinary } from '../../deploy/local-layout.ts'
 
-export async function connectSsh(lease: import('@cubepals/pryx').SshAccess, args: string[]) {
+export async function connectSsh(
+  lease: import('@cubepals/pryx').SshAccess,
+  args: string[],
+  sandbox?: string,
+) {
   const directory = await mkdtemp(join(tmpdir(), 'pryx-ssh-')),
     socket = join(directory, 'agent'),
     known = join(directory, 'known_hosts')
@@ -61,6 +66,9 @@ export async function connectSsh(lease: import('@cubepals/pryx').SshAccess, args
         'GlobalKnownHostsFile=/dev/null',
         '-o',
         'ForwardAgent=no',
+        ...(lease.transport === 'websocket'
+          ? ['-o', `ProxyCommand=${sshProxyCommand(sandbox, lease.id)}`]
+          : []),
         `${lease.user}@${lease.host}`,
         ...args,
       ],
@@ -81,8 +89,18 @@ export async function ssh(client: Pryx, id: string, args: string[]) {
   const box = await client.sandbox(id),
     lease = await box.ssh()
   try {
-    process.exitCode = await connectSsh(lease, args)
+    process.exitCode = await connectSsh(lease, args, id)
   } finally {
     await box.ssh.revoke()
   }
+}
+
+export function sshProxyCommand(sandbox: string | undefined, lease: string) {
+  if (!sandbox) throw new Error('WebSocket SSH needs its sandbox identity')
+  const executable = bundleBinary('pryx', process.execPath)
+  const source = executable.endsWith('/bun') ? [process.argv[1] as string] : []
+  // OpenSSH runs ProxyCommand through a shell; every argument is literal and contains no key.
+  return [executable, ...source, 'sandbox', 'ssh-proxy', sandbox, lease]
+    .map((value) => `'${value.replaceAll('%', '%%').replaceAll("'", "'\\''")}'`)
+    .join(' ')
 }

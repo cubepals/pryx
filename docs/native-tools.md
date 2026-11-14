@@ -1,8 +1,96 @@
 # Desktop, browser, SSH and bucket tools
 
-Native tools run on the **container** tier, as the sandbox user. The process and Wasm tiers
-refuse these tools by name. They wrap existing programs; the agent owns scoped routes and the
-edge owns access. `toolsVersion` is separate from the stable agent API version.
+The **container** tier provides desktops, browsers, SSH and bucket mounts as the sandbox user.
+The **process** tier provides browsers, Python/Node kernels, desktops and SSH through a separately
+verified tool bundle when the host meets each tool's prerequisites; mounts retain their capability
+refusal. Wasm refuses native tools. Measured acceptance and host coverage are recorded in
+[speed](speed.md) and [the progress record](any-host-progress.md).
+These tools wrap existing programs; the agent owns scoped routes and the edge owns access.
+`toolsVersion` is separate from the stable agent API version.
+
+## Process tools
+
+A release carrying `process-tools.json` beside its installed agent supplies a digest-pinned
+runtime and a separate corresponding-source release asset. Neither enters the base installation.
+The first browser or kernel request fetches the runtime over verified HTTPS, checks its archive
+and complete file inventory, and publishes a read-only per-user cache outside sandbox data.
+Creating a sandbox and querying capabilities never fetch tools. Source-only builds without
+the descriptor name the missing artifact and keep these tools off.
+
+The upstream builds are python-build-standalone CPython 3.12.16 (20261110), Node's official
+24.22.1 tarball and Chrome Headless Shell 158.0.8127.18. Small launchers select the bundle's
+libraries and use **host glibc**, without rewriting binaries or shipping a private glibc.
+The complete dependency set requires x86_64 Linux with glibc **2.34** or later; the probe
+reports the actual host version and names the minimum on an older host. Pinned inputs,
+complete notices and corresponding-source directions are described in the
+[bundle documentation](../templates/process-tools/README.md).
+
+Private IPC requires enforced Landlock ABI 6 abstract-socket scopes and fresh signed proof
+from every live managed supervisor. Legacy or unverified peers keep tools off with a reason;
+unknown process history on the current boot requires a host restart. Ordinary process
+commands remain available. Process tools currently refuse `network: none` rather than
+loosening its socket restrictions.
+
+The process browser additionally requires usable unprivileged user namespaces under the
+host's security policy. It always keeps Chromium's sandbox, with bubblewrap providing private
+mount, PID, IPC and temporary-file namespaces. Its debugging pipe and scoped Unix proxy expose
+the same expiring browser capability through the edge; no browser TCP listener is added.
+`require: ['browser-sandbox']` requires both host readiness and the copy's observed launch
+policy. An operator can enable namespaces in the host policy; the user installer changes no
+sysctl, LSM profile or container policy.
+
+```ts
+const box = await pryx.sandbox({ isolation: 'process', require: ['browser-sandbox'] })
+const page = await box.browser.screenshot('https://example.com')
+const { url: cdp } = await box.browser()
+const python = await box.python()
+console.log((await python.run('6 * 7')).text)
+```
+
+### Process desktops and SSH
+
+The full desktop/OpenSSH component requires x86_64 Linux with host glibc **2.36** or later,
+usable unprivileged user namespaces and the private IPC/history checks above. The core browser
+and kernels keep their **2.34** minimum. `pryx doctor` reports `process-desktop` and `process-ssh`
+with the observed requirement when either is off. The installer does not change host policy.
+
+Xvfb and headful Chromium run with software rendering in a private PID, IPC and temporary-file
+view; Chromium keeps its own sandbox. Each sandbox has its own display. VNC, websockify and
+the desktop command adapter use scoped Unix sockets; no shared host display or VNC TCP port
+is exposed. The same desktop methods and expiring noVNC URL work through the HTTP edge.
+No window manager runs by default.
+
+```ts
+const box = await pryx.sandbox({
+  isolation: 'process', units: 4, requiredTools: ['desktop', 'ssh'],
+})
+const png = await box.desktop.screenshot()
+await box.desktop.click(100, 100)
+await box.desktop.type('hello')
+await box.desktop.key('Return')
+const access = await box.ssh()
+// Use pryx sandbox ssh <id>, or access.connect() with an SSH client.
+await box.ssh.revoke()
+```
+
+Optional `requiredTools` requires the verified native desktop/SSH capability during placement
+and again before wake. A node or tier that cannot prove it is refused by name. Omitting it
+keeps normal tool acquisition on demand. Existing container templates and calls keep their
+behavior; they do not claim the native process bundle's capability. `network: none` refuses
+these native tools while preserving its egress restrictions.
+
+Native OpenSSH serves accepted Unix connections as the sandbox's own user, with its normal
+authentication, host keys and command/PTY behavior. The HTTP-only user preset carries those
+bytes over the authenticated agent WebSocket using OpenSSH ProxyCommand. Private client keys
+stay in memory, and authorization stays outside persistent sandbox data. Lease capacity,
+expiry, revocation, wake and neighbour isolation apply to this transport too.
+
+The [signed ordinary-user acceptance](https://github.com/cubepals/pryx/actions/runs/43421813961/job/131880099054)
+exercises real application input, screenshots and noVNC through the edge, plus SSH commands,
+HTTP wake, the installed CLI and both Python SDK modes. [Thirty startup samples per tool](speed.md#k24-desktop-and-ssh-startup)
+retain the process/container comparison and its resource differences.
+
+## Container tools
 
 ```sh
 pryx template create desktop
@@ -18,8 +106,12 @@ sanitized flattened filesystem. No published layer contains the donor's propriet
 module. Templates retain complete upstream notices and source URLs; the licence inventories
 are in [checks/measurements](checks/measurements/).
 
-Configure the node explicitly before scheduling these tools. Browser Chromium requires user
-namespaces. FUSE additionally requires the real `/dev/fuse` character device. Install the
+The container browser also runs under the default container policy. Its inner Chromium sandbox
+requires user namespaces and the approved native-tool policy; `pryx doctor` reports whether the caller can use them. The public
+`browser-sandbox` guarantee additionally requires the node's native-tool policy. A missing
+guarantee can be required at creation and causes placement refusal. See
+[host capabilities](host-capabilities.md) for the distinction between false and unknown.
+FUSE additionally requires the real `/dev/fuse` character device. Install the
 [host profile](../deploy/native-tools-seccomp.json) as a protected root-owned file:
 
 ```sh
@@ -56,7 +148,11 @@ A request cannot select a host profile or a device. Hosts without this opt-in do
 
 The host must permit nested user namespaces under its own LSM/AppArmor policy; this setting
 does not turn off an LSM. A host that refuses that operation must be configured by its operator.
-Chromium always starts with `chromiumSandbox: true`; there is no insecure fallback.
+The node binds the container browser's inner-sandbox choice to its observed host policy through
+the actual agent executable's announced bootstrap support. With no approved profile, the browser
+uses the container's existing outer isolation and reports `browser-sandbox` off. A request that
+requires that guarantee is refused. Legacy agents remain strict. The process browser always
+requires Chromium's sandbox and refuses a host that cannot provide it.
 
 ```ts
 const box = await pryx.sandbox({ template: 'desktop', units: 2 })
@@ -84,7 +180,7 @@ const { url: cdp } = await browser.browser()
 const page = await browser.browser.screenshot('https://example.com')
 ```
 
-CDP remains on loopback 9222. The exposed 9223 HTTP/WebSocket proxy requires a random expiring
+In containers, CDP remains on loopback 9222. The exposed 9223 HTTP/WebSocket proxy requires a random expiring
 capability, delegates forwarding to http-proxy, and rewrites discovery for the edge URL prefix.
 Keep the returned URL private. New connections fail after expiry/rotation. Existing browser/VNC
 WebSockets can live until disconnection, as other authenticated streaming sessions do.
@@ -108,6 +204,14 @@ this conservative bound ensures a sandbox that sleeps past idle cannot revive ac
 OpenSSH checks wall-clock public-key expiry even immediately after wake. A stop/new agent
 invalidates old raw slots; request a new lease. Only public lease metadata reaches control.
 Ordinary serialization of SDK SSH handles omits `key`.
+
+New leases can also advertise `webSocketUrl` and `transport`. The CLI uses OpenSSH's
+ProxyCommand through the authenticated HTTP edge when its live advertisements report an
+HTTP-only deployment; an available raw front remains the default. Both paths use the same
+lease, host key, expiry, revocation and epoch checks. TypeScript `access.connect()` and
+Python `access.connect()` open the authenticated binary WebSocket for an SSH client; await
+the Python call in async mode. The connection carries OpenSSH bytes without interpreting
+them. New SDKs retain the raw behavior when an older agent or edge lacks this transport. Raw output belongs to the cited CI artifacts; the repository keeps only its summary.
 
 ```ts
 const mounted = await pryx.sandbox({

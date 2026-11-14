@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
-// Generated from openapi/node-writes.openapi.json; sha256 8225717134534693e3e40a147a765e00b53ec7b0602c938c579f97d9fe59206a.
+// Generated from openapi/node-writes.openapi.json; sha256 e4b7d66aa6eaac9163bd49031b28b675c9813f2c0e9fb70b5409f7139d418f75.
 export type paths = Record<string, never>;
 export type webhooks = Record<string, never>;
 export interface components {
@@ -251,6 +251,8 @@ export interface components {
             lifecycle: string | null;
             nodeId: string;
         };
+        /** @enum {string} */
+        Guarantee: "separate-users" | "memory-limit" | "cpu-limit" | "private-network" | "host-firewall" | "own-kernel" | "memory-sleep" | "browser-sandbox" | "private-pids";
         /** @enum {string} */
         Health: "starting" | "healthy" | "unhealthy";
         HeartbeatRequest: {
@@ -510,6 +512,11 @@ export interface components {
         };
         Resources: {
             /**
+             * @description Accept missing memory enforcement only on an engine without its controller. A capable
+             *     engine still enforces memoryMb. Sent only after unenforced-memory is announced.
+             */
+            allowUnenforcedMemory?: boolean | null;
+            /**
              * Format: uint32
              * @description CPU ceiling in thousandths of a core (CFS quota). Also what the JVM counts as its
              *     processors. Absent: no ceiling, weight only.
@@ -530,7 +537,7 @@ export interface components {
             cpuWeight: number | null;
             /**
              * Format: uint32
-             * @description Hard memory limit (no swap). Expressed in MiB.
+             * @description Hard memory limit (no swap), in MiB; admission reservation when unenforced memory is explicitly accepted.
              */
             memoryMb: number;
             /**
@@ -667,6 +674,18 @@ export interface components {
             exit: components["schemas"]["ExitInfo"] | null;
             /** Format: uint64 */
             generation: number;
+            /** @description Copy-bound guarantees, announced by rootless engines rather than inferred from node capacity. */
+            guarantees?: {
+                "browser-sandbox"?: boolean;
+                "cpu-limit"?: boolean;
+                "host-firewall"?: boolean;
+                "memory-limit"?: boolean;
+                "memory-sleep"?: boolean;
+                "own-kernel"?: boolean;
+                "private-network"?: boolean;
+                "private-pids"?: boolean;
+                "separate-users"?: boolean;
+            } | null;
             id: string;
             /**
              * @description What the node found wrong with the workload and can't mend itself: a restart refused for
@@ -713,6 +732,17 @@ export interface components {
              * @description Bumped each time the container is made again for a new spec.
              */
             generation: number;
+            guarantees?: {
+                "browser-sandbox"?: boolean;
+                "cpu-limit"?: boolean;
+                "host-firewall"?: boolean;
+                "memory-limit"?: boolean;
+                "memory-sleep"?: boolean;
+                "own-kernel"?: boolean;
+                "private-network"?: boolean;
+                "private-pids"?: boolean;
+                "separate-users"?: boolean;
+            };
             health: components["schemas"]["Health"] | null;
             id: components["schemas"]["WorkloadId"];
             image: string;

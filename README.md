@@ -2,16 +2,16 @@
 
 Sandboxes on Linux hosts you own. [Compare capabilities and licences](docs/compare.md).
 
-Install on Linux x86_64 with systemd:
+Install on Linux x86_64, as your ordinary user:
 
 ```sh
 curl -fsSL https://github.com/cubepals/pryx/releases/latest/download/install.sh | sh
-sudo pryx up --domain sandboxes.example.com
-pryx run --image alpine:3.22 -- echo hello
-pryx sandbox create --image alpine:3.22 --idle 5m
 ```
 
-`up` saves your API credential privately. Point sandbox DNS at the edge;
+The installer starts pryx and prints its URL, key and available capabilities.
+Run `~/.local/bin/pryx run -- echo hello` in another terminal. The user preset
+needs neither root nor Docker; its shared UID is for one person's work.
+[Installation](docs/install.md) covers servers, containers, platforms and fleet nodes;
 [operations](docs/operations.md) covers TLS, host policy, upgrades and recovery.
 
 Install `@cubepals/pryx` with your package manager, then set the API URL and key:

@@ -1,0 +1,19 @@
+{
+  "measurement": "Staged actual native worker; installed SDK/edge acceptance still required",
+  "commit": "b404f56",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43286192564",
+  "result": {
+    "neighbour.ownerCookieReadDenied": true,
+    "owner.expiredConnectionClosed": true,
+    "owner.expiredReconnectDenied": true,
+    "owner.headfulApplication": true,
+    "owner.novncPage": true,
+    "owner.privateCommandAuthentication": true,
+    "owner.screenshot": true,
+    "owner.vncGreeting": true,
+    "rendererNoNewPrivileges": true,
+    "rendererOwnSeccomp": true,
+    "scope": "Staged actual native worker; installed SDK/edge acceptance still required",
+    "unconfinedLiveAliases": 13
+  }
+}

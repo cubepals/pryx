@@ -75,7 +75,21 @@ jobs:
         with:
           ref: ${{ env.SHA }}
           persist-credentials: false
-      - name: Build
+      - name: Assemble the separate native tool distributions
+        # Native tools are separate lazy assets; only their digest descriptor enters the image.
+        # Source archives, recipes and patches are retained unchanged as data.
+        run: |
+          mkdir -p dist
+          python3 templates/process-tools/build.py --cache "$RUNNER_TEMP/tool-inputs" --output "$RUNNER_TEMP/process-tools"
+          python3 templates/process-tools/sources.py --runtime "$RUNNER_TEMP/process-tools" \
+            --cache "$RUNNER_TEMP/tool-inputs" --output "$RUNNER_TEMP/process-tool-sources" \
+            --archive dist/pryx-process-tools-sources.tar.gz \
+            --descriptor "$RUNNER_TEMP/process-tool-sources.json"
+          python3 templates/process-tools/package.py --root "$RUNNER_TEMP/process-tools" \
+            --archive dist/pryx-process-tools-linux-x64.tar.gz \
+            --descriptor deploy/process-tools/process-tools.json \
+            --url "https://github.com/cubepals/pryx/releases/download/v$version/pryx-process-tools-linux-x64.tar.gz"
+      - name: Build the release image
         run: docker build -t "$IMAGE:$version" .
       - name: The binary says its version, and the files
         run: |
@@ -130,6 +144,28 @@ jobs:
       # Beside the binary in the image too, for the control plane that carries it to pass on.
       - name: Put the signature in the image
         run: printf 'FROM %s\nCOPY pryxd.sig /pryxd.sig\nCOPY pryxd.bootstrap.sig /pryxd.bootstrap.sig\n' "$IMAGE:$version" | docker build -q -t "$IMAGE:$version" -f - dist
+      - name: Pack and sign the ordinary-user runtime
+        env:
+          RELEASE_KEY: ${{ secrets.PRYXD_RELEASE_KEY }}
+        run: |
+          started=$(date +%s)
+          printf 'FROM %s\nCOPY deploy/bundle.py deploy/postgresql.json /source/deploy/\nRUN python3 /source/deploy/bundle.py /bundle\n' "$IMAGE:$version" > "$RUNNER_TEMP/host-bundle.Dockerfile"
+          docker build -t pryx-release-host-bundle -f "$RUNNER_TEMP/host-bundle.Dockerfile" .
+          id=$(docker create pryx-release-host-bundle)
+          docker cp "$id:/bundle/." dist/
+          docker rm -v "$id"
+          key=$(mktemp)
+          chmod 600 "$key"
+          trap 'rm -f "$key"' EXIT
+          printf '%s\n' "$RELEASE_KEY" > "$key"
+          bun control/tools/bundle-sign.ts dist "$key"
+          digest=$(sha256sum dist/pryx-bundle-linux-x64.tar.gz | cut -d' ' -f1)
+          printf 'pryx host bundle\n%s\n%s\n' "$version" "$digest" > "$RUNNER_TEMP/host-bundle.statement"
+          openssl pkeyutl -verify -pubin -inkey release-key.pub -rawin -in "$RUNNER_TEMP/host-bundle.statement" -sigfile dist/pryx-bundle-linux-x64.tar.gz.sig
+          rm -f dist/SHA256SUMS
+          (cd dist && sha256sum -- * > SHA256SUMS)
+          du -h dist/pryx-*-linux-x64.tar.gz | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "Additional host bundle packaging: $(($(date +%s)-started)) seconds" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Push the image
         id: push
         run: |

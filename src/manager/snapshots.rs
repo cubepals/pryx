@@ -19,12 +19,17 @@ impl Manager {
         request: SnapshotRequest,
         epoch: Option<u64>,
     ) -> Result<SnapshotResponse, NodeError> {
-        let lock = self.lock_for(&id);
-        let _guard = lock.lock().await;
-        let started = Instant::now();
-        let result = self.snapshot_locked(&id, request, epoch).await;
-        self.metrics.operation("snapshot", &result, started.elapsed());
-        result
+        let own = self.clone();
+        tokio::spawn(async move {
+            let lock = own.lock_for(&id);
+            let _guard = lock.lock().await;
+            let started = Instant::now();
+            let result = own.snapshot_locked(&id, request, epoch).await;
+            own.metrics.operation("snapshot", &result, started.elapsed());
+            result
+        })
+        .await
+        .map_err(|_| NodeError::Internal("Snapshot task did not complete".into()))?
     }
 
     async fn snapshot_locked(
@@ -67,25 +72,28 @@ impl Manager {
             let (store, id, snapshot) = (self.store.clone(), id.clone(), request.id.clone());
             blocking(move || store.prepare_snapshot(&id, &snapshot)).await??
         };
-        let copied = {
-            let (into, beside) = (into.clone(), self.store.snapshot_dir(id, &request.id));
-            // Watched as it is written: snapshots of other workloads may be admitted beside it.
-            let mut watch = self.floor_watch();
-            blocking(move || {
-                // On disk before snapshot.json says the snapshot exists.
-                let disk = crate::durable::FilesystemSync::begin(&beside)?;
-                let copied = crate::tree::copy_tree(&data, &into, None, &[], &mut |copied| {
-                    watch.wrote(copied).map_err(|e| e.to_string())
-                })?;
-                disk.finish().map(|()| copied)
+        let copied = self
+            .copy_data(&record, running, async {
+                let (into, beside) = (into.clone(), self.store.snapshot_dir(id, &request.id));
+                // Watched as it is written: snapshots of other workloads may be admitted beside it.
+                let mut watch = self.floor_watch();
+                blocking(move || {
+                    // On disk before snapshot.json says the snapshot exists.
+                    let disk = crate::durable::FilesystemSync::begin(&beside)?;
+                    let copied = crate::tree::copy_tree(&data, &into, None, &[], &mut |copied| {
+                        watch.wrote(copied).map_err(|e| e.to_string())
+                    })?;
+                    disk.finish().map(|()| copied)
+                })
+                .await?
+                .map_err(|error| archive::copy_failed("copying the data", error))
             })
-            .await?
-        };
+            .await;
         let copied = match copied {
             Ok(copied) => copied,
             Err(e) => {
                 let _ = self.remove_snapshot(id, &request.id).await;
-                return Err(archive::copy_failed("copying the data", e));
+                return Err(e);
             }
         };
         let view = SnapshotView {

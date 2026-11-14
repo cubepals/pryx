@@ -172,6 +172,9 @@ impl WasmRuntime {
             ContainerStatus::Created
         };
         Ok(Some(ContainerInfo {
+            agent_state: None,
+            memory_enforced: None,
+            cpu_enforced: None,
             id: entry.id,
             name: entry.spec.name,
             labels: entry.spec.labels,

@@ -1,0 +1,33 @@
+{
+  "measurement": "First stopped-disk file-only runtime boots",
+  "result": "failed before agent readiness",
+  "attempts": [
+    {
+      "commit": "04ead4a",
+      "ci": "https://github.com/cubepals/pryx/actions/runs/43531094740",
+      "runtimeSecondsBeforeFailure": 15.4
+    },
+    {
+      "commit": "f967ed6",
+      "ci": "https://github.com/cubepals/pryx/actions/runs/43531398107",
+      "runtimeSecondsBeforeFailure": 15.36
+    },
+    {
+      "commit": "53b3da6",
+      "ci": "https://github.com/cubepals/pryx/actions/runs/43532126674",
+      "runtimeSecondsBeforeFailure": 12.93
+    },
+    {
+      "commit": "feda4d0",
+      "ci": "https://github.com/cubepals/pryx/actions/runs/43535042318",
+      "runtimeSecondsBeforeFailure": 14.67
+    },
+    {
+      "commit": "9988a72",
+      "ci": "https://github.com/cubepals/pryx/actions/runs/43535774318",
+      "runtimeSecondsBeforeFailure": 14.15
+    }
+  ],
+  "failure": "The monitor exited during file-service bootstrap. These sources precede the maintenance-overlay correction; their bootstrap failure remains preserved separately from that pending correction.",
+  "otherChecks": "Bundle/registry and six component boots pass; they do not prove the failed file-service boot."
+}

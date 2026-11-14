@@ -1,0 +1,4 @@
+#!/bin/sh
+# SPDX-License-Identifier: FSL-1.1-ALv2
+set -eu
+exec "${PRYX_SSH_EXECUTABLE:?}" process-ssh-shell "$@"

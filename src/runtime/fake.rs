@@ -38,7 +38,11 @@ pub struct FakeContainer {
     pub(crate) stubborn: bool,
 }
 
+pub type FileServiceFactory =
+    dyn Fn(super::files::Request) -> Result<super::files::Service, RuntimeError> + Send + Sync;
+
 pub struct FakeRuntime {
+    isolation: crate::protocol::Isolation,
     containers: Mutex<HashMap<String, FakeContainer>>,
     available: AtomicBool,
     next_id: AtomicU64,
@@ -52,12 +56,16 @@ pub struct FakeRuntime {
     /// Execs wait here, once called, before they look for their container: a test that holds it
     /// for writing acts between pryxd's checks and the exec itself.
     pub exec_gate: tokio::sync::RwLock<()>,
+    /// A real async scheduling boundary before a test's compute starts.
+    pub start_gate: tokio::sync::RwLock<()>,
     /// When set, a followed log stays open once it has sent what the log holds, as Docker's does
     /// while a container runs and prints nothing. Each one open holds a clone of `follows`.
     pub hold_follows: AtomicBool,
     pub follows: std::sync::Arc<()>,
     /// When set, an unpause never returns, as one does whose cgroup freezer is stuck.
     pub hang_unpause: AtomicBool,
+    pub cold_data_copy: AtomicBool,
+    pub remote_files: Mutex<Option<std::sync::Arc<FileServiceFactory>>>,
 }
 
 impl Default for FakeRuntime {
@@ -69,6 +77,7 @@ impl Default for FakeRuntime {
 impl FakeRuntime {
     pub fn new() -> Self {
         Self {
+            isolation: crate::protocol::Isolation::Container,
             containers: Mutex::new(HashMap::new()),
             available: AtomicBool::new(true),
             next_id: AtomicU64::new(1),
@@ -78,10 +87,18 @@ impl FakeRuntime {
             runtime_info: Mutex::new(RuntimeInfo { version: Some("fake".into()), ..Default::default() }),
             network_isolated: Mutex::new(Some(true)),
             exec_gate: tokio::sync::RwLock::new(()),
+            start_gate: tokio::sync::RwLock::new(()),
             hold_follows: AtomicBool::new(false),
             follows: std::sync::Arc::new(()),
             hang_unpause: AtomicBool::new(false),
+            cold_data_copy: AtomicBool::new(false),
+            remote_files: Mutex::new(None),
         }
+    }
+
+    pub fn with_isolation(mut self, isolation: crate::protocol::Isolation) -> Self {
+        self.isolation = isolation;
+        self
     }
 
     pub fn set_available(&self, up: bool) {
@@ -148,6 +165,9 @@ impl FakeRuntime {
 
     fn info(c: &FakeContainer) -> ContainerInfo {
         ContainerInfo {
+            agent_state: None,
+            memory_enforced: Some(c.spec.memory_bytes > 0),
+            cpu_enforced: Some(c.spec.nano_cpus.is_some_and(|quota| quota > 0) || c.spec.cpu_shares > 0),
             cgroup_parent: c.spec.cgroup_parent.clone(),
             id: c.id.clone(),
             name: c.spec.name.clone(),
@@ -166,6 +186,34 @@ impl FakeRuntime {
 
 #[async_trait]
 impl ContainerRuntime for FakeRuntime {
+    fn uses_remote_data(&self) -> bool {
+        self.remote_files.lock().unwrap().is_some()
+    }
+    async fn data_service(&self, request: super::files::Request) -> Result<super::files::Service, RuntimeError> {
+        self.up()?;
+        self.call(format!("files {}", request.name));
+        let factory = self
+            .remote_files
+            .lock()
+            .unwrap()
+            .clone()
+            .ok_or_else(|| RuntimeError::Other("No test file service".into()))?;
+        factory(request)
+    }
+
+    fn requires_stopped_data_copy(&self) -> bool {
+        self.cold_data_copy.load(Ordering::SeqCst)
+    }
+    fn isolation(&self) -> &'static str {
+        self.isolation.as_str()
+    }
+    fn is_process(&self) -> bool {
+        self.isolation == crate::protocol::Isolation::Process
+    }
+    fn is_wasm(&self) -> bool {
+        self.isolation == crate::protocol::Isolation::Wasm
+    }
+
     async fn info(&self) -> Result<RuntimeInfo, RuntimeError> {
         self.up()?;
         Ok(self.runtime_info.lock().unwrap().clone())
@@ -204,7 +252,12 @@ impl ContainerRuntime for FakeRuntime {
         if all.contains_key(&spec.name) {
             return Err(RuntimeError::Conflict(format!("the name {} is in use", spec.name)));
         }
-        let id = format!("{:064x}", self.next_id.fetch_add(1, Ordering::SeqCst));
+        let sequence = self.next_id.fetch_add(1, Ordering::SeqCst);
+        let id = if self.isolation == crate::protocol::Isolation::Container {
+            format!("{sequence:064x}")
+        } else {
+            format!("{}-{sequence:064x}", self.isolation.as_str())
+        };
         let container = FakeContainer {
             id: id.clone(),
             spec: spec.clone(),
@@ -224,6 +277,7 @@ impl ContainerRuntime for FakeRuntime {
     async fn start(&self, name: &str) -> Result<(), RuntimeError> {
         self.up()?;
         self.call(format!("start {name}"));
+        let _open = self.start_gate.read().await;
         let mut all = self.containers.lock().unwrap();
         let taken: Vec<(super::super::protocol::Proto, u16)> = all
             .values()

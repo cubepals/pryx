@@ -14,12 +14,17 @@ impl Manager {
     // ─── power ─────────────────────────────────────────────────────────────────────────────
 
     pub async fn start(self: &Arc<Self>, id: WorkloadId, epoch: Option<u64>) -> Result<PowerResponse, NodeError> {
-        let lock = self.lock_for(&id);
-        let _guard = lock.lock().await;
-        let started = Instant::now();
-        let result = self.start_locked(&id, epoch).await;
-        self.metrics.operation("start", &result, started.elapsed());
-        result
+        let guard = self.lock_for(&id).lock_owned().await;
+        let own = self.clone();
+        tokio::spawn(async move {
+            let _guard = guard;
+            let started = Instant::now();
+            let result = own.start_locked(&id, epoch).await;
+            own.metrics.operation("start", &result, started.elapsed());
+            result
+        })
+        .await
+        .map_err(|_| NodeError::Internal("Start task failed".into()))?
     }
 
     async fn start_locked(self: &Arc<Self>, id: &WorkloadId, epoch: Option<u64>) -> Result<PowerResponse, NodeError> {
@@ -66,8 +71,13 @@ impl Manager {
     async fn boot(self: &Arc<Self>, mut record: WorkloadRecord, info: ContainerInfo) -> Result<(), NodeError> {
         let id = record.id.clone();
         let deferred = self.boot_spec(&record, &info);
+        self.validate_resources(
+            self.record_runtime(&record)?.as_ref(),
+            deferred.as_ref().map_or(&record.spec.resources, |spec| &spec.resources),
+        )
+        .await?;
         let memory = deferred.as_ref().map_or(record.spec.resources.memory_mb, |spec| spec.resources.memory_mb);
-        self.admit(&id, u64::from(memory))?;
+        let mut reservation = self.reserve_start(&id, u64::from(memory))?;
         match deferred {
             Some(spec) => {
                 let digest = spec.record().digest();
@@ -83,10 +93,16 @@ impl Manager {
         record.stop_requested_at = None;
         record.updated_at = now_str();
         self.save_record(&record).await?;
-        self.note(self.runtime.start(&record.container_name).await).map_err(|e| port_clash(&id, e))?;
+        reservation.launching();
+        let start = self.note(self.runtime.start(&record.container_name).await).map_err(|e| port_clash(&id, e));
+        let observation = self.observe(&record).await;
+        if observation.is_ok() {
+            reservation.observed();
+        }
+        start?;
         self.state.lock().unwrap().last_failure.remove(&id);
         self.clear_issue(&id, IssueCode::InsufficientCapacity);
-        self.observe(&record).await?;
+        observation?;
         Ok(())
     }
 
@@ -114,7 +130,7 @@ impl Manager {
                 spec
             }
         };
-        if let Err(problems) = spec.validate(&self.spec_policy()) {
+        if let Err(problems) = spec.validate(&self.spec_policy(self.record_runtime(record).ok()?.as_ref())) {
             tracing::warn!(
                 workload = %record.id,
                 deferred = %pending.spec_digest,
@@ -140,6 +156,7 @@ impl Manager {
     /// Resumes a suspended workload: thawed, the same process from the same start, if it comes
     /// back within `resume_timeout_seconds`. Otherwise it is killed and booted afresh on its data.
     async fn resume_suspended(self: &Arc<Self>, mut record: WorkloadRecord) -> Result<PowerResponse, NodeError> {
+        self.validate_resources(self.record_runtime(&record)?.as_ref(), &record.spec.resources).await?;
         let id = record.id.clone();
         let timeout = self.config.workloads.resume_timeout();
         let thawed = match tokio::time::timeout(timeout, self.runtime.unpause(&record.container_name)).await {
@@ -206,6 +223,18 @@ impl Manager {
         }
         if !matches!(status, Some(ContainerStatus::Running | ContainerStatus::Paused)) {
             return Err(not_running());
+        }
+        if let Some(limits) =
+            self.note_tier(self.record_tier(&record), self.record_runtime(&record)?.resource_limits().await)?
+            && (limits.rootless || !limits.memory)
+        {
+            return Err(NodeError::Conflict {
+                code: ConflictCode::MemorySleepUnavailable,
+                message: format!(
+                    "{} is unavailable on this engine; stop the workload instead",
+                    crate::protocol::Guarantee::MemorySleep.feature()
+                ),
+            });
         }
         // Recorded before the freeze: a frozen container pryxd made is never taken for a running
         // one, even if pryxd dies right after.

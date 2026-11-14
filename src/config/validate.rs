@@ -20,7 +20,7 @@ const OOM_SCORE_ADJ: std::ops::RangeInclusive<i32> = -1000..=1000;
 
 impl Config {
     fn validate_wasm(&self) -> Result<(), ConfigError> {
-        if self.store_lease.enabled
+        if (self.store_lease.enabled && self.runtime == super::RuntimeKind::Wasm)
             || !self.wasm.distribution.is_absolute()
             || self.wasm.max_ingress_requests == 0
             || self.wasm.worker_uid == 0
@@ -33,12 +33,20 @@ impl Config {
         Ok(())
     }
 
+    fn validate_backend_selection(&self) -> Result<(), ConfigError> {
+        if self.runtime == super::RuntimeKind::Container && !self.docker.enabled {
+            return Err(ConfigError::Invalid("the container tier is disabled by this host preset".into()));
+        }
+        Ok(())
+    }
+
     pub fn validate(&self) -> Result<(), ConfigError> {
-        if self.runtime == super::RuntimeKind::Wasm {
+        self.validate_backend_selection()?;
+        if matches!(self.runtime, super::RuntimeKind::Wasm | super::RuntimeKind::Auto) {
             self.validate_wasm()?;
         }
-        if self.runtime == super::RuntimeKind::Process
-            && (self.store_lease.enabled
+        if matches!(self.runtime, super::RuntimeKind::Process | super::RuntimeKind::Auto)
+            && ((self.store_lease.enabled && self.runtime == super::RuntimeKind::Process)
                 || self.process.uid_first == 0
                 || self.process.uid_count == 0
                 || self.process.uid_first.checked_add(self.process.uid_count).is_none()

@@ -1,0 +1,20 @@
+{
+  "measurement": "Completed installed-product job log. The relocated CLI's loader-valued execPath breaks its ProxyCommand. A compiled real-loader regression and fresh installed proof are required after the wrapper correction.",
+  "commit": "35b8b15",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43319847311",
+  "result": {
+    "doctorNativeCapabilities": true,
+    "requiredToolsPlacement": true,
+    "desktop.applicationClick": true,
+    "desktop.applicationText": true,
+    "desktop.screenshot": true,
+    "desktop.edgeNovnc": true,
+    "desktop.typescript": true,
+    "desktop.bothPythonModes": true,
+    "ssh.typescriptCommand": true,
+    "ssh.httpEdgeWakeCommand": true,
+    "ssh.installedCli": false,
+    "ssh.failure": "sandbox: error while loading shared libraries: sandbox: cannot open shared object file; SSH exit 255",
+    "scope": "Completed installed-product job log. The relocated CLI's loader-valued execPath breaks its ProxyCommand. A compiled real-loader regression and fresh installed proof are required after the wrapper correction."
+  }
+}

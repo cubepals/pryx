@@ -98,6 +98,11 @@ impl SigningKey {
         URL_SAFE_NO_PAD.encode(self.0.public_key().as_ref())
     }
 
+    #[cfg(feature = "server")]
+    pub(crate) fn sign_bytes(&self, bytes: &[u8]) -> String {
+        URL_SAFE_NO_PAD.encode(self.0.sign(bytes).as_ref())
+    }
+
     pub fn sign(&self, claims: &Claims) -> Result<String, AuthError> {
         let payload = URL_SAFE_NO_PAD.encode(serde_json::to_vec(claims).map_err(|_| AuthError::Invalid)?);
         let signed = format!("{TOKEN_PREFIX}.{payload}");
@@ -109,6 +114,14 @@ impl SigningKey {
     }
 }
 
+pub(crate) fn verify_bytes(key: &str, bytes: &[u8], encoded_signature: &str) -> Result<(), AuthError> {
+    let public = URL_SAFE_NO_PAD.decode(key).map_err(|_| AuthError::Invalid)?;
+    let signature = URL_SAFE_NO_PAD.decode(encoded_signature).map_err(|_| AuthError::Invalid)?;
+    signature::UnparsedPublicKey::new(&signature::ED25519, public)
+        .verify(bytes, &signature)
+        .map_err(|_| AuthError::Invalid)
+}
+
 pub fn verify(token: &str, key: &str, sandbox: &str, epoch: u64, now: i64) -> Result<Claims, AuthError> {
     if token.len() > MAX_TOKEN_BYTES {
         return Err(AuthError::Invalid);
@@ -118,11 +131,7 @@ pub fn verify(token: &str, key: &str, sandbox: &str, epoch: u64, now: i64) -> Re
     if prefix != TOKEN_PREFIX {
         return Err(AuthError::Invalid);
     }
-    let public = URL_SAFE_NO_PAD.decode(key).map_err(|_| AuthError::Invalid)?;
-    let signature = URL_SAFE_NO_PAD.decode(encoded_signature).map_err(|_| AuthError::Invalid)?;
-    signature::UnparsedPublicKey::new(&signature::ED25519, public)
-        .verify(signed.as_bytes(), &signature)
-        .map_err(|_| AuthError::Invalid)?;
+    verify_bytes(key, signed.as_bytes(), encoded_signature)?;
     let bytes = URL_SAFE_NO_PAD.decode(payload).map_err(|_| AuthError::Invalid)?;
     let claims: Claims = serde_json::from_slice(&bytes).map_err(|_| AuthError::Invalid)?;
     if claims.sandbox != sandbox || claims.epoch != epoch {

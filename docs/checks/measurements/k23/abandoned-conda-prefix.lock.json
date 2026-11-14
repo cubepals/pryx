@@ -1,0 +1,6 @@
+{
+  "measurement": "abandoned conda prefix.lock",
+  "commit": "recorded in f804977; measurement revision not recorded",
+  "ci": "Not recorded; local or inventory evidence, not a CI pass",
+  "result": "Inventory/review of 97 entries; complete notices are retained with the corresponding build inputs and distribution."
+}

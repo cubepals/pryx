@@ -1,0 +1,111 @@
+// SPDX-License-Identifier: FSL-1.1-ALv2
+//! Private, in-memory bootstrap from the host to its pinned guest init. It contains secrets
+//! and must never enter a journal, label, command line, log or data archive. Fleet protocol
+//! shapes and public VM capability announcements remain outside this contract.
+use serde::{Deserialize, Serialize};
+
+pub const VERSION: u16 = 1;
+pub const PORT: u32 = 11827;
+/// Keep application services outside the u16 control-port namespace.
+pub const SERVICE_PORT_BASE: u32 = u16::MAX as u32 + 1;
+pub fn service_port(port: u16) -> u32 {
+    SERVICE_PORT_BASE + u32::from(port)
+}
+/// HTTP/2 stream end markers avoid the monitor's bidirectional Unix EOF shutdown.
+pub const STREAM_PORT_BASE: u32 = SERVICE_PORT_BASE * 2;
+pub const STREAM_VERSION: u16 = 1;
+pub fn stream_port(port: u16) -> u32 {
+    STREAM_PORT_BASE + u32::from(port)
+}
+pub const MAX_BYTES: usize = 256 * 1024;
+pub const MAX_LAYERS: usize = 128;
+pub const INIT_MODE: &str = "vm-init";
+pub const PACKET_PROGRAM: &str = "gvforwarder";
+pub const NETWORK_PROGRAM: &str = "guest-network";
+pub const FIREWALL_VERSION: u16 = 1;
+pub const NETWORK_POLICY_VERSION: u16 = 1;
+pub const PACKET_PORT: u32 = 11830;
+pub const FIREWALL_DIRECTORY: &str = "firewall";
+pub const FIREWALL_PROGRAM: &str = "helpers/nft";
+pub const FIREWALL_LOADER: &str = "libraries/ld-musl-x86_64.so.1";
+pub const AGENT_MODE: &str = "vm-agent";
+pub const BOOTSTRAP_ROOT: &str = "/.pryx-bootstrap";
+pub const MARKER: &str = "/pryx-vm-bootstrap";
+/// Trusted init's command cgroup, containing the non-root agent and its descendants.
+pub const COMMAND_CGROUP: &str = "/sys/fs/cgroup/pryx";
+
+pub fn marker() -> Vec<u8> {
+    format!("pryx-vm-bootstrap-{VERSION}\n").into_bytes()
+}
+
+/// Full backing-file identities match the monitor's kernel-visible disk serial prefixes,
+/// never host-selected guest paths. A truncated or ambiguous match is refused.
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Boot {
+    pub version: u16,
+    pub nonce: String,
+    pub cid: u32,
+    pub layers: Vec<String>,
+    pub writes: String,
+    pub hostname: String,
+    pub uid: u32,
+    pub gid: u32,
+    pub data: String,
+    pub read_only_root: bool,
+    pub temporary_bytes: u64,
+    pub pids_limit: u64,
+    /// Only the host constructs these arguments for the fixed authenticated agent.
+    pub arguments: Vec<String>,
+    pub environment: Vec<(String, String)>,
+    #[serde(default)]
+    pub network_arguments: Option<Vec<String>>,
+    #[serde(default)]
+    pub network: Option<Network>,
+}
+
+pub fn guest_cid(cid: u32) -> bool {
+    !matches!(
+        cid,
+        tokio_vsock::VMADDR_CID_HOST
+            | tokio_vsock::VMADDR_CID_ANY
+            | tokio_vsock::VMADDR_CID_HYPERVISOR
+            | tokio_vsock::VMADDR_CID_LOCAL
+    )
+}
+
+/// Host-owned guest networking; absent means no network device or outbound helper.
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Network {
+    pub interface: String,
+    pub mac: String,
+    pub mtu: u32,
+    /// Present for the maintained vsock path; absent for a host-managed virtio TAP.
+    pub vsock_port: Option<u32>,
+    /// Absent only for the independently trusted comparison fixture.
+    #[serde(default)]
+    pub policy: Option<NetworkPolicy>,
+}
+
+/// Port numbers come from the verified helper's executable metadata and admitted host gateways.
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Redirect {
+    pub source: u16,
+    pub target: u16,
+}
+
+/// Immutable guest redirects into host-owned hostname gateways. The workload never supplies it.
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct NetworkPolicy {
+    #[serde(default)]
+    pub unrestricted: bool,
+    pub host: std::net::Ipv4Addr,
+    pub http: Redirect,
+    pub tls: Redirect,
+    pub dns: Redirect,
+    pub dhcp_client: u16,
+    pub dhcp_server: u16,
+}

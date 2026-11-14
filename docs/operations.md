@@ -6,8 +6,8 @@
 Adapted from Cubepals' fleet operations guide. The operator API owns node identity, lifecycle,
 placement and history; the public API owns sandbox lifecycles. Nodes never choose assignments.
 
-For one Linux systemd host, run `pryx up --check --domain pryx.test`, then, as root,
-`pryx up --domain pryx.test`. Debian and Ubuntu install missing Docker from Docker's own repository
+For an ordinary account, follow [installation](install.md); local upgrades and purge keep their files below home. For one Linux systemd host, run `pryx up --check --domain pryx.test`, then, as root,
+`pryx up --preset server --domain pryx.test`. Debian and Ubuntu install missing Docker from Docker's own repository
 and nftables from apt. Other systemd Linux hosts need Docker and nftables installed first.
 The installer downloads its exact release's binaries and checks SHA256SUMS before installation.
 It keeps Postgres and the S3 store in persistent Docker volumes, runs control and edge as systemd

@@ -1,0 +1,9 @@
+{
+  "measurement": "Thirty vsock guests pass; pasta now advertises the gateway resolver but its forward target is not discovered when an explicit DNS address is supplied",
+  "commit": "f5ac55e",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43449577193",
+  "result": {
+    "conclusion": "failure",
+    "scope": "Thirty vsock guests pass; pasta now advertises the gateway resolver but its forward target is not discovered when an explicit DNS address is supplied"
+  }
+}

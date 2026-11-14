@@ -37,11 +37,18 @@ for (const [source, name] of [
   ['control/src/main.ts', 'pryx-control'],
   ['edge/src/agent.ts', 'pryx-edge'],
 ]) {
-  const result = Bun.spawnSync(['bun', 'build', '--compile', source as string, '--outfile', `dist/${name}`], {
-    cwd: root,
-    stdout: 'inherit',
-    stderr: 'inherit',
-  })
+  const preview =
+    name === 'pryx' && process.env.PRYX_PREVIEW_PUBLIC_KEY
+      ? [`--define=PRYX_PREVIEW_PUBLIC_KEY=${JSON.stringify(process.env.PRYX_PREVIEW_PUBLIC_KEY)}`]
+      : []
+  const result = Bun.spawnSync(
+    ['bun', 'build', '--compile', ...preview, source as string, '--outfile', `dist/${name}`],
+    {
+      cwd: root,
+      stdout: 'inherit',
+      stderr: 'inherit',
+    },
+  )
   if (result.exitCode !== 0) throw new Error(`${name} compilation failed`)
 }
 const sdk = Bun.spawnSync(

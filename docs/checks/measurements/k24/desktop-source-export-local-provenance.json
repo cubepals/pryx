@@ -1,0 +1,11 @@
+{
+  "measurement": "Local source export/package only; no hosted combined-asset or runtime-publication claim",
+  "commit": "26c8b10660afca5417a081d0850fca453a48d440",
+  "ci": "Not recorded; local or inventory evidence, not a CI pass",
+  "result": {
+    "scope": "Local source export/package only; no hosted combined-asset or runtime-publication claim",
+    "stagedArchive.bytes": 37336907,
+    "stagedArchive.unpacked_bytes": 37853345,
+    "stagedArchive.entries": 184
+  }
+}

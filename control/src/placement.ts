@@ -8,16 +8,21 @@
  * node's reason, so a refusal can say why and a decision can be replayed from its inputs.
  */
 
+import contract from '../../openapi/node-writes.openapi.json'
+import { type Guarantee, guarantees as tierGuarantees } from './guarantees.ts'
 import type { Health } from './health.ts'
-import { CPU_LIMIT_PROBLEM, nodeIsolation } from './isolation.ts'
+import { CPU_LIMIT_PROBLEM, nodeFeature, nodeIsolations } from './isolation.ts'
 import type { RuntimeSpec } from './runtime-model.ts'
 
 type Policy = 'balanced' | 'binpack' | 'spread'
 export type Lifecycle = 'active' | 'draining' | 'lost' | 'retired'
 
 export interface PlacementRequest {
+  require?: readonly import('./guarantees.ts').Guarantee[]
   isolation?: import('./isolation.ts').Isolation
   memoryMb: number
+  /** An originally named container memory ceiling, independent of its admission reservation. */
+  memoryLimit?: boolean
   cpuMillis: number
   /** Requires enforceable per-sandbox CPU quota or weight. */
   cpuLimits?: boolean
@@ -95,6 +100,7 @@ export const DEFAULTS: PlacementOptions = {
 }
 
 export interface Considered {
+  missingGuarantees?: readonly import('./guarantees.ts').Guarantee[]
   node: string
   name: string
   /** `ok`, or why the node was passed over. */
@@ -121,10 +127,16 @@ function refusal(node: NodeView, request: PlacementRequest, options: PlacementOp
   if (node.quarantined) return 'quarantined: duplicate identity'
   if (node.health !== 'healthy') return `health ${node.health}`
   if (node.regionKey !== request.regionKey) return `region ${node.regionKey}`
-  if ((request.isolation ?? 'container') !== nodeIsolation(node.features))
-    return 'isolation tier does not match'
-  if (request.cpuLimits && nodeIsolation(node.features) !== 'container') return CPU_LIMIT_PROBLEM
-  const missing = request.needs.filter((f) => !node.features.includes(f))
+  const guarantees = enforcementRequirements(request, node.features).filter(
+    (name) => !tierGuarantees(node.features, request.isolation ?? 'container')[name],
+  )
+  if (guarantees.length) return `lacks required guarantees: ${guarantees.join(', ')}`
+  if (!nodeIsolations(node.features).includes(request.isolation ?? 'container'))
+    return `isolation tier ${request.isolation ?? 'container'} does not match`
+  if (request.cpuLimits && (request.isolation ?? 'container') !== 'container') return CPU_LIMIT_PROBLEM
+  const missing = request.needs.filter(
+    (f) => !nodeFeature(node.features, f, request.isolation ?? 'container'),
+  )
   if (missing.length > 0) return `lacks ${missing.join(', ')}`
   const memoryFree = node.capacity.allocatableMemoryMb - node.running.memoryMb - options.headroomMb
   if (memoryFree < request.memoryMb)
@@ -150,6 +162,21 @@ function refusal(node: NodeView, request: PlacementRequest, options: PlacementOp
   const portsFree = node.capacity.portsTotal - node.capacity.portsAllocated
   if (portsFree < request.ports) return `ports: ${portsFree} free, needs ${request.ports}`
   return null
+}
+
+function enforcementRequirements(
+  request: PlacementRequest,
+  features: readonly string[],
+): readonly Guarantee[] {
+  const required = [...(request.require ?? [])]
+  if (
+    (request.isolation ?? 'container') === 'container' &&
+    features.includes(contract['x-pryx-resources'].unenforcedMemoryFeature)
+  ) {
+    if (request.memoryLimit) required.push('memory-limit')
+    if (request.cpuLimits) required.push('cpu-limit')
+  }
+  return [...new Set(required)]
 }
 
 /** The memory the sandboxes placed on a node may add up to, running or not. */
@@ -228,7 +255,15 @@ export function selectNode(
   const fits: Fit[] = []
   for (const node of nodes) {
     const why = refusal(node, request, options)
-    considered.push({ node: node.id, name: node.name, reason: why ?? 'ok' })
+    const missingGuarantees = enforcementRequirements(request, node.features).filter(
+      (name) => !tierGuarantees(node.features, request.isolation ?? 'container')[name],
+    )
+    considered.push({
+      node: node.id,
+      name: node.name,
+      reason: why ?? 'ok',
+      ...(missingGuarantees?.length ? { missingGuarantees } : {}),
+    })
     if (why === null) fits.push(fit(node, request, options))
   }
   fits.sort((a, b) => compare(a, b, options))

@@ -17,6 +17,7 @@ use axum::{
 use std::sync::Arc;
 
 pub struct Agent {
+    pub vm_resources: bool,
     pub sandbox: String,
     pub epoch: u64,
     pub key: SigningKey,

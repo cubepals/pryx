@@ -7,6 +7,7 @@ import { randomBytes } from 'node:crypto'
 
 import { join } from 'node:path'
 import { FleetCa } from '../../control/src/ca.ts'
+import type { Guarantee } from '../../control/src/guarantees.ts'
 import { FLEET_PRYXD_BIN } from './up-assets.ts'
 import { readEnvironment, writeEnvironment } from './up-files.ts'
 
@@ -56,12 +57,28 @@ export async function configurations(domain: string, folder = '/etc/pryx') {
   if (!control.PRYX_PRYXD_BIN || control.PRYX_PRYXD_BIN === '/usr/local/bin/pryxd')
     control.PRYX_PRYXD_BIN = FLEET_PRYXD_BIN
   control.PRYX_PUBLIC_DOMAIN = domain
+  const require: Guarantee[] = ['private-network', 'private-pids', 'memory-limit', 'cpu-limit']
+  control.PRYX_REQUIRE = [
+    ...new Set([
+      ...require,
+      ...(control.PRYX_REQUIRE ?? process.env.PRYX_REQUIRE ?? '').split(',').filter(Boolean),
+    ]),
+  ].join(',')
+  if (domain === 'localhost') control.PRYX_PUBLIC_URL ??= 'http://127.0.0.1:7331'
   const changed = writeEnvironment(join(folder, 'control.env'), control)
   const edgeChanged = writeEnvironment(join(folder, 'edge.env'), {
     PRYX_CONTROL_URL: 'http://127.0.0.1:8082',
     PRYX_EDGE_TOKEN: control.PRYX_EDGE_TOKEN as string,
     PRYX_EDGE_HOST: '0.0.0.0',
     PRYX_EDGE_METRICS_HOST: '127.0.0.1',
+    ...(control.PRYX_PUBLIC_URL
+      ? {
+          PRYX_PUBLIC_URL: control.PRYX_PUBLIC_URL,
+          PRYX_EDGE_HTTP_ONLY: '1',
+          PRYX_EDGE_HTTP_PORT: new URL(control.PRYX_PUBLIC_URL).port,
+          PRYX_EDGE_HOST: '127.0.0.1',
+        }
+      : {}),
   })
   return { control, changed, edgeChanged, fresh }
 }

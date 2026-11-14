@@ -5,3 +5,9 @@
 # statistics. The specs are rewritten by `PRYXD_WRITE_SCHEMA=1 cargo test --lib protocol::schema`.
 openapi/*.json linguist-generated
 Cargo.lock linguist-generated
+
+# Keep the reviewed Debian copyright byte for byte, including its upstream spaces.
+templates/process-tools/notices/desktop/liblz4-1.copyright whitespace=-blank-at-eol
+
+# These complete upstream notices are digest inputs, retained byte for byte.
+templates/process-tools/notices/desktop-full/** -text whitespace=-blank-at-eol

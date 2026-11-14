@@ -1,0 +1,12 @@
+{
+  "measurement": "Relocated filesystem component only; not production VM lifecycle",
+  "commit": "7efb280ccc1921d9fc57aea98ce817b5e2417046",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43464154294",
+  "result": {
+    "scope": "Relocated filesystem component only; not production VM lifecycle",
+    "status": "success",
+    "files": 15,
+    "erofsBytes": 4096,
+    "ext4Bytes": 134217728
+  }
+}

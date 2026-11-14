@@ -1,0 +1,17 @@
+{
+  "hostGlibcMinimum": "2.36",
+  "programs": {
+    "Xvfb": "usr/bin/Xvfb",
+    "xdotool": "usr/bin/xdotool",
+    "xauth": "usr/bin/xauth",
+    "xkbcomp": "usr/bin/xkbcomp",
+    "scrot": "usr/bin/scrot",
+    "x11vnc": "usr/bin/x11vnc",
+    "sshd": "usr/sbin/sshd",
+    "ssh": "usr/bin/ssh",
+    "ssh-agent": "usr/bin/ssh-agent",
+    "ssh-add": "usr/bin/ssh-add",
+    "ssh-keygen": "usr/bin/ssh-keygen",
+    "chromium": "usr/lib/chromium/chromium"
+  }
+}

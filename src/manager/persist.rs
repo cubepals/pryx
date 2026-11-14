@@ -18,6 +18,7 @@ use super::*;
 impl Manager {
     /// Writes `record` and then holds it in memory as the workload's current one.
     pub(super) async fn save_record(&self, record: &WorkloadRecord) -> Result<(), NodeError> {
+        self.bind_record(record)?;
         let (turn, state, store, record) =
             (self.disk_writes.clone(), self.state.clone(), self.store.clone(), record.clone());
         blocking(move || {

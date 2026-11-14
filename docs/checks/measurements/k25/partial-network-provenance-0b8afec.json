@@ -1,0 +1,9 @@
+{
+  "measurement": "All thirty vsock guests and thirteen pasta guests pass; the fourteenth pasta bulk transfer stalls before its unchanged two-second deadline; prerequisite case did not run",
+  "commit": "0b8afec",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43452903447",
+  "result": {
+    "conclusion": "failure",
+    "scope": "All thirty vsock guests and thirteen pasta guests pass; the fourteenth pasta bulk transfer stalls before its unchanged two-second deadline; prerequisite case did not run"
+  }
+}

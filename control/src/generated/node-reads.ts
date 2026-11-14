@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
-// Generated from openapi/node-reads.openapi.json; sha256 7f7c811b3d6ef61f25c80dc3f057cff9ac6597c550dc2513a2b58d4889902dab.
+// Generated from openapi/node-reads.openapi.json; sha256 707a24125fbb2c362b937dbf8725388f8517b1767a8371240d991a9f96e32b2c.
 export type paths = Record<string, never>;
 export type webhooks = Record<string, never>;
 export interface components {
@@ -137,6 +137,11 @@ export interface components {
              */
             upgrade?: components["schemas"]["UpgradeOffer"] | null;
         };
+        /**
+         * @description The backend a workload asks for. An omitted choice retains the host's default.
+         * @enum {string}
+         */
+        Isolation: "container" | "process" | "wasm";
         /** @enum {string} */
         NetworkMode: "internet" | "none";
         /**
@@ -174,6 +179,11 @@ export interface components {
         };
         Resources: {
             /**
+             * @description Accept missing memory enforcement only on an engine without its controller. A capable
+             *     engine still enforces memoryMb. Sent only after unenforced-memory is announced.
+             */
+            allowUnenforcedMemory?: boolean | null;
+            /**
              * Format: uint32
              * @description CPU ceiling in thousandths of a core (CFS quota). Also what the JVM counts as its
              *     processors. Absent: no ceiling, weight only.
@@ -194,7 +204,7 @@ export interface components {
             cpuWeight?: number | null;
             /**
              * Format: uint32
-             * @description Hard memory limit (no swap). Expressed in MiB.
+             * @description Hard memory limit (no swap), in MiB; admission reservation when unenforced memory is explicitly accepted.
              */
             memoryMb: number;
             /**
@@ -357,6 +367,11 @@ export interface components {
              * @default
              */
             image?: string;
+            /**
+             * @description Sent only after the node announces multi-tier.
+             * @default null
+             */
+            isolation?: components["schemas"]["Isolation"] | null;
             /** @default {} */
             labels?: {
                 [key: string]: string;
@@ -367,6 +382,8 @@ export interface components {
             packages?: string[];
             /** @default [] */
             ports?: components["schemas"]["PortSpec"][];
+            /** @description Sent only after native-browser-policy is announced; never authorizes disabling a sandbox. */
+            requireBrowserSandbox?: boolean | null;
             resources: components["schemas"]["Resources"];
             /**
              * @default {

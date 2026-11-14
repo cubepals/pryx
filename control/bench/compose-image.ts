@@ -1,17 +1,25 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Exercise the shipped Compose service graph with the already-built release image. The CI
  * Docker build separately proves its identical build context; this avoids compiling it twice. */
+
 import { resolve } from 'node:path'
+import { StatusCodes } from 'http-status-codes'
+import type { components } from '../../sdk/typescript/src/generated/api.ts'
 import { SECOND_MS } from '../src/durations.ts'
 import { PRYX_VERSION } from '../src/generated/release.ts'
+import { mixedTierAcceptance } from './mixed-tiers.ts'
+import { sharedUidAcceptance } from './shared-uid.ts'
 
 const project = `pryx-ci-compose-${process.pid}`
 const prefix = ['docker', 'compose', '-p', project, '-f', resolve('docker-compose.yml')]
 async function command(args: string[], env = process.env) {
   const child = Bun.spawn(args, { env, stdout: 'pipe', stderr: 'pipe' })
-  const [stdout] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text()])
+  const [stdout, stderr] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ])
   if (await child.exited) throw new Error(`${args[0]} failed during Compose acceptance`)
-  return stdout
+  return args[0] === 'docker' && args[1] === 'logs' ? stdout + stderr : stdout
 }
 async function healthy() {
   const end = Date.now() + 30 * SECOND_MS
@@ -46,12 +54,55 @@ try {
     process.env.PRYX_IMAGE_TEST ?? 'pryx-static-test',
     `ghcr.io/cubepals/pryx:${PRYX_VERSION}`,
   ])
+  const probe = JSON.parse(
+    await command([
+      'docker',
+      'run',
+      '--rm',
+      '--entrypoint',
+      '/pryxd',
+      process.env.PRYX_IMAGE_TEST ?? 'pryx-static-test',
+      'probe',
+      '--json',
+    ]),
+  ) as { landlockAbi: number; capabilities: Record<string, { state: string }> }
+  for (const name of [
+    'kvm',
+    'kvm-device',
+    'fuse-device',
+    'docker',
+    'docker-user',
+    'podman',
+    'podman-user',
+    'systemd',
+  ])
+    if (probe.capabilities[name]?.state !== 'off')
+      throw new Error(`Ordinary image probe: ${name} must be off`)
+  for (const name of ['user-namespaces', 'host-firewall'])
+    if (probe.capabilities[name]?.state !== 'unknown')
+      throw new Error(`Ordinary image probe: ${name} must be unknown`)
+  for (const name of ['landlock', 'separate-users', 'cgroup-controllers'])
+    if (probe.capabilities[name]?.state !== 'on') throw new Error(`Ordinary image probe: ${name} must be on`)
+  if (probe.landlockAbi < 3)
+    throw new Error('Ordinary image probe disagrees with its namespace/Landlock policy')
   await command([...prefix, 'config', '--quiet'])
   await command([...prefix, 'up', '-d', '--no-build', '--pull', 'never'])
   await healthy()
   const keys = initialKeys(await command([...prefix, 'logs', '--no-log-prefix', '--no-color', 'pryx']))
   if (keys.length !== 1 || !keys[0]) throw new Error('Compose initial key differs')
   await hello(keys[0])
+  const unavailable = await fetch('http://127.0.0.1:8080/v1/sandboxes', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${keys[0]}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ isolation: 'container', image: 'alpine:3.22' }),
+  })
+  const refusal = (await unavailable.json()) as components['schemas']['Error']
+  if (
+    unavailable.status !== StatusCodes.SERVICE_UNAVAILABLE ||
+    refusal.error?.code !== 'no_room' ||
+    !refusal.error.message.includes('container')
+  )
+    throw new Error('Ordinary no-engine image did not name the unavailable container tier')
   await command([...prefix, 'restart'])
   await healthy()
   await hello(keys[0])
@@ -61,3 +112,6 @@ try {
 } finally {
   await command([...prefix, 'down', '--volumes', '--remove-orphans'])
 }
+await sharedUidAcceptance(process.env.PRYX_IMAGE_TEST ?? 'pryx-static-test', command, initialKeys)
+
+await mixedTierAcceptance(process.env.PRYX_IMAGE_TEST ?? 'pryx-static-test', command, initialKeys)

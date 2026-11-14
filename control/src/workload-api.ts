@@ -14,6 +14,8 @@
 import nodeSchema from '../../openapi/node-reads.openapi.json'
 
 import { HOUR_MS, MINUTE_MS, SECOND_MS } from './durations.ts'
+import { guarantees } from './guarantees.ts'
+import { nodeFeature } from './isolation.ts'
 import { CONFIRM_DELETE_HEADER, type NodeAddress, type NodeClient } from './node-client.ts'
 import type { NodeRow } from './registry.ts'
 import type { RuntimeSpec } from './runtime-model.ts'
@@ -28,6 +30,7 @@ import type {
   WorkloadSpec,
   WorkloadView,
 } from './wire.ts'
+import { requireWorkloadFeatures } from './workload-capabilities.ts'
 
 /**
  * Teardown (fence, delete) stops a running copy gracefully first, which takes the spec's grace
@@ -60,12 +63,30 @@ export const address = (node: Dialled): NodeAddress => ({
 })
 
 function toWorkloadSpec(spec: RuntimeSpec, features: readonly string[]): WorkloadSpec {
-  const { cpuReservationMillis, ...resources } = spec.resources
+  requireWorkloadFeatures(spec, features)
+  const { cpuReservationMillis, allowUnenforcedMemory, ...resources } = spec.resources
+  let memoryAcceptance = allowUnenforcedMemory
+  if (
+    (spec.isolation ?? 'container') === 'container' &&
+    features.includes(nodeSchema['x-pryx-resources'].unenforcedMemoryFeature)
+  ) {
+    const enforced = guarantees(features, spec.isolation)
+    if (spec.resourceDefaults?.memory && !enforced['memory-limit'] && memoryAcceptance == null)
+      memoryAcceptance = true
+    if (spec.resourceDefaults?.cpu && !enforced['cpu-limit']) delete resources.cpuMillis
+  }
   return {
     image: spec.image,
+    ...(features.includes('multi-tier') && spec.isolation ? { isolation: spec.isolation } : {}),
+    ...(features.includes(nodeSchema['x-pryx-resources'].nativeBrowserPolicyFeature) &&
+    spec.require?.includes('browser-sandbox')
+      ? { requireBrowserSandbox: true }
+      : {}),
     ...(features.includes('wasm-packages') && spec.packages ? { packages: [...spec.packages] } : {}),
     ...(spec.agent ? { agent: spec.agent, sparePorts: spec.sparePorts } : {}),
-    ...(features.includes('network-policy') && spec.network ? { network: spec.network } : {}),
+    ...(nodeFeature(features, nodeSchema['x-pryx-network'].policyFeature, spec.isolation) && spec.network
+      ? { network: spec.network }
+      : {}),
     ...(features.includes('workload-options') && spec.workdir ? { workdir: spec.workdir } : {}),
     ...(features.includes('workload-options') && spec.user ? { user: spec.user } : {}),
     ...(features.includes('egress-hostnames') && spec.egress ? { egress: spec.egress } : {}),
@@ -74,6 +95,10 @@ function toWorkloadSpec(spec: RuntimeSpec, features: readonly string[]): Workloa
     secrets: { ...spec.secrets },
     resources: {
       ...resources,
+      ...(features.includes(nodeSchema['x-pryx-resources'].unenforcedMemoryFeature) &&
+      memoryAcceptance != null
+        ? { allowUnenforcedMemory: memoryAcceptance }
+        : {}),
       ...(features.includes('cpu-reservation') && cpuReservationMillis != null
         ? { cpuReservationMillis }
         : {}),

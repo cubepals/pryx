@@ -39,7 +39,7 @@ Versions:
 - Chromium 155.0.8059.79 built on Debian GNU/Linux 13 (trixie)
 - OpenSSH_10.0p2 Debian-7+deb13u4, OpenSSL 3.5.7 9 Jun 2026
 
-Final raw samples: [edge-clients.json](checks/edge-clients.json). The first attempt found an unrelated `go` program; a later diagnostic found requests missing. The diagnostic [initial samples](checks/edge-clients-initial.json) retain that failure; its Python exits are excluded from the table. The successful rerun used requests 2.32.5.
+Final measurement summaries: [edge-clients.json](checks/edge-clients.json). The first attempt found an unrelated `go` program; a later diagnostic found requests missing. The diagnostic [initial samples](checks/edge-clients-initial.json) retain that failure; its Python exits are excluded from the table. The successful rerun used requests 2.32.5.
 
 The edge keeps TLS ClientHello and HTTP request bytes, sends no hold messages, and splices them once control wakes the sandbox. Snapshots restore files, so a rest wake can take longer than a memory resume. Choose the configured hold using the clients and images actually deployed. A failed hold closes; the caller may reconnect after startup finishes.
 

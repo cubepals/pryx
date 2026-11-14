@@ -1,0 +1,11 @@
+{
+  "measurement": "bundle relocation attempts",
+  "commit": "recorded in f804977; measurement revision not recorded",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43109289475",
+  "result": {
+    "status": "Historical failed binary-rewriting approaches; superseded by explicit user correction; bundle active",
+    "archive.bytes": 812670485,
+    "archive.scope": "local exploratory archive, not published or accepted as a runtime bundle",
+    "builderObservation.interpretation": "Preserve owner-package versus executable-version discrepancy; do not claim the CLI reported 0.9.2"
+  }
+}

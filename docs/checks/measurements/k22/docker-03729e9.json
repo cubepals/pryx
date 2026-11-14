@@ -1,0 +1,8 @@
+{
+  "measurement": "docker 03729e9",
+  "commit": "03729e9",
+  "ci": "Not recorded; local or inventory evidence, not a CI pass",
+  "result": {
+    "status": "refused"
+  }
+}

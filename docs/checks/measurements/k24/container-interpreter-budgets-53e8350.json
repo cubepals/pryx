@@ -1,0 +1,27 @@
+{
+  "measurement": "container interpreter budgets 53e8350",
+  "commit": "53e83505f823cf4b92aca2b4a952cf084c636f32",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43421813961",
+  "result": {
+    "summary.first_run_warm_template": {
+      "n": 30,
+      "p50Ms": 4.451,
+      "p90Ms": 4.569
+    },
+    "summary.trivial_loopback": {
+      "n": 30,
+      "p50Ms": 3.62,
+      "p90Ms": 3.757
+    },
+    "summary.chart_loopback": {
+      "n": 30,
+      "p50Ms": 105.125,
+      "p90Ms": 111.851
+    },
+    "summary.restart_loopback": {
+      "n": 30,
+      "p50Ms": 1245.056,
+      "p90Ms": 1267.608
+    }
+  }
+}

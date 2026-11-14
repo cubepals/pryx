@@ -11,6 +11,19 @@ use std::os::unix::process::CommandExt;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let arguments = std::env::args().skip(1).collect::<Vec<_>>();
+    if arguments.first().is_some_and(|a| a == pryx_agent::bootstrap_capabilities::PROBE) {
+        println!("{}", serde_json::to_string(&pryx_agent::bootstrap_capabilities::probe())?);
+        return Ok(());
+    }
+    if arguments.first().is_some_and(|a| a == pryx_agent::vm_boot::INIT_MODE) {
+        return pryx_agent::vm_init::run();
+    }
+    if arguments.first().is_some_and(|a| a == pryx_agent::vm_boot::AGENT_MODE) {
+        return pryx_agent::vm_init::agent(&arguments[1..]);
+    }
+    if arguments.first().is_some_and(|a| a == pryx_agent::vm_monitor::MODE) {
+        return pryx_agent::vm_monitor::launch();
+    }
     let native_bootstrap = arguments.first().is_some_and(|a| a.starts_with("--") && a != "--version");
     let mappings = if native_bootstrap { pryx_agent::fuse_namespace::prepare()? } else { None };
     // Images run as the same sandbox user. Prevent their processes from reading the agent's
@@ -38,6 +51,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let executable = command.first().ok_or("Missing tool command")?;
         return Err(std::process::Command::new(executable).args(&command[1..]).exec().into());
     }
+    if arguments.first().is_some_and(|a| a == "process-browser-child") {
+        return pryx_agent::process_tools::browser::child();
+    }
+    if arguments.first().is_some_and(|a| a == "process-desktop-child") {
+        return pryx_agent::process_tools::desktop::child();
+    }
+    if arguments.first().is_some_and(|a| a == "process-ssh-child") {
+        return pryx_agent::process_tools::ssh::child();
+    }
+    if arguments.first().is_some_and(|a| a == "process-ssh-shell") {
+        let supervisor = nix::unistd::getppid().as_raw() as u32;
+        pryx_agent::process_policy::child(supervisor, false)?;
+        let command = if arguments.get(1).is_some_and(|a| a == "-c") { arguments.get(2).cloned() } else { None };
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
+        std::process::exit(runtime.block_on(shell(command))?.into());
+    }
     if arguments.first().is_some_and(|a| a == "process-probe") {
         println!("{}", serde_json::to_string(&pryx_agent::process_capabilities::probe())?);
         return Ok(());
@@ -58,6 +87,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Only the supervisor bootstrap uses it; guest shell/launcher invocations cannot create
     // a less restricted worker from their inherited policy.
     let bootstrap = !matches!(arguments.first().map(String::as_str), Some("shell" | "--version" | "restricted"));
+    let policy: Option<pryx_agent::process_policy::Policy> = std::env::var(pryx_agent::process_policy::POLICY_ENV)
+        .ok()
+        .map(|encoded| serde_json::from_str(&encoded))
+        .transpose()?;
+    if let Some(policy) = &policy {
+        if policy.require_ipc_scope == Some(true)
+            || policy.tools.as_ref().is_some_and(|tools| tools.unavailable.is_none())
+        {
+            pryx_agent::process_policy::scope()?;
+        }
+        if let Some(tools) = &policy.tools {
+            pryx_agent::process_tools::install(tools.clone(), policy.clone())?;
+        }
+    }
     let forwarding = if bootstrap
         && (std::env::var_os(pryx_agent::process_policy::POLICY_ENV).is_some()
             || arguments.iter().any(|a| a == "--host-bindings" || a.starts_with("--host-bindings=")))
@@ -66,9 +109,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         None
     };
-    if let Ok(encoded) = std::env::var(pryx_agent::process_policy::POLICY_ENV) {
-        let policy = serde_json::from_str(&encoded)?;
-        pryx_agent::process_policy::enter(&policy)?;
+    if let Some(policy) = &policy {
+        pryx_agent::process_policy::enter(policy)?;
         if arguments.first().is_some_and(|a| a == "restricted") {
             let executable = arguments.get(1).ok_or("Missing restricted command")?;
             return Err(std::process::Command::new(executable)

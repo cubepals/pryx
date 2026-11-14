@@ -1,0 +1,6 @@
+{
+  "measurement": "superseded network runs",
+  "commit": "recorded in 8a9bc80; measurement revision not recorded",
+  "ci": "Not recorded; local or inventory evidence, not a CI pass",
+  "result": "Inventory/review of 12 entries; complete notices are retained with the corresponding build inputs and distribution."
+}

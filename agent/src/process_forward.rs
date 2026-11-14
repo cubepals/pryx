@@ -45,9 +45,44 @@ impl ProcessForward {
 #[async_trait::async_trait]
 impl Forward for ProcessForward {
     async fn probe(&self, port: u16, path: Option<&str>) -> io::Result<Option<u16>> {
+        if let Some(ssh) = crate::process_tools::configured().and_then(|tools| tools.active_ssh(port)) {
+            return crate::field_process::probe_stream(ssh.connect().await?, path).await;
+        }
+        if port == crate::tools::defaults::DESKTOP_PORT
+            && let Some(desktop) = crate::process_tools::configured().and_then(|tools| tools.active_desktop())
+        {
+            return crate::field_process::probe_stream(desktop.connect().await?, path).await;
+        }
+        if port == crate::contract::BROWSER_PORT
+            && let Some(browser) = crate::process_tools::configured().and_then(|tools| tools.active_browser())
+        {
+            return crate::field_process::probe_stream(browser.connect().await?, path).await;
+        }
         crate::field_process::probe_stream(self.connect(port).await?, path).await
     }
     async fn serve(&self, mut downstream: TcpStream, port: u16, header: Vec<u8>) -> io::Result<()> {
+        if let Some(ssh) = crate::process_tools::configured().and_then(|tools| tools.active_ssh(port)) {
+            let mut upstream = ssh.connect().await?;
+            upstream.write_all(&header).await?;
+            tokio::io::copy_bidirectional(&mut downstream, &mut upstream).await?;
+            return Ok(());
+        }
+        if port == crate::tools::defaults::DESKTOP_PORT
+            && let Some(desktop) = crate::process_tools::configured().and_then(|tools| tools.active_desktop())
+        {
+            let mut upstream = desktop.connect().await?;
+            upstream.write_all(&header).await?;
+            tokio::io::copy_bidirectional(&mut downstream, &mut upstream).await?;
+            return Ok(());
+        }
+        if port == crate::contract::BROWSER_PORT
+            && let Some(browser) = crate::process_tools::configured().and_then(|tools| tools.active_browser())
+        {
+            let mut upstream = browser.connect().await?;
+            upstream.write_all(&header).await?;
+            tokio::io::copy_bidirectional(&mut downstream, &mut upstream).await?;
+            return Ok(());
+        }
         let mut upstream = self.connect(port).await?;
         upstream.write_all(&header).await?;
         tokio::io::copy_bidirectional(&mut downstream, &mut upstream).await?;

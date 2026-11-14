@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from ..models.sandbox_agent import SandboxAgent
     from ..models.sandbox_endpoints_item import SandboxEndpointsItem
     from ..models.sandbox_exit import SandboxExit
+    from ..models.sandbox_guarantees import SandboxGuarantees
     from ..models.sandbox_labels import SandboxLabels
     from ..models.sandbox_metadata import SandboxMetadata
 
@@ -42,6 +43,7 @@ class Sandbox:
         created_at (str):
         updated_at (str):
         expires_at (Union[None, str]):
+        guarantees (Union[Unset, SandboxGuarantees]):
         name (Union[Unset, str]):
         labels (Union[Unset, SandboxLabels]):
         metadata (Union[Unset, SandboxMetadata]):
@@ -67,6 +69,7 @@ class Sandbox:
     created_at: str
     updated_at: str
     expires_at: Union[None, str]
+    guarantees: Union[Unset, "SandboxGuarantees"] = UNSET
     name: Union[Unset, str] = UNSET
     labels: Union[Unset, "SandboxLabels"] = UNSET
     metadata: Union[Unset, "SandboxMetadata"] = UNSET
@@ -109,6 +112,10 @@ class Sandbox:
 
         expires_at: Union[None, str]
         expires_at = self.expires_at
+
+        guarantees: Union[Unset, dict[str, Any]] = UNSET
+        if not isinstance(self.guarantees, Unset):
+            guarantees = self.guarantees.to_dict()
 
         name = self.name
 
@@ -161,6 +168,8 @@ class Sandbox:
                 "expiresAt": expires_at,
             }
         )
+        if guarantees is not UNSET:
+            field_dict["guarantees"] = guarantees
         if name is not UNSET:
             field_dict["name"] = name
         if labels is not UNSET:
@@ -193,6 +202,7 @@ class Sandbox:
         from ..models.sandbox_agent import SandboxAgent
         from ..models.sandbox_endpoints_item import SandboxEndpointsItem
         from ..models.sandbox_exit import SandboxExit
+        from ..models.sandbox_guarantees import SandboxGuarantees
         from ..models.sandbox_labels import SandboxLabels
         from ..models.sandbox_metadata import SandboxMetadata
 
@@ -238,6 +248,13 @@ class Sandbox:
             return cast(Union[None, str], data)
 
         expires_at = _parse_expires_at(d.pop("expiresAt"))
+
+        _guarantees = d.pop("guarantees", UNSET)
+        guarantees: Union[Unset, SandboxGuarantees]
+        if isinstance(_guarantees, Unset):
+            guarantees = UNSET
+        else:
+            guarantees = SandboxGuarantees.from_dict(_guarantees)
 
         name = d.pop("name", UNSET)
 
@@ -300,6 +317,7 @@ class Sandbox:
             created_at=created_at,
             updated_at=updated_at,
             expires_at=expires_at,
+            guarantees=guarantees,
             name=name,
             labels=labels,
             metadata=metadata,

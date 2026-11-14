@@ -1,0 +1,9 @@
+{
+  "measurement": "Staged component only; not published or announced",
+  "commit": "recorded in 79360fb; measurement revision not recorded",
+  "ci": "Not recorded; local or inventory evidence, not a CI pass",
+  "result": {
+    "format": 1,
+    "scope": "Staged component only; not published or announced"
+  }
+}

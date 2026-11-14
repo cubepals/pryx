@@ -1,0 +1,16 @@
+{
+  "measurement": "Closed packet helper with private-configuration-only confinement and existing VM acceptance",
+  "commit": "080ebc19bf92f6e66e2bbceecc701c6a9982853d",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43562677123",
+  "result": "complete optional VM workflow passed",
+  "guestPolicySeconds": 0.08,
+  "hostPolicy": {
+    "passed": 3,
+    "seconds": 0.12
+  },
+  "bundleSeconds": 9.62,
+  "runtimeSeconds": 85.01,
+  "registrySeconds": 13.19,
+  "componentSeconds": 34.82,
+  "remaining": "Production owned packet flow/guest redirects, root TAP/jailer/firewall, protected install/config/release, node/edge lifecycle, thirty production samples and full normal/host CI. Earlier intermittent exec-output failures remain unexplained. Raw output stays in this CI run artifacts."
+}

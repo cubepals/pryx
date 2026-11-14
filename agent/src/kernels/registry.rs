@@ -35,13 +35,26 @@ impl Registry {
         language: Language,
         context: String,
     ) -> Result<Arc<Kernel>, Failure> {
-        if let Some(tier) = owner.kernel_unsupported_tier() {
+        if owner.kernel_unsupported_tier() == Some("process")
+            && let Some(tools) = crate::process_tools::configured()
+        {
+            tools.supported()?;
+            if std::env::var_os(crate::process_policy::NETWORK_ENV).is_some() {
+                return Err(Failure(axum::http::StatusCode::NOT_IMPLEMENTED, "unsupported",
+                    "Native kernels on network-none need prebound private channels; ordinary command egress remains denied".into()));
+            }
+            tools.prepare().await?;
+        } else if let Some(tier) = owner.kernel_unsupported_tier() {
             return Err(Failure(
                 axum::http::StatusCode::NOT_IMPLEMENTED,
                 "unsupported",
-                format!(
-                    "Language kernels require an isolated native interpreter template; the {tier} tier is unsupported"
-                ),
+                if tier == "process" {
+                    "Language kernels require a verified process tool bundle and private IPC; use a supported container interpreter template or a release providing native process kernels".into()
+                } else {
+                    format!(
+                        "Language kernels require an isolated native interpreter template; the {tier} tier is unsupported"
+                    )
+                },
             ));
         }
         if context.len() > 64 || !context.bytes().all(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_')) {

@@ -1,0 +1,18 @@
+{
+  "measurement": "Private executable staging and unchanged VM acceptance",
+  "commit": "9ecd4dd63efba8edc13b44b3697e147cb50ec690",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43561357030",
+  "result": "guest, registry and bundle paths passed; host packet-profile fixture still refused before readiness",
+  "guestPolicySeconds": 0.08,
+  "hostPolicy": {
+    "passed": 2,
+    "failed": 1,
+    "seconds": 0.05,
+    "failure": "An unsafe ancestor remains among the closed helper grants after staging the executable privately. The original diagnostic omits its path; preserve the refusal and remove unneeded host resolver/service grants."
+  },
+  "bundleSeconds": 9.66,
+  "runtimeSeconds": 84.29,
+  "registrySeconds": 17.01,
+  "componentSeconds": 32.21,
+  "remaining": "Actual hosted private-configuration-only host profile, production packet-flow policy, root TAP/jailer/firewall, protected install/config/release, node/edge lifecycle, thirty samples and full green CI. Intermittent earlier exec-output failures remain unexplained. Raw output stays in this CI run artifacts."
+}

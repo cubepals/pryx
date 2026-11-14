@@ -1,0 +1,6 @@
+{
+  "measurement": "pr8 container fork before",
+  "commit": "recorded in c1c9fa1; measurement revision not recorded",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/42254747830",
+  "result": "Diagnostic/naming output removed; outcome and limitations remain in the companion check document. No additional pass is inferred."
+}

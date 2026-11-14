@@ -18,9 +18,25 @@ registerHooks({
 // jmp's unmodified constructor initialize its own metadata on that same object.
 const zmq = require('./legacy-socket.cjs')
 const jmp = require('jmp')
+const connection = JSON.parse(require('node:fs').readFileSync(process.argv.at(-1), 'utf8'))
+function allocate(type) {
+  const socket = zmq.allocate(type)
+  if (connection.transport === 'ipc') {
+    // jp-kernel fixes TCP syntax. Adapt only its bind address; the maintained ZeroMQ owner
+    // still implements IPC, framing and messages, including Linux's abstract-address syntax.
+    const prefix = `tcp://${connection.ip}:`
+    const bind = socket.bindSync.bind(socket)
+    socket.bindSync = address => {
+      if (!address.startsWith(prefix)) throw new Error('Unexpected kernel bind address')
+      return bind(`ipc://${connection.ip}-${address.slice(prefix.length)}`)
+    }
+  }
+  return socket
+}
+jmp.zmq.createSocket = allocate
 const initialize = jmp.Socket
 jmp.Socket = function (type, scheme, key) {
-  const socket = zmq.allocate(type)
+  const socket = allocate(type)
   Object.setPrototypeOf(socket, initialize.prototype)
   initialize.call(socket, type, scheme, key)
   return socket

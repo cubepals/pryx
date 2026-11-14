@@ -17,9 +17,15 @@ use std::{
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 // IANA IPv4 Special-Purpose Address Registry: non-public protocol, shared, documentation,
-// benchmarking and reserved networks, beyond the classes exported by Ipv4Addr's predicates.
+// benchmarking and reserved networks, including private, loopback, link-local and multicast.
 const SPECIAL_V4: &[(Ipv4Addr, u32)] = &[
     (Ipv4Addr::new(0, 0, 0, 0), 8),
+    (Ipv4Addr::new(10, 0, 0, 0), 8),
+    (Ipv4Addr::new(127, 0, 0, 0), 8),
+    (Ipv4Addr::new(169, 254, 0, 0), 16),
+    (Ipv4Addr::new(172, 16, 0, 0), 12),
+    (Ipv4Addr::new(192, 168, 0, 0), 16),
+    (Ipv4Addr::new(224, 0, 0, 0), 4),
     (Ipv4Addr::new(100, 64, 0, 0), 10),
     (Ipv4Addr::new(192, 0, 0, 0), 24),
     (Ipv4Addr::new(192, 0, 2, 0), 24),
@@ -38,18 +44,15 @@ const SPECIAL_V6: &[(u128, u32)] = &[
     (0x3fff_u128 << 112, 20),
 ];
 
+/// The same non-public IPv4 boundary for trusted guest firewall configuration.
+pub fn non_public_ipv4_networks() -> impl Iterator<Item = (Ipv4Addr, u32)> {
+    SPECIAL_V4.iter().copied()
+}
+
 pub fn public_address(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(ip) => {
-            !ip.is_loopback()
-                && !ip.is_link_local()
-                && !ip.is_private()
-                && !ip.is_multicast()
-                && !ip.is_unspecified()
-                && !ip.is_broadcast()
-                && !SPECIAL_V4
-                    .iter()
-                    .any(|(network, bits)| u32::from(ip) >> (32 - bits) == u32::from(*network) >> (32 - bits))
+            !SPECIAL_V4.iter().any(|(network, bits)| u32::from(ip) >> (32 - bits) == u32::from(*network) >> (32 - bits))
         }
         IpAddr::V6(ip) => {
             if let Some(ip) = ip.to_ipv4() {

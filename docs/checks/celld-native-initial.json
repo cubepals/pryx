@@ -1,18 +1,10 @@
 {
+  "measurement": "celld native initial",
   "commit": "8702f6d186c77698dbfb30cf29e3b1922a88f008",
-  "profile": "same patched binary, dev with debug=0 and incremental=0",
-  "host": {
-    "cpu": "AMD EPYC 9V74 80-Core Processor",
-    "cores": 2,
-    "kernel": "7.0.0-1017-azure"
-  },
-  "completed": false,
-  "cohorts": {
-    "docker": {
-      "startMs": [],
-      "startFirstRequestMs": [],
-      "firstRequestMs": []
-    }
-  },
-  "failure": "expect(received).toBe(expected)\n\nExpected: true\nReceived: false\n"
+  "ci": "Not recorded; local or inventory evidence, not a CI pass",
+  "result": {
+    "host.cores": 2,
+    "completed": false,
+    "failure": "expect(received).toBe(expected) Expected: true Received: false"
+  }
 }

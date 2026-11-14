@@ -1,0 +1,10 @@
+{
+  "measurement": "Live Xvfb/xdotool design only; no headful browser or installed desktop acceptance",
+  "commit": "be92e89926c4d31940230c6f79eeb2d263cbbeba",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43268999503",
+  "result": {
+    "filesystemEnforced": true,
+    "owner.ownAbstractConnect": true,
+    "scope": "Live Xvfb/xdotool design only; no headful browser or installed desktop acceptance"
+  }
+}

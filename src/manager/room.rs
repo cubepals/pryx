@@ -3,13 +3,85 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
 //! Whether there is room on this host for what a verb is about to do: memory for a workload to
-//! run, disk above the floor the host keeps. It only answers; the verbs that ask (`ensure.rs`,
+//! run, disk above the floor the host keeps. Starts reserve memory atomically through their
+//! observed outcome; the verbs that ask (`ensure.rs`,
 //! `power.rs`, `restarts.rs`, `archive.rs`, `snapshots.rs`) decide what a refusal means. What
 //! workloads actually use is sampled in `stats.rs`.
 
 use super::*;
 
+pub(super) struct Starting {
+    pub memory_mb: u64,
+    pub active: bool,
+    pub ticket: Arc<()>,
+}
+pub(super) struct StartReservation {
+    state: Arc<Mutex<State>>,
+    id: WorkloadId,
+    launching: bool,
+    observed: bool,
+    ticket: Arc<()>,
+}
+impl StartReservation {
+    pub(super) fn launching(&mut self) {
+        self.launching = true;
+    }
+    pub(super) fn observed(&mut self) {
+        self.observed = true;
+    }
+}
+impl Drop for StartReservation {
+    fn drop(&mut self) {
+        let mut state = self.state.lock().unwrap();
+        if state.starting.get(&self.id).is_none_or(|start| !Arc::ptr_eq(&start.ticket, &self.ticket)) {
+            return;
+        }
+        if !self.launching || self.observed {
+            state.starting.remove(&self.id);
+        } else if let Some(start) = state.starting.get_mut(&self.id) {
+            // An unobserved start can still be running. Only a later successful runtime
+            // observation may release this reservation, never an outage or cancellation.
+            start.active = false;
+        }
+    }
+}
+
+fn running_memory(state: &State, except: Option<&WorkloadId>) -> u64 {
+    state
+        .records
+        .values()
+        .filter(|record| Some(&record.id) != except)
+        .map(|record| {
+            let observed = state.copying.contains(&record.id)
+                || state.observed.get(&record.id).and_then(|o| o.info.as_ref()).is_some_and(|info| {
+                    matches!(
+                        info.status,
+                        ContainerStatus::Running | ContainerStatus::Restarting | ContainerStatus::Paused
+                    )
+                });
+            let recorded = if observed { u64::from(record.spec.resources.memory_mb) } else { 0 };
+            recorded.max(state.starting.get(&record.id).map_or(0, |start| start.memory_mb))
+        })
+        .sum()
+}
+
 impl Manager {
+    pub(super) fn uncertain_start(&self, id: &WorkloadId) -> Option<Arc<()>> {
+        self.state.lock().unwrap().starting.get(id).filter(|start| !start.active).map(|start| start.ticket.clone())
+    }
+    pub(super) fn reserve_start(&self, id: &WorkloadId, memory_mb: u64) -> Result<StartReservation, NodeError> {
+        let limit = (self.allocatable_memory_mb() as f64 * self.config.capacity.memory_overcommit) as u64;
+        let mut state = self.state.lock().unwrap();
+        let running = running_memory(&state, Some(id));
+        if running.saturating_add(memory_mb) > limit {
+            return Err(NodeError::InsufficientCapacity(format!(
+                "{running} MB of {limit} MB is taken by running or starting workloads; this one needs {memory_mb} MB"
+            )));
+        }
+        let ticket = Arc::new(());
+        state.starting.insert(id.clone(), Starting { memory_mb, active: true, ticket: ticket.clone() });
+        Ok(StartReservation { state: self.state.clone(), id: id.clone(), launching: false, observed: false, ticket })
+    }
     pub(super) fn check_disk(&self) -> Result<(), NodeError> {
         above_floor(self.store.root(), self.config.capacity.min_free_disk_mb)
     }
@@ -38,17 +110,7 @@ impl Manager {
 
     pub(super) fn running_memory_mb(&self, except: Option<&WorkloadId>) -> u64 {
         let state = self.state.lock().unwrap();
-        state
-            .records
-            .values()
-            .filter(|r| Some(&r.id) != except)
-            .filter(|r| {
-                state.observed.get(&r.id).and_then(|o| o.info.as_ref()).is_some_and(|i| {
-                    matches!(i.status, ContainerStatus::Running | ContainerStatus::Restarting | ContainerStatus::Paused)
-                })
-            })
-            .map(|r| u64::from(r.spec.resources.memory_mb))
-            .sum()
+        running_memory(&state, except)
     }
 
     pub(super) fn provisioned_memory_mb(&self) -> u64 {

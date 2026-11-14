@@ -15,6 +15,7 @@
 import { createHash } from 'node:crypto'
 import { setTimeout as pause } from 'node:timers/promises'
 import { sql } from 'drizzle-orm'
+import nodeContract from '../../openapi/node-writes.openapi.json'
 import { type Admission, NO_ROOM } from './admission.ts'
 import type { Db } from './database.ts'
 import { SECOND_MS } from './durations.ts'
@@ -26,6 +27,7 @@ import { type ProgressSink, RuntimeFull, type RuntimeHandle, type RuntimeSpec } 
 import { one } from './sql.ts'
 import type { EnsureResponse, WorkloadView } from './wire.ts'
 import type { WorkloadApi } from './workload-api.ts'
+import { requireWorkloadFeatures } from './workload-capabilities.ts'
 
 /** Node states in which a workload waited on to run never will without being asked again. */
 const NOT_STARTING = new Set(['stopped', 'crashed', 'missing', 'retained', 'fenced', 'suspended'])
@@ -107,6 +109,7 @@ export class Power {
     created: boolean,
     shouldStart = true,
   ): Promise<RuntimeHandle> {
+    requireWorkloadFeatures(spec, node.features)
     const key = row.workload
     const epoch = Number(row.epoch)
     const digest = sentDigest(spec)
@@ -127,7 +130,7 @@ export class Power {
       return handle
     }
     await progress.step(asleep ? 'resuming' : 'booting')
-    const started = await this.#api.power(node, key, epoch, 'start', !created).catch((error) => {
+    const started = await this.#admission.power(node, key, epoch, 'start', !created).catch((error) => {
       if (sent === null && error instanceof NodeRefused && PUT_AGAIN.has(error.code)) return null
       throw error
     })
@@ -162,7 +165,7 @@ export class Power {
    */
   async sleep(ref: FleetRef, node: NodeRow): Promise<'suspended' | 'stopped'> {
     this.#running.delete(ref.key)
-    if (this.#suspend && node.features.includes(SUSPEND_FEATURE)) {
+    if (this.#suspend && node.features.includes(SUSPEND_FEATURE) && (await this.#keepsMemory(ref, node))) {
       try {
         await this.#api.power(node, ref.key, ref.epoch, 'suspend')
         return 'suspended'
@@ -177,6 +180,14 @@ export class Power {
     }
     await this.halt(ref, node, 'stop')
     return 'stopped'
+  }
+
+  /** New nodes report the copy's own tier guarantee; legacy nodes retain their existing contract. */
+  async #keepsMemory(ref: FleetRef, node: NodeRow): Promise<boolean> {
+    if (!node.features.includes(nodeContract['x-pryx-resources'].unenforcedMemoryFeature)) return true
+    const view = await this.#api.view(node, ref.key, true)
+    if (view.epoch !== ref.epoch) throw new StaleHandle('The copy on the node belongs to another placement')
+    return view.guarantees?.['memory-sleep'] === true
   }
 
   /** A stop, or a kill, which gives the copy's claim on its node back. */

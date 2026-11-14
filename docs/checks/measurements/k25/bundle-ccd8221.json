@@ -1,0 +1,20 @@
+{
+  "measurement": "Actual static VM runtime/source assembly and lazy archive integrity acceptance",
+  "commit": "ccd8221098f3a16acd5eec25e9af572d63c514fb",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43497519965",
+  "job": 132134408877,
+  "artifact": {
+    "id": 14073581063,
+    "sha256": "861fbdb1396b0ddcce116ec3008f8b9d0fe3719ca1a5829edb883870f202f6fb"
+  },
+  "result": {
+    "runtimeArchiveBytes": 71233881,
+    "runtimeExpandedBytes": 201926123,
+    "runtimeEntries": 2391,
+    "sourceArchiveBytes": 291441041,
+    "sourceEntries": 551,
+    "acceptanceSeconds": 6.34,
+    "checks": "whole acquisition, offline reuse and digest/byte/mode/extra/missing/link corruption refusal pass"
+  },
+  "limits": "Preview CI artifacts only; no release publication or VM backend registration"
+}

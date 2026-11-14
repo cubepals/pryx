@@ -18,7 +18,12 @@ impl Manager {
     /// The state as every view, count and heartbeat reports it.
     fn state_in(&self, state: &State, record: &WorkloadRecord, info: Option<&ContainerInfo>) -> WorkloadState {
         let id = &record.id;
-        pending_restart(state, id, derive_state(record, info, state.stopping(id), state.suspend(id), self.sight()))
+        let sight = if self.runtime.multi_tier() && !self.runtime.tier_ready(self.record_tier(record)) {
+            Sight::Stale
+        } else {
+            self.sight()
+        };
+        pending_restart(state, id, derive_state(record, info, state.stopping(id), state.suspend(id), sight))
     }
 
     // ─── views ─────────────────────────────────────────────────────────────────────────────
@@ -28,6 +33,49 @@ impl Manager {
         let record = state.records.get(id).ok_or_else(|| NodeError::NotFound(id.clone()))?;
         let info = state.observed.get(id).and_then(|o| o.info.as_ref());
         Ok(self.build_view(&state, record, info))
+    }
+
+    fn workload_guarantees(
+        &self,
+        record: &WorkloadRecord,
+        observed: Option<&ContainerInfo>,
+    ) -> BTreeMap<crate::protocol::Guarantee, bool> {
+        use crate::protocol::Guarantee as G;
+        let tier = self.record_tier(record);
+        let mut guarantees = self.tier_guarantees(tier);
+        let rootless = if self.runtime.multi_tier() {
+            self.runtime.tier_info(tier).is_some_and(|info| info.rootless)
+        } else {
+            self.runtime_info.lock().unwrap().as_ref().is_some_and(|info| info.rootless)
+        };
+        if tier == "container" && rootless {
+            for (guarantee, configured) in [
+                (G::MemoryLimit, observed.and_then(|info| info.memory_enforced)),
+                (G::CpuLimit, observed.and_then(|info| info.cpu_enforced)),
+            ] {
+                guarantees.entry(guarantee).and_modify(|on| *on &= configured == Some(true));
+            }
+        }
+        if tier == "container"
+            && let Some(policy) = observed.and_then(|info| info.labels.get(crate::labels::LABEL_BROWSER_SANDBOX))
+        {
+            guarantees.entry(G::BrowserSandbox).and_modify(|on| *on &= policy.parse::<bool>() == Ok(true));
+        }
+        if tier == "process" {
+            let configured = observed.and_then(|info| info.labels.get(crate::labels::LABEL_BROWSER_SANDBOX));
+            guarantees.entry(G::BrowserSandbox).and_modify(|on| *on &= configured.is_some_and(|on| on == "true"));
+        }
+        guarantees
+    }
+
+    pub(crate) fn browser_policy_observed(&self, id: &WorkloadId) -> bool {
+        self.state
+            .lock()
+            .unwrap()
+            .observed
+            .get(id)
+            .and_then(|o| o.info.as_ref())
+            .is_some_and(|info| info.labels.contains_key(crate::labels::LABEL_BROWSER_SANDBOX))
     }
 
     fn build_view(&self, state: &State, record: &WorkloadRecord, info: Option<&ContainerInfo>) -> WorkloadView {
@@ -76,7 +124,8 @@ impl Manager {
         let (used, measured) =
             state.disk.get(&record.id).map(|(b, at)| (Some(*b), Some(format_time(*at)))).unwrap_or_default();
         WorkloadView {
-            isolation: (self.runtime.isolation() != "container").then(|| self.runtime.isolation().into()),
+            guarantees: self.workload_guarantees(record, info),
+            isolation: (self.record_tier(record) != "container").then(|| self.record_tier(record).into()),
             agent: self.agent_view(record, info),
             id: record.id.clone(),
             generation: record.generation,
@@ -166,4 +215,254 @@ fn pending_restart(state: &State, id: &WorkloadId, derived: WorkloadState) -> Wo
         _ => false,
     };
     if waiting { WorkloadState::Restarting } else { derived }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{protocol::Guarantee, runtime::fake::FakeRuntime};
+
+    #[test]
+    fn native_tool_announcements_require_process_tier_and_current_evidence() {
+        use crate::protocol::{Isolation, NATIVE_DESKTOP_FEATURE, NATIVE_SSH_FEATURE, TIER_CAPABILITY_SCOPE_PREFIX};
+        use pryx_agent::process_tool_policy::{DESKTOP_CAPABILITY, SSH_CAPABILITY};
+        for tier in [Isolation::Process, Isolation::Container, Isolation::Wasm] {
+            let directory = tempfile::tempdir().unwrap();
+            let config: Config = toml::from_str(&format!(
+                "deployment_id = 'test'\nnode_id = 'node'\nstate_dir = '{}'\n[api]\nlisten = '127.0.0.1:0'\n",
+                directory.path().display()
+            ))
+            .unwrap();
+            let store = Store::open(&config.state_dir).unwrap();
+            let manager = Manager::new(
+                Arc::new(config),
+                Arc::new(FakeRuntime::new().with_isolation(tier)),
+                store,
+                Arc::new(Metrics::new()),
+                Arc::new(|_, _| true),
+            );
+            for state in [false, true, false] {
+                let mut probe = manager.host_probe.lock().unwrap();
+                for capability in [DESKTOP_CAPABILITY, SSH_CAPABILITY] {
+                    if state {
+                        probe.capabilities.insert(
+                            capability.into(),
+                            crate::capability::Capability::on("model fixture: verified native tool prerequisites"),
+                        );
+                    } else {
+                        probe.capabilities.remove(capability);
+                    }
+                }
+                drop(probe);
+                let features = manager.features();
+                for feature in [NATIVE_DESKTOP_FEATURE, NATIVE_SSH_FEATURE] {
+                    assert!(features.contains(&format!("{TIER_CAPABILITY_SCOPE_PREFIX}{feature}")));
+                    assert!(!features.iter().any(|value| value == feature));
+                    assert_eq!(
+                        features.contains(&format!("tier-process:{feature}")),
+                        state && tier == Isolation::Process
+                    );
+                    for other in [Isolation::Container, Isolation::Wasm] {
+                        assert!(!features.contains(&format!("tier-{}:{feature}", other.as_str())));
+                    }
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn gaining_controllers_does_not_upgrade_an_existing_unlimited_copy() {
+        let directory = tempfile::tempdir().unwrap();
+        let (uid, gid) = (rustix::process::geteuid().as_raw(), rustix::process::getegid().as_raw());
+        let config: Config = toml::from_str(&format!(
+            "deployment_id = \"test\"\nnode_id = \"node\"\nstate_dir = \"{}\"\n[api]\nlisten = \"127.0.0.1:0\"\n\
+             [workloads]\nallowed_images = [\"alpine:\"]\ndata_owner = \"{uid}:{gid}\"\n\
+             [capacity]\nmin_free_disk_mb = 1\n",
+            directory.path().display()
+        ))
+        .unwrap();
+        let runtime = Arc::new(FakeRuntime::new());
+        runtime.runtime_info.lock().unwrap().rootless = true;
+        let store = Store::open(&config.state_dir).unwrap();
+        let manager =
+            Manager::new(Arc::new(config), runtime.clone(), store, Arc::new(Metrics::new()), Arc::new(|_, _| true));
+        assert!(manager.reconcile(Records::FromDisk).await.error.is_none());
+        let id = WorkloadId::parse("unlimited").unwrap();
+        let spec = serde_json::from_value(serde_json::json!({
+            "image": "alpine:3.22", "resources": {"memoryMb": 256, "allowUnenforcedMemory": true},
+            "storage": {"mountPath": "/data", "sizeGb": 1}
+        }))
+        .unwrap();
+        manager.ensure(id.clone(), spec, Precondition::None, None).await.unwrap();
+        {
+            let mut state = manager.state.lock().unwrap();
+            let copy = state.observed.get_mut(&id).unwrap().info.as_mut().unwrap();
+            copy.memory_enforced = Some(false);
+            copy.cpu_enforced = Some(false);
+        }
+        {
+            let mut info = manager.runtime_info.lock().unwrap();
+            let info = info.as_mut().unwrap();
+            info.memory_limit = true;
+            info.cpu_limit = true;
+        }
+        let view = manager.view(&id).unwrap();
+        assert!(!view.guarantees[&Guarantee::MemoryLimit], "the existing copy still has no memory ceiling");
+        assert!(!view.guarantees[&Guarantee::CpuLimit], "the existing copy still has no CPU enforcement");
+        let report =
+            || crate::fleet::heartbeat::heartbeat_report(&manager, &crate::ids::NodeId::from("node"), "s", None, 1);
+        let rootless_report = report();
+        assert!(rootless_report.features.iter().any(|f| f == crate::protocol::OBSERVED_RESOURCE_LIMITS_FEATURE));
+        assert_eq!(rootless_report.workloads[0].guarantees.as_ref(), Some(&view.guarantees));
+        {
+            let mut state = manager.state.lock().unwrap();
+            let copy = state.observed.get_mut(&id).unwrap().info.as_mut().unwrap();
+            copy.memory_enforced = Some(true);
+            copy.cpu_enforced = Some(true);
+        }
+        let configured = manager.view(&id).unwrap();
+        assert!(configured.guarantees[&Guarantee::MemoryLimit] && configured.guarantees[&Guarantee::CpuLimit]);
+        assert_eq!(report().workloads[0].guarantees.as_ref(), Some(&configured.guarantees));
+        {
+            let mut state = manager.state.lock().unwrap();
+            let copy = state.observed.get_mut(&id).unwrap().info.as_mut().unwrap();
+            copy.memory_enforced = Some(false);
+            copy.cpu_enforced = Some(false);
+        }
+        manager.runtime_info.lock().unwrap().as_mut().unwrap().rootless = false;
+        let rootful = manager.view(&id).unwrap();
+        assert!(
+            rootful.guarantees[&Guarantee::MemoryLimit] && rootful.guarantees[&Guarantee::CpuLimit],
+            "retain legacy rootful reporting"
+        );
+        let rootful_report = report();
+        assert!(!rootful_report.features.iter().any(|f| f == crate::protocol::OBSERVED_RESOURCE_LIMITS_FEATURE));
+        assert!(rootful_report.workloads[0].guarantees.is_none());
+        assert!(serde_json::to_value(&rootful_report.workloads[0]).unwrap().get("guarantees").is_none());
+    }
+
+    #[tokio::test]
+    async fn browser_policy_observations_withdraw_only_the_inner_sandbox_guarantee() {
+        let directory = tempfile::tempdir().unwrap();
+        let (uid, gid) = (rustix::process::geteuid().as_raw(), rustix::process::getegid().as_raw());
+        let config: Config = toml::from_str(&format!(
+            "deployment_id = \"test\"\nnode_id = \"node\"\nstate_dir = \"{}\"\n[api]\nlisten = \"127.0.0.1:0\"\n\
+             [docker]\nnative_tools_seccomp = \"/host-policy.json\"\n\
+             [workloads]\nallowed_images = [\"alpine:\"]\ndata_owner = \"{uid}:{gid}\"\n\
+             [capacity]\nmin_free_disk_mb = 1\n",
+            directory.path().display()
+        ))
+        .unwrap();
+        let runtime = Arc::new(FakeRuntime::new());
+        runtime.runtime_info.lock().unwrap().memory_limit = true;
+        let store = Store::open(&config.state_dir).unwrap();
+        let manager = Manager::new(Arc::new(config), runtime, store, Arc::new(Metrics::new()), Arc::new(|_, _| true));
+        assert!(manager.reconcile(Records::FromDisk).await.error.is_none());
+        manager.host_probe.lock().unwrap().capabilities.insert(
+            "user-namespaces".into(),
+            crate::capability::Capability::on("model fixture: host namespace capability"),
+        );
+        let id = WorkloadId::parse("browser").unwrap();
+        let spec = serde_json::from_value(serde_json::json!({
+            "image":"alpine:3.22", "resources":{"memoryMb":256},
+            "storage":{"mountPath":"/data","sizeGb":1}
+        }))
+        .unwrap();
+        manager.ensure(id.clone(), spec, Precondition::None, None).await.unwrap();
+        let report =
+            || crate::fleet::heartbeat::heartbeat_report(&manager, &crate::ids::NodeId::from("node"), "s", None, 1);
+        assert!(manager.view(&id).unwrap().guarantees[&Guarantee::BrowserSandbox]);
+        assert!(report().workloads[0].guarantees.is_none(), "ordinary rootful report stays unchanged");
+        for (policy, expected) in [("true", true), ("false", false), ("unknown", false)] {
+            manager
+                .state
+                .lock()
+                .unwrap()
+                .observed
+                .get_mut(&id)
+                .unwrap()
+                .info
+                .as_mut()
+                .unwrap()
+                .labels
+                .insert(crate::labels::LABEL_BROWSER_SANDBOX.into(), policy.into());
+            let view = manager.view(&id).unwrap();
+            assert_eq!(view.guarantees[&Guarantee::BrowserSandbox], expected);
+            assert!(view.guarantees[&Guarantee::MemoryLimit] && view.guarantees[&Guarantee::PrivateNetwork]);
+            assert_eq!(report().workloads[0].guarantees.as_ref(), Some(&view.guarantees));
+        }
+        manager.host_probe.lock().unwrap().capabilities.remove("user-namespaces");
+        manager
+            .state
+            .lock()
+            .unwrap()
+            .observed
+            .get_mut(&id)
+            .unwrap()
+            .info
+            .as_mut()
+            .unwrap()
+            .labels
+            .insert(crate::labels::LABEL_BROWSER_SANDBOX.into(), true.to_string());
+        assert!(
+            !manager.view(&id).unwrap().guarantees[&Guarantee::BrowserSandbox],
+            "a copy cannot promote host capability"
+        );
+    }
+
+    #[tokio::test]
+    async fn process_browser_copy_guarantees_reach_the_heartbeat() {
+        let directory = tempfile::tempdir().unwrap();
+        let (uid, gid) = (rustix::process::geteuid().as_raw(), rustix::process::getegid().as_raw());
+        let config: Config = toml::from_str(&format!(
+            "deployment_id = 'test'\nnode_id = 'node'\nstate_dir = '{}'\n[api]\nlisten = '127.0.0.1:0'\n\
+             [workloads]\ndata_owner = '{uid}:{gid}'\n[capacity]\nmin_free_disk_mb = 1\n",
+            directory.path().display()
+        ))
+        .unwrap();
+        let store = Store::open(&config.state_dir).unwrap();
+        let runtime = Arc::new(FakeRuntime::new().with_isolation(crate::protocol::Isolation::Process));
+        let manager = Manager::new(Arc::new(config), runtime, store, Arc::new(Metrics::new()), Arc::new(|_, _| true));
+        assert!(manager.reconcile(Records::FromDisk).await.error.is_none());
+        let capability = pryx_agent::process_tool_policy::BROWSER_CAPABILITY;
+        manager.host_probe.lock().unwrap().capabilities.insert(
+            capability.into(),
+            crate::capability::Capability::on("model fixture: verified process browser prerequisites"),
+        );
+        let id = WorkloadId::parse("process-browser").unwrap();
+        let spec = serde_json::from_value(serde_json::json!({
+            "isolation":"process", "image":"", "resources":{"memoryMb":256},
+            "storage":{"mountPath":"/data","sizeGb":1}
+        }))
+        .unwrap();
+        manager.ensure(id.clone(), spec, Precondition::None, Some(7)).await.unwrap();
+        manager.start(id.clone(), Some(7)).await.unwrap();
+        let report =
+            || crate::fleet::heartbeat::heartbeat_report(&manager, &crate::ids::NodeId::from("node"), "s", None, 1);
+        assert!(!manager.view(&id).unwrap().guarantees[&Guarantee::BrowserSandbox]);
+        assert!(report().workloads[0].guarantees.is_none(), "a legacy copy adds no unobserved map");
+        for (policy, expected) in [("false", false), ("unknown", false), ("true", true)] {
+            manager
+                .state
+                .lock()
+                .unwrap()
+                .observed
+                .get_mut(&id)
+                .unwrap()
+                .info
+                .as_mut()
+                .unwrap()
+                .labels
+                .insert(crate::labels::LABEL_BROWSER_SANDBOX.into(), policy.into());
+            let view = manager.view(&id).unwrap();
+            assert_eq!(view.guarantees[&Guarantee::BrowserSandbox], expected);
+            let copy = &report().workloads[0];
+            assert_eq!(copy.epoch, Some(7));
+            assert_eq!(copy.guarantees.as_ref(), Some(&view.guarantees));
+        }
+        manager.host_probe.lock().unwrap().capabilities.remove(capability);
+        let view = manager.view(&id).unwrap();
+        assert!(!view.guarantees[&Guarantee::BrowserSandbox], "a copy cannot promote host capability");
+        assert_eq!(report().workloads[0].guarantees.as_ref(), Some(&view.guarantees));
+    }
 }

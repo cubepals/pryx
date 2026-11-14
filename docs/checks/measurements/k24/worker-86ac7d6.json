@@ -1,0 +1,16 @@
+{
+  "measurement": "Retained completed hosted evidence; does not prove installed product acceptance",
+  "commit": "86ac7d663f0f3f6cb54c67c893b25b5f20f42049",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43286192692",
+  "result": {
+    "ssh.clientKeyOnlyInAgentMemory": true,
+    "ssh.command": true,
+    "ssh.neighbour.ownerFilesDenied": true,
+    "ssh.neighbourFilesDeniedThroughSsh": true,
+    "ssh.persistentDataHasNoAuthorization": true,
+    "ssh.pty": true,
+    "ssh.scope": "Real staged OpenSSH worker; installed SDK/HTTP-edge wake and thirty samples still required",
+    "ssh.strictHostKey": true,
+    "scope": "Retained completed hosted evidence; does not prove installed product acceptance"
+  }
+}

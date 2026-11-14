@@ -1339,6 +1339,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/_pryx/ssh/{id}/connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Binary OpenSSH stream over an authenticated WebSocket; lease expiry and revocation close the stream */
+                101: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/_pryx/ssh/{id}/expiry": {
         parameters: {
             query?: never;
@@ -1586,6 +1621,7 @@ export interface components {
             /** Format: uint16 */
             slot: number;
             user: string;
+            webSocket?: boolean | null;
         };
         SshExpiry: {
             /** Format: int64 */
@@ -1602,6 +1638,7 @@ export interface components {
             /** Format: uint16 */
             slot: number;
             user: string;
+            webSocket?: boolean | null;
         };
         Start: {
             /** Format: uint16 */

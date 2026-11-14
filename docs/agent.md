@@ -131,6 +131,11 @@ acceptance is run in CI. [speed.md](checks/speed.md) records measured cohorts an
 
 ## Field API version 2
 
+Process agents may additionally report `processIpcScoped: true` after installing their own
+Landlock abstract-socket scope. The field is absent otherwise, including legacy agents.
+It describes an enforced IPC primitive, not native-tool availability or isolation from
+unscoped legacy peers; `toolsVersion` and `kernelsVersion` remain API versions.
+
 Authenticated health announces `apiVersion: 2`. SDKs check it before every new route family,
 cache that answer per capability and invalidate it after lifecycle changes. New routes are:
 

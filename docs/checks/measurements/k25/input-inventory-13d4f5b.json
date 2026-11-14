@@ -1,0 +1,12 @@
+{
+  "measurement": "Verified actual primary archive bytes; no monitor or kernel executed",
+  "commit": "13d4f5b",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43437923851",
+  "result": {
+    "candidates.bytes": {
+      "n": 2,
+      "p50": 7606252,
+      "p90": 1021129805
+    }
+  }
+}

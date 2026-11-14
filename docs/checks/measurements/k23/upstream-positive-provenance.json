@@ -1,0 +1,9 @@
+{
+  "measurement": "Verified upstream bundle and real relocated tools; ordinary-user Pryx installer, complete process policy, edge, neighbour, lazy acquisition, SDK and thirty-sample acceptance remain required",
+  "commit": "54b9e62e885676f69aa5c946f94ab87cb8c6df28",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43111625306",
+  "result": {
+    "inventoryEntries": 34489,
+    "scope": "Verified upstream bundle and real relocated tools; ordinary-user Pryx installer, complete process policy, edge, neighbour, lazy acquisition, SDK and thirty-sample acceptance remain required"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "measurement": "ssh lease c471eb6",
+  "commit": "c471eb6df066d244eacb059ac5e9e01d8ddb4417",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43303928155",
+  "result": {
+    "report.expiredReconnectDenied": true,
+    "report.expiryStreamClosed": true,
+    "report.nativeSshLease": true,
+    "report.revokedStreamClosed": true,
+    "report.scope": "authenticated actual process agent and private Unix OpenSSH forwarding"
+  }
+}

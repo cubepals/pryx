@@ -27,6 +27,7 @@
 //! - `restarts.rs`: brings a workload back without being asked, after a crash or a host restart.
 //! - `fence.rs`: fences a copy a newer placement has superseded.
 //! - `delete.rs`: removes a workload, and its data when told to.
+//! - `copy.rs`: stopped-disk copy barriers, resume authority and memory reservations.
 //! - `archive.rs`: carries a data's data between this node and an object store.
 //! - `snapshots.rs`: local snapshots of a workload's data.
 //! - `exec.rs`: runs a command inside a running workload.
@@ -34,6 +35,7 @@
 //! - `agent_keys.rs`: epoch-scoped private signing material outside sandbox data.
 //! - `files.rs`: guarded access to persistent data without running compute.
 //! - `logs.rs`: reads a workload's log.
+//! - `tiers.rs`: persisted workload tier selection and backend policy.
 //! - `stats.rs`: samples what workloads use.
 //! - `fleet.rs`: the node's standing with its control plane.
 //! - `node.rs`: what the node reports about itself as a whole.
@@ -84,6 +86,7 @@ use crate::store::{AllocatedPort, PendingSpec, Phase, RECORD_VERSION, Store, Sus
 mod agent;
 mod agent_keys;
 mod archive;
+mod copy;
 mod delete;
 mod ensure;
 mod error;
@@ -102,6 +105,7 @@ mod room;
 mod snapshots;
 mod stats;
 mod store_lease;
+mod tiers;
 mod view;
 mod workload_state;
 
@@ -196,6 +200,8 @@ struct State {
     stats: HashMap<WorkloadId, StatsSample>,
     disk: HashMap<WorkloadId, (u64, OffsetDateTime)>,
     stopping: HashSet<WorkloadId>,
+    copying: HashSet<WorkloadId>,
+    starting: HashMap<WorkloadId, room::Starting>,
     last_failure: HashMap<WorkloadId, OffsetDateTime>,
     /// Failures waiting for their restart, and when it is due.
     restart_due: HashMap<WorkloadId, Instant>,
@@ -238,6 +244,7 @@ pub struct Manager {
     runtime_era: std::sync::atomic::AtomicU64,
     restart_wake: tokio::sync::Notify,
     runtime_info: Mutex<Option<RuntimeInfo>>,
+    host_probe: Mutex<crate::probe::Report>,
     memory_total_mb: u64,
     cpus: u32,
     fleet: Mutex<FleetState>,
@@ -367,6 +374,7 @@ impl Manager {
         probe: Probe,
         boot_id: Option<String>,
     ) -> Arc<Self> {
+        let runtime = crate::runtime::router::for_manager(runtime);
         let [low, high] = config.network.port_range;
         let ports = PortAllocator::new(low..=high, Duration::from_secs(config.network.port_quarantine_seconds), probe);
         let facts = config.host_facts();
@@ -381,6 +389,8 @@ impl Manager {
                 stats: HashMap::new(),
                 disk: HashMap::new(),
                 stopping: HashSet::new(),
+                copying: HashSet::new(),
+                starting: HashMap::new(),
                 last_failure: HashMap::new(),
                 restart_due: HashMap::new(),
                 resuming: HashSet::new(),
@@ -403,6 +413,7 @@ impl Manager {
             runtime_era: std::sync::atomic::AtomicU64::new(0),
             restart_wake: tokio::sync::Notify::new(),
             runtime_info: Mutex::new(None),
+            host_probe: Mutex::new(crate::probe::Report::default()),
             memory_total_mb: facts.memory_total_bytes.map_or(0, |b| b / (1024 * 1024)),
             cpus: facts.cpus,
             fleet: Mutex::new(FleetState::default()),
@@ -429,9 +440,9 @@ impl Manager {
     }
 
     /// Whether what pryxd remembers about workloads is current: the runtime answers, and a
-    /// full pass has looked since it last didn't. Otherwise every state reads `unknown`: after an
-    /// outage the last observation is history (a daemon stop kills workloads), and reporting it
-    /// as the state would tell the control plane something false.
+    /// full pass has looked since it last didn't. Independent tiers additionally require their
+    /// own complete inventory. An unavailable tier's last observation is history, never missing
+    /// compute or a reason to redirect its saved workload.
     pub(crate) fn trustworthy(&self) -> bool {
         self.docker_up() && self.reconciled()
     }
@@ -442,13 +453,16 @@ impl Manager {
     }
 
     /// Records whether the runtime answered; every runtime error funnels through here. An
-    /// outage also forgets that pryxd was reconciled: whatever happened while it couldn't
-    /// look (a daemon stop kills workloads) is unknown until a full pass has looked again.
+    /// single-backend outage forgets reconciliation. A router keeps healthy tiers serving and
+    /// independently invalidates an unreadable tier until its next complete inventory.
     fn note<T>(&self, result: Result<T, RuntimeError>) -> Result<T, RuntimeError> {
         match &result {
             Err(e) if e.is_unavailable() => {
-                self.docker_up.store(false, Ordering::SeqCst);
-                self.reconciled.store(false, Ordering::SeqCst);
+                if !self.runtime.multi_tier() || !self.runtime.tiers().iter().any(|tier| self.runtime.tier_ready(tier))
+                {
+                    self.docker_up.store(false, Ordering::SeqCst);
+                    self.reconciled.store(false, Ordering::SeqCst);
+                }
                 self.runtime_era.fetch_add(1, Ordering::SeqCst);
             }
             _ => self.docker_up.store(true, Ordering::SeqCst),
@@ -482,10 +496,10 @@ impl Manager {
         self.config.capacity.allocatable_mb(self.memory_total_mb)
     }
 
-    pub(crate) fn spec_policy(&self) -> SpecPolicy {
+    pub(crate) fn spec_policy(&self, runtime: &dyn ContainerRuntime) -> SpecPolicy {
         SpecPolicy {
-            process: self.runtime.is_process(),
-            wasm: self.runtime.is_wasm(),
+            process: runtime.is_process(),
+            wasm: runtime.is_wasm(),
             allowed_images: self.config.workloads.allowed_images.clone(),
             min_memory_mb: self.config.workloads.min_memory_mb,
             max_memory_mb: u32::try_from(self.allocatable_memory_mb()).unwrap_or(u32::MAX),
@@ -568,13 +582,36 @@ impl Manager {
 
     /// Looks at the container now and remembers what it saw.
     async fn observe(&self, record: &WorkloadRecord) -> Result<Option<ContainerInfo>, NodeError> {
+        let ticket = self.uncertain_start(&record.id);
         let info = if record.phase == Phase::Retained { None } else { self.inspect(&record.container_name).await? };
-        self.remember(&record.id, info.clone()).await;
+        self.remember_observation(&record.id, info.clone(), ticket).await;
         Ok(info)
     }
 
     async fn remember(&self, id: &WorkloadId, info: Option<ContainerInfo>) {
-        if self.note_observed(id, info)
+        let (info, ticket) = if let Some(ticket) = self.uncertain_start(id) {
+            // Inventory can predate the failed start. Re-read after its owner released the
+            // reservation, and resolve only that same ticket after a successful observation.
+            let Some(record) = self.state.lock().unwrap().records.get(id).cloned() else { return };
+            let fresh = match self.inspect(&record.container_name).await {
+                Ok(info) => info,
+                Err(problem) => {
+                    self.set_issue(
+                        id,
+                        Issue::new(IssueCode::RuntimeUnavailable, format!("Start outcome is unconfirmed: {problem}")),
+                    );
+                    return;
+                }
+            };
+            (fresh, Some(ticket))
+        } else {
+            (info, None)
+        };
+        self.remember_observation(id, info, ticket).await;
+    }
+
+    async fn remember_observation(&self, id: &WorkloadId, info: Option<ContainerInfo>, ticket: Option<Arc<()>>) {
+        if self.note_observed(id, info, ticket)
             && let Err(e) = self.write_record(id).await
         {
             tracing::warn!(workload = %id, error = %e, "couldn't record which boot the workload ran in");
@@ -582,9 +619,15 @@ impl Manager {
     }
 
     /// What `remember` notes in memory; whether the record's boot changed, which is then written.
-    fn note_observed(&self, id: &WorkloadId, info: Option<ContainerInfo>) -> bool {
+    fn note_observed(&self, id: &WorkloadId, info: Option<ContainerInfo>, ticket: Option<Arc<()>>) -> bool {
         let mut state = self.state.lock().unwrap();
-        let era = self.runtime_era.load(Ordering::SeqCst);
+        if let Some(ticket) = ticket
+            && state.starting.get(id).is_some_and(|start| !start.active && Arc::ptr_eq(&start.ticket, &ticket))
+        {
+            state.starting.remove(id);
+        }
+        let tier_era = state.records.get(id).map_or(0, |record| self.runtime.tier_era(self.record_tier(record)));
+        let era = self.runtime_era.load(Ordering::SeqCst).saturating_add(tier_era);
         // A failure pryxd watched happen: it was running at the last look, in this same era,
         // and has now exited badly. Anything else (found dead at startup, after a reboot or a
         // runtime outage) is reported and left alone.

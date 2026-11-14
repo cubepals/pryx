@@ -1,0 +1,22 @@
+{
+  "measurement": "Thirty sequential samples per process tool: sandbox create through validated first PNG; browser includes its own HTTP page-server startup, kernels include first chart. Bundle already acquired by preceding functional tests; every fresh supervisor still verifies its cached inventory. Four default units requested. Host glibc 2.39, x86_64, Landlock ABI 8, ordinary uid 1002, no engine. Process CPU/memory guarantees differ\u2026",
+  "commit": "3b20de4ee7a7ac49e00fa769051f3507f178e8fc",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43210142686",
+  "result": {
+    "summary.browser": {
+      "n": 30,
+      "p50Ms": 8867.428,
+      "p90Ms": 9000.073
+    },
+    "summary.python": {
+      "n": 30,
+      "p50Ms": 11957.537,
+      "p90Ms": 12061.486
+    },
+    "summary.javascript": {
+      "n": 30,
+      "p50Ms": 7925.848,
+      "p90Ms": 8075.039
+    }
+  }
+}

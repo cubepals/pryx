@@ -4,7 +4,6 @@
 //! Agent bootstrap and short-lived capabilities. Private signing material stays in the runtime's
 //! secret environment; neither records, labels nor a workload view can contain its value.
 
-use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 
 use pryx_agent::auth::{Claims, SigningKey, TOKEN_LIFETIME_SECONDS};
@@ -17,40 +16,19 @@ use crate::protocol::{
 use crate::runtime::AgentBoot;
 
 impl Manager {
-    pub(super) fn agent_binary(&self) -> Option<PathBuf> {
-        if !self.runtime.supports_agent() {
+    pub(super) fn agent_binary(&self, runtime: &dyn ContainerRuntime) -> Option<PathBuf> {
+        if !runtime.supports_agent() {
             return None;
         }
-        if self.runtime.is_wasm() {
+        if runtime.is_wasm() {
             return std::env::current_exe().ok();
         }
-        let path = &self.config.workloads.agent_binary;
-        let metadata = std::fs::symlink_metadata(path).ok()?;
-        if !metadata.is_file()
-            || metadata.mode() & 0o022 != 0
-            || metadata.mode() & 0o111 == 0
-            || (metadata.uid() != rustix::process::geteuid().as_raw()
-                && !(self.runtime.is_process() && metadata.uid() == 0))
-        {
-            return None;
-        }
-        // Writable ancestors would let another user replace a checked executable by path.
-        for parent in path.ancestors().skip(1) {
-            let metadata = std::fs::symlink_metadata(parent).ok()?;
-            if !metadata.is_dir()
-                || metadata.mode() & 0o022 != 0
-                || (metadata.uid() != rustix::process::geteuid().as_raw()
-                    && !(self.runtime.is_process() && metadata.uid() == 0))
-            {
-                return None;
-            }
-        }
-        Some(path.clone())
+        crate::runtime::protected_agent(&self.config.workloads.agent_binary, runtime.is_process())
     }
 
-    pub(super) fn requested_ports(&self, spec: &WorkloadSpec) -> Vec<PortSpec> {
+    pub(super) fn requested_ports(&self, spec: &WorkloadSpec, runtime: &dyn ContainerRuntime) -> Vec<PortSpec> {
         let mut ports = spec.ports.clone();
-        if self.agent_binary().is_some() {
+        if self.agent_binary(runtime).is_some() {
             let mut candidate = pryx_agent::contract::AGENT_PORT;
             for slot in 0..=self.spare_count(spec) {
                 while ports.iter().any(|p| p.protocol == Proto::Tcp && p.container_port == candidate) {
@@ -80,10 +58,11 @@ impl Manager {
         record: &WorkloadRecord,
         spec: &WorkloadSpec,
     ) -> Result<Option<(AgentBoot, String)>, NodeError> {
-        let Some(binary) = self.agent_binary() else { return Ok(None) };
+        let runtime = self.record_runtime(record)?;
+        let Some(binary) = self.agent_binary(runtime.as_ref()) else { return Ok(None) };
         let encoded = super::agent_keys::load(&self.config.state_dir, &record.id, record.epoch.unwrap_or_default())
             .map_err(|source| NodeError::Io { what: "sandbox signing material".into(), source })?;
-        let ports = self.requested_ports(spec);
+        let ports = self.requested_ports(spec, runtime.as_ref());
         let agent_port = ports
             .iter()
             .find(|p| p.name == AGENT_PORT_NAME)
@@ -112,22 +91,26 @@ impl Manager {
 
     pub(super) fn agent_view(&self, record: &WorkloadRecord, info: Option<&ContainerInfo>) -> Option<AgentView> {
         let info = info?;
+        let runtime = self.record_runtime(record).ok()?;
         let key_name = info.labels.get(KEY_LABEL)?;
         let key = SigningKey::from_encoded(info.env.get(key_name)?).ok()?;
         let port = |p: &AllocatedPort| AgentPort {
-            port: if self.runtime.uses_host_ports() { p.host_port } else { p.container_port },
+            port: if runtime.uses_host_ports() { p.host_port } else { p.container_port },
             host_port: p.host_port,
             endpoints: self.config.network.edge_ips.iter().map(|ip| endpoint(ip, p.host_port)).collect(),
         };
-        let data = pryx_agent::paths::DataDir::open(&self.runtime.data_path(&self.store.data_dir(&record.id))).ok();
-        let ports: pryx_agent::state::PortState = data
-            .as_ref()
-            .and_then(|d| pryx_agent::state::read(d, pryx_agent::state::PORTS_PATH).ok())
-            .unwrap_or_default();
-        let activity: pryx_agent::state::Activity = data
-            .as_ref()
-            .and_then(|d| pryx_agent::state::read(d, pryx_agent::state::ACTIVITY_PATH).ok())
-            .unwrap_or_default();
+        let data = pryx_agent::paths::DataDir::open(&runtime.data_path(&self.store.data_dir(&record.id))).ok();
+        let (ports, activity) = match &info.agent_state {
+            Some(snapshot) => (snapshot.ports.clone(), snapshot.activity.clone()),
+            None => (
+                data.as_ref()
+                    .and_then(|d| pryx_agent::state::read(d, pryx_agent::state::PORTS_PATH).ok())
+                    .unwrap_or_default(),
+                data.as_ref()
+                    .and_then(|d| pryx_agent::state::read(d, pryx_agent::state::ACTIVITY_PATH).ok())
+                    .unwrap_or_default(),
+            ),
+        };
         let spares: Vec<_> = record
             .ports
             .iter()
@@ -194,5 +177,44 @@ impl Manager {
         };
         let token = key.sign(&claims).map_err(|_| NodeError::Internal("Cannot issue sandbox token".into()))?;
         Ok(AgentTokenResponse { token, expires_at, epoch, agent })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::runtime::docker::DockerRuntime;
+    use std::os::unix::fs::{PermissionsExt, symlink};
+
+    #[test]
+    fn container_agents_accept_trusted_root_ancestors_and_reject_writable_or_linked_paths() {
+        let directory = tempfile::Builder::new()
+            .prefix("pryx-agent-trust-")
+            .tempdir_in(std::env::var_os("HOME").expect("the test runner has a home"))
+            .unwrap();
+        let binary = directory.path().join("agent");
+        std::fs::write(&binary, b"trusted executable fixture, never executed").unwrap();
+        std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let config: Config = toml::from_str(&format!(
+            "deployment_id = \"test\"\nnode_id = \"node\"\nstate_dir = {:?}\n[api]\nlisten = \"127.0.0.1:0\"\n\
+             [workloads]\nagent_binary = {binary:?}\n",
+            directory.path().join("state"),
+        ))
+        .unwrap();
+        let runtime = Arc::new(DockerRuntime::new(&directory.path().join("unused.sock")).unwrap());
+        let store = Store::open(&config.state_dir).unwrap();
+        let manager =
+            Manager::new(Arc::new(config), runtime.clone(), store, Arc::new(Metrics::new()), Arc::new(|_, _| true));
+        assert_eq!(manager.agent_binary(runtime.as_ref()), Some(binary.clone()));
+        std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o722)).unwrap();
+        assert!(manager.agent_binary(runtime.as_ref()).is_none());
+        std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o700)).unwrap();
+        std::fs::set_permissions(directory.path(), std::fs::Permissions::from_mode(0o722)).unwrap();
+        assert!(manager.agent_binary(runtime.as_ref()).is_none());
+        std::fs::set_permissions(directory.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let kept = directory.path().join("kept");
+        std::fs::rename(&binary, &kept).unwrap();
+        symlink(&kept, &binary).unwrap();
+        assert!(manager.agent_binary(runtime.as_ref()).is_none());
     }
 }

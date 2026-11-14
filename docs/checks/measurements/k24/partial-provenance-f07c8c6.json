@@ -1,0 +1,27 @@
+{
+  "measurement": "A failed installed-product job, not milestone completion. The incremental collector retains all ninety browser/kernel samples and one desktop sample; the next desktop screenshot fails. No SSH timing cohort ran. A separately reproduced listener-before-metadata race is corrected in 53e8350 and still requires fresh hosted proof.",
+  "commit": "f07c8c607cda9265c95707b8e645691c4ec301f3",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43416258168",
+  "result": {
+    "summary.browser": {
+      "n": 30,
+      "p50Ms": 8956.007,
+      "p90Ms": 9011.125
+    },
+    "summary.python": {
+      "n": 30,
+      "p50Ms": 10921.586,
+      "p90Ms": 11219.581
+    },
+    "summary.javascript": {
+      "n": 30,
+      "p50Ms": 7973.813,
+      "p90Ms": 8796.971
+    },
+    "summary.desktop": {
+      "n": 1,
+      "p50Ms": 9112.045,
+      "p90Ms": 9112.045
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "measurement": "Staged component only; not published or announced",
+  "commit": "be92e89926c4d31940230c6f79eeb2d263cbbeba",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43268999503",
+  "result": {
+    "format": 1,
+    "scope": "Staged component only; not published or announced"
+  }
+}

@@ -856,6 +856,20 @@
         ],
         "type": "object"
       },
+      "Guarantee": {
+        "enum": [
+          "separate-users",
+          "memory-limit",
+          "cpu-limit",
+          "private-network",
+          "host-firewall",
+          "own-kernel",
+          "memory-sleep",
+          "browser-sandbox",
+          "private-pids"
+        ],
+        "type": "string"
+      },
       "Health": {
         "enum": [
           "starting",
@@ -1678,6 +1692,13 @@
       "Resources": {
         "additionalProperties": false,
         "properties": {
+          "allowUnenforcedMemory": {
+            "description": "Accept missing memory enforcement only on an engine without its controller. A capable\nengine still enforces memoryMb. Sent only after unenforced-memory is announced.",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "cpuMillis": {
             "default": null,
             "description": "CPU ceiling in thousandths of a core (CFS quota). Also what the JVM counts as its\nprocessors. Absent: no ceiling, weight only.",
@@ -1708,7 +1729,7 @@
             ]
           },
           "memoryMb": {
-            "description": "Hard memory limit (no swap). Expressed in MiB.",
+            "description": "Hard memory limit (no swap), in MiB; admission reservation when unenforced memory is explicitly accepted.",
             "format": "uint32",
             "minimum": 0,
             "type": "integer"
@@ -2134,6 +2155,43 @@
             "minimum": 0,
             "type": "integer"
           },
+          "guarantees": {
+            "additionalProperties": false,
+            "description": "Copy-bound guarantees, announced by rootless engines rather than inferred from node capacity.",
+            "properties": {
+              "browser-sandbox": {
+                "type": "boolean"
+              },
+              "cpu-limit": {
+                "type": "boolean"
+              },
+              "host-firewall": {
+                "type": "boolean"
+              },
+              "memory-limit": {
+                "type": "boolean"
+              },
+              "memory-sleep": {
+                "type": "boolean"
+              },
+              "own-kernel": {
+                "type": "boolean"
+              },
+              "private-network": {
+                "type": "boolean"
+              },
+              "private-pids": {
+                "type": "boolean"
+              },
+              "separate-users": {
+                "type": "boolean"
+              }
+            },
+            "type": [
+              "object",
+              "null"
+            ]
+          },
           "id": {
             "type": "string"
           },
@@ -2318,6 +2376,39 @@
             "minimum": 0,
             "type": "integer"
           },
+          "guarantees": {
+            "additionalProperties": false,
+            "properties": {
+              "browser-sandbox": {
+                "type": "boolean"
+              },
+              "cpu-limit": {
+                "type": "boolean"
+              },
+              "host-firewall": {
+                "type": "boolean"
+              },
+              "memory-limit": {
+                "type": "boolean"
+              },
+              "memory-sleep": {
+                "type": "boolean"
+              },
+              "own-kernel": {
+                "type": "boolean"
+              },
+              "private-network": {
+                "type": "boolean"
+              },
+              "private-pids": {
+                "type": "boolean"
+              },
+              "separate-users": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
           "health": {
             "anyOf": [
               {
@@ -2466,11 +2557,16 @@
     "tokenLifetimeSeconds": 300,
     "tokenPrefix": "pa1"
   },
+  "x-pryx-native-tools": {
+    "desktopFeature": "native-desktop",
+    "sshFeature": "native-ssh"
+  },
   "x-pryx-network": {
     "defaultPortRange": [
       42000,
       42999
-    ]
+    ],
+    "policyFeature": "network-policy"
   },
   "x-pryx-process": {
     "imageProblem": "this host runs the process tier; images are not available"
@@ -2478,7 +2574,13 @@
   "x-pryx-resources": {
     "cpuLimitProblem": "CPU ceilings and weights require container isolation",
     "defaultMinMemoryMb": 256,
-    "minCpuMillis": 100
+    "minCpuMillis": 100,
+    "nativeBrowserPolicyFeature": "native-browser-policy",
+    "observedGuaranteesFeature": "observed-resource-limits",
+    "unenforcedMemoryFeature": "unenforced-memory"
+  },
+  "x-pryx-tiers": {
+    "capabilityScopePrefix": "tier-capabilities:"
   },
   "x-pryx-wasm": {
     "imageProblem": "this host runs the wasm tier; images are not available",

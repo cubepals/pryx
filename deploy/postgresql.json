@@ -1,0 +1,9 @@
+{
+  "version": "17.11.0",
+  "major": "17",
+  "url": "https://github.com/theseus-rs/postgresql-binaries/releases/download/17.11.0/postgresql-17.11.0-x86_64-unknown-linux-gnu.tar.gz",
+  "apiUrl": "https://api.github.com/repos/theseus-rs/postgresql-binaries/releases/assets/515231092",
+  "sha256": "b7a1ba6bae6499d8296e3e81b0171eecfd1766ca9aaa0057e41ad3e844e5e2e0",
+  "source": "https://github.com/theseus-rs/postgresql-binaries/tree/17.11.0",
+  "license": "PostgreSQL"
+}

@@ -2,17 +2,76 @@
 
 # Sandbox tiers
 
-The image contains container, process and wasm runtimes. A usable Docker socket selects
-container; `PRYX_DEFAULT_TIER=container|process|wasm` is an operator override. The no-engine
-selection is **process**, the measured winner for this workload. Wasm remains available through
-`PRYX_DEFAULT_TIER=wasm` or explicit placement. The complete measurements and limits follow.
+A node with `runtime = "auto"` serves every backend its measured host capabilities permit.
+Container, process and Wasm workloads can coexist under one capacity and reservation ledger.
+Each workload keeps its chosen tier for its lifetime and reports that tier's guarantees.
+A named unavailable tier is refused; it is never substituted.
+
+For an unnamed request, control chooses container, then process, then Wasm among healthy nodes
+that meet `require` and accept the supplied source: images need containers, image-free requests
+use process or Wasm, and package requests need Wasm. Snapshots and templates retain their saved
+tier. VM joins that order between container and process when available in K25.
+`PRYX_DEFAULT_ISOLATION=process` fixes one tier; a comma-separated list changes the priority.
+Local installations retain this preference across user-manager restarts and upgrades.
+The image and new local installations use auto mode. Without an engine, the usual first choice
+remains **process**, with Wasm available alongside it. `PRYX_DEFAULT_TIER` remains a legacy
+single-backend override. Explicit `runtime` settings and older installation records retain their
+single backend. Both doctors list enabled tiers and reasons for those that are off.
+Before switching an older configuration to auto, start it once with its previous explicit
+runtime to save existing workloads' tiers. Auto can identify existing compute and container
+images; it refuses a resting legacy record whose process/Wasm identity cannot be established.
+
+The measurement tables retain their original contexts and budgets; committed records contain aggregate summaries, with raw samples in CI artifacts.
+
+## Rootless engine measurements
+
+The [ordinary-user engine run](https://github.com/cubepals/pryx/actions/runs/43071213897)
+measures source `197a372781c654311205064e3f482852b2e01907` on an x86_64 Ubuntu 24.04 hosted
+runner. Podman is the pinned Ubuntu `4.9.3+ds1-1ubuntu0.2` package, with vfs storage and no
+delegated controllers. Each fresh workload reserves 256 MiB for admission and explicitly accepts
+missing memory enforcement; CPU, PID and memory-sleep limits are off. The same job proves
+nonzero identity, readonly root, zero kernel capabilities, PID and network separation,
+HTTP ingress, snapshot/fork retention, stop/wake and bounded exec-tree cancellation.
+A separate private-network case proves published ingress, no default route and denied external
+egress after an internet-mode canary first proves the target is reachable.
+
+These are **direct node-manager measurements**. They include neither the public API nor the
+edge, and do not replace the public-edge cohorts and budgets below. All 30 serial samples
+use a locally available image and a new workload identity. Create includes ensure and start;
+exec runs `true` after writing the service's data file outside the exec timer; network is one
+HTTP request through the engine's published loopback port, returning that file. Image pulling,
+strict deletion and installer startup are outside these timers. Percentiles use nearest rank.
+
+| Engine and host context | Completed samples | Create ms p50 / p90 | Exec ms p50 / p90 | HTTP round trip ms p50 / p90 |
+| --- | ---: | ---: | ---: | ---: |
+| Rootless Podman, ordinary runner user | 30 | 2247.29 / 2472.42 | 75.68 / 265.73 | 3.07 / 3.20 |
+| Standard rootless Docker 29.9.2 mapping | 0 | Unavailable | Unavailable | Unavailable |
+
+The standard Docker mapping cannot expose daemon-owned data to the required nonzero sandbox
+user: default and host namespaces deny the write, and keep-id is unsupported. It refuses
+`data-owner-mapping` before data or compute, while other tiers remain available. Its positive
+lifecycle and timings are parked; a custom mapped local daemon is not evidence for that host.
+Rootless Docker also refuses `network-policy` for `network: "none"`: its internal bridges cannot
+provide ingress through the node user. Podman uses native published ingress for internal bridges.
+The [Podman samples](checks/measurements/k22/podman-197a372.json),
+[Docker refusal](checks/measurements/k22/docker-197a372.json) and
+[artifact provenance](checks/measurements/k22/provenance-197a372.json) are summarized after
+checking their GitHub archive digests. A failed collection retains its partial sample count
+and cannot report completion.
+
+Rootless memory/CPU guarantees require both engine support and an enforced limit observed on
+that sandbox copy. Nodes announcing `observed-resource-limits` include the copy's guarantees
+in heartbeats; the public API uses the report matching its node and placement epoch. Missing
+observations keep these guarantees off. A controller enabled later therefore leaves an older
+unlimited copy's limits off until a configured replacement is observed. Placement still uses
+the node's available capabilities, and legacy/rootful reporting retains its existing contract.
 
 ## Comparison method
 
 `control/bench/tiers.ts one-box|image output-prefix` runs all three tiers from the same release
 source and build profile on the same runner. Container and process are the reference cohorts
 and wasm is the added candidate. Historical K12 measurements remain separate; they are not
-substituted for a current reference. Both existing CI jobs upload raw samples on failure too.
+substituted for a current reference. Both existing CI jobs upload measurement summaries on failure too.
 
 Each requested latency and incremental memory cohort has 30 samples; nearest-rank p50 and
 p90 are computed from every successful sample, with partial counts retained on failure.
@@ -74,7 +133,7 @@ stored explicit and legacy implicit pools remain stable across restarts.
 The ordinary-image comparison supplies an explicit bounded edge profile: 64 simultaneous
 greetings per address, a burst of 128 connections and 64 new connections per second. This
 admits the fifty-client experiment without disabling any guard. Default/forced-Wasm goal
-cohorts retain the normal edge limits. Raw reports identify the comparison profile.
+cohorts retain the normal edge limits. Raw reports identify the comparison profile. Raw output belongs to the cited CI artifacts; the repository keeps only its summary.
 
 ### Capacity evidence before refusal reporting
 
@@ -88,10 +147,10 @@ are total context PSS, rather than a footprint for each sandbox.
 
 The [push run of that head](https://github.com/cubepals/pryx/actions/runs/42227505210)
 did fit all 50 in all 30 waves on each tier. Its
-[raw artifact](https://github.com/cubepals/pryx/actions/runs/42227505210/artifacts/13513821935)
+[artifact summary](https://github.com/cubepals/pryx/actions/runs/42227505210/artifacts/13513821935)
 records the following; memory includes the context and fixed services. This successful run
 does not fill in the missing observations from the failed run.
-Both raw cohorts are retained under [measurements/k14](checks/measurements/k14/).
+Both measurement summaries are retained under [measurements/k14](checks/measurements/k14/).
 
 | One-box tier | Requested per wave | Running per completed wave | Full waves | Refusals observed | Context PSS MiB, p50 / p90 |
 | --- | ---: | ---: | ---: | --- | ---: |
@@ -118,15 +177,15 @@ This partial wave contributes **zero full-50 latency samples**. Its admitted cou
 this observation, rather than establishing a physical memory ceiling or a runner-independent
 maximum. This is one local validation wave, separate from the CI jobs' thirty-wave comparisons.
 
-The [raw report](checks/measurements/k14/local-capacity-9ebc6da/tiers-one-box-wasm.json) records the
+The [summary](checks/measurements/k14/local-capacity-9ebc6da/tiers-one-box-wasm.json) records the
 host, source, binary hash, unit profile, CPU admission overcommit, exact bytes and refusal.
-The [driver and invocation](checks/pr8-capacity-local-command.txt) use the benchmark collector,
+The [driver and invocation](checks/pr8-capacity-local-command.json) use the benchmark collector,
 real SDK/API/Postgres/node/sidecar and unchanged `tier-memory.py`. The workspace has no `sudo`
 and cannot install it; all measured Wasm processes belong to the current UID, so the driver
 reads that owned process tree directly and refuses missing PSS. This fresh node has no prior
 scalar/package workload or retained allocator history; its PSS is separate from the historical
 reused-node CI memory above. Neither set of totals measures memory per VM. Raw output and the
-rendered [capacity summary](checks/pr8-capacity-local-summary.md) retain the counts and refusal.
+rendered [capacity summary](checks/pr8-capacity-local-summary.md) retain the counts and refusal. Raw output belongs to the cited CI artifacts; the repository keeps only its summary.
 
 ### Failed teardown remains a failure
 
@@ -135,8 +194,8 @@ ordinary-image failure after the first Wasm wave had admitted all 50 with zero a
 refusals. Its creation time was 66,869.40 ms and pre-cleanup context PSS was 554.99 MiB.
 The simultaneous delete fan-out then returned HTTP 503 `no_room`; the tier remained
 `incomplete` and the job failed. This public error does not identify the underlying host or
-database cause. The [raw report](checks/measurements/k14/42254735382/tiers-image-wasm.json) and
-[log excerpt](checks/pr8-capacity-image-cleanup-before.txt) retain that failed observation;
+database cause. The [summary](checks/measurements/k14/42254735382/tiers-image-wasm.json) and
+[log excerpt](checks/pr8-capacity-image-cleanup-before.json) retain that failed observation;
 the one recorded wave is not presented as a completed thirty-wave comparison.
 Container, process, normal-default and forced-Wasm hello cohorts from that run retain their
 complete samples beside it. The teardown follow-up keeps every delete and its fatal assertion,
@@ -145,9 +204,9 @@ creation requests still overlap. The actual admission-refusal observation above 
 
 The corresponding [PR run](https://github.com/cubepals/pryx/actions/runs/42254747830)
 instead failed in the container fork cohort after 22 timings: Docker's start response exceeded
-the unchanged 20-second deadline. Its [raw reports](checks/measurements/k14/42254747830/) retain the
+the unchanged 20-second deadline. Its [measurement summaries](checks/measurements/k14/42254747830/) retain the
 incomplete container result and complete process, Wasm and hello cohorts; the
-[failure log](checks/pr8-container-fork-before.txt) does not establish that container's final state.
+[failure log](checks/pr8-container-fork-before.json) does not establish that container's final state.
 The runtime now inspects once after a start timeout and succeeds only if Docker confirms
 `Running`, without repeating start. A real Docker transport-fault regression withholds the
 response after Docker accepts the mutation: it fails before the fix and passes after it,
@@ -194,19 +253,20 @@ candidates. These are fresh sandboxes, without a pre-created VM or warmed comman
 | CPU enforcement | Per-sandbox cgroup quota and weight | Admission reservation and best-effort nice; hard CPU limits/weights refused | Admission reservation; hard CPU limits/weights refused |
 | Sleep retains files | Yes | Yes | SQLite root and explicit persistent data mount |
 | Application ingress | TCP/UDP according to host policy | Host TCP according to policy | HTTP over TCP; no UDP, raw TCP, TLS passthrough or app WebSockets |
-| Sleep retains processes and terminals | Frozen container | Suspended process group | No; VM is disposed and recreated |
+| Sleep retains processes and terminals | Frozen container | Suspended process group | No; VM is disposed and recreated | Raw output belongs to the cited CI artifacts; the repository keeps only its summary.
 
 agentOS 0.4.7 has no per-VM suspend operation in its published client. Suspending its shared
-sidecar would pause unrelated sandboxes, so it cannot implement pryx sleep. The collector
+sidecar would pause unrelated sandboxes, so it cannot implement sleep that retains processes.
+The additive `memory-sleep` guarantee is false on this tier; data sleep still works. The collector
 records that unsupported alternative with n=0 and measures disposal plus recreation with
 filesystem validation instead.
 
 ## Complete comparison
 
-The tables pin the complete [raw reports from CI 42166712195](checks/measurements/k14/42166712195/),
+The tables pin the complete [measurement summaries from CI 42166712195](checks/measurements/k14/42166712195/),
 source `becd30a2051e59ecde599a22f3ff5e868bcd59e3`. Every tier completes every requested cohort,
 including thirty verified pip installs, thirty verified npm installs and thirty batches of
-fifty creations. Recomputing nearest-rank percentiles from the raw samples matches every
+fifty creations. Recomputing nearest-rank percentiles from the measurement summaries matches every
 reported value. Later PID-identity and port-ownership hardening have failing-before regressions and full Rust
 verification; the final branch workflow repeats collection on that code. The table remains
 pinned to its measured source rather than relabeling old samples with a new commit.
@@ -227,7 +287,7 @@ the ordinary image is
 Both contain the same checksum-pinned agentOS 0.4.7 distribution described in
 [agentos.md](agentos.md). Resource requests, enforcement differences, context resets,
 port quarantine and the bounded comparison gateway profile are specified above and in each
-raw report.
+summary.
 
 ### One-box services
 
@@ -331,7 +391,7 @@ and after products; K11 compares its pinned pre-agent baseline with this source;
 same-source container and process/image deployments. K12's preceding daemon-only image has
 no one-image API, so image startup has an explicit n=0 before reason rather than an invented
 reference. Every numeric cell below has n=30. Values are milliseconds at the stated percentile;
-the limits apply to the after product.
+the limits apply to the after product. Raw output belongs to the cited CI artifacts; the repository keeps only its summary.
 
 | Budget | Percentile | Before | After | Required after |
 | --- | --- | ---: | ---: | ---: |
@@ -360,6 +420,9 @@ and HTTP/TLS gateways; no sandbox proxy setting can bypass the firewall. Process
 return an explicit tier refusal. `network:none` remains the all-tiers network boundary.
 Workdir uses the `workload-options` feature; user selection is restricted to the operator
 container user. Metrics use cached tier counters and preserve null where unavailable.
+These policy fields are refused when the destination no longer announces the feature,
+including on a wake whose specification is unchanged. They are never silently dropped.
+The default Internet network remains compatible with old nodes.
 Git requires an image/userland installation on native tiers. The verified optional wasm Git
 package is staged with the distribution and loaded only on request. Stateful shells use pipes
-on every tier; [K16 measurements](checks/k16.md) retain the before/after raw samples.
+on every tier; [K16 measurements](checks/k16.md) retain the before/after measurement summaries.

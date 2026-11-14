@@ -1,0 +1,11 @@
+{
+  "measurement": "Thirty vsock and fourteen pasta guests pass; next pasta bulk transfer stalls with a non-guest MAC learned mid-transfer; independent no-userns/no-TUN vsock guest passes both management denials",
+  "commit": "194c841",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43456439308",
+  "result": {
+    "conclusion": "failure",
+    "scope": "Thirty vsock and fourteen pasta guests pass; next pasta bulk transfer stalls with a non-guest MAC learned mid-transfer; independent no-userns/no-TUN vsock guest passes both management denials",
+    "prerequisiteGuests": 1,
+    "prerequisiteStatus": "success"
+  }
+}

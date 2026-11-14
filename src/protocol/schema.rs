@@ -51,7 +51,7 @@ fn node_reads() -> Value {
 fn node_writes() -> Value {
     document("pryxd: what a node writes", Contract::Serialize, |g| {
         schemas!(g;
-            pryx_agent::auth::Claims, AgentTokenResponse, FileList, FileInfo, StoreLeaseIdentity, WorkloadView, ListResponse, StatsView, LogRecord, EnsureResponse, PowerResponse, FenceResponse,
+            Guarantee, pryx_agent::auth::Claims, AgentTokenResponse, FileList, FileInfo, StoreLeaseIdentity, WorkloadView, ListResponse, StatsView, LogRecord, EnsureResponse, PowerResponse, FenceResponse,
             DeleteResponse, ExecResponse, ExecEvent, ExportResponse, RestoreResponse, SnapshotResponse, SnapshotList,
             SnapshotDeleteResponse, NodeHealth, NodeStatus, ErrorBody, EnrollRequest, HeartbeatRequest, RenewRequest,
         );
@@ -77,9 +77,15 @@ fn document(title: &str, contract: Contract, add: impl FnOnce(&mut SchemaGenerat
         "x-pryx-resources": {
             "minCpuMillis": crate::protocol::MIN_CPU_MILLIS,
             "defaultMinMemoryMb": crate::protocol::DEFAULT_MIN_MEMORY_MB,
-            "cpuLimitProblem": crate::protocol::CPU_LIMIT_PROBLEM
+            "cpuLimitProblem": crate::protocol::CPU_LIMIT_PROBLEM,
+            "unenforcedMemoryFeature": crate::protocol::UNENFORCED_MEMORY_FEATURE,
+            "observedGuaranteesFeature": crate::protocol::OBSERVED_RESOURCE_LIMITS_FEATURE,
+            "nativeBrowserPolicyFeature": crate::protocol::NATIVE_BROWSER_POLICY_FEATURE
         },
-        "x-pryx-network": {"defaultPortRange": crate::protocol::DEFAULT_PORT_RANGE},
+        "x-pryx-native-tools": {"desktopFeature":crate::protocol::NATIVE_DESKTOP_FEATURE,"sshFeature":crate::protocol::NATIVE_SSH_FEATURE},
+        "x-pryx-network": {"defaultPortRange": crate::protocol::DEFAULT_PORT_RANGE,
+            "policyFeature": crate::protocol::NETWORK_POLICY_FEATURE},
+        "x-pryx-tiers": {"capabilityScopePrefix": crate::protocol::TIER_CAPABILITY_SCOPE_PREFIX},
         "x-pryx-wasm": {"imageProblem": crate::protocol::WASM_IMAGE_PROBLEM, "portProblem": crate::protocol::WASM_PORT_PROBLEM, "maxPackages": crate::protocol::MAX_WASM_PACKAGES,
             "maxHttpFrameBytes":agentos_sidecar_client::wire::DEFAULT_MAX_FRAME_BYTES, "packageNamePattern": crate::protocol::PACKAGE_NAME_PATTERN},
         "x-pryx-process": {"imageProblem": crate::protocol::PROCESS_IMAGE_PROBLEM},

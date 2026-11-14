@@ -1,0 +1,9 @@
+{
+  "measurement": "New relocated filesystem component plus thirty actual KVM boots and disk reboot; unchanged two network cohorts plus independent missing-prerequisite guest; no production VM backend proof",
+  "commit": "7efb280ccc1921d9fc57aea98ce817b5e2417046",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43464154294",
+  "result": {
+    "conclusion": "success",
+    "scope": "New relocated filesystem component plus thirty actual KVM boots and disk reboot; unchanged two network cohorts plus independent missing-prerequisite guest; no production VM backend proof"
+  }
+}

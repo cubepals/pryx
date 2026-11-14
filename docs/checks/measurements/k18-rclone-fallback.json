@@ -1,48 +1,12 @@
 {
-  "scope": "rclone fixture command discovery and hardened local real-S3 regression; not deployment speed measurements",
-  "failedCi": {
-    "commit": "8ae0847b31acf5662fb6b717611053edece8d13a",
-    "run": "https://github.com/cubepals/pryx/actions/runs/42456852034",
-    "artifactId": 13608214858,
-    "cases": [
-      {
-        "test": {
-          "name": "desktop, SSH wake, real S3 FUSE and browser work through both clients",
-          "classname": "",
-          "time": "20.986437",
-          "file": "control/e2e/native-tools.e2e.test.ts",
-          "line": "41",
-          "assertions": "17"
-        },
-        "failures": [
-          {
-            "attributes": {
-              "type": "AssertionError",
-              "message": "expect(received).toBe(expected)\n\nExpected: \"rclone\"\nReceived: \"mountpoint-s3\"\n"
-            },
-            "text": "AssertionError: expect(received).toBe(expected)\n\nExpected: \"rclone\"\nReceived: \"mountpoint-s3\"\n\n      at control/e2e/native-tools.e2e.test.ts:232:48\n"
-          }
-        ]
-      }
-    ]
-  },
-  "baseCommit": "8ae0847b31acf5662fb6b717611053edece8d13a",
-  "sourceDirty": true,
-  "implementationFiles": [
-    "templates/native-tools/rclone.Dockerfile",
-    "sdk/python/e2e/native_tools.py",
-    "control/e2e/native-tools.e2e.test.ts"
-  ],
-  "implementationDiffSha256": "415156954a9a5b81065aea8b2de6091617f713b10af9db41da0364160c4c385c",
-  "recordedUtc": "2026-11-08T07:33:19.279269+00:00",
-  "beforeFinding": "The verified Debian archive installs /usr/bin/mount-s3; the image adds /usr/local/bin/mount-s3, while the old fallback fixture removed only the latter.",
-  "after": {
-    "image": "sha256:328d8eb3e52c7dbb2c08ef36529300b22f345decdd62614d2939b140c3fb790d",
-    "commands": "/usr/local/bin/rclone\nrclone v1.76.0\n- os/version: debian 12.15 (64 bit)\n- os/kernel: 6.18.57 (x86_64)\n- os/type: linux\n- os/arch: amd64\n- go/version: go1.27.3\n- go/linking: static\n- go/tags: none\n",
-    "mountProbe": "PASS hardened-container rclone real S3 read/write independently verified, ordinary command capabilities zero\n",
-    "preferredBinaryMask": false,
-    "uniqueObjectVerifiedBeforeTeardown": true,
-    "ordinaryChildCapabilities": "0000000000000000"
-  },
-  "diagnosticNote": "Previously audited GNU debug agent/glibc read-only bindings and a proxy exclusion for only the internal S3 fixture IP; CI uses the static musl agent. Python per-mode remote verification remains CI acceptance."
+  "measurement": "rclone fixture command discovery and hardened local real-S3 regression; not deployment speed measurements",
+  "commit": "8ae0847b31acf5662fb6b717611053edece8d13a",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/42456852034",
+  "result": {
+    "scope": "rclone fixture command discovery and hardened local real-S3 regression; not deployment speed measurements",
+    "sourceDirty": true,
+    "after.preferredBinaryMask": false,
+    "after.uniqueObjectVerifiedBeforeTeardown": true,
+    "diagnosticNote": "Previously audited GNU debug agent/glibc read-only bindings and a proxy exclusion for only the internal S3 fixture IP; CI uses the static musl agent. Python per-mode remote verification remains CI acceptance."
+  }
 }

@@ -1,0 +1,6 @@
+{
+  "measurement": "k14 local wasm e2e serialized",
+  "commit": "recorded in c1c9fa1; measurement revision not recorded",
+  "ci": "Not recorded; local or inventory evidence, not a CI pass",
+  "result": "Diagnostic/naming output removed; outcome and limitations remain in the companion check document. No additional pass is inferred."
+}

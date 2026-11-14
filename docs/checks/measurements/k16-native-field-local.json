@@ -1,47 +1,19 @@
 {
-  "source": "5c0f92b8b13ec0ae30b2c5738efb9cc778851940",
-  "dirty": true,
-  "case": "control/e2e/field.e2e.test.ts",
-  "tier": "container",
-  "exitCode": 0,
-  "tests": 1,
-  "bunAssertions": 43,
-  "caseDurationMs": 98756.02,
-  "suiteDurationMs": 99400,
-  "pythonModes": [
-    "sync",
-    "async"
-  ],
-  "publicGitClones": 4,
-  "proxy": "managed Docker defaults, unauthenticated; TLS verification with supplied public CA",
-  "runtimeWrapper": "owned root-node Docker fixture",
-  "runtimeSha256": "076686ed50c59f2ce6419dbec0ffe280e488022326e19ebd087ba4d0e7bf2f13",
-  "agentSha256": "af73c42c67bb290d609e8fee30ad415e8fc1b598402985e9e3421aca8f166dec",
-  "fixtureImage": "sha256:d99eeec23ba439db5d098d2028f514d9a65f1bf3662dd29d7490bd4dcadf58fa",
-  "limits": [
-    "rootless Docker uses stop fallback instead of a real freezer",
-    "host egress not exercised by this case",
-    "root-node binary is the earlier K16 build; final current-head CI remains required"
-  ],
-  "failuresPreserved": [
-    "local fixture lacked httpd",
-    "shallow receiver policy",
-    "single-branch fetch refspec after origin changed",
-    "Python event stream missing authentication",
-    "code-template start cwd missing"
-  ],
-  "legacyAfterSnapshotSerialization": {
-    "source": "00161b95198fbaee6d98914efdc1ba895a93102a",
+  "measurement": "control/e2e/field.e2e.test.ts",
+  "commit": "5c0f92b8b13ec0ae30b2c5738efb9cc778851940",
+  "ci": "Not recorded; local or inventory evidence, not a CI pass",
+  "result": {
     "dirty": true,
-    "cases": [
-      "cli/e2e/mcp.e2e.test.ts",
-      "control/e2e/public-api.e2e.test.ts"
-    ],
     "exitCode": 0,
-    "tests": 4,
-    "bunAssertions": 70,
-    "suiteDurationMs": 63620,
-    "sameRuntimeFixture": true,
-    "freezer": "stop fallback; actual freezer remains required in CI"
+    "tests": 1,
+    "bunAssertions": 43,
+    "caseDurationMs": 98756.02,
+    "suiteDurationMs": 99400,
+    "publicGitClones": 4,
+    "legacyAfterSnapshotSerialization.dirty": true,
+    "legacyAfterSnapshotSerialization.exitCode": 0,
+    "legacyAfterSnapshotSerialization.tests": 4,
+    "legacyAfterSnapshotSerialization.bunAssertions": 70,
+    "legacyAfterSnapshotSerialization.suiteDurationMs": 63620
   }
 }

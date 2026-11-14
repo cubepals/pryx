@@ -1,33 +1,16 @@
 {
-  "case": "exact shared Git bridge inside agentOS 0.4.7 with an owned VM-local HTTP echo upstream",
-  "samplesPerVersion": 1,
-  "head": "40c752e93b7497e55f879530b1881ef473e45395",
-  "afterDirty": true,
-  "beforeSourceSha256": "e0203be0855bef3bbbf560250c89f0636ba98f19358e6ec45379953e68402499",
-  "afterSourceSha256": "008fa7eaa158d74373945bd03df6850f7b11de8aefce468efa4698798bef13e6",
-  "before": {
-    "stdout": "PRYX_GIT_PROXY_READY 1025\nUPSTREAM GET keep-alive\n{\"method\":\"GET\",\"status\":200,\"bytes\":[]}\n{\"method\":\"POST\",\"status\":502,\"bytes\":[]}\n",
-    "stderr": "BRIDGE_ERROR TypeError request is not async iterable undefined undefined\n",
-    "code": 0,
-    "timedOut": false,
-    "killed": false,
-    "durationMs": 1306,
-    "stdoutTruncated": false,
-    "stderrTruncated": false
-  },
-  "after": {
-    "stdout": "PRYX_GIT_PROXY_READY 1025\nUPSTREAM GET keep-alive\n{\"method\":\"GET\",\"status\":200,\"bytes\":[]}\nUPSTREAM POST keep-alive\n{\"method\":\"POST\",\"status\":200,\"bytes\":[98,105,110,97,114,121,0,114,101,113,117,101,115,116]}\n",
-    "stderr": "",
-    "code": 0,
-    "timedOut": false,
-    "killed": false,
-    "durationMs": 1401,
-    "stdoutTruncated": false,
-    "stderrTruncated": false
-  },
-  "limits": [
-    "This tests the actual guest IncomingMessage, HTTP client, bridge and fetch with binary POST.",
-    "The local diagnostic catch prints errors only for the owned loopback endpoint; production keeps errors generic.",
-    "This is not a public-network Git clone or a speed cohort; those remain required in CI."
-  ]
+  "measurement": "exact shared Git bridge inside agentOS 0.4.7 with an owned VM-local HTTP echo upstream",
+  "commit": "40c752e93b7497e55f879530b1881ef473e45395",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/42350294640",
+  "result": {
+    "afterDirty": true,
+    "before.code": 0,
+    "before.timedOut": false,
+    "before.killed": false,
+    "before.durationMs": 1306,
+    "after.code": 0,
+    "after.timedOut": false,
+    "after.killed": false,
+    "after.durationMs": 1401
+  }
 }

@@ -1,0 +1,8 @@
+{
+  "measurement": "x11 live first failure",
+  "commit": "26c8b10",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43261043378",
+  "result": {
+    "observedCause": "Pinned Xorg Popen reasserts current real GID/UID before xkbcomp; ordinary process seccomp denies both operations"
+  }
+}

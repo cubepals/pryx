@@ -1,0 +1,14 @@
+{
+  "measurement": "Thirty samples per container cohort, four default units (one CPU core, 2 GiB), cached templates. New kernel timer includes create, routing, kernel startup and first validated PNG. Browser includes its sandbox-local HTTP page-server startup. Historical interpreter execution/restart budgets retain their original clock points.",
+  "commit": "5945724a4ac8fbc28610292d701ffa7e9bffc040",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43233699289",
+  "result": {
+    "e2e.tests": 48,
+    "e2e.passed": 33,
+    "e2e.skipped": 15,
+    "e2e.failures": 0,
+    "e2e.newStartupCaseSeconds": 99.871,
+    "scope": "Thirty samples per container cohort, four default units (one CPU core, 2 GiB), cached templates. New kernel timer includes create, routing, kernel startup and first validated PNG. Browser includes its sandbox-local HTTP \u2026",
+    "limitations": "Separate container and ordinary-user process CI runners, with different CPU/memory guarantees; the matching installed report retains its host conditions. Both normal push and PR CI and the full sixteen-job Any-host workf\u2026"
+  }
+}

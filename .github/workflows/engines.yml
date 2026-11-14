@@ -1,0 +1,87 @@
+name: Rootless engines
+
+on:
+  workflow_dispatch:
+  # A new workflow cannot be dispatched until main has it; branch pushes prove it now.
+  push:
+    branches: [any-host]
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'tests/docker*'
+      - 'tests/docker/**'
+      - 'Cargo.*'
+      - '.github/engine-versions.json'
+      - '.github/workflows/engines.yml'
+      - 'scripts/setup-test-engine.sh'
+      - 'scripts/engine-ownership.py'
+      - 'scripts/engine-api-probe.py'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  engine:
+    name: Rootless ${{ matrix.engine }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      PRYX_PROBE_DIAGNOSTICS: '1'
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: [docker, podman]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Release compilation space
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+      - name: Rust from rust-toolchain.toml
+        id: rust
+        run: |
+          rustup toolchain install
+          echo "version=$(rustc --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            target
+          key: engine-${{ matrix.engine }}-${{ steps.rust.outputs.version }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            engine-${{ matrix.engine }}-${{ steps.rust.outputs.version }}-
+            test-${{ steps.rust.outputs.version }}-
+      - name: Start the engine as the runner user
+        run: bash scripts/setup-test-engine.sh "${{ matrix.engine }}"
+      - name: Read bounded engine metadata timings
+        run: timeout 20s python3 scripts/engine-api-probe.py
+      - name: Real engine controller and cold sleep cases
+        env:
+          PRYX_ENGINE_MEASUREMENTS: ${{ runner.temp }}/engine-measurements.json
+        run: cargo test --locked --test docker engine -- --ignored --test-threads 1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: rootless-${{ matrix.engine }}-measurements
+          path: ${{ runner.temp }}/engine-measurements.json
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Measure default, host and keep-id data ownership
+        if: ${{ !cancelled() && env.DOCKER_HOST != '' }}
+        run: python3 scripts/engine-ownership.py
+      - name: Bounded engine diagnostics on failure
+        if: failure()
+        env:
+          ENGINE: ${{ matrix.engine }}
+        run: |
+          path="$RUNNER_TEMP/pryx-engine-$ENGINE/engine.log"
+          if [ -f "$path" ]; then tail -100 "$path"; fi

@@ -19,6 +19,15 @@ mod network;
 mod power;
 mod process;
 
+pub(crate) fn check_distribution(config: &crate::config::WasmConfig) -> Result<(), RuntimeError> {
+    let distribution = boot::distribution()?;
+    boot::verify(&boot::binary(&config.distribution), &distribution.binary_sha256)?;
+    for package in &distribution.default_packages {
+        boot::verify(&boot::package_path(&config.distribution, &package.name), &package.sha256)?;
+    }
+    Ok(())
+}
+
 const VM_RUNNING: u8 = 0;
 const VM_CLOSING: u8 = 3;
 const VM_DISPOSED: u8 = 1;

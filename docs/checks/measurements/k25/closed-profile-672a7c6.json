@@ -1,0 +1,18 @@
+{
+  "measurement": "Closed packet profile and restricted guest acceptance",
+  "commit": "672a7c619f17e4c4a6baf988a1e2e31fe3126e8b",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43557880933",
+  "result": "guest and bundle paths passed; host packet-profile fixture failed before readiness",
+  "guestPolicySeconds": 0.1,
+  "hostPolicy": {
+    "passed": 2,
+    "failed": 1,
+    "seconds": 0.04,
+    "failure": "The actual packet helper resides beneath an unsafe runner-temp ancestor; the unchanged launcher refuses it. Stage the test executable within its private directory before launching."
+  },
+  "bundleSeconds": 7.33,
+  "runtimeSeconds": 78.82,
+  "registrySeconds": 14.16,
+  "componentSeconds": 31.99,
+  "remaining": "Hosted corrected private staging, production packet flow and trusted policy, root TAP/jailer/firewall, protected install/config/release, node/edge lifecycle, thirty production samples and full green CI. The separate earlier exec-output failures remain unexplained. Raw output stays in this CI run artifacts."
+}

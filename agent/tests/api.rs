@@ -34,6 +34,7 @@ async fn fixture() -> (tempfile::TempDir, Arc<Agent>, String) {
         })
         .unwrap();
     let agent = Arc::new(Agent {
+        vm_resources: false,
         file_tasks: Default::default(),
         shells: Default::default(),
         logs: Arc::new(pryx_agent::logbook::Logbook::open(dir.path()).unwrap()),
@@ -65,12 +66,76 @@ async fn route_capabilities_allow_only_readiness_and_port_reads() {
             file: None,
         })
         .unwrap();
-    assert_eq!(call(&agent, &token, "GET", "/_pryx/health", Value::Null).await.0, StatusCode::OK);
+    let (status, health) = call(&agent, &token, "GET", "/_pryx/health", Value::Null).await;
+    assert_eq!(status, StatusCode::OK);
+    let state: pryx_agent::state::Snapshot = serde_json::from_value(health["state"].clone()).unwrap();
+    assert_eq!(state.activity.at, 0);
+    assert!(state.vm_resources.is_none(), "Other tiers must not expose host-wide resource counters");
+    assert_eq!(state.activity.streams, 0);
+    assert_eq!(state.ports.revision, 0);
+    assert!(state.ports.targets.is_empty());
+    let active = agent.telemetry.active();
+    let (_, health) = call(&agent, &token, "GET", "/_pryx/health", Value::Null).await;
+    let state: pryx_agent::state::Snapshot = serde_json::from_value(health["state"].clone()).unwrap();
+    assert!(state.activity.at > 0);
+    assert_eq!(state.activity.streams, 1, "Polling must not acquire another activity stream");
+    drop(active);
     assert_eq!(call(&agent, &token, "GET", "/_pryx/ports", Value::Null).await.0, StatusCode::OK);
     assert_eq!(
         call(&agent, &token, "POST", "/_pryx/processes", json!({"command":"true"})).await.0,
         StatusCode::FORBIDDEN
     );
+}
+
+#[tokio::test]
+async fn process_scope_proofs_are_optional_authenticated_and_bound_to_actual_state() {
+    let (_dir, agent, token) = fixture().await;
+    let (_, legacy) = call(&agent, &token, "GET", "/_pryx/health", Value::Null).await;
+    assert!(legacy.get("processObservation").is_none());
+    let challenge = uuid::Uuid::new_v4().simple().to_string();
+    let invalid = format!("{challenge} ");
+    let oversized = challenge.repeat(128);
+    assert!(pryx_agent::process_observation::nonce_valid(&challenge));
+    assert!(!pryx_agent::process_observation::nonce_valid(&invalid));
+    assert!(!pryx_agent::process_observation::nonce_valid(&oversized));
+    for nonce in [&challenge, &invalid, &oversized] {
+        let response = router(agent.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/_pryx/health")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header(pryx_agent::process_observation::NONCE_HEADER, nonce)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let value: Value = serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        if pryx_agent::process_observation::nonce_valid(nonce) {
+            let proof: pryx_agent::process_observation::Proof =
+                serde_json::from_value(value["processObservation"].clone()).unwrap();
+            assert_eq!(&proof.observation.nonce, nonce);
+            assert_eq!(proof.observation.sandbox, agent.sandbox);
+            assert_eq!(proof.observation.epoch, agent.epoch);
+            assert_eq!(proof.observation.pid, std::process::id());
+            assert_eq!(proof.observation.ipc_scoped, pryx_agent::process_policy::ipc_scoped());
+            assert!(!proof.signature.is_empty());
+        } else {
+            assert!(value.get("processObservation").is_none());
+        }
+    }
+    let response = router(agent)
+        .oneshot(
+            Request::builder()
+                .uri("/_pryx/health")
+                .header(pryx_agent::process_observation::NONCE_HEADER, &challenge)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[cfg(feature = "mcp")]

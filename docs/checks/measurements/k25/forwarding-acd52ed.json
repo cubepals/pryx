@@ -1,0 +1,13 @@
+{
+  "source": "acd52ed2bc3d63c884a6acec7e51af736031774f",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43506064338",
+  "job": 132163924616,
+  "what": "Actual KVM agent forwarding on the first Alpine boot; existing bundle acquisition acceptance",
+  "result": "failure",
+  "binaryFileBytes": 16777216,
+  "binaryFileRoundTrip": "passed",
+  "opaqueTcpSentBytes": 65536,
+  "opaqueTcpReplyBytes": 0,
+  "cause": "Pinned monitor converts Unix EOF to shutdown of both directions; preserve the assertion and add maintained HTTP/2 CONNECT",
+  "scope": "No production backend or half-close proof; raw output stays in the CI artifact"
+}

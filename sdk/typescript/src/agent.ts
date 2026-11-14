@@ -204,15 +204,19 @@ export class Agent {
       terminal.resize(options.cols ?? 80, options.rows ?? 24)
     return terminal
   }
-  async socket(path: string, attach?: (socket: WebSocket) => void) {
+  async connection(path: string) {
     const token = await this.token()
-    const socket = new WebSocket(
-      `${token.url
+    return {
+      url: `${token.url
         .replace(/^http:/, 'ws:')
         .replace(/^https:/, 'wss:')
         .replace(/\/$/, '')}${path}`,
-      ['pryx', `pryx-token.${token.token}`],
-    )
+      protocols: ['pryx', `pryx-token.${token.token}`],
+    }
+  }
+  async socket(path: string, attach?: (socket: WebSocket) => void) {
+    const connection = await this.connection(path)
+    const socket = new WebSocket(connection.url, connection.protocols)
     socket.binaryType = 'arraybuffer'
     attach?.(socket)
     await new Promise<void>((resolve, reject) => {

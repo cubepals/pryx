@@ -1,0 +1,9 @@
+{
+  "measurement": "network setup failure 57c7f93",
+  "commit": "57c7f93",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43446165170",
+  "result": {
+    "conclusion": "failure",
+    "kernelStatus": "success"
+  }
+}

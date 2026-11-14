@@ -1,0 +1,9 @@
+{
+  "measurement": "bundle acceptance only; not installed native process/edge acceptance",
+  "commit": "9ba70269bf75f1ee195f7fe85d4f9ba70c4e11fa",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43109289475",
+  "result": {
+    "bundleInventoryEntries": 34489,
+    "scope": "bundle acceptance only; not installed native process/edge acceptance"
+  }
+}

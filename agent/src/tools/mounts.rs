@@ -143,7 +143,7 @@ fn credentials(spec: &MountSpec) -> Result<BTreeMap<String, String>, Failure> {
     ]))
 }
 pub(crate) async fn list(agent: &Agent) -> Result<Vec<MountView>, Failure> {
-    state::native(agent)?;
+    state::native(agent, "Bucket mounts")?;
     let state = state::get(agent)?;
     let entries = state.mounts.lock().await;
     Ok(entries
@@ -158,7 +158,7 @@ pub(crate) async fn list(agent: &Agent) -> Result<Vec<MountView>, Failure> {
         .collect())
 }
 pub(crate) async fn initialize(agent: &Agent, specs: Vec<MountSpec>) -> Result<Vec<MountView>, Failure> {
-    state::native(agent)?;
+    state::native(agent, "Bucket mounts")?;
     if !crate::fuse_namespace::enabled() {
         return Err(state::failure(
             "unsupported",

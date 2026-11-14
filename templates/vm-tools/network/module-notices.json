@@ -1,0 +1,242 @@
+[
+  {
+    "module": "github.com/containers/gvisor-tap-vsock@v0.9.0",
+    "licence": "Apache-2.0",
+    "notices": [
+      {
+        "name": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    ]
+  },
+  {
+    "module": "github.com/google/btree@v1.1.2",
+    "licence": "Apache-2.0",
+    "notices": [
+      {
+        "name": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    ]
+  },
+  {
+    "module": "github.com/google/gopacket@v1.1.19",
+    "licence": "BSD-3-Clause",
+    "notices": [
+      {
+        "name": "LICENSE",
+        "sha256": "8025b28cd71e0a486b173d4a29a05478c003d197a907f99b61a05e181e90b92d"
+      }
+    ]
+  },
+  {
+    "module": "github.com/inetaf/tcpproxy@v0.0.0-20260515195445-c159a6051109",
+    "licence": "Apache-2.0",
+    "notices": [
+      {
+        "name": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    ]
+  },
+  {
+    "module": "github.com/insomniacslk/dhcp@v0.0.0-20240710054256-ddd8a41251c9",
+    "licence": "BSD-3-Clause",
+    "notices": [
+      {
+        "name": "LICENSE",
+        "sha256": "d034f64d0e3a12eec92e6d98ee6a0b1ee36f2a751aa96e9485fdd3a1280a6af1"
+      }
+    ]
+  },
+  {
+    "module": "github.com/josharian/native@v1.1.0",
+    "licence": "MIT",
+    "notices": [
+      {
+        "name": "license",
+        "sha256": "ad2395352be6234aaee97b4c99eb2b290c81022c08238cdee45ed0b47ed18651"
+      }
+    ]
+  },
+  {
+    "module": "github.com/mdlayher/packet@v1.1.2",
+    "licence": "MIT",
+    "notices": [
+      {
+        "name": "LICENSE.md",
+        "sha256": "51d5e18766be109050b3e0836e2b3b2d380b05bd1034b48b3cb17431ed270114"
+      }
+    ]
+  },
+  {
+    "module": "github.com/mdlayher/socket@v0.6.0",
+    "licence": "MIT",
+    "notices": [
+      {
+        "name": "LICENSE.md",
+        "sha256": "7ac20f598f63dfd35c7c6c3844073af0bebfa436cfe58b91af9ac17cd727ea42"
+      }
+    ]
+  },
+  {
+    "module": "github.com/mdlayher/vsock@v1.3.0",
+    "licence": "MIT",
+    "notices": [
+      {
+        "name": "LICENSE.md",
+        "sha256": "5d24a7ca6850e288a5b7c596a0d5f03d71c862393c7b808286f57b27b79cac23"
+      }
+    ]
+  },
+  {
+    "module": "github.com/miekg/dns@v1.1.73",
+    "licence": "BSD-3-Clause",
+    "notices": [
+      {
+        "name": "LICENSE",
+        "sha256": "f200ff9bad73385db2ed81e23ee2c1fe069eb5776e17fae4ee85ad0a9e1361a5"
+      }
+    ]
+  },
+  {
+    "module": "github.com/pierrec/lz4/v4@v4.1.14",
+    "licence": "BSD-3-Clause",
+    "notices": [
+      {
+        "name": "LICENSE",
+        "sha256": "6a358d2540ca14048f02d366f23787c0a480157e58f058113f0e27168dd4e447"
+      }
+    ]
+  },
+  {
+    "module": "github.com/sirupsen/logrus@v1.10.2",
+    "licence": "MIT",
+    "notices": [
+      {
+        "name": "LICENSE",
+        "sha256": "51a0c9ec7f8b7634181b8d4c03e5b5d204ac21d6e72f46c313973424664b2e6b"
+      }
+    ]
+  },
+  {
+    "module": "github.com/songgao/packets@v0.0.0-20160404182456-549a10cd4091",
+    "licence": "BSD-3-Clause",
+    "notices": [
+      {
+        "name": "LICENSE",
+        "sha256": "0bd3ebd69ce486e929c5fdd9e6375fc700261bc26b89ef7f62d7b991f6f85269"
+      }
+    ]
+  },
+  {
+    "module": "github.com/songgao/water@v0.0.0-20200317203138-2b4b6d7c09d8",
+    "licence": "BSD-3-Clause",
+    "notices": [
+      {
+        "name": "LICENSE",
+        "sha256": "cc2fcf72a8fbf5ded025d3b0c7ae4a410e1cee3d8c3fd6f100ccb50893cd71b3"
+      }
+    ]
+  },
+  {
+    "module": "github.com/u-root/uio@v0.0.0-20240224005618-d2acac8f3701",
+    "licence": "BSD-3-Clause",
+    "notices": [
+      {
+        "name": "LICENSE",
+        "sha256": "babfb29ac285c50579ef027c197805f288be53a2fdea58adbf8f69a5e296d3ef"
+      }
+    ]
+  },
+  {
+    "module": "github.com/vishvananda/netlink@v1.3.1",
+    "licence": "Apache-2.0",
+    "notices": [
+      {
+        "name": "LICENSE",
+        "sha256": "04cf148229e562c643203d1ee8c43aae2022e5130e95ceb8ba8357a27c1a9abe"
+      }
+    ]
+  },
+  {
+    "module": "github.com/vishvananda/netns@v0.0.5",
+    "licence": "Apache-2.0",
+    "notices": [
+      {
+        "name": "LICENSE",
+        "sha256": "04cf148229e562c643203d1ee8c43aae2022e5130e95ceb8ba8357a27c1a9abe"
+      }
+    ]
+  },
+  {
+    "module": "golang.org/x/crypto@v0.57.0",
+    "licence": "BSD-3-Clause",
+    "notices": [
+      {
+        "name": "LICENSE",
+        "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+      }
+    ]
+  },
+  {
+    "module": "golang.org/x/exp@v0.0.0-20231110203233-9a3e6036ecaa",
+    "licence": "BSD-3-Clause",
+    "notices": [
+      {
+        "name": "LICENSE",
+        "sha256": "2d36597f7117c38b006835ae7f537487207d8ec407aa9d9980794b2030cbc067"
+      }
+    ]
+  },
+  {
+    "module": "golang.org/x/net@v0.59.0",
+    "licence": "BSD-3-Clause",
+    "notices": [
+      {
+        "name": "LICENSE",
+        "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+      }
+    ]
+  },
+  {
+    "module": "golang.org/x/sync@v0.23.0",
+    "licence": "BSD-3-Clause",
+    "notices": [
+      {
+        "name": "LICENSE",
+        "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+      }
+    ]
+  },
+  {
+    "module": "golang.org/x/sys@v0.48.0",
+    "licence": "BSD-3-Clause",
+    "notices": [
+      {
+        "name": "LICENSE",
+        "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+      }
+    ]
+  },
+  {
+    "module": "golang.org/x/time@v0.12.0",
+    "licence": "BSD-3-Clause",
+    "notices": [
+      {
+        "name": "LICENSE",
+        "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+      }
+    ]
+  },
+  {
+    "module": "gvisor.dev/gvisor@v0.0.0-20260413194555-9680d69bf798",
+    "licence": "Apache-2.0",
+    "notices": [
+      {
+        "name": "LICENSE",
+        "sha256": "0fbab5c58efbdf6d31e8085214f2dd821659c03d73cff3ed2b08e98826ea1cd9"
+      }
+    ]
+  }
+]

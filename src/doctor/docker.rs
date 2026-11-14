@@ -15,6 +15,27 @@ use serde_json::{Map, Value};
 use super::check::Check;
 use crate::runtime::{ContainerRuntime, RuntimeError, RuntimeInfo};
 
+/// Resolve the engine once so tier checks and doctor clients use the same endpoint.
+pub(super) async fn endpoint(config: &mut crate::config::Config) -> Option<String> {
+    let mut endpoint_error = None;
+    if config.docker.enabled
+        && matches!(config.runtime, crate::config::RuntimeKind::Container | crate::config::RuntimeKind::Auto)
+        && config.docker.discover
+    {
+        match crate::runtime::engine::socket(&config.docker).await {
+            Ok(socket) => {
+                config.docker.socket = socket;
+                config.docker.discover = false;
+            }
+            Err(error) => {
+                endpoint_error = Some(error.to_string());
+                config.docker.enabled = false;
+            }
+        }
+    }
+    endpoint_error
+}
+
 /// How long doctor waits on Docker. Short: a hung daemon shouldn't hold up pryxd's start.
 const DOCKER_WAIT: Duration = Duration::from_secs(5);
 
@@ -60,6 +81,7 @@ pub(crate) async fn checks(runtime: &dyn ContainerRuntime, network: &str, daemon
                     info.api_version.as_deref().unwrap_or("?")
                 ),
             ));
+            checks.extend(engine_limits(&info));
             checks.push(cgroup(&info));
             checks.push(live_restore(&info));
             checks.push(isolation(network, waited(runtime.network_isolated(network)).await));
@@ -67,6 +89,70 @@ pub(crate) async fn checks(runtime: &dyn ContainerRuntime, network: &str, daemon
         }
     }
     checks.push(compare(daemon_json, &on_disk));
+    checks
+}
+
+fn engine_limits(info: &RuntimeInfo) -> Vec<Check> {
+    let mut checks = Vec::new();
+    if let Some(problem) = &info.container_policy_problem {
+        checks.push(Check::warn("docker.policy", problem, "Select a supported Docker engine with docker.socket"));
+    }
+    if info.rootless {
+        for (name, on, action) in [
+            (
+                "docker.memory-limit",
+                info.memory_limit,
+                "Delegate the memory controller to this user's systemd service on cgroup v2",
+            ),
+            (
+                "docker.cpu-limit",
+                info.cpu_limit,
+                "Delegate the cpu controller to this user's systemd service on cgroup v2",
+            ),
+            (
+                "docker.memory-sleep",
+                false,
+                "Use a rootful engine with an enforceable freezer; sleep stops to disk on this engine",
+            ),
+            ("docker.host-firewall", false, "Use the server preset with its root-owned firewall"),
+        ] {
+            checks.push(if on {
+                Check::pass(name, "the engine reports enforcement available")
+            } else {
+                Check::warn(name, "off on this rootless engine", action)
+            });
+        }
+        for (name, available, action) in [
+            (
+                "docker.network-policy",
+                Some(info.podman),
+                "Use a supported Podman engine for private ingress on network none",
+            ),
+            (
+                "docker.exec-pid-visibility",
+                info.local_process_ids,
+                "Run pryx on the engine host with directly visible process identities and same-user procfs access",
+            ),
+            (
+                "docker.low-ports",
+                info.unprivileged_ports,
+                "Use published ports at or above the host kernel's ip_unprivileged_port_start threshold",
+            ),
+        ] {
+            checks.push(match available {
+                Some(true) => Check::pass(name, "the local kernel prerequisite is available"),
+                Some(false) => Check::warn(name, "the local kernel prerequisite is off", action),
+                None => Check::warn(name, "the local kernel prerequisite could not be established", action),
+            });
+        }
+    }
+    if info.storage_driver.as_deref() == Some("vfs") {
+        checks.push(Check::warn(
+            "docker.storage",
+            "vfs copies image layers and is slow",
+            "Use an engine with overlayfs support or its packaged fuse-overlayfs driver",
+        ));
+    }
     checks
 }
 
@@ -261,5 +347,25 @@ mod tests {
         let check = compare(&path, &read_daemon_json(&path));
         assert_eq!(check.status, Status::Warn);
         assert!(check.detail.contains("isn't a JSON object"));
+    }
+    #[test]
+    fn a_rootless_engine_explains_missing_enforcement_and_slow_storage() {
+        let info = RuntimeInfo { rootless: true, storage_driver: Some("vfs".into()), ..Default::default() };
+        let checks = engine_limits(&info);
+        assert_eq!(checks.len(), 8);
+        assert!(checks.iter().all(|check| check.status == Status::Warn && check.fix.is_some()));
+        for name in [
+            "docker.memory-limit",
+            "docker.cpu-limit",
+            "docker.memory-sleep",
+            "docker.host-firewall",
+            "docker.storage",
+            "docker.exec-pid-visibility",
+            "docker.low-ports",
+            "docker.network-policy",
+        ] {
+            assert!(!by_name(&checks, name).fix.as_ref().unwrap().is_empty());
+        }
+        assert!(engine_limits(&RuntimeInfo::default()).is_empty(), "retain rootful doctor's existing checks");
     }
 }

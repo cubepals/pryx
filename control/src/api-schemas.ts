@@ -5,8 +5,10 @@
 import { z } from 'zod'
 import node from '../../openapi/node-reads.openapi.json'
 import writes from '../../openapi/node-writes.openapi.json'
+import { GUARANTEES } from './guarantees.ts'
 import { ISOLATIONS } from './isolation.ts'
 import { agentSchema } from './node-contract.ts'
+import { REQUIRED_TOOLS, TOOL_NETWORK_PROBLEM } from './tool-capabilities.ts'
 import type { WorkloadSpec } from './wire.ts'
 
 const map = z.record(z.string(), z.string())
@@ -63,6 +65,8 @@ export const makeSchema = z
     ttl: z.number().positive().optional(),
     idle: z.number().positive().optional(),
     isolation: z.enum(ISOLATIONS).optional(),
+    require: z.array(z.enum(GUARANTEES)).max(GUARANTEES.length).optional(),
+    requiredTools: z.array(z.enum(REQUIRED_TOOLS)).max(REQUIRED_TOOLS.length).optional(),
     restart: z
       .object({
         policy: z.enum(nodeSchemas.RestartPolicy.oneOf.map((p) => p.const) as ['no', 'on-failure']),
@@ -100,6 +104,10 @@ export const makeSchema = z
     region: z.string().default('default'),
   })
   .strict()
+  .refine((body) => body.network !== 'none' || !body.requiredTools?.length, {
+    path: ['requiredTools'],
+    error: TOOL_NETWORK_PROBLEM,
+  })
 export const execSchema = z
   .object({
     command: z.array(z.string()).min(1),
@@ -118,6 +126,7 @@ export const snapshotSchema = z.object({
   at: z.string().optional(),
 })
 export const sandboxSchema = z.object({
+  guarantees: z.record(z.enum(GUARANTEES), z.boolean()).optional(),
   name: z.string().optional(),
   labels: map.optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),

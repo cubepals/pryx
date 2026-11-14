@@ -1,0 +1,15 @@
+{
+  "measurement": "Fixture startup failure; no headful application or installed desktop success claimed",
+  "commit": "2b8eb85",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43278545700",
+  "result": {
+    "sourceVersions": 112,
+    "sourceInputs": 370,
+    "fullRelocationControlsPassed": true,
+    "fullLibraryBoundaryCasesPassed": 2,
+    "liveX11PrivacyPassed": true,
+    "applicationPassed": false,
+    "failure": "The isolated test worker constructed reqwest without installing the existing Rustls ring provider; No provider set",
+    "scope": "Fixture startup failure; no headful application or installed desktop success claimed"
+  }
+}

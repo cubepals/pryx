@@ -15,7 +15,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, isAbsolute, join } from 'node:path'
 
 export type ClientConfig = { url: string; key: string }
 function parseConfig(value: unknown): ClientConfig {
@@ -35,7 +35,14 @@ function parseConfig(value: unknown): ClientConfig {
     throw new Error('Invalid CLI API URL')
   return { url: value.url, key: value.key }
 }
-export const clientConfigPath = () => process.env.PRYX_CONFIG ?? join(homedir(), '.config/pryx/client.json')
+export const clientConfigPath = () =>
+  process.env.PRYX_CONFIG ??
+  join(
+    process.env.XDG_CONFIG_HOME && isAbsolute(process.env.XDG_CONFIG_HOME)
+      ? process.env.XDG_CONFIG_HOME
+      : join(homedir(), '.config'),
+    'pryx/client.json',
+  )
 export function readClientConfig(path = clientConfigPath()): ClientConfig | undefined {
   if (!existsSync(path)) return undefined
   const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW)

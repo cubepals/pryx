@@ -1,0 +1,16 @@
+{
+  "measurement": "Single local bundle acceptance, not process-tier/edge acceptance or thirty-sample timing",
+  "commit": "recorded in 9ba7026; measurement revision not recorded",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43109289475",
+  "result": {
+    "scope": "Single local bundle acceptance, not process-tier/edge acceptance or thirty-sample timing",
+    "inventoryEntries": 34489,
+    "browserObservation.debuggingPipe": true,
+    "browserObservation.abstractUnix": true,
+    "browserObservation.screenshot": true,
+    "browserObservation.cdp": true,
+    "browserObservation.expires": true,
+    "browserObservation.chromiumSandbox": true,
+    "browserObservation.rendererSeccomp": true
+  }
+}

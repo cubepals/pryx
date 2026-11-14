@@ -61,6 +61,7 @@ pub(super) async fn start(
     let status = Arc::new(std::sync::atomic::AtomicU8::new(super::VM_RUNNING));
     let guest = Arc::new(super::process::Guest::new(vm.clone(), environment, spec.mount_path.clone(), status.clone()));
     let agent = Arc::new(Agent {
+        vm_resources: false,
         file_tasks: Default::default(),
         shells: Default::default(),
         public_key: key.public_key(),

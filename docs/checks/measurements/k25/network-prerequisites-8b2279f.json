@@ -1,0 +1,52 @@
+{
+  "measurement": "Separate one-guest vsock prerequisite proof with host user namespaces and TUN unavailable",
+  "commit": "8b2279f4bf7b9b47589ee62c545094000502836f",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43458372918",
+  "result": {
+    "vsock.samples.helperAndGuestReportMs": {
+      "n": 1,
+      "p50": 680.531,
+      "p90": 680.531
+    },
+    "vsock.samples.helperPreparationMs": {
+      "n": 1,
+      "p50": 21.768,
+      "p90": 21.768
+    },
+    "vsock.samples.launchToFilesystemVsockReportMs": {
+      "n": 1,
+      "p50": 658.763,
+      "p90": 658.763
+    },
+    "vsock.samples.network.bulkBytes": {
+      "n": 1,
+      "p50": 16777216,
+      "p90": 16777216
+    },
+    "vsock.samples.network.bulkMiBPerSecond": {
+      "n": 1,
+      "p50": 150.243,
+      "p90": 150.243
+    },
+    "vsock.samples.network.bulkMs": {
+      "n": 1,
+      "p50": 106.494,
+      "p90": 106.494
+    },
+    "vsock.samples.network.dnsMs": {
+      "n": 1,
+      "p50": 2.087,
+      "p90": 2.087
+    },
+    "vsock.samples.network.httpMs": {
+      "n": 1,
+      "p50": 0.479,
+      "p90": 0.479
+    },
+    "vsock.samples.network.readyMs": {
+      "n": 1,
+      "p50": 107.36,
+      "p90": 107.36
+    }
+  }
+}

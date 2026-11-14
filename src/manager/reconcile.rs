@@ -53,6 +53,7 @@ impl Manager {
     }
 
     async fn reconcile_inner(self: &Arc<Self>, from: Records) -> Result<(u64, u64), NodeError> {
+        self.refresh_firewall().await;
         let mut host_issues = Vec::new();
         let mut issues: HashMap<WorkloadId, Vec<Issue>> = HashMap::new();
         if from == Records::FromDisk {
@@ -66,6 +67,19 @@ impl Manager {
         let mut seen = BTreeSet::new();
         for record in records {
             seen.insert(record.id.clone());
+            if self.runtime.multi_tier() && record.isolation.is_none() {
+                return Err(RuntimeError::Unavailable("the recorded unresolved tier is unavailable".into()).into());
+            }
+            if self.runtime.multi_tier() && !self.runtime.tier_ready(self.record_tier(&record)) {
+                issues.entry(record.id.clone()).or_default().push(Issue::new(
+                    IssueCode::RuntimeUnavailable,
+                    format!(
+                        "{} tier is unavailable; saved compute and observations are left untouched",
+                        self.record_tier(&record)
+                    ),
+                ));
+                continue;
+            }
             let found = by_workload.remove(&record.id).unwrap_or_default();
             if self.check_record(record, found, &mut issues).await? {
                 adopted += 1;
@@ -101,6 +115,9 @@ impl Manager {
     /// issues with either: a network that lets workloads reach each other, a daemon that stops
     /// them when it restarts.
     async fn check_host(&self) -> Result<Vec<Issue>, NodeError> {
+        if self.runtime.multi_tier() {
+            return self.check_tier_hosts().await;
+        }
         let mut host_issues = Vec::new();
         let network_labels = BTreeMap::from([
             (LABEL_MANAGED.to_owned(), "true".to_owned()),
@@ -135,13 +152,59 @@ impl Manager {
         Ok(host_issues)
     }
 
+    async fn check_tier_hosts(&self) -> Result<Vec<Issue>, NodeError> {
+        let info = self.note(self.runtime.serving_info().await)?;
+        *self.runtime_info.lock().unwrap() = Some(info);
+        let labels = BTreeMap::from([
+            (LABEL_MANAGED.to_owned(), "true".to_owned()),
+            (LABEL_DEPLOYMENT.to_owned(), self.config.deployment_id.clone()),
+        ]);
+        let mut issues = Vec::new();
+        for tier in self.runtime.tiers() {
+            let Some(backend) = self.runtime.backend(tier) else { continue };
+            if self.runtime.tier_info(tier).is_none() {
+                issues.push(Issue::new(IssueCode::RuntimeUnavailable, format!("{tier} tier is unavailable")));
+                continue;
+            }
+            let result = async {
+                let network = backend.ensure_network(&self.config.docker.network, &labels).await?;
+                if backend.supports_network_policy() {
+                    backend
+                        .ensure_internal_network(
+                            &crate::runtime::docker::internal_network(&self.config.docker.network),
+                            &labels,
+                        )
+                        .await?;
+                }
+                Ok::<_, RuntimeError>(network)
+            }
+            .await;
+            match result {
+                Ok(network) if !network.isolated => issues.push(Issue::new(
+                    IssueCode::NetworkNotIsolated,
+                    format!("{tier} network does not enforce host isolation policy"),
+                )),
+                Ok(_) => {}
+                Err(error) if error.is_unavailable() => {
+                    issues.push(Issue::new(IssueCode::RuntimeUnavailable, format!("{tier} tier: {error}")))
+                }
+                Err(error) => return Err(error.into()),
+            }
+        }
+        Ok(issues)
+    }
+
     /// The runtime's containers of this deployment, by the workload their label names. One
     /// whose label names none is a host issue.
     async fn containers_by_workload(
         &self,
         host_issues: &mut Vec<Issue>,
     ) -> Result<HashMap<WorkloadId, Vec<ContainerInfo>>, NodeError> {
-        let containers = self.note(self.runtime.list(&self.owner_labels()).await)?;
+        let inventory = self.note(self.runtime.inventory(&self.owner_labels()).await)?;
+        for (tier, problem) in inventory.unavailable {
+            host_issues.push(Issue::new(IssueCode::RuntimeUnavailable, format!("{tier} tier: {problem}")));
+        }
+        let containers = inventory.containers;
         let mut by_workload: HashMap<WorkloadId, Vec<ContainerInfo>> = HashMap::new();
         for c in containers {
             match c.labels.get(LABEL_WORKLOAD).map(|w| WorkloadId::parse(w)) {
@@ -276,6 +339,9 @@ impl Manager {
             return Ok(Err(issue));
         };
         let record = WorkloadRecord {
+            isolation: label
+                .isolation
+                .or_else(|| self.runtime.bound_isolation(&c.name).and_then(crate::protocol::Isolation::from_name)),
             version: RECORD_VERSION,
             id: id.clone(),
             generation: label.generation,
@@ -295,7 +361,7 @@ impl Manager {
             created_at: label.created_at,
             updated_at: now_str(),
         };
-        self.store.ensure_data_dir(id, self.data_owner(id)?)?;
+        self.store.ensure_data_dir(id, self.record_data_owner(&record)?)?;
         self.save_record(&record).await?;
         self.remember(id, Some(c)).await;
         Ok(Ok(Issue::new(
@@ -308,11 +374,19 @@ impl Manager {
     /// what a crash left is settled. Returns the host's issues: records it couldn't read, and what
     /// it left for a human.
     async fn load_from_disk(&self, issues: &mut HashMap<WorkloadId, Vec<Issue>>) -> Result<Vec<Issue>, NodeError> {
-        let (records, bad) = self.store.load_all()?;
+        let (mut records, bad) = self.store.load_all()?;
         let mut host_issues: Vec<Issue> = bad
             .into_iter()
             .map(|b| Issue::new(IssueCode::UnreadableRecord, format!("{}: {}", b.path.display(), b.problem)))
             .collect();
+        for record in &mut records {
+            if record.isolation.is_none() {
+                record.isolation = self.legacy_isolation(record).await?;
+                self.save_record(record).await?;
+            } else {
+                self.bind_record(record)?;
+            }
+        }
         // What a crash left is settled before anything uses the data.
         host_issues.extend(self.settle_leftovers(&records, issues).await);
         let resting = self.store.load_resting_ports();
@@ -325,6 +399,23 @@ impl Manager {
                 .map(|p| (p.protocol, p.port, Duration::from_secs((now_unix - p.released_at_unix).max(0) as u64))),
         );
         Ok(host_issues)
+    }
+
+    async fn legacy_isolation(&self, record: &WorkloadRecord) -> Result<Option<crate::protocol::Isolation>, NodeError> {
+        if !self.runtime.multi_tier() {
+            return Ok(crate::protocol::Isolation::from_name(self.runtime.isolation()));
+        }
+        // Read every backend through the router before binding an older record. Its current
+        // default is not evidence of which backend owns existing compute.
+        if self.runtime.inspect(&record.container_name).await?.is_some() {
+            return Ok(self
+                .runtime
+                .bound_isolation(&record.container_name)
+                .and_then(crate::protocol::Isolation::from_name));
+        }
+        // Images have always been exclusive to containers. A resting image-free legacy record
+        // has no evidence distinguishing process from Wasm, so leave it refused, not guessed.
+        Ok((!record.spec.image.is_empty()).then_some(crate::protocol::Isolation::Container))
     }
 
     /// Settles what a crash left on disk: each record's restore that didn't get to finish

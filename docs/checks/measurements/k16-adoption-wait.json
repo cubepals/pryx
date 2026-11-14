@@ -1,74 +1,25 @@
 {
-  "baseCommit": "12f9a7ac74da4c5051fd0a1458dafab377910e81",
-  "scope": "PR 10 item 3; archive-adoption fixture deadline and recovery only",
-  "originalCi": {
-    "jobId": 128434367700,
-    "lastCompletedPhase": "Foreign archive: captured",
-    "missingPhase": "Foreign archive: exported",
-    "testDeadlineSeconds": 180,
-    "inheritedArchiveRpcDeadlineSeconds": 10800,
-    "exportUploadClaimWaitSeconds": 10800,
-    "timeoutEffect": "Bun killed two shared processes; pending NodeClient request reset; five later fleet cases failed",
-    "diagnosticLimit": "Pretty logs contain terminal escapes between status and =; the old status= filter printed an empty failure dump. The job does not retain evidence identifying packing, storage or transport as the delayed response source."
-  },
-  "controlledRegression": {
-    "test": "control/test/fleet-upload-timeout.test.ts",
-    "dependencies": [
-      "real Postgres",
-      "real mutual TLS",
-      "owned node and object-store doubles"
-    ],
-    "fault": "The first archive upload stores its bytes but never acknowledges them. Export starts while the database claim is uploading.",
-    "before": {
-      "client": "original NodeClient behaviour",
-      "result": "failed",
-      "guardSeconds": 5,
-      "testElapsedMs": 7224.48,
-      "assertionsBeforeFailure": 2,
-      "error": "Export is still waiting on the unacknowledged upload"
-    },
-    "after": {
-      "client": "FleetClient with a one-second test bound",
-      "result": "passed",
-      "testElapsedMs": 2749.68,
-      "assertions": 8,
-      "archiveRequests": 2,
-      "destinations": [
-        "original fleet archive",
-        "separate foreign export"
-      ],
-      "firstMutationReplayed": false
-    },
-    "fixtureDefaultDeadlineSeconds": 30,
-    "productionDeadlinesChanged": false,
-    "testDeadlineChanged": false
-  },
-  "localChecks": {
-    "bunRunCheck": {
-      "passed": 344,
-      "failed": 0,
-      "assertions": 7910,
-      "elapsedSeconds": 216.42
-    },
-    "focusedRealDockerArchiveFlow": {
-      "passed": 6,
-      "failed": 0,
-      "filteredOut": 9,
-      "assertions": 32,
-      "elapsedSeconds": 55.71,
-      "foreignAdoptionMs": 9594.0
-    },
-    "tlsKeepAliveProbe": {
-      "calls": 6000,
-      "result": "passed; did not reproduce a general connection-reuse failure"
-    },
-    "structure": "passed",
-    "reuse": "passed, 900 of 900 files"
-  },
-  "limits": [
-    "The local Docker daemon has no freezer. Full privileged lifecycle validation is assigned to CI; the focused archive flow uses the existing owned daemon container wrapper, not a claim of full native acceptance.",
-    "The first full-fixture diagnostic omitted the agent volume path; the next encountered the unavailable freezer and cascading stopped-state failures. Neither is counted as a passing check.",
-    "Two temporary baseline-copy attempts failed import resolution before the final resolved copy reproduced the wait. Setup failures are not counted as the expected regression failure.",
-    "A held acknowledgement reproduces the fixture starvation and its fix. It does not identify the original runner-specific transport or storage fault."
-  ]
+  "measurement": "PR 10 item 3; archive-adoption fixture deadline and recovery only",
+  "commit": "12f9a7ac74da4c5051fd0a1458dafab377910e81",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/42327917730",
+  "result": {
+    "scope": "PR 10 item 3; archive-adoption fixture deadline and recovery only",
+    "originalCi.testDeadlineSeconds": 180,
+    "originalCi.inheritedArchiveRpcDeadlineSeconds": 10800,
+    "controlledRegression.before.guardSeconds": 5,
+    "controlledRegression.before.testElapsedMs": 7224.48,
+    "controlledRegression.before.assertionsBeforeFailure": 2,
+    "controlledRegression.after.testElapsedMs": 2749.68,
+    "controlledRegression.after.assertions": 8,
+    "controlledRegression.after.archiveRequests": 2,
+    "controlledRegression.after.firstMutationReplayed": false,
+    "controlledRegression.fixtureDefaultDeadlineSeconds": 30,
+    "controlledRegression.productionDeadlinesChanged": false,
+    "controlledRegression.testDeadlineChanged": false,
+    "localChecks.bunRunCheck.passed": 344,
+    "localChecks.bunRunCheck.failed": 0,
+    "localChecks.bunRunCheck.assertions": 7910,
+    "localChecks.bunRunCheck.elapsedSeconds": 216.42,
+    "localChecks.focusedRealDockerArchiveFlow.passed": 6
+  }
 }

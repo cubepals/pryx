@@ -12,7 +12,11 @@
 //! - `state.rs`: bounded, non-secret persistent checkpoints.
 //! - `telemetry.rs`: in-memory activity and stream ownership.
 //! - `process.rs`: supervised process trees, streams, stdin and completion.
+//! - `syscall_abi.rs`: native syscall ABI checks around maintained seccompiler policies.
 //! - `process_policy.rs`: process-tier filesystem, syscall and sampled resource restrictions.
+//! - `process_tools.rs`: host-bound native bundle acquisition and private runtime inputs.
+//! - `process_tool_policy.rs`: independent native artifact/cache policy types and parser version.
+//! - `process_observation.rs`: challenge-bound signed observations of installed process isolation.
 //! - `process_forward.rs`: ownership-verified process-tier forwarding channel.
 //! - `process_peer.rs`: kernel process and connected-peer ownership evidence.
 //! - `process_capabilities.rs`: non-mutating kernel support queries.
@@ -35,10 +39,22 @@
 //! - `ports.rs`: preallocated forward slots.
 //! - `main.rs`: PID 1 bootstrap and embedded shell.
 //! - `bootstrap.rs`: entrypoint supervision and termination.
+//! - `bootstrap_capabilities.rs`: optional executable bootstrap argument discovery.
+//! - `vm_ingress.rs`: host-CID-only virtio-socket ingress to guest-loopback agent ports.
+//! - `vm_boot.rs`: private in-memory VM bootstrap contract, separate from fleet protocol and disk records.
+//! - `vm_network.rs`: trusted guest network readiness, resolver mounts and child lifetime.
+//! - `vm_firewall.rs`: host-owned guest packet policy from the verified bootstrap program.
+//! - `vm_policy.rs`: inherited denial of new guest packet-transport sockets.
+//! - `vm_init.rs`: trusted guest init, mount preparation and orderly non-root agent supervision.
+//! - `vm_observation.rs`: boot-scoped signed disk-shutdown observations.
+//! - `vm_metrics.rs`: optional read-only guest kernel resource counters.
+//! - `vm_shutdown.rs`: authenticated host-CID-only requests to trusted guest init.
+//! - `vm_monitor.rs`: host-owned monitor confinement and inherited lifetime lease.
 
 pub mod auth;
 #[cfg(feature = "server")]
 pub mod bootstrap;
+pub mod bootstrap_capabilities;
 #[cfg(feature = "server")]
 pub mod context;
 pub mod contract;
@@ -60,7 +76,13 @@ pub mod process;
 #[cfg(feature = "fs")]
 pub mod process_capabilities;
 #[cfg(feature = "server")]
+pub mod process_observation;
+#[cfg(feature = "server")]
 pub mod process_policy;
+#[cfg(feature = "server")]
+pub mod process_tool_policy;
+#[cfg(feature = "server")]
+pub mod process_tools;
 #[cfg(feature = "server")]
 pub mod pty;
 #[cfg(all(feature = "schema", feature = "server"))]
@@ -70,7 +92,29 @@ pub mod server;
 #[cfg(feature = "fs")]
 pub mod state;
 #[cfg(feature = "server")]
+mod syscall_abi;
+#[cfg(feature = "server")]
 pub mod telemetry;
+#[cfg(feature = "server")]
+pub mod vm_boot;
+#[cfg(feature = "server")]
+mod vm_firewall;
+#[cfg(feature = "server")]
+mod vm_ingress;
+#[cfg(feature = "server")]
+pub mod vm_init;
+#[cfg(feature = "server")]
+mod vm_metrics;
+#[cfg(feature = "server")]
+pub mod vm_monitor;
+#[cfg(feature = "server")]
+mod vm_network;
+#[cfg(feature = "server")]
+pub mod vm_observation;
+#[cfg(feature = "server")]
+pub mod vm_policy;
+#[cfg(feature = "server")]
+pub mod vm_shutdown;
 
 #[cfg(feature = "server")]
 mod transfers;

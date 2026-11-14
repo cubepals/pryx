@@ -1,0 +1,10 @@
+{
+  "measurement": "packaged descriptor fe0437a",
+  "commit": "fe0437aeb4bfaa44e82eeb0a2dc6595180b42c1c",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43177305638",
+  "result": {
+    "bytes": 726229933,
+    "unpacked_bytes": 1890465977,
+    "entries": 38894
+  }
+}

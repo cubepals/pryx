@@ -1,0 +1,22 @@
+{
+  "measurement": "direct node manager, locally available image, serial workloads, no public edge",
+  "commit": "03729e9",
+  "ci": "Not recorded; local or inventory evidence, not a CI pass",
+  "result": {
+    "samples.createMs": {
+      "n": 30,
+      "p50": 4382.397,
+      "p90": 4623.389
+    },
+    "samples.execMs": {
+      "n": 30,
+      "p50": 46.805,
+      "p90": 177.337
+    },
+    "samples.networkMs": {
+      "n": 30,
+      "p50": 3.137,
+      "p90": 3.197
+    }
+  }
+}

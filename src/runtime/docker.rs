@@ -9,18 +9,32 @@
 //!
 //! Parts (`docker/`):
 //! - `egress.rs`: firewall-gated hostname bridges and gateways.
+//! - `ownership.rs`: read-only proof of host data identity mapping.
+//! - `podman.rs`: native Netavark isolation and hardened container creation.
+//! - `network.rs`: engine bridge creation and isolation observation.
 //! - `create.rs`: trusted container and agent creation.
+//! - `browser_policy.rs`: negotiated agent bootstrap and inner-browser policy observation.
 //! - `container.rs`: container construction and observation types.
 //! - `exec.rs`: command attachment and timeout containment.
 //! - `native_tools.rs`: explicit host-only seccomp and FUSE device policy.
+//! - `tests.rs`: container construction and host process ownership regressions.
+//! - `policy_tests.rs`: transport regression for unsupported engine policy refusal.
+//! - `termination.rs`: kernel process ancestry and cgroup-owned exec cleanup.
 //! - `relay.rs`: bounded private ingress to gateway-free internal networks.
 
+mod browser_policy;
 mod container;
 mod create;
 pub(crate) mod egress;
 mod exec;
 mod native_tools;
+mod network;
+pub(crate) mod ownership;
+mod podman;
+#[cfg(test)]
+mod policy_tests;
 mod relay;
+mod termination;
 use container::{body_of, info_from};
 
 use std::collections::{BTreeMap, HashMap};
@@ -51,8 +65,15 @@ use super::{
 };
 use crate::protocol::MAX_STOP_TIMEOUT;
 
+/// A rootless engine must map its workload identity to the host's protected data owner.
+pub const DATA_OWNER_REQUIREMENT: &str = "data-owner-mapping";
 /// Longer than the longest stop: Docker answers a stop only once the container exited.
 const CLIENT_TIMEOUT_SECS: u64 = MAX_STOP_TIMEOUT as u64 + 60;
+/// Docker Engine /info SecurityOptions uses this identifier for rootless mode.
+const ROOTLESS_SECURITY_OPTION: &str = "name=rootless";
+/// Podman v6.1.0 pkg/api/handlers/compat/version.go's component name.
+const PODMAN_ENGINE_COMPONENT: &str = "Podman Engine";
+pub(crate) const PODMAN_POLICY_PROBLEM: &str = "Podman needs its native API, Netavark and the default native-tools profile to preserve container isolation; use a supported engine configuration";
 /// Quick calls get a much shorter leash of their own.
 const QUICK: Duration = Duration::from_secs(20);
 const ICC_OPTION: &str = "com.docker.network.bridge.enable_icc";
@@ -85,12 +106,53 @@ pub(crate) fn internal_network(network: &str) -> String {
 pub struct DockerRuntime {
     socket: String,
     client: std::sync::Mutex<Option<Docker>>,
+    info: std::sync::Mutex<Option<RuntimeInfo>>,
+    metadata_version: std::sync::Mutex<Option<bollard::models::SystemVersion>>,
     relays: relay::Relays,
     egress: egress::Egress,
     native_tools: native_tools::Policy,
+    pub(super) ownership: ownership::Policy,
+}
+
+struct RootlessExec {
+    owner: termination::Ownership,
+    init: termination::Held,
+    container: String,
 }
 
 impl DockerRuntime {
+    async fn rootless_exec_policy(&self, container: &str) -> Result<Option<RootlessExec>, RuntimeError> {
+        let cached = self.info.lock().unwrap().clone();
+        let info = match cached {
+            Some(info) => info,
+            None => self.info().await?,
+        };
+        if let Some(problem) = info.container_policy_problem {
+            return Err(RuntimeError::Other(problem));
+        }
+        if !info.rootless {
+            return Ok(None);
+        }
+        let peer_uid = termination::peer(&self.socket).await.map_err(RuntimeError::Other)?;
+        let inspect = quick("inspect exec owner", self.docker()?.inspect_container(container, None)).await?;
+        let container = inspect.id.ok_or_else(|| RuntimeError::Other("exec owner has no identity".into()))?;
+        let state = inspect.state.unwrap_or_default();
+        let init_pid = state
+            .pid
+            .and_then(|pid| i32::try_from(pid).ok())
+            .filter(|pid| *pid > 1)
+            .ok_or_else(|| RuntimeError::Conflict("exec owner is not running".into()))?;
+        let init = termination::Held::capture(init_pid).ok_or_else(|| {
+            RuntimeError::Other("exec-pid-visibility is unavailable: the workload init is gone".into())
+        })?;
+        let owner = termination::Ownership::capture(init_pid, peer_uid, &container, !info.podman).ok_or_else(|| RuntimeError::Other(
+            "exec-pid-visibility is unavailable: the workload's private process identity is unreadable; permit same-user procfs inspection on the engine host".into()))?;
+        if !init.alive() {
+            return Err(RuntimeError::Conflict("exec owner exited during namespace inspection".into()));
+        }
+        Ok(Some(RootlessExec { owner, init, container }))
+    }
+
     /// Doesn't connect yet: pryxd starts even while Docker is down (bollard refuses to build a
     /// client for a socket that doesn't exist yet), and says so until it's back.
     pub fn new(socket: &Path) -> Result<Self, RuntimeError> {
@@ -98,9 +160,12 @@ impl DockerRuntime {
         Ok(Self {
             socket,
             client: std::sync::Mutex::new(None),
+            info: std::sync::Mutex::new(None),
+            metadata_version: std::sync::Mutex::new(None),
             relays: relay::Relays::default(),
             egress: Default::default(),
             native_tools: Default::default(),
+            ownership: Default::default(),
         })
     }
 
@@ -114,10 +179,30 @@ impl DockerRuntime {
         Ok(self)
     }
 
+    fn checked_metadata(
+        &self,
+        cached: bool,
+        version: &Option<String>,
+        info: Result<bollard::models::SystemInfo, RuntimeError>,
+        native_available: bool,
+    ) -> Result<bollard::models::SystemInfo, RuntimeError> {
+        if cached && (!native_available || !info.as_ref().is_ok_and(|info| &info.server_version == version)) {
+            *self.metadata_version.lock().unwrap() = None;
+            *self.client.lock().unwrap() = None;
+            return Err(RuntimeError::Unavailable(
+                "engine metadata changed or became unavailable; re-probe required".into(),
+            ));
+        }
+        info
+    }
+
     /// Prove the independent cgroup watchdog before enabling the optional host feature.
     pub async fn check_store_lease(&self) -> Result<(), RuntimeError> {
         let info = self.info().await?;
-        if info.cgroup_version.as_deref() != Some("2") || info.cgroup_driver.as_deref() != Some("cgroupfs") {
+        if info.rootless
+            || info.cgroup_version.as_deref() != Some("2")
+            || info.cgroup_driver.as_deref() != Some("cgroupfs")
+        {
             return Err(RuntimeError::Other("store-lease needs rootful cgroup v2 and Docker cgroupfs driver".into()));
         }
         crate::store_lease::guard::prepare("probe", 0)
@@ -201,6 +286,49 @@ fn map_err(error: BollardError) -> RuntimeError {
     }
 }
 
+async fn native_request<T: serde::de::DeserializeOwned>(
+    runtime: &DockerRuntime,
+    version: &str,
+    method: reqwest::Method,
+    path: &[&str],
+    body: Option<Vec<u8>>,
+) -> Result<T, RuntimeError> {
+    let client = reqwest::Client::builder()
+        .unix_socket(runtime.socket.as_str())
+        .no_proxy()
+        .timeout(QUICK)
+        .build()
+        .map_err(|_| RuntimeError::Other("Cannot construct native API transport".into()))?;
+    let mut url = reqwest::Url::parse("http://localhost").expect("literal native endpoint");
+    url.path_segments_mut()
+        .expect("literal HTTP URL has path segments")
+        .push(&format!("v{version}"))
+        .push("libpod")
+        .extend(path);
+    let response = client
+        .request(method, url)
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .body(body.unwrap_or_default())
+        .send()
+        .await
+        .map_err(|error| {
+            if error.is_timeout() {
+                RuntimeError::Timeout("Podman native API timed out".into())
+            } else {
+                RuntimeError::Unavailable("Podman native API transport failed".into())
+            }
+        })?;
+    if !response.status().is_success() {
+        return Err(map_err(BollardError::DockerResponseServerError {
+            status_code: response.status().as_u16(),
+            message: "Podman rejected native container policy".into(),
+        }));
+    }
+    let bytes =
+        response.bytes().await.map_err(|_| RuntimeError::Unavailable("Podman native API response was lost".into()))?;
+    serde_json::from_slice(&bytes).map_err(|_| RuntimeError::Other("Podman native API response was invalid".into()))
+}
+
 async fn quick<T>(
     what: &str,
     fut: impl std::future::Future<Output = Result<T, BollardError>>,
@@ -226,53 +354,101 @@ fn pull_tag(image: &str) -> Option<&'static str> {
 
 #[async_trait]
 impl ContainerRuntime for DockerRuntime {
+    fn data_owner(&self, _id: &str) -> Result<Option<(u32, u32)>, RuntimeError> {
+        Ok(self
+            .info
+            .lock()
+            .unwrap()
+            .as_ref()
+            .filter(|info| info.rootless)
+            .map(|_| (rustix::process::geteuid().as_raw(), rustix::process::getegid().as_raw())))
+    }
     fn supports_agent(&self) -> bool {
         true
     }
     fn supports_native_fuse(&self) -> bool {
         self.native_tools.fuse()
+            && self.info.lock().unwrap().as_ref().is_some_and(|info| !info.rootless && !info.podman)
     }
     fn supports_hostname_egress(&self) -> bool {
-        egress::ready()
+        self.info.lock().unwrap().as_ref().is_some_and(|info| !info.rootless && !info.podman) && egress::ready()
     }
     fn supports_network_policy(&self) -> bool {
-        true
+        self.info.lock().unwrap().as_ref().is_none_or(|info| !info.rootless || info.podman)
     }
 
     async fn ensure_internal_network(&self, name: &str, labels: &BTreeMap<String, String>) -> Result<(), RuntimeError> {
-        let inspect =
-            quick("inspect internal network", self.docker()?.inspect_network(name, None::<InspectNetworkOptions>))
-                .await;
-        match inspect {
-            Ok(network) => {
-                if network.internal == Some(true)
-                    && network.options.unwrap_or_default().get(ICC_OPTION).map(String::as_str) == Some("false")
-                {
-                    return Ok(());
-                }
-                return Err(RuntimeError::Other("The internal network does not enforce host policy".into()));
-            }
-            Err(RuntimeError::NotFound(_)) => {}
-            Err(error) => return Err(error),
+        network::internal(self, name, labels).await
+    }
+    async fn resource_limits(&self) -> Result<Option<super::limits::ResourceLimits>, RuntimeError> {
+        let info = self.info().await?;
+        if let Some(problem) = info.container_policy_problem {
+            return Err(RuntimeError::Other(problem));
         }
-        let request = NetworkCreateRequest {
-            name: name.into(),
-            driver: Some("bridge".into()),
-            internal: Some(true),
-            options: Some(HashMap::from([
-                (ICC_OPTION.into(), "false".into()),
-                (BRIDGE_NAME_OPTION.into(), bridge_name(name)),
-            ])),
-            labels: Some(labels.clone().into_iter().collect()),
-            ..Default::default()
-        };
-        quick("create internal network", self.docker()?.create_network(request)).await?;
-        Ok(())
+        Ok(Some(super::limits::ResourceLimits {
+            memory: info.memory_limit,
+            cpu: info.cpu_limit,
+            pids: info.pids_limit,
+            rootless: info.rootless,
+        }))
     }
     async fn info(&self) -> Result<RuntimeInfo, RuntimeError> {
-        let version = quick("version", self.docker()?.version()).await?;
-        let info = quick("info", self.docker()?.info()).await?;
-        Ok(RuntimeInfo {
+        // The maintained client negotiates the compatible API; its clones share that version.
+        // Independent metadata reads run together within the existing discovery deadline.
+        let client = self.docker()?;
+        crate::capability::probe_phase("engine-negotiate");
+        crate::capability::probe_phase("engine-version");
+        let cached = self.metadata_version.lock().unwrap().clone();
+        let version = if let Some(version) = &cached {
+            version.clone()
+        } else {
+            tokio::try_join!(
+                quick("negotiate version", client.clone().negotiate_version()),
+                quick("version", client.version()),
+            )?
+            .1
+        };
+        let podman = version
+            .components
+            .as_ref()
+            .is_some_and(|components| components.iter().any(|component| component.name == PODMAN_ENGINE_COMPONENT));
+        let podman_version = version
+            .components
+            .as_ref()
+            .and_then(|components| components.iter().find(|component| component.name == PODMAN_ENGINE_COMPONENT))
+            .map(|component| component.version.clone())
+            .filter(|version| {
+                !version.is_empty()
+                    && version.split('.').count() == 3
+                    && version.split('.').all(|part| part.parse::<u32>().is_ok())
+            });
+        crate::capability::probe_phase("engine-compatible-info");
+        crate::capability::probe_phase("engine-native-info");
+        let native =
+            async { if let Some(version) = &podman_version { podman::host(self, version).await } else { None } };
+        let (info, native) = tokio::join!(quick("info", client.info()), native);
+        let info = self.checked_metadata(cached.is_some(), &version.version, info, native.is_some())?;
+        // Only stable version negotiation is reused. Controllers, ownership and policy stay live.
+        if podman && native.is_some() && version.version.is_some() && version.version == info.server_version {
+            *self.metadata_version.lock().unwrap() = Some(version.clone());
+        }
+        let mut result = RuntimeInfo {
+            podman,
+            podman_version,
+            container_policy_problem: (podman && native.is_none()).then(|| PODMAN_POLICY_PROBLEM.into()),
+            rootless: info
+                .security_options
+                .as_ref()
+                .is_some_and(|options| options.iter().any(|option| option == ROOTLESS_SECURITY_OPTION)),
+            local_process_ids: None,
+            unprivileged_ports: None,
+            memory_limit: info.memory_limit == Some(true)
+                && info.cgroup_driver.as_ref().is_some_and(|driver| driver.to_string() != "none"),
+            cpu_limit: info.cpu_cfs_quota == Some(true)
+                && info.cpu_shares == Some(true)
+                && info.cgroup_driver.as_ref().is_some_and(|driver| driver.to_string() != "none"),
+            pids_limit: info.pids_limit == Some(true)
+                && info.cgroup_driver.as_ref().is_some_and(|driver| driver.to_string() != "none"),
             version: version.version,
             api_version: version.api_version,
             cgroup_version: info.cgroup_version.map(|v| v.to_string()),
@@ -281,7 +457,36 @@ impl ContainerRuntime for DockerRuntime {
             security_options: info.security_options.unwrap_or_default(),
             live_restore: info.live_restore_enabled,
             log_driver: info.logging_driver,
-        })
+        };
+        podman::enforcement(&mut result, native.as_ref());
+        if result.rootless {
+            let visible = termination::peer(&self.socket).await.is_ok();
+            result.local_process_ids = Some(visible);
+            // ip(7): ports below ip_unprivileged_port_start require CAP_NET_BIND_SERVICE.
+            // The host-side rootless port helper needs all nonzero ports available.
+            result.unprivileged_ports = visible
+                .then(|| {
+                    std::fs::read_to_string("/proc/sys/net/ipv4/ip_unprivileged_port_start")
+                        .ok()
+                        .and_then(|value| value.trim().parse::<u16>().ok())
+                        .map(|first| first <= 1)
+                })
+                .flatten();
+        }
+        crate::capability::probe_phase("engine-info-complete");
+        if result.container_policy_problem.is_none() {
+            result.container_policy_problem = ownership::problem(self, &result).await;
+        }
+        *self.info.lock().unwrap() = Some(result.clone());
+        Ok(result)
+    }
+
+    async fn serving_info(&self) -> Result<RuntimeInfo, RuntimeError> {
+        let info = self.info().await?;
+        if let Some(problem) = &info.container_policy_problem {
+            return Err(RuntimeError::Unavailable(problem.clone()));
+        }
+        Ok(info)
     }
 
     async fn ensure_network(
@@ -289,40 +494,11 @@ impl ContainerRuntime for DockerRuntime {
         name: &str,
         labels: &BTreeMap<String, String>,
     ) -> Result<NetworkReport, RuntimeError> {
-        if let Some(isolated) = self.network_isolated(name).await? {
-            return Ok(NetworkReport { isolated });
-        }
-        let request = NetworkCreateRequest {
-            name: name.to_owned(),
-            driver: Some("bridge".into()),
-            // Workloads can't reach each other directly; each reaches the outside network and is reached
-            // through its published ports only, which the host's rules keep the others off.
-            options: Some(HashMap::from([
-                (ICC_OPTION.to_owned(), "false".to_owned()),
-                (BRIDGE_NAME_OPTION.to_owned(), bridge_name(name)),
-            ])),
-            labels: Some(labels.clone().into_iter().collect()),
-            ..Default::default()
-        };
-        match quick("create network", self.docker()?.create_network(request)).await {
-            Ok(_) => Ok(NetworkReport { isolated: true }),
-            // Made by someone else in between, maybe without isolation: look again.
-            Err(RuntimeError::Conflict(message)) => match self.network_isolated(name).await? {
-                Some(isolated) => Ok(NetworkReport { isolated }),
-                None => Err(RuntimeError::Conflict(message)),
-            },
-            Err(e) => Err(e),
-        }
+        network::ensure(self, name, labels).await
     }
 
     async fn network_isolated(&self, name: &str) -> Result<Option<bool>, RuntimeError> {
-        match quick("inspect network", self.docker()?.inspect_network(name, None::<InspectNetworkOptions>)).await {
-            Ok(network) => {
-                Ok(Some(network.options.unwrap_or_default().get(ICC_OPTION).map(String::as_str) == Some("false")))
-            }
-            Err(RuntimeError::NotFound(_)) => Ok(None),
-            Err(e) => Err(e),
-        }
+        network::isolated(self, name).await
     }
 
     async fn ensure_image(&self, image: &str, timeout: Duration) -> Result<bool, RuntimeError> {
@@ -404,6 +580,19 @@ impl ContainerRuntime for DockerRuntime {
     }
 
     async fn disable_restart(&self, name: &str) -> Result<(), RuntimeError> {
+        if podman::selected(self).await? {
+            // Podman 4.9 has no compatible update route; native update only changes cgroups.
+            // Its WithRestartPolicy treats explicit empty/no as disabled. Unknown never suffices.
+            let inspected = quick("inspect restart policy", self.docker()?.inspect_container(name, None)).await?;
+            let policy = inspected.host_config.and_then(|host| host.restart_policy).and_then(|policy| policy.name);
+            return if matches!(policy, Some(RestartPolicyNameEnum::NO | RestartPolicyNameEnum::EMPTY)) {
+                Ok(())
+            } else {
+                Err(RuntimeError::Other(
+                    "Podman restart-policy is active or unknown; this adapter requires disabled engine restarts".into(),
+                ))
+            };
+        }
         let body = ContainerUpdateBody {
             restart_policy: Some(DockerRestartPolicy {
                 name: Some(RestartPolicyNameEnum::NO),
@@ -416,11 +605,25 @@ impl ContainerRuntime for DockerRuntime {
 
     async fn remove(&self, name: &str) -> Result<(), RuntimeError> {
         self.relays.stop(name).await;
+        let network = if self.info.lock().unwrap().as_ref().is_some_and(|info| info.podman) {
+            self.inspect(name).await?.and_then(|info| info.labels.get(podman::NETWORK_LABEL).cloned())
+        } else {
+            None
+        };
         // v: anonymous volumes an image declares go with the container instead of leaking; the
         // workload's data is a bind mount, which removal never touches.
         let options = RemoveContainerOptionsBuilder::new().force(true).v(true).build();
         match quick("remove", self.docker()?.remove_container(name, Some(options))).await {
-            Err(RuntimeError::NotFound(_)) | Ok(()) => self.egress.stop(self, name).await,
+            Err(RuntimeError::NotFound(_)) | Ok(()) => {
+                self.egress.stop(self, name).await?;
+                if let Some(network) = network {
+                    match podman::delete_network(self, &network).await {
+                        Ok(_) | Err(RuntimeError::NotFound(_)) => {}
+                        Err(error) => return Err(error),
+                    }
+                }
+                Ok(())
+            }
             Err(error) => Err(error),
         }
     }
@@ -568,141 +771,5 @@ impl ContainerRuntime for DockerRuntime {
     }
 }
 
-/// SIGKILLs `pid` and every process descended from it, each only if its cgroup still names
-/// `container` (a pid may have been reused since the exec began). Returns how many it killed.
-fn kill_exec_tree(pid: i32, container: &str) -> usize {
-    let mut killed = 0;
-    for target in descendants(pid, &children_by_parent()) {
-        let owned = std::fs::read_to_string(format!("/proc/{target}/cgroup")).is_ok_and(|c| c.contains(container));
-        if owned
-            && let Some(p) = rustix::process::Pid::from_raw(target)
-            && rustix::process::kill_process(p, rustix::process::Signal::KILL).is_ok()
-        {
-            killed += 1;
-        }
-    }
-    killed
-}
-
-/// Every process's children, keyed by parent pid, as /proc shows them now.
-fn children_by_parent() -> HashMap<i32, Vec<i32>> {
-    let mut parents: HashMap<i32, Vec<i32>> = HashMap::new();
-    if let Ok(entries) = std::fs::read_dir("/proc") {
-        for entry in entries.filter_map(Result::ok) {
-            let Ok(child) = entry.file_name().to_string_lossy().parse::<i32>() else { continue };
-            let Ok(stat) = std::fs::read_to_string(format!("/proc/{child}/stat")) else { continue };
-            // The command name is parenthesised and may hold spaces; fields resume after ')'.
-            let Some(after) = stat.rfind(')').map(|i| &stat[i + 1..]) else { continue };
-            let Some(ppid) = after.split_whitespace().nth(1).and_then(|p| p.parse::<i32>().ok()) else { continue };
-            parents.entry(ppid).or_default().push(child);
-        }
-    }
-    parents
-}
-
-/// `root` and everything below it, breadth first. Nothing for 0 or 1: the tree under either is
-/// every process on the host, the container's own included, and the cgroup check would let
-/// exactly those through. Docker reports pid 0 for an exec it hasn't started yet.
-fn descendants(root: i32, children: &HashMap<i32, Vec<i32>>) -> Vec<i32> {
-    if root <= 1 {
-        return Vec::new();
-    }
-    let mut tree = vec![root];
-    let mut i = 0;
-    while i < tree.len() {
-        if let Some(below) = children.get(&tree[i]) {
-            tree.extend(below);
-        }
-        i += 1;
-    }
-    tree
-}
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn spec() -> ContainerSpec {
-        ContainerSpec {
-            packages: Vec::new(),
-            agent: None,
-            cgroup_parent: None,
-            name: "blockly-test-w".into(),
-            image: "alpine:3.22".into(),
-            entrypoint: None,
-            workdir: None,
-            egress: None,
-            env: Vec::new(),
-            labels: BTreeMap::new(),
-            user: "1000:1000".into(),
-            memory_bytes: 256 * 1024 * 1024,
-            nano_cpus: None,
-            cpu_shares: 1024,
-            pids_limit: 4096,
-            read_only_rootfs: true,
-            tmp_size_mb: 64,
-            data_dir: "/var/lib/pryxd/workloads/w/data".into(),
-            mount_path: "/data".into(),
-            ports: Vec::new(),
-            stop_signal: "SIGTERM".into(),
-            stop_timeout_secs: 90,
-            network: "blockly-workloads".into(),
-            internal_network: false,
-            log_max_size_mb: 10,
-            log_max_files: 3,
-            oom_score_adj: 500,
-        }
-    }
-
-    #[test]
-    fn explicit_entrypoint_does_not_append_the_images_default_command() {
-        let mut spec = spec();
-        assert_eq!(body_of(&spec).cmd, None);
-        spec.entrypoint = Some(vec!["echo".into(), "exact".into()]);
-        assert_eq!(body_of(&spec).entrypoint, spec.entrypoint);
-        assert_eq!(body_of(&spec).cmd, Some(Vec::new()));
-    }
-
-    #[test]
-    fn docker_is_never_asked_to_restart_a_workload() {
-        let host = body_of(&spec()).host_config.unwrap();
-        assert_eq!(
-            host.restart_policy,
-            Some(DockerRestartPolicy { name: Some(RestartPolicyNameEnum::NO), maximum_retry_count: None })
-        );
-    }
-
-    #[test]
-    fn only_a_reference_without_tag_or_digest_is_pulled_as_latest() {
-        for (image, tag) in [
-            ("repo", Some("latest")),
-            ("a/b/c", Some("latest")),
-            ("reg:5000/repo", Some("latest")),
-            ("repo:1", None),
-            ("reg:5000/repo:1", None),
-            ("repo@sha256:abc", None),
-            ("reg:5000/repo@sha256:abc", None),
-        ] {
-            assert_eq!(pull_tag(image), tag, "{image}");
-        }
-    }
-
-    #[test]
-    fn the_tree_walk_never_starts_from_0_or_1() {
-        let children = HashMap::from([(0, vec![1, 2]), (1, vec![100, 200]), (100, vec![101]), (101, vec![102])]);
-        assert!(descendants(0, &children).is_empty());
-        assert!(descendants(1, &children).is_empty());
-        assert!(descendants(-1, &children).is_empty());
-        assert_eq!(descendants(100, &children), vec![100, 101, 102]);
-        assert_eq!(descendants(200, &children), vec![200], "a leaf is its own tree");
-    }
-
-    #[test]
-    fn killing_from_0_or_1_signals_nothing() {
-        // An id no cgroup names, so even a walk that did start could kill nothing on this host.
-        let container = "0".repeat(64);
-        assert_eq!(kill_exec_tree(0, &container), 0);
-        assert_eq!(kill_exec_tree(1, &container), 0);
-        assert_eq!(kill_exec_tree(-1, &container), 0);
-    }
-}
+mod tests;

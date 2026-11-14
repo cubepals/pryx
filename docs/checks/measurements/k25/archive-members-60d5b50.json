@@ -1,0 +1,9 @@
+{
+  "measurement": "Actual verified archive members and configuration; no kernel or monitor executed",
+  "commit": "60d5b50",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43440140299",
+  "result": {
+    "conclusion": "success",
+    "scope": "Actual verified archive members and configuration; no kernel or monitor executed"
+  }
+}

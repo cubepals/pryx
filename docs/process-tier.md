@@ -10,6 +10,10 @@ An image request returns 422 `invalid_request`, field `image`, problem
 Each sandbox has an agent supervisor and persistent data directory. The default image runs
 as container root and allocates separate UIDs/GIDs from the node's configured pool. A fresh
 image started with `--user` uses one shared UID and explicitly announces that weaker mode.
+Public views also report `guarantees["separate-users"]`; creation can require it, and
+placement refuses a shared-UID node. The host's credential-drop probe must succeed before
+the uid-pool guarantee is announced. `pryxd doctor` checks Landlock and uses the same state
+owner as `serve`, without requiring a container engine. See [host capabilities](host-capabilities.md).
 Keep a persistent volume with the same owner when restarting. Changing the container user
 does not grant access to a previous user's credentials.
 

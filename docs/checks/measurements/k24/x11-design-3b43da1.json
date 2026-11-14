@@ -1,0 +1,10 @@
+{
+  "measurement": "Xvfb rejects a pathname display before binding; no live X11 endpoint or headful Chromium acceptance is claimed",
+  "commit": "3b43da1eb67bdfb47a66db58ffc45d48d6c3a918",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43245895630",
+  "result": {
+    "desktopEnabled": false,
+    "filesystemEnforced": true,
+    "scope": "Xvfb rejects a pathname display before binding; no live X11 endpoint or headful Chromium acceptance is claimed"
+  }
+}

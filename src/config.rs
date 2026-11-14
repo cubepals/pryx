@@ -180,6 +180,8 @@ impl Default for OpsConfig {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct DockerConfig {
+    /// Presets can withhold an engine whose host paths/network are not available here.
+    pub enabled: bool,
     /// Host-owned seccomp profile for native browser/FUSE tools; callers cannot set it.
     pub native_tools_seccomp: Option<PathBuf>,
     /// Optional preloaded enforcing AppArmor profile, selected only by the host.
@@ -187,15 +189,24 @@ pub struct DockerConfig {
     /// Pass the FUSE device only when the host also selected a seccomp profile.
     pub native_fuse: bool,
     pub socket: PathBuf,
+    /// Filled by configuration parsing; an explicitly named socket never falls back.
+    #[serde(skip, default = "default_discovery")]
+    pub discover: bool,
     /// The bridge network workloads join. Made with inter-container traffic off.
     pub(crate) network: String,
     pub(crate) pull_timeout_seconds: u64,
+}
+
+fn default_discovery() -> bool {
+    true
 }
 
 impl Default for DockerConfig {
     fn default() -> Self {
         Self {
             // dockerd's own default (`--host`); bollard keeps its copy private.
+            enabled: true,
+            discover: true,
             native_tools_seccomp: None,
             native_tools_apparmor: None,
             native_fuse: false,
@@ -466,7 +477,9 @@ impl Config {
         let parse = |source| ConfigError::Parse { path: path.into(), source };
         let mut table: toml::Table = toml::from_str(text).map_err(parse)?;
         let inferred = crate::infer::fill(&mut table, root).map_err(|e| ConfigError::Invalid(e.to_string()))?;
+        let table_socket_absent = table.get("docker").and_then(|docker| docker.get("socket")).is_none();
         let mut config: Self = table.try_into().map_err(parse)?;
+        config.docker.discover = table_socket_absent;
         config.inferred = inferred;
         config.validate()?;
         Ok(config)
@@ -483,6 +496,9 @@ impl Config {
     }
 
     pub fn data_owner_ids(&self) -> (u32, u32) {
+        if matches!(self.runtime, RuntimeKind::Process | RuntimeKind::Wasm) {
+            return (rustix::process::geteuid().as_raw(), rustix::process::getegid().as_raw());
+        }
         let owner = self.workloads.data_owner.unwrap_or(self.workloads.user);
         (owner.uid, owner.gid)
     }
@@ -491,6 +507,20 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn explicit_engine_selection_never_enables_discovery() {
+        let default = Config::parse(MINIMAL, Path::new("/config.toml"), Path::new("/nonexistent")).unwrap();
+        assert!(default.docker.discover);
+        let named = Config::parse(
+            &format!("{MINIMAL}\n[docker]\nsocket = '/run/user/1234/podman/podman.sock'\n"),
+            Path::new("/config.toml"),
+            Path::new("/nonexistent"),
+        )
+        .unwrap();
+        assert!(!named.docker.discover);
+        assert_eq!(named.docker.socket, PathBuf::from("/run/user/1234/podman/podman.sock"));
+    }
 
     const MINIMAL: &str = r#"
         node_id = "host-1"

@@ -1,0 +1,10 @@
+{
+  "measurement": "Thirty guests per network path plus independent missing-userns/TUN vsock case; IPv6 disabled on actual private namespace interfaces, but bridge MAC learning still occurs during transfers and is not proved repaired",
+  "commit": "8b2279f4bf7b9b47589ee62c545094000502836f",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43458372918",
+  "result": {
+    "conclusion": "success",
+    "scope": "Thirty guests per network path plus independent missing-userns/TUN vsock case; IPv6 disabled on actual private namespace interfaces, but bridge MAC learning still occurs during transfers and is not proved repaired",
+    "prerequisiteGuests": 1
+  }
+}

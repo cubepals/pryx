@@ -1,0 +1,15 @@
+{
+  "measurement": "Live and stopped entrypoint output through the actual VM runtime",
+  "commit": "ed5091d",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43541250656",
+  "result": "passed",
+  "images": 2,
+  "runtimeSeconds": 71.52,
+  "checks": "Debian entrypoint bytes cross the live authenticated agent log route and the stopped persistent-log file session; all existing binary file, lease, signal, journal, independent-cache fork and cold-wake assertions remain",
+  "otherAcceptanceSeconds": {
+    "bundle": 8.13,
+    "registry": 18.41,
+    "sixComponentBoots": 32.89
+  },
+  "limits": "This source predates resource stats, manager admission and unfinished-launch retirement; normal CI/aggregate, registered VM/root/network/edge acceptance and production timings remain outstanding."
+}

@@ -1,0 +1,8 @@
+{
+  "measurement": "Local unchanged X11 argument behavior and process-policy refusal only; filesystem enforcement unavailable. Hosted CI requires enforcement and remains pending. No live endpoint or headful Chromium acceptance.",
+  "commit": "e4d7a23cf5197587352859fd13d6b6cfc41b6f11",
+  "ci": "Not recorded; local or inventory evidence, not a CI pass",
+  "result": {
+    "scope": "Local unchanged X11 argument behavior and process-policy refusal only; filesystem enforcement unavailable. Hosted CI requires enforcement and remains pending. No live endpoint or headful Chromium acceptance."
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "measurement": "Real OCI preparation only; no production VM boot",
+  "commit": "9496dbf",
+  "ci": "Not recorded; local or inventory evidence, not a CI pass",
+  "result": {
+    "scope": "Real OCI preparation only; no production VM boot",
+    "status": "success"
+  }
+}

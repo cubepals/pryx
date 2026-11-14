@@ -18,6 +18,7 @@
 //! - `docker.rs`: whether Docker is reachable and configured the way pryxd expects.
 //! - `state.rs`: whether the state directory can be owned, locked, cloned into and has room.
 //! - `network.rs`: whether the public ports are free and the listeners stay off public addresses.
+//! - `tiers.rs`: configured tier availability and off reasons.
 //! - `host.rs`: whether the host has a machine id and a synchronised clock.
 //! - `fix.rs`: the safe fixes `--fix` applies on a host with no workloads yet.
 //!
@@ -31,6 +32,7 @@ mod fix;
 mod host;
 mod network;
 mod state;
+mod tiers;
 
 use std::path::{Path, PathBuf};
 
@@ -117,7 +119,7 @@ pub fn check_config(path: &Path) -> (Check, Option<crate::config::Config>) {
 /// Runs every check; with `fix`, applies the safe fixes first.
 pub async fn run(options: &Options) -> Report {
     let (config_check, config) = config::check(&options.config);
-    let Some(config) = config else {
+    let Some(mut config) = config else {
         let fixed = options.fix.then(|| fix::Fixed {
             changes: Vec::new(),
             next: vec!["Nothing changed: --fix needs a valid configuration first".into()],
@@ -125,17 +127,60 @@ pub async fn run(options: &Options) -> Report {
         let report = Report { checks: vec![config_check], fixed };
         return if options.preflight { report.for_preflight() } else { report };
     };
-    let runtime: Option<Box<dyn ContainerRuntime>> =
-        DockerRuntime::new(&config.docker.socket).ok().map(|r| Box::new(r) as Box<dyn ContainerRuntime>);
+    let endpoint_error = docker::endpoint(&mut config).await;
+    let runtime: Option<Box<dyn ContainerRuntime>> = (config.docker.enabled
+        && matches!(config.runtime, crate::config::RuntimeKind::Container | crate::config::RuntimeKind::Auto))
+    .then(|| DockerRuntime::new(&config.docker.socket).ok().map(|r| Box::new(r) as Box<dyn ContainerRuntime>))
+    .flatten();
     let daemon_json = Path::new(DAEMON_JSON);
     let fixed = match (options.fix, &runtime) {
         (true, Some(runtime)) => Some(fix::apply(&config, runtime.as_ref(), daemon_json).await),
         _ => None,
     };
     let mut checks = vec![config_check];
-    match &runtime {
-        Some(runtime) => checks.extend(docker::checks(runtime.as_ref(), &config.docker.network, daemon_json).await),
-        None => checks.push(Check::warn(
+    if let Some(error) = endpoint_error {
+        checks.push(Check::warn(
+            "docker.endpoint",
+            error,
+            "Set DOCKER_HOST to a local unix:// socket or name docker.socket",
+        ));
+    }
+    checks.extend(tiers::checks(&config).await);
+    match (&config.runtime, &runtime) {
+        (crate::config::RuntimeKind::Auto, runtime) => {
+            if let Some(runtime) = runtime
+                && runtime.info().await.is_ok()
+            {
+                checks.extend(docker::checks(runtime.as_ref(), &config.docker.network, daemon_json).await);
+            }
+        }
+        (crate::config::RuntimeKind::Process, _) => {
+            checks.push(if pryx_agent::process_capabilities::probe().filesystem {
+                Check::pass("process.landlock", "Landlock ABI 3 filesystem confinement is enforceable")
+            } else {
+                Check::fail(
+                    "process.landlock",
+                    pryx_agent::process_capabilities::FILESYSTEM_UNAVAILABLE,
+                    "Boot a kernel with Landlock ABI 3 or later enabled",
+                )
+                .gating()
+            });
+        }
+        (crate::config::RuntimeKind::Wasm, _) => {
+            checks.push(match crate::runtime::wasm::check_distribution(&config.wasm) {
+                Ok(()) => Check::pass("wasm.distribution", "verified agentOS binary and packages"),
+                Err(error) => Check::fail(
+                    "wasm.distribution",
+                    error.to_string(),
+                    "Stage the pinned agentOS distribution with scripts/fetch-agentos.py",
+                )
+                .gating(),
+            });
+        }
+        (_, Some(runtime)) => {
+            checks.extend(docker::checks(runtime.as_ref(), &config.docker.network, daemon_json).await)
+        }
+        (_, None) => checks.push(Check::warn(
             "docker",
             format!("docker.socket {} isn't a path pryxd can use", config.docker.socket.display()),
             format!(
@@ -144,7 +189,7 @@ pub async fn run(options: &Options) -> Report {
             ),
         )),
     }
-    if config.workloads.allowed_images.is_empty() {
+    if config.runtime == crate::config::RuntimeKind::Container && config.workloads.allowed_images.is_empty() {
         checks.push(Check::warn(
             "workloads.allowed_images",
             "no image prefix is allowed on this host",

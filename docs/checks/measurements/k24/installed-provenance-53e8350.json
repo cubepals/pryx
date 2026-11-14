@@ -1,0 +1,32 @@
+{
+  "measurement": "Thirty sequential samples per tool on a signed fresh ordinary-user installation through actual control and HTTP-only edge. Four default units requested; process CPU/memory guarantees are off. Cached tool bundle, reverified by each fresh supervisor. PNG timers start before sandbox creation and end after first image validation; SSH includes marker write, lease creation, actual OpenSSH command, running acknowledgement a\u2026",
+  "commit": "53e83505f823cf4b92aca2b4a952cf084c636f32",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43421813961",
+  "result": {
+    "summary.browser": {
+      "n": 30,
+      "p50Ms": 8949.934,
+      "p90Ms": 9028.526
+    },
+    "summary.python": {
+      "n": 30,
+      "p50Ms": 10903.156,
+      "p90Ms": 11443.012
+    },
+    "summary.javascript": {
+      "n": 30,
+      "p50Ms": 7922.154,
+      "p90Ms": 8042.575
+    },
+    "summary.desktop": {
+      "n": 30,
+      "p50Ms": 8959.82,
+      "p90Ms": 9056.767
+    },
+    "summary.ssh": {
+      "n": 30,
+      "p50Ms": 8970.624,
+      "p90Ms": 9006.429
+    }
+  }
+}

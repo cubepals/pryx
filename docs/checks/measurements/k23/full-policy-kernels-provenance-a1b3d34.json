@@ -1,0 +1,8 @@
+{
+  "measurement": "Full-policy kernel state and PNGs only; socket neighbour, browser, signed installation and thirty samples remain unproven",
+  "commit": "a1b3d3428c327146e039e161d0b3820bc25ee7c0",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43190915817",
+  "result": {
+    "scope": "Full-policy kernel state and PNGs only; socket neighbour, browser, signed installation and thirty samples remain unproven"
+  }
+}

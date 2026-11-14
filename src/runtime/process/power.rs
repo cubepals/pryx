@@ -57,7 +57,12 @@ impl ProcessRuntime {
         }
         Ok(())
     }
-    fn launch_command(&self, entry: &Entry) -> Result<Command, RuntimeError> {
+    fn launch_command(
+        &self,
+        entry: &Entry,
+        tools: Option<pryx_agent::process_tool_policy::Policy>,
+        require_scope: bool,
+    ) -> Result<Command, RuntimeError> {
         let spec = &entry.spec;
         let agent = spec.agent.as_ref().ok_or_else(|| error("Missing process supervisor"))?;
         let owner = self.owner(&agent.sandbox)?;
@@ -122,7 +127,13 @@ impl ProcessRuntime {
             command.arg("--").args(argv);
         }
         let tmp = temporary_directory(spec, owner)?;
-        let policy = serde_json::json!({"data":spec.data_dir, "memory_bytes":spec.memory_bytes, "address_space_bytes":self.policy.address_space_mb.saturating_mul(1024*1024), "open_files":self.policy.open_files, "processes":spec.pids_limit, "cpu_seconds":self.policy.cpu_seconds, "nice":(MAX_NICE-(spec.cpu_shares/SHARES_PER_NICE_STEP).min(MAX_NICE)) as i32, "network_off":spec.internal_network});
+        let mut policy = serde_json::json!({"data":spec.data_dir, "memory_bytes":spec.memory_bytes, "address_space_bytes":self.policy.address_space_mb.saturating_mul(1024*1024), "open_files":self.policy.open_files, "processes":spec.pids_limit, "cpu_seconds":self.policy.cpu_seconds, "nice":(MAX_NICE-(spec.cpu_shares/SHARES_PER_NICE_STEP).min(MAX_NICE)) as i32, "network_off":spec.internal_network});
+        if let Some(tools) = tools {
+            policy["tools"] = serde_json::to_value(tools).map_err(error)?;
+        }
+        if require_scope {
+            policy["require_ipc_scope"] = serde_json::Value::Bool(true);
+        }
         command
             .env_clear()
             .env("PATH", "/usr/local/bin:/usr/bin:/bin")
@@ -155,6 +166,7 @@ impl ProcessRuntime {
         Ok(command)
     }
     pub(super) async fn launch(&self, name: &str) -> Result<(), RuntimeError> {
+        let _launch = self.state.launch.lock().await;
         let mut entry = self.entry(name)?;
         if entry.spec.nano_cpus.is_some() {
             return Err(error(crate::protocol::CPU_LIMIT_PROBLEM));
@@ -162,7 +174,10 @@ impl ProcessRuntime {
         if self.running(name)? {
             return Ok(());
         }
-        let child = self.launch_command(&entry)?.spawn().map_err(error)?;
+        let (tools, required) = self.native_policy(&entry).await?;
+        entry.native_browser =
+            Some(tools.as_ref().is_some_and(|tools| tools.unavailable.is_none() && tools.browser_on));
+        let child = self.launch_command(&entry, tools, required)?.spawn().map_err(error)?;
         entry.pid = Some(child.id());
         entry.ticks = identity(child.id());
         entry.started = Some(format_time(crate::clock::now()));
@@ -223,11 +238,19 @@ impl ProcessRuntime {
                 .and_then(|pid| fs::read_to_string(format!("/proc/{pid}/stat")).ok())
                 .and_then(|s| s.rsplit_once(") ").map(|(_, s)| s.starts_with('T')))
                 .unwrap_or(false);
+        let mut labels = entry.spec.labels;
+        labels.insert(
+            crate::labels::LABEL_BROWSER_SANDBOX.into(),
+            (alive && entry.native_browser == Some(true)).to_string(),
+        );
         Ok(Some(ContainerInfo {
+            agent_state: None,
+            memory_enforced: None,
+            cpu_enforced: None,
             cgroup_parent: None,
             id: entry.id,
             name: entry.spec.name,
-            labels: entry.spec.labels,
+            labels,
             env: entry.spec.env.into_iter().collect(),
             status: if paused {
                 ContainerStatus::Paused
@@ -280,7 +303,7 @@ mod tests {
         }))
         .unwrap();
         runtime.create_entry(&spec).unwrap();
-        let result = runtime.launch_command(&runtime.entry(&spec.name).unwrap());
+        let result = runtime.launch_command(&runtime.entry(&spec.name).unwrap(), None, false);
         let after = fs::metadata(&outside).unwrap();
         assert_eq!(
             (after.uid(), after.gid(), after.mode(), after.ctime(), after.ctime_nsec()),
@@ -314,7 +337,7 @@ mod tests {
         })).unwrap();
         runtime.create_entry(&spec).unwrap();
         let mut entry = runtime.entry(&spec.name).unwrap();
-        let command = runtime.launch_command(&entry).unwrap();
+        let command = runtime.launch_command(&entry, None, false).unwrap();
         let arguments = command.get_args().map(|a| a.to_str().unwrap()).collect::<Vec<_>>();
         let option = arguments.iter().position(|a| *a == "--host-bindings").unwrap();
         let bindings: BTreeMap<u16, Vec<std::net::IpAddr>> = serde_json::from_str(arguments[option + 1]).unwrap();
@@ -324,8 +347,8 @@ mod tests {
         );
         assert_eq!(bindings[&(logical + 101)], vec!["127.0.0.2".parse::<std::net::IpAddr>().unwrap()]);
         entry.spec.ports[0].host_ips.clear();
-        assert!(runtime.launch_command(&entry).is_err());
+        assert!(runtime.launch_command(&entry, None, false).is_err());
         entry.spec.ports[0].host_ips = vec![std::net::Ipv4Addr::UNSPECIFIED.into()];
-        assert!(runtime.launch_command(&entry).is_err());
+        assert!(runtime.launch_command(&entry, None, false).is_err());
     }
 }

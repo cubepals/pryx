@@ -1,0 +1,9 @@
+{
+  "measurement": "Production VM runtime seam with the file-only-capable agent",
+  "commit": "7cc98b6",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43530436293",
+  "result": "failed",
+  "runtimeSecondsBeforeFailure": 16.71,
+  "failure": "An exec POST received no response within the unchanged five-second deadline; current fixture lacks its runtime stage and retained monitor tail.",
+  "otherChecks": "Bundle, registry and six component boots passed; none establishes a passing runtime seam."
+}

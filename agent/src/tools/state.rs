@@ -27,12 +27,18 @@ pub(crate) struct State {
 pub(crate) fn failure(code: &'static str, message: &str) -> Failure {
     Failure(StatusCode::CONFLICT, code, message.into())
 }
-pub(crate) fn native(agent: &Agent) -> Result<(), Failure> {
+pub(crate) fn native(agent: &Agent, capability: &str) -> Result<(), Failure> {
     if let Some(tier) = agent.processes.kernel_unsupported_tier() {
         return Err(Failure(
             StatusCode::NOT_IMPLEMENTED,
             "unsupported",
-            format!("Native tools are unsupported on the {tier} tier"),
+            if tier == "process" {
+                format!(
+                    "{capability} requires a verified process tool bundle and its private transport; use a supported container template or a release providing native process tools"
+                )
+            } else {
+                format!("{capability} is unsupported on the {tier} tier; use a supported native container template")
+            },
         ));
     }
     Ok(())
@@ -42,7 +48,10 @@ pub(crate) fn get(agent: &Agent) -> Result<Arc<State>, Failure> {
     if let Some(state) = held.as_ref() {
         return Ok(state.clone().downcast::<State>().expect("native tool state"));
     }
-    let directory = tempfile::Builder::new().prefix("pryx-tools-").tempdir_in("/tmp")?;
+    let native =
+        crate::process_tools::configured().filter(|_| agent.processes.kernel_unsupported_tier() == Some("process"));
+    let temporary = native.map(|tools| tools.policy.scratch.as_path()).unwrap_or_else(|| std::path::Path::new("/tmp"));
+    let directory = tempfile::Builder::new().prefix("pryx-tools-").tempdir_in(temporary)?;
     let data = std::fs::canonicalize(&agent.processes.data)?;
     if std::fs::canonicalize(directory.path())?.starts_with(data) {
         return Err(failure("unsupported", "Native tools require temporary storage outside persistent data"));
@@ -59,7 +68,7 @@ pub(crate) fn get(agent: &Agent) -> Result<Arc<State>, Failure> {
     *held = Some(state.clone());
     Ok(state)
 }
-pub(crate) fn prepare(agent: &Agent) -> Result<(), Failure> {
+pub(crate) fn prepare(agent: &Agent, browser_sandbox: bool) -> Result<(), Failure> {
     if agent.processes.kernel_unsupported_tier().is_some()
         || (std::env::var_os(super::defaults::KIND_ENV).is_none()
             && std::env::var_os(crate::contract::MOUNTS_ENV).is_none())
@@ -67,6 +76,11 @@ pub(crate) fn prepare(agent: &Agent) -> Result<(), Failure> {
         return Ok(());
     }
     let state = get(agent)?;
+    if state.kind.as_deref() == Some("browser") {
+        // Before access is issued this document has no token and authenticates nobody.
+        // Legacy agents do not create it; new templates consequently retain strict sandboxing.
+        write(&state, "browser-access.json", &serde_json::json!({"chromiumSandbox":browser_sandbox}))?;
+    }
     let mut env = BTreeMap::from([
         (super::defaults::DIRECTORY_ENV.into(), state.directory.path().to_string_lossy().into_owned()),
         ("PRYX_DESKTOP_PORT".into(), super::defaults::DESKTOP_PORT.to_string()),
@@ -115,7 +129,7 @@ pub(crate) async fn ready(agent: &Agent, port: u16) -> Result<(), Failure> {
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
     };
-    tokio::time::timeout(Duration::from_secs(30), wait)
+    tokio::time::timeout(crate::contract::TOOL_STARTUP, wait)
         .await
         .map_err(|_| failure("tool_not_ready", "Template service did not become ready; check host tool requirements"))?
 }

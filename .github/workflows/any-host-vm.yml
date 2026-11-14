@@ -1,0 +1,348 @@
+name: VM experiments
+
+on:
+  schedule:
+    - cron: '23 5 * * 2'
+  workflow_dispatch:
+  # A new workflow cannot be dispatched before main has it; branch pushes prove each step.
+  push:
+    branches: [any-host]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  inputs:
+    name: Published kernel and network spikes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Hash primary published archives without executing them
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 templates/vm-tools/inventory.py \
+            --archive-cache "$RUNNER_TEMP/vm-archives" \
+            --output "$RUNNER_TEMP/vm-candidate-inventory.json" | tee "$RUNNER_TEMP/vm-input-inventory.log"
+      - name: Prepare pinned separate experiment tools
+        run: |
+          python3 templates/vm-tools/prepare.py --root "$RUNNER_TEMP/vm-build-tools" | tee "$RUNNER_TEMP/vm-tool-inputs.log"
+          dpkg-query -W e2fsprogs
+      - name: Inspect published kernels and their archive configurations
+        run: |
+          "$RUNNER_TEMP/vm-build-tools/zstd/usr/bin/zstd" --version
+          python3 templates/vm-tools/archive_inspection.py \
+            --zstd "$RUNNER_TEMP/vm-build-tools/zstd/usr/bin/zstd" \
+            --inventory "$RUNNER_TEMP/vm-candidate-inventory.json" \
+            --archive-cache "$RUNNER_TEMP/vm-archives" \
+            --staged "$RUNNER_TEMP/vm-selected-files" \
+            --output "$RUNNER_TEMP/vm-archive-inspection.json" | tee "$RUNNER_TEMP/vm-archive-inspection.log"
+      - name: Build the typed configuration and static guest probe
+        working-directory: templates/vm-tools
+        env:
+          CGO_ENABLED: '0'
+          GOTOOLCHAIN: local
+        run: |
+          pryx_go="$RUNNER_TEMP/vm-build-tools/go/go/bin/go"
+          "$pryx_go" mod verify
+          python3 notices.py --go "$pryx_go" --output "$RUNNER_TEMP/vm-spike-notices" \
+            --packages ./cmd/config ./cmd/guest ./cmd/agent
+          "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-config" ./cmd/config
+          "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-guest" ./cmd/guest
+          "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-agent-client" ./cmd/agent
+          "$pryx_go" mod verify
+      - name: Build and relocate the unchanged VM filesystem component
+        id: filesystems
+        run: |
+          python3 templates/vm-tools/filesystem.py \
+            --cache "$RUNNER_TEMP/vm-filesystem-archives" \
+            --root "$RUNNER_TEMP/vm-filesystem-component" | tee "$RUNNER_TEMP/vm-filesystem-component.log"
+          python3 templates/vm-tools/filesystem_check.py \
+            --component "$RUNNER_TEMP/vm-filesystem-component" \
+            --output "$RUNNER_TEMP/vm-filesystem-check.json"
+      - name: Allow the ordinary runner user to open real KVM
+        run: |
+          sudo modprobe kvm
+          test -c /dev/kvm
+          sudo chown "$(id -u):$(id -g)" /dev/kvm
+          test "$(id -u)" -ne 0
+          test -r /dev/kvm && test -w /dev/kvm
+      - name: Boot EROFS overlay and vsock thirty times
+        run: |
+          python3 templates/vm-tools/kernel.py \
+            --inspection "$RUNNER_TEMP/vm-archive-inspection.json" \
+            --staged "$RUNNER_TEMP/vm-selected-files" \
+            --configurator "$RUNNER_TEMP/vm-config" --guest "$RUNNER_TEMP/vm-guest" \
+            --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" \
+            --work "$RUNNER_TEMP/vm-kernel-spike" \
+            --output "$RUNNER_TEMP/vm-kernel-spike.json" | tee "$RUNNER_TEMP/vm-kernel-spike.log"
+      - name: Prepare immutable network comparison inputs
+        run: |
+          python3 templates/vm-tools/network_prepare.py --root "$RUNNER_TEMP/vm-network-inputs" | tee "$RUNNER_TEMP/vm-network-inputs.log"
+      - name: Build maintained network wrappers and guest forwarder
+        working-directory: templates/vm-tools/network
+        env:
+          CGO_ENABLED: '0'
+          GOTOOLCHAIN: local
+        run: |
+          pryx_go="$RUNNER_TEMP/vm-build-tools/go/go/bin/go"
+          "$pryx_go" mod verify
+          python3 ../notices.py --go "$pryx_go" --module-root "$PWD" \
+            --catalog "$PWD/module-notices.json" --output "$RUNNER_TEMP/vm-network-notices" \
+            --packages ./cmd/proxy ./cmd/probe ./cmd/guest github.com/containers/gvisor-tap-vsock/cmd/vm
+          "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-network-proxy" ./cmd/proxy
+          "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-network-probe" ./cmd/probe
+          "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-network-guest" ./cmd/guest
+          "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-gvforwarder" github.com/containers/gvisor-tap-vsock/cmd/vm
+          "$pryx_go" mod verify
+      - name: Permit user namespaces on the positive comparison runner
+        id: network-prerequisites
+        run: |
+          # This disposable fixture compares a capability's positive path; product setup changes no host policy.
+          if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          sudo modprobe tun
+          test -c /dev/net/tun
+      - name: Compare pasta TAP and maintained vsock networking
+        run: |
+          python3 templates/vm-tools/network_compare.py \
+            --inspection "$RUNNER_TEMP/vm-archive-inspection.json" --staged "$RUNNER_TEMP/vm-selected-files" \
+            --configurator "$RUNNER_TEMP/vm-config" --guest "$RUNNER_TEMP/vm-guest" \
+            --mkfs "$RUNNER_TEMP/vm-build-tools/erofs/usr/bin/mkfs.erofs" \
+            --inputs "$RUNNER_TEMP/vm-network-inputs" --network-probe "$RUNNER_TEMP/vm-network-probe" \
+            --forwarder "$RUNNER_TEMP/vm-gvforwarder" --proxy "$RUNNER_TEMP/vm-network-proxy" \
+            --work "$RUNNER_TEMP/vm-network-spike" \
+            --output "$RUNNER_TEMP/vm-network-spike.json" | tee "$RUNNER_TEMP/vm-network-spike.log"
+      - name: Prove vsock without host user namespaces or TUN
+        if: ${{ !cancelled() && steps.network-prerequisites.outcome == 'success' }}
+        run: |
+          pryx_userns_limit=$(cat /proc/sys/user/max_user_namespaces)
+          pryx_tun_mode=$(stat -c '%a' /dev/net/tun)
+          restore_pryx_network_prerequisites() {
+            sudo sysctl -w "user.max_user_namespaces=$pryx_userns_limit"
+            sudo chmod "$pryx_tun_mode" /dev/net/tun
+          }
+          trap restore_pryx_network_prerequisites EXIT
+          sudo sysctl -w user.max_user_namespaces=0
+          sudo chmod 000 /dev/net/tun
+          python3 templates/vm-tools/network_compare.py --without-host-prerequisites \
+            --inspection "$RUNNER_TEMP/vm-archive-inspection.json" --staged "$RUNNER_TEMP/vm-selected-files" \
+            --configurator "$RUNNER_TEMP/vm-config" --guest "$RUNNER_TEMP/vm-guest" \
+            --mkfs "$RUNNER_TEMP/vm-build-tools/erofs/usr/bin/mkfs.erofs" \
+            --inputs "$RUNNER_TEMP/vm-network-inputs" --network-probe "$RUNNER_TEMP/vm-network-probe" \
+            --forwarder "$RUNNER_TEMP/vm-gvforwarder" --proxy "$RUNNER_TEMP/vm-network-proxy" \
+            --work "$RUNNER_TEMP/vm-network-prerequisites" \
+            --output "$RUNNER_TEMP/vm-network-prerequisites.json" | tee "$RUNNER_TEMP/vm-network-prerequisites.log"
+      - name: Prepare the repository Rust for real OCI acceptance
+        id: vm-rust
+        if: ${{ !cancelled() && steps.filesystems.outcome == 'success' }}
+        run: rustup toolchain install
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: ${{ !cancelled() && steps.vm-rust.outcome == 'success' }}
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            target
+          key: vm-inputs-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'vm-image/Cargo.lock') }}
+          restore-keys: vm-inputs-
+      - name: Prove ordinary host VM process policies
+        if: ${{ !cancelled() && steps.vm-rust.outcome == 'success' }}
+        env:
+          PRYX_VM_HOST_PROXY: ${{ runner.temp }}/vm-network-proxy
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+          CARGO_PROFILE_DEV_DEBUG: '0'
+          CARGO_PROFILE_TEST_DEBUG: '0'
+          CARGO_INCREMENTAL: '0'
+        run: |
+          cargo test --locked -p pryx-agent --lib vm_policy::tests -- --nocapture | tee "$RUNNER_TEMP/vm-host-policy.log"
+          cargo test --locked -p pryx-agent --test vm_monitor -- --include-ignored --nocapture | tee -a "$RUNNER_TEMP/vm-host-policy.log"
+      - name: Build the actual static agent and trusted bootstrap
+        id: vm-bootstrap
+        if: ${{ !cancelled() && steps.vm-rust.outcome == 'success' }}
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+          CARGO_PROFILE_DEV_DEBUG: '0'
+          CARGO_INCREMENTAL: '0'
+        run: |
+          python3 templates/vm-tools/cross.py --root "$RUNNER_TEMP/vm-cross" \
+            --cache "$RUNNER_TEMP/vm-filesystem-archives" | tee "$RUNNER_TEMP/vm-cross.log"
+          rustup target add x86_64-unknown-linux-musl
+          export CC_x86_64_unknown_linux_musl=cc
+          export CFLAGS_x86_64_unknown_linux_musl="--sysroot=$RUNNER_TEMP/vm-cross/sysroot"
+          export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=cc
+          export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="-C link-arg=--sysroot=$RUNNER_TEMP/vm-cross/sysroot"
+          cargo build --locked -p pryx-agent --target x86_64-unknown-linux-musl
+          cargo build --locked --manifest-path vm-image/Cargo.toml --target x86_64-unknown-linux-musl
+          python3 templates/vm-tools/bootstrap.py \
+            --agent target/x86_64-unknown-linux-musl/debug/pryx-agent \
+            --network-helper "$RUNNER_TEMP/vm-network-guest" \
+            --forwarder "$RUNNER_TEMP/vm-gvforwarder" \
+            --network-probe "$RUNNER_TEMP/vm-network-probe" \
+            --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" \
+            --root "$RUNNER_TEMP/vm-agent-bootstrap" | tee "$RUNNER_TEMP/vm-agent-bootstrap.log"
+      - name: Retain complete published-kernel sources and exact recipes
+        id: vm-sources
+        if: ${{ !cancelled() && steps.filesystems.outcome == 'success' }}
+        run: |
+          python3 templates/vm-tools/sources.py --cache "$RUNNER_TEMP/vm-source-cache" \
+            --output "$RUNNER_TEMP/vm-corresponding-sources" | tee "$RUNNER_TEMP/vm-corresponding-sources.log"
+      - name: Assemble separately inventoried VM runtime and source archives
+        id: vm-bundle
+        if: ${{ !cancelled() && steps.vm-bootstrap.outcome == 'success' && steps.vm-sources.outcome == 'success' }}
+        run: |
+          python3 templates/vm-tools/bootstrap.py \
+            --agent target/x86_64-unknown-linux-musl/debug/pryx-agent \
+            --network-helper "$RUNNER_TEMP/vm-network-guest" --forwarder "$RUNNER_TEMP/vm-gvforwarder" \
+            --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" --root "$RUNNER_TEMP/vm-runtime-bootstrap"
+          python3 templates/vm-tools/bundle.py \
+            --inspection "$RUNNER_TEMP/vm-archive-inspection.json" --staged "$RUNNER_TEMP/vm-selected-files" \
+            --sources "$RUNNER_TEMP/vm-corresponding-sources" --source-output "$RUNNER_TEMP/vm-bundle-sources" \
+            --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" \
+            --sdk-notices "$RUNNER_TEMP/vm-spike-notices" --network-notices "$RUNNER_TEMP/vm-network-notices" \
+            --bootstrap "$RUNNER_TEMP/vm-runtime-bootstrap" \
+            --launcher target/x86_64-unknown-linux-musl/debug/pryx-agent \
+            --image-helper target/x86_64-unknown-linux-musl/debug/pryx-vm-image \
+            --configurator "$RUNNER_TEMP/vm-config" --transport "$RUNNER_TEMP/vm-agent-client" \
+            --network-proxy "$RUNNER_TEMP/vm-network-proxy" --output "$RUNNER_TEMP/vm-runtime" \
+            --archive "$RUNNER_TEMP/pryx-vm-linux-x64.tar.gz" --source-archive "$RUNNER_TEMP/pryx-vm-sources.tar.gz" \
+            --descriptor "$RUNNER_TEMP/vm-runtime.json" --source-descriptor "$RUNNER_TEMP/vm-sources.json" \
+            --url-base https://github.com/cubepals/pryx/releases/download/preview | tee "$RUNNER_TEMP/vm-bundle.log"
+      - name: Verify whole runtime, lazy acquisition and corruption refusals
+        if: ${{ !cancelled() && steps.vm-bundle.outcome == 'success' }}
+        env:
+          PRYX_VM_RUNTIME: ${{ runner.temp }}/vm-runtime
+          PRYX_VM_RUNTIME_ARCHIVE: ${{ runner.temp }}/pryx-vm-linux-x64.tar.gz
+          PRYX_VM_RUNTIME_DESCRIPTOR: ${{ runner.temp }}/vm-runtime.json
+          PRYX_VM_FILESYSTEM_COMPONENT: ${{ runner.temp }}/vm-filesystem-component
+          CARGO_PROFILE_DEV_DEBUG: '0'
+          CARGO_PROFILE_TEST_DEBUG: '0'
+          CARGO_INCREMENTAL: '0'
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: cargo test --locked --manifest-path vm-image/Cargo.toml --test bundle -- --ignored --nocapture | tee "$RUNNER_TEMP/vm-bundle-acceptance.log"
+      - name: Prove the production VM runtime seam on both OCI images
+        if: ${{ !cancelled() && steps.vm-bundle.outcome == 'success' }}
+        env:
+          PRYX_VM_HOST_PROXY: ${{ runner.temp }}/vm-network-proxy
+          PRYX_VM_HOST_LAUNCHER: ${{ runner.temp }}/vm-runtime/bin/vm-launcher
+          PRYX_VM_RUNTIME_DIAGNOSTICS: ${{ runner.temp }}/vm-runtime-diagnostics
+          PRYX_VM_POLICY_PROBE: ${{ runner.temp }}/vm-network-probe
+          PRYX_VM_RUNTIME_DESCRIPTOR: ${{ runner.temp }}/vm-runtime.json
+          PRYX_VM_RUNTIME_ARCHIVE: ${{ runner.temp }}/pryx-vm-linux-x64.tar.gz
+          CARGO_PROFILE_DEV_DEBUG: '0'
+          CARGO_PROFILE_TEST_DEBUG: '0'
+          CARGO_INCREMENTAL: '0'
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: |
+          cargo test --locked --lib runtime::vm::network::tests -- --ignored --nocapture | tee "$RUNNER_TEMP/vm-network-ownership.log"
+          cargo test --locked --lib runtime::vm::instance::tests::actual_runtime_cold_boot_exec_stop_wake_copy_and_fork -- --ignored --nocapture | tee "$RUNNER_TEMP/vm-runtime-acceptance.log"
+      - name: Prove root jail disk staging and recovery
+        if: ${{ !cancelled() && steps.vm-bundle.outcome == 'success' }}
+        env:
+          CARGO_PROFILE_DEV_DEBUG: '0'
+          CARGO_PROFILE_TEST_DEBUG: '0'
+          CARGO_INCREMENTAL: '0'
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: |
+          export PRYX_VM_ROOT_TEST_UID="$(id -u)"
+          export PRYX_VM_ROOT_TEST_GID="$(id -g)"
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER='sudo --preserve-env=PRYX_VM_ROOT_TEST_UID,PRYX_VM_ROOT_TEST_GID --' \
+            cargo test --locked --lib runtime::vm::jail::tests::actual_root_mounts_retire_after_leases_and_recover_without_a_second_disk -- --ignored --nocapture | tee "$RUNNER_TEMP/vm-root-jail.log"
+      - name: Prepare real pinned Alpine and Debian OCI layers without an engine
+        if: ${{ !cancelled() && steps.vm-rust.outcome == 'success' }}
+        env:
+          PRYX_VM_FILESYSTEM_COMPONENT: ${{ runner.temp }}/vm-filesystem-component
+          PRYX_VM_IMAGE_REPORT: ${{ runner.temp }}/vm-image-acceptance.json
+          CARGO_PROFILE_DEV_DEBUG: '0'
+          CARGO_PROFILE_TEST_DEBUG: '0'
+          CARGO_INCREMENTAL: '0'
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: |
+          PRYX_VM_FILESYSTEM_MANIFEST=$(sha256sum "$PRYX_VM_FILESYSTEM_COMPONENT/filesystem-manifest.json" | cut -d' ' -f1)
+          export PRYX_VM_FILESYSTEM_MANIFEST
+          cargo test --locked --manifest-path vm-image/Cargo.toml --test registry -- --ignored --nocapture | tee "$RUNNER_TEMP/vm-image-acceptance.log"
+      - name: Boot the actual agent on Alpine and Debian and reboot synced disks
+        if: ${{ !cancelled() && steps.vm-bootstrap.outcome == 'success' }}
+        env:
+          CARGO_PROFILE_DEV_DEBUG: '0'
+          CARGO_PROFILE_TEST_DEBUG: '0'
+          CARGO_INCREMENTAL: '0'
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: |
+          python3 templates/vm-tools/agent_acceptance.py \
+            --inspection "$RUNNER_TEMP/vm-archive-inspection.json" --staged "$RUNNER_TEMP/vm-selected-files" \
+            --configurator "$RUNNER_TEMP/vm-config" --client "$RUNNER_TEMP/vm-agent-client" \
+            --host-launcher target/x86_64-unknown-linux-musl/debug/pryx-agent \
+            --bootstrap "$RUNNER_TEMP/vm-agent-bootstrap" --proxy "$RUNNER_TEMP/vm-network-proxy" \
+            --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" \
+            --work "$RUNNER_TEMP/vm-guest-acceptance" | tee "$RUNNER_TEMP/vm-guest-acceptance.log"
+      - name: Retain bounded runtime diagnostics separately
+        if: always()
+        uses: ./.github/actions/upload-evidence
+        with:
+          name: vm-runtime-diagnostics
+          path: |
+            ${{ runner.temp }}/vm-runtime-acceptance.log
+            ${{ runner.temp }}/vm-host-policy.log
+            ${{ runner.temp }}/vm-network-ownership.log
+            ${{ runner.temp }}/vm-root-jail.log
+            ${{ runner.temp }}/vm-runtime-diagnostics/*.serial.log
+          if-no-files-found: warn
+      - name: Retain candidate identities and actual digests
+        if: always()
+        uses: ./.github/actions/upload-evidence
+        with:
+          name: vm-input-inventory
+          path: |
+            ${{ runner.temp }}/vm-corresponding-sources/inputs.json
+            ${{ runner.temp }}/pryx-vm-linux-x64.tar.gz
+            ${{ runner.temp }}/pryx-vm-sources.tar.gz
+            ${{ runner.temp }}/vm-runtime.json
+            ${{ runner.temp }}/vm-sources.json
+            ${{ runner.temp }}/vm-bundle.log
+            ${{ runner.temp }}/vm-bundle-acceptance.log
+            ${{ runner.temp }}/vm-corresponding-sources.log
+            ${{ runner.temp }}/vm-candidate-inventory.json
+            ${{ runner.temp }}/vm-input-inventory.log
+            ${{ runner.temp }}/vm-archive-inspection.json
+            ${{ runner.temp }}/vm-archive-inspection.log
+            ${{ runner.temp }}/vm-tool-inputs.log
+            ${{ runner.temp }}/vm-filesystem-component.log
+            ${{ runner.temp }}/vm-filesystem-check.json
+            ${{ runner.temp }}/vm-filesystem-component/filesystem-manifest.json
+            ${{ runner.temp }}/vm-filesystem-component/filesystem-inputs.json
+            ${{ runner.temp }}/vm-image-acceptance.json
+            ${{ runner.temp }}/vm-image-acceptance.log
+            ${{ runner.temp }}/vm-cross.log
+            ${{ runner.temp }}/vm-agent-bootstrap.log
+            ${{ runner.temp }}/vm-agent-bootstrap/bootstrap.json
+            ${{ runner.temp }}/vm-guest-acceptance.log
+            ${{ runner.temp }}/vm-guest-acceptance/guest-acceptance.json
+            ${{ runner.temp }}/vm-guest-acceptance/**/*.serial.log
+            ${{ runner.temp }}/vm-guest-acceptance/**/config*.json
+            ${{ runner.temp }}/vm-spike-notices
+            ${{ runner.temp }}/vm-kernel-spike.json
+            ${{ runner.temp }}/vm-kernel-spike.log
+            ${{ runner.temp }}/vm-kernel-spike/*.serial.log
+            ${{ runner.temp }}/vm-network-inputs.log
+            ${{ runner.temp }}/vm-network-notices
+            ${{ runner.temp }}/vm-network-spike.json
+            ${{ runner.temp }}/vm-network-spike.log
+            ${{ runner.temp }}/vm-network-spike/**/*.log
+            ${{ runner.temp }}/vm-network-spike/**/namespace.json
+            ${{ runner.temp }}/vm-network-prerequisites.json
+            ${{ runner.temp }}/vm-network-prerequisites.log
+            ${{ runner.temp }}/vm-network-prerequisites/**/*.log
+          if-no-files-found: error

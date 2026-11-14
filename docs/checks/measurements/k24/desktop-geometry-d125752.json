@@ -1,0 +1,20 @@
+{
+  "measurement": "desktop geometry d125752",
+  "commit": "d12575284143a6569b58e619a98029db9e694d9e",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43325981545",
+  "result": {
+    "failure": "The page loaded before Chromium reported mapped outer window dimensions; the unchanged input deadline expired without click or text observations.",
+    "deadlineSeconds": 40,
+    "localControl.previousFixture.input.x": 254,
+    "localControl.previousFixture.input.y": -519,
+    "localControl.previousFixture.button.x": 250,
+    "localControl.previousFixture.button.y": -402,
+    "localControl.correctedFixture.input.x": 254,
+    "localControl.correctedFixture.input.y": 256,
+    "localControl.correctedFixture.button.x": 250,
+    "localControl.correctedFixture.button.y": 373,
+    "localControl.correctedFixture.outerHeight": 719,
+    "localControl.correctedFixture.innerHeight": 576,
+    "localControl.scope": "Actual local headful browser geometry only; not confined product, application input, installed SDK or neighbour acceptance."
+  }
+}

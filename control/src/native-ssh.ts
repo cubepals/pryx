@@ -12,6 +12,7 @@ import { SECOND_MS } from './durations.ts'
 import { addresses, DEFAULT_EDGE_PORT_RANGE } from './edge-addresses.ts'
 import { routesPending } from './edge-routed.ts'
 import type { EdgeRoute } from './edge-schemas.ts'
+import { sshTransport } from './edge-transports.ts'
 import { decodeHandle } from './handle.ts'
 import { agentSchema } from './node-contract.ts'
 import { SandboxError, type Sandboxes, type SandboxRow } from './sandboxes.ts'
@@ -24,6 +25,8 @@ export const sshAddress = z.object({
   user: z.string(),
   hostKey: z.string(),
   expiresAt: z.number().int(),
+  transport: z.enum(['tcp', 'websocket']).optional(),
+  webSocketUrl: z.url().optional(),
 })
 type View = import('../../sdk/typescript/src/generated/agent.ts').components['schemas']['SshView']
 export class NativeSsh {
@@ -109,6 +112,9 @@ export class NativeSsh {
     if ((await this.boxes.record(id, project)).handle !== box.handle)
       throw new SandboxError('gone', 'Sandbox placement changed during SSH registration')
     const incoming = new URL(requestUrl).hostname.replace(/^\[|\]$/g, '')
+    const transport = await sshTransport(this.db, view.webSocket === true)
+    const socket = new URL(`${credential.url.replace(/\/$/, '')}/_pryx/ssh/${body.id}/connect`)
+    socket.protocol = socket.protocol === 'https:' ? 'wss:' : 'ws:'
     return {
       id: body.id,
       host: ['127.0.0.1', 'localhost', '::1'].includes(incoming) ? incoming : address.hostname,
@@ -116,6 +122,7 @@ export class NativeSsh {
       user: view.user,
       hostKey: view.hostKey,
       expiresAt,
+      ...(transport ? { transport, webSocketUrl: socket.toString() } : {}),
     }
   }
   async revoke(id: string, project: string, requestUrl: string) {

@@ -1,0 +1,52 @@
+{
+  "measurement": "Minimal network fixtures only; no production VM/policy/confinement proof",
+  "commit": "45fa355",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43447042201",
+  "result": {
+    "vsock.samples.helperAndGuestReportMs": {
+      "n": 30,
+      "p50": 688.95,
+      "p90": 719.604
+    },
+    "vsock.samples.helperPreparationMs": {
+      "n": 30,
+      "p50": 21.325,
+      "p90": 21.384
+    },
+    "vsock.samples.launchToFilesystemVsockReportMs": {
+      "n": 30,
+      "p50": 667.6,
+      "p90": 698.174
+    },
+    "vsock.samples.network.bulkBytes": {
+      "n": 30,
+      "p50": 16777216,
+      "p90": 16777216
+    },
+    "vsock.samples.network.bulkMiBPerSecond": {
+      "n": 30,
+      "p50": 201.451,
+      "p90": 212.366
+    },
+    "vsock.samples.network.bulkMs": {
+      "n": 30,
+      "p50": 79.381,
+      "p90": 83.201
+    },
+    "vsock.samples.network.dnsMs": {
+      "n": 30,
+      "p50": 1.786,
+      "p90": 2.482
+    },
+    "vsock.samples.network.httpMs": {
+      "n": 30,
+      "p50": 40.95,
+      "p90": 41.321
+    },
+    "vsock.samples.network.readyMs": {
+      "n": 30,
+      "p50": 105.421,
+      "p90": 105.84
+    }
+  }
+}

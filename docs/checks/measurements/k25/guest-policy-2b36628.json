@@ -1,0 +1,21 @@
+{
+  "measurement": "Actual disconnected guest firewall and packet-transport syscall policy",
+  "commit": "2b36628012a37003a1de1a9a00150e4b140a89ff",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43552636842",
+  "result": "runtime passed; component network fixture failed",
+  "runtimeSeconds": 89.05,
+  "images": 2,
+  "checks": "Whole-bundle identity acceptance; actual guest nft version matches the verified host tool; workload ruleset flush refusal; uploaded ordinary Go workload observes EPERM for vsock socket/socketpair and io_uring; prior lifecycle, logs, stats, stop signals, file sessions, forks and interrupted recovery remain",
+  "otherAcceptanceSeconds": {
+    "bundle": 9.72,
+    "registry": 16.64,
+    "failedComponentCase": 14.56
+  },
+  "remaining": "Component probe still expects direct workload vsock to reach HTTP refusal despite the new kernel denial; retain old trusted-fixture HTTP assertions and require the stronger advertised workload denial. The closed production host profile, root/network/edge lifecycle and timing samples are later work.",
+  "priorUnresolvedFailure": {
+    "commit": "df3ae5c",
+    "ci": "https://github.com/cubepals/pryx/actions/runs/43552428478",
+    "runtimeSeconds": 28.51,
+    "failure": "Exec output safe GET received no response head within its existing five-second bound during independent fork; the subsequent different-source pass is not a fix or a discarded failure."
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "measurement": "Hosted staged-X11 owner/client and independent same-UID endpoint privacy; no headful browser or installed desktop/SSH acceptance",
+  "commit": "be92e89926c4d31940230c6f79eeb2d263cbbeba",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43268999503",
+  "result": {
+    "scope": "Hosted staged-X11 owner/client and independent same-UID endpoint privacy; no headful browser or installed desktop/SSH acceptance"
+  }
+}

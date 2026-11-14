@@ -1,0 +1,15 @@
+{
+  "source": "28e2ec4bf704f3eb8f79d7547b3cb107001db3b7",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43508458035",
+  "job": 132172138729,
+  "what": "Whole VM runtime acquisition/corruption acceptance and real Alpine/Debian guest forwarding, confinement and disk reboot acceptance",
+  "result": "success",
+  "actualKvmBoots": 6,
+  "images": 2,
+  "binaryFileRoundTripBytesPerBoot": 16777216,
+  "opaqueTcpPayloadBytesPerBoot": 65536,
+  "opaqueTcpAfterWriteEof": "Exact prefix, payload and suffix retained on all six boots",
+  "otherAssertions": "Authenticated processes/files, host file/signal denial, host/guest kernel difference, monitor confinement and lifetime lease, shutdown replay refusal, signed clean exit, readonly fsck and persistent data; two networked boots retain DHCP/DNS/HTTP and management denials",
+  "scope": "Fixtures and verified bundle only; no production node backend, edge create, root jailer/firewall or production timing samples",
+  "rawEvidence": "Retained in the CI run artifact"
+}

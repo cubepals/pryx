@@ -111,6 +111,9 @@ impl WorkloadSpec {
         if self.user.is_some() && (policy.process || policy.wasm) {
             problems.add("user", "user selection requires the container tier");
         }
+        if self.require_browser_sandbox == Some(true) && policy.wasm {
+            problems.add("requireBrowserSandbox", "browser-sandbox requires a supported native browser");
+        }
         if self.workdir.as_ref().is_some_and(|p| !p.starts_with('/') || p.len() > 4096 || !no_nul(p)) {
             problems.add("workdir", "must be an absolute path without NUL");
         }
@@ -223,6 +226,12 @@ impl WorkloadSpec {
     fn check_resources(&self, policy: &SpecPolicy, problems: &mut Problems) {
         let r = &self.resources;
         if policy.process || policy.wasm {
+            if r.allow_unenforced_memory.is_some() {
+                problems.add(
+                    "resources.allowUnenforcedMemory",
+                    "unenforced memory acceptance requires container isolation",
+                );
+            }
             for (field, present) in [("cpuMillis", r.cpu_millis.is_some()), ("cpuWeight", r.cpu_weight.is_some())] {
                 if present {
                     problems.add(format!("resources.{field}"), crate::protocol::CPU_LIMIT_PROBLEM);

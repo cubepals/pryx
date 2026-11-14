@@ -13,3 +13,10 @@ export function imageTier(docker: boolean, override?: string): Isolation {
     throw new Error('PRYX_DEFAULT_TIER=container requires a usable Docker socket')
   return tier
 }
+
+/** An image serves every available backend unless its host configuration selects one. */
+export function imageRuntime(override?: string): 'auto' | Isolation {
+  if (override && override !== 'auto' && !ISOLATIONS.includes(override as Isolation))
+    throw new Error('PRYX_RUNTIME must be auto, container, process or wasm')
+  return (override as 'auto' | Isolation | undefined) ?? 'auto'
+}

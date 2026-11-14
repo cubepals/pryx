@@ -12,7 +12,15 @@ use crate::{
 use serde_json::json;
 
 async fn ready(agent: &Agent) -> Result<std::sync::Arc<state::State>, Failure> {
-    state::native(agent)?;
+    if agent.processes.kernel_unsupported_tier() == Some("process")
+        && let Some(tools) = crate::process_tools::configured()
+    {
+        tools.supported()?;
+        let state = state::get(agent)?;
+        tools.browser(state.directory.path()).await?;
+        return Ok(state);
+    }
+    state::native(agent, "Browser automation")?;
     let state = state::get(agent)?;
     state::require(&state, "browser")?;
     state::ready(agent, super::defaults::BROWSER_PORT).await?;
@@ -37,6 +45,11 @@ pub(crate) async fn screenshot(agent: &Agent, claims: &Claims, body: BrowserShot
         || url.password().is_some()
     {
         return Err(state::failure("invalid_request", "Browser URL must use HTTP or HTTPS without credentials"));
+    }
+    if agent.processes.kernel_unsupported_tier() == Some("process")
+        && let Some(browser) = crate::process_tools::configured().and_then(|tools| tools.active_browser())
+    {
+        return browser.screenshot(&body.url).await;
     }
     let path = state.directory.path().join(format!("browser-{}.png", uuid::Uuid::new_v4()));
     let result = command::run(

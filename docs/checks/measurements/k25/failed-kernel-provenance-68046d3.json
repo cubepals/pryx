@@ -1,0 +1,9 @@
+{
+  "measurement": "Guest kernel mounts EROFS and reaches PID 1; fixture fails before successful vsock report; zero samples",
+  "commit": "68046d3",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43441847267",
+  "result": {
+    "conclusion": "failure",
+    "scope": "Guest kernel mounts EROFS and reaches PID 1; fixture fails before successful vsock report; zero samples"
+  }
+}

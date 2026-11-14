@@ -1,0 +1,27 @@
+{
+  "measurement": "create on a warm template through first PNG; browser includes local page server startup",
+  "commit": "5945724a4ac8fbc28610292d701ffa7e9bffc040",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43233699231",
+  "result": {
+    "after.samples.desktop_create_to_first_image": {
+      "n": 30,
+      "p50": 778.835,
+      "p90": 817.974
+    },
+    "after.samples.browser_create_to_first_image": {
+      "n": 30,
+      "p50": 1779.583,
+      "p90": 1810.058
+    },
+    "after.summary.desktop_create_to_first_image": {
+      "n": 30,
+      "p50Ms": 778.835,
+      "p90Ms": 817.974
+    },
+    "after.summary.browser_create_to_first_image": {
+      "n": 30,
+      "p50Ms": 1779.583,
+      "p90Ms": 1810.058
+    }
+  }
+}

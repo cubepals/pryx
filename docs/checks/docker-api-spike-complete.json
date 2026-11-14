@@ -1,60 +1,10 @@
 {
-  "release": "0.6.3",
-  "shipped": false,
-  "examplePassed": false,
-  "exitCode": 1,
-  "stdout": "",
-  "stderr": "celld dev\n  Project  /tmp/pryx-docker-spike-pUwct3/example/wrangler.jsonc\n  State    /tmp/pryx-docker-spike-pUwct3/example/.celld/dev\n  ● opening the local storage\n  ● building the application\nError: build container image failed:\nERROR: failed to build: Error response from daemon: Unshipped pryx experiment: this engine operation is unsupported\n",
-  "requests": [
-    {
-      "method": "GET",
-      "path": "/_ping",
-      "status": 200
-    },
-    {
-      "method": "GET",
-      "path": "/version",
-      "status": 200
-    },
-    {
-      "method": "HEAD",
-      "path": "/_ping",
-      "status": 200
-    },
-    {
-      "method": "HEAD",
-      "path": "/_ping",
-      "status": 200
-    },
-    {
-      "method": "POST",
-      "path": "/grpc",
-      "status": 501
-    },
-    {
-      "method": "HEAD",
-      "path": "/_ping",
-      "status": 200
-    },
-    {
-      "method": "HEAD",
-      "path": "/_ping",
-      "status": 200
-    },
-    {
-      "method": "POST",
-      "path": "/grpc",
-      "status": 501
-    },
-    {
-      "method": "HEAD",
-      "path": "/_ping",
-      "status": 200
-    },
-    {
-      "method": "GET",
-      "path": "/containers/buildx_buildkit_default/json",
-      "status": 501
-    }
-  ]
+  "measurement": "docker api spike complete",
+  "commit": "recorded in c1c9fa1; measurement revision not recorded",
+  "ci": "Not recorded; local or inventory evidence, not a CI pass",
+  "result": {
+    "shipped": false,
+    "examplePassed": false,
+    "exitCode": 1
+  }
 }

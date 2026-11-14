@@ -810,3 +810,36 @@ and backpressure. Output retains the existing per-stream bound and truncation fl
 command timeout includes waiting for a queue and still kills the verified container process
 tree. Disconnecting HTTP does not cancel command containment or authorize a second execution.
 The v1 wire retains this endpoint. Control and SDK commands use the sandbox agent.
+
+### Isolation selection
+
+A node announcing `multi-tier` accepts the optional workload-spec field `isolation`
+(`container`, `process` or `wasm`). Clients send it only after seeing that feature.
+An omitted field uses the node's configured default. An explicit unsupported tier is
+refused with field `isolation` and the tier's name; it is never replaced by another tier.
+Omitting the field keeps the existing spec record and digest unchanged.
+
+Nodes advertise `tier-container`, `tier-process` and/or `tier-wasm` for the tiers
+they serve. A mixed node retains its legacy default marker (`process-tier` or
+`wasm-tier`) and qualifies enforcement features as `tier-<isolation>:<guarantee>`.
+New control planes use these scoped features for both placement and sandbox views.
+The optional record and recovery-label field `isolation` pins the backend across
+restarts, including when the original spec omitted its choice.
+
+The local host document preserves its capability fields and adds `tiers`, each with state,
+evidence and action. `pryxd probe --config <file>` applies that configuration’s tier selection
+without starting compute. `pryx doctor` discovers an owned managed configuration and uses
+this additive flag when supported; an older daemon keeps its existing host-only report.
+
+### Tier-scoped optional capabilities
+
+A mixed node may announce `tier-capabilities:network-policy`. This marker qualifies the
+existing `network-policy` feature: `tier-container:network-policy` or
+`tier-process:network-policy` then identifies the backends that can enforce network none
+while retaining private ingress. The unqualified feature remains available when a ready
+backend supports it. A controller checks the chosen tier before placement, creation and
+unchanged-spec wake; an open tier choice considers the policy before selecting a backend.
+A node that does not announce the per-feature marker keeps its previous global semantics.
+Markers qualify one named capability at a time, so adding another scoped capability does not
+reinterpret old nodes. Rust owns the marker prefix and policy name through the generated
+OpenAPI metadata; workload fields and all v1 record bytes retain their existing names.

@@ -1,0 +1,10 @@
+{
+  "measurement": "Read-only primary-source configuration inspection. No kernel or VM executed locally; inspect the published Kata candidate next.",
+  "commit": "recorded in 74d8750; measurement revision not recorded",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43286192564",
+  "result": {
+    "selected": false,
+    "reason": "Published configuration disables EROFS; K25 requires actual EROFS/overlay/block/vsock boot proof and forbids building a private kernel.",
+    "scope": "Read-only primary-source configuration inspection. No kernel or VM executed locally; inspect the published Kata candidate next."
+  }
+}

@@ -132,10 +132,11 @@ export class Admission {
     key: string,
     epoch: number,
     verb: 'start' | 'stop' | 'kill',
+    wake = false,
   ): Promise<PowerResponse | null> {
     let response: PowerResponse
     try {
-      response = await this.#api.power(node, key, epoch, verb)
+      response = await this.#api.power(node, key, epoch, verb, wake)
     } catch (error) {
       if (!(verb === 'kill' && error instanceof NodeUnreachable)) throw error
       await this.unclaim(key, epoch)

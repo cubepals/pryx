@@ -12,6 +12,7 @@ pub const INTERNAL_PORT_PREFIX: &str = "__pryx_";
 pub const AGENT_PORT_NAME: &str = "__pryx_agent";
 pub const DEFAULT_BINARY: &str = "/usr/local/lib/pryx/pryx-agent";
 pub const FORWARD_HEADER: &str = "x-pryx-target-port";
+pub const IDEMPOTENCY_HEADER: &str = "idempotency-key";
 pub const CAPTURE_BYTES: usize = 1024 * 1024;
 pub const MAX_REQUEST_BYTES: usize = 1024 * 1024;
 pub const STATE_DIRECTORY: &str = ".pryx-agent";
@@ -34,3 +35,12 @@ pub const FUSE_FEATURE: &str = "native-fuse-mounts";
 pub const MOUNTS_ENV: &str = "PRYX_BOOTSTRAP_MOUNTS";
 pub const TOOL_KIND_ENV: &str = "PRYX_TOOL_TEMPLATE";
 pub const SSH_FORWARD_HEADER: &str = "x-pryx-ssh-session";
+pub const WEBSOCKET_PROTOCOL: &str = "pryx";
+
+/// Native browser proxy and bounded service/image budgets; templates retain these values.
+pub const BROWSER_PORT: u16 = 9223;
+pub const TOOL_STARTUP: std::time::Duration = std::time::Duration::from_secs(30);
+pub const MAX_IMAGE_BYTES: usize = 4 * CAPTURE_BYTES;
+// PNG specification section 5.2.
+#[cfg(feature = "server")]
+pub(crate) const PNG: &[u8] = b"\x89PNG\r\n\x1a\n";

@@ -1,0 +1,15 @@
+{
+  "measurement": "Authenticated guest CPU, RAM, PID and interface observations on real KVM",
+  "commit": "a91941b",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43542004659",
+  "result": "passed",
+  "runtimeSeconds": 78.29,
+  "images": 2,
+  "checks": "Positive guest CPU/RAM/PID/interface counters, admitted memory/PID bounds, unchanged workload activity after resource polling and absent counters after stop; all existing lifecycle/file/log/signal/fork checks remain",
+  "otherAcceptanceSeconds": {
+    "bundle": 9.57,
+    "registry": 18.57,
+    "sixComponentBoots": 36.19
+  },
+  "limits": "This source predates manager start admission and unfinished-launch retirement. Full tier registration, root/network/edge acceptance, ordinary CI aggregate and production timing samples remain pending."
+}

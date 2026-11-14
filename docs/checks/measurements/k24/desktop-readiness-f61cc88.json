@@ -1,0 +1,12 @@
+{
+  "measurement": "desktop readiness f61cc88",
+  "commit": "f61cc88",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43282411209",
+  "result": {
+    "releaseImageFailures.jobs": {
+      "n": 3,
+      "p50": 131407064340,
+      "p90": 131407064640
+    }
+  }
+}

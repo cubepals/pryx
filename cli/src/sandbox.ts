@@ -10,6 +10,7 @@ import { seconds } from '../../sdk/typescript/src/duration.ts'
 import { SDK_DEFAULTS } from '../../sdk/typescript/src/generated/defaults.ts'
 import { Transport } from '../../sdk/typescript/src/transport.ts'
 import { readClientConfig } from './client-config.ts'
+import { diagnosticFetch } from './http-diagnostics.ts'
 import { copy, terminal } from './sandbox-data.ts'
 import { field } from './sandbox-field.ts'
 
@@ -21,7 +22,12 @@ export function publicCredentials() {
   return { url: baseUrl, key: apiKey }
 }
 export function publicClient() {
-  return new Pryx(publicCredentials())
+  return new Pryx({
+    ...publicCredentials(),
+    ...(process.env.PRYX_HTTP_DIAGNOSTICS === '1'
+      ? { fetch: diagnosticFetch((event) => console.error(JSON.stringify(event))) }
+      : {}),
+  })
 }
 export function publicTransport() {
   return new Transport(publicCredentials())
@@ -97,6 +103,10 @@ export async function execCommand(
 export async function sandbox(args: string[]): Promise<unknown> {
   const client = publicClient()
   const [verb = 'ls', id, ...rest] = args
+  if (verb === 'ssh-proxy') {
+    if (!id || !rest[0]) throw new Error('SSH proxy needs sandbox and lease identities')
+    return (await import('./ssh-proxy.ts')).sshProxy(client, id, rest[0])
+  }
   if (verb === 'ssh') {
     if (!id) throw new Error('sandbox ssh needs an id')
     return (await import('./sandbox-ssh.ts')).ssh(client, id, rest)

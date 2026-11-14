@@ -1,0 +1,9 @@
+{
+  "measurement": "Thirty TCP_NODELAY vsock samples pass; pasta obtains DHCP and reaches the DNS assertion, whose guest resolver has no advertised nameserver; no successful pasta sample",
+  "commit": "4674e2f",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43448545479",
+  "result": {
+    "conclusion": "failure",
+    "scope": "Thirty TCP_NODELAY vsock samples pass; pasta obtains DHCP and reaches the DNS assertion, whose guest resolver has no advertised nameserver; no successful pasta sample"
+  }
+}

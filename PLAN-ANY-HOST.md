@@ -1,6 +1,6 @@
-# Running K19 to K27 unattended
+# Running K19 to K30 unattended
 
-How one task takes the any-host plan (docs/any-host.md) from K19 to K27 with nobody watching, for
+How one task takes the any-host plan (docs/any-host.md) from K19 to K30 with nobody watching, for
 as many days as it needs. A task is started with one line: "Do what PLAN-ANY-HOST.md says." A task
 that stops is started again with the same line and continues where the files say it was.
 
@@ -24,6 +24,8 @@ The state is in the repository
   anything you remember. A new task with no history must be able to continue from them alone.
 - Commit small and often, and push the branch after every commit that builds. Nothing that
   matters exists only on this machine.
+- Commit and push each step that builds, at least every thirty minutes. Checkpoints preserve
+  incomplete milestones honestly; a machine failure must not lose a larger interval of work.
 
 CI is the proof
 
@@ -37,6 +39,11 @@ CI is the proof
 - After each push, wait for the branch's CI run, read every failure in its logs, fix the cause
   and push again. A milestone is done when CI is green on its last commit; record that run in
   the progress file. Then begin the next.
+- Keep raw output in CI artifacts. Under docs/checks/measurements commit only inputs read by
+  code or checks and one short summary per measurement: what ran, decisive numbers, source
+  commit and CI URL. Remove raw logs/dumps and update every reference when replacing them.
+- Each CI inspection also reads PR 21 scanner comments through GitHub's API. Fix new findings
+  as they appear; test cryptographic challenges are generated at runtime, preserving assertions.
 - If you cannot push, or cannot read CI's results from here, write that once in the progress
   file, run everything that can run on this machine, and keep going.
 
@@ -47,14 +54,17 @@ Never block yourself
 - A tool that is missing is installed. A registry, mirror or download that fails is retried with
   a longer wait and then replaced by another source at the same pinned digest; an outage is
   never a reason to stop.
-- When the same failure has survived three different attempts, park it: write in the progress
-  file what fails, what was tried and what the evidence is; leave that one piece off, refused
-  with a clear message, so the build stays green; mark the milestone "done except" with the
-  piece named; and go on with everything that doesn't depend on it. A later milestone that
-  needs a parked piece does its other parts and records the same.
+- When a side piece's failure has survived three different attempts, park that side piece:
+  write what fails, the attempts and evidence in the progress file; leave it off with a named
+  refusal and continue independent work. "Done except" names only these side pieces. The
+  main deliverable of a milestone is never parked: choose another approach and continue until
+  it works and CI proves it. In K23 the relocatable bundle and ordinary-user browser/Python/
+  Node kernels are the main deliverable, as explicitly corrected by the user.
 - After K27, return to every parked piece once, with what was learned since.
-- Stop only when every milestone is done or done except, and every parked piece has had its
-  second try.
+- After K27 and the second attempt at every parked piece, fetch main and merge origin/main
+  into this branch (never rebase), then execute PLAN-K28.md, PLAN-K29.md and PLAN-K30.md in order.
+- Stop only when every milestone through K30 is done or done except, and every parked piece
+  has had its second try.
 
 Never, whatever it would unblock
 
@@ -67,7 +77,10 @@ Never, whatever it would unblock
 
 The end
 
-Update docs/any-host-progress.md a last time and leave `any-host` pushed and green. The last
+Update docs/any-host-progress.md a last time and leave `any-host` pushed and green.
+After all builds and milestone verification, land one pull request per milestone, in order,
+not one combined squash; keep commits confined to one milestone so the split is clean. Open no
+pull request during the build. The last
 message lists, for each milestone: what was built, the CI run that proved it, what did not run,
 what is parked and why, and every decision recorded.
 ```

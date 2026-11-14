@@ -229,6 +229,10 @@ export class SandboxProxy {
     const claims = sandboxToken(token, route)
     if (exposedPort === undefined && claims?.scope !== 'sandbox' && !fileToken(claims, request, path))
       return new Response('Sandbox token refused', { status: StatusCodes.UNAUTHORIZED })
+    const ssh = exposedPort === undefined ? /^\/_pryx\/ssh\/([^/]+)\/connect$/.exec(path) : null
+    const lease = ssh ? this.table.held.get(`${route.sandbox}:ssh-${ssh[1]}`) : undefined
+    if (ssh && (!lease?.ssh || lease.ssh.session !== ssh[1] || lease.epoch !== route.epoch))
+      return new Response('SSH lease unavailable', { status: StatusCodes.GONE })
     let destination = route.destination
     if (exposedPort !== undefined) {
       let port = (await this.exposed(route)).find((port) => port.port === exposedPort)
@@ -270,7 +274,7 @@ export class SandboxProxy {
         request,
         server,
         target,
-        route,
+        lease ?? route,
         exposedPort === undefined ? token : undefined,
         exposedPort,
       )

@@ -38,36 +38,36 @@ import { decodeHandle, decodeSnapshot, encodeHandle, encodeSnapshot, isHandle, i
 import type { Thresholds } from './health.ts'
 import { hostLost, Ledger, nextEpoch, place, placementOf, remove, StaleHandle } from './ledger.ts'
 import { NodeCache } from './node-cache.ts'
-import { describe, NEEDS, NodeChoice } from './node-choice.ts'
+import { NEEDS, NodeChoice, placementRefused } from './node-choice.ts'
 import { type NodeClient, NodeRefused } from './node-client.ts'
 import { type Considered, cpuRequest, type PlacementOptions, type PlacementRequest } from './placement.ts'
 import { Power } from './power.ts'
 import { getNode, lockRegion } from './registry.ts'
 import { Rehoming } from './rehoming.ts'
-import {
-  type ArchiveTarget,
-  type Audience,
-  type Endpoint,
-  type InstallSeed,
-  type Placement,
-  type ProgressSink,
-  type RestoreSource,
-  type RuntimeCapacity,
-  RuntimeFull,
-  type RuntimeHandle,
-  type RuntimeKey,
-  type RuntimeLocation,
-  type RuntimeObservation,
-  type RuntimePrices,
-  type RuntimeSpec,
-  type SandboxRuntime,
-  type SnapshotHandle,
+import type {
+  ArchiveTarget,
+  Audience,
+  Endpoint,
+  InstallSeed,
+  Placement,
+  ProgressSink,
+  RestoreSource,
+  RuntimeCapacity,
+  RuntimeHandle,
+  RuntimeKey,
+  RuntimeLocation,
+  RuntimeObservation,
+  RuntimePrices,
+  RuntimeSpec,
+  SandboxRuntime,
+  SnapshotHandle,
 } from './runtime-model.ts'
 import { RuntimeViews } from './runtime-views.ts'
 import { event, rows } from './sql.ts'
 import { Transfers } from './transfers.ts'
 import { FleetUpkeep } from './upkeep.ts'
 import { WorkloadApi } from './workload-api.ts'
+import { requireWorkloadFeatures } from './workload-capabilities.ts'
 
 export interface FleetRuntimeOptions {
   db: Db
@@ -122,6 +122,7 @@ export class FleetRuntime implements SandboxRuntime {
     this.#choice = new NodeChoice({
       cpuMillisPerGb: options.cpuMillisPerGb,
       thresholds: options.thresholds,
+      regionMap: options.regionMap,
       placement: options.placement,
     })
     this.#ledger = new Ledger({
@@ -237,6 +238,10 @@ export class FleetRuntime implements SandboxRuntime {
     return (await this.#choice.choose(this.#o.db, request)).node !== null
   }
 
+  get isolationChoice() {
+    return this.#choice
+  }
+
   /**
    * A placement with no node, as a released one: its data comes from the archive store when it is
    * restored, onto whichever node has room then. One already here is handed back as it is.
@@ -267,6 +272,8 @@ export class FleetRuntime implements SandboxRuntime {
       const row = await placementOf(t, key, true)
       const none = [] as Considered[]
       if (row !== null) {
+        const target = row.node_id ? await getNode(t, row.node_id) : null
+        if (target) requireWorkloadFeatures(spec, target.features)
         if (row.state === 'displaced') throw hostLost()
         // The application never provisions a resting server; nor does the fleet, since it would give
         // the data new, empty storage.
@@ -324,7 +331,7 @@ export class FleetRuntime implements SandboxRuntime {
         workload: key,
         data: { considered: chosen.considered },
       })
-      throw new RuntimeFull(this.provider, describe(chosen.considered))
+      throw placementRefused(this.provider, chosen.considered, spec.isolation, spec.requiredTools)
     }
     if (chosen.unfinished) {
       const moved = await this.#rehoming.finish(chosen.row, spec, progress)

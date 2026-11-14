@@ -1,0 +1,10 @@
+{
+  "measurement": "full policy descriptor ae7b5a8",
+  "commit": "ae7b5a8af3d9742d466a021c2a31f57a61f37418",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43194460133",
+  "result": {
+    "bytes": 726246280,
+    "unpacked_bytes": 1890480698,
+    "entries": 38897
+  }
+}

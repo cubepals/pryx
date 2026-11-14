@@ -1,0 +1,21 @@
+<!-- SPDX-License-Identifier: FSL-1.1-ALv2 -->
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Native desktop acceptance</title>
+<style>input,button { position:fixed;left:100px;width:300px;height:60px } input {top:80px} button {top:200px}</style>
+<input aria-label="Observed text"><button>Observe click</button>
+<script>
+const input = document.querySelector('input'), button = document.querySelector('button')
+function observe(value) { return fetch('/observe', { method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(value) }) }
+function point(element) { const r=element.getBoundingClientRect();return {x:Math.round(screenX+r.x+r.width/2),y:Math.round(screenY+outerHeight-innerHeight+r.y+r.height/2)} }
+input.oninput=()=>observe({kind:'type',value:input.value})
+button.onclick=()=>observe({kind:'click'})
+function ready() {
+  const points={input:point(input),button:point(button)}
+  // X11 can finish loading the page before Chromium reports its mapped window size.
+  const mapped=innerHeight>0 && outerHeight>=innerHeight && innerWidth>0 && outerWidth>=innerWidth
+  const visible=Object.values(points).every(p=>p.x>=0 && p.x<screen.width && p.y>=0 && p.y<screen.height)
+  if (!mapped || !visible) { requestAnimationFrame(ready);return }
+  observe({kind:'ready',...points,window:{screenX,screenY,outerHeight,innerHeight,outerWidth,innerWidth}})
+}
+window.onload=()=>requestAnimationFrame(ready)
+</script></html>

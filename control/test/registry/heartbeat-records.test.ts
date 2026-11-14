@@ -8,7 +8,7 @@ import { afterAll, beforeAll, expect, test } from 'bun:test'
 import { sql } from 'drizzle-orm'
 import type { FleetCa } from '../../src/ca.ts'
 import type { Db } from '../../src/database.ts'
-import { certificateOf, heartbeat, sessionOf } from '../../src/registry/heartbeat.ts'
+import { certificateOf, heartbeat, heldBack, sessionOf } from '../../src/registry/heartbeat.ts'
 import { getNode } from '../../src/registry/node.ts'
 import { rows } from '../../src/sql.ts'
 import { beat, enrollNode, freshDatabase, hasDatabase, registryOptions, report, testCa } from '../nodes.ts'
@@ -196,3 +196,35 @@ test.skipIf(!hasDatabase)('a beat from the replaced session explains the newer s
     message: 'a newer daemon session reports for this node',
   })
 })
+
+test.skipIf(!hasDatabase)(
+  'restart readiness waits for the registry session hold and new address',
+  async () => {
+    const node = await enrollNode(db, ca, 'restart-readiness')
+    const options = registryOptions()
+    const send = (session: string, seq: number, api: string) =>
+      heartbeat(
+        db,
+        options,
+        node.id,
+        node.sha,
+        beat(node, session, seq, [], {
+          addresses: { api, edge: '127.0.0.1', control: '127.0.0.1' },
+        }),
+      )
+    await send('old', 1, '127.0.0.1:7443')
+    expect((await send('new', 1, '127.0.0.1:8443')).leaseSeconds).toBe(0)
+    const held = await getNode(db, node.id)
+    if (!held) throw new Error('The restarted node must exist')
+    expect(heldBack(held, false, options.heartbeatSeconds)).toBe(true)
+    expect(held.api_address).toBe('127.0.0.1:7443')
+    await db.execute(
+      sql`UPDATE fleet_nodes SET session_started_at = now() - interval '1 hour' WHERE id = ${node.id}`,
+    )
+    expect((await send('new', 2, '127.0.0.1:8443')).leaseSeconds).toBe(options.leaseSeconds)
+    const ready = await getNode(db, node.id)
+    if (!ready) throw new Error('The ready node must exist')
+    expect(heldBack(ready, false, options.heartbeatSeconds)).toBe(false)
+    expect(ready.api_address).toBe('127.0.0.1:8443')
+  },
+)

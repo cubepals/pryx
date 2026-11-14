@@ -141,6 +141,7 @@ export async function startControl(
     db,
     boxes: sandboxes,
     defaultIsolation: config.defaultIsolation,
+    require: config.require,
     publicOrigin: config.publicOrigin,
     nodes,
     domain: config.publicDomain,
@@ -150,6 +151,7 @@ export async function startControl(
     webhookAllowHosts: config.webhookAllowHosts,
   })
   const edge = new EdgeService(db, sandboxes, config.publicDomain, config.edgePortRange, api.agents)
+  if (config.publicOrigin) api.agents.localOrigin = config.publicOrigin
   api.app.route('/edge/v1', edgeApi(edge, config.edgeToken))
   if (options.gatewayHealth) api.app.get('/healthz', () => options.gatewayHealth?.() as Response)
   const publicListen = splitAddress(config.apiListen)

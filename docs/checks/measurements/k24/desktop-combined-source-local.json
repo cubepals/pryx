@@ -1,0 +1,13 @@
+{
+  "measurement": "Local combined corresponding-source and per-capability inventory build; prior to the final command-deadline adapter edit, not published or installed",
+  "commit": "recorded in f61cc88; measurement revision not recorded",
+  "ci": "Not recorded; local or inventory evidence, not a CI pass",
+  "result": {
+    "scope": "Local combined corresponding-source and per-capability inventory build; prior to the final command-deadline adapter edit, not published or installed",
+    "sourceDistribution.bytes": 1733694870,
+    "sourceDistribution.unpacked_bytes": 1745147375,
+    "sourceDistribution.entries": 2159,
+    "sourceVersions": 112,
+    "desktopSourceArchives": 370
+  }
+}

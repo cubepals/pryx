@@ -1,0 +1,8 @@
+{
+  "measurement": "Local staged component only; no live display, namespace or installed-product acceptance",
+  "commit": "e69fa1fddc8ccb10b6afb60bec6340d5ca610f01",
+  "ci": "Not recorded; local or inventory evidence, not a CI pass",
+  "result": {
+    "scope": "Local staged component only; no live display, namespace or installed-product acceptance"
+  }
+}
