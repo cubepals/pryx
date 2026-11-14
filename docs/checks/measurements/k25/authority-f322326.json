@@ -1,0 +1,12 @@
+{
+  "sourceCommit": "f322326",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43633463221",
+  "job": 132567536928,
+  "artifact": 14129418644,
+  "passed": "Both pinned images complete actual bounded root cold/wake/files/daemon-loss recovery and the separate TAP/gateway/lease checks",
+  "rootLifecycleSeconds": 36.23,
+  "images": 2,
+  "profile": "Unchanged KVM/TUN-only closed devices and capability ceiling, plus InaccessiblePaths=/proc/misc; main unit unchanged",
+  "workflow": "Cancelled at the existing twenty-minute job ceiling during the final independent guest acceptance; no complete workflow pass",
+  "notProved": "Later Rust handle consumer, guest hostname TAP/firewall, unrestricted forwarding, installed worker or complete installed SDK/measurement acceptance"
+}

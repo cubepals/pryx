@@ -4321,3 +4321,21 @@ job when publication is authorized. That job has not run in this task.
   daemon/integration structure diagnostics, fmt, Go build/vet, actual SDK configuration with
   a random MAC, Python syntax, actionlint and whitespace pass. Estimate under one additional
   optional VM minute, zero normal PR minutes, no dependency/job/gate. Hardware results pending.
+
+- Source f322326 VM run 43633463221/job 132567536928 proves the full bounded root
+  disconnected lifecycle on both images (36.23 s), including cold wake, file maintenance and
+  daemon-loss recovery; main unit unchanged, closed KVM/TUN devices and the original ceiling
+  preserved, /proc/misc further hidden. Separate TAP/gateway/lease checks also pass. Summary:
+  checks/measurements/k25/authority-f322326.json. The final independent guest replay reaches
+  the existing twenty-minute job ceiling and is cancelled; this is no whole-workflow pass.
+- Raise only that optional job ceiling to thirty minutes to finish its accumulated real work;
+  retain all individual test deadlines. Add one focused two-vCPU shutdown replay: require a
+  signed clean guest result and successful actual monitor exit, retaining only tkill/tgkill
+  syscalls and the actual system strace version in CI artifacts. Estimate under two added
+  optional VM minutes, zero normal PR minutes, no new job/gate or shipped dependency.
+- Local real static pthread experiments: the pinned musl sends tkill and delivers normally;
+  under the unchanged actual monitor launcher it returns EPERM without delivery. A static GNU
+  control sends tgkill and delivers under the same launcher. No signalling policy was relaxed.
+  These establish the libc/filter mismatch, not its occurrence inside the published VMM; the
+  focused real KVM trace must confirm that. Full Rust: 536 pass, known host IPv6 fixture failure,
+  43 ignored; strict all-target Clippy, fmt, actionlint and whitespace pass. Hardware pending.

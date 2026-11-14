@@ -20,6 +20,7 @@
 //! - `network_acceptance.rs`: real workload packet flow and immutable egress attacks.
 //! - `root_lifecycle.rs`: real root runtime, file maintenance and daemon-loss recovery.
 //! - `root_acceptance.rs`: real jailed boots and original-disk ownership recovery.
+//! - `shutdown_acceptance.rs`: real monitor exit status after authenticated guest shutdown.
 mod agent;
 mod configuration;
 #[cfg(test)]
@@ -39,6 +40,8 @@ mod root_acceptance;
 mod root_lifecycle;
 mod runtime;
 mod services;
+#[cfg(test)]
+mod shutdown_acceptance;
 #[cfg(test)]
 mod tests;
 use super::{
