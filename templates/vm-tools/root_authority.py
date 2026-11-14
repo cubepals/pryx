@@ -75,6 +75,7 @@ def main():
             base += ['--setenv', f'{key}={value}']
         for suffix, command in [
             ('tap', [str(programs / 'tap-probe'), '--plugins', str(programs), '--uid', uid, '--gid', gid]),
+            ('gateways', [str(programs / 'tap-probe'), '--plugins', str(programs), '--uid', uid, '--gid', gid, '--gateways']),
             ('runtime', [str(programs / 'acceptance'), '--exact',
                          'runtime::vm::instance::root_lifecycle::actual_root_runtime_cold_boot_files_and_daemon_loss',
                          '--ignored', '--nocapture']),
@@ -95,7 +96,7 @@ def main():
         }, indent=2) + '\n')
     finally:
         # Stop the exact owned units before removing their private state, even after failure.
-        for suffix in ['tap', 'runtime']:
+        for suffix in ['tap', 'gateways', 'runtime']:
             subprocess.run(['sudo', 'systemctl', 'stop', name + '-' + suffix + '.service'],
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
             status = subprocess.run(['sudo', 'systemctl', 'show', name + '-' + suffix + '.service',

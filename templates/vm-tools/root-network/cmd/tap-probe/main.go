@@ -197,19 +197,28 @@ func probe(directory string, uid, gid uint32) error {
 }
 
 func main() {
+	gateways := flag.Bool("gateways", false, "prove namespace-bound gateway descriptor ownership")
+	client := flag.String("gateway-client", "", "ordinary namespace gateway client")
+	proof := flag.String("proof", "", "live parent proof")
 	open := flag.String("open", "", "ordinary monitor open of an existing owned TAP")
 	directory := flag.String("plugins", "", "absolute directory of the pinned CNI TAP program")
 	uid := flag.Uint64("uid", 0, "fixed host monitor UID")
 	gid := flag.Uint64("gid", 0, "fixed host monitor GID")
 	flag.Parse()
 	var err error
-	if *open != "" {
+	if *client != "" {
+		err = gatewayClient(*client, *proof)
+	} else if *open != "" {
 		err = openTap(*open)
 	} else {
 		if *uid > math.MaxUint32 || *gid > math.MaxUint32 {
 			err = fmt.Errorf("Monitor IDs exceed their kernel type")
 		} else {
-			err = probe(*directory, uint32(*uid), uint32(*gid))
+			if *gateways {
+				err = gatewayProbe(*directory, uint32(*uid), uint32(*gid))
+			} else {
+				err = probe(*directory, uint32(*uid), uint32(*gid))
+			}
 		}
 	}
 	if err != nil {

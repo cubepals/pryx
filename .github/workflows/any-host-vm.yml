@@ -100,6 +100,11 @@ jobs:
         run: |
           sudo "$RUNNER_TEMP/vm-root-tap-probe" --plugins "$RUNNER_TEMP/vm-root-cni" \
             --uid "$(id -u)" --gid "$(id -g)" | tee "$RUNNER_TEMP/vm-root-tap-probe.json"
+      - name: Prove namespace-bound root gateway ownership
+        if: ${{ !cancelled() && steps.root-network.outcome == 'success' && steps.network-prerequisites.outcome == 'success' }}
+        run: |
+          sudo "$RUNNER_TEMP/vm-root-tap-probe" --plugins "$RUNNER_TEMP/vm-root-cni" \
+            --uid "$(id -u)" --gid "$(id -g)" --gateways | tee "$RUNNER_TEMP/vm-root-kernel-gateways.json"
       - name: Prove vsock without host user namespaces or TUN
         if: ${{ !cancelled() && steps.network-prerequisites.outcome == 'success' }}
         run: |
@@ -321,6 +326,7 @@ jobs:
             ${{ runner.temp }}/vm-network-notices
             ${{ runner.temp }}/vm-root-network-notices
             ${{ runner.temp }}/vm-root-tap-probe.json
+            ${{ runner.temp }}/vm-root-kernel-gateways.json
             ${{ runner.temp }}/vm-network-spike.json
             ${{ runner.temp }}/vm-network-spike.log
             ${{ runner.temp }}/vm-network-spike/**/*.log
