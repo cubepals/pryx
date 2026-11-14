@@ -13,36 +13,14 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"syscall"
 	"time"
 
 	rootnetwork "cubepals/pryx/vm-root-network-experiment"
 	"golang.org/x/sys/unix"
 )
 
-func ancestry(path string) error {
-	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
-		return fmt.Errorf("Scope paths require canonical absolute host directories")
-	}
-	for {
-		info, err := os.Lstat(path)
-		if err != nil {
-			return err
-		}
-		owner, ok := info.Sys().(*syscall.Stat_t)
-		if !ok || !info.IsDir() || owner.Uid != 0 || (info.Mode().Perm()&0022 != 0 && info.Mode()&os.ModeSticky == 0) {
-			return fmt.Errorf("Scope ancestry requires protected root-owned directories")
-		}
-		parent := filepath.Dir(path)
-		if parent == path {
-			return nil
-		}
-		path = parent
-	}
-}
-
 func lease(path string) (*os.File, error) {
-	if err := ancestry(filepath.Dir(path)); err != nil {
+	if err := rootnetwork.Ancestry(filepath.Dir(path)); err != nil {
 		return nil, err
 	}
 	descriptor, err := unix.Open(path, unix.O_RDONLY|unix.O_CREAT|unix.O_CLOEXEC|unix.O_NOFOLLOW|unix.O_NONBLOCK, 0600)
@@ -62,33 +40,17 @@ func lease(path string) (*os.File, error) {
 	return file, nil
 }
 
-func executable(path string) error {
-	descriptor, err := unix.Open(path, unix.O_RDONLY|unix.O_CLOEXEC|unix.O_NOFOLLOW|unix.O_NONBLOCK, 0)
-	if err != nil {
-		return err
-	}
-	defer unix.Close(descriptor)
-	var info unix.Stat_t
-	if err := unix.Fstat(descriptor, &info); err != nil {
-		return err
-	}
-	if info.Mode&unix.S_IFMT != unix.S_IFREG || info.Uid != 0 || info.Mode&0022 != 0 || info.Mode&0111 == 0 || info.Nlink != 1 {
-		return fmt.Errorf("Root CNI executable must be one protected root-owned regular program")
-	}
-	return nil
-}
-
 func grant(directory, state, lock string, uid, gid uint) (problem error) {
 	if os.Geteuid() != 0 || uid == 0 || gid == 0 || uint64(uid) >= uint64(^uint32(0)) || uint64(gid) >= uint64(^uint32(0)) {
 		return fmt.Errorf("Root scope requires root and fixed ordinary monitor identities")
 	}
-	if err := ancestry(directory); err != nil {
+	if err := rootnetwork.Ancestry(directory); err != nil {
 		return err
 	}
-	if err := executable(filepath.Join(directory, "tap")); err != nil {
+	if err := rootnetwork.Executable(filepath.Join(directory, "tap")); err != nil {
 		return err
 	}
-	if err := ancestry(state); err != nil {
+	if err := rootnetwork.Ancestry(state); err != nil {
 		return err
 	}
 	held, err := lease(lock)

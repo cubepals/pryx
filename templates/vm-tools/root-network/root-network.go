@@ -11,6 +11,7 @@
 // cmd/scope/main.go grants actual namespace/listener descriptors and waits on the monitor lease
 // before retiring one scope; cmd/tap-probe/scope.go checks that actual process and lease.
 // It is not installed or registered as a production worker.
+// authority.go owns unchanged protected root program/directory checks.
 // scope.go owns one private TAP and local addressing; listeners.go binds actual gateway
 // descriptors there; credentials.go reads actual drop-user authority on fixture failure; cmd/tap-probe/gateways.go checks serving them in the parent namespace.
 package rootnetwork

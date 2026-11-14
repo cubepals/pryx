@@ -4484,3 +4484,9 @@ job when publication is authorized. That job has not run in this task.
 - Full Rust: 537 pass, unchanged host IPv6 fixture failure, 43 ignored. Strict all-target
   Clippy, minimal-agent build, fmt and whitespace pass. No new dependency/job/gate or estimated
   CI minute. Root bridge/worker integration and whole GNU monitor hardware proof remain.
+
+- Move the unchanged protected root program/directory checks into root-network/authority.go
+  before adding host-owned metadata readers. Both moved bodies compare unchanged against
+  their previous source; Go tests/build/vet and whitespace pass. Every ownership, ancestor,
+  type, mode and link-count condition and all lifecycle behavior stay unchanged. No added
+  dependency/job/gate or estimated CI time.
