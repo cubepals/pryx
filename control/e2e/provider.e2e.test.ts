@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** K30 acceptance uses a real daemon, control and edge in this job. No provider method is mocked. */
 import { expect, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pryxPortAddress, pryxProvider } from '../../sdk/typescript/src/provider.ts'
 import { MINUTE_MS, SECOND_MS } from '../src/durations.ts'
@@ -8,15 +9,16 @@ import { runProviderExamples } from '../tools/provider-examples.ts'
 import { agentDeployment } from './agent-context.ts'
 import { ready } from './deployment.ts'
 import { deploymentDiagnostics } from './diagnostics.ts'
-import { webCommand } from './tier-fixture.ts'
 
 const actor = { actorId: 'provider-acceptance', client: () => undefined }
+const httpFixture = readFileSync(new URL('./fixtures/provider-http.cjs', import.meta.url), 'utf8')
+const webCommand = ['node', '/data/provider-http.cjs', '3000', '0.0.0.0']
 
 test(
   'sandbox provider methods, cancellation, streams, persistence and preview',
   async () => {
     expect(ready).toBe(true)
-    const c = await agentDeployment(undefined, { repoImage: 'alpine:pryx-tls', localPreviews: true })
+    const c = await agentDeployment(undefined, { repoImage: 'alpine:pryx-browser', localPreviews: true })
     const options = { url: c.d.control.apiUrl, key: c.d.credential.key }
     const provider = pryxProvider(options)
     let id: string | undefined
@@ -86,8 +88,9 @@ test(
       if (!awake) throw new Error('Sleeping sandbox disappeared')
       expect(new TextDecoder().decode(await awake.readFile('/data/work/kept'))).toBe('kept\0bytes\n')
       const resumedRaw = await c.sdk.sandbox(id)
-      const web = await resumedRaw.spawn(webCommand())
       await resumedRaw.write('index.html', 'provider-preview')
+      await resumedRaw.write('provider-http.cjs', httpFixture)
+      const web = await resumedRaw.spawn(webCommand)
       await web.waitForPort(3000, { mode: 'http', timeout: '30s' })
       const address = await pryxPortAddress(id, 3000, options)
       expect(await (await c.app(address)).text()).toBe('provider-preview')
@@ -135,25 +138,21 @@ test(
         expect(await backend.readFile('/data/moved')).toEqual(binary)
         await backend.deleteFile('/data/moved')
         const orangeRaw = await c.sdk.sandbox(orangeId)
-        await orangeRaw.write(
-          'cgi-bin/echo',
-          '#!/bin/sh\nprintf "Content-Type: text/plain\\r\\n\\r\\n"\nprintf "%s:%s:%s:" "$HTTP_HOST" "$REQUEST_METHOD" "$QUERY_STRING"\ncat\n',
-        )
-        expect((await orangeRaw.run('chmod +x /data/cgi-bin/echo')).code).toBe(0)
-        const web = await orangeRaw.spawn(webCommand())
+        await orangeRaw.write('provider-http.cjs', httpFixture)
+        const web = await orangeRaw.spawn(webCommand)
         await web.waitForPort(3000, { mode: 'tcp', timeout: '30s' })
         try {
           const previewHost = new URL(await pryxPortAddress(orangeId, 3000, options)).host
           const response = await backend.previewFetch(
             3000,
-            new Request('http://binding/cgi-bin/echo?value=hello', {
+            new Request('http://binding/echo?value=hello', {
               method: 'POST',
               headers: { host: 'binding.invalid' },
               body: 'payload',
             }),
           )
           expect(response.ok).toBe(true)
-          expect(await response.text()).toBe(`${previewHost}:POST:value=hello:payload`)
+          expect(await response.text()).toBe(`${previewHost}:POST:/echo?value=hello:payload`)
         } finally {
           await web.kill()
         }
