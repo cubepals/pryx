@@ -98,6 +98,6 @@ test.each(['run', 'stream'] as const)('%s starts before its result is awaited', 
 })
 test('runtime exports have one surface', () => {
   expect(Object.keys(surface).sort()).toEqual(
-    ['Pryx', 'Sandbox', 'Snapshot', 'Process', 'Terminal', 'Files', 'PryxError'].sort(),
+    ['Pryx', 'Sandbox', 'Snapshot', 'Process', 'Terminal', 'Files', 'PryxError', 'CommandStream'].sort(),
   )
 })

@@ -233,7 +233,7 @@ export function binaryBody(data: string | Uint8Array): string | Uint8Array<Array
   if (!(buffer instanceof ArrayBuffer)) throw new TypeError('Binary input requires ArrayBuffer storage')
   return new Uint8Array(buffer, data.byteOffset, data.byteLength)
 }
-function bytes(encoded: string) {
+export function bytes(encoded: string) {
   return Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0))
 }
 function encoded(data: string | Uint8Array) {
@@ -328,8 +328,8 @@ export class Process {
   resize(cols: number, rows: number) {
     return this.#agent.request<void>(this.path('/resize'), 'POST', { cols, rows })
   }
-  async *events() {
-    yield* ndjson<AgentEvent>(await this.#agent.raw(this.path('/output')))
+  async *events(signal?: AbortSignal) {
+    yield* ndjson<AgentEvent>(await this.#agent.raw(this.path('/output'), 'GET', undefined, {}, signal))
   }
   async *stream() {
     for await (const event of output(this.events()))

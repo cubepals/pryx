@@ -1,0 +1,101 @@
+--- a/packages/runtime-node/src/modules/cloudflare-sandbox/providers.ts
++++ b/packages/runtime-node/src/modules/cloudflare-sandbox/providers.ts
+@@ -19,7 +19,7 @@
+ export const sandboxProviderVariable = "ORANGE_SANDBOX_PROVIDER";
+ export const sandboxDirectoryVariable = "ORANGE_SANDBOX_DIR";
+ 
+-export const sandboxProviderNames = ["local", "e2b", "daytona", "freestyle", "agentos"] as const;
++export const sandboxProviderNames = ["local", "e2b", "daytona", "freestyle", "agentos", "pryx"] as const;
+ export type SandboxProviderName = (typeof sandboxProviderNames)[number];
+ 
+ export interface ExecOptions {
+@@ -115,6 +115,8 @@
+ 	}
+ 	const name = configured;
+ 	switch (name) {
++		case "pryx":
++			return pryxProvider(environment);
+ 		case "local":
+ 			return localProvider(localSandboxRoot(environment));
+ 		case "agentos":
+@@ -139,6 +141,68 @@
+ /** The provider with this name, configured from the runtime settings. */
+ export function sandboxProviderNamed(name: string): SandboxProvider {
+ 	return sandboxProviderFromEnvironment({ ...runtimeSettings(), [sandboxProviderVariable]: name });
++}
++
++// pryx's SDK owns compute, persistent files and edge previews. Load it only
++// when selected; the worker's code and sandbox-adapter stay unchanged.
++function pryxProvider(environment: Readonly<Record<string, string | undefined>>): SandboxProvider {
++	const url = environment.PRYX_API_URL;
++	const key = environment.PRYX_API_KEY;
++	if (!url || !key) throw new SandboxConfigurationError("The pryx provider needs PRYX_API_URL and PRYX_API_KEY");
++	const options = { url, key };
++	const modules = () => Promise.all([import("@cubepals/pryx"), import("@cubepals/pryx/provider")]);
++	let loaded: Promise<AdapterProvider> | undefined;
++	const provider = () => loaded ??= modules().then(([, adapter]) => adapter.pryxProvider(options));
++	const context = (owner: string): SandboxActorContext => ({ actorId: owner, client: () => undefined });
++	return {
++		name: "pryx",
++		create: async (owner) => (await provider()).create(context(owner)),
++		destroy: async (owner, id) => { await (await provider()).destroy?.(context(owner), id); },
++		async connect(owner, id) {
++			const sandbox = await (await provider()).connect(context(owner), id);
++			if (!sandbox) return undefined;
++			const [sdk, adapter] = await modules();
++			const box = await new sdk.Pryx(options).sandbox(id, { wake: false });
++			const relative = (path: string) => {
++				const normalized = posix.normalize(path);
++				if (!posix.isAbsolute(path) || (normalized !== sandbox.cwd && !normalized.startsWith(`${sandbox.cwd}/`)))
++					throw new Error("pryx file paths must stay inside /data");
++				return posix.relative(sandbox.cwd, normalized) || ".";
++			};
++			return {
++				...adapterSandbox(sandbox),
++				cwd: sandbox.cwd,
++				writeFile: (path, content) => box.files.write(relative(path), content),
++				deleteFile: (path) => box.files.delete(relative(path)),
++				rename: (from, to) => box.files.move(relative(from), relative(to)),
++				async list(path, recursive) {
++					const pending = [{ relative: relative(path), prefix: "" }];
++					const entries: FileEntry[] = [];
++					while (pending.length) {
++						const directory = pending.pop()!;
++						for (const entry of await box.files.list(directory.relative)) {
++							const name = posix.join(directory.prefix, entry.name);
++							const modified = new Date(0);
++							modified.setUTCSeconds(entry.modified);
++							entries.push({ name, isDirectory: entry.kind === "directory", size: entry.size, modifiedAt: modified.toISOString() });
++							if (recursive && entry.kind === "directory")
++								pending.push({ relative: posix.join(directory.relative, entry.name), prefix: name });
++						}
++					}
++					return entries;
++				},
++				async previewFetch(port, request) {
++					const target = new URL(await adapter.pryxPortAddress(id, port, options));
++					const source = new URL(request.url);
++					target.pathname = `${target.pathname.replace(/\/$/, "")}${source.pathname}`;
++					source.searchParams.forEach((value, name) => target.searchParams.append(name, value));
++					const forwarded = new Request(target, request);
++					forwarded.headers.delete("host");
++					return fetch(forwarded);
++				},
++			};
++		},
++	};
+ }
+ 
+ function localSandboxRoot(environment: Readonly<Record<string, string | undefined>>): string {
+--- a/packages/runtime-node/src/modules/cloudflare-sandbox/index.ts
++++ b/packages/runtime-node/src/modules/cloudflare-sandbox/index.ts
+@@ -521,7 +521,8 @@
+ 
+ 	async gitCheckout(repoUrl: string, options: { branch?: string; targetDir?: string } = {}) {
+ 		const quote = (value: string) => `'${value.replaceAll("'", `'\\''`)}'`;
+-		const targetDir = options.targetDir ?? `/workspace/${repoUrl.split("/").at(-1)?.replace(/\.git$/, "") ?? "repo"}`;
++		const { backend } = await this.#connect();
++		const targetDir = options.targetDir ?? `${backend.cwd}/${repoUrl.split("/").at(-1)?.replace(/\.git$/, "") ?? "repo"}`;
+ 		const branch = options.branch === undefined ? "" : `--branch ${quote(options.branch)} `;
+ 		const result = await this.exec(`git clone --depth 1 ${branch}${quote(repoUrl)} ${quote(targetDir)}`);
+ 		if (!result.success) throw new Error(`git clone failed: ${result.stderr}`);

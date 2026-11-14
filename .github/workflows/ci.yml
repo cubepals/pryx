@@ -12,6 +12,10 @@ on:
     - cron: '23 5 * * 1'
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
@@ -286,6 +290,9 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run release:build
       - run: bun run check
+      - name: Newest sandbox adapter contract
+        if: github.event_name == 'schedule'
+        run: bun control/tools/provider-contract.ts
       - name: Python generation and unit tests
         run: |
           python3 -m venv .venv-python
@@ -484,6 +491,8 @@ jobs:
         run: |
           docker build -t alpine:pryx-python-interpreter templates/python-interpreter
           docker build -t alpine:pryx-node-interpreter templates/node-interpreter
+      - name: Prepare the OpenOrange provider proposal
+        run: bun control/tools/open-orange-patch.ts
       - run: bun run e2e --reporter=junit --reporter-outfile "$RUNNER_TEMP/e2e.xml"
         if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         env:

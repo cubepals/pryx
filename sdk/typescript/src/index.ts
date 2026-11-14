@@ -5,6 +5,7 @@
  * owns binary files; `git.ts`, `shell.ts`, `template.ts`, `webhook.ts` own convenience handles;
  * `git-proxy.ts` owns the transient wasm bridge; `local-files.ts` owns caller disk streaming; `logs.ts` owns agent log decoding; `duration.ts` parses durations.
  * `kernels.ts` owns persistent language contexts and rich result collection.
+ * `provider.ts` is the separate Rivet sandbox adapter entry point.
  */
 
 import { StatusCodes } from 'http-status-codes'
@@ -33,7 +34,8 @@ export type {
   KernelView,
 } from './kernels.ts'
 export type { LogRecord, LogsOptions } from './logs.ts'
-export type { Chunk, CommandStream, RunOptions, RunResult } from './run.ts'
+export type { Chunk, RunOptions, RunResult } from './run.ts'
+export { CommandStream } from './run.ts'
 export type { TemplateOptions, TemplateView } from './template.ts'
 export type {
   ExecEvent,
