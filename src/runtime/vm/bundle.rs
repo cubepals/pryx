@@ -188,6 +188,7 @@ impl Bundle {
             || bootstrap.metadata.vm_stream_port_base != pryx_agent::vm_boot::STREAM_PORT_BASE
             || bootstrap.metadata.vm_stream_version != pryx_agent::vm_boot::STREAM_VERSION
             || bootstrap.metadata.vm_files_version != pryx_agent::bootstrap_capabilities::VM_FILES_VERSION
+            || !bootstrap.metadata.vm_shutdown_signals
         {
             return Err(error("VM launcher and trusted guest bootstrap are incompatible"));
         }

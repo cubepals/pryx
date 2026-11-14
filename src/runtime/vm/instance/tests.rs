@@ -140,7 +140,13 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
         eprintln!("VM runtime image {index}: create and initial boot");
         let data = temporary.path().join(format!("data{index}"));
         directory(&data).unwrap();
-        let original_spec = spec(&data, image["reference"].as_str().unwrap());
+        let mut original_spec = spec(&data, image["reference"].as_str().unwrap());
+        if index == 1 {
+            original_spec.stop_signal = crate::protocol::StopSignal::SIGINT.as_str().into();
+            original_spec.agent.as_mut().unwrap().keep_alive = false;
+            original_spec.entrypoint = Some(vec!["/bin/sh".into(), "-c".into(),
+                "trap 'printf interrupted > /data/signal; exit 0' INT; printf ready > /data/signal-ready; while :; do sleep 1; done".into()]);
+        }
         let id = runtime.create(&original_spec).await.unwrap();
         let settings = runtime.state.settings.clone();
         assert!(VmRuntime::new(temporary.path(), settings.clone()).await.is_err(), "Only one runtime may own journals");
@@ -149,6 +155,13 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
         assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Created);
         runtime.start(&id).await.unwrap();
         assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Running);
+        if index == 1 {
+            assert_eq!(
+                exec(&runtime, &id, "while ! test -e /data/signal-ready; do sleep 0.01; done; cat /data/signal-ready")
+                    .await,
+                b"ready"
+            );
+        }
         assert_eq!(exec(&runtime, &id, "printf durable > /data/retained; printf ready").await, b"ready");
         assert_eq!(exec(&runtime, &id, "grep -c '^processor' /proc/cpuinfo").await, b"2\n");
         let active_files = runtime.data_service(file_request(&original_spec)).await.unwrap();
@@ -202,6 +215,13 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
             files.request(hyper::Method::POST, "/_pryx/processes", crate::http_client::full("{}")).await.unwrap();
         assert_eq!(response.status(), hyper::StatusCode::NOT_FOUND);
         let files = files.into_service().unwrap();
+        if index == 1 {
+            let response = files
+                .request(crate::runtime::files::Operation::Read, "signal", crate::http_client::empty())
+                .await
+                .unwrap();
+            assert_eq!(crate::http_client::read_body(response, 1024).await.unwrap(), "interrupted");
+        }
         let bytes: Vec<u8> = (0..=u8::MAX).cycle().take(pryx_agent::contract::MAX_REQUEST_BYTES + 1).collect();
         let response = files
             .request(crate::runtime::files::Operation::Write, "offline", crate::http_client::full(bytes.clone()))

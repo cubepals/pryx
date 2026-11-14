@@ -1107,3 +1107,5 @@
 - K25: Put bounded runtime acceptance logs/serial in their own existing CI artifact upload so diagnosing a file guest needs kilobytes rather than the whole VM/source bundle; retain raw output only in CI and commit its short source/run summary.
 
 - K25: Reuse already reviewed uuid 1.29.0 (MIT OR Apache-2.0) for a deterministic version-8 EROFS UUID derived from the OCI diff_id, fix only filesystem build time, and preserve image file mtimes; use a new private conversion-cache namespace so old random-identity layers are never silently reused or rewritten.
+
+- K25: Sign the selected VM shutdown signal with the boot identity, preserve the original TERM request/signature, and require verified bundle support before selecting INT; trusted guest init forwards the authenticated signal to the agent group before its existing bounded cgroup drain and disk proof.

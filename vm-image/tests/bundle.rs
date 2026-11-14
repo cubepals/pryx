@@ -41,6 +41,7 @@ async fn actual_bundle_acquires_whole_and_refuses_changed_inputs() {
     let capability: pryx_agent::bootstrap_capabilities::Capabilities =
         serde_json::from_slice(&launcher.stdout).unwrap();
     assert_eq!(capability.vm_monitor_version, verified.bootstrap().metadata.vm_monitor_version);
+    assert!(capability.vm_shutdown_signals && verified.bootstrap().metadata.vm_shutdown_signals);
     assert_eq!(capability.vm_service_port_base, pryx_agent::vm_boot::SERVICE_PORT_BASE);
     assert!(!verified.filesystems().identity().is_empty());
     forwarding(&root).await;

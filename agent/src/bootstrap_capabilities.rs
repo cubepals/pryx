@@ -50,6 +50,8 @@ pub struct Capabilities {
     pub vm_stream_version: u16,
     #[serde(default)]
     pub vm_files_version: u16,
+    #[serde(default)]
+    pub vm_shutdown_signals: bool,
 }
 
 pub fn probe() -> Capabilities {
@@ -73,5 +75,6 @@ pub fn probe() -> Capabilities {
         vm_stream_port_base: crate::vm_boot::STREAM_PORT_BASE,
         vm_stream_version: crate::vm_boot::STREAM_VERSION,
         vm_files_version: VM_FILES_VERSION,
+        vm_shutdown_signals: true,
     }
 }

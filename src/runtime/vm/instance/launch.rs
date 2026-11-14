@@ -21,8 +21,10 @@ pub(super) fn resources(spec: &ContainerSpec) -> Result<(u64, u32, u32, u32), Ru
     {
         return Err(error("VM requires whole MiB of memory and positive admitted disk/PID limits"));
     }
-    if spec.stop_signal != crate::protocol::StopSignal::SIGTERM.as_str() {
-        return Err(error("VM orderly shutdown supports SIGTERM only in this checkpoint"));
+    if spec.stop_signal != crate::protocol::StopSignal::SIGTERM.as_str()
+        && spec.stop_signal != crate::protocol::StopSignal::SIGINT.as_str()
+    {
+        return Err(error("VM orderly shutdown requires SIGTERM or SIGINT"));
     }
     if spec.cpu_weight_requested {
         return Err(error("VM CPU weights require host controller integration; this checkpoint cannot enforce them"));

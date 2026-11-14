@@ -3234,3 +3234,20 @@ job when publication is authorized. That job has not run in this task.
   Current 28c34f0 VM run 43537774307 and normal/host runs remain queued; scanner remains eighteen
   addressed comments. K25 stays in progress; finish actual maintenance/node KVM proof, logs/stats/
   SIGINT/adoption failures, both networking/confinement paths, install/config and production samples.
+
+
+- K25 selected shutdown signals: authenticate INT with the boot-scoped request while preserving
+  the original TERM wire/signature. Guest init forwards the selected signal to its supervised
+  agent group before the unchanged bounded cgroup drain, disk sync and signed observation.
+  Verified bundle metadata must announce signal support before any guest is launched.
+- Real Unix-pair acceptance covers TERM and INT acknowledgements without peer EOF; cryptographic
+  acceptance rejects signal substitution, an authenticated unsupported signal, another identity
+  and another boot, and preserves legacy TERM verification. Existing KVM acceptance now runs
+  Debian with an INT handler and verifies its retained-disk marker through the maintenance guest;
+  no additional boots/jobs/gates or material CI time. That actual guest proof is pending.
+- Current-source full local Rust: 513 passes, the unchanged unsupported-IPv6 failure and 34
+  ignored; strict Clippy modes, helper all-target Clippy/default tests, fmt and whitespace checks
+  pass. The length probe adds no daemon warnings. An initial compile used a nonexistent rustix
+  signal constructor; the library's checked from_named_raw resolves it without unsafe conversion.
+  CI 43539225548 at 021d73c remains queued; scanner stays eighteen addressed comments. K25 is
+  still in progress; continue VM logs/stats and the other pending production integration.

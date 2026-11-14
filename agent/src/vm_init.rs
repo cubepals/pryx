@@ -339,12 +339,13 @@ async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Err
         .process_group(0)
         .kill_on_drop(true)
         .spawn()?;
-    let mut result = tokio::select! { result = child.wait() => Some(result?),
-    _ = term.recv() => None, _ = interrupt.recv() => None,
-    result = shutdown.receive(&public_key, &boot.nonce, sandbox, epoch) => { result?; None },
+    let (mut result, stop_signal) = tokio::select! { result = child.wait() => (Some(result?), libc::SIGTERM),
+    _ = term.recv() => (None, libc::SIGTERM), _ = interrupt.recv() => (None, libc::SIGINT),
+    result = shutdown.receive(&public_key, &boot.nonce, sandbox, epoch) => (None, result?),
     error = crate::vm_network::failure(&mut network) => return Err(error.into()) };
     if let Some(pid) = child.id().and_then(|pid| Pid::from_raw(pid as i32)) {
-        let _ = rustix::process::kill_process_group(pid, Signal::TERM);
+        let signal = Signal::from_named_raw(stop_signal).ok_or("Invalid authenticated shutdown signal")?;
+        let _ = rustix::process::kill_process_group(pid, signal);
         if let Ok(status) = tokio::time::timeout(Duration::from_secs(5), child.wait()).await {
             result = Some(status?);
         }

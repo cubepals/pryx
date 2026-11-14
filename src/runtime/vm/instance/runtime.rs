@@ -9,7 +9,13 @@ use pryx_agent::{vm_observation, vm_shutdown};
 use tokio::time::Instant;
 
 impl VmRuntime {
-    pub(super) async fn stop_entry(&self, name: &str, grace: Duration, force: bool) -> Result<(), RuntimeError> {
+    pub(super) async fn stop_entry(
+        &self,
+        name: &str,
+        signal: i32,
+        grace: Duration,
+        force: bool,
+    ) -> Result<(), RuntimeError> {
         let mut entry = self.entry(name)?;
         let transition = self.transition(&entry.id);
         let _transition = transition.lock().await;
@@ -22,7 +28,14 @@ impl VmRuntime {
         if !force && !already_exited && !live.shutdown_requested {
             live.shutdown_requested = true;
             let boot = entry.spec.agent.as_ref().ok_or_else(|| error("VM agent bootstrap is missing"))?;
-            let request = vm_shutdown::request(&agent::key(&entry.spec)?, &live.nonce, &boot.sandbox, boot.epoch);
+            let request = vm_shutdown::request_for_signal(
+                &agent::key(&entry.spec)?,
+                &live.nonce,
+                &boot.sandbox,
+                boot.epoch,
+                signal,
+            )
+            .map_err(error)?;
             let bundle = self.bundle().await?;
             // Submit once. A lost acknowledgement cannot cancel an accepted guest shutdown.
             let _ = super::super::transport::request(
@@ -313,15 +326,21 @@ impl ContainerRuntime for VmRuntime {
         .map_err(error)?
     }
     async fn stop(&self, name: &str, signal: &str, grace: Duration) -> Result<(), RuntimeError> {
-        if signal != crate::protocol::StopSignal::SIGTERM.as_str() {
-            return Err(error("VM orderly shutdown supports SIGTERM only in this checkpoint"));
-        }
+        let signal = if signal == crate::protocol::StopSignal::SIGTERM.as_str() {
+            libc::SIGTERM
+        } else if signal == crate::protocol::StopSignal::SIGINT.as_str() {
+            libc::SIGINT
+        } else {
+            return Err(error("VM orderly shutdown requires SIGTERM or SIGINT"));
+        };
         let (own, name) = (self.clone(), name.to_owned());
-        tokio::spawn(async move { own.stop_entry(&name, grace, false).await }).await.map_err(error)?
+        tokio::spawn(async move { own.stop_entry(&name, signal, grace, false).await }).await.map_err(error)?
     }
     async fn kill(&self, name: &str) -> Result<(), RuntimeError> {
         let (own, name) = (self.clone(), name.to_owned());
-        tokio::spawn(async move { own.stop_entry(&name, Duration::ZERO, true).await }).await.map_err(error)?
+        tokio::spawn(async move { own.stop_entry(&name, libc::SIGKILL, Duration::ZERO, true).await })
+            .await
+            .map_err(error)?
     }
     async fn pause(&self, _: &str) -> Result<(), RuntimeError> {
         Err(error("VM memory-sleep is off; stop and cold-boot its retained disk"))
