@@ -4527,3 +4527,9 @@ job when publication is authorized. That job has not run in this task.
   reject either packet-info or vnet framing in the ordinary reader. No dependency/job/gate;
   estimate under five extra optional VM seconds. Root placement, confined packet handoff,
   actual public TCP/UDP/denial traffic, installed worker and full thirty-sample cohorts remain.
+
+- Move unchanged packet-listener validation/preparation into vm_monitor/packet.rs before
+  adding the attached-queue role. Preserve private path/argument checks, listener permissions,
+  descriptor inheritance and confinement order. Full Rust: 537 pass, unchanged host IPv6
+  fixture failure, 43 ignored. Strict all-target Clippy, minimal-agent build, fmt and whitespace
+  pass. No added dependency/job/gate or estimated CI time.

@@ -5,11 +5,13 @@
 //! separate Landlock/seccomp grants; root executes the unchanged jailer for the VMM.
 //!
 //! Parts (`vm_monitor/`):
+//! - `packet.rs`: inherited packet-listener validation and confinement.
 //! - `filter.rs`: preserve the inherited kernel lease and forbid cross-process host operations.
 //! - `namespace_tests.rs`: actual descriptor identity and namespace-type refusal checks.
 mod filter;
 #[cfg(test)]
 mod namespace_tests;
+mod packet;
 use landlock::{
     ABI, Access, AccessFs, CompatLevel, Compatible, Ruleset, RulesetAttr, RulesetCreatedAttr, RulesetStatus,
     path_beneath_rules,
@@ -22,7 +24,6 @@ use std::{
         fd::AsRawFd,
         unix::{
             fs::{MetadataExt, OpenOptionsExt},
-            net::UnixListener,
             process::CommandExt,
         },
     },
@@ -240,20 +241,7 @@ pub fn launch() -> Result<(), Box<dyn std::error::Error>> {
     match &plan.role {
         Role::Ordinary => confine(&plan, true)?,
         Role::PacketProxy { socket, descriptor_argument } => {
-            if socket.parent() != Some(plan.directory.as_path())
-                || !plan.write.is_empty()
-                || descriptor_argument.strip_prefix("--").is_none_or(|name| {
-                    name.is_empty() || !name.bytes().all(|byte| byte.is_ascii_lowercase() || byte == b'-')
-                })
-                || plan.arguments.iter().any(|arg| arg.split('=').next() == Some(descriptor_argument.as_str()))
-            {
-                return Err("Packet proxy requires its own private listener and inherited descriptor".into());
-            }
-            let listener = UnixListener::bind(socket)?;
-            fs::set_permissions(socket, std::os::unix::fs::PermissionsExt::from_mode(0o600))?;
-            rustix::io::fcntl_setfd(&listener, rustix::io::FdFlags::empty())?;
-            confine(&plan, false)?;
-            packet_listener = Some(listener);
+            packet_listener = Some(packet::listener(&plan, socket, descriptor_argument)?);
         }
         Role::Jailer { uid, gid, id, base, monitor, namespace } => {
             if *uid == 0

@@ -1285,3 +1285,5 @@
 - K25: the real confined GNU API thread uses libc epoll_wait where musl uses epoll_pwait; replace the two unconstrained published event-wait rules with the equivalent native call, retaining every other constraint and trap default. Import both syscall identities from the pinned libc helper and preserve the boot/shutdown assertions.
 
 - K25: build a two-port bridge only in the owned anonymous TAP namespace, with a nonpersistent no-PI/no-vnet-header packet queue; opaque inputs read the existing agent IPv4 boundary and packet program profile from protected root-owned executables. Install and read back default-drop bridge input/output/forward chains before granting descriptors once; keep host routing/forwarding untouched and retirement behind the actual monitor lease.
+
+- K25: move unchanged inherited packet-listener validation and confinement into vm_monitor/packet.rs before adding attached-queue support; preserve its exact private path/argument checks, permissions, close-on-exec transition and filesystem/syscall grants.
