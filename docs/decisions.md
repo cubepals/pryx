@@ -1137,3 +1137,7 @@
 - K25: reuse the host VM launcher for an ordinary-user packet-proxy role: prebind one private Unix listener and pass its descriptor, exclude KVM access, retain kernel lease and parent-death ownership, allow Internet clients and deny new listeners/Unix sockets plus cross-process host operations; the verified program supplies its descriptor argument name.
 
 - K25: use the already locked linux-raw-sys 0.12.1 UAPI constants directly under its MIT option for the x32 syscall bit; prepend a three-instruction ABI policy to seccompiler's generated filter because its syscall rules cannot express number-bit checks, retaining its unchanged architecture validation and installer.
+
+- K25: the maintained packet helper owns one isolated user-mode network profile and reports its addresses, link settings, standard service ports, bounds and private argument names as executable metadata; its production mode accepts only an inherited Unix listener and a bounded private parent/loopback/capacity file, exposing no management or gateway HTTP listener.
+
+- K25: retain trusted network-fixture HTTP management refusals and require kernel EPERM for direct workload vsock when the actual agent advertises its socket policy; use a separate restricted verification mode so the stronger denial never turns into a skipped management assertion.

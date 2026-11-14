@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -190,7 +191,7 @@ func measure(fixture experiment.Network) (map[string]any, error) {
 	return report, nil
 }
 
-func verify(fixture experiment.Network) error {
+func verify(fixture experiment.Network, restricted bool) error {
 	client := &http.Client{Timeout: requestTimeout, Transport: &http.Transport{Proxy: nil}}
 	if _, err := checkedGet(client, fixture.URL+experiment.NetworkHelloPath, int64(len(experiment.NetworkHello))); err != nil {
 		return err
@@ -208,6 +209,16 @@ func verify(fixture experiment.Network) error {
 	if err := denied(client, "http://"+net.JoinHostPort(fixture.Gateway, strconv.Itoa(port))+networkfixture.ExposePath, http.StatusUnauthorized); err != nil {
 		return err
 	}
+	if restricted {
+		connection, err := vsock.Dial(vsock.Host, experiment.NetworkPort, nil)
+		if connection != nil {
+			connection.Close()
+		}
+		if !errors.Is(err, unix.EPERM) {
+			return fmt.Errorf("Workload packet transport was not refused by the kernel: %v", err)
+		}
+		return nil
+	}
 	direct := &http.Client{Timeout: requestTimeout, Transport: &http.Transport{
 		DialContext: func(context.Context, string, string) (net.Conn, error) {
 			return vsock.Dial(vsock.Host, experiment.NetworkPort, nil)
@@ -221,6 +232,7 @@ func main() {
 	ready := flag.String("ready-file", "", "Private guest readiness file")
 	configuration := flag.String("config", "", "Private fixture configuration")
 	verifyOnly := flag.Bool("verify", false, "Verify a prepared network without privileged setup")
+	verifyRestricted := flag.Bool("verify-restricted", false, "Verify prepared networking and kernel refusal of direct packet transport")
 	policyOnly := flag.Bool("policy-only", false, "Check inherited unprivileged guest socket policy")
 	flag.Parse()
 	if *policyOnly {
@@ -235,7 +247,7 @@ func main() {
 		}
 		return
 	}
-	if !*verifyOnly && (os.Geteuid() != 0 || os.Getppid() != 1 || os.Getenv("PRYX_VM_NETWORK_SPIKE") != "1") {
+	if !*verifyOnly && !*verifyRestricted && (os.Geteuid() != 0 || os.Getppid() != 1 || os.Getenv("PRYX_VM_NETWORK_SPIKE") != "1") {
 		log.Fatal("The network probe runs only under the trusted VM fixture's PID 1")
 	}
 	data, err := os.ReadFile(*configuration)
@@ -246,8 +258,8 @@ func main() {
 	if err := json.Unmarshal(data, &fixture); err != nil {
 		log.Fatal(err)
 	}
-	if *verifyOnly {
-		if err := verify(fixture); err != nil {
+	if *verifyOnly || *verifyRestricted {
+		if err := verify(fixture, *verifyRestricted); err != nil {
 			log.Fatal(err)
 		}
 		return

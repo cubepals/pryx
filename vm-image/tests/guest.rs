@@ -86,6 +86,7 @@ impl Guest {
     }
 
     async fn command(&self, arguments: Vec<String>) {
+        let label = format!("{arguments:?}");
         let start = Start {
             command: GuestCommand::Argv(arguments),
             env: Default::default(),
@@ -104,7 +105,11 @@ impl Guest {
         let (status, body) = self.call(Method::GET, &path, Value::Null, None).await;
         assert_eq!(status, StatusCode::OK);
         let result: Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(result["code"], 0, "Guest command did not succeed");
+        if result["code"] != 0 {
+            let path = format!("/_pryx/processes/{}/output", view["id"].as_str().unwrap());
+            let (status, bytes) = self.call(Method::GET, &path, Value::Null, None).await;
+            panic!("Guest command {label} failed: {result}, output {status}: {}", String::from_utf8_lossy(&bytes));
+        }
     }
 }
 
@@ -200,10 +205,12 @@ async fn exercise_guest(
             guest.call(Method::PUT, "/_pryx/files/content?path=network.json", Value::Null, Some(&bytes)).await;
         assert!(status.is_success());
         let probe = Path::new(vm_boot::BOOTSTRAP_ROOT).join(bootstrap_metadata["networkProbe"].as_str().unwrap());
+        let restricted = bootstrap_metadata["metadata"]["vmGuestPolicyVersion"].as_u64().unwrap_or_default()
+            >= u64::from(pryx_agent::vm_policy::VERSION);
         guest
             .command(vec![
                 probe.display().to_string(),
-                "--verify".into(),
+                if restricted { "--verify-restricted" } else { "--verify" }.into(),
                 "--config".into(),
                 "/data/network.json".into(),
             ])

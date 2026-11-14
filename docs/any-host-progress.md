@@ -3519,3 +3519,27 @@ job when publication is authorized. That job has not run in this task.
   executable is retained. Next wire the owned maintained packet helper and guest policy,
   root TAP/jailer/firewall, protected install/config/release, node/edge lifecycle and thirty
   production samples. K25 remains in progress with its tier unregistered.
+
+
+- K25 component-probe correction: keep its original direct HTTP refusal under the trusted
+  comparison fixture, but select a new restricted verification mode when actual bootstrap
+  metadata advertises guest socket policy. It retains real HTTP/DNS success and gateway
+  authorization refusal, then requires real EPERM before a workload can open packet vsock.
+  The old trusted fixture's HTTP not-found checks remain intact. Failed guest commands now
+  retain the controlled fixture argv/result/output in CI diagnostics; no assertions relax.
+- Go build/vet and independent helper build pass locally; its three real acceptance cases
+  remain ignored here. No jobs/gates, boots or material CI minutes added. Actual guest proof
+  of this correction is pending. The closed production host profile remains independently
+  uncommitted while its final host/Rust checks run.
+- Source 2b36628 VM run 43552636842/job 132318308674 passes whole-bundle acceptance (9.72 s),
+  registry (16.64 s) and full real-KVM runtime (89.05 s): actual nft version/flush refusal and
+  the uploaded workload's vsock/socketpair/io_uring denials on both images, plus all previous
+  lifecycle assertions. Its component network case still fails in 14.56 s with the obsolete
+  direct-vsock expectation. Summary: checks/measurements/k25/guest-policy-2b36628.json.
+- Earlier df3ae5c VM run 43552428478/job 132317661961 passes bundle/registry but its runtime
+  fails in 28.51 s awaiting the fork exec-output response head for five seconds. Preserve that
+  unexplained transport failure; the later different-source pass does not fix it. Diagnose
+  transport ownership and consider only safe-read recovery, never repeat exec submission or
+  extend the existing test bound. Scanner remains eighteen. K25 remains in progress; next
+  wire owned production networking, then root/TAP/jailer, protected configuration/install,
+  node/edge lifecycle, thirty samples and all outstanding CI/transport proof.
