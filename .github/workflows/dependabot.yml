@@ -5,6 +5,10 @@ name: Dependabot
 # request that raises Cargo.toml's version (release.yml). The groups are in .github/dependabot.yml.
 on: pull_request
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions: {}
 
 jobs:
