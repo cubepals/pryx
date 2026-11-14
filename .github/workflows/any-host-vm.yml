@@ -217,6 +217,17 @@ jobs:
           CARGO_INCREMENTAL: '0'
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
         run: cargo test --locked --test vm -- --ignored --nocapture | tee "$RUNNER_TEMP/vm-node-api.log"
+      - name: Prove a separate bounded root VM authority
+        if: ${{ !cancelled() && steps.vm-bundle.outcome == 'success' && steps.root-network.outcome == 'success' }}
+        env:
+          CARGO_PROFILE_DEV_DEBUG: '0'
+          CARGO_PROFILE_TEST_DEBUG: '0'
+          CARGO_INCREMENTAL: '0'
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: |
+          cargo test --locked -p pryxd --lib --no-run --message-format=json > "$RUNNER_TEMP/vm-authority-artifacts.jsonl"
+          python3 templates/vm-tools/root_authority.py --cargo-artifacts "$RUNNER_TEMP/vm-authority-artifacts.jsonl" \
+            --work "$RUNNER_TEMP/vm-root-authority"
       - name: Hand redacted root monitor diagnostics to artifact upload
         if: always()
         env:
@@ -266,6 +277,7 @@ jobs:
             ${{ runner.temp }}/vm-root-runtime.log
             ${{ runner.temp }}/vm-root-lifecycle.log
             ${{ runner.temp }}/vm-node-api.log
+            ${{ runner.temp }}/vm-root-authority/
             ${{ runner.temp }}/vm-root-runtime-diagnostics/
             ${{ runner.temp }}/vm-runtime-diagnostics/*.serial.log
           if-no-files-found: warn

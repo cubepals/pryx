@@ -4003,3 +4003,21 @@ job when publication is authorized. That job has not run in this task.
   configured probe/doctor checks pass; the real local CLI reports VM off for missing
   /dev/kvm while process stays on. No local KVM claim. No added job or material CI cost;
   hosted factory/placement acceptance remains pending.
+- Source 1dab410 VM run 43616263864/job 132515168217 is green, including the
+  corrected anonymous-namespace CNI TAP: actual fixed ordinary-owner open, identity-bound
+  deletion and unchanged host neighbours. Both-image ordinary runtime (128.68 s), jailer
+  (16.23 s), root runtime (34.91 s) and mTLS node API (32.93 s) also pass. Summary:
+  checks/measurements/k25/cni-tap-1dab410.json. This predates factory registration and
+  service authority; it does not establish root packets. Scanner remains eighteen.
+- Add a separate disposable systemd authority replay to the existing optional VM job.
+  Copy the actual compiled library test and verified bundle inputs outside protected home,
+  retain readonly programs, a private writable state and temporary namespace, explicit
+  KVM/TUN device access and fixed root authority. Run the unchanged full root lifecycle
+  and the actual CNI TAP probe there. Keep the main daemon unit intact. Stop only the
+  exact owned units and require retired state before cleanup; retain only already-redacted
+  diagnostics, never runtime records. No product service is installed at this stage.
+- Local authority validation checks Python syntax/CLI, uniquely discovers the actual
+  compiled daemon library-test ELF through Cargo's own artifact metadata, and passes
+  actionlint with ShellCheck and whitespace. No local systemd/root/KVM execution is
+  claimed. Estimate up to one additional optional VM-job minute, zero ordinary PR minutes,
+  no new job/gate. Actual authority proof and production worker integration remain pending.

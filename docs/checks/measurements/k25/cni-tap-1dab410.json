@@ -1,0 +1,17 @@
+{
+  "source": "1dab4100e8afd4c71a39d8e67dc650c1f410d838",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43616263864",
+  "job": 132515168217,
+  "result": "success",
+  "ran": "Distinct anonymous-namespace pinned CNI TAP creation, ordinary-owner Firecracker-compatible open, identity-bound DEL and unchanged host neighbours, plus both-image real VM runtime, jailed/root lifecycle and mTLS node API",
+  "tap_created": true,
+  "ordinary_owner_opened": true,
+  "identity_bound_delete": true,
+  "neighbours_unchanged": true,
+  "ordinary_runtime_seconds": 128.68,
+  "root_jailer_seconds": 16.23,
+  "root_runtime_seconds": 34.91,
+  "node_api_seconds": 32.93,
+  "unproved": "Later configured factory and bounded service authority, root packet/firewall integration, signed installed relocation, actual edge and thirty production measurements",
+  "raw_output": "CI artifacts only"
+}
