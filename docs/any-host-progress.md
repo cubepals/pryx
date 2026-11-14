@@ -4179,3 +4179,23 @@ job when publication is authorized. That job has not run in this task.
   matching the already pushed target-directory fix. The artifact-upload failure is a direct
   consequence of installation never running. No signed VM installation is proved by that run.
   Scanner remains eighteen. No added job/gate or CI time for the move.
+
+- Prepare a separate root-only namespace grant program from the existing pinned CNI/netlink
+  component. Check protected root ancestry, the actual pinned-plugin file and a single private
+  monitor lease; hand actual namespace/TCP/UDP descriptors over the inherited Unix socket.
+  Parent EOF authorizes one identity-bound DEL only after the kernel monitor lease clears;
+  failed cleanup retains its cache. This program is not packaged or registered in production.
+- Its ordinary-user metadata/refusal, pinned Go test/build/vet, unchanged nineteen-module
+  notice inventory, shell syntax/ShellCheck, actionlint and whitespace pass. Add only compilation
+  to the existing optional root-network phase (under one second, no new dependency/job/gate).
+  Actual cross-process namespace grant and monitor-lease retirement still require hosted proof.
+- Source ea134a3 VM run 43627526790/job 132547377668 proves both bounded-service TAP
+  and transferred-listener cases, including original-namespace handler and preserved neighbours.
+  The next unchanged root lifecycle reaches first start but bootstrap never arrives. Its
+  startup path currently loses bounded serial diagnostics before they can be retained; add that
+  observation before changing any service restriction. Ordinary runtime also fails at file-only
+  guest close: artifact 14126794664 shows serial EAGAIN corrupting the signed clean-disk proof,
+  plus monitor vCPU-exit panics after earlier valid proofs. Preserve proof validation and every
+  test; the serial capture path needs a concrete fix. All other listed root/node/image steps
+  pass on that source. Scanner remains eighteen. The earlier 7a47e1c host-bundle failure is
+  again the target-directory mismatch already fixed in ea134a3; its full log was read.

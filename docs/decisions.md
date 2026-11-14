@@ -1229,3 +1229,5 @@
 - K25: resolve VM bootstrap/runtime program inputs from Cargo's actual configured target directory, defaulting to target; the signed preview intentionally isolates compilation outside the Docker context, so packaging must not read a different or stale target tree.
 
 - K25: move the unchanged hostname/DNS listener serving body into its own function before adding namespace-owned listener adoption; keep all existing bind validation, listener creation, gateway policy, capacities and cancellation behavior unchanged.
+
+- K25: add a separate root TAP-scope program using the already pinned permissive CNI/netlink libraries and external TAP plugin; deliver actual namespace/gateway descriptors over the inherited private socket, keep the parent lifetime pipe, and require the monitor's real exclusive kernel lease before one identity-bound DEL. This prepares hostname TAP integration without a global network change or production worker registration.

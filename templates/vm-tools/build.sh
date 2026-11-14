@@ -63,10 +63,11 @@ case "${1:?Name one VM build phase}" in
     "$pryx_go" mod verify
     python3 ../notices.py --go "$pryx_go" --module-root "$PWD" \
       --catalog "$PWD/module-notices.json" --output "$RUNNER_TEMP/vm-root-network-notices" \
-      --packages ./cmd/tap-probe github.com/containernetworking/plugins/plugins/main/tap
+      --packages ./cmd/tap-probe ./cmd/scope github.com/containernetworking/plugins/plugins/main/tap
     "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-root-cni/tap" github.com/containernetworking/plugins/plugins/main/tap
     "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-root-tap-probe" ./cmd/tap-probe
-    "$pryx_go" vet ./cmd/tap-probe
+    "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-root-scope" ./cmd/scope
+    "$pryx_go" vet ./cmd/tap-probe ./cmd/scope
     "$pryx_go" test -mod=readonly ./...
     "$pryx_go" mod verify
     ;;
