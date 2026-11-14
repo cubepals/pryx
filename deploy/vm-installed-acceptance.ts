@@ -59,10 +59,7 @@ async function edge(box: Sandbox, proof: string) {
   const endpoint = (await box.endpoints()).find((item) => item.name === 'web')
   assert(endpoint?.hostname)
   await until('retained VM application through installed edge', async () => {
-    const response = await apps.get(
-      `http://${endpoint.hostname}/index.html`,
-      AbortSignal.timeout(30 * SECOND_MS),
-    )
+    const response = await apps.get(`http://${endpoint.hostname}/`, AbortSignal.timeout(30 * SECOND_MS))
     return response.ok && (await response.text()) === proof
   })
 }
@@ -97,7 +94,11 @@ async function lifecycle(image: (typeof inputs)[number], network: 'internet' | '
     network,
     sparePorts: 0,
     ports: [{ name: 'web', port: 3000, audience: 'public', front: 'http' }],
-    entrypoint: ['/bin/sh', '-c', 'while [ ! -x /data/vm-http ]; do sleep 1; done; exec /data/vm-http'],
+    entrypoint: [
+      '/bin/sh',
+      '-c',
+      'while [ ! -x /data/vm-http ]; do sleep 1; done; cd /data && exec /data/vm-http',
+    ],
     require: ['own-kernel', 'memory-limit', 'cpu-limit', 'private-network', 'private-pids'],
   })
   try {

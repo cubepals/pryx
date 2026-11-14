@@ -4408,3 +4408,17 @@ job when publication is authorized. That job has not run in this task.
 - Full Rust: 537 pass, unchanged host IPv6 fixture failure, 43 ignored. Strict all-target
   Clippy, minimal-agent build, formatting and whitespace pass. No new dependency, job, gate
   or estimated CI minute; actual jailed monitor boot remains hardware evidence to collect.
+
+- Signed-host source dceb3a0 passes the corrected real-daemon lookup and VM file/kernel/
+  signal boundaries, then times out at the installed edge proof. The fixture starts in /
+  while its files live in /data, and Go FileServer redirects /index.html without this client
+  following redirects. Set its working directory explicitly and request /, preserving the
+  exact body assertion and existing deadline. The custom entrypoint correctly disables
+  keep-alive mode; no product runtime setting changes.
+- Actual local Go server, started from a different parent directory: the corrected root GET
+  returns the exact generated proof, while index.html returns its real canonical redirect.
+  Full Bun check: 439 pass, one existing skip, 8,432 assertions; formatting and whitespace pass.
+  No added dependency/job/gate or CI duration. Signed KVM installation proof remains pending.
+- Normal CI source 672f884 is green (run 43639540665). Source a06a5e1 VM run 43641893944
+  repeats only the retained strict monitor-shutdown failure; no new failure or scanner finding
+  (eighteen comments). Do not treat either older result as a current whole-milestone pass.

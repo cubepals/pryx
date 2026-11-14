@@ -1265,3 +1265,5 @@
 - K25: derive the GNU monitor policy from the pinned restrictive published policy, substituting its signal ABI and pthread-join wait only, with a full wait-bitset constraint; read signal/futex values from the actual monitor/libc helper, retain trap defaults and every other rule, and reject the upstream empty GNU policy. This is a build-only prototype until composed self-TGID confinement and actual KVM replays are proved.
 
 - K25: apply the existing self-process signal and resource-change bounds to jailed monitors as well as ordinary monitors; jailed monitors can share a host UID, so jailer setup must not confer cross-process signal authority. Keep socket restrictions specific to ordinary monitors and require a real child-process kernel denial regression.
+
+- K25: start the installed retained-file HTTP fixture in /data and request its root path; Go FileServer redirects index.html and the existing edge client deliberately exposes responses directly, so keep the exact successful proof-body assertion.
