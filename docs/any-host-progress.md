@@ -3333,3 +3333,23 @@ job when publication is authorized. That job has not run in this task.
   prove interrupted-live adoption/failed ingress on real KVM, then finish ordinary-user/root
   networking and confinement, protected installer/configuration, full node+edge lifecycle and
   thirty production samples. Do not register the VM tier before those paths and refusals work.
+
+
+- K25 unfinished-launch observations now require the actual kernel monitor lease to be free
+  before reporting stopped compute. Unsigned startup failures and interrupted journals report
+  Dead/unknown, never a clean guest exit; signed and explicit forced completions retain their
+  known status. A real local flock regression proves refusal while held and conservative status
+  after retirement, including known completion and never-started cases.
+- Existing optional KVM acceptance now drops a live runtime owner, adopts its unknown exit,
+  occupies the actual ingress before a refused launch, waits for lease retirement, then cold
+  boots and verifies both retained data files. Four additional boot attempts in the optional
+  job, estimated under twenty seconds; zero ordinary PR minutes or new jobs/gates. Actual
+  execution remains pending. Current full local Rust: 520 passes, the unchanged IPv6 failure
+  and 34 ignored; both strict Clippy modes/fmt/whitespace pass, no new daemon length warnings.
+- Source ed5091d VM run 43541250656/job 132282077573 is green: live/stopped Debian logs plus
+  all existing runtime assertions, 71.52 s; bundle/registry/component boots pass too. Summary:
+  checks/measurements/k25/logs-ed5091d.json. This does not prove later stats/admission/retirement.
+  Scanner remains eighteen addressed comments. K25 stays in progress; next implement both
+  network/confinement paths, protected configuration/install/release wiring, actual node/edge
+  lifecycle and thirty production samples. The published kernel's retained configuration has
+  built-in nftables/NAT/redirect support; use maintained firewall tooling for guest policy.

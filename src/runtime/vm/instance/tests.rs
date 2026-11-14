@@ -295,6 +295,45 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
         assert_eq!(exec(&independent, &fork, "cat /data/retained; printf fork > /data/retained").await, b"durable");
         assert_eq!(exec(&runtime, &id, "cat /data/retained").await, b"durable");
         independent.remove(&fork).await.unwrap();
+        eprintln!("VM runtime image {index}: interrupted live runtime and failed ingress");
+        let settings = runtime.state.settings.clone();
+        drop(runtime);
+        runtime = VmRuntime::new(temporary.path(), settings).await.unwrap();
+        let interrupted = runtime.inspect(&id).await.unwrap().unwrap();
+        assert_eq!(interrupted.status, ContainerStatus::Dead);
+        assert_eq!(interrupted.exit_code, UNKNOWN_EXIT_CODE, "Daemon loss must not invent a signed guest exit");
+        let deadline = tokio::time::Instant::now() + crate::runtime::ENGINE_PROBE_TIMEOUT;
+        let occupied = loop {
+            match TcpListener::bind((Ipv4Addr::LOCALHOST, original_spec.ports[0].host_port)) {
+                Ok(listener) => break listener,
+                Err(problem)
+                    if problem.kind() == std::io::ErrorKind::AddrInUse && tokio::time::Instant::now() < deadline =>
+                {
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+                Err(problem) => panic!("Owned forwarder did not release its ingress: {problem}"),
+            }
+        };
+        assert!(runtime.start(&id).await.is_err(), "A real occupied ingress must refuse startup");
+        drop(occupied);
+        let deadline = tokio::time::Instant::now() + crate::runtime::ENGINE_PROBE_TIMEOUT;
+        loop {
+            match runtime.inspect(&id).await {
+                Ok(Some(info)) => {
+                    assert_eq!(info.status, ContainerStatus::Dead);
+                    assert_eq!(info.exit_code, UNKNOWN_EXIT_CODE);
+                    break;
+                }
+                Err(problem) if problem.is_unavailable() => {}
+                Ok(_) => panic!("Failed launch lost its runtime entry"),
+                Err(problem) => panic!("Unexpected failed-start error: {problem}"),
+            }
+            assert!(tokio::time::Instant::now() < deadline, "Failed launch did not release its real monitor lease");
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        runtime.start(&id).await.unwrap();
+        assert_eq!(exec(&runtime, &id, "cat /data/retained").await, b"durable");
+        assert_eq!(exec(&runtime, &id, "wc -c < /data/offline").await, format!("{}\n", bytes.len()).as_bytes());
         runtime.remove(&id).await.unwrap();
         assert!(runtime.inspect(&id).await.unwrap().is_none());
         assert!(data.join(super::super::disk::FILE).is_file());
@@ -322,6 +361,30 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
     println!(
         "Actual runtime seam: both OCI images, 2-vCPU boot, exec, clean stop, cold wake, copied-disk fork isolation and remove passed"
     );
+}
+
+#[test]
+fn unfinished_launch_refuses_a_stopped_observation_until_its_kernel_lease_retires() {
+    let root = tempfile::tempdir().unwrap();
+    let lease = root.path().join("monitor.lock");
+    let mut entry = Entry {
+        id: format!("vm-{}", uuid::Uuid::new_v4().simple()),
+        spec: spec(root.path(), "unused"),
+        started: Some(crate::clock::now()),
+        finished: None,
+        code: UNKNOWN_EXIT_CODE,
+        agent_state: None,
+    };
+    let held = lock(&lease).unwrap();
+    assert!(matches!(runtime::stopped_status(&entry, &lease), Err(RuntimeError::Unavailable(_))));
+    drop(held);
+    assert_eq!(runtime::stopped_status(&entry, &lease).unwrap(), ContainerStatus::Dead);
+    entry.finished = Some(crate::clock::now());
+    assert_eq!(runtime::stopped_status(&entry, &lease).unwrap(), ContainerStatus::Dead);
+    entry.code = 0;
+    assert_eq!(runtime::stopped_status(&entry, &lease).unwrap(), ContainerStatus::Exited);
+    entry.started = None;
+    assert_eq!(runtime::stopped_status(&entry, &lease).unwrap(), ContainerStatus::Created);
 }
 
 #[test]

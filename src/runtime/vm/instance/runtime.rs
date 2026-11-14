@@ -130,10 +130,8 @@ impl VmRuntime {
                 self.save_entry(entry.clone())?;
                 if result.is_ok() { ContainerStatus::Exited } else { ContainerStatus::Dead }
             }
-        } else if entry.started.is_some() {
-            ContainerStatus::Exited
         } else {
-            ContainerStatus::Created
+            stopped_status(&entry, &self.lease(&entry)?)?
         };
         if status == ContainerStatus::Running {
             if let Ok(snapshot) = agent::snapshot(&entry.spec).await {
@@ -161,6 +159,19 @@ impl VmRuntime {
             health: None,
         }))
     }
+}
+
+pub(super) fn stopped_status(entry: &Entry, lease: &Path) -> Result<ContainerStatus, RuntimeError> {
+    if entry.started.is_none() {
+        return Ok(ContainerStatus::Created);
+    }
+    if entry.finished.is_none() {
+        // A failed startup can have dropped its owned child before Tokio observes death.
+        // The kernel's actual monitor lease must retire before any stopped observation.
+        let _retired = lock(lease)?;
+        return Ok(ContainerStatus::Dead);
+    }
+    Ok(if entry.code == UNKNOWN_EXIT_CODE { ContainerStatus::Dead } else { ContainerStatus::Exited })
 }
 pub(super) fn verified_exit(entry: &Entry, live: &Live) -> Result<i64, RuntimeError> {
     let boot = entry.spec.agent.as_ref().ok_or_else(|| error("VM agent bootstrap is missing"))?;

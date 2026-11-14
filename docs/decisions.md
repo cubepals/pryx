@@ -1117,3 +1117,5 @@
 - K25: Compile executable bootstrap probing and the private browser PNG signature only with the agent's server feature; fs-only consumers retain metadata types but cannot reference VM/tool implementations that their build deliberately omits.
 
 - K25: Own requested starts and replacements after acquiring their workload lock, keeping lock waits cancellable; reserve in-flight start memory atomically with admission, and keep uncertain starts charged until a fresh runtime observation; include automatic/copy resumes and retain fencing authority through the owned transition.
+
+- K25: Refuse stopped observations for unfinished VM launches while their actual monitor lease is held; daemon loss and unsigned startup failures remain Dead with an unknown exit, while a verified or explicitly forced completion keeps its observed status.
