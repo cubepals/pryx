@@ -5,7 +5,8 @@
 // Parts (`network/`):
 // - cmd/proxy/main.go: maintained stack behind a restricted guest transport.
 // - cmd/proxy/production.go: inherited-listener runtime profile without management services.
-// - cmd/guest/main.go and lease.go: trusted guest loopback and maintained DHCP configuration.
+// - cmd/guest/main.go, lease.go and static.go: trusted DHCP or host-selected TAP configuration.
+// - cmd/guest/lease_test.go: real no-follow resolver link checks.
 // - cmd/probe/main.go: real guest networking measurements and management denials.
 // - cmd/probe/policy.go: inherited packet-transport denials as an unprivileged workload.
 // - inputs.json: immutable Alpine and pasta source inputs.

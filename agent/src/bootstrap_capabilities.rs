@@ -26,6 +26,8 @@ pub struct Capabilities {
     #[serde(default)]
     pub vm_vsock: bool,
     #[serde(default)]
+    pub vm_static_network: bool,
+    #[serde(default)]
     pub vm_init_version: u16,
     #[serde(default)]
     pub vm_boot_port: u32,
@@ -82,6 +84,7 @@ pub fn probe() -> Capabilities {
         process_desktop_version: crate::process_tool_policy::DESKTOP_VERSION,
         process_ssh_version: crate::process_tool_policy::SSH_VERSION,
         vm_vsock: true,
+        vm_static_network: true,
         vm_init_version: crate::vm_boot::VERSION,
         vm_boot_port: crate::vm_boot::PORT,
         vm_boot_marker: String::from_utf8(crate::vm_boot::marker()).expect("fixed VM marker is UTF-8"),

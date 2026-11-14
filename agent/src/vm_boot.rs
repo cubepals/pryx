@@ -78,6 +78,9 @@ pub fn guest_cid(cid: u32) -> bool {
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Network {
+    /// Host-selected static virtio addressing; absent preserves the maintained DHCP path.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub static_ipv4: Option<StaticNetwork>,
     pub interface: String,
     pub mac: String,
     pub mtu: u32,
@@ -86,6 +89,14 @@ pub struct Network {
     /// Absent only for the independently trusted comparison fixture.
     #[serde(default)]
     pub policy: Option<NetworkPolicy>,
+}
+
+/// Private TAP addresses are parsed by the maintained prefix type, never image-supplied commands.
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct StaticNetwork {
+    pub address: ipnet::Ipv4Net,
+    pub gateway: std::net::Ipv4Addr,
 }
 
 /// Port numbers come from the verified helper's executable metadata and admitted host gateways.

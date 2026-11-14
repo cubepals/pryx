@@ -210,6 +210,7 @@ impl Network {
                 .ok_or_else(|| error("VM packet helper omitted its service port"))
         };
         Ok(vm_boot::Network {
+            static_ipv4: None,
             interface: text("interface")?.into(),
             mac: text("guestMac")?.into(),
             mtu: self.profile["mtu"]

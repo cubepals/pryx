@@ -34,12 +34,16 @@ func lease(link netlink.Link, value *nclient4.Lease, resolver string) error {
 		}
 		fmt.Fprintf(&data, "nameserver %s\n", ip.String())
 	}
+	return writeResolver(resolver, data.String())
+}
+
+func writeResolver(resolver, data string) error {
 	descriptor, err := unix.Open(resolver, unix.O_WRONLY|unix.O_TRUNC|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return err
 	}
 	file := os.NewFile(uintptr(descriptor), "guest resolver")
 	defer file.Close()
-	_, err = file.WriteString(data.String())
+	_, err = file.WriteString(data)
 	return err
 }

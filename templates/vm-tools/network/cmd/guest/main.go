@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 // Command guest configures networking inside the trusted VM before any image command runs.
 // Parts (`network/cmd/guest/`): main.go owns process lifetime and trusted device startup;
-// lease.go applies actual maintained DHCP lease values and writes the precreated resolver.
+// lease.go applies maintained DHCP lease values and writes the precreated resolver;
+// static.go applies connected host-selected IPv4 TAP addressing without DHCP or a forwarder.
 // The maintained netlink and DHCP libraries own device setup and leases. The unchanged
 // gvisor forwarder owns all packet framing; this adapter never invokes an image's tools.
 package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"net"
@@ -25,6 +27,9 @@ import (
 )
 
 func run() error {
+	metadata := flag.Bool("metadata", false, "read trusted static network parser support")
+	address := flag.String("address", "", "optional host-selected static IPv4 prefix")
+	gateway := flag.String("gateway", "", "optional host-selected static gateway and resolver")
 	loopbackOnly := flag.Bool("loopback-only", false, "Bring up only guest loopback and exit")
 	iface := flag.String("iface", "", "Trusted guest interface")
 	mac := flag.String("mac", "", "Host-selected guest MAC")
@@ -33,6 +38,12 @@ func run() error {
 	port := flag.Uint("vsock-port", 0, "Host-selected packet transport port")
 	resolver := flag.String("resolver", "", "Precreated root-owned resolver file")
 	flag.Parse()
+	if *metadata {
+		return json.NewEncoder(os.Stdout).Encode(map[string]bool{"staticConfiguration": true})
+	}
+	if (*address != "" || *gateway != "") && (*address == "" || *gateway == "" || *forwarder != "") {
+		return fmt.Errorf("Static TAP addressing requires both host addresses without a packet forwarder")
+	}
 	if os.Geteuid() != 0 || os.Getppid() != 1 {
 		return fmt.Errorf("Guest network setup requires trusted VM init")
 	}
@@ -76,6 +87,16 @@ func run() error {
 	}
 	if err := netlink.LinkSetUp(link); err != nil {
 		return err
+	}
+	if *address != "" {
+		if err := staticNetwork(link, *address, *gateway, *resolver); err != nil {
+			return err
+		}
+		if err := os.Stdout.Close(); err != nil {
+			return err
+		}
+		<-ctx.Done()
+		return nil
 	}
 	errors := make(chan error, 1)
 	if *forwarder != "" {

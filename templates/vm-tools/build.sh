@@ -53,6 +53,7 @@ case "${1:?Name one VM build phase}" in
       --packages ./cmd/proxy ./cmd/probe ./cmd/guest github.com/containers/gvisor-tap-vsock/cmd/vm
     "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-network-proxy" ./cmd/proxy
     "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-network-probe" ./cmd/probe
+    "$pryx_go" test -mod=readonly ./cmd/guest
     "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-network-guest" ./cmd/guest
     "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-gvforwarder" github.com/containers/gvisor-tap-vsock/cmd/vm
     "$pryx_go" mod verify

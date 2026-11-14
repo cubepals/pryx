@@ -44,6 +44,10 @@ def main():
     metadata = json.loads(subprocess.check_output([str(agent), 'bootstrap-probe'], timeout=10))
     if not metadata.get('vmInitVersion') or not metadata.get('vmVsock'):
         raise ValueError('This actual agent does not support VM bootstrap and transport')
+    if metadata.get('vmStaticNetwork'):
+        support = json.loads(subprocess.check_output([str(network_helper), '--metadata'], timeout=10, env={}))
+        if support.get('staticConfiguration') is not True:
+            raise ValueError('The actual guest helper lacks the advertised static network parser')
     marker_path = PurePosixPath(metadata['vmBootMarkerPath'])
     if not marker_path.is_absolute() or len(marker_path.parts) != 2:
         raise ValueError('VM agent marker must be one file at the bootstrap root')

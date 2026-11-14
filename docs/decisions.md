@@ -1211,3 +1211,5 @@
 - K25: diagnose the separate authority fixture's EPERM at its unchanged credential-dropping exec with typed kernel UID/GID, capability and no-new-privileges observations; record no environment, arguments or private data, and preserve every unit restriction and ordinary-monitor requirement.
 
 - K25: move the unchanged DHCP lease application into its own guest network module before adding the host-selected static TAP path; retain the maintained DHCP client, every lease validation and the no-follow resolver write.
+
+- K25: reuse already pinned ipnet 2.12.2 (MIT OR Apache-2.0, select MIT) in the optional agent server for static IPv4 prefix validation; add an optional omitted-by-default private TAP configuration and executable parser advertisement, verify the actual guest helper's advertisement while building bootstrap, and keep the existing DHCP/vsock path unchanged.

@@ -42,6 +42,19 @@ pub(crate) fn prepare(root: &DataDir, network: Option<&Network>) -> io::Result<(
             return Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid host-owned guest network policy"));
         }
     }
+    if let Some(configuration) = &network.static_ipv4
+        && (network.vsock_port.is_some()
+            || network.policy.is_none()
+            || !configuration.address.addr().is_private()
+            || !configuration.gateway.is_private()
+            || !configuration.address.contains(&configuration.gateway)
+            || configuration.address.addr() == configuration.gateway)
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Static TAP requires private connected host addresses and trusted policy",
+        ));
+    }
     root.mkdir(DIRECTORY)?;
     root.chmod(DIRECTORY, 0o700)?;
     let source = root.write(RESOLVER)?;
@@ -70,6 +83,14 @@ pub(crate) async fn start(network: Option<&Network>) -> io::Result<Option<Child>
             .arg(Path::new(vm_boot::BOOTSTRAP_ROOT).join(vm_boot::PACKET_PROGRAM))
             .arg("--vsock-port")
             .arg(port.to_string());
+    }
+    if let Some(configuration) = &network.static_ipv4 {
+        command.args([
+            "--address",
+            &configuration.address.to_string(),
+            "--gateway",
+            &configuration.gateway.to_string(),
+        ]);
     }
     let mut child = command
         .env_clear()

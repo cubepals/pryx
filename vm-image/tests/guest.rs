@@ -384,6 +384,7 @@ async fn boot(
     let network_fixture =
         if networked { Some(NetworkFixture::start(&metadata, &channel, directory, round).await) } else { None };
     let network = network_fixture.as_ref().map(|fixture| Network {
+        static_ipv4: None,
         interface: "tap0".into(),
         mac: fixture.configuration["guestMac"].as_str().unwrap().into(),
         mtu: fixture.configuration["mtu"].as_u64().unwrap() as u32,
