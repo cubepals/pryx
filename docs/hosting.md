@@ -11,7 +11,9 @@ checkout; it does not establish that the previously published image contains K28
 prepared image references in the normal release process before publishing any template or catalog.
 Render builds the repository Dockerfile, so its button can use the merged source directly.
 Template documentation was checked on 2026-11-14.
-They do not create an account or publish a marketplace listing. Template publication, where
+[Recorded CI acceptance](checks/k28.md) passes the six container envelopes, all caller blocks,
+platform-owned validation where available, and both booted cloud-init distributions.
+These files do not create an account or publish a marketplace listing. Template publication, where
 needed, remains a maintainer operation. See each platform's own pricing link below.
 
 ## Tiers and guarantees
@@ -51,8 +53,8 @@ provides the verified HTTPS origin. The image's default user is root; Render sup
 container filesystem and disk at `/var/lib/pryx`. Host namespaces/cgroups are not assumed.
 The ordinary-container process policy above applies; no Docker or KVM is attached.
 
-Validation: Render's own JSON Schema in the existing CI deployment suite; image envelope and
-six caller blocks in that same suite. Live deploy: not run.
+Validation: Render's own JSON Schema, image envelope and six caller blocks pass in
+[CI acceptance](checks/k28.md#container-envelopes). Live deploy: not run.
 [Blueprint reference](https://render.com/docs/blueprint-spec),
 [persistent disks](https://render.com/docs/disks), [pricing](https://render.com/pricing).
 
@@ -67,8 +69,8 @@ here. Use one instance, one `/var/lib/pryx` volume, generated domain and `/healt
 root user, writable container filesystem and its one state volume. Process admission still
 requires the kernel policy above; no user namespace, delegated cgroup, Docker or KVM is assumed.
 
-Validation: no account-free template validator exists for Composer fields. CI tests the
-recorded container envelope and caller blocks. Live deploy: not run.
+Validation: no account-free template validator exists for Composer fields. The
+[recorded container envelope and caller blocks](checks/k28.md#container-envelopes) pass in CI. Live deploy: not run.
 [Templates](https://docs.railway.com/templates),
 [variable functions](https://docs.railway.com/variables/reference),
 [volumes](https://docs.railway.com/volumes), [pricing](https://railway.com/pricing).
@@ -85,7 +87,7 @@ filesystem and its persistent `/var/lib/pryx` mount; the image user stays root. 
 adds no Docker daemon or KVM device. The process policy must pass on the actual guest kernel.
 
 Validation: the TOML is parsed locally in CI; Fly's remote configuration validation needs an
-app/account and is not reported as run. Fly's current [validator source](https://github.com/superfly/flyctl/blob/master/internal/command/config/validate.go) requires a session and app name (checked 2026-11-14). The container envelope and caller blocks run in CI;
+app/account and is not reported as run. Fly's current [validator source](https://github.com/superfly/flyctl/blob/master/internal/command/config/validate.go) requires a session and app name (checked 2026-11-14). The [container envelope and caller blocks](checks/k28.md#container-envelopes) pass in CI;
 these do not emulate a Fly microVM. Live deploy: not run.
 [Configuration](https://fly.io/docs/reference/configuration/),
 [volumes](https://fly.io/docs/volumes/overview/), [pricing](https://fly.io/docs/about/pricing/).
@@ -116,8 +118,8 @@ port `8080`, writable root filesystem, image default user and no privileged mode
 Landlock/seccomp support must be established by admission; no namespace/cgroup/KVM guarantee
 is inferred from Koyeb's isolation technology.
 
-Validation: no account-free service validator is documented. CI exercises the ordinary
-container envelope and caller blocks, not Koyeb's kernel. Live deploy: not run.
+Validation: no account-free service validator is documented. The ordinary
+[container envelope and caller blocks](checks/k28.md#container-envelopes) pass in CI, not a test of Koyeb's kernel. Live deploy: not run.
 [Button format](https://www.koyeb.com/docs/build-and-deploy/deploy-to-koyeb-button),
 [volumes](https://www.koyeb.com/docs/reference/volumes), [pricing](https://www.koyeb.com/pricing).
 
@@ -133,8 +135,8 @@ comes from that host, and no engine socket, privilege or KVM device is passed to
 No catalog entry is published. The generated URL uses the Coolify installation's domain/TLS
 policy; the operator must already have configured HTTPS there.
 
-Validation: Docker Compose's own config validator with generated values supplied in CI;
-container envelope and caller blocks in the same suite. Live deploy: not run.
+Validation: Docker Compose's own config validator with generated values, the
+[container envelope and caller blocks](checks/k28.md#container-envelopes) pass in CI. Live deploy: not run.
 [Compose](https://coolify.io/docs/services/configuration/docker-compose),
 [generated variables](https://coolify.io/docs/services/configuration/environment-variables),
 [pricing](https://coolify.io/pricing/).
@@ -154,6 +156,7 @@ operator DNS/TLS setup and PRYX_PUBLIC_URL; this file does not invent a domain o
 No cloud-init provider or operating system can allocate a verified domain for a machine from
 this repository alone.
 
-Validation: cloud-init's own schema validation and a scheduled/dispatched boot matrix of checksum-pinned Ubuntu 24.04 and 26.04 images are CI checks;
-no boot ran on the supervised development machine. Live deploy: not run.
+Validation: cloud-init's own schema and the [dispatched boot matrix](checks/k28.md#booted-machines)
+of checksum-pinned Ubuntu 24.04 and 26.04 images pass in CI. No boot ran on the supervised
+development machine. Live deploy: not run.
 [cloud-init runcmd](https://docs.cloud-init.io/en/latest/reference/modules.html#runcmd).

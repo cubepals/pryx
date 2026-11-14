@@ -15,7 +15,14 @@
       "!sdk/typescript/dist/**",
       "!control/src/providers/openapi/**",
       "integrations/**",
-      "!integrations/**/dist/**"
+      "!integrations/**/dist/**",
+      "site/**",
+      "!site/node_modules/**",
+      "!site/dist/**",
+      "!site/review/**",
+      "!site/.astro/**",
+      "!site/.build/**",
+      "!site/bun.lock"
     ]
   },
   "formatter": {

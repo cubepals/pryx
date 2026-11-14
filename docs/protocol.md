@@ -585,7 +585,7 @@ checked before it is used:
 - `GET /fleet/v1/ca.pem`: the fleet CA. Fetched without checking the connection, since nothing is
   trusted yet, and then checked against the join token's hash; nothing else is fetched until it
   matches.
-- `GET /fleet/v1/join.sh`: [`deploy/join.sh`](../deploy/join.sh), with
+- `GET /fleet/v1/join.sh`: [`deploy/join.sh`](../control/src/join.sh), with
   [`deploy/daemon.json`](../deploy/daemon.json) written into it. Fetched over TLS checked against
   that CA.
 - `GET /fleet/v1/blocklyd` and `GET /fleet/v1/blocklyd.sha256`: the static pryxd the control

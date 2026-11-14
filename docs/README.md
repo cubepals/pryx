@@ -9,3 +9,5 @@
 [Any Linux host: research and plan](any-host.md), built by `PLAN-K19.md` to `PLAN-K27.md`.
 
 [Speed cohorts, measurements and check reports](checks/speed.md) · [All checks](checks/).
+
+[K28 hosting acceptance](checks/k28.md).

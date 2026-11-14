@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: FSL-1.1-ALv2 -->
 
-# Experimental store lease
+# Object-store execution lease
 
 This feature is off on both host and control by default. Feature-off nodes keep the existing
 execution lease: a control outage prevents unasked restarts but does not stop sandboxes, and an

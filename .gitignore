@@ -21,3 +21,8 @@ sdk/python/dist/
 /.agent-before/
 
 /.field-before/
+
+site/.astro/
+site/.build/
+site/dist/
+site/review/

@@ -1,0 +1,24 @@
+/* SPDX-License-Identifier: FSL-1.1-ALv2 */
+:root {
+  --sl-color-accent-low: #073c3b;
+  --sl-color-accent: #10b8a4;
+  --sl-color-accent-high: #a4f2df;
+  --sl-font: system-ui, sans-serif;
+}
+:root[data-theme="light"] {
+  --sl-color-accent-low: #d3f7ee;
+  --sl-color-accent: #007b70;
+  --sl-color-accent-high: #00443c;
+}
+.sl-markdown-content pre {
+  border-radius: 0.65rem;
+}
+/* Legacy Markdown already has its title; Starlight renders that same title above the body.
+ * Keep the canonical heading and its scroll target, with one visible and accessible title. */
+.sl-markdown-content > h1:first-child {
+  block-size: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  visibility: hidden;
+}
