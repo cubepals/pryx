@@ -43,6 +43,7 @@ try {
     const supplied = ['render', 'railway', 'coolify'].includes(platform)
     const key = `pryx_${randomBytes(32).toString('base64url')}`
     const port = 18080
+    const internalPort = platform === 'render' ? 10000 : platform === 'ordinary-user' ? 9080 : 8080
     const origin = `http://127.0.0.1:${port}`
     const environment = { ...process.env, PRYX_BOOTSTRAP_API_KEY: key }
     const platformOrigin =
@@ -61,11 +62,11 @@ try {
           'no-new-privileges',
           ...(platform === 'ordinary-user' ? ['--user', '1000:1000'] : []),
           '-p',
-          `127.0.0.1:${port}:8080`,
+          `127.0.0.1:${port}:${internalPort}`,
           '--mount',
           `type=volume,source=${volume},target=/var/lib/pryx`,
           '-e',
-          'PORT=8080',
+          `PORT=${internalPort}`,
           '-e',
           `PRYX_HOSTING_PLATFORM=${platform}`,
           ...(supplied ? ['-e', 'PRYX_BOOTSTRAP_API_KEY'] : []),
@@ -97,7 +98,8 @@ try {
           }
         })
       const keys = await readKeys()
-      if (supplied && keys.length) throw new Error('Platform key printed to service log')
+      if (supplied && (keys.length || (await command(['docker', 'logs', name])).includes(key)))
+        throw new Error('Platform key printed to service log')
       if (!supplied) {
         if (keys.length !== 1 || !keys[0]) throw new Error('Generated key not printed once')
         apiKey = keys[0]
@@ -117,7 +119,7 @@ try {
       const retained = await fetch(`${origin}/v1/project`, { headers: { authorization: `Bearer ${apiKey}` } })
       if (!retained.ok || (await readKeys()).length !== keys.length)
         throw new Error('Restart changed or repeated the first key')
-      const summary = `${platform}: ordinary Docker envelope; rootfs writable; one volume; no added privilege; welcome/auth, six callers, restart: pass`
+      const summary = `${platform}: ordinary Docker envelope; rootfs writable; PORT=${internalPort}; one volume; no added privilege; welcome/auth, six callers, restart: pass`
       summaries.push(summary)
       console.log(summary)
     } finally {

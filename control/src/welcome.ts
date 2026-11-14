@@ -32,7 +32,7 @@ const script = `document.querySelector('form').addEventListener('submit', async 
       const setup = document.createElement('p'); setup.textContent = example.setup;
       const pre = document.createElement('pre'); const code = document.createElement('code'); code.textContent = example.code; pre.append(code);
       const copy = document.createElement('button'); copy.textContent = 'Copy'; copy.type = 'button';
-      copy.addEventListener('click', () => navigator.clipboard.writeText(example.code).then(() => {copy.textContent = 'Copied';}).catch(() => {status.textContent = 'Select and copy the block.';}));
+      copy.addEventListener('click', async () => {try {await navigator.clipboard.writeText(example.code); copy.textContent = 'Copied';} catch {status.textContent = 'Select and copy the block.';}});
       section.append(title, setup, pre, copy); details.append(section);
     }
     status.textContent = 'Connected. Blocks reference PRYX_API_KEY; they contain no key.';
@@ -50,6 +50,7 @@ export function withWelcome<E extends Env>(
     isolation?: Isolation
     platform?: string
     platformKey?: boolean
+    boundary?: string
   },
 ) {
   const location = options.platformKey
@@ -78,7 +79,7 @@ export function withWelcome<E extends Env>(
     if (!identity || identity.expired)
       return c.json({ error: 'A valid, active API key is required' }, StatusCodes.UNAUTHORIZED)
     return c.json({
-      capabilities: `Default tier: ${options.isolation ?? 'container'}. Requests still undergo node admission and fail if their policy cannot be enforced. This release has no host probe report: additional tiers, namespaces, cgroup limits, KVM, browsers and desktops are unverified here. Process needs Landlock and seccomp; it cannot run container images or promise memory sleep. Wasm uses a virtual kernel, with no container images or public guest ingress. Container needs an engine and the host firewall policy. See the hosting guide for these boundaries.`,
+      capabilities: `Default tier: ${options.isolation ?? 'container'}.${options.boundary ? ` Boundary: ${options.boundary}.` : ''} Requests still undergo node admission and fail if their policy cannot be enforced. This release has no host probe report: additional tiers, namespaces, cgroup limits, KVM, browsers and desktops are unverified here. Process needs Landlock and seccomp; it cannot run container images. Process sleep retains memory only while its supervisor survives; snapshots retain files. Shared UID process workloads must be mutually trusted, and internet-enabled process workloads share host networking even with separate UIDs. Wasm uses a virtual kernel and shared sidecar; it refuses container images, and guest ingress is HTTP only. Container needs an engine and the host firewall policy. See the hosting guide for these boundaries.`,
       examples: welcomeExamples(options.origin ?? new URL(c.req.url).origin, options.isolation),
     })
   })

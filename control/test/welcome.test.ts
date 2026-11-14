@@ -21,6 +21,7 @@ describe.skipIf(!hasDatabase)('install welcome', () => {
         isolation: 'process',
         platform: 'render',
         platformKey: true,
+        boundary: 'shared UID',
       })
       const page = await app.request('/')
       const html = await page.text()
@@ -46,6 +47,8 @@ describe.skipIf(!hasDatabase)('install welcome', () => {
       expect(unlocked.status).toBe(StatusCodes.OK)
       expect(unlocked.headers.get('cache-control')).toBe('no-store')
       expect(body).toContain('Default tier: process')
+      expect(body).toContain('Boundary: shared UID')
+      expect(body).toContain('mutually trusted')
       expect(body).toContain('https://install.example.test')
       expect(body).not.toContain(key)
       expect(JSON.parse(body).examples).toHaveLength(6)

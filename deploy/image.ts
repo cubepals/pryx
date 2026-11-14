@@ -58,6 +58,14 @@ async function serve() {
       stderr: 'ignore',
     }).exitCode === 0
   const tier = imageTier(docker, process.env.PRYX_DEFAULT_TIER)
+  const boundary =
+    tier === 'wasm'
+      ? 'virtual kernel; shared sidecar'
+      : tier === 'container'
+        ? 'container namespaces and cgroups'
+        : process.getuid?.() === 0
+          ? 'per-sandbox UIDs'
+          : 'shared UID'
   let memory = totalmem()
   try {
     const limit = Number(readFileSync('/sys/fs/cgroup/memory.max', 'utf8').trim())
@@ -114,6 +122,7 @@ async function serve() {
     S3_SECRET_KEY: storage.s3.secretAccessKey,
   })
   const control = await startControl(config, {
+    welcomeBoundary: boundary,
     gatewayHealth: () =>
       Response.json({
         status: 'ok',
@@ -226,14 +235,6 @@ control_ips = ["127.0.0.1"]
     void child.exited.then(() => {
       if (!stopping) void shutdown(1)
     })
-  const boundary =
-    tier === 'wasm'
-      ? 'virtual kernel; shared sidecar'
-      : tier === 'container'
-        ? 'container namespaces and cgroups'
-        : process.getuid?.() === 0
-          ? 'per-sandbox UIDs'
-          : 'shared UID'
   console.log(`pryx listening on ${publicPort}; isolation=${tier}; ${boundary}`)
   const printed = join(root, 'private', 'key-printed')
   if (!process.env.PRYX_BOOTSTRAP_API_KEY && !existsSync(printed)) {

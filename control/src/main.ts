@@ -37,7 +37,11 @@ import { withWelcome } from './welcome.ts'
 
 export async function startControl(
   config: ControlConfig = loadConfig(),
-  options: { providers?: ReadonlyMap<string, Provider>; gatewayHealth?: () => Response } = {},
+  options: {
+    providers?: ReadonlyMap<string, Provider>
+    gatewayHealth?: () => Response
+    welcomeBoundary?: string
+  } = {},
 ) {
   const pool = createPool(config.database)
   const lockPool = createPool(config.database)
@@ -156,6 +160,7 @@ export async function startControl(
     isolation: config.defaultIsolation,
     platform: process.env.PRYX_HOSTING_PLATFORM,
     platformKey: Boolean(process.env.PRYX_BOOTSTRAP_API_KEY),
+    boundary: options.welcomeBoundary,
   })
   const edge = new EdgeService(db, sandboxes, config.publicDomain, config.edgePortRange, api.agents)
   api.app.route('/edge/v1', edgeApi(edge, config.edgeToken))

@@ -21,7 +21,10 @@ added by these templates. The image chooses from what it can use; no preset flag
 On an ordinary container, the default process tier requires Landlock and seccomp. It refuses
 startup when it cannot enforce that floor. Root gives per-sandbox UIDs; an ordinary service
 user gives shared UID isolation, which is weaker and is reported. There are no container
-images, browser/desktop templates or memory-preserving sleep in this process path. User
+images or browser/desktop templates in this process path. Process sleep keeps memory while the
+supervisor survives; a platform restart requires a fresh process from retained files. Shared UID
+workloads must be mutually trusted; internet-enabled process workloads share host networking even
+with separate UIDs. User
 namespaces and writable cgroups are not assumed. See [process tier](process-tier.md).
 Wasm is available on x86-64 when explicitly selected at deployment, with a virtual kernel,
 shared sidecar and [its limits](agentos.md); it does not substitute for a requested process policy.
