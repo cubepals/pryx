@@ -5,7 +5,7 @@ use pryx_vm_image::image::Images;
 use pryxd::runtime::{
     RuntimeError,
     vm::{
-        filesystems::FilesystemTools,
+        filesystems::{FilesystemTools, sha256},
         image::{self, Request},
     },
 };
@@ -24,12 +24,12 @@ async fn real_oci_layers_are_verified_cached_and_corruption_is_refused() {
     std::os::unix::fs::symlink(&component, &alias).unwrap();
     assert!(FilesystemTools::verified(&alias, &manifest).is_err());
     let cache = staging.path().join("images");
-    let images = Images::new(cache.clone(), tools).unwrap();
+    let images = Images::new(cache.clone(), tools.clone()).unwrap();
     let helper = PathBuf::from(env!("CARGO_BIN_EXE_pryx-vm-image"));
     let mut observations = Vec::new();
     let inputs: Vec<serde_json::Value> =
         serde_json::from_str(include_str!("../../templates/vm-tools/image-inputs.json")).unwrap();
-    for input in inputs {
+    for (index, input) in inputs.into_iter().enumerate() {
         let reference = input["reference"].as_str().unwrap();
         let image = images.prepare(reference, Duration::from_secs(120)).await.unwrap();
         assert!(!image.layers.is_empty());
@@ -72,16 +72,28 @@ async fn real_oci_layers_are_verified_cached_and_corruption_is_refused() {
         );
         // A second process must wait for the same kernel cache lock, not publish
         // layer bytes against a different process's completed record.
-        let lock =
-            fs::OpenOptions::new().read(true).write(true).open(cache.join(&manifest).join("prepare.lock")).unwrap();
+        let lock = fs::OpenOptions::new().read(true).write(true).open(images.lock_path()).unwrap();
         rustix::fs::flock(&lock, rustix::fs::FlockOperation::NonBlockingLockExclusive).unwrap();
         let short = Request { timeout_seconds: 1, ..request };
         assert!(matches!(image::prepare(&helper, &short).await, Err(RuntimeError::Timeout(_))));
         drop(lock);
         let request = Request { timeout_seconds: 120, ..short };
         assert_eq!(image::prepare(&helper, &request).await.unwrap().layers, image.layers);
+        let fresh = Images::new(staging.path().join(format!("fresh-{index}")), tools.clone())
+            .unwrap()
+            .prepare(reference, Duration::from_secs(120))
+            .await
+            .unwrap();
+        assert_eq!(image.layers.len(), fresh.layers.len());
+        for (original, rebuilt) in image.layers.iter().zip(&fresh.layers) {
+            assert_eq!(
+                sha256(fs::File::open(original).unwrap()).unwrap(),
+                sha256(fs::File::open(rebuilt).unwrap()).unwrap(),
+                "An independently rebuilt lower must preserve every byte and its origin identity"
+            );
+        }
         observations.push(serde_json::json!({"image": reference, "manifestDigest": image.digest,
-            "layers": before.iter().map(|(bytes, _)| *bytes).collect::<Vec<_>>(), "cacheReused": true}));
+            "layers": before.iter().map(|(bytes, _)| *bytes).collect::<Vec<_>>(), "cacheReused": true, "independentRebuildIdentical": true}));
         let corrupt = &image.layers[0];
         fs::set_permissions(corrupt, fs::Permissions::from_mode(0o600)).unwrap();
         fs::write(corrupt, b"corrupt cache").unwrap();

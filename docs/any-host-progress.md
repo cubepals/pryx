@@ -3214,3 +3214,23 @@ job when publication is authorized. That job has not run in this task.
   protected configuration/release/installer wiring, node+edge lifecycle and thirty production
   samples. Check regenerated OCI lower identity across caches before cross-node disk moves;
   current mkfs arguments specify neither a stable UUID nor build time. K25 remains in progress.
+
+
+- K25 reproducible OCI lower identity: use the verified diff_id to derive a version-8 UUID,
+  fix only EROFS build time, and preserve image file mtimes. A separate private conversion
+  cache leaves old random-identity bytes untouched. The actual registry acceptance independently
+  rebuilds every Alpine/Debian layer and compares complete hashes; it passes locally in 32.93 s,
+  retaining the competing-process lock, cached-byte and corruption assertions. Existing optional
+  KVM acceptance now forks through an independent runtime/cache; no new boot/job/gate, estimated
+  under ten extra optional seconds for the rebuild. Cross-cache guest proof remains pending.
+- Full local Rust: 512 passes, the unchanged unsupported-IPv6 fixture failure and 34 ignored;
+  both strict daemon Clippy modes, helper strict all-target Clippy and both fmt checks pass.
+  Helper default tests pass with their existing external-input ignores. The unfinished checkpoint
+  initially failed compilation after moving diff_id into its worker; computing the UUID before
+  that move resolves it. Removed unused local musl build output, recovering about 2 GiB.
+- Read completed VM failures feda4d0 (43535042318/job 132261871813, 14.67 s) and 9988a72
+  (43535774318/job 132264283949, 14.15 s): both still fail file bootstrap before the later
+  maintenance-overlay correction. Retain them in the existing short bootstrap-attempt summary.
+  Current 28c34f0 VM run 43537774307 and normal/host runs remain queued; scanner remains eighteen
+  addressed comments. K25 stays in progress; finish actual maintenance/node KVM proof, logs/stats/
+  SIGINT/adoption failures, both networking/confinement paths, install/config and production samples.

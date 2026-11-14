@@ -23,6 +23,7 @@ tempfile = "3"
 flate2 = "1"
 sha2 = "0.11"
 hex = "0.4"
+uuid = { version = "1", features = ["v4"] }
 libc = "0.2.189"
 axum = { version = "0.8", default-features = false }
 reqwest = { version = "0.12", default-features = false }
@@ -33,7 +34,6 @@ rustix = { version = "1", features = ["process", "fs"] }
 tar = "0.4"
 pryx-agent = { path = "../agent", default-features = false, features = ["server"] }
 base64 = "0.23"
-uuid = { version = "1", features = ["v4"] }
 
 [lints.rust]
 unsafe_code = "deny"

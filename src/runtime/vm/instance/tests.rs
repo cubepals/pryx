@@ -231,11 +231,13 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
         assert_eq!(exec(&runtime, &id, "cat /data/retained").await, b"durable");
         eprintln!("VM runtime image {index}: independent fork");
         let fork_spec = spec(&copy, image["reference"].as_str().unwrap());
-        let fork = runtime.create(&fork_spec).await.unwrap();
-        runtime.start(&fork).await.unwrap();
-        assert_eq!(exec(&runtime, &fork, "cat /data/retained; printf fork > /data/retained").await, b"durable");
+        let another = tempfile::tempdir().unwrap();
+        let independent = VmRuntime::new(another.path(), runtime.state.settings.clone()).await.unwrap();
+        let fork = independent.create(&fork_spec).await.unwrap();
+        independent.start(&fork).await.unwrap();
+        assert_eq!(exec(&independent, &fork, "cat /data/retained; printf fork > /data/retained").await, b"durable");
         assert_eq!(exec(&runtime, &id, "cat /data/retained").await, b"durable");
-        runtime.remove(&fork).await.unwrap();
+        independent.remove(&fork).await.unwrap();
         runtime.remove(&id).await.unwrap();
         assert!(runtime.inspect(&id).await.unwrap().is_none());
         assert!(data.join(super::super::disk::FILE).is_file());

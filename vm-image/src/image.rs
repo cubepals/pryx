@@ -24,6 +24,8 @@ use std::{
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+// Private cache namespace for deterministic lower identity; legacy cache bytes stay intact.
+const CONVERSION: &str = "erofs-diff-id-v1";
 // Private acquisition bounds, not OCI protocol limits or sandbox resource guarantees.
 const MAX_LAYER_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 const MAX_CONFIG_BYTES: u64 = 2 * 1024 * 1024;
@@ -114,6 +116,8 @@ impl Images {
         directory(&root)?;
         let root = root.join(tools.identity());
         directory(&root)?;
+        let root = root.join(CONVERSION);
+        directory(&root)?;
         let client = Client::try_from(oci_client::client::ClientConfig {
             read_timeout: Some(Duration::from_secs(30)),
             connect_timeout: Some(Duration::from_secs(10)),
@@ -137,6 +141,11 @@ impl Images {
         .map_err(|_| RuntimeError::Timeout("VM OCI image preparation exceeded its deadline".into()))?
     }
 
+    /// The actual per-conversion process lock, also used by acceptance of competing builders.
+    pub fn lock_path(&self) -> PathBuf {
+        self.root.join("prepare.lock")
+    }
+
     async fn lock(&self) -> Result<File, RuntimeError> {
         let file = OpenOptions::new()
             .read(true)
@@ -145,7 +154,7 @@ impl Images {
             .truncate(false)
             .mode(0o600)
             .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
-            .open(self.root.join("prepare.lock"))
+            .open(self.lock_path())
             .map_err(error)?;
         let metadata = file.metadata().map_err(error)?;
         if !metadata.is_file() || metadata.mode() & 0o077 != 0 || metadata.uid() != rustix::process::geteuid().as_raw()
@@ -336,6 +345,16 @@ fn expand(blob: &Path, work: &Path, media: &str, diff_id: &str) -> Result<PathBu
     Ok(tar)
 }
 
+fn layer_uuid(diff_id: &str) -> Result<uuid::Uuid, RuntimeError> {
+    use sha2::{Digest as _, Sha256};
+    let digest: Digest = diff_id.parse().map_err(error)?;
+    let hash = Sha256::digest(digest.to_string().as_bytes());
+    let mut bytes = uuid::Bytes::default();
+    let length = bytes.len();
+    bytes.copy_from_slice(&hash[..length]);
+    Ok(uuid::Builder::from_custom_bytes(bytes).into_uuid())
+}
+
 async fn convert(
     tools: &FilesystemTools,
     blob: &Path,
@@ -343,13 +362,15 @@ async fn convert(
     media: &str,
     diff_id: &str,
 ) -> Result<PathBuf, RuntimeError> {
+    let filesystem_uuid = layer_uuid(diff_id)?;
     let (input, output, media, diff_id) =
         (blob.to_path_buf(), work.to_path_buf(), media.to_owned(), diff_id.to_owned());
     let tar = tokio::task::spawn_blocking(move || expand(&input, &output, &media, &diff_id)).await.map_err(error)??;
     let image = work.join("layer.erofs");
     let mut builder = tools.builder("mkfs.erofs");
     builder
-        .args(["--quiet", "--tar=f", "--aufs", "--ovlfs-strip=0"])
+        .args(["--quiet", "--tar=f", "--aufs", "--ovlfs-strip=0", "-T0", "--mkfs-time", "--preserve-mtime", "-U"])
+        .arg(filesystem_uuid.to_string())
         .arg(&image)
         .arg(&tar)
         .stdin(Stdio::null())

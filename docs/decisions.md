@@ -1105,3 +1105,5 @@
 - K25: Proxy node files through the explicit remote-data backend while holding exact-epoch workload guards and temporary admitted memory through owned cleanup; check host disk admission on every upload chunk, stream owner-generated file metadata without copying its shape, and map agent refusals to the existing node errors.
 
 - K25: Put bounded runtime acceptance logs/serial in their own existing CI artifact upload so diagnosing a file guest needs kilobytes rather than the whole VM/source bundle; retain raw output only in CI and commit its short source/run summary.
+
+- K25: Reuse already reviewed uuid 1.29.0 (MIT OR Apache-2.0) for a deterministic version-8 EROFS UUID derived from the OCI diff_id, fix only filesystem build time, and preserve image file mtimes; use a new private conversion-cache namespace so old random-identity layers are never silently reused or rewritten.
