@@ -59,6 +59,22 @@ const sdk = Bun.spawnSync(
   { cwd: root, stdout: 'inherit', stderr: 'inherit' },
 )
 if (sdk.exitCode !== 0) throw new Error('SDK JavaScript build failed')
+const provider = Bun.spawnSync(
+  [
+    'bun',
+    'build',
+    'sdk/typescript/src/provider.ts',
+    '--target',
+    'node',
+    '--format',
+    'esm',
+    '--packages=external',
+    '--outfile',
+    'sdk/typescript/dist/provider.js',
+  ],
+  { cwd: root, stdout: 'inherit', stderr: 'inherit' },
+)
+if (provider.exitCode !== 0) throw new Error('SDK provider build failed')
 const assets = join(root, 'target/release-assets/control')
 mkdirSync(assets, { recursive: true })
 cpSync(join(root, 'control/src/schema/migrations'), join(assets, 'migrations'), { recursive: true })

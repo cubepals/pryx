@@ -33,6 +33,7 @@ export const ready = Boolean(
 export const LEASE_TEST = { seconds: 10, renewSeconds: 3 }
 export async function deployment(
   options: {
+    repoImage?: string
     webhookAllowHosts?: string[]
     egressPolicy?: boolean
     nativeTools?: boolean
@@ -62,6 +63,7 @@ export async function deployment(
     DATABASE_URL: fresh.url,
     PRYX_DEPLOYMENT: name,
     PRYX_DEFAULT_ISOLATION: options.tier,
+    PRYX_REPO_IMAGE: options.repoImage,
     ...(options.nativeTools ? { PRYX_EDGE_PORT_RANGE: nativeEdgePortRange().join('-') } : {}),
     PRYX_UNIT_MEMORY_MB: process.env.PRYX_TIER_BENCH === '1' ? String(TIER_BENCH_UNIT.memoryMb) : undefined,
     PRYX_UNIT_CPU_MILLIS: process.env.PRYX_TIER_BENCH === '1' ? String(TIER_BENCH_UNIT.cpuMillis) : undefined,

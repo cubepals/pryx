@@ -9,7 +9,12 @@ import { until } from './waits.ts'
 
 export async function agentDeployment(
   tier = process.env.PRYX_TEST_TIER as import('../src/isolation.ts').Isolation | undefined,
-  options: { webhookAllowHosts?: string[]; egressPolicy?: boolean; nativeTools?: boolean } = {},
+  options: {
+    webhookAllowHosts?: string[]
+    egressPolicy?: boolean
+    nativeTools?: boolean
+    repoImage?: string
+  } = {},
 ) {
   const image = process.env.PRYX_IMAGE_TEST ?? 'pryx-static-test:latest'
   const d = await deployment({
