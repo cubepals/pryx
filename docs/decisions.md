@@ -1093,3 +1093,5 @@
 - K25: Retain bounded monitor serial tails only in the existing optional VM CI artifact, redacting all launch environment values and incomplete boundary lines; add fixture stage markers without changing production logging, request deadlines or mutation retry policy.
 
 - K25: Use one authenticated streaming file-session transport with fixed operation routes and URL-owned query encoding; its backend cleanup task outlives cancelled close waits, so node guards can stay held through guest retirement without replaying a file mutation.
+
+- K25: Verify the non-root maintenance guest CID by explicitly binding and reading a library-owned vsock listener, retaining non-root/PID-1-parent checks; Linux rejects a nonlocal explicit CID, while the library’s device-query path opens root-only devtmpfs /dev/vsock. Keep device permissions and the root init’s original host-CID/device equality checks unchanged.

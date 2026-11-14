@@ -1,0 +1,18 @@
+{
+  "measurement": "First stopped-disk file-only runtime boots",
+  "result": "failed before agent readiness",
+  "attempts": [
+    {
+      "commit": "04ead4a",
+      "ci": "https://github.com/cubepals/pryx/actions/runs/43531094740",
+      "runtimeSecondsBeforeFailure": 15.4
+    },
+    {
+      "commit": "f967ed6",
+      "ci": "https://github.com/cubepals/pryx/actions/runs/43531398107",
+      "runtimeSecondsBeforeFailure": 15.36
+    }
+  ],
+  "failure": "The monitor exited during file-service bootstrap. These sources delete the failed temporary serial capture before retaining it.",
+  "otherChecks": "Both runs pass bundle/registry and six component boots; they do not prove the file-service boot."
+}

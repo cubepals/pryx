@@ -3125,3 +3125,24 @@ job when publication is authorized. That job has not run in this task.
   are still active and GitHub's job-log endpoint currently returns 404. Read that completed
   failure as soon as the log is published. Do not infer the cause or a successful file guest.
   Scanner remains eighteen addressed comments. Continue K25 node-session integration.
+
+
+- Read completed failed file-service runs 43531094740/job 132248711101 at 04ead4a and
+  43531398107/job 132249720572 at f967ed6: both reach open_files, then the monitor exits
+  during bootstrap (15.40/15.36 s into runtime acceptance). Their component boots, bundle and
+  registry checks pass. Summary: checks/measurements/k25/file-bootstrap-04ead4a-f967ed6.json.
+- Correct a concrete non-root identity bug: vsock 0.5.5 get_local_cid opens /dev/vsock, whose
+  published kernel misc device has no mode override and devtmpfs defaults to root-only 0600.
+  Instead explicitly bind the expected guest CID at the library’s any-port value and require
+  the socket’s actual CID to match; the published kernel rejects non-local explicit CIDs.
+  Keep non-root/PID-1-parent checks, the root init’s device/host-peer CID checks and all device
+  permissions. Local host-refusal acceptance passes before any socket/device access. CI must
+  still establish the positive guest boot; do not infer that it does from this diagnosis.
+- Startup failures now retire the owned monitor and drain its serial capture before the
+  temporary directory disappears in test builds; preserve the original startup error/deadline.
+  Full local current Rust: 509 passes, the unchanged IPv6 failure and 34 ignored. Strict Clippy
+  modes/fmt and daemon length probe pass. An earlier diagnostic-only full run also hit a real
+  TCP connect timeout in the existing handshake-cap test after 135.10 s; preserve that failure.
+  The current full run passes that test without changing it. Scanner stays eighteen addressed
+  comments. Next finish node-session/retained-data access, including stream-duration handling,
+  while real KVM CI verifies this correction. K25 is still in progress.

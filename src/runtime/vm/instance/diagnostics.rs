@@ -10,6 +10,15 @@ pub(super) fn retain(serial: &Path, secrets: &[String]) {
         eprintln!("VM runtime diagnostic retention failed: {problem}");
     }
 }
+pub(super) async fn failed(monitor: &mut Machine, serial: &Path, spec: &ContainerSpec) {
+    // A startup refusal never authorizes another boot. Retire the owned child and
+    // drain its final error before the temporary launch directory can disappear.
+    if monitor.exited().is_ok_and(|status| status.is_none()) {
+        let _ = tokio::time::timeout(crate::runtime::ENGINE_PROBE_TIMEOUT, monitor.kill()).await;
+    }
+    let _ = tokio::time::timeout(crate::runtime::ENGINE_PROBE_TIMEOUT, monitor.finish_serial()).await;
+    retain(serial, &spec.env.iter().map(|(_, value)| value.clone()).collect::<Vec<_>>());
+}
 fn retain_to(output: &Path, serial: &Path, secrets: &[String]) -> Result<PathBuf, RuntimeError> {
     directory(output)?;
     let mut file =

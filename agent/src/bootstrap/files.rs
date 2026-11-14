@@ -3,16 +3,29 @@
 //! No image command, tools, spare forwarding, persistent logs or activity reaper starts here.
 use super::*;
 
+fn guest_identity(cid: u32) -> io::Result<()> {
+    if !crate::vm_boot::guest_cid(cid)
+        || rustix::process::getppid() != Some(rustix::process::Pid::INIT)
+        || rustix::process::geteuid().is_root()
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "VM file service requires its trusted non-root guest agent",
+        ));
+    }
+    // Linux af_vsock.c::__vsock_bind rejects a non-local explicit CID. Unlike
+    // get_local_cid(), binding an unprivileged port needs no root-only /dev/vsock open.
+    let socket = vsock::VsockListener::bind(&vsock::VsockAddr::new(cid, libc::VMADDR_PORT_ANY))?;
+    if socket.local_addr()?.cid() != cid {
+        return Err(io::Error::new(io::ErrorKind::PermissionDenied, "VM file service CID differs from its socket"));
+    }
+    Ok(())
+}
+
 impl Bootstrap {
     pub(super) async fn serve_files(self) -> Result<i32, Box<dyn std::error::Error>> {
         let cid = self.vm_cid.ok_or("VM file service is missing its guest CID")?;
-        if !crate::vm_boot::guest_cid(cid)
-            || vsock::get_local_cid()? != cid
-            || rustix::process::getppid() != Some(rustix::process::Pid::INIT)
-            || rustix::process::geteuid().is_root()
-        {
-            return Err("VM file service requires its trusted non-root guest agent".into());
-        }
+        guest_identity(cid)?;
         let bindings = self.bindings(false)?;
         let encoded = std::env::var(&self.secret_env).map_err(|_| "Agent signing material is missing")?;
         let key = SigningKey::from_encoded(&encoded)?;
@@ -49,6 +62,15 @@ impl Bootstrap {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn file_service_identity_refuses_the_host_before_opening_a_socket() {
+        assert_ne!(rustix::process::getppid(), Some(rustix::process::Pid::INIT));
+        assert_eq!(
+            guest_identity(tokio_vsock::VMADDR_CID_HOST + 1).unwrap_err().kind(),
+            io::ErrorKind::PermissionDenied
+        );
+        assert!(guest_identity(tokio_vsock::VMADDR_CID_HOST).is_err());
+    }
     #[test]
     fn files_only_parser_refuses_host_and_workload_bootstraps() {
         let port = crate::contract::AGENT_PORT.to_string();

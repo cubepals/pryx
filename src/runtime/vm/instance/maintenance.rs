@@ -107,9 +107,17 @@ impl VmRuntime {
         )
         .await?;
         entry.spec.ports[0].host_port = forwarder.addresses()[0].port();
-        monitor.delivered(deadline).await?;
-        launch::ready(&mut monitor, &entry.spec, deadline).await?;
-        monitor.bootstrapped(deadline).await?;
+        let readiness = async {
+            monitor.delivered(deadline).await?;
+            launch::ready(&mut monitor, &entry.spec, deadline).await?;
+            monitor.bootstrapped(deadline).await
+        }
+        .await;
+        #[cfg(test)]
+        if readiness.is_err() {
+            diagnostics::failed(&mut monitor, &serial, &entry.spec).await;
+        }
+        readiness?;
         #[cfg(test)]
         let diagnostic_secrets = entry.spec.env.iter().map(|(_, value)| value.clone()).collect();
         Ok(FileGuest {
