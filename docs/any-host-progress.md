@@ -4400,3 +4400,11 @@ job when publication is authorized. That job has not run in this task.
   complete source/notices/relinking inputs, composed self-process bounds for jailed monitors,
   whole bundle integration and actual hardware replay remain. No new CI job/gate or minutes
   are added by these build-only tools yet; GNU is not selected in the current distribution.
+
+- Apply the existing self-process signal/resource bounds to jailed monitors too, preserving
+  their setup socket permissions. A real child-process SIG0 probe reproduces the previous
+  ability to signal its parent and now receives the kernel's EPERM after entering the filter.
+  The native monitor's confined GNU policy remains an isolated build prototype.
+- Full Rust: 537 pass, unchanged host IPv6 fixture failure, 43 ignored. Strict all-target
+  Clippy, minimal-agent build, formatting and whitespace pass. No new dependency, job, gate
+  or estimated CI minute; actual jailed monitor boot remains hardware evidence to collect.

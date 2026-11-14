@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! The monitor inherits its kernel lease on stdin through the unchanged jailer. Prevent
-//! closing, overwriting, unlocking or marking that descriptor close-on-exec. Ordinary-user
-//! monitors also cannot signal another process, change its limits or create network sockets.
+//! closing, overwriting, unlocking or marking that descriptor close-on-exec. Every monitor
+//! is denied cross-process signals and limit changes; ordinary monitors also cannot create
+//! network sockets.
 //! Packet proxies inherit one private listener and may create only outbound Internet sockets.
 use seccompiler::{
     BpfProgram, SeccompAction, SeccompCmpArgLen, SeccompCmpOp, SeccompCondition, SeccompFilter, SeccompRule,
@@ -39,30 +40,30 @@ pub(super) fn enter(jailer: bool, packet_proxy: bool) -> Result<(), Box<dyn std:
             condition(2, SeccompCmpOp::MaskedEq(libc::FD_CLOEXEC as u64), libc::FD_CLOEXEC as u32),
         ])?],
     );
+    for syscall in [
+        libc::SYS_kill,
+        libc::SYS_tkill,
+        libc::SYS_rt_sigqueueinfo,
+        libc::SYS_pidfd_send_signal,
+        libc::SYS_setpriority,
+        libc::SYS_sched_setparam,
+        libc::SYS_sched_setattr,
+        libc::SYS_sched_setaffinity,
+        libc::SYS_sched_setscheduler,
+    ] {
+        rules.insert(syscall, vec![]);
+    }
+    for syscall in [libc::SYS_tgkill, libc::SYS_rt_tgsigqueueinfo] {
+        rules.insert(syscall, vec![rule(0, SeccompCmpOp::Ne, std::process::id())]);
+    }
+    rules.insert(
+        libc::SYS_prlimit64,
+        vec![SeccompRule::new(vec![
+            condition(0, SeccompCmpOp::Ne, 0),
+            condition(0, SeccompCmpOp::Ne, std::process::id()),
+        ])?],
+    );
     if !jailer {
-        for syscall in [
-            libc::SYS_kill,
-            libc::SYS_tkill,
-            libc::SYS_rt_sigqueueinfo,
-            libc::SYS_pidfd_send_signal,
-            libc::SYS_setpriority,
-            libc::SYS_sched_setparam,
-            libc::SYS_sched_setattr,
-            libc::SYS_sched_setaffinity,
-            libc::SYS_sched_setscheduler,
-        ] {
-            rules.insert(syscall, vec![]);
-        }
-        for syscall in [libc::SYS_tgkill, libc::SYS_rt_tgsigqueueinfo] {
-            rules.insert(syscall, vec![rule(0, SeccompCmpOp::Ne, std::process::id())]);
-        }
-        rules.insert(
-            libc::SYS_prlimit64,
-            vec![SeccompRule::new(vec![
-                condition(0, SeccompCmpOp::Ne, 0),
-                condition(0, SeccompCmpOp::Ne, std::process::id()),
-            ])?],
-        );
         let domains: &[i32] = if packet_proxy { &[libc::AF_INET, libc::AF_INET6] } else { &[libc::AF_UNIX] };
         rules.insert(
             libc::SYS_socket,
@@ -85,4 +86,30 @@ pub(super) fn enter(jailer: bool, packet_proxy: bool) -> Result<(), Box<dyn std:
     .try_into()?;
     crate::syscall_abi::apply(&program)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn jailed_monitor_cannot_signal_its_parent() {
+        const CHILD: &str = "PRYX_JAILED_SIGNAL_FILTER_CHILD";
+        if std::env::var_os(CHILD).is_some() {
+            let parent = rustix::process::getppid().unwrap();
+            assert!(rustix::process::test_kill_process(parent).is_ok());
+            super::enter(true, false).unwrap();
+            assert_eq!(rustix::process::test_kill_process(parent), Err(rustix::io::Errno::PERM));
+            return;
+        }
+        let child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "vm_monitor::filter::tests::jailed_monitor_cannot_signal_its_parent"])
+            .env(CHILD, "on")
+            .output()
+            .unwrap();
+        assert!(
+            child.status.success(),
+            "{}{}",
+            String::from_utf8_lossy(&child.stdout),
+            String::from_utf8_lossy(&child.stderr)
+        );
+    }
 }
