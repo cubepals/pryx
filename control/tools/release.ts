@@ -44,37 +44,12 @@ for (const [source, name] of [
   })
   if (result.exitCode !== 0) throw new Error(`${name} compilation failed`)
 }
-const sdk = Bun.spawnSync(
-  [
-    'bun',
-    'build',
-    'sdk/typescript/src/index.ts',
-    '--target',
-    'node',
-    '--format',
-    'esm',
-    '--outfile',
-    'sdk/typescript/dist/index.js',
-  ],
-  { cwd: root, stdout: 'inherit', stderr: 'inherit' },
-)
-if (sdk.exitCode !== 0) throw new Error('SDK JavaScript build failed')
-const provider = Bun.spawnSync(
-  [
-    'bun',
-    'build',
-    'sdk/typescript/src/provider.ts',
-    '--target',
-    'node',
-    '--format',
-    'esm',
-    '--packages=external',
-    '--outfile',
-    'sdk/typescript/dist/provider.js',
-  ],
-  { cwd: root, stdout: 'inherit', stderr: 'inherit' },
-)
-if (provider.exitCode !== 0) throw new Error('SDK provider build failed')
+const sdk = Bun.spawnSync(['bun', 'run', '--cwd', 'sdk/typescript', 'build'], {
+  cwd: root,
+  stdout: 'inherit',
+  stderr: 'inherit',
+})
+if (sdk.exitCode !== 0) throw new Error('SDK build failed')
 const assets = join(root, 'target/release-assets/control')
 mkdirSync(assets, { recursive: true })
 cpSync(join(root, 'control/src/schema/migrations'), join(assets, 'migrations'), { recursive: true })
