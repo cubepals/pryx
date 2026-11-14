@@ -1,0 +1,10 @@
+{
+  "sourceCommit": "664ee6a",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43621829784",
+  "job": 132530476908,
+  "artifact": 14125675136,
+  "ran": "Unchanged separate systemd root TAP fixture and actual kernel credential observations",
+  "result": "Ordinary child spawn fails EPERM: UID/GID root, CAP_SETGID effective, CAP_SETUID absent, no-new-privileges enabled, initial user namespace",
+  "notProved": "Separate root lifecycle, gateway unit, production worker and root guest packets",
+  "next": "Avoid the redundant explicit root identity transition while retaining all service restrictions and empty ambient capabilities"
+}

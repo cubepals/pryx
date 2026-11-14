@@ -1213,3 +1213,5 @@
 - K25: move the unchanged DHCP lease application into its own guest network module before adding the host-selected static TAP path; retain the maintained DHCP client, every lease validation and the no-follow resolver write.
 
 - K25: reuse already pinned ipnet 2.12.2 (MIT OR Apache-2.0, select MIT) in the optional agent server for static IPv4 prefix validation; add an optional omitted-by-default private TAP configuration and executable parser advertisement, verify the actual guest helper's advertisement while building bootstrap, and keep the existing DHCP/vsock path unchanged.
+
+- K25: omit the redundant User=root and Group=root transition in the separate system authority fixture; systemd v255 src/core/exec-invoke.c keep_seccomp_privileges drops CAP_SETUID after an explicit user transition when ambient capabilities are empty, matching the actual failed capget. System services still default to root and both fixtures assert root; retain the exact capability ceiling, empty ambient set and every other restriction.

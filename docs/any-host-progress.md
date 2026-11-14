@@ -4084,3 +4084,15 @@ job when publication is authorized. That job has not run in this task.
   root/static preparation. Source de33b82 VM run 43620061908 again fails only the same
   bounded-root-authority ordinary child spawn; retain the restrictions and await the typed
   credential observation already pushed. Scanner remains eighteen.
+
+- Source 664ee6a VM run 43621829784/job 132530476908 retains decisive capget evidence:
+  the service has root UID/GID and effective SETGID, but not SETUID; no-new-privileges is on.
+  Artifact 14125675136, summary checks/measurements/k25/authority-664ee6a.json.
+  Systemd v255's actual exec-invoke source identifies its explicit-user/seccomp setup path
+  dropping SETUID with empty ambient capabilities. Omit the redundant explicit root user/group
+  transition; system services still default to root and both actual fixtures require root.
+  Keep the exact capability ceiling, empty ambient set, devices and every other restriction;
+  retain the actual systemd version and profile even on failure. Production authority remains off.
+- Python syntax/CLI, actionlint with ShellCheck and whitespace pass for this fixture correction.
+  No local root/systemd/KVM success is claimed and no CI time/job/gate is added. Push immediately
+  without holding this fix for the older run. Scanner remains eighteen.

@@ -48,8 +48,11 @@ def main():
             (source / 'pryx-vm-linux-x64.tar.gz', 'runtime.tar.gz', '444'),
         ]:
             run('sudo', 'install', '-m', mode, str(original), str(programs / target))
+        # A system service defaults to root. Avoid a redundant identity transition:
+        # systemd drops CAP_SETUID during its temporary seccomp-authority setup after
+        # explicit User= even for root (v255 src/core/exec-invoke.c). Ambient stays empty.
         properties = [
-            'Type=exec', 'User=root', 'Group=root', 'NoNewPrivileges=yes',
+            'Type=exec', 'NoNewPrivileges=yes',
             'ProtectSystem=strict', 'ProtectHome=yes', 'PrivateTmp=yes', 'PrivateDevices=no',
             'ProtectKernelTunables=yes', 'ProtectKernelModules=yes', 'ProtectKernelLogs=yes',
             'ProtectControlGroups=yes', 'ProtectClock=yes', 'ProtectHostname=yes',
@@ -68,6 +71,10 @@ def main():
             'PRYX_VM_RUNTIME_ARCHIVE': str(programs / 'runtime.tar.gz'),
             'PRYX_VM_RUNTIME_DIAGNOSTICS': str(state / 'diagnostics'),
         }
+        observed = subprocess.check_output(['systemd', '--version'], text=True).splitlines()[0]
+        (args.work / 'profile.json').write_text(json.dumps({
+            'systemd': observed, 'properties': properties, 'defaultSystemIdentity': 'root',
+        }, indent=2) + '\n')
         base = ['sudo', 'systemd-run', '--quiet', '--wait', '--pipe', '--collect']
         for property in properties:
             base += ['--property', property]
@@ -88,7 +95,6 @@ def main():
         # A passing command is not enough: require the actual Rust test to have executed.
         if '1 passed; 0 failed' not in (args.work / 'runtime.log').read_text():
             raise ValueError('The authority fixture did not execute the real lifecycle')
-        observed = subprocess.check_output(['systemd', '--version'], text=True).splitlines()[0]
         (args.work / 'summary.json').write_text(json.dumps({
             'systemd': observed, 'mainUnitChanged': False, 'separateTap': True,
             'separateRootRuntime': True, 'images': 2, 'properties': properties,
