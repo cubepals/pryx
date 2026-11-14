@@ -8,7 +8,7 @@
 // original licence texts; cmd/tap-probe/main.go checks actual
 // device creation, ordinary-owner open and identity-bound cleanup in the existing VM CI job.
 // scope.go owns one private TAP and local addressing; listeners.go binds actual gateway
-// descriptors there; cmd/tap-probe/gateways.go checks serving them in the parent namespace.
+// descriptors there; credentials.go reads actual drop-user authority on fixture failure; cmd/tap-probe/gateways.go checks serving them in the parent namespace.
 package rootnetwork
 
 import "github.com/containernetworking/cni/pkg/types"

@@ -4054,3 +4054,12 @@ job when publication is authorized. That job has not run in this task.
   pinned Go test/build/vet, Python syntax, actionlint with ShellCheck and whitespace pass
   locally; actual namespace listener validation remains pending in CI. Under one optional
   extra second, no ordinary PR time, dependency, job or gate.
+- Source f7f0b91 VM run 43619323673/job 132523023996 fails only the new bounded
+  authority fixture: TAP setup proceeds, but its ordinary-monitor child exec returns
+  EPERM. Read the retained vm-root-authority/tap.log from artifact 14124201404; the actual
+  unit root lifecycle has not executed. Summary: checks/measurements/k25/authority-f7f0b91.json.
+  Keep every unit restriction and the required ordinary identity. Add typed kernel
+  credential/capability/no-new-privileges observations to that existing error path to
+  determine why it fails. No environment, private record or guest credential is logged.
+  Pinned Go test/build/vet and formatting pass; no root success is claimed. No added CI
+  work beyond the existing failure observation; scanner remains eighteen.

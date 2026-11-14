@@ -167,7 +167,8 @@ func probe(directory string, uid, gid uint32) error {
 		child := exec.CommandContext(ctx, executable, "--open", name)
 		child.SysProcAttr = &syscall.SysProcAttr{Credential: &syscall.Credential{Uid: uid, Gid: gid, Groups: []uint32{}}}
 		if output, err := child.CombinedOutput(); err != nil {
-			return fmt.Errorf("Ordinary monitor TAP open: %w: %s", err, output)
+			observed, _ := json.Marshal(rootnetwork.Credentials())
+			return fmt.Errorf("Ordinary monitor TAP open: %w: %s; actual parent authority: %s", err, output, observed)
 		}
 		return nil
 	}); err != nil {

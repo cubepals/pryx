@@ -169,7 +169,8 @@ func gatewayProbe(directory string, uid, gid uint32) error {
 		child := exec.CommandContext(ctx, executable, "--gateway-client", net.JoinHostPort(scope.Profile.Host, fmt.Sprint(ports.HTTP)), "--proof", proof)
 		child.SysProcAttr = &syscall.SysProcAttr{Credential: &syscall.Credential{Uid: uid, Gid: gid, Groups: []uint32{}}}
 		if output, err := child.CombinedOutput(); err != nil {
-			return fmt.Errorf("Ordinary namespace client: %w: %s", err, output)
+			observed, _ := json.Marshal(rootnetwork.Credentials())
+			return fmt.Errorf("Ordinary namespace client: %w: %s; actual parent authority: %s", err, output, observed)
 		}
 		return nil
 	})

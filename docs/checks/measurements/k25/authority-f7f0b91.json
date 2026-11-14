@@ -1,0 +1,10 @@
+{
+  "source": "f7f0b9155b823199fb4b60a6ec1dd76268d1fcb5",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43619323673",
+  "job": 132523023996,
+  "result": "failure in the new authority fixture only",
+  "ran": "TAP creation inside the separately hardened systemd authority, then attempted fixed ordinary-identity monitor open; existing direct VM/CNI/node cases continue independently",
+  "authority_result": "Go credential-changing child exec returns EPERM before the ordinary monitor opens the TAP; actual capability/credential observations are added without changing hardening or drop-user assertions",
+  "unproved": "The separate authority root lifecycle and production worker; root packet/firewall, signed installed relocation, edge and production measurements",
+  "raw_output": "CI artifacts only, including vm-root-authority/tap.log"
+}
