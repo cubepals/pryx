@@ -82,7 +82,10 @@ export async function upImage(args: string[], domain: string, run: InstallComman
       Object.entries(process.env).filter(
         ([key, value]) =>
           value !== undefined &&
-          (key === 'DATABASE_URL' || /^S3_(ENDPOINT|BUCKET|ACCESS_KEY|SECRET_KEY)$/.test(key)),
+          (key === 'DATABASE_URL' ||
+            key === 'PRYX_BOOTSTRAP_API_KEY' ||
+            key === 'PRYX_HOSTING_PLATFORM' ||
+            /^S3_(ENDPOINT|BUCKET|ACCESS_KEY|SECRET_KEY)$/.test(key)),
       ),
     ) as Record<string, string>),
   }

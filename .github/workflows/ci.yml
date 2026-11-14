@@ -443,6 +443,13 @@ jobs:
         run: |
           python3 -m venv .venv-agent-python
           .venv-agent-python/bin/pip install -e sdk/python
+      - name: Validate hosting files and run welcome callers
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cloud-init
+          bun control/tools/hosting-validate.ts
+          bun control/bench/hosting-image.ts
       # These carry the same condition as the suite they feed: a live Hetzner failure above must
       # not skip them, or the suite runs without its images and fails for the wrong reason.
       - name: Prepare native tool host policy
