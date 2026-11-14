@@ -4025,3 +4025,13 @@ job when publication is authorized. That job has not run in this task.
   scoped root listener ownership. The caller retains its existing locked-thread scope;
   no behavior or assertion changes. Pinned Go build and vet, formatting and whitespace
   pass. No new dependency, job or CI time; root execution remains the existing hosted case.
+- Prepare root listener ownership without changing the production root refusal: create
+  anonymous namespaces on dedicated locked OS threads so a failed restoration can never
+  change a reusable caller thread, and send bounded metadata plus actual descriptors
+  with the maintained Unix SCM_RIGHTS codec. The existing TAP acceptance remains.
+- A new ordinary-user real-socket check proves the receiver still serves unpredictable
+  bytes after the producer closes every original listener descriptor, and that received
+  authority has close-on-exec set. Pinned Go test/vet/build and complete unchanged notice
+  inventory pass locally. The existing root-network build phase now runs that real-kernel
+  test in CI too (under one second, no new dependency/job/gate). Namespace, actual root
+  gateway listeners and packet/firewall integration still need hosted proof.

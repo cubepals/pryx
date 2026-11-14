@@ -66,6 +66,7 @@ case "${1:?Name one VM build phase}" in
     "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-root-cni/tap" github.com/containernetworking/plugins/plugins/main/tap
     "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-root-tap-probe" ./cmd/tap-probe
     "$pryx_go" vet ./cmd/tap-probe
+    "$pryx_go" test -mod=readonly ./...
     "$pryx_go" mod verify
     ;;
   bootstrap)
