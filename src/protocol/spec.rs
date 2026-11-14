@@ -46,6 +46,7 @@ pub enum Isolation {
     Container,
     Process,
     Wasm,
+    Vm,
 }
 impl Isolation {
     pub fn from_name(name: &str) -> Option<Self> {
@@ -53,6 +54,7 @@ impl Isolation {
             "container" => Some(Self::Container),
             "process" => Some(Self::Process),
             "wasm" => Some(Self::Wasm),
+            "vm" => Some(Self::Vm),
             _ => None,
         }
     }
@@ -62,6 +64,7 @@ impl Isolation {
             Self::Container => "container",
             Self::Process => "process",
             Self::Wasm => "wasm",
+            Self::Vm => "vm",
         }
     }
 }

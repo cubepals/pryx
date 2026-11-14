@@ -185,3 +185,26 @@ test('tool requirements reject unknown names and network-none before placement',
   expect(() => makeSchema.parse({ requiredTools: ['unannounced'] })).toThrow()
   expect(() => makeSchema.parse({ network: 'none', requiredTools: ['ssh'] })).toThrow('network-none')
 })
+
+test('VM specs are never sent before the matching tier announcement', async () => {
+  const bodies: Record<string, unknown>[] = []
+  const api = new WorkloadApi({
+    async call<T>(...args: unknown[]): Promise<T> {
+      bodies.push((args[3] as { body: Record<string, unknown> }).body)
+      return {} as T
+    },
+  })
+  const node = { id: 'node', api_address: 'https://node.test', features: [] as string[] }
+  for (const features of [
+    [],
+    ['multi-tier'],
+    ['multi-tier', 'tier-container', 'tier-process', 'tier-wasm'],
+  ]) {
+    await expect(api.put({ ...node, features }, 'box', { ...spec, isolation: 'vm' }, 1)).rejects.toThrow('vm')
+    expect(bodies).toHaveLength(0)
+  }
+  await api.put({ ...node, features: ['multi-tier', 'tier-vm'] }, 'box', { ...spec, isolation: 'vm' }, 1)
+  expect(bodies).toHaveLength(1)
+  expect(bodies[0]?.isolation).toBe('vm')
+  expect(bodies[0]?.image).toBe(spec.image)
+})

@@ -4804,7 +4804,8 @@
             "enum": [
               "container",
               "process",
-              "wasm"
+              "wasm",
+              "vm"
             ]
           },
           "files": {
@@ -5675,7 +5676,8 @@
             "enum": [
               "container",
               "process",
-              "wasm"
+              "wasm",
+              "vm"
             ]
           },
           "require": {
@@ -6272,7 +6274,8 @@
                 "enum": [
                   "container",
                   "process",
-                  "wasm"
+                  "wasm",
+                  "vm"
                 ]
               },
               "require": {
@@ -6577,7 +6580,8 @@
                 "enum": [
                   "container",
                   "process",
-                  "wasm"
+                  "wasm",
+                  "vm"
                 ]
               },
               "repoImage": {

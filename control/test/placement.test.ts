@@ -6,6 +6,7 @@
 
 import { describe, expect, test } from 'bun:test'
 import contract from '../../openapi/node-writes.openapi.json'
+import { ISOLATIONS } from '../src/isolation.ts'
 import {
   cpuRequest,
   DEFAULTS,
@@ -94,8 +95,11 @@ describe('selectNode', () => {
     const wasm = node('wasm', { features: ['placement-epochs', 'wasm-tier', 'wasm-packages'] })
     const process = node('process', { features: ['placement-epochs', 'process-tier'] })
     const container = node('container')
-    for (const isolation of ['container', 'process', 'wasm'] as const) {
-      const chosen = selectNode(request({ isolation }), [wasm, process, container]).node
+    const vm = node('vm', { features: ['placement-epochs', 'multi-tier', 'tier-vm'] })
+    expect(selectNode(request({ isolation: 'vm' }), [wasm, process, container]).node).toBeNull()
+    expect(selectNode(request({ isolation: 'container' }), [vm]).node).toBeNull()
+    for (const isolation of ISOLATIONS) {
+      const chosen = selectNode(request({ isolation }), [vm, wasm, process, container]).node
       expect(chosen?.id).toBe(isolation)
     }
     const old = node('wasm-old', { features: ['placement-epochs', 'wasm-tier'] })
@@ -320,12 +324,13 @@ test('mixed tiers share capacity and keep enforcement scoped to the requested ti
       'tier-container',
       'tier-process',
       'tier-wasm',
+      'tier-vm',
       'private-network',
       'tier-container:private-network',
       'tier-container:cpu-limit',
     ],
   })
-  for (const isolation of ['container', 'process', 'wasm'] as const)
+  for (const isolation of ISOLATIONS)
     expect(selectNode(request({ isolation }), [mixed]).node?.id).toBe('mixed')
   expect(
     selectNode(request({ isolation: 'container', require: ['private-network'] }), [mixed]).node?.id,
@@ -337,8 +342,7 @@ test('mixed tiers share capacity and keep enforcement scoped to the requested ti
     expect(selectNode(request({ isolation, cpuLimits: true }), [mixed]).node).toBeNull()
   }
   mixed.running.memoryMb = mixed.capacity.allocatableMemoryMb
-  for (const isolation of ['container', 'process', 'wasm'] as const)
-    expect(selectNode(request({ isolation }), [mixed]).node).toBeNull()
+  for (const isolation of ISOLATIONS) expect(selectNode(request({ isolation }), [mixed]).node).toBeNull()
 })
 
 test('backend capabilities cannot leak from another tier on the same node', () => {

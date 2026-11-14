@@ -203,7 +203,9 @@ export async function sandbox(args: string[]): Promise<unknown> {
 export async function run(args: string[]) {
   const split = args.indexOf('--')
   if (split < 0 || split === args.length - 1)
-    throw new Error('run [--image <image>] [--isolation container|process|wasm] [--snapshot] -- <command...>')
+    throw new Error(
+      'run [--image <image>] [--isolation container|process|wasm|vm] [--snapshot] -- <command...>',
+    )
   const client = publicClient()
   const made = await client.sandbox({
     ...makeRequest(args.slice(0, split)),

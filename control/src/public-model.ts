@@ -33,7 +33,7 @@ const networkNeeds = (body: Partial<Pick<Make, 'network'>>) =>
   body.network === 'none' ? [nodeSchema['x-pryx-network'].policyFeature] : []
 
 function validateImage(tier: Isolation, image?: string) {
-  if (tier === 'container' || !image) return
+  if (tier === 'container' || tier === 'vm' || !image) return
   const problem =
     tier === 'wasm' ? nodeSchema['x-pryx-wasm'].imageProblem : nodeSchema['x-pryx-process'].imageProblem
   z.object({ image: z.never({ error: problem }) }).parse({ image })
@@ -60,7 +60,7 @@ export class PublicModel {
     if (typeof this.defaultIsolation === 'string') return this.defaultIsolation
     const order = this.defaultIsolation.filter(
       (tier) =>
-        (body.image ? tier === 'container' : tier !== 'container') &&
+        (body.image ? tier === 'container' || tier === 'vm' : tier !== 'container' && tier !== 'vm') &&
         (!body.packages?.length || tier === 'wasm'),
     )
     const needs = [...networkNeeds(body), ...toolFeatures(body.requiredTools)]
@@ -207,7 +207,7 @@ export class PublicModel {
           requiredTools: body.requiredTools ?? source?.requiredTools,
         },
       ))
-    if (sources === 0 && isolation === 'container')
+    if (sources === 0 && (isolation === 'container' || isolation === 'vm'))
       throw new SandboxError('invalid_request', 'Choose exactly one of image, snapshot or template')
     // The tier a snapshot or template carries counts, so a container template stays mountable on
     // a deployment whose default tier is another.

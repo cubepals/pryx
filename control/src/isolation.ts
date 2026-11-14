@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Public isolation choices and the capability announced by a node running each backend. */
+import nodeReads from '../../openapi/node-reads.openapi.json'
 import nodeSchema from '../../openapi/node-writes.openapi.json'
+import type { components } from './generated/node-reads.ts'
 
 export const CPU_LIMIT_PROBLEM = nodeSchema['x-pryx-resources'].cpuLimitProblem
-export const ISOLATIONS = ['container', 'process', 'wasm'] as const
-export type Isolation = (typeof ISOLATIONS)[number]
+export type Isolation = components['schemas']['Isolation']
+export const ISOLATIONS = nodeReads.components.schemas.Isolation.enum as [Isolation, ...Isolation[]]
 export type IsolationDefault = Isolation | readonly Isolation[]
 // The VM priority is inserted when that backend is available (K25).
 export const DEFAULT_ISOLATION_ORDER: readonly Isolation[] = ['container', 'process', 'wasm']
 export const isolationOrder = (preference: IsolationDefault) =>
   typeof preference === 'string' ? [preference] : preference
 export function nodeIsolation(features: readonly string[]): Isolation {
+  if (features.includes('vm-tier')) return 'vm'
   if (features.includes('wasm-tier')) return 'wasm'
   return features.includes('process-tier') ? 'process' : 'container'
 }

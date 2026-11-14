@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
-// Generated from openapi/node-reads.openapi.json; sha256 707a24125fbb2c362b937dbf8725388f8517b1767a8371240d991a9f96e32b2c.
+// Generated from openapi/node-reads.openapi.json; sha256 f53355447763dc6bb563b8d3f8802f643d6ba3f7f04e64448160fc6f30fdbb44.
 export type paths = Record<string, never>;
 export type webhooks = Record<string, never>;
 export interface components {
@@ -141,7 +141,7 @@ export interface components {
          * @description The backend a workload asks for. An omitted choice retains the host's default.
          * @enum {string}
          */
-        Isolation: "container" | "process" | "wasm";
+        Isolation: "container" | "process" | "wasm" | "vm";
         /** @enum {string} */
         NetworkMode: "internet" | "none";
         /**

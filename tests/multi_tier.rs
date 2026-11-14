@@ -11,7 +11,7 @@ fn spec(tier: Option<&str>) -> pryxd::protocol::WorkloadSpec {
     let mut value = support::spec_json();
     if let Some(tier) = tier {
         value["isolation"] = tier.into();
-        if tier != "container" {
+        if !matches!(tier, "container" | "vm") {
             value["image"] = "".into();
         }
     }
@@ -25,13 +25,14 @@ async fn tiers_share_one_manager_and_keep_their_identity_after_restart() {
     let container = Arc::new(FakeRuntime::new());
     let process = Arc::new(FakeRuntime::new().with_isolation(Isolation::Process));
     let wasm = Arc::new(FakeRuntime::new().with_isolation(Isolation::Wasm));
-    let router = Arc::new(Router::new(vec![container.clone(), process.clone(), wasm.clone()]).unwrap());
+    let vm = Arc::new(FakeRuntime::new().with_isolation(Isolation::Vm));
+    let router = Arc::new(Router::new(vec![container.clone(), process.clone(), wasm.clone(), vm.clone()]).unwrap());
     let manager = support::manager_on(dir.path(), router, "runtime = 'auto'");
     assert!(manager.reconcile(Records::FromDisk).await.error.is_none());
     let legacy = spec(None);
     let digest = legacy.record().digest();
     manager.ensure(support::id("legacy"), legacy, Precondition::None, None).await.unwrap();
-    for tier in ["container", "process", "wasm"] {
+    for tier in ["container", "process", "wasm", "vm"] {
         let id = support::id(tier);
         manager.ensure(id.clone(), spec(Some(tier)), Precondition::None, None).await.unwrap();
         manager.start(id.clone(), None).await.unwrap();
@@ -44,11 +45,12 @@ async fn tiers_share_one_manager_and_keep_their_identity_after_restart() {
     assert_eq!(container.count_calls("create "), 2);
     assert_eq!(process.count_calls("create "), 1);
     assert_eq!(wasm.count_calls("create "), 1);
+    assert_eq!(vm.count_calls("create "), 1);
     let refused = manager.ensure(support::id("process"), spec(Some("wasm")), Precondition::None, None).await;
     tier_refusal(refused.unwrap_err(), "process");
     assert_eq!(wasm.count_calls("create "), 1);
     drop(manager);
-    let router = Arc::new(Router::new(vec![wasm.clone(), process.clone(), container.clone()]).unwrap());
+    let router = Arc::new(Router::new(vec![vm.clone(), wasm.clone(), process.clone(), container.clone()]).unwrap());
     let restarted = support::manager_on(dir.path(), router, "runtime = 'auto'");
     assert!(restarted.reconcile(Records::FromDisk).await.error.is_none());
     let mut no_choice = serde_json::to_value(spec(Some("process")).record()).unwrap();

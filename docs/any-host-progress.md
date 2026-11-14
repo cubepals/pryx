@@ -3839,3 +3839,22 @@ job when publication is authorized. That job has not run in this task.
   failure and 39 ignored; strict all-target Clippy, pinned static Go build/vet, formatting
   and whitespace pass. No production deadline, retry, confinement, expectation, dependency
   or job/gate changes; real corrected network and jail identity proof remain CI-only.
+- API foundation checkpoint adds vm to the existing optional isolation enum, public
+  request/result types and both generated SDKs. Control takes the spelling list from
+  Rust's generated schema and sends a VM spec only after tier-vm is announced; a missing
+  VM tier refuses rather than selecting a container/process/Wasm backend. VM sources
+  require an image, snapshot or template. Extend existing placement and manager identity/
+  restart cases, and check feature gating before any node write. Host runtime selection
+  retains a named VM refusal and its existing default order; no backend is enabled.
+- Initial local TypeScript validation exposes imageTier's public Isolation return type
+  growing to include the still-unregistered backend. Narrow that host-selection type and
+  explicitly refuse VM overrides there, rather than letting installation reach an unknown
+  runtime. Preserve all existing preset checks.
+- API foundation validation: complete pinned Bun 1.4.4 check passes with real local
+  Postgres (438 tests, one existing compiled-assets skip, 8,429 assertions). Full Rust
+  has 529 passes, the unchanged IPv6 fixture failure and 39 ignored; strict all-target
+  Clippy and schema generation pass. Python runs 23 tests with its one existing skip;
+  both generated-client checks, documentation checks, fmt, actionlint with ShellCheck
+  and whitespace pass. Local structure-source acquisition returns HTTP 403; the actual
+  pinned structure gates remain required in CI. No new dependency/job/gate or material
+  CI time; none of these checks establishes production VM availability.

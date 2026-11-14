@@ -523,7 +523,7 @@ export interface components {
                 at?: string | null;
             };
             /** @enum {string} */
-            isolation?: "container" | "process" | "wasm";
+            isolation?: "container" | "process" | "wasm" | "vm";
             files?: boolean;
             agent?: {
                 url: string;
@@ -766,7 +766,7 @@ export interface components {
             ttl?: number;
             idle?: number;
             /** @enum {string} */
-            isolation?: "container" | "process" | "wasm";
+            isolation?: "container" | "process" | "wasm" | "vm";
             require?: ("separate-users" | "memory-limit" | "cpu-limit" | "private-network" | "host-firewall" | "own-kernel" | "memory-sleep" | "browser-sandbox" | "private-pids")[];
             requiredTools?: ("desktop" | "ssh")[];
             restart?: {
@@ -939,7 +939,7 @@ export interface components {
                 ttl?: number;
                 idle?: number;
                 /** @enum {string} */
-                isolation?: "container" | "process" | "wasm";
+                isolation?: "container" | "process" | "wasm" | "vm";
                 require?: ("separate-users" | "memory-limit" | "cpu-limit" | "private-network" | "host-firewall" | "own-kernel" | "memory-sleep" | "browser-sandbox" | "private-pids")[];
                 requiredTools?: ("desktop" | "ssh")[];
                 restart?: {
@@ -1008,7 +1008,7 @@ export interface components {
         Project: {
             defaults?: {
                 /** @enum {string} */
-                isolation: "container" | "process" | "wasm";
+                isolation: "container" | "process" | "wasm" | "vm";
                 repoImage: string;
             };
             id: string;

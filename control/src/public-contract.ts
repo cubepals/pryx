@@ -17,7 +17,7 @@ import {
 } from './api-schemas.ts'
 import { versionSchema } from './code-templates.ts'
 import { chunkWrite } from './file-chunks.ts'
-
+import { ISOLATIONS } from './isolation.ts'
 import { sshAddress, sshRequest } from './native-ssh.ts'
 import { agentSchema, fileInfoSchema } from './node-contract.ts'
 import { limitsSchema } from './project-model.ts'
@@ -50,9 +50,7 @@ export function publicContract() {
     Webhook: webhookViewSchema,
     WebhookCreated: webhookCreatedSchema,
     Project: z.object({
-      defaults: z
-        .object({ isolation: z.enum(['container', 'process', 'wasm']), repoImage: z.string() })
-        .optional(),
+      defaults: z.object({ isolation: z.enum(ISOLATIONS), repoImage: z.string() }).optional(),
       id: z.string(),
       name: z.string(),
       state: z.enum(['active', 'frozen', 'deleted']),
