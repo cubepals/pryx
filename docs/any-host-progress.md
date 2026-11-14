@@ -4276,3 +4276,21 @@ job when publication is authorized. That job has not run in this task.
   Ordinary networking's unchanged twenty-four-notice check, Python syntax/CLI, ShellCheck,
   actionlint and whitespace pass. Whole archive acceptance remains CI's. Estimate under one
   additional optional signed-build minute, zero normal PR minutes; no new job or gate.
+
+- Add the Rust root-scope consumer: query the protected executable's actual bounds/roles,
+  receive owned close-on-exec descriptors without unsafe code, validate namespace/private
+  listener topology, and serve the existing hostname gateways in the original namespace.
+  EOF requests helper retirement, never kills it; the independent reaper waits for the real
+  monitor lease and child exit, retaining resources if exit is unconfirmed. The Go owner
+  now advertises its existing descriptor bound; no node/public protocol changes.
+- The ordinary real-kernel regression rejects truncated rights and malformed metadata with
+  no leaked references to its unique inode. Full Rust: 534 pass, the unchanged host IPv6
+  fixture failure, 42 ignored (one new root case). Wasm passes despite retained shutdown
+  diagnostics in its raw local output. Strict all-target Clippy, explicit new-module
+  complexity/line scans, fmt, Go test/build, Python syntax, actionlint and whitespace pass.
+- Existing bounded-root CI now also executes the actual Rust consumer, performs an HTTP
+  hostname refusal from its adopted namespace with the standard Python client, verifies the
+  parent namespace is unchanged, and requires cleanup to wait for a held kernel monitor
+  lease. Both exact Rust replays must actually execute. This is gateway/ownership proof,
+  still not guest packet, installed worker or default-IP forwarding proof. Estimate under
+  five optional VM seconds, zero normal PR minutes and no new job/gate. Hosted result pending.

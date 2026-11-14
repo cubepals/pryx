@@ -14,6 +14,7 @@
 //! - `jail_tests.rs`: actual root inode/mount/ownership acceptance and ordinary-user refusal.
 //! - `network.rs`: owned confined packet helper and hostname gateways.
 //! - `network_tests.rs`: real helper readiness, refusal and cancellation acceptance.
+//! - `root_scope.rs`: root helper lifetime and adopted namespace/gateway authority.
 //! - `serial.rs`: bounded monitor byte capture, drained before proof validation.
 //! - `transport.rs`: bounded one-shot SDK requests over private pipes.
 //! - `forward.rs`: owned private-address streaming forwarding processes.
@@ -28,6 +29,7 @@ pub mod jail;
 pub mod machine;
 pub mod network;
 pub mod policy;
+pub mod root_scope;
 mod serial;
 pub mod transport;
 

@@ -75,6 +75,7 @@ def main():
             'PRYX_VM_RUNTIME_DESCRIPTOR': str(programs / 'vm-runtime.json'),
             'PRYX_VM_RUNTIME_ARCHIVE': str(programs / 'runtime.tar.gz'),
             'PRYX_VM_RUNTIME_DIAGNOSTICS': str(state / 'diagnostics'),
+            'PRYX_VM_ROOT_SCOPE_TEST_PROGRAM': str(programs / 'scope'),
         }
         observed = subprocess.check_output(['systemd', '--version'], text=True).splitlines()[0]
         (args.work / 'profile.json').write_text(json.dumps({
@@ -90,6 +91,9 @@ def main():
             ('gateways', [str(programs / 'tap-probe'), '--plugins', str(programs), '--uid', uid, '--gid', gid, '--gateways']),
             ('scope', [str(programs / 'tap-probe'), '--plugins', str(programs), '--uid', uid, '--gid', gid,
                        '--scope-helper', str(programs / 'scope')]),
+            ('adoption', [str(programs / 'acceptance'), '--exact',
+                          'runtime::vm::root_scope::tests::actual_root_gateway_adoption_and_lease_retirement',
+                          '--ignored', '--nocapture']),
             ('runtime', [str(programs / 'acceptance'), '--exact',
                          'runtime::vm::instance::root_lifecycle::actual_root_runtime_cold_boot_files_and_daemon_loss',
                          '--ignored', '--nocapture']),
@@ -100,8 +104,9 @@ def main():
             if result.returncode:
                 raise RuntimeError(f'The separate {suffix} authority failed; inspect its retained CI log')
         # A passing command is not enough: require the actual Rust test to have executed.
-        if '1 passed; 0 failed' not in (args.work / 'runtime.log').read_text():
-            raise ValueError('The authority fixture did not execute the real lifecycle')
+        for suffix in ['adoption', 'runtime']:
+            if '1 passed; 0 failed' not in (args.work / f'{suffix}.log').read_text():
+                raise ValueError('The authority fixture did not execute its real Rust test')
         (args.work / 'summary.json').write_text(json.dumps({
             'systemd': observed, 'mainUnitChanged': False, 'separateTap': True,
             'separateRootRuntime': True, 'leaseBoundScope': True, 'images': 2, 'properties': properties,
@@ -109,7 +114,7 @@ def main():
         }, indent=2) + '\n')
     finally:
         # Stop the exact owned units before removing their private state, even after failure.
-        for suffix in ['tap', 'gateways', 'scope', 'runtime']:
+        for suffix in ['tap', 'gateways', 'scope', 'adoption', 'runtime']:
             subprocess.run(['sudo', 'systemctl', 'stop', name + '-' + suffix + '.service'],
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
             status = subprocess.run(['sudo', 'systemctl', 'show', name + '-' + suffix + '.service',

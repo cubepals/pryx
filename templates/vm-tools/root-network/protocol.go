@@ -17,6 +17,7 @@ const (
 
 type ScopeMetadata struct {
 	Descriptors      []ScopeRole `json:"descriptors"`
+	MaxDescriptors   int         `json:"maxDescriptors"`
 	MaxMetadataBytes int         `json:"maxMetadataBytes"`
 	Version          int         `json:"version"`
 }
@@ -33,7 +34,7 @@ func scopeDescriptors() []ScopeRole {
 }
 
 func ScopeAdvertisement() ScopeMetadata {
-	return ScopeMetadata{Descriptors: scopeDescriptors(), MaxMetadataBytes: MaxHandoffBytes, Version: ScopeVersion}
+	return ScopeMetadata{Descriptors: scopeDescriptors(), MaxDescriptors: MaxHandoffFiles, MaxMetadataBytes: MaxHandoffBytes, Version: ScopeVersion}
 }
 
 func ScopeGrant(profile Profile, tap string) ScopeHandoff {
