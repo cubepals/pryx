@@ -486,6 +486,9 @@ impl Config {
         let mut config: Self = table.try_into().map_err(parse)?;
         config.docker.discover = table_socket_absent;
         config.inferred = inferred;
+        if let Some(descriptor) = config.vm.infer(&config.workloads.agent_binary) {
+            config.inferred.push(descriptor);
+        }
         config.validate()?;
         Ok(config)
     }

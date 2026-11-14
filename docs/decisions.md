@@ -1173,3 +1173,5 @@
 - K25: take VM archive pins only from one bounded immutable descriptor named by host configuration and installed with the signed release; reuse the artifact owner's type and acquisition validation, refuse unsafe files before reading, and leave an absent descriptor off without making KVM or downloads a startup requirement.
 
 - K25: share the exact VM workflow build phases with release assembly, keep its runtime and corresponding sources as separate lazy assets, and carry only a mode-0444 descriptor in signed host/bootstrap archives; source-only builds leave it absent, and acquisition remains off until placement acceptance.
+
+- K25: discover the signed VM descriptor beside the host-configured agent when vm.bundle is absent, retain explicit host paths, and pass unsafe candidates to the existing policy refusal; no workload field, extra installer flag, download or compute start participates in discovery.

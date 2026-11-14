@@ -3815,3 +3815,11 @@ job when publication is authorized. That job has not run in this task.
   CI-only acceptance cases ignored. Strict all-target Clippy, fmt, actionlint with ShellCheck, standalone build-recipe
   ShellCheck, Python compilation and whitespace pass. Remove 463 MiB of obsolete benchmark
   executables. Full image packaging and signed installation still need CI evidence.
+- Automatic descriptor configuration checkpoint: discover vm-bundle.json beside the configured
+  host agent only when vm.bundle was omitted, log the inferred path, and preserve explicit
+  host policy. Broken or inaccessible candidates reach the policy reader's named refusal
+  rather than disappearing. This locates installed pins only; placement stays disabled.
+- Discovery validation: 529 local Rust passes, the unchanged host IPv6 fixture failure
+  and 39 ignored; strict all-target Clippy, formatting and whitespace pass. The real-file
+  discovery regression preserves explicit host configuration and retains broken-link refusals.
+  No new dependency, CI job/gate or material CI time. Hosted validation is pending.
