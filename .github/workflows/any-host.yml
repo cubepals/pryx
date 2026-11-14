@@ -213,7 +213,7 @@ jobs:
     name: Bundle runtime acceptance
     needs: process-tools
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 80
     outputs:
       parts: ${{ steps.transport.outputs.count }}
       manifest: ${{ steps.transport.outputs.manifest }}
@@ -236,6 +236,15 @@ jobs:
           name: process-tool-runtime
           path: ${{ runner.temp }}/native-distribution
           digest-mismatch: error
+      - name: Build the same separate VM artifacts as the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRYX_VM_RELEASE_BASE_URL: https://127.0.0.1:9877
+          CARGO_TARGET_DIR: ${{ runner.temp }}/vm-release-target
+          CARGO_PROFILE_DEV_DEBUG: '0'
+          CARGO_PROFILE_TEST_DEBUG: '0'
+          CARGO_INCREMENTAL: '0'
+        run: bash templates/vm-tools/release.sh "$RUNNER_TEMP/native-distribution"
       - name: Build the same programs as the release image
         env:
           PRYX_NATIVE_DESCRIPTOR: ${{ needs.process-tools.outputs.descriptor }}

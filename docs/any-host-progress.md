@@ -4096,3 +4096,14 @@ job when publication is authorized. That job has not run in this task.
 - Python syntax/CLI, actionlint with ShellCheck and whitespace pass for this fixture correction.
   No local root/systemd/KVM success is claimed and no CI time/job/gate is added. Push immediately
   without holding this fix for the older run. Scanner remains eighteen.
+
+- Feed the exact VM release recipe into the existing signed Any-host preview before its
+  unchanged Docker host-bundle build. Both host and bootstrap carry only the immutable VM
+  descriptor; the existing private TLS artifact fixture serves the separate runtime and
+  corresponding-source archive. This avoids accepting artifacts from a superseded commit.
+  Every fresh user/default-image installation now checks that its signed VM descriptor is a
+  regular nonsymlink file with mode 444. Actual guest SDK/edge acceptance is the next step.
+- Shell syntax/ShellCheck, Python fixture syntax, actionlint and whitespace pass. The real
+  signed build requires CI's engine and is not claimed locally. Estimate fifteen additional
+  minutes in the existing optional Any-host bundle job, zero normal PR minutes and no new
+  job/gate; raise that job's deadline from sixty to eighty minutes without changing its tests.

@@ -29,13 +29,16 @@ until grep -q '"apiUrl"' "$HOME/install.log" && [ -x "$cli" ]; do
   sleep 1
 done
 python3 - <<'PY'
-import json, pathlib
+import json, pathlib, stat
 record = json.loads((pathlib.Path.home()/'.config/pryx/installation.json').read_text())
 assert record['preset'] == 'user' and record['tier'] == 'process'
 assert not record.get('engineSocket'), 'The ordinary tool fixture must have no engine'
 descriptor = pathlib.Path(record['bundle'])/'bin/process-tools.json'
 assert descriptor.is_file()
-print('installed_preset=user tier=process engine=none protected_descriptor=present')
+vm = pathlib.Path(record['bundle'])/'bin/vm-bundle.json'
+assert vm.is_file() and not vm.is_symlink(), 'The signed host bundle must carry its VM pin'
+assert stat.S_IMODE(vm.stat().st_mode) == 0o444, 'The VM descriptor must remain immutable'
+print('installed_preset=user tier=process engine=none protected_descriptor=present vm_descriptor=readonly')
 PY
 # Install client dependencies only after the fresh-account product install succeeds. Pip's
 # cache can inherit a group-writable runner umask; it must not pre-create managed ancestry.
