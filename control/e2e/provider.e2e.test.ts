@@ -15,6 +15,50 @@ const httpFixture = readFileSync(new URL('./fixtures/provider-http.cjs', import.
 const webCommand = ['node', '/data/provider-http.cjs', '3000', '0.0.0.0']
 
 test(
+  'provider uses persistent process paths as an ordinary user',
+  async () => {
+    expect(ready).toBe(true)
+    const c = await agentDeployment('process')
+    const options = { url: c.d.control.apiUrl, key: c.d.credential.key }
+    const provider = pryxProvider(options)
+    let id: string | undefined
+    try {
+      id = await provider.create(actor)
+      const box = await provider.connect(actor, id)
+      if (!box) throw new Error('Created process sandbox is absent')
+      expect((await c.sdk.sandbox(id)).isolation).toBe('process')
+      expect(box.cwd).not.toBe('/data')
+      await box.mkdir(`${box.cwd}/work`)
+      await box.writeFile(`${box.cwd}/work/hello.txt`, 'process-persistent')
+      expect(await box.exec('cat hello.txt; pwd', { cwd: `${box.cwd}/work` })).toMatchObject({
+        exitCode: 0,
+        stdout: `process-persistent${box.cwd}/work\n`,
+      })
+      expect(new TextDecoder().decode(await box.readFile(`${box.cwd}/work/hello.txt`))).toBe(
+        'process-persistent',
+      )
+      expect(await box.stat(`${box.cwd}/work`)).toEqual({ isDirectory: true })
+      expect(await box.readdir(`${box.cwd}/work`)).toContain('hello.txt')
+      await provider.suspend?.(actor, id)
+      const awake = await provider.connect(actor, id)
+      if (!awake) throw new Error('Sleeping process sandbox disappeared')
+      expect(await awake.exists(`${awake.cwd}/work/hello.txt`)).toBe(true)
+      await provider.destroy?.(actor, id)
+      expect(await provider.connect(actor, id)).toBeUndefined()
+      id = undefined
+      await runProviderExamples(options)
+    } catch (error) {
+      deploymentDiagnostics(c.d)
+      throw error
+    } finally {
+      if (id) await provider.destroy?.(actor, id)
+      await c.close()
+    }
+  },
+  3 * MINUTE_MS,
+)
+
+test(
   'sandbox provider methods, cancellation, streams, persistence and preview',
   async () => {
     expect(ready).toBe(true)

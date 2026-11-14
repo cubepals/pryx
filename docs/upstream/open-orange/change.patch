@@ -47,7 +47,7 @@
 +			const relative = (path: string) => {
 +				const normalized = posix.normalize(path);
 +				if (!posix.isAbsolute(path) || (normalized !== sandbox.cwd && !normalized.startsWith(`${sandbox.cwd}/`)))
-+					throw new Error("pryx file paths must stay inside /data");
++					throw new Error("pryx file paths must stay inside persistent storage");
 +				return posix.relative(sandbox.cwd, normalized) || ".";
 +			};
 +			return {

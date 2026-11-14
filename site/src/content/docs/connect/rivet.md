@@ -32,7 +32,8 @@ export const sandboxProvider = pryxProvider()
 export const portAddress = (id: string, port: number) => pryxPortAddress(id, port)
 ```
 
-The default working directory is persistent `/data`; native file paths must stay inside it.
+Use the connected sandbox's `cwd` for file and execution paths: persistent `/data` on mounted
+tiers, or the agent's data directory on the process tier. Native file paths must stay inside it.
 The host chooses the tier. You may name `tier`, `template` and `require`; unavailable tiers
 retain the install's refusal, and this API version refuses every named guarantee because
 it cannot prove it. Sleep keeps files and connect wakes the sandbox. Previews go through
