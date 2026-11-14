@@ -1169,3 +1169,5 @@
 - K25: split lifecycle, live observations, stopped files, interruption recovery, remote-file API assertions and jail tamper recovery into separate test phases without changing assertions or the structure baseline; upload network probes through the existing live data service because file-only guest creation deliberately refuses running VMs.
 
 - K25: bind the root guest's one-shot bootstrap socket at the validated jail location and transfer only that socket to the fixed non-root monitor identity; keep serial capture outside the jail, gate jail-relative configuration on executable metadata and prove unchanged jailer boots before enabling root placement or changing host service authority.
+
+- K25: take VM archive pins only from one bounded immutable descriptor named by host configuration and installed with the signed release; reuse the artifact owner's type and acquisition validation, refuse unsafe files before reading, and leave an absent descriptor off without making KVM or downloads a startup requirement.

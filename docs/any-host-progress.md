@@ -3782,3 +3782,15 @@ job when publication is authorized. That job has not run in this task.
   Hold the next overlapping push for its current-source result under the queue rule.
   Production root startup/tier registration remain refused; TAP/firewall, protected
   install/release/configuration, node/edge acceptance and thirty samples remain unfinished.
+- Independent host-policy checkpoint adds the optional VM descriptor path to host
+  configuration and reads only a bounded immutable host-owned regular file under
+  protected ancestors. The artifact owner's existing type/acquisition keeps all pins
+  and archive checks; invalid JSON errors never include descriptor values. Real file
+  tests prove mutable modes, writable ancestors, hard links, symlinks, oversized files
+  and a nonblocking FIFO refuse. No acquisition or placement is enabled by this step.
+- Full local Rust now has 528 passes, the unchanged IPv6 fixture failure and 39 ignored;
+  strict all-target Clippy, explicit daemon/integration structure diagnostics, fmt and
+  whitespace checks pass. No new dependency, gate or material CI time. Installed
+  descriptor production and actual node registration remain unfinished. Current-source
+  Any-host 43602659763 has built its bundle and is running signed installation/native
+  SDK acceptance; hold the overlapping push until its result is available.

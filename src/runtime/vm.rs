@@ -7,6 +7,7 @@
 //! - `filesystems.rs`: verify the host-owned filesystem component before external execution.
 //! - `image.rs`: bounded private-pipe contract with the independent OCI helper.
 //! - `bundle.rs`: whole-release verification and lazy acquisition of pinned VM inputs.
+//! - `policy.rs`: bounded immutable descriptor from the signed host installation.
 //! - `disk.rs`: leased ext4 creation, read-only validation and staged safe recovery.
 //! - `machine.rs`: owned confined monitor process and one-shot private bootstrap.
 //! - `jail.rs`: root-only bind mounts, disk ownership and durable jail recovery.
@@ -26,6 +27,7 @@ pub mod instance;
 pub mod jail;
 pub mod machine;
 pub mod network;
+pub mod policy;
 mod serial;
 pub mod transport;
 

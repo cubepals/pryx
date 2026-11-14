@@ -11,6 +11,7 @@
 //! - `validate.rs`: what a configuration is held to before pryxd runs on it.
 //! - `wasm.rs`: verified agentOS distribution paths.
 //! - `process.rs`: host-owned process tier and UID pool configuration.
+//! - `vm.rs`: host-installed verified VM descriptor location.
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -24,7 +25,9 @@ use serde::Deserialize;
 use crate::ids::NodeId;
 
 mod process;
+mod vm;
 mod wasm;
+pub use vm::VmConfig;
 pub use wasm::WasmConfig;
 mod validate;
 pub use process::{ProcessConfig, RuntimeKind};
@@ -42,6 +45,8 @@ pub struct Config {
     pub process: ProcessConfig,
     #[serde(default)]
     pub wasm: WasmConfig,
+    #[serde(default)]
+    pub vm: VmConfig,
     /// This host's stable name, written on every container it makes. Two nodes never share one.
     /// In fleet mode it is left out: the control plane issues it at enrollment.
     #[serde(default)]

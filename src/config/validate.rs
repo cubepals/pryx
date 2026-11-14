@@ -34,6 +34,9 @@ impl Config {
     }
 
     fn validate_backend_selection(&self) -> Result<(), ConfigError> {
+        if self.vm.bundle.as_ref().is_some_and(|path| !path.is_absolute()) {
+            return Err(ConfigError::Invalid("VM bundle descriptor requires an absolute host-installed path".into()));
+        }
         if self.runtime == super::RuntimeKind::Container && !self.docker.enabled {
             return Err(ConfigError::Invalid("the container tier is disabled by this host preset".into()));
         }
