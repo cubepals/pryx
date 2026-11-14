@@ -32,7 +32,7 @@ async fn resolve(host: &str, port: u16, policy: &EgressPolicy) -> io::Result<Vec
     }
     Ok(addresses)
 }
-pub(super) fn serve(
+pub(in crate::runtime) fn serve(
     listener: TcpListener,
     tls: bool,
     subnet: ipnet::IpNet,

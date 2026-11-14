@@ -3400,3 +3400,12 @@ job when publication is authorized. That job has not run in this task.
   eighteen addressed comments; ordinary CI is still queued. Next implement network-enabled
   policy and helper ownership, root jailer/TAP/firewall, protected install/config/release wiring,
   full node/edge VM lifecycle and thirty production samples. K25 stays in progress.
+
+
+- K25 move-only checkpoint: relocate the existing HTTP/TLS/public-resolution and policy DNS
+  modules from Docker into runtime egress, with only the imports and visibility needed by
+  their original caller. Bodies and tests compare byte-for-byte after those visibility
+  changes. No VM networking behavior is added yet. Full local Rust: 520 passes, the unchanged
+  IPv6 fixture failure and 34 ignored; both strict Clippy modes, fmt and whitespace pass.
+  No jobs/gates or material CI time added. Next wire the maintained ordinary-user packet
+  helper and these same gateways to trusted guest policy; tier registration stays off.

@@ -14,7 +14,7 @@ use tokio::{
 };
 
 /// DNS's port, for UDP and TCP (RFC 1035 §4.2).
-pub(super) const PORT: u16 = 53;
+pub(in crate::runtime) const PORT: u16 = 53;
 /// The fixed header's length (RFC 1035 §4.1.1).
 const HEADER: usize = 12;
 /// RCODEs of the header (RFC 1035 §4.1.1): no DNS crate is in the tree to export them.
@@ -159,7 +159,7 @@ async fn write_framed(stream: &mut TcpStream, message: &[u8]) -> io::Result<()> 
 }
 
 /// Answers the bridge's queries on `udp` and `tcp` until `cancel`, from `subnet` only.
-pub(super) fn serve(
+pub(in crate::runtime) fn serve(
     udp: UdpSocket,
     tcp: TcpListener,
     subnet: ipnet::IpNet,

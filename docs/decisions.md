@@ -1125,3 +1125,5 @@
 - K25: Use signature-verified musl-dev 1.2.6-r3, matching libmnl/libnftnl development packages, Linux 7.0.0-r1 UAPI headers (GPL-2.0 with Linux-syscall-note) and flex 2.6.4-r8 (BSD-2-Clause) solely as firewall build inputs; retain their pinned archives, original notices and corresponding source, while selecting only actual nft/ELF dependencies for the runtime component.
 
 - K25: carry only nft's inventoried six-file ELF closure in the trusted read-only bootstrap, bind it to the host filesystem manifest and apply an atomic disconnected inet policy before launching the non-root agent; no image library or workload-selected rule reaches root.
+
+- K25: move existing hostname HTTP/TLS/DNS gateways into runtime egress before VM reuse, preserving policy/parser bodies and tests while leaving Docker bridge and firewall orchestration in its backend.

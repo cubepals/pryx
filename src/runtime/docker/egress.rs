@@ -4,14 +4,11 @@
 //! answers only the policy's names, and drops every other new bridge connection. The container's
 //! embedded resolver forwards to that resolver too (`--dns`), so no name leaves the host unchecked.
 //! The sandbox cannot opt out with proxy variables, DNS answers, raw IPs or another bridge's gateway.
-//!
-//! Parts (`egress/`):
-//! - `gateway.rs`: HTTP/TLS forwarding and public DNS pinning.
-//! - `dns.rs`: the policy-checked resolver on the bridge's gateway.
-mod dns;
-mod gateway;
 use super::*;
-use crate::protocol::EgressPolicy;
+use crate::{
+    protocol::EgressPolicy,
+    runtime::egress::{dns, gateway},
+};
 use std::{
     io::Read,
     net::IpAddr,

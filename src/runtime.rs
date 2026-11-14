@@ -13,6 +13,7 @@
 //! - `router.rs`: immutable workload routes over the available backends.
 //! - `configured.rs`: construction from host-owned backend settings.
 //! - `limits.rs`: refusal of limits an engine cannot enforce.
+//! - `egress.rs`: hostname-checked HTTP/TLS gateways and DNS resolution.
 //! - `engine.rs`: ordered local engine discovery and bounded read-only selection.
 //! - `docker.rs`: the Docker Engine API, over the local unix socket.
 //! - `fake.rs`: an in-memory runtime for tests, with the Docker behaviour pryxd depends on.
@@ -24,6 +25,7 @@ mod agent_metadata;
 pub(crate) use agent_metadata::{process_ssh_supported, protected as protected_agent};
 pub mod configured;
 pub mod docker;
+pub(crate) mod egress;
 pub mod engine;
 #[cfg(any(test, feature = "fake"))]
 pub mod fake;
