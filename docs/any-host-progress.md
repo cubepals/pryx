@@ -3179,3 +3179,38 @@ job when publication is authorized. That job has not run in this task.
   that existing optional job, estimated under fifteen seconds; zero ordinary PR minutes or
   new gates/jobs. Real execution is pending, as is the earlier CID fix. Scanner remains eighteen
   addressed findings. No public/fleet/edge protocol shape changes in this checkpoint.
+
+
+- Read source 480ddfc VM run 43534556211/job 132260289915 and its actual CI artifact via
+  plain curl. The two bounded serial captures (24,422/24,822 bytes) identify the file guest’s
+  failure before agent startup: overlayfs rejects the persistent workload upper’s origin
+  against the new empty lower with ESTALE. The non-root CID correction is independent of
+  this earlier mount failure; neither prior source established a successful file service.
+  Summary: checks/measurements/k25/file-bootstrap-480ddfc.json. The original two-vCPU guest
+  produces its signed clean-disk proof, then the monitor reports a vCPU teardown timeout;
+  retain that observation separately and do not call it a clean monitor exit.
+- Fix maintenance overlay construction: validate the parsed maintenance mode before mounts,
+  create its upper/work only in the trusted guest tmpfs, and bind persistent data separately.
+  Do not remount the workload upper over a different lower, edit its origin metadata or
+  relax the kernel’s origin check. Actual local directory acceptance leaves the persistent
+  root bytes/mtime unchanged and proves normal boots retain their original paths.
+- Connect the existing node file routes to backend file sessions. Workload guards and admitted
+  memory survive stream/caller cancellation through owned backend cleanup. Exact epoch checks
+  precede preparation; each upload chunk checks the host floor; file bytes/metadata stream
+  without a JSON body cap; agent refusals use existing node error shapes. Existing local file
+  backends retain their descriptor walk. No public/fleet/edge protocol field or path changes.
+- Real local mTLS node-to-agent HTTP acceptance proves the binary transfer, list/stat shapes,
+  epoch-before-preparation, missing-file/traversal errors, no workload start, and preservation
+  of both the workload guard and memory after cancelling cleanup. This uses a real agent
+  router with an in-memory compute seam; it is not KVM proof. Full local Rust: 512 passes,
+  one unchanged IPv6 failure, 34 ignored; strict Clippy modes/fmt and daemon length probe pass.
+  Agent package independently has 43 passes, the same IPv6 failure and one ignored case.
+- Existing optional VM CI now uploads its bounded runtime evidence separately, avoiding a
+  366 MiB bundle download for two tiny serial files. Actionlint passes; one additional
+  existing artifact-upload step costs a few optional seconds, no new gate/job or ordinary
+  PR minute. The downloaded bundle ZIP was removed; free disk remains about 3.3 GiB.
+- Next prove this maintenance fix and actual node file handlers on real KVM, finish VM logs/
+  stats/SIGINT/adoption failure paths, root jailer/TAP/firewall and ordinary-user networking,
+  protected configuration/release/installer wiring, node+edge lifecycle and thirty production
+  samples. Check regenerated OCI lower identity across caches before cross-node disk moves;
+  current mkfs arguments specify neither a stable UUID nor build time. K25 remains in progress.

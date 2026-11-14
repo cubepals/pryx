@@ -256,6 +256,15 @@ jobs:
             --bootstrap "$RUNNER_TEMP/vm-agent-bootstrap" --proxy "$RUNNER_TEMP/vm-network-proxy" \
             --filesystem-component "$RUNNER_TEMP/vm-filesystem-component" \
             --work "$RUNNER_TEMP/vm-guest-acceptance" | tee "$RUNNER_TEMP/vm-guest-acceptance.log"
+      - name: Retain bounded runtime diagnostics separately
+        if: always()
+        uses: ./.github/actions/upload-evidence
+        with:
+          name: vm-runtime-diagnostics
+          path: |
+            ${{ runner.temp }}/vm-runtime-acceptance.log
+            ${{ runner.temp }}/vm-runtime-diagnostics/*.serial.log
+          if-no-files-found: warn
       - name: Retain candidate identities and actual digests
         if: always()
         uses: ./.github/actions/upload-evidence
@@ -268,8 +277,6 @@ jobs:
             ${{ runner.temp }}/vm-runtime.json
             ${{ runner.temp }}/vm-sources.json
             ${{ runner.temp }}/vm-bundle.log
-            ${{ runner.temp }}/vm-runtime-acceptance.log
-            ${{ runner.temp }}/vm-runtime-diagnostics/*.serial.log
             ${{ runner.temp }}/vm-bundle-acceptance.log
             ${{ runner.temp }}/vm-corresponding-sources.log
             ${{ runner.temp }}/vm-candidate-inventory.json

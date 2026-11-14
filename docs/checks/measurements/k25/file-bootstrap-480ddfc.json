@@ -1,0 +1,14 @@
+{
+  "measurement": "Stopped-file bootstrap with socket CID verification and retained serial",
+  "commit": "480ddfc",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43534556211",
+  "result": "failed",
+  "runtimeSecondsBeforeFailure": 12.85,
+  "runtimeSerialBytes": [
+    24422,
+    24822
+  ],
+  "diagnosis": "The file guest reuses the persistent workload overlay upper with a new empty lower; the kernel rejects the changed upper root origin with ESTALE before starting the agent.",
+  "additionalObservation": "The first two-vCPU workload supplies a signed clean disk exit, followed by a monitor vCPU teardown timeout. Retain that separate observation; it is not a clean monitor exit.",
+  "otherChecks": "Bundle/registry and six component boots pass; neither proves the failed stopped-file runtime path."
+}

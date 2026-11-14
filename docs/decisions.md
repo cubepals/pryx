@@ -1099,3 +1099,9 @@
 - K25: Bound private file-session TCP/HTTP setup separately from upload duration; use the existing HTTP library for unbuffered data streams so slow/large files can outlive connection setup, while control/readiness calls retain their existing whole-call deadlines and mutations are still sent once.
 
 - K25: Make remote data access an explicit backend seam: reuse a live agent under its transition guard, or construct a layerless file guest solely from host-owned data identity and resource bounds; retained disks need no workload image, original environment or temporary runtime record.
+
+- K25: Keep a maintenance guest’s overlay upper/work in the trusted tmpfs and bind only persistent data from ext4, leaving the workload upper and its lower-origin metadata intact; validate layerless/no-network/read-only-root mode before mounting instead of bypassing the kernel’s origin check.
+
+- K25: Proxy node files through the explicit remote-data backend while holding exact-epoch workload guards and temporary admitted memory through owned cleanup; check host disk admission on every upload chunk, stream owner-generated file metadata without copying its shape, and map agent refusals to the existing node errors.
+
+- K25: Put bounded runtime acceptance logs/serial in their own existing CI artifact upload so diagnosing a file guest needs kilobytes rather than the whole VM/source bundle; retain raw output only in CI and commit its short source/run summary.

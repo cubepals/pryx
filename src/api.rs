@@ -16,6 +16,7 @@
 //! - `handshake.rs`: the TLS handshake of each connection, bounded in number and time, and its
 //!   refusals reported without flooding the log.
 //! - `tls.rs`: the API's side of mutual TLS: its certificate, and who a client certificate proves.
+//! - `file_service.rs`: guarded authenticated backend data streams.
 //! - `files.rs`: persistent data streams and agent capability issuance.
 
 // A handler's error is the answer itself, axum's `Response`, sent once and never passed along.
@@ -23,6 +24,7 @@
 
 pub mod error;
 mod exec_stream;
+mod file_service;
 mod files;
 mod handshake;
 pub mod tls;

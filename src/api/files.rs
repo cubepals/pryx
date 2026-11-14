@@ -10,8 +10,9 @@ use tokio::io::AsyncWriteExt;
 use tokio_util::io::ReaderStream;
 
 use super::*;
-use crate::manager::files::file_error;
+use crate::manager::files::{DataLocation, file_error};
 use crate::protocol::{AgentTokenRequest, FileList};
+use crate::runtime::files::Operation;
 
 #[derive(Deserialize)]
 struct DataPath {
@@ -33,11 +34,13 @@ async fn read(
     ApiQuery(path): ApiQuery<DataPath>,
 ) -> Result<Response, Response> {
     let access = app.manager.data_access(&id, epoch(&headers)?).await.map_err(IntoResponse::into_response)?;
-    let file = access.directory.read(&path.path).map_err(|e| file_error(e).into_response())?;
+    let DataLocation::Host(directory) = access.location() else {
+        return super::file_service::proxy(access, Operation::Read, &path.path, None, app.manager).await;
+    };
+    let file = directory.read(&path.path).map_err(|e| file_error(e).into_response())?;
     let length = file.metadata().map_err(|e| file_error(e).into_response())?.len();
-    let guard = access.guard;
     let stream = ReaderStream::new(tokio::fs::File::from_std(file)).map(move |chunk| {
-        let _held = &guard;
+        let _held = &access;
         chunk
     });
     Ok((
@@ -55,8 +58,10 @@ async fn write(
     body: Body,
 ) -> Result<Response, Response> {
     let access = app.manager.data_access(&id, epoch(&headers)?).await.map_err(IntoResponse::into_response)?;
-    let mut file =
-        tokio::fs::File::from_std(access.directory.write(&path.path).map_err(|e| file_error(e).into_response())?);
+    let DataLocation::Host(directory) = access.location() else {
+        return super::file_service::proxy(access, Operation::Write, &path.path, Some(body), app.manager).await;
+    };
+    let mut file = tokio::fs::File::from_std(directory.write(&path.path).map_err(|e| file_error(e).into_response())?);
     let mut input = body.into_data_stream();
     while let Some(chunk) = input
         .try_next()
@@ -67,7 +72,7 @@ async fn write(
         file.write_all(&chunk).await.map_err(|e| file_error(e).into_response())?;
     }
     file.sync_data().await.map_err(|e| file_error(e).into_response())?;
-    drop(access);
+    access.finish().await.map_err(IntoResponse::into_response)?;
     Ok(StatusCode::NO_CONTENT.into_response())
 }
 
@@ -78,8 +83,10 @@ async fn list(
     ApiQuery(path): ApiQuery<DataPath>,
 ) -> Result<Response, Response> {
     let access = app.manager.data_access(&id, epoch(&headers)?).await.map_err(IntoResponse::into_response)?;
-    Ok(Json(FileList { files: access.directory.list(&path.path).map_err(|e| file_error(e).into_response())? })
-        .into_response())
+    let DataLocation::Host(directory) = access.location() else {
+        return super::file_service::proxy(access, Operation::List, &path.path, None, app.manager).await;
+    };
+    Ok(Json(FileList { files: directory.list(&path.path).map_err(|e| file_error(e).into_response())? }).into_response())
 }
 
 async fn stat(
@@ -89,7 +96,10 @@ async fn stat(
     ApiQuery(path): ApiQuery<DataPath>,
 ) -> Result<Response, Response> {
     let access = app.manager.data_access(&id, epoch(&headers)?).await.map_err(IntoResponse::into_response)?;
-    Ok(Json(access.directory.stat(&path.path).map_err(|e| file_error(e).into_response())?).into_response())
+    let DataLocation::Host(directory) = access.location() else {
+        return super::file_service::proxy(access, Operation::Stat, &path.path, None, app.manager).await;
+    };
+    Ok(Json(directory.stat(&path.path).map_err(|e| file_error(e).into_response())?).into_response())
 }
 
 async fn token(

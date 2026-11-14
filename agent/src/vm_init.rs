@@ -121,8 +121,29 @@ struct Disk {
     data: File,
 }
 
+fn files_only(boot: &Boot) -> io::Result<bool> {
+    let arguments = crate::bootstrap::Bootstrap::try_parse_from(
+        std::iter::once("pryx-agent").chain(boot.arguments.iter().map(String::as_str)),
+    )
+    .map_err(|_| invalid("Invalid trusted VM bootstrap arguments"))?;
+    let files_only = arguments.vm_files_only();
+    if files_only && (boot.network.is_some() || !boot.layers.is_empty() || !boot.read_only_root) {
+        return Err(invalid("VM file service requires no image layers, no network and a read-only root"));
+    }
+    Ok(files_only)
+}
+fn overlay_roots(work: &DataDir, writes: &DataDir, files_only: bool) -> io::Result<(String, String)> {
+    let (directory, root, names) =
+        if files_only { (work, WORK, ["file-upper", "file-work"]) } else { (writes, "/write", ["upper", "work"]) };
+    for name in names {
+        directory.mkdir(name)?;
+    }
+    Ok((format!("{root}/{}", names[0]), format!("{root}/{}", names[1])))
+}
+
 fn prepare(boot: &Boot) -> io::Result<Disk> {
     validate(boot)?;
+    let files_only = files_only(boot)?;
     mount::mount_change("/", MountPropagationFlags::PRIVATE | MountPropagationFlags::REC)?;
     filesystem("tmpfs", Path::new("/run"), "tmpfs", MountFlags::NOSUID | MountFlags::NODEV, "mode=0755,size=16m")?;
     let work = DataDir::open(Path::new("/run"))?;
@@ -140,9 +161,7 @@ fn prepare(boot: &Boot) -> io::Result<Disk> {
     filesystem(device(&boot.writes)?, Path::new("/write"), "ext4", MountFlags::NOSUID | MountFlags::NODEV, "")?;
     let sync = File::open("/write")?;
     let writes = DataDir::open(Path::new("/write"))?;
-    for name in ["upper", "work", "data"] {
-        writes.mkdir(name)?;
-    }
+    writes.mkdir("data")?;
     let data = writes.directory_file("data")?;
     rustix::fs::fchown(
         &data,
@@ -168,7 +187,8 @@ fn prepare(boot: &Boot) -> io::Result<Disk> {
     }
     lowers.reverse();
     let merged = mountpoint(&work, "merged")?;
-    let options = format!("lowerdir={},upperdir=/write/upper,workdir=/write/work", lowers.join(":"));
+    let (upper, overlay_work) = overlay_roots(&work, &writes, files_only)?;
+    let options = format!("lowerdir={},upperdir={upper},workdir={overlay_work}", lowers.join(":"));
     filesystem("overlay", &descriptor(&merged), "overlay", MountFlags::NOSUID | MountFlags::NODEV, &options)?;
     let root_path = Path::new(WORK).join("merged");
     let root = DataDir::open(&root_path)?;
@@ -405,6 +425,29 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn maintenance_overlay_never_reuses_or_changes_persistent_root() {
+        let root = tempfile::tempdir().unwrap();
+        let work = root.path().join("temporary");
+        let writes = root.path().join("persistent");
+        std::fs::create_dir(&work).unwrap();
+        std::fs::create_dir(&writes).unwrap();
+        std::fs::create_dir(writes.join("upper")).unwrap();
+        std::fs::create_dir(writes.join("work")).unwrap();
+        std::fs::write(writes.join("upper/retained"), b"workload root").unwrap();
+        let modified = std::fs::metadata(writes.join("upper")).unwrap().modified().unwrap();
+        let temporary = crate::paths::DataDir::open(&work).unwrap();
+        let persistent = crate::paths::DataDir::open(&writes).unwrap();
+        let (upper, overlay_work) = super::overlay_roots(&temporary, &persistent, true).unwrap();
+        assert_eq!(upper, format!("{}/file-upper", super::WORK));
+        assert_eq!(overlay_work, format!("{}/file-work", super::WORK));
+        assert!(work.join("file-upper").is_dir() && work.join("file-work").is_dir());
+        assert_eq!(std::fs::read(writes.join("upper/retained")).unwrap(), b"workload root");
+        assert_eq!(std::fs::metadata(writes.join("upper")).unwrap().modified().unwrap(), modified);
+        assert!(!writes.join("file-upper").exists());
+        let (upper, overlay_work) = super::overlay_roots(&temporary, &persistent, false).unwrap();
+        assert_eq!((upper.as_str(), overlay_work.as_str()), ("/write/upper", "/write/work"));
+    }
     #[test]
     fn init_refuses_an_ordinary_host_before_any_mount() {
         assert_ne!(rustix::process::getpid(), rustix::process::Pid::INIT);

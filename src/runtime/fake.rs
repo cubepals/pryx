@@ -38,6 +38,9 @@ pub struct FakeContainer {
     pub(crate) stubborn: bool,
 }
 
+pub type FileServiceFactory =
+    dyn Fn(super::files::Request) -> Result<super::files::Service, RuntimeError> + Send + Sync;
+
 pub struct FakeRuntime {
     isolation: crate::protocol::Isolation,
     containers: Mutex<HashMap<String, FakeContainer>>,
@@ -60,6 +63,7 @@ pub struct FakeRuntime {
     /// When set, an unpause never returns, as one does whose cgroup freezer is stuck.
     pub hang_unpause: AtomicBool,
     pub cold_data_copy: AtomicBool,
+    pub remote_files: Mutex<Option<std::sync::Arc<FileServiceFactory>>>,
 }
 
 impl Default for FakeRuntime {
@@ -85,6 +89,7 @@ impl FakeRuntime {
             follows: std::sync::Arc::new(()),
             hang_unpause: AtomicBool::new(false),
             cold_data_copy: AtomicBool::new(false),
+            remote_files: Mutex::new(None),
         }
     }
 
@@ -178,6 +183,21 @@ impl FakeRuntime {
 
 #[async_trait]
 impl ContainerRuntime for FakeRuntime {
+    fn uses_remote_data(&self) -> bool {
+        self.remote_files.lock().unwrap().is_some()
+    }
+    async fn data_service(&self, request: super::files::Request) -> Result<super::files::Service, RuntimeError> {
+        self.up()?;
+        self.call(format!("files {}", request.name));
+        let factory = self
+            .remote_files
+            .lock()
+            .unwrap()
+            .clone()
+            .ok_or_else(|| RuntimeError::Other("No test file service".into()))?;
+        factory(request)
+    }
+
     fn requires_stopped_data_copy(&self) -> bool {
         self.cold_data_copy.load(Ordering::SeqCst)
     }
