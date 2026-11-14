@@ -189,7 +189,7 @@ export async function startControl(
         await scaling.tick()
         await sandboxes.upkeep()
         await api.mounts.maintain((id, project) =>
-          api.agents.token(id, project, config.publicOrigin ?? 'https://pryx.invalid'),
+          api.agents.controlToken(id, project, config.publicOrigin ?? 'https://pryx.invalid'),
         )
         await api.model.warmTemplates()
         await api.webhooks.tick()

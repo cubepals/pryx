@@ -71,7 +71,7 @@ export class AgentForward {
     if (op.response) return responseEvents(op.response as ExecResponse)
     if (key) await claimExec(db, op.id, id)
     else await boxes.touch(id)
-    const credential = await this.agents.token(id, project, requestUrl)
+    const credential = await this.agents.controlToken(id, project, requestUrl)
     const abort = AbortSignal.any([signal, AbortSignal.timeout((body.timeout + 5) * SECOND_MS)])
     const headers = {
       authorization: `Bearer ${credential.token}`,
@@ -152,7 +152,7 @@ export class AgentForward {
   }
 
   async *logs(id: string, project: string, query: URLSearchParams, signal: AbortSignal, requestUrl: string) {
-    const credential = await this.agents.token(id, project, requestUrl),
+    const credential = await this.agents.controlToken(id, project, requestUrl),
       follow = query.get('follow') === 'true'
     const response = await fetch(
       `${credential.url}/_pryx/logs?${new URLSearchParams({ follow: String(follow) })}`,

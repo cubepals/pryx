@@ -21,6 +21,7 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  PRYX_CLOUD_INIT_PACKAGE: cloud-init=26.2-0ubuntu1~24.04.2
 
 jobs:
   # A change to nothing but prose skips the rest. `check` still reports, so it can stay required.
@@ -445,6 +446,7 @@ jobs:
           .venv-agent-python/bin/pip install -e sdk/python
       - name: Validate hosting files and run welcome callers
         if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        shell: bash
         run: |
           umask 077
           hosting_log="$RUNNER_TEMP/hosting-acceptance.log"
@@ -466,7 +468,7 @@ jobs:
           }
           trap report_hosting_failure EXIT
           sudo apt-get update 2>&1 | tee "$hosting_log"
-          sudo apt-get install -y cloud-init 2>&1 | tee -a "$hosting_log"
+          sudo apt-get install -y "$PRYX_CLOUD_INIT_PACKAGE" 2>&1 | tee -a "$hosting_log"
           bun control/tools/hosting-validate.ts 2>&1 | tee -a "$hosting_log"
           bun control/bench/hosting-image.ts 2>&1 | tee -a "$hosting_log"
       # These carry the same condition as the suite they feed: a live Hetzner failure above must
@@ -721,7 +723,7 @@ jobs:
           PRYX_CLOUD_INIT_IMAGE_ARCHIVE: ${{ runner.temp }}/pryx-one-box-image.tar.gz
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-system-x86 qemu-utils cloud-image-utils genisoimage cloud-init
+          sudo apt-get install -y qemu-system-x86 qemu-utils cloud-image-utils genisoimage "$PRYX_CLOUD_INIT_PACKAGE"
           bun control/bench/hosting-cloud-init.ts
       - name: Four-command quickstart and repeat install
         id: up

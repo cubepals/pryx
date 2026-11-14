@@ -24,7 +24,8 @@ test('public exec forwards through the agent and replays its durable cached outc
     await c.db.execute(sql`UPDATE sandboxes SET handle=${handle} WHERE id=${made.id}`)
     await c.db.execute(sql`UPDATE fleet_nodes SET features='["agent"]'::jsonb`)
     await c.boxes.engine.refreshRegistry()
-    c.agents.localOrigin = peer.url.slice(0, peer.url.indexOf('/sandboxes/'))
+    c.agents.localGatewayOrigin = peer.url.slice(0, peer.url.indexOf('/sandboxes/'))
+    c.agents.localOrigin = 'https://hosting.example.invalid'
     const token = () =>
       c.nodes.once(/POST .*\/agent-token$/, async () => ({
         token: peer.token(),

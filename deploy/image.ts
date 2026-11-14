@@ -201,7 +201,10 @@ control_ips = ["127.0.0.1"]
     httpPort: 0,
     metricsPort: 0,
   })
-  if (control.edge.agents) control.edge.agents.localOrigin = origin
+  if (control.edge.agents) {
+    control.edge.agents.localOrigin = origin
+    control.edge.agents.localGatewayOrigin = `http://127.0.0.1:${publicPort}`
+  }
   edge.agents.useControl(control.apiUrl)
   startupStage = 'gateway'
   const gateway = await front({
