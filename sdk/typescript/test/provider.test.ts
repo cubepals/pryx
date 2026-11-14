@@ -3,7 +3,7 @@
 import { expect, test } from 'bun:test'
 import type { SandboxActorContext, SandboxProvider } from '@rivet-dev/sandbox-adapter'
 import { StatusCodes } from 'http-status-codes'
-import { SECOND_MS } from '../../../control/src/durations.ts'
+import { MINUTE_S, SECOND_MS } from '../../../control/src/durations.ts'
 import { PryxError } from '../src/index.ts'
 import { pryxPortAddress, pryxProvider } from '../src/provider.ts'
 
@@ -30,7 +30,7 @@ function fixture() {
         return Response.json({
           url: server.url.href,
           token: 'scoped',
-          expiresAt: Date.now() / SECOND_MS + 60,
+          expiresAt: Date.now() / SECOND_MS + MINUTE_S,
         })
       if (url.pathname === '/_pryx/ports') return Response.json({ url: 'https://preview.pryx.test/app' })
       if (url.pathname.endsWith('/wake') || url.pathname.endsWith('/start')) state = 'running'
@@ -135,7 +135,7 @@ test('exec streams before exit, kills once on deadlines and aborts, and cleans l
         return Response.json({
           url: server.url.href,
           token: 'scoped',
-          expiresAt: Date.now() / SECOND_MS + 60,
+          expiresAt: Date.now() / SECOND_MS + MINUTE_S,
         })
       if (url.pathname === '/v1/sandboxes/box')
         return Response.json({ id: 'box', state: 'running', isolation: 'container', endpoints: [] })
