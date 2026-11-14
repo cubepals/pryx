@@ -74,9 +74,10 @@ tempfile = "3"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "json", "env-filter"] }
 prometheus-client = "0.25"
+procfs = { version = "=0.18.0", default-features = false }
 
 # Linux: kill a timed-out exec by host pid, statvfs for disk space, FICLONE, CLOCK_BOOTTIME.
-rustix = { version = "1", features = ["fs", "process", "param", "time", "thread"] }
+rustix = { version = "1", features = ["fs", "process", "param", "time", "thread", "mount"] }
 # adjtimex, which rustix doesn't wrap: whether the clock is synchronised (doctor).
 libc = "0.2.189"
 async-trait = "0.1"

@@ -3280,6 +3280,7 @@ dependencies = [
  "libc",
  "oci-spec",
  "podman-api-stubs",
+ "procfs",
  "prometheus-client",
  "pryx-agent",
  "rcgen",

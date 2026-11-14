@@ -3697,3 +3697,21 @@ job when publication is authorized. That job has not run in this task.
   exact pinned structure script in the existing CI artifact, without adding a gate.
   Local strict all-target Clippy passes; full Rust verification follows with the root
   staging checkpoint. These fixes permit the next push under the queue rule.
+
+- Root staging checkpoint: protect one original writable disk with root-owned bind
+  mounts and a durable inode/ownership record outside the jail. Immutable inputs are
+  read-only/noexec/nosuid/nodev; writable disk ownership returns only after acquiring the
+  actual monitor lease and verifying every remaining mount identity. Explicit recovery
+  survives an owner drop, and refuses a replaced/symlinked disk without touching its
+  target. Root runtime startup remains refused; this is staging, not jailer/TAP proof.
+- Add one real-root mount/ownership/recovery case to the existing optional VM job (no
+  new job or gate, estimated seconds), including ordinary chrooted DAC and read-only
+  enforcement, live-lease refusal, repeated retirement and recovery after path tampering.
+  This machine cannot execute that privileged case. Local ordinary-user refusal passes.
+  Full local Rust: 526 passes, unchanged IPv6-unavailable fixture failure, 38 ignored;
+  actual launcher policies 3/3 (0.12 s), owned helper/gateways 2/2 (0.19 s), strict
+  all-target Clippy, fmt, actionlint and whitespace pass. procfs was already pinned and
+  licence-reviewed; add only its direct dependency and rustix's existing mount feature.
+- Push the K25 move/network/lease/cycle/staging checkpoints together as the fix for
+  080ebc1's actual normal-CI structure failures. Their hosted results are pending; do
+  not count the previous source's green VM runs as proof of these changes.

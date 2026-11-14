@@ -9,6 +9,8 @@
 //! - `bundle.rs`: whole-release verification and lazy acquisition of pinned VM inputs.
 //! - `disk.rs`: leased ext4 creation, read-only validation and staged safe recovery.
 //! - `machine.rs`: owned confined monitor process and one-shot private bootstrap.
+//! - `jail.rs`: root-only bind mounts, disk ownership and durable jail recovery.
+//! - `jail_tests.rs`: actual root inode/mount/ownership acceptance and ordinary-user refusal.
 //! - `network.rs`: owned confined packet helper and hostname gateways.
 //! - `network_tests.rs`: real helper readiness, refusal and cancellation acceptance.
 //! - `serial.rs`: bounded monitor byte capture, drained before proof validation.
@@ -21,6 +23,7 @@ pub mod filesystems;
 pub mod forward;
 pub mod image;
 pub mod instance;
+pub mod jail;
 pub mod machine;
 pub mod network;
 mod serial;

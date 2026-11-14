@@ -248,6 +248,18 @@ jobs:
         run: |
           cargo test --locked --lib runtime::vm::network::tests -- --ignored --nocapture | tee "$RUNNER_TEMP/vm-network-ownership.log"
           cargo test --locked --lib runtime::vm::instance::tests::actual_runtime_cold_boot_exec_stop_wake_copy_and_fork -- --ignored --nocapture | tee "$RUNNER_TEMP/vm-runtime-acceptance.log"
+      - name: Prove root jail disk staging and recovery
+        if: ${{ !cancelled() && steps.vm-bundle.outcome == 'success' }}
+        env:
+          CARGO_PROFILE_DEV_DEBUG: '0'
+          CARGO_PROFILE_TEST_DEBUG: '0'
+          CARGO_INCREMENTAL: '0'
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: |
+          export PRYX_VM_ROOT_TEST_UID="$(id -u)"
+          export PRYX_VM_ROOT_TEST_GID="$(id -g)"
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER='sudo --preserve-env=PRYX_VM_ROOT_TEST_UID,PRYX_VM_ROOT_TEST_GID --' \
+            cargo test --locked --lib runtime::vm::jail::tests::actual_root_mounts_retire_after_leases_and_recover_without_a_second_disk -- --ignored --nocapture | tee "$RUNNER_TEMP/vm-root-jail.log"
       - name: Prepare real pinned Alpine and Debian OCI layers without an engine
         if: ${{ !cancelled() && steps.vm-rust.outcome == 'success' }}
         env:
@@ -285,6 +297,7 @@ jobs:
             ${{ runner.temp }}/vm-runtime-acceptance.log
             ${{ runner.temp }}/vm-host-policy.log
             ${{ runner.temp }}/vm-network-ownership.log
+            ${{ runner.temp }}/vm-root-jail.log
             ${{ runner.temp }}/vm-runtime-diagnostics/*.serial.log
           if-no-files-found: warn
       - name: Retain candidate identities and actual digests

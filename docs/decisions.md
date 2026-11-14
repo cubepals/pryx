@@ -1159,3 +1159,5 @@
 - K25: inherit the monitor lease through a verified read-only reopen and deny stdin ioctls plus io_uring setup for every monitor role; FIOCLEX otherwise bypasses the fcntl-only close-on-exec guard and can release the live child’s lock, while synchronous pinned block I/O needs no ring.
 
 - K25: keep shared VM file-session types in their parent and call egress listeners through their owning module, removing both structure-checker import cycles without a baseline exception; retain the pinned checker with existing CI evidence so its exact input can be inspected on restricted hosts.
+
+- K25: stage root-jailer disks with host-owned bind mounts and a private durable inode/ownership record, retaining one original writable disk across filesystems; recover only after its kernel lease is free and validate mount identities before unmounting or restoring ownership. Reuse procfs 0.18.0 (MIT OR Apache-2.0) for mountinfo and existing rustix mount wrappers rather than parse the kernel format or add a mount implementation.
