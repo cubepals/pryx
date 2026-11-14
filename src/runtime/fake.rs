@@ -56,6 +56,8 @@ pub struct FakeRuntime {
     /// Execs wait here, once called, before they look for their container: a test that holds it
     /// for writing acts between pryxd's checks and the exec itself.
     pub exec_gate: tokio::sync::RwLock<()>,
+    /// A real async scheduling boundary before a test's compute starts.
+    pub start_gate: tokio::sync::RwLock<()>,
     /// When set, a followed log stays open once it has sent what the log holds, as Docker's does
     /// while a container runs and prints nothing. Each one open holds a clone of `follows`.
     pub hold_follows: AtomicBool,
@@ -85,6 +87,7 @@ impl FakeRuntime {
             runtime_info: Mutex::new(RuntimeInfo { version: Some("fake".into()), ..Default::default() }),
             network_isolated: Mutex::new(Some(true)),
             exec_gate: tokio::sync::RwLock::new(()),
+            start_gate: tokio::sync::RwLock::new(()),
             hold_follows: AtomicBool::new(false),
             follows: std::sync::Arc::new(()),
             hang_unpause: AtomicBool::new(false),
@@ -274,6 +277,7 @@ impl ContainerRuntime for FakeRuntime {
     async fn start(&self, name: &str) -> Result<(), RuntimeError> {
         self.up()?;
         self.call(format!("start {name}"));
+        let _open = self.start_gate.read().await;
         let mut all = self.containers.lock().unwrap();
         let taken: Vec<(super::super::protocol::Proto, u16)> = all
             .values()

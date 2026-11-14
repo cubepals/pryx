@@ -3306,3 +3306,30 @@ job when publication is authorized. That job has not run in this task.
   runtime's owned launch may continue, and admission counts only observed/copying workloads.
   The VM tier stays unregistered until those paths, networking/root policy, protected installer/
   configuration and full node/edge lifecycle plus thirty production samples are proved.
+
+
+- K25 compute admission: requested starts and replacements acquire their workload lock before
+  handing it to an owned task, so waiting requests remain cancellable and accepted transitions
+  retain fencing authority after disconnection. All start paths, including automatic and copy
+  resumes, atomically reserve memory before compute. Failed/unobserved starts stay charged
+  through outages; a fresh observation resolves the same reservation ticket atomically with
+  publishing its actual state. Old inventory cannot release a pending transition.
+- Three actual async-boundary regressions pass (0.10 s): cancelled start, cancelled replacement
+  at its new memory size, competing-start refusal, fencing order, and an unobserved start across
+  a runtime outage. The first full run catches a cancelled lock waiter executing later in the
+  existing file-cleanup test; acquiring the lock before task handoff fixes it without changing
+  that test's assertions. Current complete local Rust: 519 passes, the unchanged IPv6 fixture
+  failure and 34 ignored; both strict Clippy modes/fmt/whitespace pass. No new CI job/gate or
+  material ordinary CI time. This proves manager ownership/admission, not engine enforcement.
+- Source 021d73c VM run 43539225548/job 132275590623 is green: full rebuilt-layer hashes and
+  both independently cached KVM forks pass, runtime 68.50 s and registry 13.50 s. The earlier
+  runtime was 49.43 s; these are separate hosted runs, not a controlled causal timing comparison.
+  Summary: checks/measurements/k25/cross-cache-021d73c.json. Source 73d00ba VM run 43539908502/
+  job 132277787678 is also green: actual INT marker and TERM lifecycle, runtime 71.13 s;
+  summary: checks/measurements/k25/shutdown-73d00ba.json. Move-only VM run 43540196186 is green.
+  These do not prove later logs/stats/admission. Normal source-28c34f0 workflows still have only
+  queued initial jobs; scanner remains eighteen addressed comments. K25 stays in progress.
+- Next make failed VM launch retirement authoritative before returning a stopped observation,
+  prove interrupted-live adoption/failed ingress on real KVM, then finish ordinary-user/root
+  networking and confinement, protected installer/configuration, full node+edge lifecycle and
+  thirty production samples. Do not register the VM tier before those paths and refusals work.

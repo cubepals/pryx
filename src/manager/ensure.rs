@@ -19,55 +19,61 @@ impl Manager {
         precondition: Precondition,
         epoch: Option<u64>,
     ) -> Result<EnsureResponse, NodeError> {
-        let lock = self.lock_for(&id);
-        let _guard = lock.lock().await;
-        let runtime = self.spec_runtime(&id, &spec)?;
-        spec.validate(&self.spec_policy(runtime.as_ref())).map_err(NodeError::Invalid)?;
-        self.validate_resources(runtime.as_ref(), &spec.resources).await?;
-        if (spec.agent.is_some() || spec.spare_ports.is_some()) && self.agent_binary(runtime.as_ref()).is_none() {
-            return Err(NodeError::Invalid(vec![FieldError {
-                field: "agent".into(),
-                problem: "the host has no trusted agent executable".into(),
-            }]));
-        }
-        if runtime.is_process() && spec.require_browser_sandbox == Some(true) {
-            let binary = self.agent_binary(runtime.as_ref()).ok_or_else(|| {
-                NodeError::Invalid(vec![FieldError {
-                    field: "requireBrowserSandbox".into(),
-                    problem: "browser-sandbox requires a trusted process agent".into(),
-                }])
-            })?;
-            runtime.native_browser(&binary).await.map_err(|problem| {
-                NodeError::Invalid(vec![FieldError {
-                    field: "requireBrowserSandbox".into(),
-                    problem: format!("browser-sandbox: {problem}"),
-                }])
-            })?;
-        }
-        if spec.egress.is_some()
-            && (!runtime.supports_hostname_egress() || spec.network == crate::protocol::NetworkMode::None)
-        {
-            return Err(NodeError::Invalid(vec![crate::protocol::FieldError {
-                field: "egress".into(),
-                problem: "hostname egress requires an announced container host firewall and network internet".into(),
-            }]));
-        }
-        if spec.user.as_ref().is_some_and(|user| user != &self.config.workloads.user.to_string()) {
-            return Err(NodeError::Invalid(vec![crate::protocol::FieldError {
-                field: "user".into(),
-                problem: "user must match the host workload user policy".into(),
-            }]));
-        }
-        if spec.network == crate::protocol::NetworkMode::None && !runtime.supports_network_policy() {
-            return Err(NodeError::Invalid(vec![FieldError {
-                field: "network".into(),
-                problem: "the host has no network-policy feature".into(),
-            }]));
-        }
-        let started = Instant::now();
-        let result = self.ensure_locked(&id, spec, precondition, epoch).await;
-        self.metrics.operation("ensure", &result, started.elapsed());
-        result
+        let guard = self.lock_for(&id).lock_owned().await;
+        let own = self.clone();
+        tokio::spawn(async move {
+            let _guard = guard;
+            let runtime = own.spec_runtime(&id, &spec)?;
+            spec.validate(&own.spec_policy(runtime.as_ref())).map_err(NodeError::Invalid)?;
+            own.validate_resources(runtime.as_ref(), &spec.resources).await?;
+            if (spec.agent.is_some() || spec.spare_ports.is_some()) && own.agent_binary(runtime.as_ref()).is_none() {
+                return Err(NodeError::Invalid(vec![FieldError {
+                    field: "agent".into(),
+                    problem: "the host has no trusted agent executable".into(),
+                }]));
+            }
+            if runtime.is_process() && spec.require_browser_sandbox == Some(true) {
+                let binary = own.agent_binary(runtime.as_ref()).ok_or_else(|| {
+                    NodeError::Invalid(vec![FieldError {
+                        field: "requireBrowserSandbox".into(),
+                        problem: "browser-sandbox requires a trusted process agent".into(),
+                    }])
+                })?;
+                runtime.native_browser(&binary).await.map_err(|problem| {
+                    NodeError::Invalid(vec![FieldError {
+                        field: "requireBrowserSandbox".into(),
+                        problem: format!("browser-sandbox: {problem}"),
+                    }])
+                })?;
+            }
+            if spec.egress.is_some()
+                && (!runtime.supports_hostname_egress() || spec.network == crate::protocol::NetworkMode::None)
+            {
+                return Err(NodeError::Invalid(vec![crate::protocol::FieldError {
+                    field: "egress".into(),
+                    problem: "hostname egress requires an announced container host firewall and network internet"
+                        .into(),
+                }]));
+            }
+            if spec.user.as_ref().is_some_and(|user| user != &own.config.workloads.user.to_string()) {
+                return Err(NodeError::Invalid(vec![crate::protocol::FieldError {
+                    field: "user".into(),
+                    problem: "user must match the host workload user policy".into(),
+                }]));
+            }
+            if spec.network == crate::protocol::NetworkMode::None && !runtime.supports_network_policy() {
+                return Err(NodeError::Invalid(vec![FieldError {
+                    field: "network".into(),
+                    problem: "the host has no network-policy feature".into(),
+                }]));
+            }
+            let started = Instant::now();
+            let result = own.ensure_locked(&id, spec, precondition, epoch).await;
+            own.metrics.operation("ensure", &result, started.elapsed());
+            result
+        })
+        .await
+        .map_err(|_| NodeError::Internal("Ensure task failed".into()))?
     }
 
     async fn ensure_locked(
@@ -414,9 +420,8 @@ impl Manager {
         if record.phase == Phase::Retained {
             self.check_disk()?;
         }
-        if was_running {
-            self.admit(&id, u64::from(spec.resources.memory_mb))?;
-        }
+        let mut reservation =
+            was_running.then(|| self.reserve_start(&id, u64::from(spec.resources.memory_mb))).transpose()?;
         // Pull first: if the new image can't be had, the running workload is left untouched.
         let pull = Duration::from_secs(self.config.docker.pull_timeout_seconds);
         self.note_tier(self.record_tier(&record), self.record_runtime(&record)?.ensure_image(&spec.image, pull).await)?;
@@ -463,10 +468,20 @@ impl Manager {
         }
         if was_running {
             self.require_store_lease(&record)?;
-            self.note(self.runtime.start(&record.container_name).await).map_err(|e| port_clash(&id, e))?;
+            let reservation = reservation.as_mut().expect("Running replacements reserve their start");
+            reservation.launching();
+            let start = self.note(self.runtime.start(&record.container_name).await).map_err(|e| port_clash(&id, e));
+            let observation = self.observe(&record).await;
+            if observation.is_ok() {
+                reservation.observed();
+            }
+            start?;
+            observation?;
         }
         self.clear_resolved_issues(&id);
-        self.observe(&record).await?;
+        if !was_running {
+            self.observe(&record).await?;
+        }
         Ok(EnsureResponse { outcome: EnsureOutcome::Replaced, restarted: was_running, workload: self.view(&id)? })
     }
 }

@@ -14,12 +14,17 @@ impl Manager {
     // ─── power ─────────────────────────────────────────────────────────────────────────────
 
     pub async fn start(self: &Arc<Self>, id: WorkloadId, epoch: Option<u64>) -> Result<PowerResponse, NodeError> {
-        let lock = self.lock_for(&id);
-        let _guard = lock.lock().await;
-        let started = Instant::now();
-        let result = self.start_locked(&id, epoch).await;
-        self.metrics.operation("start", &result, started.elapsed());
-        result
+        let guard = self.lock_for(&id).lock_owned().await;
+        let own = self.clone();
+        tokio::spawn(async move {
+            let _guard = guard;
+            let started = Instant::now();
+            let result = own.start_locked(&id, epoch).await;
+            own.metrics.operation("start", &result, started.elapsed());
+            result
+        })
+        .await
+        .map_err(|_| NodeError::Internal("Start task failed".into()))?
     }
 
     async fn start_locked(self: &Arc<Self>, id: &WorkloadId, epoch: Option<u64>) -> Result<PowerResponse, NodeError> {
@@ -72,7 +77,7 @@ impl Manager {
         )
         .await?;
         let memory = deferred.as_ref().map_or(record.spec.resources.memory_mb, |spec| spec.resources.memory_mb);
-        self.admit(&id, u64::from(memory))?;
+        let mut reservation = self.reserve_start(&id, u64::from(memory))?;
         match deferred {
             Some(spec) => {
                 let digest = spec.record().digest();
@@ -88,10 +93,16 @@ impl Manager {
         record.stop_requested_at = None;
         record.updated_at = now_str();
         self.save_record(&record).await?;
-        self.note(self.runtime.start(&record.container_name).await).map_err(|e| port_clash(&id, e))?;
+        reservation.launching();
+        let start = self.note(self.runtime.start(&record.container_name).await).map_err(|e| port_clash(&id, e));
+        let observation = self.observe(&record).await;
+        if observation.is_ok() {
+            reservation.observed();
+        }
+        start?;
         self.state.lock().unwrap().last_failure.remove(&id);
         self.clear_issue(&id, IssueCode::InsufficientCapacity);
-        self.observe(&record).await?;
+        observation?;
         Ok(())
     }
 

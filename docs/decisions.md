@@ -1115,3 +1115,5 @@
 - K25: Reuse pinned procfs 0.18.0 (MIT OR Apache-2.0) for guest CPU/memory/interface counters and the init-owned command cgroup's PID count; carry optional observations in Routes-scoped health without workload exec or activity, leave unavailable counters absent, and keep VM limits tied to admitted resources rather than observations.
 
 - K25: Compile executable bootstrap probing and the private browser PNG signature only with the agent's server feature; fs-only consumers retain metadata types but cannot reference VM/tool implementations that their build deliberately omits.
+
+- K25: Own requested starts and replacements after acquiring their workload lock, keeping lock waits cancellable; reserve in-flight start memory atomically with admission, and keep uncertain starts charged until a fresh runtime observation; include automatic/copy resumes and retain fencing authority through the owned transition.

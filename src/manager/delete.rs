@@ -95,6 +95,7 @@ impl Manager {
                     let path = store.trash(&id2, now().unix_timestamp())?;
                     let mut state = state.lock().unwrap();
                     state.records.remove(&id2);
+                    state.starting.remove(&id2);
                     state.disk.remove(&id2);
                     Ok::<_, crate::store::StoreError>(path)
                 })

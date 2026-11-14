@@ -1,0 +1,13 @@
+{
+  "measurement": "Reproducible OCI lower identity and a disk fork booting through an independent runtime cache",
+  "commit": "021d73c",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43539225548",
+  "result": "passed",
+  "images": 2,
+  "runtimeSeconds": 68.5,
+  "registrySeconds": 13.5,
+  "bundleSeconds": 8.23,
+  "componentBootsSeconds": 32.35,
+  "checks": "All rebuilt layer hashes match across independent caches; competing-builder lock, unchanged cache and corruption refusals remain; real KVM independent-cache fork boots both images and preserves source/fork data separation",
+  "limits": "This source predates selected signals, entrypoint logs, resource stats and manager admission changes; no root/TAP/firewall, registered VM tier, node/edge lifecycle or production timing claim."
+}

@@ -201,6 +201,7 @@ struct State {
     disk: HashMap<WorkloadId, (u64, OffsetDateTime)>,
     stopping: HashSet<WorkloadId>,
     copying: HashSet<WorkloadId>,
+    starting: HashMap<WorkloadId, room::Starting>,
     last_failure: HashMap<WorkloadId, OffsetDateTime>,
     /// Failures waiting for their restart, and when it is due.
     restart_due: HashMap<WorkloadId, Instant>,
@@ -389,6 +390,7 @@ impl Manager {
                 disk: HashMap::new(),
                 stopping: HashSet::new(),
                 copying: HashSet::new(),
+                starting: HashMap::new(),
                 last_failure: HashMap::new(),
                 restart_due: HashMap::new(),
                 resuming: HashSet::new(),
@@ -580,13 +582,36 @@ impl Manager {
 
     /// Looks at the container now and remembers what it saw.
     async fn observe(&self, record: &WorkloadRecord) -> Result<Option<ContainerInfo>, NodeError> {
+        let ticket = self.uncertain_start(&record.id);
         let info = if record.phase == Phase::Retained { None } else { self.inspect(&record.container_name).await? };
-        self.remember(&record.id, info.clone()).await;
+        self.remember_observation(&record.id, info.clone(), ticket).await;
         Ok(info)
     }
 
     async fn remember(&self, id: &WorkloadId, info: Option<ContainerInfo>) {
-        if self.note_observed(id, info)
+        let (info, ticket) = if let Some(ticket) = self.uncertain_start(id) {
+            // Inventory can predate the failed start. Re-read after its owner released the
+            // reservation, and resolve only that same ticket after a successful observation.
+            let Some(record) = self.state.lock().unwrap().records.get(id).cloned() else { return };
+            let fresh = match self.inspect(&record.container_name).await {
+                Ok(info) => info,
+                Err(problem) => {
+                    self.set_issue(
+                        id,
+                        Issue::new(IssueCode::RuntimeUnavailable, format!("Start outcome is unconfirmed: {problem}")),
+                    );
+                    return;
+                }
+            };
+            (fresh, Some(ticket))
+        } else {
+            (info, None)
+        };
+        self.remember_observation(id, info, ticket).await;
+    }
+
+    async fn remember_observation(&self, id: &WorkloadId, info: Option<ContainerInfo>, ticket: Option<Arc<()>>) {
+        if self.note_observed(id, info, ticket)
             && let Err(e) = self.write_record(id).await
         {
             tracing::warn!(workload = %id, error = %e, "couldn't record which boot the workload ran in");
@@ -594,8 +619,13 @@ impl Manager {
     }
 
     /// What `remember` notes in memory; whether the record's boot changed, which is then written.
-    fn note_observed(&self, id: &WorkloadId, info: Option<ContainerInfo>) -> bool {
+    fn note_observed(&self, id: &WorkloadId, info: Option<ContainerInfo>, ticket: Option<Arc<()>>) -> bool {
         let mut state = self.state.lock().unwrap();
+        if let Some(ticket) = ticket
+            && state.starting.get(id).is_some_and(|start| !start.active && Arc::ptr_eq(&start.ticket, &ticket))
+        {
+            state.starting.remove(id);
+        }
         let tier_era = state.records.get(id).map_or(0, |record| self.runtime.tier_era(self.record_tier(record)));
         let era = self.runtime_era.load(Ordering::SeqCst).saturating_add(tier_era);
         // A failure pryxd watched happen: it was running at the last look, in this same era,

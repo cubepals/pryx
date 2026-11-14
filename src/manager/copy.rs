@@ -57,8 +57,15 @@ impl Manager {
                     ));
                 }
                 self.require_store_lease(record)?;
-                self.note(runtime.start(&record.container_name).await)?;
-                self.observe(record).await?;
+                let mut reservation = self.reserve_start(&record.id, u64::from(record.spec.resources.memory_mb))?;
+                reservation.launching();
+                let start = self.note(runtime.start(&record.container_name).await);
+                let observation = self.observe(record).await;
+                if observation.is_ok() {
+                    reservation.observed();
+                }
+                start?;
+                observation?;
                 Ok(())
             }
             .await;

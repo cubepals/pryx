@@ -1,0 +1,15 @@
+{
+  "measurement": "Authenticated selected-signal shutdown on the actual VM runtime",
+  "commit": "73d00ba",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43539908502",
+  "result": "passed",
+  "runtimeSeconds": 71.13,
+  "images": 2,
+  "checks": "Verified bundle signal support, original TERM lifecycle and a Debian INT handler whose durable marker is read from the stopped disk; both OCI images retain binary file sessions, cold wake, cross-cache forks and signed quick completion",
+  "otherAcceptanceSeconds": {
+    "bundle": 8.35,
+    "registry": 18.15,
+    "sixComponentBoots": 33.2
+  },
+  "limits": "This source predates VM logs, resource stats, manager admission and failure-retirement changes; no complete tier/root/network/edge or production timing claim."
+}
