@@ -69,6 +69,7 @@ fn spec(data: &Path, image: &str) -> ContainerSpec {
     }
 }
 async fn exec(runtime: &VmRuntime, id: &str, script: &str) -> Vec<u8> {
+    eprintln!("VM runtime exec: {script}");
     let output = runtime
         .exec(
             id,
@@ -120,6 +121,7 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
     let inputs: Vec<serde_json::Value> =
         serde_json::from_str(include_str!("../../../../templates/vm-tools/image-inputs.json")).unwrap();
     for (index, image) in inputs.iter().enumerate() {
+        eprintln!("VM runtime image {index}: create and initial boot");
         let data = temporary.path().join(format!("data{index}"));
         directory(&data).unwrap();
         let original_spec = spec(&data, image["reference"].as_str().unwrap());
@@ -160,6 +162,7 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
         let copy = temporary.path().join(format!("copy{index}"));
         crate::tree::copy_tree(&data, &copy, None, &[], &mut |_| Ok(())).unwrap();
         drop(copy_lease);
+        eprintln!("VM runtime image {index}: file-only guest");
         let files = runtime.open_files(&id).await.unwrap();
         assert!(runtime.data_copy_lease(sandbox, &data).await.is_err(), "File service holds the real disk lease");
         let response = files
@@ -187,6 +190,7 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
         runtime.start(&id).await.unwrap();
         assert_eq!(exec(&runtime, &id, "wc -c < /data/offline").await, format!("{}\n", bytes.len()).as_bytes());
         assert_eq!(exec(&runtime, &id, "cat /data/retained").await, b"durable");
+        eprintln!("VM runtime image {index}: independent fork");
         let fork_spec = spec(&copy, image["reference"].as_str().unwrap());
         let fork = runtime.create(&fork_spec).await.unwrap();
         runtime.start(&fork).await.unwrap();
@@ -196,6 +200,7 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
         runtime.remove(&id).await.unwrap();
         assert!(runtime.inspect(&id).await.unwrap().is_none());
         assert!(data.join(super::super::disk::FILE).is_file());
+        eprintln!("VM runtime image {index}: immediate guest exit");
         let job_data = temporary.path().join(format!("job{index}"));
         directory(&job_data).unwrap();
         let mut job_spec = spec(&job_data, image["reference"].as_str().unwrap());

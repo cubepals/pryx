@@ -3097,3 +3097,15 @@ job when publication is authorized. That job has not run in this task.
   failure, not a pass; keep the deadline and add retained runtime-stage/monitor evidence before
   diagnosing further. Runtime boot directories currently disappear when the failing test unwinds.
   Scanner remains eighteen addressed comments. K25 stays in progress.
+
+
+- K25 failure evidence: test-only Live cleanup retains at most one existing request-size bound
+  of complete serial lines in the existing VM artifact, with every launch environment value
+  redacted. No private journal, bootstrap input or environment dump is uploaded. Fixture stage
+  markers identify the image and exact fixed test command before exec. Production logging,
+  all five-second exec deadlines and the one-shot mutation policy are unchanged.
+- Actual local file acceptance proves tail bounds, value redaction and symlink/hardlink refusals.
+  Full local Rust: 507 passes, the known IPv6 failure, 34 ignored; strict Clippy in both modes,
+  fmt, actionlint and whitespace checks pass. Workflow changes only extend existing artifact
+  retention; no new gate/job or material CI time. Failure summary: checks/measurements/k25/
+  runtime-7cc98b6.json. Stopped-file service and journal adoption still await actual KVM CI.

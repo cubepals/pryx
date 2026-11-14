@@ -11,6 +11,7 @@
 //! - `maintenance.rs`: leased file-only guests for stopped disks.
 //! - `agent.rs`: authenticated agent calls and one-shot compatibility exec.
 //! - `runtime.rs`: runtime verbs, observations and bounded event polling.
+//! - `diagnostics.rs`: bounded credential-redacted serial CI artifacts, in test builds only.
 //! - `tests.rs`: actual KVM lifecycle acceptance through the runtime seam.
 mod agent;
 mod configuration;
@@ -19,6 +20,8 @@ mod journal;
 mod launch;
 mod maintenance;
 pub use maintenance::FileGuest;
+#[cfg(test)]
+mod diagnostics;
 mod runtime;
 #[cfg(test)]
 mod tests;
@@ -83,6 +86,14 @@ struct Live {
     nonce: String,
     shutdown_requested: bool,
     killing: bool,
+    #[cfg(test)]
+    diagnostic_secrets: Vec<String>,
+}
+#[cfg(test)]
+impl Drop for Live {
+    fn drop(&mut self) {
+        diagnostics::retain(&self.serial, &self.diagnostic_secrets);
+    }
 }
 
 pub(super) fn directory(path: &Path) -> Result<(), RuntimeError> {

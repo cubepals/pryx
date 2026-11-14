@@ -110,6 +110,8 @@ impl VmRuntime {
         monitor.delivered(deadline).await?;
         launch::ready(&mut monitor, &entry.spec, deadline).await?;
         monitor.bootstrapped(deadline).await?;
+        #[cfg(test)]
+        let diagnostic_secrets = entry.spec.env.iter().map(|(_, value)| value.clone()).collect();
         Ok(FileGuest {
             inner: Some(Inner {
                 entry,
@@ -124,6 +126,8 @@ impl VmRuntime {
                     nonce,
                     shutdown_requested: false,
                     killing: false,
+                    #[cfg(test)]
+                    diagnostic_secrets,
                 },
             }),
         })

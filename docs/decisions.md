@@ -1089,3 +1089,5 @@
 - K24: Give the real SSH lease fixture a fresh loopback address so parallel localhost ephemeral allocation cannot claim its released address/port; retain the immediate rebind assertion and include the actual OS error on failure.
 
 - K25: Keep VM specifications and credentials in bounded private 0600 journals outside sandbox data, matching the existing process backend; persist launch intent before compute, restore unfinished launches only as unknown exits, and independently verify disks rather than invent a clean shutdown after daemon death.
+
+- K25: Retain bounded monitor serial tails only in the existing optional VM CI artifact, redacting all launch environment values and incomplete boundary lines; add fixture stage markers without changing production logging, request deadlines or mutation retry policy.

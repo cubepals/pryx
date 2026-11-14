@@ -157,6 +157,8 @@ impl VmRuntime {
                 nonce,
                 shutdown_requested: false,
                 killing: false,
+                #[cfg(test)]
+                diagnostic_secrets: entry.spec.env.iter().map(|(_, value)| value.clone()).collect(),
             })),
         );
         Ok(())
