@@ -19,7 +19,7 @@ impl Drop for Supervisor {
     }
 }
 
-fn failed_request(child: &mut Child, problem: reqwest::Error, secret: &str) -> ! {
+fn failed_request(child: &mut Child, problem: impl std::fmt::Display, secret: &str) -> ! {
     use std::io::Read;
     let status = child.try_wait();
     let _ = child.kill();
@@ -69,7 +69,7 @@ async fn agent_and_spare_listeners_are_unreachable_on_non_configured_interfaces(
                 &addresses,
                 "--keep-alive",
             ])
-            .env("TEST_BOOTSTRAP_SECRET", encoded)
+            .env("TEST_BOOTSTRAP_SECRET", &encoded)
             .env_remove(pryx_agent::process_policy::POLICY_ENV)
             .stdout(Stdio::null())
             .stderr(Stdio::piped())
@@ -87,7 +87,9 @@ async fn agent_and_spare_listeners_are_unreachable_on_non_configured_interfaces(
     }
     assert!(tokio::net::TcpStream::connect((outside, agent_port)).await.is_err());
     assert!(tokio::net::TcpStream::connect(("127.0.0.2", agent_port)).await.is_err());
-    assert!(tokio::net::TcpStream::connect(("127.0.0.2", spare_port)).await.is_ok());
+    tokio::net::TcpStream::connect(("127.0.0.2", spare_port))
+        .await
+        .unwrap_or_else(|problem| failed_request(&mut child.0, problem, &encoded));
     assert!(tokio::net::TcpStream::connect((Ipv4Addr::LOCALHOST, spare_port)).await.is_err());
     assert!(tokio::net::TcpStream::connect((outside, spare_port)).await.is_err());
 }

@@ -1193,3 +1193,5 @@
 - K25: exercise the real VM backend through the existing manager, immutable router and mutual-TLS node API before installation enables placement; announce its proved no-device policy and ordinary hostname path only when that backend exists, and export the existing epoch/delete header constants for Rust clients rather than restating their wire spellings.
 
 - K25: distinguish the ordinary image's installed tiers from the additive protocol enum in its mixed-tier fixture; preserve every container/process/wasm assertion and require an explicit VM request to receive the named no_room refusal on this no-KVM image.
+
+- K25: capture the actual child exit and the same bounded redacted stderr when the existing bootstrap spare-connect assertion fails, preserving its single connect, addresses and original success requirement; focused success does not erase the full-suite failure.

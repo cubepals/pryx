@@ -3948,7 +3948,7 @@ job when publication is authorized. That job has not run in this task.
   iterated the newly additive protocol enum and asked the no-KVM image for an imageless
   VM. Every earlier installed-tier assertion remains; use the image owner's supported
   tier set and add a valid image-backed VM request asserting no_room and the VM name.
-  All other jobs and the actual e2e, wasm, two-node, integration and lease steps pass.
+  Other substantive jobs and the actual e2e, wasm, two-node, integration and lease steps pass.
   Scanner comments remain eighteen. The first CNI device probe fails; its executing job
   has not yet published a complete log, so no cause or positive TAP result is claimed.
 - This checkpoint's complete pinned Bun check passes against real Postgres: 438 tests,
@@ -3959,3 +3959,8 @@ job when publication is authorized. That job has not run in this task.
   new integration compilation, fmt, actionlint with ShellCheck and whitespace pass.
   Real node/KVM acceptance cannot run locally; CI now executes it. Estimate up to two
   additional optional VM-job minutes and zero ordinary PR minutes, with no new job/gate.
+- Retain the full-suite spare-connect failure with the existing bounded child-status and
+  secret-redacted stderr capture, without repeating the connect or changing an assertion.
+  The focused two-case bootstrap check passes (0.45 s), with the same agentOS environment;
+  that is diagnostic validation, not a claimed cause or fix. Targeted strict Clippy and
+  formatting pass. Real engine/KVM validation stays in CI.
