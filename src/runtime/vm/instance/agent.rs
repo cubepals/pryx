@@ -15,13 +15,7 @@ pub(super) fn key(spec: &ContainerSpec) -> Result<SigningKey, RuntimeError> {
         .and_then(|(_, value)| SigningKey::from_encoded(value).ok())
         .ok_or_else(|| error("VM signing material is missing"))
 }
-pub(super) async fn raw(
-    spec: &ContainerSpec,
-    method: Method,
-    path: &str,
-    body: Value,
-    timeout: Duration,
-) -> Result<Vec<u8>, RuntimeError> {
+pub(super) fn endpoint(spec: &ContainerSpec) -> Result<std::net::SocketAddr, RuntimeError> {
     let boot = spec.agent.as_ref().ok_or_else(|| error("VM agent bootstrap is missing"))?;
     let binding = spec
         .ports
@@ -29,7 +23,10 @@ pub(super) async fn raw(
         .find(|port| port.container_port == boot.agent_port && port.protocol == crate::protocol::Proto::Tcp)
         .ok_or_else(|| error("VM agent binding is missing"))?;
     let ip = binding.host_ips.first().ok_or_else(|| error("VM agent private address is missing"))?;
-    let endpoint = std::net::SocketAddr::new(*ip, binding.host_port);
+    Ok(std::net::SocketAddr::new(*ip, binding.host_port))
+}
+fn headers(spec: &ContainerSpec, scope: Scope) -> Result<[(&'static str, String); 3], RuntimeError> {
+    let boot = spec.agent.as_ref().ok_or_else(|| error("VM agent bootstrap is missing"))?;
     let now = crate::clock::now().unix_timestamp();
     let token = key(spec)?
         .sign(&Claims {
@@ -37,21 +34,32 @@ pub(super) async fn raw(
             epoch: boot.epoch,
             issued_at: now,
             expires_at: now + TOKEN_LIFETIME_SECONDS,
-            scope: if method == Method::GET && matches!(path, "/_pryx/health" | "/_pryx/ports") {
-                Scope::Routes
-            } else {
-                Scope::Sandbox
-            },
+            scope,
             max_ports: boot.spare_ports.len() as u16,
             max_exec_seconds: None,
             file: None,
         })
         .map_err(error)?;
-    let headers = [
+    Ok([
         ("authorization", format!("Bearer {token}")),
         ("content-type", "application/json".into()),
         (pryx_agent::contract::IDEMPOTENCY_HEADER, uuid::Uuid::new_v4().to_string()),
-    ];
+    ])
+}
+pub(super) async fn raw(
+    spec: &ContainerSpec,
+    method: Method,
+    path: &str,
+    body: Value,
+    timeout: Duration,
+) -> Result<Vec<u8>, RuntimeError> {
+    let endpoint = endpoint(spec)?;
+    let scope = if method == Method::GET && matches!(path, "/_pryx/health" | "/_pryx/ports") {
+        Scope::Routes
+    } else {
+        Scope::Sandbox
+    };
+    let headers = headers(spec, scope)?;
     let response = crate::http_client::send(
         method,
         &format!("http://{endpoint}{path}"),
@@ -73,6 +81,27 @@ pub(super) async fn raw(
     }
     Ok(bytes.to_vec())
 }
+pub(super) async fn log_response(
+    spec: &ContainerSpec,
+    follow: bool,
+) -> Result<hyper::Response<hyper::body::Incoming>, RuntimeError> {
+    let headers = headers(spec, Scope::Sandbox)?;
+    tokio::time::timeout(
+        crate::runtime::ENGINE_PROBE_TIMEOUT,
+        crate::http_client::local_stream(
+            endpoint(spec)?,
+            Method::GET,
+            if follow { "/_pryx/logs?follow=true" } else { "/_pryx/logs" },
+            &headers,
+            crate::http_client::empty(),
+            crate::runtime::ENGINE_PROBE_TIMEOUT,
+        ),
+    )
+    .await
+    .map_err(|_| RuntimeError::Timeout("VM log response headers exceeded their deadline".into()))?
+    .map_err(|problem| RuntimeError::Unavailable(problem.to_string()))
+}
+
 pub(super) async fn snapshot(spec: &ContainerSpec) -> Result<pryx_agent::state::Snapshot, RuntimeError> {
     #[derive(serde::Deserialize)]
     struct Health {

@@ -3259,3 +3259,28 @@ job when publication is authorized. That job has not run in this task.
   unchanged IPv6 fixture failure and 34 ignored; both strict Clippy modes/fmt/whitespace pass.
   No workflow, gate or runtime behaviour changes. VM log transport and admitted stopped-disk
   replay are next. Source 73d00ba VM run 43539908502 remains queued; scanner stays eighteen.
+
+
+- K25 logs: authenticated live agent frames now drive runtime entrypoint output with bounded
+  frames, explicit gaps, timestamps/since/tail filtering, setup-only deadlines and idle-reader
+  cancellation. A stopped remote backend replays its persistent log via the manager's existing
+  admitted file session; exact workload/data guards and memory outlive cancellation through
+  owned cleanup. Monitor serial and bootstrap never become application output.
+- Actual local agent HTTP acceptance covers replay, follow beyond the setup deadline, epoch
+  authentication, oversized/incomplete frames, explicit gaps and early follow disconnection.
+  Real mTLS node acceptance verifies stopped log contents and cancelled log-cleanup memory/
+  guard retention without starting compute. Existing KVM acceptance verifies live and stopped
+  Debian entrypoint output with no added boots/jobs/gates; about two extra seconds in ordinary
+  unit CI and under one optional second. Actual guest log proof is still pending.
+- Current-source local Rust: 515 passes, the unchanged IPv6 fixture failure and 34 ignored;
+  both strict Clippy modes/fmt/whitespace pass, and the length probe has no new daemon warning.
+  Earlier Clippy catches a redundant closure and items after a test module; both are corrected.
+  The current complete Wasm case passes in 26.77 s while retaining its termination warning.
+- Real KVM proof at source 28c34f0: VM run 43537774307/job 132270844126 is green. Both images
+  complete active/stopped/retained file sessions, binary transfers, journals, epochs, real copy
+  leases, cold wake, fork independence and quick signed completion in 49.43 s. Bundle (6.12 s),
+  registry (7.67 s) and six component boots (30.79 s) pass too. Short summary:
+  checks/measurements/k25/maintenance-28c34f0.json. Its normal/host runs remain queued; this does
+  not prove later cache identity, signals or logs. Scanner stays eighteen addressed comments.
+  K25 remains in progress; continue stats/adoption failures, networking/root confinement,
+  protected install/config wiring, full node/edge lifecycle and thirty production samples.

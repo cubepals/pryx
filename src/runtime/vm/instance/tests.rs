@@ -3,13 +3,14 @@
 //! optional VM job supplies the complete pinned archive and real public OCI registry inputs.
 use super::*;
 use crate::runtime::{AgentBoot, ContainerRuntime, ContainerStatus, PortBinding};
+use futures_util::StreamExt as _;
 use std::net::{Ipv4Addr, TcpListener};
 use tokio::io::AsyncReadExt;
 
 fn input(name: &str) -> PathBuf {
     std::env::var_os(name).unwrap_or_else(|| panic!("Stage {name}")).into()
 }
-fn spec(data: &Path, image: &str) -> ContainerSpec {
+pub(super) fn spec(data: &Path, image: &str) -> ContainerSpec {
     let sandbox = uuid::Uuid::new_v4().simple().to_string();
     let secret_env = format!("{}{}", pryx_agent::contract::SECRET_ENV_PREFIX, uuid::Uuid::new_v4().simple());
     let (_, encoded) = pryx_agent::auth::SigningKey::generate().unwrap();
@@ -99,6 +100,17 @@ async fn exec(runtime: &VmRuntime, id: &str, script: &str) -> Vec<u8> {
     assert!(!output.timed_out && !output.killed);
     output.stdout
 }
+async fn workload_log(runtime: &VmRuntime, id: &str) {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        let chunks: Vec<_> = runtime.logs(id, crate::runtime::LogOptions::default()).collect().await;
+        if chunks.into_iter().any(|chunk| chunk.unwrap().bytes.ends_with(b" workload-log")) {
+            return;
+        }
+        assert!(tokio::time::Instant::now() < deadline, "Guest entrypoint output did not reach logs");
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+}
 #[tokio::test]
 #[ignore = "requires real KVM, verified VM archive and public registries; existing optional VM CI runs it"]
 async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
@@ -145,7 +157,7 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
             original_spec.stop_signal = crate::protocol::StopSignal::SIGINT.as_str().into();
             original_spec.agent.as_mut().unwrap().keep_alive = false;
             original_spec.entrypoint = Some(vec!["/bin/sh".into(), "-c".into(),
-                "trap 'printf interrupted > /data/signal; exit 0' INT; printf ready > /data/signal-ready; while :; do sleep 1; done".into()]);
+                "trap 'printf interrupted > /data/signal; exit 0' INT; printf ready > /data/signal-ready; printf workload-log; while :; do sleep 1; done".into()]);
         }
         let id = runtime.create(&original_spec).await.unwrap();
         let settings = runtime.state.settings.clone();
@@ -161,6 +173,7 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
                     .await,
                 b"ready"
             );
+            workload_log(&runtime, &id).await;
         }
         assert_eq!(exec(&runtime, &id, "printf durable > /data/retained; printf ready").await, b"ready");
         assert_eq!(exec(&runtime, &id, "grep -c '^processor' /proc/cpuinfo").await, b"2\n");
@@ -221,6 +234,17 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
                 .await
                 .unwrap();
             assert_eq!(crate::http_client::read_body(response, 1024).await.unwrap(), "interrupted");
+            let response = files
+                .request(
+                    crate::runtime::files::Operation::Read,
+                    pryx_agent::logbook::LOG_PATH,
+                    crate::http_client::empty(),
+                )
+                .await
+                .unwrap();
+            let bytes = crate::http_client::read_body(response, pryx_agent::contract::CAPTURE_BYTES * 4).await.unwrap();
+            let chunks = crate::runtime::logs::records(&bytes, &crate::runtime::LogOptions::default()).unwrap();
+            assert!(chunks.iter().any(|chunk| chunk.bytes.ends_with(b" workload-log")));
         }
         let bytes: Vec<u8> = (0..=u8::MAX).cycle().take(pryx_agent::contract::MAX_REQUEST_BYTES + 1).collect();
         let response = files

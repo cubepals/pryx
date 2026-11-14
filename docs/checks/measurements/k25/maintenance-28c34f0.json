@@ -1,0 +1,15 @@
+{
+  "measurement": "Actual runtime active, stopped and retained VM file sessions after maintenance-overlay correction",
+  "commit": "28c34f0f",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43537774307",
+  "result": "passed",
+  "runtimeSeconds": 49.43,
+  "images": 2,
+  "checks": "Ordinary-user two-vCPU boots, journals/restart, live agent reads, epoch refusal, stopped and retained binary reads/writes, file-only command refusal, disk-copy leases, cold wake, independent forks and quick signed completion",
+  "otherAcceptanceSeconds": {
+    "bundle": 6.12,
+    "registry": 7.67,
+    "sixComponentBoots": 30.79
+  },
+  "limits": "This source predates reproducible cross-cache lowers, selected shutdown signals and VM logs; it proves neither those later changes nor root/TAP/firewall, tier registration or node/edge VM lifecycle."
+}

@@ -3,6 +3,7 @@
 //! through cancelled cleanup. The in-memory compute seam proves routing and ownership only;
 //! actual VM disks, confinement and booted file guests are the optional KVM workflow's proof.
 mod support;
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use pryx_agent::{auth::SigningKey, paths::DataDir, ports::Ports, process::Processes, server::Agent};
 use pryxd::{manager::Precondition, runtime::files::Service};
 use std::{
@@ -40,6 +41,8 @@ async fn remote_files_preserve_epochs_shapes_streams_and_owned_cleanup() {
     });
     let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await.unwrap();
     let endpoint = listener.local_addr().unwrap();
+    agent.logs.record("stdout", &STANDARD.encode(b"first\n")).unwrap();
+    agent.logs.record("stderr", &STANDARD.encode(b"last\n")).unwrap();
     let agent_server =
         tokio::spawn(async move { axum::serve(listener, pryx_agent::server::files_router(agent)).await.unwrap() });
     let hold = Arc::new(AtomicBool::new(false));
@@ -125,6 +128,20 @@ async fn remote_files_preserve_epochs_shapes_streams_and_owned_cleanup() {
     .unwrap();
     assert_eq!(result.status, hyper::StatusCode::UNPROCESSABLE_ENTITY);
     assert_eq!(f.fake.count_calls("start "), 0, "File access must not start workload compute");
+    let logs = request(server.addr, &pki.ca.pem, Some(&me), "GET", "/v1/workloads/files/logs?tail=1", &[], None)
+        .await
+        .unwrap();
+    assert_eq!(logs.status, hyper::StatusCode::OK);
+    let records: Vec<serde_json::Value> = logs
+        .body
+        .split(|byte| *byte == b'\n')
+        .filter(|line| !line.is_empty())
+        .map(|line| serde_json::from_slice(line).unwrap())
+        .collect();
+    assert_eq!(records[0]["stream"], "stderr");
+    assert_eq!(records[0]["line"], "last");
+    assert_eq!(f.manager.capacity().running_memory_mb, 0);
+    assert_eq!(f.fake.count_calls("start "), 0, "Stopped logs must not start workload compute");
     hold.store(true, Ordering::SeqCst);
     let addr = server.addr;
     let caller = tokio::spawn(async move {
@@ -140,6 +157,20 @@ async fn remote_files_preserve_epochs_shapes_streams_and_owned_cleanup() {
     );
     gate.add_permits(1);
     support::eventually("file-session memory release", async || {
+        let memory = f.manager.capacity().running_memory_mb;
+        (memory == 0, memory.to_string())
+    })
+    .await;
+    let logs = f.manager.logs(&key, Some(1), None, false).unwrap();
+    tokio::time::timeout(Duration::from_secs(5), started.notified()).await.unwrap();
+    drop(logs);
+    assert_eq!(f.manager.capacity().running_memory_mb, memory_mb, "Cancelled log cleanup retains admitted memory");
+    assert!(
+        tokio::time::timeout(Duration::from_millis(50), f.manager.start(key.clone(), Some(7))).await.is_err(),
+        "Cancelled log cleanup retains the workload guard"
+    );
+    gate.add_permits(1);
+    support::eventually("log-session memory release", async || {
         let memory = f.manager.capacity().running_memory_mb;
         (memory == 0, memory.to_string())
     })

@@ -391,8 +391,12 @@ impl ContainerRuntime for VmRuntime {
     ) -> Result<ExecOutput, RuntimeError> {
         self.execute(name, command, timeout, limit).await
     }
-    fn logs(&self, _: &str, _: LogOptions) -> futures_util::stream::BoxStream<'static, Result<LogChunk, RuntimeError>> {
-        stream::once(async { Err(error("VM legacy log forwarding is not available in this checkpoint")) }).boxed()
+    fn logs(
+        &self,
+        name: &str,
+        options: LogOptions,
+    ) -> futures_util::stream::BoxStream<'static, Result<LogChunk, RuntimeError>> {
+        self.entrypoint_logs(name, options)
     }
     async fn stats(&self, name: &str) -> Result<Option<RawStats>, RuntimeError> {
         self.entry(name).map(|entry| {
