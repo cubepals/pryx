@@ -46,6 +46,18 @@ pub(in crate::runtime) async fn listen(
     let http = TcpListener::bind((address, ports.http)).await?;
     let tls = TcpListener::bind((address, ports.tls)).await?;
     let (dns_udp, dns_tcp) = resolver(address, ports.dns).await?;
+    serve(http, tls, dns_udp, dns_tcp, subnet, policy, capacity)
+}
+
+pub(in crate::runtime) fn serve(
+    http: TcpListener,
+    tls: TcpListener,
+    dns_udp: UdpSocket,
+    dns_tcp: TcpListener,
+    subnet: ipnet::IpNet,
+    policy: Policy,
+    capacity: usize,
+) -> io::Result<(Ports, DropGuard)> {
     let ports =
         Ports { http: http.local_addr()?.port(), tls: tls.local_addr()?.port(), dns: dns_tcp.local_addr()?.port() };
     let cancel = CancellationToken::new();

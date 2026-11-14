@@ -4168,3 +4168,14 @@ job when publication is authorized. That job has not run in this task.
   documents agree on the configured directory. Shell syntax, ShellCheck, actionlint and
   whitespace pass; no local engine build or added job/gate/time is claimed. Push immediately
   while the prior signed-preview build is still running.
+
+- Move the unchanged hostname/DNS listener serving body behind one named function before
+  adding namespace-owned socket adoption. Existing binding, validation, actual gateways,
+  capacities and cancellation behavior are unchanged; no socket acquisition path is added
+  in this move. Full Rust has 532 passes, the unchanged host IPv6 fixture failure and
+  41 ignored; strict all-target Clippy, formatting and whitespace pass.
+- Read the entire failed signed-preview bundle job 132541061541 in run 43624395705:
+  its sole build cause is FileNotFoundError for target after successful musl compilation,
+  matching the already pushed target-directory fix. The artifact-upload failure is a direct
+  consequence of installation never running. No signed VM installation is proved by that run.
+  Scanner remains eighteen. No added job/gate or CI time for the move.
