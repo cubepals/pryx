@@ -153,11 +153,7 @@ async fn guest_socket_policy(runtime: &VmRuntime, spec: &ContainerSpec, id: &str
     assert!(observed["vsockSocketDenied"] && observed["vsockSocketpairDenied"] && observed["ioUringSetupDenied"]);
     exec(runtime, id, "rm /data/policy-probe").await;
 }
-#[tokio::test]
-#[ignore = "requires real KVM, verified VM archive and public registries; existing optional VM CI runs it"]
-async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
-    let _ = rustls::crypto::ring::default_provider().install_default();
-    let temporary = tempfile::tempdir().unwrap();
+pub(super) async fn artifact_server() -> (Artifact, tokio::task::JoinHandle<()>) {
     let mut artifact: Artifact =
         serde_json::from_slice(&fs::read(input("PRYX_VM_RUNTIME_DESCRIPTOR")).unwrap()).unwrap();
     let archive = input("PRYX_VM_RUNTIME_ARCHIVE");
@@ -182,6 +178,14 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
     let server = tokio::spawn(async move {
         axum::serve(listener, router).await.unwrap();
     });
+    (artifact, server)
+}
+#[tokio::test]
+#[ignore = "requires real KVM, verified VM archive and public registries; existing optional VM CI runs it"]
+async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let temporary = tempfile::tempdir().unwrap();
+    let (artifact, server) = artifact_server().await;
     let mut runtime = VmRuntime::new(
         temporary.path(),
         Settings { artifact, ingress_connections: 8, free_floor_bytes: 0, image_timeout: Duration::from_secs(120) },
