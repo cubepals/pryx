@@ -15,7 +15,7 @@ and cancellation inventories mean their CI artifacts; no raw output is kept in t
 | K22 | done except | `7963826182e3f8e9037aea17d4716df15086bd81` | Normal push [43075452804](https://github.com/cubepals/pryx/actions/runs/43075452804) and PR [43075462394](https://github.com/cubepals/pryx/actions/runs/43075462394), Any host [43075452782](https://github.com/cubepals/pryx/actions/runs/43075452782), Rootless engines [43075452793](https://github.com/cubepals/pryx/actions/runs/43075452793) and [43075462656](https://github.com/cubepals/pryx/actions/runs/43075462656), all green; supplementary Measure [43063939164](https://github.com/cubepals/pryx/actions/runs/43063939164) on source 87400f3 is also green | Full normal CI including actual rootful Docker, Wasm, two-node, integrations and recovery; all 15 host jobs; Podman lifecycle/attacks, install/repeat/upgrade/outage/recovery/purge; controller refusals, copy-bound guarantees and 30 hosted engine samples | Main/release prohibited; unchanged credentialed cases | Standard rootless Docker data-owner mapping with dependent positive lifecycle/timings; rootless Docker internal ingress/network-policy. Three approaches each recorded; both remain named refusals until their post-K27 second try | Supported scope complete; K23 started |
 | K23 | done | `5945724a4ac8fbc28610292d701ffa7e9bffc040` | Normal push [43233699289](https://github.com/cubepals/pryx/actions/runs/43233699289) and PR [43233712859](https://github.com/cubepals/pryx/actions/runs/43233712859), Any host [43233699231](https://github.com/cubepals/pryx/actions/runs/43233699231), Rootless engines [43233699487](https://github.com/cubepals/pryx/actions/runs/43233699487) and [43233712730](https://github.com/cubepals/pryx/actions/runs/43233712730), CodeQL [43233712847](https://github.com/cubepals/pryx/actions/runs/43233712847), all green | Signed fresh ordinary-user installation without engine; actual pinned upstream Python/Node paths and host glibc; both SDKs, state/charts/errors/interrupt/restart, MCP/CLI; browser screenshot/forwarded CDP and guarantee; thirty process and container samples per tool; default-Docker kernels and namespace/required-browser refusals; neighbour isolation, purge, Alpine relocation; full normal CI and all sixteen host jobs | Main/release prohibited; unchanged credentialed cases | None; corrected relocatable bundle is complete, with no binary rewriting or private tool glibc | Complete; begin K24 immediately |
 | K24 | done | `53e83505f823cf4b92aca2b4a952cf084c636f32` | Normal PR [43421825320](https://github.com/cubepals/pryx/actions/runs/43421825320) and all sixteen Any-host jobs [43421813961](https://github.com/cubepals/pryx/actions/runs/43421813961), green | Signed user install, real SDK/CLI desktop and HTTP SSH/wake, noVNC/expiry, Chromium sandbox and neighbour privacy, OpenSSH PTY/keys/leases, configured doctor/placement, 30 samples per tool, unchanged container budgets, full normal and host matrix | Main/release prohibited; unchanged credentialed cases | None | Complete; begin K25 |
-| K25 | in progress | — | Kernel [43442622901](https://github.com/cubepals/pryx/actions/runs/43442622901), comparison [43450896770](https://github.com/cubepals/pryx/actions/runs/43450896770), current VM seam/profile [43562677123](https://github.com/cubepals/pryx/actions/runs/43562677123), green | Verified inputs, ordinary-user published-kernel boots, actual OCI cold lifecycle/files/copy/fork/journals/logs/stats, guest nft/socket policy, confined host packet profile | Root/TAP/jailer, installed node/edge VM lifecycle, production network flow and thirty production samples; no local KVM | None | Finish production networking, root integration, protected configuration/install/release, tier registration, node/edge acceptance, measurements and full CI/transport proof |
+| K25 | in progress | — | Full VM seam/network/root runtime [43610812106](https://github.com/cubepals/pryx/actions/runs/43610812106) at 03d2be4, green | Verified bundles, ordinary-user both-image OCI lifecycle/files/copy/fork/journals/logs/stats, guest public/named networking, actual jailer and root cold runtime/file maintenance/daemon-loss recovery | Root TAP/firewall, protected installed service authority, node/edge VM lifecycle and thirty production samples; no local KVM/root | None | Finish root networking and installed authority, signed VM installation proof, tier registration, node/edge acceptance, measurements and full current-source CI |
 | K26 | not started | — | — | — | All | — | Complete brief after K25 |
 | K27 | not started | — | — | — | All | — | Complete brief after K26, then revisit every parked piece | Raw output belongs to the cited CI artifacts; the repository keeps only its summary.
 
@@ -3885,3 +3885,36 @@ job when publication is authorized. That job has not run in this task.
   and explicit daemon/integration length/complexity diagnostics pass without new findings;
   fmt, actionlint with ShellCheck and whitespace pass. No real root/KVM lifecycle is
   claimed on this machine, and no existing assertion, timeout or retry is weakened.
+- Source a4b84a7 VM run 43609217875/job 132490892333 proves actual unchanged jailer
+  boots on both images, twice each, with device/inode root identity, a distinct mount
+  namespace, guest host-file/signal/kernel refusals, live lease refusal, signed shutdown
+  and original-disk ownership recovery (17.54 s). Bundle (9.82 s), root staging (0.03 s),
+  registries (19.00 s), component agents (35.89 s), host policies and owned helpers pass.
+  Summary: checks/measurements/k25/jailer-a4b84a7.json. This predates the production
+  root-runtime checkpoint and is not proof of that path. Scanner comments remain eighteen.
+- The same run's Alpine packet probe fails redirected TCP DNS with server misbehaving
+  (runtime case 53.75 s). Replace the upstream raw transaction with pinned maintained
+  Hickory while retaining all guest TCP/UDP DNS and hostname/TLS/host-denial assertions.
+  The guest's transport no longer forces an upstream TCP-only exchange: send one UDP
+  query and use TCP only for a truncated reply, within the unchanged five-second bound.
+  The library supplies reply validation, framing, IDs, response codes and header/name
+  bounds; native NXDOMAIN responses remain intact. Runtime-generated query IDs preserve
+  every existing assertion. No new job or gate; the added real-socket cases take about
+  0.01 s locally. A cold dependency build may add roughly one ordinary CI minute; hosted
+  cost and corrected packet flow remain unmeasured.
+- Source 03d2be4 VM run 43610812106/job 132495578976 is fully green: both-image
+  production ordinary lifecycle and named/default public packet flow (119.04 s), direct
+  jailer (14.27 s), actual root runtime with stopped-file guests and daemon-loss recovery
+  (34.84 s), root staging (0.03 s), registry (14.97 s) and component (31.72 s). Summary:
+  checks/measurements/k25/root-runtime-03d2be4.json. It preserves every earlier failure
+  and does not prove the later DNS-client change or the remaining K25 deliverables.
+- DNS-client local validation: six real-code/parser/socket tests pass, including complete
+  typed A answers after truncation/TCP fallback, native NXDOMAIN and ID preservation.
+  Full Rust runs 531 passes, 40 ignored and two failures: the known IPv6 fixture, plus
+  one bootstrap first-request connection reset. Add bounded redacted child-exit/stderr
+  diagnostics without retrying the mutation or changing its expected result; the focused
+  two-case bootstrap check passes afterward, but the original unexplained failure is
+  retained and is not claimed fixed. Strict all-target Clippy, root/VM-image locked
+  compilation, fmt and the complete dependency advisory/licence/source audit pass.
+  Reclaim 4,608 MiB of obsolete executables/libraries before build output fills the disk.
+  Updated root and VM-image locks retain prior versions and pin the new library closure.

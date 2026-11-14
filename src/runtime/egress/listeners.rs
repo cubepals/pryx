@@ -101,7 +101,7 @@ mod tests {
             query.extend_from_slice(label.as_bytes());
         }
         query.extend_from_slice(&[0, 0, 1, 0, 1]);
-        let expected = dns::answer(&query, &policy, false).await.unwrap();
+        let expected = dns::answer(&query, &policy).await.unwrap();
         let udp = UdpSocket::bind((address, 0)).await.unwrap();
         udp.send_to(&query, (address, ports.dns)).await.unwrap();
         let mut bytes = [0; 512];

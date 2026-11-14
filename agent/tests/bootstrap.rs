@@ -19,6 +19,19 @@ impl Drop for Supervisor {
     }
 }
 
+fn failed_request(child: &mut Child, problem: reqwest::Error, secret: &str) -> ! {
+    use std::io::Read;
+    let status = child.try_wait();
+    let _ = child.kill();
+    let _ = child.wait();
+    let mut bytes = Vec::new();
+    if let Some(stderr) = child.stderr.take() {
+        let _ = stderr.take(8192).read_to_end(&mut bytes);
+    }
+    let diagnostics = String::from_utf8_lossy(&bytes).replace(secret, "[redacted]");
+    panic!("Bootstrap request failed: {problem}; child before cleanup: {status:?}; stderr: {diagnostics}");
+}
+
 #[tokio::test]
 async fn agent_and_spare_listeners_are_unreachable_on_non_configured_interfaces() {
     // RFC 5737 TEST-NET-1 chooses an outbound route without sending a UDP datagram.
@@ -117,7 +130,7 @@ async fn process_spare_cannot_forward_a_service_outside_its_supervisor_tree() {
                 &bindings,
                 "--keep-alive",
             ])
-            .env("TEST_BOOTSTRAP_SECRET", encoded)
+            .env("TEST_BOOTSTRAP_SECRET", &encoded)
             .env_remove(pryx_agent::process_policy::POLICY_ENV)
             .stdout(Stdio::null())
             .stderr(Stdio::piped())
@@ -166,7 +179,7 @@ async fn process_spare_cannot_forward_a_service_outside_its_supervisor_tree() {
         .body(serde_json::json!({"port":victim}).to_string())
         .send()
         .await
-        .unwrap();
+        .unwrap_or_else(|problem| failed_request(&mut child.0, problem, &encoded));
     assert!(assigned.status().is_success());
     let response = client
         .get(format!("http://127.0.0.1:{spare_port}/"))

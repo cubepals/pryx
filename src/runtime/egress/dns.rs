@@ -2,11 +2,23 @@
 //! The resolver of a hostname-egress bridge. The host firewall redirects every UDP and TCP port 53
 //! packet from the bridge here, and the container's embedded resolver forwards here too, so a name
 //! reaches the host's resolver only when the policy allows it; any other query is answered REFUSED.
-//! Each query's single question is read by hand and the message is forwarded unchanged.
+//! Each query's single question is checked before the maintained DNS client validates its
+//! upstream transaction. Guest TCP framing does not require an upstream TCP-only resolver.
 //!
 //! Not a cache or a recursive resolver: the host's own resolver (`/etc/resolv.conf`) answers, and
 //! the HTTP/TLS gateways still resolve and check every address they dial.
 use super::*;
+use hickory_net::{
+    proto::{
+        op::{DnsRequest, DnsRequestOptions, Header, Message, MessageType, OpCode, Query, ResponseCode},
+        rr::Name,
+        serialize::binary::{BinDecodable, BinDecoder, EncodedSize},
+    },
+    runtime::TokioRuntimeProvider,
+    tcp::TcpClientStream,
+    udp::UdpClientStream,
+    xfer::{DnsHandle, FirstAnswer},
+};
 use std::{io, net::SocketAddr};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -15,15 +27,12 @@ use tokio::{
 
 /// DNS's port, for UDP and TCP (RFC 1035 §4.2).
 pub(in crate::runtime) const PORT: u16 = 53;
-/// The fixed header's length (RFC 1035 §4.1.1).
-const HEADER: usize = 12;
-/// RCODEs of the header (RFC 1035 §4.1.1): no DNS crate is in the tree to export them.
-const FORMERR: u8 = 1;
-const SERVFAIL: u8 = 2;
-const NOTIMP: u8 = 4;
-const REFUSED: u8 = 5;
-/// A name's longest wire form (RFC 1035 §2.3.4).
-const MAX_NAME: usize = 255;
+const HEADER: usize = Header::LEN;
+const FORMERR: ResponseCode = ResponseCode::FormErr;
+const SERVFAIL: ResponseCode = ResponseCode::ServFail;
+const NOTIMP: ResponseCode = ResponseCode::NotImp;
+const REFUSED: ResponseCode = ResponseCode::Refused;
+const MAX_NAME: usize = Name::MAX_LENGTH;
 /// The largest message TCP's two-byte length prefix can frame (RFC 1035 §4.2.2).
 const MAX_MESSAGE: usize = u16::MAX as usize;
 const UPSTREAM: Duration = Duration::from_secs(5);
@@ -40,20 +49,24 @@ pub(super) struct Question {
 /// answer at all (not a query, or too short to carry an id).
 #[derive(Debug, PartialEq)]
 pub(super) enum Refusal {
-    Answer(u8, Option<usize>),
+    Answer(ResponseCode, Option<usize>),
     Silent,
 }
 
 /// The single question of a standard query. Labels are hostname characters only (letters, digits,
 /// `-` and `_`), so the name the policy matches is the name the upstream resolver is asked.
 pub(super) fn question(message: &[u8]) -> Result<Question, Refusal> {
-    if message.len() < HEADER || message[2] & 0x80 != 0 {
+    if message.len() < HEADER {
         return Err(Refusal::Silent);
     }
-    if (message[2] >> 3) & 0x0f != 0 {
+    let header = Header::read(&mut BinDecoder::new(message)).map_err(|_| Refusal::Answer(FORMERR, None))?;
+    if header.message_type != MessageType::Query {
+        return Err(Refusal::Silent);
+    }
+    if header.op_code != OpCode::Query {
         return Err(Refusal::Answer(NOTIMP, None));
     }
-    if u16::from_be_bytes([message[4], message[5]]) != 1 {
+    if header.counts.queries != 1 {
         return Err(Refusal::Answer(FORMERR, None));
     }
     let mut at = HEADER;
@@ -83,23 +96,22 @@ pub(super) fn question(message: &[u8]) -> Result<Question, Refusal> {
 }
 
 /// An answer carrying only `rcode`, the query's id, opcode and RD bit, and its question if known.
-fn refusal(message: &[u8], rcode: u8, end: Option<usize>) -> Option<Vec<u8>> {
-    if message.len() < HEADER {
-        return None;
-    }
-    let mut answer = vec![message[0], message[1], 0x80 | (message[2] & 0x79), rcode, 0, 0, 0, 0, 0, 0, 0, 0];
+fn refusal(message: &[u8], rcode: ResponseCode, end: Option<usize>) -> Option<Vec<u8>> {
+    let header = Header::read(&mut BinDecoder::new(message)).ok()?;
+    let mut response = Message::response(header.id, header.op_code);
+    response.metadata.recursion_desired = header.recursion_desired;
+    response.metadata.response_code = rcode;
     if let Some(end) = end {
-        answer[5] = 1;
-        answer.extend_from_slice(&message[HEADER..end]);
+        response.queries.push(Query::read(&mut BinDecoder::new(&message[HEADER..end])).ok()?);
     }
-    Some(answer)
+    response.to_vec().ok()
 }
 
 /// What the sandbox is told for `message`: the host resolver's answer for an allowed name, REFUSED
 /// for any other, SERVFAIL when the host resolver doesn't answer, nothing for a non-query.
-pub(super) async fn answer(message: &[u8], policy: &Policy, tcp: bool) -> Option<Vec<u8>> {
+pub(super) async fn answer(message: &[u8], policy: &Policy) -> Option<Vec<u8>> {
     match question(message) {
-        Ok(question) if gateway::allowed(&question.name, policy) => match forward(message, tcp).await {
+        Ok(question) if gateway::allowed(&question.name, policy) => match forward(message).await {
             Ok(answer) => Some(answer),
             Err(_) => refusal(message, SERVFAIL, Some(question.end)),
         },
@@ -119,26 +131,29 @@ async fn upstream() -> io::Result<SocketAddr> {
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no nameserver"))
 }
 
-async fn forward(message: &[u8], tcp: bool) -> io::Result<Vec<u8>> {
-    let server = upstream().await?;
+async fn forward(message: &[u8]) -> io::Result<Vec<u8>> {
+    forward_to(message, upstream().await?).await
+}
+
+async fn forward_to(message: &[u8], server: SocketAddr) -> io::Result<Vec<u8>> {
     tokio::time::timeout(UPSTREAM, async {
-        if tcp {
-            let mut stream = TcpStream::connect(server).await?;
-            write_framed(&mut stream, message).await?;
-            return read_framed(&mut stream).await;
+        let query = Message::from_vec(message).map_err(io::Error::other)?;
+        let id = query.metadata.id;
+        let request = DnsRequest::new(query, DnsRequestOptions::default());
+        let provider = TokioRuntimeProvider::new();
+        let udp = UdpClientStream::builder(server, provider.clone())
+            .with_timeout(Some(UPSTREAM))
+            .with_max_retries(0)
+            .exchange();
+        let mut response = udp.send(request.clone()).first_answer().await.map_err(io::Error::other)?;
+        if response.metadata.truncation {
+            let tcp =
+                TcpClientStream::exchange(server, None, UPSTREAM, Some(1), provider).await.map_err(io::Error::other)?;
+            response = tcp.send(request).first_answer().await.map_err(io::Error::other)?;
         }
-        let local: SocketAddr = if server.is_ipv4() { ([0, 0, 0, 0], 0).into() } else { ([0u16; 8], 0).into() };
-        let socket = UdpSocket::bind(local).await?;
-        socket.connect(server).await?;
-        socket.send(message).await?;
-        let mut buffer = vec![0; MAX_MESSAGE];
-        loop {
-            let n = socket.recv(&mut buffer).await?;
-            if n >= 2 && buffer[..2] == message[..2] {
-                buffer.truncate(n);
-                return Ok(buffer);
-            }
-        }
+        let mut response = response.into_message();
+        response.metadata.id = id;
+        response.to_vec().map_err(io::Error::other)
     })
     .await
     .map_err(|_| io::Error::from(io::ErrorKind::TimedOut))?
@@ -181,7 +196,7 @@ pub(in crate::runtime) fn serve(
             let (udp, policy, message) = (udp.clone(), udp_policy.clone(), buffer[..n].to_vec());
             tokio::spawn(async move {
                 let _permit = permit;
-                if let Some(answer) = answer(&message, &policy, false).await {
+                if let Some(answer) = answer(&message, &policy).await {
                     let _ = udp.send_to(&answer, peer).await;
                 }
             });
@@ -200,7 +215,7 @@ pub(in crate::runtime) fn serve(
                 let _permit = permit;
                 let work = async {
                     while let Ok(Ok(message)) = tokio::time::timeout(UPSTREAM, read_framed(&mut stream)).await {
-                        let Some(answer) = answer(&message, &policy, true).await else { break };
+                        let Some(answer) = answer(&message, &policy).await else { break };
                         if write_framed(&mut stream, &answer).await.is_err() {
                             break;
                         }
@@ -215,10 +230,12 @@ pub(in crate::runtime) fn serve(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hickory_net::proto::rr::{RData, Record, rdata::A};
 
     /// A standard recursive query for `name`, type A, class IN, with an EDNS OPT record after it.
     fn query(name: &str) -> Vec<u8> {
-        let mut message = vec![0x12, 0x34, 0x01, 0x00, 0, 1, 0, 0, 0, 0, 0, 1];
+        let mut message = Message::query().metadata.id.to_be_bytes().to_vec();
+        message.extend_from_slice(&[0x01, 0x00, 0, 1, 0, 0, 0, 0, 0, 1]);
         for label in name.split('.').filter(|l| !l.is_empty()) {
             message.push(label.len() as u8);
             message.extend_from_slice(label.as_bytes());
@@ -280,17 +297,17 @@ mod tests {
     async fn names_outside_the_policy_get_refused_with_their_question() {
         for name in ["exfil.attacker.test", "example.com.attacker.test", "x.example.org", "example.org"] {
             let message = query(name);
-            let answer = answer(&message, &policy(), false).await.unwrap();
+            let answer = answer(&message, &policy()).await.unwrap();
             let end = question(&message).unwrap().end;
             assert_eq!(&answer[..2], &message[..2], "same id");
             assert_eq!(answer[2], 0x81, "a response, recursion desired kept");
-            assert_eq!(answer[3], REFUSED, "{name}");
+            assert_eq!(answer[3], REFUSED.low(), "{name}");
             assert_eq!(&answer[4..12], &[0, 1, 0, 0, 0, 0, 0, 0]);
             assert_eq!(&answer[HEADER..], &message[HEADER..end]);
         }
         let mut response = query("exfil.attacker.test");
         response[2] |= 0x80;
-        assert_eq!(answer(&response, &policy(), true).await, None, "a response is never answered");
+        assert_eq!(answer(&response, &policy()).await, None, "a response is never answered");
     }
 
     #[test]
@@ -301,5 +318,70 @@ mod tests {
         assert!(!allowed("x.example.org"));
         assert!(!allowed("data.example.com"));
         assert!(!allowed("example.com.evil.test"));
+    }
+
+    fn upstream_response(bytes: &[u8], truncated: bool, code: ResponseCode) -> Vec<u8> {
+        let query = Message::from_vec(bytes).unwrap();
+        let mut response = Message::response(query.metadata.id, query.metadata.op_code);
+        response.metadata.recursion_available = true;
+        response.metadata.truncation = truncated;
+        response.metadata.response_code = code;
+        response.queries = query.queries;
+        if code == ResponseCode::NoError && !truncated {
+            response.answers.push(Record::from_rdata(
+                response.queries[0].name.clone(),
+                0,
+                RData::A(A(std::net::Ipv4Addr::LOCALHOST)),
+            ));
+        }
+        response.to_vec().unwrap()
+    }
+
+    #[tokio::test]
+    async fn udp_upstream_preserves_negative_answers_and_ids() {
+        let udp = UdpSocket::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let address = udp.local_addr().unwrap();
+        let tcp = TcpListener::bind(address).await.unwrap();
+        let server = tokio::spawn(async move {
+            let mut bytes = vec![0; MAX_MESSAGE];
+            let (size, peer) = udp.recv_from(&mut bytes).await.unwrap();
+            let response = upstream_response(&bytes[..size], false, ResponseCode::NXDomain);
+            udp.send_to(&response, peer).await.unwrap();
+        });
+        let request = query("allowed.pryx.invalid");
+        let response = forward_to(&request, address).await.unwrap();
+        let response = Message::from_vec(&response).unwrap();
+        assert_eq!(response.metadata.id, Message::from_vec(&request).unwrap().metadata.id);
+        assert_eq!(response.metadata.response_code, ResponseCode::NXDomain);
+        assert_eq!(response.queries, Message::from_vec(&request).unwrap().queries);
+        server.await.unwrap();
+        assert!(tokio::time::timeout(Duration::from_millis(10), tcp.accept()).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn a_truncated_udp_answer_uses_one_framed_tcp_exchange() {
+        let udp = UdpSocket::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let address = udp.local_addr().unwrap();
+        let tcp = TcpListener::bind(address).await.unwrap();
+        let server = tokio::spawn(async move {
+            let mut bytes = vec![0; MAX_MESSAGE];
+            let (size, peer) = udp.recv_from(&mut bytes).await.unwrap();
+            let response = upstream_response(&bytes[..size], true, ResponseCode::NoError);
+            udp.send_to(&response, peer).await.unwrap();
+            let (mut stream, _) = tcp.accept().await.unwrap();
+            let query = read_framed(&mut stream).await.unwrap();
+            let response = upstream_response(&query, false, ResponseCode::NoError);
+            write_framed(&mut stream, &response).await.unwrap();
+        });
+        let request = query("allowed.pryx.invalid");
+        let response = forward_to(&request, address).await.unwrap();
+        let response = Message::from_vec(&response).unwrap();
+        assert!(!response.metadata.truncation);
+        assert_eq!(response.metadata.id, Message::from_vec(&request).unwrap().metadata.id);
+        assert_eq!(response.metadata.response_code, ResponseCode::NoError);
+        assert_eq!(response.answers.len(), 1);
+        assert_eq!(response.answers[0].data, RData::A(A(std::net::Ipv4Addr::LOCALHOST)));
+        assert_eq!(response.queries, Message::from_vec(&request).unwrap().queries);
+        server.await.unwrap();
     }
 }

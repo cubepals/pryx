@@ -1,0 +1,17 @@
+{
+  "source": "a4b84a746263058ec125bd981bfaf42f9d5b5d01",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43609217875",
+  "job": 132490892333,
+  "ran": "Actual unchanged root jailer on both OCI images, two cold generations each, root identity and distinct mount namespace, guest isolation, lease refusal, clean shutdown and original-disk ownership recovery",
+  "root_jailer_seconds": 17.54,
+  "root_images": 2,
+  "root_generations": 4,
+  "bundle_seconds": 9.82,
+  "root_staging_seconds": 0.03,
+  "registry_seconds": 19.0,
+  "component_seconds": 35.89,
+  "runtime_seconds": 53.75,
+  "runtime_result": "Alpine disconnected lifecycle passes; named packet probe fails redirected TCP DNS for example.com with server misbehaving",
+  "unproved": "Complete both-image production packet flow; later root runtime checkpoint; root TAP/firewall, installed service authority, node/edge placement and thirty production samples",
+  "raw_output": "CI artifacts only"
+}

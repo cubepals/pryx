@@ -1181,3 +1181,7 @@
 - K25: add vm to the existing optional isolation enum and generated public/SDK contracts, take control's spelling list from the Rust schema, and require the node's matching tier announcement before sending a VM spec; keep production host selection refused and its default order unchanged until compute acceptance.
 
 - K25: prepare ordinary and root monitors through one acyclic policy module; root uses the unchanged jailer and fixed host-selected non-root IDs, retains mounts until actual monitor lease retirement, and recovers published records before adoption or disk access. Keep root TAP/firewall and service authority refused independently; add no capability to the existing daemon unit.
+
+- K25: wrap hickory-net/hickory-proto 0.26.3 (MIT OR Apache-2.0, select MIT; [published source](https://crates.io/crates/hickory-net/0.26.3)) for upstream DNS transactions instead of coupling the guest's transport to the host resolver; use one UDP query and a TCP exchange only on protocol truncation, keep the existing five-second outer bound and hostname gate, and retain negative answers.
+
+- K25: retain the bootstrap fixture's first-request failure with bounded child-status and secret-redacted stderr diagnostics before its existing assertion fails; submit registration once and preserve readiness deadlines and every confinement assertion.

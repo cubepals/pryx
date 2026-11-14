@@ -36,6 +36,8 @@ http-body-util = "0.1"
 bytes = "1"
 httpdate = "1.0.3"
 ipnet = "2"
+# Maintained DNS transaction/codec owner; host resolver transport is independent of guest framing.
+hickory-net = { version = "=0.26.3", default-features = false, features = ["tokio"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-no-provider", "stream"] }
 
 # TLS: rustls with the ring provider (no C/cmake toolchain beyond cc), mutual authentication.
