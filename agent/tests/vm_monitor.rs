@@ -249,12 +249,8 @@ async fn actual_packet_proxy_serves_its_inherited_private_socket() {
     });
     fs::write(&configuration, serde_json::to_vec(&valid).unwrap()).unwrap();
     fs::set_permissions(&configuration, fs::Permissions::from_mode(0o600)).unwrap();
-    let mut read = vec![configuration.clone()];
-    read.extend(
-        ["/etc/services", "/etc/resolv.conf", "/etc/hosts", "/etc/nsswitch.conf", "/etc/gai.conf"]
-            .into_iter()
-            .filter_map(|path| fs::canonicalize(path).ok()),
-    );
+    // Names are resolved by the independent policy gateways, never this packet helper.
+    let read = vec![configuration.clone()];
     let socket = work.join("packet");
     let plan = Plan {
         program,

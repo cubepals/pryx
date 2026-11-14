@@ -3603,3 +3603,28 @@ job when publication is authorized. That job has not run in this task.
   assertion is skipped or weakened. All three actual host-policy tests pass in 0.65 s.
   The independently preserved ownership tests also pass after staging both real programs
   privately (0.58 s). Rust formatting, actionlint and whitespace checks pass.
+
+- Source 9ecd4dd VM run 43561357030 still refuses an unsafe ancestor in the host packet
+  profile after executable staging; the generic diagnostic does not yet identify which
+  grant. Remove all system resolver/service-file grants from this closed helper: policy
+  gateways own name resolution, Go owns its built-in HTTP/TLS/DNS services, and the already
+  pinned DHCP library exports its actual client/server ports. Keep strict ancestry checks
+  and name the refused path in their diagnostic. Three actual host tests pass in 0.10 s
+  with only the private configuration grant; Go static build/vet and formatting pass.
+  This is a further CI failure fix; hosted acceptance remains pending.
+- Independent uncommitted K25 work now connects owned helper/gateways to a boot-scoped
+  packet socket and optional typed trusted guest redirects. The agent advertises parser
+  metadata and the bundle requires it; root init installs atomic default-drop IPv4/IPv6
+  policy before DHCP/agent startup. New workload probes add verified TLS, HTTP, DNS
+  redirection/denial, raw-IP/hostname and real private-host listener attacks on both
+  images, preserving every disconnected lifecycle case. Two extra optional boots,
+  estimated up to one optional minute; no new jobs/gates or ordinary PR minutes.
+  Unrestricted user networking, root TAP/jailer, installation/config/release, tier
+  registration, node/edge lifecycle, thirty production samples and transport diagnosis
+  remain unfinished. The tier stays unregistered. Do not count this local draft as CI proof.
+- Minimal-grant correction/current draft validation: full local Rust has 524 passes,
+  only the unchanged IPv6-unavailable fixture failure and 37 ignored; three actual
+  configuration-only host-policy tests pass (0.10 s), and both owned-network cleanup
+  tests pass (0.12 s). Strict all-target Clippy, static Go builds/vet, fmt, actionlint
+  and whitespace pass. Current draft packet flow and guest nft transactions have not
+  run locally; only hosted KVM may prove them. Normal CI remains queued/pending.

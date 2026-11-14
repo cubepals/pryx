@@ -66,7 +66,7 @@ fn ancestors(path: &Path) -> io::Result<()> {
             || (!sticky && meta.mode() & 0o022 != 0)
             || (meta.uid() != 0 && meta.uid() != rustix::process::geteuid().as_raw())
         {
-            return Err(invalid("Unsafe monitor path ancestor"));
+            return Err(invalid(&format!("Unsafe monitor path ancestor: {}", ancestor.display())));
         }
     }
     Ok(())

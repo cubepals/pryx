@@ -1145,3 +1145,5 @@
 - K25: serialize push and pull-request workflows by workflow name and ref without cancelling active runs, so superseded waiting branch runs collapse to the newest commit instead of exhausting the runner queue; main uses the same rule and workflows triggered only by schedules, dispatch or other events stay unchanged.
 
 - K25: stage the actual packet-helper acceptance executable under the fixture’s private directory with mode 0500 before launch, because hosted runner build/download paths may have writable ancestors; retain the launcher’s strict ancestor refusal unchanged.
+
+- K25: give the confined production packet helper only its private configuration file, since hostname resolution belongs to separate policy gateways; take DHCP ports directly from the pinned DHCP library, avoiding system resolver/service files with foreign-owned ancestors while preserving strict launcher checks and naming the refused path.

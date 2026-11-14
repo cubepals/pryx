@@ -20,6 +20,7 @@ import (
 	"github.com/containers/gvisor-tap-vsock/pkg/tokenauth"
 	"github.com/containers/gvisor-tap-vsock/pkg/types"
 	"github.com/containers/gvisor-tap-vsock/pkg/virtualnetwork"
+	"github.com/insomniacslk/dhcp/dhcpv4"
 	"golang.org/x/sys/unix"
 )
 
@@ -54,13 +55,13 @@ func productionMetadata() (runtimeProfile, error) {
 		// This subnet exists only within each independent maintained user-mode stack.
 		Subnet: "192.168.127.0/24", Gateway: "192.168.127.1", Device: "192.168.127.2", Host: "192.168.127.254",
 		GatewayMAC: "02:50:59:00:00:01", GuestMAC: "02:50:59:00:00:02", Interface: "pryx0", MTU: types.NewGvproxyCommand().MTU,
+		DHCPClient: dhcpv4.ClientPort, DHCPServer: dhcpv4.ServerPort,
 	}
 	for _, item := range []struct {
 		network, service string
 		target           *int
 	}{
 		{"tcp", "http", &profile.HTTP}, {"tcp", "https", &profile.TLS}, {"udp", "domain", &profile.DNS},
-		{"udp", "bootpc", &profile.DHCPClient}, {"udp", "bootps", &profile.DHCPServer},
 	} {
 		port, err := net.LookupPort(item.network, item.service)
 		if err != nil {
