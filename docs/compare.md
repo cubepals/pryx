@@ -85,19 +85,19 @@ Each pryx sandbox reports the [guarantees](host-capabilities.md) its tier gives 
 and a create can `require` any of them. The node computes them in
 [`tier_guarantees`](../src/manager/store_lease.rs); a guarantee a node doesn't announce is false.
 
-| Guarantee | container | process | wasm | vm |
-| --- | --- | --- | --- | --- |
-| `own-kernel` | No | No | No | Yes |
-| `memory-limit` | When the engine enforces it | No | No | Yes, the guest's RAM |
-| `cpu-limit` | When the engine enforces it | No | No | Yes, whole vCPUs |
-| `private-network` | Yes | No | No | Yes |
-| `private-pids` | Yes | No | No | Yes |
-| `separate-users` | No | As root, when the credential-drop probe passes | No | No |
-| `host-firewall` | Rootful engine with the host firewall loaded | No | No | No |
-| `memory-sleep` | Rootful engine with memory limits | Yes | No | No |
-| `browser-sandbox` | With the native-tools seccomp profile and user namespaces | When the process browser probe passes | No | No |
+- `own-kernel`: vm only.
+- `memory-limit`: container when the engine enforces it, and vm (the guest's RAM).
+- `cpu-limit`: container when the engine enforces it, and vm (whole vCPUs).
+- `private-network`: container and vm.
+- `private-pids`: container and vm.
+- `separate-users`: process as root, when the credential-drop probe passes.
+- `host-firewall`: container, on a rootful engine with the host firewall loaded.
+- `memory-sleep`: process, and container on a rootful engine with memory limits.
+- `browser-sandbox`: container with the native-tools seccomp profile and user namespaces, and
+  process when its browser probe passes.
 
-The vm tier runs only where KVM works and, today, only as an ordinary user. Its guarantees,
+The vm tier runs only where KVM works: as an ordinary user, or as root through its separate
+worker service, which the server preset does not install yet. Its guarantees,
 network policy and limits are in [vm.md](vm.md), its CI proof in the
 [progress record](any-host-progress.md), and its thirty-sample measurements are
 [pending](tiers.md#vm-tier-measurements).

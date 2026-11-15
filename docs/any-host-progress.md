@@ -4919,3 +4919,9 @@ job when publication is authorized. That job has not run in this task.
 - Monitors and filesystem programs add the abstract-socket Landlock scope where available;
   the bootstrap listener checks the monitor PID before sending secrets. Launcher tests pass
   under the scope on a 6.18 kernel; the monitor paths run in the VM workflow.
+
+- Normal CI on f31a5b1 (run 43721826337) failed control end to end: docs/compare.md’s new
+  guarantee table is a markdown table, and the comparison check requires every table row to
+  cite dated sources. The guarantees are now a list with the same facts, and the vm line says
+  root is served through its worker. The comparison check’s row rules pass locally; its one
+  failing link here is a GitHub job page this machine cannot fetch, which CI fetched.
