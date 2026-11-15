@@ -4680,3 +4680,14 @@ job when publication is authorized. That job has not run in this task.
   refuses. Keep that general bound; validate only these fixed host resolver inputs through
   their protected root-owned configuration path. Summary: checks/measurements/k25/bridge-resolver-6b843e3.json;
   raw artifact 14140318612. Latest source remains pending; scanner comments remain eighteen.
+
+- Admit generated host resolver files only through their fixed protected root-owned
+  configuration path. A configuration symlink delegates one protected single-link regular
+  file and its root/service-owned ancestors; general monitor ancestry and exact file-only
+  Landlock grants stay unchanged. Real file/link tests refuse mismatched authority, writable
+  targets and hard links while preserving generated contents.
+- Full Rust: 542 pass, unchanged host IPv6 fixture failure, 44 ignored hardware cases;
+  strict all-target Clippy, formatting and whitespace pass. The actual systemd-resolved
+  delegation and inherited-queue fixture remain CI-only. No dependency/job/gate or estimated
+  CI minute. Remove the staged Wasm test distribution after this local cohort; retain just
+  the active Rust target for subsequent backend checks.

@@ -1308,3 +1308,7 @@
 - K25: carry private worker commands over the existing pinned Hyper/Axum HTTP libraries and authenticated Unix socket, with bounded JSON control messages and independently streamed file bodies. Submit each operation once; sanitize decode errors so an uncertain response cannot replay a mutation or quote credential bytes.
 
 - K25: require a prepared root network for every connected jailed guest, replacing the obsolete hostname-only admission guard now that the public bridge has its own secured construction path; disconnected guests still have no network object. Installed root placement remains disabled pending actual packets and worker proof.
+
+- K25: allow only the three fixed host resolver configurations to follow their protected root-owned configuration symlink into a generated host-service file; require one protected regular target and ancestors owned by root or that target’s service identity. Preserve the general monitor ancestor policy and exact file-only Landlock grants.
+
+- K25: retain one active Rust target directory for incremental backend validation; remove completed native SDK/target/source copies and Go caches immediately after their result, and remove staged Wasm inputs when the current local test cohort finishes, keeping more than 3 GiB free.
