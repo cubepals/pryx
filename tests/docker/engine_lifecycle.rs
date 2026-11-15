@@ -202,11 +202,19 @@ async fn snapshot_and_fork(case: &EngineCase) {
 }
 
 async fn attack_neighbour(case: &EngineCase) {
-    // gVisor names every sandbox's namespaces alike, each in its own kernel: its boot differs.
-    let own =
-        if super::gvisor::on_gvisor() { "cat /proc/sys/kernel/random/boot_id" } else { "readlink /proc/1/ns/pid" };
+    // gVisor names every sandbox's PID namespace alike, each in its own kernel: there the fork's
+    // own process is looked for from the original instead, which must not see it.
+    let own = if super::gvisor::on_gvisor() {
+        case.command("fork", "nohup sleep 7771 > /dev/null 2>&1 & echo started").await;
+        "ps -o args | grep -c '^sleep 7771' || true"
+    } else {
+        "readlink /proc/1/ns/pid"
+    };
     let original_pid = case.command("original", own).await;
     let fork_pid = case.command("fork", own).await;
+    if super::gvisor::on_gvisor() {
+        assert_eq!((original_pid.trim(), fork_pid.trim()), ("0", "1"), "only the fork sees its process");
+    }
     assert!(!original_pid.trim().is_empty() && !fork_pid.trim().is_empty());
     assert_ne!(original_pid, fork_pid, "a neighbour must have its own PID namespace");
     let backend =
