@@ -4646,3 +4646,15 @@ job when publication is authorized. That job has not run in this task.
   external checker (HTTP 403 under this machine’s repository access limit); CI retains it. Actual public
   packet forwarding is pending CI, and installed root placement remains a named refusal.
   No dependency/job/gate; estimate under ten extra optional VM seconds for the two guest probes.
+
+- Prepare the separate worker's private Unix transport with actual kernel peer admission,
+  protected parent/socket/lease checks and exclusive server ownership. A stale socket can be
+  removed only under that lease after the kernel refuses its connection; live sockets, links,
+  public directories and hard-linked leases refuse. This exposes no runtime verb or placement.
+- Real socket tests exchange a generated challenge, reject a mismatched kernel UID, prevent
+  a second live authority, recover a retired socket and preserve rejected file contents.
+  Initial test setup used tempfile's non-private default mode and correctly refused; explicit
+  private fixture directories now pass. Full Rust: 540 pass, unchanged host IPv6 fixture
+  failure, 44 ignored hardware cases. Strict all-target Clippy, formatting and whitespace pass.
+  External structure fetch remains unavailable locally. No dependency/job/gate or estimated
+  CI minute. Runtime RPC, cancellation-owned sessions and installed worker authority remain.

@@ -16,6 +16,7 @@
 //! - `packet_profile.rs`: verified executable metadata and trusted guest profile assembly.
 //! - `network_tests.rs`: real helper readiness, refusal and cancellation acceptance.
 //! - `root_scope.rs`: root helper lifetime and adopted namespace/gateway authority.
+//! - `worker.rs`: separate host authority and private kernel-authenticated transport.
 //! - `serial.rs`: bounded monitor byte capture, drained before proof validation.
 //! - `transport.rs`: bounded one-shot SDK requests over private pipes.
 //! - `forward.rs`: owned private-address streaming forwarding processes.
@@ -34,6 +35,7 @@ pub mod policy;
 pub mod root_scope;
 mod serial;
 pub mod transport;
+pub mod worker;
 
 pub fn error(problem: impl std::fmt::Display) -> super::RuntimeError {
     super::RuntimeError::Other(problem.to_string())
