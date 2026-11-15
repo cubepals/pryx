@@ -110,6 +110,8 @@ struct Entry {
 }
 // The runtime seam requires a numeric exit value even without a signed guest observation.
 const UNKNOWN_EXIT_CODE: i64 = -1;
+/// The tier this backend serves, as every VM frontend names it.
+pub const ISOLATION: &str = "vm";
 
 struct Live {
     monitor: Machine,

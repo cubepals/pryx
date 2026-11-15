@@ -5,7 +5,7 @@
 //! and bundle pins remain installed host policy; this does not start an installed service.
 use super::http::{CONTROL_PATH, MAX_CONTROL_BYTES};
 use super::{authority::Authority, transport::Peer};
-use crate::runtime::{ContainerRuntime, ContainerSpec, RuntimeError, vm::instance::VmRuntime};
+use crate::runtime::{ContainerRuntime, ContainerSpec, RuntimeError};
 use axum::{
     Json, Router,
     body::Bytes,
@@ -19,6 +19,7 @@ use std::{collections::BTreeMap, sync::Arc, time::Duration};
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Command {
+    Capabilities,
     Info,
     Limits,
     EnsureNetwork { name: String, labels: BTreeMap<String, String> },
@@ -39,12 +40,44 @@ pub enum Command {
     Stats { name: String },
 }
 
+/// The worker runtime's fixed answers to the backend's synchronous questions, read once by
+/// its frontend. The installed worker serves only VmRuntime, whose data owner is the
+/// worker's own identity whichever workload asks, so one owner answers for every workload.
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Capabilities {
+    pub uses_host_ports: bool,
+    pub uses_remote_data: bool,
+    pub supports_data_exclude: bool,
+    pub requires_stopped_data_copy: bool,
+    pub supports_agent: bool,
+    pub supports_network_policy: bool,
+    pub supports_hostname_egress: bool,
+    pub data_owner: Option<(u32, u32)>,
+}
+
+impl Capabilities {
+    fn of(runtime: &dyn ContainerRuntime) -> Result<Self, RuntimeError> {
+        Ok(Self {
+            uses_host_ports: runtime.uses_host_ports(),
+            uses_remote_data: runtime.uses_remote_data(),
+            supports_data_exclude: runtime.supports_data_exclude(),
+            requires_stopped_data_copy: runtime.requires_stopped_data_copy(),
+            supports_agent: runtime.supports_agent(),
+            supports_network_policy: runtime.supports_network_policy(),
+            supports_hostname_egress: runtime.supports_hostname_egress(),
+            data_owner: runtime.data_owner("")?,
+        })
+    }
+}
+
 fn encode(value: impl Serialize) -> Result<Value, RuntimeError> {
     serde_json::to_value(value).map_err(|_| RuntimeError::Other("Cannot encode private worker result".into()))
 }
 
 async fn execute(runtime: &dyn ContainerRuntime, command: Command) -> Result<Value, RuntimeError> {
     match command {
+        Command::Capabilities => encode(Capabilities::of(runtime)?),
         Command::Info => encode(runtime.info().await?),
         Command::Limits => encode(runtime.resource_limits().await?),
         Command::EnsureNetwork { name, labels } => encode(runtime.ensure_network(&name, &labels).await?),
@@ -104,15 +137,11 @@ async fn control(
     )
 }
 
-fn app(runtime: Arc<dyn ContainerRuntime>, authority: Authority) -> Router {
+pub(super) fn app(runtime: Arc<dyn ContainerRuntime>, authority: Authority) -> Router {
     Router::new()
         .route(CONTROL_PATH, post(control))
         .layer(axum::extract::DefaultBodyLimit::max(MAX_CONTROL_BYTES))
         .with_state(Dispatch { runtime, authority })
-}
-
-pub fn router(runtime: Arc<VmRuntime>, authority: Authority) -> Router {
-    app(runtime, authority)
 }
 
 #[cfg(test)]
