@@ -4770,3 +4770,10 @@ job when publication is authorized. That job has not run in this task.
 - No installed worker/backend selection yet: file/copy sessions and host policy remain.
   No new job/gate; estimate up to two extra minutes for the first dependency rebuild in the
   existing Rust/VM builds, then under one test second. Actual CI increment remains pending.
+
+- Move unchanged authenticated agent file-request code and its existing streaming/cancellation
+  test into runtime/files/agent.rs and tests.rs. Token comparison against the prior source
+  confirms both moved bodies unchanged; only module/import placement and file notices differ.
+  The existing real HTTP test passes. Full Rust: 545 pass, unchanged host IPv6 fixture
+  failure, 44 ignored; strict all-target Clippy, fmt and whitespace pass. Remove staged Wasm
+  inputs after the cohort. No behavior, dependency, job/gate or estimated CI time changes.

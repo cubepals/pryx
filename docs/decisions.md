@@ -1324,3 +1324,5 @@
 - K25: keep the separately resolved VM image-helper lock synchronized with runtime serialization features, retaining all package versions and source digests; validate every dependent manifest with its own locked build.
 
 - K25: stream the runtime owner’s actual log/event types through Serde JSON lines and the existing pinned Tokio bounded line codec; retain frontend admission until stream completion/cancellation. Enable the existing Bytes serde adapter instead of duplicating its serialization, and synchronize both lockfiles before validation.
+
+- K25: move unchanged authenticated agent file requests and their existing streaming/cancellation test into runtime/files before adding a worker transport; keep file-session cleanup in its parent and preserve every request/test body.

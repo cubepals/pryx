@@ -2,10 +2,16 @@
 //! Authenticated streaming file sessions keep backend cleanup owned after caller cancellation.
 //! Only four fixed data operations are available. This transport never selects a workload,
 //! boots compute, retries a mutation or grants a caller a different backend policy.
+//!
+//! Parts (`files/`):
+//! - `agent.rs`: authenticated fixed operations over the owned private endpoint.
+//! - `tests.rs`: real streaming and cancellation-owned cleanup acceptance.
+mod agent;
+#[cfg(test)]
+mod tests;
 use super::RuntimeError;
-use crate::http_client;
-use hyper::{Method, Response, body::Incoming};
-use pryx_agent::auth::{Claims, Scope, SigningKey, TOKEN_LIFETIME_SECONDS};
+use hyper::Method;
+use pryx_agent::auth::SigningKey;
 use std::{future::Future, net::SocketAddr, time::Duration};
 
 /// Host-owned data identity and resource bounds; no workload command, image or secret enters it.
@@ -83,42 +89,6 @@ impl Service {
             cleanup: Some(cleanup),
         })
     }
-    pub async fn request(
-        &self,
-        operation: Operation,
-        path: &str,
-        body: http_client::Body,
-    ) -> Result<Response<Incoming>, RuntimeError> {
-        let (route, method) = operation.route();
-        let mut url = reqwest::Url::parse(&format!("http://{}/_pryx/files/{route}", self.endpoint))
-            .map_err(|_| RuntimeError::Other("Invalid file-service endpoint".into()))?;
-        url.query_pairs_mut().append_pair("path", path);
-        let now = crate::clock::now().unix_timestamp();
-        let token = self
-            .key
-            .sign(&Claims {
-                sandbox: self.sandbox.clone(),
-                epoch: self.epoch,
-                issued_at: now,
-                expires_at: now + TOKEN_LIFETIME_SECONDS,
-                scope: Scope::Sandbox,
-                max_ports: 0,
-                max_exec_seconds: None,
-                file: None,
-            })
-            .map_err(|_| RuntimeError::Other("Cannot authorize file service".into()))?;
-        let path = format!("{}?{}", url.path(), url.query().unwrap_or_default());
-        http_client::local_stream(
-            self.endpoint,
-            method,
-            &path,
-            &[("authorization", format!("Bearer {token}"))],
-            body,
-            self.timeout,
-        )
-        .await
-        .map_err(|problem| RuntimeError::Other(problem.to_string()))
-    }
     /// Cleanup stays in its own task if waiting for it is cancelled.
     pub async fn close(mut self) -> Result<(), RuntimeError> {
         self.release.take();
@@ -127,78 +97,5 @@ impl Service {
             .ok_or_else(|| RuntimeError::Other("File service is closed".into()))?
             .await
             .map_err(|problem| RuntimeError::Other(problem.to_string()))?
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use axum::{Router, body::Body, extract::State, http::StatusCode, routing::put};
-    use http_body_util::BodyExt;
-    use std::sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
-    };
-
-    #[tokio::test]
-    async fn streamed_requests_are_scoped_once_and_cleanup_outlives_cancelled_close() {
-        let (key, _) = SigningKey::generate().unwrap();
-        let public = key.public_key();
-        let calls = Arc::new(AtomicUsize::new(0));
-        let count = calls.clone();
-        let app = Router::new()
-            .route(
-                "/_pryx/files/content",
-                put(move |State(public): State<String>, request: axum::extract::Request| {
-                    let count = count.clone();
-                    async move {
-                        let token =
-                            request.headers()["authorization"].to_str().unwrap().strip_prefix("Bearer ").unwrap();
-                        let claims =
-                            pryx_agent::auth::verify(token, &public, "one", 7, crate::clock::now().unix_timestamp())
-                                .unwrap();
-                        assert_eq!(claims.scope, Scope::Sandbox);
-                        assert_eq!(request.uri().query(), Some("path=name%26path%3Dother"));
-                        count.fetch_add(1, Ordering::SeqCst);
-                        let bytes = request.into_body().collect().await.unwrap().to_bytes();
-                        (StatusCode::OK, Body::from(bytes))
-                    }
-                })
-                .layer(axum::extract::DefaultBodyLimit::disable()),
-            )
-            .with_state(public);
-        let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await.unwrap();
-        let address = listener.local_addr().unwrap();
-        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
-        let gate = Arc::new(tokio::sync::Mutex::new(()));
-        let held = gate.clone().lock_owned().await;
-        let (finish, finishing) = tokio::sync::oneshot::channel();
-        let (started, starting) = tokio::sync::oneshot::channel();
-        let service = Service::new(address, key, ("one".into(), 7), Duration::from_secs(1), async move {
-            let _ = started.send(());
-            let _ = finishing.await;
-            drop(held);
-            Ok(())
-        })
-        .unwrap();
-        let bytes: Vec<u8> = (0..=u8::MAX).cycle().take(pryx_agent::contract::MAX_REQUEST_BYTES + 1).collect();
-        let payload = bytes.clone();
-        let delayed = futures_util::stream::once(async move {
-            tokio::time::sleep(Duration::from_millis(1100)).await;
-            Ok::<_, std::io::Error>(hyper::body::Frame::data(bytes::Bytes::from(payload)))
-        });
-        let body = BodyExt::boxed(http_body_util::StreamBody::new(delayed));
-        let response = service.request(Operation::Write, "name&path=other", body).await.unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(http_client::read_body(response, bytes.len()).await.unwrap().as_ref(), bytes);
-        assert_eq!(calls.load(Ordering::SeqCst), 1);
-        let closing = tokio::spawn(service.close());
-        starting.await.unwrap();
-        closing.abort();
-        assert!(closing.await.unwrap_err().is_cancelled());
-        assert!(gate.try_lock().is_err(), "Cancelled caller must not release backend authority");
-        finish.send(()).unwrap();
-        let _released = tokio::time::timeout(Duration::from_secs(1), gate.lock()).await.unwrap();
-        server.abort();
     }
 }
