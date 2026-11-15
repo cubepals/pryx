@@ -1,0 +1,65 @@
+{
+  "sourceCommit": "c7a620b",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43749214185",
+  "job": 132925640692,
+  "what": "Signed ordinary-user installation on a hosted ubuntu-24.04 runner (image 20261111.370.1) with KVM: deploy/vm-installed-measurements.ts after the installed VM acceptance, public API and real agent, Alpine 3.24.4 pinned by digest and cached, one unit, default network, n=30 per cohort",
+  "p50p90": {
+    "coldCreateToRunningMs": [
+      1353.56,
+      2128.79
+    ],
+    "createToFirstOutputMs": [
+      1616.82,
+      2395.14
+    ],
+    "agentTrueMs": [
+      44.28,
+      47.89
+    ],
+    "wakeMs": [
+      1507.54,
+      1594.81
+    ],
+    "snapshot100MbMs": [
+      1656.97,
+      1690.15
+    ],
+    "fork100MbMs": [
+      2458.16,
+      2529.85
+    ],
+    "idleContextPssMiB": [
+      554.45,
+      555.79
+    ],
+    "idlePairedPssDeltaMiB": [
+      131.61,
+      131.91
+    ],
+    "fixedContextPssBeforeCreateMiB": [
+      423.41,
+      424.75
+    ]
+  },
+  "failedStarts": 0,
+  "source": "the job log's VM SUMMARY lines; raw samples are in the run's installed-native-tools artifact",
+  "previousRun": {
+    "sourceCommit": "1b09027",
+    "ci": "https://github.com/cubepals/pryx/actions/runs/43740509297",
+    "job": 132903978998,
+    "coldCreateToRunningMs": [
+      2363.52,
+      2388.05
+    ],
+    "createToFirstOutputMs": [
+      2618.67,
+      2653.04
+    ],
+    "otherCohorts": "within 2 % of this run"
+  },
+  "rootInstalled": {
+    "job": 132944803353,
+    "acceptanceSeconds": 62,
+    "passed": "Alpine and Debian lifecycle, guarantee checks, firewall and one hostname egress rule as root through the server preset and its VM worker; not measured"
+  }
+}
