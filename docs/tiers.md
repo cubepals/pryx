@@ -261,19 +261,19 @@ run is green.
 
 ## Capabilities
 
-| Capability | Container | gVisor | Process | wasm | vm |
-| --- | --- | --- | --- | --- | --- |
-| Arbitrary image | Yes | Yes | No | No; explicit 422 image problem | `linux/amd64` images, pulled without a daemon |
-| Native Linux binaries | Image architecture | Image architecture, on gVisor's kernel | Host architecture and policy | No; compatible WASM software | The image's, on the guest kernel (x86_64) |
-| Python | Install in image | Install in image | Bundled CPython | Embedded Pyodide | Install in image |
-| Node | Install in image | Install in image | Bundled Node | Embedded V8 compatibility runtime | Install in image |
-| Shell | Static agent fallback | Static agent fallback | Static agent shell | Verified agentOS coreutils shell | The image's shell |
-| Isolation | Shared host kernel, namespaces and cgroups | gVisor's user-space kernel inside the container's namespaces and cgroups | Landlock, seccomp, process groups; dedicated UIDs when root; shared host network, mutually trusted Internet workloads | Virtual kernel, WebAssembly and V8; shared unprivileged sidecar | Its own kernel on KVM; Firecracker monitor under Landlock and seccomp as an ordinary user; own network stack or none |
-| Kernel per sandbox | No | gVisor's own kernel per sandbox; not a guest kernel | No | No native kernel; a virtual kernel per VM | Yes, Linux 6.18.56 in each guest |
-| CPU enforcement | Per-sandbox cgroup quota and weight | The container's cgroup quota and weight | Admission reservation and best-effort nice; hard CPU limits/weights refused | Admission reservation; hard CPU limits/weights refused | Whole vCPUs, the guest's size; fractions and weights refused |
-| Sleep retains files | Yes | Yes | Yes | SQLite root and explicit persistent data mount | Yes, its ext4 disk |
-| Application ingress | TCP/UDP according to host policy | TCP/UDP according to host policy; no hostname egress policy | Host TCP according to policy | HTTP over TCP; no UDP, raw TCP, TLS passthrough or app WebSockets | Declared TCP through host-owned relays; UDP refused |
-| Sleep retains processes and terminals | Frozen container | Frozen sandbox | Suspended process group | No; VM is disposed and recreated | No; the guest stops and boots again on wake |
+| Capability | Container | gVisor | Process | Process, namespaced | wasm | vm |
+| --- | --- | --- | --- | --- | --- | --- |
+| Arbitrary image | Yes | Yes | No | No | No; explicit 422 image problem | `linux/amd64` images, pulled without a daemon |
+| Native Linux binaries | Image architecture | Image architecture, on gVisor's kernel | Host architecture and policy | Host architecture and policy | No; compatible WASM software | The image's, on the guest kernel (x86_64) |
+| Python | Install in image | Install in image | Bundled CPython | Bundled CPython | Embedded Pyodide | Install in image |
+| Node | Install in image | Install in image | Bundled Node | Bundled Node | Embedded V8 compatibility runtime | Install in image |
+| Shell | Static agent fallback | Static agent fallback | Static agent shell | Static agent shell | Verified agentOS coreutils shell | The image's shell |
+| Isolation | Shared host kernel, namespaces and cgroups | gVisor's user-space kernel inside the container's namespaces and cgroups | Landlock, seccomp, process groups; dedicated UIDs when root; shared host network, mutually trusted Internet workloads | The same Landlock, seccomp and limits inside its own user, mount, PID and IPC namespaces, a private /tmp, and its own empty network for network none | Virtual kernel, WebAssembly and V8; shared unprivileged sidecar | Its own kernel on KVM; Firecracker monitor under Landlock and seccomp as an ordinary user; own network stack or none |
+| Kernel per sandbox | No | gVisor's own kernel per sandbox; not a guest kernel | No | No | No native kernel; a virtual kernel per VM | Yes, Linux 6.18.56 in each guest |
+| CPU enforcement | Per-sandbox cgroup quota and weight | The container's cgroup quota and weight | Admission reservation and best-effort nice; hard CPU limits/weights refused | As the plain process mode | Admission reservation; hard CPU limits/weights refused | Whole vCPUs, the guest's size; fractions and weights refused |
+| Sleep retains files | Yes | Yes | Yes | Yes | SQLite root and explicit persistent data mount | Yes, its ext4 disk |
+| Application ingress | TCP/UDP according to host policy | TCP/UDP according to host policy; no hostname egress policy | Host TCP according to policy | Host TCP according to policy; none with network none, whose agent answers on listeners the node passes in | HTTP over TCP; no UDP, raw TCP, TLS passthrough or app WebSockets | Declared TCP through host-owned relays; UDP refused |
+| Sleep retains processes and terminals | Frozen container | Frozen sandbox | Suspended process group | Suspended process tree | No; VM is disposed and recreated | No; the guest stops and boots again on wake |
 
 agentOS 0.4.7 has no per-VM suspend operation in its published client. Suspending its shared
 sidecar would pause unrelated sandboxes, so it cannot implement sleep that retains processes.
