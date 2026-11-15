@@ -124,6 +124,9 @@ fn check_engine_policy(runtime: &DockerRuntime, spec: &ContainerSpec, info: &Run
     if !info.pids_limit && spec.require_pids_limit {
         return Err(RuntimeError::Other("pids-limit is unavailable on this engine".into()));
     }
+    if runtime.oci_runtime.is_some() && spec.egress.is_some() {
+        return Err(RuntimeError::Other(super::gvisor::HOSTNAME_EGRESS_PROBLEM.into()));
+    }
     if (info.rootless || info.podman) && (spec.egress.is_some() || runtime.native_tools.fuse()) {
         return Err(RuntimeError::Other(
             "host-firewall and native FUSE require a supported rootful Docker engine".into(),

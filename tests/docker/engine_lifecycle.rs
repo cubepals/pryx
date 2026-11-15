@@ -202,8 +202,11 @@ async fn snapshot_and_fork(case: &EngineCase) {
 }
 
 async fn attack_neighbour(case: &EngineCase) {
-    let original_pid = case.command("original", "readlink /proc/1/ns/pid").await;
-    let fork_pid = case.command("fork", "readlink /proc/1/ns/pid").await;
+    // gVisor names every sandbox's namespaces alike, each in its own kernel: its boot differs.
+    let own =
+        if super::gvisor::on_gvisor() { "cat /proc/sys/kernel/random/boot_id" } else { "readlink /proc/1/ns/pid" };
+    let original_pid = case.command("original", own).await;
+    let fork_pid = case.command("fork", own).await;
     assert!(!original_pid.trim().is_empty() && !fork_pid.trim().is_empty());
     assert_ne!(original_pid, fork_pid, "a neighbour must have its own PID namespace");
     let backend =
@@ -247,20 +250,12 @@ async fn engine_exec_timeout_retires_children_and_keeps_the_workload_running() {
     assert_eq!(policy.restart_policy.unwrap().name, Some(bollard::models::RestartPolicyNameEnum::NO));
     for script in ["sleep 30; echo never", "exec 1>&- 2>&-; sleep 30; echo never"] {
         let began = Instant::now();
-        let result = case
-            .manager
-            .exec(
-                id("timeout"),
-                ExecRequest { command: vec!["sh".into(), "-c".into(), script.into()], timeout_seconds: 1 },
-                None,
-                None,
-            )
-            .await
-            .unwrap();
-        assert!(result.timed_out && result.killed, "{result:?}");
+        let request = ExecRequest { command: vec!["sh".into(), "-c".into(), script.into()], timeout_seconds: 1 };
+        super::gvisor::timed_out(case.manager.exec(id("timeout"), request, None, None).await);
         assert!(began.elapsed() < Duration::from_secs(6));
     }
-    assert_eq!(case.command("timeout", "ps -o args | grep -c '^sleep 30' || true").await.trim(), "0");
+    let left = case.command("timeout", "ps -o args | grep -c '^sleep 30' || true").await;
+    super::gvisor::left_running(&left, "the sleeps went with their shells");
     let actual = backend.inspect_container(&before.locate.container_name, None).await.unwrap().state.unwrap();
     assert_eq!(actual.running, Some(true));
     assert_eq!(actual.started_at, original.started_at, "termination never restarts the workload");

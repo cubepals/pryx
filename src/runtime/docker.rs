@@ -29,7 +29,7 @@ mod create;
 pub(crate) mod egress;
 mod exec;
 mod gvisor;
-pub use gvisor::{GVISOR_MISSING_PROBLEM, GVISOR_RUNTIME, problem as gvisor_problem};
+pub use gvisor::{EXEC_TIMEOUT_PROBLEM, GVISOR_MISSING_PROBLEM, GVISOR_RUNTIME, problem as gvisor_problem};
 mod native_tools;
 mod network;
 pub(crate) mod ownership;
@@ -384,13 +384,10 @@ impl ContainerRuntime for DockerRuntime {
         true
     }
     fn supports_native_fuse(&self) -> bool {
-        // gVisor serves /dev/fuse from its own kernel, not the host device this policy grants.
-        self.oci_runtime.is_none()
-            && self.native_tools.fuse()
-            && self.info.lock().unwrap().as_ref().is_some_and(|info| !info.rootless && !info.podman)
+        gvisor::host_policy(self.oci_runtime, self.info.lock().unwrap().as_ref()) && self.native_tools.fuse()
     }
     fn supports_hostname_egress(&self) -> bool {
-        self.info.lock().unwrap().as_ref().is_some_and(|info| !info.rootless && !info.podman) && egress::ready()
+        gvisor::host_policy(self.oci_runtime, self.info.lock().unwrap().as_ref()) && egress::ready()
     }
     fn supports_network_policy(&self) -> bool {
         self.info.lock().unwrap().as_ref().is_none_or(|info| !info.rootless || info.podman)
@@ -575,8 +572,8 @@ impl ContainerRuntime for DockerRuntime {
         self.inspect(name).await?;
         Ok(())
     }
-
     async fn stop(&self, name: &str, signal: &str, grace: Duration) -> Result<(), RuntimeError> {
+        gvisor::thaw_for_stop(self, self.oci_runtime, name).await?;
         let options =
             StopContainerOptionsBuilder::new().signal(signal).t(grace.as_secs().min(i32::MAX as u64) as i32).build();
         // Docker answers once the container exited: the grace, plus a margin for the kill.

@@ -20,6 +20,62 @@ pub(super) fn engine_runtime(socket: &std::path::Path) -> DockerRuntime {
     if on_gvisor() { runtime.gvisor() } else { runtime }
 }
 
+/// A node exec past its deadline: killed in a container, refused by name on gvisor.
+pub(super) fn timed_out(result: Result<pryxd::protocol::ExecResponse, NodeError>) {
+    if on_gvisor() {
+        let said = format!("{:?}", result.expect_err("gvisor names exec-timeout as unavailable"));
+        assert!(said.contains(pryxd::runtime::docker::EXEC_TIMEOUT_PROBLEM), "{said}");
+    } else {
+        let out = result.unwrap();
+        assert!(out.timed_out && out.killed, "{out:?}");
+    }
+}
+
+/// How many timed-out sleeps remain: none in a container; on gvisor, whose refusal stops none,
+/// they are still there, as the refusal says.
+pub(super) fn left_running(count: &str, why: &str) {
+    if on_gvisor() {
+        assert!(count.trim().parse::<u32>().unwrap() > 0, "refused, so left running: {count}");
+    } else {
+        assert_eq!(count.trim(), "0", "{why}");
+    }
+}
+
+/// The pids limit: a container's own cgroup shows it; gVisor's kernel shows its own cgroups, so
+/// on gvisor the engine's record of the limit it applied is read instead.
+pub(super) fn pids_limited(inside: &str, container: &str) {
+    if !on_gvisor() {
+        return assert!(inside.contains("4096"), "pids limit");
+    }
+    let out = std::process::Command::new("docker")
+        .args(["inspect", "--format", "{{.HostConfig.PidsLimit}}", container])
+        .output()
+        .unwrap();
+    assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "4096", "the engine applied the pids limit");
+}
+
+/// Hostname egress on gvisor: never announced, and a create that names a policy is refused.
+pub(super) async fn hostname_egress_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let dep = deployment();
+    let _cleanup = Cleanup(dep.clone());
+    let m = daemon(dir.path(), &dep);
+    assert!(m.reconcile(Records::FromDisk).await.error.is_none());
+    assert!(!m.features().iter().any(|f| f == "egress-hostnames" || f.ends_with(":egress-hostnames")));
+    let spec: WorkloadSpec = serde_json::from_value(serde_json::json!({
+        "image": "alpine:3.22",
+        "entrypoint": ["/bin/sh", "-c", SERVER],
+        "egress": { "allow": ["example.com"] },
+        "resources": { "memoryMb": 128, "cpuMillis": 500 },
+        "storage": { "mountPath": "/data", "sizeGb": 1 },
+        "stop": { "timeoutSeconds": 10 }
+    }))
+    .unwrap();
+    let made = m.ensure(id("dns"), spec, Precondition::None, None).await;
+    let said = format!("{made:?}");
+    assert!(made.is_err() && said.contains("egress"), "a hostname policy is refused on gvisor: {said}");
+}
+
 /// What the engine itself says: `runsc` among the runtimes `docker info` lists.
 fn engine_registers_runsc() -> bool {
     let out = std::process::Command::new("docker")
@@ -142,4 +198,96 @@ async fn a_named_tier_is_never_served_by_the_other_engine_backend() {
     assert!(report.error.is_none(), "{report:?}");
     assert_eq!(m.view(&id("g")).unwrap().locate.container_id, g.locate.container_id);
     cleanup(&m, &["c", "g"]).await;
+}
+
+/// Nearest-rank p50 and p90 of `samples`, in milliseconds.
+fn percentiles(mut samples: Vec<f64>) -> (f64, f64) {
+    samples.sort_by(f64::total_cmp);
+    let rank = |p: f64| samples[((p * samples.len() as f64).ceil() as usize).clamp(1, samples.len()) - 1];
+    (rank(0.5), rank(0.9))
+}
+
+/// K26's figures for docs/tiers.md: thirty samples each of create to running, an exec of `true`,
+/// a syscall-heavy command and a 16 MiB transfer from the published port, on both engine tiers
+/// of the one runner. Printed as `K26_MEASURE` lines for the job log.
+#[tokio::test]
+#[ignore = "needs Docker with runsc registered; CI's gvisor run measures"]
+async fn container_and_gvisor_figures() {
+    if !on_gvisor() {
+        // A measurement, not a guarantee: the gvisor run of the suite, with runsc, takes it.
+        return;
+    }
+    let socket = DockerConfig::default().socket;
+    for (tier, runtime) in [
+        ("container", Arc::new(DockerRuntime::new(&socket).unwrap()) as Arc<dyn ContainerRuntime>),
+        ("gvisor", Arc::new(DockerRuntime::new(&socket).unwrap().gvisor())),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let dep = deployment();
+        let _cleanup = Cleanup(dep.clone());
+        let m = manager_probed(
+            dir.path(),
+            runtime,
+            &extra(&dep),
+            pryxd::ports::bind_probe(vec!["127.0.0.1".parse().unwrap()]),
+        );
+        assert!(m.reconcile(Records::FromDisk).await.error.is_none());
+        let serve = format!(
+            "head -c 16777216 /dev/zero > /data/blob; nc -lk -p {} -e cat /data/blob & while true; do sleep 1; done",
+            pryxd::examples::HTTP_PORT
+        );
+        let (mut create, mut exec, mut syscalls, mut transfer) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+        for sample in 0..30 {
+            let w = format!("m{sample}");
+            let began = Instant::now();
+            m.ensure(id(&w), super::shell(&serve, 256), Precondition::None, None).await.unwrap();
+            m.start(id(&w), None).await.unwrap();
+            create.push(began.elapsed().as_secs_f64() * 1000.0);
+            let run = |script: &str| ExecRequest {
+                command: vec!["sh".into(), "-c".into(), script.into()],
+                timeout_seconds: 60,
+            };
+            let began = Instant::now();
+            assert_eq!(
+                m.exec(id(&w), ExecRequest { command: vec!["true".into()], timeout_seconds: 20 }, None, None)
+                    .await
+                    .unwrap()
+                    .exit_code,
+                Some(0)
+            );
+            exec.push(began.elapsed().as_secs_f64() * 1000.0);
+            let began = Instant::now();
+            let out = m
+                .exec(id(&w), run("dd if=/dev/zero of=/dev/null bs=1 count=200000 2>/dev/null"), None, None)
+                .await
+                .unwrap();
+            assert_eq!(out.exit_code, Some(0), "{out:?}");
+            syscalls.push(began.elapsed().as_secs_f64() * 1000.0);
+            let port = m.view(&id(&w)).unwrap().ports[0].host_port;
+            let received = loop {
+                let began = Instant::now();
+                let bytes = tokio::task::spawn_blocking(move || {
+                    use std::io::Read;
+                    let mut stream = std::net::TcpStream::connect(("127.0.0.1", port)).ok()?;
+                    let mut all = Vec::new();
+                    stream.read_to_end(&mut all).ok()?;
+                    Some(all.len())
+                })
+                .await
+                .unwrap();
+                if bytes == Some(16 * 1024 * 1024) {
+                    break began.elapsed().as_secs_f64() * 1000.0;
+                }
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            };
+            transfer.push(received);
+            m.delete(id(&w), DataDisposition::Delete, Some(w.clone()), None).await.unwrap();
+        }
+        for (metric, samples) in
+            [("create", create), ("exec-true", exec), ("syscall-heavy", syscalls), ("transfer-16MiB", transfer)]
+        {
+            let (p50, p90) = percentiles(samples);
+            eprintln!("K26_MEASURE tier={tier} metric={metric} n=30 p50={p50:.2} p90={p90:.2}");
+        }
+    }
 }

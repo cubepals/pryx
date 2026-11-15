@@ -317,12 +317,7 @@ export class PublicModel {
     if (body.user && spec.isolation !== 'container' && spec.isolation !== 'gvisor')
       throw new SandboxError('unsupported', `user selection is unavailable on the ${spec.isolation} tier`)
     // Only these tiers enforce a hostname policy on the host; a node still announces it per tier.
-    if (
-      body.egress &&
-      spec.isolation !== 'container' &&
-      spec.isolation !== 'gvisor' &&
-      spec.isolation !== 'vm'
-    )
+    if (body.egress && spec.isolation !== 'container' && spec.isolation !== 'vm')
       throw new SandboxError(
         'unsupported',
         `egress hostname policy is unavailable on the ${spec.isolation} tier`,

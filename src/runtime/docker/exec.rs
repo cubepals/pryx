@@ -77,9 +77,10 @@ impl DockerRuntime {
                 // can: find its pid, make sure it is still this container's, and kill its tree.
                 // Under gVisor the exec's processes live in its own kernel, so a host pid names
                 // none of them; that path is never taken there.
-                if self.oci_runtime.is_none()
-                    && let Some((pid, container)) = self.exec_pid(&exec_id).await
-                {
+                if self.oci_runtime.is_some() {
+                    return Err(RuntimeError::Other(super::gvisor::EXEC_TIMEOUT_PROBLEM.into()));
+                }
+                if let Some((pid, container)) = self.exec_pid(&exec_id).await {
                     result.killed = self.kill_expired_exec(pid, &container, policy.as_ref()).await? > 0;
                 }
             }

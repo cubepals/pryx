@@ -244,7 +244,7 @@ async fn lifecycle_hardening_and_graceful_stop() {
     assert!(out.stdout.contains("CapEff:\t0000000000000000"), "no capabilities");
     assert!(out.stdout.contains("NoNewPrivs:\t1"));
     assert!(out.stdout.contains("rootfs-readonly"));
-    assert!(out.stdout.contains("4096"), "pids limit");
+    gvisor::pids_limited(&out.stdout, &m.view(&id("w")).unwrap().locate.container_name);
 
     let started = Instant::now();
     let stopped = m.stop(id("w"), None, None).await.unwrap();
@@ -387,16 +387,8 @@ async fn an_exec_past_its_timeout_is_killed_inside_the_container() {
     m.start(id("e"), None).await.unwrap();
     for command in ["sleep 60; echo never", "exec 1>&- 2>&-; sleep 60; echo never"] {
         let started = Instant::now();
-        let out = m
-            .exec(
-                id("e"),
-                ExecRequest { command: vec!["sh".into(), "-c".into(), command.into()], timeout_seconds: 2 },
-                None,
-                None,
-            )
-            .await
-            .unwrap();
-        assert!(out.timed_out && out.killed, "{out:?}");
+        let request = ExecRequest { command: vec!["sh".into(), "-c".into(), command.into()], timeout_seconds: 2 };
+        gvisor::timed_out(m.exec(id("e"), request, None, None).await);
         assert!(started.elapsed() < Duration::from_secs(6));
     }
     let left = m
@@ -411,7 +403,7 @@ async fn an_exec_past_its_timeout_is_killed_inside_the_container() {
         )
         .await
         .unwrap();
-    assert_eq!(left.stdout.trim(), "0", "the sleep went with its shell");
+    gvisor::left_running(&left.stdout, "the sleep went with its shell");
     cleanup(&m, &["e"]).await;
 }
 
@@ -428,11 +420,8 @@ async fn a_short_exec_timeout_kills_the_exec_and_leaves_the_workload_running() {
     m.ensure(id("s"), shell(SERVER, 256), Precondition::None, None).await.unwrap();
     m.start(id("s"), None).await.unwrap();
     let before = m.view(&id("s")).unwrap();
-    let out = m
-        .exec(id("s"), ExecRequest { command: vec!["sleep".into(), "30".into()], timeout_seconds: 1 }, None, None)
-        .await
-        .unwrap();
-    assert!(out.timed_out && out.killed, "{out:?}");
+    let request = ExecRequest { command: vec!["sleep".into(), "30".into()], timeout_seconds: 1 };
+    gvisor::timed_out(m.exec(id("s"), request, None, None).await);
     m.stats(&id("s")).await.unwrap();
     let after = m.view(&id("s")).unwrap();
     assert_eq!(after.state, WorkloadState::Running, "{after:#?}");
@@ -735,6 +724,9 @@ async fn isolation_keeps_a_workload_off_another_s_published_port() {
 #[tokio::test]
 #[ignore = "needs Docker, and root for nftables"]
 async fn an_egress_policy_holds_dns_to_its_names() {
+    if gvisor::on_gvisor() {
+        return gvisor::hostname_egress_refused().await;
+    }
     let had = |table: &str| std::process::Command::new("nft").args(["list", "table", "inet", table]).output();
     assert!(!had("pryxd").unwrap().status.success(), "runs only where pryxd's own rules aren't installed");
     let (_host_rules, _egress_rules) = (Rules("pryxd".into()), Rules("pryx_egress".into()));

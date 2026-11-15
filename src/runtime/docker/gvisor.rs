@@ -12,6 +12,13 @@ pub(crate) const GVISOR_PODMAN_PROBLEM: &str =
 pub const GVISOR_MISSING_PROBLEM: &str =
     "gvisor is unavailable: the engine has no runsc runtime registered; install gVisor and run runsc install";
 
+/// A node exec that outlives its deadline under gVisor: Docker can't stop an exec, and its
+/// processes live in gVisor's own kernel, where no host PID names them.
+pub const EXEC_TIMEOUT_PROBLEM: &str = "exec-timeout is unavailable on the gvisor tier: Docker cannot stop an exec and \
+     gVisor's processes have no host PID; run commands through the sandbox agent, which ends its own";
+/// Docker's embedded resolver answers only through rules gVisor's own network stack never sees.
+pub(crate) const HOSTNAME_EGRESS_PROBLEM: &str = "egress-hostnames is unavailable on the gvisor tier: Docker's embedded resolver is unreachable from gVisor's network stack";
+
 /// Why an engine that serves containers can't serve the gvisor tier, from its own `info`.
 pub fn problem(info: &RuntimeInfo) -> Option<String> {
     if info.podman {
@@ -47,6 +54,28 @@ pub(super) fn owns_event(
     let Ok(message) = item else { return true };
     let labels = message.actor.as_ref().and_then(|actor| actor.attributes.as_ref());
     owns(own, labels.and_then(|labels| labels.get(crate::labels::LABEL_OCI_RUNTIME)).map(String::as_str))
+}
+
+/// Whether host-side policy (the FUSE device, the egress gateways' resolver) holds for this
+/// backend: a rootful Docker engine, and runc's containers, since gVisor's kernel and network
+/// stack are not the host's.
+pub(super) fn host_policy(own: Option<&str>, info: Option<&RuntimeInfo>) -> bool {
+    own.is_none() && info.is_some_and(|info| !info.rootless && !info.podman)
+}
+
+/// Docker stops a paused container by signalling it frozen; gVisor's frozen sandbox can't run
+/// the handler before the grace runs out, so the gvisor tier thaws it first, as a wake would.
+pub(super) async fn thaw_for_stop(
+    runtime: &impl crate::runtime::ContainerRuntime,
+    own: Option<&str>,
+    name: &str,
+) -> Result<(), crate::runtime::RuntimeError> {
+    if own.is_some()
+        && runtime.inspect(name).await?.is_some_and(|info| info.status == crate::runtime::ContainerStatus::Paused)
+    {
+        runtime.unpause(name).await?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
