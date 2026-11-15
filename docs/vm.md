@@ -22,7 +22,7 @@ A VM sandbox reports these [guarantees](host-capabilities.md):
 | `cpu-limit` | Yes | The guest has exactly the admitted number of vCPUs |
 | `private-network` | Yes | The guest has its own network stack, or none |
 | `private-pids` | Yes | The guest kernel sees only its own processes |
-| `memory-sleep` | No | Sleep stops the guest; wake boots it again |
+| `memory-sleep` | As an ordinary user, once its start test passes | Sleep writes the guest's memory beside its disk; wake restores it on a host of the same class |
 | `separate-users`, `host-firewall`, `browser-sandbox` | No | These name process and container mechanisms |
 
 ## What a host needs
@@ -176,10 +176,29 @@ list narrows the tier with it, and adds prefixes there for other images, as for 
 
 ## Sleep, snapshot, fork, export, restore, move
 
-- **Sleep** stops the guest and keeps its disk. **Wake** boots it again from that disk, on an
-  API call or a held edge connection. Processes, terminals and memory do not survive.
-  `memory-sleep` is reported off, and control takes the stop path without asking; a pause
-  request is refused.
+- **Sleep with memory**, for an ordinary user's tier. At start, pryxd sleeps and wakes a
+  file-only guest on a scratch disk; once that passes, the tier reports `memory-sleep` and
+  control's sleep suspends instead of stopping. A suspend asks the guest's init, with a request
+  signed for that boot, to flush its disk and hold a connection to the host; the monitor is then
+  paused, writes a full snapshot of its state and memory, and exits. The two files go into
+  pryxd's private state for the VM tier, owned by pryxd's user and readable by no one else, as
+  the disk is; they never go into a snapshot, an export, a rest or a transfer.
+- **Wake with memory** restores that snapshot on the same node, when the host's class still
+  matches: the CPU model and its features, the host kernel and the monitor's build, all
+  recorded at sleep, and the disk is the very file the sleep left. Processes, terminals and
+  `/tmp` carry on. The monitor's vsock reset ends init's held connection; init then takes a
+  signed resume from the host, steps the wall clock to the host's, mixes host entropy into its
+  pool, starts its network helper again and reopens its sleep listener. Open TCP connections
+  don't survive. A host of another class, a changed disk or a restore that fails is never
+  retried: the memory is discarded, the guest boots from its disk with everything written before
+  the sleep, and the start answers `resumed: false`. Memory never leaves its node, so a wake
+  anywhere else is a cold boot.
+- **Sleep** without memory (root's VM worker, or before the start test passes) stops the guest
+  and keeps its disk. **Wake** boots it again from that disk, on an API call or a held edge
+  connection. A suspend request is refused, and control takes the stop path without asking.
+- A file session, a copy or a cold boot of a guest asleep with memory discards that memory
+  first; stopping it ends the memory as a kill would. Differential snapshots are not used: their
+  upstream calls them a preview.
 - **Stop** sends the guest's init a signed request over vsock, carrying the spec's stop grace.
   Init stops the workload with SIGTERM or SIGINT (other stop signals are refused), gives it that
   whole grace before killing what remains, remounts its disks read-only and flushes them, then
@@ -226,7 +245,8 @@ output's admitted size.
 
 - No KVM, no tier: there is no emulation, and the tier is x86_64 only.
 - Root nodes serve the tier only through the VM worker.
-- Sleep keeps the disk, not memory. Snapshots and exports of a running VM restart it.
+- Memory sleep is for an ordinary user's tier, restored only on the same node and host class.
+  Snapshots and exports of a running VM restart it, and fork copies the disk, not memory.
 - CPU is whole vCPUs: `cpuMillis` must be a multiple of 1000, and one vCPU is given without
   it. CPU weights are refused.
 - Memory is whole MiB, the guest's RAM. The monitor's own memory on the host is outside it.
