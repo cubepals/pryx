@@ -4,6 +4,12 @@
 version = 1
 
 [[annotations]]
+path = "site/notices/svelte-MIT.txt"
+precedence = "override"
+SPDX-FileCopyrightText = "2016-23 Svelte contributors (see retained notice)"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
 path = "**"
 precedence = "closest"
 SPDX-FileCopyrightText = "2026 The Cubepals Authors"

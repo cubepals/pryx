@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Inspect generator HTML with parse5. Source links resolve against canonical files;
  * generated navigation resolves against the configured site base. No remote crawler. */
-import { execFileSync } from 'node:child_process'
 import { existsSync, lstatSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 import { parse, serialize, type DefaultTreeAdapterTypes as Tree } from 'parse5'
-import { files } from './artifact.ts'
+import { files, sourceGit } from './artifact.ts'
 
 export { files } from './artifact.ts'
 
@@ -31,15 +30,20 @@ function repositoryTarget(file: string) {
   for (const part of file.split('/')) {
     if (!part || part === '.' || part === '..') throw new Error(`Invalid source link: ${file}`)
     at = join(at, part)
-    if (!existsSync(at) || lstatSync(at).isSymbolicLink())
-      throw new Error(`Missing or linked source: ${file}`)
+    let stat: ReturnType<typeof lstatSync>
+    try {
+      stat = lstatSync(at)
+    } catch {
+      throw new Error(`Missing source: ${file}`)
+    }
+    if (stat.isSymbolicLink()) throw new Error(`Linked source: ${file}`)
   }
   return at
 }
 const external = (value: string) => /^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(value)
 export function rewriteSourceLinks(directory: string, pages: Page[]) {
   const routes = new Map(pages.map((page) => [page.file, routePath(page.id)]))
-  const sha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim()
+  const sha = sourceGit(root, 'rev-parse', 'HEAD')
   for (const page of pages) {
     const html = join(directory, page.id === 'index' ? '' : page.id.replace(/\/index$/, ''), 'index.html')
     if (!existsSync(html)) throw new Error(`Page missing from built site: ${page.file}`)

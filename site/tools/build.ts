@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Build with the maintained generator, check all pages/links and export a file-readable review.
  * Parts (tools/): sources.ts owns canonical parity; settings.ts owns version/address;
- * html.ts owns parsed links and export. This command never publishes. */
+ * html.ts owns parsed links/export; artifact.ts owns hashes/provenance; notices.ts retains legal text;
+ * publish.ts owns immutable exports; build.ts orchestrates checks. This command never publishes. */
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { fileDigests, sourceGit } from './artifact.ts'
 import { checkLinks, files, offlineHtml, type Page, rewriteSourceLinks } from './html.ts'
-import { base, version } from './settings.ts'
-import { site } from './sources.ts'
+import { writeNotices } from './notices.ts'
+import { address, base, version } from './settings.ts'
+import { root, site } from './sources.ts'
 
 rmSync(join(site, '.astro/collections'), { recursive: true, force: true })
 rmSync(join(site, 'dist'), { recursive: true, force: true })
@@ -21,6 +24,7 @@ if (await child.exited) throw new Error('Static site build failed')
 const directory = join(site, 'dist', `v${version}`)
 const pages: Page[] = JSON.parse(readFileSync(join(site, '.build/sources.json'), 'utf8'))
 rewriteSourceLinks(directory, pages)
+writeNotices(directory)
 const count = checkLinks(directory)
 const review = join(site, 'review')
 cpSync(directory, review, { recursive: true, dereference: false })
@@ -30,7 +34,17 @@ for (const file of files(review).filter((file) => file.endsWith('.html'))) {
 }
 checkLinks(review)
 mkdirSync(join(site, '.build'), { recursive: true })
-writeFileSync(join(site, '.build/build.json'), JSON.stringify({ version, base, pages: count }))
+writeFileSync(
+  join(site, '.build/build.json'),
+  JSON.stringify({
+    version,
+    base,
+    pages: count,
+    address: address.configured,
+    commit: sourceGit(root, 'rev-parse', 'HEAD'),
+    files: fileDigests(directory),
+  }),
+)
 console.log(
   `Site: ${pages.length} canonical pages; ${count} HTML documents; local links and anchors pass; file review exported`,
 )

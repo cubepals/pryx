@@ -78,6 +78,7 @@ test('welcome guide URLs name existing canonical pages of the running version', 
     expect(ids.has(`connect/${guide.id}`)).toBe(true)
     expect(guide.url).toBe(`https://docs.example.test/manual/v${PRYX_VERSION}/connect/${guide.id}/`)
   }
+  expect(() => siteAddress('private-not-a-url')).toThrow()
   try {
     siteAddress('private-not-a-url')
   } catch (error) {
