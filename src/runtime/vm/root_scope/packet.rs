@@ -18,8 +18,11 @@ impl Scope {
         if capacity == 0 || paths.parent != parent {
             return Err(error("Packet launch requires its actual parent and positive capacity"));
         }
+        // A root public guest's DNS is the stack's own gateway service and dials no host port;
+        // only public IPv4 destinations outside the agent's boundary leave the stack.
         let configuration = serde_json::to_vec(&serde_json::json!({
-            "parent": parent, "concurrency": capacity, "tapInterface":self.packet_tap
+            "parent": parent, "concurrency": capacity, "tapInterface":self.packet_tap,
+            "egress": super::super::network::egress(true, &[], &[])
         }))
         .map_err(error)?;
         let limit = self.packet_profile["maxConfigurationBytes"]

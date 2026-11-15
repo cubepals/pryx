@@ -2,15 +2,19 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Writable ext4 images are prepared only while the monitor's kernel lease is held. Checks
 //! never modify the current image; preen repairs a private whole copy and publishes it only
-//! after independent read-only verification and fsync. No host mount or filesystem parser lives here.
-use super::{error, filesystems::FilesystemTools};
+//! after independent read-only verification and fsync. No host mount or filesystem parser lives here;
+//! e2fsprogs reads a guest-written disk only under the launcher's filesystem-tool confinement.
+use super::{
+    error,
+    filesystems::{FilesystemTools, Run},
+};
 use crate::runtime::RuntimeError;
 use std::{
     fs::{self, File, OpenOptions},
     io,
     os::unix::fs::{MetadataExt, OpenOptionsExt},
     path::{Path, PathBuf},
-    process::{ExitStatus, Stdio},
+    process::ExitStatus,
     time::{Duration, Instant},
 };
 
@@ -55,20 +59,38 @@ fn room(path: &Path, floor: u64) -> Result<(), RuntimeError> {
     }
 }
 
-async fn command(mut command: std::process::Command, deadline: Instant) -> Result<ExitStatus, RuntimeError> {
-    command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
-    let mut command = tokio::process::Command::from(command);
-    command.kill_on_drop(true);
-    tokio::time::timeout(remaining(deadline)?, command.status())
-        .await
-        .map_err(|_| RuntimeError::Timeout("VM filesystem tool exceeded its deadline".into()))?
-        .map_err(error)
+// e2fsprogs' own diagnostics are bounded and discarded; the exit status decides.
+const DIAGNOSTIC_BYTES: u64 = 64 * 1024;
+
+fn text(path: &Path) -> Result<String, RuntimeError> {
+    path.to_str().map(String::from).ok_or_else(|| error("VM disk path is not text"))
+}
+
+/// A guest wrote this disk: every e2fsprogs run is confined to it and its staged copy.
+async fn tool(
+    tools: &FilesystemTools,
+    run: Run<'_>,
+    disk: &Path,
+    deadline: Instant,
+) -> Result<ExitStatus, RuntimeError> {
+    // Working files live beside the data directory, never inside it.
+    let scratch =
+        disk.parent().and_then(Path::parent).ok_or_else(|| error("VM disk lacks a private scratch parent"))?;
+    remaining(deadline)?;
+    let deadline = tokio::time::Instant::from_std(deadline);
+    Ok(tools.run(run, scratch, Some(deadline), DIAGNOSTIC_BYTES).await?.status)
 }
 
 async fn check(tools: &FilesystemTools, disk: &Path, deadline: Instant) -> Result<bool, RuntimeError> {
-    let mut check = tools.builder("e2fsck");
-    check.args(["-f", "-n"]).arg(disk);
-    Ok(command(check, deadline).await?.success())
+    let run = Run {
+        program: "e2fsck",
+        arguments: vec!["-f".into(), "-n".into(), text(disk)?],
+        read: vec![disk.to_owned()],
+        write: Vec::new(),
+        // A read-only check writes nothing; the bound must still be positive.
+        file_bytes: 1,
+    };
+    Ok(tool(tools, run, disk, deadline).await?.success())
 }
 
 /// Caller holds the monitor's lifetime lease while verifying and copying this image.
@@ -178,20 +200,19 @@ async fn transaction(
             return Err(error("VM disk recovery could not copy the complete image"));
         }
         fs::rename(copied_path.join(FILE), &candidate).map_err(error)?;
-        let mut repair = tools.builder("e2fsck");
-        repair.args(["-f", "-p"]).arg(&candidate);
-        let status = command(repair, deadline).await?;
+        let repair = Run {
+            program: "e2fsck",
+            arguments: vec!["-f".into(), "-p".into(), text(&candidate)?],
+            read: Vec::new(),
+            write: vec![candidate.clone()],
+            file_bytes: bytes,
+        };
+        let status = tool(tools, repair, &candidate, deadline).await?;
         if !status.success() && status.code() != Some(ERRORS_CORRECTED) {
             return Err(error("VM disk needs recovery beyond safe automatic preen; current data is untouched"));
         }
     } else {
-        let file = OpenOptions::new().write(true).create_new(true).mode(0o600).open(&candidate).map_err(error)?;
-        file.set_len(bytes).map_err(error)?;
-        let mut create = tools.builder("mke2fs");
-        create.args(["-q", "-F", "-t", "ext4", "-E", "lazy_itable_init=0,lazy_journal_init=0"]).arg(&candidate);
-        if !command(create, deadline).await?.success() {
-            return Err(error("VM writable filesystem creation failed"));
-        }
+        create(tools, &candidate, bytes, deadline).await?;
     }
     if !check(tools, &candidate, deadline).await? {
         return Err(error("Prepared VM disk failed independent read-only integrity verification"));
@@ -199,6 +220,24 @@ async fn transaction(
     room(directory, free_floor)?;
     publish(original.as_ref(), &candidate, &path, directory, bytes, deadline)?;
     Ok(Prepared { path, created: original.is_none(), recovered: original.is_some() })
+}
+
+/// A new sparse file of the admitted size, formatted in place by the confined mke2fs.
+async fn create(tools: &FilesystemTools, candidate: &Path, bytes: u64, deadline: Instant) -> Result<(), RuntimeError> {
+    let file = OpenOptions::new().write(true).create_new(true).mode(0o600).open(candidate).map_err(error)?;
+    file.set_len(bytes).map_err(error)?;
+    let arguments = ["-q", "-F", "-t", "ext4", "-E", "lazy_itable_init=0,lazy_journal_init=0"];
+    let create = Run {
+        program: "mke2fs",
+        arguments: arguments.into_iter().map(String::from).chain([text(candidate)?]).collect(),
+        read: Vec::new(),
+        write: vec![candidate.to_owned()],
+        file_bytes: bytes,
+    };
+    if !tool(tools, create, candidate, deadline).await?.success() {
+        return Err(error("VM writable filesystem creation failed"));
+    }
+    Ok(())
 }
 
 fn publish(

@@ -5,6 +5,7 @@
 //! is denied cross-process signals and limit changes; ordinary monitors also cannot create
 //! network sockets.
 //! Packet proxies inherit one private listener and may create only outbound Internet sockets.
+//! Filesystem programs create no socket at all.
 use seccompiler::{
     BpfProgram, SeccompAction, SeccompCmpArgLen, SeccompCmpOp, SeccompCondition, SeccompFilter, SeccompRule,
 };
@@ -17,7 +18,15 @@ fn rule(argument: u8, operation: SeccompCmpOp, value: u32) -> SeccompRule {
     SeccompRule::new(vec![condition(argument, operation, value)]).expect("valid monitor rule")
 }
 
-pub(super) fn enter(jailer: bool, packet_proxy: bool) -> Result<(), Box<dyn std::error::Error>> {
+/// The socket domains a confined process may create.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum Sockets {
+    Unix,
+    Internet,
+    None,
+}
+
+pub(super) fn enter(jailer: bool, sockets: Sockets) -> Result<(), Box<dyn std::error::Error>> {
     let mut rules = BTreeMap::new();
     let input = libc::STDIN_FILENO as u32;
     rules.insert(libc::SYS_close, vec![rule(0, SeccompCmpOp::Eq, input)]);
@@ -63,7 +72,12 @@ pub(super) fn enter(jailer: bool, packet_proxy: bool) -> Result<(), Box<dyn std:
             condition(0, SeccompCmpOp::Ne, std::process::id()),
         ])?],
     );
-    if !jailer {
+    if sockets == Sockets::None {
+        for syscall in [libc::SYS_socket, libc::SYS_socketpair] {
+            rules.insert(syscall, vec![]);
+        }
+    } else if !jailer {
+        let packet_proxy = sockets == Sockets::Internet;
         let domains: &[i32] = if packet_proxy { &[libc::AF_INET, libc::AF_INET6] } else { &[libc::AF_UNIX] };
         rules.insert(
             libc::SYS_socket,
@@ -96,7 +110,7 @@ mod tests {
         if std::env::var_os(CHILD).is_some() {
             let parent = rustix::process::getppid().unwrap();
             assert!(rustix::process::test_kill_process(parent).is_ok());
-            super::enter(true, false).unwrap();
+            super::enter(true, super::Sockets::Unix).unwrap();
             assert_eq!(rustix::process::test_kill_process(parent), Err(rustix::io::Errno::PERM));
             return;
         }

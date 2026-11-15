@@ -201,7 +201,7 @@ impl Bundle {
         }
         let component = root.join("filesystem");
         let digest = &expected[Path::new("filesystem/filesystem-manifest.json")].sha256;
-        let filesystems = FilesystemTools::verified(&component, digest)?;
+        let filesystems = FilesystemTools::verified(&component, digest, &root.join("bin/vm-launcher"))?;
         let bootstrap_member = &expected[Path::new("bootstrap/bootstrap.json")];
         if bootstrap_member.bytes > MAX_MANIFEST_BYTES {
             return Err(error(invalid()));

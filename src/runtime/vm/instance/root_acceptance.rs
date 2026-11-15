@@ -116,7 +116,7 @@ impl Host<'_> {
         let mut forward = Forwarder::start(
             &self.bundle.root().join("bin/vm-transport"),
             &launch.channel,
-            &[super::super::forward::Binding::service(
+            &[super::super::forward::Binding::agent(
                 endpoint.ip(),
                 endpoint.port(),
                 spec.agent.as_ref().unwrap().agent_port,
@@ -258,6 +258,7 @@ async fn actual_jailer_boots_both_images_and_recovers_the_original_disk() {
             &image::Request {
                 component: bundle.root().join("filesystem"),
                 manifest_sha256: bundle.filesystems().identity().into(),
+                launcher: bundle.filesystems().launcher().into(),
                 cache: root.path().join("images"),
                 image: spec.image.clone(),
                 timeout_seconds: 120,

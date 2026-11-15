@@ -57,6 +57,26 @@ pub struct Paths<'a> {
     pub socket: Option<&'a Path>,
 }
 
+/// The packet helper's admission: exactly the ports the guest reaches at the helper's host
+/// address, a public IPv4 destination only when `public`, and never the agent's own
+/// non-public IPv4 boundary.
+pub(crate) fn egress(public: bool, tcp: &[u16], udp: &[u16]) -> serde_json::Value {
+    let non_public: Vec<String> = pryx_agent::transfer_target::non_public_ipv4_networks()
+        .map(|(address, bits)| format!("{address}/{bits}"))
+        .collect();
+    serde_json::json!({ "public": public, "tcp": tcp, "udp": udp, "nonPublic": non_public })
+}
+
+/// The gateway ports agent/src/vm_firewall.rs lets an ordinary guest reach at the helper's host:
+/// HTTP, TLS and DNS for a hostname policy, DNS alone for an unrestricted guest.
+fn gateway_ports(unrestricted: bool, ports: &crate::runtime::egress::listeners::Ports) -> (Vec<u16>, Vec<u16>) {
+    if unrestricted {
+        (vec![ports.dns], vec![ports.dns])
+    } else {
+        (vec![ports.http, ports.tls, ports.dns], vec![ports.dns])
+    }
+}
+
 impl Network {
     pub async fn start(
         paths: Paths<'_>,
@@ -81,20 +101,11 @@ impl Network {
         let limit = profile["maxConfigurationBytes"]
             .as_u64()
             .ok_or_else(|| error("VM packet helper omitted its configuration bound"))?;
-        let configuration = serde_json::to_vec(&serde_json::json!({
-            "parent":std::process::id(), "host":Ipv4Addr::LOCALHOST, "concurrency":capacity
-        }))
-        .map_err(error)?;
-        if configuration.len() as u64 > limit {
-            return Err(error("VM packet helper configuration exceeds its bound"));
-        }
         let directory = tempfile::Builder::new()
             .prefix("network-")
             .permissions(fs::Permissions::from_mode(0o700))
             .tempdir_in(boots)
             .map_err(error)?;
-        let config = directory.path().join("network.json");
-        crate::durable::write_atomic(&config, &configuration, 0o600).map_err(error)?;
         let (ports, gateways) = crate::runtime::egress::listeners::listen(
             Ipv4Addr::LOCALHOST.into(),
             crate::runtime::egress::listeners::Ports { http: 0, tls: 0, dns: 0 },
@@ -104,6 +115,18 @@ impl Network {
         )
         .await
         .map_err(error)?;
+        // The gateway ports exist only now; the helper admits exactly these at its host address.
+        let (tcp, udp) = gateway_ports(unrestricted, &ports);
+        let configuration = serde_json::to_vec(&serde_json::json!({
+            "parent": std::process::id(), "host": Ipv4Addr::LOCALHOST, "concurrency": capacity,
+            "egress": egress(unrestricted, &tcp, &udp)
+        }))
+        .map_err(error)?;
+        if configuration.len() as u64 > limit {
+            return Err(error("VM packet helper configuration exceeds its bound"));
+        }
+        let config = directory.path().join("network.json");
+        crate::durable::write_atomic(&config, &configuration, 0o600).map_err(error)?;
         let socket = socket.map_or_else(|| directory.path().join("packet"), Path::to_owned);
         let read = vec![config.clone()];
         let plan = Plan {

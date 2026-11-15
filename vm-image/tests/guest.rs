@@ -14,7 +14,7 @@ use pryx_agent::{
     vm_shutdown,
 };
 use pryx_vm_image::image::{Images, PreparedImage};
-use pryxd::runtime::vm::filesystems::FilesystemTools;
+use pryxd::runtime::vm::filesystems::{FilesystemTools, Run};
 use serde_json::{Value, json};
 use std::{
     fs,
@@ -28,6 +28,19 @@ use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     process::Command,
 };
+
+/// A read-only e2fsck under the launcher's filesystem-tool confinement.
+async fn checked(tools: &FilesystemTools, disk: &std::path::Path) -> bool {
+    let run = Run {
+        program: "e2fsck",
+        arguments: vec!["-f".into(), "-n".into(), disk.to_str().unwrap().into()],
+        read: vec![disk.into()],
+        write: Vec::new(),
+        file_bytes: 1,
+    };
+    let scratch = disk.parent().and_then(std::path::Path::parent).unwrap();
+    tools.run(run, scratch, None, 64 * 1024).await.unwrap().status.success()
+}
 
 fn input(name: &str) -> PathBuf {
     std::env::var_os(name).unwrap_or_else(|| panic!("Stage {name}")).into()
@@ -515,9 +528,7 @@ async fn boot(
     }
     let log = fs::read_to_string(&serial_path).unwrap();
     verify_shutdown(&log, &key, &encoded, &token, &nonce, sandbox, &kernel);
-    let mut check = tools.builder("e2fsck");
-    let check = check.arg("-f").arg("-n").arg(writes).output().unwrap();
-    assert!(check.status.success(), "Stopped VM disk failed read-only integrity check");
+    assert!(checked(tools, writes).await, "Stopped VM disk failed read-only integrity check");
     json!({"round": round, "kernel": kernel, "guestUid": uid, "signedCleanShutdown": true,
         "streamingBinaryAndDeclaredTcp": true, "monitorConfined": true, "monitorLeaseHeldUntilExit": true,
         "authenticatedInitShutdown": true, "shutdownReplayRefused": true,
@@ -531,7 +542,7 @@ async fn actual_agent_boots_both_oci_images_and_reboots_synced_disks() {
     let _ = rustls::crypto::ring::default_provider().install_default();
     let component = input("PRYX_VM_FILESYSTEM_COMPONENT");
     let manifest = std::env::var("PRYX_VM_FILESYSTEM_MANIFEST").unwrap();
-    let tools = FilesystemTools::verified(&component, &manifest).unwrap();
+    let tools = FilesystemTools::verified(&component, &manifest, &input("PRYX_VM_HOST_LAUNCHER")).unwrap();
     let work = input("PRYX_VM_GUEST_WORK");
     fs::create_dir(&work).unwrap();
     let images = Images::new(work.join("images"), tools.clone()).unwrap();
@@ -543,7 +554,14 @@ async fn actual_agent_boots_both_oci_images_and_reboots_synced_disks() {
         fs::DirBuilder::new().mode(0o700).create(&directory).unwrap();
         let writes = directory.join("writes.ext4");
         fs::File::create_new(&writes).unwrap().set_len(512 * 1024 * 1024).unwrap();
-        assert!(tools.builder("mke2fs").args(["-q", "-F", "-t", "ext4"]).arg(&writes).status().unwrap().success());
+        let create = Run {
+            program: "mke2fs",
+            arguments: ["-q", "-F", "-t", "ext4", writes.to_str().unwrap()].map(String::from).to_vec(),
+            read: Vec::new(),
+            write: vec![writes.clone()],
+            file_bytes: 512 * 1024 * 1024,
+        };
+        assert!(tools.run(create, &work, None, 64 * 1024).await.unwrap().status.success());
         let mut rounds = Vec::new();
         for round in 0..2 {
             rounds.push(boot(&tools, &image, &directory, &writes, round, false).await);

@@ -110,7 +110,7 @@ host-side listeners are private. UDP ports are refused.
 A VM's declared and spare ports share 64 simultaneous connections; one more is closed at once,
 and the guest never sees it. The binding pryxd marks as reserved, the agent's own, has 64 of its
 own that no public connection can use, so exec, files and stats keep working while a public port
-is full. Until pryxd marks the agent's binding, it shares the 64 with the public ports.
+is full.
 
 While a VM is stopped or asleep, its files and logs are still readable and writable: pryxd
 boots a short-lived file-only guest on the same disk, with fresh credentials, no network and no
@@ -145,9 +145,11 @@ Internet sockets, and no listeners or Unix sockets.
 The packet helper also decides on the host, so a guest kernel that drops its own rules does not
 widen them. Before it dials any TCP, UDP or ICMP flow it refuses loopback, link-local and
 metadata, private, multicast and broadcast destinations, and it runs no resolver of its own.
-When pryxd passes the guest's egress policy, the helper also reaches the gateway address only at
-the gateway ports pryxd names, refuses the agent's other non-public networks, and on a hostname
-allowlist refuses every public address.
+pryxd passes every guest's egress policy, so the helper also reaches the gateway address only at
+the gateway ports pryxd names (HTTP, TLS and DNS under a hostname allowlist, DNS alone
+otherwise), refuses the agent's other non-public networks, and on a hostname allowlist refuses
+every public address. As root, the bridged packet stack gets the same policy with no gateway
+port, since its guest's DNS is the stack's own.
 
 ### As root
 
@@ -201,6 +203,12 @@ lifetime lease and then confines it:
 As root, the monitor runs under Firecracker's unchanged jailer, with fixed non-root host IDs
 that the host chooses and a workload never can, in a chroot holding only its staged inputs,
 under the same lease and signal bounds, inside the root worker above.
+
+The filesystem programs (`mke2fs`, `e2fsck`, `mkfs.erofs`) read disks a guest wrote and layers
+a tenant chose, so the same launcher confines them too, as root or not: Landlock reads of their
+own component and inputs and writes of one pre-created output and a private directory only;
+no socket of any kind; no capability, even as root; no core dump; and no file written past the
+output's admitted size.
 
 ## Limits
 

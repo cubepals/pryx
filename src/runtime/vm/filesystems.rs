@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
-//! Verify the complete host-owned filesystem component before invoking its unchanged programs.
-//! Image references and workload environment never select executable paths or library search paths.
+//! Verify the complete host-owned filesystem component before invoking its unchanged programs,
+//! each under the installation launcher's filesystem-tool confinement, since their inputs are
+//! guest-written disks and tenant-chosen layers. Image references and workload environment
+//! never select executable paths or library search paths.
 use super::error;
 use crate::runtime::RuntimeError;
 use ring::digest::{Context, SHA256};
@@ -17,6 +19,25 @@ use std::{
 pub struct FilesystemTools {
     root: PathBuf,
     identity: String,
+    launcher: PathBuf,
+}
+
+/// One confined run of a component program over host-staged files.
+pub struct Run<'a> {
+    pub program: &'a str,
+    pub arguments: Vec<String>,
+    /// Files and directories it may read, besides its own component.
+    pub read: Vec<PathBuf>,
+    /// Existing files it may write; it creates nothing outside its private directory.
+    pub write: Vec<PathBuf>,
+    /// The largest file it may write.
+    pub file_bytes: u64,
+}
+
+pub struct Finished {
+    pub status: std::process::ExitStatus,
+    pub output: Vec<u8>,
+    pub diagnostic: Vec<u8>,
 }
 
 #[derive(Deserialize)]
@@ -54,8 +75,9 @@ pub fn sha256(mut source: impl Read) -> io::Result<String> {
 }
 
 impl FilesystemTools {
-    /// The manifest digest comes from the protected installation's release descriptor.
-    pub fn verified(root: &Path, manifest_sha256: &str) -> Result<Self, RuntimeError> {
+    /// The manifest digest comes from the protected installation's release descriptor, and the
+    /// launcher is that installation's verified static agent.
+    pub fn verified(root: &Path, manifest_sha256: &str, launcher: &Path) -> Result<Self, RuntimeError> {
         if !root.is_absolute() {
             return Err(error("VM filesystem component path must be absolute"));
         }
@@ -130,21 +152,93 @@ impl FilesystemTools {
                 return Err(error("VM filesystem component lacks a required program or configuration"));
             }
         }
-        Ok(Self { root: root.join("tools"), identity: manifest_sha256.into() })
+        regular(launcher).map_err(error)?;
+        Ok(Self { root: root.join("tools"), identity: manifest_sha256.into(), launcher: launcher.into() })
+    }
+
+    pub fn launcher(&self) -> &Path {
+        &self.launcher
     }
 
     pub fn identity(&self) -> &str {
         &self.identity
     }
 
-    pub fn builder(&self, program: &str) -> std::process::Command {
-        let mut command = std::process::Command::new(self.root.join("libraries/ld-musl-x86_64.so.1"));
-        command
+    /// Run one program under the launcher's filesystem-tool confinement: its component, its
+    /// read grants and its existing outputs only, no socket or capability, no core and no
+    /// file past `file_bytes`. A fresh private directory and lease under `scratch` hold its
+    /// working files and are removed after it. Dropping the future kills the program.
+    pub async fn run(
+        &self,
+        run: Run<'_>,
+        scratch: &Path,
+        deadline: Option<tokio::time::Instant>,
+        // Bounds its standard output and its diagnostics, each.
+        diagnostic_bytes: u64,
+    ) -> Result<Finished, RuntimeError> {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let private = tempfile::Builder::new()
+            .prefix(".vm-tool-")
+            .permissions(std::os::unix::fs::PermissionsExt::from_mode(0o700))
+            .tempdir_in(scratch)
+            .map_err(error)?;
+        let directory = private.path().join("work");
+        std::os::unix::fs::DirBuilderExt::mode(&mut fs::DirBuilder::new(), 0o700).create(&directory).map_err(error)?;
+        let text =
+            |path: &Path| path.to_str().map(String::from).ok_or_else(|| error("VM filesystem tool path is not text"));
+        let mut arguments = vec!["--library-path".into(), text(&self.root.join("libraries"))?];
+        arguments.push(text(&self.root.join("helpers").join(run.program))?);
+        arguments.extend(run.arguments);
+        let mut read = vec![self.root.clone()];
+        read.extend(run.read);
+        let plan = pryx_agent::vm_monitor::Plan {
+            program: self.root.join("libraries/ld-musl-x86_64.so.1"),
+            arguments,
+            directory,
+            lock: private.path().join("tool.lock"),
+            parent: std::process::id(),
+            read,
+            write: run.write,
+            role: pryx_agent::vm_monitor::Role::FilesystemTool {
+                file_bytes: run.file_bytes,
+                configuration: Some(self.root.join("config/mke2fs.conf")),
+            },
+        };
+        let mut child = tokio::process::Command::new(&self.launcher)
+            .arg(pryx_agent::vm_monitor::MODE)
             .env_clear()
-            .arg("--library-path")
-            .arg(self.root.join("libraries"))
-            .arg(self.root.join("helpers").join(program))
-            .env("MKE2FS_CONFIG", self.root.join("config/mke2fs.conf"));
-        command
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .kill_on_drop(true)
+            .spawn()
+            .map_err(error)?;
+        let finished = async {
+            let mut input = child.stdin.take().ok_or_else(|| error("Missing VM filesystem tool plan pipe"))?;
+            input.write_all(&serde_json::to_vec(&plan).map_err(error)?).await.map_err(error)?;
+            input.shutdown().await.map_err(error)?;
+            drop(input);
+            let pipes = (child.stdout.take(), child.stderr.take());
+            let (Some(stdout), Some(stderr)) = pipes else {
+                return Err(error("Missing VM filesystem tool output pipes"));
+            };
+            let (mut output, mut diagnostic) = (Vec::new(), Vec::new());
+            let (mut stdout, mut stderr) = (stdout.take(diagnostic_bytes + 1), stderr.take(diagnostic_bytes + 1));
+            let (read_output, read_diagnostic) =
+                tokio::join!(stdout.read_to_end(&mut output), stderr.read_to_end(&mut diagnostic));
+            read_output.map_err(error)?;
+            read_diagnostic.map_err(error)?;
+            if output.len() as u64 > diagnostic_bytes || diagnostic.len() as u64 > diagnostic_bytes {
+                child.kill().await.map_err(error)?;
+                return Err(error("VM filesystem tool output exceeds its bound"));
+            }
+            Ok(Finished { status: child.wait().await.map_err(error)?, output, diagnostic })
+        };
+        match deadline {
+            Some(deadline) => tokio::time::timeout_at(deadline, finished)
+                .await
+                .map_err(|_| RuntimeError::Timeout("VM filesystem tool exceeded its deadline".into()))?,
+            None => finished.await,
+        }
     }
 }

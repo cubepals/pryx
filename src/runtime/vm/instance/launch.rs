@@ -15,14 +15,20 @@ impl VmRuntime {
         entry: &Entry,
         deadline: Instant,
     ) -> Result<Forwarder, RuntimeError> {
+        let agent = entry.spec.agent.as_ref().map(|agent| agent.agent_port);
         let bindings = entry
             .spec
             .ports
             .iter()
             .flat_map(|port: &PortBinding| {
-                port.host_ips
-                    .iter()
-                    .map(move |ip| super::super::forward::Binding::service(*ip, port.host_port, port.container_port))
+                let own = Some(port.container_port) == agent && port.protocol == crate::protocol::Proto::Tcp;
+                port.host_ips.iter().map(move |ip| {
+                    if own {
+                        super::super::forward::Binding::agent(*ip, port.host_port, port.container_port)
+                    } else {
+                        super::super::forward::Binding::service(*ip, port.host_port, port.container_port)
+                    }
+                })
             })
             .collect::<Result<Vec<_>, _>>()?;
         Forwarder::start(
@@ -86,6 +92,7 @@ impl VmRuntime {
             &super::super::image::Request {
                 component: bundle.root().join("filesystem"),
                 manifest_sha256: bundle.filesystems().identity().into(),
+                launcher: bundle.filesystems().launcher().into(),
                 cache: self.state.root.join("images"),
                 image: image.into(),
                 timeout_seconds: timeout.as_secs(),

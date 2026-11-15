@@ -7,7 +7,7 @@ use pryxd::runtime::{
     vm::{
         bundle::Bundle,
         disk,
-        filesystems::sha256,
+        filesystems::{FilesystemTools, Run, sha256},
         policy,
     },
 };
@@ -19,6 +19,19 @@ use std::{
     time::Duration,
 };
 use tokio::io::AsyncReadExt;
+
+/// A read-only e2fsck under the launcher's filesystem-tool confinement.
+async fn checked(tools: &FilesystemTools, disk: &std::path::Path) -> bool {
+    let run = Run {
+        program: "e2fsck",
+        arguments: vec!["-f".into(), "-n".into(), disk.to_str().unwrap().into()],
+        read: vec![disk.into()],
+        write: Vec::new(),
+        file_bytes: 1,
+    };
+    let scratch = disk.parent().and_then(std::path::Path::parent).unwrap();
+    tools.run(run, scratch, None, 64 * 1024).await.unwrap().status.success()
+}
 
 fn input(name: &str) -> PathBuf {
     std::env::var_os(name).unwrap_or_else(|| panic!("Stage {name}")).into()
@@ -32,6 +45,7 @@ async fn actual_bundle_acquires_whole_and_refuses_changed_inputs() {
     let archive = input("PRYX_VM_RUNTIME_ARCHIVE");
     let mut artifact = policy::descriptor(&pryxd::config::VmConfig {
         bundle: Some(input("PRYX_VM_RUNTIME_DESCRIPTOR")),
+        ..Default::default()
     })
     .unwrap();
     let verified = Bundle::verified(&root, &artifact.manifest_sha256).unwrap();
@@ -107,7 +121,7 @@ async fn actual_bundle_acquires_whole_and_refuses_changed_inputs() {
     println!("Actual bundle: whole acquisition, offline reuse and all corruption refusals passed");
 }
 
-async fn writable_disk(tools: &pryxd::runtime::vm::filesystems::FilesystemTools) {
+async fn writable_disk(tools: &FilesystemTools) {
     let temporary = tempfile::tempdir().unwrap();
     let root = temporary.path().join("data");
     fs::DirBuilder::new().mode(0o700).create(&root).unwrap();
@@ -158,17 +172,7 @@ async fn writable_disk(tools: &pryxd::runtime::vm::filesystems::FilesystemTools)
     let old = fs::File::open(&again.path).unwrap();
     let old_digest = sha256(old.try_clone().unwrap()).unwrap();
     let before = old.metadata().unwrap().ino();
-    assert!(
-        !tools
-            .builder("e2fsck")
-            .args(["-f", "-n"])
-            .arg(&again.path)
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status()
-            .unwrap()
-            .success()
-    );
+    assert!(!checked(tools, &again.path).await);
     let recovered = disk::prepare(tools, &root, &lease, fixture.len() as u64, timeout, 0).await.unwrap();
     assert!(recovered.recovered && !recovered.created);
     assert_ne!(fs::metadata(&recovered.path).unwrap().ino(), before);
@@ -177,17 +181,7 @@ async fn writable_disk(tools: &pryxd::runtime::vm::filesystems::FilesystemTools)
     old.seek(SeekFrom::Start(0)).unwrap();
     assert_eq!(sha256(old).unwrap(), old_digest, "The old inode must stay intact during recovery");
     assert_ne!(sha256(fs::File::open(&recovered.path).unwrap()).unwrap(), old_digest);
-    assert!(
-        tools
-            .builder("e2fsck")
-            .args(["-f", "-n"])
-            .arg(&recovered.path)
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status()
-            .unwrap()
-            .success()
-    );
+    assert!(checked(tools, &recovered.path).await);
     println!(
         "Actual filesystems: ext4 create/reuse, active lease and unsafe input refusals, failed recovery preservation and staged upstream-fixture repair passed"
     );

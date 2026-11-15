@@ -1349,7 +1349,12 @@
 
 - K25: the VM forwarder keeps two pools of the runtime's ingress capacity (64): one shared by every declared and spare port, one for bindings pryxd marks `reserved`, the agent's own. Per-port pools would let 41 bindings hold far more vsock streams than one VM needs; one shared pool lets idle public connections lock the host out of exec, files and stats.
 
+- K25: run every VM filesystem program (`mke2fs`, `e2fsck`, `mkfs.erofs`) through the installation’s static launcher in a filesystem-tool role, since its inputs are guest-written disks and tenant-chosen layers: the launcher’s exact Landlock grants (component, inputs, one pre-created output, a private directory and TMPDIR), no socket, no capability even as root (dropped before no_new_privs, so exec cannot regain them), no core, and RLIMIT_FSIZE at the output’s admitted size. pryxd and its launcher ship in one release, so the role needs no separate advertisement.
+
+- K25: the node logs each server-side refusal’s own message at warn, since control answers callers more briefly; an installed acceptance failure then shows why the node refused.
+
+- K25: pryxd writes each packet helper’s `egress` admission after its gateways listen: the exact ports the guest firewall lets it reach at the helper’s host (HTTP, TLS and DNS for a hostname policy, DNS alone otherwise), public destinations only when unrestricted, and the agent’s own non-public boundary as text prefixes. The root TAP stack gets public egress with no gateway port, because a bridged guest’s DNS is the stack’s own gateway service. The agent’s own forwarded binding is marked `reserved`, so it has a connection pool public ports cannot exhaust.
+
 - K25: control places a VM request's CPU ceiling (`cpuMillis`) on a node whose vm tier announces `cpu-limit`, as a required guarantee, and keeps CPU weights container-only, as the VM backend refuses them; a VM `cpuMillis` must be a positive multiple of 1000 (whole vCPUs) at validation, a field error, and units round a VM's ceiling down to the whole vCPUs they pay for.
 
 - K25: VM experiments (`any-host-vm.yml`) also runs on a pull request that changes VM code (its own workflow, `templates/vm-tools`, `vm-image`, `deploy/vm`, the `vm` runtime, config and KVM probe, the agent's `vm_*` modules and tests, the agent's non-public boundary, `tests/vm.rs`). It adds one job of about 18 minutes (17.4 and 18.6 in runs 43719169848 and 43720815895) beside CI, whose own successful runs took 39 to 90 minutes, so such a pull request waits no longer and spends about 18 runner minutes more; any other pull request starts no run. Pushes and the schedule keep their branch's group, a dispatch has its own, and each pull request its own, where a newer commit cancels the older run.
-
