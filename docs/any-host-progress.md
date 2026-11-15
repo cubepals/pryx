@@ -4992,3 +4992,20 @@ job when publication is authorized. That job has not run in this task.
   [43749126710](https://github.com/cubepals/pryx/actions/runs/43749126710) at ff6849e (the same
   code) is green. K25's Done when is met on the branch; main, the pull request and a release
   remain for the end of the plan.
+
+- K27 begins on branch `k27` from any-host `0bd7fe3`. Memory sleep for the ordinary user's `vm`
+  tier is built: init's signed sleep request (disk flush and a held vsock connection), the
+  monitor's pause and full snapshot through the bundle's SDK transport, a class-checked restore
+  (CPU, host kernel, monitor build, and the disk file the sleep left), the resume hook in init
+  (clock, host entropy, network helper, sleep listener), the cold-boot fallback through the
+  node's existing resume path, and a start test that turns `memory-sleep` on for the tier. Root's
+  VM worker keeps stopping on sleep, with the reason. Proof is the VM experiments job:
+  `memory_acceptance` (thirty timed samples with a running process, the clock step, a corrupted
+  image and another class each followed by a cold boot with the data intact, a stop while asleep)
+  and the node API test (suspend and `resumed: true`; a node restarted onto another class answers
+  `resumed: false` with the disk's data and no tmpfs). Not yet run. Fork with memory is not built:
+  it needs a forced CRNG reseed and a new agent identity in a running guest (decisions). The
+  Cloud Hypervisor licence and evaluation are recorded (no second monitor). arm64: pryxd and
+  the agent build natively in a new Any host job with the tier report (wasm and vm off with
+  reasons); the release, install and image for aarch64 are not started. The arm64 job costs an
+  estimated fifteen runner minutes per Any host run, called out here for the maintainer.
