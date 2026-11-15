@@ -4905,3 +4905,9 @@ job when publication is authorized. That job has not run in this task.
   fork’s forwarder and still lists the tier), and an unusable journal is quarantined while its
   valid neighbour loads (unit test updated: each unsafe case is refused, moved aside and never
   read, the secret never quoted; duplicates still refuse). Clippy and structure pass.
+
+- VM run 43724571344 (26a7b1d) fails every guest boot: mkfs.erofs dies of SIGXFSZ under the
+  new filesystem-tool bound, since it reserves 2 TiB with ftruncate first (reproduced and traced
+  locally with erofs-utils 1.7.1). Bound it at that reservation; e2fsck checks take the disk size;
+  the bundle and guest forwarder tests mark the agent binding the forwarder now requires. A
+  launcher test reserves 2 TiB, is refused one byte more, and shrinks to its image.

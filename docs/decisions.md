@@ -1370,3 +1370,5 @@
 - K25: a running VM whose forwarding process or packet helper exits is unreachable, so the observation that finds it kills its monitor and reports that sandbox dead; the tier and its other sandboxes keep answering instead of every list failing as unavailable.
 
 - K25: an unusable VM journal (unsafe file, link, invalid or mismatched) is moved unread into the runtime’s private `quarantine/` directory with a warning naming only its path and the fixed refusal, and every other journal still loads; two journals naming one sandbox still refuse the runtime, since neither can be chosen safely.
+
+- K25 correction: source 26a7b1d VM run 43724571344 killed every `mkfs.erofs` with SIGXFSZ, because erofs-utils ftruncates its output to its whole 2 TiB block address space (`ftruncate(fd, 1 << 41)`, traced) before writing and shrinks it at the end; its written-file bound is now that reservation, and Landlock still lets it write only its one output. e2fsck and mke2fs keep the disk’s own size. The same run’s forwarder test lacked the agent’s reserved binding the forwarder now requires.

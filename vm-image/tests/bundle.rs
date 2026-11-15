@@ -27,7 +27,7 @@ async fn checked(tools: &FilesystemTools, disk: &std::path::Path) -> bool {
         arguments: vec!["-f".into(), "-n".into(), disk.to_str().unwrap().into()],
         read: vec![disk.into()],
         write: Vec::new(),
-        file_bytes: 1,
+        file_bytes: std::fs::metadata(disk).unwrap().len(),
     };
     let scratch = disk.parent().and_then(std::path::Path::parent).unwrap();
     tools.run(run, scratch, None, 64 * 1024).await.unwrap().status.success()
@@ -218,7 +218,8 @@ async fn forwarding(root: &std::path::Path) {
     use std::net::Ipv4Addr;
     assert!(Binding::service(Ipv4Addr::UNSPECIFIED.into(), 0, pryx_agent::contract::AGENT_PORT).is_err());
     let directory = tempfile::tempdir().unwrap();
-    let bindings = [Binding::service(Ipv4Addr::LOCALHOST.into(), 0, pryx_agent::contract::AGENT_PORT).unwrap()];
+    // The forwarder refuses a configuration without the agent's own reserved binding.
+    let bindings = [Binding::agent(Ipv4Addr::LOCALHOST.into(), 0, pryx_agent::contract::AGENT_PORT).unwrap()];
     let mut forwarder = Forwarder::start(
         &root.join("bin/vm-transport"),
         &directory.path().join("unused-vsock"),

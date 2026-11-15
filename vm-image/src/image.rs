@@ -27,6 +27,10 @@ use tokio::io::AsyncWriteExt;
 const CONVERSION: &str = "erofs-diff-id-v1";
 // Private acquisition bounds, not OCI protocol limits or sandbox resource guarantees.
 const MAX_LAYER_BYTES: u64 = 4 * 1024 * 1024 * 1024;
+// erofs-utils' mkfs ftruncates its output to its whole 2 TiB block address space before it
+// writes, and shrinks the file to the image at the end (an actual trace: ftruncate(fd, 1 << 41)).
+// A written-file limit below that kills it before any data, so this is its bound.
+const EROFS_RESERVATION_BYTES: u64 = 1 << 41;
 const MAX_CONFIG_BYTES: u64 = 2 * 1024 * 1024;
 const MAX_LAYERS: usize = 128;
 const READ_ATTEMPTS: usize = 3;
@@ -456,8 +460,7 @@ async fn convert(
             .collect(),
         read: vec![tar.clone()],
         write: vec![image.clone()],
-        // An EROFS image holds the tar's file data uncompressed plus its own metadata.
-        file_bytes: fs::metadata(&tar).map_err(error)?.len().saturating_mul(2).max(1024 * 1024),
+        file_bytes: EROFS_RESERVATION_BYTES,
     };
     const MAX_DIAGNOSTIC_BYTES: u64 = 32 * 1024;
     // The caller's preparation deadline drops this future, which kills the program.

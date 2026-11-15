@@ -36,7 +36,7 @@ async fn checked(tools: &FilesystemTools, disk: &std::path::Path) -> bool {
         arguments: vec!["-f".into(), "-n".into(), disk.to_str().unwrap().into()],
         read: vec![disk.into()],
         write: Vec::new(),
-        file_bytes: 1,
+        file_bytes: std::fs::metadata(disk).unwrap().len(),
     };
     let scratch = disk.parent().and_then(std::path::Path::parent).unwrap();
     tools.run(run, scratch, None, 64 * 1024).await.unwrap().status.success()
@@ -278,8 +278,11 @@ async fn exercise_forwarding(guest: &Guest, metadata: &Value, bootstrap: &Value)
         assert!(tokio::time::Instant::now() < until, "Declared-port service did not become ready");
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
-    let bindings = [AGENT_PORT, echo_port]
-        .map(|port| pryxd::runtime::vm::forward::Binding::service(Ipv4Addr::LOCALHOST.into(), 0, port).unwrap());
+    use pryxd::runtime::vm::forward::Binding;
+    let bindings = [
+        Binding::agent(Ipv4Addr::LOCALHOST.into(), 0, AGENT_PORT).unwrap(),
+        Binding::service(Ipv4Addr::LOCALHOST.into(), 0, echo_port).unwrap(),
+    ];
     let mut proxy = pryxd::runtime::vm::forward::Forwarder::start(
         &guest.client,
         &guest.channel,

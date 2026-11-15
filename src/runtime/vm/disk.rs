@@ -106,8 +106,8 @@ async fn check(tools: &FilesystemTools, disk: &Path, deadline: Instant) -> Resul
         arguments: vec!["-f".into(), "-n".into(), text(disk)?],
         read: vec![disk.to_owned()],
         write: Vec::new(),
-        // A read-only check writes nothing; the bound must still be positive.
-        file_bytes: 1,
+        // It has no write grant; its written-file bound is the disk's own size, as a repair's.
+        file_bytes: fs::metadata(disk).map_err(error)?.len().max(1),
     };
     Ok(tool(tools, run, disk, deadline).await?.success())
 }
