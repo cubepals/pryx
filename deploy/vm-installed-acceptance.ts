@@ -137,7 +137,11 @@ async function lifecycle(image: (typeof inputs)[number], network: 'internet' | '
     assert.equal(await box.read('index.html'), proof)
     const snapshot = await box.snapshot()
     try {
-      const fork = await snapshot.fork()
+      const fork = await snapshot.fork({
+        network,
+        sparePorts: 0,
+        ports: [{ name: 'web', port: 3000, audience: 'public', front: 'http' }],
+      })
       try {
         assert.equal(fork.isolation, 'vm')
         assert.equal(await fork.read('index.html'), proof)

@@ -33,26 +33,42 @@ pub async fn send(
     content_type: &str,
     deadline: Instant,
 ) -> Result<Response<Incoming>, RuntimeError> {
-    tokio::time::timeout_at(deadline, async {
+    tokio::time::timeout_at(deadline, stream(path, owner, method, route, body, content_type, deadline))
+        .await
+        .map_err(|_| RuntimeError::Timeout("VM worker response exceeded its deadline".into()))?
+}
+
+/// Bound connection setup while allowing an admitted file body to stream until completion.
+pub async fn stream(
+    path: &Path,
+    owner: u32,
+    method: Method,
+    route: &str,
+    body: http_client::Body,
+    content_type: &str,
+    deadline: Instant,
+) -> Result<Response<Incoming>, RuntimeError> {
+    let mut sender = tokio::time::timeout_at(deadline, async {
         let socket = transport::connect(path, owner).await.map_err(unavailable)?;
-        let (mut sender, connection) =
+        let (sender, connection) =
             hyper::client::conn::http1::handshake(TokioIo::new(socket)).await.map_err(unavailable)?;
         tokio::spawn(async move {
             // A lost response never authorizes another submission. Dropping the response
             // closes its one connection; admitted backend cleanup keeps its own ownership.
             let _ = connection.await;
         });
-        let request = Request::builder()
-            .method(method)
-            .uri(route)
-            .header(HOST, "pryx-worker")
-            .header(CONTENT_TYPE, content_type)
-            .body(body)
-            .map_err(|_| unavailable("Invalid private worker route"))?;
-        sender.send_request(request).await.map_err(unavailable)
+        Ok::<_, RuntimeError>(sender)
     })
     .await
-    .map_err(|_| RuntimeError::Timeout("VM worker response exceeded its deadline".into()))?
+    .map_err(|_| RuntimeError::Timeout("VM worker connection exceeded its deadline".into()))??;
+    let request = Request::builder()
+        .method(method)
+        .uri(route)
+        .header(HOST, "pryx-worker")
+        .header(CONTENT_TYPE, content_type)
+        .body(body)
+        .map_err(|_| unavailable("Invalid private worker route"))?;
+    sender.send_request(request).await.map_err(unavailable)
 }
 
 pub async fn control<T: DeserializeOwned>(
@@ -61,12 +77,22 @@ pub async fn control<T: DeserializeOwned>(
     request: &impl Serialize,
     deadline: Instant,
 ) -> Result<T, RuntimeError> {
+    control_at(path, owner, CONTROL_PATH, request, deadline).await
+}
+
+pub async fn control_at<T: DeserializeOwned>(
+    path: &Path,
+    owner: u32,
+    route: &str,
+    request: &impl Serialize,
+    deadline: Instant,
+) -> Result<T, RuntimeError> {
     let bytes = serde_json::to_vec(request).map_err(|_| unavailable("Cannot encode private worker command"))?;
     if bytes.len() > MAX_CONTROL_BYTES {
         return Err(unavailable("Private worker command exceeds its bound"));
     }
     let response =
-        send(path, owner, Method::POST, CONTROL_PATH, http_client::full(bytes), "application/json", deadline).await?;
+        send(path, owner, Method::POST, route, http_client::full(bytes), "application/json", deadline).await?;
     if !response.status().is_success() {
         return Err(unavailable(format!("Private worker refused HTTP {}", response.status())));
     }
