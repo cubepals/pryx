@@ -12,7 +12,7 @@ use crate::{
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde::{Deserialize, Serialize};
 use std::{io, time::Duration};
-use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWriteExt};
 use tokio_vsock::{VMADDR_CID_HOST, VsockAddr, VsockListener, VsockStream};
 
 /// The sleep and resume exchange this init answers, as its bootstrap capabilities announce.

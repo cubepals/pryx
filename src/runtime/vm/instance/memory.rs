@@ -58,8 +58,10 @@ impl Class {
                 line.split_once(':').filter(|(key, _)| key.trim() == name).map(|(_, value)| value.trim().to_owned())
             })
         };
-        let mut cpu =
-            CPU_FIELDS.iter().filter_map(|name| field(name).map(|value| format!("{name}={value}"))).collect::<Vec<_>>();
+        let mut cpu = CPU_FIELDS
+            .iter()
+            .filter_map(|&name| field(name).map(|value| format!("{name}={value}")))
+            .collect::<Vec<_>>();
         let flags = field("flags").or_else(|| field("Features")).unwrap_or_default();
         cpu.push(format!("flags={}", &super::super::filesystems::sha256(flags.as_bytes()).map_err(error)?[..16]));
         Ok(Self {
