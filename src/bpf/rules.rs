@@ -10,7 +10,7 @@ use super::object::{PORT_ENTRIES, Ports, Rule, TCP, UDP, Verdict};
 use ipnet::{IpNet, Ipv6Net};
 use std::{
     collections::BTreeMap,
-    net::{IpAddr, Ipv4Addr, Ipv6Addr},
+    net::{IpAddr, Ipv6Addr},
     ops::RangeInclusive,
 };
 
@@ -219,6 +219,7 @@ pub(crate) fn decide(rules: &BTreeMap<Ipv6Net, Rule>, address: IpAddr, port: u16
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::net::Ipv4Addr;
 
     const HOST: [IpAddr; 2] =
         [IpAddr::V4(Ipv4Addr::new(203, 0, 113, 9)), IpAddr::V6(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 9))];

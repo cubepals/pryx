@@ -13,7 +13,7 @@ use crate::bpf::{
 };
 use crate::runtime::egress::{Policy, listeners};
 use sha2::{Digest, Sha256};
-use std::{net::Ipv4Addr, ops::RangeInclusive, os::fd::AsRawFd};
+use std::{net::Ipv4Addr, ops::RangeInclusive, os::fd::AsRawFd, path::Path};
 use tokio_util::sync::DropGuard;
 
 /// The ports pryxd hands out and its API's: no sandbox reaches them on a private address.
