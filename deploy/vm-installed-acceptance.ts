@@ -128,7 +128,11 @@ async function lifecycle(image: (typeof inputs)[number], network: 'internet' | '
     assert(['sleeping', 'resting'].includes(box.state))
     // A safe application GET must trigger cold wake; the entrypoint restarts from retained disk.
     await edge(box, proof)
-    await box.refresh()
+    // Wake can serve one held request before every edge acknowledges the new route list.
+    await until('installed VM running view after edge cold wake', async () => {
+      await box.refresh()
+      return box.state === 'running'
+    })
     assert.equal(box.state, 'running')
     assert.equal(await box.read('index.html'), proof)
     const snapshot = await box.snapshot()

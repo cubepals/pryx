@@ -1330,3 +1330,5 @@
 - K25: keep the root scope’s existing physical virtio interface in public guest bootstrap, while retaining the maintained packet program’s addressing, MAC and MTU; its interface name describes the separate TAP created for vsock and cannot name the guest’s physical NIC.
 
 - K25: abstract file-session transport behind the existing runtime Service while retaining its owned cleanup task; keep the actual agent signer, private endpoint and operation mapping in the agent transport, and serialize only the runtime owner’s file request/operation types for worker sessions.
+
+- K25: wait through the existing bounded API poll for the exact running view after an edge cold wake; a held request can already reach compute while the control view still awaits all route acknowledgments. Keep the successful application response and running-state assertions.

@@ -4807,3 +4807,12 @@ job when publication is authorized. That job has not run in this task.
   CONTRIBUTING. Full local validation is running with no-fail-fast after the unchanged host
   IPv6 fixture failure; its remaining targets are not yet claimed. Remove 2.6 GiB of obsolete
   same-crate build output before validation; more than 7 GiB remains free.
+
+- Preserve installed VM edge cold-wake assertions and wait through the existing bounded
+  running-view poll for control’s required route acknowledgment. Source b222bf6’s failure
+  above establishes the actual ordering; no daemon or edge behavior changes.
+- Complete pinned Bun 1.4.4 check against actual local PostgreSQL 16: 439 pass, one existing
+  compiled-assets skip, 8,432 assertions, plus lint/typecheck/schema/docs/release checks.
+  An earlier invocation used Bun 1.4.3 without DATABASE_URL and failed; it is not validation.
+  Installed KVM acceptance still requires the next Any host CI result. No new dependency,
+  job/gate or estimated CI minute; this waits only for the existing route acknowledgment.
