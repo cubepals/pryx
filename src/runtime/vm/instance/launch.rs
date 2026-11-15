@@ -44,15 +44,12 @@ impl VmRuntime {
         deadline: Instant,
     ) -> Result<Option<network::Network>, RuntimeError> {
         if !entry.spec.internal_network && self.state.settings.monitor_owner.is_some() {
-            let policy = entry.spec.egress.clone().ok_or_else(|| {
-                RuntimeError::Unavailable("Root VM unrestricted TAP forwarding is not available".into())
-            })?;
             return network::Network::root(
                 &self.state.settings,
                 bundle,
                 &self.state.root.join("boots"),
                 lease,
-                policy,
+                entry.spec.egress.clone(),
                 deadline,
             )
             .await

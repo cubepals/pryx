@@ -4633,3 +4633,16 @@ job when publication is authorized. That job has not run in this task.
   actual guest shutdown, attached queue and installed worker/public forwarding remain pending.
   No dependency/job/gate or added estimated CI minute. Removed completed native and test-cache
   copies and the Go build cache; free disk is 5.6 GiB before this checkpoint.
+
+- Connect the root runtime's public-network path to the separate leased packet bridge,
+  retaining hostname gateways and disconnected boots. The actual packet executable supplies
+  DNS/service ports, the bridge supplies the static gateway, and the guest keeps its immutable
+  public-address policy. Extend both root images' existing lifecycle with public HTTP/TLS,
+  TCP/UDP DNS redirects and private/metadata denials, including the bounded systemd replay.
+- Full local Rust: 538 pass, unchanged host IPv6 fixture failure, 44 ignored hardware cases;
+  real Wasm acceptance passes. Strict all-target Clippy and cargo check pass. An initial
+  minimal-agent check named a nonexistent feature and refused before building; the corrected
+  server-only check, formatting and Python syntax pass. Structure cannot fetch its pinned
+  external checker (HTTP 403 under this machine’s repository access limit); CI retains it. Actual public
+  packet forwarding is pending CI, and installed root placement remains a named refusal.
+  No dependency/job/gate; estimate under ten extra optional VM seconds for the two guest probes.

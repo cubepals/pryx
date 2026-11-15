@@ -126,7 +126,8 @@ def main():
             'systemd': observed, 'mainUnitChanged': False, 'separateTap': True,
             'separateRootRuntime': True, 'leaseBoundScope': True, 'images': 2, 'properties': properties,
             'rootHostnamePackets': True, 'rootPublicBridgeDescriptors': True, 'confinedOrdinaryPacketQueue': True,
-            'unproved': 'Production worker transport, installed service and root unrestricted IP forwarding',
+            'rootPublicPackets': True,
+            'unproved': 'Production worker transport and installed service',
         }, indent=2) + '\n')
     finally:
         # Stop the exact owned units before removing their private state, even after failure.
