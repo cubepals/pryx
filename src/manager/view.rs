@@ -64,6 +64,10 @@ impl Manager {
         if tier == "process" {
             let configured = observed.and_then(|info| info.labels.get(crate::labels::LABEL_BROWSER_SANDBOX));
             guarantees.entry(G::BrowserSandbox).and_modify(|on| *on &= configured.is_some_and(|on| on == "true"));
+            // What this sandbox started with, never what the host could give a new one.
+            let started = |label| observed.and_then(|info| info.labels.get(label)).is_some_and(|on| on == "true");
+            guarantees.entry(G::PrivatePids).and_modify(|on| *on &= started(crate::labels::LABEL_PRIVATE_PIDS));
+            guarantees.insert(G::PrivateNetwork, started(crate::labels::LABEL_PRIVATE_NETWORK));
         }
         guarantees
     }

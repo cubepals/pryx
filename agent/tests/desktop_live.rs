@@ -44,6 +44,7 @@ fn policy(input: &Input) -> process_policy::Policy {
         nice: 1,
         network_off: false,
         require_ipc_scope: Some(true),
+        private_tmp: None,
         tools: Some(process_tool_policy::Policy {
             cache: input.component.clone(),
             downloads: input.root.join("downloads"),

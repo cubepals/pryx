@@ -32,5 +32,11 @@ export function workloadGuarantees(
   ) {
     result['browser-sandbox'] &&= observed?.['browser-sandbox'] === true
   }
+  // A namespaced process node reports each copy's own namespaces: an older copy may predate them,
+  // and only a copy started with network none has a network of its own.
+  if (tier === 'process' && features.includes('tier-process:private-pids')) {
+    result['private-pids'] &&= observed?.['private-pids'] === true
+    result['private-network'] = observed?.['private-network'] === true
+  }
   return result
 }

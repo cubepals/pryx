@@ -84,6 +84,7 @@ fn start(artifact: process_tool_policy::Artifact, browser_on: bool, unavailable:
         nice: 19,
         network_off: false,
         require_ipc_scope: Some(true),
+        private_tmp: None,
         tools: Some(process_tool_policy::Policy {
             cache: cache.clone(),
             downloads: directory.path().join("downloads"),

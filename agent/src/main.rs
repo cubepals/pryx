@@ -10,6 +10,8 @@ use std::io::{self, BufRead, Write};
 use std::os::unix::process::CommandExt;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // First: no later exec may inherit a listener the node passed to this supervisor.
+    pryx_agent::process_listeners::adopt()?;
     let arguments = std::env::args().skip(1).collect::<Vec<_>>();
     if arguments.first().is_some_and(|a| a == pryx_agent::bootstrap_capabilities::PROBE) {
         println!("{}", serde_json::to_string(&pryx_agent::bootstrap_capabilities::probe())?);

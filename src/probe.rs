@@ -140,6 +140,24 @@ async fn native_tools_for_config(report: &mut Report, config: &crate::config::Co
         Ok(crate::runtime::process_ssh_supported(&binary).await)
     }
     .await;
+    let namespaces = async {
+        if !report.tiers.get("process").is_some_and(|tier| tier.state == State::On) {
+            return None;
+        }
+        let binary = crate::runtime::protected_agent(&config.workloads.agent_binary, true)?;
+        let owner = (config.process.uid_first, config.process.uid_first);
+        let probing = binary.clone();
+        let probed = tokio::task::spawn_blocking(move || {
+            crate::runtime::process::namespaces::proved(&probing, owner).map(|_| ())
+        })
+        .await
+        .ok()?;
+        Some(crate::runtime::process::namespaces::capability(&binary, probed))
+    }
+    .await;
+    if let Some(capability) = namespaces {
+        report.capabilities.insert(crate::runtime::process::NAMESPACES.into(), capability);
+    }
     let desktop = ready.as_ref().map(|_| ()).map_err(Clone::clone);
     let ssh = ready.unwrap_or(false);
     report.capabilities.insert(

@@ -381,6 +381,10 @@ pub trait ContainerRuntime: Send + Sync + 'static {
     async fn native_desktop(&self, _binary: &std::path::Path) -> Result<(), RuntimeError> {
         Err(RuntimeError::Other("This runtime does not provide a native process desktop".into()))
     }
+    /// The namespaced process mode for this agent executable, or why it is off here.
+    async fn process_namespaces(&self, _binary: &std::path::Path) -> Result<(), RuntimeError> {
+        Err(RuntimeError::Other("Only the process tier has a namespaced mode".into()))
+    }
     fn data_owner(&self, _id: &str) -> Result<Option<(u32, u32)>, RuntimeError> {
         Ok(None)
     }
