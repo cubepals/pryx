@@ -646,11 +646,18 @@ mod tests {
             let text = format!("{MINIMAL}\n[workloads]\nallowed_images = {prefixes}\n");
             toml::from_str::<Config>(&text).unwrap().validate()
         };
-        for fine in [r#"["ghcr.io/cubepals/"]"#, r#"["ghcr.io/example/http-app:"]"#, r#"["ghcr.io/example/http-app@"]"#]
-        {
+        let pinned = format!(r#"["alpine@sha256:{}"]"#, "0f".repeat(32));
+        for fine in [
+            r#"["ghcr.io/cubepals/"]"#,
+            r#"["ghcr.io/example/http-app:"]"#,
+            r#"["ghcr.io/example/http-app@"]"#,
+            &pinned,
+        ] {
             with(fine).unwrap();
         }
-        for open in [r#"["ghcr.io/cubepals"]"#, r#"["registry.example.com"]"#, r#"["alpine:", ""]"#] {
+        for open in
+            [r#"["ghcr.io/cubepals"]"#, r#"["registry.example.com"]"#, r#"["alpine:", ""]"#, r#"["alpine@sha256:0f"]"#]
+        {
             let err = with(open).unwrap_err().to_string();
             assert!(err.contains("workloads.allowed_images entry"), "{open}: {err}");
         }

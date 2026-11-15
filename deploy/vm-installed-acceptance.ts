@@ -29,8 +29,14 @@ function installation() {
   if (process.env.PRYX_VM_INSTALLATION === 'server') {
     const { PRYX_API_URL: url, PRYX_API_KEY: key } = process.env
     assert(url && key && process.getuid?.() === 0)
-    const text = readFileSync(SERVER_NODE.config, 'utf8')
-    assert.equal((Bun.TOML.parse(text) as { runtime?: unknown }).runtime, 'auto')
+    const node = Bun.TOML.parse(readFileSync(SERVER_NODE.config, 'utf8')) as {
+      runtime?: unknown
+      workloads?: { allowed_images?: unknown }
+    }
+    assert.equal(node.runtime, 'auto')
+    // The install itself admitted the VM bundle's images, by digest (cli/src/up-server.ts).
+    const allowed = node.workloads?.allowed_images
+    assert(Array.isArray(allowed) && inputs.every((image) => allowed.includes(image.reference)))
     return {
       credential: { url, key },
       apiUrl: url,
