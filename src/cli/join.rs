@@ -50,6 +50,9 @@ const TOKEN: &str = "/var/lib/pryxd/enrollment-token";
 pub const UNIT: &str = "/etc/systemd/system/pryxd.service";
 
 const UNIT_FILE: &str = include_str!("../../deploy/pryxd.service");
+/// Root's VM worker, which pryxd's unit wants; it skips itself on a host without the tier.
+pub const VM_WORKER_UNIT: &str = "/etc/systemd/system/pryxd-vm-worker.service";
+const VM_WORKER_UNIT_FILE: &str = include_str!("../../deploy/pryxd-vm-worker.service");
 
 /// How long a re-enrolling node has for its first heartbeat (reenroll.rs says what happens after):
 /// enrollment retries every 30 s at most, and a heartbeat follows within seconds.
@@ -165,6 +168,7 @@ pub async fn join(options: Join) -> anyhow::Result<String> {
         (fleet.ca.as_path(), Some(ca.as_slice()), 0o644),
         (token_file, Some(options.token.trim().as_bytes()), 0o600),
         (Path::new(UNIT), Some(UNIT_FILE.as_bytes()), 0o644),
+        (Path::new(VM_WORKER_UNIT), Some(VM_WORKER_UNIT_FILE.as_bytes()), 0o644),
     ] {
         let Some(contents) = contents else { continue };
         let target = under(root, path);

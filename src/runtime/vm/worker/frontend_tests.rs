@@ -4,11 +4,11 @@
 //! backend stands in for the VM: each verb must reach it once, with its own answers and errors,
 //! and dropping the frontend must retire the worker. Real KVM runs in the existing VM job.
 use super::{frontend::Frontend, service, transport::Endpoint};
-use crate::runtime::{ContainerRuntime, ContainerSpec, ContainerStatus, LogOptions, fake::FakeRuntime};
+use crate::runtime::{ContainerRuntime, ContainerSpec, ContainerStatus, LogOptions, RuntimeError, fake::FakeRuntime};
 use futures_util::StreamExt;
 use std::{
     fs,
-    os::unix::fs::PermissionsExt,
+    os::unix::fs::{DirBuilderExt, PermissionsExt},
     sync::{Arc, atomic::Ordering},
     time::Duration,
 };
@@ -109,5 +109,33 @@ async fn each_verb_reaches_the_worker_once_and_frontend_loss_retires_it() {
     assert!(retired.try_recv().is_err());
     drop(frontend);
     timeout(Duration::from_secs(5), retired).await.unwrap().unwrap();
+    timeout(Duration::from_secs(5), served).await.unwrap().unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn an_installed_frontend_waits_for_its_worker_and_a_second_lifetime_is_refused() {
+    let root = tempfile::Builder::new().permissions(fs::Permissions::from_mode(0o700)).tempdir().unwrap();
+    let state = root.path().to_path_buf();
+    let uid = rustix::process::geteuid().as_raw();
+    let (lifetime, requests) = service::paths(&state);
+    assert!(matches!(Frontend::available_as(&state, uid), Err(RuntimeError::Unavailable(_))));
+    let backend: Arc<dyn ContainerRuntime> = Arc::new(FakeRuntime::new());
+    let (worker_lifetime, worker_requests) = (lifetime.clone(), requests.clone());
+    // The worker starts after the frontend: its socket is absent until then.
+    let served = tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        fs::DirBuilder::new().mode(0o700).create(worker_lifetime.parent().unwrap()).unwrap();
+        let requests = Endpoint::bind(&worker_requests, uid).await.unwrap();
+        let lifetime = Endpoint::bind(&worker_lifetime, uid).await.unwrap();
+        service::serve_app(lifetime, requests, uid, move |authority| super::app(backend, authority), async { Ok(()) })
+            .await
+    });
+    let frontend = Frontend::installed_as(&state, uid).await.unwrap();
+    Frontend::available_as(&state, uid).unwrap();
+    // The served lifetime is the only one: another frontend is refused at once, not queued.
+    let second = timeout(Duration::from_secs(2), Frontend::connect(&lifetime, &requests, uid)).await.unwrap();
+    assert!(matches!(second, Err(RuntimeError::Unavailable(_))));
+    assert!(frontend.list(&[]).await.unwrap().is_empty());
+    drop(frontend);
     timeout(Duration::from_secs(5), served).await.unwrap().unwrap().unwrap();
 }

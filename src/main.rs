@@ -63,6 +63,15 @@ enum Command {
     ProbeKvm,
     #[command(hide = true)]
     ProbeSeparateUsers,
+    /// Hold root's VM authority for this node's pryxd, as its own installed service.
+    #[command(hide = true)]
+    VmWorker {
+        #[arg(long)]
+        config: PathBuf,
+        /// Only say whether this host can serve the tier, as the service's start condition.
+        #[arg(long)]
+        check: bool,
+    },
     #[command(hide = true)]
     LeaseWatchdog {
         #[arg(long)]
@@ -209,6 +218,7 @@ fn main() -> ExitCode {
         Command::ProbeUserNamespace => pryxd::probe::user_namespace_child(),
         Command::ProbeKvm => pryxd::probe::kvm_child(),
         Command::ProbeSeparateUsers => pryxd::probe::separate_users_child(),
+        Command::VmWorker { config, check } => vm_worker(&config, check),
         Command::Probe { json, config } => print_probe(json, config.as_deref()),
         Command::LeaseWatchdog { group, deadline } => {
             pryxd::store_lease::guard::run(&group, deadline).map_err(Into::into)
@@ -356,6 +366,18 @@ fn publish_addresses(config: &Config) -> Vec<IpAddr> {
     publish.extend(config.network.control_ips.iter().copied());
     publish.dedup();
     publish
+}
+
+fn vm_worker(path: &Path, check: bool) -> anyhow::Result<()> {
+    init_tracing(LogFormat::Json);
+    let config = Config::load(path)?;
+    if check {
+        return pryxd::runtime::vm::worker::service::check(&config);
+    }
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?
+        .block_on(pryxd::runtime::vm::worker::service::run(&config))
 }
 
 async fn serve(path: &Path) -> anyhow::Result<()> {

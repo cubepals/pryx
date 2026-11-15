@@ -19,6 +19,7 @@ use futures_util::stream::BoxStream;
 use serde::de::DeserializeOwned;
 use std::{
     collections::BTreeMap,
+    io,
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -26,6 +27,14 @@ use tokio::time::Instant;
 
 /// Bounds a worker that never answers. A verb's own timeout, where it has one, is added.
 const OPERATION: Duration = Duration::from_mins(10);
+/// Covers a successor worker's start after the previous pryxd retired its predecessor.
+const START: Duration = Duration::from_secs(30);
+/// The installed service that runs `pryxd vm-worker` as root.
+pub const WORKER_UNIT: &str = "pryxd-vm-worker.service";
+
+fn refused(problem: io::Error) -> RuntimeError {
+    RuntimeError::Unavailable(format!("VM worker lifetime refused: {problem}"))
+}
 
 pub struct Frontend {
     socket: PathBuf,
@@ -40,11 +49,50 @@ fn deadline(own: Duration) -> Instant {
 }
 
 impl Frontend {
+    /// Root's installed worker beside this node's state. A missing or refused socket is waited
+    /// for, briefly, while a successor worker starts; an accepted lifetime is never retried.
+    pub async fn installed(state: &Path) -> Result<Self, RuntimeError> {
+        Self::installed_as(state, rustix::process::Uid::ROOT.as_raw()).await
+    }
+
+    pub(super) async fn installed_as(state: &Path, uid: u32) -> Result<Self, RuntimeError> {
+        let (lifetime, requests) = super::service::paths(state);
+        let deadline = Instant::now() + START;
+        let owner = loop {
+            match tokio::time::timeout_at(deadline, Owner::connect(&lifetime, uid)).await {
+                Ok(Ok(owner)) => break owner,
+                Ok(Err(problem))
+                    if matches!(problem.kind(), io::ErrorKind::NotFound | io::ErrorKind::ConnectionRefused)
+                        && Instant::now() < deadline =>
+                {
+                    tokio::time::sleep(Duration::from_millis(100)).await
+                }
+                Ok(Err(problem)) => return Err(refused(problem)),
+                Err(_) => return Err(RuntimeError::Timeout("The root VM worker did not acknowledge pryxd".into())),
+            }
+        };
+        Self::serving(owner, &requests, uid).await
+    }
+
+    /// Whether root's worker is serving, without taking its one lifetime.
+    pub fn available(state: &Path) -> Result<(), RuntimeError> {
+        Self::available_as(state, rustix::process::Uid::ROOT.as_raw())
+    }
+
+    pub(super) fn available_as(state: &Path, uid: u32) -> Result<(), RuntimeError> {
+        super::transport::socket(&super::service::paths(state).0, uid).map_err(|problem| {
+            RuntimeError::Unavailable(format!(
+                "The root VM worker is not serving ({problem}); it runs as {WORKER_UNIT} on a host with KVM"
+            ))
+        })
+    }
+
     /// The worker's UID is fixed host policy; the kernel proves each socket's peer.
     pub async fn connect(lifetime: &Path, socket: &Path, uid: u32) -> Result<Self, RuntimeError> {
-        let lifetime = Owner::connect(lifetime, uid)
-            .await
-            .map_err(|problem| RuntimeError::Unavailable(format!("VM worker lifetime refused: {problem}")))?;
+        Self::serving(Owner::connect(lifetime, uid).await.map_err(refused)?, socket, uid).await
+    }
+
+    async fn serving(lifetime: Owner, socket: &Path, uid: u32) -> Result<Self, RuntimeError> {
         let answer: Result<Capabilities, RuntimeError> =
             http::control(socket, uid, &Command::Capabilities, deadline(Duration::ZERO)).await?;
         Ok(Self {

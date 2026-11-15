@@ -4849,3 +4849,13 @@ job when publication is authorized. That job has not run in this task.
   passes, example.org and a literal address fail. Full pinned Bun check against local
   PostgreSQL 16 (440 pass, one existing skip), strict pryxd Clippy, fmt and both structure
   checks pass. Estimated under one extra installed-acceptance minute; no job/gate.
+
+- Serve root’s VM tier through its worker: `pryxd vm-worker [--check]` builds the root
+  VmRuntime with fixed non-root monitor IDs and serves one pryxd lifetime; pryxd as root
+  selects the worker frontend and reports the tier off naming the worker when its socket is
+  absent. `pryxd join` writes `pryxd-vm-worker.service`, which pryxd’s unit wants. A real
+  socket test starts the worker after the frontend, which waits for it, and refuses a second
+  lifetime at once. VM unit tests pass except the unchanged ordinary-user-only jail case,
+  which refuses to run as root here; strict pryxd Clippy, fmt and both structure checks pass.
+  Not yet: the server preset installing the VM bundle for root, and the root installed
+  lifecycle with one egress rule in CI. No job/gate or CI minute.
