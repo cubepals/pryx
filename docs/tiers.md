@@ -11,8 +11,8 @@ For an unnamed request, control chooses container, then VM, then process, then W
 that meet `require` and accept the supplied source: images need containers or VMs, image-free requests
 use process or Wasm, and package requests need Wasm. Snapshots and templates retain their saved
 tier. The [VM tier](vm.md) needs working KVM, ordinary-user monitor confinement and the
-signed installation's immutable bundle descriptor. pryxd running as root keeps it off until
-root VM service authority is finished, and its measurements are [pending](#vm-tier-measurements).
+signed installation's immutable bundle descriptor; pryxd running as root serves it through its
+separate VM worker. Its measurements are [below](#vm-tier-measurements).
 `PRYX_DEFAULT_ISOLATION=process` fixes one tier; a comma-separated list changes the priority.
 Local installations retain this preference across user-manager restarts and upgrades.
 The image and new local installations use auto mode. Without an engine, the usual first choice
@@ -347,26 +347,38 @@ Fixed context PSS (n=1, MiB): container 13.43, process 307.57, wasm 365.40.
 
 ## VM tier measurements
 
-**Pending.** No thirty-sample VM cohort has completed in CI yet, so this table has no figures.
+Measured at `c7a620b` in
+[Any host 43749214185](https://github.com/cubepals/pryx/actions/runs/43749214185) (bundle job
+132925640692), on a hosted
+`ubuntu-24.04` runner with KVM ([summary](checks/measurements/k25/installed-c7a620b.json)).
 `deploy/vm-installed-measurements.ts` collects them in the Any host workflow's *Bundle runtime
 acceptance* job, as the signed ordinary-user installation's own user on a hosted runner with
 KVM, after that installation's VM acceptance passes. Each cohort uses the public API and the
 real agent, the first pinned image (Alpine 3.24.4) already cached with the VM bundle, one unit,
 the default network and n=30. The 100 MB snapshot and fork use the same fixture as the other
 tiers. Memory is the installation's whole supervisor tree's PSS, VM and packet helpers included,
-with the increment over the baseline sampled before each create. The rows are filled from that
-run's committed summary, never estimated.
+with the increment over the baseline sampled before each create. No start failed. The step
+prints each cohort as a `VM SUMMARY` line in the job log.
 
 | Measurement, installed ordinary-user VM | p50 / p90 |
 | --- | --- |
-| Cold create to running (ms) | Pending |
-| Create to first output (ms) | Pending |
-| Agent `true` (ms) | Pending |
-| Wake from sleep (ms) | Pending |
-| Snapshot 100 MB (ms) | Pending |
-| Fork 100 MB (ms) | Pending |
-| Idle context PSS (MiB) | Pending |
-| Idle paired PSS delta (MiB) | Pending |
+| Cold create to running (ms) | 1,353.56 / 2,128.79 |
+| Create to first output (ms) | 1,616.82 / 2,395.14 |
+| Agent `true` (ms) | 44.28 / 47.89 |
+| Wake from sleep (ms) | 1,507.54 / 1,594.81 |
+| Snapshot 100 MB (ms) | 1,656.97 / 1,690.15 |
+| Fork 100 MB (ms) | 2,458.16 / 2,529.85 |
+| Idle context PSS (MiB) | 554.45 / 555.79 |
+| Idle paired PSS delta (MiB) | 131.61 / 131.91 |
+
+The context PSS is the installation's whole supervisor tree (control, edge, node, every VM and
+packet helper); before each create it was 423.41 / 424.75 MiB. These figures come from another
+runner, installation and release build than the tables above, so they sit beside them rather
+than in them. The run before it, at `1b09027`
+([43740509297](https://github.com/cubepals/pryx/actions/runs/43740509297)), measured cold create
+to running at 2,363.52 / 2,388.05 ms and create to first output at 2,618.67 / 2,653.04 ms, with
+every other cohort within 2 % of the row above: cold create varies between runners by about a
+second at p50.
 
 The [kernel spike](checks/k25-vm-spikes.md) measured a minimal guest fixture, not a sandbox:
 p50 717.035 ms and p90 725.265 ms from launch to a validated filesystem and vsock report, over
