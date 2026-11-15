@@ -144,12 +144,14 @@ Internet sockets, and no listeners or Unix sockets.
 
 The packet helper also decides on the host, so a guest kernel that drops its own rules does not
 widen them. Before it dials any TCP, UDP or ICMP flow it refuses loopback, link-local and
-metadata, private, multicast and broadcast destinations, and it runs no resolver of its own.
-pryxd passes every guest's egress policy, so the helper also reaches the gateway address only at
-the gateway ports pryxd names (HTTP, TLS and DNS under a hostname allowlist, DNS alone
+metadata, private, multicast and broadcast destinations. pryxd passes every guest's egress
+policy, and the helper refuses to start without one, so it also reaches the gateway address only
+at the gateway ports pryxd names (HTTP, TLS and DNS under a hostname allowlist, DNS alone
 otherwise), refuses the agent's other non-public networks, and on a hostname allowlist refuses
-every public address. As root, the bridged packet stack gets the same policy with no gateway
-port, since its guest's DNS is the stack's own.
+every public address. The ordinary user's helper runs no resolver of its own, so its guest's DNS
+reaches only pryxd's gateway. As root, the bridged packet stack gets the same policy with no
+gateway port; its guest resolves at the stack's own gateway, which answers from the host's
+resolvers.
 
 ### As root
 
@@ -244,7 +246,7 @@ pryx measures the host; a provider's name decides nothing.
   (some Intel families), Google Cloud and Azure, and absent on Hetzner Cloud and on arm64
   virtual machines. Bare-metal cloud instances expose it directly.
 - **GitHub's hosted `ubuntu-24.04` runners** have `/dev/kvm`; pryx's VM CI runs on them, granting
-  the runner's user access in the job.
+  the runner's user access in the job, on every pull request that changes VM code.
 - **A container** can be given `/dev/kvm` with `--device /dev/kvm`, without `--privileged`;
   pryxd inside must run as an ordinary user for this tier.
 - **arm64 hosts** keep the tier off.

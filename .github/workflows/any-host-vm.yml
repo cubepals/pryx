@@ -7,10 +7,28 @@ on:
   # A new workflow cannot be dispatched before main has it; branch pushes prove each step.
   push:
     branches: [any-host]
+  # A pull request that changes VM code runs the KVM acceptance too; any other starts no run.
+  pull_request:
+    paths:
+      - '.github/workflows/any-host-vm.yml'
+      - 'templates/vm-tools/**'
+      - 'vm-image/**'
+      - 'deploy/vm/**'
+      - 'src/runtime/vm.rs'
+      - 'src/runtime/vm/**'
+      - 'src/config/vm.rs'
+      - 'src/probe/kvm.rs'
+      - 'agent/src/vm_*.rs'
+      - 'agent/src/vm_*/**'
+      - 'agent/src/transfer_target.rs'
+      - 'agent/tests/vm_*.rs'
+      - 'tests/vm.rs'
 
+# Pushes and the schedule share their branch's group; a dispatch has its own; each pull request
+# has its own, where a newer commit stops the run it supersedes.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && 'dispatch-' || '' }}${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read

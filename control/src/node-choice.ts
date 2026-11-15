@@ -80,6 +80,7 @@ export class NodeChoice {
       cpuMillis: reservedCpu(spec.resources, this.#o.cpuMillisPerGb),
       cpuLimits:
         spec.resources.cpuWeight != null || (spec.resources.cpuMillis != null && !spec.resourceDefaults?.cpu),
+      cpuWeight: spec.resources.cpuWeight != null,
       diskGb: spec.storage.sizeGb,
       ports: spec.ports.length + (spec.agent ? 1 + (spec.sparePorts ?? 0) : 0),
       regionKey: region,
