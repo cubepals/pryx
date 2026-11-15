@@ -98,6 +98,27 @@ impl Endpoint {
     }
 }
 
+impl axum::serve::Listener for Endpoint {
+    type Io = UnixStream;
+    type Addr = tokio::net::unix::SocketAddr;
+
+    async fn accept(&mut self) -> (Self::Io, Self::Addr) {
+        loop {
+            match Self::accept(self).await {
+                Ok(stream) => match stream.peer_addr() {
+                    Ok(address) => return (stream, address),
+                    Err(_) => continue,
+                },
+                Err(_) => tokio::time::sleep(std::time::Duration::from_millis(50)).await,
+            }
+        }
+    }
+
+    fn local_addr(&self) -> io::Result<Self::Addr> {
+        self.listener.local_addr()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

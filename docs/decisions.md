@@ -1304,3 +1304,5 @@
 - K25: connect unrestricted root guests to the leased, default-drop bridge and fixed confined ordinary packet stack; use the packet executable’s own DNS/service identities and the bridge gateway, retaining static guest configuration and every private-address boundary. Prove both images in the existing root lifecycle before enabling installed placement.
 
 - K25: authenticate the separate VM worker with kernel Unix peer credentials and a private host-owned socket; hold a protected exclusive server-file lease before considering a stale socket, and refuse links, public parents, hard-linked leases and live listeners. This transport foundation grants no runtime operation or placement.
+
+- K25: carry private worker commands over the existing pinned Hyper/Axum HTTP libraries and authenticated Unix socket, with bounded JSON control messages and independently streamed file bodies. Submit each operation once; sanitize decode errors so an uncertain response cannot replay a mutation or quote credential bytes.

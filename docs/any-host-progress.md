@@ -4658,3 +4658,12 @@ job when publication is authorized. That job has not run in this task.
   failure, 44 ignored hardware cases. Strict all-target Clippy, formatting and whitespace pass.
   External structure fetch remains unavailable locally. No dependency/job/gate or estimated
   CI minute. Runtime RPC, cancellation-owned sessions and installed worker authority remain.
+
+- Prepare maintained HTTP serving/calls over the authenticated worker socket, with one
+  connection/submission per operation, bounded control decoding and separately admitted
+  streaming bodies. A real HTTP mutation returns an unusable private answer: the client
+  refuses without quoting it and the server observes exactly one submission.
+- Full Rust: 541 pass, unchanged host IPv6 fixture failure, 44 ignored hardware cases.
+  Correct a Clippy structure-name repetition without changing behavior; strict all-target
+  Clippy, formatting and whitespace are checked before push. No runtime worker verb or
+  installed placement is exposed yet. No dependency/job/gate; under one optional test second.
