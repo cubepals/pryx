@@ -641,6 +641,20 @@ jobs:
           started=$(date +%s)
           PRYX_PYTHON="$RUNNER_TEMP/sdk-python/bin/python" bash deploy/server-vm-acceptance.sh
           echo "Root installed VM acceptance seconds: $(($(date +%s)-started))" | tee -a "$GITHUB_STEP_SUMMARY"
+      # K31: the server preset's own unit gives a process sandbox its kernel network policy.
+      # Its own step, after the VM's whatever that found, so neither hides the other.
+      - name: Root process sandbox network policy through the installed server
+        if: ${{ !cancelled() }}
+        run: |
+          python3 -m venv "$RUNNER_TEMP/sdk-python"
+          "$RUNNER_TEMP/sdk-python/bin/pip" install --no-cache-dir ./sdk/python > "$RUNNER_TEMP/sdk-install.log" 2>&1
+          PRYX_API_KEY=$(pryx config key)
+          PRYX_API_URL=$(python3 -c 'import json, pathlib; print(json.loads((pathlib.Path.home() / ".config/pryx/client.json").read_text())["url"])')
+          export PRYX_API_KEY PRYX_API_URL
+          if ! "$RUNNER_TEMP/sdk-python/bin/python" deploy/server-process-network.py; then
+            sudo journalctl -u pryxd --no-pager -n 300 | tail -c 30000
+            exit 1
+          fi
       - name: Private-service diagnostics after failure
         if: failure()
         run: |
