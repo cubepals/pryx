@@ -17,8 +17,10 @@
 Description=pryx node daemon
 Documentation=https://github.com/cubepals/pryx
 # After, not Requires: pryxd outlives Docker restarts, reports Docker as down, and resyncs.
-After=network-online.target docker.service
-Wants=network-online.target docker.service
+# The VM worker holds root's VM authority (deploy/pryxd-vm-worker.service); without it, or
+# on a host it skips, pryxd reports the vm tier off.
+After=network-online.target docker.service pryxd-vm-worker.service
+Wants=network-online.target docker.service pryxd-vm-worker.service
 
 [Service]
 Type=exec

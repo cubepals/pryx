@@ -35,9 +35,9 @@ is on when all of these hold:
 - **KVM this user can open.** `/dev/kvm` opens read/write for pryxd's user, and a VM can be
   created on it: the probe runs a one-page guest that halts, and pryxd creates a VM at start. A
   device file alone is not enough. Nothing falls back to emulation.
-- **An ordinary user.** pryxd running as root, a container's root included, keeps the tier off
-  with "Root VM service authority and TAP/firewall integration are not available". See
-  [As root](#as-root).
+- **An ordinary user, or root's VM worker.** pryxd running as root serves the tier only through
+  the separate `pryxd-vm-worker.service`; without it, a container's root included, the tier is
+  off with "The root VM worker is not serving". See [As root](#as-root).
 - **Landlock ABI 3,** fully enforced, as for the process tier: it confines the monitor.
 - **A signed installation.** It carries `vm-bundle.json`, a small read-only descriptor, beside
   its `pryx-agent`, and pryxd finds it there; `[vm] bundle = "<path>"` names another place. The
@@ -139,13 +139,19 @@ Internet sockets, and no listeners or Unix sockets.
 
 ### As root
 
-The root path is built and passes its CI cases, but no root node serves it yet. There, each
+As root, the tier is served by a separate service, `pryxd-vm-worker.service`, which
+`pryxd join` writes beside pryxd's unit and pryxd's unit wants. pryxd's own unit keeps its
+sandbox (no devices, no namespaces, four capabilities); the worker runs `pryxd vm-worker` as
+root, holds the VM authority and answers pryxd over two private root-owned sockets in pryxd's
+state directory. It serves one pryxd at a time: when that pryxd stops, the VMs it served stop
+with it, and the worker starts again for the next one. On a host without the tier it skips
+itself, and pryxd reports the tier off with its name. Each
 guest gets a TAP device in its own anonymous network namespace behind default-drop nftables
 rules, read back before the monitor starts. Hostname policy uses the same gateways, listening
 inside that namespace; the default network crosses a filtered bridge into a confined ordinary
-packet stack. The host's own routes, forwarding settings and firewall are not changed. What
-remains is the separate host worker that holds root's authority; until it ships, root keeps the
-tier off.
+packet stack. The host's own routes, forwarding settings and firewall are not changed. The
+server preset does not yet install the VM bundle for root, so a server install still reports
+the tier off, and the root lifecycle through an installed node has not yet run in CI.
 
 ## Sleep, snapshot, fork, export, restore, move
 
@@ -182,12 +188,13 @@ lifetime lease and then confines it:
 
 As root, the monitor runs under Firecracker's unchanged jailer, with fixed non-root host IDs
 that the host chooses and a workload never can, in a chroot holding only its staged inputs,
-under the same lease and signal bounds. That path waits on the root worker above.
+under the same lease and signal bounds, inside the root worker above.
 
 ## Limits
 
 - No KVM, no tier: there is no emulation, and the tier is x86_64 only.
-- Root nodes keep the tier off for now.
+- Root nodes serve the tier only through the VM worker, and the server preset does not install
+  the VM bundle yet.
 - Sleep keeps the disk, not memory. Snapshots and exports of a running VM restart it.
 - CPU is whole vCPUs: `cpuMillis` must be a multiple of 1000, and one vCPU is given without
   it. CPU weights are refused.

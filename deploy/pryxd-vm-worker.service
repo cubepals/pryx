@@ -1,0 +1,24 @@
+# Root's VM authority for this node's pryxd (src/runtime/vm/worker/service.rs, docs/vm.md).
+#
+# pryxd's own unit keeps its sandbox. A jailed monitor needs /dev/kvm, namespaces, a TAP device
+# and nftables, which only this service holds; pryxd reaches it over two private root-owned
+# sockets in its state directory and holds its lifetime. When that pryxd stops, the VMs it
+# served stop with it, and this service starts again for the next pryxd.
+#
+# pryxd's unit wants this one and starts after it; nothing else starts it.
+
+[Unit]
+Description=pryx VM worker
+Documentation=https://github.com/cubepals/pryx
+Before=pryxd.service
+
+[Service]
+Type=exec
+# Skipped, not failed, where the host has no VM tier (no KVM, no Landlock, no installed
+# bundle): pryxd then reports the tier off with this service's name.
+ExecCondition=/usr/local/bin/pryxd vm-worker --check --config /etc/pryxd/pryxd.toml
+ExecStart=/usr/local/bin/pryxd vm-worker --config /etc/pryxd/pryxd.toml
+Restart=always
+RestartSec=2
+NoNewPrivileges=yes
+ProtectHome=yes

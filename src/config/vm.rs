@@ -8,10 +8,20 @@ use std::{
     path::{Path, PathBuf},
 };
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct VmConfig {
     pub bundle: Option<PathBuf>,
+    /// Root's jailed monitors run as these fixed non-root IDs, outside the process tier's
+    /// default UID pool and the Wasm worker's IDs. Ordinary users' monitors run as themselves.
+    pub monitor_uid: u32,
+    pub monitor_gid: u32,
+}
+
+impl Default for VmConfig {
+    fn default() -> Self {
+        Self { bundle: None, monitor_uid: 60001, monitor_gid: 60001 }
+    }
 }
 
 impl VmConfig {

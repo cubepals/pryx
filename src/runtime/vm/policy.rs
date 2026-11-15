@@ -14,13 +14,28 @@ use std::{
 // A host-policy descriptor is small metadata; this is its own read bound, not an archive limit.
 const MAX_DESCRIPTOR_BYTES: u64 = 16 * 1024;
 
+/// The VM backend pryxd runs itself: an ordinary user's. Root's runs in the separate worker.
 pub(crate) fn settings(config: &crate::config::Config) -> Result<super::instance::Settings, RuntimeError> {
     super::instance::VmRuntime::kvm()?;
     if rustix::process::geteuid().is_root() {
-        return Err(RuntimeError::Unavailable(
-            "Root VM service authority and TAP/firewall integration are not available".into(),
-        ));
+        return Err(RuntimeError::Unavailable("Root VM authority belongs to the separate VM worker".into()));
     }
+    host(config, None)
+}
+
+/// The separate root worker's backend, whose monitors run under the host's fixed non-root IDs.
+pub(crate) fn worker_settings(config: &crate::config::Config) -> Result<super::instance::Settings, RuntimeError> {
+    if !rustix::process::geteuid().is_root() {
+        return Err(RuntimeError::Unavailable("The VM worker holds root's VM authority and runs as root".into()));
+    }
+    super::instance::VmRuntime::kvm()?;
+    host(config, Some((config.vm.monitor_uid, config.vm.monitor_gid)))
+}
+
+fn host(
+    config: &crate::config::Config,
+    monitor_owner: Option<(u32, u32)>,
+) -> Result<super::instance::Settings, RuntimeError> {
     if !pryx_agent::process_capabilities::probe().filesystem {
         return Err(RuntimeError::Unavailable(pryx_agent::process_capabilities::FILESYSTEM_UNAVAILABLE.into()));
     }
@@ -32,7 +47,7 @@ pub(crate) fn settings(config: &crate::config::Config) -> Result<super::instance
         ingress_connections: super::instance::INGRESS_CONNECTIONS,
         free_floor_bytes: config.capacity.min_free_disk_mb.saturating_mul(1024 * 1024),
         image_timeout: std::time::Duration::from_secs(config.docker.pull_timeout_seconds),
-        monitor_owner: None,
+        monitor_owner,
     })
 }
 
@@ -83,7 +98,7 @@ mod tests {
             entries: 1,
         };
         crate::durable::write_atomic(&path, &serde_json::to_vec(&artifact).unwrap(), 0o444).unwrap();
-        let config = VmConfig { bundle: Some(path.clone()) };
+        let config = VmConfig { bundle: Some(path.clone()), ..Default::default() };
         assert_eq!(descriptor(&config).unwrap().sha256, artifact.sha256);
         fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
         assert!(descriptor(&config).is_err());
@@ -104,7 +119,7 @@ mod tests {
         assert!(matches!(descriptor(&VmConfig::default()), Err(RuntimeError::Unavailable(_))));
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("descriptor.json");
-        let config = VmConfig { bundle: Some(path.clone()) };
+        let config = VmConfig { bundle: Some(path.clone()), ..Default::default() };
         crate::durable::write_atomic(&path, &vec![b'x'; MAX_DESCRIPTOR_BYTES as usize + 1], 0o444).unwrap();
         assert!(descriptor(&config).is_err());
         crate::durable::write_atomic(&path, uuid::Uuid::new_v4().simple().to_string().as_bytes(), 0o444).unwrap();

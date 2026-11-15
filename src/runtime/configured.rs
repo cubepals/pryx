@@ -10,7 +10,14 @@ pub async fn create(config: &Config) -> anyhow::Result<Arc<dyn ContainerRuntime>
         return auto(config).await;
     }
     let runtime: Arc<dyn ContainerRuntime> = if config.runtime == RuntimeKind::Vm {
-        Arc::new(super::vm::instance::VmRuntime::new(&config.state_dir, super::vm::policy::settings(config)?).await?)
+        if rustix::process::geteuid().is_root() {
+            // Root's VM authority is the separate worker's; this daemon holds only its lifetime.
+            Arc::new(super::vm::worker::frontend::Frontend::installed(&config.state_dir).await?)
+        } else {
+            Arc::new(
+                super::vm::instance::VmRuntime::new(&config.state_dir, super::vm::policy::settings(config)?).await?,
+            )
+        }
     } else if config.runtime == RuntimeKind::Wasm {
         Arc::new(crate::runtime::wasm::WasmRuntime::new(&config.state_dir, &config.wasm).await?)
     } else if config.runtime == RuntimeKind::Process {
@@ -61,10 +68,14 @@ pub async fn availability(config: &Config) -> std::collections::BTreeMap<&'stati
         ("container", container),
         ("process", (process.state != State::On).then_some(process.evidence)),
         ("vm", {
-            if matches!(config.runtime, RuntimeKind::Auto | RuntimeKind::Vm) {
-                super::vm::policy::settings(config).err().map(|problem| problem.to_string())
-            } else {
+            if !matches!(config.runtime, RuntimeKind::Auto | RuntimeKind::Vm) {
                 Some("configuration selects another tier".into())
+            } else if rustix::process::geteuid().is_root() {
+                super::vm::worker::frontend::Frontend::available(&config.state_dir)
+                    .err()
+                    .map(|problem| problem.to_string())
+            } else {
+                super::vm::policy::settings(config).err().map(|problem| problem.to_string())
             }
         }),
         ("wasm", {

@@ -25,7 +25,7 @@ fn parent(path: &Path, owner: u32) -> io::Result<()> {
     Ok(())
 }
 
-fn socket(path: &Path, owner: u32) -> io::Result<()> {
+pub(super) fn socket(path: &Path, owner: u32) -> io::Result<()> {
     parent(path, owner)?;
     let info = fs::symlink_metadata(path)?;
     if !info.file_type().is_socket() || info.uid() != owner || info.mode() & 0o077 != 0 || info.nlink() != 1 {
@@ -111,6 +111,12 @@ impl Endpoint {
         let (stream, _) = self.listener.accept().await?;
         peer(&stream, self.owner)?;
         Ok(stream)
+    }
+
+    /// Stop listening and keep only the lease: a later client is refused at once instead of
+    /// waiting unaccepted, and no other server can replace the socket while the lease is held.
+    pub fn into_lease(self) -> File {
+        self._lease
     }
 }
 
