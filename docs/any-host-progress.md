@@ -4619,5 +4619,17 @@ job when publication is authorized. That job has not run in this task.
   CI-only kernel proof, not local packet forwarding or installed worker acceptance. Enable
   the existing Rustix event API for pidfd polling and box both network variants for bounded
   enum size. Go tests/build/vet, strict all-target Clippy, fmt, Python syntax and whitespace
-  pass. Full local Rust: 537 pass, unchanged host IPv6 fixture failure, 44 ignored; no skipped
+  pass. Full local Rust: 538 pass, unchanged host IPv6 fixture failure, 44 ignored; no skipped
   assertion. Estimated addition under two optional VM seconds, no dependency/job/gate.
+
+- Correct the native terminal ABI after the strict shutdown trace identifies TCGETS2:
+  replace only the two published terminal attribute requests with pinned libc termios2
+  identities. Keep every other ioctl, trap default and strict hardware shutdown assertion.
+  The existing build now runs the maintained terminal restore on a real pseudo-terminal
+  under the compiled VMM filter, beside its real thread kicks/joins under all three filters.
+- Full local same-source recipe, complete sources/notices and component correspondence pass.
+  Static monitor: 11,661,816 bytes; exact embedded restrictive BPF: 3,466 bytes. Python syntax,
+  standalone Rust formatting and whitespace pass. This proves native terminal/thread ABI only;
+  actual guest shutdown, attached queue and installed worker/public forwarding remain pending.
+  No dependency/job/gate or added estimated CI minute. Removed completed native and test-cache
+  copies and the Go build cache; free disk is 5.6 GiB before this checkpoint.

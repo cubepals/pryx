@@ -32,7 +32,7 @@ def adapt(original, abi):
         raise ValueError('Published thread signal policy differs from the reviewed ABI')
     mapping = {abi['abort']: abi['abort'], kicks.pop(): abi['vcpu']}
     result = copy.deepcopy(original)
-    changed = {'signals': 0, 'signalIdentity': 0, 'joins': 0, 'eventWaits': 0}
+    changed = {'signals': 0, 'signalIdentity': 0, 'joins': 0, 'eventWaits': 0, 'terminals': 0}
     for profile in result.values():
         signals_process = False
         for rule in profile['filter']:
@@ -47,6 +47,17 @@ def adapt(original, abi):
                 rule['comment'] = 'Native thread signalling; the launcher independently requires its own TGID'
                 changed['signals'] += 1
                 signals_process = True
+            elif rule['syscall'] == 'ioctl':
+                terminals = {abi['publishedTerminalGet']: abi['terminalGet'],
+                             abi['publishedTerminalSet']: abi['terminalSet']}
+                arguments = rule.get('args', [])
+                if len(arguments) == 1 and arguments[0].get('val') in terminals:
+                    argument = arguments[0]
+                    if argument['index'] != 1 or argument['type'] != 'dword' or argument['op'] != 'eq':
+                        raise ValueError('Unreviewed terminal request constraint')
+                    argument['val'] = terminals[argument['val']]
+                    argument['comment'] = 'Equivalent native libc terminal attributes request'
+                    changed['terminals'] += 1
             elif rule['syscall'] == 'epoll_pwait':
                 if rule.get('args'):
                     raise ValueError('Unreviewed published event-wait constraints')
@@ -74,6 +85,8 @@ def adapt(original, abi):
             profile['filter'].append({'syscall': 'getpid',
                 'comment': 'GNU thread signalling reads only its own process identity before tgkill'})
             changed['signalIdentity'] += 1
+    if changed['terminals'] != 2:
+        raise ValueError('Expected precisely the two published terminal attribute constraints')
     if not all(changed.values()):
         raise ValueError('The expected native thread ABI substitutions were not found')
     return result, changed

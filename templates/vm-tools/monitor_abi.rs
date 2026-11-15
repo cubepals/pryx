@@ -7,6 +7,10 @@ fn main() {
         "{}",
         serde_json::json!({
             "abort": libc::SIGABRT,
+            "terminalGet": libc::TCGETS2,
+            "terminalSet": libc::TCSETS2,
+            "publishedTerminalGet": libc::TCGETS,
+            "publishedTerminalSet": libc::TCSETS,
             "processId": libc::SYS_getpid,
             "epollWait": libc::SYS_epoll_wait,
             "epollPwait": libc::SYS_epoll_pwait,

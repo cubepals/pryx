@@ -8,7 +8,10 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use vmm_sys_util::signal::{Killable, block_signal};
+use vmm_sys_util::{
+    signal::{Killable, block_signal},
+    terminal::Terminal,
+};
 
 fn main() {
     let path = std::env::args().nth(1).expect("compiled native policy");
@@ -41,4 +44,5 @@ fn main() {
     for child in threads {
         child.join().unwrap();
     }
+    std::io::stdin().lock().set_canon_mode().unwrap();
 }

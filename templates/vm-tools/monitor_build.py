@@ -69,12 +69,12 @@ def build(args):
         'CARGO_PROFILE_RELEASE_DEBUG': '0', 'CARGO_PROFILE_RELEASE_LTO': 'false', 'CARGO_INCREMENTAL': '0',
         'LIBRARY_PATH': str(native_libraries(root)), 'CC_x86_64_unknown_linux_gnu': str(compiler),
         'CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS': f'-C target-feature=+crt-static -C linker={compiler}'})
-    def run(arguments, *, capture=False, host=False):
+    def run(arguments, *, capture=False, host=False, stdin=None):
         selected = {key: value for key, value in environment.items()
                     if not host or key != 'CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS'}
         return subprocess.check_output(arguments, cwd=source, env=selected, timeout=600,
                                        text=True) if capture else subprocess.run(
-            arguments, cwd=source, env=selected, timeout=600, check=True)
+            arguments, cwd=source, env=selected, stdin=stdin, timeout=600, check=True)
     component = root / 'component'
     component.mkdir()
     example = source / 'src/vmm/examples/pryx_signal_abi.rs'
@@ -93,8 +93,13 @@ def build(args):
     expected = component / 'seccomp_filter.bpf'
     run(['cargo', 'run', '--locked', '--release', '-p', 'seccompiler', '--bin', 'seccompiler-bin', '--',
          '--target-arch', 'x86_64', '--input-file', str(policy), '--output-file', str(expected)], host=True)
-    run(['cargo', 'run', '--locked', '--release', '--target', inputs['target'],
-         '-p', 'vmm', '--example', 'pryx_native_threads', '--', str(expected)])
+    master, terminal = os.openpty()
+    try:
+        run(['cargo', 'run', '--locked', '--release', '--target', inputs['target'],
+             '-p', 'vmm', '--example', 'pryx_native_threads', '--', str(expected)], stdin=terminal)
+    finally:
+        os.close(terminal)
+        os.close(master)
     executable = target / inputs['target'] / 'release/firecracker'
     static(executable)
     if not expected.read_bytes() or expected.read_bytes() not in executable.read_bytes():

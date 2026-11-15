@@ -1298,3 +1298,5 @@
 - K25: retain ioctl requests beside the existing shutdown signal trace to identify the actual remaining native trap without widening policy; reject inherited TAP vnet headers because the chosen BESS transport consumes raw Ethernet frames.
 
 - K25: add a separate advertised private packet-runtime handoff, leaving bridge-only grants unchanged; Rust serializes the owner-defined launcher plan, writes the granted configuration FD, and observes the root-owned pidfd using the existing Rustix event API.
+
+- K25: replace precisely the two published terminal ioctl attribute constraints with the actual pinned GNU libc termios2 equivalents; reproduce the real shutdown terminal restore under compiled BPF without KVM, preserving all other requests, trap defaults and the strict hardware shutdown assertion.
