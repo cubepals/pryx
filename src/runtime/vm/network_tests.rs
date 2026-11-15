@@ -164,3 +164,27 @@ async fn occupied_helper_lease_refuses_and_retires_only_new_gateways() {
     assert!(fs::read_dir(&boots).unwrap().next().is_none());
     assert!(!lease_held(&lease));
 }
+
+#[test]
+fn packet_admission_names_exactly_the_gateway_ports_the_guest_reaches() {
+    let ports = crate::runtime::egress::listeners::Ports { http: 41001, tls: 41002, dns: 41003 };
+    let non_public: Vec<String> = pryx_agent::transfer_target::non_public_ipv4_networks()
+        .map(|(address, bits)| format!("{address}/{bits}"))
+        .collect();
+    assert!(non_public.iter().any(|network| network == "10.0.0.0/8"));
+    let (tcp, udp) = super::gateway_ports(false, &ports);
+    assert_eq!(
+        super::egress(false, &tcp, &udp),
+        serde_json::json!({"public": false, "tcp": [41001, 41002, 41003], "udp": [41003], "nonPublic": non_public})
+    );
+    let (tcp, udp) = super::gateway_ports(true, &ports);
+    assert_eq!(
+        super::egress(true, &tcp, &udp),
+        serde_json::json!({"public": true, "tcp": [41003], "udp": [41003], "nonPublic": non_public})
+    );
+    // The root TAP stack serves DNS on its own gateway and dials no host port.
+    assert_eq!(
+        super::egress(true, &[], &[]),
+        serde_json::json!({"public": true, "tcp": [], "udp": [], "nonPublic": non_public})
+    );
+}

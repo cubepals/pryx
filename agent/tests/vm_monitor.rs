@@ -252,8 +252,12 @@ async fn actual_packet_proxy_serves_its_inherited_private_socket() {
         fs::DirBuilder::new().mode(0o700).create(path).unwrap();
     }
     let configuration = work.join("network.json");
+    let non_public: Vec<String> = pryx_agent::transfer_target::non_public_ipv4_networks()
+        .map(|(address, bits)| format!("{address}/{bits}"))
+        .collect();
     let valid = serde_json::json!({
-        "parent":std::process::id(),"host":std::net::Ipv4Addr::LOCALHOST.to_string(),"concurrency":2
+        "parent":std::process::id(),"host":std::net::Ipv4Addr::LOCALHOST.to_string(),"concurrency":2,
+        "egress":{"public":true,"tcp":[5353],"udp":[5353],"nonPublic":non_public}
     });
     fs::write(&configuration, serde_json::to_vec(&valid).unwrap()).unwrap();
     fs::set_permissions(&configuration, fs::Permissions::from_mode(0o600)).unwrap();
@@ -333,6 +337,9 @@ async fn actual_packet_proxy_serves_its_inherited_private_socket() {
         ("host", serde_json::json!(std::net::Ipv4Addr::BROADCAST.to_string())),
         ("concurrency", serde_json::json!(0)),
         ("extra", serde_json::json!(true)),
+        // Public egress needs the boundary it must never dial, and a gateway port is never zero.
+        ("egress", serde_json::json!({"public":true,"tcp":[],"udp":[],"nonPublic":[]})),
+        ("egress", serde_json::json!({"public":false,"tcp":[0],"udp":[],"nonPublic":[]})),
     ] {
         let mut invalid = valid.clone();
         invalid[field] = value;

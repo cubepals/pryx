@@ -21,6 +21,10 @@ pub struct Binding {
     host: IpAddr,
     port: u16,
     guest_port: u32,
+    /// The agent's own binding has a connection pool of its own, so workload traffic can't
+    /// exhaust the host's control of the guest.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    reserved: bool,
 }
 impl Binding {
     pub fn service(host: IpAddr, host_port: u16, guest_port: u16) -> Result<Self, RuntimeError> {
@@ -31,7 +35,12 @@ impl Binding {
         if !private || guest_port == 0 {
             return Err(error("VM ingress requires explicit private host addresses and nonzero service ports"));
         }
-        Ok(Self { host, port: host_port, guest_port: pryx_agent::vm_boot::stream_port(guest_port) })
+        Ok(Self { host, port: host_port, guest_port: pryx_agent::vm_boot::stream_port(guest_port), reserved: false })
+    }
+
+    /// The agent's own binding, with its own connection pool.
+    pub fn agent(host: IpAddr, host_port: u16, guest_port: u16) -> Result<Self, RuntimeError> {
+        Ok(Self { reserved: true, ..Self::service(host, host_port, guest_port)? })
     }
 }
 
@@ -112,5 +121,21 @@ impl Forwarder {
             self.child.kill().await?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Binding;
+    use std::net::Ipv4Addr;
+
+    #[test]
+    fn only_the_agent_binding_is_reserved_on_the_wire() {
+        let service = serde_json::to_value(Binding::service(Ipv4Addr::LOCALHOST.into(), 42001, 3000).unwrap()).unwrap();
+        assert_eq!(service, serde_json::json!({"host": "127.0.0.1", "port": 42001, "guestPort": service["guestPort"]}));
+        let agent = serde_json::to_value(Binding::agent(Ipv4Addr::LOCALHOST.into(), 42002, 3000).unwrap()).unwrap();
+        assert_eq!(agent["reserved"], true);
+        assert_eq!(agent["guestPort"], service["guestPort"]);
+        assert!(Binding::agent(Ipv4Addr::UNSPECIFIED.into(), 42003, 3000).is_err());
     }
 }

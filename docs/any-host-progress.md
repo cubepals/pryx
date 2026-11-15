@@ -4873,3 +4873,10 @@ job when publication is authorized. That job has not run in this task.
   an input write, every socket domain and one byte past the bound, with empty capabilities.
   pryxd, launcher and helper clippy, fmt and both structure checks pass; the real tools under
   it run in the existing VM workflow. No job/gate or CI minute.
+
+- Send each packet helper its egress admission (gateway ports, public flag, non-public
+  boundary) once its gateways listen, the root TAP stack public egress without gateway ports,
+  and `reserved` on the agent’s own forwarded binding in launch, maintenance and the root
+  acceptance. Tests pin both admission shapes and the binding wire form; the actual packet
+  helper test adds admission and two refused admissions for the VM workflow. Clippy, fmt and
+  structure pass. No job/gate or CI minute.

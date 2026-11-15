@@ -116,7 +116,7 @@ impl Host<'_> {
         let mut forward = Forwarder::start(
             &self.bundle.root().join("bin/vm-transport"),
             &launch.channel,
-            &[super::super::forward::Binding::service(
+            &[super::super::forward::Binding::agent(
                 endpoint.ip(),
                 endpoint.port(),
                 spec.agent.as_ref().unwrap().agent_port,

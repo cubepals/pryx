@@ -97,7 +97,7 @@ impl VmRuntime {
         let forwarder = Forwarder::start(
             &bundle.root().join("bin/vm-transport"),
             &channel,
-            &[super::super::forward::Binding::service(
+            &[super::super::forward::Binding::agent(
                 Ipv4Addr::LOCALHOST.into(),
                 0,
                 entry.spec.ports[0].container_port,
