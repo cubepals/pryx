@@ -55,6 +55,7 @@ fn private() -> (String, u16, u16) {
     (address, port(), port())
 }
 
+/// Ports below Linux's ephemeral range (32768 and up), so no outgoing connection holds one.
 fn extra(ports: u16) -> String {
     format!(
         "runtime = \"process\"\n[workloads]\nagent_binary = \"{}\"\n[network]\nport_range = [{ports}, {}]\nport_quarantine_seconds = 0\n",
@@ -73,7 +74,9 @@ async fn node(dir: &std::path::Path, ports: u16) -> Arc<Manager> {
     let runtime = pryxd::runtime::configured::create(&config).await.expect("the process tier starts");
     let capability = runtime.kernel_network_policy().expect("the process tier reports kernel network policy");
     assert_eq!(capability.state, pryxd::probe::State::On, "{capability:?}");
-    let manager = Manager::new(config, runtime, store, Arc::new(pryxd::metrics::Metrics::new()), Arc::new(|_, _| true));
+    // A port another program holds is skipped, as serve skips it.
+    let probe = pryxd::ports::bind_probe(vec![Ipv4Addr::LOCALHOST.into()]);
+    let manager = Manager::new(config, runtime, store, Arc::new(pryxd::metrics::Metrics::new()), probe);
     manager.refresh_host_probe().await;
     let report = manager.reconcile(Records::FromDisk).await;
     assert!(report.error.is_none(), "{report:?}");
@@ -98,7 +101,9 @@ async fn start(manager: &Arc<Manager>, name: &str, policy: serde_json::Value) {
         .ensure(id(name), sandbox(policy), Precondition::None, None)
         .await
         .unwrap_or_else(|e| panic!("{name}: {e:?}"));
-    manager.start(id(name), None).await.unwrap_or_else(|e| panic!("starting {name}: {e:?}"));
+    if let Err(problem) = manager.start(id(name), None).await {
+        panic!("starting {name}: {problem:?}\n{}", diagnostics(manager));
+    }
     let view = until(manager, name, "a running supervisor", |view| view.state == WorkloadState::Running).await;
     assert!(view.guarantees[&Guarantee::HostFirewall], "{name}'s programs are attached and verified");
 }
@@ -249,7 +254,7 @@ async fn without_the_capability_the_guarantee_is_off_and_policy_is_refused_by_na
 async fn without_public_internet_a_sandbox_reaches_only_its_allowed_destination() {
     let dir = tempfile::tempdir().unwrap();
     let before = kernel_state();
-    let manager = node(dir.path(), 43100).await;
+    let manager = node(dir.path(), 21100).await;
     let (private, allowed, other) = private();
     let (_service, service) = host_service();
     start(
@@ -284,7 +289,7 @@ async fn without_public_internet_a_sandbox_reaches_only_its_allowed_destination(
 async fn hostname_policy_reaches_only_the_named_host_through_the_gateway() {
     let dir = tempfile::tempdir().unwrap();
     let before = kernel_state();
-    let manager = node(dir.path(), 43200).await;
+    let manager = node(dir.path(), 21200).await;
     start(&manager, "named", serde_json::json!({ "egress": { "allow": ["example.com"], "deny": [] } })).await;
     assert_eq!(curl(&manager, "named", "https://example.com").await, "200");
     for url in ["https://example.org", "http://example.org", "http://1.1.1.1", "https://1.1.1.1"] {
@@ -309,7 +314,7 @@ async fn hostname_policy_reaches_only_the_named_host_through_the_gateway() {
 async fn public_internet_keeps_the_host_metadata_and_other_sandboxes_off() {
     let dir = tempfile::tempdir().unwrap();
     let before = kernel_state();
-    let manager = node(dir.path(), 43300).await;
+    let manager = node(dir.path(), 21300).await;
     let (private, allowed, _) = private();
     let (_service, service) = host_service();
     start(&manager, "public", serde_json::json!({})).await;
@@ -318,7 +323,7 @@ async fn public_internet_keeps_the_host_metadata_and_other_sandboxes_off() {
     assert_eq!(curl(&manager, "public", "https://example.com").await, "200");
     assert_reached(&manager, "public", &private, allowed).await;
     assert_refused(&manager, "public", "169.254.169.254", 80).await;
-    assert_refused(&manager, "public", &private, 43301).await;
+    assert_refused(&manager, "public", &private, 21301).await;
     assert_refused(&manager, "public", "127.0.0.1", service).await;
     assert_refused(&manager, "public", "127.0.0.1", agent_port(&manager, "neighbour")).await;
     if let Ok(address) = std::env::var("PRYX_TEST_HOST_ADDRESS") {
@@ -347,12 +352,12 @@ async fn the_policy_outlives_a_daemon_restart_and_nothing_outlives_the_sandbox()
     let before = kernel_state();
     let (_service, service) = host_service();
     {
-        let manager = node(dir.path(), 43400).await;
+        let manager = node(dir.path(), 21400).await;
         start(&manager, "kept", serde_json::json!({ "egress": { "allow": ["example.com"] } })).await;
         assert_refused(&manager, "kept", "127.0.0.1", service).await;
     }
     // A new daemon over the same state: the supervisor ran on, and its programs with it.
-    let manager = node(dir.path(), 43400).await;
+    let manager = node(dir.path(), 21400).await;
     let view = until(&manager, "kept", "the adopted supervisor", |view| view.state == WorkloadState::Running).await;
     assert!(view.guarantees[&Guarantee::HostFirewall], "adopted programs are verified again");
     assert_refused(&manager, "kept", "127.0.0.1", service).await;
