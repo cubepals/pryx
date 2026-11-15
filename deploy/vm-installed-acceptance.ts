@@ -170,10 +170,14 @@ async function lifecycle(image: (typeof inputs)[number], network: 'internet' | '
     // An ordinary user's tier sleeps with memory once its start test passes; root's worker doesn't.
     if (process.getuid?.() === 0) assert.equal(box.guarantees?.['memory-sleep'], false)
     else
-      await until('installed VM memory sleep after its start test', async () => {
-        await box.refresh()
-        return box.guarantees?.['memory-sleep'] === true
-      })
+      await until(
+        'installed VM memory sleep after its start test',
+        async () => {
+          await box.refresh()
+          return box.guarantees?.['memory-sleep'] === true
+        },
+        2 * MINUTE_MS,
+      )
     const daemon = nodePid()
     const boundary = await box.run([
       '/bin/sh',
