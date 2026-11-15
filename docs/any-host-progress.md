@@ -4588,3 +4588,12 @@ job when publication is authorized. That job has not run in this task.
   preflight with path context and bounded Python fixture traceback capture to distinguish
   startup refusal from fixture failure. Keep all readiness/confinement/lease assertions;
   root placement and public packet/worker integration remain disabled and unfinished.
+
+- Complete the bridge adoption checkpoint verification: full local Rust has 538 passes,
+  the unchanged host IPv6 fixture failure and 44 ignored hardware cases. Correct only
+  needless test borrows/conversion; strict all-target Clippy, minimal-agent build and fmt
+  now pass. Source 5938410 VM run 43655845149 still fails strict shutdown: the retained
+  guest serial log identifies an intercepted ioctl, while the monitor exits with status
+  148 after successful signed guest stop. Preserve the assertion and inspect its request
+  argument before changing the restrictive native policy. The attached queue fixture also
+  remains unresolved. Raw output stays in artifact 14138064146, not this repository.

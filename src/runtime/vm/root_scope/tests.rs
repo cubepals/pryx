@@ -123,11 +123,11 @@ except urllib.error.HTTPError as response:
 
 async fn bridge_adoption(root: &Path, program: &Path, lease: &fs::File, before: &Path) {
     let lease_path = root.join("monitor.lock");
-    rustix::fs::flock(&lease, rustix::fs::FlockOperation::LockExclusive).unwrap();
+    rustix::fs::flock(lease, rustix::fs::FlockOperation::LockExclusive).unwrap();
     let programs = program.parent().unwrap();
     let mut bridge = Scope::start_bridge(
         Paths {
-            program: &program,
+            program,
             plugins: programs,
             boots: root,
             lease: &lease_path,
@@ -148,7 +148,7 @@ async fn bridge_adoption(root: &Path, program: &Path, lease: &fs::File, before: 
     assert_eq!(fs::read_link("/proc/self/ns/net").unwrap(), before);
     let mut stop = Box::pin(bridge.stop());
     assert!(tokio::time::timeout(Duration::from_millis(200), &mut stop).await.is_err());
-    rustix::fs::flock(&lease, rustix::fs::FlockOperation::Unlock).unwrap();
+    rustix::fs::flock(lease, rustix::fs::FlockOperation::Unlock).unwrap();
     tokio::time::timeout(Duration::from_secs(10), &mut stop).await.unwrap().unwrap();
     drop(stop);
     assert!(bridge.packet_queue().is_err());

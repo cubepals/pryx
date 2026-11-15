@@ -67,7 +67,7 @@ time.sleep(30)
         program: String::from_utf8(python.stdout).unwrap().trim().into(),
         arguments: vec![
             "-c".into(),
-            script.into(),
+            script,
             outside.display().to_string(),
             std::process::id().to_string(),
             Ipv4Addr::LOCALHOST.to_string(),
