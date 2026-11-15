@@ -172,13 +172,13 @@ jobs:
           export PRYX_TEST_PROCESS_AGENT="$RUNNER_TEMP/pryx-install/pryx-agent"
           echo "apparmor_restrict_unprivileged_userns=$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null || echo absent)"
           PRYX_TEST_NAMESPACE_PROFILE="$RUNNER_TEMP/pryx-namespaces.apparmor" \
-            cargo test --locked --test process_namespaces -- --ignored --nocapture
+            cargo test --locked --test process_namespaces -- --ignored --nocapture --test-threads 1
           if [ -s "$RUNNER_TEMP/pryx-namespaces.apparmor" ]; then
             cat "$RUNNER_TEMP/pryx-namespaces.apparmor"
             sudo install -m 644 "$RUNNER_TEMP/pryx-namespaces.apparmor" /etc/apparmor.d/pryx-namespaces
             sudo apparmor_parser -r /etc/apparmor.d/pryx-namespaces
           fi
-          PRYX_TEST_NAMESPACES=on cargo test --locked --test process_namespaces -- --ignored --nocapture
+          PRYX_TEST_NAMESPACES=on cargo test --locked --test process_namespaces -- --ignored --nocapture --test-threads 1
           test=$(cargo test --locked --test process_namespaces --no-run --message-format=json \
             | jq -r 'select(.executable != null) | .executable')
           for wait in 2 5 10 20 0; do
@@ -188,7 +188,7 @@ jobs:
           done
           docker run --rm -v "$RUNNER_TEMP/pryx-install:/install:ro" -v "$test:/process-namespaces:ro" \
             -e PRYX_TEST_NAMESPACES=off -e PRYX_TEST_PROCESS_AGENT=/opt/pryx/pryx-agent \
-            mirror.gcr.io/library/ubuntu:24.04 sh -c 'cp -r /install /opt/pryx && exec /process-namespaces --ignored --nocapture'
+            mirror.gcr.io/library/ubuntu:24.04 sh -c 'cp -r /install /opt/pryx && exec /process-namespaces --ignored --nocapture --test-threads 1'
       - name: CLI doctor uses the real host document
         run: |
           bun install --frozen-lockfile

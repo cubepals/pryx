@@ -163,3 +163,50 @@ async fn process_sandboxes_get_namespaces_exactly_where_the_host_proves_them() {
     }
     eprintln!("PROCESS_NAMESPACES mode={}", if namespaced { "namespaced" } else { "plain" });
 }
+
+/// Nearest-rank p50 and p90 of `samples`, in milliseconds.
+fn percentiles(mut samples: Vec<f64>) -> (f64, f64) {
+    samples.sort_by(f64::total_cmp);
+    let rank = |p: f64| samples[((p * samples.len() as f64).ceil() as usize).clamp(1, samples.len()) - 1];
+    (rank(0.5), rank(0.9))
+}
+
+/// K26's process figures for docs/tiers.md, in whichever mode this host gives: thirty samples each
+/// of create to running, an agent exec of `true` and a syscall-heavy command, as `K26_MEASURE`.
+#[tokio::test]
+#[ignore = "needs Landlock, the built agent and the staged helper; CI runs it in both modes"]
+async fn process_figures_in_the_mode_the_host_gives() {
+    if std::env::var_os("PRYX_TEST_NAMESPACE_PROFILE").is_some() {
+        return;
+    }
+    let agent = agent();
+    let dir = tempfile::tempdir().unwrap();
+    let extra =
+        format!("runtime = 'process'\n[workloads]\nagent_binary = '{}'\ndefault_spare_ports = 0\n", agent.display());
+    let config = support::config(dir.path(), &extra);
+    std::fs::create_dir_all(&config.state_dir).unwrap();
+    let process = ProcessRuntime::new(&config.state_dir, config.process.clone()).unwrap();
+    let mode = if process.process_namespaces(&agent).await.is_ok() { "namespaced" } else { "plain" };
+    let m = support::manager_on(dir.path(), Arc::new(process), &extra);
+    assert!(m.reconcile(Records::FromDisk).await.error.is_none());
+    let (mut create, mut exec, mut syscalls) = (Vec::new(), Vec::new(), Vec::new());
+    for sample in 0..30 {
+        let w = format!("m{sample}");
+        let began = std::time::Instant::now();
+        m.ensure(id(&w), sandbox("exec sleep 600", "none"), Precondition::None, None).await.unwrap();
+        m.start(id(&w), None).await.unwrap();
+        create.push(began.elapsed().as_secs_f64() * 1000.0);
+        let began = std::time::Instant::now();
+        let out = m.exec(id(&w), ExecRequest { command: vec!["true".into()], timeout_seconds: 20 }, None, None);
+        assert_eq!(out.await.unwrap().exit_code, Some(0));
+        exec.push(began.elapsed().as_secs_f64() * 1000.0);
+        let began = std::time::Instant::now();
+        run(&m, &w, "dd if=/dev/zero of=/dev/null bs=1 count=200000 2>/dev/null").await;
+        syscalls.push(began.elapsed().as_secs_f64() * 1000.0);
+        m.delete(id(&w), DataDisposition::Delete, Some(w.clone()), None).await.unwrap();
+    }
+    for (metric, samples) in [("create", create), ("exec-true", exec), ("syscall-heavy", syscalls)] {
+        let (p50, p90) = percentiles(samples);
+        eprintln!("K26_MEASURE tier=process mode={mode} metric={metric} n=30 p50={p50:.2} p90={p90:.2}");
+    }
+}
