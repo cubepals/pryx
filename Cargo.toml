@@ -67,7 +67,7 @@ hex = "0.4"
 # The join token is base64url JSON. rcgen's pem already brings this version in; bollard brings 0.22,
 # so the lock holds both whichever this names.
 base64 = "0.23"
-time = { version = "0.3", features = ["formatting", "parsing"] }
+time = { version = "0.3", features = ["formatting", "parsing", "serde-well-known"] }
 uuid = { version = "1", features = ["v4"] }
 # Files replaced whole (durable.rs): a temp file beside each, named at random and made exclusively.
 tempfile = "3"

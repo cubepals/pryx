@@ -137,7 +137,7 @@ pub(crate) struct PortBinding {
     pub(crate) host_port: u16,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum ContainerStatus {
     Created,
     Running,
@@ -150,7 +150,7 @@ pub enum ContainerStatus {
 }
 
 /// A container as the runtime reports it right now.
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct ContainerInfo {
     pub(crate) agent_state: Option<pryx_agent::state::Snapshot>,
     pub(crate) memory_enforced: Option<bool>,
@@ -163,7 +163,9 @@ pub struct ContainerInfo {
     pub(crate) status: ContainerStatus,
     pub(crate) exit_code: i64,
     pub(crate) oom_killed: bool,
+    #[serde(with = "time::serde::rfc3339::option")]
     pub(crate) started_at: Option<OffsetDateTime>,
+    #[serde(with = "time::serde::rfc3339::option")]
     pub(crate) finished_at: Option<OffsetDateTime>,
     pub(crate) restart_count: u32,
     pub(crate) health: Option<Health>,
@@ -180,7 +182,7 @@ impl std::fmt::Debug for ContainerInfo {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct ExecOutput {
     pub(crate) exit_code: Option<i64>,
     pub(crate) stdout: Vec<u8>,
@@ -211,7 +213,7 @@ pub struct LogOptions {
     pub(crate) follow: bool,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct RawStats {
     pub(crate) cpu_total_ns: Option<u64>,
     pub(crate) cpu_throttled_periods: Option<u64>,
@@ -241,7 +243,7 @@ pub struct RuntimeEvent {
     pub(crate) at: OffsetDateTime,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct RuntimeInfo {
     pub(crate) podman: bool,
     pub(crate) podman_version: Option<String>,
@@ -264,14 +266,14 @@ pub struct RuntimeInfo {
     pub(crate) log_driver: Option<String>,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct NetworkReport {
     /// False when the network lets workloads talk to each other; reported, not fixed, since the
     /// network may predate pryxd.
     pub(crate) isolated: bool,
 }
 
-#[derive(Debug, Clone, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error, serde::Serialize, serde::Deserialize)]
 pub enum RuntimeError {
     /// The runtime can't be reached (daemon down, socket missing).
     #[error("container runtime unavailable: {0}")]

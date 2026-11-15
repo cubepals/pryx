@@ -1312,3 +1312,5 @@
 - K25: allow only the three fixed host resolver configurations to follow their protected root-owned configuration symlink into a generated host-service file; require one protected regular target and ancestors owned by root or that target’s service identity. Preserve the general monitor ancestor policy and exact file-only Landlock grants.
 
 - K25: retain one active Rust target directory for incremental backend validation; remove completed native SDK/target/source copies and Go caches immediately after their result, and remove staged Wasm inputs when the current local test cohort finishes, keeping more than 3 GiB free.
+
+- K25: serialize private worker answers with the runtime owner’s actual types and error variants, using the existing pinned time library’s RFC 3339 adapter for optional timestamps; no public node schema changes or duplicate API shapes. Dispatch keeps each admitted unary operation owned across caller disconnect.

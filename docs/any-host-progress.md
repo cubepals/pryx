@@ -4691,3 +4691,18 @@ job when publication is authorized. That job has not run in this task.
   delegation and inherited-queue fixture remain CI-only. No dependency/job/gate or estimated
   CI minute. Remove the staged Wasm test distribution after this local cohort; retain just
   the active Rust target for subsequent backend checks.
+
+- Prepare private typed unary worker dispatch using the runtime owner's actual specifications,
+  views, stats, limits and error variants; no mirrored API shapes. Each admitted operation
+  runs in an owned task across HTTP caller loss. A real process backend supplies its actual
+  missing observation and image refusal over HTTP; installed routers accept VmRuntime only.
+- Initial serialization requires the existing time library's own RFC 3339 serde adapter;
+  enable that feature and its existing deranged/serde_core lock edge without changing a
+  package version. Full Rust: 543 pass, unchanged host IPv6 fixture failure, 44 ignored;
+  strict all-target Clippy, fmt, whitespace and cargo-deny 0.20.2 all pass. The audit tool
+  was already installed outside PATH; use that exact pinned binary. Removed obsolete test
+  executables (2.6 GB) and staged Wasm inputs, leaving 8.5 GiB free.
+- No installed worker service, backend selection or new job/gate yet. Streaming logs/events,
+  file/copy sessions, frontend lifetime authority and installed host policy are unfinished;
+  do not allow a worker to keep writable compute after its owning frontend disappears.
+  New unary transport acceptance adds under one local/normal test second.

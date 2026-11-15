@@ -5,7 +5,7 @@
 //! opt-in permits only a missing controller; it cannot remove a limit an engine can enforce.
 use crate::protocol::{FieldError, Guarantee, Resources};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ResourceLimits {
     pub memory: bool,
     pub cpu: bool,
