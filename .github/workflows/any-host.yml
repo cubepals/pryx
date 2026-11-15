@@ -115,6 +115,12 @@ jobs:
           sudo install -m 644 "$trust/ca.crt" /usr/local/share/ca-certificates/pryx-ci-native-tools.crt
           sudo update-ca-certificates
           cargo test --locked -p pryx-agent --test native_process -- --ignored --nocapture --test-threads=1 2>&1 | tee "$RUNNER_TEMP/native-process-acceptance.log"
+          # K26: the same tools, browser sandbox included, with each agent started in its own
+          # namespaces through the pinned helper, as a namespaced process node starts it.
+          python3 -I deploy/namespace-helper.py "$RUNNER_TEMP/namespace-install"
+          PRYX_TEST_NAMESPACE_HELPER="$RUNNER_TEMP/namespace-install/namespaces/bin/bwrap" \
+            cargo test --locked -p pryx-agent --test native_process -- --ignored --nocapture --test-threads=1 2>&1 \
+            | tee "$RUNNER_TEMP/native-process-namespaced.log"
       - name: Record the real X11 display transport design
         env:
           PRYX_DESKTOP_DESIGN_FIXTURE: ${{ runner.temp }}/desktop-design-fixture
