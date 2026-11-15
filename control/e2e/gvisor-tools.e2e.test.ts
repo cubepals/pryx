@@ -23,19 +23,22 @@ test(
     const c = await agentDeployment('gvisor', { nativeTools: true })
     const results: Record<string, string> = {}
     const boxes: Sandbox[] = []
+    // Each tool runs alone, as its container case does, and its sandbox goes before the next.
     const attempt = async (name: string, work: () => Promise<void>) => {
       try {
         await work()
         results[name] = 'ok'
       } catch (error) {
         results[name] = String(error instanceof Error ? error.message : error).slice(0, 600)
+      } finally {
+        for (const box of boxes.splice(0)) await box.delete().catch(() => {})
       }
     }
-    const from = async (name: string, image: string) => {
+    const from = async (name: string, image: string, units?: number) => {
       const plan = builtinTemplate(name, image)
       if (!plan) throw new Error(`Missing ${name} plan`)
       await c.sdk.template({ ...plan, isolation: 'gvisor' })
-      const box = await c.sdk.sandbox({ template: name, isolation: 'gvisor', units: 4, idle: '10m' })
+      const box = await c.sdk.sandbox({ template: name, isolation: 'gvisor', units, idle: '10m' })
       boxes.push(box)
       await c.route(box.id)
       return box
@@ -62,7 +65,7 @@ test(
           expect((await kernel.run('x + 1')).text).toBe('42')
         })
       await attempt('browser', async () => {
-        const box = await from('browser', 'alpine:pryx-browser')
+        const box = await from('browser', 'alpine:pryx-browser', 4)
         await box.write('index.html', '<!doctype html><title>gvisor browser</title><h1>Rendered</h1>')
         const server = await box.spawn([
           'python3',
@@ -78,7 +81,7 @@ test(
         expect(isPng(await box.browser.screenshot('http://127.0.0.1:3000'))).toBe(true)
       })
       await attempt('desktop', async () => {
-        const box = await from('desktop', 'alpine:pryx-desktop')
+        const box = await from('desktop', 'alpine:pryx-desktop', 2)
         expect(isPng(await box.desktop.screenshot())).toBe(true)
       })
       await attempt('ssh', async () => {
@@ -92,7 +95,8 @@ test(
       expect(Object.keys(results).sort()).toEqual(
         ['browser', 'desktop', 'image', 'node-interpreter', 'python-interpreter', 'ssh'].sort(),
       )
-      expect(results.image).toBe('ok')
+      // Proved on gvisor in CI run 43766414887; the others' results decide their refusals.
+      expect([results.image, results['python-interpreter']]).toEqual(['ok', 'ok'])
     } finally {
       for (const box of boxes) await box.delete().catch(() => {})
       await c.close()
