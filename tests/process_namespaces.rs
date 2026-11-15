@@ -192,7 +192,7 @@ async fn process_figures_in_the_mode_the_host_gives() {
     let mode = if process.process_namespaces(&agent).await.is_ok() { "namespaced" } else { "plain" };
     let m = support::manager_on(dir.path(), Arc::new(process), &extra);
     assert!(m.reconcile(Records::FromDisk).await.error.is_none());
-    let (mut create, mut exec, mut syscalls) = (Vec::new(), Vec::new(), Vec::new());
+    let (mut create, mut exec, mut syscalls, mut stream) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
     for sample in 0..30 {
         let w = format!("m{sample}");
         let began = std::time::Instant::now();
@@ -206,9 +206,15 @@ async fn process_figures_in_the_mode_the_host_gives() {
         let began = std::time::Instant::now();
         run(&m, &w, "dd if=/dev/zero of=/dev/null bs=1 count=200000 2>/dev/null").await;
         syscalls.push(began.elapsed().as_secs_f64() * 1000.0);
+        // One MiB back over the agent's own listener: in network none, the one the node passed in.
+        let began = std::time::Instant::now();
+        assert_eq!(run(&m, &w, "head -c 1048576 /dev/zero").await.len(), 1024 * 1024);
+        stream.push(began.elapsed().as_secs_f64() * 1000.0);
         m.delete(id(&w), DataDisposition::Delete, Some(w.clone()), None).await.unwrap();
     }
-    for (metric, samples) in [("create", create), ("exec-true", exec), ("syscall-heavy", syscalls)] {
+    for (metric, samples) in
+        [("create", create), ("exec-true", exec), ("syscall-heavy", syscalls), ("exec-output-1MiB", stream)]
+    {
         let (p50, p90) = percentiles(samples);
         eprintln!("K26_MEASURE tier=process mode={mode} metric={metric} n=30 p50={p50:.2} p90={p90:.2}");
     }

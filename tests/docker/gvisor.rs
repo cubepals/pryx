@@ -237,6 +237,7 @@ async fn container_and_gvisor_figures() {
             pryxd::examples::HTTP_PORT
         );
         let (mut create, mut exec, mut syscalls, mut transfer) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+        let mut stream = Vec::new();
         for sample in 0..30 {
             let w = format!("m{sample}");
             let began = Instant::now();
@@ -263,6 +264,10 @@ async fn container_and_gvisor_figures() {
                 .unwrap();
             assert_eq!(out.exit_code, Some(0), "{out:?}");
             syscalls.push(began.elapsed().as_secs_f64() * 1000.0);
+            let began = Instant::now();
+            let out = m.exec(id(&w), run("head -c 1048576 /dev/zero"), None, None).await.unwrap();
+            assert_eq!(out.stdout.len(), 1024 * 1024);
+            stream.push(began.elapsed().as_secs_f64() * 1000.0);
             let port = m.view(&id(&w)).unwrap().ports[0].host_port;
             let received = loop {
                 let began = Instant::now();
@@ -283,9 +288,13 @@ async fn container_and_gvisor_figures() {
             transfer.push(received);
             m.delete(id(&w), DataDisposition::Delete, Some(w.clone()), None).await.unwrap();
         }
-        for (metric, samples) in
-            [("create", create), ("exec-true", exec), ("syscall-heavy", syscalls), ("transfer-16MiB", transfer)]
-        {
+        for (metric, samples) in [
+            ("create", create),
+            ("exec-true", exec),
+            ("syscall-heavy", syscalls),
+            ("exec-output-1MiB", stream),
+            ("transfer-16MiB", transfer),
+        ] {
             let (p50, p90) = percentiles(samples);
             eprintln!("K26_MEASURE tier={tier} metric={metric} n=30 p50={p50:.2} p90={p90:.2}");
         }
