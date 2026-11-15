@@ -18,7 +18,7 @@ import {
 } from '../src/up-assets.ts'
 import { configurations } from '../src/up-config.ts'
 import { readEnvironment, writeChanged, writeEnvironment } from '../src/up-files.ts'
-import { hostInstallProblem } from '../src/up-host.ts'
+import { gvisorRuntimes, hostInstallProblem, installGvisor } from '../src/up-host.ts'
 import { defaultAllowedImages } from '../src/up-server.ts'
 import { container, service } from '../src/up-units.ts'
 
@@ -27,6 +27,25 @@ test('unsupported distributions name missing packages before installation', () =
   expect(hostInstallProblem(true, false, 'fedora')).toContain('Missing nftables')
   expect(hostInstallProblem(true, true, 'fedora')).toBeNull()
   expect(hostInstallProblem(false, false, 'debian')).toBeNull()
+})
+
+test('the server preset registers runsc beside existing runtimes and refuses a changed release', async () => {
+  expect(gvisorRuntimes({ runtimes: { crun: { path: '/usr/bin/crun' } } }, '/opt/pryx/gvisor')).toEqual({
+    crun: { path: '/usr/bin/crun' },
+    runsc: { path: '/opt/pryx/gvisor/runsc' },
+  })
+  const dir = mkdtempSync(join(tmpdir(), 'pryx-gvisor-'))
+  const server = Bun.serve({ port: 0, fetch: () => new Response('not the pinned release') })
+  const ran: string[][] = []
+  try {
+    const install = installGvisor(async (args) => void ran.push(args), join(dir, 'gvisor'), `${server.url}x`)
+    await expect(install).rejects.toThrow('does not match its pinned SHA-512')
+    expect(ran).toEqual([])
+    expect(() => statSync(join(dir, 'gvisor'))).toThrow()
+  } finally {
+    server.stop(true)
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 test('check mode reports prerequisites without generating credentials', async () => {
