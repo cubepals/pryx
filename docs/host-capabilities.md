@@ -36,7 +36,7 @@ The view reads the latest node announcement. A resting sandbox with no node repo
 | `memory-limit` | Container engine info reports kernel memory limits and a cgroup driver |
 | `cpu-limit` | Engine info reports CPU quota and weights and a cgroup driver |
 | `private-network` | The container backend's separate network namespace |
-| `host-firewall` | Rootful engine with a readable installed nftables table; refreshed before heartbeats |
+| `host-firewall` | Rootful engine with a readable installed nftables table; refreshed before heartbeats. On the process tier, the `kernel-network-policy` probe (a disposable cgroup, every program loaded by the verifier, attached and removed) and that sandbox's own attached, verified programs ([bpf.md](bpf.md)) |
 | `own-kernel` | False until the virtual-machine tier exists |
 | `memory-sleep` | Process suspension or a rootful container engine with cgroup enforcement; false on Wasm and rootless engines |
 | `browser-sandbox` | Observed browser launch policy plus usable namespaces and the approved container or verified native process policy |
