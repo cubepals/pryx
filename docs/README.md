@@ -4,6 +4,7 @@
 [Operations](operations.md) · [Deployment](deploy.md) · [Architecture](architecture.md) ·
 [API](api.md) · [Agent](agent.md) · [Edge](edge.md) · [Protocol](protocol.md) ·
 [Tiers](tiers.md) · [Process](process-tier.md) · [agentOS](agentos.md) ·
+[Virtual machines](vm.md) ·
 [MCP](mcp.md) · [Providers](providers.md) · [Decisions](decisions.md).
 
 [Any Linux host: research and plan](any-host.md), built by `PLAN-K19.md` to `PLAN-K27.md`.
