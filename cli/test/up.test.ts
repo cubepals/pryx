@@ -19,7 +19,7 @@ import {
 import { configurations } from '../src/up-config.ts'
 import { readEnvironment, writeChanged, writeEnvironment } from '../src/up-files.ts'
 import { hostInstallProblem } from '../src/up-host.ts'
-import { defaultAllowedImages } from '../src/up-server.ts'
+import { defaultAllowedImages, refreshDefaultImages, replaceDefaultImages } from '../src/up-images.ts'
 import { container, service } from '../src/up-units.ts'
 
 test('unsupported distributions name missing packages before installation', () => {
@@ -134,6 +134,45 @@ test('a server install admits the VM bundle images by digest only with its descr
   const pinned = defaultAllowedImages(true).slice(2)
   expect(pinned).toEqual(vmImages.map((image) => image.reference))
   for (const reference of pinned) expect(reference).toMatch(/^[a-z0-9./-]+@sha256:[0-9a-f]{64}$/)
+})
+
+test('a later server run moves only an unchanged default allowlist to the new pins', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'pryx-images-'))
+  try {
+    const previous = ['alpine:', 'node:', `docker.io/library/alpine@sha256:${'1'.repeat(64)}`]
+    const next = defaultAllowedImages(true)
+    const node = (images: string[]) =>
+      `deployment_id = "d"\nruntime = "auto"\n\n[workloads]\nallowed_images = ${JSON.stringify(images)}\n\n[fleet]\nurl = "u"\n`
+    const config = join(dir, 'pryxd.toml')
+    const record = join(dir, 'node-images.json')
+    writeFileSync(record, JSON.stringify({ defaults: previous }))
+    writeFileSync(config, node(previous))
+    expect(refreshDefaultImages(next, config, record)).toBe(true)
+    expect(readFileSync(config, 'utf8')).toBe(node(next))
+    expect(JSON.parse(readFileSync(record, 'utf8'))).toEqual({ defaults: next })
+    expect(refreshDefaultImages(next, config, record)).toBe(false)
+    // Removed, narrowed, replaced or reordered by the operator: the list is theirs.
+    for (const own of [
+      ['alpine:', 'node:'],
+      ['alpine:'],
+      ['alpine:', 'node:', `docker.io/library/alpine@sha256:${'2'.repeat(64)}`],
+      [previous[2] as string, 'alpine:', 'node:'],
+      [],
+    ]) {
+      expect(replaceDefaultImages(node(own), previous, next)).toBeUndefined()
+      writeFileSync(record, JSON.stringify({ defaults: previous }))
+      writeFileSync(config, node(own))
+      expect(refreshDefaultImages(next, config, record)).toBe(false)
+      expect(readFileSync(config, 'utf8')).toBe(node(own))
+    }
+    // No record: an install that named --allow-image, or one older than the record.
+    rmSync(record)
+    writeFileSync(config, node(previous))
+    expect(refreshDefaultImages(next, config, record)).toBe(false)
+    expect(readFileSync(config, 'utf8')).toBe(node(previous))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
 test('units read secrets from protected files and expose storage only on loopback', () => {
   expect(service('control')).toContain('EnvironmentFile=/etc/pryx/control.env')
