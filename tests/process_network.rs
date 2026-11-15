@@ -103,7 +103,10 @@ async fn start(manager: &Arc<Manager>, name: &str, policy: serde_json::Value) {
 
 async fn run(manager: &Arc<Manager>, name: &str, command: &[&str]) -> String {
     let request = ExecRequest { command: command.iter().map(|part| (*part).to_owned()).collect(), timeout_seconds: 40 };
-    let response = manager.exec(id(name), request, None, None).await.unwrap_or_else(|e| panic!("{name}: {e:?}"));
+    let response = match manager.exec(id(name), request, None, None).await {
+        Ok(response) => response,
+        Err(problem) => panic!("{name}: {problem:?}\n{}", diagnostics(manager)),
+    };
     response.stdout.trim().to_owned()
 }
 
@@ -148,8 +151,8 @@ async fn remove(manager: &Arc<Manager>, names: &[&str]) {
     }
 }
 
-/// No sandbox's cgroup is left under this process's own once every sandbox is gone.
-fn no_cgroups_left() {
+/// The sandbox cgroups under this process's own, and the pin directories, that exist now.
+fn kernel_state() -> std::collections::BTreeSet<std::path::PathBuf> {
     let path = std::fs::read_to_string("/proc/self/cgroup").unwrap();
     let path = path.lines().find_map(|line| line.strip_prefix("0::")).unwrap().trim().to_owned();
     let mountinfo = std::fs::read_to_string("/proc/self/mountinfo").unwrap();
@@ -161,13 +164,46 @@ fn no_cgroups_left() {
         })
         .unwrap();
     let own = std::path::Path::new(&mount).join(path.trim_start_matches('/'));
-    let left: Vec<String> = std::fs::read_dir(&own)
-        .unwrap()
+    let pins = std::path::Path::new("/sys/fs/bpf/pryx");
+    [own.as_path(), pins]
+        .into_iter()
+        .filter_map(|directory| std::fs::read_dir(directory).ok())
+        .flatten()
         .filter_map(Result::ok)
-        .map(|entry| entry.file_name().to_string_lossy().into_owned())
-        .filter(|name| name.starts_with("pryx-"))
-        .collect();
-    assert!(left.is_empty(), "cgroups left in {}: {left:?}", own.display());
+        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
+        .map(|entry| entry.path())
+        .filter(|path| {
+            let name = path.file_name().unwrap().to_string_lossy();
+            if path.parent() == Some(pins) {
+                !name.starts_with("probe-")
+            } else {
+                name.starts_with("pryx-") && !name.starts_with("pryx-probe-")
+            }
+        })
+        .collect()
+}
+
+/// Nothing a test's sandboxes made in the kernel outlives them: their cgroups and pins are gone.
+fn nothing_left(before: &std::collections::BTreeSet<std::path::PathBuf>) {
+    let left: Vec<_> = kernel_state().difference(before).cloned().collect();
+    assert!(left.is_empty(), "left behind: {left:?}");
+}
+
+/// The supervisors' own diagnostics, for a command the agent could not run.
+fn diagnostics(manager: &Arc<Manager>) -> String {
+    let root = manager.config.state_dir.join("process-runtime");
+    std::fs::read_dir(&root)
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.path().extension().is_some_and(|extension| extension == "stderr"))
+        .map(|entry| {
+            let text = std::fs::read_to_string(entry.path()).unwrap_or_default();
+            let tail: String = text.chars().rev().take(4000).collect::<Vec<_>>().into_iter().rev().collect();
+            format!("{}:\n{tail}", entry.path().display())
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 #[tokio::test]
@@ -210,6 +246,7 @@ async fn without_the_capability_the_guarantee_is_off_and_policy_is_refused_by_na
 #[ignore = "needs a host that grants kernel network policy"]
 async fn without_public_internet_a_sandbox_reaches_only_its_allowed_destination() {
     let dir = tempfile::tempdir().unwrap();
+    let before = kernel_state();
     let manager = node(dir.path(), 43100).await;
     let (private, allowed, other) = private();
     let (_service, service) = host_service();
@@ -237,13 +274,14 @@ async fn without_public_internet_a_sandbox_reaches_only_its_allowed_destination(
     assert_reached(&manager, "closed", "127.0.0.1", agent_port(&manager, "closed")).await;
     assert_eq!(run(&manager, "closed", &["python3", "-c", OWN_LISTENER]).await, "reached");
     remove(&manager, &["closed", "neighbour"]).await;
-    no_cgroups_left();
+    nothing_left(&before);
 }
 
 #[tokio::test]
 #[ignore = "needs a host that grants kernel network policy"]
 async fn hostname_policy_reaches_only_the_named_host_through_the_gateway() {
     let dir = tempfile::tempdir().unwrap();
+    let before = kernel_state();
     let manager = node(dir.path(), 43200).await;
     start(&manager, "named", serde_json::json!({ "egress": { "allow": ["example.com"], "deny": [] } })).await;
     assert_eq!(curl(&manager, "named", "https://example.com").await, "200");
@@ -261,13 +299,14 @@ async fn hostname_policy_reaches_only_the_named_host_through_the_gateway() {
     );
     assert_refused(&manager, "named", "1.1.1.1", 853).await;
     remove(&manager, &["named"]).await;
-    no_cgroups_left();
+    nothing_left(&before);
 }
 
 #[tokio::test]
 #[ignore = "needs a host that grants kernel network policy"]
 async fn public_internet_keeps_the_host_metadata_and_other_sandboxes_off() {
     let dir = tempfile::tempdir().unwrap();
+    let before = kernel_state();
     let manager = node(dir.path(), 43300).await;
     let (private, allowed, _) = private();
     let (_service, service) = host_service();
@@ -296,13 +335,14 @@ async fn public_internet_keeps_the_host_metadata_and_other_sandboxes_off() {
     let refused = refused.await.unwrap_err();
     assert!(format!("{refused:?}").contains("can't open this host"), "{refused:?}");
     remove(&manager, &["public", "neighbour"]).await;
-    no_cgroups_left();
+    nothing_left(&before);
 }
 
 #[tokio::test]
 #[ignore = "needs a host that grants kernel network policy"]
 async fn the_policy_outlives_a_daemon_restart_and_nothing_outlives_the_sandbox() {
     let dir = tempfile::tempdir().unwrap();
+    let before = kernel_state();
     let (_service, service) = host_service();
     {
         let manager = node(dir.path(), 43400).await;
@@ -321,5 +361,5 @@ async fn the_policy_outlives_a_daemon_restart_and_nothing_outlives_the_sandbox()
         assert!(stats[counted].as_u64().is_some_and(|bytes| bytes > 0), "the programs count traffic: {stats}");
     }
     remove(&manager, &["kept"]).await;
-    no_cgroups_left();
+    nothing_left(&before);
 }
