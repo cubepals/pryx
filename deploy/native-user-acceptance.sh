@@ -50,7 +50,12 @@ else
 fi
 "${PRYX_NATIVE_ACCEPTANCE_BIN:?}"
 if [ "${PRYX_NATIVE_VM:-off}" = on ]; then ./vm-acceptance; fi
-"$cli" down --purge > "$HOME/native-purge.log" 2>&1
-test ! -e "$HOME/.config/pryx"
-test ! -e "$HOME/.local/share/pryx"
+if ! "$cli" down --purge > "$HOME/native-purge.log" 2>&1; then
+  echo 'Native purge failed:' >&2
+  tail -c 4000 "$HOME/native-purge.log" >&2
+  exit 1
+fi
+for left in "$HOME/.config/pryx" "$HOME/.local/share/pryx"; do
+  if [ -e "$left" ]; then echo "Native purge left $left" >&2; exit 1; fi
+done
 echo 'native_installed_acceptance=passed purge=complete'
