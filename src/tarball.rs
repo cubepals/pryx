@@ -19,7 +19,7 @@
 
 use std::cell::Cell;
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, BufReader, Read, Write};
+use std::io::{self, BufReader, Read, Seek, Write};
 use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Component, Path, PathBuf};
 use std::rc::Rc;
@@ -268,7 +268,9 @@ fn unpack_at_most(
                     .mode(0o644)
                     .open(&target)?;
                 // Not io::copy: a read that fails is a damaged archive, but a write that fails is
-                // this disk's trouble, and `room` is asked as the bytes land.
+                // this disk's trouble, and `room` is asked as the bytes land. A read of zeros
+                // lands nothing: it stays a hole, so a sparse disk image keeps its holes.
+                let mut length = 0u64;
                 loop {
                     let n = match entry.read(&mut buffer) {
                         Ok(0) => break,
@@ -276,10 +278,17 @@ fn unpack_at_most(
                         Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
                         Err(e) => return Err(damaged(e)),
                     };
+                    length += n as u64;
+                    if buffer[..n].iter().all(|byte| *byte == 0) {
+                        file.seek(io::SeekFrom::Start(length))?;
+                        continue;
+                    }
                     file.write_all(&buffer[..n])?;
                     written += n as u64;
                     room(written).map_err(UnpackError::NoRoom)?;
                 }
+                // A trailing hole still belongs to the file's length.
+                file.set_len(length)?;
                 // Keep the execute bits (scripts), drop setuid/setgid/sticky and others' write.
                 fs::set_permissions(&target, fs::Permissions::from_mode(mode & 0o755))?;
             }
@@ -381,6 +390,37 @@ mod tests {
 
     fn me() -> (u32, u32) {
         (rustix::process::getuid().as_raw(), rustix::process::getgid().as_raw())
+    }
+
+    #[test]
+    fn a_sparse_disk_image_restores_with_its_holes() {
+        use std::os::unix::fs::MetadataExt;
+        let src = tempfile::tempdir().unwrap();
+        let image = src.path().join("vm.ext4");
+        let mut file = File::create(&image).unwrap();
+        file.write_all(b"superblock").unwrap();
+        file.seek(io::SeekFrom::Start(32 * 1024 * 1024)).unwrap();
+        file.write_all(b"journal").unwrap();
+        // A trailing hole, as a fresh ext4 image ends.
+        file.set_len(64 * 1024 * 1024).unwrap();
+        drop(file);
+        let out = tempfile::tempdir().unwrap();
+        let archive = out.path().join("disk.tar.gz");
+        pack(src.path(), &archive, &[], &mut |_| Ok(())).unwrap();
+        let dest = out.path().join("restored");
+        let mut landed = 0;
+        unpack(&archive, &dest, me(), &mut |bytes| {
+            landed = bytes;
+            Ok(())
+        })
+        .unwrap();
+        let restored = dest.join("vm.ext4");
+        assert_eq!(fs::read(&restored).unwrap(), fs::read(&image).unwrap());
+        let meta = fs::metadata(&restored).unwrap();
+        assert_eq!(meta.len(), 64 * 1024 * 1024);
+        // Holes cost no blocks and no room: only the two written regions land.
+        assert!(meta.blocks() * 512 < 4 * 1024 * 1024, "{} bytes allocated", meta.blocks() * 512);
+        assert!(landed < 4 * 1024 * 1024, "{landed} bytes landed");
     }
 
     #[test]

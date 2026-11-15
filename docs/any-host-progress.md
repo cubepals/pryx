@@ -4890,3 +4890,7 @@ job when publication is authorized. That job has not run in this task.
 - VM disk recovery has its own size-based bound and reserves room for its staged copy
   (floor plus allocated blocks) before copying. A unit test pins both. Clippy, fmt and
   structure pass. No job/gate or CI minute.
+
+- Restores keep holes: a 64 MiB sparse image with two written regions restores byte-identical
+  with under 4 MiB allocated and under 4 MiB counted against the floor (test fails before).
+  All tarball tests, clippy and structure pass. No job/gate or CI minute.
