@@ -4,6 +4,8 @@
 package rootnetwork
 
 const ScopeVersion = 1
+const BridgeAgentFlag = "bridge-agent"
+const BridgePacketFlag = "bridge-packet"
 
 type ScopeRole string
 
@@ -17,13 +19,15 @@ const (
 )
 
 type ScopeMetadata struct {
-	HostFirewall       bool        `json:"hostFirewall"`
-	Descriptors        []ScopeRole `json:"descriptors"`
-	MaxDescriptors     int         `json:"maxDescriptors"`
-	MaxMetadataBytes   int         `json:"maxMetadataBytes"`
-	Version            int         `json:"version"`
-	BridgeHostFirewall bool        `json:"bridgeHostFirewall,omitempty"`
-	BridgeDescriptors  []ScopeRole `json:"bridgeDescriptors,omitempty"`
+	HostFirewall         bool        `json:"hostFirewall"`
+	Descriptors          []ScopeRole `json:"descriptors"`
+	MaxDescriptors       int         `json:"maxDescriptors"`
+	MaxMetadataBytes     int         `json:"maxMetadataBytes"`
+	Version              int         `json:"version"`
+	BridgeHostFirewall   bool        `json:"bridgeHostFirewall,omitempty"`
+	BridgeDescriptors    []ScopeRole `json:"bridgeDescriptors,omitempty"`
+	BridgeAgentArgument  string      `json:"bridgeAgentArgument,omitempty"`
+	BridgePacketArgument string      `json:"bridgePacketArgument,omitempty"`
 }
 
 type ScopeHandoff struct {
@@ -41,7 +45,7 @@ func scopeDescriptors() []ScopeRole {
 }
 
 func ScopeAdvertisement() ScopeMetadata {
-	return ScopeMetadata{HostFirewall: true, Descriptors: scopeDescriptors(), MaxDescriptors: MaxHandoffFiles, MaxMetadataBytes: MaxHandoffBytes, Version: ScopeVersion, BridgeHostFirewall: true, BridgeDescriptors: []ScopeRole{ScopeNamespace, ScopePacketTap}}
+	return ScopeMetadata{HostFirewall: true, Descriptors: scopeDescriptors(), MaxDescriptors: MaxHandoffFiles, MaxMetadataBytes: MaxHandoffBytes, Version: ScopeVersion, BridgeHostFirewall: true, BridgeDescriptors: []ScopeRole{ScopeNamespace, ScopePacketTap}, BridgeAgentArgument: "--" + BridgeAgentFlag, BridgePacketArgument: "--" + BridgePacketFlag}
 }
 
 func (scope *Scope) Grant() ScopeHandoff {

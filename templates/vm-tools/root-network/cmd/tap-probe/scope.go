@@ -54,7 +54,7 @@ func scopeProbe(helper, directory string, uid, gid uint32, agent, packet, packet
 	command := exec.CommandContext(ctx, helper, "--plugins", directory, "--state", work,
 		"--lease", held.Name(), "--uid", fmt.Sprint(uid), "--gid", fmt.Sprint(gid))
 	if agent != "" || packet != "" {
-		command.Args = append(command.Args, "--bridge-agent", agent, "--bridge-packet", packet)
+		command.Args = append(command.Args, "--"+rootnetwork.BridgeAgentFlag, agent, "--"+rootnetwork.BridgePacketFlag, packet)
 	}
 	command.Stdout, command.Stderr = sender, os.Stderr
 	input, err := command.StdinPipe()

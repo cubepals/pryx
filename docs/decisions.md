@@ -1291,3 +1291,5 @@
 - K25: add an advertised ordinary-user packet-TAP launch role, moving the inherited stderr carrier to a separately owned queue before restoring stderr to null; compare the actual kernel TUN device identity and retain stdin lease, Landlock, self-signal and outbound-only socket bounds. Grant only protected host resolver files to that role so the maintained stack can resolve DNS without a host NAT alias.
 
 - K25: GNU pthread signalling reads its own PID before tgkill; add only that read-only identity syscall to each native signal profile, preserving all existing rules, trap defaults and the launcher’s self-TGID bound. Verify maintained Killable kicks and native joins under the exact compiled VMM/API/vCPU profiles during the existing build, without KVM or a new CI gate.
+
+- K25: adopt the public bridge’s separately advertised close-on-exec namespace/queue grant through the existing bounded receiver and EOF/lease reaper; read private argument names from its actual executable, validate namespace/device/profile identity and refuse old metadata without support. Keep root placement disabled until packet flow and the installed worker are proved.

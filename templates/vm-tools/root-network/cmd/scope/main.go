@@ -118,8 +118,8 @@ func main() {
 	lock := flag.String("lease", "", "Private actual monitor lifetime lease")
 	uid := flag.Uint("uid", 0, "Host-selected ordinary monitor UID")
 	gid := flag.Uint("gid", 0, "Host-selected ordinary monitor GID")
-	agent := flag.String("bridge-agent", "", "Fixed protected agent supplying the host IPv4 boundary")
-	packet := flag.String("bridge-packet", "", "Fixed protected maintained packet program")
+	agent := flag.String(rootnetwork.BridgeAgentFlag, "", "Fixed protected agent supplying the host IPv4 boundary")
+	packet := flag.String(rootnetwork.BridgePacketFlag, "", "Fixed protected maintained packet program")
 	flag.Parse()
 	var err error
 	if *metadata {

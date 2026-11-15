@@ -4575,3 +4575,16 @@ job when publication is authorized. That job has not run in this task.
   this ABI check without KVM, adding under one optional build minute and no job/required
   check/test framework. Real fixed guest shutdown and the new bridge/queue hardware proofs
   remain pending; root worker/public placement and full installed cohorts remain unfinished.
+
+- Checkpoint the Rust public-bridge receiver and adopted namespace/queue ownership through
+  the existing EOF/lease reaper. Read newly advertised argument names from the actual scope,
+  validate the granted kernel namespace/TUN device and retain close-on-exec queue copies.
+  The existing bounded Rust adoption case now covers both hostname and public bridge grants.
+- Cargo check and Go tests/build/vet pass for bridge adoption. Full Rust and final Clippy
+  are pending behind the local build lock at this thirty-minute checkpoint; do not count
+  them as passed. Continue checking the running local jobs before extending this step.
+- Source 1c73ba6 bounded root run reaches the new actual queue test, which fails before its
+  expected readiness line (raw artifact 14138846146). Add an owner-provided resolver-policy
+  preflight with path context and bounded Python fixture traceback capture to distinguish
+  startup refusal from fixture failure. Keep all readiness/confinement/lease assertions;
+  root placement and public packet/worker integration remain disabled and unfinished.

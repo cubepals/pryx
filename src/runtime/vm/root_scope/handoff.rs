@@ -15,6 +15,7 @@ use std::{
 #[serde(rename_all = "camelCase")]
 pub(super) enum Role {
     Namespace,
+    PacketTap,
     Http,
     Tls,
     DnsTcp,
@@ -26,6 +27,14 @@ pub(super) enum Role {
 pub(super) struct Advertisement {
     #[serde(default)]
     pub host_firewall: bool,
+    #[serde(default)]
+    pub bridge_host_firewall: bool,
+    #[serde(default)]
+    pub bridge_descriptors: Vec<Role>,
+    #[serde(default)]
+    pub bridge_agent_argument: String,
+    #[serde(default)]
+    pub bridge_packet_argument: String,
     pub descriptors: Vec<Role>,
     pub max_descriptors: usize,
     pub max_metadata_bytes: usize,
@@ -41,6 +50,10 @@ struct Metadata {
     profile: Value,
     tap: String,
     version: u64,
+    #[serde(default)]
+    packet_tap: String,
+    #[serde(default)]
+    ipv4_exclusions: usize,
 }
 
 pub(super) struct Grant {
@@ -53,12 +66,41 @@ pub(super) struct Grant {
     pub tap: String,
 }
 
+pub(super) struct BridgeGrant {
+    pub namespace: OwnedFd,
+    pub packet: OwnedFd,
+    pub profile: Value,
+    pub tap: String,
+    pub packet_tap: String,
+}
+
 pub(super) fn invalid() -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, "Root scope descriptor grant differs from its executable metadata")
 }
 
 impl Advertisement {
+    pub(super) fn bridge(mut self) -> io::Result<Self> {
+        if !self.bridge_host_firewall {
+            return Err(io::Error::new(io::ErrorKind::Unsupported, "Root scope omits its public bridge parser"));
+        }
+        for argument in [&self.bridge_agent_argument, &self.bridge_packet_argument] {
+            if argument.strip_prefix("--").is_none_or(|name| {
+                name.is_empty() || !name.bytes().all(|byte| byte.is_ascii_lowercase() || byte == b'-')
+            }) {
+                return Err(invalid());
+            }
+        }
+        if self.bridge_agent_argument == self.bridge_packet_argument {
+            return Err(invalid());
+        }
+        self.descriptors = std::mem::take(&mut self.bridge_descriptors);
+        self.validate_roles(&[Role::Namespace, Role::PacketTap])?;
+        Ok(self)
+    }
     pub(super) fn validate(&self) -> io::Result<()> {
+        self.validate_roles(&[Role::Namespace, Role::Http, Role::Tls, Role::DnsTcp, Role::DnsUdp])
+    }
+    fn validate_roles(&self, expected: &[Role]) -> io::Result<()> {
         if !self.host_firewall {
             return Err(io::Error::new(
                 io::ErrorKind::Unsupported,
@@ -77,7 +119,7 @@ impl Advertisement {
         }
         let mut roles = self.descriptors.clone();
         roles.sort();
-        if roles != [Role::Namespace, Role::Http, Role::Tls, Role::DnsTcp, Role::DnsUdp] {
+        if roles != expected {
             return Err(invalid());
         }
         Ok(())
@@ -85,6 +127,37 @@ impl Advertisement {
 }
 
 pub(super) fn receive(socket: impl AsFd, advertisement: &Advertisement) -> io::Result<Grant> {
+    let (metadata, mut files) = receive_files(socket, advertisement)?;
+    Ok(Grant {
+        namespace: files.remove(&Role::Namespace).ok_or_else(invalid)?,
+        http: files.remove(&Role::Http).ok_or_else(invalid)?,
+        tls: files.remove(&Role::Tls).ok_or_else(invalid)?,
+        dns_tcp: files.remove(&Role::DnsTcp).ok_or_else(invalid)?,
+        dns_udp: files.remove(&Role::DnsUdp).ok_or_else(invalid)?,
+        profile: metadata.profile,
+        tap: metadata.tap,
+    })
+}
+
+pub(super) fn receive_bridge(socket: impl AsFd, advertisement: &Advertisement) -> io::Result<BridgeGrant> {
+    let (metadata, mut files) = receive_files(socket, advertisement)?;
+    if metadata.ipv4_exclusions == 0
+        || metadata.packet_tap.is_empty()
+        || metadata.packet_tap.len() >= libc::IF_NAMESIZE
+        || metadata.packet_tap.contains('/')
+    {
+        return Err(invalid());
+    }
+    Ok(BridgeGrant {
+        namespace: files.remove(&Role::Namespace).ok_or_else(invalid)?,
+        packet: files.remove(&Role::PacketTap).ok_or_else(invalid)?,
+        profile: metadata.profile,
+        tap: metadata.tap,
+        packet_tap: metadata.packet_tap,
+    })
+}
+
+fn receive_files(socket: impl AsFd, advertisement: &Advertisement) -> io::Result<(Metadata, BTreeMap<Role, OwnedFd>)> {
     let mut payload = vec![0; advertisement.max_metadata_bytes];
     let mut space = vec![MaybeUninit::uninit(); rustix::cmsg_space!(ScmRights(advertisement.max_descriptors))];
     let mut control = RecvAncillaryBuffer::new(&mut space);
@@ -111,14 +184,6 @@ pub(super) fn receive(socket: impl AsFd, advertisement: &Advertisement) -> io::R
     if files.len() != metadata.descriptors.len() {
         return Err(invalid());
     }
-    let mut files: BTreeMap<_, _> = metadata.descriptors.into_iter().zip(files).collect();
-    Ok(Grant {
-        namespace: files.remove(&Role::Namespace).ok_or_else(invalid)?,
-        http: files.remove(&Role::Http).ok_or_else(invalid)?,
-        tls: files.remove(&Role::Tls).ok_or_else(invalid)?,
-        dns_tcp: files.remove(&Role::DnsTcp).ok_or_else(invalid)?,
-        dns_udp: files.remove(&Role::DnsUdp).ok_or_else(invalid)?,
-        profile: metadata.profile,
-        tap: metadata.tap,
-    })
+    let files = metadata.descriptors.iter().copied().zip(files).collect();
+    Ok((metadata, files))
 }

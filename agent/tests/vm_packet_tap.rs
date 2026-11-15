@@ -15,7 +15,7 @@ use std::{
     process::Stdio,
 };
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt},
+    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt},
     process::Command,
 };
 
@@ -59,6 +59,10 @@ with open('owned','w') as output: output.write('allowed')
 print(sys.argv[6],flush=True)
 time.sleep(30)
 "#;
+    let script = script.lines().map(|line| format!("    {line}")).collect::<Vec<_>>().join("\n");
+    let script = format!(
+        "import sys,traceback\ntry:\n{script}\nexcept BaseException:\n    traceback.print_exc(file=sys.stdout)\n    raise\n"
+    );
     Plan {
         program: String::from_utf8(python.stdout).unwrap().trim().into(),
         arguments: vec![
@@ -94,6 +98,8 @@ async fn attached_queue_inherits_host_confinement_and_lease() {
     assert!(metadata.status.success());
     let capabilities: Capabilities = serde_json::from_slice(&metadata.stdout).unwrap();
     assert!(capabilities.vm_packet_tap, "The actual agent must advertise the new launch role");
+    pryx_agent::vm_monitor::packet_resolver_files()
+        .expect("actual host resolver inputs must satisfy the launcher policy");
     let root = tempfile::tempdir().unwrap();
     let listener = tokio::net::TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0))).await.unwrap();
     let plan = packet_plan(root.path(), listener.local_addr().unwrap().port());
@@ -114,7 +120,19 @@ async fn attached_queue_inherits_host_confinement_and_lease() {
     let mut output = tokio::io::BufReader::new(output);
     let mut line = String::new();
     tokio::time::timeout(std::time::Duration::from_secs(5), output.read_line(&mut line)).await.unwrap().unwrap();
-    assert_eq!(line.trim(), READY);
+    if line.trim() != READY {
+        let mut remaining = Vec::new();
+        let _ = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            output.take(pryx_agent::contract::MAX_REQUEST_BYTES as u64).read_to_end(&mut remaining),
+        )
+        .await;
+        panic!(
+            "Packet fixture refused readiness: {line}{}; status {:?}",
+            String::from_utf8_lossy(&remaining),
+            child.try_wait().unwrap()
+        );
+    }
     tokio::time::timeout(std::time::Duration::from_secs(5), listener.accept()).await.unwrap().unwrap();
     assert_eq!(fs::read_to_string(plan.directory.join("owned")).unwrap(), "allowed");
     let lease = fs::OpenOptions::new().read(true).write(true).open(&plan.lock).unwrap();

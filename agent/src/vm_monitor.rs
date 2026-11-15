@@ -35,6 +35,12 @@ pub const MODE: &str = "vm-monitor";
 // number validates a passed queue; no copied major/minor value is used.
 pub const TUN_DEVICE: &str = "/dev/net/tun";
 pub const VERSION: u16 = 1;
+
+/// Fixed protected host resolver inputs for the ordinary attached-packet launcher.
+/// Host callers can check this policy before creating or transferring a queue.
+pub fn packet_resolver_files() -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
+    packet::resolver_files()
+}
 const MAX_PLAN_BYTES: u64 = 128 * 1024;
 
 #[derive(Deserialize, Serialize)]

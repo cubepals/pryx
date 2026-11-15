@@ -42,7 +42,7 @@ pub(super) fn resolver_files() -> Result<Vec<PathBuf>, Box<dyn std::error::Error
     for configured in RESOLVER_FILES {
         match fs::canonicalize(configured) {
             Ok(path) => {
-                super::regular(&path)?;
+                super::regular(&path).map_err(|reason| format!("Host resolver configuration {path:?}: {reason}"))?;
                 files.push(path);
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}

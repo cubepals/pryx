@@ -28,6 +28,10 @@ fn rejected_rights_close_every_delivered_file() {
     let before = count();
     let metadata = Advertisement {
         host_firewall: false,
+        bridge_host_firewall: false,
+        bridge_descriptors: Vec::new(),
+        bridge_agent_argument: String::new(),
+        bridge_packet_argument: String::new(),
         descriptors: vec![handoff::Role::Namespace],
         max_descriptors: 1,
         max_metadata_bytes: 64,
@@ -113,5 +117,41 @@ except urllib.error.HTTPError as response:
     tokio::time::timeout(Duration::from_secs(10), &mut stop).await.unwrap().unwrap();
     drop(stop);
     assert!(scope.namespace().is_err());
+    assert_eq!(fs::read_link("/proc/self/ns/net").unwrap(), before);
+    bridge_adoption(root.path(), &program, &lease, &before).await;
+}
+
+async fn bridge_adoption(root: &Path, program: &Path, lease: &fs::File, before: &Path) {
+    let lease_path = root.join("monitor.lock");
+    rustix::fs::flock(&lease, rustix::fs::FlockOperation::LockExclusive).unwrap();
+    let programs = program.parent().unwrap();
+    let mut bridge = Scope::start_bridge(
+        Paths {
+            program: &program,
+            plugins: programs,
+            boots: root,
+            lease: &lease_path,
+            owner: (
+                std::env::var("PRYX_VM_ROOT_TEST_UID").unwrap().parse().unwrap(),
+                std::env::var("PRYX_VM_ROOT_TEST_GID").unwrap().parse().unwrap(),
+            ),
+        },
+        BridgePrograms { agent: &programs.join("bridge-agent"), packet: &programs.join("bridge-packet") },
+        Instant::now() + Duration::from_secs(30),
+    )
+    .await
+    .unwrap();
+    assert_ne!(fs::read_link(bridge.namespace().unwrap()).unwrap(), before);
+    let queue = bridge.packet_queue().unwrap();
+    assert_eq!(rustix::io::fcntl_getfd(&queue).unwrap(), rustix::io::FdFlags::CLOEXEC);
+    assert!(!bridge.packet_tap().is_empty());
+    assert_eq!(fs::read_link("/proc/self/ns/net").unwrap(), before);
+    let mut stop = Box::pin(bridge.stop());
+    assert!(tokio::time::timeout(Duration::from_millis(200), &mut stop).await.is_err());
+    rustix::fs::flock(&lease, rustix::fs::FlockOperation::Unlock).unwrap();
+    tokio::time::timeout(Duration::from_secs(10), &mut stop).await.unwrap().unwrap();
+    drop(stop);
+    assert!(bridge.packet_queue().is_err());
+    assert!(bridge.namespace().is_err());
     assert_eq!(fs::read_link("/proc/self/ns/net").unwrap(), before);
 }
