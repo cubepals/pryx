@@ -284,7 +284,6 @@ The [progress record](any-host-progress.md) holds every commit and run. In brief
   validated guest report, is a minimal fixture, not a sandbox create.
 
 Not yet proven: the thirty-sample measurements ([pending](tiers.md#vm-tier-measurements); a
-start right after a stop failed twice in about sixty samples before starts stopped reaching the
-registry), a move between two VM nodes, and root as a served tier through an installed node
+start right after a stop failed twice in about sixty samples, cause not yet known), a move between two VM nodes, and root as a served tier through an installed node
 (the worker service exists; the server preset installs a VM descriptor only when a release lists
 one, and no root installed acceptance runs yet).
