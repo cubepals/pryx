@@ -165,13 +165,7 @@ async fn lifecycle(node: &Node, index: usize, image: &str) {
     assert_eq!(result["exitCode"], 0);
     assert_eq!(result["stdout"], "api-vm");
     node.content(&path, b"retained").await;
-    // A suspend keeps the guest's memory, here a file on its tmpfs, and a start resumes it.
-    assert_eq!(node.exec(&path, &["/bin/sh", "-c", "printf kept > /tmp/marker"]).await["exitCode"], 0);
-    let suspended = node.call("POST", &format!("{path}/suspend"), None, StatusCode::OK).await;
-    assert_eq!(suspended["workload"]["state"], "suspended");
-    let woken = node.call("POST", &format!("{path}/start"), None, StatusCode::OK).await;
-    assert_eq!(woken["resumed"], true, "{woken}");
-    assert_eq!(node.exec(&path, &["/bin/cat", "/tmp/marker"]).await["stdout"], "kept");
+    memory_sleep(node, &path).await;
     node.call("POST", &format!("{path}/stop"), Some(json!({})), StatusCode::OK).await;
     node.content(&path, b"retained").await;
     snapshot_restore(node, &path).await;
@@ -194,6 +188,16 @@ async fn lifecycle(node: &Node, index: usize, image: &str) {
     .unwrap();
     assert_eq!(deleted.status, StatusCode::OK, "{}", String::from_utf8_lossy(&deleted.body));
     node.call("GET", &path, None, StatusCode::NOT_FOUND).await;
+}
+
+/// A suspend keeps the guest's memory, here a file on its tmpfs, and a start resumes it.
+async fn memory_sleep(node: &Node, path: &str) {
+    assert_eq!(node.exec(path, &["/bin/sh", "-c", "printf kept > /tmp/marker"]).await["exitCode"], 0);
+    let suspended = node.call("POST", &format!("{path}/suspend"), None, StatusCode::OK).await;
+    assert_eq!(suspended["workload"]["state"], "suspended");
+    let woken = node.call("POST", &format!("{path}/start"), None, StatusCode::OK).await;
+    assert_eq!(woken["resumed"], true, "{woken}");
+    assert_eq!(node.exec(path, &["/bin/cat", "/tmp/marker"]).await["stdout"], "kept");
 }
 
 async fn snapshot_restore(node: &Node, path: &str) {
