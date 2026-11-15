@@ -58,9 +58,6 @@ pub(crate) enum CounterIndex {
     RefusedIngress = 4,
 }
 
-/// `PRYX_COUNTERS`.
-pub(crate) const COUNTER_SLOTS: u32 = 5;
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Ports {
     pub(crate) low: u16,
@@ -130,6 +127,9 @@ pub(crate) fn gateway_socket() -> [u8; SOCKET_BYTES] {
 mod tests {
     use super::*;
     use aya_obj::{Object, maps::Map};
+
+    /// `PRYX_COUNTERS`: one slot per `CounterIndex`.
+    const COUNTER_SLOTS: u32 = CounterIndex::RefusedIngress as u32 + 1;
 
     fn sizes(map: &Map) -> (u32, u32, u32) {
         (map.key_size(), map.value_size(), map.max_entries())
