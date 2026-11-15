@@ -716,6 +716,35 @@ jobs:
         if: always()
         run: |
           if [ -f "$RUNNER_TEMP/store-lease-measurements.json" ]; then cat "$RUNNER_TEMP/store-lease-measurements.json" >> "$GITHUB_STEP_SUMMARY"; fi
+      # K26: the native tool and interpreter templates on the gvisor tier, with runsc at
+      # deploy/gvisor.json's pin registered with this runner's Docker. Last: registering restarts it.
+      - name: Register gVisor's runsc for the tool templates
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        id: gvisor-host
+        run: |
+          sudo deploy/gvisor.sh
+          docker start pryx-s3
+          for id in $(docker ps -aq --filter ancestor=mirror.gcr.io/library/postgres:17-alpine); do
+            docker start "$id"
+            for attempt in $(seq 1 30); do
+              docker exec "$id" pg_isready -U pryx && break
+              [ "$attempt" = 30 ] && exit 1
+              sleep 1
+            done
+          done
+      - name: Native tool and interpreter templates on the gvisor tier
+        if: ${{ !cancelled() && steps.gvisor-host.outcome == 'success' }}
+        env:
+          PRYX_TEST_GVISOR: '1'
+          PRYX_GVISOR_TOOLS: ${{ runner.temp }}/gvisor-tools.json
+          PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
+          PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
+          PRYX_NATIVE_TOOLS_SECCOMP: /usr/local/lib/pryx/native-tools-seccomp.json
+        run: bun test control/e2e/gvisor-tools.e2e.test.ts
+      - name: gVisor tool template results
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/gvisor-tools.json" ]; then cat "$RUNNER_TEMP/gvisor-tools.json"; cat "$RUNNER_TEMP/gvisor-tools.json" >> "$GITHUB_STEP_SUMMARY"; fi
 
   one-box:
     name: One box and Action
