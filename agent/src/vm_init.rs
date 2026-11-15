@@ -306,13 +306,15 @@ async fn held_ended(held: &mut Option<crate::vm_sleep::Held>) {
 }
 
 /// The resume hook, after a restore: the wall clock and entropy from the host's signed resume,
-/// then a new network helper, since the restore reset the old one's packet transport.
+/// acknowledged once applied, then a new network helper, since the restore reset the old one's
+/// packet transport.
 async fn awake(
-    resume: &crate::vm_sleep::Resume,
+    resumed: crate::vm_sleep::Resumed,
     configuration: Option<&vm_boot::Network>,
     network: &mut Option<tokio::process::Child>,
 ) -> io::Result<()> {
-    crate::vm_sleep::apply(resume)?;
+    crate::vm_sleep::apply(&resumed.resume)?;
+    resumed.acknowledge().await;
     if configuration.is_some() {
         crate::vm_network::stop(network.take()).await?;
         *network = crate::vm_network::start(configuration).await?;
@@ -391,8 +393,8 @@ async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Err
         }
         () = held_ended(&mut held) => {
             held = None;
-            if let Some(resume) = crate::vm_sleep::resumed(&identity).await {
-                awake(&resume, boot.network.as_ref(), &mut network).await?;
+            if let Some(resumed) = crate::vm_sleep::resumed(&identity).await {
+                awake(resumed, boot.network.as_ref(), &mut network).await?;
                 drop(sleep);
                 sleep = crate::vm_sleep::Listener::bind(boot.cid)?;
             }

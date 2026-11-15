@@ -183,20 +183,29 @@ async fn read_line(socket: &mut (impl AsyncRead + Unpin)) -> io::Result<Option<V
     Ok((bytes.len() as u64 <= MAX_BYTES && bytes.last() == Some(&b'\n')).then_some(bytes))
 }
 
+/// A verified resume, whose acknowledgement init sends once it has applied it.
+pub(crate) struct Resumed {
+    pub(crate) resume: Resume,
+    socket: VsockStream,
+}
+
+impl Resumed {
+    pub(crate) async fn acknowledge(mut self) {
+        let _ = self.socket.write_all(b"true\n").await;
+        let _ = AsyncWriteExt::shutdown(&mut self.socket).await;
+    }
+}
+
 /// After the held connection ended: the host's signed resume, or none when the host has none to
 /// give (it gave up before snapshotting, and the guest never left this host's memory).
-pub(crate) async fn resumed(boot: &Boot<'_>) -> Option<Resume> {
+pub(crate) async fn resumed(boot: &Boot<'_>) -> Option<Resumed> {
     let exchange = async {
         let mut socket = VsockStream::connect(VsockAddr::new(VMADDR_CID_HOST, RESUME_PORT)).await?;
         let resume = read_line(&mut socket)
             .await?
             .and_then(|bytes| serde_json::from_slice::<Resume>(&bytes).ok())
             .filter(|resume| verify_resume(resume, boot.public_key, boot.nonce, boot.sandbox, boot.epoch));
-        if resume.is_some() {
-            let _ = socket.write_all(b"true\n").await;
-            let _ = AsyncWriteExt::shutdown(&mut socket).await;
-        }
-        Ok::<_, io::Error>(resume)
+        Ok::<_, io::Error>(resume.map(|resume| Resumed { resume, socket }))
     };
     tokio::time::timeout(RESUME_WAIT, exchange).await.ok().and_then(Result::ok).flatten()
 }
