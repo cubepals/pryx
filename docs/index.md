@@ -32,8 +32,8 @@ process tier without a nested engine when their kernel enforces its policy.
 [A machine of your own](host/own-machine.md)
 
 Render builds the source. The other links prepare the existing platform files; no catalog
-publication is implied. Keep the persistent volume. Read the reported tier before requesting
-images, browsers, desktops or virtual machines.
+publication is implied. Keep the persistent volume and read the [current tier limits](tiers.md)
+before choosing a workload.
 
 ## One API, several ways in
 
