@@ -5,6 +5,8 @@ on:
   # A new workflow cannot be dispatched until main has it; branch pushes prove it now.
   push:
     branches: [any-host]
+    # A push that changes only documentation proves nothing new here; normal CI still runs.
+    paths-ignore: ['docs/**', '**.md']
   pull_request:
     paths:
       - 'src/**'

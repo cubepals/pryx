@@ -7,6 +7,8 @@ on:
   # A new workflow cannot be dispatched before main has it; branch pushes prove each step.
   push:
     branches: [any-host]
+    # A push that changes only documentation proves nothing new here; normal CI still runs.
+    paths-ignore: ['docs/**', '**.md']
   # A pull request that changes VM code runs the KVM acceptance too; any other starts no run.
   pull_request:
     paths:
