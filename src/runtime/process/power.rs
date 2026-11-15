@@ -31,6 +31,18 @@ fn temporary_directory(spec: &ContainerSpec, owner: (u32, u32)) -> Result<PathBu
 }
 
 impl ProcessRuntime {
+    /// Traverse-only ancestors permit the selected UID to reach its data; private journal,
+    /// credentials and workload records retain their own 0700/0600 permissions.
+    pub(super) fn traversable(&self, data_dir: &std::path::Path) -> Result<(), RuntimeError> {
+        use std::os::unix::fs::PermissionsExt;
+        for parent in data_dir.ancestors().skip(1) {
+            fs::set_permissions(parent, fs::Permissions::from_mode(0o711)).map_err(error)?;
+            if Some(parent) == self.state.root.parent() {
+                break;
+            }
+        }
+        Ok(())
+    }
     /// Detaches a sandbox's kernel network policy once its processes are gone.
     pub(super) fn release_network(&self, name: &str) -> Result<(), RuntimeError> {
         self.network.as_ref().map_or(Ok(()), |network| network.release(name))
@@ -70,15 +82,7 @@ impl ProcessRuntime {
         let spec = &entry.spec;
         let agent = spec.agent.as_ref().ok_or_else(|| error("Missing process supervisor"))?;
         let owner = self.owner(&agent.sandbox)?;
-        // Traverse-only ancestors permit the selected UID to reach its data; private journal,
-        // credentials and workload records retain their own 0700/0600 permissions.
-        use std::os::unix::fs::PermissionsExt;
-        for parent in spec.data_dir.ancestors().skip(1) {
-            fs::set_permissions(parent, fs::Permissions::from_mode(0o711)).map_err(error)?;
-            if Some(parent) == self.state.root.parent() {
-                break;
-            }
-        }
+        self.traversable(&spec.data_dir)?;
         let binding = |logical| {
             spec.ports
                 .iter()

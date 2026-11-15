@@ -67,11 +67,13 @@ async fn node(dir: &std::path::Path, ports: u16) -> Arc<Manager> {
     // As root each sandbox has a user of its own, which must pass through to its data.
     use std::os::unix::fs::PermissionsExt;
     std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o711)).unwrap();
-    let extra = extra(ports);
-    let runtime = pryxd::runtime::configured::create(&config(dir, &extra)).await.expect("the process tier starts");
+    let config = Arc::new(config(dir, &extra(ports)));
+    // In the order `pryxd serve` takes them: the store, then the runtime over it.
+    let store = pryxd::store::Store::open(&config.state_dir).unwrap();
+    let runtime = pryxd::runtime::configured::create(&config).await.expect("the process tier starts");
     let capability = runtime.kernel_network_policy().expect("the process tier reports kernel network policy");
     assert_eq!(capability.state, pryxd::probe::State::On, "{capability:?}");
-    let manager = manager_on(dir, runtime, &extra);
+    let manager = Manager::new(config, runtime, store, Arc::new(pryxd::metrics::Metrics::new()), Arc::new(|_, _| true));
     manager.refresh_host_probe().await;
     let report = manager.reconcile(Records::FromDisk).await;
     assert!(report.error.is_none(), "{report:?}");

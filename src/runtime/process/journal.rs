@@ -67,7 +67,18 @@ impl ProcessRuntime {
             return Err(error("Unsafe process runtime directory"));
         }
         initialize_scope_history(&root, existed)?;
-        Self::read_entries(root, policy)
+        let runtime = Self::read_entries(root, policy)?;
+        // The store tightens the state directory as the daemon starts; a supervisor that outlived
+        // the last daemon still needs to reach its data, as its launch made it able to.
+        for name in runtime.names() {
+            if let Ok(entry) = runtime.entry(&name)
+                && super::observe::matching_pid(entry.pid, entry.ticks).is_some()
+                && runtime.state.root.parent().is_some_and(|state| entry.spec.data_dir.starts_with(state))
+            {
+                runtime.traversable(&entry.spec.data_dir)?;
+            }
+        }
+        Ok(runtime)
     }
 
     /// Observe an existing journal without initializing directories or changing scope history.
