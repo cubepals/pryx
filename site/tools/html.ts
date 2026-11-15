@@ -2,9 +2,13 @@
 /** Inspect generator HTML with parse5. Source links resolve against canonical files;
  * generated navigation resolves against the configured site base. No remote crawler. */
 import { execFileSync } from 'node:child_process'
-import { existsSync, lstatSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 import { parse, serialize, type DefaultTreeAdapterTypes as Tree } from 'parse5'
+import { files } from './artifact.ts'
+
+export { files } from './artifact.ts'
+
 import { address, base, routePath } from './settings.ts'
 import { root } from './sources.ts'
 
@@ -21,16 +25,7 @@ export function setAttr(node: Tree.Element, name: string, value: string) {
   if (item) item.value = value
   else node.attrs.push({ name, value })
 }
-export function files(directory: string, prefix = ''): string[] {
-  return readdirSync(join(directory, prefix))
-    .sort()
-    .flatMap((name) => {
-      const file = join(prefix, name)
-      const stat = lstatSync(join(directory, file))
-      if (stat.isSymbolicLink()) throw new Error(`Static artifact contains symlink: ${file}`)
-      return stat.isDirectory() ? files(directory, file) : [file]
-    })
-}
+
 function repositoryTarget(file: string) {
   let at = root
   for (const part of file.split('/')) {
