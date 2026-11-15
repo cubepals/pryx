@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
-//! Cold-boot VM lifecycle behind the existing runtime seam, selected by verified host
-//! prerequisites. Root service integration stays unavailable. Host-owned pins, one lifetime
-//! lease per sandbox and owned children prevent a second writable guest.
+//! VM lifecycle behind the existing runtime seam, selected by verified host prerequisites: cold
+//! boots, and for an ordinary user memory sleep on a host of the same class. Host-owned pins,
+//! one lifetime lease per sandbox and owned children prevent a second writable guest.
 //!
 //! Parts (`instance/`):
 //! - `configuration.rs`: generated SDK monitor configuration and drive identities.
@@ -10,6 +10,8 @@
 //! - `journal.rs`: private durable specifications and conservative restart adoption.
 //! - `services.rs`: host-owned active and retained-disk file sessions.
 //! - `maintenance.rs`: leased file-only guests for stopped disks.
+//! - `memory.rs`: memory sleep and its restore on a host of the same class, and its start test.
+//! - `memory_acceptance.rs`: real KVM sleep and wake with a running process, and its fallbacks.
 //! - `agent.rs`: authenticated agent calls and one-shot compatibility exec.
 //! - `monitor.rs`: host-selected ordinary/jailer launch paths and retired-disk recovery.
 //! - `network.rs`: host-selected ordinary packet or leased root TAP connections.
@@ -30,6 +32,9 @@ mod journal;
 mod launch;
 mod logs;
 mod maintenance;
+mod memory;
+#[cfg(test)]
+mod memory_acceptance;
 mod monitor;
 mod network;
 #[cfg(test)]
@@ -97,6 +102,8 @@ struct State {
     live: Mutex<HashMap<String, Arc<tokio::sync::Mutex<Live>>>>,
     /// Images this runtime prepared, by manifest digest, with their layer files' identities.
     prepared: Mutex<HashMap<String, (Prepared, Vec<launch::Identity>)>>,
+    /// The memory-sleep restore test's outcome, once it has run.
+    memory_sleep: Mutex<Option<Result<(), String>>>,
 }
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct Entry {
@@ -115,6 +122,9 @@ struct Entry {
     /// The disk as the last signed clean shutdown left it; a start of that same file needs no check.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     clean_disk: Option<super::disk::Stamp>,
+    /// Set while the guest sleeps with its memory; its files are in this runtime's private state.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    memory: Option<memory::Image>,
 }
 // The runtime seam requires a numeric exit value even without a signed guest observation.
 const UNKNOWN_EXIT_CODE: i64 = -1;
@@ -158,6 +168,7 @@ pub(super) fn directory(path: &Path) -> Result<(), RuntimeError> {
     }
     Ok(())
 }
+#[cfg(test)]
 fn boot_directory(root: &Path) -> Result<tempfile::TempDir, RuntimeError> {
     use std::os::unix::fs::PermissionsExt;
     tempfile::Builder::new()
@@ -204,7 +215,7 @@ impl VmRuntime {
         let root = state.join("vm-runtime");
         directory(&root)?;
         let owner = lock(&root.join("owner.lock"))?;
-        for name in ["leases", "boots", "cache", "downloads", "images", "entries", "jails"] {
+        for name in ["leases", "boots", "cache", "downloads", "images", "entries", "jails", "memory"] {
             directory(&root.join(name))?;
         }
         // A predecessor's owned monitor must actually exit before any disk is opened.
@@ -240,6 +251,7 @@ impl VmRuntime {
                 transitions: Mutex::new(HashMap::new()),
                 live: Mutex::new(HashMap::new()),
                 prepared: Mutex::new(HashMap::new()),
+                memory_sleep: Mutex::new(None),
             }),
         })
     }

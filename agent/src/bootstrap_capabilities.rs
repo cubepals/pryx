@@ -79,6 +79,9 @@ pub struct Capabilities {
     pub vm_network_policy_version: u16,
     #[serde(default)]
     pub vm_packet_port: u32,
+    /// The memory-sleep requests and resume this init answers (`vm_sleep.rs`); 0 for none.
+    #[serde(default)]
+    pub vm_sleep_version: u16,
 }
 
 #[cfg(feature = "server")]
@@ -119,5 +122,6 @@ pub fn probe() -> Capabilities {
         native_syscall_version: NATIVE_SYSCALL_VERSION,
         vm_network_policy_version: crate::vm_boot::NETWORK_POLICY_VERSION,
         vm_packet_port: crate::vm_boot::PACKET_PORT,
+        vm_sleep_version: crate::vm_sleep::VERSION,
     }
 }

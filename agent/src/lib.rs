@@ -49,6 +49,7 @@
 //! - `vm_observation.rs`: boot-scoped signed disk-shutdown observations.
 //! - `vm_metrics.rs`: optional read-only guest kernel resource counters.
 //! - `vm_shutdown.rs`: authenticated host-CID-only requests to trusted guest init.
+//! - `vm_sleep.rs`: signed memory-sleep requests and the resume init asks for after a restore.
 //! - `vm_monitor.rs`: host-owned monitor confinement and inherited lifetime lease.
 
 pub mod auth;
@@ -115,6 +116,8 @@ pub mod vm_observation;
 pub mod vm_policy;
 #[cfg(feature = "server")]
 pub mod vm_shutdown;
+#[cfg(feature = "server")]
+pub mod vm_sleep;
 
 #[cfg(feature = "server")]
 mod transfers;

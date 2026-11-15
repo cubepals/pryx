@@ -85,7 +85,7 @@ pub(super) fn file_request(spec: &ContainerSpec) -> crate::runtime::files::Reque
         log_max_size_mb: spec.log_max_size_mb,
     }
 }
-async fn exec(runtime: &VmRuntime, id: &str, script: &str) -> Vec<u8> {
+pub(super) async fn exec(runtime: &VmRuntime, id: &str, script: &str) -> Vec<u8> {
     eprintln!("VM runtime exec: {script}");
     let output = runtime
         .exec(
@@ -307,6 +307,7 @@ fn unfinished_launch_refuses_a_stopped_observation_until_its_kernel_lease_retire
         agent_state: None,
         image_digest: None,
         clean_disk: None,
+        memory: None,
     };
     let held = lock(&lease).unwrap();
     assert!(matches!(runtime::stopped_status(&entry, &lease), Err(RuntimeError::Unavailable(_))));
@@ -371,6 +372,7 @@ fn private_journals_preserve_stopped_state_and_refuse_links_modes_and_invalid_va
         agent_state: None,
         image_digest: None,
         clean_disk: None,
+        memory: None,
     };
     let path = entries.join(format!("{}.json", entry.id));
     let write =

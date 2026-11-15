@@ -203,8 +203,9 @@ impl Manager {
                         container && info.as_ref().is_some_and(|info| !info.rootless) && probe.on("host-firewall")
                     }
                     G::MemorySleep => {
-                        matches!(tier, "container" | "process")
-                            && (!container || info.as_ref().is_some_and(|info| !info.rootless && info.memory_limit))
+                        (matches!(tier, "container" | "process")
+                            && (!container || info.as_ref().is_some_and(|info| !info.rootless && info.memory_limit)))
+                            || (vm && info.as_ref().is_some_and(|info| info.memory_sleep))
                     }
                     G::BrowserSandbox => {
                         (container && self.config.docker.native_tools_seccomp.is_some() && probe.on("user-namespaces"))

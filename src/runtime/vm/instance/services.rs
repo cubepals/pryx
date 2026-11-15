@@ -119,6 +119,10 @@ impl VmRuntime {
                 );
             }
         }
+        if let Some(mut entry) = existing.clone() {
+            // A file-only guest writes this disk, so memory taken with it can't be restored.
+            self.discard_memory(&mut entry)?;
+        }
         let bundle = self.bundle().await?;
         let entry = Entry {
             id: existing.map(|entry| entry.id).unwrap_or_else(|| format!("vm-{}", uuid::Uuid::new_v4().simple())),
@@ -129,6 +133,7 @@ impl VmRuntime {
             agent_state: None,
             image_digest: None,
             clean_disk: None,
+            memory: None,
         };
         self.launch_files(entry, transition).await?.into_service()
     }
