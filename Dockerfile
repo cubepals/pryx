@@ -30,6 +30,8 @@ COPY package.json bun.lock ./
 COPY control control
 COPY edge edge
 COPY cli cli
+# The server preset admits the images its VM bundle is proven with (cli/src/up-server.ts).
+COPY templates/vm-tools/image-inputs.json templates/vm-tools/image-inputs.json
 COPY sdk/typescript sdk/typescript
 COPY integrations integrations
 COPY openapi openapi
