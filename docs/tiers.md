@@ -241,21 +241,39 @@ whole-command timings include waiting for exit, and CLI totals include cleanup.
 The 100 ms create-to-output target is assessed separately below; it is missed on both
 candidates. These are fresh sandboxes, without a pre-created VM or warmed command.
 
+## gVisor tier and the namespaced process mode
+
+The `gvisor` tier is the container backend with the engine's gVisor `runsc` runtime (release
+20261109.0, Apache-2.0, deploy/gvisor.json): the same images, limits, ports, bridge and firewall,
+served beside containers wherever the engine lists `runsc`. A request naming `container` is never
+run by runsc and one naming `gvisor` never by runc. Each sandbox runs on gVisor's own kernel, not
+the host's (`uname -r` differs; `own-kernel` stays a VM's). What the Docker suite found it can't
+do on gvisor is refused by name there: a node exec past its deadline (`exec-timeout`; the agent's
+process API ends its own), hostname egress policies (Docker's embedded resolver is unreachable
+from gVisor's network stack), host FUSE devices and the browser's own sandbox until proved.
+
+The namespaced process mode is a guarantee, not a tier ([process isolation](process-tier.md)):
+a `process` request gets whichever mode the host gives and reports it.
+
+Measured figures, thirty samples each, are printed by the gvisor run of the Docker suite
+(`K26_MEASURE`) beside the container tier on the same runner; they are recorded here once that
+run is green.
+
 ## Capabilities
 
-| Capability | Container | Process | wasm | vm |
-| --- | --- | --- | --- | --- |
-| Arbitrary image | Yes | No | No; explicit 422 image problem | `linux/amd64` images, pulled without a daemon |
-| Native Linux binaries | Image architecture | Host architecture and policy | No; compatible WASM software | The image's, on the guest kernel (x86_64) |
-| Python | Install in image | Bundled CPython | Embedded Pyodide | Install in image |
-| Node | Install in image | Bundled Node | Embedded V8 compatibility runtime | Install in image |
-| Shell | Static agent fallback | Static agent shell | Verified agentOS coreutils shell | The image's shell |
-| Isolation | Shared host kernel, namespaces and cgroups | Landlock, seccomp, process groups; dedicated UIDs when root; shared host network, mutually trusted Internet workloads | Virtual kernel, WebAssembly and V8; shared unprivileged sidecar | Its own kernel on KVM; Firecracker monitor under Landlock and seccomp as an ordinary user; own network stack or none |
-| Kernel per sandbox | No | No | No native kernel; a virtual kernel per VM | Yes, Linux 6.18.56 in each guest |
-| CPU enforcement | Per-sandbox cgroup quota and weight | Admission reservation and best-effort nice; hard CPU limits/weights refused | Admission reservation; hard CPU limits/weights refused | Whole vCPUs, the guest's size; fractions and weights refused |
-| Sleep retains files | Yes | Yes | SQLite root and explicit persistent data mount | Yes, its ext4 disk |
-| Application ingress | TCP/UDP according to host policy | Host TCP according to policy | HTTP over TCP; no UDP, raw TCP, TLS passthrough or app WebSockets | Declared TCP through host-owned relays; UDP refused |
-| Sleep retains processes and terminals | Frozen container | Suspended process group | No; VM is disposed and recreated | No; the guest stops and boots again on wake |
+| Capability | Container | gVisor | Process | wasm | vm |
+| --- | --- | --- | --- | --- | --- |
+| Arbitrary image | Yes | Yes | No | No; explicit 422 image problem | `linux/amd64` images, pulled without a daemon |
+| Native Linux binaries | Image architecture | Image architecture, on gVisor's kernel | Host architecture and policy | No; compatible WASM software | The image's, on the guest kernel (x86_64) |
+| Python | Install in image | Install in image | Bundled CPython | Embedded Pyodide | Install in image |
+| Node | Install in image | Install in image | Bundled Node | Embedded V8 compatibility runtime | Install in image |
+| Shell | Static agent fallback | Static agent fallback | Static agent shell | Verified agentOS coreutils shell | The image's shell |
+| Isolation | Shared host kernel, namespaces and cgroups | gVisor's user-space kernel inside the container's namespaces and cgroups | Landlock, seccomp, process groups; dedicated UIDs when root; shared host network, mutually trusted Internet workloads | Virtual kernel, WebAssembly and V8; shared unprivileged sidecar | Its own kernel on KVM; Firecracker monitor under Landlock and seccomp as an ordinary user; own network stack or none |
+| Kernel per sandbox | No | gVisor's own kernel per sandbox; not a guest kernel | No | No native kernel; a virtual kernel per VM | Yes, Linux 6.18.56 in each guest |
+| CPU enforcement | Per-sandbox cgroup quota and weight | The container's cgroup quota and weight | Admission reservation and best-effort nice; hard CPU limits/weights refused | Admission reservation; hard CPU limits/weights refused | Whole vCPUs, the guest's size; fractions and weights refused |
+| Sleep retains files | Yes | Yes | Yes | SQLite root and explicit persistent data mount | Yes, its ext4 disk |
+| Application ingress | TCP/UDP according to host policy | TCP/UDP according to host policy; no hostname egress policy | Host TCP according to policy | HTTP over TCP; no UDP, raw TCP, TLS passthrough or app WebSockets | Declared TCP through host-owned relays; UDP refused |
+| Sleep retains processes and terminals | Frozen container | Frozen sandbox | Suspended process group | No; VM is disposed and recreated | No; the guest stops and boots again on wake |
 
 agentOS 0.4.7 has no per-VM suspend operation in its published client. Suspending its shared
 sidecar would pause unrelated sandboxes, so it cannot implement sleep that retains processes.
