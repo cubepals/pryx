@@ -202,6 +202,12 @@ As root, the monitor runs under Firecracker's unchanged jailer, with fixed non-r
 that the host chooses and a workload never can, in a chroot holding only its staged inputs,
 under the same lease and signal bounds, inside the root worker above.
 
+The filesystem programs (`mke2fs`, `e2fsck`, `mkfs.erofs`) read disks a guest wrote and layers
+a tenant chose, so the same launcher confines them too, as root or not: Landlock reads of their
+own component and inputs and writes of one pre-created output and a private directory only;
+no socket of any kind; no capability, even as root; no core dump; and no file written past the
+output's admitted size.
+
 ## Limits
 
 - No KVM, no tier: there is no emulation, and the tier is x86_64 only.

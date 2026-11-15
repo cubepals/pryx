@@ -86,6 +86,7 @@ impl VmRuntime {
             &super::super::image::Request {
                 component: bundle.root().join("filesystem"),
                 manifest_sha256: bundle.filesystems().identity().into(),
+                launcher: bundle.filesystems().launcher().into(),
                 cache: self.state.root.join("images"),
                 image: image.into(),
                 timeout_seconds: timeout.as_secs(),

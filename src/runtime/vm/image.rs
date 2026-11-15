@@ -16,6 +16,8 @@ pub const MAX_RESPONSE_BYTES: u64 = 4 * 1024 * 1024;
 pub struct Request {
     pub component: PathBuf,
     pub manifest_sha256: String,
+    /// The installation's verified launcher, which confines every filesystem program.
+    pub launcher: PathBuf,
     pub cache: PathBuf,
     pub image: String,
     pub timeout_seconds: u64,

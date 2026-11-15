@@ -258,6 +258,7 @@ async fn actual_jailer_boots_both_images_and_recovers_the_original_disk() {
             &image::Request {
                 component: bundle.root().join("filesystem"),
                 manifest_sha256: bundle.filesystems().identity().into(),
+                launcher: bundle.filesystems().launcher().into(),
                 cache: root.path().join("images"),
                 image: spec.image.clone(),
                 timeout_seconds: 120,

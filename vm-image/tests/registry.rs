@@ -18,11 +18,15 @@ async fn real_oci_layers_are_verified_cached_and_corruption_is_refused() {
     let component =
         PathBuf::from(std::env::var_os("PRYX_VM_FILESYSTEM_COMPONENT").expect("Stage the VM filesystem component"));
     let manifest = std::env::var("PRYX_VM_FILESYSTEM_MANIFEST").expect("Pin the staged component manifest");
-    let tools = FilesystemTools::verified(&component, &manifest).unwrap();
+    // The VM workflow stages the bundle, and so its launcher, beside the component.
+    let launcher = std::env::var_os("PRYX_VM_HOST_LAUNCHER")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| component.parent().unwrap().join("vm-runtime/bin/vm-launcher"));
+    let tools = FilesystemTools::verified(&component, &manifest, &launcher).unwrap();
     let staging = tempfile::tempdir().unwrap();
     let alias = staging.path().join("component-link");
     std::os::unix::fs::symlink(&component, &alias).unwrap();
-    assert!(FilesystemTools::verified(&alias, &manifest).is_err());
+    assert!(FilesystemTools::verified(&alias, &manifest, &launcher).is_err());
     let cache = staging.path().join("images");
     let images = Images::new(cache.clone(), tools.clone()).unwrap();
     let helper = PathBuf::from(env!("CARGO_BIN_EXE_pryx-vm-image"));
@@ -53,6 +57,7 @@ async fn real_oci_layers_are_verified_cached_and_corruption_is_refused() {
         let request = Request {
             component: component.clone(),
             manifest_sha256: manifest.clone(),
+            launcher: launcher.clone(),
             cache: cache.clone(),
             image: reference.into(),
             timeout_seconds: 120,

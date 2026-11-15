@@ -8,10 +8,12 @@
 //! - `packet.rs`: inherited listener/TAP validation and packet-helper confinement.
 //! - `filter.rs`: preserve the inherited kernel lease and forbid cross-process host operations.
 //! - `namespace_tests.rs`: actual descriptor identity and namespace-type refusal checks.
+//! - `tool.rs`: one host filesystem program over its staged files, with no sockets or capabilities.
 mod filter;
 #[cfg(test)]
 mod namespace_tests;
 mod packet;
+mod tool;
 use landlock::{
     ABI, Access, AccessFs, CompatLevel, Compatible, Ruleset, RulesetAttr, RulesetCreatedAttr, RulesetStatus,
     path_beneath_rules,
@@ -75,6 +77,14 @@ pub enum Role {
     PacketProxy {
         socket: PathBuf,
         descriptor_argument: String,
+    },
+    /// A host filesystem program over guest- or tenant-written images, as root or not.
+    FilesystemTool {
+        /// The largest file it may write (RLIMIT_FSIZE).
+        file_bytes: u64,
+        /// The e2fsprogs profile it reads, one of its read grants.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        configuration: Option<PathBuf>,
     },
 }
 
@@ -218,7 +228,8 @@ pub fn launch() -> Result<(), Box<dyn std::error::Error>> {
     }
     let jailer = matches!(plan.role, Role::Jailer { .. });
     let packet_proxy = matches!(plan.role, Role::PacketProxy { .. } | Role::PacketTap { .. });
-    if jailer != rustix::process::geteuid().is_root() {
+    let tool = matches!(plan.role, Role::FilesystemTool { .. });
+    if !tool && jailer != rustix::process::geteuid().is_root() {
         return Err("Root VM monitors require the jailer".into());
     }
     let created = OpenOptions::new()
@@ -256,6 +267,9 @@ pub fn launch() -> Result<(), Box<dyn std::error::Error>> {
     let mut packet_tap = None;
     match &plan.role {
         Role::Ordinary => confine(&plan, true)?,
+        Role::FilesystemTool { file_bytes, configuration } => {
+            tool::confine(&plan, *file_bytes, configuration.as_deref(), &mut command)?
+        }
         Role::PacketProxy { socket, descriptor_argument } => {
             packet_listener = Some(packet::listener(&plan, socket, descriptor_argument)?);
         }
@@ -296,7 +310,16 @@ pub fn launch() -> Result<(), Box<dyn std::error::Error>> {
             ]);
         }
     }
-    filter::enter(jailer, packet_proxy)?;
+    filter::enter(
+        jailer,
+        if packet_proxy {
+            filter::Sockets::Internet
+        } else if tool {
+            filter::Sockets::None
+        } else {
+            filter::Sockets::Unix
+        },
+    )?;
     command.args(&plan.arguments);
     if let (Some(listener), Role::PacketProxy { descriptor_argument, .. }) = (&packet_listener, &plan.role) {
         command.args([descriptor_argument, &listener.as_raw_fd().to_string()]);

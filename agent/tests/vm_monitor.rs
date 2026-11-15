@@ -399,3 +399,78 @@ async fn packet_tap_rejects_a_regular_carrier_without_writing_it() {
     assert!(result.stdout.is_empty());
     assert_eq!(fs::read(carrier).unwrap(), proof);
 }
+
+#[tokio::test]
+async fn filesystem_tool_reads_only_its_inputs_with_no_socket_capability_or_large_file() {
+    let root = tempfile::tempdir().unwrap();
+    let (work, locks) = (root.path().join("work"), root.path().join("locks"));
+    for path in [&work, &locks] {
+        fs::DirBuilder::new().mode(0o700).create(path).unwrap();
+    }
+    let (input, output, secret) = (root.path().join("disk"), root.path().join("copy"), root.path().join("outside"));
+    let configuration = root.path().join("mke2fs.conf");
+    fs::write(&input, "guest-written image").unwrap();
+    fs::write(&configuration, "[defaults]\n").unwrap();
+    fs::write(&secret, "must stay outside the tool grant").unwrap();
+    for path in [&input, &configuration, &secret] {
+        fs::set_permissions(path, std::os::unix::fs::PermissionsExt::from_mode(0o600)).unwrap();
+    }
+    fs::OpenOptions::new().write(true).create_new(true).open(&output).unwrap();
+    fs::set_permissions(&output, std::os::unix::fs::PermissionsExt::from_mode(0o600)).unwrap();
+    let program = std::process::Command::new("python3")
+        .args(["-c", "import os,sys; print(os.path.realpath(sys.executable))"])
+        .output()
+        .unwrap();
+    let program = PathBuf::from(String::from_utf8(program.stdout).unwrap().trim());
+    let mut read: Vec<PathBuf> = ["/usr", "/bin", "/lib", "/lib64", "/etc/ld.so.cache"]
+        .into_iter()
+        .filter_map(|path| fs::canonicalize(path).ok())
+        .collect();
+    read.extend([input.clone(), configuration.clone()]);
+    let script = r#"
+import errno,os,resource,socket,sys
+
+def denied(call, codes=(errno.EACCES,errno.EPERM)):
+    try: call()
+    except OSError as error: assert error.errno in codes, error
+    else: raise AssertionError('Filesystem tool escaped its policy')
+
+assert open(sys.argv[1]).read()=='guest-written image'
+assert os.environ.get('MKE2FS_CONFIG')==sys.argv[4] and open(sys.argv[4]).read()=='[defaults]\n'
+denied(lambda: open(sys.argv[3]).read())
+denied(lambda: open(sys.argv[1],'a'))
+for domain in (socket.AF_UNIX,socket.AF_INET,socket.AF_INET6):
+    denied(lambda: socket.socket(domain,socket.SOCK_STREAM))
+denied(lambda: socket.socketpair())
+assert resource.getrlimit(resource.RLIMIT_CORE)==(0,0)
+for line in open('/proc/self/status'):
+    if line.startswith(('CapEff:','CapPrm:','CapAmb:')): assert int(line.split()[1],16)==0, line
+with open(sys.argv[2],'wb',buffering=0) as copy:
+    copy.write(b'x'*4096)
+    denied(lambda: copy.write(b'x'), (errno.EFBIG,))
+print('confined filesystem tool',flush=True)
+"#;
+    let plan = Plan {
+        program,
+        arguments: vec![
+            "-c".into(),
+            script.into(),
+            input.display().to_string(),
+            output.display().to_string(),
+            secret.display().to_string(),
+            configuration.display().to_string(),
+        ],
+        directory: work,
+        lock: locks.join("tool.lock"),
+        parent: std::process::id(),
+        read,
+        write: vec![output.clone()],
+        role: Role::FilesystemTool { file_bytes: 4096, configuration: Some(configuration) },
+    };
+    let tool = launch(&plan).await;
+    let result =
+        tokio::time::timeout(std::time::Duration::from_secs(10), tool.wait_with_output()).await.unwrap().unwrap();
+    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    assert_eq!(String::from_utf8_lossy(&result.stdout).trim(), "confined filesystem tool");
+    assert_eq!(fs::metadata(&output).unwrap().len(), 4096);
+}

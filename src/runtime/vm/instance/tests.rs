@@ -114,8 +114,15 @@ async fn workload_log(runtime: &VmRuntime, id: &str) {
 async fn guest_firewall(runtime: &VmRuntime, id: &str) {
     use pryx_agent::vm_boot;
     let bundle = runtime.bundle().await.unwrap();
-    let host = bundle.filesystems().builder("nft").arg("--version").output().unwrap();
-    assert!(host.status.success());
+    let run = crate::runtime::vm::filesystems::Run {
+        program: "nft",
+        arguments: vec!["--version".into()],
+        read: Vec::new(),
+        write: Vec::new(),
+        file_bytes: 1,
+    };
+    let host = bundle.filesystems().run(run, &runtime.state.root, None, 4096).await.unwrap();
+    assert!(host.status.success(), "{}", String::from_utf8_lossy(&host.diagnostic));
     let root = Path::new(vm_boot::BOOTSTRAP_ROOT).join(vm_boot::FIREWALL_DIRECTORY);
     let loader = root.join(vm_boot::FIREWALL_LOADER);
     let libraries = loader.parent().unwrap();
@@ -131,7 +138,7 @@ async fn guest_firewall(runtime: &VmRuntime, id: &str) {
     .collect();
     let version = runtime.exec(id, &arguments, Duration::from_secs(5), 4096).await.unwrap();
     assert_eq!(version.exit_code, Some(0));
-    assert_eq!(version.stdout, host.stdout, "Guest uses the same unchanged verified nft program");
+    assert_eq!(version.stdout, host.output, "Guest uses the same unchanged verified nft program");
     let mut flush = arguments;
     flush.pop();
     flush.extend(["flush".into(), "ruleset".into()]);

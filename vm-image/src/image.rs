@@ -4,7 +4,7 @@
 //! host tree. Only whole, digest-verified outputs are published, under a private builder cache.
 use super::{
     error,
-    filesystems::{FilesystemTools, sha256},
+    filesystems::{FilesystemTools, Run, sha256},
 };
 use axum::http::StatusCode;
 use futures_util::TryStreamExt;
@@ -19,10 +19,9 @@ use std::{
     io::{Read, Write},
     os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt},
     path::{Path, PathBuf},
-    process::Stdio,
     time::Duration,
 };
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::AsyncWriteExt;
 
 // Private cache namespace for deterministic lower identity; legacy cache bytes stay intact.
 const CONVERSION: &str = "erofs-diff-id-v1";
@@ -367,33 +366,31 @@ async fn convert(
         (blob.to_path_buf(), work.to_path_buf(), media.to_owned(), diff_id.to_owned());
     let tar = tokio::task::spawn_blocking(move || expand(&input, &output, &media, &diff_id)).await.map_err(error)??;
     let image = work.join("layer.erofs");
-    let mut builder = tools.builder("mkfs.erofs");
-    builder
-        .args(["--quiet", "--tar=f", "--aufs", "--ovlfs-strip=0", "-T0", "--mkfs-time", "--preserve-mtime", "-U"])
-        .arg(filesystem_uuid.to_string())
-        .arg(&image)
-        .arg(&tar)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped());
-    let mut child = tokio::process::Command::from(builder).kill_on_drop(true).spawn().map_err(error)?;
+    // The program writes only this pre-created file, never a path of the tenant's choosing.
+    OpenOptions::new().write(true).create_new(true).mode(0o600).open(&image).map_err(error)?;
+    let text = |path: &Path| path.to_str().map(String::from).ok_or_else(|| error("VM layer path is not text"));
+    let arguments = ["--quiet", "--tar=f", "--aufs", "--ovlfs-strip=0", "-T0", "--mkfs-time", "--preserve-mtime", "-U"];
+    let run = Run {
+        program: "mkfs.erofs",
+        arguments: arguments
+            .into_iter()
+            .map(String::from)
+            .chain([filesystem_uuid.to_string(), text(&image)?, text(&tar)?])
+            .collect(),
+        read: vec![tar.clone()],
+        write: vec![image.clone()],
+        // An EROFS image holds the tar's file data uncompressed plus its own metadata.
+        file_bytes: fs::metadata(&tar).map_err(error)?.len().saturating_mul(2).max(1024 * 1024),
+    };
     const MAX_DIAGNOSTIC_BYTES: u64 = 32 * 1024;
-    let mut diagnostic = Vec::new();
-    child
-        .stderr
-        .take()
-        .ok_or_else(|| error("VM filesystem diagnostic pipe is missing"))?
-        .take(MAX_DIAGNOSTIC_BYTES + 1)
-        .read_to_end(&mut diagnostic)
-        .await
-        .map_err(error)?;
-    if diagnostic.len() as u64 > MAX_DIAGNOSTIC_BYTES {
-        child.kill().await.map_err(error)?;
-        return Err(error("VM EROFS builder diagnostic exceeds its bound"));
-    }
-    let status = child.wait().await.map_err(error)?;
-    if !status.success() {
-        return Err(error(format!("VM EROFS builder failed: {status}: {}", String::from_utf8_lossy(&diagnostic))));
+    // The caller's preparation deadline drops this future, which kills the program.
+    let finished = tools.run(run, work, None, MAX_DIAGNOSTIC_BYTES).await?;
+    if !finished.status.success() {
+        return Err(error(format!(
+            "VM EROFS builder failed: {}: {}",
+            finished.status,
+            String::from_utf8_lossy(&finished.diagnostic)
+        )));
     }
     Ok(image)
 }

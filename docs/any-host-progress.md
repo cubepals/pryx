@@ -4859,3 +4859,17 @@ job when publication is authorized. That job has not run in this task.
   which refuses to run as root here; strict pryxd Clippy, fmt and both structure checks pass.
   Not yet: the server preset installing the VM bundle for root, and the root installed
   lifecycle with one egress rule in CI. No job/gate or CI minute.
+
+- Source df484cb Any host run 43717893206/job 132825364805: the signed ordinary-user install
+  passes the whole VM lifecycle through both SDKs and the edge on both images (Alpine with
+  network none, Debian with internet): files, declared edge port, cold wake, snapshot, fork and
+  its edge port, delete, host-file and pryxd-signal denial and a different kernel. The thirty
+  sample cohort then fails at a wake: the node answered one start 502 after 3.3 s, with no
+  message in its log. The node now logs a server-side refusal's message; the cause is open.
+- Confine the VM filesystem programs: the launcher's new filesystem-tool role gives mke2fs,
+  e2fsck and mkfs.erofs only their component, inputs, one pre-created output and a private
+  directory, no socket or capability (also as root), no core and a written-file bound. A real
+  launcher test reads its input, writes its output to the bound, and is refused a host file,
+  an input write, every socket domain and one byte past the bound, with empty capabilities.
+  pryxd, launcher and helper clippy, fmt and both structure checks pass; the real tools under
+  it run in the existing VM workflow. No job/gate or CI minute.

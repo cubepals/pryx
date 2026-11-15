@@ -64,8 +64,10 @@ impl Machine {
                 private(&root)?;
                 (root, Some((*uid, *gid)))
             }
-            vm_monitor::Role::PacketProxy { .. } | vm_monitor::Role::PacketTap { .. } => {
-                return Err(error("A packet helper cannot bootstrap a VM"));
+            vm_monitor::Role::PacketProxy { .. }
+            | vm_monitor::Role::PacketTap { .. }
+            | vm_monitor::Role::FilesystemTool { .. } => {
+                return Err(error("Only a monitor can bootstrap a VM"));
             }
         };
         if channel.parent() != Some(socket_directory.as_path()) || serial.parent() != Some(plan.directory.as_path()) {

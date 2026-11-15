@@ -22,7 +22,7 @@ async fn prepare() -> Result<Prepared, RuntimeError> {
     if request.timeout_seconds == 0 || !request.cache.is_absolute() {
         return Err(pryx_vm_image::error("VM image preparation needs an absolute private cache and a deadline"));
     }
-    let tools = FilesystemTools::verified(&request.component, &request.manifest_sha256)?;
+    let tools = FilesystemTools::verified(&request.component, &request.manifest_sha256, &request.launcher)?;
     let images = Images::new(request.cache, tools)?;
     let prepared = images.prepare(&request.image, Duration::from_secs(request.timeout_seconds)).await?;
     let configuration =
