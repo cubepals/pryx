@@ -167,7 +167,13 @@ async function lifecycle(image: (typeof inputs)[number], network: 'internet' | '
   try {
     assert.equal(box.isolation, 'vm')
     assert.equal(box.state, 'running')
-    assert.equal(box.guarantees?.['memory-sleep'], false)
+    // An ordinary user's tier sleeps with memory once its start test passes; root's worker doesn't.
+    if (process.getuid?.() === 0) assert.equal(box.guarantees?.['memory-sleep'], false)
+    else
+      await until('installed VM memory sleep after its start test', async () => {
+        await box.refresh()
+        return box.guarantees?.['memory-sleep'] === true
+      })
     const daemon = nodePid()
     const boundary = await box.run([
       '/bin/sh',

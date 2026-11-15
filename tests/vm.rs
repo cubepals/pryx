@@ -108,7 +108,17 @@ async fn actual_vm_node_tls_admission_files_epochs_and_snapshot_restore() {
     for guarantee in [Guarantee::OwnKernel, Guarantee::MemoryLimit, Guarantee::CpuLimit] {
         assert!(health["features"].as_array().unwrap().contains(&serde_json::to_value(guarantee).unwrap()));
     }
-    assert!(!health["features"].as_array().unwrap().contains(&serde_json::to_value(Guarantee::MemorySleep).unwrap()));
+    // Memory sleep is announced only once the tier's start test, run at construction, has passed.
+    let memory_sleep = serde_json::to_value(Guarantee::MemorySleep).unwrap();
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(300);
+    while !node.call("GET", "/v1/health", None, StatusCode::OK).await["features"]
+        .as_array()
+        .unwrap()
+        .contains(&memory_sleep)
+    {
+        assert!(tokio::time::Instant::now() < deadline, "The VM tier never announced memory sleep");
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
     let images: Vec<Value> = serde_json::from_str(include_str!("../templates/vm-tools/image-inputs.json")).unwrap();
     for (index, image) in images.iter().enumerate() {
         lifecycle(&node, index, image["reference"].as_str().unwrap()).await;
@@ -155,7 +165,13 @@ async fn lifecycle(node: &Node, index: usize, image: &str) {
     assert_eq!(result["exitCode"], 0);
     assert_eq!(result["stdout"], "api-vm");
     node.content(&path, b"retained").await;
-    node.call("POST", &format!("{path}/suspend"), None, StatusCode::CONFLICT).await;
+    // A suspend keeps the guest's memory, here a file on its tmpfs, and a start resumes it.
+    assert_eq!(node.exec(&path, &["/bin/sh", "-c", "printf kept > /tmp/marker"]).await["exitCode"], 0);
+    let suspended = node.call("POST", &format!("{path}/suspend"), None, StatusCode::OK).await;
+    assert_eq!(suspended["workload"]["state"], "suspended");
+    let woken = node.call("POST", &format!("{path}/start"), None, StatusCode::OK).await;
+    assert_eq!(woken["resumed"], true, "{woken}");
+    assert_eq!(node.exec(&path, &["/bin/cat", "/tmp/marker"]).await["stdout"], "kept");
     node.call("POST", &format!("{path}/stop"), Some(json!({})), StatusCode::OK).await;
     node.content(&path, b"retained").await;
     snapshot_restore(node, &path).await;
