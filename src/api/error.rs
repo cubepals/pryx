@@ -85,6 +85,10 @@ impl IntoResponse for NodeError {
                 Some(serde_json::json!({ "currentEpoch": current })),
             ),
         };
+        // A server-side refusal's own words stay in the node's log; callers may see less.
+        if status.is_server_error() {
+            tracing::warn!(status = status.as_u16(), code, %message, "request failed");
+        }
         error_response(status, code, message, details)
     }
 }
