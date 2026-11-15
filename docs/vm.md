@@ -234,7 +234,7 @@ pryx measures the host; a provider's name decides nothing.
   (some Intel families), Google Cloud and Azure, and absent on Hetzner Cloud and on arm64
   virtual machines. Bare-metal cloud instances expose it directly.
 - **GitHub's hosted `ubuntu-24.04` runners** have `/dev/kvm`; pryx's VM CI runs on them, granting
-  the runner's user access in the job.
+  the runner's user access in the job, on every pull request that changes VM code.
 - **A container** can be given `/dev/kvm` with `--device /dev/kvm`, without `--privileged`;
   pryxd inside must run as an ordinary user for this tier.
 - **arm64 hosts** keep the tier off.
