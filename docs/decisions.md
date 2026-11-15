@@ -1354,3 +1354,5 @@
 - K25: the node logs each server-side refusal’s own message at warn, since control answers callers more briefly; an installed acceptance failure then shows why the node refused.
 
 - K25: pryxd writes each packet helper’s `egress` admission after its gateways listen: the exact ports the guest firewall lets it reach at the helper’s host (HTTP, TLS and DNS for a hostname policy, DNS alone otherwise), public destinations only when unrestricted, and the agent’s own non-public boundary as text prefixes. The root TAP stack gets public egress with no gateway port, because a bridged guest’s DNS is the stack’s own gateway service. The agent’s own forwarded binding is marked `reserved`, so it has a connection pool public ports cannot exhaust.
+
+- K25: carry the spec’s stop grace in the signed guest shutdown request (`grace_ms`, inside the signature) and give the workload all of it before init kills its cgroup, as every other tier’s stop does; pryxd waits that grace plus a fixed 15-second reserve for init to empty, flush and certify the disk. A request without a grace keeps the original five seconds, so a maintenance guest is unchanged.

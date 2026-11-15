@@ -4880,3 +4880,9 @@ job when publication is authorized. That job has not run in this task.
   acceptance. Tests pin both admission shapes and the binding wire form; the actual packet
   helper test adds admission and two refused admissions for the VM workflow. Clippy, fmt and
   structure pass. No job/gate or CI minute.
+
+- VM stop honours the spec’s grace: the signed shutdown request carries it, init waits it
+  before killing the workload cgroup, and pryxd waits it plus a 15-second flush reserve. A test
+  authenticates the grace end to end through the acknowledged transaction and refuses a
+  shortened or dropped one. Agent shutdown tests, clippy and fmt pass; the guest path runs in
+  the existing VM workflow. No job/gate or CI minute.

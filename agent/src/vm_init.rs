@@ -344,14 +344,18 @@ async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Err
         .process_group(0)
         .kill_on_drop(true)
         .spawn()?;
-    let (mut result, stop_signal) = tokio::select! { result = child.wait() => (Some(result?), libc::SIGTERM),
-    _ = term.recv() => (None, libc::SIGTERM), _ = interrupt.recv() => (None, libc::SIGINT),
+    use crate::vm_shutdown::{Accepted, DEFAULT_GRACE};
+    let (mut result, stop) = tokio::select! {
+    result = child.wait() => (Some(result?), Accepted { signal: libc::SIGTERM, grace: DEFAULT_GRACE }),
+    _ = term.recv() => (None, Accepted { signal: libc::SIGTERM, grace: DEFAULT_GRACE }),
+    _ = interrupt.recv() => (None, Accepted { signal: libc::SIGINT, grace: DEFAULT_GRACE }),
     result = shutdown.receive(&public_key, &boot.nonce, sandbox, epoch) => (None, result?),
     error = crate::vm_network::failure(&mut network) => return Err(error.into()) };
     if let Some(pid) = child.id().and_then(|pid| Pid::from_raw(pid as i32)) {
-        let signal = Signal::from_named_raw(stop_signal).ok_or("Invalid authenticated shutdown signal")?;
+        let signal = Signal::from_named_raw(stop.signal).ok_or("Invalid authenticated shutdown signal")?;
         let _ = rustix::process::kill_process_group(pid, signal);
-        if let Ok(status) = tokio::time::timeout(Duration::from_secs(5), child.wait()).await {
+        // The host's signed grace is the workload's, as on every other tier's stop.
+        if let Ok(status) = tokio::time::timeout(stop.grace, child.wait()).await {
             result = Some(status?);
         }
     }

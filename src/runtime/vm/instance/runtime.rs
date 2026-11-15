@@ -22,18 +22,20 @@ impl VmRuntime {
         let live = self.state.live.lock().unwrap().get(&entry.id).cloned();
         let Some(live) = live else { return self.recover_disk(&entry.spec.data_dir) };
         let mut live = live.lock().await;
-        let deadline = Instant::now() + grace;
+        // The workload gets the whole grace; init then empties, flushes and certifies its disk.
+        let deadline = Instant::now() + grace + vm_shutdown::FLUSH_RESERVE;
         let already_exited = live.monitor.exited().map_err(error)?.is_some();
         let mut forced = force && !already_exited;
         if !force && !already_exited && !live.shutdown_requested {
             live.shutdown_requested = true;
             let boot = entry.spec.agent.as_ref().ok_or_else(|| error("VM agent bootstrap is missing"))?;
-            let request = vm_shutdown::request_for_signal(
+            let request = vm_shutdown::request_with_grace(
                 &agent::key(&entry.spec)?,
                 &live.nonce,
                 &boot.sandbox,
                 boot.epoch,
                 signal,
+                grace,
             )
             .map_err(error)?;
             let bundle = self.bundle().await?;
