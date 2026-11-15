@@ -13,7 +13,7 @@ pub(in crate::runtime) struct Ports {
     pub dns: u16,
 }
 
-async fn resolver(address: IpAddr, port: u16) -> io::Result<(UdpSocket, TcpListener)> {
+pub(in crate::runtime) async fn resolver(address: IpAddr, port: u16) -> io::Result<(UdpSocket, TcpListener)> {
     const PORT_ATTEMPTS: usize = 8;
     for _ in 0..PORT_ATTEMPTS {
         let udp = UdpSocket::bind((address, port)).await?;

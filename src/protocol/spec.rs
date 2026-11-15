@@ -94,6 +94,9 @@ pub struct WorkloadSpec {
     pub(crate) user: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) egress: Option<EgressPolicy>,
+    /// Sent only after the serving tier announces egress-addresses.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) egress_addresses: Option<AddressPolicy>,
     #[serde(default)]
     pub(crate) env: BTreeMap<String, String>,
     /// Environment the workload needs but nobody else may see.
@@ -277,6 +280,7 @@ impl WorkloadSpec {
             workdir: self.workdir.clone(),
             user: self.user.clone(),
             egress: self.egress.clone(),
+            egress_addresses: self.egress_addresses.clone(),
             env: self.env.clone(),
             secret_names: self.secrets.keys().cloned().collect(),
             resources: self.resources.clone(),
@@ -325,6 +329,8 @@ pub struct SpecRecord {
     pub(crate) user: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) egress: Option<EgressPolicy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) egress_addresses: Option<AddressPolicy>,
     pub(crate) env: BTreeMap<String, String>,
     pub(crate) secret_names: Vec<String>,
     pub(crate) resources: Resources,
@@ -358,6 +364,7 @@ impl SpecRecord {
             workdir: self.workdir.clone(),
             user: self.user.clone(),
             egress: self.egress.clone(),
+            egress_addresses: self.egress_addresses.clone(),
             env: self.env.clone(),
             secrets,
             resources: self.resources.clone(),
@@ -544,4 +551,45 @@ pub struct EgressPolicy {
     pub(crate) allow: Vec<String>,
     #[serde(default)]
     pub(crate) deny: Vec<String>,
+}
+
+/// Destinations by address, enforced in the kernel by the tier serving the workload; deny takes
+/// precedence over allow. Allow adds to what `network` and `egress` give; deny takes away. Neither
+/// reaches what the host keeps from every sandbox: the host itself, link-local and multicast.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AddressPolicy {
+    #[serde(default)]
+    pub(crate) allow: Vec<AddressRule>,
+    #[serde(default)]
+    pub(crate) deny: Vec<AddressRule>,
+}
+
+/// An IPv4 or IPv6 prefix, such as `203.0.113.0/24` (a bare address is one host), and an
+/// inclusive port range for TCP and UDP; without one, every port.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AddressRule {
+    pub(crate) prefix: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) ports: Option<[u16; 2]>,
+}
+
+impl AddressRule {
+    /// The rule as the kernel programs take it, if its prefix and ports are well formed.
+    pub(crate) fn destination(&self) -> Option<crate::bpf::rules::Destination> {
+        let prefix = self
+            .prefix
+            .parse::<ipnet::IpNet>()
+            .ok()
+            .or_else(|| self.prefix.parse::<std::net::IpAddr>().ok().map(ipnet::IpNet::from))?;
+        let ports = match self.ports {
+            Some([low, high]) if low == 0 || low > high => return None,
+            Some([low, high]) => Some((low, high)),
+            None => None,
+        };
+        Some(crate::bpf::rules::Destination { prefix: prefix.trunc(), ports })
+    }
 }

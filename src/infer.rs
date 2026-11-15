@@ -207,7 +207,7 @@ pub(crate) fn candidates(root: &Path) -> Vec<Candidate> {
 }
 
 /// The addresses /proc/net/fib_trie lists as this host's own: a leaf followed by `/32 host LOCAL`.
-fn local_addresses(trie: &str) -> Vec<Ipv4Addr> {
+pub(crate) fn local_addresses(trie: &str) -> Vec<Ipv4Addr> {
     let (mut leaf, mut local) = (None, Vec::new());
     for line in trie.lines().map(str::trim) {
         if let Some(ip) = line.strip_prefix("|-- ") {

@@ -51,8 +51,17 @@ impl Manager {
             {
                 return Err(NodeError::Invalid(vec![crate::protocol::FieldError {
                     field: "egress".into(),
-                    problem: "hostname egress requires an announced container host firewall and network internet"
-                        .into(),
+                    problem: if runtime.is_process() && spec.network != crate::protocol::NetworkMode::None {
+                        crate::protocol::KERNEL_NETWORK_PROBLEM.into()
+                    } else {
+                        "hostname egress requires an announced container host firewall and network internet".into()
+                    },
+                }]));
+            }
+            if spec.egress_addresses.is_some() && !runtime.supports_egress_addresses() {
+                return Err(NodeError::Invalid(vec![crate::protocol::FieldError {
+                    field: "egressAddresses".into(),
+                    problem: crate::protocol::KERNEL_NETWORK_PROBLEM.into(),
                 }]));
             }
             if spec.user.as_ref().is_some_and(|user| user != &own.config.workloads.user.to_string()) {
@@ -242,6 +251,7 @@ impl Manager {
             entrypoint: spec.entrypoint.clone(),
             workdir: spec.workdir.clone(),
             egress: spec.egress.clone(),
+            egress_addresses: spec.egress_addresses.clone(),
             env,
             labels,
             user: self.config.workloads.user.to_string(),

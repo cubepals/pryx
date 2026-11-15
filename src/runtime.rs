@@ -67,6 +67,8 @@ pub struct ContainerSpec {
     pub(crate) workdir: Option<String>,
     #[serde(default)]
     pub(crate) egress: Option<crate::protocol::EgressPolicy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) egress_addresses: Option<crate::protocol::AddressPolicy>,
     /// Environment, secrets included. Never logged (see `Debug` below).
     pub env: Vec<(String, String)>,
     pub labels: BTreeMap<String, String>,
@@ -392,6 +394,14 @@ pub trait ContainerRuntime: Send + Sync + 'static {
     }
     fn supports_network_policy(&self) -> bool {
         false
+    }
+    /// Whether this backend enforces a workload's address rules (`egressAddresses`).
+    fn supports_egress_addresses(&self) -> bool {
+        false
+    }
+    /// The kernel network policy this backend's sandboxes get, as the host document reports it.
+    fn kernel_network_policy(&self) -> Option<crate::capability::Capability> {
+        None
     }
     async fn ensure_internal_network(
         &self,

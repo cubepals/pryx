@@ -64,6 +64,9 @@ impl Manager {
         if tier == "process" {
             let configured = observed.and_then(|info| info.labels.get(crate::labels::LABEL_BROWSER_SANDBOX));
             guarantees.entry(G::BrowserSandbox).and_modify(|on| *on &= configured.is_some_and(|on| on == "true"));
+            // Kernel policy counts for a sandbox only once its own programs are attached and verified.
+            let attached = observed.and_then(|info| info.labels.get(crate::labels::LABEL_NETWORK_POLICY));
+            guarantees.entry(G::HostFirewall).and_modify(|on| *on &= attached.is_some_and(|on| on == "true"));
         }
         guarantees
     }

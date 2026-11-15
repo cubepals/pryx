@@ -40,11 +40,18 @@ impl Manager {
         if self.runtime.supports_hostname_egress() {
             features.push(crate::protocol::EGRESS_HOSTNAMES_FEATURE.into());
         }
+        if self.runtime.supports_egress_addresses() {
+            features.push(crate::protocol::EGRESS_ADDRESSES_FEATURE.into());
+        }
         if self.runtime.supports_network_policy() || self.ready_network_policy() {
             features.push(crate::protocol::NETWORK_POLICY_FEATURE.into());
         }
         if self.runtime.multi_tier() {
-            for feature in [crate::protocol::NETWORK_POLICY_FEATURE, crate::protocol::EGRESS_HOSTNAMES_FEATURE] {
+            for feature in [
+                crate::protocol::NETWORK_POLICY_FEATURE,
+                crate::protocol::EGRESS_HOSTNAMES_FEATURE,
+                crate::protocol::EGRESS_ADDRESSES_FEATURE,
+            ] {
                 features.push(format!("{}{feature}", crate::protocol::TIER_CAPABILITY_SCOPE_PREFIX));
             }
         }
@@ -81,6 +88,11 @@ impl Manager {
                 && self.runtime.backend(tier).is_some_and(|runtime| runtime.supports_hostname_egress())
             {
                 features.push(format!("tier-{tier}:{}", crate::protocol::EGRESS_HOSTNAMES_FEATURE));
+            }
+            if self.runtime.multi_tier()
+                && self.runtime.backend(tier).is_some_and(|runtime| runtime.supports_egress_addresses())
+            {
+                features.push(format!("tier-{tier}:{}", crate::protocol::EGRESS_ADDRESSES_FEATURE));
             }
             features.extend(
                 self.tier_guarantees(tier)
@@ -133,6 +145,9 @@ impl Manager {
     pub async fn refresh_host_probe(&self) {
         let mut report = crate::probe::run().await;
         if let Ok(runtime) = self.runtime_for(Some(crate::protocol::Isolation::Process)) {
+            if let Some(capability) = runtime.kernel_network_policy() {
+                report.capabilities.insert(crate::bpf::CAPABILITY.into(), capability);
+            }
             let available = match self.agent_binary(runtime.as_ref()) {
                 Some(binary) => runtime.native_browser(&binary).await,
                 None => Err(crate::runtime::RuntimeError::Other("No trusted process agent executable".into())),
@@ -200,7 +215,8 @@ impl Manager {
                     G::CpuLimit => (container || vm) && info.as_ref().is_some_and(|info| info.cpu_limit),
                     G::PrivateNetwork | G::PrivatePids => container || vm,
                     G::HostFirewall => {
-                        container && info.as_ref().is_some_and(|info| !info.rootless) && probe.on("host-firewall")
+                        (container && info.as_ref().is_some_and(|info| !info.rootless) && probe.on("host-firewall"))
+                            || (tier == "process" && probe.on(crate::bpf::CAPABILITY))
                     }
                     G::MemorySleep => {
                         matches!(tier, "container" | "process")

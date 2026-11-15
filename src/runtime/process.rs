@@ -11,10 +11,12 @@
 //! - `observe.rs`: read-only kernel process identity, ownership and tree observations.
 //! - `logs.rs`: bounded, safe entrypoint log replay and following.
 //! - `termination.rs`: stable tree freezing and orphan retirement.
+//! - `network.rs`: each sandbox's cgroup, kernel network policy and hostname gateways.
 mod exec;
 mod journal;
 mod logs;
 mod native;
+mod network;
 mod observe;
 mod power;
 mod termination;
@@ -28,7 +30,11 @@ use std::{collections::HashMap, sync::Mutex};
 pub struct ProcessRuntime {
     state: Arc<State>,
     policy: ProcessConfig,
+    /// The kernel network policy, where this host lets the runtime attach it.
+    network: Option<Arc<network::Network>>,
+    network_capability: Option<crate::capability::Capability>,
 }
+pub(crate) use network::Served;
 struct State {
     pub root: PathBuf,
     pub launch: tokio::sync::Mutex<()>,
@@ -49,6 +55,8 @@ struct Entry {
     pub cleaned: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub native_browser: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    network: Option<network::Record>,
 }
 
 use std::sync::Arc;
@@ -75,6 +83,15 @@ impl ContainerRuntime for ProcessRuntime {
     }
     fn supports_network_policy(&self) -> bool {
         true
+    }
+    fn supports_hostname_egress(&self) -> bool {
+        self.network.is_some()
+    }
+    fn supports_egress_addresses(&self) -> bool {
+        self.network.is_some()
+    }
+    fn kernel_network_policy(&self) -> Option<crate::capability::Capability> {
+        self.network_capability.clone()
     }
     async fn info(&self) -> Result<RuntimeInfo, RuntimeError> {
         if !pryx_agent::process_capabilities::probe().filesystem {
@@ -124,7 +141,7 @@ impl ContainerRuntime for ProcessRuntime {
         let until = tokio::time::Instant::now() + grace;
         while tokio::time::Instant::now() < until {
             if !self.running(name)? {
-                return Ok(());
+                return self.release_network(&self.entry(name)?.spec.name);
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
@@ -135,7 +152,7 @@ impl ContainerRuntime for ProcessRuntime {
         let key = self.entry(name)?.spec.name;
         for _ in 0..100 {
             if !self.running(name)? && !self.state.children.lock().unwrap().contains_key(&key) {
-                return Ok(());
+                return self.release_network(&key);
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
@@ -187,10 +204,13 @@ impl ContainerRuntime for ProcessRuntime {
     }
     async fn stats(&self, name: &str) -> Result<Option<RawStats>, RuntimeError> {
         let entry = self.entry(name)?;
+        let counts = self.network.as_ref().and_then(|network| network.counts(&entry.spec.name));
         Ok(observe::matching_pid(entry.pid, entry.ticks).map(|pid| RawStats {
             memory_usage: observe::resident_tree(pid),
             memory_limit: u64::try_from(entry.spec.memory_bytes).ok(),
             pids_limit: u64::try_from(entry.spec.pids_limit).ok(),
+            rx_bytes: counts.map(|counts| counts.ingress[1]),
+            tx_bytes: counts.map(|counts| counts.egress[1]),
             ..Default::default()
         }))
     }

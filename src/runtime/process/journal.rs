@@ -111,6 +111,8 @@ impl ProcessRuntime {
                 owners: Mutex::new(owners),
             }),
             policy,
+            network: None,
+            network_capability: None,
         })
     }
     pub(super) fn scope_required(&self) -> Result<bool, RuntimeError> {
@@ -222,6 +224,7 @@ impl ProcessRuntime {
             finished: None,
             cleaned: true,
             native_browser: None,
+            network: None,
         };
         let id = entry.id.clone();
         self.save(entry)?;

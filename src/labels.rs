@@ -20,3 +20,5 @@ pub(crate) const LABEL_RECORD: &str = "blocklyd.record";
 pub(crate) const LABEL_INTERNAL_BINDINGS: &str = "blocklyd.internal-bindings";
 /// Inner browser sandbox policy supplied through a supported agent's trusted bootstrap.
 pub(crate) const LABEL_BROWSER_SANDBOX: &str = "blocklyd.browser-sandbox";
+/// Observed, never sent: whether a process sandbox's kernel network policy is attached and verified.
+pub(crate) const LABEL_NETWORK_POLICY: &str = "pryx.network-policy";

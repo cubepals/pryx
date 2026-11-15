@@ -172,6 +172,9 @@ impl ContainerRuntime for Router {
     fn supports_network_policy(&self) -> bool {
         self.default().supports_network_policy()
     }
+    fn supports_egress_addresses(&self) -> bool {
+        self.default().supports_egress_addresses()
+    }
     async fn info(&self) -> Result<RuntimeInfo, RuntimeError> {
         self.read_info(true).await
     }

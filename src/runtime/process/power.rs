@@ -31,6 +31,10 @@ fn temporary_directory(spec: &ContainerSpec, owner: (u32, u32)) -> Result<PathBu
 }
 
 impl ProcessRuntime {
+    /// Detaches a sandbox's kernel network policy once its processes are gone.
+    pub(super) fn release_network(&self, name: &str) -> Result<(), RuntimeError> {
+        self.network.as_ref().map_or(Ok(()), |network| network.release(name))
+    }
     pub(super) fn running(&self, name: &str) -> Result<bool, RuntimeError> {
         Ok(self
             .observe_entry(name)?
@@ -177,7 +181,25 @@ impl ProcessRuntime {
         let (tools, required) = self.native_policy(&entry).await?;
         entry.native_browser =
             Some(tools.as_ref().is_some_and(|tools| tools.unavailable.is_none() && tools.browser_on));
-        let child = self.launch_command(&entry, tools, required)?.spawn().map_err(error)?;
+        let mut command = self.launch_command(&entry, tools, required)?;
+        crate::bpf::host::drop_ambient_on_exec(&mut command);
+        // Every socket the supervisor or its commands open is its cgroup's, so the programs
+        // are attached before it starts and it joins the cgroup before it runs.
+        if let Some(network) = &self.network {
+            let (record, cgroup) = network.prepare(&entry.spec).await?;
+            entry.network = Some(record);
+            if let Err(problem) = crate::bpf::host::join_on_exec(&mut command, &cgroup) {
+                network.release(&entry.spec.name)?;
+                return Err(error(problem));
+            }
+        }
+        let child = match command.spawn() {
+            Ok(child) => child,
+            Err(problem) => {
+                self.release_network(&entry.spec.name)?;
+                return Err(error(problem));
+            }
+        };
         entry.pid = Some(child.id());
         entry.ticks = identity(child.id());
         entry.started = Some(format_time(crate::clock::now()));
@@ -229,6 +251,7 @@ impl ProcessRuntime {
             if let Some(agent) = &entry.spec.agent {
                 self.retire_orphans(&agent.sandbox)?;
             }
+            self.release_network(&entry.spec.name)?;
             entry.cleaned = true;
             self.save_in(&mut entries, entry.clone())?;
         }
@@ -243,6 +266,8 @@ impl ProcessRuntime {
             crate::labels::LABEL_BROWSER_SANDBOX.into(),
             (alive && entry.native_browser == Some(true)).to_string(),
         );
+        let attached = self.network.as_ref().is_some_and(|network| network.verified(&entry.spec.name));
+        labels.insert(crate::labels::LABEL_NETWORK_POLICY.into(), (alive && attached).to_string());
         Ok(Some(ContainerInfo {
             agent_state: None,
             memory_enforced: None,
