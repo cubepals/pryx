@@ -168,8 +168,11 @@ inside that namespace; the default network crosses a filtered bridge into a conf
 packet stack. The host's own routes, forwarding settings and firewall are not changed. A
 release lists `vm-bundle.json`, and the server preset (`sudo pryx up`) installs it beside the
 root agent, where the worker finds it; the runtime it pins is fetched on the first VM create.
-A host that should run other images on this tier adds their prefixes to `allowed_images` in
-`/etc/pryxd/pryxd.toml`, as for containers.
+An install that names no `--allow-image` then admits, besides `alpine:` and `node:`, exactly the
+images the bundle is proven with ([image-inputs.json](../templates/vm-tools/image-inputs.json)),
+each by its full digest reference, which admits that digest and no other. They are ordinary
+`allowed_images` entries in `/etc/pryxd/pryxd.toml`: an operator who removes them or narrows the
+list narrows the tier with it, and adds prefixes there for other images, as for containers.
 
 ## Sleep, snapshot, fork, export, restore, move
 
