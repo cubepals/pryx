@@ -13,7 +13,7 @@ Parts (`network/`):
 - `cmd/proxy/production.go`: bounded host-only profile through one inherited packet listener, without management services.
 - `cmd/proxy/stack.go`: the library's switch, DHCP and forwarders on a gvisor stack, each forwarder behind admission; its resolver only for the root bridge.
 - `cmd/proxy/admission.go`: the host's own egress decision for every flow: named gateway ports, public IPv4 only when allowed, nothing else.
-- `cmd/guest/main.go`: trusted loopback and maintained DHCP setup without image-owned programs.
+- `cmd/guest/main.go`: trusted loopback and maintained DHCP setup without image-owned programs; `carrier.go` holds the first DHCP request until the forwarder has attached the TAP.
 - `cmd/probe/main.go` and `server.go`: guest network measurements, management denials and an unprivileged opaque TCP fixture.
 - `cmd/probe/policy.go`: unprivileged workload proof that new vsock sockets and io_uring setup are denied.
 - `cmd/probe/production.go`: actual workload HTTP/TLS and UDP/TCP DNS through immutable guest redirects, plus host and hostname bypass attacks.
