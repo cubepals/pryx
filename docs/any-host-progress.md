@@ -4886,3 +4886,7 @@ job when publication is authorized. That job has not run in this task.
   authenticates the grace end to end through the acknowledged transaction and refuses a
   shortened or dropped one. Agent shutdown tests, clippy and fmt pass; the guest path runs in
   the existing VM workflow. No job/gate or CI minute.
+
+- VM disk recovery has its own size-based bound and reserves room for its staged copy
+  (floor plus allocated blocks) before copying. A unit test pins both. Clippy, fmt and
+  structure pass. No job/gate or CI minute.

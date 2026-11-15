@@ -42,6 +42,25 @@ fn owned(path: &Path) -> Result<File, RuntimeError> {
     Ok(file)
 }
 
+// A bound on a stuck program, not an expected time: the slowest shared disk's sequential floor.
+const WHOLE_DISK_FLOOR_BYTES_PER_SECOND: u64 = 16 * 1024 * 1024;
+// Check, staged copy, repair and recheck each read the whole disk once.
+const WHOLE_DISK_PASSES: u64 = 4;
+
+/// Recovery's own bound, from the disk's size: a caller's boot deadline cannot end a repair
+/// that a large disk needs, and the transaction keeps the longer of the two.
+pub fn recovery_time(bytes: u64) -> Duration {
+    Duration::from_secs(bytes.div_ceil(WHOLE_DISK_FLOOR_BYTES_PER_SECOND).saturating_mul(WHOLE_DISK_PASSES))
+}
+
+/// Free space a staged copy needs: the host's floor plus the blocks the disk actually holds.
+fn staging_room(original: &File, free_floor: u64) -> Result<u64, RuntimeError> {
+    // st_blocks counts 512-byte units whatever the filesystem's block size (stat(2)).
+    const STAT_BLOCK_BYTES: u64 = 512;
+    let allocated = original.metadata().map_err(error)?.blocks().saturating_mul(STAT_BLOCK_BYTES);
+    Ok(free_floor.saturating_add(allocated))
+}
+
 fn remaining(deadline: Instant) -> Result<Duration, RuntimeError> {
     let left = deadline.saturating_duration_since(Instant::now());
     if left.is_zero() {
@@ -128,7 +147,9 @@ async fn transaction(
     timeout: Duration,
     free_floor: u64,
 ) -> Result<Prepared, RuntimeError> {
-    let deadline = Instant::now().checked_add(timeout).ok_or_else(|| error("Invalid VM disk deadline"))?;
+    let deadline = Instant::now()
+        .checked_add(timeout.max(recovery_time(bytes)))
+        .ok_or_else(|| error("Invalid VM disk deadline"))?;
     remaining(deadline)?;
     if bytes == 0 || bytes > crate::tree::MAX_BYTES {
         return Err(error("VM disk size exceeds the existing data archive bound"));
@@ -180,6 +201,10 @@ async fn transaction(
         if check(tools, &path, deadline).await? {
             return Ok(Prepared { path, created: false, recovered: false });
         }
+    }
+    if let Some(original) = &original {
+        // Refused before copying, never by filling the host part-way through the copy.
+        room(directory, staging_room(original, free_floor)?)?;
     }
     let staging = tempfile::Builder::new().prefix(".vm-disk-stage-").tempdir_in(parent).map_err(error)?;
     let candidate = staging.path().join("disk");
@@ -273,4 +298,26 @@ fn publish(
     }
     File::open(directory).and_then(|directory| directory.sync_all()).map_err(error)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    #[test]
+    fn recovery_outlasts_a_boot_deadline_on_a_large_disk_and_reserves_its_copy() {
+        let large = 100 * 1024 * 1024 * 1024;
+        assert!(recovery_time(large) > Duration::from_hours(1));
+        assert!(recovery_time(large) > recovery_time(large / 100));
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join(FILE);
+        let mut file = File::create(&path).unwrap();
+        file.write_all(&[7; 1024 * 1024]).unwrap();
+        file.sync_all().unwrap();
+        // A sparse tail holds no blocks, so it needs no staging room.
+        file.set_len(64 * 1024 * 1024).unwrap();
+        let needed = staging_room(&File::open(&path).unwrap(), 4096).unwrap();
+        assert!((4096 + 1024 * 1024..4096 + 2 * 1024 * 1024).contains(&needed), "{needed}");
+    }
 }
