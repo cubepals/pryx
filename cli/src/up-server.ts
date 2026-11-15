@@ -11,6 +11,7 @@ import type { OperatorToken } from '../../control/src/operator-api.ts'
 import { ensureBucket } from '../../control/src/store-bootstrap.ts'
 import { capabilitySummary, hostProbe } from '../../deploy/host-probe.ts'
 import nodeSchema from '../../openapi/node-writes.openapi.json'
+import vmImages from '../../templates/vm-tools/image-inputs.json'
 import { callerHomeAndDropPrivileges, writeClientConfig } from './client-config.ts'
 import { option } from './sandbox.ts'
 import { FLEET_HANDOUT_DIR, FLEET_PRYXD_BIN, installBinary, releaseFiles } from './up-assets.ts'
@@ -37,6 +38,13 @@ export const runInstallCommand = async (args: string[], quiet = true, redactions
   }
 }
 const active = (unit: string) => Bun.spawnSync(['systemctl', 'is-active', '--quiet', unit]).exitCode === 0
+/** What a server install admits when `--allow-image` names nothing: the alpine and node prefixes,
+ * and, when it installs the release's VM descriptor, exactly the images that VM bundle is proven
+ * with, each by its full digest reference, so it admits no other digest. The entries are the
+ * operator's to remove like any other; an explicit `--allow-image` list is used as given. */
+export function defaultAllowedImages(vmDescriptor: boolean) {
+  return ['alpine:', 'node:', ...(vmDescriptor ? vmImages.map((image) => image.reference) : [])]
+}
 export function upPlan(domain: string) {
   return {
     architecture: process.arch,
@@ -240,7 +248,10 @@ export async function up(args: string[]) {
         body.joinToken,
         '--address',
         '127.0.0.1',
-        ...(allow.length ? allow : ['alpine:', 'node:']).flatMap((p) => ['--allow-image', p]),
+        ...(allow.length ? allow : defaultAllowedImages(existsSync(descriptor))).flatMap((p) => [
+          '--allow-image',
+          p,
+        ]),
       ],
       true,
       [body.token, body.joinToken],

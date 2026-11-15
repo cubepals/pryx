@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Native inputs come from the protected installation, never workload fields. Enabling them
 //! requires fresh signed scope observations of managed peers and a persistent launch guard.
+//! Their private directories are made per owner UID, and leave with the sandbox that held them:
+//! a released UID's whole directory, or a shared UID's scratch for that sandbox alone.
 use super::{
     Entry, ProcessRuntime, RuntimeError,
     journal::{error, legacy_boot, note_unscoped},
@@ -70,23 +72,117 @@ fn directory(path: &Path, owner: (u32, u32)) -> Result<PathBuf, RuntimeError> {
     .map_err(error)?;
     Ok(path.to_path_buf())
 }
+/// A name under the tool root that no owner reaches: what is renamed to it is removed whole, at
+/// once or by the runtime's next start.
+const RETIRED: &str = ".retired-";
+
+fn checked_base(base: &Path) -> Result<(), RuntimeError> {
+    let info = fs::symlink_metadata(base).map_err(error)?;
+    if !info.is_dir() || info.uid() != rustix::process::geteuid().as_raw() || info.mode() & 0o022 != 0 {
+        return Err(error("Unsafe process tool root"));
+    }
+    Ok(())
+}
+/// One rename takes `name` out of every owner's path, so nothing it held can be seen again.
+fn retire(base: &Path, name: &str) -> Result<Option<PathBuf>, RuntimeError> {
+    let retired = base.join(format!("{RETIRED}{}", uuid::Uuid::new_v4()));
+    let from = base.join(name);
+    match rustix::fs::renameat_with(
+        rustix::fs::CWD,
+        &from,
+        rustix::fs::CWD,
+        &retired,
+        rustix::fs::RenameFlags::NOREPLACE,
+    ) {
+        Ok(()) => Ok(Some(retired)),
+        Err(rustix::io::Errno::NOENT) => Ok(None),
+        Err(problem) => Err(error(std::io::Error::from(problem))),
+    }
+}
+fn remove_retired(retired: Option<PathBuf>) {
+    if let Some(retired) = retired
+        && let Err(problem) = crate::tree::remove(&retired)
+    {
+        tracing::warn!(error = %problem, "a released process tool directory is left for the next start to remove");
+    }
+}
+fn scratch_prefix(sandbox: &str) -> Result<String, RuntimeError> {
+    // An id has no '.', so this prefix names one sandbox's scratch and no other's.
+    Ok(format!("scratch-{}.", crate::ids::WorkloadId::parse(sandbox).map_err(error)?))
+}
 impl ProcessRuntime {
-    fn tool_paths(&self, owner: (u32, u32)) -> Result<(PathBuf, PathBuf, PathBuf), RuntimeError> {
-        let base = self.state.root.parent().ok_or_else(|| error("Missing process state parent"))?.join("process-tools");
+    fn tools_base(&self) -> Result<PathBuf, RuntimeError> {
+        Ok(self.state.root.parent().ok_or_else(|| error("Missing process state parent"))?.join("process-tools"))
+    }
+    fn tool_paths(&self, owner: (u32, u32), sandbox: &str) -> Result<(PathBuf, PathBuf, PathBuf), RuntimeError> {
+        let base = self.tools_base()?;
         if !base.exists() {
             directory(&base, (rustix::process::geteuid().as_raw(), rustix::process::getegid().as_raw()))?;
         }
-        let info = fs::symlink_metadata(&base).map_err(error)?;
-        if !info.is_dir() || info.uid() != rustix::process::geteuid().as_raw() || info.mode() & 0o022 != 0 {
-            return Err(error("Unsafe process tool root"));
-        }
+        checked_base(&base)?;
         fs::set_permissions(&base, fs::Permissions::from_mode(0o711)).map_err(error)?;
         let uid = directory(&base.join(owner.0.to_string()), owner)?;
         Ok((
             directory(&uid.join("cache"), owner)?,
             directory(&uid.join("downloads"), owner)?,
-            directory(&uid.join(format!("scratch-{}", uuid::Uuid::new_v4())), owner)?,
+            directory(&uid.join(format!("{}{}", scratch_prefix(sandbox)?, uuid::Uuid::new_v4())), owner)?,
         ))
+    }
+    pub(super) fn remove_retired(&self, retired: impl IntoIterator<Item = PathBuf>) {
+        retired.into_iter().for_each(|retired| remove_retired(Some(retired)));
+    }
+    /// Takes the tool directory of a UID nobody holds out of reach: whatever an earlier holder or
+    /// a crash left there, the next holder starts empty. Returns what to remove.
+    pub(super) fn retire_uid_tools(&self, uid: u32) -> Result<Option<PathBuf>, RuntimeError> {
+        let base = self.tools_base()?;
+        if fs::symlink_metadata(&base).is_err_and(|problem| problem.kind() == std::io::ErrorKind::NotFound) {
+            return Ok(None);
+        }
+        checked_base(&base)?;
+        retire(&base, &uid.to_string())
+    }
+    /// A shared UID's directory serves every sandbox at once; only this one's scratch leaves.
+    pub(super) fn retire_shared_scratch(&self, sandbox: &str) -> Result<Vec<PathBuf>, RuntimeError> {
+        let base = self.tools_base()?;
+        let shared = base.join(rustix::process::geteuid().as_raw().to_string());
+        match fs::symlink_metadata(&shared) {
+            Ok(info) if info.is_dir() => checked_base(&base)?,
+            Ok(_) => return Err(error("Unsafe private process tool directory")),
+            Err(problem) if problem.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(problem) => return Err(error(problem)),
+        }
+        let entries = fs::read_dir(&shared).map_err(error)?;
+        let prefix = scratch_prefix(sandbox)?;
+        let mut retired = Vec::new();
+        for entry in entries {
+            let name = entry.map_err(error)?.file_name();
+            if let Some(name) = name.to_str().filter(|name| name.starts_with(&prefix)) {
+                retired.extend(retire(&base, &format!("{}/{name}", rustix::process::geteuid().as_raw()))?);
+            }
+        }
+        Ok(retired)
+    }
+    /// What a crash left: retired trees, and in the UID pool a directory whose UID nobody holds.
+    /// A shared UID's scratch stays, since supervisors adopted across a restart may still use it.
+    pub(super) fn sweep_tools(&self) -> Result<(), RuntimeError> {
+        let base = self.tools_base()?;
+        let entries = match fs::read_dir(&base) {
+            Ok(entries) => entries,
+            Err(problem) if problem.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(problem) => return Err(error(problem)),
+        };
+        checked_base(&base)?;
+        let held: Vec<String> = self.state.owners.lock().unwrap().values().map(|(uid, _)| uid.to_string()).collect();
+        for entry in entries {
+            let name = entry.map_err(error)?.file_name();
+            let Some(name) = name.to_str() else { continue };
+            if name.starts_with(RETIRED) {
+                remove_retired(Some(base.join(name)));
+            } else if !self.shared_uid() && name.parse::<u32>().is_ok() && !held.iter().any(|uid| uid == name) {
+                remove_retired(retire(&base, name)?);
+            }
+        }
+        Ok(())
     }
     async fn native_readiness(&self, binary: &Path) -> Result<Readiness, RuntimeError> {
         let metadata = crate::runtime::agent_metadata::query(binary).await;
@@ -202,7 +298,7 @@ impl ProcessRuntime {
             crate::durable::write_atomic(&self.state.root.join("native-scope-required"), b"1\n", 0o600)
                 .map_err(error)?;
         }
-        let (cache, downloads, scratch) = self.tool_paths(self.owner(&agent.sandbox)?)?;
+        let (cache, downloads, scratch) = self.tool_paths(self.owner(&agent.sandbox)?, &agent.sandbox)?;
         Ok((
             Some(Policy {
                 cache,
@@ -235,6 +331,91 @@ mod tests {
             assert!(!runtime.state.root.join("native-unscoped-boot").exists());
             assert!(!runtime.state.root.join("native-scope-required").exists());
             assert!(!root.path().join("process-tools").exists());
+        }
+    }
+
+    /// A tenant's tool files: a sealed verified cache entry, a download, and scratch with a link out.
+    fn tenant_files(cache: &Path, downloads: &Path, scratch: &Path, outside: &Path) {
+        let sealed = cache.join("digest");
+        fs::create_dir(&sealed).unwrap();
+        fs::write(sealed.join("tool"), b"verified").unwrap();
+        fs::set_permissions(&sealed, fs::Permissions::from_mode(0o555)).unwrap();
+        fs::write(downloads.join("partial"), b"partial").unwrap();
+        fs::write(scratch.join("profile"), b"first tenant").unwrap();
+        std::os::unix::fs::symlink(outside, scratch.join("escape")).unwrap();
+    }
+    fn names(directory: &Path) -> Vec<String> {
+        let mut names: Vec<_> =
+            fs::read_dir(directory).unwrap().map(|entry| entry.unwrap().file_name().into_string().unwrap()).collect();
+        names.sort();
+        names
+    }
+
+    #[test]
+    fn a_deleted_sandbox_takes_its_tool_files_and_a_reused_uid_starts_empty() {
+        let root = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        fs::write(outside.path().join("kept"), b"kept").unwrap();
+        let runtime = ProcessRuntime::new(root.path(), crate::config::ProcessConfig::default()).unwrap();
+        let first = runtime.owner("first").unwrap();
+        let (cache, downloads, scratch) = runtime.tool_paths(first, "first").unwrap();
+        tenant_files(&cache, &downloads, &scratch, outside.path());
+        let neighbour = runtime.owner("neighbour").unwrap();
+        let (_, _, live) = runtime.tool_paths(neighbour, "neighbour").unwrap();
+        runtime.release_owner("first").unwrap();
+        let base = root.path().join("process-tools");
+        assert!(!scratch.exists(), "the deleted sandbox's scratch is gone");
+        assert!(live.exists(), "a neighbour's scratch stays");
+        assert_eq!(fs::read(outside.path().join("kept")).unwrap(), b"kept", "a link's target is never touched");
+        assert!(names(&base).iter().all(|name| !name.starts_with(RETIRED)), "{:?}", names(&base));
+        if runtime.shared_uid() {
+            assert!(cache.join("digest/tool").exists(), "the shared UID's verified cache still serves its others");
+            return crate::tree::unseal(&base).unwrap();
+        }
+        assert!(!base.join(first.0.to_string()).exists(), "the released UID's whole directory is gone");
+        assert_eq!(runtime.owner("second").unwrap(), first, "the pool hands the UID out again");
+        let (cache, downloads, _) = runtime.tool_paths(first, "second").unwrap();
+        assert!(names(&cache).is_empty() && names(&downloads).is_empty());
+        let held = names(&base.join(first.0.to_string()));
+        assert!(
+            held.iter()
+                .all(|name| ["cache", "downloads"].contains(&name.as_str()) || name.starts_with("scratch-second.")),
+            "{held:?}"
+        );
+    }
+
+    #[test]
+    fn a_crash_between_release_and_removal_never_reaches_the_next_holder() {
+        let root = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let config = crate::config::ProcessConfig::default();
+        let runtime = ProcessRuntime::new(root.path(), config.clone()).unwrap();
+        let first = runtime.owner("first").unwrap();
+        let (cache, downloads, scratch) = runtime.tool_paths(first, "first").unwrap();
+        tenant_files(&cache, &downloads, &scratch, outside.path());
+        // Renamed out of reach, then a crash before removal.
+        let retired = runtime.retire_uid_tools(first.0).unwrap().unwrap();
+        let base = root.path().join("process-tools");
+        let free = (first.0 + 1, first.0 + 1);
+        let mut held = None;
+        if !runtime.shared_uid() {
+            // Released by a node from before this removal, or a crash after the release itself:
+            // nobody holds the UID, yet its directory is there.
+            for uid in [free.0, free.0 + 1] {
+                fs::create_dir_all(base.join(format!("{uid}/cache"))).unwrap();
+                fs::write(base.join(format!("{uid}/cache/leftover")), b"earlier tenant").unwrap();
+            }
+            assert_eq!(runtime.owner("second").unwrap(), free);
+            assert!(!base.join(format!("{}/cache/leftover", free.0)).exists(), "the next holder starts empty");
+            held = Some(runtime.tool_paths(free, "second").unwrap().2);
+        }
+        let restarted = ProcessRuntime::new(root.path(), config).unwrap();
+        assert!(!retired.exists(), "the next start removes what a crash left retired");
+        assert!(names(&base).iter().all(|name| !name.starts_with(RETIRED)), "{:?}", names(&base));
+        if let Some(held) = held {
+            assert!(!restarted.shared_uid());
+            assert!(!base.join((free.0 + 1).to_string()).exists(), "and a directory whose UID nobody holds");
+            assert!(held.exists(), "a held UID's directory stays");
         }
     }
 

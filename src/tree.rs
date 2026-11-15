@@ -25,13 +25,16 @@
 //! - `path.rs`: descriptor-relative single-file operations for node and agent.
 //! - `walk.rs`: descriptor-relative traversal and progress accounting.
 //! - `copy.rs`: reflink and bounded copying through the same no-follow walk.
+//! - `remove.rs`: unsealing and removing a tree no workload reaches any more.
 //! - `tests.rs`: real-filesystem traversal, admission and copy regressions.
 
 mod copy;
+mod remove;
 #[cfg(test)]
 mod tests;
 mod walk;
 pub use copy::{copy_tree, reflink_supported};
+pub(crate) use remove::{remove, unseal};
 pub use walk::{Copied, Method, Walked, disk_usage};
 pub(crate) use walk::{Kind, MAX_BYTES, MAX_ENTRIES, NoRoom, Progress, walk};
 

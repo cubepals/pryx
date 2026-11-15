@@ -377,6 +377,62 @@ async fn confined_tools_keep_kernel_state_images_private_channels_and_browser_pr
     );
 }
 
+/// The names of the live abstract Unix sockets the native fronts listen on. proc_net(5): the
+/// kernel lists every bound socket in /proc/net/unix, an abstract name with a leading '@'.
+fn front_sockets() -> std::collections::BTreeSet<String> {
+    fs::read_to_string("/proc/net/unix")
+        .unwrap()
+        .lines()
+        .skip(1)
+        .filter_map(|line| line.split_whitespace().nth(7)?.strip_prefix('@').map(str::to_owned))
+        .filter(|name| FRONTS.iter().any(|prefix| name.starts_with(prefix)))
+        .collect()
+}
+const FRONTS: [&str; 3] = ["pryx-browser-", "pryx-desktop-", "pryx-ssh-"];
+
+#[tokio::test]
+#[ignore = "explicit hosted complete artifact and private process-policy acceptance"]
+async fn browser_desktop_and_ssh_fronts_refuse_a_same_uid_neighbour() {
+    require_host();
+    let artifact = artifact();
+    let agent = start(artifact.clone(), true, None);
+    agent.healthy().await;
+    let before = front_sockets();
+    let page = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    let page_url = format!("http://{}/", page.local_addr().unwrap());
+    let page = tokio::spawn(async move {
+        let html = || async { axum::response::Html("<h1>Native front</h1>") };
+        axum::serve(page, axum::Router::new().route("/", axum::routing::get(html))).await.unwrap();
+    });
+    // Each front starts through the native-tools worker and bubblewrap, as a guest's request does.
+    for (path, body) in
+        [("/_pryx/browser/screenshot", json!({"url":page_url})), ("/_pryx/desktop/screenshot", Value::Null)]
+    {
+        let response = agent.call(reqwest::Method::POST, path, body).await;
+        let status = response.status();
+        let bytes = response.bytes().await.unwrap();
+        assert!(status.is_success(), "{path}: {status} {}", String::from_utf8_lossy(&bytes));
+        assert!(bytes.starts_with(b"\x89PNG\r\n\x1a\n"));
+    }
+    agent.json(reqwest::Method::POST, "/_pryx/ssh", Value::Null).await;
+    let live: Vec<String> = front_sockets().difference(&before).cloned().collect();
+    for prefix in FRONTS {
+        assert_eq!(live.iter().filter(|name| name.starts_with(prefix)).count(), 1, "{prefix}: {live:?}");
+    }
+    // Live endpoints, not failed lookups: the owner's own commands reach each front.
+    agent.probe_sockets(&live, true).await;
+    let neighbour = start(artifact, false, Some("Neighbour fixture has no native tools".into()));
+    neighbour.healthy().await;
+    neighbour.probe_sockets(&live, false).await;
+    agent.probe_sockets(&live, true).await;
+    assert_eq!(front_sockets().difference(&before).cloned().collect::<Vec<_>>(), live, "every front stayed up");
+    page.abort();
+    println!(
+        "{}",
+        json!({"fronts":live,"scope":"actual native-tools worker and bubblewrap launches","ownerReachable":true,"sameUidNeighbourRefused":true,"uid":rustix::process::geteuid().as_raw()})
+    );
+}
+
 #[tokio::test]
 #[ignore = "explicit hosted artifact and process-policy acceptance"]
 async fn unavailable_browser_names_namespace_policy_without_acquiring_tools() {

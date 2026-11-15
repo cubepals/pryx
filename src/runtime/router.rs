@@ -260,6 +260,10 @@ impl ContainerRuntime for Router {
         self.bind(&spec.name, Some(&id), backend.isolation())?;
         Ok(id)
     }
+    async fn check_data_owner(&self, name: &str, data_dir: &std::path::Path) -> Result<(), RuntimeError> {
+        let backend = self.target(name)?;
+        self.reported(backend.isolation(), backend.check_data_owner(name, data_dir).await)
+    }
     async fn start(&self, name: &str) -> Result<(), RuntimeError> {
         let backend = self.target(name)?;
         self.reported(backend.isolation(), backend.start(name).await)

@@ -33,26 +33,10 @@ async fn stop(config: &Config, purge: bool) -> anyhow::Result<()> {
 /// The sealed read-only caches a purge must open first: native process tools and the VM
 /// bundle, which shares the same acquisition (`process_tools::acquire_artifact`).
 fn unseal_native_tools(state: &Path) -> std::io::Result<()> {
+    // All compute has stopped while both lifecycle/store locks remain held.
     for root in [state.join("process-tools"), state.join("vm-runtime").join("cache")] {
-        unseal(&root)?;
+        crate::tree::unseal(&root)?;
     }
-    Ok(())
-}
-
-fn unseal(root: &Path) -> std::io::Result<()> {
-    let directory = match pryx_agent::paths::DataDir::open(root) {
-        Ok(directory) => directory,
-        Err(problem) if problem.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(problem) => return Err(problem),
-    };
-    // All compute has stopped while both lifecycle/store locks remain held. Reuse the
-    // descriptor-relative walk and chmod owner; links never grant access to their targets.
-    crate::tree::walk(root, &[], &mut |entry| {
-        if matches!(entry.kind, crate::tree::Kind::Dir) {
-            directory.chmod(entry.path.to_str().ok_or(std::io::ErrorKind::InvalidData)?, 0o700)?;
-        }
-        Ok(())
-    })?;
     Ok(())
 }
 

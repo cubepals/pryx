@@ -480,7 +480,8 @@ impl Manager {
             self.require_store_lease(&record)?;
             let reservation = reservation.as_mut().expect("Running replacements reserve their start");
             reservation.launching();
-            let start = self.note(self.runtime.start(&record.container_name).await).map_err(|e| port_clash(&id, e));
+            let start =
+                self.note(self.start_compute(self.runtime.as_ref(), &record).await).map_err(|e| port_clash(&id, e));
             let observation = self.observe(&record).await;
             if observation.is_ok() {
                 reservation.observed();

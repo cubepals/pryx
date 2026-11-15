@@ -121,6 +121,21 @@ async fn start_and_stop_are_idempotent() {
 }
 
 #[tokio::test]
+async fn a_start_its_backend_refuses_for_the_existing_data_never_reaches_compute() {
+    let f = fixture("").await;
+    f.manager.ensure(id("w"), spec(), Precondition::None, None).await.unwrap();
+    let problem = "data-owner-mapping is unavailable for this workload's data: workload 2:2 maps to host 2:2";
+    *f.fake.data_owner_problem.lock().unwrap() = Some(problem.into());
+    let refused = f.manager.start(id("w"), None).await.unwrap_err();
+    assert!(refused.to_string().contains(problem), "{refused}");
+    assert_eq!(f.fake.count_calls("check-data blockly-test-w"), 1);
+    assert_eq!(f.fake.count_calls("start "), 0, "refused before any compute starts");
+    *f.fake.data_owner_problem.lock().unwrap() = None;
+    assert!(f.manager.start(id("w"), None).await.unwrap().changed);
+    assert_eq!(f.fake.count_calls("start "), 1);
+}
+
+#[tokio::test]
 async fn a_stop_that_needed_a_kill_says_so_and_is_still_a_stop() {
     let f = fixture("").await;
     f.manager.ensure(id("w"), spec(), Precondition::None, None).await.unwrap();

@@ -98,7 +98,6 @@ and a create can `require` any of them. The node computes them in
   process when its browser probe passes.
 
 The vm tier runs only where KVM works: as an ordinary user, or as root through its separate
-worker service, which the server preset does not install yet. Its guarantees,
-network policy and limits are in [vm.md](vm.md), its CI proof in the
-[progress record](any-host-progress.md), and its thirty-sample measurements are
-[pending](tiers.md#vm-tier-measurements).
+worker service, which the server preset installs. Its guarantees, network policy and limits are
+in [vm.md](vm.md), its CI proof in the [progress record](any-host-progress.md), and its
+thirty-sample measurements in [tiers.md](tiers.md#vm-tier-measurements).

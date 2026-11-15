@@ -165,9 +165,14 @@ itself, and pryxd reports the tier off with its name. Each
 guest gets a TAP device in its own anonymous network namespace behind default-drop nftables
 rules, read back before the monitor starts. Hostname policy uses the same gateways, listening
 inside that namespace; the default network crosses a filtered bridge into a confined ordinary
-packet stack. The host's own routes, forwarding settings and firewall are not changed. The
-server preset does not yet install the VM bundle for root, so a server install still reports
-the tier off, and the root lifecycle through an installed node has not yet run in CI.
+packet stack. The host's own routes, forwarding settings and firewall are not changed. A
+release lists `vm-bundle.json`, and the server preset (`sudo pryx up`) installs it beside the
+root agent, where the worker finds it; the runtime it pins is fetched on the first VM create.
+An install that names no `--allow-image` then admits, besides `alpine:` and `node:`, exactly the
+images the bundle is proven with ([image-inputs.json](../templates/vm-tools/image-inputs.json)),
+each by its full digest reference, which admits that digest and no other. They are ordinary
+`allowed_images` entries in `/etc/pryxd/pryxd.toml`: an operator who removes them or narrows the
+list narrows the tier with it, and adds prefixes there for other images, as for containers.
 
 ## Sleep, snapshot, fork, export, restore, move
 
@@ -220,8 +225,7 @@ output's admitted size.
 ## Limits
 
 - No KVM, no tier: there is no emulation, and the tier is x86_64 only.
-- Root nodes serve the tier only through the VM worker, and the server preset does not install
-  the VM bundle yet.
+- Root nodes serve the tier only through the VM worker.
 - Sleep keeps the disk, not memory. Snapshots and exports of a running VM restart it.
 - CPU is whole vCPUs: `cpuMillis` must be a multiple of 1000, and one vCPU is given without
   it. CPU weights are refused.
@@ -279,11 +283,24 @@ The [progress record](any-host-progress.md) holds every commit and run. In brief
 - [VM experiments 43730018633](https://github.com/cubepals/pryx/actions/runs/43730018633), at
   `df53ca1`: the whole VM job again on real KVM with the filesystem programs confined, and each
   start's stages (in [decisions](decisions.md)).
+- [Any host 43749214185](https://github.com/cubepals/pryx/actions/runs/43749214185) and
+  [VM experiments 43749214194](https://github.com/cubepals/pryx/actions/runs/43749214194), both
+  green at `c7a620b`:
+  the same installed acceptance (`deploy/vm-installed-acceptance.ts`) as the signed ordinary user
+  (bundle job) and as root through the server preset and its VM worker (sudo bootstrap job,
+  `deploy/server-vm-acceptance.sh`): Alpine and Debian, run, a file round trip, a declared port
+  through the edge, sleep and cold wake from the edge, snapshot and fork, delete, the guarantee
+  checks, the default network's firewall (a public address answers, a listener on the host's
+  own address does not) and one hostname egress rule; the purge after the ordinary user's run;
+  and the whole VM job on real KVM.
+- The thirty-sample cohorts ([tiers](tiers.md#vm-tier-measurements)) in the same Any host run,
+  with no failed start.
 - The kernel and the ordinary-user network path were chosen by measured spikes
   ([checks](checks/k25-vm-spikes.md)). Their boot figure, 717 ms at p50 from launch to a
   validated guest report, is a minimal fixture, not a sandbox create.
 
-Not yet proven: the thirty-sample measurements ([pending](tiers.md#vm-tier-measurements); a
-start right after a stop failed twice in about sixty samples, cause not yet known), a move between two VM nodes, and root as a served tier through an installed node
-(the worker service exists; the server preset installs a VM descriptor only when a release lists
-one, and no root installed acceptance runs yet).
+Not yet proven: a move between two VM nodes, and a published release carrying the
+descriptor (the release workflow lists it, and runs only on `main`). A start right after a stop
+failed twice in about sixty samples before starts stopped consulting the registry; it has not
+recurred in the four installed cohort runs since (about 360 starts), and its cause was not
+found.
