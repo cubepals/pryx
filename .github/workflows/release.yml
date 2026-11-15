@@ -113,7 +113,7 @@ jobs:
           python3 - dist/vm-bundle.json "dist/pryx-vm-linux-x64.tar.gz" "$version" <<'PY'
           import hashlib, json, sys
           from pathlib import Path
-          runtime = json.loads(Path(sys.argv[1]).read_text())['runtime']
+          runtime = json.loads(Path(sys.argv[1]).read_text())
           archive = Path(sys.argv[2])
           assert runtime['url'] == f'https://github.com/cubepals/pryx/releases/download/v{sys.argv[3]}/{archive.name}'
           assert runtime['bytes'] == archive.stat().st_size
