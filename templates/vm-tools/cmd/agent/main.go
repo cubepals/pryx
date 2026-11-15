@@ -3,7 +3,8 @@
 // owner's vsock dialer. Credentials stay on bounded private stdin, never argv or logs.
 // It neither implements CONNECT framing nor retries an HTTP operation or follows redirects.
 //
-// Parts (`cmd/agent/`): main.go carries bounded requests; forward.go relays opaque TCP streams.
+// Parts (`cmd/agent/`): main.go carries bounded requests; forward.go relays opaque TCP streams
+// with reserved capacity for the agent's own binding, proved by forward_test.go.
 package main
 
 import (

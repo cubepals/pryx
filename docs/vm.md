@@ -107,6 +107,11 @@ stats go there, authenticated as on other tiers. Declared TCP ports are forwarde
 relays over the same socket to the guest, and the edge reaches them as on any tier; the
 host-side listeners are private. UDP ports are refused.
 
+A VM's declared and spare ports share 64 simultaneous connections; one more is closed at once,
+and the guest never sees it. The binding pryxd marks as reserved, the agent's own, has 64 of its
+own that no public connection can use, so exec, files and stats keep working while a public port
+is full. Until pryxd marks the agent's binding, it shares the 64 with the public ports.
+
 While a VM is stopped or asleep, its files and logs are still readable and writable: pryxd
 boots a short-lived file-only guest on the same disk, with fresh credentials, no network and no
 workload, and shuts it down after.

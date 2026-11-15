@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 // Private TCP listeners relay opaque streams through the maintained SDK's vsock dialer.
 // Guest services retain their own authentication; this helper never parses or retries data.
+// Reserved bindings (the agent's own) draw on a capacity public bindings cannot consume, so a
+// full public port never locks the host out of the guest's exec, files and stats.
 package main
 
 import (
@@ -24,6 +26,8 @@ type binding struct {
 	Host      string `json:"host"`
 	Port      uint16 `json:"port"`
 	GuestPort uint32 `json:"guestPort"`
+	// Reserved bindings share their own pool; the others share another, each of Concurrency.
+	Reserved bool `json:"reserved,omitempty"`
 }
 type forwarding struct {
 	Bindings    []binding `json:"bindings"`
@@ -81,13 +85,50 @@ func forward(input request) error {
 			}
 		}
 	}()
-	capacity := make(chan struct{}, plan.Concurrency)
+	serve(ctx, cancel, listeners, plan.Bindings, capacities(plan.Bindings, plan.Concurrency),
+		func(client net.Conn, port uint32, observe func(string)) {
+			relay(ctx, client, input.Socket, port, plan.Diagnostics, observe)
+		}, plan.Diagnostics)
+	return nil
+}
+
+// pool is a fixed number of simultaneous connections.
+type pool chan struct{}
+
+func (capacity pool) take() bool {
+	select {
+	case capacity <- struct{}{}:
+		return true
+	default:
+		return false
+	}
+}
+func (capacity pool) give() { <-capacity }
+
+// capacities gives each binding the pool it draws from: one shared by the reserved bindings,
+// another shared by every other binding.
+func capacities(bindings []binding, concurrency uint16) []pool {
+	reserved, public := make(pool, concurrency), make(pool, concurrency)
+	pools := make([]pool, len(bindings))
+	for i, bind := range bindings {
+		pools[i] = public
+		if bind.Reserved {
+			pools[i] = reserved
+		}
+	}
+	return pools
+}
+
+// serve accepts on every listener until ctx ends; a connection its pool has no room for is
+// closed at once, and handle owns each admitted one.
+func serve(ctx context.Context, cancel context.CancelFunc, listeners []net.Listener, bindings []binding, pools []pool,
+	handle func(client net.Conn, port uint32, observe func(string)), diagnostics bool) {
 	var sequence atomic.Uint64
 	var active sync.WaitGroup
 	var accepting sync.WaitGroup
 	accepting.Add(len(listeners))
 	for i, listener := range listeners {
-		port := plan.Bindings[i].GuestPort
+		port, capacity := bindings[i].GuestPort, pools[i]
 		go func() {
 			defer accepting.Done()
 			for {
@@ -96,15 +137,13 @@ func forward(input request) error {
 					cancel()
 					return
 				}
-				select {
-				case capacity <- struct{}{}:
-				default:
+				if !capacity.take() {
 					client.Close()
 					continue
 				}
 				id := sequence.Add(1)
 				observe := func(stage string) {
-					if plan.Diagnostics {
+					if diagnostics {
 						fmt.Fprintf(os.Stderr, "VM ingress process=%d connection=%d service=%d stage=%s active=%d\n", os.Getpid(), id, port, stage, len(capacity))
 					}
 				}
@@ -112,11 +151,9 @@ func forward(input request) error {
 				active.Add(1)
 				go func() {
 					defer active.Done()
-					defer func() { <-capacity }()
+					defer capacity.give()
 					defer client.Close()
-					if err := relay(ctx, client, input.Socket, port, plan.Diagnostics, observe); err != nil {
-						return
-					}
+					handle(client, port, observe)
 				}()
 			}
 		}()
@@ -127,7 +164,6 @@ func forward(input request) error {
 	}
 	accepting.Wait()
 	active.Wait()
-	return nil
 }
 
 type observedReader struct {

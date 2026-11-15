@@ -32,6 +32,8 @@ case "${1:?Name one VM build phase}" in
     "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-config" ./cmd/config
     "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-guest" ./cmd/guest
     "$pryx_go" build -mod=readonly -trimpath -o "$RUNNER_TEMP/vm-agent-client" ./cmd/agent
+    "$pryx_go" vet ./cmd/agent
+    "$pryx_go" test -mod=readonly ./cmd/agent
     "$pryx_go" mod verify
     ;;
   filesystems)
