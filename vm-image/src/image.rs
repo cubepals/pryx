@@ -264,7 +264,10 @@ impl Images {
         if manifest.layers.len() > MAX_LAYERS {
             return Err(error("VM OCI image exceeds the layer admission bound"));
         }
-        let staging = tempfile::tempdir_in(&self.root).map_err(error)?;
+        // Explicitly private: a confined filesystem program refuses an ancestor that an
+        // ordinary user's group-writable umask (002) would otherwise leave writable.
+        let private = || tempfile::Builder::new().permissions(fs::Permissions::from_mode(0o700)).to_owned();
+        let staging = private().tempdir_in(&self.root).map_err(error)?;
         let config = staging.path().join("configuration");
         self.blob(&reference, &manifest.config, &config, MAX_CONFIG_BYTES).await?;
         let configuration: ConfigFile = serde_json::from_reader(File::open(config).map_err(error)?).map_err(error)?;
@@ -287,7 +290,7 @@ impl Images {
             }
             let blob = staging.path().join(format!("layer-{index}.blob"));
             self.blob(&reference, layer, &blob, MAX_LAYER_BYTES).await?;
-            let temporary = tempfile::tempdir_in(staging.path()).map_err(error)?;
+            let temporary = private().tempdir_in(staging.path()).map_err(error)?;
             let work = temporary.path().to_path_buf();
             let generated = convert(&self.tools, &blob, &work, &layer.media_type, diff_id).await?;
             let file = File::open(&generated).map_err(error)?;

@@ -4950,3 +4950,9 @@ job when publication is authorized. That job has not run in this task.
   jail, jailer and root lifecycle with both policies, node API, OCI and agent acceptance, all with
   confined filesystem programs. Stage timings are in decisions; a pinned image now skips the
   helper on later starts (about 850 ms each).
+
+- Any host 43727778733 (1864a18) refused the first installed VM create: the node log, now with
+  its refusal, shows the confined mkfs.erofs refusing a group-writable staging ancestor under the
+  installed user’s umask 002 (CI’s runner umask is 022, so VM experiments passed). Staging for
+  the helper and the disk transaction is created 0700 explicitly. The earlier start 502 (two in
+  about sixty) is not yet explained; that run never reached the cohort.
