@@ -647,3 +647,44 @@ jobs:
           for unit in pryxd pryxd-vm-worker pryx-control pryx-edge pryx-postgres pryx-store; do
             sudo systemctl status "$unit" --no-pager --lines=0 || true
           done
+
+  # GitHub's standard arm64 runner, free for this public repository: pryxd and the agent built
+  # natively, and the tier report they give there. Installing on arm64 waits for aarch64 release
+  # assets, which the release does not build yet.
+  arm64:
+    name: arm64 build and tier report
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the repository Rust
+        run: |
+          if ! command -v rustup >/dev/null; then
+            curl --proto '=https' --tlsv1.2 --retry 5 -fsSL https://sh.rustup.rs | sh -s -- -y --default-toolchain none --profile minimal
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+            export PATH="$HOME/.cargo/bin:$PATH"
+          fi
+          rustup toolchain install
+      - name: Build pryxd and the agent on arm64
+        env:
+          CARGO_INCREMENTAL: '0'
+          CARGO_PROFILE_DEV_DEBUG: '0'
+        run: |
+          test "$(uname -m)" = aarch64
+          cargo build --locked --bin pryxd
+          cargo build --locked -p pryx-agent --bin pryx-agent
+          file target/debug/pryxd target/debug/pryx-agent | tee "$RUNNER_TEMP/arm64-binaries.txt"
+          grep -c 'ARM aarch64' "$RUNNER_TEMP/arm64-binaries.txt" | grep -qx 2
+      - name: Report every tier, wasm and vm off with their reasons
+        run: |
+          target/debug/pryxd probe --json > "$RUNNER_TEMP/arm64-probe.json"
+          python3 - "$RUNNER_TEMP/arm64-probe.json" <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import json, sys
+          tiers = json.load(open(sys.argv[1]))['tiers']
+          for name, tier in sorted(tiers.items()):
+              print(f"arm64 tier {name}: {tier['state']}: {tier.get('evidence', '')}")
+          assert tiers['wasm']['state'] == 'off' and 'x86_64' in tiers['wasm']['evidence'], tiers['wasm']
+          assert tiers['vm']['state'] != 'on', tiers['vm']
+          PY
