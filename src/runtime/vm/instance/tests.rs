@@ -219,6 +219,7 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
         runtime = VmRuntime::new(temporary.path(), settings).await.unwrap();
         assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Created);
         runtime.start(&id).await.unwrap();
+        boot_stages(&runtime, &id, index, "first start after a daemon restart").await;
         observe_live(&runtime, &id, &original_spec, index).await;
         runtime.stop(&id, &original_spec.stop_signal, Duration::from_secs(15)).await.unwrap();
         assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Exited);
@@ -250,6 +251,7 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
         retained_files.close().await.unwrap();
         let id = runtime.create(&original_spec).await.unwrap();
         runtime.start(&id).await.unwrap();
+        boot_stages(&runtime, &id, index, "start of a retained disk").await;
         assert_eq!(exec(&runtime, &id, "wc -c < /data/offline").await, format!("{}\n", bytes.len()).as_bytes());
         assert_eq!(exec(&runtime, &id, "cat /data/retained").await, b"durable");
         eprintln!("VM runtime image {index}: independent fork");
@@ -451,6 +453,11 @@ fn retained_file_spec_has_only_host_owned_data_policy() {
     let (memory, cpus, _, _) = monitor::resources(&prepared).unwrap();
     assert_eq!(memory, original.memory_bytes as u64 / (1024 * 1024));
     assert_eq!(cpus, 1);
+}
+
+async fn boot_stages(runtime: &VmRuntime, id: &str, index: usize, label: &str) {
+    let live = runtime.state.live.lock().unwrap()[id].clone();
+    eprintln!("VM boot stages (image {index}, {label}): {}", live.lock().await.stages);
 }
 
 async fn observe_live(runtime: &VmRuntime, id: &str, original_spec: &ContainerSpec, index: usize) {

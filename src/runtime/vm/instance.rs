@@ -127,6 +127,9 @@ struct Live {
     nonce: String,
     shutdown_requested: bool,
     killing: bool,
+    /// How long each stage of this boot took.
+    #[cfg_attr(not(test), allow(dead_code))]
+    stages: launch::Stages,
     #[cfg(test)]
     diagnostic_secrets: Vec<String>,
 }

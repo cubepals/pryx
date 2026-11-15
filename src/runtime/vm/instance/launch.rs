@@ -7,6 +7,33 @@ use serde_json::Value;
 use tokio::time::Instant;
 
 pub(super) const BOOT_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Milliseconds each stage of one start took, in order, for the node log and tests.
+#[derive(Clone, Debug)]
+pub(super) struct Stages {
+    since: Instant,
+    pub(super) taken: Vec<(&'static str, u128)>,
+}
+impl Default for Stages {
+    fn default() -> Self {
+        Self { since: Instant::now(), taken: Vec::new() }
+    }
+}
+impl Stages {
+    fn mark(&mut self, stage: &'static str) {
+        let now = Instant::now();
+        self.taken.push((stage, now.duration_since(self.since).as_millis()));
+        self.since = now;
+    }
+}
+impl std::fmt::Display for Stages {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for (index, (stage, milliseconds)) in self.taken.iter().enumerate() {
+            write!(formatter, "{}{stage}={milliseconds}ms", if index == 0 { "" } else { " " })?;
+        }
+        Ok(())
+    }
+}
 impl VmRuntime {
     async fn forward(
         &self,
@@ -106,15 +133,13 @@ impl VmRuntime {
         )
         .await
     }
-    pub(super) async fn launch_entry(&self, name: &str) -> Result<(), RuntimeError> {
-        let entry = self.entry(name)?;
-        let transition = self.transition(&entry.id);
-        let _transition = transition.lock().await;
-        let previous = self.state.live.lock().unwrap().get(&entry.id).cloned();
+    /// True while the previous boot still runs; otherwise its helpers and jail are retired.
+    async fn running_or_retired(&self, id: &str) -> Result<bool, RuntimeError> {
+        let previous = self.state.live.lock().unwrap().get(id).cloned();
         if let Some(previous) = previous {
             let mut previous = previous.lock().await;
             if previous.monitor.exited().map_err(error)?.is_none() {
-                return Ok(());
+                return Ok(true);
             }
             previous.forwarder.stop().await.map_err(error)?;
             if let Some(network) = &mut previous.network {
@@ -122,15 +147,26 @@ impl VmRuntime {
             }
             previous.retire_jail()?;
             drop(previous);
-            self.state.live.lock().unwrap().remove(&entry.id);
+            self.state.live.lock().unwrap().remove(id);
+        }
+        Ok(false)
+    }
+    pub(super) async fn launch_entry(&self, name: &str) -> Result<(), RuntimeError> {
+        let entry = self.entry(name)?;
+        let transition = self.transition(&entry.id);
+        let _transition = transition.lock().await;
+        if self.running_or_retired(&entry.id).await? {
+            return Ok(());
         }
         let mut entry = self.entry(name)?;
+        let mut stages = Stages::default();
         let (_, _, uid, gid) = monitor::resources(&entry.spec)?;
         // The first start pins the manifest; a wake never takes a moved tag's lower layers
         // under its retained disk, and a cached pin needs no registry.
         let image =
             self.prepared(&entry.spec.image, entry.image_digest.as_deref(), self.state.settings.image_timeout).await?;
         entry.image_digest = Some(image.digest.clone());
+        stages.mark("image");
         let bundle = self.bundle().await?;
         let lease = self.lease(&entry)?;
         self.recover_disk(&entry.spec.data_dir)?;
@@ -143,10 +179,12 @@ impl VmRuntime {
             self.state.settings.free_floor_bytes,
         )
         .await?;
+        stages.mark("disk");
         let directory = boot_directory(&self.state.root.join("boots"))?;
         let serial = directory.path().join("serial");
         let deadline = Instant::now() + BOOT_TIMEOUT;
         let network = self.network(&bundle, directory.path(), &lease, &entry, deadline).await?;
+        stages.mark("network");
         let monitor::Launch { channel, configuration, plan, jail } = self
             .prepare_monitor(
                 &bundle,
@@ -173,10 +211,14 @@ impl VmRuntime {
             usize::try_from(u64::from(entry.spec.log_max_size_mb) * 1024 * 1024).map_err(error)?,
         )
         .await?;
+        stages.mark("monitor");
         let readiness: Result<Forwarder, RuntimeError> = async {
             let forwarder = self.forward(&bundle, &channel, &entry, deadline).await?;
+            stages.mark("forwarder");
             monitor.delivered(deadline).await?;
+            stages.mark("bootstrap");
             ready(&mut monitor, &entry.spec, deadline).await?;
+            stages.mark("agent");
             Ok(forwarder)
         }
         .await;
@@ -185,7 +227,7 @@ impl VmRuntime {
             diagnostics::failed(&mut monitor, &serial, &entry.spec).await;
         }
         let forwarder = readiness?;
-
+        tracing::info!(sandbox = %entry.id, stages = %stages, "VM boot stages");
         self.state.live.lock().unwrap().insert(
             entry.id.clone(),
             Arc::new(tokio::sync::Mutex::new(Live {
@@ -199,6 +241,7 @@ impl VmRuntime {
                 nonce,
                 shutdown_requested: false,
                 killing: false,
+                stages,
                 #[cfg(test)]
                 diagnostic_secrets: entry.spec.env.iter().map(|(_, value)| value.clone()).collect(),
             })),
