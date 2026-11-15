@@ -36,7 +36,7 @@ impl Manager {
     ) -> Result<DeleteResponse, NodeError> {
         let Some(mut record) = self.state.lock().unwrap().records.get(id).cloned() else {
             if data == DataDisposition::Delete {
-                self.runtime.data_deleted(id.as_str())?;
+                self.data_deleted(id).await?;
             }
             return Ok(DeleteResponse {
                 existed: false,
@@ -103,7 +103,7 @@ impl Manager {
                 super::agent_keys::discard(&self.config.state_dir, id)
                     .map_err(|source| NodeError::Io { what: "removing sandbox signing material".into(), source })?;
                 self.locks.lock().unwrap().remove(id);
-                self.runtime.data_deleted(id.as_str())?;
+                self.data_deleted(id).await?;
                 Ok(DeleteResponse {
                     existed: true,
                     removed_container,
@@ -112,5 +112,12 @@ impl Manager {
                 })
             }
         }
+    }
+
+    /// The runtime lets go of what it kept for the deleted data (a process sandbox's UID and its
+    /// tool files), off the async workers: that can mean waiting out orphans and removing a tree.
+    async fn data_deleted(&self, id: &WorkloadId) -> Result<(), NodeError> {
+        let (runtime, id) = (self.runtime.clone(), id.clone());
+        Ok(blocking(move || runtime.data_deleted(id.as_str())).await??)
     }
 }
