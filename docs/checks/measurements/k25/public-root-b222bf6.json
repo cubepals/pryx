@@ -1,0 +1,15 @@
+{
+  "sourceCommit": "b222bf67ee",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43668106319",
+  "job": 132673650205,
+  "artifact": 14144380913,
+  "passed": {
+    "ordinaryBothImageLifecycleSeconds": 109.88,
+    "strictOrderlyMonitorShutdownSeconds": 39.83,
+    "bothImageRootJailerSeconds": 17.89,
+    "rootLifecycleAndBothNetworkPoliciesSeconds": 58.3,
+    "mutualTlsNodeApiSeconds": 38.06
+  },
+  "checks": "Both root images: retained disk, stopped-file maintenance, daemon-loss recovery, public HTTP/TLS and DNS, hostname policy, private/metadata denials and monitor namespace/UID bounds",
+  "notProved": "Installed root worker, full installed SDK acceptance and thirty-sample production cohorts"
+}

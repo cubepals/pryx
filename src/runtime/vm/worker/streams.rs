@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Typed worker log/event streams use Serde JSON lines and Tokio's bounded line codec.
 //! They hold frontend admission until completion or cancellation; transport loss never

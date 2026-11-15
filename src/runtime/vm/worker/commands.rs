@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Private worker control commands reuse the runtime owner's actual types and errors.
 //! Dispatch owns an admitted operation across HTTP caller loss. Monitor executables, IDs

@@ -4788,3 +4788,22 @@ job when publication is authorized. That job has not run in this task.
   Local pinned Go tests/build/vet and module verification pass; remove their 142-MB build cache
   after the result. Actual public traffic is still pending CI; no dependency/job/gate or extra
   CI time is added. Keep the single pinned Go SDK for subsequent network-wrapper validation.
+
+- Source b222bf6 VM run 43668106319/job 132673650205 is green: ordinary both-image
+  lifecycle (109.88 s), strict native shutdown (39.83 s), both root jailer images (17.89 s),
+  root lifecycle and both network policies (58.30 s), and mutual-TLS node API (38.06 s).
+  This proves public root HTTP/TLS/DNS and private/metadata denials on both images for the
+  first time. Summary: checks/measurements/k25/public-root-b222bf6.json; raw artifact
+  14144380913. Installed root worker and full production cohorts remain unfinished.
+- Same-source normal CI 43668106258 and Rootless engines 43668106302 are green. Any host
+  43668106250 fails its immediate post-wake running-view assertion: the edge served the held
+  request before route acknowledgments completed. Preserve the failure (artifact 14146353319)
+  and the exact running assertion; bounded view polling is prepared separately. Scanner
+  comments remain eighteen. No K25 completion is inferred.
+
+- Separate file-session transport from Service cleanup without changing the authenticated
+  agent path; the existing real delayed-stream/cancelled-close test passes. Strict all-target
+  Clippy and fmt pass. Retain the earlier uncommitted worker SPDX notices as required by
+  CONTRIBUTING. Full local validation is running with no-fail-fast after the unchanged host
+  IPv6 fixture failure; its remaining targets are not yet claimed. Remove 2.6 GiB of obsolete
+  same-crate build output before validation; more than 7 GiB remains free.

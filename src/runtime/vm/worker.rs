@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Separate host-owned VM authority. Its private Unix transport authenticates kernel peers;
 //! this foundation does not register a backend or grant the main daemon more privileges.

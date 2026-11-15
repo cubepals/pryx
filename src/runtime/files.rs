@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Authenticated streaming file sessions keep backend cleanup owned after caller cancellation.
 //! Only four fixed data operations are available. This transport never selects a workload,
@@ -10,12 +11,14 @@ mod agent;
 #[cfg(test)]
 mod tests;
 use super::RuntimeError;
-use hyper::Method;
+use crate::http_client;
+use async_trait::async_trait;
+use hyper::{Method, Response, body::Incoming};
 use pryx_agent::auth::SigningKey;
 use std::{future::Future, net::SocketAddr, time::Duration};
 
 /// Host-owned data identity and resource bounds; no workload command, image or secret enters it.
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct Request {
     pub name: String,
     pub sandbox: String,
@@ -30,6 +33,8 @@ pub struct Request {
     pub log_max_size_mb: u32,
 }
 
+#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Operation {
     Read,
     Write,
@@ -46,12 +51,20 @@ impl Operation {
         }
     }
 }
+
+#[async_trait]
+/// Backend-owned file session transport. Authentication and streaming stay with its owner.
+pub trait Transport: Send + Sync {
+    async fn request(
+        &self,
+        operation: Operation,
+        path: &str,
+        body: http_client::Body,
+    ) -> Result<Response<Incoming>, RuntimeError>;
+}
+
 pub struct Service {
-    endpoint: SocketAddr,
-    key: SigningKey,
-    sandbox: String,
-    epoch: u64,
-    timeout: Duration,
+    transport: Box<dyn Transport>,
     release: Option<tokio::sync::oneshot::Sender<()>>,
     cleanup: Option<tokio::task::JoinHandle<Result<(), RuntimeError>>>,
 }
@@ -63,13 +76,13 @@ impl Service {
         timeout: Duration,
         cleanup: impl Future<Output = Result<(), RuntimeError>> + Send + 'static,
     ) -> Result<Self, RuntimeError> {
-        let private = match endpoint.ip() {
-            std::net::IpAddr::V4(ip) => ip.is_loopback() || ip.is_private(),
-            std::net::IpAddr::V6(ip) => ip.is_loopback() || ip.is_unique_local(),
-        };
-        if !private || endpoint.port() == 0 || timeout.is_zero() {
-            return Err(RuntimeError::Other("File service requires a private endpoint and positive deadline".into()));
-        }
+        Ok(Self::with_transport(agent::Agent::new(endpoint, key, identity, timeout)?, cleanup))
+    }
+
+    pub fn with_transport(
+        transport: impl Transport + 'static,
+        cleanup: impl Future<Output = Result<(), RuntimeError>> + Send + 'static,
+    ) -> Self {
         let (release, released) = tokio::sync::oneshot::channel();
         let cleanup = tokio::spawn(async move {
             let _ = released.await;
@@ -79,15 +92,16 @@ impl Service {
             }
             result
         });
-        Ok(Self {
-            endpoint,
-            key,
-            sandbox: identity.0,
-            epoch: identity.1,
-            timeout,
-            release: Some(release),
-            cleanup: Some(cleanup),
-        })
+        Self { transport: Box::new(transport), release: Some(release), cleanup: Some(cleanup) }
+    }
+
+    pub async fn request(
+        &self,
+        operation: Operation,
+        path: &str,
+        body: http_client::Body,
+    ) -> Result<Response<Incoming>, RuntimeError> {
+        self.transport.request(operation, path, body).await
     }
     /// Cleanup stays in its own task if waiting for it is cancelled.
     pub async fn close(mut self) -> Result<(), RuntimeError> {

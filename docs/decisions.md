@@ -1328,3 +1328,5 @@
 - K25: move unchanged authenticated agent file requests and their existing streaming/cancellation test into runtime/files before adding a worker transport; keep file-session cleanup in its parent and preserve every request/test body.
 
 - K25: keep the root scope’s existing physical virtio interface in public guest bootstrap, while retaining the maintained packet program’s addressing, MAC and MTU; its interface name describes the separate TAP created for vsock and cannot name the guest’s physical NIC.
+
+- K25: abstract file-session transport behind the existing runtime Service while retaining its owned cleanup task; keep the actual agent signer, private endpoint and operation mapping in the agent transport, and serialize only the runtime owner’s file request/operation types for worker sessions.

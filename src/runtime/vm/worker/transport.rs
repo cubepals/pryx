@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Admit the installed VM worker only through a private host-owned Unix socket and kernel
 //! peer identity. One exclusive file lease prevents replacement of a live server's socket.

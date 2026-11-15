@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! HTTP calls over the worker's kernel-authenticated Unix transport. Hyper owns framing and
 //! Axum owns serving; each operation opens one connection and is submitted once. Control
