@@ -55,6 +55,8 @@ def request(url, consume, authenticated=False):
             headers['Authorization'] = 'Bearer ' + token
     opener = urllib.request.build_opener(NoRedirect() if authenticated else HttpsRedirect())
     for attempt in range(ATTEMPTS):
+        if attempt:
+            headers['Cache-Control'] = 'no-cache'
         try:
             with opener.open(urllib.request.Request(url, headers=headers), timeout=60) as response:
                 return consume(response)
@@ -92,7 +94,7 @@ def archive_digest(asset, expected_digest, cache=None):
     return acquire(asset['browser_download_url'], asset['size'], expected_digest, asset.get('digest'), cache)
 
 
-def acquire(url, expected_size, expected_digest, declared_digest=None, cache=None):
+def acquire(url, expected_size, expected_digest, declared_digest=None, cache=None, mirrors=()):
     if not isinstance(expected_size, int) or not 0 < expected_size <= MAX_ARCHIVE_BYTES:
         raise ValueError('VM candidate archive size exceeds its bound')
 
@@ -106,13 +108,23 @@ def acquire(url, expected_size, expected_digest, declared_digest=None, cache=Non
             if destination is not None:
                 destination.write(block)
         if size != expected_size:
-            raise ValueError('VM candidate archive is incomplete')
+            raise ConnectionError(f'VM candidate archive is incomplete ({size} of {expected_size} bytes)')
         actual = digest.hexdigest()
         if actual != expected_digest:
             raise ValueError('VM candidate differs from its committed archive digest')
         if declared_digest is not None and declared_digest != f'{digest.name}:{actual}':
             raise ValueError('VM candidate differs from its upstream release digest')
         return actual
+
+    def download(consume):
+        sources = (url, *mirrors)
+        for index, source in enumerate(sources):
+            try:
+                return request(source, consume)
+            except (urllib.error.URLError, TimeoutError, ConnectionError, http.client.IncompleteRead):
+                if index + 1 == len(sources):
+                    raise
+        raise AssertionError('Unreachable archive mirror state')
     if cache is not None:
         cache.mkdir(parents=True, exist_ok=True, mode=0o700)
         cached = cache / (expected_digest + '.archive')
@@ -131,9 +143,9 @@ def acquire(url, expected_size, expected_digest, declared_digest=None, cache=Non
             finally:
                 if temporary is not None:
                     temporary.unlink(missing_ok=True)
-        return request(url, save)
+        return download(save)
     # No API credential is attached to the public archive request or its redirects.
-    return request(url, read)
+    return download(read)
 
 
 def inventory(candidate, cache=None):

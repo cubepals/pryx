@@ -23,7 +23,7 @@ def main():
     cache = args.root / 'archives'
     inputs = json.loads((ROOT / 'spike-inputs.json').read_text())
     for name, item in inputs.items():
-        digest = acquire(item['url'], item['bytes'], item['sha256'], cache=cache)
+        digest = acquire(item['url'], item['bytes'], item['sha256'], cache=cache, mirrors=item.get('mirrors', ()))
         archive = cache / (digest + '.archive')
         destination = args.root / name
         destination.mkdir()

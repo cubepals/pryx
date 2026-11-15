@@ -1,0 +1,10 @@
+{
+  "sourceCommit": "474d987",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43663331986",
+  "job": 132657836777,
+  "failure": "The first pinned tool archive ends before its declared size; no tools or hardware acceptance run",
+  "goExpectedBytes": 70588678,
+  "fix": "Classify short GET bodies as transport failures, retry with increasing backoff and no-cache, then use the publisher direct URL at the same size/digest",
+  "localVerification": "Both actual publisher endpoints stream 70,588,678 bytes with the committed SHA-256; real cached short/oversize/hash corruption refuses without changing input bytes",
+  "notProved": "Current-source CI or any new VM lifecycle result"
+}

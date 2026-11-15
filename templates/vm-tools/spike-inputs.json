@@ -2,6 +2,7 @@
   "go": {
     "version": "1.27.3",
     "url": "https://go.dev/dl/go1.27.3.linux-amd64.tar.gz",
+    "mirrors": ["https://dl.google.com/go/go1.27.3.linux-amd64.tar.gz"],
     "sha256": "65efbc80fdc1fa2cd2631cad5b481777a68e8725f34e89f50fc6ac714e379b40",
     "bytes": 70588678,
     "licence": "BSD-3-Clause",

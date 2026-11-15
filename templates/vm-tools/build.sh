@@ -12,7 +12,7 @@ case "${1:?Name one VM build phase}" in
       --output "$RUNNER_TEMP/vm-candidate-inventory.json" | tee "$RUNNER_TEMP/vm-input-inventory.log"
     ;;
   tools)
-    python3 templates/vm-tools/prepare.py --root "$RUNNER_TEMP/vm-build-tools" | tee "$RUNNER_TEMP/vm-tool-inputs.log"
+    python3 templates/vm-tools/prepare.py --root "$RUNNER_TEMP/vm-build-tools" 2>&1 | tee "$RUNNER_TEMP/vm-tool-inputs.log"
     dpkg-query -W e2fsprogs
     ;;
   inspect)

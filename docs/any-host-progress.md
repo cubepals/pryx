@@ -4726,3 +4726,13 @@ job when publication is authorized. That job has not run in this task.
   Clippy, fmt and whitespace pass. Staged Wasm inputs are removed after this cohort.
   No dependency/job/gate or estimated CI minute. Integrating this authority with RPC, streams,
   installed host policy and the actual root VM runtime remains unfinished; placement stays off.
+
+- Source 474d987 VM run 43663331986/job 132657836777 fails before tool preparation on a
+  short Go archive; no hardware proof ran. Fix that infrastructure failure with bounded GET
+  retries/no-cache and the actual publisher's direct mirror, preserving identical pins and
+  all oversize/digest/TLS refusals. Retain tool stderr in the existing uploaded raw log.
+- Both real HTTPS endpoints stream the committed 70,588,678-byte archive and correct digest;
+  actual cached short, oversize and hash-corrupt files refuse unchanged. Python syntax,
+  Bash syntax, existing ShellCheck and whitespace pass. Summary:
+  checks/measurements/k25/input-download-474d987.json. No new job/gate or healthy-run minutes;
+  the alternate source is tried only after the existing bounded primary attempts fail.
