@@ -13,7 +13,6 @@
 //! so what the node announces and what a launch does never differ; a launch whose helper fails
 //! then fails, and never starts plain instead. Not for listener passing or signals, which stay in
 //! power.rs, nor for the browser's own nested helper, which the agent starts.
-use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::Duration;
@@ -42,30 +41,8 @@ pub(crate) fn helper(agent: &Path) -> Result<PathBuf, String> {
     Ok(path)
 }
 
-/// bubblewrap's arguments for one supervisor, up to and including `--`. `kept` are the paths
-/// the sandbox needs that may lie under `/tmp`, which the private one would otherwise hide:
-/// its data and tool scratch writable, its agent executable and tool cache read-only.
-pub(super) fn arguments(data: &Path, private_network: bool, kept: &[(&Path, bool)]) -> Vec<OsString> {
-    let mut arguments: Vec<OsString> = ["--unshare-user", "--unshare-pid", "--unshare-ipc"].map(Into::into).into();
-    if private_network {
-        arguments.push("--unshare-net".into());
-    }
-    // The whole host view stays as it was, under Landlock; only /proc, /dev and /tmp are new.
-    for argument in
-        ["--as-pid-1", "--cap-drop", "ALL", "--bind", "/", "/", "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp"]
-    {
-        arguments.push(argument.into());
-    }
-    arguments.extend(["--bind".into(), data.into(), data.into()]);
-    // A tool path appears only once a tool is first asked for; until then there is none to keep.
-    for (path, writable) in kept {
-        arguments.push(if *writable { "--bind-try" } else { "--ro-bind-try" }.into());
-        arguments.push(path.into());
-        arguments.push(path.into());
-    }
-    arguments.extend(["--chdir".into(), data.into(), "--".into()]);
-    arguments
-}
+/// bubblewrap's arguments for one supervisor: the agent crate's, which its own tests start too.
+pub(super) use pryx_agent::process_namespaces::arguments;
 
 /// The helper for `agent`, once a launch-equivalent probe as `owner` has proved it here.
 pub(crate) fn proved(agent: &Path, owner: (u32, u32)) -> Result<PathBuf, String> {
@@ -147,6 +124,7 @@ pub fn profile(helper: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::ffi::OsString;
 
     #[test]
     fn a_launch_takes_every_namespace_and_a_private_tmp_and_only_network_none_its_own_network() {
