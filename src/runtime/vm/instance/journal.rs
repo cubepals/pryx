@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Private VM specifications survive daemon restarts outside workload data and exports.
 //! Journal contents may contain credentials, are never logged, and require one owned 0600
-//! regular file. An interrupted launch never becomes a signed clean guest completion here.
+//! regular file. An interrupted launch never becomes a signed clean guest completion here. An
+//! unusable journal is set aside unread, so it never stops the other VMs from loading.
 use super::*;
 use std::io::Read;
 
@@ -11,7 +12,7 @@ fn identifier(id: &str) -> bool {
     id.strip_prefix("vm-")
         .is_some_and(|id| uuid::Uuid::parse_str(id).is_ok_and(|value| value.simple().to_string() == id))
 }
-fn read(path: &Path) -> Result<Entry, RuntimeError> {
+pub(super) fn read(path: &Path) -> Result<Entry, RuntimeError> {
     let file =
         OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK).open(path).map_err(error)?;
     let info = file.metadata().map_err(error)?;
@@ -37,6 +38,17 @@ fn read(path: &Path) -> Result<Entry, RuntimeError> {
     agent::key(&entry.spec)?;
     Ok(entry)
 }
+/// Set one unusable journal aside, unread and unchanged, so every other VM still loads.
+fn quarantine(root: &Path, path: &Path) -> Result<(), RuntimeError> {
+    let quarantine = root.join("quarantine");
+    directory(&quarantine)?;
+    let name = path.file_name().ok_or_else(|| error("VM journal has no name"))?.to_string_lossy();
+    // rename(2) moves a link itself, never its target.
+    fs::rename(path, quarantine.join(format!("{name}.{}", uuid::Uuid::new_v4().simple()))).map_err(error)?;
+    File::open(root.join("entries")).and_then(|directory| directory.sync_all()).map_err(error)?;
+    File::open(&quarantine).and_then(|directory| directory.sync_all()).map_err(error)
+}
+
 pub(super) fn load(root: &Path) -> Result<BTreeMap<String, Entry>, RuntimeError> {
     let mut entries = BTreeMap::new();
     for path in fs::read_dir(root.join("entries")).map_err(error)? {
@@ -44,7 +56,15 @@ pub(super) fn load(root: &Path) -> Result<BTreeMap<String, Entry>, RuntimeError>
         if path.extension().is_none_or(|value| value != "json") {
             continue;
         }
-        let mut entry = read(&path)?;
+        let mut entry = match read(&path) {
+            Ok(entry) => entry,
+            Err(problem) => {
+                // The refusal is this module's own text; a journal's contents are never quoted.
+                tracing::warn!(journal = %path.display(), %problem, "VM journal quarantined");
+                quarantine(root, &path)?;
+                continue;
+            }
+        };
         if entries.values().any(|previous: &Entry| previous.spec.name == entry.spec.name) {
             return Err(error("Duplicate VM sandbox name in private journals"));
         }

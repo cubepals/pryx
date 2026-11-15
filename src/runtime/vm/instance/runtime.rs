@@ -117,15 +117,21 @@ impl VmRuntime {
         let live = self.state.live.lock().unwrap().get(&entry.id).cloned();
         let status = if let Some(live) = live {
             let mut live = live.lock().await;
+            if live.monitor.exited().map_err(error)?.is_none()
+                && let Some(helper) = dead_helper(&mut live)?
+            {
+                // One dead helper leaves only this guest unreachable: it is retired and
+                // reported dead, and the tier and its other sandboxes keep answering.
+                tracing::warn!(sandbox = %entry.id, helper, "VM helper exited; retiring its guest");
+                live.killing = true;
+                tokio::time::timeout(crate::runtime::ENGINE_PROBE_TIMEOUT, live.monitor.kill())
+                    .await
+                    .map_err(|_| {
+                        RuntimeError::Timeout("VM monitor termination after a helper exit is unconfirmed".into())
+                    })?
+                    .map_err(error)?;
+            }
             if live.monitor.exited().map_err(error)?.is_none() {
-                if live.forwarder.exited().map_err(error)?.is_some() {
-                    return Err(RuntimeError::Unavailable("VM forwarding process exited".into()));
-                }
-                if let Some(network) = &mut live.network
-                    && network.exited().map_err(error)?.is_some()
-                {
-                    return Err(RuntimeError::Unavailable("VM packet helper exited".into()));
-                }
                 ContainerStatus::Running
             } else {
                 live.forwarder.stop().await.map_err(error)?;
@@ -174,6 +180,19 @@ impl VmRuntime {
             health: None,
         }))
     }
+}
+
+/// The host helper of a running guest that has exited, if one has.
+fn dead_helper(live: &mut Live) -> Result<Option<&'static str>, RuntimeError> {
+    if live.forwarder.exited().map_err(error)?.is_some() {
+        return Ok(Some("forwarding process"));
+    }
+    if let Some(network) = &mut live.network
+        && network.exited().map_err(error)?.is_some()
+    {
+        return Ok(Some("packet helper"));
+    }
+    Ok(None)
 }
 
 pub(super) fn stopped_status(entry: &Entry, lease: &Path) -> Result<ContainerStatus, RuntimeError> {

@@ -1366,3 +1366,7 @@
 - K25: a restore leaves every all-zero read of a member (256 KiB) as a hole and sets the file’s length at its end, so a sparse VM disk restores, moves and forks with its holes and the free-space check counts only bytes that land. Export keeps the tar format’s plain members (the pinned tar library writes no sparse headers): a hole is read as zeros, which gzip compresses about a thousandfold.
 
 - K25: pin a VM’s manifest digest at its first start in its private journal and prepare every later start at exactly that digest; the image helper records each prepared manifest’s ordered layers and configuration after its layers, so a pinned digest whose layers are all cached prepares with no registry, and a registry answer for another digest is refused. Cached layers are still hashed on every preparation. A fork or restore onto another node still resolves the tag at its first start, since a VM data directory carries only its disk.
+
+- K25: a running VM whose forwarding process or packet helper exits is unreachable, so the observation that finds it kills its monitor and reports that sandbox dead; the tier and its other sandboxes keep answering instead of every list failing as unavailable.
+
+- K25: an unusable VM journal (unsafe file, link, invalid or mismatched) is moved unread into the runtime’s private `quarantine/` directory with a warning naming only its path and the fixed refusal, and every other journal still loads; two journals naming one sandbox still refuse the runtime, since neither can be chosen safely.

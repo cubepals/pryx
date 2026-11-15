@@ -4900,3 +4900,8 @@ job when publication is authorized. That job has not run in this task.
   an unreachable name). Forks and restores on another node still resolve the tag once. VM unit
   tests pass except the unchanged ordinary-user-only jail case (root here); clippy for pryxd
   and the helper, fmt and structure pass. No job/gate or CI minute.
+
+- One dead VM helper retires only its own guest (reported dead; the actual runtime test kills a
+  fork’s forwarder and still lists the tier), and an unusable journal is quarantined while its
+  valid neighbour loads (unit test updated: each unsafe case is refused, moved aside and never
+  read, the secret never quoted; duplicates still refuse). Clippy and structure pass.

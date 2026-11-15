@@ -266,6 +266,14 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
         independent.start(&fork).await.unwrap();
         assert_eq!(exec(&independent, &fork, "cat /data/retained; printf fork > /data/retained").await, b"durable");
         assert_eq!(exec(&runtime, &id, "cat /data/retained").await, b"durable");
+        {
+            let live = independent.state.live.lock().unwrap()[&fork].clone();
+            live.lock().await.forwarder.stop().await.unwrap();
+        }
+        // One dead helper retires only its own guest: it reads dead and the tier still lists.
+        assert_eq!(independent.inspect(&fork).await.unwrap().unwrap().status, ContainerStatus::Dead);
+        let listed = independent.list(&[]).await.unwrap();
+        assert!(listed.iter().any(|info| info.id == fork && info.status == ContainerStatus::Dead));
         independent.remove(&fork).await.unwrap();
         eprintln!("VM runtime image {index}: interrupted live runtime and failed ingress");
         runtime = interrupted(runtime, temporary.path(), &id, &original_spec, &bytes).await;
@@ -378,23 +386,45 @@ fn private_journals_preserve_stopped_state_and_refuse_links_modes_and_invalid_va
     let interrupted = journal::load(root.path()).unwrap();
     assert_eq!(interrupted[&entry.id].code, UNKNOWN_EXIT_CODE);
     assert!(interrupted[&entry.id].finished.is_some());
+    // An unusable journal is refused and set aside alone: the others, here a valid neighbour,
+    // still load, and the refused one is never read into the runtime.
+    let mut neighbour = entry.clone();
+    neighbour.id = format!("vm-{}", uuid::Uuid::new_v4().simple());
+    neighbour.spec.name = format!("{}-neighbour", entry.spec.name);
+    let neighbour_path = entries.join(format!("{}.json", neighbour.id));
+    crate::durable::write_atomic(&neighbour_path, &serde_json::to_vec(&neighbour).unwrap(), 0o600).unwrap();
+    let quarantine = root.path().join("quarantine");
+    let mut quarantined = 0;
+    let mut refused = |expected: usize| {
+        let loaded = journal::load(root.path()).unwrap();
+        assert!(!loaded.contains_key(&entry.id) && loaded.contains_key(&neighbour.id));
+        assert!(fs::symlink_metadata(&path).is_err(), "A refused journal must leave the entries");
+        quarantined += 1;
+        assert_eq!(fs::read_dir(&quarantine).unwrap().count(), quarantined.max(expected));
+    };
     fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
-    assert!(journal::load(root.path()).is_err());
+    assert!(journal::read(&path).is_err());
+    refused(1);
     write(&entry);
     let other = root.path().join("other");
     fs::hard_link(&path, &other).unwrap();
-    assert!(journal::load(root.path()).is_err());
+    assert!(journal::read(&path).is_err());
+    refused(2);
     fs::remove_file(&other).unwrap();
+    write(&entry);
     fs::rename(&path, &other).unwrap();
     symlink(&other, &path).unwrap();
-    assert!(journal::load(root.path()).is_err());
-    fs::remove_file(&path).unwrap();
+    assert!(journal::read(&path).is_err());
+    refused(3);
+    assert_eq!(fs::read(&other).unwrap(), serde_json::to_vec(&entry).unwrap(), "A link's target stays intact");
     write(&entry);
     let secret = uuid::Uuid::new_v4().simple().to_string();
     fs::write(&path, format!("{{\"env\":\"{secret}\"}}")).unwrap();
-    let error = journal::load(root.path()).err().unwrap().to_string();
+    let error = journal::read(&path).err().unwrap().to_string();
     assert_eq!(error, "Invalid private VM journal");
     assert!(!error.contains(&secret));
+    refused(4);
+    fs::remove_file(&neighbour_path).unwrap();
     write(&entry);
     let mut duplicate = entry.clone();
     duplicate.id = format!("vm-{}", uuid::Uuid::new_v4().simple());
