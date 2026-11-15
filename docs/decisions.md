@@ -1318,3 +1318,5 @@
 - K25: tie worker authority to one private frontend lifetime socket and its kernel PID/UID; on EOF or protocol failure, close admission, cancel streams and drain owned operations before retiring compute. A different process cannot borrow this authority, even with the same UID; retain the worker’s independent real monitor/disk leases during retirement.
 
 - K25: treat an archive ending before its declared length as a retryable GET transport failure; bypass stale caches on retry, then use the publisher’s direct Go endpoint at the identical committed size/digest. Oversize, digest mismatch and HTTPS downgrade still refuse; retain tool stderr in its existing CI artifact.
+
+- K25: pass kernel Unix peer credentials into Axum connection metadata and require the frontend lifetime permit for each unary RPC; keep that permit inside the detached operation task. Refuse another actual client PID and all requests after owner retirement, without trusting a request-supplied identity.

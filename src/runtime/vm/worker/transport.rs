@@ -54,6 +54,21 @@ pub struct Endpoint {
     owner: u32,
 }
 
+#[derive(Clone)]
+pub struct Peer(Option<tokio::net::unix::UCred>);
+
+impl Peer {
+    pub(super) fn credentials(&self) -> io::Result<tokio::net::unix::UCred> {
+        self.0.ok_or_else(denied)
+    }
+}
+
+impl axum::extract::connect_info::Connected<axum::serve::IncomingStream<'_, Endpoint>> for Peer {
+    fn connect_info(stream: axum::serve::IncomingStream<'_, Endpoint>) -> Self {
+        Self(stream.io().peer_cred().ok())
+    }
+}
+
 impl Endpoint {
     /// The owner comes from fixed host policy, never a request or a socket's file metadata.
     pub async fn bind(path: &Path, owner: u32) -> io::Result<Self> {

@@ -29,7 +29,10 @@ pub struct Owner {
 
 impl Owner {
     pub async fn connect(path: &Path, uid: u32) -> io::Result<Self> {
-        let mut connection = transport::connect(path, uid).await?;
+        Self::ready(transport::connect(path, uid).await?).await
+    }
+
+    pub(super) async fn ready(mut connection: UnixStream) -> io::Result<Self> {
         let mut ready = vec![0; READY.len()];
         connection.read_exact(&mut ready).await?;
         if ready != READY {
@@ -102,7 +105,14 @@ impl Authority {
     }
 
     pub async fn admit(&self, connection: &UnixStream) -> io::Result<Permit> {
-        let credentials = connection.peer_cred()?;
+        self.admit_credentials(connection.peer_cred()?).await
+    }
+
+    pub async fn admit_peer(&self, peer: &transport::Peer) -> io::Result<Permit> {
+        self.admit_credentials(peer.credentials()?).await
+    }
+
+    async fn admit_credentials(&self, credentials: tokio::net::unix::UCred) -> io::Result<Permit> {
         if credentials.uid() != self.uid || credentials.pid() != Some(self.pid) || self.closing.load(Ordering::Acquire)
         {
             return Err(refused());

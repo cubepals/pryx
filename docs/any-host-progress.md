@@ -4736,3 +4736,14 @@ job when publication is authorized. That job has not run in this task.
   Bash syntax, existing ShellCheck and whitespace pass. Summary:
   checks/measurements/k25/input-download-474d987.json. No new job/gate or healthy-run minutes;
   the alternate source is tried only after the existing bounded primary attempts fail.
+
+- Connect frontend lifetime admission to unary RPC through Axum's actual Unix peer metadata.
+  Each operation's permit remains inside its owned dispatch task; another process at the same
+  UID and requests after owner retirement receive the typed unavailable refusal.
+- A real curl subprocess cannot borrow the real process backend's frontend authority; normal
+  typed answers/errors still pass. The first fixture closed an unread readiness acknowledgement,
+  producing an actual connection reset; consume it through the real owner handshake before EOF.
+  Full Rust: 544 pass, unchanged host IPv6 fixture failure, 44 ignored; all five worker tests,
+  strict all-target Clippy, fmt and whitespace pass. Staged Wasm inputs are removed afterwards.
+  No dependency/job/gate or estimated CI minute. Streaming/file/copy sessions, host policy and
+  installed root selection remain unfinished; the main service retains all existing bounds.

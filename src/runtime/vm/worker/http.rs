@@ -78,7 +78,9 @@ pub async fn control<T: DeserializeOwned>(
 }
 
 pub async fn serve(endpoint: Endpoint, app: axum::Router, cancel: CancellationToken) -> std::io::Result<()> {
-    axum::serve(endpoint, app).with_graceful_shutdown(cancel.cancelled_owned()).await
+    axum::serve(endpoint, app.into_make_service_with_connect_info::<transport::Peer>())
+        .with_graceful_shutdown(cancel.cancelled_owned())
+        .await
 }
 
 #[cfg(test)]

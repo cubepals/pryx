@@ -3,8 +3,14 @@
 //! Dispatch owns an admitted operation across HTTP caller loss. Monitor executables, IDs
 //! and bundle pins remain installed host policy; this does not start an installed service.
 use super::http::{CONTROL_PATH, MAX_CONTROL_BYTES};
+use super::{authority::Authority, transport::Peer};
 use crate::runtime::{ContainerRuntime, ContainerSpec, RuntimeError, vm::instance::VmRuntime};
-use axum::{Json, Router, body::Bytes, extract::State, routing::post};
+use axum::{
+    Json, Router,
+    body::Bytes,
+    extract::{ConnectInfo, State},
+    routing::post,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
@@ -63,28 +69,49 @@ async fn execute(runtime: &dyn ContainerRuntime, command: Command) -> Result<Val
     }
 }
 
-async fn control(State(runtime): State<Arc<dyn ContainerRuntime>>, bytes: Bytes) -> Json<Result<Value, RuntimeError>> {
+#[derive(Clone)]
+struct Dispatch {
+    runtime: Arc<dyn ContainerRuntime>,
+    authority: Authority,
+}
+
+async fn control(
+    State(dispatch): State<Dispatch>,
+    ConnectInfo(peer): ConnectInfo<Peer>,
+    bytes: Bytes,
+) -> Json<Result<Value, RuntimeError>> {
+    let admitted = match dispatch.authority.admit_peer(&peer).await {
+        Ok(admitted) => admitted,
+        Err(_) => {
+            return Json(Err(RuntimeError::Unavailable(
+                "Worker frontend authority is absent, different or retiring".into(),
+            )));
+        }
+    };
     let command = match serde_json::from_slice::<Command>(&bytes) {
         Ok(command) => command,
         Err(_) => return Json(Err(RuntimeError::Other("Invalid private worker command".into()))),
     };
     // A dropped connection cannot cancel an admitted non-idempotent operation.
     Json(
-        tokio::spawn(async move { execute(runtime.as_ref(), command).await }).await.unwrap_or_else(|_| {
-            Err(RuntimeError::Unavailable("Private worker operation ended without an answer".into()))
-        }),
+        tokio::spawn(async move {
+            let _admitted = admitted;
+            execute(dispatch.runtime.as_ref(), command).await
+        })
+        .await
+        .unwrap_or_else(|_| Err(RuntimeError::Unavailable("Private worker operation ended without an answer".into()))),
     )
 }
 
-fn app(runtime: Arc<dyn ContainerRuntime>) -> Router {
+fn app(runtime: Arc<dyn ContainerRuntime>, authority: Authority) -> Router {
     Router::new()
         .route(CONTROL_PATH, post(control))
         .layer(axum::extract::DefaultBodyLimit::max(MAX_CONTROL_BYTES))
-        .with_state(runtime)
+        .with_state(Dispatch { runtime, authority })
 }
 
-pub fn router(runtime: Arc<VmRuntime>) -> Router {
-    app(runtime)
+pub fn router(runtime: Arc<VmRuntime>, authority: Authority) -> Router {
+    app(runtime, authority)
 }
 
 #[cfg(test)]
@@ -104,8 +131,12 @@ mod tests {
         // Exercise the transport with the actual rootless backend; installed workers accept
         // only VmRuntime, whose actual KVM acceptance runs in the existing optional job.
         let runtime = Arc::new(ProcessRuntime::new(root.path(), Default::default()).unwrap());
+        let (lifetime, accepted) = tokio::net::UnixStream::pair().unwrap();
+        let (authority, retired) = Authority::watch(accepted, owner, async { Ok(()) }).unwrap();
+        let lifetime = super::super::authority::Owner::ready(lifetime).await.unwrap();
         let cancel = CancellationToken::new();
-        let server = tokio::spawn(super::super::http::serve(endpoint, app(runtime.clone()), cancel.clone()));
+        let server =
+            tokio::spawn(super::super::http::serve(endpoint, app(runtime.clone(), authority.clone()), cancel.clone()));
         let name = uuid::Uuid::new_v4().to_string();
         let answer: Result<Option<ContainerInfo>, RuntimeError> = super::super::http::control(
             &socket,
@@ -128,6 +159,30 @@ mod tests {
         let received = answer.unwrap_err();
         assert!(matches!(received, RuntimeError::Other(_)));
         assert_eq!(received.to_string(), actual.to_string());
+        let command = Command::Inspect { name: uuid::Uuid::new_v4().to_string() };
+        let foreign = tokio::process::Command::new("curl")
+            .args(["--silent", "--show-error", "--noproxy", "*", "--unix-socket"])
+            .arg(&socket)
+            .args(["--header", "Content-Type: application/json", "--data-binary"])
+            .arg(serde_json::to_string(&command).unwrap())
+            .arg(format!("http://localhost{CONTROL_PATH}"))
+            .output()
+            .await
+            .unwrap();
+        assert!(foreign.status.success());
+        let answer: Result<Option<ContainerInfo>, RuntimeError> = serde_json::from_slice(&foreign.stdout).unwrap();
+        assert!(
+            matches!(answer, Err(RuntimeError::Unavailable(_))),
+            "Another actual HTTP client PID borrowed frontend authority"
+        );
+        drop(lifetime);
+        authority.cancellation().cancelled().await;
+        let answer: Result<Option<ContainerInfo>, RuntimeError> =
+            super::super::http::control(&socket, owner, &command, Instant::now() + Duration::from_secs(2))
+                .await
+                .unwrap();
+        assert!(matches!(answer, Err(RuntimeError::Unavailable(_))));
+        retired.await.unwrap().unwrap();
         cancel.cancel();
         server.await.unwrap().unwrap();
     }
