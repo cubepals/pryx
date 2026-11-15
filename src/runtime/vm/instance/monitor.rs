@@ -61,7 +61,7 @@ impl VmRuntime {
         let lease = self.lease(entry)?;
         let output = directory.join("monitor.json");
         if let Some(owner) = self.state.settings.monitor_owner {
-            if !entry.spec.internal_network && (entry.spec.egress.is_none() || network.is_none()) {
+            if !entry.spec.internal_network && network.is_none() {
                 return Err(RuntimeError::Unavailable("Root VM TAP/firewall integration is not available".into()));
             }
             let id = entry.id.strip_prefix("vm-").ok_or_else(|| error("Invalid root VM identity"))?;

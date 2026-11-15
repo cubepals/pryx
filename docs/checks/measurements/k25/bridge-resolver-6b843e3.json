@@ -1,0 +1,12 @@
+{
+  "sourceCommit": "6b843e3",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43660211135",
+  "job": 132648001819,
+  "artifact": 14140318612,
+  "passed": "Ordinary runtime lifecycle, both root images and mutual-TLS node API",
+  "failures": [
+    "Strict monitor shutdown repeats status 148 after a verified successful guest stop, before the terminal ABI fix",
+    "Bounded bridge queue preflight rejects the systemd-resolved-owned ancestor of the fixed host resolver configuration"
+  ],
+  "notProved": "Fixed native shutdown, attached-queue confinement, root public packets, installed worker and complete installed cohorts"
+}

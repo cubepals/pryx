@@ -4667,3 +4667,16 @@ job when publication is authorized. That job has not run in this task.
   Correct a Clippy structure-name repetition without changing behavior; strict all-target
   Clippy, formatting and whitespace are checked before push. No runtime worker verb or
   installed placement is exposed yet. No dependency/job/gate; under one optional test second.
+
+- Remove the remaining hostname-only monitor admission guard: a connected root guest must
+  have its prepared secured network object, whether hostname gateways or the public bridge.
+  Full Rust: 541 pass, unchanged host IPv6 fixture failure, 44 ignored. Strict all-target
+  Clippy, formatting and whitespace pass before push. Installed root placement stays off;
+  no dependency/job/gate or extra CI time.
+- VM source 6b843e3/run 43660211135/job 132648001819 passes ordinary runtime, both root images
+  and mutual-TLS node API. Strict shutdown repeats status 148 before the terminal ABI fix.
+  Bounded bridge preflight now identifies its separate cause: /etc/resolv.conf delegates to
+  systemd-resolved's /run/systemd/resolve directory, which the general monitor ancestor check
+  refuses. Keep that general bound; validate only these fixed host resolver inputs through
+  their protected root-owned configuration path. Summary: checks/measurements/k25/bridge-resolver-6b843e3.json;
+  raw artifact 14140318612. Latest source remains pending; scanner comments remain eighteen.
