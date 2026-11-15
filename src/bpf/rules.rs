@@ -42,7 +42,7 @@ pub(crate) struct Inputs<'a> {
     pub(crate) served: RangeInclusive<u16>,
     pub(crate) api_port: u16,
     /// Private ranges, where pryxd's served ports belong to other nodes, and link-local ones,
-    /// where clouds serve metadata: the host firewall's own (`isolation.rs`).
+    /// where clouds serve metadata: the host firewall's own (`ranges.rs`).
     pub(crate) private: &'a [IpNet],
     pub(crate) link_local: &'a [IpNet],
     /// DNS's port.

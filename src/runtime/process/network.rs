@@ -60,7 +60,7 @@ const GATEWAY: Ipv4Addr = Ipv4Addr::LOCALHOST;
 const LINK_LOCAL_V6: ipnet::IpNet =
     ipnet::IpNet::V6(ipnet::Ipv6Net::new_assert(std::net::Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 0), 10));
 
-/// The host firewall's ranges, as `isolation.rs` writes them for nftables.
+/// The host firewall's ranges, as `ranges.rs` writes them for nftables.
 fn ranges(list: &str) -> impl Iterator<Item = ipnet::IpNet> + '_ {
     list.split(", ").map(|net| net.parse().expect("the firewall's own ranges parse"))
 }
@@ -149,9 +149,9 @@ impl Network {
                 .collect::<Result<Vec<_>, RuntimeError>>()
         };
         let private: Vec<ipnet::IpNet> =
-            ranges(crate::isolation::PRIVATE_V4).chain(ranges(crate::isolation::PRIVATE_V6)).collect();
+            ranges(crate::ranges::PRIVATE_V4).chain(ranges(crate::ranges::PRIVATE_V6)).collect();
         let link_local: Vec<ipnet::IpNet> =
-            ranges(crate::isolation::LINK_LOCAL_V4).chain(std::iter::once(LINK_LOCAL_V6)).collect();
+            ranges(crate::ranges::LINK_LOCAL_V4).chain(std::iter::once(LINK_LOCAL_V6)).collect();
         let (allow, deny) = match &spec.egress_addresses {
             Some(addresses) => (destinations(&addresses.allow)?, destinations(&addresses.deny)?),
             None => (Vec::new(), Vec::new()),
