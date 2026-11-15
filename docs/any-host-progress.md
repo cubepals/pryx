@@ -4967,3 +4967,15 @@ job when publication is authorized. That job has not run in this task.
   1640, fork 2459, agent true 47.7), then fails at the purge after it, silently. Purge now
   unseals the VM bundle cache (unit test with read-only directories) and the script prints a
   failed purge’s log. Measurements are summarized in decisions until the next green run.
+
+- Source 1b09027 Any host run 43740509297: the bundle job (132903978998) is green for the first
+  time with the VM acceptance and cohorts: the purge after them completes (50948ae's fix), the
+  ordinary-user lifecycle on both images now also opens a public connection and none to a host
+  listener, and every thirty-sample cohort prints its figures to the log, with no failed start:
+  cold create to running p50 2363.52 / p90 2388.05 ms, create to first output 2618.67 / 2653.04,
+  agent `true` 44.11 / 47.77, wake 1503.85 / 1541.40, snapshot of 100 MB 1627.77 / 1651.99,
+  fork of 100 MB 2473.45 / 2541.95, idle context PSS 550.07 / 552.99 MiB, idle paired PSS delta
+  131.99 / 132.96 MiB. VM experiments 43740509168 at the same commit is green. The sudo
+  bootstrap job failed before installing: its check read the VM descriptor as an object holding
+  the runtime, which it is not (fixed in ff6849e, the release's check with it). The start 502
+  has not recurred in the last three runs' cohorts (about 270 starts).
