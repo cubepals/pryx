@@ -8,6 +8,27 @@ use tokio::time::Instant;
 
 pub(super) const BOOT_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// A layer file's device, inode, size, and modification and change times.
+pub(super) type Identity = (u64, u64, u64, (i64, i64), (i64, i64));
+
+fn identities_of(layers: &[PathBuf]) -> Option<Vec<Identity>> {
+    layers
+        .iter()
+        .map(|layer| {
+            let info = fs::symlink_metadata(layer).ok()?;
+            info.is_file().then(|| {
+                (
+                    info.dev(),
+                    info.ino(),
+                    info.len(),
+                    (info.mtime(), info.mtime_nsec()),
+                    (info.ctime(), info.ctime_nsec()),
+                )
+            })
+        })
+        .collect()
+}
+
 /// Milliseconds each stage of one start took, in order, for the node log and tests.
 #[derive(Clone, Debug)]
 pub(super) struct Stages {
@@ -133,6 +154,23 @@ impl VmRuntime {
         )
         .await
     }
+    /// A pinned image this runtime already prepared needs no helper while its layer files are
+    /// the ones the helper verified; anything else goes through the helper.
+    async fn pinned(&self, image: &str, pinned: Option<&str>) -> Result<Prepared, RuntimeError> {
+        if let Some(digest) = pinned {
+            let known = self.state.prepared.lock().unwrap().get(digest).cloned();
+            if let Some((prepared, identities)) = known
+                && identities_of(&prepared.layers).is_some_and(|current| current == identities)
+            {
+                return Ok(prepared);
+            }
+        }
+        let prepared = self.prepared(image, pinned, self.state.settings.image_timeout).await?;
+        if let Some(identities) = identities_of(&prepared.layers) {
+            self.state.prepared.lock().unwrap().insert(prepared.digest.clone(), (prepared.clone(), identities));
+        }
+        Ok(prepared)
+    }
     /// True while the previous boot still runs; otherwise its helpers and jail are retired.
     async fn running_or_retired(&self, id: &str) -> Result<bool, RuntimeError> {
         let previous = self.state.live.lock().unwrap().get(id).cloned();
@@ -163,8 +201,7 @@ impl VmRuntime {
         let (_, _, uid, gid) = monitor::resources(&entry.spec)?;
         // The first start pins the manifest; a wake never takes a moved tag's lower layers
         // under its retained disk, and a cached pin needs no registry.
-        let image =
-            self.prepared(&entry.spec.image, entry.image_digest.as_deref(), self.state.settings.image_timeout).await?;
+        let image = self.pinned(&entry.spec.image, entry.image_digest.as_deref()).await?;
         entry.image_digest = Some(image.digest.clone());
         stages.mark("image");
         let bundle = self.bundle().await?;

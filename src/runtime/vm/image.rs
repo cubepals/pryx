@@ -26,7 +26,7 @@ pub struct Request {
     pub timeout_seconds: u64,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Prepared {
     pub digest: String,

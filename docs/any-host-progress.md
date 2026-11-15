@@ -4944,3 +4944,9 @@ job when publication is authorized. That job has not run in this task.
   its signed clean shutdown left, and cached layers are not re-hashed while unchanged. A unit
   test pins the disk identity against writes, chmod and replacement; the registry test still
   refuses a corrupted layer. Clippy and structure pass. Stage numbers follow from VM CI.
+
+- VM experiments 43730018633 at df53ca1 are green on real KVM, the whole job: bundle, ordinary
+  runtime seam on both images (with the fork helper-death and busy-observation checks), root
+  jail, jailer and root lifecycle with both policies, node API, OCI and agent acceptance, all with
+  confined filesystem programs. Stage timings are in decisions; a pinned image now skips the
+  helper on later starts (about 850 ms each).
