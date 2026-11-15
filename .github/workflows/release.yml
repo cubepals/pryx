@@ -104,10 +104,22 @@ jobs:
           [ "$(docker run --rm "$IMAGE:$version" --version)" = "pryxd $version" ]
           mkdir -p dist
           id=$(docker create "$IMAGE:$version")
-          for f in pryxd usr/local/lib/pryx/pryx-agent openapi/node-reads.openapi.json openapi/node-writes.openapi.json \
+          # The server preset installs vm-bundle.json beside pryx-agent when the release lists it.
+          for f in pryxd usr/local/lib/pryx/pryx-agent usr/local/lib/pryx/vm-bundle.json \
+                   openapi/node-reads.openapi.json openapi/node-writes.openapi.json \
                    deploy/daemon.json deploy/pryxd.service LICENSE.md; do
             docker cp "$id:/$f" "dist/$(basename "$f")"
           done
+          python3 - dist/vm-bundle.json "dist/pryx-vm-linux-x64.tar.gz" "$version" <<'PY'
+          import hashlib, json, sys
+          from pathlib import Path
+          runtime = json.loads(Path(sys.argv[1]).read_text())['runtime']
+          archive = Path(sys.argv[2])
+          assert runtime['url'] == f'https://github.com/cubepals/pryx/releases/download/v{sys.argv[3]}/{archive.name}'
+          assert runtime['bytes'] == archive.stat().st_size
+          with archive.open('rb') as stream:
+              assert hashlib.file_digest(stream, 'sha256').hexdigest() == runtime['sha256']
+          PY
           docker cp "$id:/usr/local/lib/pryx/agentos/agentos-runtime-sidecar-linux-x64-gnu/agentos-native-sidecar" dist/agentos-native-sidecar
           docker cp "$id:/licenses/CDLA-Permissive-2.0.txt" dist/webpki-roots-LICENSE.txt
           docker cp "$id:/licenses/webpki-roots.NOTICE" dist/webpki-roots-NOTICE.txt
