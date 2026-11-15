@@ -20,6 +20,9 @@ pub struct Request {
     pub launcher: PathBuf,
     pub cache: PathBuf,
     pub image: String,
+    /// The manifest digest this image was first prepared at; it is never re-resolved.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pinned: Option<String>,
     pub timeout_seconds: u64,
 }
 

@@ -85,7 +85,12 @@ impl VmRuntime {
         Ok(network)
     }
 
-    pub(super) async fn prepared(&self, image: &str, timeout: Duration) -> Result<Prepared, RuntimeError> {
+    pub(super) async fn prepared(
+        &self,
+        image: &str,
+        pinned: Option<&str>,
+        timeout: Duration,
+    ) -> Result<Prepared, RuntimeError> {
         let bundle = self.bundle().await?;
         super::super::image::prepare(
             &bundle.root().join("bin/pryx-vm-image"),
@@ -95,6 +100,7 @@ impl VmRuntime {
                 launcher: bundle.filesystems().launcher().into(),
                 cache: self.state.root.join("images"),
                 image: image.into(),
+                pinned: pinned.map(String::from),
                 timeout_seconds: timeout.as_secs(),
             },
         )
@@ -120,7 +126,11 @@ impl VmRuntime {
         }
         let mut entry = self.entry(name)?;
         let (_, _, uid, gid) = monitor::resources(&entry.spec)?;
-        let image = self.prepared(&entry.spec.image, self.state.settings.image_timeout).await?;
+        // The first start pins the manifest; a wake never takes a moved tag's lower layers
+        // under its retained disk, and a cached pin needs no registry.
+        let image =
+            self.prepared(&entry.spec.image, entry.image_digest.as_deref(), self.state.settings.image_timeout).await?;
+        entry.image_digest = Some(image.digest.clone());
         let bundle = self.bundle().await?;
         let lease = self.lease(&entry)?;
         self.recover_disk(&entry.spec.data_dir)?;

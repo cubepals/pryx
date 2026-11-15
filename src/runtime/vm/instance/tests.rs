@@ -299,6 +299,7 @@ fn unfinished_launch_refuses_a_stopped_observation_until_its_kernel_lease_retire
         finished: None,
         code: UNKNOWN_EXIT_CODE,
         agent_state: None,
+        image_digest: None,
     };
     let held = lock(&lease).unwrap();
     assert!(matches!(runtime::stopped_status(&entry, &lease), Err(RuntimeError::Unavailable(_))));
@@ -361,6 +362,7 @@ fn private_journals_preserve_stopped_state_and_refuse_links_modes_and_invalid_va
         finished: Some(now),
         code: 7,
         agent_state: None,
+        image_digest: None,
     };
     let path = entries.join(format!("{}.json", entry.id));
     let write =

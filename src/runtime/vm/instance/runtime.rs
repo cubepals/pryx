@@ -336,7 +336,7 @@ impl ContainerRuntime for VmRuntime {
         Ok(Some(true))
     }
     async fn ensure_image(&self, image: &str, timeout: Duration) -> Result<bool, RuntimeError> {
-        self.prepared(image, timeout).await.map(|_| true)
+        self.prepared(image, None, timeout).await.map(|_| true)
     }
     async fn create(&self, spec: &ContainerSpec) -> Result<String, RuntimeError> {
         monitor::resources(spec)?;
@@ -349,8 +349,15 @@ impl ContainerRuntime for VmRuntime {
         if entries.values().any(|entry| entry.spec.name == spec.name) {
             return Err(RuntimeError::Conflict("VM sandbox already exists".into()));
         }
-        let entry =
-            Entry { id: id.clone(), spec: spec.clone(), started: None, finished: None, code: 0, agent_state: None };
+        let entry = Entry {
+            id: id.clone(),
+            spec: spec.clone(),
+            started: None,
+            finished: None,
+            code: 0,
+            agent_state: None,
+            image_digest: None,
+        };
         self.persist_entry(&entry)?;
         entries.insert(id.clone(), entry);
         Ok(id)

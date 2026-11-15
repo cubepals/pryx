@@ -4894,3 +4894,9 @@ job when publication is authorized. That job has not run in this task.
 - Restores keep holes: a 64 MiB sparse image with two written regions restores byte-identical
   with under 4 MiB allocated and under 4 MiB counted against the floor (test fails before).
   All tarball tests, clippy and structure pass. No job/gate or CI minute.
+
+- VM starts pin their manifest digest: the first start records it, later starts prepare it
+  exactly and offline from a complete cache (the registry test prepares a pinned digest under
+  an unreachable name). Forks and restores on another node still resolve the tag once. VM unit
+  tests pass except the unchanged ordinary-user-only jail case (root here); clippy for pryxd
+  and the helper, fmt and structure pass. No job/gate or CI minute.

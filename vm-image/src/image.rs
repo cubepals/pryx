@@ -65,6 +65,14 @@ where
     unreachable!("Bounded registry reads return on their last attempt")
 }
 
+/// One prepared manifest: its layers in order, each named by source digest and diff ID.
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct CachedImage {
+    layers: Vec<(String, String)>,
+    configuration: ConfigFile,
+}
+
 pub struct PreparedImage {
     pub digest: String,
     /// OCI order, oldest layer first. The guest reverses this for overlayfs lowerdir.
@@ -127,12 +135,29 @@ impl Images {
     }
 
     pub async fn prepare(&self, image: &str, timeout: Duration) -> Result<PreparedImage, RuntimeError> {
+        self.prepare_pinned(image, None, timeout).await
+    }
+
+    /// With `pinned`, the image is exactly that manifest digest: its complete cached record
+    /// prepares it without the registry, and a registry answer for another digest is refused.
+    pub async fn prepare_pinned(
+        &self,
+        image: &str,
+        pinned: Option<&str>,
+        timeout: Duration,
+    ) -> Result<PreparedImage, RuntimeError> {
         tokio::time::timeout(timeout, async {
             let _guard = self.transition.lock().await;
             // Different helper processes share this builder cache. A process-local mutex
             // alone cannot keep a complete record paired with its original layer bytes.
             let lock = self.lock().await?;
-            let result = self.pull(image).await;
+            let result = match pinned {
+                Some(digest) => match self.offline(digest)? {
+                    Some(prepared) => Ok(prepared),
+                    None => self.pull(image, Some(digest)).await,
+                },
+                None => self.pull(image, None).await,
+            };
             drop(lock);
             result
         })
@@ -169,11 +194,51 @@ impl Images {
         }
     }
 
-    async fn pull(&self, image: &str) -> Result<PreparedImage, RuntimeError> {
-        let reference: Reference = image.parse().map_err(error)?;
+    fn image_record(&self, digest: &str) -> Result<PathBuf, RuntimeError> {
+        Ok(self.root.join(format!("{}.image.json", digest_name(digest)?)))
+    }
+
+    /// A pinned manifest whose record and every converted layer are complete in this cache.
+    fn offline(&self, digest: &str) -> Result<Option<PreparedImage>, RuntimeError> {
+        let record = self.image_record(digest)?;
+        let file = match OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK).open(&record) {
+            Ok(file) => file,
+            Err(problem) if problem.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(problem) => return Err(error(problem)),
+        };
+        if !file.metadata().map_err(error)?.is_file() {
+            return Err(error("VM image cache record must be regular"));
+        }
+        let mut bytes = Vec::new();
+        file.take(MAX_CONFIG_BYTES * 2 + 1).read_to_end(&mut bytes).map_err(error)?;
+        if bytes.len() as u64 > MAX_CONFIG_BYTES * 2 {
+            return Err(error("Oversized VM image cache record"));
+        }
+        let saved: CachedImage = serde_json::from_slice(&bytes).map_err(error)?;
+        let mut layers = Vec::new();
+        for (source, diff_id) in &saved.layers {
+            let name = digest_name(source)?;
+            let path = self.root.join(format!("{name}.erofs"));
+            if !Self::cached(&path, &self.root.join(format!("{name}.json")), source, diff_id)? {
+                return Ok(None);
+            }
+            layers.push(path);
+        }
+        Ok(Some(PreparedImage { digest: digest.into(), layers, configuration: saved.configuration }))
+    }
+
+    async fn pull(&self, image: &str, pinned: Option<&str>) -> Result<PreparedImage, RuntimeError> {
+        let named: Reference = image.parse().map_err(error)?;
+        let reference = match pinned {
+            Some(digest) => Reference::with_digest(named.registry().into(), named.repository().into(), digest.into()),
+            None => named,
+        };
         let (manifest, digest) =
             registry(|| self.client.pull_image_manifest(&reference, &RegistryAuth::Anonymous)).await?;
         digest_name(&digest)?;
+        if pinned.is_some_and(|pinned| pinned != digest) {
+            return Err(error("VM image manifest differs from its pinned digest"));
+        }
         if manifest.layers.len() > MAX_LAYERS {
             return Err(error("VM OCI image exceeds the layer admission bound"));
         }
@@ -218,6 +283,18 @@ impl Images {
             pryxd::durable::write_atomic(&record, &serde_json::to_vec(&saved).map_err(error)?, 0o600).map_err(error)?;
             layers.push(path);
         }
+        // After every layer and its record, so a record names only complete conversions.
+        let saved = CachedImage {
+            layers: manifest
+                .layers
+                .iter()
+                .map(|layer| layer.digest.clone())
+                .zip(configuration.rootfs.diff_ids.clone())
+                .collect(),
+            configuration: configuration.clone(),
+        };
+        pryxd::durable::write_atomic(&self.image_record(&digest)?, &serde_json::to_vec(&saved).map_err(error)?, 0o600)
+            .map_err(error)?;
         Ok(PreparedImage { digest, layers, configuration })
     }
 

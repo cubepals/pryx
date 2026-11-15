@@ -24,7 +24,9 @@ async fn prepare() -> Result<Prepared, RuntimeError> {
     }
     let tools = FilesystemTools::verified(&request.component, &request.manifest_sha256, &request.launcher)?;
     let images = Images::new(request.cache, tools)?;
-    let prepared = images.prepare(&request.image, Duration::from_secs(request.timeout_seconds)).await?;
+    let prepared = images
+        .prepare_pinned(&request.image, request.pinned.as_deref(), Duration::from_secs(request.timeout_seconds))
+        .await?;
     let configuration =
         serde_json::from_value(serde_json::to_value(prepared.configuration).map_err(pryx_vm_image::error)?)
             .map_err(pryx_vm_image::error)?;

@@ -107,6 +107,9 @@ struct Entry {
     code: i64,
     #[serde(default)]
     agent_state: Option<pryx_agent::state::Snapshot>,
+    /// The manifest digest of the first start, which every later start prepares exactly.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    image_digest: Option<String>,
 }
 // The runtime seam requires a numeric exit value even without a signed guest observation.
 const UNKNOWN_EXIT_CODE: i64 = -1;
