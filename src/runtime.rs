@@ -381,6 +381,11 @@ pub trait ContainerRuntime: Send + Sync + 'static {
     fn data_owner(&self, _id: &str) -> Result<Option<(u32, u32)>, RuntimeError> {
         Ok(None)
     }
+    /// Before existing compute starts again: refuses when this backend cannot give its workload
+    /// identity the data directory as it is now. Reads only.
+    async fn check_data_owner(&self, _name: &str, _data_dir: &std::path::Path) -> Result<(), RuntimeError> {
+        Ok(())
+    }
     fn supports_agent(&self) -> bool {
         false
     }

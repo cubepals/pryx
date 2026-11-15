@@ -67,7 +67,11 @@ impl ProcessRuntime {
             return Err(error("Unsafe process runtime directory"));
         }
         initialize_scope_history(&root, existed)?;
-        Self::read_entries(root, policy)
+        let runtime = Self::read_entries(root, policy)?;
+        if let Err(problem) = runtime.sweep_tools() {
+            tracing::warn!(error = %problem, "released process tool directories were not removed");
+        }
+        Ok(runtime)
     }
 
     /// Observe an existing journal without initializing directories or changing scope history.
@@ -135,6 +139,8 @@ impl ProcessRuntime {
         let uid = (self.policy.uid_first..self.policy.uid_first.saturating_add(self.policy.uid_count))
             .find(|uid| !owners.values().any(|(used, _)| used == uid) && !super::observe::uid_in_use(*uid))
             .ok_or_else(|| error("Process UID pool exhausted"))?;
+        // Before it is held: the new holder never sees what an earlier one, or a crash, left.
+        let retired = self.retire_uid_tools(uid)?;
         let mut next = owners.clone();
         next.insert(id.into(), (uid, uid));
         crate::durable::write_atomic(
@@ -144,6 +150,8 @@ impl ProcessRuntime {
         )
         .map_err(error)?;
         *owners = next;
+        drop(owners);
+        self.remove_retired(retired);
         Ok((uid, uid))
     }
     pub(super) fn release_owner(&self, id: &str) -> Result<(), RuntimeError> {
@@ -158,8 +166,16 @@ impl ProcessRuntime {
             return Err(error("Process compute still owns this data"));
         }
         self.retire_orphans(id)?;
+        if self.shared_uid() {
+            let retired = self.retire_shared_scratch(id)?;
+            self.remove_retired(retired);
+            return Ok(());
+        }
         let mut owners = self.state.owners.lock().unwrap();
-        if owners.contains_key(id) {
+        if let Some((uid, _)) = owners.get(id).copied() {
+            // Out of the UID's path before the UID can be held again; a crash after this rename
+            // leaves only a retired name, which the next start removes.
+            let retired = self.retire_uid_tools(uid)?;
             let mut next = owners.clone();
             next.remove(id);
             crate::durable::write_atomic(
@@ -169,6 +185,8 @@ impl ProcessRuntime {
             )
             .map_err(error)?;
             *owners = next;
+            drop(owners);
+            self.remove_retired(retired);
         }
         Ok(())
     }

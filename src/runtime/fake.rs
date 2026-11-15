@@ -67,6 +67,9 @@ pub struct FakeRuntime {
     pub cold_data_copy: AtomicBool,
     /// Whether this backend enforces a workload's hostname egress policy.
     pub hostname_egress: AtomicBool,
+    /// What `check_data_owner` refuses existing data with, as a rootless engine whose workload
+    /// identity doesn't map to the data directory's owner does.
+    pub data_owner_problem: Mutex<Option<String>>,
     pub remote_files: Mutex<Option<std::sync::Arc<FileServiceFactory>>>,
 }
 
@@ -95,6 +98,7 @@ impl FakeRuntime {
             hang_unpause: AtomicBool::new(false),
             cold_data_copy: AtomicBool::new(false),
             hostname_egress: AtomicBool::new(false),
+            data_owner_problem: Mutex::new(None),
             remote_files: Mutex::new(None),
         }
     }
@@ -209,6 +213,10 @@ impl ContainerRuntime for FakeRuntime {
     }
     fn supports_hostname_egress(&self) -> bool {
         self.hostname_egress.load(Ordering::SeqCst)
+    }
+    async fn check_data_owner(&self, name: &str, _data_dir: &std::path::Path) -> Result<(), RuntimeError> {
+        self.call(format!("check-data {name}"));
+        self.data_owner_problem.lock().unwrap().clone().map_or(Ok(()), |problem| Err(RuntimeError::Other(problem)))
     }
     fn isolation(&self) -> &'static str {
         self.isolation.as_str()
