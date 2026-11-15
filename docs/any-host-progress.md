@@ -4757,3 +4757,16 @@ job when publication is authorized. That job has not run in this task.
   audit passes; its additional bans audit refuses the existing versionless same-checkout path
   dependencies. The required root cargo-deny check passed in the preceding typed-command
   step; no audit policy or CI gate is changed. No extra dependency, job or CI minute.
+
+- Add typed worker log/event observation streams using the runtime owner's actual types,
+  existing Bytes serde support and Tokio's bounded JSON-line codec. Each stream owns frontend
+  admission; frontend cancellation ends even a quiet event stream before authority retirement.
+  A real process backend supplies its actual missing-log error, and a quiet stream closes on
+  owner EOF while the actual compute-file lease is released. No request identity is trusted.
+- All six worker tests pass; full Rust: 545 pass, unchanged host IPv6 fixture failure,
+  44 ignored. Strict all-target Clippy, required root cargo-deny, fmt and whitespace pass;
+  both independent lockfiles carry the same existing Bytes serde edge and the helper's locked
+  check passes. No package version changes. Staged Wasm inputs are removed after the cohort.
+- No installed worker/backend selection yet: file/copy sessions and host policy remain.
+  No new job/gate; estimate up to two extra minutes for the first dependency rebuild in the
+  existing Rust/VM builds, then under one test second. Actual CI increment remains pending.

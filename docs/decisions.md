@@ -1322,3 +1322,5 @@
 - K25: pass kernel Unix peer credentials into Axum connection metadata and require the frontend lifetime permit for each unary RPC; keep that permit inside the detached operation task. Refuse another actual client PID and all requests after owner retirement, without trusting a request-supplied identity.
 
 - K25: keep the separately resolved VM image-helper lock synchronized with runtime serialization features, retaining all package versions and source digests; validate every dependent manifest with its own locked build.
+
+- K25: stream the runtime owner’s actual log/event types through Serde JSON lines and the existing pinned Tokio bounded line codec; retain frontend admission until stream completion/cancellation. Enable the existing Bytes serde adapter instead of duplicating its serialization, and synchronize both lockfiles before validation.

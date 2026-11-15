@@ -24,7 +24,7 @@ pryx-agent = { workspace = true, features = ["fs", "mcp"] }
 # Async runtime, HTTP server and middleware. axum is tokio's own router over hyper; the TLS accept
 # loop is written by hand over tokio-rustls so the verified client certificate reaches handlers.
 tokio = { version = "1.53", features = ["rt-multi-thread", "macros", "signal", "net", "time", "sync", "fs", "io-util"] }
-tokio-util = { version = "0.7", features = ["rt", "io"] }
+tokio-util = { version = "0.7", features = ["rt", "io", "codec"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 axum = { version = "0.8", default-features = false, features = ["json", "query", "http1", "tokio", "matched-path"] }
 # The client side is for the node's own calls out: enrollment and heartbeats to the control plane,
@@ -33,7 +33,7 @@ hyper = { version = "1", features = ["server", "http1", "client"] }
 hyper-util = { version = "0.1.21", features = ["server", "server-graceful", "tokio", "service", "http1"] }
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
-bytes = "1"
+bytes = { version = "1", features = ["serde"] }
 httpdate = "1.0.3"
 ipnet = "2"
 # Maintained DNS transaction/codec owner; host resolver transport is independent of guest framing.

@@ -193,20 +193,20 @@ pub struct ExecOutput {
     pub(crate) killed: bool,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum LogStream {
     Stdout,
     Stderr,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct LogChunk {
     pub(crate) stream: LogStream,
     /// One or more lines, each prefixed with an RFC 3339 timestamp and a space.
     pub(crate) bytes: Bytes,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct LogOptions {
     pub(crate) tail: Option<u32>,
     pub(crate) since_unix: Option<i64>,
@@ -235,11 +235,12 @@ pub const DIED: &str = "die";
 pub(crate) const STARTED: &str = "start";
 
 /// Something happened to a container. A hint to look again, never the truth itself.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct RuntimeEvent {
     pub(crate) container_id: String,
     pub(crate) action: String,
     pub(crate) exit_code: Option<i64>,
+    #[serde(with = "time::serde::rfc3339")]
     pub(crate) at: OffsetDateTime,
 }
 
