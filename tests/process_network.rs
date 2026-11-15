@@ -11,7 +11,6 @@ mod support;
 
 use pryxd::manager::{Manager, Precondition, Records};
 use pryxd::protocol::{DataDisposition, ExecRequest, Guarantee, WorkloadState};
-use pryxd::runtime::ContainerRuntime as _;
 use std::net::{Ipv4Addr, SocketAddr, TcpListener};
 use std::sync::Arc;
 use support::{config, id, manager_on, until};
