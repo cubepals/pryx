@@ -165,6 +165,7 @@ jobs:
       # destinations: a private address in its own namespace, the host's own address and
       # loopback, link-local metadata and the internet.
       - name: Destinations for the kernel network policy
+        id: kernel-destinations
         run: |
           uname -r | tee -a "$GITHUB_STEP_SUMMARY"
           sudo ip netns add pryx-private
@@ -193,7 +194,9 @@ jobs:
           cargo test --locked --test process_network -- --ignored --test-threads 1
       # Disposable runner prerequisite, as a host's root would grant it: a pin directory the
       # user owns on the system's BPF filesystem, and a service with the two capabilities.
+      # Both suites run whichever fails, so one can't hide the other.
       - name: Kernel network policy as a delegated ordinary user
+        if: ${{ !cancelled() && steps.kernel-destinations.outcome == 'success' }}
         run: |
           sudo install -d -o "$(id -u)" -g "$(id -g)" -m 0700 /sys/fs/bpf/pryx
           sudo chmod o+x /sys/fs/bpf

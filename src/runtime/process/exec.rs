@@ -76,7 +76,17 @@ impl ProcessRuntime {
         .map_err(error)?
         .map_err(error)?;
         if !status.is_success() {
-            return Err(error(format!("Process agent refused {status}")));
+            // The agent's own code and message say why, bounded: it answers in its own words.
+            const MAX_REASON: usize = 240;
+            let reason = serde_json::from_slice::<serde_json::Value>(&bytes)
+                .ok()
+                .and_then(|body| {
+                    let refusal = &body["error"];
+                    Some(format!("{}: {}", refusal["code"].as_str()?, refusal["message"].as_str().unwrap_or_default()))
+                })
+                .map(|reason| format!(" ({})", reason.chars().take(MAX_REASON).collect::<String>()))
+                .unwrap_or_default();
+            return Err(error(format!("Process agent refused {status}{reason}")));
         }
         Ok(bytes)
     }

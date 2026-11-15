@@ -105,7 +105,7 @@ async fn run(manager: &Arc<Manager>, name: &str, command: &[&str]) -> String {
     let request = ExecRequest { command: command.iter().map(|part| (*part).to_owned()).collect(), timeout_seconds: 40 };
     let response = match manager.exec(id(name), request, None, None).await {
         Ok(response) => response,
-        Err(problem) => panic!("{name}: {problem:?}\n{}", diagnostics(manager)),
+        Err(problem) => panic!("{name} running {command:?}: {problem:?}\n{}", diagnostics(manager)),
     };
     response.stdout.trim().to_owned()
 }
