@@ -96,6 +96,7 @@ async fn start(manager: &Arc<Manager>, name: &str, policy: serde_json::Value) {
         .ensure(id(name), sandbox(policy), Precondition::None, None)
         .await
         .unwrap_or_else(|e| panic!("{name}: {e:?}"));
+    manager.start(id(name), None).await.unwrap_or_else(|e| panic!("starting {name}: {e:?}"));
     let view = until(manager, name, "a running supervisor", |view| view.state == WorkloadState::Running).await;
     assert!(view.guarantees[&Guarantee::HostFirewall], "{name}'s programs are attached and verified");
 }
