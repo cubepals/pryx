@@ -24,6 +24,17 @@ fn agent() -> PathBuf {
     PathBuf::from(std::env::var_os("PRYX_TEST_PROCESS_AGENT").expect("PRYX_TEST_PROCESS_AGENT names the agent"))
 }
 
+/// A test directory a root daemon's pool users can pass through to their data, as the state
+/// directory of an installation is (the root image's /var/lib/pryx), but no one else can list.
+fn state_root() -> tempfile::TempDir {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    if rustix::process::geteuid().is_root() {
+        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o711)).unwrap();
+    }
+    dir
+}
+
 fn sandbox(script: &str, network: &str) -> WorkloadSpec {
     serde_json::from_value(serde_json::json!({
         "image": "",
@@ -77,7 +88,7 @@ fn namespace(pid: u32, kind: &str) -> PathBuf {
 async fn process_sandboxes_get_namespaces_exactly_where_the_host_proves_them() {
     let expected = std::env::var("PRYX_TEST_NAMESPACES").unwrap_or_default();
     let agent = agent();
-    let dir = tempfile::tempdir().unwrap();
+    let dir = state_root();
     let extra = format!(
         "runtime = 'process'\n[workloads]\nagent_binary = '{}'\ndefault_spare_ports = 0\n[network]\nport_range = [43100, 43149]\n",
         agent.display()
@@ -189,7 +200,7 @@ async fn process_figures_in_the_mode_the_host_gives() {
         return;
     }
     let agent = agent();
-    let dir = tempfile::tempdir().unwrap();
+    let dir = state_root();
     let extra = format!(
         "runtime = 'process'\n[workloads]\nagent_binary = '{}'\ndefault_spare_ports = 0\n[network]\nport_range = [43200, 43299]\n",
         agent.display()
