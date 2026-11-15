@@ -78,7 +78,8 @@ fn workload_reports(manager: &Manager) -> Vec<WorkloadReport> {
     let features = manager.features();
     let observed_limits = features.iter().any(|f| f == crate::protocol::OBSERVED_RESOURCE_LIMITS_FEATURE);
     // A namespaced node's process copies each report their own namespaces, older ones none.
-    let namespaced = features.iter().any(|f| f == "tier-process:private-pids");
+    let scoped = format!("tier-{}:{}", Isolation::Process.as_str(), crate::protocol::Guarantee::PrivatePids.feature());
+    let namespaced = features.contains(&scoped);
     manager
         .list(None)
         .into_iter()

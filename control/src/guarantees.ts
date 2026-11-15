@@ -34,7 +34,8 @@ export function workloadGuarantees(
   }
   // A namespaced process node reports each copy's own namespaces: an older copy may predate them,
   // and only a copy started with network none has a network of its own.
-  if (tier === 'process' && features.includes('tier-process:private-pids')) {
+  const pids: Guarantee = 'private-pids'
+  if (tier === 'process' && features.includes(`tier-${tier}:${pids}`)) {
     result['private-pids'] &&= observed?.['private-pids'] === true
     result['private-network'] = observed?.['private-network'] === true
   }
