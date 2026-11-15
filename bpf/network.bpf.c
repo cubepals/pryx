@@ -68,13 +68,21 @@ static __always_inline __u8 classify(struct pryx_key *key, __u16 port, __u32 pro
 	/* pryxd always writes ::/0, so a miss means the policy isn't there yet. */
 	if (!rule)
 		return PRYX_DENY;
+	/*
+	 * Unrolled, and each range read whole before it is tested, so every read is at a constant
+	 * offset and only scalars meet where the passes end: without CAP_PERFMON the verifier refuses
+	 * a map pointer moved by a different offset on each path (Spectre v1 hardening).
+	 */
+#pragma clang loop unroll(full)
 	for (int i = 0; i < PRYX_PORT_ENTRIES; i++) {
-		struct pryx_ports *ports = &rule->ports[i];
+		const volatile struct pryx_ports *ports = &rule->ports[i];
+		__u16 low = ports->low, high = ports->high;
+		__u8 protocols = ports->protocols, verdict = ports->verdict;
 
 		if (i >= rule->count)
 			break;
-		if ((ports->protocols & bit) && port >= ports->low && port <= ports->high)
-			return ports->verdict;
+		if ((protocols & bit) && port >= low && port <= high)
+			return verdict;
 	}
 	return rule->fallback;
 }
