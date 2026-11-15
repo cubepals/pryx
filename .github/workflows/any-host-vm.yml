@@ -253,7 +253,8 @@ jobs:
           CARGO_PROFILE_TEST_DEBUG: '0'
           CARGO_INCREMENTAL: '0'
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
-        run: cargo test --locked --test vm -- --ignored --nocapture | tee "$RUNNER_TEMP/vm-node-api.log"
+        # One at a time: each test runs its own node, and two nodes would share one host port range.
+        run: cargo test --locked --test vm -- --ignored --nocapture --test-threads 1 | tee "$RUNNER_TEMP/vm-node-api.log"
       - name: Prove a separate bounded root VM authority
         if: ${{ !cancelled() && steps.vm-bundle.outcome == 'success' && steps.root-network.outcome == 'success' }}
         env:
