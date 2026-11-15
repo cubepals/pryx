@@ -34,6 +34,8 @@ COPY openapi openapi
 COPY agent/openapi.json agent/openapi.json
 COPY Cargo.toml ./
 COPY sdk/python/pyproject.toml sdk/python/pyproject.toml
+# The server preset admits the images the VM bundle is proven with (cli/src/up-server.ts).
+COPY templates/vm-tools/image-inputs.json templates/vm-tools/image-inputs.json
 COPY deploy deploy
 RUN bun install --frozen-lockfile \
  && bun run release:build \
