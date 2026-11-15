@@ -68,16 +68,18 @@ Where the host does not grant `kernel-network-policy`, all Internet-enabled proc
 must therefore be mutually trusted, including when they have separate UIDs: guest code can dial
 host and neighboring application listeners.
 
-Where it does (pryxd as root, or an ordinary user with CAP_BPF, CAP_NET_ADMIN, a delegated
-cgroup and a BPF filesystem directory of its own), each process sandbox runs in a cgroup of its
-own whose eBPF programs decide every destination in the kernel ([bpf.md](bpf.md)): with public
-internet on it reaches what a container reaches with the host firewall loaded, never this host's
-services, another sandbox's ports, link-local metadata or private addresses on the served ports;
-hostname egress (`egress`) goes only through gateways pryxd serves for that sandbox; address rules
-(`egressAddresses`) allow or deny exactly the prefixes and ports named. Its own listeners stay
-reachable over loopback. The sandbox reports `host-firewall` once its programs are attached and
-verified, and they survive a daemon restart. A host without the capability refuses `egress` and
-`egressAddresses` on this tier, naming it; nothing is approximated.
+Where it does (pryxd as root, the server preset's unit included, or an ordinary user with
+CAP_BPF, CAP_NET_ADMIN, a delegated cgroup and a BPF filesystem directory of its own), each
+process sandbox runs in a cgroup of its own whose eBPF programs decide every destination in the
+kernel ([bpf.md](bpf.md)): with public internet on it reaches what a container reaches with the
+host firewall loaded, never this host's services, another sandbox's ports, link-local metadata
+or private addresses on the served ports; hostname egress (`egress`) goes only through gateways
+pryxd serves for that sandbox; address rules (`egressAddresses`) allow or deny exactly the
+prefixes and ports named. Its own listeners stay reachable over loopback; from another machine
+only its published ports are, as a container's. The sandbox reports `host-firewall` once its
+programs are attached and verified, and they survive any daemon restart the sandbox survives. A
+host without the capability refuses `egress` and `egressAddresses` on this tier, naming it;
+nothing is approximated.
 
 The agent's spare-port proxy independently verifies target ownership. A bounded port-only
 channel asks a trusted worker, created before Landlock, to find an owned listening socket,

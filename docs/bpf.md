@@ -16,13 +16,20 @@ cgroup, then removes everything. It is on for:
 
 | Host | Cgroup | Pins |
 | --- | --- | --- |
-| pryxd as root | a child of pryxd's own cgroup | `/sys/fs/bpf/pryx` |
+| pryxd as root, the server preset's `pryxd.service` included | a child of pryxd's own cgroup | `/sys/fs/bpf/pryx` |
 | an ordinary user with CAP_BPF and CAP_NET_ADMIN and a delegated cgroup (systemd `Delegate=yes`) | a child of the delegated cgroup | a `pryx` directory it owns on a BPF filesystem |
 
 It is off, with the reason and what would turn it on, without cgroup v2, without a writable
 cgroup (a default `docker run`, an undelegated user service), without CAP_BPF and CAP_NET_ADMIN
-(any ordinary user they weren't granted to, the installed root unit, whose capability set is
-unchanged), or without a BPF filesystem pryxd can write. Nothing is approximated where it is off.
+(any ordinary user they weren't granted to), without a BPF filesystem pryxd can write, or where
+the kernel's verifier refuses a program, with the verifier's words. Nothing is approximated
+where it is off.
+
+The server preset's unit (`deploy/pryxd.service`) grants what it needs and no more: CAP_BPF and
+CAP_NET_ADMIN, with CAP_SETUID and CAP_SETGID for the process tier's uid pool, `Delegate=yes`,
+and of `/sys` only its own cgroup subtree and `/sys/fs/bpf/pryx` writable. Process sandboxes
+live in cgroups below the unit's, so they stop when pryxd's unit stops, as VMs do with the VM
+worker; containers keep running.
 
 As root, granting it to a user means: the capabilities on its service
 (`AmbientCapabilities=CAP_BPF CAP_NET_ADMIN`), `Delegate=yes`, and
@@ -46,6 +53,13 @@ the host's services, its agent's neighbours and pryxd's API don't; a request's a
 name loopback, link-local, multicast or the unspecified ranges. Sockets other than TCP and UDP
 over IPv4 and IPv6 (raw, ICMP echo, SCTP, UDP-Lite, MPTCP) are refused at `socket()`.
 
+From off this host a sandbox is reached as a container is: on the ports pryxd published for it
+(its agent's and its spares, where the edge dials it) and nowhere else, so a server it binds to
+`0.0.0.0` is reached from this host and through the edge, never directly from another machine.
+What arrives from another machine is let in only for TCP to a published port, or for a socket
+that dialled a destination off the host itself (the answers to it); the rest is dropped, so the
+other machine's connection times out.
+
 A sandbox's view reports `host-firewall: true` once its own programs are attached and verified;
 a node announces `host-firewall`, `egress-hostnames` and `egress-addresses` for the process tier
 only where the probe proved them. A request for hostname or address policy on a host without the
@@ -63,7 +77,8 @@ each with one job:
 | `sendmsg4`, `sendmsg6` | `cgroup/sendmsg4`, `sendmsg6` | The same for an unconnected datagram's address |
 | `recvmsg4`, `recvmsg6` | `cgroup/recvmsg4`, `recvmsg6` | Put back the resolver's address on a redirected DNS answer |
 | `sock_create` | `cgroup/sock_create` | Refuse non-TCP/UDP sockets; mark the rest as the sandbox's |
-| `ingress`, `egress` | `cgroup_skb/ingress`, `egress` | Count packets and bytes |
+| `ingress` | `cgroup_skb/ingress` | Drop what arrives from off the host but answers and published ports; count |
+| `egress` | `cgroup_skb/egress` | Count packets and bytes |
 
 pryxd compiles the policy into an LPM trie of IPv6 prefixes (IPv4 as `::ffff:a.b.c.d`, NAT64's
 `64:ff9b::/96` taking the rules of the address it embeds). Each prefix carries its own port ranges
@@ -83,8 +98,8 @@ cgroup, removes the pins, which detaches the programs, and removes the cgroup.
 
 `GET /v1/workloads/{id}/stats` reports the sandbox's `networkRxBytes` and `networkTxBytes` from
 the `ingress` and `egress` programs, loopback traffic included. With `bpftool` as root, the map
-`map-counters` under the sandbox's pin directory holds four per-CPU `{packets, bytes}` slots:
-ingress, egress, refused destinations, refused sockets.
+`map-counters` under the sandbox's pin directory holds five per-CPU `{packets, bytes}` slots:
+ingress, egress, refused destinations, refused sockets, refused ingress.
 
 ```sh
 bpftool map dump pinned /sys/fs/bpf/pryx/<key>/map-counters
@@ -98,4 +113,7 @@ The object needs cgroup BPF links (5.7), socket storage in `sock_create` program
 lookups in address hooks, all present on every kernel the process tier supports (Landlock ABI 3,
 6.2 and later). It reads only UAPI context fields and carries BTF, so one build loads on every
 kernel; CI loads it on the oldest and newest hosted kernels in its matrix and fails if the
-verifier rejects a program.
+verifier rejects a program. `bpf/rejected.bpf.o`, the same source built with `PRYX_REJECTED`,
+has a last program the verifier refuses: CI hands it to the probe and checks the guarantee is
+off with the verifier's words, nothing of the set stays attached, and a request for address
+policy is refused naming the capability.
