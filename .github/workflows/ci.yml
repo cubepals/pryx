@@ -161,6 +161,34 @@ jobs:
             ${{ runner.temp }}/check-structure.ts
             target/check-control-structure.ts
           if-no-files-found: warn
+      # K26: the process tier's namespaced mode on this runner, and its plain mode in a default
+      # docker run, against the agent built above with the pinned helper staged beside it. Where
+      # Ubuntu's AppArmor rule refuses the helper, the profile the doctor prints is installed first.
+      - name: Process sandboxes namespaced here and plain in a default docker run
+        run: |
+          install -d -m 755 "$RUNNER_TEMP/pryx-install"
+          install -m 755 target/debug/pryx-agent "$RUNNER_TEMP/pryx-install/pryx-agent"
+          python3 -I deploy/namespace-helper.py "$RUNNER_TEMP/pryx-install"
+          export PRYX_TEST_PROCESS_AGENT="$RUNNER_TEMP/pryx-install/pryx-agent"
+          echo "apparmor_restrict_unprivileged_userns=$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null || echo absent)"
+          PRYX_TEST_NAMESPACE_PROFILE="$RUNNER_TEMP/pryx-namespaces.apparmor" \
+            cargo test --locked --test process_namespaces -- --ignored --nocapture
+          if [ -s "$RUNNER_TEMP/pryx-namespaces.apparmor" ]; then
+            cat "$RUNNER_TEMP/pryx-namespaces.apparmor"
+            sudo install -m 644 "$RUNNER_TEMP/pryx-namespaces.apparmor" /etc/apparmor.d/pryx-namespaces
+            sudo apparmor_parser -r /etc/apparmor.d/pryx-namespaces
+          fi
+          PRYX_TEST_NAMESPACES=on cargo test --locked --test process_namespaces -- --ignored --nocapture
+          test=$(cargo test --locked --test process_namespaces --no-run --message-format=json \
+            | jq -r 'select(.executable != null) | .executable')
+          for wait in 2 5 10 20 0; do
+            docker pull -q mirror.gcr.io/library/ubuntu:24.04 && break
+            [ "$wait" = 0 ] && exit 1
+            sleep "$wait"
+          done
+          docker run --rm -v "$RUNNER_TEMP/pryx-install:/install:ro" -v "$test:/process-namespaces:ro" \
+            -e PRYX_TEST_NAMESPACES=off -e PRYX_TEST_PROCESS_AGENT=/opt/pryx/pryx-agent \
+            mirror.gcr.io/library/ubuntu:24.04 sh -c 'cp -r /install /opt/pryx && exec /process-namespaces --ignored --nocapture'
       - name: CLI doctor uses the real host document
         run: |
           bun install --frozen-lockfile
