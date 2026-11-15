@@ -32,6 +32,19 @@ const MAX_PORTS: usize = 8;
 const MAX_LABELS: usize = 32;
 const MAX_RESUMES_ON: usize = 128;
 const MAX_ADDRESS_RULES: usize = 64;
+/// What an allow rule may not name: this host (0/8, loopback, ::, ::1, IPv4-mapped), link-local
+/// and multicast. The host's protections refuse them whatever a request says.
+const UNOPENABLE: [&str; 9] = [
+    "0.0.0.0/8",
+    "127.0.0.0/8",
+    "169.254.0.0/16",
+    "224.0.0.0/3",
+    "::/128",
+    "::1/128",
+    "fe80::/10",
+    "ff00::/8",
+    "::ffff:0:0/96",
+];
 /// Why a network policy is refused on a process tier whose programs this host can't attach.
 pub(crate) const KERNEL_NETWORK_PROBLEM: &str =
     "network policy on the process tier requires kernel-network-policy, which this host does not provide";
@@ -246,21 +259,17 @@ impl WorkloadSpec {
             problems.add(field, format!("at most {MAX_ADDRESS_RULES} rules per list"));
         }
         let unopenable: Vec<ipnet::IpNet> =
-            crate::bpf::rules::UNOPENABLE.iter().map(|net| net.parse().expect("the host's own ranges parse")).collect();
+            UNOPENABLE.iter().map(|net| net.parse().expect("the host's own ranges parse")).collect();
         for (list, rules) in [("allow", &addresses.allow), ("deny", &addresses.deny)] {
             for (index, rule) in rules.iter().enumerate() {
-                let Some(destination) = rule.destination() else {
+                let Some((prefix, _)) = rule.parsed() else {
                     problems.add(
                         format!("{field}.{list}[{index}]"),
                         "needs an IPv4 or IPv6 prefix and, optionally, ports [low, high] from 1 to 65535",
                     );
                     continue;
                 };
-                if list == "allow"
-                    && unopenable
-                        .iter()
-                        .any(|kept| kept.contains(&destination.prefix) || destination.prefix.contains(kept))
-                {
+                if list == "allow" && unopenable.iter().any(|kept| kept.contains(&prefix) || prefix.contains(kept)) {
                     problems.add(
                         format!("{field}.allow[{index}]"),
                         "can't open this host, link-local, multicast or IPv4-mapped addresses",

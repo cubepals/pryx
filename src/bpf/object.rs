@@ -15,7 +15,6 @@ pub(crate) const RULES: &str = "rules";
 pub(crate) const CONFIG: &str = "config";
 pub(crate) const SOCKETS: &str = "sockets";
 pub(crate) const COUNTERS: &str = "counters";
-pub(crate) const MAPS: [&str; 4] = [RULES, CONFIG, SOCKETS, COUNTERS];
 
 /// `PRYX_PORT_ENTRIES` and `PRYX_RULES`.
 pub(crate) const PORT_ENTRIES: usize = 24;
@@ -78,7 +77,8 @@ impl Rule {
         let mut bytes = [0; RULE_BYTES];
         bytes[0] = self.fallback as u8;
         bytes[1] = self.ports.len() as u8;
-        for (slot, ports) in bytes[8..].chunks_exact_mut(PORTS_BYTES).zip(&self.ports) {
+        for (index, ports) in self.ports.iter().enumerate() {
+            let slot = &mut bytes[8 + index * PORTS_BYTES..][..PORTS_BYTES];
             slot[0..2].copy_from_slice(&ports.low.to_ne_bytes());
             slot[2..4].copy_from_slice(&ports.high.to_ne_bytes());
             slot[4] = ports.protocols;
@@ -123,7 +123,7 @@ mod tests {
         named.sort_unstable();
         assert_eq!(programs, named);
         let mut maps: Vec<&str> = object.maps.keys().map(String::as_str).collect();
-        let mut named = MAPS.to_vec();
+        let mut named = vec![RULES, CONFIG, SOCKETS, COUNTERS];
         maps.sort_unstable();
         named.sort_unstable();
         assert_eq!(maps, named);

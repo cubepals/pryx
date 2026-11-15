@@ -4,16 +4,24 @@
 //! address rules), hostname gateways pryxd serves it on loopback, and finding all of it again
 //! after a daemon restart. Where the host can't attach programs this is absent: a sandbox runs
 //! as before and a request for policy is refused. Not the launch (`power.rs`) nor the gateways'
-//! own protocol (`runtime/egress/`).
-use super::*;
+//! own protocol (`runtime/egress/`), nor turning it on at start (`adoption.rs`).
 use crate::bpf::{
     attach::{Attachment, Counts, Programs},
     host::{self, Host},
     object, rules,
 };
 use crate::runtime::egress::{Policy, listeners};
+use crate::runtime::{ContainerSpec, RuntimeError};
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::{net::Ipv4Addr, ops::RangeInclusive, os::fd::AsRawFd, path::Path};
+use std::{
+    collections::{BTreeMap, HashMap},
+    net::Ipv4Addr,
+    ops::RangeInclusive,
+    os::fd::AsRawFd,
+    path::{Path, PathBuf},
+    sync::Mutex,
+};
 use tokio_util::sync::DropGuard;
 
 /// The ports pryxd hands out and its API's: no sandbox reaches them on a private address.
@@ -42,12 +50,20 @@ pub(super) struct Network {
     held: Mutex<HashMap<String, Held>>,
 }
 
-fn error(problem: impl std::fmt::Display) -> RuntimeError {
+pub(super) fn error(problem: impl std::fmt::Display) -> RuntimeError {
     RuntimeError::Other(format!("Kernel network policy: {problem}"))
 }
 
 /// Where a sandbox's gateways listen; only its own programs let it reach them.
 const GATEWAY: Ipv4Addr = Ipv4Addr::LOCALHOST;
+/// IPv6 link-local unicast (RFC 4291 §2.5.6), refused as the host firewall refuses IPv4's.
+const LINK_LOCAL_V6: ipnet::IpNet =
+    ipnet::IpNet::V6(ipnet::Ipv6Net::new_assert(std::net::Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 0), 10));
+
+/// The host firewall's ranges, as `isolation.rs` writes them for nftables.
+fn ranges(list: &str) -> impl Iterator<Item = ipnet::IpNet> + '_ {
+    list.split(", ").map(|net| net.parse().expect("the firewall's own ranges parse"))
+}
 
 /// A sandbox's hostname gateways, bound but not yet serving.
 struct Gateways {
@@ -118,16 +134,24 @@ impl Network {
     }
 
     /// Whether a spec asked for what only the programs enforce on this tier.
-    fn needs_programs(spec: &ContainerSpec) -> bool {
+    pub(super) fn needs_programs(spec: &ContainerSpec) -> bool {
         spec.egress.is_some() || spec.egress_addresses.is_some()
     }
 
     fn compile(&self, spec: &ContainerSpec) -> Result<BTreeMap<ipnet::Ipv6Net, object::Rule>, RuntimeError> {
         let destinations = |list: &[crate::protocol::AddressRule]| {
             list.iter()
-                .map(|rule| rule.destination().ok_or_else(|| error(format!("invalid address rule {}", rule.prefix))))
-                .collect::<Result<Vec<_>, _>>()
+                .map(|rule| {
+                    let (prefix, ports) =
+                        rule.parsed().ok_or_else(|| error(format!("invalid address rule {}", rule.prefix)))?;
+                    Ok(rules::Destination { prefix, ports })
+                })
+                .collect::<Result<Vec<_>, RuntimeError>>()
         };
+        let private: Vec<ipnet::IpNet> =
+            ranges(crate::isolation::PRIVATE_V4).chain(ranges(crate::isolation::PRIVATE_V6)).collect();
+        let link_local: Vec<ipnet::IpNet> =
+            ranges(crate::isolation::LINK_LOCAL_V4).chain(std::iter::once(LINK_LOCAL_V6)).collect();
         let (allow, deny) = match &spec.egress_addresses {
             Some(addresses) => (destinations(&addresses.allow)?, destinations(&addresses.deny)?),
             None => (Vec::new(), Vec::new()),
@@ -140,6 +164,9 @@ impl Network {
             nameservers: &crate::runtime::egress::dns::nameservers(),
             served: self.served.ports.clone(),
             api_port: self.served.api_port,
+            private: &private,
+            link_local: &link_local,
+            dns: crate::runtime::egress::dns::PORT,
         })
         .map_err(error)
     }
@@ -226,7 +253,19 @@ impl Network {
             std::fs::write(cgroup.join("cgroup.kill"), b"1").map_err(error)?;
         }
         let detached = match held {
-            Some(held) => held.programs.detach(),
+            Some(held) => {
+                if let Ok(counts) = held.programs.counts() {
+                    tracing::info!(
+                        sandbox = name,
+                        received = counts.ingress[1],
+                        sent = counts.egress[1],
+                        refused_destinations = counts.refused_addresses,
+                        refused_sockets = counts.refused_sockets,
+                        "kernel network policy detached"
+                    );
+                }
+                held.programs.detach()
+            }
             None => crate::bpf::attach::remove_pins(&self.host.pin_directory(&key)),
         };
         host::remove_cgroup(&cgroup).map_err(error)?;
@@ -239,36 +278,6 @@ impl Network {
 
     pub(super) fn counts(&self, name: &str) -> Option<Counts> {
         self.held.lock().unwrap().get(name).and_then(|held| held.programs.counts().ok())
-    }
-}
-
-impl ProcessRuntime {
-    /// Turns kernel network policy on where the host proves it can attach the programs, and
-    /// finds those of supervisors that outlived the last daemon. A sandbox whose address or
-    /// hostname policy can't be verified again is stopped rather than left running without it.
-    pub(crate) async fn with_network(mut self, served: Served) -> Self {
-        let found = crate::bpf::probe();
-        self.network_capability = Some(crate::bpf::capability(&found));
-        let Ok(host) = found else { return self };
-        let network = Arc::new(Network::new(host, served, &self.state.root));
-        for name in self.names() {
-            let Ok(entry) = self.entry(&name) else { continue };
-            if super::observe::matching_pid(entry.pid, entry.ticks).is_none() {
-                continue;
-            }
-            let adopted = match &entry.network {
-                Some(record) => network.adopt(&entry.spec, record).await,
-                None => Err(error("the sandbox started without it")),
-            };
-            if let Err(problem) = adopted {
-                tracing::warn!(sandbox = %entry.spec.name, %problem, "process sandbox has no verified kernel network policy");
-                if entry.network.is_some() && Network::needs_programs(&entry.spec) {
-                    let _ = self.terminate_tree(&name).await;
-                }
-            }
-        }
-        self.network = Some(network);
-        self
     }
 }
 

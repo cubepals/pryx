@@ -578,8 +578,8 @@ pub struct AddressRule {
 }
 
 impl AddressRule {
-    /// The rule as the kernel programs take it, if its prefix and ports are well formed.
-    pub(crate) fn destination(&self) -> Option<crate::bpf::rules::Destination> {
+    /// The rule's prefix and inclusive ports, if both are well formed.
+    pub(crate) fn parsed(&self) -> Option<(ipnet::IpNet, Option<(u16, u16)>)> {
         let prefix = self
             .prefix
             .parse::<ipnet::IpNet>()
@@ -590,6 +590,6 @@ impl AddressRule {
             Some([low, high]) => Some((low, high)),
             None => None,
         };
-        Some(crate::bpf::rules::Destination { prefix: prefix.trunc(), ports })
+        Some((prefix.trunc(), ports))
     }
 }

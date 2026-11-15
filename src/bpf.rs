@@ -41,6 +41,9 @@ pub(crate) fn probe() -> Result<host::Host, host::Unavailable> {
         nameservers: &[],
         served: 0..=0,
         api_port: 0,
+        private: &[],
+        link_local: &[],
+        dns: 0,
     })
     .map_err(|problem| fail(problem, "Report this as a bug"));
     let attached = rules.and_then(|rules| {

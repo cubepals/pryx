@@ -65,6 +65,10 @@ fn load_error(name: &str, problem: aya::programs::ProgramError) -> String {
     }
 }
 
+/// A cgroup link takes no attach flags; the kernel runs it beside every other program attached
+/// to the cgroup and its ancestors (BPF_F_ALLOW_MULTI semantics, kernel/bpf/cgroup.c).
+const LINKED: CgroupAttachMode = CgroupAttachMode::Single;
+
 fn link_pin(pins: &Path, program: &str) -> PathBuf {
     pins.join(format!("link-{program}"))
 }
@@ -141,13 +145,13 @@ impl Programs {
             let link = match program {
                 Program::CgroupSockAddr(program) => {
                     program.load().map_err(|problem| load_error(name, problem))?;
-                    let id = program.attach(&directory, CgroupAttachMode::AllowMultiple);
+                    let id = program.attach(&directory, LINKED);
                     let link = program.take_link(id.map_err(|problem| error(&format!("attaching {name}"), problem))?);
                     FdLink::try_from(link.map_err(|problem| error(name, problem))?)
                 }
                 Program::CgroupSock(program) => {
                     program.load().map_err(|problem| load_error(name, problem))?;
-                    let id = program.attach(&directory, CgroupAttachMode::AllowMultiple);
+                    let id = program.attach(&directory, LINKED);
                     let link = program.take_link(id.map_err(|problem| error(&format!("attaching {name}"), problem))?);
                     FdLink::try_from(link.map_err(|problem| error(name, problem))?)
                 }
@@ -155,7 +159,7 @@ impl Programs {
                     program.load().map_err(|problem| load_error(name, problem))?;
                     let direction =
                         if name == "ingress" { CgroupSkbAttachType::Ingress } else { CgroupSkbAttachType::Egress };
-                    let id = program.attach(&directory, direction, CgroupAttachMode::AllowMultiple);
+                    let id = program.attach(&directory, direction, LINKED);
                     let link = program.take_link(id.map_err(|problem| error(&format!("attaching {name}"), problem))?);
                     FdLink::try_from(link.map_err(|problem| error(name, problem))?)
                 }

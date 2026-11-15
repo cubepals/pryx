@@ -12,6 +12,8 @@
 //! - `logs.rs`: bounded, safe entrypoint log replay and following.
 //! - `termination.rs`: stable tree freezing and orphan retirement.
 //! - `network.rs`: each sandbox's cgroup, kernel network policy and hostname gateways.
+//! - `adoption.rs`: turning that policy on at start and adopting what outlived the last daemon.
+mod adoption;
 mod exec;
 mod journal;
 mod logs;

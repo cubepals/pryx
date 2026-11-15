@@ -5,7 +5,7 @@
 //! order they apply. The host's protections come first and a request's rules can't relax them:
 //! the host's own addresses reach only the sandbox's own sockets, link-local, multicast and
 //! this-host aliases are refused, and private addresses never on the ports pryxd serves.
-//! Pure: what the host's addresses and resolvers are is the caller's; the kernel is `attach.rs`.
+//! Pure: the host's addresses, resolvers and ranges are the caller's; the kernel is `attach.rs`.
 use super::object::{PORT_ENTRIES, Ports, Rule, TCP, UDP, Verdict};
 use ipnet::{IpNet, Ipv6Net};
 use std::{
@@ -41,25 +41,18 @@ pub(crate) struct Inputs<'a> {
     /// The ports pryxd hands out, and its API's.
     pub(crate) served: RangeInclusive<u16>,
     pub(crate) api_port: u16,
+    /// Private ranges, where pryxd's served ports belong to other nodes, and link-local ones,
+    /// where clouds serve metadata: the host firewall's own (`isolation.rs`).
+    pub(crate) private: &'a [IpNet],
+    pub(crate) link_local: &'a [IpNet],
+    /// DNS's port.
+    pub(crate) dns: u16,
 }
 
-/// The ranges a request's allow rule may not name: this host, link-local and multicast.
-pub(crate) const UNOPENABLE: [&str; 9] = [
-    "0.0.0.0/8",
-    "127.0.0.0/8",
-    "169.254.0.0/16",
-    "224.0.0.0/3",
-    "::/128",
-    "::1/128",
-    "fe80::/10",
-    "ff00::/8",
-    "::ffff:0:0/96",
-];
 /// IPv4-mapped IPv6 (RFC 4291 §2.5.5.2) and the NAT64 well-known prefix (RFC 6052 §2.1).
 const MAPPED: Ipv6Addr = Ipv6Addr::new(0, 0, 0, 0, 0, 0xffff, 0, 0);
 const NAT64: Ipv6Addr = Ipv6Addr::new(0x64, 0xff9b, 0, 0, 0, 0, 0, 0);
-/// IPv4's DNS port (RFC 1035 §4.2), and HTTP's and TLS's (RFC 9110 §4.2).
-const DNS: u16 = crate::runtime::egress::dns::PORT;
+/// HTTP's and TLS's ports (RFC 9110 §4.2).
 const HTTP: u16 = 80;
 const TLS: u16 = 443;
 
@@ -97,16 +90,28 @@ pub(crate) fn mapped(prefix: IpNet) -> Ipv6Net {
     }
 }
 
-fn nets(list: &str) -> impl Iterator<Item = IpNet> + '_ {
-    list.split(", ").map(|net| net.parse().expect("the firewall's own ranges parse"))
-}
-
 fn host(address: IpAddr) -> IpNet {
     IpNet::from(address)
 }
 
 /// Every prefix the programs need and its rule. An error names what can't be expressed.
 pub(crate) fn compile(inputs: &Inputs<'_>) -> Result<BTreeMap<Ipv6Net, Rule>, String> {
+    let mut layers = layers(inputs);
+    // NAT64 reaches the IPv4 address it embeds, so it takes that address's rules.
+    let translated: Vec<Layer> = layers.iter().filter_map(translated).collect();
+    layers.extend(translated);
+    let mut rules = BTreeMap::new();
+    for prefix in layers.iter().map(|layer| layer.prefix) {
+        if !rules.contains_key(&prefix) {
+            rules.insert(prefix, fold(&layers, prefix)?);
+        }
+    }
+    Ok(rules)
+}
+
+/// What each part of the policy says, before folding: base reach, the host's protections, the
+/// resolvers or gateways, then a request's rules.
+fn layers(inputs: &Inputs<'_>) -> Vec<Layer> {
     let both = TCP | UDP;
     let mut layers = Vec::new();
     let mut add = |prefix: IpNet, ports, protocols, verdict, precedence| {
@@ -116,34 +121,29 @@ pub(crate) fn compile(inputs: &Inputs<'_>) -> Result<BTreeMap<Ipv6Net, Rule>, St
     for base in ["::/0", "::ffff:0:0/96"] {
         add(base.parse().unwrap(), None, both, public, Precedence::Base);
     }
-    for private in nets(crate::isolation::PRIVATE_V4).chain(nets(crate::isolation::PRIVATE_V6)) {
+    for private in inputs.private.iter().copied() {
         add(private, None, both, public, Precedence::Base);
         add(private, Some((*inputs.served.start(), *inputs.served.end())), both, Verdict::Deny, Precedence::Served);
         add(private, Some((inputs.api_port, inputs.api_port)), both, Verdict::Deny, Precedence::Served);
     }
-    for refused in ["0.0.0.0/8", "224.0.0.0/3", "::/96", "ff00::/8"]
-        .into_iter()
-        .map(|net| net.parse().unwrap())
-        .chain(nets(crate::isolation::LINK_LOCAL_V4))
-        .chain(["fe80::/10".parse().unwrap()])
-    {
+    let refused = ["0.0.0.0/8", "224.0.0.0/3", "::/96", "ff00::/8"].into_iter().map(|net| net.parse().unwrap());
+    for refused in refused.chain(inputs.link_local.iter().copied()) {
         add(refused, None, both, Verdict::Deny, Precedence::Host);
     }
-    for own in ["127.0.0.0/8".parse().unwrap(), host(Ipv6Addr::LOCALHOST.into())]
-        .into_iter()
-        .chain(inputs.host.iter().copied().map(host))
-    {
+    let own = ["127.0.0.0/8".parse().unwrap(), host(Ipv6Addr::LOCALHOST.into())];
+    for own in own.into_iter().chain(inputs.host.iter().copied().map(host)) {
         add(own, None, both, Verdict::Owned, Precedence::Host);
     }
+    let dns = Some((inputs.dns, inputs.dns));
     match inputs.reach {
         Reach::Hostnames => {
-            add("::/0".parse().unwrap(), Some((DNS, DNS)), both, Verdict::Dns, Precedence::Resolver);
+            add("::/0".parse().unwrap(), dns, both, Verdict::Dns, Precedence::Resolver);
             add("::/0".parse().unwrap(), Some((HTTP, HTTP)), TCP, Verdict::Http, Precedence::Gateway);
             add("::/0".parse().unwrap(), Some((TLS, TLS)), TCP, Verdict::Tls, Precedence::Gateway);
         }
         Reach::Public => {
             for nameserver in inputs.nameservers {
-                add(host(*nameserver), Some((DNS, DNS)), both, Verdict::Allow, Precedence::Resolver);
+                add(host(*nameserver), dns, both, Verdict::Allow, Precedence::Resolver);
             }
         }
         Reach::None => {}
@@ -154,50 +154,40 @@ pub(crate) fn compile(inputs: &Inputs<'_>) -> Result<BTreeMap<Ipv6Net, Rule>, St
     for rule in inputs.deny {
         add(rule.prefix, rule.ports, both, Verdict::Deny, Precedence::Denied);
     }
-    // NAT64 reaches the IPv4 address it embeds, so it takes that address's rules.
-    let translated: Vec<Layer> = layers
-        .iter()
-        .filter(|layer| {
-            layer.prefix.prefix_len() >= 96 && Ipv6Net::new(MAPPED, 96).unwrap().contains(&layer.prefix.network())
-        })
-        .map(|layer| {
-            let embedded = u128::from(layer.prefix.network()) & u128::from(u32::MAX);
-            Layer {
-                prefix: Ipv6Net::new(Ipv6Addr::from(u128::from(NAT64) | embedded), layer.prefix.prefix_len()).unwrap(),
-                ..*layer
-            }
-        })
-        .collect();
-    layers.extend(translated);
-    let mut rules = BTreeMap::new();
-    for prefix in layers.iter().map(|layer| layer.prefix) {
-        if rules.contains_key(&prefix) {
-            continue;
-        }
-        let mut covering: Vec<&Layer> = layers.iter().filter(|layer| layer.prefix.contains(&prefix)).collect();
-        covering
-            .sort_by(|a, b| b.precedence.cmp(&a.precedence).then(b.prefix.prefix_len().cmp(&a.prefix.prefix_len())));
-        let mut rule = Rule { fallback: Verdict::Deny, ports: Vec::new() };
-        for layer in covering {
-            match layer.ports {
-                Some((low, high)) => {
-                    rule.ports.push(Ports { low, high, protocols: layer.protocols, verdict: layer.verdict })
-                }
-                None => {
-                    rule.fallback = layer.verdict;
-                    break;
-                }
-            }
-        }
-        if rule.ports.len() > PORT_ENTRIES {
-            return Err(format!(
-                "{prefix} would need {} port ranges; at most {PORT_ENTRIES} can apply to one address",
-                rule.ports.len()
-            ));
-        }
-        rules.insert(prefix, rule);
+    layers
+}
+
+/// The NAT64 twin of a layer about an IPv4 prefix.
+fn translated(layer: &Layer) -> Option<Layer> {
+    let mapped = Ipv6Net::new(MAPPED, 96).unwrap();
+    if layer.prefix.prefix_len() < 96 || !mapped.contains(&layer.prefix.network()) {
+        return None;
     }
-    Ok(rules)
+    let embedded = u128::from(layer.prefix.network()) & u128::from(u32::MAX);
+    let prefix = Ipv6Net::new(Ipv6Addr::from(u128::from(NAT64) | embedded), layer.prefix.prefix_len()).unwrap();
+    Some(Layer { prefix, ..*layer })
+}
+
+/// One prefix's rule: the port ranges of every layer covering it, highest precedence and then
+/// narrowest first, up to the first that applies to every port.
+fn fold(layers: &[Layer], prefix: Ipv6Net) -> Result<Rule, String> {
+    let mut covering: Vec<&Layer> = layers.iter().filter(|layer| layer.prefix.contains(&prefix)).collect();
+    covering.sort_by(|a, b| b.precedence.cmp(&a.precedence).then(b.prefix.prefix_len().cmp(&a.prefix.prefix_len())));
+    let mut rule = Rule { fallback: Verdict::Deny, ports: Vec::new() };
+    for layer in covering {
+        let Some((low, high)) = layer.ports else {
+            rule.fallback = layer.verdict;
+            break;
+        };
+        rule.ports.push(Ports { low, high, protocols: layer.protocols, verdict: layer.verdict });
+    }
+    if rule.ports.len() > PORT_ENTRIES {
+        return Err(format!(
+            "{prefix} would need {} port ranges; at most {PORT_ENTRIES} can apply to one address",
+            rule.ports.len()
+        ));
+    }
+    Ok(rule)
 }
 
 /// What the programs decide for one address and port, read from compiled rules as they do.
@@ -225,8 +215,23 @@ mod tests {
         [IpAddr::V4(Ipv4Addr::new(203, 0, 113, 9)), IpAddr::V6(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 9))];
     const RESOLVER: [IpAddr; 1] = [IpAddr::V4(Ipv4Addr::new(127, 0, 0, 53))];
 
+    fn nets(list: &[&str]) -> &'static [IpNet] {
+        list.iter().map(|net| net.parse().unwrap()).collect::<Vec<_>>().leak()
+    }
+
     fn inputs<'a>(reach: Reach, allow: &'a [Destination], deny: &'a [Destination]) -> Inputs<'a> {
-        Inputs { reach, allow, deny, host: &HOST, nameservers: &RESOLVER, served: 42000..=42999, api_port: 7443 }
+        Inputs {
+            reach,
+            allow,
+            deny,
+            host: &HOST,
+            nameservers: &RESOLVER,
+            served: 42000..=42999,
+            api_port: 7443,
+            private: nets(&["10.0.0.0/8", "100.64.0.0/10", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7"]),
+            link_local: nets(&["169.254.0.0/16", "fe80::/10"]),
+            dns: 53,
+        }
     }
     fn at(prefix: &str, ports: Option<(u16, u16)>) -> Destination {
         Destination { prefix: prefix.parse().unwrap(), ports }
