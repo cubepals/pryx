@@ -98,6 +98,24 @@ struct CachedLayer {
     diff_id: String,
     image_sha256: String,
     image_bytes: u64,
+    /// The read-only file's kernel identity when it was hashed; while it is unchanged the
+    /// layer is not hashed again on every start.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    hashed: Option<Identity>,
+}
+
+/// Device, inode, size, and modification and change times: any write, chmod or replacement
+/// of the layer file changes at least one.
+type Identity = (u64, u64, u64, (i64, i64), (i64, i64));
+
+fn identity(metadata: &fs::Metadata) -> Identity {
+    (
+        metadata.dev(),
+        metadata.ino(),
+        metadata.len(),
+        (metadata.mtime(), metadata.mtime_nsec()),
+        (metadata.ctime(), metadata.ctime_nsec()),
+    )
 }
 
 fn digest_name(value: &str) -> Result<String, RuntimeError> {
@@ -273,17 +291,20 @@ impl Images {
             let work = temporary.path().to_path_buf();
             let generated = convert(&self.tools, &blob, &work, &layer.media_type, diff_id).await?;
             let file = File::open(&generated).map_err(error)?;
-            let saved = CachedLayer {
+            let mut saved = CachedLayer {
                 source: layer.digest.clone(),
                 diff_id: diff_id.clone(),
                 image_bytes: file.metadata().map_err(error)?.len(),
                 image_sha256: sha256(&file).map_err(error)?,
+                hashed: None,
             };
             file.sync_all().map_err(error)?;
             fs::set_permissions(&generated, fs::Permissions::from_mode(0o444)).map_err(error)?;
             // A missing record never authenticates an existing image. A completed record
             // follows the synced image; cancellation or failure cannot publish partial data.
             fs::rename(generated, &path).map_err(error)?;
+            // The identity after the rename, which changes the inode's change time.
+            saved.hashed = Some(identity(&fs::symlink_metadata(&path).map_err(error)?));
             pryxd::durable::write_atomic(&record, &serde_json::to_vec(&saved).map_err(error)?, 0o600).map_err(error)?;
             layers.push(path);
         }
@@ -330,7 +351,7 @@ impl Images {
             || !metadata.is_file()
             || metadata.mode() & 0o222 != 0
             || metadata.len() != saved.image_bytes
-            || sha256(file).map_err(error)? != saved.image_sha256
+            || (saved.hashed != Some(identity(&metadata)) && sha256(file).map_err(error)? != saved.image_sha256)
         {
             return Err(RuntimeError::ImageCacheInvalid);
         }

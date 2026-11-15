@@ -4938,3 +4938,9 @@ job when publication is authorized. That job has not run in this task.
   existing skip) and typecheck pass; lint has one formatter error in control/tools/docs.ts
   from another commit, reported. The release and the sudo bootstrap job do not ship the
   descriptor yet, so root installed acceptance is still open.
+
+- Shorten the start path: the stage of each VM start is logged (`VM boot stages`, printed by the
+  actual runtime test for a restart and a retained-disk start); a start skips e2fsck on the disk
+  its signed clean shutdown left, and cached layers are not re-hashed while unchanged. A unit
+  test pins the disk identity against writes, chmod and replacement; the registry test still
+  refuses a corrupted layer. Clippy and structure pass. Stage numbers follow from VM CI.

@@ -133,8 +133,52 @@ pub async fn prepare(
     timeout: Duration,
     free_floor: u64,
 ) -> Result<Prepared, RuntimeError> {
+    prepare_trusted(tools, directory, lease, bytes, timeout, free_floor, None).await
+}
+
+/// The kernel's identity of a disk file: any write, replacement or metadata change differs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Stamp {
+    device: u64,
+    inode: u64,
+    bytes: u64,
+    modified: (i64, i64),
+    changed: (i64, i64),
+}
+impl Stamp {
+    fn of(info: &fs::Metadata) -> Self {
+        Self {
+            device: info.dev(),
+            inode: info.ino(),
+            bytes: info.len(),
+            modified: (info.mtime(), info.mtime_nsec()),
+            changed: (info.ctime(), info.ctime_nsec()),
+        }
+    }
+    /// The disk in this data directory as it stands, if it is one private regular file.
+    pub fn current(directory: &Path) -> Result<Option<Self>, RuntimeError> {
+        match fs::symlink_metadata(directory.join(FILE)) {
+            Ok(info) if info.is_file() => Ok(Some(Self::of(&info))),
+            Ok(_) => Err(error("VM disk must be a regular file")),
+            Err(problem) if problem.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(problem) => Err(error(problem)),
+        }
+    }
+}
+
+/// `prepare`, skipping the read-only check when the disk is exactly the one a guest's signed
+/// clean shutdown left: the same file, unwritten and unchanged since.
+pub async fn prepare_trusted(
+    tools: &FilesystemTools,
+    directory: &Path,
+    lease: &Path,
+    bytes: u64,
+    timeout: Duration,
+    free_floor: u64,
+    trusted: Option<Stamp>,
+) -> Result<Prepared, RuntimeError> {
     let (tools, directory, lease) = (tools.clone(), directory.to_owned(), lease.to_owned());
-    tokio::spawn(async move { transaction(&tools, &directory, &lease, bytes, timeout, free_floor).await })
+    tokio::spawn(async move { transaction(&tools, &directory, &lease, bytes, (timeout, free_floor), trusted).await })
         .await
         .map_err(error)?
 }
@@ -144,8 +188,8 @@ async fn transaction(
     directory: &Path,
     lease: &Path,
     bytes: u64,
-    timeout: Duration,
-    free_floor: u64,
+    (timeout, free_floor): (Duration, u64),
+    trusted: Option<Stamp>,
 ) -> Result<Prepared, RuntimeError> {
     let deadline = Instant::now()
         .checked_add(timeout.max(recovery_time(bytes)))
@@ -158,30 +202,7 @@ async fn transaction(
     let parent = directory.parent().ok_or_else(|| error("VM disk lacks a staging parent"))?;
     super::bundle::ancestors(lease.parent().ok_or_else(|| error("VM monitor lease lacks its private directory"))?)
         .map_err(error)?;
-    let lock = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .mode(0o600)
-        .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
-        .open(lease)
-        .map_err(error)?;
-    let info = lock.metadata().map_err(error)?;
-    if !info.is_file()
-        || info.uid() != rustix::process::geteuid().as_raw()
-        || info.mode() & 0o077 != 0
-        || info.nlink() != 1
-    {
-        return Err(error("Unsafe VM monitor lease"));
-    }
-    rustix::fs::flock(&lock, rustix::fs::FlockOperation::NonBlockingLockExclusive).map_err(|problem| {
-        if problem == rustix::io::Errno::WOULDBLOCK {
-            RuntimeError::Conflict("VM monitor still owns its writable disk".into())
-        } else {
-            error(problem)
-        }
-    })?;
+    let _lock = hold(lease)?;
     for entry in fs::read_dir(directory).map_err(error)? {
         if entry.map_err(error)?.file_name() != FILE {
             return Err(error("VM data directory contains an unrecognized file"));
@@ -195,8 +216,12 @@ async fn transaction(
         Err(problem) => return Err(error(problem)),
     };
     if let Some(original) = &original {
-        if original.metadata().map_err(error)?.len() != bytes {
+        let info = original.metadata().map_err(error)?;
+        if info.len() != bytes {
             return Err(error("VM disk resizing requires an explicit verified resize transaction"));
+        }
+        if trusted.is_some_and(|trusted| trusted == Stamp::of(&info)) {
+            return Ok(Prepared { path, created: false, recovered: false });
         }
         if check(tools, &path, deadline).await? {
             return Ok(Prepared { path, created: false, recovered: false });
@@ -245,6 +270,35 @@ async fn transaction(
     room(directory, free_floor)?;
     publish(original.as_ref(), &candidate, &path, directory, bytes, deadline)?;
     Ok(Prepared { path, created: original.is_none(), recovered: original.is_some() })
+}
+
+/// The monitor's kernel lease, held for the whole transaction; a live monitor refuses it.
+fn hold(lease: &Path) -> Result<File, RuntimeError> {
+    let lock = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
+        .open(lease)
+        .map_err(error)?;
+    let info = lock.metadata().map_err(error)?;
+    if !info.is_file()
+        || info.uid() != rustix::process::geteuid().as_raw()
+        || info.mode() & 0o077 != 0
+        || info.nlink() != 1
+    {
+        return Err(error("Unsafe VM monitor lease"));
+    }
+    rustix::fs::flock(&lock, rustix::fs::FlockOperation::NonBlockingLockExclusive).map_err(|problem| {
+        if problem == rustix::io::Errno::WOULDBLOCK {
+            RuntimeError::Conflict("VM monitor still owns its writable disk".into())
+        } else {
+            error(problem)
+        }
+    })?;
+    Ok(lock)
 }
 
 /// A new sparse file of the admitted size, formatted in place by the confined mke2fs.
@@ -304,6 +358,29 @@ fn publish(
 mod tests {
     use super::*;
     use std::io::Write;
+
+    #[test]
+    fn a_clean_disk_stamp_changes_with_any_write_replacement_or_metadata_change() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join(FILE);
+        fs::write(&path, b"clean").unwrap();
+        let clean = Stamp::current(root.path()).unwrap().unwrap();
+        assert_eq!(Stamp::current(root.path()).unwrap(), Some(clean));
+        std::thread::sleep(Duration::from_millis(10));
+        OpenOptions::new().write(true).open(&path).unwrap().write_all(b"dirty").unwrap();
+        assert_ne!(Stamp::current(root.path()).unwrap(), Some(clean));
+        let written = Stamp::current(root.path()).unwrap().unwrap();
+        std::thread::sleep(Duration::from_millis(10));
+        fs::set_permissions(&path, std::os::unix::fs::PermissionsExt::from_mode(0o600)).unwrap();
+        assert_ne!(Stamp::current(root.path()).unwrap(), Some(written));
+        let replacement = root.path().join("replacement");
+        fs::write(&replacement, b"dirty").unwrap();
+        let before = Stamp::current(root.path()).unwrap();
+        fs::rename(&replacement, &path).unwrap();
+        assert_ne!(Stamp::current(root.path()).unwrap(), before);
+        fs::remove_file(&path).unwrap();
+        assert_eq!(Stamp::current(root.path()).unwrap(), None);
+    }
 
     #[test]
     fn recovery_outlasts_a_boot_deadline_on_a_large_disk_and_reserves_its_copy() {

@@ -170,13 +170,14 @@ impl VmRuntime {
         let bundle = self.bundle().await?;
         let lease = self.lease(&entry)?;
         self.recover_disk(&entry.spec.data_dir)?;
-        let disk = super::super::disk::prepare(
+        let disk = super::super::disk::prepare_trusted(
             bundle.filesystems(),
             &entry.spec.data_dir,
             &lease,
             entry.spec.storage_bytes,
             BOOT_TIMEOUT,
             self.state.settings.free_floor_bytes,
+            entry.clean_disk.take(),
         )
         .await?;
         stages.mark("disk");

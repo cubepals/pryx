@@ -93,6 +93,7 @@ impl VmRuntime {
         live.retire_jail()?;
         drop(live);
         self.state.live.lock().unwrap().remove(&entry.id);
+        entry.clean_disk = clean_disk(&entry, !forced && code.is_ok());
         entry.code = code.as_ref().copied().unwrap_or(UNKNOWN_EXIT_CODE);
         entry.finished = Some(crate::clock::now());
         if let Some(snapshot) = &mut entry.agent_state {
@@ -153,6 +154,7 @@ impl VmRuntime {
                 live.retire_jail()?;
                 drop(live);
                 self.state.live.lock().unwrap().remove(&entry.id);
+                entry.clean_disk = clean_disk(&entry, result.is_ok());
                 self.save_entry(entry.clone())?;
                 if result.is_ok() { ContainerStatus::Exited } else { ContainerStatus::Dead }
             }
@@ -207,6 +209,11 @@ fn information(entry: Entry, status: ContainerStatus) -> ContainerInfo {
         restart_count: 0,
         health: None,
     }
+}
+
+/// After a signed clean shutdown, the disk exactly as it was left; nothing otherwise.
+fn clean_disk(entry: &Entry, clean: bool) -> Option<super::super::disk::Stamp> {
+    clean.then(|| super::super::disk::Stamp::current(&entry.spec.data_dir).ok().flatten()).flatten()
 }
 
 /// The host helper of a running guest that has exited, if one has.
@@ -403,6 +410,7 @@ impl ContainerRuntime for VmRuntime {
             code: 0,
             agent_state: None,
             image_digest: None,
+            clean_disk: None,
         };
         self.persist_entry(&entry)?;
         entries.insert(id.clone(), entry);
