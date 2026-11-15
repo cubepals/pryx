@@ -602,7 +602,7 @@ jobs:
           python3 - server-artifacts/vm-bundle.json "$RUNNER_TEMP/vm-installed-preview/pryx-vm-linux-x64.tar.gz" <<'PY'
           import hashlib, json, sys
           from pathlib import Path
-          runtime = json.loads(Path(sys.argv[1]).read_text())['runtime']
+          runtime = json.loads(Path(sys.argv[1]).read_text())
           archive = Path(sys.argv[2])
           assert runtime['url'] == 'https://127.0.0.1:9877/' + archive.name
           assert runtime['bytes'] == archive.stat().st_size
