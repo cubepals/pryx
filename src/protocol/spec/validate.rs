@@ -71,6 +71,26 @@ pub(crate) fn mount_path_ok(path: &str) -> bool {
 }
 
 /// Image references: registry/name:tag or @digest, conservative characters only.
+/// What separates an image's name from its content digest: OCI image-spec digests, `sha256:`
+/// followed by 64 lowercase hex digits (the only algorithm images are pinned with here).
+const SHA256_DIGEST: &str = "@sha256:";
+
+/// A complete digest reference (`name@sha256:` and its 64 hex digits). As an `allowed_images`
+/// entry it admits that one image and nothing else; every other entry is a prefix.
+pub(crate) fn digest_reference(entry: &str) -> bool {
+    entry.split_once(SHA256_DIGEST).is_some_and(|(name, digest)| {
+        !name.is_empty()
+            && digest.len() == 64
+            && digest.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    })
+}
+
+/// Whether one `allowed_images` entry admits `image`: a digest reference by equality, a prefix by
+/// its text. Config validation (`config/validate.rs`) refuses every other kind of entry.
+pub(crate) fn admits(entry: &str, image: &str) -> bool {
+    if digest_reference(entry) { image == entry } else { image.starts_with(entry) }
+}
+
 fn image_ok(image: &str) -> bool {
     !image.is_empty()
         && image.len() <= 255
@@ -185,7 +205,7 @@ impl WorkloadSpec {
             problems.add("image", "must be an image reference of letters, digits and ._-/:@");
         } else if policy.allowed_images.is_empty() {
             problems.add("image", "no image prefix is allowed on this host");
-        } else if !policy.allowed_images.iter().any(|prefix| self.image.starts_with(prefix.as_str())) {
+        } else if !policy.allowed_images.iter().any(|entry| admits(entry, &self.image)) {
             problems
                 .add("image", format!("is not allowed on this host (allowed: {})", policy.allowed_images.join(", ")));
         }
@@ -473,6 +493,43 @@ mod tests {
         assert!(errors.iter().any(|e| e.problem.contains("used twice")));
         assert!(errors.iter().any(|e| e.field == "ports[1].audience"));
     }
+    /// The server preset's default allowlist admits the images the VM bundle is proven with by
+    /// digest; an operator who takes a pin out narrows it, and no other digest of the same name
+    /// gets in through a pin.
+    #[test]
+    fn a_pinned_digest_admits_that_image_alone_and_narrowing_still_narrows() {
+        let pins: Vec<serde_json::Value> =
+            serde_json::from_str(include_str!("../../../templates/vm-tools/image-inputs.json")).unwrap();
+        let pins: Vec<String> = pins.iter().map(|pin| pin["reference"].as_str().unwrap().to_owned()).collect();
+        assert!(pins.len() >= 2 && pins.iter().all(|pin| digest_reference(pin)));
+        let with = |allowed: &[String], image: &str| {
+            let mut p = policy();
+            p.allowed_images = allowed.to_vec();
+            let mut v = example_spec();
+            v["image"] = image.into();
+            spec(v).validate(&p).map_err(|errors| errors.iter().map(|e| e.field.clone()).collect::<Vec<_>>())
+        };
+        let preset: Vec<String> = ["alpine:".to_owned(), "node:".to_owned()].into_iter().chain(pins.clone()).collect();
+        for pin in &pins {
+            with(&preset, pin).unwrap();
+            let (name, digest) = pin.split_once(SHA256_DIGEST).unwrap();
+            let other = format!("{name}{SHA256_DIGEST}{}", digest.chars().rev().collect::<String>());
+            assert_ne!(&other, pin);
+            assert_eq!(with(&preset, &other).unwrap_err(), ["image"], "{other}");
+            assert_eq!(with(&preset, &format!("{pin}0")).unwrap_err(), ["image"]);
+            assert_eq!(with(&preset, &format!("{name}:latest")).unwrap_err(), ["image"]);
+        }
+        let narrowed: Vec<String> = preset.iter().filter(|entry| *entry != &pins[1]).cloned().collect();
+        with(&narrowed, &pins[0]).unwrap();
+        assert_eq!(with(&narrowed, &pins[1]).unwrap_err(), ["image"]);
+        assert_eq!(with(&["alpine:".to_owned()], &pins[0]).unwrap_err(), ["image"]);
+        assert_eq!(with(&[], &pins[0]).unwrap_err(), ["image"]);
+        for partial in ["docker.io/library/alpine@sha256:", "docker.io/library/alpine@sha256:abc", "@sha256:"] {
+            assert!(!digest_reference(partial), "{partial}");
+        }
+        assert!(!digest_reference(&pins[0].to_uppercase()));
+    }
+
     #[test]
     fn wasm_refuses_udp_ingress() {
         let mut p = policy();

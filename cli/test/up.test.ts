@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto'
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import vmImages from '../../templates/vm-tools/image-inputs.json'
 import { runInstallCommand, up } from '../src/up.ts'
 import {
   FLEET_PRYXD_BIN,
@@ -18,6 +19,7 @@ import {
 import { configurations } from '../src/up-config.ts'
 import { readEnvironment, writeChanged, writeEnvironment } from '../src/up-files.ts'
 import { hostInstallProblem } from '../src/up-host.ts'
+import { defaultAllowedImages } from '../src/up-server.ts'
 import { container, service } from '../src/up-units.ts'
 
 test('unsupported distributions name missing packages before installation', () => {
@@ -126,6 +128,12 @@ test('a listed VM descriptor is verified, and a release without one still instal
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+})
+test('a server install admits the VM bundle images by digest only with its descriptor', () => {
+  expect(defaultAllowedImages(false)).toEqual(['alpine:', 'node:'])
+  const pinned = defaultAllowedImages(true).slice(2)
+  expect(pinned).toEqual(vmImages.map((image) => image.reference))
+  for (const reference of pinned) expect(reference).toMatch(/^[a-z0-9./-]+@sha256:[0-9a-f]{64}$/)
 })
 test('units read secrets from protected files and expose storage only on loopback', () => {
   expect(service('control')).toContain('EnvironmentFile=/etc/pryx/control.env')

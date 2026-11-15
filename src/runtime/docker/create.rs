@@ -5,6 +5,9 @@ use super::*;
 pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Result<String, RuntimeError> {
     let info = runtime.info().await?;
     check_engine_policy(runtime, spec, &info)?;
+    if let Some(problem) = ownership::data_problem(runtime, &info, &spec.data_dir).await {
+        return Err(RuntimeError::Other(problem));
+    }
     let mut prepared = spec.clone();
     let resolver = runtime.egress.prepare(runtime, &mut prepared).await?;
     let spec = &prepared;

@@ -246,3 +246,66 @@ async fn verify_metadata_refresh(
     assert!(runtime.info().await.unwrap().memory_limit);
     assert_eq!(versions(), 4, "a changed engine must negotiate and revalidate metadata again");
 }
+
+#[tokio::test]
+async fn existing_rootless_data_owned_by_another_identity_is_refused_before_create() {
+    use crate::config::Ids;
+    use std::os::unix::fs::MetadataExt;
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("rootless.sock");
+    let listener = tokio::net::UnixListener::bind(&path).unwrap();
+    let mutations = Arc::new(AtomicUsize::new(0));
+    let seen = mutations.clone();
+    let app = Router::new().fallback(any(move |request: Request| {
+        let seen = seen.clone();
+        async move {
+            if request.method() != axum::http::Method::GET {
+                seen.fetch_add(1, Ordering::SeqCst);
+                return (StatusCode::NOT_IMPLEMENTED, Json(serde_json::json!({})));
+            }
+            let value = if request.uri().path().ends_with("/version") {
+                serde_json::to_value(bollard::models::SystemVersion {
+                    api_version: Some(bollard::API_DEFAULT_VERSION.to_string()),
+                    ..Default::default()
+                })
+                .unwrap()
+            } else {
+                serde_json::to_value(bollard::models::SystemInfo {
+                    security_options: Some(vec![ROOTLESS_SECURITY_OPTION.into()]),
+                    memory_limit: Some(true),
+                    cpu_cfs_quota: Some(true),
+                    cpu_shares: Some(true),
+                    pids_limit: Some(true),
+                    cgroup_driver: Some(bollard::models::SystemInfoCgroupDriverEnum::SYSTEMD),
+                    ..Default::default()
+                })
+                .unwrap()
+            };
+            (StatusCode::OK, Json(value))
+        }
+    }));
+    let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let data = directory.path().join("data");
+    std::fs::create_dir(&data).unwrap();
+    if rustix::process::geteuid().is_root() {
+        std::os::unix::fs::chown(&data, Some(1), Some(1)).unwrap();
+    }
+    let metadata = std::fs::metadata(&data).unwrap();
+    let real = Ids { uid: metadata.uid(), gid: metadata.gid() };
+    // Left by an earlier configuration: today's names another owner, and the workload maps there.
+    let configured = Ids { uid: real.uid.checked_add(1).unwrap(), gid: real.gid };
+    let mut runtime = DockerRuntime::new(&path).unwrap();
+    runtime.ownership = ownership::Policy { user: configured, owner: Some(configured) };
+    let mut spec = super::tests::spec();
+    spec.data_dir = data;
+    assert!(runtime.resource_limits().await.is_ok(), "new data would get the configured, mapped owner");
+    let error = runtime.create(&spec).await.unwrap_err().to_string();
+    assert!(error.contains(DATA_OWNER_REQUIREMENT), "{error}");
+    assert!(error.contains(&format!("its data directory belongs to {}:{}", real.uid, real.gid)), "{error}");
+    assert_eq!(mutations.load(Ordering::SeqCst), 0, "no compute for data the workload cannot own");
+    runtime.ownership = ownership::Policy { user: real, owner: Some(real) };
+    let error = runtime.create(&spec).await.unwrap_err().to_string();
+    assert!(!error.contains(DATA_OWNER_REQUIREMENT), "{error}");
+    assert_eq!(mutations.load(Ordering::SeqCst), 1, "matching data reaches the engine's create");
+    server.abort();
+}

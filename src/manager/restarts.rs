@@ -106,7 +106,7 @@ impl Manager {
             return Restart::Done;
         }
         reservation.launching();
-        match self.note(self.runtime.start(&record.container_name).await) {
+        match self.note(self.start_compute(self.runtime.as_ref(), &record).await) {
             Ok(()) => {
                 tracing::warn!(workload = %id, attempt = attempt + 1, exit = info.exit_code, "restarted after a failure")
             }
@@ -218,7 +218,7 @@ impl Manager {
             return Restart::Done;
         }
         reservation.launching();
-        match self.note(self.runtime.start(&record.container_name).await) {
+        match self.note(self.start_compute(self.runtime.as_ref(), &record).await) {
             Ok(()) => tracing::info!(workload = %id, "resumed: the host restarted under it"),
             Err(e) => tracing::warn!(workload = %id, error = %e, "couldn't resume after the host restarted"),
         }

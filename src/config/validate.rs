@@ -139,10 +139,10 @@ impl Config {
         // A prefix is matched as text, so one that stops inside a name admits more than it says:
         // `ghcr.io/cubepals` admits `ghcr.io/cubepalsx/…`, and a registry's host admits a longer
         // host that starts with it.
-        if let Some(prefix) = self.workloads.allowed_images.iter().find(|p| !p.ends_with(['/', ':', '@'])) {
+        if let Some(prefix) = open_image_entry(&self.workloads.allowed_images) {
             return bad(format!(
                 "workloads.allowed_images entry {prefix:?} must end in '/', ':' or '@', where a path, a tag or a \
-                 digest starts"
+                 digest starts, or be a complete digest reference"
             ));
         }
         if !(0.5..=4.0).contains(&self.capacity.memory_overcommit) {
@@ -205,4 +205,10 @@ fn id_ok(value: &str) -> bool {
 fn name_ok(value: &str) -> bool {
     let b = value.as_bytes();
     !b.is_empty() && b.len() <= 32 && b.iter().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || *c == b'-')
+}
+
+/// The first `allowed_images` entry that is neither a prefix ending where a path, tag or digest
+/// starts nor a complete digest reference, which admits only itself (`protocol::admits`).
+fn open_image_entry(entries: &[String]) -> Option<&String> {
+    entries.iter().find(|entry| !entry.ends_with(['/', ':', '@']) && !crate::protocol::digest_reference(entry))
 }
