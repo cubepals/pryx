@@ -4911,3 +4911,7 @@ job when publication is authorized. That job has not run in this task.
   locally with erofs-utils 1.7.1). Bound it at that reservation; e2fsck checks take the disk size;
   the bundle and guest forwarder tests mark the agent binding the forwarder now requires. A
   launcher test reserves 2 TiB, is refused one byte more, and shrinks to its image.
+
+- VM observation no longer waits on a busy transition (file session, start, stop): it answers
+  from the journal, and list observes VMs together. The actual runtime test inspects and lists a
+  stopped VM within 500 ms while its file session is open. Clippy and structure pass.

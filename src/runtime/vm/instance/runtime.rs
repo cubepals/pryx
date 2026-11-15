@@ -108,7 +108,12 @@ impl VmRuntime {
             Err(problem) => return Err(problem),
         };
         let transition = self.transition(&entry.id);
-        let _transition = transition.lock().await;
+        // A start, stop or file session owns the transition and does its own exit processing;
+        // observation answers from the journal meanwhile instead of waiting for it.
+        let Ok(_transition) = transition.try_lock() else {
+            let running = self.state.live.lock().unwrap().contains_key(&entry.id);
+            return Ok(Some(passive(entry, running)));
+        };
         let mut entry = match self.entry(name) {
             Ok(entry) => entry,
             Err(RuntimeError::NotFound(_)) => return Ok(None),
@@ -162,23 +167,45 @@ impl VmRuntime {
             snapshot.activity.streams = 0;
         }
         self.state.entries.lock().unwrap().insert(entry.id.clone(), entry.clone());
-        Ok(Some(ContainerInfo {
-            agent_state: entry.agent_state,
-            memory_enforced: Some(true),
-            cpu_enforced: Some(true),
-            cgroup_parent: None,
-            id: entry.id,
-            name: entry.spec.name,
-            labels: entry.spec.labels,
-            env: entry.spec.env.into_iter().collect(),
-            status,
-            exit_code: entry.code,
-            oom_killed: false,
-            started_at: entry.started,
-            finished_at: entry.finished,
-            restart_count: 0,
-            health: None,
-        }))
+        Ok(Some(information(entry, status)))
+    }
+}
+
+/// A busy sandbox's view: running while its monitor is live, created until a launch finishes,
+/// else its journal's recorded end. Its owner of the transition settles the rest.
+fn passive(mut entry: Entry, running: bool) -> ContainerInfo {
+    let status = if running {
+        ContainerStatus::Running
+    } else if entry.started.is_none() || entry.finished.is_none() {
+        ContainerStatus::Created
+    } else if entry.code == UNKNOWN_EXIT_CODE {
+        ContainerStatus::Dead
+    } else {
+        ContainerStatus::Exited
+    };
+    if !running && let Some(snapshot) = &mut entry.agent_state {
+        snapshot.activity.streams = 0;
+    }
+    information(entry, status)
+}
+
+fn information(entry: Entry, status: ContainerStatus) -> ContainerInfo {
+    ContainerInfo {
+        agent_state: entry.agent_state,
+        memory_enforced: Some(true),
+        cpu_enforced: Some(true),
+        cgroup_parent: None,
+        id: entry.id,
+        name: entry.spec.name,
+        labels: entry.spec.labels,
+        env: entry.spec.env.into_iter().collect(),
+        status,
+        exit_code: entry.code,
+        oom_killed: false,
+        started_at: entry.started,
+        finished_at: entry.finished,
+        restart_count: 0,
+        health: None,
     }
 }
 
@@ -438,9 +465,17 @@ impl ContainerRuntime for VmRuntime {
         self.observe(name).await
     }
     async fn list(&self, labels: &[String]) -> Result<Vec<ContainerInfo>, RuntimeError> {
+        // Observations run together, so one guest's unanswered agent costs one bound, not one
+        // per guest; the order of the answer is the names' order.
+        const OBSERVATIONS: usize = 16;
+        let observed: Vec<_> = stream::iter(self.names())
+            .map(|name| async move { self.observe(&name).await })
+            .buffered(OBSERVATIONS)
+            .collect()
+            .await;
         let mut found = Vec::new();
-        for name in self.names() {
-            if let Some(info) = self.observe(&name).await?
+        for info in observed {
+            if let Some(info) = info?
                 && labels.iter().all(|filter| {
                     filter.split_once('=').is_some_and(|(key, value)| info.labels.get(key).is_some_and(|v| v == value))
                 })

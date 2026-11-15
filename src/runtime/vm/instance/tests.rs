@@ -491,11 +491,19 @@ async fn observe_live(runtime: &VmRuntime, id: &str, original_spec: &ContainerSp
     observe_resources(runtime, id, original_spec).await;
 }
 
+/// An open file session holds the transition; observation answers from the journal at once.
+async fn observed_without_waiting(runtime: &VmRuntime, id: &str) {
+    let observed = tokio::time::timeout(Duration::from_millis(500), runtime.inspect(id)).await.unwrap().unwrap();
+    assert_eq!(observed.unwrap().status, ContainerStatus::Exited);
+    tokio::time::timeout(Duration::from_millis(500), runtime.list(&[])).await.unwrap().unwrap();
+}
+
 async fn offline_files(runtime: &VmRuntime, id: &str, original_spec: &ContainerSpec, index: usize) -> Vec<u8> {
     let sandbox = &original_spec.agent.as_ref().unwrap().sandbox;
     let data = &original_spec.data_dir;
     let files = runtime.open_files(id).await.unwrap();
     assert!(runtime.data_copy_lease(sandbox, data).await.is_err(), "File service holds the real disk lease");
+    observed_without_waiting(runtime, id).await;
     let response = files
         .request(hyper::Method::GET, "/_pryx/files/content?path=retained", crate::http_client::empty())
         .await
