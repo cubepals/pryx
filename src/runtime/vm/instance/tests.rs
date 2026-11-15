@@ -266,14 +266,7 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
         independent.start(&fork).await.unwrap();
         assert_eq!(exec(&independent, &fork, "cat /data/retained; printf fork > /data/retained").await, b"durable");
         assert_eq!(exec(&runtime, &id, "cat /data/retained").await, b"durable");
-        {
-            let live = independent.state.live.lock().unwrap()[&fork].clone();
-            live.lock().await.forwarder.stop().await.unwrap();
-        }
-        // One dead helper retires only its own guest: it reads dead and the tier still lists.
-        assert_eq!(independent.inspect(&fork).await.unwrap().unwrap().status, ContainerStatus::Dead);
-        let listed = independent.list(&[]).await.unwrap();
-        assert!(listed.iter().any(|info| info.id == fork && info.status == ContainerStatus::Dead));
+        dead_helper_retires_its_guest_alone(&independent, &fork).await;
         independent.remove(&fork).await.unwrap();
         eprintln!("VM runtime image {index}: interrupted live runtime and failed ingress");
         runtime = interrupted(runtime, temporary.path(), &id, &original_spec, &bytes).await;
@@ -294,6 +287,15 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
     println!(
         "Actual runtime seam: both OCI images, 2-vCPU boot, exec, clean stop, cold wake, copied-disk fork isolation and remove passed"
     );
+}
+
+/// One dead helper retires only its own guest: it reads dead and the tier still lists.
+async fn dead_helper_retires_its_guest_alone(runtime: &VmRuntime, id: &str) {
+    let live = runtime.state.live.lock().unwrap()[id].clone();
+    live.lock().await.forwarder.stop().await.unwrap();
+    assert_eq!(runtime.inspect(id).await.unwrap().unwrap().status, ContainerStatus::Dead);
+    let listed = runtime.list(&[]).await.unwrap();
+    assert!(listed.iter().any(|info| info.id == id && info.status == ContainerStatus::Dead));
 }
 
 #[test]
