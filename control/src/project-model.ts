@@ -2,7 +2,7 @@
 /** Project configuration and unit accounting. Node wire schemas remain owned by Rust. */
 import { z } from 'zod'
 import { SECOND_MS } from './durations.ts'
-import { type Isolation, VM_CPU_MILLIS } from './isolation.ts'
+import { engineTier, type Isolation, VM_CPU_MILLIS } from './isolation.ts'
 import type { NodeSummary } from './registry/summaries.ts'
 import type { WorkloadSpec } from './wire.ts'
 
@@ -91,7 +91,7 @@ export function unitSpec(spec: ProjectSpec, size: UnitSize = UNIT_DEFAULTS): Pro
       ...spec.resources,
       memoryMb: units * size.memoryMb,
       cpuReservationMillis: cpuMillis,
-      ...(spec.resources.cpuMillis != null || (spec.isolation ?? 'container') === 'container'
+      ...(spec.resources.cpuMillis != null || engineTier(spec.isolation)
         ? {
             // A VM's ceiling is its guest's whole vCPUs: the most its units pay for.
             cpuMillis:

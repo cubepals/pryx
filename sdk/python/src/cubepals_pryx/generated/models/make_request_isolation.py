@@ -5,6 +5,7 @@ from enum import Enum
 
 class MakeRequestIsolation(str, Enum):
     CONTAINER = "container"
+    GVISOR = "gvisor"
     PROCESS = "process"
     VM = "vm"
     WASM = "wasm"

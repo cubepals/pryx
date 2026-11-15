@@ -15,7 +15,7 @@ import nodeSchema from '../../openapi/node-reads.openapi.json'
 
 import { HOUR_MS, MINUTE_MS, SECOND_MS } from './durations.ts'
 import { guarantees } from './guarantees.ts'
-import { nodeFeature } from './isolation.ts'
+import { engineTier, nodeFeature } from './isolation.ts'
 import { CONFIRM_DELETE_HEADER, type NodeAddress, type NodeClient } from './node-client.ts'
 import type { NodeRow } from './registry.ts'
 import type { RuntimeSpec } from './runtime-model.ts'
@@ -67,7 +67,7 @@ function toWorkloadSpec(spec: RuntimeSpec, features: readonly string[]): Workloa
   const { cpuReservationMillis, allowUnenforcedMemory, ...resources } = spec.resources
   let memoryAcceptance = allowUnenforcedMemory
   if (
-    (spec.isolation ?? 'container') === 'container' &&
+    engineTier(spec.isolation) &&
     features.includes(nodeSchema['x-pryx-resources'].unenforcedMemoryFeature)
   ) {
     const enforced = guarantees(features, spec.isolation)

@@ -11,7 +11,7 @@
 import contract from '../../openapi/node-writes.openapi.json'
 import { type Guarantee, guarantees as tierGuarantees } from './guarantees.ts'
 import type { Health } from './health.ts'
-import { CPU_LIMIT_PROBLEM, nodeFeature, nodeIsolations } from './isolation.ts'
+import { CPU_LIMIT_PROBLEM, engineTier, nodeFeature, nodeIsolations } from './isolation.ts'
 import type { RuntimeSpec } from './runtime-model.ts'
 
 type Policy = 'balanced' | 'binpack' | 'spread'
@@ -135,7 +135,7 @@ function refusal(node: NodeView, request: PlacementRequest, options: PlacementOp
   if (guarantees.length) return `lacks required guarantees: ${guarantees.join(', ')}`
   if (!nodeIsolations(node.features).includes(request.isolation ?? 'container'))
     return `isolation tier ${request.isolation ?? 'container'} does not match`
-  if (request.cpuWeight && (request.isolation ?? 'container') !== 'container') return CPU_LIMIT_PROBLEM
+  if (request.cpuWeight && !engineTier(request.isolation)) return CPU_LIMIT_PROBLEM
   const missing = request.needs.filter(
     (f) => !nodeFeature(node.features, f, request.isolation ?? 'container'),
   )
@@ -171,8 +171,8 @@ function enforcementRequirements(
   features: readonly string[],
 ): readonly Guarantee[] {
   const required = [...(request.require ?? [])]
-  if ((request.isolation ?? 'container') !== 'container') {
-    // A CPU ceiling outside a container runs only where its tier announces enforcing it.
+  if (!engineTier(request.isolation)) {
+    // A CPU ceiling outside a container engine runs only where its tier announces enforcing it.
     if (request.cpuLimits) required.push('cpu-limit')
   } else if (features.includes(contract['x-pryx-resources'].unenforcedMemoryFeature)) {
     if (request.memoryLimit) required.push('memory-limit')
