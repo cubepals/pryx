@@ -4706,3 +4706,23 @@ job when publication is authorized. That job has not run in this task.
   file/copy sessions, frontend lifetime authority and installed host policy are unfinished;
   do not allow a worker to keep writable compute after its owning frontend disappears.
   New unary transport acceptance adds under one local/normal test second.
+
+- VM source 4b516c4/run 43661621480/job 132653106138 proves the fixed native monitor’s
+  strict orderly shutdown (15.65 s), ordinary both-image runtime (89.25 s), actual root
+  jailer boots (13.73 s) and mutual-TLS node API (30.05 s). This is the first strict native
+  shutdown hardware pass. Root public packet readiness is empty before its existing deadline;
+  bounded queue preflight repeats the known delegated-resolver refusal before 9982223.
+  Summary: checks/measurements/k25/native-terminal-4b516c4.json; raw artifact 14140614453.
+  Latest source remains pending, with eighteen unchanged scanner comments; no K25 completion.
+
+- Prepare frontend lifetime ownership for the separate worker. A kernel-authenticated
+  lifetime socket supplies its actual UID/PID; another process cannot borrow it. EOF or
+  protocol/read failure closes admission, cancels streams and drains owned operations before
+  retirement. The lifetime itself carries no sandbox command or heartbeat.
+- Real socket/Python-process acceptance refuses another actual PID at the same UID; after
+  frontend EOF it refuses new work while an admitted operation still holds an actual exclusive
+  compute-file lease. Retirement releases that kernel lease only after the permit drops.
+  Full Rust: 544 pass, unchanged host IPv6 fixture failure, 44 ignored; strict all-target
+  Clippy, fmt and whitespace pass. Staged Wasm inputs are removed after this cohort.
+  No dependency/job/gate or estimated CI minute. Integrating this authority with RPC, streams,
+  installed host policy and the actual root VM runtime remains unfinished; placement stays off.

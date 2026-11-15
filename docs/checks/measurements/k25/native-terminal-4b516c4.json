@@ -1,0 +1,17 @@
+{
+  "sourceCommit": "4b516c4",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43661621480",
+  "job": 132653106138,
+  "artifact": 14140614453,
+  "passed": {
+    "strictOrderlyMonitorShutdownSeconds": 15.65,
+    "ordinaryBothImageLifecycleSeconds": 89.25,
+    "bothImageRootJailerSeconds": 13.73,
+    "mutualTlsNodeApiSeconds": 30.05
+  },
+  "failures": [
+    "Root public packet process produces empty readiness and its client reaches the existing deadline",
+    "Bounded queue preflight still refuses the systemd-resolved-owned resolver ancestor, before the delegated configuration fix"
+  ],
+  "notProved": "Current root public packets, installed worker, complete installed SDK acceptance and thirty-sample cohorts"
+}

@@ -1314,3 +1314,5 @@
 - K25: retain one active Rust target directory for incremental backend validation; remove completed native SDK/target/source copies and Go caches immediately after their result, and remove staged Wasm inputs when the current local test cohort finishes, keeping more than 3 GiB free.
 
 - K25: serialize private worker answers with the runtime owner’s actual types and error variants, using the existing pinned time library’s RFC 3339 adapter for optional timestamps; no public node schema changes or duplicate API shapes. Dispatch keeps each admitted unary operation owned across caller disconnect.
+
+- K25: tie worker authority to one private frontend lifetime socket and its kernel PID/UID; on EOF or protocol failure, close admission, cancel streams and drain owned operations before retiring compute. A different process cannot borrow this authority, even with the same UID; retain the worker’s independent real monitor/disk leases during retirement.
