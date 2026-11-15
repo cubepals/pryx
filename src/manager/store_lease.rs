@@ -78,22 +78,7 @@ impl Manager {
             if matches!(tier, "container" | "process") {
                 features.push(crate::protocol::NATIVE_BROWSER_POLICY_FEATURE.into());
             }
-            if self.runtime.multi_tier()
-                && self.runtime.backend(tier).is_some_and(|runtime| runtime.supports_network_policy())
-            {
-                features.push(format!("tier-{tier}:{}", crate::protocol::NETWORK_POLICY_FEATURE));
-            }
-            // A request's hostname policy is enforced by the tier that serves it, not the default.
-            if self.runtime.multi_tier()
-                && self.runtime.backend(tier).is_some_and(|runtime| runtime.supports_hostname_egress())
-            {
-                features.push(format!("tier-{tier}:{}", crate::protocol::EGRESS_HOSTNAMES_FEATURE));
-            }
-            if self.runtime.multi_tier()
-                && self.runtime.backend(tier).is_some_and(|runtime| runtime.supports_egress_addresses())
-            {
-                features.push(format!("tier-{tier}:{}", crate::protocol::EGRESS_ADDRESSES_FEATURE));
-            }
+            features.extend(self.tier_policy_features(tier));
             features.extend(
                 self.tier_guarantees(tier)
                     .into_iter()
@@ -112,6 +97,23 @@ impl Manager {
             }
         }
         features
+    }
+
+    /// The network policies a mixed node's tier enforces itself, as features scoped to it: a
+    /// request's policy is enforced by the tier that serves it, not the default.
+    fn tier_policy_features(&self, tier: &str) -> Vec<String> {
+        let Some(runtime) = self.runtime.backend(tier).filter(|_| self.runtime.multi_tier()) else {
+            return Vec::new();
+        };
+        [
+            (crate::protocol::NETWORK_POLICY_FEATURE, runtime.supports_network_policy()),
+            (crate::protocol::EGRESS_HOSTNAMES_FEATURE, runtime.supports_hostname_egress()),
+            (crate::protocol::EGRESS_ADDRESSES_FEATURE, runtime.supports_egress_addresses()),
+        ]
+        .into_iter()
+        .filter(|(_, on)| *on)
+        .map(|(feature, _)| format!("tier-{tier}:{feature}"))
+        .collect()
     }
 
     fn native_tool_features(&self) -> Vec<String> {
