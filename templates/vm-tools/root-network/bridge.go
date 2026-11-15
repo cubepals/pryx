@@ -108,7 +108,11 @@ func OpenBridge(ctx context.Context, directory, cache, name string, uid, gid uin
 		return nil
 	})
 	if err == nil {
-		scope.Profile = inputs.profile
+		guest := inputs.profile
+		// The packet program names its vsock-created TAP. Root guests keep the
+		// existing physical virtio interface from their root scope profile.
+		guest.Interface = scope.Profile.Interface
+		scope.Profile = guest
 		err = bridge.secure()
 	}
 	if err != nil {

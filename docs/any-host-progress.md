@@ -4777,3 +4777,14 @@ job when publication is authorized. That job has not run in this task.
   The existing real HTTP test passes. Full Rust: 545 pass, unchanged host IPv6 fixture
   failure, 44 ignored; strict all-target Clippy, fmt and whitespace pass. Remove staged Wasm
   inputs after the cohort. No behavior, dependency, job/gate or estimated CI time changes.
+
+- VM source 88a8031/run 43665321892/job 132664270012 proves actual attached-queue
+  confinement (0.04 s), bounded root namespace/packet adoption and lease retirement (0.82 s),
+  strict native monitor shutdown and root hostname packets. Public guest init then fails
+  Link not found: bootstrap reused the packet transport TAP name for its physical virtio NIC.
+  Summary: checks/measurements/k25/bridge-interface-88a8031.json; raw artifact 14142911000.
+- Preserve the root scope's physical interface while retaining the actual packet executable's
+  addresses, MAC and MTU. No literal interface alias or extra guest device is introduced.
+  Local pinned Go tests/build/vet and module verification pass; remove their 142-MB build cache
+  after the result. Actual public traffic is still pending CI; no dependency/job/gate or extra
+  CI time is added. Keep the single pinned Go SDK for subsequent network-wrapper validation.

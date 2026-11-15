@@ -1,0 +1,15 @@
+{
+  "sourceCommit": "88a8031",
+  "ci": "https://github.com/cubepals/pryx/actions/runs/43665321892",
+  "job": 132664270012,
+  "artifact": 14142911000,
+  "passed": {
+    "confinedAttachedQueueSeconds": 0.04,
+    "rootScopeAndPacketAdoptionSeconds": 0.82,
+    "strictOrderlyMonitorShutdown": true,
+    "rootHostnamePackets": true
+  },
+  "failure": "Root public guest init reports Link not found before agent readiness: bootstrap inherits the packet transport TAP interface rather than the existing physical virtio interface",
+  "fix": "Keep the root scope physical interface while retaining the packet executable addresses, MAC and MTU",
+  "notProved": "Root public traffic after this fix, installed worker and complete installed cohorts"
+}
