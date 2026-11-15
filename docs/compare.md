@@ -18,7 +18,7 @@ sandbox documentation export. No competitor code was copied.
 
 | Capability | pryx | E2B | Daytona | Cloudflare sandbox SDK |
 | --- | --- | --- | --- | --- |
-| Create from image | [yes, container tier](../control/src/public-model.ts) | [template base image; 2026-11-08](https://docs.e2b.dev/template/base-image) | [yes; 2026-11-08](https://www.daytona.io/docs/en/sandboxes.md) | [container image configuration; 2026-11-08](https://developers.cloudflare.com/sandbox/get-started/) |
+| Create from image | [yes, container and vm tiers](../control/src/public-model.ts) | [template base image; 2026-11-08](https://docs.e2b.dev/template/base-image) | [yes; 2026-11-08](https://www.daytona.io/docs/en/sandboxes.md) | [container image configuration; 2026-11-08](https://developers.cloudflare.com/sandbox/get-started/) |
 | Create from snapshot | [yes](../control/src/public-model.ts) | [yes; 2026-11-08](https://docs.e2b.dev/sandbox/snapshots) | [yes; 2026-11-08](https://www.daytona.io/docs/en/snapshots.md) | [filesystem snapshots; 2026-11-08](https://developers.cloudflare.com/sandbox/files/save-and-restore-a-workspace/) |
 | Create from warm template | [yes](templates.md) | [yes; 2026-11-08](https://docs.e2b.dev/template/build) | [snapshots and warm pools; 2026-11-08](https://www.daytona.io/docs/en/warm-pools.md) | [configured environments; 2026-11-08](https://developers.cloudflare.com/sandbox/get-started/) |
 | Templates from code | [yes, K16 builder](../sdk/typescript/src/template.ts) | [yes; 2026-11-08](https://docs.e2b.dev/template/defining-template) | [declarative builder; 2026-11-08](https://www.daytona.io/docs/en/declarative-builder.md) | [Dockerfile and Worker configuration; 2026-11-08](https://developers.cloudflare.com/sandbox/get-started/) |
@@ -70,11 +70,34 @@ sandbox documentation export. No competitor code was copied.
 | TypeScript SDK | [yes](../sdk/typescript/src/index.ts) | [yes; 2026-11-08](https://docs.e2b.dev/sdk-reference/js-sdk/v2.62.1/sandbox) | [yes; 2026-11-08](https://www.daytona.io/docs/en/typescript-sdk.md) | [yes; 2026-11-08](https://developers.cloudflare.com/sandbox/get-started/) |
 | Python SDK | [yes, sync and async](../sdk/python/src/cubepals_pryx/__init__.py) | [yes; 2026-11-08](https://docs.e2b.dev/sdk-reference/python-sdk/v2.62.0/sandbox_sync) | [yes; 2026-11-08](https://www.daytona.io/docs/en/python-sdk.md) | [Worker TypeScript SDK; Python host SDK not found; 2026-11-08](https://developers.cloudflare.com/sandbox/get-started/) |
 | Self-hosted deployment | [yes, owned Linux hosts](operations.md) | [open-source infrastructure; deployment work required; 2026-11-08](https://raw.githubusercontent.com/e2b-dev/infra/main/README.md) | [bring your own compute; 2026-11-08](https://www.daytona.io/docs/en/bring-your-own-compute.md) | [SDK local development; hosted production platform; 2026-11-08](https://developers.cloudflare.com/sandbox/get-started/) |
-| Runs without root | [process and Wasm tiers](tiers.md) | [Firecracker host deployment privileges required; 2026-11-08](https://raw.githubusercontent.com/e2b-dev/infra/main/README.md) | [host prerequisites vary; 2026-11-08](https://www.daytona.io/docs/en/bring-your-own-compute.md) | [local tooling; infrastructure managed by Cloudflare; 2026-11-08](https://developers.cloudflare.com/sandbox/get-started/) |
+| Runs without root | [process and Wasm tiers; vm where the user can open `/dev/kvm`](vm.md#what-a-host-needs) | [Firecracker host deployment privileges required; 2026-11-08](https://raw.githubusercontent.com/e2b-dev/infra/main/README.md) | [host prerequisites vary; 2026-11-08](https://www.daytona.io/docs/en/bring-your-own-compute.md) | [local tooling; infrastructure managed by Cloudflare; 2026-11-08](https://developers.cloudflare.com/sandbox/get-started/) |
 | Projects and quotas | [yes](api.md#projects-and-limits) | [teams and concurrency limits; 2026-11-08](https://docs.e2b.dev/api-reference/teams/get-team-metrics) | [organizations and limits; 2026-11-08](https://www.daytona.io/docs/en/organizations.md) | [account/platform limits; 2026-11-08](https://developers.cloudflare.com/sandbox/reference/) |
 | Machine providers and autoscale | [yes, owned-node adapters](providers.md) | [hosted service-managed capacity; 2026-11-08](https://docs.e2b.dev/sandbox/lifecycle) | [hosted capacity and warm pools; 2026-11-08](https://www.daytona.io/docs/en/warm-pools.md) | [service-managed capacity; 2026-11-08](https://developers.cloudflare.com/sandbox/concepts/lifetime/) |
-| Source availability and licence | [FSL-1.1-ALv2; Apache-2.0 after two years](../LICENSE.md) | [Apache-2.0 SDK; inspect infrastructure licences; 2026-11-08](https://raw.githubusercontent.com/e2b-dev/E2B/main/LICENSE) | [maintained core private since June 2026; archived v0.190.0 AGPL-3.0; 2026-11-08](https://raw.githubusercontent.com/daytonaio/daytona/main/README.md) | [Apache-2.0 SDK; hosted infrastructure separate; 2026-11-08](https://raw.githubusercontent.com/cloudflare/sandbox-sdk/main/packages/sandbox/LICENSE) | Raw output belongs to the cited CI artifacts; the repository keeps only its summary.
+| Source availability and licence | [FSL-1.1-ALv2; Apache-2.0 after two years](../LICENSE.md) | [Apache-2.0 SDK; inspect infrastructure licences; 2026-11-08](https://raw.githubusercontent.com/e2b-dev/E2B/main/LICENSE) | [maintained core private since June 2026; archived v0.190.0 AGPL-3.0; 2026-11-08](https://raw.githubusercontent.com/daytonaio/daytona/main/README.md) | [Apache-2.0 SDK; hosted infrastructure separate; 2026-11-08](https://raw.githubusercontent.com/cloudflare/sandbox-sdk/main/packages/sandbox/LICENSE) |
 
 Process desktop and HTTP SSH have [signed ordinary-user CI acceptance](https://github.com/cubepals/pryx/actions/runs/43421813961/job/131880099054)
 through both SDKs and the installed CLI. [Thirty startup samples per tool](speed.md#k24-desktop-and-ssh-startup)
 record the measured operations and the different container/process resource guarantees.
+
+## pryx's guarantees by tier
+
+Each pryx sandbox reports the [guarantees](host-capabilities.md) its tier gives on that host,
+and a create can `require` any of them. The node computes them in
+[`tier_guarantees`](../src/manager/store_lease.rs); a guarantee a node doesn't announce is false.
+
+| Guarantee | container | process | wasm | vm |
+| --- | --- | --- | --- | --- |
+| `own-kernel` | No | No | No | Yes |
+| `memory-limit` | When the engine enforces it | No | No | Yes, the guest's RAM |
+| `cpu-limit` | When the engine enforces it | No | No | Yes, whole vCPUs |
+| `private-network` | Yes | No | No | Yes |
+| `private-pids` | Yes | No | No | Yes |
+| `separate-users` | No | As root, when the credential-drop probe passes | No | No |
+| `host-firewall` | Rootful engine with the host firewall loaded | No | No | No |
+| `memory-sleep` | Rootful engine with memory limits | Yes | No | No |
+| `browser-sandbox` | With the native-tools seccomp profile and user namespaces | When the process browser probe passes | No | No |
+
+The vm tier runs only where KVM works and, today, only as an ordinary user. Its guarantees,
+network policy and limits are in [vm.md](vm.md), its CI proof in the
+[progress record](any-host-progress.md), and its thirty-sample measurements are
+[pending](tiers.md#vm-tier-measurements).
