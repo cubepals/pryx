@@ -57,6 +57,13 @@ async fn real_oci_layers_are_verified_cached_and_corruption_is_refused() {
             .await
             .unwrap();
         assert_eq!((&offline.digest, &offline.layers), (&image.digest, &image.layers));
+        // A reference naming its own digest is immutable, so it is served offline as well.
+        let named = reference.rsplit_once('@').expect("inputs name their digests").1;
+        let renamed = images
+            .prepare(&format!("registry.invalid/pryx/unreachable@{named}"), Duration::from_secs(5))
+            .await
+            .unwrap();
+        assert_eq!((&renamed.digest, &renamed.layers), (&image.digest, &image.layers));
         for (path, expected) in again.layers.iter().zip(&before) {
             let metadata = fs::metadata(path).unwrap();
             assert_eq!((metadata.len(), metadata.modified().unwrap()), *expected);
