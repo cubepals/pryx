@@ -250,6 +250,26 @@ jobs:
               --setenv=PRYX_TEST_REMOTE="$PRYX_TEST_REMOTE" --setenv=PRYX_TEST_EDGE="$PRYX_TEST_EDGE" \
               $run
           done
+      # The server preset's unit grants it too: the suite's public-internet-off and off-the-host
+      # cases as root in a service named as it is, under every [Service] setting of
+      # deploy/pryxd.service but how it starts and stops.
+      - name: Kernel network policy under the installed root unit
+        if: ${{ !cancelled() && steps.kernel-destinations.outcome == 'success' }}
+        run: |
+          policy=$(cargo test --locked -p pryxd --test process_network --no-run --message-format=json \
+            | jq -r 'select(.reason == "compiler-artifact" and .profile.test and .target.name == "process_network"
+                and .executable != null) | .executable')
+          # The unit hides /home, so the suite runs from where the agent is.
+          sudo install -m 0755 "$policy" /usr/local/lib/pryx-k31/process_network
+          mapfile -t settings < <(sed -n '/^\[Service\]/,/^\[/p' deploy/pryxd.service | grep -E '^[A-Z]' \
+            | grep -Ev '^(Type|Exec[A-Za-z]+|Restart|RestartSec|KillSignal|TimeoutStopSec)=' | sed 's/^/--property=/')
+          printf '%s\n' "${settings[@]}"
+          sudo systemd-run --unit=pryxd --quiet --wait --pipe --collect "${settings[@]}" \
+            --setenv=PRYX_TEST_AGENT=/usr/local/lib/pryx-k31/pryx-agent \
+            --setenv=PRYX_TEST_PRIVATE="$PRYX_TEST_PRIVATE" \
+            --setenv=PRYX_TEST_REMOTE="$PRYX_TEST_REMOTE" --setenv=PRYX_TEST_EDGE="$PRYX_TEST_EDGE" \
+            /usr/local/lib/pryx-k31/process_network --ignored --test-threads 1 \
+            without_public_internet from_off_the_host
       - name: Save process IPC design evidence
         if: always()
         uses: ./.github/actions/upload-evidence

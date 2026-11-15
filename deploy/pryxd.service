@@ -28,6 +28,9 @@ Type=exec
 # private network (src/isolation.rs). "+" runs it as root outside the sandbox below, which has no
 # netlink to set them with; it fails only where nftables can't take the rules, and then nothing starts.
 ExecStartPre=+/usr/local/bin/pryxd isolate --config /etc/pryxd/pryxd.toml
+# The directory on the BPF filesystem where process sandboxes' programs are pinned (docs/bpf.md);
+# "+" makes it outside the sandbox, "-" lets a host without that filesystem start without it.
+ExecStartPre=-+mkdir -p -m 0700 /sys/fs/bpf/pryx
 # Refuses to start only on what it always refused (an invalid config, a state directory it can't
 # own); everything else doctor finds goes to the journal as a warning.
 ExecStartPre=/usr/local/bin/pryxd doctor --preflight --config /etc/pryxd/pryxd.toml
@@ -37,8 +40,9 @@ ExecStart=/usr/local/bin/pryxd serve --config /etc/pryxd/pryxd.toml
 ExecStopPost=-/var/lib/pryxd/bin/pryxd.prev upgrade --exited --config /etc/pryxd/pryxd.toml
 Restart=always
 RestartSec=2
-# SIGTERM drains requests for up to shutdown_grace_seconds; workloads are not pryxd's
-# children and keep running.
+# SIGTERM drains requests for up to shutdown_grace_seconds; containers are not pryxd's
+# children and keep running. Process sandboxes are, in cgroups below this unit's: they stop with
+# it, as VMs stop with the VM worker.
 KillSignal=SIGTERM
 TimeoutStopSec=45
 # Workloads (their workloads.oom_score_adj) go before pryxd when the host runs out of memory.
@@ -52,9 +56,15 @@ StateDirectory=pryxd
 StateDirectoryMode=0700
 ConfigurationDirectory=pryxd
 
+# The process tier (docs/process-tier.md) gives each sandbox a cgroup of its own below this unit's
+# and attaches its network policy's programs there (docs/bpf.md). Of /sys/fs/cgroup only this
+# unit's subtree is writable, and of /sys only its pin directory; the rest stays read-only.
+Delegate=yes
+
 NoNewPrivileges=yes
 ProtectSystem=strict
 ReadWritePaths=/var/lib/pryxd /run/docker.sock /var/run/docker.sock
+ReadWritePaths=-/sys/fs/cgroup/system.slice/pryxd.service -/sys/fs/bpf/pryx
 ProtectHome=yes
 PrivateTmp=yes
 PrivateDevices=yes
@@ -68,12 +78,15 @@ RestrictNamespaces=yes
 RestrictRealtime=yes
 RestrictSUIDSGID=yes
 LockPersonality=yes
-MemoryDenyWriteExecute=yes
+# No MemoryDenyWriteExecute: process sandboxes inherit this unit's system call filters, and that
+# one refuses every just-in-time compiler (Node, the JVM, WebAssembly runtimes) without a word.
 SystemCallArchitectures=native
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 # chown data directories to the workload user, remove trashed data it owns, kill a timed-out
-# exec by host pid.
-CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_KILL
+# exec by host pid; SETUID and SETGID start each process sandbox as a user of the uid pool; BPF
+# and NET_ADMIN load and attach its programs. With no netlink or raw sockets (above), NET_ADMIN
+# reaches no route, firewall or interface but through ioctls. The Docker socket already is root.
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_KILL CAP_SETUID CAP_SETGID CAP_BPF CAP_NET_ADMIN
 AmbientCapabilities=
 
 [Install]
