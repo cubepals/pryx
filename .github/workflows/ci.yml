@@ -198,13 +198,17 @@ jobs:
       # Against the runner's own Docker daemon: hardening, limits, the OOM killer, isolation,
       # restarts. They chown data directories, so Cargo's runner starts the test binary as root;
       # Cargo itself, and so target/, stays the runner's.
+      # The Docker suites run whatever the process case found, so one run shows both.
       - name: Docker integration tests
+        if: ${{ !cancelled() }}
         run: CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER=sudo cargo test --locked --test docker -- --ignored --test-threads 2
       # K26: the same suite on the gvisor tier, with gVisor's runsc at deploy/gvisor.json's pin
       # registered with the runner's Docker. Last, since registering it restarts Docker.
       - name: Register gVisor's runsc with Docker
+        if: ${{ !cancelled() }}
         run: sudo deploy/gvisor.sh
       - name: Docker integration tests on the gvisor tier
+        if: ${{ !cancelled() }}
         timeout-minutes: 40
         env:
           PRYX_TEST_GVISOR: '1'
