@@ -65,6 +65,8 @@ pub struct FakeRuntime {
     /// When set, an unpause never returns, as one does whose cgroup freezer is stuck.
     pub hang_unpause: AtomicBool,
     pub cold_data_copy: AtomicBool,
+    /// Whether this backend enforces a workload's hostname egress policy.
+    pub hostname_egress: AtomicBool,
     pub remote_files: Mutex<Option<std::sync::Arc<FileServiceFactory>>>,
 }
 
@@ -92,6 +94,7 @@ impl FakeRuntime {
             follows: std::sync::Arc::new(()),
             hang_unpause: AtomicBool::new(false),
             cold_data_copy: AtomicBool::new(false),
+            hostname_egress: AtomicBool::new(false),
             remote_files: Mutex::new(None),
         }
     }
@@ -203,6 +206,9 @@ impl ContainerRuntime for FakeRuntime {
 
     fn requires_stopped_data_copy(&self) -> bool {
         self.cold_data_copy.load(Ordering::SeqCst)
+    }
+    fn supports_hostname_egress(&self) -> bool {
+        self.hostname_egress.load(Ordering::SeqCst)
     }
     fn isolation(&self) -> &'static str {
         self.isolation.as_str()

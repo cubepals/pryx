@@ -208,3 +208,25 @@ test('VM specs are never sent before the matching tier announcement', async () =
   expect(bodies[0]?.isolation).toBe('vm')
   expect(bodies[0]?.image).toBe(spec.image)
 })
+
+test('scoped hostname egress reaches the announcing vm tier and is refused for another tier', async () => {
+  const bodies: Record<string, unknown>[] = []
+  const api = new WorkloadApi({
+    async call<T>(...args: unknown[]): Promise<T> {
+      bodies.push((args[3] as { body: Record<string, unknown> }).body)
+      return {} as T
+    },
+  })
+  const feature = 'egress-hostnames'
+  const marker = `${contract['x-pryx-tiers'].capabilityScopePrefix}${feature}`
+  // A process default tier announces no unscoped egress; the marker makes each tier answer alone.
+  const features = ['multi-tier', 'tier-process', 'tier-vm', marker, `tier-vm:${feature}`]
+  const node = { id: 'node', api_address: 'https://node.test', features }
+  const egress = { allow: ['example.com'] }
+  await api.put(node, 'vm', { ...spec, isolation: 'vm', egress }, 1)
+  expect(bodies[0]?.egress).toEqual(egress)
+  await expect(
+    api.put(node, 'process', { ...spec, image: '', isolation: 'process', egress }, 1),
+  ).rejects.toThrow(feature)
+  expect(bodies).toHaveLength(1)
+})

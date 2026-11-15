@@ -38,17 +38,15 @@ impl Manager {
             features.push("agent".into());
         }
         if self.runtime.supports_hostname_egress() {
-            features.push("egress-hostnames".into());
+            features.push(crate::protocol::EGRESS_HOSTNAMES_FEATURE.into());
         }
         if self.runtime.supports_network_policy() || self.ready_network_policy() {
             features.push(crate::protocol::NETWORK_POLICY_FEATURE.into());
         }
         if self.runtime.multi_tier() {
-            features.push(format!(
-                "{}{}",
-                crate::protocol::TIER_CAPABILITY_SCOPE_PREFIX,
-                crate::protocol::NETWORK_POLICY_FEATURE
-            ));
+            for feature in [crate::protocol::NETWORK_POLICY_FEATURE, crate::protocol::EGRESS_HOSTNAMES_FEATURE] {
+                features.push(format!("{}{feature}", crate::protocol::TIER_CAPABILITY_SCOPE_PREFIX));
+            }
         }
         if self.runtime.supports_native_fuse() {
             features.push(pryx_agent::contract::FUSE_FEATURE.into());
@@ -77,6 +75,12 @@ impl Manager {
                 && self.runtime.backend(tier).is_some_and(|runtime| runtime.supports_network_policy())
             {
                 features.push(format!("tier-{tier}:{}", crate::protocol::NETWORK_POLICY_FEATURE));
+            }
+            // A request's hostname policy is enforced by the tier that serves it, not the default.
+            if self.runtime.multi_tier()
+                && self.runtime.backend(tier).is_some_and(|runtime| runtime.supports_hostname_egress())
+            {
+                features.push(format!("tier-{tier}:{}", crate::protocol::EGRESS_HOSTNAMES_FEATURE));
             }
             features.extend(
                 self.tier_guarantees(tier)

@@ -291,7 +291,9 @@ impl ContainerRuntime for VmRuntime {
         true
     }
     fn supports_hostname_egress(&self) -> bool {
-        self.state.settings.monitor_owner.is_none()
+        // Ordinary guests use the confined packet helper's gateways; root guests the leased
+        // TAP namespace's gateways behind its default-drop firewall.
+        true
     }
     fn data_owner(&self, _: &str) -> Result<Option<(u32, u32)>, RuntimeError> {
         Ok(Some((rustix::process::geteuid().as_raw(), rustix::process::getegid().as_raw())))

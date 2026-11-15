@@ -123,9 +123,11 @@ unprivileged gvisor-tap-vsock process that makes outbound connections as pryxd's
   Non-public IPv4 ranges, private, loopback, link-local and metadata among them, are dropped,
   as is IPv6.
 - **A hostname allowlist** (`egress`) lets out HTTP, TLS and DNS only, through host-owned
-  gateways that apply the names; everything else is dropped. A node whose only tier is `vm`
-  announces `egress-hostnames`. In auto mode the node announces it only when its first tier
-  (usually process) has it, so control sends no hostname policy to a VM there yet.
+  gateways that apply the names; everything else is dropped. The node announces
+  `egress-hostnames` for the `vm` tier itself, so control sends a VM request's policy even when
+  the node's first tier (usually process) has no such gateways, and refuses it for a tier that
+  doesn't announce it. The signed installation's acceptance runs one such rule
+  (`deploy/vm-installed-acceptance.ts`).
 - **`network: none`** gives the guest no network device and starts no packet helper. Its
   firewall allows loopback alone.
 

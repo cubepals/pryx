@@ -4840,3 +4840,12 @@ job when publication is authorized. That job has not run in this task.
   backend once with its own answer or error, and dropping the frontend retires the worker.
   Nine worker tests pass five times; strict pryxd all-target Clippy, fmt and both structure
   checks pass. No worker subcommand, unit, installer or placement yet; no job/gate or minute.
+
+- Scope hostname egress to the serving tier: mixed nodes announce the scope marker and
+  `tier-<tier>:egress-hostnames` for each ready tier that enforces it; control sends and
+  requires the request tier’s own feature and no longer refuses vm hostname policy. A node
+  test (process default, vm with gateways) and a control test both fail without the change
+  and pass with it. The installed VM acceptance adds one rule on Alpine: example.com over TLS
+  passes, example.org and a literal address fail. Full pinned Bun check against local
+  PostgreSQL 16 (440 pass, one existing skip), strict pryxd Clippy, fmt and both structure
+  checks pass. Estimated under one extra installed-acceptance minute; no job/gate.

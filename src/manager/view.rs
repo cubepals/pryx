@@ -271,6 +271,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn hostname_egress_is_announced_by_the_tier_that_enforces_it() {
+        use crate::protocol::{EGRESS_HOSTNAMES_FEATURE, Isolation, TIER_CAPABILITY_SCOPE_PREFIX};
+        let directory = tempfile::tempdir().unwrap();
+        let config: Config = toml::from_str(&format!(
+            "deployment_id = 'test'\nnode_id = 'node'\nstate_dir = '{}'\n[api]\nlisten = '127.0.0.1:0'\n",
+            directory.path().display()
+        ))
+        .unwrap();
+        let vm = FakeRuntime::new().with_isolation(Isolation::Vm);
+        vm.hostname_egress.store(true, std::sync::atomic::Ordering::SeqCst);
+        let backends: Vec<Arc<dyn crate::runtime::ContainerRuntime>> =
+            vec![Arc::new(FakeRuntime::new().with_isolation(Isolation::Process)), Arc::new(vm)];
+        let runtime = Arc::new(crate::runtime::router::Router::new(backends).unwrap());
+        // A tier is announced once its health and a complete inventory have been read.
+        crate::runtime::ContainerRuntime::info(runtime.as_ref()).await.unwrap();
+        crate::runtime::ContainerRuntime::inventory(runtime.as_ref(), &[]).await.unwrap();
+        let store = Store::open(&config.state_dir).unwrap();
+        let manager = Manager::new(Arc::new(config), runtime, store, Arc::new(Metrics::new()), Arc::new(|_, _| true));
+        let features = manager.features();
+        // The process default tier has no hostname gateways, so the unscoped feature stays absent.
+        assert!(!features.iter().any(|value| value == EGRESS_HOSTNAMES_FEATURE));
+        assert!(features.contains(&format!("{TIER_CAPABILITY_SCOPE_PREFIX}{EGRESS_HOSTNAMES_FEATURE}")));
+        assert!(features.contains(&format!("tier-vm:{EGRESS_HOSTNAMES_FEATURE}")));
+        assert!(!features.contains(&format!("tier-process:{EGRESS_HOSTNAMES_FEATURE}")));
+    }
+
+    #[tokio::test]
     async fn gaining_controllers_does_not_upgrade_an_existing_unlimited_copy() {
         let directory = tempfile::tempdir().unwrap();
         let (uid, gid) = (rustix::process::geteuid().as_raw(), rustix::process::getegid().as_raw());

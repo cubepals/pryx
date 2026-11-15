@@ -174,8 +174,38 @@ async function lifecycle(image: (typeof inputs)[number], network: 'internet' | '
   }
 }
 
+// The node's default process tier has no hostname gateways; control must still send the VM
+// tier's own policy, and the guest's gateways must admit one host and refuse the rest.
+async function egress(image: (typeof inputs)[number]) {
+  const box = await sdk.sandbox({
+    isolation: 'vm',
+    image: image.reference,
+    units: 1,
+    idle: (10 * MINUTE_MS) / SECOND_MS,
+    sparePorts: 0,
+    egress: { allow: ['example.com'], deny: ['example.org'] },
+    require: ['own-kernel', 'private-network'],
+  })
+  try {
+    assert.equal(box.isolation, 'vm')
+    const get = (url: string, seconds: number) =>
+      box.run(['wget', '-q', '-T', String(seconds), '-O', '/dev/null', url])
+    const allowed = await get('https://example.com/', 20)
+    assert.equal(allowed.code, 0, `Allowed VM egress failed: ${allowed.stderr}`)
+    for (const url of ['https://example.org/', 'http://example.org/', 'http://1.1.1.1/'])
+      assert.notEqual((await get(url, 5)).code, 0, `VM egress admitted ${url}`)
+    console.log(
+      JSON.stringify({ installed: true, image: image.image, isolation: 'vm', hostnameEgress: true }),
+    )
+  } finally {
+    assert.equal((await box.delete()).existed, true)
+  }
+}
+
 try {
   for (const [index, image] of inputs.entries()) await lifecycle(image, index === 0 ? 'none' : 'internet')
+  assert(inputs[0])
+  await egress(inputs[0])
   await vmMeasurements(sdk, installed)
 } finally {
   apps.close()

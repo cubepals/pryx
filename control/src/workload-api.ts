@@ -89,7 +89,9 @@ function toWorkloadSpec(spec: RuntimeSpec, features: readonly string[]): Workloa
       : {}),
     ...(features.includes('workload-options') && spec.workdir ? { workdir: spec.workdir } : {}),
     ...(features.includes('workload-options') && spec.user ? { user: spec.user } : {}),
-    ...(features.includes('egress-hostnames') && spec.egress ? { egress: spec.egress } : {}),
+    ...(nodeFeature(features, 'egress-hostnames', spec.isolation) && spec.egress
+      ? { egress: spec.egress }
+      : {}),
     ...(spec.entrypoint ? { entrypoint: [...spec.entrypoint] } : {}),
     env: { ...spec.env },
     secrets: { ...spec.secrets },

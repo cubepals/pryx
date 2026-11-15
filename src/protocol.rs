@@ -69,6 +69,8 @@ pub(crate) const NATIVE_BROWSER_POLICY_FEATURE: &str = "native-browser-policy";
 pub(crate) const TIER_CAPABILITY_SCOPE_PREFIX: &str = "tier-capabilities:";
 /// Availability of network none with retained private ingress.
 pub(crate) const NETWORK_POLICY_FEATURE: &str = "network-policy";
+/// Availability of a workload's hostname egress policy, enforced by the tier serving it.
+pub(crate) const EGRESS_HOSTNAMES_FEATURE: &str = "egress-hostnames";
 /// Default host memory floor; the operator may configure a different policy.
 pub const DEFAULT_MIN_MEMORY_MB: u32 = 256;
 /// Default inclusive host listener pool, also used for legacy image configurations.
