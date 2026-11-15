@@ -4831,3 +4831,12 @@ job when publication is authorized. That job has not run in this task.
   releases the real data lease, and owner loss retires an unread stream before compute.
   All eight worker tests, strict pryxd all-target Clippy, fmt and both structure checks pass.
   No dependency, job/gate or CI minute; no installed worker service or placement yet.
+
+- Add the VM worker frontend backend and its serving lifetime. The frontend holds the
+  worker lifetime, sends each verb once and reads the worker runtime’s capabilities once; the
+  worker accepts one lifetime, serves admitted requests and stops only after retirement.
+  A real-socket test through the actual service path sends create, a conflicting create,
+  start, inspect, list, exec, stats, a missing log, an event and remove: each reaches the
+  backend once with its own answer or error, and dropping the frontend retires the worker.
+  Nine worker tests pass five times; strict pryxd all-target Clippy, fmt and both structure
+  checks pass. No worker subcommand, unit, installer or placement yet; no job/gate or minute.

@@ -6,7 +6,7 @@
 use super::{authority::Authority, http, transport::Peer};
 use crate::{
     http_client,
-    runtime::{ContainerRuntime, LogChunk, LogOptions, RuntimeError, RuntimeEvent, vm::instance::VmRuntime},
+    runtime::{ContainerRuntime, LogChunk, LogOptions, RuntimeError, RuntimeEvent},
 };
 use axum::{
     Router,
@@ -100,15 +100,11 @@ async fn open(State(dispatch): State<Dispatch>, ConnectInfo(peer): ConnectInfo<P
     Body::from_stream(frames).into_response()
 }
 
-fn app(runtime: Arc<dyn ContainerRuntime>, authority: Authority) -> Router {
+pub(super) fn app(runtime: Arc<dyn ContainerRuntime>, authority: Authority) -> Router {
     Router::new()
         .route(PATH, post(open))
         .layer(axum::extract::DefaultBodyLimit::max(http::MAX_CONTROL_BYTES))
         .with_state(Dispatch { runtime, authority })
-}
-
-pub fn router(runtime: Arc<VmRuntime>, authority: Authority) -> Router {
-    app(runtime, authority)
 }
 
 pub fn receive(

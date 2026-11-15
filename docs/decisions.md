@@ -1336,3 +1336,5 @@
 - K25: a fork is a create from its snapshot and declares its own ports, network and spare ports, as on every tier; the installed VM acceptance gives the fork the parent’s public web port and network before asking the edge for it, with no control or edge change.
 
 - K25: own each VM worker file service or cold-copy lease by one streamed readiness response: the worker acquires it in its own task and retires it when that response closes, an explicit close confirms the backend’s cleanup, or frontend retirement cancels it. File bodies stream past the control-message bound; only connection setup carries the deadline. The parent module composes sessions and file operations, so neither imports the other.
+
+- K25: the main daemon reaches a separate VM worker through a frontend backend that sends each runtime verb once with the runtime owner’s types, adds the verb’s own timeout to one bound on a silent worker, and reads the worker runtime’s synchronous capabilities once at connect instead of restating them; the worker accepts one frontend lifetime per serving lifetime and closes its requests endpoint only after retirement.

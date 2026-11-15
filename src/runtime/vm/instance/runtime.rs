@@ -227,7 +227,7 @@ pub(super) fn shutdown_proof(
 #[async_trait]
 impl ContainerRuntime for VmRuntime {
     fn isolation(&self) -> &'static str {
-        "vm"
+        ISOLATION
     }
     fn uses_host_ports(&self) -> bool {
         true
