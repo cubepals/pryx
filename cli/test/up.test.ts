@@ -8,7 +8,13 @@ import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runInstallCommand, up } from '../src/up.ts'
-import { FLEET_PRYXD_BIN, installBinary, RELEASE_FILES, releaseFiles } from '../src/up-assets.ts'
+import {
+  FLEET_PRYXD_BIN,
+  installBinary,
+  OPTIONAL_RELEASE_FILES,
+  RELEASE_FILES,
+  releaseFiles,
+} from '../src/up-assets.ts'
 import { configurations } from '../src/up-config.ts'
 import { readEnvironment, writeChanged, writeEnvironment } from '../src/up-files.ts'
 import { hostInstallProblem } from '../src/up-host.ts'
@@ -95,6 +101,28 @@ test('release checks preserve signature bytes and refuse a modified executable',
     expect(readFileSync(join(dir, 'copied.sig'))).toEqual(signature)
     writeFileSync(join(dir, 'pryxd'), 'modified')
     await expect(releaseFiles(dir)).rejects.toThrow('SHA256')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+test('a listed VM descriptor is verified, and a release without one still installs', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'pryx-up-optional-'))
+  try {
+    for (const name of RELEASE_FILES) writeFileSync(join(dir, name), Buffer.from(name))
+    const line = (name: string) =>
+      `${createHash('sha256')
+        .update(readFileSync(join(dir, name)))
+        .digest('hex')}  ${name}`
+    writeFileSync(join(dir, 'SHA256SUMS'), `${RELEASE_FILES.map(line).join('\n')}\n`)
+    expect(await releaseFiles(dir)).toBe(dir)
+    for (const name of OPTIONAL_RELEASE_FILES) writeFileSync(join(dir, name), '{"descriptor":true}')
+    writeFileSync(
+      join(dir, 'SHA256SUMS'),
+      `${[...RELEASE_FILES, ...OPTIONAL_RELEASE_FILES].map(line).join('\n')}\n`,
+    )
+    expect(await releaseFiles(dir)).toBe(dir)
+    writeFileSync(join(dir, 'vm-bundle.json'), '{"descriptor":"changed"}')
+    await expect(releaseFiles(dir)).rejects.toThrow('vm-bundle.json failed SHA256')
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

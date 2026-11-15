@@ -4931,3 +4931,10 @@ job when publication is authorized. That job has not run in this task.
   ordinary runtime test failed in its guest-firewall check, which ran the host nft under the
   filesystem-tool role; nft opens netlink even for --version. The test runs it directly again,
   as before; the role’s confinement is unchanged.
+
+- The server preset installs a listed VM descriptor beside the root agent (verified by
+  SHA256SUMS; a release without one is unchanged). A CLI test verifies a listed descriptor,
+  refuses a changed one and accepts a release without it. TypeScript tests (445 pass, one
+  existing skip) and typecheck pass; lint has one formatter error in control/tools/docs.ts
+  from another commit, reported. The release and the sudo bootstrap job do not ship the
+  descriptor yet, so root installed acceptance is still open.
