@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 // The closed runtime profile accepts one inherited private packet listener. The maintained
-// virtual network owns DHCP, DNS, framing and forwarding. Management listeners, forwarding
-// configuration and gateway HTTP services are absent; trusted guest policy owns packet access.
+// virtual network owns DHCP, framing and forwarding. Management listeners, forwarding
+// configuration and gateway HTTP services are absent. The host's admission (admission.go), not
+// the guest's firewall, decides which destinations a flow may reach.
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -17,9 +19,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/containers/gvisor-tap-vsock/pkg/tokenauth"
+	"github.com/containers/gvisor-tap-vsock/pkg/tap"
 	"github.com/containers/gvisor-tap-vsock/pkg/types"
-	"github.com/containers/gvisor-tap-vsock/pkg/virtualnetwork"
 	"github.com/insomniacslk/dhcp/dhcpv4"
 	"golang.org/x/sys/unix"
 )
@@ -79,6 +80,8 @@ type runtimeConfiguration struct {
 	Parent       int    `json:"parent"`
 	Host         string `json:"host"`
 	Concurrency  uint16 `json:"concurrency"`
+	// Egress is absent only in a configuration from before it existed (admission.go).
+	Egress *egressConfiguration `json:"egress,omitempty"`
 }
 
 func readRuntime(path string) (runtimeConfiguration, error) {
@@ -143,33 +146,25 @@ func serveProduction(path string, descriptor int) error {
 	if _, ok := listener.(*net.UnixListener); !ok {
 		return fmt.Errorf("Packet transport requires a private Unix listener")
 	}
-	stack, err := virtualnetwork.New(&types.Configuration{
-		MTU: profile.MTU, Subnet: profile.Subnet, GatewayIP: profile.Gateway, DeviceIP: profile.Device,
-		GatewayMacAddress: profile.GatewayMAC, GatewayVirtualIPs: []string{profile.Host},
-		NAT: map[string]string{profile.Host: ip.String()}, Protocol: types.StdioProtocol,
-		DHCPStaticLeases: map[string]string{profile.Device: profile.GuestMAC},
-		TCPMaxInFlight:   int(configuration.Concurrency),
-	})
+	policy, err := newAdmission(profile.Host, configuration.Egress)
 	if err != nil {
 		return err
 	}
-	defer stack.Close()
-	secret, err := tokenauth.GenerateToken()
+	network, err := newPacketStack(profile, stackOptions{virtualIP: profile.Host, host: ip.String(),
+		policy: policy, concurrency: int(configuration.Concurrency)})
 	if err != nil {
 		return err
 	}
-	stack.SetAPIToken(secret)
-	packetMux := stack.Mux()
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
 	server := &http.Server{ReadHeaderTimeout: 10 * time.Second, Handler: http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.URL.EscapedPath() != types.ConnectPath || request.Method != http.MethodPost {
 			http.NotFound(writer, request)
 			return
 		}
-		packetMux.ServeHTTP(writer, request)
+		connectGuest(ctx, writer, network)
 	})}
 	defer server.Close()
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
-	defer stop()
 	exited := make(chan error, 1)
 	go func() { exited <- server.Serve(listener) }()
 	if err := json.NewEncoder(os.Stdout).Encode(profile); err != nil {
@@ -184,4 +179,34 @@ func serveProduction(path string, descriptor int) error {
 	case err := <-exited:
 		return err
 	}
+}
+
+// bufferedConnection reads first what the HTTP server buffered past the connect request.
+type bufferedConnection struct {
+	net.Conn
+	reader *bufio.Reader
+}
+
+func (connection bufferedConnection) Read(data []byte) (int, error) {
+	return connection.reader.Read(data)
+}
+
+// connectGuest hands one guest packet stream to the switch, as the library's own connect route
+// does, so frames and their stream framing stay the library's.
+func connectGuest(ctx context.Context, writer http.ResponseWriter, network *tap.Switch) {
+	hijacker, ok := writer.(http.Hijacker)
+	if !ok {
+		http.Error(writer, "Packet transport cannot take over its connection", http.StatusInternalServerError)
+		return
+	}
+	connection, buffered, err := hijacker.Hijack()
+	if err != nil {
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer connection.Close()
+	if err := buffered.Flush(); err != nil {
+		return
+	}
+	network.Accept(ctx, bufferedConnection{Conn: connection, reader: buffered.Reader}, types.StdioProtocol)
 }

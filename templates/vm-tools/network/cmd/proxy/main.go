@@ -4,7 +4,8 @@
 // packet framing or a network stack, and the production VM tier remains unregistered.
 //
 // Parts (`cmd/proxy/`): main.go keeps the comparison fixture; production.go owns the closed
-// runtime profile; tap.go adopts an attached TAP queue for the maintained raw packet transport.
+// runtime profile; stack.go assembles the maintained parts behind admission.go's egress decision;
+// tap.go adopts an attached TAP queue for the maintained raw packet transport.
 package main
 
 import (

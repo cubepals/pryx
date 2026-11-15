@@ -137,6 +137,13 @@ refused new vsock sockets, so it cannot reach the packet transport around them. 
 helper itself runs under the launcher's Landlock and seccomp policy: it may open outbound
 Internet sockets, and no listeners or Unix sockets.
 
+The packet helper also decides on the host, so a guest kernel that drops its own rules does not
+widen them. Before it dials any TCP, UDP or ICMP flow it refuses loopback, link-local and
+metadata, private, multicast and broadcast destinations, and it runs no resolver of its own.
+When pryxd passes the guest's egress policy, the helper also reaches the gateway address only at
+the gateway ports pryxd names, refuses the agent's other non-public networks, and on a hostname
+allowlist refuses every public address.
+
 ### As root
 
 The root path is built and passes its CI cases, but no root node serves it yet. There, each

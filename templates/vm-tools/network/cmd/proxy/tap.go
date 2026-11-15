@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 // Adopt an already attached private TAP queue without opening a device or changing namespaces.
 // The pinned virtual network owns all packet parsing, switching and forwarding through its
-// existing non-stream BESS transport. This adapter supplies only Go's net.Conn interface;
-// no HTTP management, NAT-to-host alias or host-facing listener is created.
+// existing non-stream BESS transport, behind the same admission as the vsock profile. This
+// adapter supplies only Go's net.Conn interface; no HTTP management, NAT-to-host alias or
+// host-facing listener is created.
 package main
 
 import (
@@ -15,7 +16,6 @@ import (
 	"syscall"
 
 	"github.com/containers/gvisor-tap-vsock/pkg/types"
-	"github.com/containers/gvisor-tap-vsock/pkg/virtualnetwork"
 	"golang.org/x/sys/unix"
 )
 
@@ -75,20 +75,18 @@ func serveTap(path string, descriptor int) error {
 	if err != nil {
 		return err
 	}
-	stack, err := virtualnetwork.New(&types.Configuration{
-		MTU: profile.MTU, Subnet: profile.Subnet, GatewayIP: profile.Gateway, DeviceIP: profile.Device,
-		GatewayMacAddress: profile.GatewayMAC, Protocol: types.BessProtocol,
-		DHCPStaticLeases: map[string]string{profile.Device: profile.GuestMAC},
-		TCPMaxInFlight:   int(configuration.Concurrency),
-	})
+	policy, err := newAdmission(profile.Host, configuration.Egress)
 	if err != nil {
 		return err
 	}
-	defer stack.Close()
+	network, err := newPacketStack(profile, stackOptions{policy: policy, concurrency: int(configuration.Concurrency)})
+	if err != nil {
+		return err
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 	finished := make(chan error, 1)
-	go func() { finished <- stack.AcceptBess(ctx, tapConnection{file}) }()
+	go func() { finished <- network.Accept(ctx, tapConnection{file}, types.BessProtocol) }()
 	if err := json.NewEncoder(os.Stdout).Encode(profile); err != nil {
 		return err
 	}
