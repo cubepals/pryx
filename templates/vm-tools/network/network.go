@@ -12,6 +12,7 @@
 // - cmd/proxy/tap_test.go: actual packet-socket ARP/cancellation and kernel non-TAP refusal.
 // - cmd/guest/main.go, lease.go and static.go: trusted DHCP or host-selected TAP configuration.
 // - cmd/guest/lease_test.go: real no-follow resolver link checks.
+// - cmd/guest/carrier.go and carrier_test.go: the first DHCP request waits for the forwarder's TAP carrier.
 // - cmd/probe/main.go: real guest networking measurements and management denials.
 // - cmd/probe/policy.go: inherited packet-transport denials as an unprivileged workload.
 // - inputs.json: immutable Alpine and pasta source inputs.
