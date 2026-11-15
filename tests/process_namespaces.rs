@@ -85,13 +85,17 @@ async fn process_sandboxes_get_namespaces_exactly_where_the_host_proves_them() {
     let process = ProcessRuntime::new(&config.state_dir, config.process.clone()).unwrap();
     let probed = process.process_namespaces(&agent).await;
     if let Some(path) = std::env::var_os("PRYX_TEST_NAMESPACE_PROFILE") {
-        // Only the probe: what the doctor would tell root to install, where the helper is refused.
+        // Only the probe: what the configured doctor tells root to install, where it is refused.
+        let doctor = pryxd::probe::for_config(&config).await;
+        let said = &doctor.capabilities[pryxd::runtime::process::NAMESPACES];
+        assert_eq!(said.state == pryxd::probe::State::On, probed.is_ok(), "{said:?}");
         if let Err(problem) = &probed {
-            let helper = agent.parent().unwrap().join(pryxd::runtime::process::namespaces::HELPER);
-            let profile = pryxd::runtime::process::namespaces::profile(&helper);
-            assert!(pryxd::runtime::process::namespaces::action(&agent, true).ends_with(&profile));
-            std::fs::write(path, profile).unwrap();
-            eprintln!("NAMESPACES_OFF {problem}");
+            eprintln!("NAMESPACES_OFF {problem}\nDOCTOR_ACTION {}", said.action);
+            if let Some((_, profile)) = said.action.split_once('\n') {
+                let helper = agent.parent().unwrap().join(pryxd::runtime::process::namespaces::HELPER);
+                assert_eq!(profile, pryxd::runtime::process::namespaces::profile(&helper));
+                std::fs::write(path, profile).unwrap();
+            }
         }
         return;
     }
