@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -27,6 +28,7 @@ type binding struct {
 	Port      uint16 `json:"port"`
 	GuestPort uint32 `json:"guestPort"`
 	// Reserved bindings share their own pool; the others share another, each of Concurrency.
+	// Every forwarding names at least one: the agent's own.
 	Reserved bool `json:"reserved,omitempty"`
 }
 type forwarding struct {
@@ -40,6 +42,9 @@ func forward(input request) error {
 	plan := input.Forward
 	if input.Socket == "" || plan == nil || len(plan.Bindings) == 0 || plan.Concurrency == 0 || int(plan.Parent) != os.Getppid() {
 		return fmt.Errorf("Incomplete private forwarding configuration")
+	}
+	if !slices.ContainsFunc(plan.Bindings, func(bind binding) bool { return bind.Reserved }) {
+		return fmt.Errorf("Forwarding requires the agent's reserved binding")
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()

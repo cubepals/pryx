@@ -2,8 +2,9 @@
 // Assemble gvisor-tap-vsock's own exported parts around a gvisor stack, as virtualnetwork.New
 // does, with each forwarder behind the host's admission. That constructor keeps its stack
 // private and offers no admission hook. The library's switch, link endpoint, DHCP server and
-// TCP, UDP and ICMP forwarders still own every frame, address, connection and dial. No resolver
-// runs here: guest DNS reaches only the host-owned gateway the admission names.
+// TCP, UDP and ICMP forwarders still own every frame, address, connection and dial. The library's
+// resolver runs only where a profile asks for it (the root bridge's guest resolves there); the
+// vsock guest's DNS reaches only the host-owned gateway the admission names.
 package main
 
 import (
@@ -13,10 +14,12 @@ import (
 	"sync"
 
 	"github.com/containers/gvisor-tap-vsock/pkg/services/dhcp"
+	"github.com/containers/gvisor-tap-vsock/pkg/services/dns"
 	"github.com/containers/gvisor-tap-vsock/pkg/services/forwarder"
 	"github.com/containers/gvisor-tap-vsock/pkg/tap"
 	"github.com/containers/gvisor-tap-vsock/pkg/types"
 	"gvisor.dev/gvisor/pkg/tcpip"
+	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/network/arp"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
@@ -33,6 +36,8 @@ type stackOptions struct {
 	virtualIP, host string
 	policy          admission
 	concurrency     int
+	// resolver serves the library's DNS on the gateway address, answering from the host's.
+	resolver bool
 }
 
 func ipv4Address(text string) (tcpip.Address, error) {
@@ -119,5 +124,31 @@ func newPacketStack(profile runtimeProfile, options stackOptions) (*tap.Switch, 
 		return nil, err
 	}
 	go func() { log.Print(addresses.Serve()) }()
+	if options.resolver {
+		if err := resolve(s, gateway, uint16(profile.DNS)); err != nil {
+			return nil, err
+		}
+	}
 	return network, nil
+}
+
+// resolve serves the library's resolver on the gateway's DNS port, over UDP and TCP, as
+// virtualnetwork.New does.
+func resolve(s *stack.Stack, gateway tcpip.Address, port uint16) error {
+	address := tcpip.FullAddress{NIC: packetNIC, Addr: gateway, Port: port}
+	datagrams, err := gonet.DialUDP(s, &address, nil, ipv4.ProtocolNumber)
+	if err != nil {
+		return err
+	}
+	streams, err := gonet.ListenTCP(s, address, ipv4.ProtocolNumber)
+	if err != nil {
+		return err
+	}
+	server, err := dns.New(datagrams, streams, nil)
+	if err != nil {
+		return err
+	}
+	go func() { log.Print(server.Serve()) }()
+	go func() { log.Print(server.ServeTCP()) }()
+	return nil
 }

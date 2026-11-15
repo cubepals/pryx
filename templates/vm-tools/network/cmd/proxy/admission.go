@@ -29,8 +29,7 @@ type egressConfiguration struct {
 }
 
 type admission struct {
-	gateway netip.Addr
-	// nil sets mean a configuration from before egress existed: any gateway port, as before.
+	gateway  netip.Addr
 	tcp, udp map[uint16]bool
 	public   bool
 	blocked  []netip.Prefix
@@ -52,11 +51,10 @@ func newAdmission(gateway string, egress *egressConfiguration) (admission, error
 	if err != nil || !address.Is4() {
 		return admission{}, fmt.Errorf("Packet proxy gateway must be an IPv4 address")
 	}
-	policy := admission{gateway: address, public: true}
 	if egress == nil {
-		return policy, nil
+		return admission{}, fmt.Errorf("Packet proxy configuration must name its egress")
 	}
-	policy.public = egress.Public
+	policy := admission{gateway: address, public: egress.Public}
 	if policy.tcp, err = ports(egress.TCP); err != nil {
 		return admission{}, err
 	}
@@ -101,7 +99,7 @@ func (policy admission) allows(protocol tcpip.TransportProtocolNumber, destinati
 		default:
 			return false
 		}
-		return allowed == nil || allowed[port]
+		return allowed[port]
 	}
 	return policy.public && policy.publicIPv4(destination)
 }

@@ -123,20 +123,10 @@ func TestNonPublicDestinationsAreRefusedWithPublicEgress(t *testing.T) {
 	decide(t, policy, refused, false)
 }
 
-func TestConfigurationWithoutEgressStillRefusesNonPublic(t *testing.T) {
-	profile, err := productionMetadata()
-	if err != nil {
-		t.Fatal(err)
+func TestConfigurationWithoutEgressIsRefused(t *testing.T) {
+	if _, err := newAdmission("192.168.127.254", nil); err == nil {
+		t.Fatal("A configuration without egress was accepted")
 	}
-	policy, err := newAdmission(profile.Host, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	decide(t, policy, []flow{{tcp.ProtocolNumber, profile.Host, 22}, {udp.ProtocolNumber, profile.Host, 53},
-		{tcp.ProtocolNumber, "8.8.8.8", 443}}, true)
-	decide(t, policy, []flow{{tcp.ProtocolNumber, "127.0.0.1", 22}, {tcp.ProtocolNumber, "169.254.169.254", 80},
-		{udp.ProtocolNumber, "10.1.2.3", 53}, {tcp.ProtocolNumber, "192.168.1.1", 80}, {udp.ProtocolNumber, "224.0.0.251", 5353},
-		{icmp.ProtocolNumber4, profile.Host, 0}}, false)
 }
 
 func TestEgressConfigurationIsValidated(t *testing.T) {
@@ -189,7 +179,7 @@ type guestStack struct {
 	port    uint16
 }
 
-func startGuestStack(t *testing.T, policy admission) *guestStack {
+func startGuestStack(t *testing.T, policy admission, resolver bool) *guestStack {
 	t.Helper()
 	pair, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_SEQPACKET|unix.SOCK_CLOEXEC|unix.SOCK_NONBLOCK, 0)
 	if err != nil {
@@ -201,7 +191,8 @@ func startGuestStack(t *testing.T, policy admission) *guestStack {
 	if err != nil {
 		t.Fatal(err)
 	}
-	network, err := newPacketStack(profile, stackOptions{virtualIP: profile.Host, host: "127.0.0.1", policy: policy, concurrency: 8})
+	network, err := newPacketStack(profile, stackOptions{virtualIP: profile.Host, host: "127.0.0.1", policy: policy,
+		concurrency: 8, resolver: resolver})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,12 +200,12 @@ func startGuestStack(t *testing.T, policy admission) *guestStack {
 	return &guestStack{client: client, profile: profile, port: 40000}
 }
 
-// send writes one guest TCP SYN or UDP datagram to the profile's host address.
-func (guest *guestStack) send(t *testing.T, protocol tcpip.TransportProtocolNumber, port uint16) {
+// send writes one guest TCP SYN or UDP datagram to destination.
+func (guest *guestStack) send(t *testing.T, protocol tcpip.TransportProtocolNumber, destination string, port uint16) {
 	t.Helper()
 	guestMAC, _ := net.ParseMAC(guest.profile.GuestMAC)
 	gatewayMAC, _ := net.ParseMAC(guest.profile.GatewayMAC)
-	ip := &layers.IPv4{Version: 4, TTL: 64, SrcIP: net.ParseIP(guest.profile.Device).To4(), DstIP: net.ParseIP(guest.profile.Host).To4()}
+	ip := &layers.IPv4{Version: 4, TTL: 64, SrcIP: net.ParseIP(guest.profile.Device).To4(), DstIP: net.ParseIP(destination).To4()}
 	guest.port++
 	var transport gopacket.SerializableLayer
 	switch protocol {
@@ -289,12 +280,12 @@ func TestStackReachesOnlyNamedHostLoopbackPorts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	guest := startGuestStack(t, policy)
+	guest := startGuestStack(t, policy, false)
 	// Refused flows go first; the admitted ones after them prove the stack was serving.
-	guest.send(t, tcp.ProtocolNumber, otherTCPPort)
-	guest.send(t, udp.ProtocolNumber, otherUDPPort)
-	guest.send(t, tcp.ProtocolNumber, gatewayTCPPort)
-	guest.send(t, udp.ProtocolNumber, gatewayUDPPort)
+	guest.send(t, tcp.ProtocolNumber, profile.Host, otherTCPPort)
+	guest.send(t, udp.ProtocolNumber, profile.Host, otherUDPPort)
+	guest.send(t, tcp.ProtocolNumber, profile.Host, gatewayTCPPort)
+	guest.send(t, udp.ProtocolNumber, profile.Host, gatewayUDPPort)
 	buffer := make([]byte, 64)
 	accept := func(listener *net.TCPListener, wait time.Duration) func() error {
 		return func() error {
@@ -324,5 +315,67 @@ func TestStackReachesOnlyNamedHostLoopbackPorts(t *testing.T) {
 	}
 	if reached(t, receive(otherUDP, time.Second)) {
 		t.Fatal("A host loopback UDP service outside the gateways was reached")
+	}
+}
+
+// answer replies to the stack's ARP requests for the guest and returns the first TCP segment
+// from source, or nil when none arrives in time.
+func (guest *guestStack) answer(t *testing.T, source string) *layers.TCP {
+	t.Helper()
+	guestMAC, _ := net.ParseMAC(guest.profile.GuestMAC)
+	device := net.ParseIP(guest.profile.Device).To4()
+	frame := make([]byte, guest.profile.MTU+64)
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		guest.client.SetReadDeadline(deadline)
+		count, err := guest.client.Read(frame)
+		if err != nil {
+			return nil
+		}
+		packet := gopacket.NewPacket(frame[:count], layers.LayerTypeEthernet, gopacket.Default)
+		if arp, ok := packet.Layer(layers.LayerTypeARP).(*layers.ARP); ok && arp.Operation == layers.ARPRequest &&
+			net.IP(arp.DstProtAddress).Equal(device) {
+			reply := gopacket.NewSerializeBuffer()
+			if err := gopacket.SerializeLayers(reply, gopacket.SerializeOptions{FixLengths: true},
+				&layers.Ethernet{SrcMAC: guestMAC, DstMAC: arp.SourceHwAddress, EthernetType: layers.EthernetTypeARP},
+				&layers.ARP{AddrType: layers.LinkTypeEthernet, Protocol: layers.EthernetTypeIPv4, Operation: layers.ARPReply,
+					SourceHwAddress: guestMAC, SourceProtAddress: device, DstHwAddress: arp.SourceHwAddress,
+					DstProtAddress: arp.SourceProtAddress}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := guest.client.Write(reply.Bytes()); err != nil {
+				t.Fatal(err)
+			}
+			continue
+		}
+		ip, isIP := packet.Layer(layers.LayerTypeIPv4).(*layers.IPv4)
+		segment, isTCP := packet.Layer(layers.LayerTypeTCP).(*layers.TCP)
+		if isIP && isTCP && ip.SrcIP.Equal(net.ParseIP(source)) {
+			return segment
+		}
+	}
+	return nil
+}
+
+func TestOnlyTheBridgedStackServesItsOwnResolver(t *testing.T) {
+	profile, err := productionMetadata()
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy, err := newAdmission(profile.Host, &egressConfiguration{Public: true, NonPublic: agentBoundary(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, resolver := range []bool{true, false} {
+		guest := startGuestStack(t, policy, resolver)
+		guest.send(t, tcp.ProtocolNumber, profile.Gateway, uint16(profile.DNS))
+		segment := guest.answer(t, profile.Gateway)
+		if segment == nil {
+			t.Fatalf("resolver=%v: the stack's gateway did not answer a DNS connection", resolver)
+		}
+		// With its resolver the gateway accepts; without it the private address is refused.
+		if accepted := segment.SYN && segment.ACK; accepted != resolver || (!resolver && !segment.RST) {
+			t.Fatalf("resolver=%v: the gateway answered SYN=%v ACK=%v RST=%v", resolver, segment.SYN, segment.ACK, segment.RST)
+		}
 	}
 }

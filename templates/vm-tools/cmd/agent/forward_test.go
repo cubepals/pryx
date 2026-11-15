@@ -8,6 +8,8 @@ import (
 	"errors"
 	"io"
 	"net"
+	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -100,5 +102,13 @@ func TestBindingsWithoutReservationShareOnePool(t *testing.T) {
 	reserved := capacities([]binding{{GuestPort: 1}, {GuestPort: 2, Reserved: true}}, 1)
 	if !reserved[0].take() || !reserved[1].take() {
 		t.Fatal("A reserved binding must have its own pool")
+	}
+}
+
+func TestForwardingWithoutAReservedBindingIsRefused(t *testing.T) {
+	err := forward(request{Socket: "unused", Forward: &forwarding{Bindings: []binding{{Host: "127.0.0.1", GuestPort: 1 << 17}},
+		Concurrency: 1, Parent: uint32(os.Getppid())}})
+	if err == nil || !strings.Contains(err.Error(), "reserved") {
+		t.Fatalf("Forwarding without the agent's reserved binding was not refused: %v", err)
 	}
 }
