@@ -13,8 +13,8 @@
     "integrations/celld"
   ],
   "scripts": {
-    "check": "bun run lint && bun run typecheck && bun run openapi:check && bun run docs:check && bun run release:check && bun run test",
-    "lint": "biome check control cli sdk/typescript edge integrations deploy",
+    "check": "bun site/check.ts && bun run lint && bun run typecheck && bun run openapi:check && bun run docs:check && bun run release:check && bun run test",
+    "lint": "biome check control cli sdk/typescript edge integrations deploy site",
     "typecheck": "tsc --noEmit",
     "test": "bun test --timeout 30000 control/test cli/test sdk/typescript/test edge/test integrations/rivet/test integrations/celld/test",
     "e2e": "bun test control/e2e cli/e2e",

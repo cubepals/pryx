@@ -18,6 +18,16 @@ const target = join(root, 'control/src/generated/release.ts')
 const contents = `// SPDX-License-Identifier: FSL-1.1-ALv2\n// Generated from Cargo.toml by control/tools/release.ts.\nexport const PRYX_VERSION = '${version}'\n`
 // REUSE-IgnoreEnd
 const mode = process.argv[2] ?? 'check'
+if (mode !== 'build') {
+  const actionGuide = join(root, 'docs/connect/action.md')
+  const actionContents = readFileSync(actionGuide, 'utf8')
+  const actionPin = /(^- uses: cubepals\/pryx\/action@v)[^\r\n]+/m
+  if (!actionPin.test(actionContents)) throw new Error('Action connect guide is missing its release pin')
+  const versionedAction = actionContents.replace(actionPin, (_match, prefix: string) => `${prefix}${version}`)
+  if (mode === 'generate') writeFileSync(actionGuide, versionedAction)
+  else if (actionContents !== versionedAction)
+    throw new Error('Action connect guide release drift; run release.ts generate')
+}
 if (mode === 'check') {
   if (readFileSync(target, 'utf8') !== contents) throw new Error('Release version drift')
   process.exit(0)
@@ -44,37 +54,12 @@ for (const [source, name] of [
   })
   if (result.exitCode !== 0) throw new Error(`${name} compilation failed`)
 }
-const sdk = Bun.spawnSync(
-  [
-    'bun',
-    'build',
-    'sdk/typescript/src/index.ts',
-    '--target',
-    'node',
-    '--format',
-    'esm',
-    '--outfile',
-    'sdk/typescript/dist/index.js',
-  ],
-  { cwd: root, stdout: 'inherit', stderr: 'inherit' },
-)
-if (sdk.exitCode !== 0) throw new Error('SDK JavaScript build failed')
-const provider = Bun.spawnSync(
-  [
-    'bun',
-    'build',
-    'sdk/typescript/src/provider.ts',
-    '--target',
-    'node',
-    '--format',
-    'esm',
-    '--packages=external',
-    '--outfile',
-    'sdk/typescript/dist/provider.js',
-  ],
-  { cwd: root, stdout: 'inherit', stderr: 'inherit' },
-)
-if (provider.exitCode !== 0) throw new Error('SDK provider build failed')
+const sdk = Bun.spawnSync(['bun', 'run', '--cwd', 'sdk/typescript', 'build'], {
+  cwd: root,
+  stdout: 'inherit',
+  stderr: 'inherit',
+})
+if (sdk.exitCode !== 0) throw new Error('SDK build failed')
 const assets = join(root, 'target/release-assets/control')
 mkdirSync(assets, { recursive: true })
 cpSync(join(root, 'control/src/schema/migrations'), join(assets, 'migrations'), { recursive: true })

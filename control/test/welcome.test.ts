@@ -14,6 +14,7 @@ import { Metrics } from '../../edge/src/metrics.ts'
 import { RouteTable } from '../../edge/src/routes.ts'
 import { SandboxProxy } from '../../edge/src/sandbox-proxy.ts'
 import { HTTP_FRONT_PORT } from '../src/edge-headers.ts'
+import { PRYX_VERSION } from '../src/generated/release.ts'
 import { bootstrapKey } from '../src/keys.ts'
 import { withWelcome } from '../src/welcome.ts'
 import { WELCOME_DETAILS_PATH } from '../src/welcome-path.ts'
@@ -32,6 +33,7 @@ describe.skipIf(!hasDatabase)('install welcome', () => {
         isolation: 'process',
         platform: 'render',
         platformKey: true,
+        siteUrl: 'https://docs.example.test/guide/',
         boundary: 'shared UID',
       })
       const page = await app.request('/')
@@ -39,6 +41,8 @@ describe.skipIf(!hasDatabase)('install welcome', () => {
       expect(page.headers.get('cache-control')).toBe('no-store')
       expect(page.headers.get('content-security-policy')).toContain("frame-ancestors 'none'")
       expect(html).toContain('Render → service → Environment')
+      expect(html).toContain(`https://docs.example.test/guide/v${PRYX_VERSION}/connect/typescript/`)
+      expect(html).toContain(`https://docs.example.test/guide/v${PRYX_VERSION}/connect/webhooks/`)
       for (const hidden of [
         key,
         'process',

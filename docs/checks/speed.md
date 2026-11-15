@@ -295,7 +295,7 @@ both engines using the same patched celld 0.6.3 executable and host. Backend-sta
 142/154 ms locally and 215/233 ms through pryx; start through first HTTP response is
 1,881.78/1,889.72 ms locally and 1,274.87/1,284.34 ms through pryx. Warm HTTP is
 5.50/5.72 ms locally and 5.74/7.24 ms through pryx. These are observed costs, with no additional
-speed threshold in K13. [docker-api.md](docker-api.md) records the method, limits and complete
+speed threshold in K13. [docker-api.md](../docker-api.md) records the method, limits and complete
 raw samples, including the retained failed initial cohort and unshipped socket experiment.
 
 ### Project rotation with reserved host ports
@@ -409,4 +409,4 @@ Native backend start costs more; the lower start-through-first-response includes
 and polling, and does not isolate a transport optimization. K13 sets no numeric speed threshold.
 The [unmodified-release socket experiment](final-docker-api-spike.json) explicitly fails
 unsupported BuildKit operations and remains unshipped, without advertising a docker-api feature.
-See [docker-api.md](docker-api.md) for the native ownership limits and exact experiment scope.
+See [docker-api.md](../docker-api.md) for the native ownership limits and exact experiment scope.
