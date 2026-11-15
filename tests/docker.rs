@@ -14,6 +14,7 @@
 //! - `engine_lifecycle.rs`: real image, HTTP, snapshot, fork and neighbour boundary acceptance.
 //! - `engine_sleep.rs`: memory-sleep refusal and retained bytes through cold wake.
 //! - `engine.rs`: real engine limit refusals and explicit memory acceptance.
+//! - `gvisor.rs`: the gvisor tier beside containers; `PRYX_TEST_GVISOR` runs the suite on it.
 
 #[path = "docker/engine.rs"]
 mod engine;
@@ -21,6 +22,8 @@ mod engine;
 mod engine_lifecycle;
 #[path = "docker/engine_sleep.rs"]
 mod engine_sleep;
+#[path = "docker/gvisor.rs"]
+mod gvisor;
 mod support;
 
 use std::net::TcpListener;
@@ -37,7 +40,7 @@ use pryxd::runtime::docker::DockerRuntime;
 use support::{id, manager_on, manager_probed};
 
 fn docker() -> Arc<dyn ContainerRuntime> {
-    Arc::new(DockerRuntime::new(&DockerConfig::default().socket).unwrap())
+    Arc::new(gvisor::engine_runtime(&DockerConfig::default().socket))
 }
 
 #[tokio::test]

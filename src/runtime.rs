@@ -256,6 +256,9 @@ pub struct RuntimeInfo {
     pub(crate) cpu_limit: bool,
     pub(crate) pids_limit: bool,
     pub(crate) own_kernel: bool,
+    /// The OCI runtimes the engine has registered, by name (Engine API `/info` `Runtimes`).
+    #[serde(default)]
+    pub(crate) runtimes: Vec<String>,
     pub(crate) version: Option<String>,
     pub(crate) api_version: Option<String>,
     pub(crate) cgroup_version: Option<String>,
@@ -469,6 +472,11 @@ pub trait ContainerRuntime: Send + Sync + 'static {
     fn logs(&self, name: &str, options: LogOptions) -> BoxStream<'static, Result<LogChunk, RuntimeError>>;
     async fn stats(&self, name: &str) -> Result<Option<RawStats>, RuntimeError>;
     fn events(&self, label_filters: &[String]) -> BoxStream<'static, Result<RuntimeEvent, RuntimeError>>;
+}
+
+/// The tiers an engine serves: containers, and gVisor through the same engine with `runsc`.
+pub(crate) fn engine_tier(tier: &str) -> bool {
+    tier == "container" || tier == crate::protocol::Isolation::Gvisor.as_str()
 }
 
 /// RFC 3339 → time, with Docker's "never" (year 1) as None.

@@ -48,7 +48,7 @@ impl Manager {
         } else {
             self.runtime_info.lock().unwrap().as_ref().is_some_and(|info| info.rootless)
         };
-        if tier == "container" && rootless {
+        if crate::runtime::engine_tier(tier) && rootless {
             for (guarantee, configured) in [
                 (G::MemoryLimit, observed.and_then(|info| info.memory_enforced)),
                 (G::CpuLimit, observed.and_then(|info| info.cpu_enforced)),

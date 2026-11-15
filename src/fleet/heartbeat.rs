@@ -84,8 +84,7 @@ fn workload_reports(manager: &Manager) -> Vec<WorkloadReport> {
             let browser = [Isolation::Container.as_str(), Isolation::Process.as_str()].contains(&tier)
                 && manager.browser_policy_observed(&v.id);
             WorkloadReport {
-                guarantees: ((observed_limits && tier == Isolation::Container.as_str()) || browser)
-                    .then_some(v.guarantees),
+                guarantees: ((observed_limits && crate::runtime::engine_tier(tier)) || browser).then_some(v.guarantees),
                 metrics: manager.cached_metrics(&v.id),
                 agent: v.agent,
                 id: v.id.to_string(),

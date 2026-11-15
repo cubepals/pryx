@@ -20,3 +20,5 @@ pub(crate) const LABEL_RECORD: &str = "blocklyd.record";
 pub(crate) const LABEL_INTERNAL_BINDINGS: &str = "blocklyd.internal-bindings";
 /// Inner browser sandbox policy supplied through a supported agent's trusted bootstrap.
 pub(crate) const LABEL_BROWSER_SANDBOX: &str = "blocklyd.browser-sandbox";
+/// The engine runtime a container was made with, on tiers that name one (`runsc` for gvisor).
+pub(crate) const LABEL_OCI_RUNTIME: &str = "blocklyd.oci-runtime";

@@ -65,7 +65,7 @@ impl Manager {
             } else {
                 self.runtime_info.lock().unwrap().as_ref().is_some_and(|info| info.rootless)
             };
-            if tier == "container" && rootless {
+            if crate::runtime::engine_tier(tier) && rootless {
                 features.push(crate::protocol::OBSERVED_RESOURCE_LIMITS_FEATURE.into());
             }
             if matches!(tier, "container" | "process") {
@@ -189,7 +189,9 @@ impl Manager {
         let info = self.runtime_info.lock().unwrap();
         let tier_info = self.runtime.tier_info(tier);
         let info = if self.runtime.multi_tier() { tier_info.as_ref() } else { info.as_ref() };
-        let container = tier == "container";
+        // gVisor is the container backend with another runtime: the engine's limits, network
+        // and firewall hold for it too; the browser's own sandbox is proved only for containers.
+        let container = crate::runtime::engine_tier(tier);
         let vm = tier == crate::protocol::Isolation::Vm.as_str() && info.as_ref().is_some_and(|info| info.own_kernel);
         G::ALL
             .into_iter()
@@ -203,11 +205,13 @@ impl Manager {
                         container && info.as_ref().is_some_and(|info| !info.rootless) && probe.on("host-firewall")
                     }
                     G::MemorySleep => {
-                        matches!(tier, "container" | "process")
+                        (container || tier == "process")
                             && (!container || info.as_ref().is_some_and(|info| !info.rootless && info.memory_limit))
                     }
                     G::BrowserSandbox => {
-                        (container && self.config.docker.native_tools_seccomp.is_some() && probe.on("user-namespaces"))
+                        (tier == "container"
+                            && self.config.docker.native_tools_seccomp.is_some()
+                            && probe.on("user-namespaces"))
                             || (tier == "process" && probe.on(pryx_agent::process_tool_policy::BROWSER_CAPABILITY))
                     }
                     G::OwnKernel => vm,

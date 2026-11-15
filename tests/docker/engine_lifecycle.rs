@@ -14,7 +14,7 @@ struct EngineCase {
 impl EngineCase {
     async fn new() -> Option<Self> {
         let socket = engine::selected_socket().await;
-        let runtime = Arc::new(DockerRuntime::new(&socket).unwrap());
+        let runtime = Arc::new(super::gvisor::engine_runtime(&socket));
         let limits = engine::limits_or_mapping_refusal(&runtime, &socket).await?;
         let directory = tempfile::tempdir().unwrap();
         let deployment = deployment();
@@ -241,7 +241,7 @@ async fn engine_exec_timeout_retires_children_and_keeps_the_workload_running() {
     let backend =
         bollard::Docker::connect_with_unix(case.socket.to_str().unwrap(), 60, bollard::API_DEFAULT_VERSION).unwrap();
     let original = backend.inspect_container(&before.locate.container_name, None).await.unwrap().state.unwrap();
-    let runtime = DockerRuntime::new(&case.socket).unwrap();
+    let runtime = super::gvisor::engine_runtime(&case.socket);
     runtime.disable_restart(before.locate.container_id.as_deref().unwrap()).await.unwrap();
     let policy = backend.inspect_container(&before.locate.container_name, None).await.unwrap().host_config.unwrap();
     assert_eq!(policy.restart_policy.unwrap().name, Some(bollard::models::RestartPolicyNameEnum::NO));
