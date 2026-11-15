@@ -40,10 +40,12 @@ through host policy. The process tier uses the bundled userland, Landlock, secco
 sampled resident memory without creating namespaces; its weaker boundary is described in
 [process-tier.md](process-tier.md). The wasm tier uses a virtual kernel with WebAssembly and V8
 in a shared unprivileged sidecar; SQLite and the explicit data mount survive recreation, while
-processes and terminals end on sleep. Its limits and API mapping are in [agentos.md](agentos.md);
-[tiers.md](tiers.md) compares all three. Placement enforces the requested isolation tier. A sandbox
-request cannot loosen host policy. MicroVMs are not advertised. Workload ports are private; only
-configured control/edge sources may dial them.
+processes and terminals end on sleep. Its limits and API mapping are in [agentos.md](agentos.md).
+The vm tier boots each sandbox in a Firecracker virtual machine with its own kernel. A node
+announces it only where KVM works for pryxd's ordinary user and a signed installation supplies
+its bundle; root nodes don't serve it yet ([vm.md](vm.md)). [tiers.md](tiers.md) compares the
+tiers. Placement enforces the requested isolation tier. A sandbox request cannot loosen host
+policy. Workload ports are private; only configured control/edge sources may dial them.
 
 An epoch names one placement. Every mutating node request carries blocklyd-epoch; older handles
 cannot affect a newer copy. Moves fence and retire the old copy, and the edge closes connections

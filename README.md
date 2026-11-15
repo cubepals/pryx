@@ -32,6 +32,8 @@ try {
 Container: Docker isolation and images; choose it for untrusted workloads.
 Process: native processes with host restrictions; no container image required.
 Wasm: agentOS WebAssembly VMs with registry packages; no container image required.
+VM: a Firecracker virtual machine with its own kernel, from an amd64 image, where an ordinary
+user can open `/dev/kvm`; root hosts don't serve it yet. See [virtual machines](docs/vm.md).
 
 [TypeScript](sdk/typescript/README.md) · [Python](sdk/python/README.md) ·
 [Documentation](docs/README.md) · [Architecture](docs/architecture.md) ·

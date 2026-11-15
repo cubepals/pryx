@@ -1,8 +1,11 @@
 # VM input experiments
 
-K25 first measures published kernels and two unprivileged network paths with a real KVM in CI.
-These files verify candidate pins before a monitor or kernel is executed. They do not build
-kernels, publish a runtime bundle, announce VM support or substitute emulation.
+K25 first measured published kernels and two unprivileged network paths with a real KVM in CI.
+These files pin and verify the VM tier's inputs before a monitor or kernel is executed, and
+assemble its separate runtime and corresponding-source release assets (`build.sh`,
+`release.sh`, `bundle.py`). They build no kernel and substitute no emulation. Whether a node
+serves the tier is pryxd's decision, from its own probe and the installed descriptor
+([docs/vm.md](../../docs/vm.md)).
 
 Parts (`vm-tools/`):
 
