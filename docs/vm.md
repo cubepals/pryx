@@ -267,18 +267,23 @@ The [progress record](any-host-progress.md) holds every commit and run. In brief
 - [43617667633](https://github.com/cubepals/pryx/actions/runs/43617667633), at `f1a56d5`: the
   configured ordinary-user tier, its discovery in auto mode, its announced guarantees, and
   snapshot and restore through the node API ([summary](checks/measurements/k25/factory-f1a56d5.json)).
-- The guarantee checks: a guest can't read a host-only file, can't signal pryxd, and reports a
-  kernel other than the host's. They pass in the root lifecycle above
-  (`src/runtime/vm/instance/root_acceptance.rs`) and, for the signed ordinary-user installation,
-  on its first image in [Any host 43680103857](https://github.com/cubepals/pryx/actions/runs/43680103857)
-  (`deploy/vm-installed-acceptance.ts`). On normal CI's ordinary image, which has no KVM, a `vm`
-  create is refused with `no_room` naming it (`control/bench/mixed-tiers.ts`).
+- [Any host 43721826335](https://github.com/cubepals/pryx/actions/runs/43721826335), at
+  `f31a5b1`: the signed ordinary-user installation through both SDKs and the edge on both images
+  (files, a declared edge port, cold wake from the edge, snapshot, fork and its own edge port,
+  delete), one hostname egress rule sent by control to the vm tier of a node whose first tier
+  is process, and the guarantee checks: a guest can't read a host-only file, can't signal
+  pryxd, and reports a kernel other than the host's (`deploy/vm-installed-acceptance.ts`). They
+  also pass in the root lifecycle (`src/runtime/vm/instance/root_acceptance.rs`). On normal CI's
+  ordinary image, which has no KVM, a `vm` create is refused with `no_room` naming it
+  (`control/bench/mixed-tiers.ts`).
+- [VM experiments 43730018633](https://github.com/cubepals/pryx/actions/runs/43730018633), at
+  `df53ca1`: the whole VM job again on real KVM with the filesystem programs confined, and each
+  start's stages (in [decisions](decisions.md)).
 - The kernel and the ordinary-user network path were chosen by measured spikes
   ([checks](checks/k25-vm-spikes.md)). Their boot figure, 717 ms at p50 from launch to a
   validated guest report, is a minimal fixture, not a sandbox create.
 
-Not yet proven: the signed installation through the SDKs and the edge on both images (that same
-run passes the first image's edge cold wake, snapshot and fork, then stops at the fork's own
-edge port, a fixture fix now rerunning), the thirty-sample measurements
-([pending](tiers.md#vm-tier-measurements)), a move between two VM nodes, and root as a served
-tier.
+Not yet proven: the thirty-sample measurements ([pending](tiers.md#vm-tier-measurements); a
+start right after a stop failed twice in about sixty samples, cause not yet known), a move between two VM nodes, and root as a served tier through an installed node
+(the worker service exists; the server preset installs a VM descriptor only when a release lists
+one, and no root installed acceptance runs yet).

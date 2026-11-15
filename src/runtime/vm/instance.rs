@@ -95,6 +95,8 @@ struct State {
     entries: Mutex<BTreeMap<String, Entry>>,
     transitions: Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>,
     live: Mutex<HashMap<String, Arc<tokio::sync::Mutex<Live>>>>,
+    /// Images this runtime prepared, by manifest digest, with their layer files' identities.
+    prepared: Mutex<HashMap<String, (Prepared, Vec<launch::Identity>)>>,
 }
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct Entry {
@@ -237,6 +239,7 @@ impl VmRuntime {
                 entries: Mutex::new(entries),
                 transitions: Mutex::new(HashMap::new()),
                 live: Mutex::new(HashMap::new()),
+                prepared: Mutex::new(HashMap::new()),
             }),
         })
     }

@@ -2,7 +2,8 @@
 // Command guest configures networking inside the trusted VM before any image command runs.
 // Parts (`network/cmd/guest/`): main.go owns process lifetime and trusted device startup;
 // lease.go applies maintained DHCP lease values and writes the precreated resolver;
-// static.go applies connected host-selected IPv4 TAP addressing without DHCP or a forwarder.
+// static.go applies connected host-selected IPv4 TAP addressing without DHCP or a forwarder;
+// carrier.go waits for the forwarder to hold the TAP before the first DHCP request.
 // The maintained netlink and DHCP libraries own device setup and leases. The unchanged
 // gvisor forwarder owns all packet framing; this adapter never invokes an image's tools.
 package main
@@ -121,6 +122,12 @@ func run() error {
 	}
 	defer client.Close()
 	acquire, cancel := context.WithTimeout(ctx, 20*time.Second)
+	if *forwarder != "" {
+		if err := awaitForwarder(acquire, link.Attrs().Index, errors); err != nil {
+			cancel()
+			return err
+		}
+	}
 	value, err := client.Request(acquire)
 	cancel()
 	if err != nil {

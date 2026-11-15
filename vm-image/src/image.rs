@@ -69,6 +69,18 @@ where
     unreachable!("Bounded registry reads return on their last attempt")
 }
 
+/// The manifest digest a digest-named reference resolved to.
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct NamedImage {
+    digest: String,
+}
+
+/// The digest an image reference names after `@` (OCI distribution `algorithm:encoded`).
+fn named_digest(image: &str) -> Option<&str> {
+    image.rsplit_once('@').map(|(_, digest)| digest).filter(|digest| digest.starts_with("sha256:"))
+}
+
 /// One prepared manifest: its layers in order, each named by source digest and diff ID.
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -178,7 +190,11 @@ impl Images {
                     Some(prepared) => Ok(prepared),
                     None => self.pull(image, Some(digest)).await,
                 },
-                None => self.pull(image, None).await,
+                // A reference naming its digest is immutable: its own record serves it offline.
+                None => match named_digest(image).map(|digest| self.offline_named(digest)).transpose()?.flatten() {
+                    Some(prepared) => Ok(prepared),
+                    None => self.pull(image, None).await,
+                },
             };
             drop(lock);
             result
@@ -264,7 +280,10 @@ impl Images {
         if manifest.layers.len() > MAX_LAYERS {
             return Err(error("VM OCI image exceeds the layer admission bound"));
         }
-        let staging = tempfile::tempdir_in(&self.root).map_err(error)?;
+        // Explicitly private: a confined filesystem program refuses an ancestor that an
+        // ordinary user's group-writable umask (002) would otherwise leave writable.
+        let private = || tempfile::Builder::new().permissions(fs::Permissions::from_mode(0o700)).to_owned();
+        let staging = private().tempdir_in(&self.root).map_err(error)?;
         let config = staging.path().join("configuration");
         self.blob(&reference, &manifest.config, &config, MAX_CONFIG_BYTES).await?;
         let configuration: ConfigFile = serde_json::from_reader(File::open(config).map_err(error)?).map_err(error)?;
@@ -287,7 +306,7 @@ impl Images {
             }
             let blob = staging.path().join(format!("layer-{index}.blob"));
             self.blob(&reference, layer, &blob, MAX_LAYER_BYTES).await?;
-            let temporary = tempfile::tempdir_in(staging.path()).map_err(error)?;
+            let temporary = private().tempdir_in(staging.path()).map_err(error)?;
             let work = temporary.path().to_path_buf();
             let generated = convert(&self.tools, &blob, &work, &layer.media_type, diff_id).await?;
             let file = File::open(&generated).map_err(error)?;
@@ -318,9 +337,33 @@ impl Images {
                 .collect(),
             configuration: configuration.clone(),
         };
-        pryxd::durable::write_atomic(&self.image_record(&digest)?, &serde_json::to_vec(&saved).map_err(error)?, 0o600)
-            .map_err(error)?;
+        let record = serde_json::to_vec(&saved).map_err(error)?;
+        pryxd::durable::write_atomic(&self.image_record(&digest)?, &record, 0o600).map_err(error)?;
+        // Also under the digest the reference names, which may be its index rather than this
+        // platform's manifest, with the manifest digest it resolved to.
+        if let Some(named) = named_digest(image).filter(|named| *named != digest) {
+            let alias = serde_json::to_vec(&NamedImage { digest: digest.clone() }).map_err(error)?;
+            pryxd::durable::write_atomic(&self.named_record(named)?, &alias, 0o600).map_err(error)?;
+        }
         Ok(PreparedImage { digest, layers, configuration })
+    }
+
+    fn named_record(&self, digest: &str) -> Result<PathBuf, RuntimeError> {
+        Ok(self.root.join(format!("{}.named.json", digest_name(digest)?)))
+    }
+
+    /// The record of the manifest a digest-named reference resolved to, when complete here.
+    fn offline_named(&self, named: &str) -> Result<Option<PreparedImage>, RuntimeError> {
+        if let Some(prepared) = self.offline(named)? {
+            return Ok(Some(prepared));
+        }
+        let bytes = match fs::read(self.named_record(named)?) {
+            Ok(bytes) => bytes,
+            Err(problem) if problem.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(problem) => return Err(error(problem)),
+        };
+        let alias: NamedImage = serde_json::from_slice(&bytes).map_err(error)?;
+        self.offline(&alias.digest)
     }
 
     fn cached(path: &Path, record: &Path, source: &str, diff_id: &str) -> Result<bool, RuntimeError> {

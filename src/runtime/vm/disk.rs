@@ -231,7 +231,12 @@ async fn transaction(
         // Refused before copying, never by filling the host part-way through the copy.
         room(directory, staging_room(original, free_floor)?)?;
     }
-    let staging = tempfile::Builder::new().prefix(".vm-disk-stage-").tempdir_in(parent).map_err(error)?;
+    // Explicitly private, whatever the umask: the confined tools refuse a group-writable ancestor.
+    let staging = tempfile::Builder::new()
+        .prefix(".vm-disk-stage-")
+        .permissions(std::os::unix::fs::PermissionsExt::from_mode(0o700))
+        .tempdir_in(parent)
+        .map_err(error)?;
     let candidate = staging.path().join("disk");
     if original.is_some() {
         let source = directory.to_owned();
