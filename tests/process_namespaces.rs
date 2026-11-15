@@ -142,8 +142,11 @@ async fn process_sandboxes_get_namespaces_exactly_where_the_host_proves_them() {
     assert_eq!(seen.trim(), if namespaced { "hidden" } else { "visible" }, "a's process from b");
     if namespaced {
         assert_eq!(run(&m, "a", "cat /tmp/neighbour-marker").await.trim(), "neighbour-secret");
-        let listing = run(&m, "b", "ls -A /tmp; test -e /tmp/neighbour-marker && echo seen || echo unseen").await;
-        assert_eq!(listing.trim(), "unseen", "b's /tmp is its own");
+        // b's /tmp holds only what was bound into it for b (its own data's path, here under /tmp).
+        let listing = run(&m, "b", "ls -A /tmp").await;
+        assert!(!listing.contains("neighbour-marker"), "b's /tmp is its own: {listing:?}");
+        let seen = run(&m, "b", "test -e /tmp/neighbour-marker && echo seen || echo unseen").await;
+        assert_eq!(seen.trim(), "unseen", "b's /tmp is its own");
         assert!(!std::path::Path::new("/tmp/neighbour-marker").exists(), "and a's is not the host's");
     }
 
