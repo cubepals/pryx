@@ -19,10 +19,15 @@ import (
 )
 
 type BridgeInputs struct {
-	profile    Profile
-	gatewayMAC net.HardwareAddr
-	dns        uint16
-	blocked    []netip.Prefix
+	agent          string
+	packet         string
+	monitorMode    string
+	packetTap      bool
+	packetMetadata map[string]any
+	profile        Profile
+	gatewayMAC     net.HardwareAddr
+	dns            uint16
+	blocked        []netip.Prefix
 }
 
 func programMetadata(ctx context.Context, program, argument string) (map[string]json.RawMessage, error) {
@@ -66,10 +71,13 @@ func programMetadata(ctx context.Context, program, argument string) (map[string]
 
 func ReadBridgeInputs(ctx context.Context, agent, packet string) (BridgeInputs, error) {
 	var inputs BridgeInputs
+	inputs.agent, inputs.packet = agent, packet
 	metadata, err := programMetadata(ctx, agent, "bootstrap-probe")
 	if err != nil {
 		return inputs, err
 	}
+	json.Unmarshal(metadata["vmPacketTap"], &inputs.packetTap)
+	json.Unmarshal(metadata["vmMonitorMode"], &inputs.monitorMode)
 	var prefixes []string
 	if err := json.Unmarshal(metadata["vmNonPublicIpv4"], &prefixes); err != nil || len(prefixes) == 0 {
 		return inputs, fmt.Errorf("Actual agent does not export its non-public IPv4 boundary: %v", err)
@@ -83,6 +91,9 @@ func ReadBridgeInputs(ctx context.Context, agent, packet string) (BridgeInputs, 
 	}
 	metadata, err = programMetadata(ctx, packet, "--metadata")
 	if err != nil {
+		return inputs, err
+	}
+	if err := json.Unmarshal(metadata["production"], &inputs.packetMetadata); err != nil {
 		return inputs, err
 	}
 	var profile map[string]json.RawMessage

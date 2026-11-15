@@ -4597,3 +4597,14 @@ job when publication is authorized. That job has not run in this task.
   148 after successful signed guest stop. Preserve the assertion and inspect its request
   argument before changing the restrictive native policy. The attached queue fixture also
   remains unresolved. Raw output stays in artifact 14138064146, not this repository.
+
+- Prepare fixed ordinary packet-process ownership beneath the existing root bridge: protected
+  program copies outside its writable work directory, descriptor-only configuration writing,
+  cleared supplementary groups, fixed non-root identities, existing confined agent launch,
+  bounded actual-profile readiness and atomic pidfd observation. Stop/reap and temporary-file
+  deletion follow confirmed monitor-lease retirement; unconfirmed exit retains the files.
+  This primitive is not yet wired to the scope parser or runtime and enables no placement.
+- Correct the attached TAP reader to require TAP plus no-PI and reject vnet headers, matching
+  the actual bridge grant and maintained raw-frame transport. Go tests/vet, workflow actionlint,
+  Python syntax and whitespace pass. Extend only the existing optional shutdown trace with
+  ioctl arguments; raw output remains an artifact. No job/gate or added estimated CI minute.

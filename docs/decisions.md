@@ -1293,3 +1293,6 @@
 - K25: GNU pthread signalling reads its own PID before tgkill; add only that read-only identity syscall to each native signal profile, preserving all existing rules, trap defaults and the launcher’s self-TGID bound. Verify maintained Killable kicks and native joins under the exact compiled VMM/API/vCPU profiles during the existing build, without KVM or a new CI gate.
 
 - K25: adopt the public bridge’s separately advertised close-on-exec namespace/queue grant through the existing bounded receiver and EOF/lease reaper; read private argument names from its actual executable, validate namespace/device/profile identity and refuse old metadata without support. Keep root placement disabled until packet flow and the installed worker are proved.
+
+- K25: stage root-owned fixed packet binaries outside the ordinary writable directory, drop all groups before launching the existing confined agent, grant only a configuration descriptor, and retain an atomic kernel pidfd; packet retirement follows the real monitor lease and confirmed child exit.
+- K25: retain ioctl requests beside the existing shutdown signal trace to identify the actual remaining native trap without widening policy; reject inherited TAP vnet headers because the chosen BESS transport consumes raw Ethernet frames.

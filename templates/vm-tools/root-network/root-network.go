@@ -15,7 +15,8 @@
 // boundary.go reads opaque policy inputs from fixed protected executables; bridge.go owns
 // the two-port anonymous L2 bridge and queue; bridge_firewall.go installs its independent
 // public IPv4 boundary; cmd/scope/bridge.go selects that private parser path.
-// authority.go owns unchanged protected root program/directory checks.
+// authority.go owns unchanged protected root program/directory checks; packet.go owns
+// fixed ordinary packet-program staging, configuration grants and confirmed retirement.
 // firewall.go owns hostname-gateway admission and kernel readback.
 // scope.go owns one private TAP and local addressing; listeners.go binds actual gateway
 // descriptors there; credentials.go reads actual drop-user authority on fixture failure; cmd/tap-probe/gateways.go checks serving them in the parent namespace.
