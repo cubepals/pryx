@@ -175,11 +175,13 @@ the tier off, and the root lifecycle through an installed node has not yet run i
   API call or a held edge connection. Processes, terminals and memory do not survive.
   `memory-sleep` is reported off, and control takes the stop path without asking; a pause
   request is refused.
-- **Stop** sends the guest's init a signed request over vsock. Init stops the workload with
-  SIGTERM or SIGINT (other stop signals are refused), remounts its disks read-only and flushes
-  them, then writes a signed record, bound to that boot, of the clean disk and the exit status;
-  pryxd reads it from the console. A guest still running at the end of the grace period is
-  killed and reported as killed; one that exits without that record has an unknown exit.
+- **Stop** sends the guest's init a signed request over vsock, carrying the spec's stop grace.
+  Init stops the workload with SIGTERM or SIGINT (other stop signals are refused), gives it that
+  whole grace before killing what remains, remounts its disks read-only and flushes them, then
+  writes a signed record, bound to that boot, of the clean disk and the exit status; pryxd
+  reads it from the console. pryxd waits the grace plus 15 seconds for that; a guest still
+  running then is killed and reported as killed, and one that exits without that record has an
+  unknown exit.
 - **Snapshot, fork, export, restore and move** copy the stopped disk with the same file walk the
   other tiers use, preserving holes. A running VM is stopped for the copy and booted again
   after it. Export can't exclude paths, since it carries a disk image.
