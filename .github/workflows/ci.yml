@@ -180,7 +180,9 @@ jobs:
           fi
           PRYX_TEST_NAMESPACES=on cargo test --locked --test process_namespaces -- --ignored --nocapture --test-threads 1
           test=$(cargo test --locked --test process_namespaces --no-run --message-format=json \
-            | jq -r 'select(.executable != null) | .executable')
+            | jq -r 'select(.target.name == "process_namespaces" and .executable != null) | .executable')
+          echo "plain-mode test binary: $test"
+          test -f "$test" && test -x "$test"
           for wait in 2 5 10 20 0; do
             docker pull -q mirror.gcr.io/library/ubuntu:24.04 && break
             [ "$wait" = 0 ] && exit 1
@@ -214,7 +216,7 @@ jobs:
           PRYX_TEST_GVISOR: '1'
         run: >-
           CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER='sudo --preserve-env=PRYX_TEST_GVISOR'
-          cargo test --locked --test docker -- --ignored --test-threads 2
+          cargo test --locked --test docker -- --ignored --test-threads 2 --nocapture
       - name: Docker and kernel failure evidence
         if: failure()
         run: |

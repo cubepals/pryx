@@ -103,19 +103,21 @@ impl EngineCase {
         std::fs::write(output, serde_json::to_vec_pretty(&report).unwrap()).unwrap();
     }
 
+    /// The workload's page, once its server listens: until then the engine's port proxy takes the
+    /// connection and resets it, which a slower kernel (gVisor's) shows for longer after start.
     async fn page(&self, name: &str) -> String {
         let port = self.manager.view(&id(name)).unwrap().ports[0].host_port;
         let client = reqwest::Client::builder().no_proxy().timeout(Duration::from_secs(5)).build().unwrap();
-        client
-            .get(format!("http://127.0.0.1:{port}/"))
-            .send()
-            .await
-            .unwrap()
-            .error_for_status()
-            .unwrap()
-            .text()
-            .await
-            .unwrap()
+        let deadline = Instant::now() + Duration::from_secs(20);
+        loop {
+            match client.get(format!("http://127.0.0.1:{port}/")).send().await {
+                Ok(response) => return response.error_for_status().unwrap().text().await.unwrap(),
+                Err(error) if error.is_connect() || error.is_request() && Instant::now() < deadline => {
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                }
+                Err(error) => panic!("{name}'s page: {error}"),
+            }
+        }
     }
 }
 
