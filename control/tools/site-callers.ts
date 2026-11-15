@@ -15,11 +15,84 @@ import {
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { Pryx } from '@cubepals/pryx'
+import { z } from 'zod'
 import { MINUTE_MS } from '../src/durations.ts'
 import { PRYX_VERSION } from '../src/generated/release.ts'
 import { WELCOME_IMAGE } from '../src/welcome-examples.ts'
 
 type Block = { file: string; id: string; codes: Array<{ language: string; code: string }> }
+const mcpEnvironmentNames = ['PRYX_API_URL', 'PRYX_API_KEY'] as const
+const mcpProgram = { command: z.literal('pryx'), args: z.tuple([z.literal('mcp')]) }
+
+export function siteMcpConfiguration(
+  id: string,
+  language: string,
+  code: string,
+  environment: NodeJS.ProcessEnv,
+) {
+  if (
+    ![
+      'connect/mcp',
+      'connect/mcp/claude',
+      'connect/mcp/cursor',
+      'connect/mcp/codex',
+      'connect/mcp/copilot',
+    ].includes(id)
+  )
+    throw new Error('Unsupported MCP client configuration')
+  const codex = id === 'connect/mcp/codex'
+  if (language !== (codex ? 'toml' : 'json')) throw new Error('MCP configuration language drift')
+  if (codex) {
+    z.strictObject({
+      mcp_servers: z.strictObject({
+        pryx: z.strictObject({
+          ...mcpProgram,
+          env_vars: z
+            .array(z.enum(mcpEnvironmentNames))
+            .length(mcpEnvironmentNames.length)
+            .refine((names) => new Set(names).size === mcpEnvironmentNames.length),
+        }),
+      }),
+    }).parse(Bun.TOML.parse(code))
+  } else {
+    const reference = (name: string) =>
+      id === 'connect/mcp/cursor' ? '${env:' + name + '}' : '${' + name + '}'
+    const program = {
+      ...mcpProgram,
+      type: z.literal('stdio'),
+      env: z.strictObject({
+        PRYX_API_URL: z.literal(reference('PRYX_API_URL')),
+        PRYX_API_KEY: z.literal(reference('PRYX_API_KEY')),
+      }),
+    }
+    const server =
+      id === 'connect/mcp/copilot'
+        ? z.strictObject({ ...program, tools: z.tuple([z.literal('*')]) })
+        : z.strictObject(program)
+    z.strictObject({ mcpServers: z.strictObject({ pryx: server }) }).parse(JSON.parse(code))
+  }
+  const env = Object.fromEntries(
+    mcpEnvironmentNames.map((name) => [name, z.string().min(1).parse(environment[name])]),
+  )
+  return { command: 'pryx', args: ['mcp'], env }
+}
+
+export function siteActionStep(code: string) {
+  return z
+    .tuple([
+      z.strictObject({
+        uses: z.literal(`cubepals/pryx/action@v${PRYX_VERSION}`),
+        with: z.strictObject({
+          url: z.literal('$' + '{{ vars.PRYX_API_URL }}'),
+          key: z.literal('$' + '{{ secrets.PRYX_API_KEY }}'),
+          image: z.literal('$' + '{{ vars.PRYX_IMAGE }}'),
+          run: z.string().min(1),
+        }),
+      }),
+    ])
+    .parse(Bun.YAML.parse(code))[0]
+}
+
 export async function runSiteCallers(options: {
   env: NodeJS.ProcessEnv
   cli: string
@@ -133,14 +206,7 @@ try {
         if (guide.id === 'connect/http' && !JSON.parse(output).defaults)
           throw new Error('HTTP block did not read the project')
       } else if (guide.id === 'connect/action' && block.language === 'yaml') {
-        const step = (Bun.YAML.parse(block.code) as Array<{ uses: string; with: Record<string, string> }>)[0]
-        if (
-          step?.uses !== `cubepals/pryx/action@v${PRYX_VERSION}` ||
-          step.with.url !== '$' + '{{ vars.PRYX_API_URL }}' ||
-          step.with.key !== '$' + '{{ secrets.PRYX_API_KEY }}' ||
-          step.with.image !== '$' + '{{ vars.PRYX_IMAGE }}'
-        )
-          throw new Error('Action block drift')
+        const step = siteActionStep(block.code)
         const action = Bun.YAML.parse(readFileSync('action/action.yml', 'utf8')) as {
           runs: { steps: Array<{ run: string }> }
         }
@@ -166,27 +232,11 @@ try {
           true,
         )
       } else if (guide.id === 'connect/mcp' || guide.id.startsWith('connect/mcp/')) {
-        const config =
-          block.language === 'toml'
-            ? (Bun.TOML.parse(block.code) as { mcp_servers: { pryx: Record<string, unknown> } }).mcp_servers
-                .pryx
-            : block.language === 'json'
-              ? (JSON.parse(block.code).mcpServers.pryx as Record<string, unknown>)
-              : undefined
-        if (!config || config.command !== 'pryx' || JSON.stringify(config.args) !== '["mcp"]')
-          throw new Error('MCP program drift')
-        if (config.env_vars && JSON.stringify(config.env_vars) !== '["PRYX_API_URL","PRYX_API_KEY"]')
-          throw new Error('Codex environment drift')
-        const env = Object.fromEntries(
-          Object.entries((config.env ?? {}) as Record<string, string>).map(([name, value]) => {
-            const reference = /^\$\{(?:env:)?(PRYX_API_URL|PRYX_API_KEY)\}$/.exec(value)?.[1]
-            if (!reference) throw new Error('MCP config contains an unexpected literal or variable')
-            return [name, environment[reference as 'PRYX_API_URL' | 'PRYX_API_KEY']]
-          }),
-        )
+        const config = siteMcpConfiguration(guide.id, block.language, block.code, environment)
         output = await run(
           [process.execPath, 'cli/src/hosting-mcp-check.ts'],
-          JSON.stringify({ mcpServers: { pryx: { ...config, env } } }),
+          JSON.stringify({ mcpServers: { pryx: config } }),
+          { ...environment, PRYX_API_URL: undefined, PRYX_API_KEY: undefined },
         )
       } else throw new Error(`No live executor for ${guide.file}: ${block.language}`)
       if (
