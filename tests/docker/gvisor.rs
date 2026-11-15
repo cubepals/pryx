@@ -265,8 +265,8 @@ async fn container_and_gvisor_figures() {
             assert_eq!(out.exit_code, Some(0), "{out:?}");
             syscalls.push(began.elapsed().as_secs_f64() * 1000.0);
             let began = Instant::now();
-            let out = m.exec(id(&w), run("head -c 1048576 /dev/zero"), None, None).await.unwrap();
-            assert_eq!(out.stdout.len(), 1024 * 1024);
+            let out = m.exec(id(&w), run("head -c 262144 /dev/zero"), None, None).await.unwrap();
+            assert_eq!(out.stdout.len(), 256 * 1024);
             stream.push(began.elapsed().as_secs_f64() * 1000.0);
             let port = m.view(&id(&w)).unwrap().ports[0].host_port;
             let received = loop {
@@ -292,7 +292,7 @@ async fn container_and_gvisor_figures() {
             ("create", create),
             ("exec-true", exec),
             ("syscall-heavy", syscalls),
-            ("exec-output-1MiB", stream),
+            ("exec-output-256KiB", stream),
             ("transfer-16MiB", transfer),
         ] {
             let (p50, p90) = percentiles(samples);

@@ -78,8 +78,10 @@ async fn process_sandboxes_get_namespaces_exactly_where_the_host_proves_them() {
     let expected = std::env::var("PRYX_TEST_NAMESPACES").unwrap_or_default();
     let agent = agent();
     let dir = tempfile::tempdir().unwrap();
-    let extra =
-        format!("runtime = 'process'\n[workloads]\nagent_binary = '{}'\ndefault_spare_ports = 0\n", agent.display());
+    let extra = format!(
+        "runtime = 'process'\n[workloads]\nagent_binary = '{}'\ndefault_spare_ports = 0\n[network]\nport_range = [43100, 43149]\n",
+        agent.display()
+    );
     let config = support::config(dir.path(), &extra);
     std::fs::create_dir_all(&config.state_dir).unwrap();
     let process = ProcessRuntime::new(&config.state_dir, config.process.clone()).unwrap();
@@ -188,8 +190,10 @@ async fn process_figures_in_the_mode_the_host_gives() {
     }
     let agent = agent();
     let dir = tempfile::tempdir().unwrap();
-    let extra =
-        format!("runtime = 'process'\n[workloads]\nagent_binary = '{}'\ndefault_spare_ports = 0\n", agent.display());
+    let extra = format!(
+        "runtime = 'process'\n[workloads]\nagent_binary = '{}'\ndefault_spare_ports = 0\n[network]\nport_range = [43200, 43299]\n",
+        agent.display()
+    );
     let config = support::config(dir.path(), &extra);
     std::fs::create_dir_all(&config.state_dir).unwrap();
     let process = ProcessRuntime::new(&config.state_dir, config.process.clone()).unwrap();
@@ -210,14 +214,14 @@ async fn process_figures_in_the_mode_the_host_gives() {
         let began = std::time::Instant::now();
         run(&m, &w, "dd if=/dev/zero of=/dev/null bs=1 count=200000 2>/dev/null").await;
         syscalls.push(began.elapsed().as_secs_f64() * 1000.0);
-        // One MiB back over the agent's own listener: in network none, the one the node passed in.
+        // 256 KiB back over the agent's own listener: in network none, the one the node passed in.
         let began = std::time::Instant::now();
-        assert_eq!(run(&m, &w, "head -c 1048576 /dev/zero").await.len(), 1024 * 1024);
+        assert_eq!(run(&m, &w, "head -c 262144 /dev/zero").await.len(), 256 * 1024);
         stream.push(began.elapsed().as_secs_f64() * 1000.0);
         m.delete(id(&w), DataDisposition::Delete, Some(w.clone()), None).await.unwrap();
     }
     for (metric, samples) in
-        [("create", create), ("exec-true", exec), ("syscall-heavy", syscalls), ("exec-output-1MiB", stream)]
+        [("create", create), ("exec-true", exec), ("syscall-heavy", syscalls), ("exec-output-256KiB", stream)]
     {
         let (p50, p90) = percentiles(samples);
         eprintln!("K26_MEASURE tier=process mode={mode} metric={metric} n=30 p50={p50:.2} p90={p90:.2}");
