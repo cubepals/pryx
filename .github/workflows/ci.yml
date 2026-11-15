@@ -172,6 +172,17 @@ jobs:
       # Cargo itself, and so target/, stays the runner's.
       - name: Docker integration tests
         run: CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER=sudo cargo test --locked --test docker -- --ignored --test-threads 2
+      # K26: the same suite on the gvisor tier, with gVisor's runsc at deploy/gvisor.json's pin
+      # registered with the runner's Docker. Last, since registering it restarts Docker.
+      - name: Register gVisor's runsc with Docker
+        run: sudo deploy/gvisor.sh
+      - name: Docker integration tests on the gvisor tier
+        timeout-minutes: 40
+        env:
+          PRYX_TEST_GVISOR: '1'
+        run: >-
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER='sudo --preserve-env=PRYX_TEST_GVISOR'
+          cargo test --locked --test docker -- --ignored --test-threads 2
       - name: Docker and kernel failure evidence
         if: failure()
         run: |
