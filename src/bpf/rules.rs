@@ -102,8 +102,8 @@ pub(crate) fn compile(inputs: &Inputs<'_>) -> Result<BTreeMap<Ipv6Net, Rule>, St
     layers.extend(translated);
     let mut rules = BTreeMap::new();
     for prefix in layers.iter().map(|layer| layer.prefix) {
-        if !rules.contains_key(&prefix) {
-            rules.insert(prefix, fold(&layers, prefix)?);
+        if let std::collections::btree_map::Entry::Vacant(slot) = rules.entry(prefix) {
+            slot.insert(fold(&layers, prefix)?);
         }
     }
     Ok(rules)
