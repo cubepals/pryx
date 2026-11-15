@@ -4925,3 +4925,9 @@ job when publication is authorized. That job has not run in this task.
   cite dated sources. The guarantees are now a list with the same facts, and the vm line says
   root is served through its worker. The comparison check’s row rules pass locally; its one
   failing link here is a GitHub job page this machine cannot fetch, which CI fetched.
+
+- VM run 43726910678 (69c61c2): boots, root lifecycle with both policies on both images,
+  bundle, node API, OCI and agent acceptance pass under the confined filesystem programs. The
+  ordinary runtime test failed in its guest-firewall check, which ran the host nft under the
+  filesystem-tool role; nft opens netlink even for --version. The test runs it directly again,
+  as before; the role’s confinement is unchanged.
