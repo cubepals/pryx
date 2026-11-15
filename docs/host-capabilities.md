@@ -35,12 +35,12 @@ The view reads the latest node announcement. A resting sandbox with no node repo
 | `separate-users` | A process uid pool, with an actual credential-drop probe; shared-uid process nodes report false |
 | `memory-limit` | Container engine info reports kernel memory limits and a cgroup driver |
 | `cpu-limit` | Engine info reports CPU quota and weights and a cgroup driver |
-| `private-network` | The container backend's separate network namespace |
+| `private-network` | The container backend's separate network namespace, gvisor's included; a namespaced process sandbox started with network none (reported per sandbox, never announced for the process tier) |
 | `host-firewall` | Rootful engine with a readable installed nftables table; refreshed before heartbeats |
 | `own-kernel` | False until the virtual-machine tier exists |
 | `memory-sleep` | Process suspension or a rootful container engine with cgroup enforcement; false on Wasm and rootless engines |
 | `browser-sandbox` | Observed browser launch policy plus usable namespaces and the approved container or verified native process policy |
-| `private-pids` | The container backend's private PID namespace |
+| `private-pids` | The container backend's private PID namespace, gvisor's included; the process tier where the `process-namespaces` probe started the installation's helper, as each sandbox reports it started |
 
 Containers do not claim a unique numeric host uid: several containers can use the same
 configured uid. Their namespace boundaries remain the container tier's boundary. Use a
