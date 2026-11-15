@@ -298,8 +298,9 @@ export class PublicModel {
     }
     if (body.user && spec.isolation !== 'container')
       throw new SandboxError('unsupported', `user selection is unavailable on the ${spec.isolation} tier`)
-    // Only these tiers enforce a hostname policy on the host; a node still announces it per tier.
-    if (body.egress && spec.isolation !== 'container' && spec.isolation !== 'vm')
+    // Wasm never enforces a hostname policy; a process node does only where it announces
+    // tier-process:egress-hostnames (kernel network policy), which placement checks.
+    if (body.egress && spec.isolation === 'wasm')
       throw new SandboxError(
         'unsupported',
         `egress hostname policy is unavailable on the ${spec.isolation} tier`,
