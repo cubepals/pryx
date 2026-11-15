@@ -18,7 +18,11 @@ impl ProcessRuntime {
     #[doc(hidden)]
     pub async fn with_network_programs(mut self, served: Served, programs: &[u8]) -> Self {
         let found = crate::bpf::probe_object(programs);
-        self.network_capability = Some(crate::bpf::capability(&found));
+        let capability = crate::bpf::capability(&found);
+        // What an operator, and the installed acceptance, read of this start's proof.
+        let on = capability.state == crate::capability::State::On;
+        tracing::info!(on, evidence = %capability.evidence, "kernel network policy");
+        self.network_capability = Some(capability);
         let Ok(host) = found else { return self };
         let network = Arc::new(Network::new(host, served, &self.state.root));
         for name in self.names() {

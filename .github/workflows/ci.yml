@@ -936,13 +936,10 @@ jobs:
           .venv-python/bin/python sdk/python/e2e/handles.py
           bun control/tools/readme-example.ts sdk/typescript/README.md ts bun -
           bun control/tools/readme-example.ts sdk/python/README.md python .venv-python/bin/python -
-      # K31: the server preset's own unit gives a process sandbox its kernel network policy, as
+      # K31: the installed unit's pryxd proved kernel network policy for process sandboxes, as
       # the root installed acceptance on any-host checks too.
-      - name: A process sandbox's network policy through the installed server
-        env:
-          PRYX_API_URL: http://127.0.0.1:8082
-          PRYX_API_KEY: ${{ steps.up.outputs.key }}
-        run: .venv-python/bin/python deploy/server-process-network.py
+      - name: Kernel network policy in the installed server's pryxd
+        run: sh deploy/server-network-policy.sh
 
       - name: Install and repeat the release image on the host
         if: ${{ !cancelled() && steps.up.outcome == 'success' }}
