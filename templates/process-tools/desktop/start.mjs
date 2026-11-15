@@ -2,7 +2,7 @@
 /** Fixed desktop supervision and private HTTP forwarding. Maintained programs implement
  * X11, Chromium, RFB, noVNC and WebSocket; guest commands never enter this worker. */
 import { spawn, execFile } from 'node:child_process'
-import { randomBytes, timingSafeEqual } from 'node:crypto'
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import http from 'node:http'
 import { constants } from 'node:http2'
@@ -47,11 +47,26 @@ function equal(left, right) {
   const a = Buffer.from(left), b = Buffer.from(right)
   return a.length === b.length && timingSafeEqual(a, b)
 }
-function access(request) {
+// Every request but the private command presents the current, unexpired access token. A page
+// request may instead carry the cookie a token request set, so noVNC's relative files load; the
+// cookie is keyed to this worker and the token, so it never resolves in websockify's token file.
+const pageCookie = 'pryx-desktop', pageKey = randomBytes(32)
+function pageValue(token) { return createHmac('sha256', pageKey).update(token).digest('base64url') }
+function pageCookies(request) {
+  return (request.headers.cookie ?? '').split(';').map(part => part.trim())
+    .filter(part => part.startsWith(`${pageCookie}=`)).map(part => part.slice(pageCookie.length + 1))
+}
+function access(request, page = false) {
   try {
     const policy = JSON.parse(readFileSync(join(config.scratch, 'desktop-access.json'), 'utf8'))
-    return policy.expiresAt * 1000 > Date.now() && equal(new URL(request.url, 'http://localhost').searchParams.get('token'), policy.token) ? policy : undefined
+    if (!(policy.expiresAt * 1000 > Date.now())) return undefined
+    if (equal(new URL(request.url, 'http://localhost').searchParams.get('token'), policy.token)) return { ...policy, presented: true }
+    return page && pageCookies(request).some(value => equal(value, pageValue(policy.token))) ? policy : undefined
   } catch { return undefined }
+}
+function remember(response, policy) {
+  const seconds = Math.max(0, Math.floor(policy.expiresAt - Date.now() / 1000))
+  response.setHeader('set-cookie', `${pageCookie}=${pageValue(policy.token)}; Max-Age=${seconds}; HttpOnly; SameSite=Strict`)
 }
 let stopping = false, browser
 async function stop(code = 0) {
@@ -120,7 +135,12 @@ const server = http.createServer(async (request, response) => {
     } catch { response.writeHead(constants.HTTP_STATUS_BAD_GATEWAY).end() }
     return
   }
-  const upstream = http.request({ socketPath: web, path: request.url, method: request.method, headers: request.headers }, result => {
+  const policy = access(request, true)
+  if (!policy) { response.writeHead(constants.HTTP_STATUS_FORBIDDEN).end(); return }
+  if (policy.presented) remember(response, policy)
+  // A forwarded request stays plain: only the upgrade handler below opens a WebSocket.
+  const { upgrade: _plain, ...headers } = request.headers
+  const upstream = http.request({ socketPath: web, path: request.url, method: request.method, headers }, result => {
     response.writeHead(result.statusCode, result.headers)
     result.pipe(response)
   })
