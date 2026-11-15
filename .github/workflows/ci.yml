@@ -90,7 +90,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             clang-18=1:18.1.3-1ubuntu1 llvm-18=1:18.1.3-1ubuntu1 libbpf-dev=1:1.3.0-2build2
           sh bpf/build.sh
-          git diff --exit-code -- bpf/network.bpf.o
+          git diff --exit-code -- bpf/network.bpf.o bpf/rejected.bpf.o
       - run: cargo clippy --locked --all-targets -- -D warnings
       # Again as the release builds it, without the fake runtime. The tests turn it on for every
       # target above, so something only the fake runtime uses is caught only here.
@@ -180,15 +180,46 @@ jobs:
               --directory "$RUNNER_TEMP" > /dev/null 2>&1 &
             curl --retry 10 --retry-connrefused --retry-delay 1 -fsS -o /dev/null "http://10.213.0.2:$port/"
           done
+          # The same namespace stands in for another machine: asked on 8002, it dials this host at
+          # 10.213.0.1 as the edge would and says what it got.
+          cat > "$RUNNER_TEMP/dial.py" <<'PY'
+          import http.server, socket, urllib.parse
+          class Dial(http.server.BaseHTTPRequestHandler):
+              def do_GET(self):
+                  port = int(urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)['port'][0])
+                  try:
+                      dialled = socket.create_connection(('10.213.0.1', port), timeout=3)
+                  except OSError as error:
+                      answer = f'unreached {error}'
+                  else:
+                      with dialled:
+                          answer = 'reached'
+                          try:
+                              dialled.settimeout(3)
+                              dialled.sendall(b'GET /_pryx/health HTTP/1.0\r\nHost: edge\r\n\r\n')
+                              answer += ' ' + dialled.recv(64).decode(errors='replace').split('\r\n')[0]
+                          except OSError:
+                              pass
+                  body = answer.encode()
+                  self.send_response(200)
+                  self.send_header('content-length', str(len(body)))
+                  self.end_headers()
+                  self.wfile.write(body)
+          http.server.ThreadingHTTPServer(('10.213.0.2', 8002), Dial).serve_forever()
+          PY
+          sudo ip netns exec pryx-private python3 "$RUNNER_TEMP/dial.py" > /dev/null 2>&1 &
+          curl --retry 10 --retry-connrefused --retry-delay 1 -fsS -o /dev/null "http://10.213.0.2:8002/dial?port=9"
           sudo install -D -m 0755 target/debug/pryx-agent /usr/local/lib/pryx-k31/pryx-agent
           {
             echo 'PRYX_TEST_PRIVATE=10.213.0.2:8000:8001'
+            echo 'PRYX_TEST_REMOTE=10.213.0.2:8002'
+            echo 'PRYX_TEST_EDGE=10.213.0.1'
             echo "PRYX_TEST_HOST_ADDRESS=$(ip -4 route get 1.1.1.1 | sed -n 's/.* src \([0-9.]*\).*/\1/p')"
           } >> "$GITHUB_ENV"
       - name: Kernel network policy as root
         env:
           PRYX_TEST_AGENT: /usr/local/lib/pryx-k31/pryx-agent
-          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: sudo --preserve-env=PRYX_TEST_AGENT,PRYX_TEST_PRIVATE,PRYX_TEST_HOST_ADDRESS
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: sudo --preserve-env=PRYX_TEST_AGENT,PRYX_TEST_PRIVATE,PRYX_TEST_HOST_ADDRESS,PRYX_TEST_REMOTE,PRYX_TEST_EDGE
         run: |
           cargo test --locked --lib bpf:: -- --ignored
           cargo test --locked --test process_network -- --ignored --test-threads 1
@@ -216,6 +247,7 @@ jobs:
               --setenv=PRYX_TEST_AGENT="$PWD/target/debug/pryx-agent" \
               --setenv=PRYX_TEST_PRIVATE="$PRYX_TEST_PRIVATE" \
               --setenv=PRYX_TEST_HOST_ADDRESS="$PRYX_TEST_HOST_ADDRESS" \
+              --setenv=PRYX_TEST_REMOTE="$PRYX_TEST_REMOTE" --setenv=PRYX_TEST_EDGE="$PRYX_TEST_EDGE" \
               $run
           done
       - name: Save process IPC design evidence

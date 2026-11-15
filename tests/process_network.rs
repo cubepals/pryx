@@ -4,13 +4,15 @@
 
 //! The process tier's kernel network policy with real supervisors, programs and destinations.
 //! The ignored cases need a host that grants it: CI runs them as root and as an ordinary user
-//! with a delegated cgroup, one at a time, with `PRYX_TEST_AGENT` naming a trusted agent and
-//! `PRYX_TEST_PRIVATE` a private address with two listening ports. The case that runs everywhere
-//! holds a host without the capability to its refusal.
+//! with a delegated cgroup, one at a time, with `PRYX_TEST_AGENT` naming a trusted agent,
+//! `PRYX_TEST_PRIVATE` a private address with two listening ports, and `PRYX_TEST_REMOTE` a
+//! machine elsewhere (another network namespace) that dials this host at `PRYX_TEST_EDGE` when
+//! asked. The case that runs everywhere holds a host without the capability to its refusal.
 mod support;
 
 use pryxd::manager::{Manager, Precondition, Records};
 use pryxd::protocol::{DataDisposition, ExecRequest, Guarantee, WorkloadState};
+use pryxd::runtime::ContainerRuntime;
 use std::net::{Ipv4Addr, SocketAddr, TcpListener};
 use std::sync::Arc;
 use support::{config, id, manager_on, until};
@@ -42,6 +44,20 @@ data, source = s.recvfrom(4096)
 print('answered', source[0], source[1], data[3] & 15)
 ";
 
+/// A listener of the sandbox's own on every address, reached from this host at the edge's
+/// address, then dialled by the machine elsewhere; prints what that machine got.
+const WIDE_LISTENER: &str = "import socket,sys,urllib.request
+l = socket.socket()
+l.bind(('0.0.0.0', 0))
+l.listen()
+port = l.getsockname()[1]
+socket.create_connection((sys.argv[2], port), timeout=5).close()
+print(urllib.request.urlopen(f'http://{sys.argv[1]}/dial?port={port}', timeout=20).read().decode())
+";
+
+/// The embedded object with its last program one the verifier refuses (`bpf/build.sh`).
+static REJECTED: &[u8] = aya::include_bytes_aligned!("../bpf/rejected.bpf.o");
+
 fn agent() -> String {
     std::env::var("PRYX_TEST_AGENT").expect("PRYX_TEST_AGENT names a trusted pryx-agent")
 }
@@ -55,27 +71,49 @@ fn private() -> (String, u16, u16) {
     (address, port(), port())
 }
 
+/// The machine elsewhere that dials on request, and this host's address it dials, as the edge does.
+fn remote() -> (String, String) {
+    let remote = std::env::var("PRYX_TEST_REMOTE").expect("PRYX_TEST_REMOTE is address:port");
+    (remote, std::env::var("PRYX_TEST_EDGE").expect("PRYX_TEST_EDGE is this host's address there"))
+}
+
+/// What the machine elsewhere got dialling `port` at the edge's address.
+fn dial(remote: &str, port: u16) -> String {
+    use std::io::{Read, Write};
+    let mut stream = std::net::TcpStream::connect(remote).unwrap();
+    write!(stream, "GET /dial?port={port} HTTP/1.0\r\n\r\n").unwrap();
+    let mut answer = String::new();
+    stream.read_to_string(&mut answer).unwrap();
+    answer.split_once("\r\n\r\n").map(|(_, body)| body.to_owned()).unwrap_or(answer)
+}
+
 /// Ports below Linux's ephemeral range (32768 and up), so no outgoing connection holds one.
-fn extra(ports: u16) -> String {
+/// Agents listen at `edge` as well as loopback when it is given.
+fn extra(ports: u16, edge: Option<&str>) -> String {
+    let edge = edge.map(|address| format!("edge_ips = [\"127.0.0.1\", \"{address}\"]\n")).unwrap_or_default();
     format!(
-        "runtime = \"process\"\n[workloads]\nagent_binary = \"{}\"\n[network]\nport_range = [{ports}, {}]\nport_quarantine_seconds = 0\n",
+        "runtime = \"process\"\n[workloads]\nagent_binary = \"{}\"\n[network]\nport_range = [{ports}, {}]\nport_quarantine_seconds = 0\n{edge}",
         agent(),
         ports + 99
     )
 }
 
 async fn node(dir: &std::path::Path, ports: u16) -> Arc<Manager> {
+    node_at(dir, ports, None).await
+}
+
+async fn node_at(dir: &std::path::Path, ports: u16, edge: Option<&str>) -> Arc<Manager> {
     // As root each sandbox has a user of its own, which must pass through to its data.
     use std::os::unix::fs::PermissionsExt;
     std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o711)).unwrap();
-    let config = Arc::new(config(dir, &extra(ports)));
+    let config = Arc::new(config(dir, &extra(ports, edge)));
     // In the order `pryxd serve` takes them: the store, then the runtime over it.
     let store = pryxd::store::Store::open(&config.state_dir).unwrap();
     let runtime = pryxd::runtime::configured::create(&config).await.expect("the process tier starts");
     let capability = runtime.kernel_network_policy().expect("the process tier reports kernel network policy");
     assert_eq!(capability.state, pryxd::probe::State::On, "{capability:?}");
     // A port another program holds is skipped, as serve skips it.
-    let probe = pryxd::ports::bind_probe(vec![Ipv4Addr::LOCALHOST.into()]);
+    let probe = pryxd::ports::bind_probe(config.network.edge_ips.clone());
     let manager = Manager::new(config, runtime, store, Arc::new(pryxd::metrics::Metrics::new()), probe);
     manager.refresh_host_probe().await;
     let report = manager.reconcile(Records::FromDisk).await;
@@ -369,4 +407,51 @@ async fn the_policy_outlives_a_daemon_restart_and_nothing_outlives_the_sandbox()
     }
     remove(&manager, &["kept"]).await;
     nothing_left(&before);
+}
+
+#[tokio::test]
+#[ignore = "needs a host that grants kernel network policy"]
+async fn from_off_the_host_only_the_published_ports_are_reached() {
+    let dir = tempfile::tempdir().unwrap();
+    let before = kernel_state();
+    let (remote, edge) = remote();
+    let manager = node_at(dir.path(), 21500, Some(&edge)).await;
+    start(&manager, "listening", serde_json::json!({})).await;
+    let elsewhere = run(&manager, "listening", &["python3", "-c", WIDE_LISTENER, &remote, &edge]).await;
+    assert!(elsewhere.starts_with("unreached "), "a port nothing published, from off the host: {elsewhere}");
+    // The agent's port is published: the edge dials it there and its agent answers.
+    let published = dial(&remote, agent_port(&manager, "listening"));
+    assert!(published.starts_with("reached HTTP/1."), "the agent's port from off the host: {published}");
+    let stats = serde_json::to_value(manager.stats(&id("listening")).await.unwrap()).unwrap();
+    assert!(stats["networkRxBytes"].as_u64().is_some_and(|bytes| bytes > 0), "{stats}");
+    remove(&manager, &["listening"]).await;
+    nothing_left(&before);
+}
+
+#[tokio::test]
+#[ignore = "loads programs into the kernel"]
+async fn a_program_the_verifier_rejects_turns_the_guarantee_off_and_policy_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let extra = extra(21600, None);
+    let config = config(dir.path(), &extra);
+    let served = pryxd::runtime::process::Served { ports: 21600..=21699, api_port: config.api.listen.port() };
+    let runtime = pryxd::runtime::process::ProcessRuntime::new(&config.state_dir, config.process.clone())
+        .unwrap()
+        .with_network_programs(served, REJECTED)
+        .await;
+    let capability = runtime.kernel_network_policy().expect("the process tier reports kernel network policy");
+    assert_eq!(capability.state, pryxd::probe::State::Off, "{capability:?}");
+    // The verifier's own words, about the set's last program.
+    assert!(capability.evidence.contains("the verifier rejected egress"), "{capability:?}");
+    assert!(capability.evidence.contains("R0"), "{capability:?}");
+    assert!(capability.action.contains("verifier"), "{capability:?}");
+    // The probe left no program of the set attached: its pins and cgroup are gone.
+    let pins = std::path::Path::new("/sys/fs/bpf/pryx").join(format!("probe-{}", std::process::id()));
+    assert!(!pins.exists(), "{} was left behind", pins.display());
+    let manager = manager_on(dir.path(), Arc::new(runtime), &extra);
+    manager.refresh_host_probe().await;
+    assert!(!manager.features().iter().any(|feature| feature == "egress-addresses"));
+    let policy = serde_json::json!({ "egressAddresses": { "allow": [{ "prefix": "192.0.2.1/32" }] } });
+    let refused = manager.ensure(id("refused"), sandbox(policy), Precondition::None, None).await.unwrap_err();
+    assert!(format!("{refused:?}").contains("kernel-network-policy"), "{refused:?}");
 }

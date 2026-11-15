@@ -28,7 +28,8 @@ const MAX_ENV_VALUE: usize = 64 * 1024;
 const MAX_ENV_TOTAL: usize = 512 * 1024;
 const MAX_ENTRYPOINT_ARGS: usize = 64;
 const MAX_ARG: usize = 64 * 1024;
-const MAX_PORTS: usize = 8;
+/// A request's own ports; a sandbox with an agent also has the agent's and its spares.
+pub(crate) const MAX_PORTS: usize = 8;
 const MAX_LABELS: usize = 32;
 const MAX_RESUMES_ON: usize = 128;
 const MAX_ADDRESS_RULES: usize = 64;

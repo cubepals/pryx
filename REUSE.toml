@@ -9,9 +9,9 @@ precedence = "closest"
 SPDX-FileCopyrightText = "2026 The Cubepals Authors"
 SPDX-License-Identifier = "FSL-1.1-ALv2"
 
-# Compiled from bpf/network.bpf.c by bpf/build.sh; it carries that source's licence.
+# Compiled from bpf/network.bpf.c by bpf/build.sh; they carry that source's licence.
 [[annotations]]
-path = "bpf/network.bpf.o"
+path = ["bpf/network.bpf.o", "bpf/rejected.bpf.o"]
 precedence = "override"
 SPDX-FileCopyrightText = "2026 The Cubepals Authors"
 SPDX-License-Identifier = "GPL-2.0-only OR BSD-2-Clause"

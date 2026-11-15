@@ -27,6 +27,9 @@ enum pryx_verdict {
 #define PRYX_TCP 1
 #define PRYX_UDP 2
 
+/* The loopback device's index in every network namespace: LOOPBACK_IFINDEX, include/net/flow.h. */
+#define PRYX_LOOPBACK 1
+
 struct pryx_ports {
 	__u16 low;
 	__u16 high;
@@ -48,12 +51,24 @@ struct pryx_key {
 	__u8 address[16];
 };
 
-/* The gateway's IPv4 address and ports, in network order. */
+/*
+ * The ports pryxd published for a sandbox, the only ones reached from off this host: a request's
+ * own (MAX_PORTS, 8), its agent's and its spares (pryx_agent's MAX_SPARE_PORTS, 32);
+ * src/bpf/object.rs holds this to both.
+ */
+#define PRYX_PUBLISHED_PORTS 41
+
+/*
+ * The gateway's IPv4 address and ports, in network order, and the published ports, in host
+ * order.
+ */
 struct pryx_config {
 	__u32 gateway;
 	__u16 http;
 	__u16 tls;
 	__u16 dns;
+	__u16 published_count;
+	__u16 published[PRYX_PUBLISHED_PORTS];
 	__u16 reserved;
 };
 
@@ -71,6 +86,9 @@ struct pryx_socket {
 	/* The destination a DNS datagram was redirected from, in network order. */
 	__u16 port;
 	__u32 address[4];
+	/* It dialled a destination off this host, so what arrives from there is its answer. */
+	__u8 dialled;
+	__u8 reserved[3];
 };
 
 enum pryx_counter_index {
@@ -78,7 +96,8 @@ enum pryx_counter_index {
 	PRYX_EGRESS = 1,
 	PRYX_REFUSED_ADDRESSES = 2,
 	PRYX_REFUSED_SOCKETS = 3,
-	PRYX_COUNTERS = 4,
+	PRYX_REFUSED_INGRESS = 4,
+	PRYX_COUNTERS = 5,
 };
 
 struct pryx_counter {

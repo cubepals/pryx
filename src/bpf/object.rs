@@ -19,11 +19,14 @@ pub(crate) const COUNTERS: &str = "counters";
 /// `PRYX_PORT_ENTRIES` and `PRYX_RULES`.
 pub(crate) const PORT_ENTRIES: usize = 24;
 pub(crate) const MAX_RULES: usize = 1024;
+/// `PRYX_PUBLISHED_PORTS`: a request's own ports, its agent's and every spare it may hold.
+pub(crate) const PUBLISHED_PORTS: usize =
+    crate::protocol::MAX_PORTS + pryx_agent::contract::MAX_SPARE_PORTS as usize + 1;
 /// `sizeof(struct pryx_ports)`, `struct pryx_rule`, `struct pryx_config`, `struct pryx_socket`.
 const PORTS_BYTES: usize = 8;
 pub(crate) const RULE_BYTES: usize = 8 + PORT_ENTRIES * PORTS_BYTES;
-pub(crate) const CONFIG_BYTES: usize = 12;
-pub(crate) const SOCKET_BYTES: usize = 20;
+pub(crate) const CONFIG_BYTES: usize = 12 + PUBLISHED_PORTS * 2 + 2;
+pub(crate) const SOCKET_BYTES: usize = 24;
 /// `struct pryx_counter`: packets, then bytes.
 pub(crate) type Counter = [u64; 2];
 
@@ -52,7 +55,11 @@ pub(crate) enum CounterIndex {
     Egress = 1,
     RefusedAddresses = 2,
     RefusedSockets = 3,
+    RefusedIngress = 4,
 }
+
+/// `PRYX_COUNTERS`.
+pub(crate) const COUNTER_SLOTS: u32 = 5;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Ports {
@@ -88,14 +95,28 @@ impl Rule {
     }
 }
 
-/// `struct pryx_config`: the gateway's IPv4 address and its HTTP, TLS and DNS ports.
-pub(crate) fn config_bytes(gateway: std::net::Ipv4Addr, http: u16, tls: u16, dns: u16) -> [u8; CONFIG_BYTES] {
+/// `struct pryx_config`: the gateway's IPv4 address and its HTTP, TLS and DNS ports, and the
+/// ports published for the sandbox; None past `PUBLISHED_PORTS`.
+pub(crate) fn config_bytes(
+    gateway: std::net::Ipv4Addr,
+    http: u16,
+    tls: u16,
+    dns: u16,
+    published: &[u16],
+) -> Option<[u8; CONFIG_BYTES]> {
+    if published.len() > PUBLISHED_PORTS {
+        return None;
+    }
     let mut bytes = [0; CONFIG_BYTES];
     bytes[0..4].copy_from_slice(&gateway.octets());
     bytes[4..6].copy_from_slice(&http.to_be_bytes());
     bytes[6..8].copy_from_slice(&tls.to_be_bytes());
     bytes[8..10].copy_from_slice(&dns.to_be_bytes());
-    bytes
+    bytes[10..12].copy_from_slice(&(published.len() as u16).to_ne_bytes());
+    for (index, port) in published.iter().enumerate() {
+        bytes[12 + 2 * index..][..2].copy_from_slice(&port.to_ne_bytes());
+    }
+    Some(bytes)
 }
 
 /// `struct pryx_socket` for a socket pryxd serves this sandbox.
@@ -131,7 +152,27 @@ mod tests {
         assert_eq!(sizes(&object.maps[RULES]), (4 + 16, RULE_BYTES as u32, MAX_RULES as u32));
         assert_eq!(sizes(&object.maps[CONFIG]), (4, CONFIG_BYTES as u32, 1));
         assert_eq!(object.maps[SOCKETS].value_size(), SOCKET_BYTES as u32);
-        assert_eq!(sizes(&object.maps[COUNTERS]), (4, std::mem::size_of::<Counter>() as u32, 4));
+        assert_eq!(sizes(&object.maps[COUNTERS]), (4, std::mem::size_of::<Counter>() as u32, COUNTER_SLOTS));
+    }
+
+    #[test]
+    fn the_rejected_object_differs_only_in_its_last_program() {
+        let rejected: &[u8] = aya::include_bytes_aligned!("../../bpf/rejected.bpf.o");
+        let (ours, theirs) = (Object::parse(OBJECT).unwrap(), Object::parse(rejected).unwrap());
+        let names = |object: &Object| object.programs.keys().cloned().collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(names(&ours), names(&theirs));
+        assert_eq!(PROGRAMS.last(), Some(&"egress"), "the verifier refuses the set's last program");
+    }
+
+    #[test]
+    fn the_configuration_holds_every_published_port_and_refuses_more() {
+        let ports: Vec<u16> = (1..=PUBLISHED_PORTS as u16).collect();
+        let bytes = config_bytes(std::net::Ipv4Addr::LOCALHOST, 1, 2, 3, &ports).unwrap();
+        assert_eq!(&bytes[10..12], &(PUBLISHED_PORTS as u16).to_ne_bytes());
+        assert_eq!(&bytes[12..14], &1u16.to_ne_bytes());
+        assert_eq!(&bytes[CONFIG_BYTES - 4..CONFIG_BYTES - 2], &(PUBLISHED_PORTS as u16).to_ne_bytes());
+        let too_many: Vec<u16> = (0..=PUBLISHED_PORTS as u16).collect();
+        assert!(config_bytes(std::net::Ipv4Addr::LOCALHOST, 0, 0, 0, &too_many).is_none());
     }
 
     #[test]

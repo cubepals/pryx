@@ -22,6 +22,11 @@ pub(crate) const CAPABILITY: &str = "kernel-network-policy";
 
 /// What a proof of the capability found: where the programs go, or why they can't.
 pub(crate) fn probe() -> Result<host::Host, host::Unavailable> {
+    probe_object(object::OBJECT)
+}
+
+/// The proof with `programs` in place of the embedded object: only tests hand it another.
+pub(crate) fn probe_object(programs: &[u8]) -> Result<host::Host, host::Unavailable> {
     let host = host::Host::find()?;
     let key = format!("probe-{}", std::process::id());
     let cgroup = host.cgroup(&key);
@@ -46,14 +51,17 @@ pub(crate) fn probe() -> Result<host::Host, host::Unavailable> {
         dns: 0,
     })
     .map_err(|problem| fail(problem, "Report this as a bug"));
+    let config = object::config_bytes(std::net::Ipv4Addr::LOCALHOST, 0, 0, 0, &[])
+        .ok_or_else(|| fail("the probe's configuration does not fit".into(), "Report this as a bug"));
     let attached = rules.and_then(|rules| {
-        attach::Programs::attach(&pins, &cgroup, &rules, object::config_bytes(std::net::Ipv4Addr::LOCALHOST, 0, 0, 0))
-            .map_err(|problem| {
-                fail(
-                    problem,
-                    "Run as root, or grant this daemon CAP_BPF and CAP_NET_ADMIN on a kernel with cgroup BPF links (5.7 or later)",
-                )
-            })
+        attach::Programs::attach(programs, &pins, &cgroup, &rules, config?).map_err(|problem| {
+            let action = if problem.starts_with(attach::REJECTED) {
+                "Report the verifier's words above and this kernel's version as a pryx bug"
+            } else {
+                "Run as root, or grant this daemon CAP_BPF and CAP_NET_ADMIN on a kernel with cgroup BPF links (5.7 or later)"
+            };
+            fail(problem, action)
+        })
     });
     let joined = attached.and_then(|programs| {
         let joined = join_probe(&cgroup).map_err(|problem| {

@@ -26,9 +26,9 @@ use tokio_util::sync::DropGuard;
 
 /// The ports pryxd hands out and its API's: no sandbox reaches them on a private address.
 #[derive(Clone, Debug)]
-pub(crate) struct Served {
-    pub(crate) ports: RangeInclusive<u16>,
-    pub(crate) api_port: u16,
+pub struct Served {
+    pub ports: RangeInclusive<u16>,
+    pub api_port: u16,
 }
 
 /// What the journal keeps to find a sandbox's programs again.
@@ -79,14 +79,10 @@ impl Gateways {
         let dns = listeners::resolver(GATEWAY.into(), 0).await.map_err(error)?;
         Ok(Self { http, tls, dns })
     }
-    fn config(&self) -> Result<[u8; object::CONFIG_BYTES], RuntimeError> {
+    /// The HTTP, TLS and DNS gateways' ports.
+    fn ports(&self) -> Result<[u16; 3], RuntimeError> {
         let port = |address: std::io::Result<std::net::SocketAddr>| address.map(|a| a.port()).map_err(error);
-        Ok(object::config_bytes(
-            GATEWAY,
-            port(self.http.local_addr())?,
-            port(self.tls.local_addr())?,
-            port(self.dns.1.local_addr())?,
-        ))
+        Ok([port(self.http.local_addr())?, port(self.tls.local_addr())?, port(self.dns.1.local_addr())?])
     }
     fn admit(&self, programs: &mut Programs) -> Result<(), RuntimeError> {
         let sockets: [&dyn AsRawFd; 4] = [&self.http, &self.tls, &self.dns.0, &self.dns.1];
@@ -131,6 +127,24 @@ impl Network {
         } else {
             rules::Reach::Public
         }
+    }
+
+    /// The gateways' ports, and the ports pryxd published for the sandbox (its agent's and its
+    /// spares, which the edge dials): the only ones its programs let reach it from off this host.
+    fn config(spec: &ContainerSpec, gateways: Option<&Gateways>) -> Result<[u8; object::CONFIG_BYTES], RuntimeError> {
+        let [http, tls, dns] = match gateways {
+            Some(gateways) => gateways.ports()?,
+            None => [0; 3],
+        };
+        let published: Vec<u16> = spec
+            .ports
+            .iter()
+            .filter(|binding| binding.protocol == crate::protocol::Proto::Tcp)
+            .map(|binding| binding.host_port)
+            .collect();
+        object::config_bytes(GATEWAY, http, tls, dns, &published).ok_or_else(|| {
+            error(format!("{} published ports; at most {} fit", published.len(), object::PUBLISHED_PORTS))
+        })
     }
 
     /// Whether a spec asked for what only the programs enforce on this tier.
@@ -191,11 +205,9 @@ impl Network {
             true => Some(Gateways::bind().await?),
             false => None,
         };
-        let config = match &gateways {
-            Some(gateways) => gateways.config()?,
-            None => object::config_bytes(GATEWAY, 0, 0, 0),
-        };
-        let mut programs = Programs::attach(&self.host.pin_directory(&key), cgroup, &rules, config).map_err(error)?;
+        let config = Self::config(spec, gateways.as_ref())?;
+        let mut programs =
+            Programs::attach(object::OBJECT, &self.host.pin_directory(&key), cgroup, &rules, config).map_err(error)?;
         let guard = match (gateways, &spec.egress) {
             (Some(gateways), Some(policy)) => {
                 match gateways.admit(&mut programs).and_then(|()| gateways.serve(policy.clone())) {
@@ -226,10 +238,7 @@ impl Network {
             true => Some(Gateways::bind().await?),
             false => None,
         };
-        let config = match &gateways {
-            Some(gateways) => gateways.config()?,
-            None => object::config_bytes(GATEWAY, 0, 0, 0),
-        };
+        let config = Self::config(spec, gateways.as_ref())?;
         if let Some(gateways) = &gateways {
             gateways.admit(&mut programs)?;
         }
@@ -261,6 +270,7 @@ impl Network {
                         sent = counts.egress[1],
                         refused_destinations = counts.refused_addresses,
                         refused_sockets = counts.refused_sockets,
+                        refused_ingress = counts.refused_ingress[0],
                         "kernel network policy detached"
                     );
                 }

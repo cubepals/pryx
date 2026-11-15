@@ -9,8 +9,15 @@ impl ProcessRuntime {
     /// Turns kernel network policy on where the host proves it can attach the programs, and
     /// finds those of supervisors that outlived the last daemon. A sandbox whose address or
     /// hostname policy can't be verified again is stopped rather than left running without it.
-    pub(crate) async fn with_network(mut self, served: Served) -> Self {
-        let found = crate::bpf::probe();
+    pub(crate) async fn with_network(self, served: Served) -> Self {
+        self.with_network_programs(served, crate::bpf::object::OBJECT).await
+    }
+
+    /// As `with_network`, proving the host with `programs` in place of the embedded object. Only
+    /// tests hand it another: one whose programs the verifier refuses.
+    #[doc(hidden)]
+    pub async fn with_network_programs(mut self, served: Served, programs: &[u8]) -> Self {
+        let found = crate::bpf::probe_object(programs);
         self.network_capability = Some(crate::bpf::capability(&found));
         let Ok(host) = found else { return self };
         let network = Arc::new(Network::new(host, served, &self.state.root));

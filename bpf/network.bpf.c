@@ -4,7 +4,9 @@
  * the address hooks allow, refuse or redirect one destination by the rule pryxd wrote for it;
  * the receive hooks put back the address a redirected DNS answer came from; the socket hook
  * refuses what the address hooks don't police and marks the sockets the sandbox made; the
- * packet hooks count. Nothing here parses data the sandbox sent; pryxd decides every rule.
+ * ingress hook takes from off this host only the answers to what the sandbox dialled and the
+ * ports pryxd published for it; the packet hooks count. Nothing here parses a packet's contents;
+ * pryxd decides every rule.
  */
 #include <linux/bpf.h>
 #include <linux/in.h>
@@ -126,6 +128,15 @@ static __always_inline __u16 gateway_port(struct pryx_config *gateway, __u8 verd
 	return gateway->dns;
 }
 
+/* A socket that dialled a destination off this host takes what comes back from it. */
+static __always_inline void mark_dialled(struct bpf_sock_addr *ctx)
+{
+	struct pryx_socket *own = bpf_sk_storage_get(&sockets, ctx->sk, 0, 0);
+
+	if (own)
+		own->dialled = 1;
+}
+
 /* The DNS server a redirected datagram was meant for, so its answer can say it came from there. */
 static __always_inline void remember(struct bpf_sock_addr *ctx, __u32 address[4], __u16 port)
 {
@@ -168,8 +179,10 @@ static __always_inline int decide4(struct bpf_sock_addr *ctx)
 		return refuse();
 	key_of(&key, address);
 	verdict = classify(&key, bpf_ntohs(port), protocol);
-	if (verdict == PRYX_ALLOW)
+	if (verdict == PRYX_ALLOW) {
+		mark_dialled(ctx);
 		return 1;
+	}
 	if (verdict == PRYX_OWNED)
 		return held4(ctx, ctx->user_ip4, port, protocol, PRYX_ROLE_NONE) ? 1 : refuse();
 	if (verdict < PRYX_GATEWAY_HTTP || verdict > PRYX_GATEWAY_DNS)
@@ -204,8 +217,10 @@ static __always_inline int decide6(struct bpf_sock_addr *ctx)
 		return refuse();
 	key_of(&key, address);
 	verdict = classify(&key, bpf_ntohs(port), protocol);
-	if (verdict == PRYX_ALLOW)
+	if (verdict == PRYX_ALLOW) {
+		mark_dialled(ctx);
 		return 1;
+	}
 	if (verdict == PRYX_OWNED) {
 		if (mapped(address))
 			return held4(ctx, address[3], port, protocol, PRYX_ROLE_NONE) ? 1 : refuse();
@@ -321,16 +336,72 @@ int sock_create(struct bpf_sock *sk)
 	return 1;
 }
 
+/* Whether pryxd published this port for the sandbox: its agent's, which the edge dials. */
+static __always_inline int published(__u32 port)
+{
+	struct pryx_config *settings;
+	__u32 zero = 0;
+
+	settings = bpf_map_lookup_elem(&config, &zero);
+	if (!settings)
+		return 0;
+	/* Unrolled, each read at a constant offset, as classify's. */
+#pragma clang loop unroll(full)
+	for (int i = 0; i < PRYX_PUBLISHED_PORTS; i++) {
+		const volatile __u16 *slot = &settings->published[i];
+		__u16 value = *slot;
+
+		if (i >= settings->published_count)
+			break;
+		if (value == port)
+			return 1;
+	}
+	return 0;
+}
+
+/*
+ * From this host (loopback carries everything local) anything reaches the sandbox's sockets, as
+ * the address hooks already decided; from off it, only what answers a destination the sandbox
+ * dialled, and TCP to a port pryxd published. Everything else is dropped, as a container's
+ * undeclared port is out of reach.
+ */
 SEC("cgroup_skb/ingress")
 int ingress(struct __sk_buff *skb)
 {
+	struct bpf_sock *sk = skb->sk;
+	struct pryx_socket *own;
+	struct bpf_sock *full;
+
 	count(PRYX_INGRESS, skb->len);
-	return 1;
+	if (skb->ingress_ifindex == PRYX_LOOPBACK)
+		return 1;
+	if (!sk)
+		goto drop;
+	full = bpf_sk_fullsock(sk);
+	/* A socket that isn't full (a request or time-wait one) is TCP's, on its listener's port. */
+	if ((!full || full->protocol == IPPROTO_TCP) && published(sk->src_port))
+		return 1;
+	if (full) {
+		own = bpf_sk_storage_get(&sockets, full, 0, 0);
+		if (own && own->dialled)
+			return 1;
+	}
+drop:
+	count(PRYX_REFUSED_INGRESS, skb->len);
+	return 0;
 }
 
 SEC("cgroup_skb/egress")
 int egress(struct __sk_buff *skb)
 {
 	count(PRYX_EGRESS, skb->len);
+#ifdef PRYX_REJECTED
+	/*
+	 * bpf/rejected.bpf.o only: a verdict no cgroup_skb program may return, so the verifier refuses
+	 * the last program of the set and a test sees the set refused whole.
+	 */
+	return 4;
+#else
 	return 1;
+#endif
 }

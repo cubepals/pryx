@@ -42,6 +42,7 @@ pub(crate) struct Counts {
     pub(crate) egress: Counter,
     pub(crate) refused_addresses: u64,
     pub(crate) refused_sockets: u64,
+    pub(crate) refused_ingress: Counter,
 }
 
 /// What failed and every cause the error carries: the kernel's errno is a source, not the message.
@@ -55,11 +56,18 @@ fn error(what: &str, problem: impl std::error::Error) -> String {
     text
 }
 
-/// A verifier's refusal, with the log that says why.
+/// How a verifier's refusal starts, so a reader can tell it from a missing privilege.
+pub(crate) const REJECTED: &str = "the verifier rejected";
+/// The end of a verifier's log kept with its refusal: the last lines say why.
+const LOG_TAIL: usize = 1500;
+
+/// A verifier's refusal, with the end of the log that says why.
 fn load_error(name: &str, problem: aya::programs::ProgramError) -> String {
     match problem {
         aya::programs::ProgramError::LoadError { io_error, verifier_log } => {
-            format!("the verifier rejected {name}: {io_error}\n{verifier_log}")
+            let log = verifier_log.to_string();
+            let start = log.char_indices().map(|(index, _)| index).find(|index| log.len() - index <= LOG_TAIL);
+            format!("{REJECTED} {name}: {io_error}\n{}", &log[start.unwrap_or(log.len())..])
         }
         other => error(&format!("loading {name}"), other),
     }
@@ -106,9 +114,11 @@ pub(crate) fn remove_pins(pins: &Path) -> Result<(), String> {
 }
 
 impl Programs {
-    /// Loads every program, writes `rules` and `config`, attaches each to `cgroup` and pins it
-    /// under `pins`. Leaves nothing behind when any step fails.
+    /// Loads every program of `elf` (the embedded object but in a test), writes `rules` and
+    /// `config`, attaches each to `cgroup` and pins it under `pins`. Leaves nothing behind when any
+    /// step fails, the verifier's refusal of any program included.
     pub(crate) fn attach(
+        elf: &[u8],
         pins: &Path,
         cgroup: &Path,
         rules: &BTreeMap<Ipv6Net, Rule>,
@@ -116,7 +126,7 @@ impl Programs {
     ) -> Result<Self, String> {
         remove_pins(pins)?;
         fs::create_dir(pins).map_err(|problem| error("making the pin directory", problem))?;
-        let attached = Self::attach_pinned(pins, cgroup, rules, config);
+        let attached = Self::attach_pinned(elf, pins, cgroup, rules, config);
         if attached.is_err() {
             let _ = remove_pins(pins);
         }
@@ -124,13 +134,13 @@ impl Programs {
     }
 
     fn attach_pinned(
+        elf: &[u8],
         pins: &Path,
         cgroup: &Path,
         rules: &BTreeMap<Ipv6Net, Rule>,
         config: [u8; CONFIG_BYTES],
     ) -> Result<Self, String> {
-        let mut ebpf =
-            EbpfLoader::new().load(object::OBJECT).map_err(|problem| error("loading the object", problem))?;
+        let mut ebpf = EbpfLoader::new().load(elf).map_err(|problem| error("loading the object", problem))?;
         let mut take = |name: &str| -> Result<Map, String> {
             let map = ebpf.take_map(name).ok_or_else(|| format!("the object has no {name} map"))?;
             map.pin(map_pin(pins, name)).map_err(|problem| error(&format!("pinning {name}"), problem))?;
@@ -250,6 +260,7 @@ impl Programs {
             egress: read(CounterIndex::Egress)?,
             refused_addresses: read(CounterIndex::RefusedAddresses)?[0],
             refused_sockets: read(CounterIndex::RefusedSockets)?[0],
+            refused_ingress: read(CounterIndex::RefusedIngress)?,
         })
     }
 

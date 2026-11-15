@@ -36,7 +36,7 @@ pub struct ProcessRuntime {
     network: Option<Arc<network::Network>>,
     network_capability: Option<crate::capability::Capability>,
 }
-pub(crate) use network::Served;
+pub use network::Served;
 struct State {
     pub root: PathBuf,
     pub launch: tokio::sync::Mutex<()>,
