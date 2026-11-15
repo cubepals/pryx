@@ -4,9 +4,11 @@
 //! EOF requests retirement behind the monitor lease; this does not enable root placement.
 //!
 //! Parts (`root_scope/`):
+//! - `packet.rs`: descriptor-only configuration, fixed packet launch and kernel identity.
 //! - `handoff.rs`: bounded close-on-exec namespace/listener descriptor receiving.
 //! - `tests.rs`: real descriptor rejection and bounded-root gateway/lease acceptance.
 mod handoff;
+mod packet;
 #[cfg(test)]
 mod tests;
 use super::error;
@@ -49,6 +51,9 @@ struct Resources {
     namespace: Option<OwnedFd>,
     gateways: Option<DropGuard>,
     packet: Option<OwnedFd>,
+    configuration: Option<OwnedFd>,
+    identity: Option<OwnedFd>,
+    channel: Option<tokio::net::UnixDatagram>,
     directory: tempfile::TempDir,
 }
 
@@ -56,6 +61,9 @@ pub struct Scope {
     child: Option<Child>,
     resources: Option<Resources>,
     profile: Value,
+    packet_paths: Option<handoff::PacketPaths>,
+    packet_profile: Value,
+    packet_metadata: Option<Advertisement>,
     tap: String,
     packet_tap: String,
     ports: crate::runtime::egress::listeners::Ports,
@@ -89,15 +97,13 @@ enum Received {
     Bridge(handoff::BridgeGrant),
 }
 
-async fn receive(socket: UnixDatagram, metadata: &Advertisement, bridge: bool) -> io::Result<Received> {
-    socket.set_nonblocking(true)?;
-    let socket = tokio::net::UnixDatagram::from_std(socket)?;
+async fn receive(socket: &tokio::net::UnixDatagram, metadata: &Advertisement, bridge: bool) -> io::Result<Received> {
     socket
         .async_io(Interest::READABLE, || {
             if bridge {
-                handoff::receive_bridge(&socket, metadata).map(Received::Bridge)
+                handoff::receive_bridge(socket, metadata).map(Received::Bridge)
             } else {
-                handoff::receive(&socket, metadata).map(Received::Names)
+                handoff::receive(socket, metadata).map(Received::Names)
             }
         })
         .await
@@ -141,14 +147,21 @@ impl Scope {
         capacity: u16,
         deadline: Instant,
     ) -> Result<Self, RuntimeError> {
-        Self::start_mode(paths, Some(policy), capacity, deadline, None).await
+        Self::start_mode(paths, Some(policy), capacity, deadline, None, false).await
     }
     pub async fn start_bridge(
         paths: Paths<'_>,
         programs: BridgePrograms<'_>,
         deadline: Instant,
     ) -> Result<Self, RuntimeError> {
-        Self::start_mode(paths, None, 1, deadline, Some(programs)).await
+        Self::start_mode(paths, None, 1, deadline, Some(programs), false).await
+    }
+    pub async fn start_packet(
+        paths: Paths<'_>,
+        programs: BridgePrograms<'_>,
+        deadline: Instant,
+    ) -> Result<Self, RuntimeError> {
+        Self::start_mode(paths, None, 1, deadline, Some(programs), true).await
     }
     async fn start_mode(
         paths: Paths<'_>,
@@ -156,6 +169,7 @@ impl Scope {
         capacity: u16,
         deadline: Instant,
         bridge: Option<BridgePrograms<'_>>,
+        packet_runtime: bool,
     ) -> Result<Self, RuntimeError> {
         if !rustix::process::geteuid().is_root() || paths.owner.0 == 0 || paths.owner.1 == 0 || capacity == 0 {
             return Err(error("Root TAP scope requires fixed ordinary monitor IDs and positive capacity"));
@@ -175,6 +189,7 @@ impl Scope {
             .await
             .map_err(|_| RuntimeError::Timeout("Root scope metadata exceeded its deadline".into()))??;
         let metadata = if bridge.is_some() { metadata.bridge().map_err(error)? } else { metadata };
+        let metadata = if packet_runtime { metadata.packet().map_err(error)? } else { metadata };
         let directory = tempfile::Builder::new()
             .prefix("root-network-")
             .permissions(fs::Permissions::from_mode(0o700))
@@ -209,19 +224,35 @@ impl Scope {
                 &programs.packet.display().to_string(),
             ]);
         }
+        if packet_runtime {
+            command.arg(&metadata.packet_runtime_argument);
+        }
         let child = command.spawn().map_err(error)?;
         // Own asynchronous EOF/lease retirement before the first cancellable readiness wait.
         let mut scope = Self {
             child: Some(child),
-            resources: Some(Resources { namespace: None, gateways: None, packet: None, directory }),
+            resources: Some(Resources {
+                namespace: None,
+                gateways: None,
+                packet: None,
+                configuration: None,
+                identity: None,
+                channel: None,
+                directory,
+            }),
             profile: Value::Null,
+            packet_paths: None,
+            packet_profile: Value::Null,
+            packet_metadata: None,
             tap: String::new(),
             packet_tap: String::new(),
             ports: crate::runtime::egress::listeners::Ports { http: 0, tls: 0, dns: 0 },
             retirement: None,
             runtime: tokio::runtime::Handle::current(),
         };
-        let grant = tokio::time::timeout_at(deadline, receive(socket, &metadata, bridge.is_some()))
+        socket.set_nonblocking(true).map_err(error)?;
+        let socket = tokio::net::UnixDatagram::from_std(socket).map_err(error)?;
+        let grant = tokio::time::timeout_at(deadline, receive(&socket, &metadata, bridge.is_some()))
             .await
             .map_err(|_| RuntimeError::Timeout("Root scope handoff exceeded its deadline".into()))?
             .map_err(error)?;
@@ -230,6 +261,10 @@ impl Scope {
                 scope.adopt(grant, policy.ok_or_else(|| error("Missing hostname policy"))?, capacity).map_err(error)?
             }
             Received::Bridge(grant) => scope.adopt_bridge(grant).map_err(error)?,
+        }
+        if packet_runtime {
+            scope.resources.as_mut().ok_or_else(|| error("Missing root packet resources"))?.channel = Some(socket);
+            scope.packet_metadata = Some(metadata);
         }
         if scope.exited().map_err(error)?.is_some() {
             return Err(error("Root scope exited during handoff"));
@@ -267,7 +302,8 @@ impl Scope {
     }
 
     fn adopt_bridge(&mut self, grant: handoff::BridgeGrant) -> io::Result<()> {
-        let handoff::BridgeGrant { namespace, packet, profile, tap, packet_tap } = grant;
+        let handoff::BridgeGrant { namespace, packet, profile, tap, packet_tap, configuration, paths, packet_profile } =
+            grant;
         validate_profile(&namespace, &profile, &tap)?;
         let actual = rustix::fs::fstat(&packet)?;
         if actual.st_mode & libc::S_IFMT != libc::S_IFCHR
@@ -278,6 +314,9 @@ impl Scope {
         let resources = self.resources.as_mut().ok_or_else(handoff::invalid)?;
         resources.namespace = Some(namespace);
         resources.packet = Some(packet);
+        resources.configuration = configuration;
+        self.packet_paths = paths;
+        self.packet_profile = packet_profile;
         self.profile = profile;
         self.tap = tap;
         self.packet_tap = packet_tap;

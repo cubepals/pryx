@@ -4608,3 +4608,16 @@ job when publication is authorized. That job has not run in this task.
   the actual bridge grant and maintained raw-frame transport. Go tests/vet, workflow actionlint,
   Python syntax and whitespace pass. Extend only the existing optional shutdown trace with
   ioctl arguments; raw output remains an artifact. No job/gate or added estimated CI minute.
+
+- Wire the separate private packet-runtime parser: advertise its own optional argument and
+  configuration descriptor, retain existing bridge-only grants, serialize the Rust owner's
+  launch plan and receive a kernel pidfd only after the real packet profile is ready. Fixed
+  programs run as the ordinary host identity, outside root's network namespace. The helper
+  keeps the process until EOF plus the actual monitor lease; stop/reap precedes CNI deletion.
+- Extend the existing bounded Rust adoption fixture with the maintained packet stack and
+  actual pidfd liveness before lease release and confirmed exit afterwards. This remains a
+  CI-only kernel proof, not local packet forwarding or installed worker acceptance. Enable
+  the existing Rustix event API for pidfd polling and box both network variants for bounded
+  enum size. Go tests/build/vet, strict all-target Clippy, fmt, Python syntax and whitespace
+  pass. Full local Rust: 537 pass, unchanged host IPv6 fixture failure, 44 ignored; no skipped
+  assertion. Estimated addition under two optional VM seconds, no dependency/job/gate.

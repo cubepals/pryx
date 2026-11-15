@@ -40,7 +40,7 @@ func lease(path string) (*os.File, error) {
 	return file, nil
 }
 
-func grant(directory, state, lock string, uid, gid uint, agent, packet string) (problem error) {
+func grant(directory, state, lock string, uid, gid uint, agent, packet string, packetRuntime bool) (problem error) {
 	if os.Geteuid() != 0 || uid == 0 || gid == 0 || uint64(uid) >= uint64(^uint32(0)) || uint64(gid) >= uint64(^uint32(0)) {
 		return fmt.Errorf("Root scope requires root and fixed ordinary monitor identities")
 	}
@@ -74,6 +74,7 @@ func grant(directory, state, lock string, uid, gid uint, agent, packet string) (
 	if err != nil {
 		return err
 	}
+	var process *rootnetwork.PacketProcess
 	defer func() {
 		// A parent disappearing is not authority to detach a live monitor's interface.
 		// Linux flock accepts an exclusive lifetime lock on this readonly descriptor.
@@ -83,6 +84,12 @@ func grant(directory, state, lock string, uid, gid uint, agent, packet string) (
 		}
 		retirement, stop := context.WithTimeout(context.Background(), 30*time.Second)
 		defer stop()
+		if process != nil {
+			if err := process.Stop(); err != nil {
+				problem = errors.Join(problem, err)
+				return
+			}
+		}
 		cleanup := scope.Close(retirement)
 		retired = cleanup == nil
 		problem = errors.Join(problem, cleanup)
@@ -96,12 +103,34 @@ func grant(directory, state, lock string, uid, gid uint, agent, packet string) (
 			file.Close()
 		}
 	}()
-	metadata, err := json.Marshal(scope.Grant())
+	grant := scope.Grant()
+	if packetRuntime {
+		bridge, ok := scope.(*rootnetwork.Bridge)
+		if !ok {
+			return fmt.Errorf("Packet runtime requires its public bridge")
+		}
+		process, err = bridge.PreparePacket(uint32(uid), uint32(gid))
+		if err != nil {
+			return err
+		}
+		configuration, err := process.Configuration()
+		if err != nil {
+			return err
+		}
+		files = append(files, configuration)
+		grant.Descriptors = append(grant.Descriptors, rootnetwork.ScopePacketConfiguration)
+		grant.PacketPaths = &process.Paths
+		grant.PacketProfile = process.Profile()
+	}
+	metadata, err := json.Marshal(grant)
 	if err != nil {
 		return err
 	}
 	if err := rootnetwork.SendFiles(int(os.Stdout.Fd()), metadata, files); err != nil {
 		return err
+	}
+	if process != nil {
+		return runPacket(ctx, process, files[1], grant)
 	}
 	var command [1]byte
 	count, err := os.Stdin.Read(command[:])
@@ -120,12 +149,13 @@ func main() {
 	gid := flag.Uint("gid", 0, "Host-selected ordinary monitor GID")
 	agent := flag.String(rootnetwork.BridgeAgentFlag, "", "Fixed protected agent supplying the host IPv4 boundary")
 	packet := flag.String(rootnetwork.BridgePacketFlag, "", "Fixed protected maintained packet program")
+	packetRuntime := flag.Bool(rootnetwork.PacketRuntimeFlag, false, "Launch fixed ordinary packet stack through its descriptor grant")
 	flag.Parse()
 	var err error
 	if *metadata {
 		err = json.NewEncoder(os.Stdout).Encode(rootnetwork.ScopeAdvertisement())
 	} else {
-		err = grant(*directory, *state, *lock, *uid, *gid, *agent, *packet)
+		err = grant(*directory, *state, *lock, *uid, *gid, *agent, *packet, *packetRuntime)
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

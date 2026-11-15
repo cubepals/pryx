@@ -1296,3 +1296,5 @@
 
 - K25: stage root-owned fixed packet binaries outside the ordinary writable directory, drop all groups before launching the existing confined agent, grant only a configuration descriptor, and retain an atomic kernel pidfd; packet retirement follows the real monitor lease and confirmed child exit.
 - K25: retain ioctl requests beside the existing shutdown signal trace to identify the actual remaining native trap without widening policy; reject inherited TAP vnet headers because the chosen BESS transport consumes raw Ethernet frames.
+
+- K25: add a separate advertised private packet-runtime handoff, leaving bridge-only grants unchanged; Rust serializes the owner-defined launcher plan, writes the granted configuration FD, and observes the root-owned pidfd using the existing Rustix event API.

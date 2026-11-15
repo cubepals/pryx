@@ -16,13 +16,15 @@ use std::{
 pub(super) enum Role {
     Namespace,
     PacketTap,
+    PacketConfiguration,
+    PacketIdentity,
     Http,
     Tls,
     DnsTcp,
     DnsUdp,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct Advertisement {
     #[serde(default)]
@@ -35,6 +37,10 @@ pub(super) struct Advertisement {
     pub bridge_agent_argument: String,
     #[serde(default)]
     pub bridge_packet_argument: String,
+    #[serde(default)]
+    pub packet_runtime_argument: String,
+    #[serde(default)]
+    pub packet_runtime_descriptors: Vec<Role>,
     pub descriptors: Vec<Role>,
     pub max_descriptors: usize,
     pub max_metadata_bytes: usize,
@@ -54,6 +60,10 @@ struct Metadata {
     packet_tap: String,
     #[serde(default)]
     ipv4_exclusions: usize,
+    #[serde(default)]
+    packet_paths: Option<PacketPaths>,
+    #[serde(default)]
+    packet_profile: Value,
 }
 
 pub(super) struct Grant {
@@ -66,7 +76,21 @@ pub(super) struct Grant {
     pub tap: String,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(super) struct PacketPaths {
+    pub launcher: std::path::PathBuf,
+    pub program: std::path::PathBuf,
+    pub directory: std::path::PathBuf,
+    pub configuration: std::path::PathBuf,
+    pub lease: std::path::PathBuf,
+    pub parent: u32,
+}
+
 pub(super) struct BridgeGrant {
+    pub configuration: Option<OwnedFd>,
+    pub paths: Option<PacketPaths>,
+    pub packet_profile: Value,
     pub namespace: OwnedFd,
     pub packet: OwnedFd,
     pub profile: Value,
@@ -95,6 +119,19 @@ impl Advertisement {
         }
         self.descriptors = std::mem::take(&mut self.bridge_descriptors);
         self.validate_roles(&[Role::Namespace, Role::PacketTap])?;
+        Ok(self)
+    }
+    pub(super) fn packet(mut self) -> io::Result<Self> {
+        if self
+            .packet_runtime_argument
+            .strip_prefix("--")
+            .is_none_or(|name| name.is_empty() || !name.bytes().all(|byte| byte.is_ascii_lowercase() || byte == b'-'))
+            || [&self.bridge_agent_argument, &self.bridge_packet_argument].contains(&&self.packet_runtime_argument)
+        {
+            return Err(invalid());
+        }
+        self.descriptors = std::mem::take(&mut self.packet_runtime_descriptors);
+        self.validate_roles(&[Role::Namespace, Role::PacketTap, Role::PacketConfiguration])?;
         Ok(self)
     }
     pub(super) fn validate(&self) -> io::Result<()> {
@@ -149,12 +186,22 @@ pub(super) fn receive_bridge(socket: impl AsFd, advertisement: &Advertisement) -
         return Err(invalid());
     }
     Ok(BridgeGrant {
+        configuration: files.remove(&Role::PacketConfiguration),
+        paths: metadata.packet_paths,
+        packet_profile: metadata.packet_profile,
         namespace: files.remove(&Role::Namespace).ok_or_else(invalid)?,
         packet: files.remove(&Role::PacketTap).ok_or_else(invalid)?,
         profile: metadata.profile,
         tap: metadata.tap,
         packet_tap: metadata.packet_tap,
     })
+}
+
+pub(super) fn receive_identity(socket: impl AsFd, advertisement: &Advertisement) -> io::Result<OwnedFd> {
+    let mut metadata = advertisement.clone();
+    metadata.descriptors = vec![Role::PacketIdentity];
+    let (_, mut files) = receive_files(socket, &metadata)?;
+    files.remove(&Role::PacketIdentity).ok_or_else(invalid)
 }
 
 fn receive_files(socket: impl AsFd, advertisement: &Advertisement) -> io::Result<(Metadata, BTreeMap<Role, OwnedFd>)> {

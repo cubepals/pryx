@@ -61,7 +61,7 @@ impl VmRuntime {
         let socket = directory.join(format!("vsock_{}", pryx_agent::vm_boot::PACKET_PORT));
         let network_lease = lease.with_extension("network.lock");
         let network = if !entry.spec.internal_network {
-            Some(network::Network::User(
+            Some(network::Network::User(Box::new(
                 super::super::network::Network::start(
                     super::super::network::Paths {
                         launcher: &bundle.root().join("bin/vm-launcher"),
@@ -75,7 +75,7 @@ impl VmRuntime {
                     deadline,
                 )
                 .await?,
-            ))
+            )))
         } else {
             None
         };

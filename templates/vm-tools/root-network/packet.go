@@ -113,6 +113,8 @@ func (bridge *Bridge) PreparePacket(uid, gid uint32) (*PacketProcess, error) {
 	return packet, nil
 }
 
+func (packet *PacketProcess) Profile() map[string]any { return packet.expected }
+
 func (packet *PacketProcess) Configuration() (*os.File, error) {
 	descriptor, err := unix.FcntlInt(packet.configuration.Fd(), unix.F_DUPFD_CLOEXEC, 0)
 	if err != nil {

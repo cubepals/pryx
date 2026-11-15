@@ -6,38 +6,45 @@ package rootnetwork
 const ScopeVersion = 1
 const BridgeAgentFlag = "bridge-agent"
 const BridgePacketFlag = "bridge-packet"
+const PacketRuntimeFlag = "packet-runtime"
 
 type ScopeRole string
 
 const (
-	ScopeNamespace ScopeRole = "namespace"
-	ScopePacketTap ScopeRole = "packetTap"
-	ScopeHTTP      ScopeRole = "http"
-	ScopeTLS       ScopeRole = "tls"
-	ScopeDNSTCP    ScopeRole = "dnsTcp"
-	ScopeDNSUDP    ScopeRole = "dnsUdp"
+	ScopeNamespace           ScopeRole = "namespace"
+	ScopePacketTap           ScopeRole = "packetTap"
+	ScopePacketConfiguration ScopeRole = "packetConfiguration"
+	ScopePacketIdentity      ScopeRole = "packetIdentity"
+	ScopeHTTP                ScopeRole = "http"
+	ScopeTLS                 ScopeRole = "tls"
+	ScopeDNSTCP              ScopeRole = "dnsTcp"
+	ScopeDNSUDP              ScopeRole = "dnsUdp"
 )
 
 type ScopeMetadata struct {
-	HostFirewall         bool        `json:"hostFirewall"`
-	Descriptors          []ScopeRole `json:"descriptors"`
-	MaxDescriptors       int         `json:"maxDescriptors"`
-	MaxMetadataBytes     int         `json:"maxMetadataBytes"`
-	Version              int         `json:"version"`
-	BridgeHostFirewall   bool        `json:"bridgeHostFirewall,omitempty"`
-	BridgeDescriptors    []ScopeRole `json:"bridgeDescriptors,omitempty"`
-	BridgeAgentArgument  string      `json:"bridgeAgentArgument,omitempty"`
-	BridgePacketArgument string      `json:"bridgePacketArgument,omitempty"`
+	PacketRuntimeArgument    string      `json:"packetRuntimeArgument,omitempty"`
+	PacketRuntimeDescriptors []ScopeRole `json:"packetRuntimeDescriptors,omitempty"`
+	HostFirewall             bool        `json:"hostFirewall"`
+	Descriptors              []ScopeRole `json:"descriptors"`
+	MaxDescriptors           int         `json:"maxDescriptors"`
+	MaxMetadataBytes         int         `json:"maxMetadataBytes"`
+	Version                  int         `json:"version"`
+	BridgeHostFirewall       bool        `json:"bridgeHostFirewall,omitempty"`
+	BridgeDescriptors        []ScopeRole `json:"bridgeDescriptors,omitempty"`
+	BridgeAgentArgument      string      `json:"bridgeAgentArgument,omitempty"`
+	BridgePacketArgument     string      `json:"bridgePacketArgument,omitempty"`
 }
 
 type ScopeHandoff struct {
-	HostFirewall   bool        `json:"hostFirewall"`
-	Descriptors    []ScopeRole `json:"descriptors"`
-	Profile        Profile     `json:"profile"`
-	Tap            string      `json:"tap"`
-	Version        int         `json:"version"`
-	PacketTap      string      `json:"packetTap,omitempty"`
-	Ipv4Exclusions int         `json:"ipv4Exclusions,omitempty"`
+	PacketPaths    *PacketPaths   `json:"packetPaths,omitempty"`
+	PacketProfile  map[string]any `json:"packetProfile,omitempty"`
+	HostFirewall   bool           `json:"hostFirewall"`
+	Descriptors    []ScopeRole    `json:"descriptors"`
+	Profile        Profile        `json:"profile"`
+	Tap            string         `json:"tap"`
+	Version        int            `json:"version"`
+	PacketTap      string         `json:"packetTap,omitempty"`
+	Ipv4Exclusions int            `json:"ipv4Exclusions,omitempty"`
 }
 
 func scopeDescriptors() []ScopeRole {
@@ -45,7 +52,7 @@ func scopeDescriptors() []ScopeRole {
 }
 
 func ScopeAdvertisement() ScopeMetadata {
-	return ScopeMetadata{HostFirewall: true, Descriptors: scopeDescriptors(), MaxDescriptors: MaxHandoffFiles, MaxMetadataBytes: MaxHandoffBytes, Version: ScopeVersion, BridgeHostFirewall: true, BridgeDescriptors: []ScopeRole{ScopeNamespace, ScopePacketTap}, BridgeAgentArgument: "--" + BridgeAgentFlag, BridgePacketArgument: "--" + BridgePacketFlag}
+	return ScopeMetadata{PacketRuntimeArgument: "--" + PacketRuntimeFlag, PacketRuntimeDescriptors: []ScopeRole{ScopeNamespace, ScopePacketTap, ScopePacketConfiguration}, HostFirewall: true, Descriptors: scopeDescriptors(), MaxDescriptors: MaxHandoffFiles, MaxMetadataBytes: MaxHandoffBytes, Version: ScopeVersion, BridgeHostFirewall: true, BridgeDescriptors: []ScopeRole{ScopeNamespace, ScopePacketTap}, BridgeAgentArgument: "--" + BridgeAgentFlag, BridgePacketArgument: "--" + BridgePacketFlag}
 }
 
 func (scope *Scope) Grant() ScopeHandoff {

@@ -8,6 +8,7 @@
 // original licence texts; cmd/tap-probe/main.go checks actual
 // device creation, ordinary-owner open and identity-bound cleanup in the existing VM CI job.
 // protocol.go owns the unchanged private metadata shapes and descriptor roles;
+// cmd/scope/packet.go submits one bounded ordinary launch plan and grants its kernel identity;
 // cmd/scope/main.go grants actual namespace/listener descriptors and waits on the monitor lease
 // before retiring one scope; cmd/tap-probe/scope.go checks that actual process and lease;
 // cmd/tap-probe/bridge.go checks actual bridge topology, firewall hooks and retirement.

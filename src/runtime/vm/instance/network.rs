@@ -10,8 +10,8 @@ use std::process::ExitStatus;
 use tokio::time::Instant;
 
 pub(super) enum Network {
-    User(super::super::network::Network),
-    Root { scope: super::super::root_scope::Scope, profile: Value },
+    User(Box<super::super::network::Network>),
+    Root { scope: Box<super::super::root_scope::Scope>, profile: Value },
 }
 
 impl Network {
@@ -44,7 +44,7 @@ impl Network {
         let root_profile = scope.profile().as_object().ok_or_else(|| error("Missing root TAP profile"))?;
         let services = profile.as_object_mut().ok_or_else(|| error("Missing packet service metadata"))?;
         services.extend(root_profile.iter().map(|(key, value)| (key.clone(), value.clone())));
-        Ok(Self::Root { scope, profile })
+        Ok(Self::Root { scope: Box::new(scope), profile })
     }
     pub(super) fn guest(&self) -> Result<vm_boot::Network, RuntimeError> {
         match self {

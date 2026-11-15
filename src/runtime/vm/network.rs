@@ -37,7 +37,7 @@ struct Resources {
     _directory: tempfile::TempDir,
 }
 
-fn argument(profile: &Value, field: &str) -> Result<String, RuntimeError> {
+pub(super) fn argument(profile: &Value, field: &str) -> Result<String, RuntimeError> {
     profile[field]
         .as_str()
         .filter(|argument| {

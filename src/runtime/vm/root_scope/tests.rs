@@ -32,6 +32,8 @@ fn rejected_rights_close_every_delivered_file() {
         bridge_descriptors: Vec::new(),
         bridge_agent_argument: String::new(),
         bridge_packet_argument: String::new(),
+        packet_runtime_argument: String::new(),
+        packet_runtime_descriptors: Vec::new(),
         descriptors: vec![handoff::Role::Namespace],
         max_descriptors: 1,
         max_metadata_bytes: 64,
@@ -118,29 +120,42 @@ except urllib.error.HTTPError as response:
     drop(stop);
     assert!(scope.namespace().is_err());
     assert_eq!(fs::read_link("/proc/self/ns/net").unwrap(), before);
-    bridge_adoption(root.path(), &program, &lease, &before).await;
+    for packet in [false, true] {
+        bridge_adoption(root.path(), &program, &lease, &before, packet).await;
+    }
 }
 
-async fn bridge_adoption(root: &Path, program: &Path, lease: &fs::File, before: &Path) {
+async fn bridge_adoption(root: &Path, program: &Path, lease: &fs::File, before: &Path, packet: bool) {
     let lease_path = root.join("monitor.lock");
     rustix::fs::flock(lease, rustix::fs::FlockOperation::LockExclusive).unwrap();
     let programs = program.parent().unwrap();
-    let mut bridge = Scope::start_bridge(
-        Paths {
-            program,
-            plugins: programs,
-            boots: root,
-            lease: &lease_path,
-            owner: (
-                std::env::var("PRYX_VM_ROOT_TEST_UID").unwrap().parse().unwrap(),
-                std::env::var("PRYX_VM_ROOT_TEST_GID").unwrap().parse().unwrap(),
-            ),
-        },
-        BridgePrograms { agent: &programs.join("bridge-agent"), packet: &programs.join("bridge-packet") },
-        Instant::now() + Duration::from_secs(30),
-    )
-    .await
+    let paths = Paths {
+        program,
+        plugins: programs,
+        boots: root,
+        lease: &lease_path,
+        owner: (
+            std::env::var("PRYX_VM_ROOT_TEST_UID").unwrap().parse().unwrap(),
+            std::env::var("PRYX_VM_ROOT_TEST_GID").unwrap().parse().unwrap(),
+        ),
+    };
+    let agent = programs.join("bridge-agent");
+    let proxy = programs.join("bridge-packet");
+    let programs = BridgePrograms { agent: &agent, packet: &proxy };
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let mut bridge = if packet {
+        Scope::start_packet(paths, programs, deadline).await
+    } else {
+        Scope::start_bridge(paths, programs, deadline).await
+    }
     .unwrap();
+    let identity = if packet {
+        bridge.start_packet_stack(8, Instant::now() + Duration::from_secs(15)).await.unwrap();
+        assert!(bridge.packet_alive().unwrap());
+        Some(rustix::io::dup(bridge.resources.as_ref().unwrap().identity.as_ref().unwrap()).unwrap())
+    } else {
+        None
+    };
     assert_ne!(fs::read_link(bridge.namespace().unwrap()).unwrap(), before);
     let queue = bridge.packet_queue().unwrap();
     assert_eq!(rustix::io::fcntl_getfd(&queue).unwrap(), rustix::io::FdFlags::CLOEXEC);
@@ -148,9 +163,26 @@ async fn bridge_adoption(root: &Path, program: &Path, lease: &fs::File, before: 
     assert_eq!(fs::read_link("/proc/self/ns/net").unwrap(), before);
     let mut stop = Box::pin(bridge.stop());
     assert!(tokio::time::timeout(Duration::from_millis(200), &mut stop).await.is_err());
+    if let Some(identity) = &identity {
+        let mut descriptor = [rustix::event::PollFd::new(identity, rustix::event::PollFlags::IN)];
+        assert_eq!(
+            rustix::event::poll(&mut descriptor, Some(&rustix::event::Timespec { tv_sec: 0, tv_nsec: 0 })).unwrap(),
+            0,
+            "Packet process retired before its monitor lease cleared"
+        );
+    }
     rustix::fs::flock(lease, rustix::fs::FlockOperation::Unlock).unwrap();
     tokio::time::timeout(Duration::from_secs(10), &mut stop).await.unwrap().unwrap();
     drop(stop);
+    if let Some(identity) = identity {
+        let mut descriptor = [rustix::event::PollFd::new(&identity, rustix::event::PollFlags::IN)];
+        assert_eq!(
+            rustix::event::poll(&mut descriptor, Some(&rustix::event::Timespec { tv_sec: 0, tv_nsec: 0 })).unwrap(),
+            1
+        );
+        assert!(descriptor[0].revents().contains(rustix::event::PollFlags::IN));
+        assert!(bridge.packet_alive().is_err());
+    }
     assert!(bridge.packet_queue().is_err());
     assert!(bridge.namespace().is_err());
     assert_eq!(fs::read_link("/proc/self/ns/net").unwrap(), before);
