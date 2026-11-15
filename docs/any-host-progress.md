@@ -4816,3 +4816,18 @@ job when publication is authorized. That job has not run in this task.
   An earlier invocation used Bun 1.4.3 without DATABASE_URL and failed; it is not validation.
   Installed KVM acceptance still requires the next Any host CI result. No new dependency,
   job/gate or estimated CI minute; this waits only for the existing route acknowledgment.
+
+- Source 351eaf0 Any host run 43680103857/job 132725084072 passes the first image’s edge
+  cold wake, running view, snapshot and fork file/command checks, then finds no `web` endpoint
+  on the fork: a fork is a create from its snapshot and declares its own ports. Give the fork
+  the parent’s public port, network and spare-port count. Biome and typecheck pass; no daemon,
+  control or edge behavior changes, no job/gate or CI minute.
+
+- Add VM worker file and cold-copy sessions: one streamed readiness response owns each
+  backend file service or copy lease; close confirms cleanup, response loss or frontend
+  retirement cancels it, and admitted file operations hold the session until their bodies end.
+  The frontend client implements the runtime owner’s file transport. Real HTTP tests: a
+  delayed body past the one-second deadline still streams, a cancelled close stays owned and
+  releases the real data lease, and owner loss retires an unread stream before compute.
+  All eight worker tests, strict pryxd all-target Clippy, fmt and both structure checks pass.
+  No dependency, job/gate or CI minute; no installed worker service or placement yet.
