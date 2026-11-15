@@ -30,16 +30,24 @@ async fn stop(config: &Config, purge: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// The sealed read-only caches a purge must open first: native process tools and the VM
+/// bundle, which shares the same acquisition (`process_tools::acquire_artifact`).
 fn unseal_native_tools(state: &Path) -> std::io::Result<()> {
-    let root = state.join("process-tools");
-    let directory = match pryx_agent::paths::DataDir::open(&root) {
+    for root in [state.join("process-tools"), state.join("vm-runtime").join("cache")] {
+        unseal(&root)?;
+    }
+    Ok(())
+}
+
+fn unseal(root: &Path) -> std::io::Result<()> {
+    let directory = match pryx_agent::paths::DataDir::open(root) {
         Ok(directory) => directory,
         Err(problem) if problem.kind() == std::io::ErrorKind::NotFound => return Ok(()),
         Err(problem) => return Err(problem),
     };
     // All compute has stopped while both lifecycle/store locks remain held. Reuse the
     // descriptor-relative walk and chmod owner; links never grant access to their targets.
-    crate::tree::walk(&root, &[], &mut |entry| {
+    crate::tree::walk(root, &[], &mut |entry| {
         if matches!(entry.kind, crate::tree::Kind::Dir) {
             directory.chmod(entry.path.to_str().ok_or(std::io::ErrorKind::InvalidData)?, 0o700)?;
         }
@@ -134,6 +142,16 @@ mod tests {
         assert!(unseal_native_tools(state.path()).is_err());
         assert_eq!(std::fs::metadata(outside.path()).unwrap().permissions().mode() & 0o777, 0o555);
         std::fs::set_permissions(outside.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        // The VM bundle shares the sealed acquisition, so its cache is opened for purge too.
+        std::fs::remove_file(state.path().join("process-tools")).unwrap();
+        let vm = state.path().join("vm-runtime/cache/digest/bin");
+        std::fs::create_dir_all(&vm).unwrap();
+        std::fs::write(vm.join("firecracker"), b"verified monitor").unwrap();
+        for path in [vm.as_path(), vm.parent().unwrap()] {
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o555)).unwrap();
+        }
+        unseal_native_tools(state.path()).unwrap();
+        std::fs::remove_dir_all(state.path().join("vm-runtime")).unwrap();
     }
 
     #[tokio::test]
