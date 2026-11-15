@@ -32,7 +32,8 @@ pub(crate) async fn open(agent: &Agent, claims: &Claims) -> Result<ToolAccess, F
     let path = format!("{}/websockify?token={token}", base.path().trim_end_matches('/'));
     let path = percent_encoding::utf8_percent_encode(path.trim_start_matches('/'), percent_encoding::NON_ALPHANUMERIC);
     Ok(ToolAccess {
-        url: format!("{}/vnc.html#autoconnect=true&resize=remote&path={path}", url.trim_end_matches('/')),
+        // The page's own query carries the token too, since the native front serves nothing without it.
+        url: format!("{}/vnc.html?token={token}#autoconnect=true&resize=remote&path={path}", url.trim_end_matches('/')),
         expires_at,
     })
 }

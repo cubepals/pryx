@@ -73,6 +73,7 @@ Parts (`process-tools/`):
 - `desktop_web.py`: verified noVNC/websockify staging and complete source retention.
 - `desktop-web.lock.json`: pinned web programs and corresponding sources, reusing K18 reviews.
 - `desktop/`: fixed external desktop supervision, Unix forwarding and token expiry adapters.
+- `desktop_front_test.py`: the committed front under real Node refuses requests without the current, unexpired token.
 - `libraries.lock.json`: immutable library/font archives and their notice hashes.
 - `helpers.lock.json`: separately executed namespace helpers and their complete notices.
 - `notices/`: source-reviewed corrections to incomplete library/font package notices.

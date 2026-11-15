@@ -5,23 +5,12 @@
 set -euo pipefail
 pryx_native_artifacts="$RUNNER_TEMP/native-distribution"
 pryx_native_trust="$RUNNER_TEMP/native-host-trust"
-mkdir -m 700 "$pryx_native_trust"
-openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj '/CN=Pryx CI installed tools CA' \
-  -keyout "$pryx_native_trust/ca.key" -out "$pryx_native_trust/ca.crt" > "$pryx_native_trust/openssl.log" 2>&1
-openssl req -newkey rsa:2048 -nodes -subj '/CN=127.0.0.1' \
-  -keyout "$pryx_native_trust/server.key" -out "$pryx_native_trust/server.csr" >> "$pryx_native_trust/openssl.log" 2>&1
-printf '%s\n' 'subjectAltName=IP:127.0.0.1' 'extendedKeyUsage=serverAuth' > "$pryx_native_trust/extensions"
-openssl x509 -req -in "$pryx_native_trust/server.csr" -CA "$pryx_native_trust/ca.crt" \
-  -CAkey "$pryx_native_trust/ca.key" -CAcreateserial -days 1 -extfile "$pryx_native_trust/extensions" \
-  -out "$pryx_native_trust/server.crt" >> "$pryx_native_trust/openssl.log" 2>&1
-sudo install -m 644 "$pryx_native_trust/ca.crt" /usr/local/share/ca-certificates/pryx-ci-installed-tools.crt
-sudo update-ca-certificates
 if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
   sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 fi
-python3 deploy/tool-artifact-server.py --directory "$pryx_native_artifacts" \
-  --certificate "$pryx_native_trust/server.crt" --key "$pryx_native_trust/server.key" > "$RUNNER_TEMP/native-host-artifact-server.log" 2>&1 &
-pryx_native_tls=$!
+. deploy/loopback-tls.sh
+pryx_loopback_tls "$pryx_native_artifacts" "$pryx_native_trust" "$RUNNER_TEMP/native-host-artifact-server.log"
+pryx_native_tls=$pryx_loopback_tls_pid
 python3 -m http.server 9876 --bind 127.0.0.1 --directory "$PWD/host-artifacts" > "$RUNNER_TEMP/native-host-release-server.log" 2>&1 &
 pryx_native_http=$!
 pryx_vm_memory=

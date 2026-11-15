@@ -4970,3 +4970,9 @@ job when publication is authorized. That job has not run in this task.
   after a restart image 8249/5068 (helper resolving a digest reference at the registry, fixed for
   later runs by 410880b), disk 14, monitor 16, boot 680/715, agent 120; retained-disk start in a
   fresh runtime image 1002/987, disk 7, boot 748/676, agent 117/130.
+
+- Any host 43733144224 at 86a545a: the signed ordinary-user install passes both image
+  lifecycles, the egress rule and every thirty-sample VM cohort (wake p50 1502 ms, snapshot
+  1640, fork 2459, agent true 47.7), then fails at the purge after it, silently. Purge now
+  unseals the VM bundle cache (unit test with read-only directories) and the script prints a
+  failed purge’s log. Measurements are summarized in decisions until the next green run.

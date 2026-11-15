@@ -6,7 +6,7 @@ in the progress record; the bundle and corresponding sources have no live releas
 
 Parts (`desktop/`):
 
-- `start.mjs`: program supervision, private command access and scoped HTTP forwarding.
+- `start.mjs`: program supervision, private command access and token-gated HTTP forwarding.
 - `vnc.py`: pass private Unix connections to x11vnc's maintained inetd interface.
 - `web.py`: run maintained websockify with capability URL logging disabled.
 - `policy.py`: bind the existing token-file resolver to wall-clock expiry.

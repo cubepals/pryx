@@ -43,6 +43,31 @@ function make(sdk: Pryx) {
   })
 }
 
+/** Each cohort as docs/tiers.md names it, so the job log carries every figure the artifact does. */
+const FIGURES = [
+  ['cold_create_running_ms', 'Cold create to running', 'ms'],
+  ['create_first_output_ms', 'Create to first output', 'ms'],
+  ['agent_run_true_ms', 'Agent true', 'ms'],
+  ['wake_ms', 'Wake from sleep', 'ms'],
+  ['snapshot_100mb_ms', 'Snapshot 100 MB', 'ms'],
+  ['fork_100mb_ms', 'Fork 100 MB', 'ms'],
+  ['idle_context_pss_bytes', 'Idle context PSS', 'MiB'],
+  ['idle_increment_pss_bytes', 'Idle paired PSS delta', 'MiB'],
+  ['fixed_context_pss_bytes', 'Fixed context PSS before create', 'MiB'],
+] as const
+
+function summarize(samples: Samples) {
+  const shown = (value: number | undefined, unit: string) =>
+    value === undefined ? 'none' : (unit === 'MiB' ? value / (1024 * 1024) : value).toFixed(2)
+  console.info('VM SUMMARY cohort: n, p50 / p90')
+  for (const [name, label, unit] of FIGURES) {
+    const values = samples[name] ?? []
+    console.info(
+      `VM SUMMARY ${label} (${unit}): n=${values.length}, ${shown(percentile(values, 0.5), unit)} / ${shown(percentile(values, 0.9), unit)}`,
+    )
+  }
+}
+
 async function trueCommand(box: Sandbox) {
   const result = await box.run(['/bin/sh', '-c', 'true'])
   assert.equal(result.code, 0)
@@ -170,5 +195,6 @@ export async function vmMeasurements(sdk: Pryx, installed: LocalInstallation) {
     operation = 'complete'
   } finally {
     persist()
+    summarize(samples)
   }
 }

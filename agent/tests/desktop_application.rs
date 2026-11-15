@@ -96,8 +96,10 @@ fn owner(input: &Input) {
         let client = reqwest::Client::builder().unix_socket(PathBuf::from(format!("\0{}", input.address)))
             .timeout(pryx_agent::contract::TOOL_STARTUP).build().unwrap();
         let deadline = Instant::now() + pryx_agent::contract::TOOL_STARTUP;
+        // No access token is current yet, so the listening front must refuse the page.
+        let refused = |r: &reqwest::Response| r.status() == reqwest::StatusCode::FORBIDDEN;
         loop {
-            if client.get("http://localhost/vnc.html").send().await.is_ok_and(|r| r.status().is_success()) { break }
+            if client.get("http://localhost/vnc.html").send().await.is_ok_and(|r| refused(&r)) { break }
             assert!(child.0.try_wait().unwrap().is_none(), "Desktop worker exited");
             assert!(Instant::now() < deadline, "Desktop readiness deadline");
             tokio::time::sleep(Duration::from_millis(20)).await;
@@ -122,6 +124,9 @@ fn owner(input: &Input) {
         let expires = pryx_agent::telemetry::now() + 3;
         fs::write(scratch.join("tokens"), format!("{token}: unix_socket:/tmp/pryx-desktop/vnc.sock\n")).unwrap();
         fs::write(scratch.join("desktop-access.json"), json!({"token":token,"expiresAt":expires}).to_string()).unwrap();
+        let page = client.get(format!("http://localhost/vnc.html?token={token}")).send().await.unwrap();
+        assert!(page.status().is_success(), "The current access token must serve the noVNC page");
+        assert!(refused(&client.get("http://localhost/vnc.html").send().await.unwrap()), "Unauthenticated page served");
         let stream = tokio::net::UnixStream::connect(format!("\0{}",input.address)).await.unwrap();
         let (mut websocket, _) = tokio_tungstenite::client_async(format!("ws://localhost/websockify?token={token}"), stream).await.unwrap();
         let first = tokio::time::timeout(pryx_agent::contract::TOOL_STARTUP, websocket.next()).await.unwrap().unwrap().unwrap();
@@ -131,7 +136,9 @@ fn owner(input: &Input) {
         }).await.expect("Expired VNC connection remained open");
         let stream = tokio::net::UnixStream::connect(format!("\0{}",input.address)).await.unwrap();
         assert!(tokio_tungstenite::client_async(format!("ws://localhost/websockify?token={token}"), stream).await.is_err());
-        fs::write(input.root.join("data/result.json"), json!({"headfulApplication":true,"screenshot":true,"novncPage":true,"vncGreeting":true,"expiredConnectionClosed":true,"expiredReconnectDenied":true,"privateCommandAuthentication":true}).to_string()).unwrap();
+        let expired = client.get(format!("http://localhost/vnc.html?token={token}")).send().await.unwrap();
+        assert!(refused(&expired), "Expired access token served the noVNC page");
+        fs::write(input.root.join("data/result.json"), json!({"headfulApplication":true,"screenshot":true,"novncPage":true,"unauthenticatedPageRefused":true,"expiredPageRefused":true,"vncGreeting":true,"expiredConnectionClosed":true,"expiredReconnectDenied":true,"privateCommandAuthentication":true}).to_string()).unwrap();
         while !input.root.join("data/stop").exists() { tokio::time::sleep(Duration::from_millis(20)).await }
     });
 }
