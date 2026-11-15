@@ -1332,3 +1332,5 @@
 - K25: abstract file-session transport behind the existing runtime Service while retaining its owned cleanup task; keep the actual agent signer, private endpoint and operation mapping in the agent transport, and serialize only the runtime owner’s file request/operation types for worker sessions.
 
 - K25: wait through the existing bounded API poll for the exact running view after an edge cold wake; a held request can already reach compute while the control view still awaits all route acknowledgments. Keep the successful application response and running-state assertions.
+
+- K25: a fork is a create from its snapshot and declares its own ports, network and spare ports, as on every tier; the installed VM acceptance gives the fork the parent’s public web port and network before asking the edge for it, with no control or edge change.

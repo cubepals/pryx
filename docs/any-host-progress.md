@@ -4816,3 +4816,9 @@ job when publication is authorized. That job has not run in this task.
   An earlier invocation used Bun 1.4.3 without DATABASE_URL and failed; it is not validation.
   Installed KVM acceptance still requires the next Any host CI result. No new dependency,
   job/gate or estimated CI minute; this waits only for the existing route acknowledgment.
+
+- Source 351eaf0 Any host run 43680103857/job 132725084072 passes the first image’s edge
+  cold wake, running view, snapshot and fork file/command checks, then finds no `web` endpoint
+  on the fork: a fork is a create from its snapshot and declares its own ports. Give the fork
+  the parent’s public port, network and spare-port count. Biome and typecheck pass; no daemon,
+  control or edge behavior changes, no job/gate or CI minute.
