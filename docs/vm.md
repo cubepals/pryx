@@ -202,7 +202,10 @@ lifetime lease and then confines it:
   signals or resource-limit changes for other processes, no io_uring, and no way to close or
   unlock its lease. Firecracker's own filter stays on; `--no-seccomp` and `--seccomp-filter`
   are refused.
-- It is not dumpable, and the kernel kills it when pryxd exits.
+- **Landlock's abstract-socket scope**, where the kernel has it (Landlock ABI 6): no abstract
+  Unix socket outside its own domain.
+- It is not dumpable, and the kernel kills it when pryxd exits. Its one-shot bootstrap socket
+  hands the guest's secrets only to a peer with the monitor's own PID.
 
 As root, the monitor runs under Firecracker's unchanged jailer, with fixed non-root host IDs
 that the host chooses and a workload never can, in a chroot holding only its staged inputs,

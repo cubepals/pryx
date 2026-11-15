@@ -4915,3 +4915,7 @@ job when publication is authorized. That job has not run in this task.
 - VM observation no longer waits on a busy transition (file session, start, stop): it answers
   from the journal, and list observes VMs together. The actual runtime test inspects and lists a
   stopped VM within 500 ms while its file session is open. Clippy and structure pass.
+
+- Monitors and filesystem programs add the abstract-socket Landlock scope where available;
+  the bootstrap listener checks the monitor PID before sending secrets. Launcher tests pass
+  under the scope on a 6.18 kernel; the monitor paths run in the VM workflow.

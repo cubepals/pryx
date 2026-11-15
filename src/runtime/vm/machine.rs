@@ -109,9 +109,17 @@ impl Machine {
                 return Err(error(problem));
             }
         };
+        // The launcher execs the monitor (and the jailer execs it) in place, so the monitor's
+        // connection carries this PID; any other peer is dropped without the secrets.
+        let monitor = child.id().and_then(|pid| i32::try_from(pid).ok());
         let bootstrap = tokio::spawn(async move {
             tokio::time::timeout_at(deadline, async {
-                let (mut socket, _) = listener.accept().await?;
+                let mut socket = loop {
+                    let (socket, _) = listener.accept().await?;
+                    if monitor.is_some() && socket.peer_cred()?.pid() == monitor {
+                        break socket;
+                    }
+                };
                 socket.write_all(&bytes).await?;
                 socket.shutdown().await
             })
