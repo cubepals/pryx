@@ -25,11 +25,15 @@ cgroup (a default `docker run`, an undelegated user service), without CAP_BPF an
 the kernel's verifier refuses a program, with the verifier's words. Nothing is approximated
 where it is off.
 
-The server preset's unit (`deploy/pryxd.service`) grants what it needs and no more: CAP_BPF and
-CAP_NET_ADMIN, with CAP_SETUID and CAP_SETGID for the process tier's uid pool, `Delegate=yes`,
-and of `/sys` only its own cgroup subtree and `/sys/fs/bpf/pryx` writable. Process sandboxes
-live in cgroups below the unit's, so they stop when pryxd's unit stops, as VMs do with the VM
-worker; containers keep running.
+The root unit that the server and node presets install (`deploy/pryxd.service`) grants what it
+needs and no more: CAP_BPF and CAP_NET_ADMIN, with CAP_SETUID and CAP_SETGID for the process
+tier's uid pool, `Delegate=yes`, and of `/sys` only its own cgroup subtree and
+`/sys/fs/bpf/pryx` writable. Process sandboxes live in cgroups below the unit's, so they stop
+when pryxd's unit stops, as VMs do with the VM worker; containers keep running. pryxd logs the
+proof at each start (`kernel network policy`, with `on` and its evidence). The server preset's
+own control plane requires private-network, private-pids, memory-limit and cpu-limit of every
+sandbox, which the process tier doesn't give, so it places none there; a control plane a node
+joins that places process sandboxes gets them policed.
 
 As root, granting it to a user means: the capabilities on its service
 (`AmbientCapabilities=CAP_BPF CAP_NET_ADMIN`), `Delegate=yes`, and
