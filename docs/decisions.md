@@ -1320,3 +1320,5 @@
 - K25: treat an archive ending before its declared length as a retryable GET transport failure; bypass stale caches on retry, then use the publisher’s direct Go endpoint at the identical committed size/digest. Oversize, digest mismatch and HTTPS downgrade still refuse; retain tool stderr in its existing CI artifact.
 
 - K25: pass kernel Unix peer credentials into Axum connection metadata and require the frontend lifetime permit for each unary RPC; keep that permit inside the detached operation task. Refuse another actual client PID and all requests after owner retirement, without trusting a request-supplied identity.
+
+- K25: keep the separately resolved VM image-helper lock synchronized with runtime serialization features, retaining all package versions and source digests; validate every dependent manifest with its own locked build.

@@ -4747,3 +4747,13 @@ job when publication is authorized. That job has not run in this task.
   strict all-target Clippy, fmt and whitespace pass. Staged Wasm inputs are removed afterwards.
   No dependency/job/gate or estimated CI minute. Streaming/file/copy sessions, host policy and
   installed root selection remain unfinished; the main service retains all existing bounds.
+
+- Source 30b8707 VM run 43663908744/job 132658981757 passes earlier kernel/network spikes
+  and host launch policies, then fails the static bootstrap and OCI helper builds because
+  the independent vm-image lock lacks the new deranged/serde_core feature edge. Add only
+  that edge, keeping every package version/source digest unchanged; no runtime proof ran.
+- The actual helper binary now builds with its lock, and all unignored test targets compile
+  (zero local cases, three unchanged artifact/KVM cases ignored). Helper advisory/licence/source
+  audit passes; its additional bans audit refuses the existing versionless same-checkout path
+  dependencies. The required root cargo-deny check passed in the preceding typed-command
+  step; no audit policy or CI gate is changed. No extra dependency, job or CI minute.
