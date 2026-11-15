@@ -5789,6 +5789,82 @@
             ],
             "additionalProperties": false
           },
+          "egressAddresses": {
+            "type": "object",
+            "properties": {
+              "allow": {
+                "default": [],
+                "maxItems": 64,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "ports": {
+                      "anyOf": [
+                        {
+                          "minItems": 2,
+                          "maxItems": 2,
+                          "type": "array",
+                          "items": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 65535
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "prefix": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "prefix"
+                  ],
+                  "additionalProperties": false,
+                  "description": "An IPv4 or IPv6 prefix, such as `203.0.113.0/24` (a bare address is one host), and an\ninclusive port range for TCP and UDP; without one, every port."
+                }
+              },
+              "deny": {
+                "default": [],
+                "maxItems": 64,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "ports": {
+                      "anyOf": [
+                        {
+                          "minItems": 2,
+                          "maxItems": 2,
+                          "type": "array",
+                          "items": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 65535
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "prefix": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "prefix"
+                  ],
+                  "additionalProperties": false,
+                  "description": "An IPv4 or IPv6 prefix, such as `203.0.113.0/24` (a bare address is one host), and an\ninclusive port range for TCP and UDP; without one, every port."
+                }
+              }
+            },
+            "additionalProperties": false
+          },
           "start": {
             "default": true,
             "type": "boolean"
@@ -6385,6 +6461,82 @@
                 "required": [
                   "allow"
                 ],
+                "additionalProperties": false
+              },
+              "egressAddresses": {
+                "type": "object",
+                "properties": {
+                  "allow": {
+                    "default": [],
+                    "maxItems": 64,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "ports": {
+                          "anyOf": [
+                            {
+                              "minItems": 2,
+                              "maxItems": 2,
+                              "type": "array",
+                              "items": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 65535
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "prefix": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "prefix"
+                      ],
+                      "additionalProperties": false,
+                      "description": "An IPv4 or IPv6 prefix, such as `203.0.113.0/24` (a bare address is one host), and an\ninclusive port range for TCP and UDP; without one, every port."
+                    }
+                  },
+                  "deny": {
+                    "default": [],
+                    "maxItems": 64,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "ports": {
+                          "anyOf": [
+                            {
+                              "minItems": 2,
+                              "maxItems": 2,
+                              "type": "array",
+                              "items": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 65535
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "prefix": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "prefix"
+                      ],
+                      "additionalProperties": false,
+                      "description": "An IPv4 or IPv6 prefix, such as `203.0.113.0/24` (a bare address is one host), and an\ninclusive port range for TCP and UDP; without one, every port."
+                    }
+                  }
+                },
                 "additionalProperties": false
               },
               "start": {

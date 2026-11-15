@@ -122,6 +122,7 @@ export function runtimeSpec(spec: SandboxSpec): RuntimeSpec {
     ...(spec.workdir ? { workdir: spec.workdir } : {}),
     ...(spec.user ? { user: spec.user } : {}),
     ...(spec.egress && spec.network !== 'none' ? { egress: spec.egress } : {}),
+    ...(spec.egressAddresses && spec.network !== 'none' ? { egressAddresses: spec.egressAddresses } : {}),
     isolation: spec.isolation,
     ...(spec.agent ? { agent: spec.agent } : {}),
     ...(spec.sparePorts === undefined ? {} : { sparePorts: spec.sparePorts }),
