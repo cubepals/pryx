@@ -5,6 +5,9 @@ import nodeSchema from '../../openapi/node-writes.openapi.json'
 import type { components } from './generated/node-reads.ts'
 
 export const CPU_LIMIT_PROBLEM = nodeSchema['x-pryx-resources'].cpuLimitProblem
+/** cpuMillis counts thousandths of a core; the vm tier sizes its guest in whole vCPUs (docs/vm.md). */
+export const VM_CPU_MILLIS = 1000
+export const VM_CPU_PROBLEM = `must be a whole number of vCPUs on the vm tier: a positive multiple of ${VM_CPU_MILLIS}`
 export type Isolation = components['schemas']['Isolation']
 export const ISOLATIONS = nodeReads.components.schemas.Isolation.enum as [Isolation, ...Isolation[]]
 export type IsolationDefault = Isolation | readonly Isolation[]

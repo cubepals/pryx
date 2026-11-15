@@ -6,7 +6,7 @@
 
 import { describe, expect, test } from 'bun:test'
 import contract from '../../openapi/node-writes.openapi.json'
-import { ISOLATIONS } from '../src/isolation.ts'
+import { CPU_LIMIT_PROBLEM, ISOLATIONS } from '../src/isolation.ts'
 import {
   cpuRequest,
   DEFAULTS,
@@ -84,6 +84,20 @@ describe('selectNode', () => {
       expect(selectNode(request({ isolation, cpuLimits: false }), [target]).node?.id).toBe(isolation)
     }
     expect(selectNode(request({ cpuLimits: true }), [node('container')]).node?.id).toBe('container')
+  })
+  test('a VM CPU ceiling needs its tier to announce cpu-limit, and weights stay with containers', () => {
+    const enforcing = node('vm', { features: ['placement-epochs', 'vm-tier', 'cpu-limit'] })
+    const unannounced = node('plain', { features: ['placement-epochs', 'vm-tier'] })
+    expect(selectNode(request({ isolation: 'vm', cpuLimits: true }), [enforcing]).node?.id).toBe('vm')
+    const refused = selectNode(request({ isolation: 'vm', cpuLimits: true }), [unannounced])
+    expect(refused.node).toBeNull()
+    expect(refused.considered[0]?.missingGuarantees).toEqual(['cpu-limit'])
+    expect(selectNode(request({ isolation: 'vm' }), [unannounced]).node?.id).toBe('plain')
+    const weighted = selectNode(request({ isolation: 'vm', cpuLimits: true, cpuWeight: true }), [enforcing])
+    expect(weighted.node).toBeNull()
+    expect(weighted.considered[0]?.reason).toBe(CPU_LIMIT_PROBLEM)
+    const container = node('container')
+    expect(selectNode(request({ cpuLimits: true, cpuWeight: true }), [container]).node?.id).toBe('container')
   })
   test('process and container requests cannot cross isolation tiers', () => {
     const process = node('process', { features: ['placement-epochs', 'process-tier'] })

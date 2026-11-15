@@ -26,6 +26,8 @@ export interface PlacementRequest {
   cpuMillis: number
   /** Requires enforceable per-sandbox CPU quota or weight. */
   cpuLimits?: boolean
+  /** Names a CPU weight, which only the container tier enforces; a ceiling needs `cpu-limit`. */
+  cpuWeight?: boolean
   diskGb: number
   /** Host ports the workload needs. */
   ports: number
@@ -133,7 +135,7 @@ function refusal(node: NodeView, request: PlacementRequest, options: PlacementOp
   if (guarantees.length) return `lacks required guarantees: ${guarantees.join(', ')}`
   if (!nodeIsolations(node.features).includes(request.isolation ?? 'container'))
     return `isolation tier ${request.isolation ?? 'container'} does not match`
-  if (request.cpuLimits && (request.isolation ?? 'container') !== 'container') return CPU_LIMIT_PROBLEM
+  if (request.cpuWeight && (request.isolation ?? 'container') !== 'container') return CPU_LIMIT_PROBLEM
   const missing = request.needs.filter(
     (f) => !nodeFeature(node.features, f, request.isolation ?? 'container'),
   )
@@ -169,10 +171,10 @@ function enforcementRequirements(
   features: readonly string[],
 ): readonly Guarantee[] {
   const required = [...(request.require ?? [])]
-  if (
-    (request.isolation ?? 'container') === 'container' &&
-    features.includes(contract['x-pryx-resources'].unenforcedMemoryFeature)
-  ) {
+  if ((request.isolation ?? 'container') !== 'container') {
+    // A CPU ceiling outside a container runs only where its tier announces enforcing it.
+    if (request.cpuLimits) required.push('cpu-limit')
+  } else if (features.includes(contract['x-pryx-resources'].unenforcedMemoryFeature)) {
     if (request.memoryLimit) required.push('memory-limit')
     if (request.cpuLimits) required.push('cpu-limit')
   }
