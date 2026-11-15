@@ -10,9 +10,9 @@ A named unavailable tier is refused; it is never substituted.
 For an unnamed request, control chooses container, then VM, then process, then Wasm among healthy nodes
 that meet `require` and accept the supplied source: images need containers or VMs, image-free requests
 use process or Wasm, and package requests need Wasm. Snapshots and templates retain their saved
-tier. The [VM backend](vm.md) needs working KVM, ordinary-user monitor confinement and
-installed immutable bundle pins. Root VM service authority and complete K25 acceptance
-remain unfinished; production measurements are not yet available.
+tier. The [VM tier](vm.md) needs working KVM, ordinary-user monitor confinement and the
+signed installation's immutable bundle descriptor. pryxd running as root keeps it off until
+root VM service authority is finished, and its measurements are [pending](#vm-tier-measurements).
 `PRYX_DEFAULT_ISOLATION=process` fixes one tier; a comma-separated list changes the priority.
 Local installations retain this preference across user-manager restarts and upgrades.
 The image and new local installations use auto mode. Without an engine, the usual first choice
@@ -243,19 +243,19 @@ candidates. These are fresh sandboxes, without a pre-created VM or warmed comman
 
 ## Capabilities
 
-| Capability | Container | Process | wasm |
-| --- | --- | --- | --- |
-| Arbitrary image | Yes | No | No; explicit 422 image problem |
-| Native Linux binaries | Image architecture | Host architecture and policy | No; compatible WASM software |
-| Python | Install in image | Bundled CPython | Embedded Pyodide |
-| Node | Install in image | Bundled Node | Embedded V8 compatibility runtime |
-| Shell | Static agent fallback | Static agent shell | Verified agentOS coreutils shell |
-| Isolation | Shared host kernel, namespaces and cgroups | Landlock, seccomp, process groups; dedicated UIDs when root; shared host network, mutually trusted Internet workloads | Virtual kernel, WebAssembly and V8; shared unprivileged sidecar |
-| Kernel per sandbox | No | No | No native kernel; a virtual kernel per VM |
-| CPU enforcement | Per-sandbox cgroup quota and weight | Admission reservation and best-effort nice; hard CPU limits/weights refused | Admission reservation; hard CPU limits/weights refused |
-| Sleep retains files | Yes | Yes | SQLite root and explicit persistent data mount |
-| Application ingress | TCP/UDP according to host policy | Host TCP according to policy | HTTP over TCP; no UDP, raw TCP, TLS passthrough or app WebSockets |
-| Sleep retains processes and terminals | Frozen container | Suspended process group | No; VM is disposed and recreated | Raw output belongs to the cited CI artifacts; the repository keeps only its summary.
+| Capability | Container | Process | wasm | vm |
+| --- | --- | --- | --- | --- |
+| Arbitrary image | Yes | No | No; explicit 422 image problem | `linux/amd64` images, pulled without a daemon |
+| Native Linux binaries | Image architecture | Host architecture and policy | No; compatible WASM software | The image's, on the guest kernel (x86_64) |
+| Python | Install in image | Bundled CPython | Embedded Pyodide | Install in image |
+| Node | Install in image | Bundled Node | Embedded V8 compatibility runtime | Install in image |
+| Shell | Static agent fallback | Static agent shell | Verified agentOS coreutils shell | The image's shell |
+| Isolation | Shared host kernel, namespaces and cgroups | Landlock, seccomp, process groups; dedicated UIDs when root; shared host network, mutually trusted Internet workloads | Virtual kernel, WebAssembly and V8; shared unprivileged sidecar | Its own kernel on KVM; Firecracker monitor under Landlock and seccomp as an ordinary user; own network stack or none |
+| Kernel per sandbox | No | No | No native kernel; a virtual kernel per VM | Yes, Linux 6.18.56 in each guest |
+| CPU enforcement | Per-sandbox cgroup quota and weight | Admission reservation and best-effort nice; hard CPU limits/weights refused | Admission reservation; hard CPU limits/weights refused | Whole vCPUs, the guest's size; fractions and weights refused |
+| Sleep retains files | Yes | Yes | SQLite root and explicit persistent data mount | Yes, its ext4 disk |
+| Application ingress | TCP/UDP according to host policy | Host TCP according to policy | HTTP over TCP; no UDP, raw TCP, TLS passthrough or app WebSockets | Declared TCP through host-owned relays; UDP refused |
+| Sleep retains processes and terminals | Frozen container | Suspended process group | No; VM is disposed and recreated | No; the guest stops and boots again on wake |
 
 agentOS 0.4.7 has no per-VM suspend operation in its published client. Suspending its shared
 sidecar would pause unrelated sandboxes, so it cannot implement sleep that retains processes.
@@ -345,6 +345,34 @@ All cells are p50 / p90; every requested cohort has n=30.
 
 Fixed context PSS (n=1, MiB): container 13.43, process 307.57, wasm 365.40.
 
+## VM tier measurements
+
+**Pending.** No thirty-sample VM cohort has completed in CI yet, so this table has no figures.
+`deploy/vm-installed-measurements.ts` collects them in the Any host workflow's *Bundle runtime
+acceptance* job, as the signed ordinary-user installation's own user on a hosted runner with
+KVM, after that installation's VM acceptance passes. Each cohort uses the public API and the
+real agent, the first pinned image (Alpine 3.24.4) already cached with the VM bundle, one unit,
+the default network and n=30. The 100 MB snapshot and fork use the same fixture as the other
+tiers. Memory is the installation's whole supervisor tree's PSS, VM and packet helpers included,
+with the increment over the baseline sampled before each create. The rows are filled from that
+run's committed summary, never estimated.
+
+| Measurement, installed ordinary-user VM | p50 / p90 |
+| --- | --- |
+| Cold create to running (ms) | Pending |
+| Create to first output (ms) | Pending |
+| Agent `true` (ms) | Pending |
+| Sleep then wake (ms) | Pending |
+| Snapshot 100 MB (ms) | Pending |
+| Fork 100 MB (ms) | Pending |
+| Idle context PSS (MiB) | Pending |
+| Idle paired PSS delta (MiB) | Pending |
+
+The [kernel spike](checks/k25-vm-spikes.md) measured a minimal guest fixture, not a sandbox:
+p50 717.035 ms and p90 725.265 ms from launch to a validated filesystem and vsock report, over
+thirty boots with one vCPU and 256 MiB. It is not a create, agent or memory figure for this
+table.
+
 ## Measured default and create-to-output target
 
 Keep **process** as the image default when no Docker socket is usable. In the ordinary-image
@@ -416,10 +444,11 @@ the pull request is opened; its exact final commit and run are linked in the pul
 
 ## K16 policy and convenience tools
 
-Hostname egress allow/deny is available only on container nodes that announce
+Hostname egress allow/deny is available on container nodes that announce
 `egress-hostnames` after root firewall installation. Each such sandbox has a dedicated bridge
-and HTTP/TLS gateways; no sandbox proxy setting can bypass the firewall. Process and wasm
-return an explicit tier refusal. `network:none` remains the all-tiers network boundary.
+and HTTP/TLS gateways; no sandbox proxy setting can bypass the firewall. An ordinary-user node
+whose only tier is `vm` announces it too, with guest rules and host-owned gateways
+([vm.md](vm.md#as-an-ordinary-user)). Process and wasm return an explicit tier refusal. `network:none` remains the all-tiers network boundary.
 Workdir uses the `workload-options` feature; user selection is restricted to the operator
 container user. Metrics use cached tier counters and preserve null where unavailable.
 These policy fields are refused when the destination no longer announces the feature,
