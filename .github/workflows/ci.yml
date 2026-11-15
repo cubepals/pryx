@@ -200,12 +200,14 @@ jobs:
         run: |
           sudo install -d -o "$(id -u)" -g "$(id -g)" -m 0700 /sys/fs/bpf/pryx
           sudo chmod o+x /sys/fs/bpf
+          # The one test binary of pryxd's target named $1 (the bin it also builds is not it).
           executable() {
-            cargo test --locked "$@" --no-run --message-format=json \
-              | jq -r 'select(.reason == "compiler-artifact" and .executable != null) | .executable'
+            cargo test --locked -p pryxd "${@:2}" --no-run --message-format=json \
+              | jq -r --arg name "$1" 'select(.reason == "compiler-artifact" and .profile.test
+                  and .target.name == $name and .executable != null) | .executable'
           }
-          library=$(executable --lib)
-          policy=$(executable --test process_network)
+          library=$(executable pryxd --lib)
+          policy=$(executable process_network --test process_network)
           for run in "$library bpf:: --ignored" "$policy --ignored --test-threads 1"; do
             # shellcheck disable=SC2086 # each run is a program and its arguments
             sudo systemd-run --quiet --wait --pipe --collect --uid="$(id -u)" --gid="$(id -g)" \
