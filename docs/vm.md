@@ -283,17 +283,17 @@ The [progress record](any-host-progress.md) holds every commit and run. In brief
 - [VM experiments 43730018633](https://github.com/cubepals/pryx/actions/runs/43730018633), at
   `df53ca1`: the whole VM job again on real KVM with the filesystem programs confined, and each
   start's stages (in [decisions](decisions.md)).
-- [Any host 43749214185](https://github.com/cubepals/pryx/actions/runs/43749214185) and
-  [VM experiments 43749214194](https://github.com/cubepals/pryx/actions/runs/43749214194), both
-  green at `c7a620b`:
+- [Any host 43764836228](https://github.com/cubepals/pryx/actions/runs/43764836228) and [VM experiments 43764836235](https://github.com/cubepals/pryx/actions/runs/43764836235), both green at `0bd7fe3`
+  (and earlier [43749214185](https://github.com/cubepals/pryx/actions/runs/43749214185) and
+  [43749214194](https://github.com/cubepals/pryx/actions/runs/43749214194) at `c7a620b`):
   the same installed acceptance (`deploy/vm-installed-acceptance.ts`) as the signed ordinary user
   (bundle job) and as root through the server preset and its VM worker (sudo bootstrap job,
-  `deploy/server-vm-acceptance.sh`): Alpine and Debian, run, a file round trip, a declared port
+  `deploy/server-vm-acceptance.sh`, on the node configuration as the install wrote it): Alpine and Debian, run, a file round trip, a declared port
   through the edge, sleep and cold wake from the edge, snapshot and fork, delete, the guarantee
   checks, the default network's firewall (a public address answers, a listener on the host's
   own address does not) and one hostname egress rule; the purge after the ordinary user's run;
   and the whole VM job on real KVM.
-- The thirty-sample cohorts ([tiers](tiers.md#vm-tier-measurements)) in the same Any host run,
+- The thirty-sample cohorts ([tiers](tiers.md#vm-tier-measurements)) in Any host 43749214185,
   with no failed start.
 - The kernel and the ordinary-user network path were chosen by measured spikes
   ([checks](checks/k25-vm-spikes.md)). Their boot figure, 717 ms at p50 from launch to a
