@@ -362,7 +362,7 @@ run's committed summary, never estimated.
 | Cold create to running (ms) | Pending |
 | Create to first output (ms) | Pending |
 | Agent `true` (ms) | Pending |
-| Sleep then wake (ms) | Pending |
+| Wake from sleep (ms) | Pending |
 | Snapshot 100 MB (ms) | Pending |
 | Fork 100 MB (ms) | Pending |
 | Idle context PSS (MiB) | Pending |
@@ -448,7 +448,8 @@ Hostname egress allow/deny is available on container nodes that announce
 `egress-hostnames` after root firewall installation. Each such sandbox has a dedicated bridge
 and HTTP/TLS gateways; no sandbox proxy setting can bypass the firewall. An ordinary-user node
 whose only tier is `vm` announces it too, with guest rules and host-owned gateways
-([vm.md](vm.md#as-an-ordinary-user)). Process and wasm return an explicit tier refusal. `network:none` remains the all-tiers network boundary.
+([vm.md](vm.md#as-an-ordinary-user)). Process and wasm return an explicit tier refusal.
+`network:none` remains the all-tiers network boundary.
 Workdir uses the `workload-options` feature; user selection is restricted to the operator
 container user. Metrics use cached tier counters and preserve null where unavailable.
 These policy fields are refused when the destination no longer announces the feature,
