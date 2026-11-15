@@ -3,7 +3,7 @@
 
 /** Idempotent Linux/systemd one-box installation. Check mode reads prerequisites and prints no credentials. */
 import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, symlinkSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { MINUTE_MS, SECOND_MS } from '../../control/src/durations.ts'
 import { PRYX_VERSION } from '../../control/src/generated/release.ts'
 import { BOOTSTRAP_SIGNATURE_ASSET, BOOTSTRAP_SIGNATURE_SUFFIX } from '../../control/src/join-bootstrap.ts'
@@ -136,6 +136,17 @@ export async function up(args: string[]) {
     if (writeChanged(`${FLEET_PRYXD_BIN}${suffix}`, readFileSync(join(assets, source as string)), 0o644))
       changed.add('pryx-control')
   if (installBinary(join(assets, 'pryx-agent'), nodeSchema['x-pryx-agent'].defaultBinary))
+    changed.add('pryxd')
+  // The root VM worker finds the release's VM descriptor beside the agent (src/config/vm.rs).
+  const descriptor = join(assets, 'vm-bundle.json')
+  if (
+    existsSync(descriptor) &&
+    writeChanged(
+      join(dirname(nodeSchema['x-pryx-agent'].defaultBinary), 'vm-bundle.json'),
+      readFileSync(descriptor),
+      0o444,
+    )
+  )
     changed.add('pryxd')
   for (const name of ['pryx-control', 'pryx-edge'])
     if (installBinary(join(assets, name), `/opt/pryx/${name}`)) changed.add(name)

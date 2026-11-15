@@ -481,3 +481,54 @@ print('confined filesystem tool',flush=True)
     assert_eq!(String::from_utf8_lossy(&result.stdout).trim(), "confined filesystem tool");
     assert_eq!(fs::metadata(&output).unwrap().len(), 4096);
 }
+
+#[tokio::test]
+async fn filesystem_tool_bound_admits_an_erofs_device_reservation_and_nothing_past_it() {
+    let root = tempfile::tempdir().unwrap();
+    let (work, locks) = (root.path().join("work"), root.path().join("locks"));
+    for path in [&work, &locks] {
+        fs::DirBuilder::new().mode(0o700).create(path).unwrap();
+    }
+    let output = root.path().join("layer.erofs");
+    fs::OpenOptions::new().write(true).create_new(true).open(&output).unwrap();
+    fs::set_permissions(&output, std::os::unix::fs::PermissionsExt::from_mode(0o600)).unwrap();
+    let program = std::process::Command::new("python3")
+        .args(["-c", "import os,sys; print(os.path.realpath(sys.executable))"])
+        .output()
+        .unwrap();
+    let program = PathBuf::from(String::from_utf8(program.stdout).unwrap().trim());
+    let read = ["/usr", "/bin", "/lib", "/lib64", "/etc/ld.so.cache"]
+        .into_iter()
+        .filter_map(|path| fs::canonicalize(path).ok())
+        .collect();
+    // erofs-utils' mkfs reserves its whole 2 TiB address space, then shrinks to the image.
+    let reservation: u64 = 1 << 41;
+    let script = r#"
+import errno,os,sys
+size=int(sys.argv[2])
+with open(sys.argv[1],'r+b',buffering=0) as image:
+    os.ftruncate(image.fileno(),size)
+    try: os.ftruncate(image.fileno(),size+1)
+    except OSError as error: assert error.errno==errno.EFBIG, error
+    else: raise AssertionError('The written-file bound was not enforced')
+    os.ftruncate(image.fileno(),0)
+    image.write(b'e'*65536)
+print('reserved and shrunk',flush=True)
+"#;
+    let plan = Plan {
+        program,
+        arguments: vec!["-c".into(), script.into(), output.display().to_string(), reservation.to_string()],
+        directory: work,
+        lock: locks.join("tool.lock"),
+        parent: std::process::id(),
+        read,
+        write: vec![output.clone()],
+        role: Role::FilesystemTool { file_bytes: reservation, configuration: None },
+    };
+    let tool = launch(&plan).await;
+    let result =
+        tokio::time::timeout(std::time::Duration::from_secs(10), tool.wait_with_output()).await.unwrap().unwrap();
+    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    assert_eq!(String::from_utf8_lossy(&result.stdout).trim(), "reserved and shrunk");
+    assert_eq!(fs::metadata(&output).unwrap().len(), 65536);
+}

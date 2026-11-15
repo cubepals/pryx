@@ -200,6 +200,17 @@ fn confine(plan: &Plan, kvm: bool) -> Result<(), Box<dyn std::error::Error>> {
     if status.ruleset != RulesetStatus::FullyEnforced {
         return Err("VM monitor filesystem confinement is unavailable".into());
     }
+    // Where the kernel has Landlock's abstract-socket scope (ABI 6), the process also cannot
+    // reach an abstract Unix socket outside its own domain; it uses none of its own.
+    let scope = Ruleset::default()
+        .set_compatibility(CompatLevel::HardRequirement)
+        .scope(landlock::Scope::AbstractUnixSocket)
+        .and_then(|rules| rules.create());
+    if let Ok(scope) = scope
+        && scope.restrict_self()?.ruleset != RulesetStatus::FullyEnforced
+    {
+        return Err("VM monitor abstract-socket scope was not enforced".into());
+    }
     crate::process_policy::monitor()?;
     Ok(())
 }

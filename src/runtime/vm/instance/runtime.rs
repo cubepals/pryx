@@ -22,18 +22,20 @@ impl VmRuntime {
         let live = self.state.live.lock().unwrap().get(&entry.id).cloned();
         let Some(live) = live else { return self.recover_disk(&entry.spec.data_dir) };
         let mut live = live.lock().await;
-        let deadline = Instant::now() + grace;
+        // The workload gets the whole grace; init then empties, flushes and certifies its disk.
+        let deadline = Instant::now() + grace + vm_shutdown::FLUSH_RESERVE;
         let already_exited = live.monitor.exited().map_err(error)?.is_some();
         let mut forced = force && !already_exited;
         if !force && !already_exited && !live.shutdown_requested {
             live.shutdown_requested = true;
             let boot = entry.spec.agent.as_ref().ok_or_else(|| error("VM agent bootstrap is missing"))?;
-            let request = vm_shutdown::request_for_signal(
+            let request = vm_shutdown::request_with_grace(
                 &agent::key(&entry.spec)?,
                 &live.nonce,
                 &boot.sandbox,
                 boot.epoch,
                 signal,
+                grace,
             )
             .map_err(error)?;
             let bundle = self.bundle().await?;
@@ -91,6 +93,7 @@ impl VmRuntime {
         live.retire_jail()?;
         drop(live);
         self.state.live.lock().unwrap().remove(&entry.id);
+        entry.clean_disk = clean_disk(&entry, !forced && code.is_ok());
         entry.code = code.as_ref().copied().unwrap_or(UNKNOWN_EXIT_CODE);
         entry.finished = Some(crate::clock::now());
         if let Some(snapshot) = &mut entry.agent_state {
@@ -106,7 +109,12 @@ impl VmRuntime {
             Err(problem) => return Err(problem),
         };
         let transition = self.transition(&entry.id);
-        let _transition = transition.lock().await;
+        // A start, stop or file session owns the transition and does its own exit processing;
+        // observation answers from the journal meanwhile instead of waiting for it.
+        let Ok(_transition) = transition.try_lock() else {
+            let running = self.state.live.lock().unwrap().contains_key(&entry.id);
+            return Ok(Some(passive(entry, running)));
+        };
         let mut entry = match self.entry(name) {
             Ok(entry) => entry,
             Err(RuntimeError::NotFound(_)) => return Ok(None),
@@ -115,15 +123,21 @@ impl VmRuntime {
         let live = self.state.live.lock().unwrap().get(&entry.id).cloned();
         let status = if let Some(live) = live {
             let mut live = live.lock().await;
+            if live.monitor.exited().map_err(error)?.is_none()
+                && let Some(helper) = dead_helper(&mut live)?
+            {
+                // One dead helper leaves only this guest unreachable: it is retired and
+                // reported dead, and the tier and its other sandboxes keep answering.
+                tracing::warn!(sandbox = %entry.id, helper, "VM helper exited; retiring its guest");
+                live.killing = true;
+                tokio::time::timeout(crate::runtime::ENGINE_PROBE_TIMEOUT, live.monitor.kill())
+                    .await
+                    .map_err(|_| {
+                        RuntimeError::Timeout("VM monitor termination after a helper exit is unconfirmed".into())
+                    })?
+                    .map_err(error)?;
+            }
             if live.monitor.exited().map_err(error)?.is_none() {
-                if live.forwarder.exited().map_err(error)?.is_some() {
-                    return Err(RuntimeError::Unavailable("VM forwarding process exited".into()));
-                }
-                if let Some(network) = &mut live.network
-                    && network.exited().map_err(error)?.is_some()
-                {
-                    return Err(RuntimeError::Unavailable("VM packet helper exited".into()));
-                }
                 ContainerStatus::Running
             } else {
                 live.forwarder.stop().await.map_err(error)?;
@@ -140,6 +154,7 @@ impl VmRuntime {
                 live.retire_jail()?;
                 drop(live);
                 self.state.live.lock().unwrap().remove(&entry.id);
+                entry.clean_disk = clean_disk(&entry, result.is_ok());
                 self.save_entry(entry.clone())?;
                 if result.is_ok() { ContainerStatus::Exited } else { ContainerStatus::Dead }
             }
@@ -154,24 +169,64 @@ impl VmRuntime {
             snapshot.activity.streams = 0;
         }
         self.state.entries.lock().unwrap().insert(entry.id.clone(), entry.clone());
-        Ok(Some(ContainerInfo {
-            agent_state: entry.agent_state,
-            memory_enforced: Some(true),
-            cpu_enforced: Some(true),
-            cgroup_parent: None,
-            id: entry.id,
-            name: entry.spec.name,
-            labels: entry.spec.labels,
-            env: entry.spec.env.into_iter().collect(),
-            status,
-            exit_code: entry.code,
-            oom_killed: false,
-            started_at: entry.started,
-            finished_at: entry.finished,
-            restart_count: 0,
-            health: None,
-        }))
+        Ok(Some(information(entry, status)))
     }
+}
+
+/// A busy sandbox's view: running while its monitor is live, created until a launch finishes,
+/// else its journal's recorded end. Its owner of the transition settles the rest.
+fn passive(mut entry: Entry, running: bool) -> ContainerInfo {
+    let status = if running {
+        ContainerStatus::Running
+    } else if entry.started.is_none() || entry.finished.is_none() {
+        ContainerStatus::Created
+    } else if entry.code == UNKNOWN_EXIT_CODE {
+        ContainerStatus::Dead
+    } else {
+        ContainerStatus::Exited
+    };
+    if !running && let Some(snapshot) = &mut entry.agent_state {
+        snapshot.activity.streams = 0;
+    }
+    information(entry, status)
+}
+
+fn information(entry: Entry, status: ContainerStatus) -> ContainerInfo {
+    ContainerInfo {
+        agent_state: entry.agent_state,
+        memory_enforced: Some(true),
+        cpu_enforced: Some(true),
+        cgroup_parent: None,
+        id: entry.id,
+        name: entry.spec.name,
+        labels: entry.spec.labels,
+        env: entry.spec.env.into_iter().collect(),
+        status,
+        exit_code: entry.code,
+        oom_killed: false,
+        started_at: entry.started,
+        finished_at: entry.finished,
+        restart_count: 0,
+        health: None,
+    }
+}
+
+/// After a signed clean shutdown, the disk exactly as it was left; nothing otherwise.
+fn clean_disk(entry: &Entry, clean: bool) -> Option<super::super::disk::Stamp> {
+    clean.then(|| super::super::disk::Stamp::current(&entry.spec.data_dir).ok().flatten()).flatten()
+}
+
+/// The host helper of a running guest that has exited, if one has.
+fn dead_helper(live: &mut Live) -> Result<Option<&'static str>, RuntimeError> {
+    if live.forwarder.exited().map_err(error)?.is_some() {
+        return Ok(Some("forwarding process"));
+    }
+    if let Some(network) = &mut live.network
+        && network.exited().map_err(error)?.is_some()
+    {
+        return Ok(Some("packet helper"));
+    }
+    Ok(None)
 }
 
 pub(super) fn stopped_status(entry: &Entry, lease: &Path) -> Result<ContainerStatus, RuntimeError> {
@@ -334,7 +389,7 @@ impl ContainerRuntime for VmRuntime {
         Ok(Some(true))
     }
     async fn ensure_image(&self, image: &str, timeout: Duration) -> Result<bool, RuntimeError> {
-        self.prepared(image, timeout).await.map(|_| true)
+        self.prepared(image, None, timeout).await.map(|_| true)
     }
     async fn create(&self, spec: &ContainerSpec) -> Result<String, RuntimeError> {
         monitor::resources(spec)?;
@@ -347,8 +402,16 @@ impl ContainerRuntime for VmRuntime {
         if entries.values().any(|entry| entry.spec.name == spec.name) {
             return Err(RuntimeError::Conflict("VM sandbox already exists".into()));
         }
-        let entry =
-            Entry { id: id.clone(), spec: spec.clone(), started: None, finished: None, code: 0, agent_state: None };
+        let entry = Entry {
+            id: id.clone(),
+            spec: spec.clone(),
+            started: None,
+            finished: None,
+            code: 0,
+            agent_state: None,
+            image_digest: None,
+            clean_disk: None,
+        };
         self.persist_entry(&entry)?;
         entries.insert(id.clone(), entry);
         Ok(id)
@@ -410,9 +473,17 @@ impl ContainerRuntime for VmRuntime {
         self.observe(name).await
     }
     async fn list(&self, labels: &[String]) -> Result<Vec<ContainerInfo>, RuntimeError> {
+        // Observations run together, so one guest's unanswered agent costs one bound, not one
+        // per guest; the order of the answer is the names' order.
+        const OBSERVATIONS: usize = 16;
+        let observed: Vec<_> = stream::iter(self.names())
+            .map(|name| async move { self.observe(&name).await })
+            .buffered(OBSERVATIONS)
+            .collect()
+            .await;
         let mut found = Vec::new();
-        for name in self.names() {
-            if let Some(info) = self.observe(&name).await?
+        for info in observed {
+            if let Some(info) = info?
                 && labels.iter().all(|filter| {
                     filter.split_once('=').is_some_and(|(key, value)| info.labels.get(key).is_some_and(|v| v == value))
                 })

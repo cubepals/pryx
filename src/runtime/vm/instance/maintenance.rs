@@ -136,6 +136,7 @@ impl VmRuntime {
                     nonce,
                     shutdown_requested: false,
                     killing: false,
+                    stages: super::launch::Stages::default(),
                     #[cfg(test)]
                     diagnostic_secrets,
                 },

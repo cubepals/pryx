@@ -42,6 +42,25 @@ fn owned(path: &Path) -> Result<File, RuntimeError> {
     Ok(file)
 }
 
+// A bound on a stuck program, not an expected time: the slowest shared disk's sequential floor.
+const WHOLE_DISK_FLOOR_BYTES_PER_SECOND: u64 = 16 * 1024 * 1024;
+// Check, staged copy, repair and recheck each read the whole disk once.
+const WHOLE_DISK_PASSES: u64 = 4;
+
+/// Recovery's own bound, from the disk's size: a caller's boot deadline cannot end a repair
+/// that a large disk needs, and the transaction keeps the longer of the two.
+pub fn recovery_time(bytes: u64) -> Duration {
+    Duration::from_secs(bytes.div_ceil(WHOLE_DISK_FLOOR_BYTES_PER_SECOND).saturating_mul(WHOLE_DISK_PASSES))
+}
+
+/// Free space a staged copy needs: the host's floor plus the blocks the disk actually holds.
+fn staging_room(original: &File, free_floor: u64) -> Result<u64, RuntimeError> {
+    // st_blocks counts 512-byte units whatever the filesystem's block size (stat(2)).
+    const STAT_BLOCK_BYTES: u64 = 512;
+    let allocated = original.metadata().map_err(error)?.blocks().saturating_mul(STAT_BLOCK_BYTES);
+    Ok(free_floor.saturating_add(allocated))
+}
+
 fn remaining(deadline: Instant) -> Result<Duration, RuntimeError> {
     let left = deadline.saturating_duration_since(Instant::now());
     if left.is_zero() {
@@ -87,8 +106,8 @@ async fn check(tools: &FilesystemTools, disk: &Path, deadline: Instant) -> Resul
         arguments: vec!["-f".into(), "-n".into(), text(disk)?],
         read: vec![disk.to_owned()],
         write: Vec::new(),
-        // A read-only check writes nothing; the bound must still be positive.
-        file_bytes: 1,
+        // It has no write grant; its written-file bound is the disk's own size, as a repair's.
+        file_bytes: fs::metadata(disk).map_err(error)?.len().max(1),
     };
     Ok(tool(tools, run, disk, deadline).await?.success())
 }
@@ -114,8 +133,52 @@ pub async fn prepare(
     timeout: Duration,
     free_floor: u64,
 ) -> Result<Prepared, RuntimeError> {
+    prepare_trusted(tools, directory, lease, bytes, timeout, free_floor, None).await
+}
+
+/// The kernel's identity of a disk file: any write, replacement or metadata change differs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Stamp {
+    device: u64,
+    inode: u64,
+    bytes: u64,
+    modified: (i64, i64),
+    changed: (i64, i64),
+}
+impl Stamp {
+    fn of(info: &fs::Metadata) -> Self {
+        Self {
+            device: info.dev(),
+            inode: info.ino(),
+            bytes: info.len(),
+            modified: (info.mtime(), info.mtime_nsec()),
+            changed: (info.ctime(), info.ctime_nsec()),
+        }
+    }
+    /// The disk in this data directory as it stands, if it is one private regular file.
+    pub fn current(directory: &Path) -> Result<Option<Self>, RuntimeError> {
+        match fs::symlink_metadata(directory.join(FILE)) {
+            Ok(info) if info.is_file() => Ok(Some(Self::of(&info))),
+            Ok(_) => Err(error("VM disk must be a regular file")),
+            Err(problem) if problem.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(problem) => Err(error(problem)),
+        }
+    }
+}
+
+/// `prepare`, skipping the read-only check when the disk is exactly the one a guest's signed
+/// clean shutdown left: the same file, unwritten and unchanged since.
+pub async fn prepare_trusted(
+    tools: &FilesystemTools,
+    directory: &Path,
+    lease: &Path,
+    bytes: u64,
+    timeout: Duration,
+    free_floor: u64,
+    trusted: Option<Stamp>,
+) -> Result<Prepared, RuntimeError> {
     let (tools, directory, lease) = (tools.clone(), directory.to_owned(), lease.to_owned());
-    tokio::spawn(async move { transaction(&tools, &directory, &lease, bytes, timeout, free_floor).await })
+    tokio::spawn(async move { transaction(&tools, &directory, &lease, bytes, (timeout, free_floor), trusted).await })
         .await
         .map_err(error)?
 }
@@ -125,10 +188,12 @@ async fn transaction(
     directory: &Path,
     lease: &Path,
     bytes: u64,
-    timeout: Duration,
-    free_floor: u64,
+    (timeout, free_floor): (Duration, u64),
+    trusted: Option<Stamp>,
 ) -> Result<Prepared, RuntimeError> {
-    let deadline = Instant::now().checked_add(timeout).ok_or_else(|| error("Invalid VM disk deadline"))?;
+    let deadline = Instant::now()
+        .checked_add(timeout.max(recovery_time(bytes)))
+        .ok_or_else(|| error("Invalid VM disk deadline"))?;
     remaining(deadline)?;
     if bytes == 0 || bytes > crate::tree::MAX_BYTES {
         return Err(error("VM disk size exceeds the existing data archive bound"));
@@ -137,30 +202,7 @@ async fn transaction(
     let parent = directory.parent().ok_or_else(|| error("VM disk lacks a staging parent"))?;
     super::bundle::ancestors(lease.parent().ok_or_else(|| error("VM monitor lease lacks its private directory"))?)
         .map_err(error)?;
-    let lock = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .mode(0o600)
-        .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
-        .open(lease)
-        .map_err(error)?;
-    let info = lock.metadata().map_err(error)?;
-    if !info.is_file()
-        || info.uid() != rustix::process::geteuid().as_raw()
-        || info.mode() & 0o077 != 0
-        || info.nlink() != 1
-    {
-        return Err(error("Unsafe VM monitor lease"));
-    }
-    rustix::fs::flock(&lock, rustix::fs::FlockOperation::NonBlockingLockExclusive).map_err(|problem| {
-        if problem == rustix::io::Errno::WOULDBLOCK {
-            RuntimeError::Conflict("VM monitor still owns its writable disk".into())
-        } else {
-            error(problem)
-        }
-    })?;
+    let _lock = hold(lease)?;
     for entry in fs::read_dir(directory).map_err(error)? {
         if entry.map_err(error)?.file_name() != FILE {
             return Err(error("VM data directory contains an unrecognized file"));
@@ -174,12 +216,20 @@ async fn transaction(
         Err(problem) => return Err(error(problem)),
     };
     if let Some(original) = &original {
-        if original.metadata().map_err(error)?.len() != bytes {
+        let info = original.metadata().map_err(error)?;
+        if info.len() != bytes {
             return Err(error("VM disk resizing requires an explicit verified resize transaction"));
+        }
+        if trusted.is_some_and(|trusted| trusted == Stamp::of(&info)) {
+            return Ok(Prepared { path, created: false, recovered: false });
         }
         if check(tools, &path, deadline).await? {
             return Ok(Prepared { path, created: false, recovered: false });
         }
+    }
+    if let Some(original) = &original {
+        // Refused before copying, never by filling the host part-way through the copy.
+        room(directory, staging_room(original, free_floor)?)?;
     }
     let staging = tempfile::Builder::new().prefix(".vm-disk-stage-").tempdir_in(parent).map_err(error)?;
     let candidate = staging.path().join("disk");
@@ -220,6 +270,35 @@ async fn transaction(
     room(directory, free_floor)?;
     publish(original.as_ref(), &candidate, &path, directory, bytes, deadline)?;
     Ok(Prepared { path, created: original.is_none(), recovered: original.is_some() })
+}
+
+/// The monitor's kernel lease, held for the whole transaction; a live monitor refuses it.
+fn hold(lease: &Path) -> Result<File, RuntimeError> {
+    let lock = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
+        .open(lease)
+        .map_err(error)?;
+    let info = lock.metadata().map_err(error)?;
+    if !info.is_file()
+        || info.uid() != rustix::process::geteuid().as_raw()
+        || info.mode() & 0o077 != 0
+        || info.nlink() != 1
+    {
+        return Err(error("Unsafe VM monitor lease"));
+    }
+    rustix::fs::flock(&lock, rustix::fs::FlockOperation::NonBlockingLockExclusive).map_err(|problem| {
+        if problem == rustix::io::Errno::WOULDBLOCK {
+            RuntimeError::Conflict("VM monitor still owns its writable disk".into())
+        } else {
+            error(problem)
+        }
+    })?;
+    Ok(lock)
 }
 
 /// A new sparse file of the admitted size, formatted in place by the confined mke2fs.
@@ -273,4 +352,49 @@ fn publish(
     }
     File::open(directory).and_then(|directory| directory.sync_all()).map_err(error)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    #[test]
+    fn a_clean_disk_stamp_changes_with_any_write_replacement_or_metadata_change() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join(FILE);
+        fs::write(&path, b"clean").unwrap();
+        let clean = Stamp::current(root.path()).unwrap().unwrap();
+        assert_eq!(Stamp::current(root.path()).unwrap(), Some(clean));
+        std::thread::sleep(Duration::from_millis(10));
+        OpenOptions::new().write(true).open(&path).unwrap().write_all(b"dirty").unwrap();
+        assert_ne!(Stamp::current(root.path()).unwrap(), Some(clean));
+        let written = Stamp::current(root.path()).unwrap().unwrap();
+        std::thread::sleep(Duration::from_millis(10));
+        fs::set_permissions(&path, std::os::unix::fs::PermissionsExt::from_mode(0o600)).unwrap();
+        assert_ne!(Stamp::current(root.path()).unwrap(), Some(written));
+        let replacement = root.path().join("replacement");
+        fs::write(&replacement, b"dirty").unwrap();
+        let before = Stamp::current(root.path()).unwrap();
+        fs::rename(&replacement, &path).unwrap();
+        assert_ne!(Stamp::current(root.path()).unwrap(), before);
+        fs::remove_file(&path).unwrap();
+        assert_eq!(Stamp::current(root.path()).unwrap(), None);
+    }
+
+    #[test]
+    fn recovery_outlasts_a_boot_deadline_on_a_large_disk_and_reserves_its_copy() {
+        let large = 100 * 1024 * 1024 * 1024;
+        assert!(recovery_time(large) > Duration::from_hours(1));
+        assert!(recovery_time(large) > recovery_time(large / 100));
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join(FILE);
+        let mut file = File::create(&path).unwrap();
+        file.write_all(&[7; 1024 * 1024]).unwrap();
+        file.sync_all().unwrap();
+        // A sparse tail holds no blocks, so it needs no staging room.
+        file.set_len(64 * 1024 * 1024).unwrap();
+        let needed = staging_room(&File::open(&path).unwrap(), 4096).unwrap();
+        assert!((4096 + 1024 * 1024..4096 + 2 * 1024 * 1024).contains(&needed), "{needed}");
+    }
 }

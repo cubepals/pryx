@@ -144,12 +144,14 @@ Internet sockets, and no listeners or Unix sockets.
 
 The packet helper also decides on the host, so a guest kernel that drops its own rules does not
 widen them. Before it dials any TCP, UDP or ICMP flow it refuses loopback, link-local and
-metadata, private, multicast and broadcast destinations, and it runs no resolver of its own.
-pryxd passes every guest's egress policy, so the helper also reaches the gateway address only at
-the gateway ports pryxd names (HTTP, TLS and DNS under a hostname allowlist, DNS alone
+metadata, private, multicast and broadcast destinations. pryxd passes every guest's egress
+policy, and the helper refuses to start without one, so it also reaches the gateway address only
+at the gateway ports pryxd names (HTTP, TLS and DNS under a hostname allowlist, DNS alone
 otherwise), refuses the agent's other non-public networks, and on a hostname allowlist refuses
-every public address. As root, the bridged packet stack gets the same policy with no gateway
-port, since its guest's DNS is the stack's own.
+every public address. The ordinary user's helper runs no resolver of its own, so its guest's DNS
+reaches only pryxd's gateway. As root, the bridged packet stack gets the same policy with no
+gateway port; its guest resolves at the stack's own gateway, which answers from the host's
+resolvers.
 
 ### As root
 
@@ -173,11 +175,13 @@ the tier off, and the root lifecycle through an installed node has not yet run i
   API call or a held edge connection. Processes, terminals and memory do not survive.
   `memory-sleep` is reported off, and control takes the stop path without asking; a pause
   request is refused.
-- **Stop** sends the guest's init a signed request over vsock. Init stops the workload with
-  SIGTERM or SIGINT (other stop signals are refused), remounts its disks read-only and flushes
-  them, then writes a signed record, bound to that boot, of the clean disk and the exit status;
-  pryxd reads it from the console. A guest still running at the end of the grace period is
-  killed and reported as killed; one that exits without that record has an unknown exit.
+- **Stop** sends the guest's init a signed request over vsock, carrying the spec's stop grace.
+  Init stops the workload with SIGTERM or SIGINT (other stop signals are refused), gives it that
+  whole grace before killing what remains, remounts its disks read-only and flushes them, then
+  writes a signed record, bound to that boot, of the clean disk and the exit status; pryxd
+  reads it from the console. pryxd waits the grace plus 15 seconds for that; a guest still
+  running then is killed and reported as killed, and one that exits without that record has an
+  unknown exit.
 - **Snapshot, fork, export, restore and move** copy the stopped disk with the same file walk the
   other tiers use, preserving holes. A running VM is stopped for the copy and booted again
   after it. Export can't exclude paths, since it carries a disk image.
@@ -198,7 +202,10 @@ lifetime lease and then confines it:
   signals or resource-limit changes for other processes, no io_uring, and no way to close or
   unlock its lease. Firecracker's own filter stays on; `--no-seccomp` and `--seccomp-filter`
   are refused.
-- It is not dumpable, and the kernel kills it when pryxd exits.
+- **Landlock's abstract-socket scope**, where the kernel has it (Landlock ABI 6): no abstract
+  Unix socket outside its own domain.
+- It is not dumpable, and the kernel kills it when pryxd exits. Its one-shot bootstrap socket
+  hands the guest's secrets only to a peer with the monitor's own PID.
 
 As root, the monitor runs under Firecracker's unchanged jailer, with fixed non-root host IDs
 that the host chooses and a workload never can, in a chroot holding only its staged inputs,
@@ -242,7 +249,7 @@ pryx measures the host; a provider's name decides nothing.
   (some Intel families), Google Cloud and Azure, and absent on Hetzner Cloud and on arm64
   virtual machines. Bare-metal cloud instances expose it directly.
 - **GitHub's hosted `ubuntu-24.04` runners** have `/dev/kvm`; pryx's VM CI runs on them, granting
-  the runner's user access in the job.
+  the runner's user access in the job, on every pull request that changes VM code.
 - **A container** can be given `/dev/kvm` with `--device /dev/kvm`, without `--privileged`;
   pryxd inside must run as an ordinary user for this tier.
 - **arm64 hosts** keep the tier off.

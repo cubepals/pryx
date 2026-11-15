@@ -128,6 +128,8 @@ impl VmRuntime {
             finished: None,
             code: 0,
             agent_state: None,
+            image_digest: None,
+            clean_disk: None,
         };
         self.launch_files(entry, transition).await?.into_service()
     }

@@ -80,8 +80,8 @@ type runtimeConfiguration struct {
 	Parent       int    `json:"parent"`
 	Host         string `json:"host"`
 	Concurrency  uint16 `json:"concurrency"`
-	// Egress is absent only in a configuration from before it existed (admission.go).
-	Egress *egressConfiguration `json:"egress,omitempty"`
+	// Egress is required: what the guest may reach (admission.go).
+	Egress *egressConfiguration `json:"egress"`
 }
 
 func readRuntime(path string) (runtimeConfiguration, error) {

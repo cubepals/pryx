@@ -261,6 +261,7 @@ async fn actual_jailer_boots_both_images_and_recovers_the_original_disk() {
                 launcher: bundle.filesystems().launcher().into(),
                 cache: root.path().join("images"),
                 image: spec.image.clone(),
+                pinned: None,
                 timeout_seconds: 120,
             },
         )

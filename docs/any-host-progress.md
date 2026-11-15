@@ -15,7 +15,7 @@ and cancellation inventories mean their CI artifacts; no raw output is kept in t
 | K22 | done except | `7963826182e3f8e9037aea17d4716df15086bd81` | Normal push [43075452804](https://github.com/cubepals/pryx/actions/runs/43075452804) and PR [43075462394](https://github.com/cubepals/pryx/actions/runs/43075462394), Any host [43075452782](https://github.com/cubepals/pryx/actions/runs/43075452782), Rootless engines [43075452793](https://github.com/cubepals/pryx/actions/runs/43075452793) and [43075462656](https://github.com/cubepals/pryx/actions/runs/43075462656), all green; supplementary Measure [43063939164](https://github.com/cubepals/pryx/actions/runs/43063939164) on source 87400f3 is also green | Full normal CI including actual rootful Docker, Wasm, two-node, integrations and recovery; all 15 host jobs; Podman lifecycle/attacks, install/repeat/upgrade/outage/recovery/purge; controller refusals, copy-bound guarantees and 30 hosted engine samples | Main/release prohibited; unchanged credentialed cases | Standard rootless Docker data-owner mapping with dependent positive lifecycle/timings; rootless Docker internal ingress/network-policy. Three approaches each recorded; both remain named refusals until their post-K27 second try | Supported scope complete; K23 started |
 | K23 | done | `5945724a4ac8fbc28610292d701ffa7e9bffc040` | Normal push [43233699289](https://github.com/cubepals/pryx/actions/runs/43233699289) and PR [43233712859](https://github.com/cubepals/pryx/actions/runs/43233712859), Any host [43233699231](https://github.com/cubepals/pryx/actions/runs/43233699231), Rootless engines [43233699487](https://github.com/cubepals/pryx/actions/runs/43233699487) and [43233712730](https://github.com/cubepals/pryx/actions/runs/43233712730), CodeQL [43233712847](https://github.com/cubepals/pryx/actions/runs/43233712847), all green | Signed fresh ordinary-user installation without engine; actual pinned upstream Python/Node paths and host glibc; both SDKs, state/charts/errors/interrupt/restart, MCP/CLI; browser screenshot/forwarded CDP and guarantee; thirty process and container samples per tool; default-Docker kernels and namespace/required-browser refusals; neighbour isolation, purge, Alpine relocation; full normal CI and all sixteen host jobs | Main/release prohibited; unchanged credentialed cases | None; corrected relocatable bundle is complete, with no binary rewriting or private tool glibc | Complete; begin K24 immediately |
 | K24 | done | `53e83505f823cf4b92aca2b4a952cf084c636f32` | Normal PR [43421825320](https://github.com/cubepals/pryx/actions/runs/43421825320) and all sixteen Any-host jobs [43421813961](https://github.com/cubepals/pryx/actions/runs/43421813961), green | Signed user install, real SDK/CLI desktop and HTTP SSH/wake, noVNC/expiry, Chromium sandbox and neighbour privacy, OpenSSH PTY/keys/leases, configured doctor/placement, 30 samples per tool, unchanged container budgets, full normal and host matrix | Main/release prohibited; unchanged credentialed cases | None | Complete; begin K25 |
-| K25 | in progress | — | Configured VM/node/CNI and runtime [43617667633](https://github.com/cubepals/pryx/actions/runs/43617667633) at f1a56d5, green | Verified bundles, ordinary-user both-image OCI lifecycle/files/copy/fork/journals/logs/stats, guest public/named networking at the runtime seam (control sends named policy only to vm-only nodes), actual jailer and root cold runtime/file maintenance/daemon-loss recovery | Root TAP/firewall, protected installed service authority, edge VM lifecycle and thirty production samples; no local KVM/root | None | Finish root networking and installed authority, signed VM installation proof, edge acceptance, measurements and full current-source CI |
+| K25 | in progress | — | Installed ordinary-user lifecycle on both images through both SDKs and the edge, plus one hostname egress rule through control: Any host [43721826335](https://github.com/cubepals/pryx/actions/runs/43721826335) at f31a5b1 (also [43717893206](https://github.com/cubepals/pryx/actions/runs/43717893206) at df484cb); root jailer lifecycle with both network policies: VM experiments [43726910678](https://github.com/cubepals/pryx/actions/runs/43726910678) at 69c61c2 | Verified bundles; ordinary-user both-image lifecycle, files, copy, fork, journals, logs, stats; guest public/named networking with host packet admission; jailer and root cold runtime; guarantee checks (host file, pryxd signal, own kernel) installed; no-KVM `no_room` (normal CI mixed tiers); confined filesystem programs; signed stop grace; size-bound disk recovery; sparse restore; pinned image digests; root worker service and frontend | Root installed lifecycle (the server preset installs no VM bundle and no root installed job exists); thirty-sample cohort fails one start in about thirty (node 502 after 3.3 s, message now logged); ordinary runtime seam test pending its nft fix (21ebe09) | None | Read the start 502 from the node log on the next Any host run; install the VM bundle in the server preset and add the root installed acceptance; finish the thirty samples |
 | K26 | not started | — | — | — | All | — | Complete brief after K25 |
 | K27 | not started | — | — | — | All | — | Complete brief after K26, then revisit every parked piece | Raw output belongs to the cited CI artifacts; the repository keeps only its summary.
 | K31 | in progress | — | — | Local: object rebuilt byte-identically from two paths with clang 18 (`-Wall -Wextra -Werror`); bpf unit tests (rules, object skeleton, host parsing) on an earlier revision, before local Rust builds stopped for the shared disk; the local Firecracker 6.18 kernel created every map and accepted `sock_create`, then refused its cgroup link; control egress test on a local Postgres; `reuse lint`, actionlint with shellcheck | Kernel load, attach and every policy case: this machine may not build Rust; CI runs them as root and as a delegated user on ubuntu-24.04, and the load test on ubuntu-22.04 | None | Push `k31-ebpf`, read CI, fix to green; then record runs, kernels and costs here |
@@ -4881,3 +4881,67 @@ job when publication is authorized. That job has not run in this task.
   acceptance. Tests pin both admission shapes and the binding wire form; the actual packet
   helper test adds admission and two refused admissions for the VM workflow. Clippy, fmt and
   structure pass. No job/gate or CI minute.
+
+- VM stop honours the spec’s grace: the signed shutdown request carries it, init waits it
+  before killing the workload cgroup, and pryxd waits it plus a 15-second flush reserve. A test
+  authenticates the grace end to end through the acknowledged transaction and refuses a
+  shortened or dropped one. Agent shutdown tests, clippy and fmt pass; the guest path runs in
+  the existing VM workflow. No job/gate or CI minute.
+
+- VM disk recovery has its own size-based bound and reserves room for its staged copy
+  (floor plus allocated blocks) before copying. A unit test pins both. Clippy, fmt and
+  structure pass. No job/gate or CI minute.
+
+- Restores keep holes: a 64 MiB sparse image with two written regions restores byte-identical
+  with under 4 MiB allocated and under 4 MiB counted against the floor (test fails before).
+  All tarball tests, clippy and structure pass. No job/gate or CI minute.
+
+- VM starts pin their manifest digest: the first start records it, later starts prepare it
+  exactly and offline from a complete cache (the registry test prepares a pinned digest under
+  an unreachable name). Forks and restores on another node still resolve the tag once. VM unit
+  tests pass except the unchanged ordinary-user-only jail case (root here); clippy for pryxd
+  and the helper, fmt and structure pass. No job/gate or CI minute.
+
+- One dead VM helper retires only its own guest (reported dead; the actual runtime test kills a
+  fork’s forwarder and still lists the tier), and an unusable journal is quarantined while its
+  valid neighbour loads (unit test updated: each unsafe case is refused, moved aside and never
+  read, the secret never quoted; duplicates still refuse). Clippy and structure pass.
+
+- VM run 43724571344 (26a7b1d) fails every guest boot: mkfs.erofs dies of SIGXFSZ under the
+  new filesystem-tool bound, since it reserves 2 TiB with ftruncate first (reproduced and traced
+  locally with erofs-utils 1.7.1). Bound it at that reservation; e2fsck checks take the disk size;
+  the bundle and guest forwarder tests mark the agent binding the forwarder now requires. A
+  launcher test reserves 2 TiB, is refused one byte more, and shrinks to its image.
+
+- VM observation no longer waits on a busy transition (file session, start, stop): it answers
+  from the journal, and list observes VMs together. The actual runtime test inspects and lists a
+  stopped VM within 500 ms while its file session is open. Clippy and structure pass.
+
+- Monitors and filesystem programs add the abstract-socket Landlock scope where available;
+  the bootstrap listener checks the monitor PID before sending secrets. Launcher tests pass
+  under the scope on a 6.18 kernel; the monitor paths run in the VM workflow.
+
+- Normal CI on f31a5b1 (run 43721826337) failed control end to end: docs/compare.md’s new
+  guarantee table is a markdown table, and the comparison check requires every table row to
+  cite dated sources. The guarantees are now a list with the same facts, and the vm line says
+  root is served through its worker. The comparison check’s row rules pass locally; its one
+  failing link here is a GitHub job page this machine cannot fetch, which CI fetched.
+
+- VM run 43726910678 (69c61c2): boots, root lifecycle with both policies on both images,
+  bundle, node API, OCI and agent acceptance pass under the confined filesystem programs. The
+  ordinary runtime test failed in its guest-firewall check, which ran the host nft under the
+  filesystem-tool role; nft opens netlink even for --version. The test runs it directly again,
+  as before; the role’s confinement is unchanged.
+
+- The server preset installs a listed VM descriptor beside the root agent (verified by
+  SHA256SUMS; a release without one is unchanged). A CLI test verifies a listed descriptor,
+  refuses a changed one and accepts a release without it. TypeScript tests (445 pass, one
+  existing skip) and typecheck pass; lint has one formatter error in control/tools/docs.ts
+  from another commit, reported. The release and the sudo bootstrap job do not ship the
+  descriptor yet, so root installed acceptance is still open.
+
+- Shorten the start path: the stage of each VM start is logged (`VM boot stages`, printed by the
+  actual runtime test for a restart and a retained-disk start); a start skips e2fsck on the disk
+  its signed clean shutdown left, and cached layers are not re-hashed while unchanged. A unit
+  test pins the disk identity against writes, chmod and replacement; the registry test still
+  refuses a corrupted layer. Clippy and structure pass. Stage numbers follow from VM CI.

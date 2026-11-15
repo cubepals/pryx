@@ -11,7 +11,7 @@ Parts (`network/`):
 - `go.work` and `go.work.sum`: make both local fixture modules explicit for cache verification within this directory only.
 - `cmd/proxy/main.go`: separate guest packet transport and private host management listeners.
 - `cmd/proxy/production.go`: bounded host-only profile through one inherited packet listener, without management services.
-- `cmd/proxy/stack.go`: the library's switch, DHCP and forwarders on a gvisor stack, each forwarder behind admission; no resolver.
+- `cmd/proxy/stack.go`: the library's switch, DHCP and forwarders on a gvisor stack, each forwarder behind admission; its resolver only for the root bridge.
 - `cmd/proxy/admission.go`: the host's own egress decision for every flow: named gateway ports, public IPv4 only when allowed, nothing else.
 - `cmd/guest/main.go`: trusted loopback and maintained DHCP setup without image-owned programs.
 - `cmd/probe/main.go` and `server.go`: guest network measurements, management denials and an unprivileged opaque TCP fixture.

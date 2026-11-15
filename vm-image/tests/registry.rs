@@ -50,6 +50,13 @@ async fn real_oci_layers_are_verified_cached_and_corruption_is_refused() {
         let again = images.prepare(reference, Duration::from_secs(120)).await.unwrap();
         assert_eq!(image.digest, again.digest);
         assert_eq!(image.layers, again.layers);
+        // A pinned digest prepares from its complete cache alone: a moved or unreachable name
+        // cannot change the lower layers or block a wake.
+        let offline = images
+            .prepare_pinned("registry.invalid/pryx/unreachable:moved", Some(&image.digest), Duration::from_secs(5))
+            .await
+            .unwrap();
+        assert_eq!((&offline.digest, &offline.layers), (&image.digest, &image.layers));
         for (path, expected) in again.layers.iter().zip(&before) {
             let metadata = fs::metadata(path).unwrap();
             assert_eq!((metadata.len(), metadata.modified().unwrap()), *expected);
@@ -60,6 +67,7 @@ async fn real_oci_layers_are_verified_cached_and_corruption_is_refused() {
             launcher: launcher.clone(),
             cache: cache.clone(),
             image: reference.into(),
+            pinned: None,
             timeout_seconds: 120,
         };
         let prepared = image::prepare(&helper, &request).await.unwrap();

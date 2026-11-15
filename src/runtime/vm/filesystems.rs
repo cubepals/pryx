@@ -160,6 +160,19 @@ impl FilesystemTools {
         &self.launcher
     }
 
+    /// Tests only: a component program run directly, for host-made inputs and for programs
+    /// such as nft that need what the filesystem-tool role withholds (a netlink socket).
+    #[cfg(test)]
+    pub(crate) fn host_program(&self, program: &str) -> std::process::Command {
+        let mut command = std::process::Command::new(self.root.join("libraries/ld-musl-x86_64.so.1"));
+        command
+            .env_clear()
+            .arg("--library-path")
+            .arg(self.root.join("libraries"))
+            .arg(self.root.join("helpers").join(program));
+        command
+    }
+
     pub fn identity(&self) -> &str {
         &self.identity
     }

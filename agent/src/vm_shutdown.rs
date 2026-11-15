@@ -8,13 +8,17 @@ use crate::{
     process_observation::nonce_valid,
 };
 use serde::{Deserialize, Serialize};
-use std::io;
+use std::{io, time::Duration};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio_vsock::{VMADDR_CID_HOST, VsockAddr, VsockListener};
 
 pub const PORT: u32 = 11828;
 const CONTEXT: &str = "pryx VM shutdown request v1";
 const MAX_BYTES: u64 = 4096;
+/// A request that names no grace keeps the original five seconds before the cgroup is killed.
+pub const DEFAULT_GRACE: Duration = Duration::from_secs(5);
+/// After the workload's grace, init's bound on emptying its cgroup plus its flush and record.
+pub const FLUSH_RESERVE: Duration = Duration::from_secs(15);
 
 fn termination() -> i32 {
     libc::SIGTERM
@@ -31,15 +35,29 @@ pub struct Request {
     pub epoch: u64,
     #[serde(default = "termination", skip_serializing_if = "is_termination")]
     pub signal: i32,
+    /// How long the workload has after the signal before its cgroup is killed; signed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grace_ms: Option<u64>,
     pub signature: String,
 }
 
+/// An authenticated shutdown: the workload's signal and its grace before the kill.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Accepted {
+    pub signal: i32,
+    pub grace: Duration,
+}
+
 fn bytes(request: &Request) -> Vec<u8> {
-    // Preserve the original TERM signature for bundles predating signal selection.
-    if request.signal == libc::SIGTERM {
-        serde_json::to_vec(&(CONTEXT, &request.nonce, &request.sandbox, request.epoch))
-    } else {
-        serde_json::to_vec(&(CONTEXT, &request.nonce, &request.sandbox, request.epoch, request.signal))
+    match request.grace_ms {
+        Some(grace) => {
+            serde_json::to_vec(&(CONTEXT, &request.nonce, &request.sandbox, request.epoch, request.signal, grace))
+        }
+        // Preserve the original TERM signature for bundles predating signal selection.
+        None if request.signal == libc::SIGTERM => {
+            serde_json::to_vec(&(CONTEXT, &request.nonce, &request.sandbox, request.epoch))
+        }
+        None => serde_json::to_vec(&(CONTEXT, &request.nonce, &request.sandbox, request.epoch, request.signal)),
     }
     .expect("fixed shutdown request serializes")
 }
@@ -58,9 +76,37 @@ pub fn request_for_signal(
     if !matches!(signal, libc::SIGTERM | libc::SIGINT) {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "Unsupported VM shutdown signal"));
     }
-    let mut request = Request { nonce: nonce.into(), sandbox: sandbox.into(), epoch, signal, signature: String::new() };
+    let mut request = Request {
+        nonce: nonce.into(),
+        sandbox: sandbox.into(),
+        epoch,
+        signal,
+        grace_ms: None,
+        signature: String::new(),
+    };
     request.signature = key.sign_bytes(&bytes(&request));
     Ok(request)
+}
+
+/// A workload stop with the spec's own grace before init kills what remains.
+pub fn request_with_grace(
+    key: &SigningKey,
+    nonce: &str,
+    sandbox: &str,
+    epoch: u64,
+    signal: i32,
+    grace: Duration,
+) -> io::Result<Request> {
+    let mut request = request_for_signal(key, nonce, sandbox, epoch, signal)?;
+    request.grace_ms = Some(u64::try_from(grace.as_millis()).unwrap_or(u64::MAX));
+    request.signature = key.sign_bytes(&bytes(&request));
+    Ok(request)
+}
+
+impl Request {
+    pub fn accepted(&self) -> Accepted {
+        Accepted { signal: self.signal, grace: self.grace_ms.map_or(DEFAULT_GRACE, Duration::from_millis) }
+    }
 }
 
 pub fn verify(request: &Request, public_key: &str, nonce: &str, sandbox: &str, epoch: u64) -> bool {
@@ -82,7 +128,13 @@ impl Listener {
         VsockListener::bind(VsockAddr::new(cid, PORT)).map(Self)
     }
 
-    pub(crate) async fn receive(&self, public_key: &str, nonce: &str, sandbox: &str, epoch: u64) -> io::Result<i32> {
+    pub(crate) async fn receive(
+        &self,
+        public_key: &str,
+        nonce: &str,
+        sandbox: &str,
+        epoch: u64,
+    ) -> io::Result<Accepted> {
         loop {
             let (mut socket, address) = self.0.accept().await?;
             if address.cid() != VMADDR_CID_HOST {
@@ -93,8 +145,8 @@ impl Listener {
                 transaction(&mut socket, public_key, nonce, sandbox, epoch),
             )
             .await;
-            if let Ok(Ok(Some(signal))) = received {
-                return Ok(signal);
+            if let Ok(Ok(Some(accepted))) = received {
+                return Ok(accepted);
             }
         }
     }
@@ -106,7 +158,7 @@ async fn transaction(
     nonce: &str,
     sandbox: &str,
     epoch: u64,
-) -> io::Result<Option<i32>> {
+) -> io::Result<Option<Accepted>> {
     let mut bytes = Vec::new();
     // A bounded JSON line completes the request without half-closing the SDK's
     // transport. The peer can keep reading its acknowledgement on the same stream.
@@ -124,7 +176,7 @@ async fn transaction(
     // A lost acknowledgement never cancels an authenticated shutdown already accepted.
     let _ = socket.write_all(&acknowledgement).await;
     let _ = AsyncWriteExt::shutdown(socket).await;
-    Ok(Some(request.signal))
+    Ok(Some(request.accepted()))
 }
 
 #[cfg(test)]
@@ -207,12 +259,36 @@ mod tests {
                 tokio::time::timeout(std::time::Duration::from_secs(1), async { tokio::join!(host_request, accepted) })
                     .await
                     .expect("A complete JSON request must not wait for peer EOF");
-            assert_eq!(accepted.unwrap(), Some(selected));
+            assert_eq!(accepted.unwrap(), Some(Accepted { signal: selected, grace: DEFAULT_GRACE }));
         }
     }
 
     #[tokio::test]
     async fn shutdown_listener_refuses_the_host_before_binding() {
         assert!(Listener::bind(VMADDR_CID_HOST + 1).is_err());
+    }
+
+    #[tokio::test]
+    async fn the_signed_grace_reaches_init_and_cannot_be_changed() {
+        let (key, _) = SigningKey::generate().unwrap();
+        let random = ring::rand::SystemRandom::new();
+        let nonce = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .encode(ring::rand::generate::<[u8; 32]>(&random).unwrap().expose());
+        let grace = Duration::from_secs(90);
+        let request = request_with_grace(&key, &nonce, "one", 3, libc::SIGINT, grace).unwrap();
+        assert!(verify(&request, &key.public_key(), &nonce, "one", 3));
+        assert_eq!(request.accepted(), Accepted { signal: libc::SIGINT, grace });
+        let mut shortened = request.clone();
+        shortened.grace_ms = Some(0);
+        assert!(!verify(&shortened, &key.public_key(), &nonce, "one", 3));
+        let mut dropped = request.clone();
+        dropped.grace_ms = None;
+        assert!(!verify(&dropped, &key.public_key(), &nonce, "one", 3));
+        let mut message = serde_json::to_vec(&request).unwrap();
+        message.push(b'\n');
+        let (mut host, mut guest) = tokio::net::UnixStream::pair().unwrap();
+        host.write_all(&message).await.unwrap();
+        let accepted = transaction(&mut guest, &key.public_key(), &nonce, "one", 3).await.unwrap();
+        assert_eq!(accepted, Some(Accepted { signal: libc::SIGINT, grace }));
     }
 }

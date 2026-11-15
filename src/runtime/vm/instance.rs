@@ -107,6 +107,12 @@ struct Entry {
     code: i64,
     #[serde(default)]
     agent_state: Option<pryx_agent::state::Snapshot>,
+    /// The manifest digest of the first start, which every later start prepares exactly.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    image_digest: Option<String>,
+    /// The disk as the last signed clean shutdown left it; a start of that same file needs no check.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    clean_disk: Option<super::disk::Stamp>,
 }
 // The runtime seam requires a numeric exit value even without a signed guest observation.
 const UNKNOWN_EXIT_CODE: i64 = -1;
@@ -124,6 +130,9 @@ struct Live {
     nonce: String,
     shutdown_requested: bool,
     killing: bool,
+    /// How long each stage of this boot took.
+    #[cfg_attr(not(test), allow(dead_code))]
+    stages: launch::Stages,
     #[cfg(test)]
     diagnostic_secrets: Vec<String>,
 }

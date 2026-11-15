@@ -20,6 +20,8 @@ import {
   type Isolation,
   type IsolationDefault,
   nodeIsolations,
+  VM_CPU_MILLIS,
+  VM_CPU_PROBLEM,
 } from './isolation.ts'
 import type { MountSpec, NativeMounts } from './native-mounts.ts'
 import { complete, fingerprint, operation } from './operations.ts'
@@ -37,6 +39,28 @@ function validateImage(tier: Isolation, image?: string) {
   const problem =
     tier === 'wasm' ? nodeSchema['x-pryx-wasm'].imageProblem : nodeSchema['x-pryx-process'].imageProblem
   z.object({ image: z.never({ error: problem }) }).parse({ image })
+}
+
+/**
+ * Why a requested CPU field can't run on its tier: a weight is a container's alone, and a ceiling
+ * runs in a container or, as whole vCPUs, in a VM.
+ */
+function cpuProblem(spec: SandboxSpec, field: 'cpuMillis' | 'cpuWeight'): string | undefined {
+  const value = spec.resources[field]
+  if (value == null || spec.isolation === 'container') return undefined
+  if (field === 'cpuWeight' || spec.isolation !== 'vm') return nodeSchema['x-pryx-resources'].cpuLimitProblem
+  return value < VM_CPU_MILLIS || value % VM_CPU_MILLIS ? VM_CPU_PROBLEM : undefined
+}
+
+/** The first CPU problem, as a field error, before units resize the request. */
+function checkCpu(spec: SandboxSpec) {
+  for (const field of ['cpuMillis', 'cpuWeight'] as const) {
+    const problem = cpuProblem(spec, field)
+    if (problem)
+      z.object({ resources: z.object({ [field]: z.never({ error: problem }) }) }).parse({
+        resources: { [field]: spec.resources[field] },
+      })
+  }
 }
 
 export class PublicModel {
@@ -286,17 +310,8 @@ export class PublicModel {
         packages: spec.packages,
       })
     spec = Object.fromEntries(Object.entries(spec).filter(([, value]) => value !== undefined)) as SandboxSpec
+    checkCpu(spec)
     spec = unitSpec(spec, this.boxes.projects?.unit)
-    if (spec.isolation !== 'container') {
-      for (const field of ['cpuMillis', 'cpuWeight'] as const) {
-        if (spec.resources[field] != null)
-          z.object({
-            resources: z.object({
-              [field]: z.never({ error: nodeSchema['x-pryx-resources'].cpuLimitProblem }),
-            }),
-          }).parse({ resources: { [field]: spec.resources[field] } })
-      }
-    }
     if (body.user && spec.isolation !== 'container')
       throw new SandboxError('unsupported', `user selection is unavailable on the ${spec.isolation} tier`)
     // Wasm never enforces an egress policy; a process node does only where it announces

@@ -115,15 +115,9 @@ async fn workload_log(runtime: &VmRuntime, id: &str) {
 async fn guest_firewall(runtime: &VmRuntime, id: &str) {
     use pryx_agent::vm_boot;
     let bundle = runtime.bundle().await.unwrap();
-    let run = crate::runtime::vm::filesystems::Run {
-        program: "nft",
-        arguments: vec!["--version".into()],
-        read: Vec::new(),
-        write: Vec::new(),
-        file_bytes: 1,
-    };
-    let host = bundle.filesystems().run(run, &runtime.state.root, None, 4096).await.unwrap();
-    assert!(host.status.success(), "{}", String::from_utf8_lossy(&host.diagnostic));
+    // nft opens a netlink socket even for --version, which the filesystem-tool role withholds.
+    let host = bundle.filesystems().host_program("nft").arg("--version").output().unwrap();
+    assert!(host.status.success(), "{}", String::from_utf8_lossy(&host.stderr));
     let root = Path::new(vm_boot::BOOTSTRAP_ROOT).join(vm_boot::FIREWALL_DIRECTORY);
     let loader = root.join(vm_boot::FIREWALL_LOADER);
     let libraries = loader.parent().unwrap();
@@ -139,7 +133,7 @@ async fn guest_firewall(runtime: &VmRuntime, id: &str) {
     .collect();
     let version = runtime.exec(id, &arguments, Duration::from_secs(5), 4096).await.unwrap();
     assert_eq!(version.exit_code, Some(0));
-    assert_eq!(version.stdout, host.output, "Guest uses the same unchanged verified nft program");
+    assert_eq!(version.stdout, host.stdout, "Guest uses the same unchanged verified nft program");
     let mut flush = arguments;
     flush.pop();
     flush.extend(["flush".into(), "ruleset".into()]);
@@ -226,6 +220,7 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
         runtime = VmRuntime::new(temporary.path(), settings).await.unwrap();
         assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Created);
         runtime.start(&id).await.unwrap();
+        boot_stages(&runtime, &id, index, "first start after a daemon restart").await;
         observe_live(&runtime, &id, &original_spec, index).await;
         runtime.stop(&id, &original_spec.stop_signal, Duration::from_secs(15)).await.unwrap();
         assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Exited);
@@ -257,6 +252,7 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
         retained_files.close().await.unwrap();
         let id = runtime.create(&original_spec).await.unwrap();
         runtime.start(&id).await.unwrap();
+        boot_stages(&runtime, &id, index, "start of a retained disk").await;
         assert_eq!(exec(&runtime, &id, "wc -c < /data/offline").await, format!("{}\n", bytes.len()).as_bytes());
         assert_eq!(exec(&runtime, &id, "cat /data/retained").await, b"durable");
         eprintln!("VM runtime image {index}: independent fork");
@@ -267,6 +263,7 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
         independent.start(&fork).await.unwrap();
         assert_eq!(exec(&independent, &fork, "cat /data/retained; printf fork > /data/retained").await, b"durable");
         assert_eq!(exec(&runtime, &id, "cat /data/retained").await, b"durable");
+        dead_helper_retires_its_guest_alone(&independent, &fork).await;
         independent.remove(&fork).await.unwrap();
         eprintln!("VM runtime image {index}: interrupted live runtime and failed ingress");
         runtime = interrupted(runtime, temporary.path(), &id, &original_spec, &bytes).await;
@@ -289,6 +286,15 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
     );
 }
 
+/// One dead helper retires only its own guest: it reads dead and the tier still lists.
+async fn dead_helper_retires_its_guest_alone(runtime: &VmRuntime, id: &str) {
+    let live = runtime.state.live.lock().unwrap()[id].clone();
+    live.lock().await.forwarder.stop().await.unwrap();
+    assert_eq!(runtime.inspect(id).await.unwrap().unwrap().status, ContainerStatus::Dead);
+    let listed = runtime.list(&[]).await.unwrap();
+    assert!(listed.iter().any(|info| info.id == id && info.status == ContainerStatus::Dead));
+}
+
 #[test]
 fn unfinished_launch_refuses_a_stopped_observation_until_its_kernel_lease_retires() {
     let root = tempfile::tempdir().unwrap();
@@ -300,6 +306,8 @@ fn unfinished_launch_refuses_a_stopped_observation_until_its_kernel_lease_retire
         finished: None,
         code: UNKNOWN_EXIT_CODE,
         agent_state: None,
+        image_digest: None,
+        clean_disk: None,
     };
     let held = lock(&lease).unwrap();
     assert!(matches!(runtime::stopped_status(&entry, &lease), Err(RuntimeError::Unavailable(_))));
@@ -362,6 +370,8 @@ fn private_journals_preserve_stopped_state_and_refuse_links_modes_and_invalid_va
         finished: Some(now),
         code: 7,
         agent_state: None,
+        image_digest: None,
+        clean_disk: None,
     };
     let path = entries.join(format!("{}.json", entry.id));
     let write =
@@ -377,23 +387,45 @@ fn private_journals_preserve_stopped_state_and_refuse_links_modes_and_invalid_va
     let interrupted = journal::load(root.path()).unwrap();
     assert_eq!(interrupted[&entry.id].code, UNKNOWN_EXIT_CODE);
     assert!(interrupted[&entry.id].finished.is_some());
+    // An unusable journal is refused and set aside alone: the others, here a valid neighbour,
+    // still load, and the refused one is never read into the runtime.
+    let mut neighbour = entry.clone();
+    neighbour.id = format!("vm-{}", uuid::Uuid::new_v4().simple());
+    neighbour.spec.name = format!("{}-neighbour", entry.spec.name);
+    let neighbour_path = entries.join(format!("{}.json", neighbour.id));
+    crate::durable::write_atomic(&neighbour_path, &serde_json::to_vec(&neighbour).unwrap(), 0o600).unwrap();
+    let quarantine = root.path().join("quarantine");
+    let mut quarantined = 0;
+    let mut refused = |expected: usize| {
+        let loaded = journal::load(root.path()).unwrap();
+        assert!(!loaded.contains_key(&entry.id) && loaded.contains_key(&neighbour.id));
+        assert!(fs::symlink_metadata(&path).is_err(), "A refused journal must leave the entries");
+        quarantined += 1;
+        assert_eq!(fs::read_dir(&quarantine).unwrap().count(), quarantined.max(expected));
+    };
     fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
-    assert!(journal::load(root.path()).is_err());
+    assert!(journal::read(&path).is_err());
+    refused(1);
     write(&entry);
     let other = root.path().join("other");
     fs::hard_link(&path, &other).unwrap();
-    assert!(journal::load(root.path()).is_err());
+    assert!(journal::read(&path).is_err());
+    refused(2);
     fs::remove_file(&other).unwrap();
+    write(&entry);
     fs::rename(&path, &other).unwrap();
     symlink(&other, &path).unwrap();
-    assert!(journal::load(root.path()).is_err());
-    fs::remove_file(&path).unwrap();
+    assert!(journal::read(&path).is_err());
+    refused(3);
+    assert_eq!(fs::read(&other).unwrap(), serde_json::to_vec(&entry).unwrap(), "A link's target stays intact");
     write(&entry);
     let secret = uuid::Uuid::new_v4().simple().to_string();
     fs::write(&path, format!("{{\"env\":\"{secret}\"}}")).unwrap();
-    let error = journal::load(root.path()).err().unwrap().to_string();
+    let error = journal::read(&path).err().unwrap().to_string();
     assert_eq!(error, "Invalid private VM journal");
     assert!(!error.contains(&secret));
+    refused(4);
+    fs::remove_file(&neighbour_path).unwrap();
     write(&entry);
     let mut duplicate = entry.clone();
     duplicate.id = format!("vm-{}", uuid::Uuid::new_v4().simple());
@@ -424,6 +456,11 @@ fn retained_file_spec_has_only_host_owned_data_policy() {
     let (memory, cpus, _, _) = monitor::resources(&prepared).unwrap();
     assert_eq!(memory, original.memory_bytes as u64 / (1024 * 1024));
     assert_eq!(cpus, 1);
+}
+
+async fn boot_stages(runtime: &VmRuntime, id: &str, index: usize, label: &str) {
+    let live = runtime.state.live.lock().unwrap()[id].clone();
+    eprintln!("VM boot stages (image {index}, {label}): {}", live.lock().await.stages);
 }
 
 async fn observe_live(runtime: &VmRuntime, id: &str, original_spec: &ContainerSpec, index: usize) {
@@ -458,11 +495,19 @@ async fn observe_live(runtime: &VmRuntime, id: &str, original_spec: &ContainerSp
     observe_resources(runtime, id, original_spec).await;
 }
 
+/// An open file session holds the transition; observation answers from the journal at once.
+async fn observed_without_waiting(runtime: &VmRuntime, id: &str) {
+    let observed = tokio::time::timeout(Duration::from_millis(500), runtime.inspect(id)).await.unwrap().unwrap();
+    assert_eq!(observed.unwrap().status, ContainerStatus::Exited);
+    tokio::time::timeout(Duration::from_millis(500), runtime.list(&[])).await.unwrap().unwrap();
+}
+
 async fn offline_files(runtime: &VmRuntime, id: &str, original_spec: &ContainerSpec, index: usize) -> Vec<u8> {
     let sandbox = &original_spec.agent.as_ref().unwrap().sandbox;
     let data = &original_spec.data_dir;
     let files = runtime.open_files(id).await.unwrap();
     assert!(runtime.data_copy_lease(sandbox, data).await.is_err(), "File service holds the real disk lease");
+    observed_without_waiting(runtime, id).await;
     let response = files
         .request(hyper::Method::GET, "/_pryx/files/content?path=retained", crate::http_client::empty())
         .await

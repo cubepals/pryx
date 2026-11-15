@@ -28,6 +28,9 @@ export const RELEASE_FILES = [
   'pryx-edge',
   'pryx-control-assets.tar.gz',
 ] as const
+/** Release files a host installs only when the release lists them: without the VM descriptor,
+ * a server install has no root VM tier, and pryxd says so. */
+export const OPTIONAL_RELEASE_FILES = ['vm-bundle.json'] as const
 export async function releaseFiles(source?: string) {
   const dir = source ?? mkdtempSync(join(tmpdir(), 'pryx-release-'))
   if (!source) {
@@ -38,7 +41,7 @@ export async function releaseFiles(source?: string) {
     const origin = new URL(base)
     if (origin.protocol !== 'https:' && !(origin.protocol === 'http:' && origin.hostname === '127.0.0.1'))
       throw new Error('Release downloads require HTTPS or loopback HTTP artifacts')
-    for (const file of ['SHA256SUMS', ...RELEASE_FILES]) {
+    const download = async (file: string) => {
       const response = await fetch(`${base}/${file}`)
       if (!response.ok) throw new Error(`Release asset ${file} unavailable`)
       const destination = new URL(response.url)
@@ -53,8 +56,22 @@ export async function releaseFiles(source?: string) {
         throw new Error('Release redirect left its secure transport')
       writeFileSync(join(dir, file), new Uint8Array(await response.arrayBuffer()))
     }
+    await download('SHA256SUMS')
+    const listed = checksums(dir)
+    for (const file of [...RELEASE_FILES, ...OPTIONAL_RELEASE_FILES.filter((name) => listed.has(name))])
+      await download(file)
   }
-  const sums = new Map(
+  const sums = checksums(dir)
+  for (const file of [...RELEASE_FILES, ...OPTIONAL_RELEASE_FILES.filter((name) => sums.has(name))]) {
+    const digest = createHash('sha256')
+      .update(readFileSync(join(dir, file)))
+      .digest('hex')
+    if (sums.get(file) !== digest) throw new Error(`Release asset ${file} failed SHA256 verification`)
+  }
+  return dir
+}
+function checksums(dir: string) {
+  return new Map(
     readFileSync(join(dir, 'SHA256SUMS'), 'utf8')
       .trim()
       .split('\n')
@@ -64,13 +81,6 @@ export async function releaseFiles(source?: string) {
         return [match[2] as string, match[1] as string]
       }),
   )
-  for (const file of RELEASE_FILES) {
-    const digest = createHash('sha256')
-      .update(readFileSync(join(dir, file)))
-      .digest('hex')
-    if (sums.get(file) !== digest) throw new Error(`Release asset ${file} failed SHA256 verification`)
-  }
-  return dir
 }
 export function installBinary(source: string, target: string) {
   const wanted = readFileSync(source)
