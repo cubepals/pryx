@@ -363,6 +363,9 @@ impl ContainerRuntime for DockerRuntime {
             .filter(|info| info.rootless)
             .map(|_| (rustix::process::geteuid().as_raw(), rustix::process::getegid().as_raw())))
     }
+    async fn check_data_owner(&self, _name: &str, data_dir: &Path) -> Result<(), RuntimeError> {
+        ownership::check_existing(self, data_dir).await
+    }
     fn supports_agent(&self) -> bool {
         true
     }

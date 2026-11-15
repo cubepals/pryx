@@ -94,7 +94,7 @@ impl Manager {
         record.updated_at = now_str();
         self.save_record(&record).await?;
         reservation.launching();
-        let start = self.note(self.runtime.start(&record.container_name).await).map_err(|e| port_clash(&id, e));
+        let start = self.note(self.start_compute(self.runtime.as_ref(), &record).await).map_err(|e| port_clash(&id, e));
         let observation = self.observe(&record).await;
         if observation.is_ok() {
             reservation.observed();

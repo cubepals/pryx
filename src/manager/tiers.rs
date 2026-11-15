@@ -76,6 +76,16 @@ impl Manager {
         }
         Ok(self.record_runtime(record)?.data_owner(record.id.as_str())?.unwrap_or_else(|| self.config.data_owner_ids()))
     }
+    /// Starts a record's existing compute once its backend accepts the data directory as it is now:
+    /// a directory kept from an earlier run keeps its owner whatever the configuration says today.
+    pub(super) async fn start_compute(
+        &self,
+        runtime: &dyn ContainerRuntime,
+        record: &WorkloadRecord,
+    ) -> Result<(), RuntimeError> {
+        runtime.check_data_owner(&record.container_name, &self.store.data_dir(&record.id)).await?;
+        runtime.start(&record.container_name).await
+    }
     pub(super) fn uses_store_lease(&self, record: &WorkloadRecord) -> bool {
         self.config.store_lease.enabled && self.record_tier(record) == "container"
     }
