@@ -8,6 +8,12 @@ use tokio::time::Instant;
 
 pub(super) const BOOT_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// The manifest digest an image reference names after `@`, as the OCI distribution
+/// specification writes it (`algorithm:encoded`); a tag names none.
+fn named_digest(image: &str) -> Option<&str> {
+    image.rsplit_once('@').map(|(_, digest)| digest).filter(|digest| digest.starts_with("sha256:"))
+}
+
 /// A layer file's device, inode, size, and modification and change times.
 pub(super) type Identity = (u64, u64, u64, (i64, i64), (i64, i64));
 
@@ -156,18 +162,29 @@ impl VmRuntime {
     }
     /// A pinned image this runtime already prepared needs no helper while its layer files are
     /// the ones the helper verified; anything else goes through the helper.
-    async fn pinned(&self, image: &str, pinned: Option<&str>) -> Result<Prepared, RuntimeError> {
-        if let Some(digest) = pinned {
-            let known = self.state.prepared.lock().unwrap().get(digest).cloned();
+    pub(super) async fn pinned(
+        &self,
+        image: &str,
+        pinned: Option<&str>,
+        timeout: Duration,
+    ) -> Result<Prepared, RuntimeError> {
+        // A reference naming its digest is immutable too; it is kept under the whole reference,
+        // since that digest may be an index the helper resolves to one platform's manifest.
+        let key = pinned.map(String::from).or_else(|| named_digest(image).map(|_| image.to_owned()));
+        if let Some(key) = &key {
+            let known = self.state.prepared.lock().unwrap().get(key).cloned();
             if let Some((prepared, identities)) = known
                 && identities_of(&prepared.layers).is_some_and(|current| current == identities)
             {
                 return Ok(prepared);
             }
         }
-        let prepared = self.prepared(image, pinned, self.state.settings.image_timeout).await?;
+        let prepared = self.prepared(image, pinned, timeout).await?;
         if let Some(identities) = identities_of(&prepared.layers) {
-            self.state.prepared.lock().unwrap().insert(prepared.digest.clone(), (prepared.clone(), identities));
+            let mut known = self.state.prepared.lock().unwrap();
+            for name in std::iter::once(prepared.digest.clone()).chain(key) {
+                known.insert(name, (prepared.clone(), identities.clone()));
+            }
         }
         Ok(prepared)
     }
@@ -201,7 +218,8 @@ impl VmRuntime {
         let (_, _, uid, gid) = monitor::resources(&entry.spec)?;
         // The first start pins the manifest; a wake never takes a moved tag's lower layers
         // under its retained disk, and a cached pin needs no registry.
-        let image = self.pinned(&entry.spec.image, entry.image_digest.as_deref()).await?;
+        let image =
+            self.pinned(&entry.spec.image, entry.image_digest.as_deref(), self.state.settings.image_timeout).await?;
         entry.image_digest = Some(image.digest.clone());
         stages.mark("image");
         let bundle = self.bundle().await?;
@@ -306,4 +324,15 @@ pub(super) async fn ready(monitor: &mut Machine, spec: &ContainerSpec, deadline:
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn only_a_digest_reference_pins_itself() {
+        let digest = "sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf";
+        assert_eq!(super::named_digest(&format!("docker.io/library/alpine@{digest}")), Some(digest));
+        assert_eq!(super::named_digest("docker.io/library/alpine:3.24.4"), None);
+        assert_eq!(super::named_digest("registry.example:5000/team/app"), None);
+    }
 }

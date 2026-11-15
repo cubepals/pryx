@@ -389,7 +389,8 @@ impl ContainerRuntime for VmRuntime {
         Ok(Some(true))
     }
     async fn ensure_image(&self, image: &str, timeout: Duration) -> Result<bool, RuntimeError> {
-        self.prepared(image, None, timeout).await.map(|_| true)
+        // A digest reference already prepared and unchanged needs neither helper nor registry.
+        self.pinned(image, None, timeout).await.map(|_| true)
     }
     async fn create(&self, spec: &ContainerSpec) -> Result<String, RuntimeError> {
         monitor::resources(spec)?;
