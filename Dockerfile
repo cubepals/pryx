@@ -2,7 +2,8 @@
 # One release image: control, edge, node, static agent and a versioned process userland.
 # /pryxd and the protocol/deployment assets retain their paths for fleet image consumers.
 # The default entrypoint chooses process isolation without an engine socket; --version and
-# explicit node subcommands delegate to /pryxd. All build bases are reviewed digest pins.
+# explicit node subcommands delegate to /pryxd. All build bases are reviewed digest pins, each a
+# multi-platform index, so the same file builds the image natively on x86_64 and on aarch64.
 FROM mirror.gcr.io/library/rust:1.99.1-alpine3.24@sha256:27cd9befd4a05d6f6eb407c3e28365f5092f008bfc5946207cca76ae5179ef23 AS build
 RUN apk add --no-cache musl-dev file
 WORKDIR /src
@@ -21,7 +22,7 @@ RUN cargo build --locked --release \
  && file target/release/pryx-agent | grep -q 'static' \
  && file target/release/pryxd | grep -q 'static' || { file target/release/pryxd; exit 1; }
 
-FROM oven/bun:1.4.4@sha256:3f23864d3e8c923975c61971cabe67ee3d5a728f1e25a559256b95af719a3478 AS javascript
+FROM oven/bun:1.4.4@sha256:1d22548f177f4ff38e0c15baa3c2c46c6c2060ba2d1bc573bb4720b407548f1d AS javascript
 ARG PRYX_PREVIEW_PUBLIC_KEY
 WORKDIR /src
 COPY package.json bun.lock ./
@@ -41,18 +42,19 @@ RUN bun install --frozen-lockfile \
  && bun run release:build \
  && bun build --compile deploy/image.ts --outfile dist/pryx-image
 
-FROM debian:trixie-slim@sha256:7378260c0a098d27ac206225db5e7d92b8c7c84ea7afccc86eeb513756bbd392 AS agentos
+FROM debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 AS agentos
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates python3 \
  && rm -rf /var/lib/apt/lists/*
 WORKDIR /source
 COPY scripts/fetch-agentos.py scripts/fetch-agentos.py
 COPY deploy/agentos.json deploy/agentos.NOTICE deploy/
 COPY LICENSES/Apache-2.0.txt LICENSES/Apache-2.0.txt
-RUN python3 scripts/fetch-agentos.py /agentos
+# The pinned agentOS distribution is x86_64's; elsewhere the wasm tier is off and says why.
+RUN if [ "$(uname -m)" = x86_64 ]; then python3 scripts/fetch-agentos.py /agentos; else mkdir /agentos; fi
 
 # The namespaced process mode's helper: unmodified bubblewrap and libcap from the reviewed,
 # digest-pinned archives, staged beside the agent (deploy/namespace-helper.py).
-FROM debian:trixie-slim@sha256:7378260c0a098d27ac206225db5e7d92b8c7c84ea7afccc86eeb513756bbd392 AS namespaces
+FROM debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 AS namespaces
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates python3 zstd \
  && rm -rf /var/lib/apt/lists/*
 WORKDIR /source
@@ -60,9 +62,9 @@ COPY deploy/namespace-helper.py deploy/namespace-helper.py
 COPY templates/process-tools/archive_inputs.py templates/process-tools/helpers.lock.json templates/process-tools/libraries.lock.json templates/process-tools/
 RUN python3 -I deploy/namespace-helper.py /installed
 
-FROM node:24-bookworm-slim@sha256:c0a93797ee78814ae6d32fcca2561fdbbe423149c3f5389aad32d86e9fd85bd4 AS node-userland
+FROM node:24-bookworm-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9 AS node-userland
 FROM ghcr.io/rustfs/rustfs:1.0.0@sha256:8cc9801755448b71a786705ce76692c77e14936cccd87cf2fc31842e58f4d1ff AS object-store
-FROM debian:trixie-slim@sha256:7378260c0a098d27ac206225db5e7d92b8c7c84ea7afccc86eeb513756bbd392 AS runtime
+FROM debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 AS runtime
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates coreutils git curl python3 python3-pip build-essential binutils postgresql-17 libnss-wrapper util-linux nftables docker-cli tini \
  && docker --version \
