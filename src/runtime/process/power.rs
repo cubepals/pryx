@@ -129,7 +129,7 @@ impl ProcessRuntime {
         let helper = self.namespace_helper(&agent.binary).map_err(error)?;
         let mut kept = vec![(agent.binary.as_path(), false)];
         if let Some(tools) = tools.filter(|tools| tools.unavailable.is_none()) {
-            kept.extend([(tools.cache.as_path(), false), (tools.scratch.as_path(), true)]);
+            kept.push(pryx_agent::process_namespaces::tool_directory(tools));
         }
         let mut command = Command::new(helper);
         command.args(super::namespaces::arguments(&spec.data_dir, mode.private_network, &kept)).arg(&agent.binary);

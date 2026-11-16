@@ -106,9 +106,8 @@ fn start(artifact: process_tool_policy::Artifact, browser_on: bool, unavailable:
     let mut command = match namespace_helper() {
         // As a namespaced node starts it: the agent crate's helper arguments, its paths kept.
         Some(helper) => {
-            let kept = [(executable, false), (cache.as_path(), false), (scratch.as_path(), true)];
-            let downloads = directory.path().join("downloads");
-            let kept = [&kept[..], &[(downloads.as_path(), true)]].concat();
+            let tools = policy.tools.as_ref().unwrap();
+            let kept = [(executable, false), pryx_agent::process_namespaces::tool_directory(tools)];
             let mut command = Command::new(helper);
             command.args(pryx_agent::process_namespaces::arguments(&policy.data, false, &kept)).arg(executable);
             command

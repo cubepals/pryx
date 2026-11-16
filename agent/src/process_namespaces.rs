@@ -8,9 +8,11 @@
 use std::ffi::OsString;
 use std::path::Path;
 
+use crate::process_tool_policy::Policy;
+
 /// bubblewrap's arguments for one supervisor, up to and including `--`. `kept` are the paths
 /// the sandbox needs that may lie under `/tmp`, which the private one would otherwise hide:
-/// its data and tool scratch writable, its agent executable and tool cache read-only.
+/// its agent executable read-only and its tool directory writable.
 pub fn arguments(data: &Path, private_network: bool, kept: &[(&Path, bool)]) -> Vec<OsString> {
     let mut arguments: Vec<OsString> = ["--unshare-user", "--unshare-pid", "--unshare-ipc"].map(Into::into).into();
     if private_network {
@@ -31,4 +33,12 @@ pub fn arguments(data: &Path, private_network: bool, kept: &[(&Path, bool)]) -> 
     }
     arguments.extend(["--chdir".into(), data.into(), "--".into()]);
     arguments
+}
+
+/// The tool directory a sandbox with native tools keeps: the one holding its cache, downloads and
+/// scratch (the node makes them siblings), writable and in one mount, as on the host. Acquiring a
+/// tool renames its verified download into the cache, which no rename does across two mounts;
+/// Landlock, not the mount, keeps the cache read-only to the guest and other scratch out of reach.
+pub fn tool_directory(tools: &Policy) -> (&Path, bool) {
+    (tools.cache.parent().unwrap_or(tools.cache.as_path()), true)
 }
