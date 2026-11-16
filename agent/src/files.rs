@@ -67,9 +67,9 @@ async fn file_token(
         file: Some(file.clone()),
         ..parent
     };
+    // Signed as the identity the agent answers as, which a fork with memory takes from its source.
     let token = agent
-        .key
-        .sign(&claims)
+        .as_identity(|_, _, key, _| key.sign(&claims))
         .map_err(|_| Failure(StatusCode::UNPROCESSABLE_ENTITY, "invalid_request", "Cannot issue file token".into()))?;
     let mut url = reqwest::Url::parse("http://agent/_pryx/files/content").expect("static URL");
     url.query_pairs_mut().append_pair("path", &file.path).append_pair("token", &token);
