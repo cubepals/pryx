@@ -5032,3 +5032,19 @@ job when publication is authorized. That job has not run in this task.
   failed once in control end to end: the container agent test's exposed port answered "Agent
   unavailable" after an edge relay ECONNRESET. The same code passed that job on k27 at `26aee02`;
   it is recorded here, not yet explained.
+
+- The store-recovery prerequisite's [Any host 43921002281,
+  job133540855252](https://github.com/cubepals/pryx/actions/runs/43921002281/job/133540855252)
+  reaches the Podman outage probe and finds that its API still answers after the socket peer's
+  PID is stopped. An owned forked listener reproduces that failure: `SO_PEERCRED` names the
+  parent that listened, while its child serves the inherited descriptor. The isolated CI
+  engine now records its launch identity and pauses only verified same-user descendant
+  holders of that exact listener, with pidfds, a bounded stop and unconditional resumption.
+  Ten real process controls pass locally, covering forked holders, an unaffected
+  nonholder, stale or foreign identity, private path and regular-file refusal, partial stop
+  rollback, normal errors, interrupt, termination and repeated termination during cleanup.
+  Signal handlers are restored afterward, and the owned test parent reaps both children.
+  The earlier hosted run did not retain its exact process topology, so the local control
+  establishes this fixture defect without claiming that historical instance's unique cause.
+  The existing installed-node outage, withdrawal and recovery assertions and their deadlines
+  remain; final-base hosted engine proof and independent review are still required.
