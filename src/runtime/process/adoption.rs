@@ -56,6 +56,7 @@ impl ProcessRuntime {
                 if entry.network.is_some() {
                     let _ = self.terminate_tree(&name).await;
                     let _ = network.release(&entry.spec.name);
+                    self.gone(&entry).await;
                 }
             }
         }
@@ -68,5 +69,20 @@ impl ProcessRuntime {
             );
         }
         self
+    }
+
+    /// Waits, a bounded time, until a supervisor it stopped has exited: with shared UIDs there is
+    /// no orphan sweep that waits for it, and a stopped sandbox must no longer count as running.
+    async fn gone(&self, entry: &Entry) {
+        const GONE: Duration = Duration::from_secs(5);
+        const POLL: Duration = Duration::from_millis(10);
+        let deadline = tokio::time::Instant::now() + GONE;
+        while super::observe::matching_pid(entry.pid, entry.ticks).is_some() {
+            if tokio::time::Instant::now() >= deadline {
+                tracing::warn!(sandbox = %entry.spec.name, "a stopped process sandbox has not exited");
+                return;
+            }
+            tokio::time::sleep(POLL).await;
+        }
     }
 }

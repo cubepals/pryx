@@ -298,6 +298,7 @@ jobs:
       # docker run, against the agent built above with the pinned helper staged beside it. Where
       # Ubuntu's AppArmor rule refuses the helper, the profile the doctor prints is installed first.
       - name: Process sandboxes namespaced here and plain in a default docker run
+        id: process-namespaces
         run: |
           install -d -m 755 "$RUNNER_TEMP/pryx-install"
           install -m 755 target/debug/pryx-agent "$RUNNER_TEMP/pryx-install/pryx-agent"
@@ -328,7 +329,8 @@ jobs:
       # delegated user, against the agent above with its helper, so every supervisor starts
       # namespaced (the profile above admits the helper) and must still get its own programs.
       - name: Kernel network policy on namespaced process sandboxes
-        if: ${{ !cancelled() && steps.kernel-destinations.outcome == 'success' }}
+        # Needs the agent and helper the step above stages, and the profile it installs.
+        if: ${{ !cancelled() && steps.kernel-destinations.outcome == 'success' && steps.process-namespaces.outcome == 'success' }}
         run: |
           policy=$(cargo test --locked -p pryxd --test process_network --no-run --message-format=json \
             | jq -r 'select(.reason == "compiler-artifact" and .profile.test and .target.name == "process_network"
