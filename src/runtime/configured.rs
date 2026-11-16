@@ -56,18 +56,24 @@ pub async fn availability(config: &Config) -> std::collections::BTreeMap<&'stati
             .await
             .map_err(|_| super::RuntimeError::Unavailable("container policy probe timed out".into()))?
     };
-    let container = if !matches!(config.runtime, RuntimeKind::Auto | RuntimeKind::Container) {
-        Some("configuration selects another tier".into())
+    let engine = if !matches!(config.runtime, RuntimeKind::Auto | RuntimeKind::Container) {
+        Err("configuration selects another tier".to_string())
     } else if !config.docker.enabled {
-        Some("disabled by this host preset; use the server preset for host engine access".into())
+        Err("disabled by this host preset; use the server preset for host engine access".into())
     } else {
-        match docker.await {
-            Ok(info) => info.container_policy_problem,
-            Err(error) => Some(error.to_string()),
-        }
+        docker.await.map_err(|error| error.to_string())
+    };
+    let container =
+        engine.as_ref().map_or_else(|error| Some(error.clone()), |info| info.container_policy_problem.clone());
+    // gVisor is the container backend with another engine runtime, so it needs that tier first.
+    let gvisor = if config.runtime != RuntimeKind::Auto {
+        Some("configuration selects another tier".into())
+    } else {
+        container.clone().or_else(|| engine.as_ref().ok().and_then(super::docker::gvisor_problem))
     };
     std::collections::BTreeMap::from([
         ("container", container),
+        (crate::protocol::Isolation::Gvisor.as_str(), gvisor),
         ("process", (process.state != State::On).then_some(process.evidence)),
         ("vm", {
             if !matches!(config.runtime, RuntimeKind::Auto | RuntimeKind::Vm) {
@@ -111,9 +117,17 @@ async fn auto(config: &Config) -> anyhow::Result<Arc<dyn ContainerRuntime>> {
     }
     let mut backends = Vec::new();
     let mut reasons = Vec::new();
-    for tier in ["container", "process", "wasm", "vm"] {
+    for tier in ["container", crate::protocol::Isolation::Gvisor.as_str(), "process", "wasm", "vm"] {
         if let Some(reason) = &available[tier] {
             reasons.push(format!("{tier}: {reason}"));
+            continue;
+        }
+        if tier == crate::protocol::Isolation::Gvisor.as_str() {
+            // The same engine and host policy as the container tier, with runsc for each start.
+            match container(config, &config.docker.socket) {
+                Ok(docker) => backends.push(Arc::new(docker.gvisor()) as Arc<dyn ContainerRuntime>),
+                Err(error) => reasons.push(format!("{tier}: {error}")),
+            }
             continue;
         }
         let mut single = config.clone();

@@ -4805,7 +4805,8 @@
               "container",
               "process",
               "wasm",
-              "vm"
+              "vm",
+              "gvisor"
             ]
           },
           "files": {
@@ -5677,7 +5678,8 @@
               "container",
               "process",
               "wasm",
-              "vm"
+              "vm",
+              "gvisor"
             ]
           },
           "require": {
@@ -6275,7 +6277,8 @@
                   "container",
                   "process",
                   "wasm",
-                  "vm"
+                  "vm",
+                  "gvisor"
                 ]
               },
               "require": {
@@ -6581,7 +6584,8 @@
                   "container",
                   "process",
                   "wasm",
-                  "vm"
+                  "vm",
+                  "gvisor"
                 ]
               },
               "repoImage": {

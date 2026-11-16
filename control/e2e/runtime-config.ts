@@ -69,7 +69,7 @@ export const nodeConfigFor = (DEPLOYMENT: string) =>
     const { home, endpointUrl, dir, apiPort, opsPort } = at
     const low = nodePortLow(DEPLOYMENT, at.index ?? 0)
     return `deployment_id = "${DEPLOYMENT}"
-runtime = "${at.tier ?? 'container'}"
+runtime = "${at.tier === 'gvisor' ? 'auto' : (at.tier ?? 'container')}"
 state_dir = "${join(home, 'state')}"
 ${at.nativeTools ? `[docker]\nnetwork = ${JSON.stringify(nativeNetworkName(DEPLOYMENT))}\nnative_tools_seccomp = ${JSON.stringify(process.env.PRYX_NATIVE_TOOLS_SECCOMP ?? new URL('../../deploy/native-tools-seccomp.json', import.meta.url).pathname)}\nnative_fuse = true\n${process.env.PRYX_NATIVE_TOOLS_APPARMOR ? `native_tools_apparmor = ${JSON.stringify(process.env.PRYX_NATIVE_TOOLS_APPARMOR)}\n` : ''}` : ''}
 [api]

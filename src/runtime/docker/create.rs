@@ -16,6 +16,9 @@ pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Res
         runtime.ensure_internal_network(&spec.network, &spec.labels).await?;
     }
     let mut spec = spec.clone();
+    if let Some(own) = runtime.oci_runtime {
+        spec.labels.insert(crate::labels::LABEL_OCI_RUNTIME.into(), own.into());
+    }
     if spec.internal_network {
         spec.labels.insert(
             crate::labels::LABEL_INTERNAL_BINDINGS.into(),
@@ -75,8 +78,9 @@ pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Res
     }
     let options = CreateContainerOptionsBuilder::new().name(&spec.name).build();
     let mut body = body_of(&spec);
-    runtime.native_tools.apply(&mut body);
+    runtime.native_tools.apply(&mut body, runtime.oci_runtime.is_none());
     if let Some(host) = body.host_config.as_mut() {
+        host.runtime = runtime.oci_runtime.map(String::from);
         if !info.memory_limit {
             host.memory = None;
             host.memory_swap = None;
@@ -119,6 +123,9 @@ fn check_engine_policy(runtime: &DockerRuntime, spec: &ContainerSpec, info: &Run
     }
     if !info.pids_limit && spec.require_pids_limit {
         return Err(RuntimeError::Other("pids-limit is unavailable on this engine".into()));
+    }
+    if runtime.oci_runtime.is_some() && spec.egress.is_some() {
+        return Err(RuntimeError::Other(super::gvisor::HOSTNAME_EGRESS_PROBLEM.into()));
     }
     if (info.rootless || info.podman) && (spec.egress.is_some() || runtime.native_tools.fuse()) {
         return Err(RuntimeError::Other(

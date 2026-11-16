@@ -96,10 +96,13 @@ impl Policy {
     pub(super) fn browser_profile(&self) -> bool {
         self.profile.is_some()
     }
-    pub(super) fn apply(&self, body: &mut ContainerCreateBody) {
+    /// `host_device` is false under gVisor, whose kernel is not the host's: the FUSE device
+    /// this policy grants is never mapped there.
+    pub(super) fn apply(&self, body: &mut ContainerCreateBody, host_device: bool) {
+        let fuse = self.fuse && host_device;
         let env = body.env.get_or_insert_default();
         env.retain(|v| !v.starts_with(&format!("{}=", pryx_agent::contract::FUSE_ENV)));
-        env.push(format!("{}={}", pryx_agent::contract::FUSE_ENV, if self.fuse { "1" } else { "0" }));
+        env.push(format!("{}={}", pryx_agent::contract::FUSE_ENV, if fuse { "1" } else { "0" }));
         let host = body.host_config.as_mut().expect("trusted host config");
         if let Some(profile) = &self.profile {
             host.security_opt.get_or_insert_default().push(format!("seccomp={profile}"))
@@ -107,7 +110,7 @@ impl Policy {
         if let Some(profile) = &self.apparmor {
             host.security_opt.get_or_insert_default().push(format!("apparmor={profile}"))
         }
-        if self.fuse {
+        if fuse {
             // Mountpoint directories need writable metadata despite a read-only image root.
             host.tmpfs.get_or_insert_default().insert("/mnt".into(), "rw,exec,nosuid,nodev,size=16m,mode=1777".into());
             host.devices = Some(vec![DeviceMapping {
@@ -130,7 +133,7 @@ mod tests {
             host_config: Some(Default::default()),
             ..Default::default()
         };
-        Policy::default().apply(&mut body);
+        Policy::default().apply(&mut body, true);
         assert_eq!(body.env.unwrap(), vec![format!("{}=0", pryx_agent::contract::FUSE_ENV)]);
         let host = body.host_config.unwrap();
         assert!(host.devices.is_none());
@@ -164,7 +167,8 @@ mod tests {
             }),
             ..Default::default()
         };
-        Policy { profile: Some("{}".into()), fuse: true, apparmor: Some("pryx-native-tools".into()) }.apply(&mut body);
+        Policy { profile: Some("{}".into()), fuse: true, apparmor: Some("pryx-native-tools".into()) }
+            .apply(&mut body, true);
         let host = body.host_config.unwrap();
         assert_eq!(host.readonly_rootfs, Some(true));
         assert!(host.cap_add.is_none());

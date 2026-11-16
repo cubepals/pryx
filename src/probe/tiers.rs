@@ -37,7 +37,12 @@ pub(super) fn read(report: &mut Report) {
             )
         },
     );
+    let gvisor = match report.capabilities.get("engine-gvisor") {
+        Some(gvisor) if container.state == State::On => gvisor.clone(),
+        _ => container.clone(),
+    };
     report.tiers = std::collections::BTreeMap::from([
+        (crate::protocol::Isolation::Gvisor.as_str().into(), gvisor),
         ("container".into(), container),
         ("process".into(), process),
         ("wasm".into(), wasm),

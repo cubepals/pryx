@@ -28,6 +28,7 @@ fn native_launch_diagnostics_cannot_truncate_a_foreign_file() {
         nice: 1,
         network_off: false,
         require_ipc_scope: Some(true),
+        private_tmp: None,
         tools: Some(process_tool_policy::Policy {
             cache: root.path().join("cache"),
             downloads: root.path().join("downloads"),

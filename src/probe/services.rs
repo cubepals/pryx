@@ -44,6 +44,7 @@ pub(super) async fn read(report: &mut Report) {
             Ok(info) => {
                 if !selected {
                     report.capabilities.insert("engine-selected".into(), Capability::on(socket.display().to_string()));
+                    report.capabilities.insert("engine-gvisor".into(), gvisor(&info));
                     report.capabilities.insert(
                         "engine-container-policy".into(),
                         match &info.container_policy_problem {
@@ -99,6 +100,20 @@ pub(super) async fn read(report: &mut Report) {
             ),
         };
         report.capabilities.insert(name.into(), capability);
+    }
+}
+
+/// Whether the selected engine can serve the gvisor tier, from its own runtime list.
+fn gvisor(info: &crate::runtime::RuntimeInfo) -> Capability {
+    match crate::runtime::docker::gvisor_problem(info) {
+        Some(problem) => Capability::new(
+            State::Off,
+            problem,
+            "Run the server preset, or install gVisor's runsc and register it with runsc install",
+        ),
+        None => {
+            Capability::on(format!("The engine has the {} runtime registered", crate::runtime::docker::GVISOR_RUNTIME))
+        }
     }
 }
 

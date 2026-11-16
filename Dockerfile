@@ -50,6 +50,16 @@ COPY deploy/agentos.json deploy/agentos.NOTICE deploy/
 COPY LICENSES/Apache-2.0.txt LICENSES/Apache-2.0.txt
 RUN python3 scripts/fetch-agentos.py /agentos
 
+# The namespaced process mode's helper: unmodified bubblewrap and libcap from the reviewed,
+# digest-pinned archives, staged beside the agent (deploy/namespace-helper.py).
+FROM debian:trixie-slim@sha256:7378260c0a098d27ac206225db5e7d92b8c7c84ea7afccc86eeb513756bbd392 AS namespaces
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates python3 zstd \
+ && rm -rf /var/lib/apt/lists/*
+WORKDIR /source
+COPY deploy/namespace-helper.py deploy/namespace-helper.py
+COPY templates/process-tools/archive_inputs.py templates/process-tools/helpers.lock.json templates/process-tools/libraries.lock.json templates/process-tools/
+RUN python3 -I deploy/namespace-helper.py /installed
+
 FROM node:24-bookworm-slim@sha256:c0a93797ee78814ae6d32fcca2561fdbbe423149c3f5389aad32d86e9fd85bd4 AS node-userland
 FROM ghcr.io/rustfs/rustfs:1.0.0@sha256:8cc9801755448b71a786705ce76692c77e14936cccd87cf2fc31842e58f4d1ff AS object-store
 FROM debian:trixie-slim@sha256:7378260c0a098d27ac206225db5e7d92b8c7c84ea7afccc86eeb513756bbd392 AS runtime
@@ -60,6 +70,7 @@ RUN apt-get update \
 COPY --from=agentos /agentos /usr/local/lib/pryx/agentos
 COPY --from=build /src/target/release/pryxd /pryxd
 COPY --from=build /src/target/release/pryx-agent /usr/local/lib/pryx/pryx-agent
+COPY --from=namespaces /installed/namespaces /usr/local/lib/pryx/namespaces
 COPY deploy/process-tools/ /usr/local/lib/pryx/
 COPY deploy/vm/ /usr/local/lib/pryx/
 COPY --from=node-userland /usr/local/bin/node /usr/local/bin/node

@@ -11,7 +11,7 @@ fn spec(tier: Option<&str>) -> pryxd::protocol::WorkloadSpec {
     let mut value = support::spec_json();
     if let Some(tier) = tier {
         value["isolation"] = tier.into();
-        if !matches!(tier, "container" | "vm") {
+        if !matches!(tier, "container" | "gvisor" | "vm") {
             value["image"] = "".into();
         }
     }
@@ -26,22 +26,26 @@ async fn tiers_share_one_manager_and_keep_their_identity_after_restart() {
     let process = Arc::new(FakeRuntime::new().with_isolation(Isolation::Process));
     let wasm = Arc::new(FakeRuntime::new().with_isolation(Isolation::Wasm));
     let vm = Arc::new(FakeRuntime::new().with_isolation(Isolation::Vm));
-    let router = Arc::new(Router::new(vec![container.clone(), process.clone(), wasm.clone(), vm.clone()]).unwrap());
+    let gvisor = Arc::new(FakeRuntime::new().with_isolation(Isolation::Gvisor));
+    let router = Arc::new(
+        Router::new(vec![container.clone(), gvisor.clone(), process.clone(), wasm.clone(), vm.clone()]).unwrap(),
+    );
     let manager = support::manager_on(dir.path(), router, "runtime = 'auto'");
     assert!(manager.reconcile(Records::FromDisk).await.error.is_none());
     let legacy = spec(None);
     let digest = legacy.record().digest();
     manager.ensure(support::id("legacy"), legacy, Precondition::None, None).await.unwrap();
-    for tier in ["container", "process", "wasm", "vm"] {
+    for tier in ["container", "gvisor", "process", "wasm", "vm"] {
         let id = support::id(tier);
         manager.ensure(id.clone(), spec(Some(tier)), Precondition::None, None).await.unwrap();
         manager.start(id.clone(), None).await.unwrap();
         let view = serde_json::to_value(manager.view(&id).unwrap()).unwrap();
         assert_eq!(view["isolation"].as_str().unwrap_or("container"), tier);
-        assert_eq!(view["guarantees"]["private-network"], tier == "container");
+        assert_eq!(view["guarantees"]["private-network"], tier == "container" || tier == "gvisor");
         assert_eq!(view["guarantees"]["cpu-limit"], false);
     }
     assert_eq!(manager.view(&support::id("legacy")).unwrap().spec_digest, digest);
+    assert_eq!(gvisor.count_calls("create "), 1, "a gvisor request reaches only the gvisor backend");
     assert_eq!(container.count_calls("create "), 2);
     assert_eq!(process.count_calls("create "), 1);
     assert_eq!(wasm.count_calls("create "), 1);

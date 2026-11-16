@@ -75,7 +75,11 @@ pub fn heartbeat_report(
 }
 
 fn workload_reports(manager: &Manager) -> Vec<WorkloadReport> {
-    let observed_limits = manager.features().iter().any(|f| f == crate::protocol::OBSERVED_RESOURCE_LIMITS_FEATURE);
+    let features = manager.features();
+    let observed_limits = features.iter().any(|f| f == crate::protocol::OBSERVED_RESOURCE_LIMITS_FEATURE);
+    // A namespaced node's process copies each report their own namespaces, older ones none.
+    let scoped = format!("tier-{}:{}", Isolation::Process.as_str(), crate::protocol::Guarantee::PrivatePids.feature());
+    let namespaced = features.contains(&scoped);
     manager
         .list(None)
         .into_iter()
@@ -84,8 +88,10 @@ fn workload_reports(manager: &Manager) -> Vec<WorkloadReport> {
             let browser = [Isolation::Container.as_str(), Isolation::Process.as_str()].contains(&tier)
                 && manager.browser_policy_observed(&v.id);
             WorkloadReport {
-                guarantees: ((observed_limits && tier == Isolation::Container.as_str()) || browser)
-                    .then_some(v.guarantees),
+                guarantees: ((observed_limits && crate::runtime::engine_tier(tier))
+                    || browser
+                    || (namespaced && tier == Isolation::Process.as_str()))
+                .then_some(v.guarantees),
                 metrics: manager.cached_metrics(&v.id),
                 agent: v.agent,
                 id: v.id.to_string(),

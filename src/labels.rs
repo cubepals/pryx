@@ -20,3 +20,9 @@ pub(crate) const LABEL_RECORD: &str = "blocklyd.record";
 pub(crate) const LABEL_INTERNAL_BINDINGS: &str = "blocklyd.internal-bindings";
 /// Inner browser sandbox policy supplied through a supported agent's trusted bootstrap.
 pub(crate) const LABEL_BROWSER_SANDBOX: &str = "blocklyd.browser-sandbox";
+/// A process sandbox started in PID, mount and IPC namespaces of its own (`true` or `false`).
+pub(crate) const LABEL_PRIVATE_PIDS: &str = "blocklyd.private-pids";
+/// A process sandbox started in an empty network namespace of its own (`true` or `false`).
+pub(crate) const LABEL_PRIVATE_NETWORK: &str = "blocklyd.private-network";
+/// The engine runtime a container was made with, on tiers that name one (`runsc` for gvisor).
+pub(crate) const LABEL_OCI_RUNTIME: &str = "blocklyd.oci-runtime";

@@ -18,6 +18,8 @@
 //! - `process_tool_policy.rs`: independent native artifact/cache policy types and parser version.
 //! - `process_observation.rs`: challenge-bound signed observations of installed process isolation.
 //! - `process_forward.rs`: ownership-verified process-tier forwarding channel.
+//! - `process_listeners.rs`: host listeners the node bound for a supervisor in its own network.
+//! - `process_namespaces.rs`: the namespace helper's arguments for one supervisor.
 //! - `process_peer.rs`: kernel process and connected-peer ownership evidence.
 //! - `process_capabilities.rs`: non-mutating kernel support queries.
 //! - `pty.rs`: terminal ownership through the platform PTY library.
@@ -127,6 +129,9 @@ pub mod transfer_target;
 
 #[cfg(feature = "server")]
 pub mod process_forward;
+#[cfg(feature = "server")]
+pub mod process_listeners;
+pub mod process_namespaces;
 #[cfg(feature = "server")]
 mod process_peer;
 

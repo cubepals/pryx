@@ -75,6 +75,11 @@ impl DockerRuntime {
                 result.timed_out = true;
                 // Docker has no API to stop an exec (moby/moby#35703). From the host, pryxd
                 // can: find its pid, make sure it is still this container's, and kill its tree.
+                // Under gVisor the exec's processes live in its own kernel, so a host pid names
+                // none of them; that path is never taken there.
+                if self.oci_runtime.is_some() {
+                    return Err(RuntimeError::Other(super::gvisor::EXEC_TIMEOUT_PROBLEM.into()));
+                }
                 if let Some((pid, container)) = self.exec_pid(&exec_id).await {
                     result.killed = self.kill_expired_exec(pid, &container, policy.as_ref()).await? > 0;
                 }

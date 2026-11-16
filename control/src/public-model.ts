@@ -20,6 +20,7 @@ import {
   type Isolation,
   type IsolationDefault,
   nodeIsolations,
+  startsFromImage,
   VM_CPU_MILLIS,
   VM_CPU_PROBLEM,
 } from './isolation.ts'
@@ -35,7 +36,7 @@ const networkNeeds = (body: Partial<Pick<Make, 'network'>>) =>
   body.network === 'none' ? [nodeSchema['x-pryx-network'].policyFeature] : []
 
 function validateImage(tier: Isolation, image?: string) {
-  if (tier === 'container' || tier === 'vm' || !image) return
+  if (startsFromImage(tier) || !image) return
   const problem =
     tier === 'wasm' ? nodeSchema['x-pryx-wasm'].imageProblem : nodeSchema['x-pryx-process'].imageProblem
   z.object({ image: z.never({ error: problem }) }).parse({ image })
@@ -47,7 +48,7 @@ function validateImage(tier: Isolation, image?: string) {
  */
 function cpuProblem(spec: SandboxSpec, field: 'cpuMillis' | 'cpuWeight'): string | undefined {
   const value = spec.resources[field]
-  if (value == null || spec.isolation === 'container') return undefined
+  if (value == null || spec.isolation === 'container' || spec.isolation === 'gvisor') return undefined
   if (field === 'cpuWeight' || spec.isolation !== 'vm') return nodeSchema['x-pryx-resources'].cpuLimitProblem
   return value < VM_CPU_MILLIS || value % VM_CPU_MILLIS ? VM_CPU_PROBLEM : undefined
 }
@@ -84,7 +85,7 @@ export class PublicModel {
     if (typeof this.defaultIsolation === 'string') return this.defaultIsolation
     const order = this.defaultIsolation.filter(
       (tier) =>
-        (body.image ? tier === 'container' || tier === 'vm' : tier !== 'container' && tier !== 'vm') &&
+        (body.image ? startsFromImage(tier) : !startsFromImage(tier)) &&
         (!body.packages?.length || tier === 'wasm'),
     )
     const needs = [...networkNeeds(body), ...toolFeatures(body.requiredTools)]
@@ -231,7 +232,7 @@ export class PublicModel {
           requiredTools: body.requiredTools ?? source?.requiredTools,
         },
       ))
-    if (sources === 0 && (isolation === 'container' || isolation === 'vm'))
+    if (sources === 0 && startsFromImage(isolation))
       throw new SandboxError('invalid_request', 'Choose exactly one of image, snapshot or template')
     // The tier a snapshot or template carries counts, so a container template stays mountable on
     // a deployment whose default tier is another.
@@ -279,7 +280,9 @@ export class PublicModel {
       workdir:
         body.workdir ??
         source?.workdir ??
-        (templateEntrypoint && isolation === 'container' ? storage.mountPath : undefined),
+        (templateEntrypoint && (isolation === 'container' || isolation === 'gvisor')
+          ? storage.mountPath
+          : undefined),
       user: body.user ?? source?.user,
       egress: body.egress ?? source?.egress,
       agent: {
@@ -311,7 +314,7 @@ export class PublicModel {
     spec = Object.fromEntries(Object.entries(spec).filter(([, value]) => value !== undefined)) as SandboxSpec
     checkCpu(spec)
     spec = unitSpec(spec, this.boxes.projects?.unit)
-    if (body.user && spec.isolation !== 'container')
+    if (body.user && spec.isolation !== 'container' && spec.isolation !== 'gvisor')
       throw new SandboxError('unsupported', `user selection is unavailable on the ${spec.isolation} tier`)
     // Only these tiers enforce a hostname policy on the host; a node still announces it per tier.
     if (body.egress && spec.isolation !== 'container' && spec.isolation !== 'vm')
@@ -367,7 +370,11 @@ export class PublicModel {
         priorTier ??
         (await this.defaultTier([...this.require, ...(body.require ?? [])], body.region, undefined, body)),
     }
-    if ((!body.image && body.isolation === 'container') || body.snapshot || body.template)
+    if (
+      (!body.image && (body.isolation === 'container' || body.isolation === 'gvisor')) ||
+      body.snapshot ||
+      body.template
+    )
       throw new SandboxError('invalid_request', 'A template starts from a tier-native specification')
     await this.db.execute(
       sql`INSERT INTO templates(id,project,name,spec) VALUES (${randomUUID()},${project},${name},${jsonb(body)}) ON CONFLICT(project,name) DO NOTHING`,

@@ -113,6 +113,7 @@ impl ProcessRuntime {
                 entries: Mutex::new(entries),
                 children: Mutex::new(HashMap::new()),
                 owners: Mutex::new(owners),
+                namespaces: Mutex::new(BTreeMap::new()),
             }),
             policy,
         })
@@ -240,6 +241,7 @@ impl ProcessRuntime {
             finished: None,
             cleaned: true,
             native_browser: None,
+            namespaced: None,
         };
         let id = entry.id.clone();
         self.save(entry)?;

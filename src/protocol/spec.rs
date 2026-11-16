@@ -47,6 +47,8 @@ pub enum Isolation {
     Process,
     Wasm,
     Vm,
+    // The container backend started with the engine's gVisor (`runsc`) runtime.
+    Gvisor,
 }
 impl Isolation {
     pub fn from_name(name: &str) -> Option<Self> {
@@ -55,6 +57,7 @@ impl Isolation {
             "process" => Some(Self::Process),
             "wasm" => Some(Self::Wasm),
             "vm" => Some(Self::Vm),
+            "gvisor" => Some(Self::Gvisor),
             _ => None,
         }
     }
@@ -65,6 +68,7 @@ impl Isolation {
             Self::Process => "process",
             Self::Wasm => "wasm",
             Self::Vm => "vm",
+            Self::Gvisor => "gvisor",
         }
     }
 }

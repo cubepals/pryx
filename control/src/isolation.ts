@@ -11,7 +11,12 @@ export const VM_CPU_PROBLEM = `must be a whole number of vCPUs on the vm tier: a
 export type Isolation = components['schemas']['Isolation']
 export const ISOLATIONS = nodeReads.components.schemas.Isolation.enum as [Isolation, ...Isolation[]]
 export type IsolationDefault = Isolation | readonly Isolation[]
-export const DEFAULT_ISOLATION_ORDER: readonly Isolation[] = ['container', 'vm', 'process', 'wasm']
+export const DEFAULT_ISOLATION_ORDER: readonly Isolation[] = ['container', 'vm', 'gvisor', 'process', 'wasm']
+/** Tiers that run an image through a container engine: containers, and gVisor's `runsc` in the same engine. */
+export const engineTier = (tier: Isolation | undefined) =>
+  (tier ?? 'container') === 'container' || tier === 'gvisor'
+/** Tiers that start from an image. */
+export const startsFromImage = (tier: Isolation | undefined) => engineTier(tier) || tier === 'vm'
 export const isolationOrder = (preference: IsolationDefault) =>
   typeof preference === 'string' ? [preference] : preference
 export function nodeIsolation(features: readonly string[]): Isolation {

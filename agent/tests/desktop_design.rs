@@ -20,6 +20,7 @@ async fn run(root: &Path, name: &str, arguments: &[String], restricted: bool) ->
             network_off: false,
             tools: None,
             require_ipc_scope: None,
+            private_tmp: None,
         };
         let mut command = Command::new(env!("CARGO_BIN_EXE_pryx-agent"));
         command.env_clear().arg("restricted").arg(&program).env(POLICY_ENV, serde_json::to_string(&policy).unwrap());

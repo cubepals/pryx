@@ -167,6 +167,10 @@ def main():
         if vm.exists():
             shutil.copy2(vm, bundle.root / 'bin/vm-bundle.json')
             (bundle.root / 'bin/vm-bundle.json').chmod(0o444)
+        # The namespaced process mode's helper stays beside the agent, as pryxd looks for it.
+        namespaces = Path('/usr/local/lib/pryx/namespaces')
+        if namespaces.exists():
+            shutil.copytree(namespaces, bundle.root / 'bin/namespaces', symlinks=True)
         for name in ['pryxd.sig', 'pryxd.bootstrap.sig']:
             if Path('/' + name).exists():
                 shutil.copy2('/' + name, bundle.root / 'bin' / name)
@@ -195,6 +199,8 @@ def main():
             shutil.copy2(tools, bootstrap / 'bin/process-tools.json')
         if vm.exists():
             shutil.copy2(bundle.root / 'bin/vm-bundle.json', bootstrap / 'bin/vm-bundle.json')
+        if namespaces.exists():
+            shutil.copytree(bundle.root / 'bin/namespaces', bootstrap / 'bin/namespaces', symlinks=True)
         shutil.copytree(bundle.root / 'licenses', bootstrap / 'licenses')
         pack(bootstrap, destination / 'pryx-bootstrap-linux-x64.tar.gz')
 

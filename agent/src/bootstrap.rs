@@ -49,7 +49,7 @@ async fn bind_spares(ports: &[u16], bindings: &Bindings) -> io::Result<Vec<(u16,
     for &port in ports {
         let mut held = Vec::new();
         for ip in &bindings[&port] {
-            held.push(tokio::net::TcpListener::bind((*ip, port)).await?);
+            held.push(crate::process_listeners::listen(*ip, port).await?);
         }
         spares.push((port, held));
     }
@@ -67,7 +67,7 @@ async fn serve_http(
 ) -> io::Result<(Vec<HttpTask>, Option<crate::vm_ingress::Ingress>)> {
     let mut listeners = Vec::new();
     for ip in &bindings[&port] {
-        listeners.push(tokio::net::TcpListener::bind((*ip, port)).await?);
+        listeners.push(crate::process_listeners::listen(*ip, port).await?);
     }
     let ingress = cid
         .map(|cid| {
