@@ -248,9 +248,12 @@ The `gvisor` tier is the container backend with the engine's gVisor `runsc` runt
 served beside containers wherever the engine lists `runsc`. A request naming `container` is never
 run by runsc and one naming `gvisor` never by runc. Each sandbox runs on gVisor's own kernel, not
 the host's (`uname -r` differs; `own-kernel` stays a VM's). What the Docker suite found it can't
-do on gvisor is refused by name there: a node exec past its deadline (`exec-timeout`; the agent's
-process API ends its own) and hostname egress policies (Docker's embedded resolver is unreachable
-from gVisor's network stack); host FUSE devices are never mapped into it. Every tool and
+do on gvisor is handled or refused by name there: a node exec's deadline is kept inside the
+sandbox by the injected agent (`pryx-agent exec-deadline`), and only an agent-less workload's
+exec past its deadline is refused (`exec-timeout`); hostname egress policies are refused (Docker's
+embedded resolver is unreachable from gVisor's network stack); host FUSE devices are never mapped
+into it. Its syscall-heavy figure below is the systrap platform's cost per system call: runsc
+already runs with directfs, the rootfs overlay and systrap's fast path, its documented defaults. Every tool and
 interpreter template (the Python and Node kernels, the browser, the desktop and SSH) runs on it,
 the browser with its own sandbox off and reported off, as in a default Docker container.
 
