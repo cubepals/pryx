@@ -635,6 +635,15 @@ jobs:
           if grep -q '^export PRYX_API_KEY=pryx_' "$RUNNER_TEMP/repeat-install.log"; then echo 'Repeated initial key'; exit 1; fi
           [ "$(pryx run --image alpine:3.22 -- echo hello)" = hello ]
           echo "Domainless server seconds to hello: $(($(date +%s)-started))" | tee -a "$GITHUB_STEP_SUMMARY"
+          # K26: the server preset installed gVisor's pinned runsc and registered it with Docker;
+          # a sandbox naming gvisor answers from gVisor's kernel, and one naming container doesn't.
+          docker info --format '{{json .Runtimes}}' | tee "$RUNNER_TEMP/server-runtimes.json" | grep -q '"runsc"'
+          /opt/pryx/gvisor/runsc --version | tee -a "$GITHUB_STEP_SUMMARY"
+          gvisor_kernel=$(pryx run --image alpine:3.22 --isolation gvisor -- uname -r)
+          container_kernel=$(pryx run --image alpine:3.22 --isolation container -- uname -r)
+          echo "Server gvisor kernel: $gvisor_kernel; container kernel: $container_kernel" | tee -a "$GITHUB_STEP_SUMMARY"
+          case "$gvisor_kernel" in *gvisor*) ;; *) exit 1 ;; esac
+          [ "$container_kernel" = "$(uname -r)" ]
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version-file: package.json
