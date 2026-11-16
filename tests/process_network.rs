@@ -172,8 +172,10 @@ async fn start(manager: &Arc<Manager>, name: &str, policy: serde_json::Value) {
     let view = until(manager, name, "a running supervisor", |view| view.state == WorkloadState::Running).await;
     assert!(view.guarantees[&Guarantee::HostFirewall], "{name}'s programs are attached and verified");
     // Where CI starts every supervisor in namespaces of its own, through the helper.
-    if std::env::var("PRYX_TEST_NAMESPACES").as_deref() == Ok("on") {
-        assert!(view.guarantees[&Guarantee::PrivatePids], "{name} started namespaced: {view:?}");
+    if std::env::var("PRYX_TEST_NAMESPACES").as_deref() == Ok("on") && !view.guarantees[&Guarantee::PrivatePids] {
+        let report = pryxd::probe::for_config(&manager.config).await;
+        let mode = &report.capabilities[pryxd::runtime::process::NAMESPACES];
+        panic!("{name} did not start namespaced: {mode:?}\n{view:?}");
     }
 }
 

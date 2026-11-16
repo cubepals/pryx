@@ -61,6 +61,9 @@ fn probe(helper: &Path, agent: &Path, owner: (u32, u32)) -> Result<(), String> {
     if rustix::process::geteuid().is_root() {
         command.uid(owner.0).gid(owner.1);
     }
+    // As a launch does: a daemon granted ambient capabilities for kernel network policy passes
+    // none on, and bubblewrap refuses to start with capabilities it wasn't installed with.
+    crate::bpf::host::drop_ambient_on_exec(&mut command);
     let mut child = command.spawn().map_err(|error| format!("The namespace helper did not start: {error}"))?;
     let deadline = std::time::Instant::now() + PROBE;
     loop {
