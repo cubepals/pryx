@@ -17,6 +17,8 @@ Parts (`vm-tools/`):
 - `prepare.py`: verify those tool inputs before private extraction.
 - `spike-module-notices.json`: exact dependency versions and complete primary-notice digests.
 - `notices.py`: verify and retain the actual Go dependency closure's complete notices.
+- `go_acquisition.py`: bounded retries of locked Go module reads, retaining Go's cache and checksum checks; compiler and test invocations remain single-shot.
+- `go_acquisition_check.py`, `testdata/go-acquisition/main.go` and `testdata/go-acquisition/owner.py`: real pinned-Go checks against a loopback HTTPS/HTTP2 module proxy and owner-only signal cancellation, run after the separate Go tool is verified.
 - `go.mod` and `go.sum`: checksum-pinned Go experiment dependencies.
 - `experiment/experiment.go`: application-owned report port for both fixture programs.
 - `cmd/config/main.go`: configuration through the monitor owner's generated models.

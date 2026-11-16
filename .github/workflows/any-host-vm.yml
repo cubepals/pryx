@@ -64,7 +64,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: bash "$GITHUB_WORKSPACE/templates/vm-tools/build.sh" inventory
       - name: Prepare pinned separate experiment tools
-        run: bash "$GITHUB_WORKSPACE/templates/vm-tools/build.sh" tools
+        run: |
+          bash "$GITHUB_WORKSPACE/templates/vm-tools/build.sh" tools
+          PRYX_TEST_GO="$RUNNER_TEMP/vm-build-tools/go/go/bin/go" \
+            python3 templates/vm-tools/go_acquisition_check.py
       - name: Inspect published kernels and their archive configurations
         run: bash "$GITHUB_WORKSPACE/templates/vm-tools/build.sh" inspect
       - name: Build the typed configuration and static guest probe
