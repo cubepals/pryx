@@ -80,6 +80,8 @@ RestrictSUIDSGID=yes
 LockPersonality=yes
 # No MemoryDenyWriteExecute: process sandboxes inherit this unit's system call filters, and that
 # one refuses every just-in-time compiler (Node, the JVM, WebAssembly runtimes) without a word.
+# pryxd holds its own process to it instead, without passing it on (prctl PR_SET_MDWE, Linux 6.6;
+# src/write_execute.rs), and logs whether it could.
 SystemCallArchitectures=native
 # Netlink only so the process tier hears of this host's address changes and keeps every
 # sandbox's rules for them (docs/bpf.md); no raw sockets.

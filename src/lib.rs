@@ -42,3 +42,4 @@ pub mod tarball;
 pub(crate) mod tls;
 pub mod tree;
 pub mod upgrade;
+pub mod write_execute;

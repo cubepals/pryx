@@ -393,6 +393,11 @@ async fn serve(path: &Path) -> anyhow::Result<()> {
     for inferred in &config.inferred {
         info!(key = inferred.key, value = %inferred.value, from = %inferred.from, "worked out from the host; set it in the configuration to override");
     }
+    // This process's own memory, not its sandboxes', which start without it.
+    match pryxd::write_execute::deny_write_execute() {
+        Ok(()) => info!(on = true, "memory deny write execute"),
+        Err(reason) => warn!(on = false, reason, "memory deny write execute"),
+    }
     let _ = rustls::crypto::ring::default_provider().install_default();
 
     let store = Store::open(&config.state_dir)?;
