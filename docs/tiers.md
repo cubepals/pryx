@@ -249,8 +249,10 @@ served beside containers wherever the engine lists `runsc`. A request naming `co
 run by runsc and one naming `gvisor` never by runc. Each sandbox runs on gVisor's own kernel, not
 the host's (`uname -r` differs; `own-kernel` stays a VM's). What the Docker suite found it can't
 do on gvisor is refused by name there: a node exec past its deadline (`exec-timeout`; the agent's
-process API ends its own), hostname egress policies (Docker's embedded resolver is unreachable
-from gVisor's network stack), host FUSE devices and the browser's own sandbox until proved.
+process API ends its own) and hostname egress policies (Docker's embedded resolver is unreachable
+from gVisor's network stack); host FUSE devices are never mapped into it. Every tool and
+interpreter template (the Python and Node kernels, the browser, the desktop and SSH) runs on it,
+the browser with its own sandbox off and reported off, as in a default Docker container.
 
 The namespaced process mode is a guarantee, not a tier ([process isolation](process-tier.md)):
 a `process` request gets whichever mode the host gives and reports it.

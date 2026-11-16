@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** The native tool and interpreter templates on the gvisor tier, through the edge and the SDK.
- * Without runsc registered (the main e2e run) the tier is refused by name. With it
- * (`PRYX_TEST_GVISOR=1`, after deploy/gvisor.sh), each template does its own work as on
- * containers, and every result is written to `PRYX_GVISOR_TOOLS`: what gVisor can't run is
- * found here, then refused on this tier by capability with its reason. */
+ * Without runsc registered (the main e2e run) the tier is refused. With it (`PRYX_TEST_GVISOR=1`,
+ * after deploy/gvisor.sh), each template does its own work as on containers, every result is
+ * written to `PRYX_GVISOR_TOOLS`, and each must succeed: a template gVisor couldn't run would
+ * be refused on this tier by capability, with its reason, and asserted here instead. */
 import { expect, test } from 'bun:test'
 import { writeFileSync } from 'node:fs'
 import { builtinTemplate } from '../../cli/src/builtin-template.ts'
@@ -95,8 +95,15 @@ test(
       expect(Object.keys(results).sort()).toEqual(
         ['browser', 'desktop', 'image', 'node-interpreter', 'python-interpreter', 'ssh'].sort(),
       )
-      // Proved on gvisor in CI run 43766414887; the others' results decide their refusals.
-      expect([results.image, results['python-interpreter']]).toEqual(['ok', 'ok'])
+      // Every template ran on gvisor in CI run 43774620164; none needs refusing on this tier.
+      expect(results).toEqual({
+        image: 'ok',
+        'python-interpreter': 'ok',
+        'node-interpreter': 'ok',
+        browser: 'ok',
+        desktop: 'ok',
+        ssh: 'ok',
+      })
     } finally {
       for (const box of boxes) await box.delete().catch(() => {})
       await c.close()
