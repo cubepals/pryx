@@ -17,9 +17,21 @@ import time
 import uuid
 
 
-def inside(binary, table, lease):
+def report_outputs(runtime):
+    # systemd sets up StandardOutput before creating RuntimeDirectory. Open these only
+    # after it has started this command, when the owned directory actually exists.
+    for descriptor, name in ((sys.stdout.fileno(), "probe.json"), (sys.stderr.fileno(), "probe.stderr")):
+        opened = os.open(Path(runtime) / name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        try:
+            os.dup2(opened, descriptor)
+        finally:
+            os.close(opened)
+
+
+def inside(binary, table, lease, runtime):
     if not Path(lease).is_file():
         raise RuntimeError("Probe admission is closed")
+    report_outputs(runtime)
     for name in ("fib_trie", "if_inet6") if table == "baseline" else (table,):
         path = Path("/proc/net") / name
         try:
@@ -158,12 +170,12 @@ def owned_probe(binary, evidence, table, cancellation):
         "--property=CapabilityBoundingSet=~CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH",
         f"--property=RuntimeDirectory={name}", "--property=RuntimeDirectoryMode=0700",
         "--property=RuntimeDirectoryPreserve=yes",
-        f"--property=StandardOutput=file:{runtime}/probe.json",
-        f"--property=StandardError=file:{runtime}/probe.stderr",
+        "--property=StandardOutput=journal",
+        "--property=StandardError=journal",
     ]
     if table != "baseline":
         arguments.append(f"--property=InaccessiblePaths=/proc/net/{table}")
-    arguments += [sys.executable, str(Path(__file__).resolve()), "--inside", binary, table, str(cancellation.lease)]
+    arguments += [sys.executable, str(Path(__file__).resolve()), "--inside", binary, table, str(cancellation.lease), str(runtime)]
     failed = True
     cleanup = 0
     try:
@@ -214,8 +226,8 @@ def owned_probe(binary, evidence, table, cancellation):
 
 
 def main(arguments):
-    if len(arguments) == 4 and arguments[0] == "--inside" and arguments[2] in ("baseline", "fib_trie", "if_inet6"):
-        inside(arguments[1], arguments[2], arguments[3])
+    if len(arguments) == 5 and arguments[0] == "--inside" and arguments[2] in ("baseline", "fib_trie", "if_inet6"):
+        inside(arguments[1], arguments[2], arguments[3], arguments[4])
     elif len(arguments) == 2:
         binary = str(Path(arguments[0]).resolve(strict=True))
         evidence = Path(arguments[1]).resolve()

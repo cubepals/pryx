@@ -34,6 +34,9 @@ def tool(name, arguments):
     phase = os.environ["PRYX_PROBE_FIXTURE_PHASE"]
     if name == "systemd-run":
         assert "--no-block" in arguments
+        assert "--property=StandardOutput=journal" in arguments
+        assert "--property=StandardError=journal" in arguments
+        assert not any(value.startswith("--property=StandardOutput=file:") for value in arguments)
         lease = next(value.removeprefix("--property=ConditionPathExists=") for value in arguments
                      if value.startswith("--property=ConditionPathExists="))
         assert Path(lease).is_file()
@@ -90,13 +93,32 @@ class Cancellation(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             lease = Path(temporary) / "admission"
             lease.touch()
-            result = subprocess.run([sys.executable, source, "--inside", "/bin/echo", "baseline", lease], capture_output=True, text=True, check=False)
-            self.assertEqual((result.returncode, result.stdout), (0, "probe --json\n"))
+            runtime = Path(temporary) / "runtime"
+            runtime.mkdir(mode=0o700)
+            result = subprocess.run([sys.executable, source, "--inside", "/bin/echo", "baseline", lease, runtime], capture_output=True, text=True, check=False)
+            self.assertEqual((result.returncode, result.stdout, result.stderr), (0, "", ""))
+            self.assertEqual((runtime / "probe.json").read_text(), "probe --json\n")
+            self.assertEqual((runtime / "probe.stderr").read_text(), "")
+            self.assertEqual((runtime / "probe.json").stat().st_mode & 0o777, 0o600)
             lease.unlink()
-            result = subprocess.run([sys.executable, source, "--inside", "/bin/echo", "baseline", lease], capture_output=True, text=True, check=False)
+            result = subprocess.run([sys.executable, source, "--inside", "/bin/echo", "baseline", lease, runtime], capture_output=True, text=True, check=False)
             self.assertNotEqual(result.returncode, 0)
             self.assertEqual(result.stdout, "")
             self.assertIn("Probe admission is closed", result.stderr)
+            self.assertEqual((runtime / "probe.json").read_text(), "probe --json\n")
+
+    def test_inside_refuses_to_replace_existing_report_files(self):
+        source = Path(__file__).with_name("check-address-table-probes.py")
+        with tempfile.TemporaryDirectory() as temporary:
+            runtime = Path(temporary)
+            lease = runtime / "admission"
+            lease.touch()
+            report = runtime / "probe.json"
+            report.write_text("retained evidence\n")
+            result = subprocess.run([sys.executable, source, "--inside", "/bin/echo", "baseline", lease, runtime], capture_output=True, text=True, check=False)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(result.stdout, "")
+            self.assertEqual(report.read_text(), "retained evidence\n")
 
     def test_stalled_commands_stop_promptly_and_preserve_repeated_owner_signals(self):
         for entry in ("library", "cli"):
