@@ -35,6 +35,16 @@ defaults:
 jobs:
   engine:
     name: Rootless ${{ matrix.engine }}
+    # A pull request from a milestone branch of this repository (k and a number) skips this:
+    # that branch's push run already tests its commits. Forks and other branches run it as before.
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name != github.repository ||
+      !(startsWith(github.head_ref, 'k0') || startsWith(github.head_ref, 'k1') ||
+        startsWith(github.head_ref, 'k2') || startsWith(github.head_ref, 'k3') ||
+        startsWith(github.head_ref, 'k4') || startsWith(github.head_ref, 'k5') ||
+        startsWith(github.head_ref, 'k6') || startsWith(github.head_ref, 'k7') ||
+        startsWith(github.head_ref, 'k8') || startsWith(github.head_ref, 'k9'))
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:

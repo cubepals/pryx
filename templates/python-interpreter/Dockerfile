@@ -9,5 +9,10 @@ RUN --mount=type=secret,id=proxy_ca \
     if [ -f /run/secrets/proxy_ca ]; then export PIP_CERT=/run/secrets/proxy_ca; fi; \
     pip install --no-cache-dir --only-binary=:all: --require-hashes -r requirements.txt
 ENV IPYTHONDIR=/opt/pryx/ipython MPLBACKEND=Agg PRYX_KERNEL_PRESTART=python
+# The sandbox's user has no account here, so an engine gives it the read-only root as its home,
+# and matplotlib warns and starts a new temporary configuration and font cache on every import.
+# Its home is the sandbox's data, writable and kept, as the process tier gives it: a template's
+# build fills the cache once and every sandbox made from it keeps it.
+ENV HOME=/data
 WORKDIR /data
 CMD ["sleep", "infinity"]

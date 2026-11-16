@@ -89,15 +89,19 @@ def main():
         (built / "lib").mkdir()
         shutil.copyfile(helper["bin/bwrap"], built / "bin" / "bwrap")
         (built / "bin" / "bwrap").chmod(0o755)
-        shutil.copyfile(library["lib/libcap.so.2.78"], built / "lib" / "libcap.so.2.78")
-        (built / "lib" / "libcap.so.2.78").chmod(0o644)
-        (built / "lib" / "libcap.so.2").symlink_to("libcap.so.2.78")
+        # Under its soname, the name bubblewrap asks for, as a regular file: a host bundle holds
+        # only ordinary files and directories (cli/src/bundle-install.ts), never a link.
+        shutil.copyfile(library["lib/libcap.so.2.78"], built / "lib" / "libcap.so.2")
+        (built / "lib" / "libcap.so.2").chmod(0o644)
         for name, notices in [("bubblewrap", helper_notices), ("libcap", library_notices)]:
             (built / "licenses" / name).mkdir(parents=True)
             for notice in notices:
                 shutil.copyfile(notice, built / "licenses" / name / notice.name)
         for directory in [built, built / "bin", built / "lib", built / "licenses"]:
             directory.chmod(0o755)
+        for entry in built.rglob("*"):
+            if entry.is_symlink() or not (entry.is_file() or entry.is_dir()):
+                raise SystemExit(f"{entry}: a host bundle holds only ordinary files and directories")
         options.agent_directory.mkdir(parents=True, exist_ok=True)
         if target.exists():
             shutil.rmtree(target)
