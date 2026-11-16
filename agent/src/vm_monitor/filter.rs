@@ -4,7 +4,9 @@
 //! closing, overwriting, unlocking or marking that descriptor close-on-exec. Every monitor
 //! is denied cross-process signals and limit changes; ordinary monitors also cannot create
 //! network sockets.
-//! Packet proxies inherit one private listener and may create only outbound Internet sockets.
+//! Packet proxies inherit one private listener and may create only outbound Internet sockets and
+//! routing netlink sockets, which ask the kernel how a destination is routed; without
+//! CAP_NET_ADMIN, which a packet proxy never holds, those read the host's routes and change none.
 //! Filesystem programs create no socket at all.
 use seccompiler::{
     BpfProgram, SeccompAction, SeccompCmpArgLen, SeccompCmpOp, SeccompCondition, SeccompFilter, SeccompRule,
@@ -78,13 +80,20 @@ pub(super) fn enter(jailer: bool, sockets: Sockets) -> Result<(), Box<dyn std::e
         }
     } else if !jailer {
         let packet_proxy = sockets == Sockets::Internet;
-        let domains: &[i32] = if packet_proxy { &[libc::AF_INET, libc::AF_INET6] } else { &[libc::AF_UNIX] };
-        rules.insert(
-            libc::SYS_socket,
-            vec![SeccompRule::new(
-                domains.iter().map(|domain| condition(0, SeccompCmpOp::Ne, *domain as u32)).collect(),
-            )?],
-        );
+        let domains: &[i32] =
+            if packet_proxy { &[libc::AF_INET, libc::AF_INET6, libc::AF_NETLINK] } else { &[libc::AF_UNIX] };
+        let mut refused = vec![SeccompRule::new(
+            domains.iter().map(|domain| condition(0, SeccompCmpOp::Ne, *domain as u32)).collect(),
+        )?];
+        if packet_proxy {
+            // Of netlink, only the routing family: the helper's admission asks it how a flow's
+            // destination would be routed, and no other family answers that.
+            refused.push(SeccompRule::new(vec![
+                condition(0, SeccompCmpOp::Eq, libc::AF_NETLINK as u32),
+                condition(2, SeccompCmpOp::Ne, libc::NETLINK_ROUTE as u32),
+            ])?);
+        }
+        rules.insert(libc::SYS_socket, refused);
         if packet_proxy {
             for syscall in [libc::SYS_socketpair, libc::SYS_bind, libc::SYS_listen] {
                 rules.insert(syscall, vec![]);

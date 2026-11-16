@@ -150,6 +150,9 @@ func serveProduction(path string, descriptor int) error {
 	if err != nil {
 		return err
 	}
+	if err := policy.readsRoutes(); err != nil {
+		return err
+	}
 	network, err := newPacketStack(profile, stackOptions{virtualIP: profile.Host, host: ip.String(),
 		policy: policy, concurrency: int(configuration.Concurrency)})
 	if err != nil {

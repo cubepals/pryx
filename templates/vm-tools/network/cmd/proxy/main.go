@@ -5,7 +5,8 @@
 //
 // Parts (`cmd/proxy/`): main.go keeps the comparison fixture; production.go owns the closed
 // runtime profile; stack.go assembles the maintained parts behind admission.go's egress decision;
-// tap.go adopts an attached TAP queue for the maintained raw packet transport.
+// route.go asks the kernel how a destination is routed, for that decision; tap.go adopts an
+// attached TAP queue for the maintained raw packet transport.
 package main
 
 import (

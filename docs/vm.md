@@ -142,11 +142,16 @@ The trusted init installs the guest rules before any image code runs. The worklo
 non-root user with no capabilities, so it cannot change them, and every process it starts is
 refused new vsock sockets, so it cannot reach the packet transport around them. The packet
 helper itself runs under the launcher's Landlock and seccomp policy: it may open outbound
-Internet sockets, and no listeners or Unix sockets.
+Internet sockets and routing netlink sockets, which only read how the host routes, and no
+listeners, other netlink families or Unix sockets.
 
 The packet helper also decides on the host, so a guest kernel that drops its own rules does not
 widen them. Before it dials any TCP, UDP or ICMP flow it refuses loopback, link-local and
-metadata, private, multicast and broadcast destinations. pryxd passes every guest's egress
+metadata, private, multicast and broadcast destinations, and any address the host itself would
+receive. It dials from the host's own network, so it asks the kernel how each new flow's
+destination is routed when the flow asks, and refuses one the kernel would deliver locally: the
+host's own addresses on every interface, public ones included, as the container tier's firewall
+refuses a workload's connections to its host. pryxd passes every guest's egress
 policy, and the helper refuses to start without one, so it also reaches the gateway address only
 at the gateway ports pryxd names (HTTP, TLS and DNS under a hostname allowlist, DNS alone
 otherwise), refuses the agent's other non-public networks, and on a hostname allowlist refuses
