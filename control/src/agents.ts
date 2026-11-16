@@ -60,13 +60,17 @@ export class Agents {
   }
 
   async token(id: string, project: string, requestUrl: string) {
-    const row = await this.boxes.record(id, project)
+    let row = await this.boxes.record(id, project)
+    // Lifecycle may rotate a signing key before an edge's next poll. Delay only token issuance
+    // until the current route is acknowledged; ready agent operations never enter this path.
+    while (await routesPending(this.boxes.db, id)) {
+      await pause(SECOND_MS / 20)
+      row = await this.boxes.record(id, project)
+    }
+    row = await this.boxes.record(id, project)
     if (!row.handle) throw new SandboxError('not_running', 'Wake the sandbox before requesting its agent')
     const ref = decodeHandle(row.handle)
     if (!ref.agent) throw new SandboxError('unsupported', 'This sandbox has no agent')
-    // Lifecycle may rotate a signing key before an edge's next poll. Delay only token issuance
-    // until the current route is acknowledged; ready agent operations never enter this path.
-    while (await routesPending(this.boxes.db, id)) await pause(SECOND_MS / 20)
     const node = await this.boxes.engine.home(row.handle)
     if (!node) throw new SandboxError('not_running', 'Sandbox has no local node')
     const policy = await projectRow(this.boxes.db, project, this.boxes.projects?.defaults)

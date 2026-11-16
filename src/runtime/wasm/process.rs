@@ -195,6 +195,21 @@ impl Remote {
             .map(|_| ())
     }
 
+    async fn terminal_ready(&self, id: &str) -> Result<(), ProcessError> {
+        // Shell replay does not await the client's background Execute. An empty write uses
+        // its maintained spawn gate without feeding input or closing it. Keep this outside
+        // started: a deadline parks output while signal must still acquire that control cell.
+        if let Err(write) = self.vm.write_shell_awaited(id, StdinInput::Bytes(Vec::new())).await {
+            // A fast command may have exited after registration. Its retained exit is still
+            // observable; a live or unconfirmed write failure is not.
+            let page = self.vm.snapshot_shell_page(id, None, Some(1), None).await.map_err(error)?;
+            if page.exit_code.is_none() {
+                return Err(error(write));
+            }
+        }
+        Ok(())
+    }
+
     async fn wait(&self) -> Result<i32, agentos_client::ClientError> {
         match &self.handle {
             Handle::Process(pid) => self.vm.wait_process(*pid).await,
@@ -206,9 +221,18 @@ impl Remote {
         let changed = Arc::new(Notify::new());
         let wake = changed.clone();
         let _subscription = match &self.handle {
-            Handle::Process(pid) => self.vm.on_process_output(*pid, move |_| wake.notify_one()).map_err(error)?,
-            Handle::Terminal(id) => self.vm.on_shell_data(id, move |_| wake.notify_one()).map_err(error)?,
+            Handle::Process(pid) => Some(self.vm.on_process_output(*pid, move |_| wake.notify_one()).map_err(error)?),
+            Handle::Terminal(id) => match self.vm.on_shell_data(id, move |_| wake.notify_one()) {
+                Ok(subscription) => Some(subscription),
+                // A closed shell has no live subscription, but its retained replay remains valid.
+                // Registration/replay below still reject unknown shells or unconfirmed launches.
+                Err(agentos_client::ClientError::ShellNotFound(_)) => None,
+                Err(cause) => return Err(error(cause)),
+            },
         };
+        if let Handle::Terminal(id) = &self.handle {
+            self.terminal_ready(id).await?;
+        }
         let mut cursor = None;
         loop {
             let (events, next, more, truncated, exited) = self.page(cursor).await?;
@@ -343,7 +367,134 @@ mod tests {
             eprintln!("shells: {:?}", vm.list_shells());
         }
         assert_eq!(result.unwrap().code, Some(0));
+        let (events, _) = terminal.subscribe().await;
+        assert!(terminal_text(&events).contains("cli:ready"), "The terminal's final output is retained");
         vm.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn terminal_replay_waits_for_launch_and_retains_fast_exit_output() {
+        let assets = std::env::var_os("PRYX_AGENTOS_DISTRIBUTION")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| crate::config::WasmConfig::default().distribution);
+        let options = super::super::boot::options(
+            None,
+            &assets,
+            &super::super::boot::binary(&assets),
+            &uuid::Uuid::new_v4().to_string(),
+            (rustix::process::geteuid().as_raw(), rustix::process::getegid().as_raw()),
+        )
+        .unwrap();
+        let vm = AgentOs::create(options).await.unwrap();
+        let checked = tokio::time::timeout(Duration::from_secs(20), async {
+            let shell = vm
+                .open_shell(OpenShellOptions {
+                    command: Some("sh".into()),
+                    args: vec!["--input-backend".into(), "minimal".into()],
+                    ..Default::default()
+                })
+                .unwrap();
+            let remote = Arc::new(Remote {
+                started: Default::default(),
+                vm: vm.clone(),
+                handle: Handle::Terminal(shell.shell_id.clone()),
+                status: Arc::new(std::sync::atomic::AtomicU8::new(super::super::VM_RUNNING)),
+            });
+            let process = Process::guest(1, remote.clone());
+            // Poll replay before open_shell's background task can submit Execute. The write's
+            // maintained spawn gate later feeds the real shell; no timing sleep controls ordering.
+            let (first, written) = tokio::join!(
+                biased;
+                remote.output(&process),
+                vm.write_shell_awaited(
+                    &shell.shell_id,
+                    StdinInput::Bytes(b"printf 'cli:%s\\n' ready\nexit\n".to_vec())
+                )
+            );
+            let (events, _) = process.subscribe().await;
+            let text = terminal_text(&events);
+            let fast = vm
+                .open_shell(OpenShellOptions {
+                    command: Some("sh".into()),
+                    args: vec!["-c".into(), "printf 'fast:%s\\n' ready".into()],
+                    ..Default::default()
+                })
+                .unwrap();
+            let fast_exit = vm.wait_shell(&fast.shell_id).await;
+            let remote_fast = Arc::new(Remote {
+                started: Default::default(),
+                vm: vm.clone(),
+                handle: Handle::Terminal(fast.shell_id),
+                status: Arc::new(std::sync::atomic::AtomicU8::new(super::super::VM_RUNNING)),
+            });
+            let fast_process = Process::guest(2, remote_fast.clone());
+            let fast_output = remote_fast.output(&fast_process).await;
+            let (fast_events, _) = fast_process.subscribe().await;
+            let fast_text = terminal_text(&fast_events);
+            (written, first, text, fast_exit, fast_output, fast_text)
+        })
+        .await;
+        vm.shutdown().await.unwrap();
+        let (written, first, text, fast_exit, fast_output, fast_text) = checked.expect("Terminal replay completes");
+        written.unwrap();
+        assert_eq!(first.unwrap(), 0, "Initial replay must await shell registration");
+        assert!(text.contains("cli:ready"), "Retained output: {text:?}");
+        assert_eq!(fast_exit.unwrap(), 0);
+        assert_eq!(fast_output.unwrap(), 0, "Replay remains readable after a fast terminal exits");
+        assert!(fast_text.contains("fast:ready"), "Retained fast output: {fast_text:?}");
+    }
+
+    #[tokio::test]
+    async fn terminal_kill_does_not_wait_for_a_parked_output_read() {
+        let assets = std::env::var_os("PRYX_AGENTOS_DISTRIBUTION")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| crate::config::WasmConfig::default().distribution);
+        let options = super::super::boot::options(
+            None,
+            &assets,
+            &super::super::boot::binary(&assets),
+            &uuid::Uuid::new_v4().to_string(),
+            (rustix::process::geteuid().as_raw(), rustix::process::getegid().as_raw()),
+        )
+        .unwrap();
+        let vm = AgentOs::create(options).await.unwrap();
+        let shell = vm
+            .open_shell(OpenShellOptions {
+                command: Some("sh".into()),
+                args: vec!["--input-backend".into(), "minimal".into()],
+                ..Default::default()
+            })
+            .unwrap();
+        let remote = Arc::new(Remote {
+            started: Default::default(),
+            vm: vm.clone(),
+            handle: Handle::Terminal(shell.shell_id),
+            status: Arc::new(std::sync::atomic::AtomicU8::new(super::super::VM_RUNNING)),
+        });
+        let process = Process::guest(1, remote.clone());
+        let mut output = Box::pin(remote.output(&process));
+        // A deadline stops polling output while it awaits kill. Start the real read before
+        // Execute can run, then park it while exercising that same cancellation sequence.
+        assert!(futures_util::poll!(output.as_mut()).is_pending());
+        let killed = tokio::time::timeout(Duration::from_secs(20), remote.signal(libc::SIGKILL)).await;
+        drop(output);
+        vm.shutdown().await.unwrap();
+        killed.expect("A parked read must not own the kill path's readiness").unwrap();
+    }
+
+    fn terminal_text(events: &[pryx_agent::process::Event]) -> String {
+        use base64::Engine;
+        let bytes: Vec<u8> = events
+            .iter()
+            .filter_map(|event| match event {
+                pryx_agent::process::Event::Output { bytes, .. } => {
+                    Some(base64::engine::general_purpose::STANDARD.decode(bytes).unwrap())
+                }
+                _ => None,
+            })
+            .flatten()
+            .collect();
+        String::from_utf8(bytes).unwrap()
     }
 
     async fn immediate_http(vm: &AgentOs) {
