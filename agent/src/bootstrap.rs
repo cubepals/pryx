@@ -230,6 +230,7 @@ pub async fn serve(
         file_tasks: Default::default(),
         shells: Default::default(),
         public_key: key.public_key(),
+        forked: Default::default(),
         key,
         sandbox: args.sandbox.clone(),
         epoch: args.epoch,
@@ -241,6 +242,10 @@ pub async fn serve(
     });
     crate::tools::prepare(&agent, args.browser_sandbox.unwrap_or(true))
         .map_err(|_| "Native tool runtime directory failed")?;
+    if args.vm_vsock {
+        // Before any process is started: none of them inherits init's handover channel.
+        crate::vm_sleep::take_handovers(agent.clone()).map_err(|_| "VM identity handover channel failed")?;
+    }
     let cid = args.vm_vsock.then_some(args.vm_cid.unwrap_or(tokio_vsock::VMADDR_CID_HOST + 1));
     let (servers, mut vm_ingress) =
         serve_http(agent.clone(), args.port, &bindings, cid, args.vm_port_base, &args.vm_ports, false).await?;

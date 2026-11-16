@@ -54,7 +54,7 @@ flate2 = { version = "1", optional = true }
 tempfile = { version = "3", optional = true }
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]
-linux-raw-sys = { version = "=0.12.1", default-features = false, features = ["general"], optional = true }
+linux-raw-sys = { version = "=0.12.1", default-features = false, features = ["general", "ioctl"], optional = true }
 
 [features]
 default = ["server", "mcp"]

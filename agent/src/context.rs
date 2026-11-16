@@ -22,6 +22,8 @@ pub struct Agent {
     pub epoch: u64,
     pub key: SigningKey,
     pub public_key: String,
+    /// A fork's own identity, once its trusted init handed it over (`vm_sleep.rs`).
+    pub forked: std::sync::RwLock<Option<Arc<Forked>>>,
     pub processes: Processes,
     pub file_tasks: tokio_util::task::TaskTracker,
     pub shells: crate::shell_state::Shells,
@@ -29,6 +31,26 @@ pub struct Agent {
     pub ports: Arc<Ports>,
     pub telemetry: Arc<crate::telemetry::Telemetry>,
     pub logs: Arc<crate::logbook::Logbook>,
+}
+
+/// The identity a VM fork with memory answers as in place of its source's.
+pub struct Forked {
+    pub sandbox: String,
+    pub epoch: u64,
+    pub key: SigningKey,
+    pub public_key: String,
+}
+
+impl Agent {
+    /// Runs `answer` with the sandbox, epoch, signing key and public key this agent answers as:
+    /// a fork's, once it has one, otherwise its own.
+    pub fn as_identity<T>(&self, answer: impl FnOnce(&str, u64, &SigningKey, &str) -> T) -> T {
+        let forked = self.forked.read().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
+        match forked {
+            Some(forked) => answer(&forked.sandbox, forked.epoch, &forked.key, &forked.public_key),
+            None => answer(&self.sandbox, self.epoch, &self.key, &self.public_key),
+        }
+    }
 }
 
 pub struct Failure(pub StatusCode, pub &'static str, pub String);

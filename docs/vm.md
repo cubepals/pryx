@@ -200,6 +200,13 @@ list narrows the tier with it, and adds prefixes there for other images, as for 
 - A file session, a copy or a cold boot of a guest asleep with memory discards that memory
   first; stopping it ends the memory as a kill would. Differential snapshots are not used: their
   upstream calls them a preview.
+- **Fork with memory**, on one node: a guest asleep with its memory gives a new sandbox a copy of
+  its disk and the same memory file, and the fork wakes running the source's processes under its
+  own sandbox, agent key, boot nonce and hostname, which its resume hands it before its agent
+  serves anything. Its init then has the kernel rekey its random generator from host entropy, so
+  each fork draws random bytes of its own (the pinned kernel has no VM generation ID driver). A
+  fork keeps the source's image, sizes, mounts, user and network. Across nodes a fork copies the
+  disk, as before.
 - **Stop** sends the guest's init a signed request over vsock, carrying the spec's stop grace.
   Init stops the workload with SIGTERM or SIGINT (other stop signals are refused), gives it that
   whole grace before killing what remains, remounts its disks read-only and flushes them, then

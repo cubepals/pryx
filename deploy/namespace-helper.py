@@ -4,7 +4,9 @@
 
 It is the reviewed external bubblewrap and its one library, libcap, from the digest-pinned
 conda-forge archives the process tool bundle already reviews (templates/process-tools/
-helpers.lock.json and libraries.lock.json), with their complete licence texts. The layout keeps
+helpers.lock.json and libraries.lock.json), with their complete licence texts; on aarch64, where
+there is no process tool bundle, the same releases' aarch64 builds (namespaces-aarch64.lock.json).
+The layout keeps
 bubblewrap's own RPATH ($ORIGIN/../lib): `namespaces/bin/bwrap`, `namespaces/lib/libcap.so.2`.
 No package hook runs and no binary is modified; it is never setuid.
 
@@ -13,6 +15,7 @@ No package hook runs and no binary is modified; it is never setuid.
 import argparse
 import io
 import json
+import platform
 import shutil
 import subprocess
 import sys
@@ -24,6 +27,13 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "templates" / "process-tools"))
 from archive_inputs import acquire, digest  # noqa: E402
+
+
+# Each machine's (lock, package) pairs for bubblewrap and libcap, as `uname -m` names the machine.
+INPUTS = {
+    "x86_64": [("helpers.lock.json", "bubblewrap"), ("libraries.lock.json", "libcap")],
+    "aarch64": [("namespaces-aarch64.lock.json", "bubblewrap"), ("namespaces-aarch64.lock.json", "libcap")],
+}
 
 
 def pinned(lock, name):
@@ -66,9 +76,13 @@ def main():
     target = options.agent_directory / "namespaces"
     with tempfile.TemporaryDirectory() as temporary:
         staging = Path(temporary)
-        helper, helper_notices = take(pinned("helpers.lock.json", "bubblewrap"), options.cache, staging, ["bin/bwrap"])
+        machine = platform.machine()
+        if machine not in INPUTS:
+            raise SystemExit(f"No pinned namespace helper for {machine}")
+        (helper_lock, helper_name), (library_lock, library_name) = INPUTS[machine]
+        helper, helper_notices = take(pinned(helper_lock, helper_name), options.cache, staging, ["bin/bwrap"])
         library, library_notices = take(
-            pinned("libraries.lock.json", "libcap"), options.cache, staging, ["lib/libcap.so.2.78"]
+            pinned(library_lock, library_name), options.cache, staging, ["lib/libcap.so.2.78"]
         )
         built = staging / "namespaces"
         (built / "bin").mkdir(parents=True)

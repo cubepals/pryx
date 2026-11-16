@@ -73,6 +73,7 @@ pub(super) async fn start(
         ports,
         telemetry,
         logs,
+        forked: Default::default(),
     });
     let mut servers = Vec::new();
     for listener in listeners(agent_binding).await? {

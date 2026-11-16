@@ -28,7 +28,11 @@ pub(super) fn read(root: &Path) -> Report {
         let path = root.join("dev").join(device);
         let capability = match fs::OpenOptions::new().read(true).write(true).open(&path) {
             Ok(_) => Capability::on(format!("{} opened read/write", path.display())),
-            Err(error) => Capability::error(error, &format!("Grant this user access to /dev/{device}")),
+            // The device's own path in the evidence: "/dev/kvm: No such file or directory".
+            Err(error) => Capability::error(
+                std::io::Error::new(error.kind(), format!("{}: {error}", path.display())),
+                &format!("Grant this user access to /dev/{device}"),
+            ),
         };
         report.capabilities.insert(format!("{device}-device"), capability);
     }

@@ -59,6 +59,46 @@ test('Hetzner attaches the explicit network/firewall and sends bootstrap only in
   expect(body?.user_data).toContain('JOIN_SECRET')
   expect(JSON.stringify(body?.labels)).not.toContain('JOIN_SECRET')
 })
+test('Hetzner offers its arm64 server types beside x86, each named by its architecture', async () => {
+  const location = { name: 'test-region', available: true, deprecation: null }
+  const type = (name: string, architecture: 'x86' | 'arm', cores: number) => ({
+    name,
+    architecture,
+    cores,
+    memory: 4,
+    disk: 40,
+    locations: [location],
+    prices: [
+      {
+        location: 'test-region',
+        price_hourly: { gross: '0.01', net: '0.01' },
+        price_monthly: { gross: '5', net: '5' },
+      },
+    ],
+  })
+  const send = (async (input) => {
+    const path = new URL(String(input)).pathname
+    if (path.endsWith('/pricing')) return Response.json({ pricing: { currency: 'TEST' } })
+    return Response.json({
+      server_types: [type('cx-test', 'x86', 2), type('cax-test', 'arm', 2)],
+      meta: { pagination: { next_page: null } },
+    })
+  }) as typeof fetch
+  const p = new HetznerProvider({
+    token: 'test-provider-token',
+    deployment: 'test',
+    network: 2,
+    firewall: 3,
+    sshKeys: ['test-key'],
+    image: 'ubuntu-24.04',
+    send,
+  })
+  const shapes = await p.shapes('test-region')
+  expect(shapes.map((s) => [s.name, s.architecture])).toEqual([
+    ['cx-test', 'x86_64'],
+    ['cax-test', 'aarch64'],
+  ])
+})
 test('Boat keeps bootstrap contents out of command arguments and uses native creation identity', async () => {
   const commands: string[] = [],
     files: string[] = [],

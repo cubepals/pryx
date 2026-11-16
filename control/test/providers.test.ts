@@ -4,7 +4,7 @@
 /** Provider identities, token trust and safe scaling use a real Postgres ledger and a fake rental backend. */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { sql } from 'drizzle-orm'
-import { Autoscale, smallestShape } from '../src/autoscale.ts'
+import { Autoscale, architecturesFor, smallestShape } from '../src/autoscale.ts'
 import { decodeHandle } from '../src/handle.ts'
 import { THRESHOLDS } from '../src/health.ts'
 import { JOIN_TOKEN_PREFIX, secretOf } from '../src/join-token.ts'
@@ -89,6 +89,23 @@ describe.skipIf(!hasDatabase)('provider control', () => {
   }
   test('smallest fit accounts for the daemon host reservations', () => {
     expect(smallestShape([shape, tooSmall], { memoryMb: 128, cpuMillis: 32, diskGb: 1 })?.name).toBe('fit')
+  })
+  test('an arm64 shape serves only process and container demand, and only a fleet that serves arm64 takes it', () => {
+    const arm = { ...shape, name: 'arm', architecture: 'aarch64' as const }
+    const need = { memoryMb: 128, cpuMillis: 32, diskGb: 1 }
+    expect(smallestShape([arm], need, 'aarch64')).toBeUndefined()
+    for (const isolation of ['wasm', 'vm', undefined] as const)
+      expect(
+        smallestShape([arm, shape], { ...need, architectures: architecturesFor({ isolation }) }, 'aarch64'),
+      ).toBeUndefined()
+    for (const isolation of ['process', 'container'] as const) {
+      const architectures = architecturesFor({ isolation })
+      expect(smallestShape([arm], { ...need, architectures }, 'aarch64')?.name).toBe('arm')
+      expect(smallestShape([arm, shape], { ...need, architectures }, 'aarch64')?.name).toBe('arm')
+      // An x86_64 control plane serves an x86_64 pryxd, which an arm64 server couldn't run.
+      expect(smallestShape([arm], { ...need, architectures }, 'x86_64')).toBeUndefined()
+      expect(smallestShape([arm, shape], { ...need, architectures }, 'x86_64')?.name).toBe('fit')
+    }
   })
   test('lost acquire replies reconcile the same host and the ledger never contains the join token', async () => {
     provider.loseNextReply = true

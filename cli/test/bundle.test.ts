@@ -6,7 +6,13 @@ import { generateKeyPairSync, sign } from 'node:crypto'
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { bundleStatement, HOST_BUNDLE } from '../../control/src/bundle-release.ts'
+import {
+  bundleStatement,
+  HOST_BUNDLE,
+  HOST_MACHINE,
+  releaseAsset,
+  releasedFor,
+} from '../../control/src/bundle-release.ts'
 import { PRYX_VERSION } from '../../control/src/generated/release.ts'
 import { bundleFiles, hashFile } from '../src/bundle-download.ts'
 import { stageBundle } from '../src/bundle-install.ts'
@@ -14,7 +20,7 @@ import { verifyBundleSignature } from '../src/bundle-trust.ts'
 import { userPaths } from '../src/up-paths.ts'
 import { selectPreset } from '../src/up-preset.ts'
 
-async function fixture() {
+async function fixture(architecture = HOST_MACHINE) {
   const directory = mkdtempSync(join(tmpdir(), 'pryx-bundle-'))
   const home = join(directory, 'home'),
     source = join(directory, 'release')
@@ -37,7 +43,7 @@ async function fixture() {
     {
       'bundle.json': JSON.stringify({
         version: PRYX_VERSION,
-        architecture: 'x86_64',
+        architecture,
         serviceUid: 1001,
         serviceGid: 1001,
         postgres: { major: '17', version: '17.11.0' },
@@ -73,6 +79,24 @@ test('a real signed archive stages without activating or writing state', async (
   } finally {
     f.close()
   }
+})
+
+test("a signed bundle built for another machine is refused, and each machine's files are named", async () => {
+  const f = await fixture(HOST_MACHINE === 'aarch64' ? 'x86_64' : 'aarch64')
+  try {
+    await expect(stageBundle(f.paths, { source: f.source, trustedKeys: f.trustedKeys })).rejects.toThrow(
+      'Host bundle metadata does not match this release',
+    )
+  } finally {
+    f.close()
+  }
+  expect(HOST_BUNDLE).toBe(`pryx-bundle-linux-${process.arch}.tar.gz`)
+  expect(releaseAsset('pryxd', 'x64')).toBe('pryxd')
+  expect(releaseAsset('pryxd.bootstrap.sig', 'x64')).toBe('pryxd.bootstrap.sig')
+  expect(releaseAsset('pryxd', 'arm64')).toBe('pryxd-linux-arm64')
+  expect(releaseAsset('pryxd.bootstrap.sig', 'arm64')).toBe('pryxd-linux-arm64.bootstrap.sig')
+  expect(releaseAsset('pryx-control-assets.tar.gz', 'arm64')).toBe('pryx-control-assets-linux-arm64.tar.gz')
+  expect(['x86_64', 'aarch64', 'riscv64'].map(releasedFor)).toEqual([true, true, false])
 })
 
 test('signed VM pins keep their readonly mode under a private installer umask', async () => {

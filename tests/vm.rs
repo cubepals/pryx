@@ -74,6 +74,8 @@ impl Node {
 #[ignore = "requires actual KVM and the verified archive; the existing optional VM CI job runs it"]
 async fn actual_vm_node_tls_admission_files_epochs_and_snapshot_restore() {
     let _ = rustls::crypto::ring::default_provider().install_default();
+    // The VM tier's own warnings, its memory-sleep start test's included, go to the job log.
+    let _ = tracing_subscriber::fmt().with_env_filter("pryxd::runtime::vm=info").try_init();
     let root = tempfile::tempdir().unwrap();
     let (artifact, distribution) = archive().await;
     let descriptor = root.path().join("vm-bundle.json");
@@ -110,7 +112,7 @@ async fn actual_vm_node_tls_admission_files_epochs_and_snapshot_restore() {
     }
     // Memory sleep is announced only once the tier's start test, run at construction, has passed.
     let memory_sleep = serde_json::to_value(Guarantee::MemorySleep).unwrap();
-    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(300);
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(120);
     while !node.call("GET", "/v1/health", None, StatusCode::OK).await["features"]
         .as_array()
         .unwrap()
@@ -218,6 +220,7 @@ async fn snapshot_restore(node: &Node, path: &str) {
 #[ignore = "requires actual KVM and the verified archive; the existing optional VM CI job runs it"]
 async fn actual_vm_memory_wake_on_another_class_boots_the_disk() {
     let _ = rustls::crypto::ring::default_provider().install_default();
+    let _ = tracing_subscriber::fmt().with_env_filter("pryxd::runtime::vm=info").try_init();
     let root = tempfile::tempdir().unwrap();
     let (artifact, distribution) = archive().await;
     let descriptor = root.path().join("vm-bundle.json");
@@ -259,7 +262,7 @@ async fn actual_vm_memory_wake_on_another_class_boots_the_disk() {
             assert!(report.error.is_none(), "{report:?}");
             let node = Node { server: support::serve(manager.clone()).await, pki, client };
             let memory_sleep = serde_json::to_value(Guarantee::MemorySleep).unwrap();
-            let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(300);
+            let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(120);
             while !node.call("GET", "/v1/health", None, StatusCode::OK).await["features"]
                 .as_array()
                 .unwrap()

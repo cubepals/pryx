@@ -45,7 +45,7 @@ pub struct Ports {
     pub(crate) forward: Option<Arc<dyn crate::guest::Forward>>,
     public_origin: std::sync::RwLock<Option<String>>,
     held: Mutex<Vec<Slot>>,
-    sandbox: String,
+    sandbox: std::sync::RwLock<String>,
     domain: String,
     agent_port: u16,
     revision: AtomicU64,
@@ -153,7 +153,7 @@ impl Ports {
             forward,
             public_origin: std::sync::RwLock::new(None),
             held: Mutex::new(slots),
-            sandbox,
+            sandbox: std::sync::RwLock::new(sandbox),
             domain,
             agent_port,
             revision: AtomicU64::new(restored.revision),
@@ -191,10 +191,16 @@ impl Ports {
         Ok(())
     }
 
+    /// A VM fork with memory exposes its ports under its own sandbox's name.
+    pub(crate) fn rename(&self, sandbox: String) {
+        *self.sandbox.write().unwrap_or_else(std::sync::PoisonError::into_inner) = sandbox;
+    }
+
     fn view(&self, slot: &Slot, target: u16) -> Exposed {
+        let sandbox = self.sandbox.read().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
         let url = self.public_origin.read().unwrap().as_ref().map_or_else(
-            || format!("https://{}-{target}.{}", self.sandbox, self.domain),
-            |origin| format!("{}/sandboxes/{}/ports/{target}", origin.trim_end_matches('/'), self.sandbox),
+            || format!("https://{sandbox}-{target}.{}", self.domain),
+            |origin| format!("{}/sandboxes/{sandbox}/ports/{target}", origin.trim_end_matches('/')),
         );
         Exposed { port: target, slot: slot.port, url }
     }
@@ -455,7 +461,7 @@ mod ssh_tests {
             forward: None,
             public_origin: Default::default(),
             held: Mutex::new(vec![Slot { port: AGENT_PORT + 1, target }]),
-            sandbox: "one".into(),
+            sandbox: std::sync::RwLock::new("one".into()),
             domain: "example.test".into(),
             agent_port: AGENT_PORT,
             revision: AtomicU64::new(0),

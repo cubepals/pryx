@@ -104,6 +104,7 @@ impl VmRuntime {
                     output: &output,
                     jail: Some(&root),
                     tap: network.map(network::Network::tap).transpose()?.flatten(),
+                    working: None,
                 },
                 (memory, cpus),
                 deadline,
@@ -130,13 +131,16 @@ impl VmRuntime {
             };
             Ok(Launch { channel, configuration, plan, jail: Some(jail) })
         } else {
-            let channel = directory.join("vsock");
+            // Relative paths, so a snapshot names this boot directory's link and socket, and a
+            // restore (a fork's included) resolves them in its own sandbox's directory.
+            let channel = directory.join(configuration::CHANNEL);
+            link_disk(directory, disk)?;
             let configuration = configuration::configure(
                 bundle,
                 image,
-                disk,
-                &channel,
-                configuration::Destination { output: &output, jail: None, tap: None },
+                Path::new(configuration::DISK_LINK),
+                Path::new(configuration::CHANNEL),
+                configuration::Destination { output: &output, jail: None, tap: None, working: Some(directory) },
                 (memory, cpus),
                 deadline,
             )
@@ -146,6 +150,11 @@ impl VmRuntime {
             Ok(Launch { channel, configuration, plan, jail: None })
         }
     }
+}
+
+/// The boot directory's link to the sandbox's disk, which the monitor's configuration names.
+pub(super) fn link_disk(directory: &Path, disk: &Path) -> Result<(), RuntimeError> {
+    std::os::unix::fs::symlink(disk, directory.join(configuration::DISK_LINK)).map_err(error)
 }
 
 impl Live {

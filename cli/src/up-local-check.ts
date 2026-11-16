@@ -75,7 +75,7 @@ export async function inspectLocal(
   const problem = localProblem(preset, probe, filesystem, tier)
   if (problem) throw new Error(problem)
   if (tier === 'wasm') {
-    if (!gnu)
+    if (!gnu || probe.architecture !== 'x86_64')
       throw new Error('This wasm distribution needs an x86_64 glibc host; use process on a Landlock host')
     if (bundle && temporary && existsSync(join(bundle, 'agentos/distribution.json')))
       await verifyLocalWasm(binary, bundle, temporary, env)

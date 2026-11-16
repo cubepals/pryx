@@ -11,6 +11,7 @@
 //! - `services.rs`: host-owned active and retained-disk file sessions.
 //! - `maintenance.rs`: leased file-only guests for stopped disks.
 //! - `memory.rs`: memory sleep and its restore on a host of the same class, and its start test.
+//! - `fork.rs`: a fork with memory on one node, which wakes under its own identity.
 //! - `memory_acceptance.rs`: real KVM sleep and wake with a running process, and its fallbacks.
 //! - `agent.rs`: authenticated agent calls and one-shot compatibility exec.
 //! - `monitor.rs`: host-selected ordinary/jailer launch paths and retired-disk recovery.
@@ -27,6 +28,7 @@ mod agent;
 mod configuration;
 #[cfg(test)]
 mod diagnostics;
+mod fork;
 mod guest;
 mod journal;
 mod launch;
