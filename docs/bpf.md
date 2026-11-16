@@ -47,7 +47,7 @@ The same specification as a container's network decides:
 | Specification | Reaches |
 | --- | --- |
 | `network: internet` (public internet on) | Every destination but this host, link-local (169.254.0.0/16, fe80::/10, where clouds serve metadata), multicast, and private addresses on the ports pryxd serves and its API's. DNS reaches the resolvers `/etc/resolv.conf` names. |
-| `egress: {allow, deny}` (public internet off, hostname policy) | Only the named hosts, through gateways pryxd serves for that sandbox: TCP 80 and 443 and DNS on 53, from any address, are redirected to them; nothing else leaves. |
+| `egress: {allow, deny}` (public internet off, hostname policy) | Only the named hosts, through gateways pryxd serves for that sandbox: TCP 80 and 443 and DNS on 53, from any address, are redirected to them; nothing else leaves. A gateway dials a name only when every address it resolves to is public, none is local to this host as the kernel routes it at that moment, and none is one the sandbox's `egressAddresses.deny` refuses on that port. |
 | `egressAddresses: {allow, deny}` | Allow adds exactly the prefixes and ports named; deny takes them away. Deny wins. |
 | `network: none` | Nothing, as before; the programs refuse it too. |
 

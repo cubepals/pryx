@@ -45,17 +45,18 @@ pub(in crate::runtime) async fn listen(
     }
     let http = TcpListener::bind((address, ports.http)).await?;
     let tls = TcpListener::bind((address, ports.tls)).await?;
-    let (dns_udp, dns_tcp) = resolver(address, ports.dns).await?;
-    serve(http, tls, dns_udp, dns_tcp, subnet, policy, capacity)
+    let dns = resolver(address, ports.dns).await?;
+    serve(http, tls, dns, subnet, policy, Refused::default(), capacity)
 }
 
+/// Serves a bound set: HTTP, TLS and the resolver's paired UDP and TCP listeners.
 pub(in crate::runtime) fn serve(
     http: TcpListener,
     tls: TcpListener,
-    dns_udp: UdpSocket,
-    dns_tcp: TcpListener,
+    (dns_udp, dns_tcp): (UdpSocket, TcpListener),
     subnet: ipnet::IpNet,
     policy: Policy,
+    refused: Refused,
     capacity: usize,
 ) -> io::Result<(Ports, DropGuard)> {
     let ports =
@@ -63,8 +64,8 @@ pub(in crate::runtime) fn serve(
     let cancel = CancellationToken::new();
     let guard = cancel.clone().drop_guard();
     let connections = Arc::new(Semaphore::new(capacity));
-    gateway::serve(http, false, subnet, policy.clone(), connections.clone(), cancel.clone());
-    gateway::serve(tls, true, subnet, policy.clone(), connections, cancel.clone());
+    gateway::serve(http, false, subnet, policy.clone(), refused.clone(), connections.clone(), cancel.clone());
+    gateway::serve(tls, true, subnet, policy.clone(), refused, connections, cancel.clone());
     dns::serve(dns_udp, dns_tcp, subnet, policy, Arc::new(Semaphore::new(capacity)), cancel);
     Ok((ports, guard))
 }

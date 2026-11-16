@@ -10,7 +10,7 @@ use crate::bpf::{
     host::{self, Host},
     object, rules,
 };
-use crate::runtime::egress::{Policy, listeners};
+use crate::runtime::egress::{Policy, Refused, listeners};
 use crate::runtime::{ContainerSpec, RuntimeError};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -91,16 +91,22 @@ impl Gateways {
         }
         Ok(())
     }
-    fn serve(self, policy: crate::protocol::EgressPolicy) -> Result<DropGuard, RuntimeError> {
+    /// Serves the sandbox's hostname policy; no name reaches an upstream its own address rules
+    /// refuse (`deny`), as its programs refuse the same address dialled directly.
+    fn serve(
+        self,
+        policy: crate::protocol::EgressPolicy,
+        deny: &[rules::Destination],
+    ) -> Result<DropGuard, RuntimeError> {
         let subnet = ipnet::IpNet::from(std::net::IpAddr::from(GATEWAY));
-        let (udp, tcp) = self.dns;
+        let refused = Refused::new(deny);
         let (_, guard) = listeners::serve(
             self.http,
             self.tls,
-            udp,
-            tcp,
+            self.dns,
             subnet,
             Policy::Names(policy),
+            refused,
             crate::runtime::docker::egress::MAX_CONNECTIONS,
         )
         .map_err(error)?;
@@ -152,7 +158,8 @@ impl Network {
         spec.egress.is_some() || spec.egress_addresses.is_some()
     }
 
-    fn compile(&self, spec: &ContainerSpec) -> Result<BTreeMap<ipnet::Ipv6Net, object::Rule>, RuntimeError> {
+    /// A spec's own address rules, allow and deny.
+    fn destinations(spec: &ContainerSpec) -> Result<(Vec<rules::Destination>, Vec<rules::Destination>), RuntimeError> {
         let destinations = |list: &[crate::protocol::AddressRule]| {
             list.iter()
                 .map(|rule| {
@@ -162,14 +169,18 @@ impl Network {
                 })
                 .collect::<Result<Vec<_>, RuntimeError>>()
         };
+        match &spec.egress_addresses {
+            Some(addresses) => Ok((destinations(&addresses.allow)?, destinations(&addresses.deny)?)),
+            None => Ok((Vec::new(), Vec::new())),
+        }
+    }
+
+    fn compile(&self, spec: &ContainerSpec) -> Result<BTreeMap<ipnet::Ipv6Net, object::Rule>, RuntimeError> {
         let private: Vec<ipnet::IpNet> =
             ranges(crate::ranges::PRIVATE_V4).chain(ranges(crate::ranges::PRIVATE_V6)).collect();
         let link_local: Vec<ipnet::IpNet> =
             ranges(crate::ranges::LINK_LOCAL_V4).chain(std::iter::once(LINK_LOCAL_V6)).collect();
-        let (allow, deny) = match &spec.egress_addresses {
-            Some(addresses) => (destinations(&addresses.allow)?, destinations(&addresses.deny)?),
-            None => (Vec::new(), Vec::new()),
-        };
+        let (allow, deny) = Self::destinations(spec)?;
         rules::compile(&rules::Inputs {
             reach: Self::reach(spec),
             allow: &allow,
@@ -201,6 +212,7 @@ impl Network {
     async fn attach(&self, spec: &ContainerSpec, cgroup: &Path) -> Result<Record, RuntimeError> {
         let key = self.key(&spec.name);
         let rules = self.compile(spec)?;
+        let (_, deny) = Self::destinations(spec)?;
         let gateways = match spec.egress.is_some() {
             true => Some(Gateways::bind().await?),
             false => None,
@@ -210,7 +222,7 @@ impl Network {
             Programs::attach(object::OBJECT, &self.host.pin_directory(&key), cgroup, &rules, config).map_err(error)?;
         let guard = match (gateways, &spec.egress) {
             (Some(gateways), Some(policy)) => {
-                match gateways.admit(&mut programs).and_then(|()| gateways.serve(policy.clone())) {
+                match gateways.admit(&mut programs).and_then(|()| gateways.serve(policy.clone(), &deny)) {
                     Ok(guard) => Some(guard),
                     Err(problem) => {
                         let _ = programs.detach();
@@ -244,7 +256,7 @@ impl Network {
         }
         programs.write(&rules, config).map_err(error)?;
         let guard = match (gateways, &spec.egress) {
-            (Some(gateways), Some(policy)) => Some(gateways.serve(policy.clone())?),
+            (Some(gateways), Some(policy)) => Some(gateways.serve(policy.clone(), &Self::destinations(spec)?.1)?),
             _ => None,
         };
         self.held.lock().unwrap().insert(spec.name.clone(), Held { programs, _gateways: guard });

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! HTTP checks each request's host; TLS checks ClientHello SNI before connecting. Every
-//! connection resolves once, refuses non-public results and dials that immutable resolution.
+//! connection resolves once, refuses the name if any result is non-public, one of this host's
+//! own addresses as it has them now, or one the sandbox's own rules refuse, and dials that
+//! immutable resolution.
 use super::*;
 use axum::{Router, body::Body, extract::Request, http::StatusCode, response::Response};
 use hyper_util::{rt::TokioIo, service::TowerToHyperService};
@@ -21,23 +23,48 @@ pub(super) fn allowed(host: &str, policy: &Policy) -> bool {
     }
     !policy.deny.iter().any(|rule| matches(host, rule)) && policy.allow.iter().any(|rule| matches(host, rule))
 }
-async fn resolve(host: &str, port: u16, policy: &Policy) -> io::Result<Vec<SocketAddr>> {
+async fn resolve(host: &str, port: u16, policy: &Policy, refused: &Refused) -> io::Result<Vec<SocketAddr>> {
     if !allowed(host, policy) || host.parse::<IpAddr>().is_ok() {
         return Err(denied());
     }
     let addresses: Vec<_> = tokio::net::lookup_host((host, port)).await?.collect();
-    if addresses.is_empty()
-        || addresses.iter().any(|address| !pryx_agent::transfer_target::public_address(address.ip()))
-    {
+    if addresses.is_empty() || addresses.iter().any(|address| !dialable(*address, refused)) {
         return Err(denied());
     }
     Ok(addresses)
+}
+/// An upstream a gateway may dial: a public address, not local to this host as the kernel routes
+/// it now (a name resolved to the host's own address would reach its services from the daemon),
+/// and none the sandbox's own rules refuse.
+fn dialable(upstream: SocketAddr, refused: &Refused) -> bool {
+    let address = upstream.ip().to_canonical();
+    pryx_agent::transfer_target::public_address(address)
+        && matches!(local(SocketAddr::new(address, upstream.port())), Ok(false))
+        && !refused.names(upstream)
+}
+/// Whether the kernel routes `address` to this host itself, asked as a dial is about to be made:
+/// a datagram socket connected to it (which sends nothing) gets the source the kernel chose, and
+/// a local destination is its own source (the local route's preferred source; RFC 6724's first
+/// rule for IPv6). An address with no route is an error, which refuses it.
+fn local(upstream: SocketAddr) -> io::Result<bool> {
+    let unspecified: IpAddr = match upstream {
+        SocketAddr::V4(_) => std::net::Ipv4Addr::UNSPECIFIED.into(),
+        SocketAddr::V6(_) => std::net::Ipv6Addr::UNSPECIFIED.into(),
+    };
+    let probe = std::net::UdpSocket::bind((unspecified, 0))?;
+    probe.connect(upstream)?;
+    Ok(probe.local_addr()?.ip() == upstream.ip())
+}
+/// The same question of a connection just made, before a byte of the sandbox's goes on it.
+fn looped(stream: &TcpStream) -> io::Result<bool> {
+    Ok(stream.local_addr()?.ip().to_canonical() == stream.peer_addr()?.ip().to_canonical())
 }
 pub(in crate::runtime) fn serve(
     listener: TcpListener,
     tls: bool,
     subnet: ipnet::IpNet,
     policy: Policy,
+    refused: Refused,
     capacity: Arc<Semaphore>,
     cancel: CancellationToken,
 ) {
@@ -49,18 +76,18 @@ pub(in crate::runtime) fn serve(
                 continue;
             }
             let Ok(permit) = capacity.clone().try_acquire_owned() else { continue };
-            let policy = policy.clone();
+            let (policy, refused) = (policy.clone(), refused.clone());
             let cancel = cancel.clone();
             tokio::spawn(async move {
                 let _permit = permit;
                 let work = async {
                     if tls {
-                        let _ = forward_tls(stream, &policy).await;
+                        let _ = forward_tls(stream, &policy, &refused).await;
                     } else {
                         let app = Router::new().fallback(move |request: Request| {
-                            let policy = policy.clone();
+                            let (policy, refused) = (policy.clone(), refused.clone());
                             async move {
-                                forward_http(request, &policy).await.unwrap_or_else(|_| {
+                                forward_http(request, &policy, &refused).await.unwrap_or_else(|_| {
                                     Response::builder()
                                         .status(StatusCode::FORBIDDEN)
                                         .body(Body::from("Egress hostname refused"))
@@ -78,7 +105,7 @@ pub(in crate::runtime) fn serve(
         }
     });
 }
-async fn forward_http(request: Request, policy: &Policy) -> io::Result<Response> {
+async fn forward_http(request: Request, policy: &Policy, refused: &Refused) -> io::Result<Response> {
     let fields: Vec<_> = request.headers().get_all(hyper::header::HOST).iter().collect();
     if fields.len() != 1 {
         return Err(denied());
@@ -88,7 +115,8 @@ async fn forward_http(request: Request, policy: &Policy) -> io::Result<Response>
     if host.is_empty() || host.contains([':', '/', '\\', '@']) {
         return Err(denied());
     }
-    let addresses = tokio::time::timeout(CONNECT, resolve(&host, 80, policy)).await.map_err(|_| denied())??;
+    let addresses =
+        tokio::time::timeout(CONNECT, resolve(&host, 80, policy, refused)).await.map_err(|_| denied())??;
     let path = request.uri().path_and_query().map_or("/", |p| p.as_str()).to_owned();
     let client = reqwest::Client::builder()
         .no_proxy()
@@ -127,7 +155,7 @@ async fn forward_http(request: Request, policy: &Policy) -> io::Result<Response>
     }
     response.body(Body::from_stream(upstream.bytes_stream())).map_err(io::Error::other)
 }
-async fn forward_tls(mut downstream: TcpStream, policy: &Policy) -> io::Result<()> {
+async fn forward_tls(mut downstream: TcpStream, policy: &Policy, refused: &Refused) -> io::Result<()> {
     let mut prefix = Vec::new();
     let host = tokio::time::timeout(CONNECT, async {
         loop {
@@ -153,9 +181,13 @@ async fn forward_tls(mut downstream: TcpStream, policy: &Policy) -> io::Result<(
     })
     .await
     .map_err(|_| denied())??;
-    let addresses = tokio::time::timeout(CONNECT, resolve(&host, 443, policy)).await.map_err(|_| denied())??;
+    let addresses =
+        tokio::time::timeout(CONNECT, resolve(&host, 443, policy, refused)).await.map_err(|_| denied())??;
     let mut upstream =
         tokio::time::timeout(CONNECT, TcpStream::connect(addresses.as_slice())).await.map_err(|_| denied())??;
+    if looped(&upstream)? {
+        return Err(denied());
+    }
     upstream.write_all(&prefix).await?;
     tokio::io::copy_bidirectional(&mut downstream, &mut upstream).await?;
     Ok(())
@@ -271,6 +303,50 @@ mod hello_tests {
     #[tokio::test]
     async fn raw_ip_policy_entries_cannot_bypass_hostname_enforcement() {
         let policy = Policy::Names(EgressPolicy { allow: vec!["127.0.0.1".into()], deny: vec![] });
-        assert_eq!(resolve("127.0.0.1", 80, &policy).await.unwrap_err().kind(), io::ErrorKind::PermissionDenied);
+        assert_eq!(
+            resolve("127.0.0.1", 80, &policy, &Refused::default()).await.unwrap_err().kind(),
+            io::ErrorKind::PermissionDenied
+        );
+    }
+    #[test]
+    fn this_hosts_own_and_refused_upstreams_are_never_dialled() {
+        // Public addresses outside documentation ranges, so only the rule under test decides.
+        let (public, public6): (IpAddr, IpAddr) = ("93.184.215.14".parse().unwrap(), "2606:2800::1".parse().unwrap());
+        // The kernel's answer for this host's own addresses, loopback and the rest (a link-local
+        // one needs its interface named, which no upstream has).
+        let at = |address: IpAddr| SocketAddr::new(address, 443);
+        assert!(local(at("127.0.0.1".parse().unwrap())).unwrap());
+        for own in crate::bpf::host::addresses() {
+            if !matches!(own, IpAddr::V6(own) if own.is_unicast_link_local()) {
+                assert!(local(at(own)).unwrap(), "{own} is this host's");
+            }
+        }
+        assert!(!matches!(local(at(public)), Ok(true)));
+        let none = Refused::default();
+        let mapped = IpAddr::V6(std::net::Ipv4Addr::new(93, 184, 215, 14).to_ipv6_mapped());
+        // A sandbox's own deny holds on its ports, for IPv4 and its mapped spelling alike.
+        let refused = Refused::new(&[
+            Destination { prefix: "93.184.215.0/24".parse().unwrap(), ports: Some((443, 443)) },
+            Destination { prefix: "2606:2800::/32".parse().unwrap(), ports: None },
+        ]);
+        assert!(refused.names(SocketAddr::new(public, 443)));
+        assert!(refused.names(SocketAddr::new(mapped, 443)));
+        assert!(!refused.names(SocketAddr::new(public, 80)));
+        assert!(refused.names(SocketAddr::new(public6, 80)));
+        assert!(!none.names(SocketAddr::new(public, 443)));
+        for refused_upstream in
+            [SocketAddr::new(public, 443), SocketAddr::new(mapped, 443), SocketAddr::new(public6, 80)]
+        {
+            assert!(!dialable(refused_upstream, &refused), "{refused_upstream}");
+        }
+        // Non-public addresses stay refused whatever else holds.
+        assert!(!dialable(SocketAddr::new("10.0.0.1".parse().unwrap(), 443), &none));
+        assert!(!dialable(SocketAddr::new("127.0.0.1".parse().unwrap(), 443), &none));
+    }
+    #[tokio::test]
+    async fn a_connection_to_this_host_is_seen_as_one() {
+        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let stream = TcpStream::connect(listener.local_addr().unwrap()).await.unwrap();
+        assert!(looped(&stream).unwrap());
     }
 }

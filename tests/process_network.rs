@@ -179,6 +179,13 @@ async fn curl(manager: &Arc<Manager>, name: &str, url: &str) -> String {
     .await
 }
 
+/// `curl` from inside a sandbox with the name pinned to an address (`--resolve`'s `host:port:address`).
+async fn curl_at(manager: &Arc<Manager>, name: &str, url: &str, pinned: &str) -> String {
+    let command = ["curl", "--silent", "--output", "/dev/null", "--write-out", "%{http_code}", "--max-time", "20"];
+    let command: Vec<&str> = command.into_iter().chain(["--resolve", pinned, url]).collect();
+    run(manager, name, &command).await
+}
+
 fn agent_port(manager: &Arc<Manager>, name: &str) -> u16 {
     manager.view(&id(name)).unwrap().agent.expect("a supervisor").port.host_port
 }
@@ -344,6 +351,41 @@ async fn hostname_policy_reaches_only_the_named_host_through_the_gateway() {
     );
     assert_refused(&manager, "named", "1.1.1.1", 853).await;
     remove(&manager, &["named"]).await;
+    nothing_left(&before);
+}
+
+#[tokio::test]
+#[ignore = "needs a host that grants kernel network policy"]
+async fn a_named_host_is_not_dialled_at_an_address_the_sandbox_refuses() {
+    let dir = tempfile::tempdir().unwrap();
+    let before = kernel_state();
+    let manager = node(dir.path(), 21700).await;
+    // What example.com resolves to here, as the gateway's own lookup finds it: refused on 443.
+    let resolved: Vec<std::net::IpAddr> =
+        tokio::net::lookup_host(("example.com", 443)).await.unwrap().map(|address| address.ip()).collect();
+    let deny: Vec<_> = resolved
+        .iter()
+        .map(|address| {
+            let prefix = match address {
+                std::net::IpAddr::V4(_) => ipnet::IpNet::new(*address, 24),
+                std::net::IpAddr::V6(_) => ipnet::IpNet::new(*address, 48),
+            };
+            serde_json::json!({ "prefix": prefix.unwrap().trunc().to_string(), "ports": [443, 443] })
+        })
+        .collect();
+    start(
+        &manager,
+        "refusing",
+        serde_json::json!({ "egress": { "allow": ["example.com"] }, "egressAddresses": { "deny": deny } }),
+    )
+    .await;
+    // Dialled at an address nothing refuses, the connection reaches the gateway, which resolves
+    // the name into a refused upstream and dials nothing; on port 80 nothing is refused.
+    let https = curl_at(&manager, "refusing", "https://example.com", "example.com:443:1.1.1.1").await;
+    assert_ne!(https, "200", "{resolved:?} is refused on 443");
+    let http = curl_at(&manager, "refusing", "http://example.com", "example.com:80:1.1.1.1").await;
+    assert_eq!(http, "200", "the same name on a port nothing refuses");
+    remove(&manager, &["refusing"]).await;
     nothing_left(&before);
 }
 
