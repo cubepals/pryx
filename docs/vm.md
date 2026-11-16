@@ -200,8 +200,10 @@ list narrows the tier with it, and adds prefixes there for other images, as for 
 - **Sleep** without memory (root's VM worker, or before the start test passes) stops the guest
   and keeps its disk. **Wake** boots it again from that disk, on an API call or a held edge
   connection. A suspend request is refused, and control takes the stop path without asking.
-- A file session, a copy or a cold boot of a guest asleep with memory discards that memory
-  first; stopping it ends the memory as a kill would. Removing a sandbox removes its memory, and
+- A file session or a cold boot of a guest asleep with memory discards that memory first;
+  stopping it ends the memory as a kill would. A snapshot or an export of it copies its disk as
+  the sleep flushed it, unrepaired (a boot of the copy checks it first), and leaves it asleep
+  with its memory. Removing a sandbox removes its memory, and
   pryxd's start removes any memory file no sandbox's record names. Differential snapshots are not used: their
   upstream calls them a preview.
 - **Fork with memory**, on one node: a guest asleep with its memory gives a new sandbox a copy of

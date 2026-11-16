@@ -324,10 +324,12 @@ impl ContainerRuntime for VmRuntime {
             .join("leases")
             .join(format!("{}.lock", super::super::filesystems::sha256(sandbox.as_bytes()).map_err(error)?));
         self.recover_disk(data)?;
-        // A copy may repair the disk it reads, so memory taken with that disk is discarded.
+        // Asleep with its memory, a guest's disk is the file its sleep flushed, which no monitor
+        // writes: it is copied as it lies, never repaired, so the memory taken with it still holds
+        // and the guest stays asleep. The copy is a flushed disk a later boot of it checks first.
         let asleep = self.state.entries.lock().unwrap().values().find(|entry| entry.spec.data_dir == data).cloned();
-        if let Some(mut entry) = asleep.filter(|entry| entry.memory.is_some()) {
-            self.discard_memory(&mut entry)?;
+        if asleep.is_some_and(|entry| entry.memory.is_some()) {
+            return Ok(Box::new(lock(&lease)?));
         }
         let path = data.join(super::super::disk::FILE);
         let exists = match fs::symlink_metadata(&path) {

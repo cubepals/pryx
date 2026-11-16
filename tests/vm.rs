@@ -192,11 +192,16 @@ async fn lifecycle(node: &Node, index: usize, image: &str) {
     node.call("GET", &path, None, StatusCode::NOT_FOUND).await;
 }
 
-/// A suspend keeps the guest's memory, here a file on its tmpfs, and a start resumes it.
+/// A suspend keeps the guest's memory, here a file on its tmpfs, and a start resumes it. A
+/// snapshot of the sleeping guest copies its disk and leaves it asleep with that memory.
 async fn memory_sleep(node: &Node, path: &str) {
     assert_eq!(node.exec(path, &["/bin/sh", "-c", "printf kept > /tmp/marker"]).await["exitCode"], 0);
     let suspended = node.call("POST", &format!("{path}/suspend"), None, StatusCode::OK).await;
     assert_eq!(suspended["workload"]["state"], "suspended");
+    let snapshot = json!({"id":"asleep","quiesced":true});
+    node.call("POST", &format!("{path}/snapshots"), Some(snapshot), StatusCode::CREATED).await;
+    let after = node.call("GET", path, None, StatusCode::OK).await;
+    assert_eq!(after["state"], "suspended", "A snapshot leaves a sleeping guest asleep: {after}");
     let woken = node.call("POST", &format!("{path}/start"), None, StatusCode::OK).await;
     assert_eq!(woken["resumed"], true, "{woken}");
     assert_eq!(node.exec(path, &["/bin/cat", "/tmp/marker"]).await["stdout"], "kept");
