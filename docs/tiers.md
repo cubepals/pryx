@@ -428,34 +428,45 @@ second at p50.
 
 ### Memory sleep and wake
 
-Measured at `f57a3c3` in
-[VM experiments 43796105838](https://github.com/cubepals/pryx/actions/runs/43796105838) (job
-133065167324), on a hosted `ubuntu-24.04` runner with KVM, as the runner's ordinary user, by
+Measured at `63f13ec` in
+[VM experiments 43825335671](https://github.com/cubepals/pryx/actions/runs/43825335671) (job
+133169626399), on a hosted `ubuntu-24.04` runner with KVM, as the runner's ordinary user, by
 `memory_acceptance` through the runtime a sandbox uses: an Alpine guest with 256 MiB and one vCPU,
 whose entrypoint keeps a counter going, slept and woken thirty times in a row. A sleep is the
-guest's signed flush and hold, the pause, the full snapshot into the runtime's private state and
-the monitor's retirement; a wake is the restore, the guest's signed resume (clock and host
-entropy) and its agent's answer through a new forwarder.
+guest's signed freeze of its workload, flush and hold, the pause, the full snapshot into the
+runtime's private state and the monitor's retirement; a wake is the restore, the guest's signed
+resume (clock, host entropy and gateway ports) and its agent's answer through a new forwarder.
 
 | Measurement, ordinary-user VM, n=30 | p50 / p90 |
 | --- | --- |
-| Sleep with memory (ms) | 1,298.35 / 1,636.94 |
-| Wake with memory (ms) | 218.03 / 225.09 |
+| Sleep with memory (ms) | 395.04 / 464.10 |
+| Wake with memory (ms) | 220.05 / 235.62 |
+
+The first figures, at `f57a3c3` in
+[VM experiments 43796105838](https://github.com/cubepals/pryx/actions/runs/43796105838), before the
+workload froze for its sleep, were 1,298.35 / 1,636.94 ms to sleep and 218.03 / 225.09 ms to wake.
 
 In every sample the same process ran on after the wake, with its counter past where it was and
 its `/tmp` file kept; after the last, the guest's wall clock was within two seconds of the host's.
 A wake whose state file had been corrupted, and a wake whose image recorded another host class,
 each booted the disk instead, with what was written before the sleep there and the memory gone;
 a stop while asleep ended the memory and reported a SIGKILL's exit. The node API's run in the
-same job split a wake into its restore (13 to 20 ms), the guest's resume (25 to 58 ms) and the
-agent's first answer (125 to 130 ms).
+first job split a wake into its restore (15 to 17 ms), the guest's resume (34 to 110 ms) and the
+agent's first answer (126 to 132 ms).
 
-Two forks with memory of one sleeping source were made in 3.42 and 2.81 ms (a copy of the disk
-and links to the memory) and woke in 196.76 and 197.72 ms. The two forks and the source then each
+Three forks with memory of one sleeping source were made in 1.63 to 2.18 ms (a copy of the disk
+and links to the memory); two woke in 193.07 and 201.89 ms. The two forks and the source then each
 ran the source's process under its own hostname, and the 32 bytes each read from `/dev/urandom`
 first after its wake differed between all three; each fork refused the source's agent token. The
-guest kernel has no VM generation ID driver (`0` in each guest, as its configuration says), so
-the different bytes are the resume hook's host entropy and forced reseed.
+source's workload appended 16 random bytes a line to its disk every 10 ms: the third fork,
+refused its restore by another host class, booted the flushed disk with all 84 lines the memory
+held, and the first line each restored copy drew after its restore differed between all three.
+The guest kernel has no VM generation ID driver (`0` in each guest, as its configuration says),
+so the different bytes are the resume hook's host entropy and forced reseed.
+
+A guest with a network, public and under a hostname policy, passed the production network probe
+(DNS, the allowed request, every refusal) after a wake with memory, in its fork with memory, and
+in the source woken after the fork.
 
 The [kernel spike](checks/k25-vm-spikes.md) measured a minimal guest fixture, not a sandbox:
 p50 717.035 ms and p90 725.265 ms from launch to a validated filesystem and vsock report, over

@@ -419,13 +419,12 @@ async fn actual_failed_snapshots_resume_or_retire_the_guest() {
     let unwritable = boot_directory_of(&runtime, &id).await.join("memory.bin");
     fs::create_dir(&unwritable).unwrap();
     let refused = runtime.pause(&id).await.expect_err("A snapshot without its memory file fails");
-    eprintln!(
-        "VM sleep with an unwritable memory file: {refused}; the guest's init: {}",
-        hold_end(&runtime, &id).await
-    );
+    eprintln!("VM sleep with an unwritable memory file: {refused}");
     assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Running);
     assert_eq!(read(&runtime, &id, "cat /tmp/marker").await, "kept", "The guest went on where it was");
     super::network_acceptance::probe(&runtime, &id, true, &host).await;
+    // How init saw its hold end, once it has said so: closed by the host, or reset by the monitor.
+    eprintln!("VM sleep with an unwritable memory file, the guest's init: {}", hold_end(&runtime, &id).await);
     fs::remove_dir(&unwritable).unwrap();
     runtime.pause(&id).await.unwrap();
     runtime.unpause(&id).await.unwrap();
