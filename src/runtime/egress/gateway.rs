@@ -312,14 +312,12 @@ mod hello_tests {
     fn this_hosts_own_and_refused_upstreams_are_never_dialled() {
         // Public addresses outside documentation ranges, so only the rule under test decides.
         let (public, public6): (IpAddr, IpAddr) = ("93.184.215.14".parse().unwrap(), "2606:2800::1".parse().unwrap());
-        // The kernel's answer for this host's own addresses, loopback and the rest (a link-local
-        // one needs its interface named, which no upstream has).
+        // The kernel's answer for this host's own IPv4 addresses, loopback and the rest (an IPv6
+        // one may still be tentative, which no route reaches yet).
         let at = |address: IpAddr| SocketAddr::new(address, 443);
         assert!(local(at("127.0.0.1".parse().unwrap())).unwrap());
-        for own in crate::bpf::host::addresses() {
-            if !matches!(own, IpAddr::V6(own) if own.is_unicast_link_local()) {
-                assert!(local(at(own)).unwrap(), "{own} is this host's");
-            }
+        for own in crate::bpf::host::addresses().into_iter().filter(IpAddr::is_ipv4) {
+            assert!(local(at(own)).unwrap(), "{own} is this host's");
         }
         assert!(!matches!(local(at(public)), Ok(true)));
         let none = Refused::default();
