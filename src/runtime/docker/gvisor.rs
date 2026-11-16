@@ -7,7 +7,7 @@ use crate::runtime::RuntimeInfo;
 
 /// The name gVisor's own installer (`runsc install`) registers its runtime under in the engine.
 pub const GVISOR_RUNTIME: &str = "runsc";
-pub(crate) const GVISOR_PODMAN_PROBLEM: &str =
+pub const GVISOR_PODMAN_PROBLEM: &str =
     "gvisor is unavailable on Podman: pryx starts gVisor through the Docker Engine API's runtime field";
 pub const GVISOR_MISSING_PROBLEM: &str =
     "gvisor is unavailable: the engine has no runsc runtime registered; install gVisor and run runsc install";

@@ -1,9 +1,10 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! The gvisor tier beside the container tier on one real engine. Whether the engine has gVisor's
-//! `runsc` registered is read from the engine itself (`docker info`), never assumed: without it the
-//! tier is refused by name, and with it a named tier is never served by the other backend.
+//! The gvisor tier beside the container tier on one real engine, the selected one (a rootless
+//! Docker or Podman in the engine runs). Whether that engine can serve gVisor is read from the
+//! engine itself, never assumed: where it can't, the tier is refused by name and left off; where it
+//! can, a named tier is never served by the other backend.
 use super::*;
 use pryxd::protocol::Guarantee;
 use pryxd::runtime::router::Router;
@@ -76,15 +77,33 @@ pub(super) async fn hostname_egress_refused() {
     assert!(made.is_err() && said.contains("egress"), "a hostname policy is refused on gvisor: {said}");
 }
 
-/// What the engine itself says: `runsc` among the runtimes `docker info` lists.
-fn engine_registers_runsc() -> bool {
-    let out = std::process::Command::new("docker")
-        .args(["info", "--format", "{{json .Runtimes}}"])
-        .output()
-        .expect("the docker CLI answers info");
-    assert!(out.status.success(), "docker info: {}", String::from_utf8_lossy(&out.stderr));
-    let runtimes: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
-    runtimes.get(pryxd::runtime::docker::GVISOR_RUNTIME).is_some()
+/// Why the engine at `socket` can't serve the gvisor tier, read from the engine's own API, or None
+/// where it can. gVisor runs through the container tier, so that tier's own refusal comes first;
+/// then Podman, which pryx doesn't start gVisor on; then `runsc` missing from the engine's runtimes.
+async fn gvisor_refusal(socket: &std::path::Path) -> Option<String> {
+    let engine = engine_api(socket).await;
+    let version = engine.version().await.expect("the engine answers version");
+    match DockerRuntime::new(socket).unwrap().serving_info().await {
+        Err(pryxd::runtime::RuntimeError::Unavailable(problem)) => return Some(problem),
+        Err(error) => panic!("the container tier's engine answers: {error}"),
+        Ok(_) => {}
+    }
+    let components = version.components.unwrap_or_default();
+    if components.iter().any(|component| component.name == pryxd::runtime::docker::PODMAN_ENGINE_COMPONENT) {
+        return Some(pryxd::runtime::docker::gvisor::GVISOR_PODMAN_PROBLEM.into());
+    }
+    let info = engine.info().await.expect("the engine answers info");
+    let registered = info.runtimes.unwrap_or_default().contains_key(pryxd::runtime::docker::GVISOR_RUNTIME);
+    (!registered).then(|| pryxd::runtime::docker::GVISOR_MISSING_PROBLEM.into())
+}
+
+/// The engine's own API at `socket`, at the version it negotiates (Podman's is older than Docker's).
+async fn engine_api(socket: &std::path::Path) -> bollard::Docker {
+    bollard::Docker::connect_with_unix(socket.to_str().unwrap(), 60, bollard::API_DEFAULT_VERSION)
+        .unwrap()
+        .negotiate_version()
+        .await
+        .expect("the engine negotiates its API")
 }
 
 /// The engine's own record of the runtime a container was made with.
@@ -121,23 +140,26 @@ async fn kernel(m: &Arc<Manager>, w: &str) -> String {
 #[tokio::test]
 #[ignore = "needs Docker"]
 async fn gvisor_is_served_only_where_the_engine_registers_runsc() {
-    let socket = DockerConfig::default().socket;
-    let registered = engine_registers_runsc();
+    let socket = engine::selected_socket().await;
+    let refusal = gvisor_refusal(&socket).await;
     if on_gvisor() {
-        assert!(registered, "the gvisor run of the suite needs runsc registered with the engine");
+        assert_eq!(refusal, None, "the gvisor run of the suite needs runsc registered with Docker");
     }
     let gvisor = DockerRuntime::new(&socket).unwrap().gvisor();
     assert_eq!(gvisor.isolation(), "gvisor");
-    match gvisor.serving_info().await {
-        Ok(_) => assert!(registered, "gvisor served without runsc registered"),
-        Err(error) => {
-            assert!(!registered, "runsc is registered, yet gvisor was refused: {error}");
-            assert!(
-                error.to_string().contains(pryxd::runtime::docker::GVISOR_MISSING_PROBLEM),
-                "the refusal names what is missing: {error}"
-            );
+    let served = gvisor.serving_info().await;
+    match &refusal {
+        None => assert!(served.is_ok(), "runsc is registered, yet gvisor was refused: {served:?}"),
+        Some(why) => {
+            let error = served.expect_err("gvisor served where the engine can't serve it");
+            assert!(error.to_string().contains(why.as_str()), "the refusal names what is missing: {error}");
         }
     }
+    // The auto configuration, which picks a host's tiers, leaves gvisor off for the same reason.
+    let dir = tempfile::tempdir().unwrap();
+    let auto = format!("runtime = \"auto\"\n[docker]\nsocket = \"{}\"\n", socket.display());
+    let available = pryxd::runtime::configured::availability(&support::config(dir.path(), &auto)).await;
+    assert_eq!(available[pryxd::protocol::Isolation::Gvisor.as_str()], refusal, "{available:?}");
 }
 
 /// Two backends on one engine: each workload keeps the tier it named, the engine records the
@@ -145,30 +167,23 @@ async fn gvisor_is_served_only_where_the_engine_registers_runsc() {
 #[tokio::test]
 #[ignore = "needs Docker"]
 async fn a_named_tier_is_never_served_by_the_other_engine_backend() {
-    let socket = DockerConfig::default().socket;
-    let registered = engine_registers_runsc();
+    let socket = engine::selected_socket().await;
     let container: Arc<dyn ContainerRuntime> = Arc::new(DockerRuntime::new(&socket).unwrap());
-    let gvisor: Arc<dyn ContainerRuntime> = Arc::new(DockerRuntime::new(&socket).unwrap().gvisor());
-    let mut tiers = vec![container.clone()];
-    if registered {
-        tiers.push(gvisor.clone());
-    }
-    let router: Arc<dyn ContainerRuntime> = Arc::new(Router::new(tiers).unwrap());
     let dir = tempfile::tempdir().unwrap();
     let dep = deployment();
-    let _cleanup = Cleanup(dep.clone());
-    let probe = pryxd::ports::bind_probe(vec!["127.0.0.1".parse().unwrap()]);
-    let m = manager_probed(dir.path(), router, &extra(&dep), probe);
-    assert!(m.reconcile(Records::FromDisk).await.error.is_none());
-    let features = m.features();
-    assert_eq!(features.iter().any(|f| f == "tier-gvisor"), registered, "{features:?}");
-    if !registered {
-        let refused = m.ensure(id("g"), tiered("gvisor"), Precondition::None, None).await;
-        let Err(NodeError::Invalid(problems)) = refused else { panic!("gvisor without runsc: {refused:?}") };
-        let said = format!("{problems:?}");
-        assert!(said.contains("isolation") && said.contains("does not serve the gvisor tier"), "{said}");
+    if let Some(why) = gvisor_refusal(&socket).await {
+        refused_where_unserved(&socket, container, dir.path(), &dep, &why).await;
         return;
     }
+    let _cleanup = Cleanup(dep.clone());
+    let gvisor: Arc<dyn ContainerRuntime> = Arc::new(DockerRuntime::new(&socket).unwrap().gvisor());
+    let router: Arc<dyn ContainerRuntime> = Arc::new(Router::new(vec![container.clone(), gvisor.clone()]).unwrap());
+    let probe = pryxd::ports::bind_probe(vec!["127.0.0.1".parse().unwrap()]);
+    let m = manager_probed(dir.path(), router, &extra(&dep), probe);
+    let report = m.reconcile(Records::FromDisk).await;
+    assert!(report.error.is_none(), "{report:?}");
+    let features = m.features();
+    assert!(features.iter().any(|f| f == "tier-gvisor"), "{features:?}");
     for tier in ["tier-gvisor:private-network", "tier-gvisor:private-pids"] {
         assert!(features.iter().any(|f| f == tier), "{tier}: {features:?}");
     }
@@ -198,6 +213,35 @@ async fn a_named_tier_is_never_served_by_the_other_engine_backend() {
     assert!(report.error.is_none(), "{report:?}");
     assert_eq!(m.view(&id("g")).unwrap().locate.container_id, g.locate.container_id);
     cleanup(&m, &["c", "g"]).await;
+}
+
+/// An engine that can't serve gvisor: the node serves its containers alone, as the auto
+/// configuration makes it there, and refuses a workload that names gvisor before making anything.
+async fn refused_where_unserved(
+    socket: &std::path::Path,
+    container: Arc<dyn ContainerRuntime>,
+    dir: &std::path::Path,
+    dep: &str,
+    why: &str,
+) {
+    let router: Arc<dyn ContainerRuntime> = Arc::new(Router::new(vec![container]).unwrap());
+    let m = manager_on(dir, router, &extra(dep).replace(HOST_OWNERSHIP, "[workloads]\n"));
+    let features = m.features();
+    assert!(!features.iter().any(|f| f.starts_with("tier-gvisor")), "{features:?}");
+    let refused = m.ensure(id("g"), tiered("gvisor"), Precondition::None, None).await;
+    let Err(NodeError::Invalid(problems)) = refused else {
+        panic!("gvisor where the engine can't serve it: {refused:?}")
+    };
+    let said = format!("{problems:?}");
+    assert!(said.contains("isolation") && said.contains("does not serve the gvisor tier"), "{said}");
+    assert!(!m.store.data_dir(&id("g")).exists(), "a refused tier makes no data");
+    let engine = engine_api(socket).await;
+    let options = bollard::query_parameters::ListContainersOptionsBuilder::new()
+        .all(true)
+        .filters(&std::collections::HashMap::from([("label".to_owned(), vec![format!("{LABEL_DEPLOYMENT}={dep}")])]))
+        .build();
+    assert!(engine.list_containers(Some(options)).await.unwrap().is_empty(), "a refused tier makes no compute");
+    eprintln!("gvisor refused on this engine: {why}");
 }
 
 /// Nearest-rank p50 and p90 of `samples`, in milliseconds.
