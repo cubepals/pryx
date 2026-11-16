@@ -226,19 +226,6 @@ jobs:
           strace -f -e trace=tkill,tgkill,ioctl -e signal=none -o "$RUNNER_TEMP/vm-monitor-thread-signals.log" \
             cargo test --locked --lib runtime::vm::instance::shutdown_acceptance::actual_monitor_shutdown_threads_exit_cleanly \
               -- --ignored --nocapture | tee "$RUNNER_TEMP/vm-monitor-shutdown.log"
-      # Its own step: a failure of the cold-boot acceptance above doesn't hide this one's evidence.
-      - name: Prove memory sleep, its cold-boot fallbacks and forks with memory
-        if: ${{ !cancelled() && steps.vm-bundle.outcome == 'success' }}
-        env:
-          PRYX_VM_RUNTIME_DIAGNOSTICS: ${{ runner.temp }}/vm-runtime-diagnostics
-          PRYX_VM_RUNTIME_DESCRIPTOR: ${{ runner.temp }}/vm-runtime.json
-          PRYX_VM_RUNTIME_ARCHIVE: ${{ runner.temp }}/pryx-vm-linux-x64.tar.gz
-          CARGO_PROFILE_DEV_DEBUG: '0'
-          CARGO_PROFILE_TEST_DEBUG: '0'
-          CARGO_INCREMENTAL: '0'
-          CARGO_TARGET_DIR: ${{ github.workspace }}/target
-        # One at a time, so the sleep and wake samples time one guest's work alone.
-        run: cargo test --locked --lib runtime::vm::instance::memory_acceptance -- --ignored --nocapture --test-threads 1 | tee "$RUNNER_TEMP/vm-memory-sleep.log"
       - name: Prove root jail disk staging and recovery
         if: ${{ !cancelled() && steps.vm-bundle.outcome == 'success' }}
         env:
@@ -326,7 +313,6 @@ jobs:
           name: vm-runtime-diagnostics
           path: |
             ${{ runner.temp }}/vm-runtime-acceptance.log
-            ${{ runner.temp }}/vm-memory-sleep.log
             ${{ runner.temp }}/vm-host-policy.log
             ${{ runner.temp }}/vm-network-ownership.log
             ${{ runner.temp }}/vm-monitor-thread-signals.log
@@ -396,3 +382,62 @@ jobs:
             ${{ runner.temp }}/vm-network-prerequisites.log
             ${{ runner.temp }}/vm-network-prerequisites/**/*.log
           if-no-files-found: error
+
+  # Memory sleep and forks with memory, on their own runner so neither job nears its time limit:
+  # the first job took 23 of its 30 minutes with them. They run the VM runtime that job built and
+  # retained, unchanged, as an ordinary user with KVM and no other host change.
+  memory:
+    name: VM memory sleep and forks with memory
+    needs: inputs
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch the VM runtime the first job built
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: vm-input-inventory
+          path: ${{ runner.temp }}/vm-inputs
+          digest-mismatch: error
+      - name: Put the runtime and its descriptor where the first job had them
+        run: cp "$RUNNER_TEMP/vm-inputs/pryx-vm-linux-x64.tar.gz" "$RUNNER_TEMP/vm-inputs/vm-runtime.json" "$RUNNER_TEMP/"
+      - name: Allow the ordinary runner user to open real KVM
+        run: |
+          sudo modprobe kvm
+          test -c /dev/kvm
+          sudo chown "$(id -u):$(id -g)" /dev/kvm
+          test "$(id -u)" -ne 0
+          test -r /dev/kvm && test -w /dev/kvm
+      - name: Prepare the repository Rust
+        run: rustup toolchain install
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            target
+          key: vm-inputs-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'vm-image/Cargo.lock') }}
+          restore-keys: vm-inputs-
+      - name: Prove memory sleep, its cold-boot fallbacks and forks with memory
+        env:
+          PRYX_VM_RUNTIME_DIAGNOSTICS: ${{ runner.temp }}/vm-runtime-diagnostics
+          PRYX_VM_RUNTIME_DESCRIPTOR: ${{ runner.temp }}/vm-runtime.json
+          PRYX_VM_RUNTIME_ARCHIVE: ${{ runner.temp }}/pryx-vm-linux-x64.tar.gz
+          CARGO_PROFILE_DEV_DEBUG: '0'
+          CARGO_PROFILE_TEST_DEBUG: '0'
+          CARGO_INCREMENTAL: '0'
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        # One at a time, so the sleep and wake samples time one guest's work alone.
+        run: cargo test --locked --lib runtime::vm::instance::memory_acceptance -- --ignored --nocapture --test-threads 1 | tee "$RUNNER_TEMP/vm-memory-sleep.log"
+      - name: Retain the memory sleep evidence
+        if: always()
+        uses: ./.github/actions/upload-evidence
+        with:
+          name: vm-memory-sleep
+          path: |
+            ${{ runner.temp }}/vm-memory-sleep.log
+            ${{ runner.temp }}/vm-runtime-diagnostics/*.serial.log
+          if-no-files-found: warn
