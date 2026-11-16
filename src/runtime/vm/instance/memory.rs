@@ -35,6 +35,10 @@ pub(super) struct Image {
     /// node can take this memory with that snapshot's disk; empty in an image older than it.
     #[serde(default)]
     pub(super) id: String,
+    /// The verified bootstrap this memory actually booted: its init and network helper stay in
+    /// memory across restores, so a new bundle cannot supply their capabilities to an old image.
+    #[serde(default)]
+    pub(super) bootstrap_sha256: String,
     pub(super) class: Class,
     pub(super) disk: disk::Stamp,
     /// The boot the guest still is, which its init's resume must name.
@@ -280,6 +284,7 @@ impl VmRuntime {
         tracing::info!(sandbox = %entry.id, milliseconds = started.elapsed().as_millis(), "VM slept with its memory");
         Ok(Image {
             id: uuid::Uuid::new_v4().simple().to_string(),
+            bootstrap_sha256: bundle.bootstrap().image_sha256.clone(),
             class,
             disk: disk::Stamp::current(&entry.spec.data_dir)?.ok_or_else(|| error("VM disk is missing after sleep"))?,
             nonce: live.nonce.clone(),

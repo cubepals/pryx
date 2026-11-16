@@ -5054,3 +5054,20 @@ job when publication is authorized. That job has not run in this task.
   unavailable" after an edge reset) did not recur; `ad269de`'s CI failed once differently (a node
   that stopped answering after a snapshot export in the fleet runtime cases), which passed at
   `6ad7899` and `54e8231` and is recorded here, not explained.
+
+- K27 review follow-up: replacing the guest's gateway redirects did not remove established
+  conntrack NAT entries, so a UDP DNS socket retained through a memory restore kept sending to
+  its old gateway. A real local Linux user/network namespace reproduces the old translation
+  after atomic nft replacement; the compiled trusted guest helper's maintained netlink flush
+  moves that same socket to the new gateway. Init clears conntrack while the workload is frozen,
+  before acknowledging its resume; failure refuses the restore. Private guest sleep version 4
+  announces this support; older networked guests boot cold. Memory images pin their actual
+  verified bootstrap digest too: a changed bootstrap or a legacy image without that identity
+  boots cold with its disk retained, before old init bytes could resume under new metadata.
+  The real-KVM network acceptance now
+  retains one UDP DNS socket through a source wake and both restores of a fork and its source;
+  that new KVM proof is pending. Its real local DNS-server control, including the race detector,
+  passes. No new job or gate; the existing acceptance gains a few DNS lookups and two cold-boot
+  compatibility cases, estimated under thirty seconds.
+
+- K27 follow-up local validation: `cargo test --locked -p pryxd` passes 475 tests with the verified pinned agentOS fixture. The workspace run passes 101 agent checks before four unchanged monitor-confinement tests fail on this computer's incompatible Landlock access support; this is not a full workspace pass. The new real-KVM restore cases and installed acceptance remain for the branch workflows.

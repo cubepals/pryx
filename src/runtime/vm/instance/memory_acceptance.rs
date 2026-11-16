@@ -154,6 +154,21 @@ async fn actual_memory_sleep_keeps_a_running_process_and_falls_back_to_its_disk(
     let refused = runtime.unpause(&id).await;
     cold_boot_after(&runtime, &id, refused).await;
 
+    // A new bundle cannot give an old memory image its init's capabilities. Missing legacy
+    // identity and a changed bootstrap both boot the disk; matching images resumed above.
+    for bootstrap in ["", "another-bootstrap"] {
+        exec(&runtime, &id, "printf kept > /tmp/marker").await;
+        runtime.pause(&id).await.unwrap();
+        {
+            let mut entries = runtime.state.entries.lock().unwrap();
+            let image = entries.get_mut(&id).unwrap().memory.as_mut().unwrap();
+            assert!(!image.bootstrap_sha256.is_empty(), "A new sleep records its actual bootstrap");
+            image.bootstrap_sha256 = bootstrap.into();
+        }
+        let refused = runtime.unpause(&id).await;
+        cold_boot_after(&runtime, &id, refused).await;
+    }
+
     // Stopping a sleeping guest ends its memory as a kill does, and keeps its disk.
     runtime.pause(&id).await.unwrap();
     runtime.stop(&id, &original.stop_signal, Duration::from_secs(5)).await.unwrap();
@@ -354,9 +369,33 @@ async fn actual_memory_wake_keeps_a_networked_guests_dns_and_egress() {
             super::network_acceptance::start(&runtime, temporary.path(), image, 0, unrestricted, &host).await;
         super::network_acceptance::probe(&runtime, &id, unrestricted, &host).await;
         exec(&runtime, &id, "printf kept > /tmp/marker").await;
+        // A managed process without an exec deadline: its owner and socket survive the sleeps.
+        let retained = pryx_agent::process::Start {
+            command: pryx_agent::process::Command::Shell(
+                "exec /data/network-probe --retained-dns /data/network-fixture.json --ready-file /tmp/retained-dns >/tmp/retained-dns.log 2>&1".into(),
+            ),
+            env: Default::default(),
+            cwd: None,
+            stdin: false,
+            pty: false,
+            cols: None,
+            rows: None,
+            timeout: None,
+        };
+        super::agent::raw(
+            &source_spec,
+            hyper::Method::POST,
+            "/_pryx/processes",
+            serde_json::to_value(retained).unwrap(),
+            Duration::from_secs(5),
+        )
+        .await
+        .unwrap();
+        let socket = retained_dns(&runtime, &id, 0).await;
         runtime.pause(&id).await.unwrap();
         runtime.unpause(&id).await.inspect_err(|_| monitor_output(since)).unwrap();
         assert_eq!(read(&runtime, &id, "cat /tmp/marker").await, "kept", "The wake restored memory");
+        assert_eq!(retained_dns(&runtime, &id, 1).await, socket, "The same UDP socket resolves after its wake");
         super::network_acceptance::probe(&runtime, &id, unrestricted, &host).await;
         runtime.pause(&id).await.unwrap();
         let data = temporary.path().join(format!("network-fork-{unrestricted}"));
@@ -364,8 +403,10 @@ async fn actual_memory_wake_keeps_a_networked_guests_dns_and_egress() {
         let fork = runtime.fork_with_memory(&id, &fork_spec).await.unwrap();
         runtime.unpause(&fork).await.inspect_err(|_| monitor_output(since)).unwrap();
         assert_eq!(read(&runtime, &fork, "cat /tmp/marker").await, "kept", "The fork woke with memory");
+        assert_eq!(retained_dns(&runtime, &fork, 2).await, socket, "The fork's retained UDP socket resolves");
         super::network_acceptance::probe(&runtime, &fork, unrestricted, &host).await;
         runtime.unpause(&id).await.unwrap();
+        assert_eq!(retained_dns(&runtime, &id, 2).await, socket, "The source's retained UDP socket resolves");
         super::network_acceptance::probe(&runtime, &id, unrestricted, &host).await;
         for (sandbox, stop) in [(&fork, &fork_spec.stop_signal), (&id, &source_spec.stop_signal)] {
             runtime.stop(sandbox, stop, Duration::from_secs(15)).await.unwrap();
@@ -373,6 +414,21 @@ async fn actual_memory_wake_keeps_a_networked_guests_dns_and_egress() {
         }
     }
     server.abort();
+}
+
+/// Continues the same guest process and waits for its next DNS answer through the same UDP socket.
+async fn retained_dns(runtime: &VmRuntime, id: &str, phase: usize) -> String {
+    if phase != 0 {
+        exec(runtime, id, &format!("touch /tmp/retained-dns.continue{phase}")).await;
+    }
+    read(
+        runtime,
+        id,
+        &format!(
+            "while ! test -f /tmp/retained-dns{phase}; do if test -s /tmp/retained-dns.log; then cat /tmp/retained-dns.log; exit 1; fi; sleep 0.01; done; cat /tmp/retained-dns{phase}"
+        ),
+    )
+    .await
 }
 
 /// The directory the monitor of `id`'s current boot runs in, where a sleep writes its snapshot.

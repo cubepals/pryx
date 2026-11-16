@@ -17,14 +17,17 @@ use tokio_vsock::{VMADDR_CID_HOST, VsockAddr, VsockListener, VsockStream};
 
 /// The sleep and resume exchange this init answers, as its bootstrap capabilities announce: 1 for
 /// sleep and wake, 2 once a resume can also hand a fork with memory its own identity, 3 once it
-/// can also hand the guest the ports of the host gateways its wake listens on.
-pub const VERSION: u16 = 3;
+/// can also hand the guest the ports of the host gateways its wake listens on, 4 once init also
+/// clears restored connection tracking before it thaws the workload onto those gateways.
+pub const VERSION: u16 = 4;
 /// The first version that sleeps and wakes.
 pub const SLEEP_VERSION: u16 = 1;
 /// The first version whose resume carries a fork's identity.
 pub const FORK_VERSION: u16 = 2;
 /// The first version whose resume carries the woken guest's gateway ports.
 pub const GATEWAY_VERSION: u16 = 3;
+/// The first version that clears connections still translated to a previous wake's gateways.
+pub const CONNECTION_VERSION: u16 = 4;
 /// Trusted init's sleep listener, beside the shutdown listener's port.
 pub const PORT: u32 = 11831;
 /// The host listener init dials once its disk is flushed; the host holds it while it snapshots.

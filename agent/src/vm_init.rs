@@ -405,6 +405,7 @@ async fn awake(
     {
         (policy.http.target, policy.tls.target, policy.dns.target) = (gateways.http, gateways.tls, gateways.dns);
         crate::vm_firewall::replaced(configuration.as_ref().expect("a policy is a network's")).await?;
+        crate::vm_network::reset_connections().await?;
     }
     resumed.acknowledge().await;
     if configuration.is_some() {

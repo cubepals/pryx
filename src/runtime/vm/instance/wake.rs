@@ -294,6 +294,11 @@ fn unresumed(asked: bool, monitor: Option<i32>, others: &[Option<i32>]) -> Runti
 /// class, the very disk the sleep left, and the same memory and CPUs; and, for a guest with a
 /// network, a guest init that takes this wake's gateway ports.
 fn restorable(bundle: &Bundle, entry: &Entry, image: &Image) -> Result<(), RuntimeError> {
+    if image.bootstrap_sha256.is_empty() || image.bootstrap_sha256 != bundle.bootstrap().image_sha256 {
+        return Err(RuntimeError::Conflict(
+            "This VM's memory has another or unrecorded guest bootstrap; it wakes by booting its disk".into(),
+        ));
+    }
     if Class::current(&bundle.root().join("bin/firecracker"))? != image.class {
         return Err(RuntimeError::Conflict(
             "This VM's memory was taken on a host of another class; it wakes by booting its disk".into(),
@@ -306,9 +311,9 @@ fn restorable(bundle: &Bundle, entry: &Entry, image: &Image) -> Result<(), Runti
         return Err(RuntimeError::Conflict("This VM's memory or CPUs changed after its memory was taken".into()));
     }
     // A woken guest's redirects must take the new gateways' ports, or its DNS and egress fail.
-    if !entry.spec.internal_network && bundle.bootstrap().metadata.vm_sleep_version < vm_sleep::GATEWAY_VERSION {
+    if !entry.spec.internal_network && bundle.bootstrap().metadata.vm_sleep_version < vm_sleep::CONNECTION_VERSION {
         return Err(RuntimeError::Conflict(
-            "This VM bundle's guest init can't take a wake's gateway ports; a VM with a network wakes by booting its disk"
+            "This VM bundle's guest init can't reset its connections onto a wake's gateways; a VM with a network wakes by booting its disk"
                 .into(),
         ));
     }
