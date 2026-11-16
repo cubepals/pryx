@@ -278,11 +278,7 @@ async fn actual_runtime_cold_boot_exec_stop_wake_copy_and_fork() {
             )
             .await;
         }
-        if index == 0 {
-            eprintln!("VM runtime image {index}: a fork outlives its parent's layers");
-            let other = inputs[1]["reference"].as_str().unwrap();
-            fork_outlives_its_parent(&runtime, temporary.path(), image["reference"].as_str().unwrap(), other).await;
-        }
+        fork_outlives_its_parent(&runtime, temporary.path(), &inputs, index).await;
     }
     server.abort();
     println!(
@@ -592,8 +588,14 @@ async fn interrupted(
 }
 
 /// With its parent removed, a fork's layers are kept through an eviction while another image is
-/// prepared, and the fork cold boots on them; once the fork is removed too, they go.
-async fn fork_outlives_its_parent(runtime: &VmRuntime, root: &Path, image: &str, other: &str) {
+/// prepared, and the fork cold boots on them; once the fork is removed too, they go. The first
+/// image is the parent's, prepared again; the second, the other.
+async fn fork_outlives_its_parent(runtime: &VmRuntime, root: &Path, inputs: &[serde_json::Value], index: usize) {
+    if index != 0 {
+        return;
+    }
+    eprintln!("VM runtime image {index}: a fork outlives its parent's layers");
+    let (image, other) = (inputs[0]["reference"].as_str().unwrap(), inputs[1]["reference"].as_str().unwrap());
     let (parent_data, fork_data) = (root.join("parent"), root.join("fork"));
     directory(&parent_data).unwrap();
     let parent_spec = spec(&parent_data, image);
