@@ -23,7 +23,7 @@ pub(super) struct Inputs<'a> {
     pub network: Option<&'a network::Network>,
 }
 
-pub(super) fn owner(owner: Option<MonitorIds>) -> Result<(), RuntimeError> {
+pub(super) fn owner(owner: Option<monitor_ids::MonitorIds>) -> Result<(), RuntimeError> {
     match (rustix::process::geteuid().is_root(), owner) {
         (false, None) => Ok(()),
         (true, Some(ids)) if ids.valid() => Ok(()),
@@ -231,7 +231,7 @@ mod tests {
 
     #[test]
     fn host_monitor_ids_cannot_be_selected_by_an_ordinary_caller() {
-        let ids = |uid, gid| Some(MonitorIds { uid, gid, count: 8 });
+        let ids = |uid, gid| Some(monitor_ids::MonitorIds { uid, gid, count: 8 });
         assert!(owner(ids(rustix::process::Uid::ROOT.as_raw(), rustix::process::Gid::ROOT.as_raw())).is_err());
         assert!(owner(ids(u32::MAX, u32::MAX)).is_err());
         let root = rustix::process::geteuid().is_root();

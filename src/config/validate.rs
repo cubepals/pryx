@@ -47,25 +47,18 @@ impl Config {
         Ok(())
     }
 
-    /// Root's VM monitor IDs: non-root, at least one, within u32, and, where those tiers run,
-    /// apart from the Wasm worker's IDs and the process tier's UID pool.
+    /// Root's VM monitor IDs, held apart from the IDs of the tiers that run beside them.
     fn validate_monitor_ids(&self) -> Result<(), ConfigError> {
-        let invalid = |m: &str| Err(ConfigError::Invalid(format!("vm.monitor_uid, monitor_gid and monitor_ids: {m}")));
-        let Some((uids, gids)) = self.vm.monitor_ranges() else { return invalid("the range overflows") };
-        // An exclusive end that fits u32 also keeps u32::MAX, "no ID" to chown(2), out.
-        if uids.is_empty() || uids.start == 0 || gids.start == 0 {
-            return invalid("at least one non-root ID");
-        }
         let tiers = matches!(self.runtime, super::RuntimeKind::Auto | super::RuntimeKind::Vm);
-        let process = self.process.uid_first..self.process.uid_first.saturating_add(self.process.uid_count);
-        if tiers
-            && (uids.contains(&self.wasm.worker_uid)
-                || gids.contains(&self.wasm.worker_gid)
-                || (self.runtime == super::RuntimeKind::Auto && uids.start < process.end && process.start < uids.end))
-        {
-            return invalid("they overlap the Wasm worker's IDs or the process tier's UID pool");
+        let wasm = tiers.then_some((self.wasm.worker_uid, self.wasm.worker_gid));
+        let process = (self.runtime == super::RuntimeKind::Auto)
+            .then(|| self.process.uid_first..self.process.uid_first.saturating_add(self.process.uid_count));
+        match self.vm.monitor_ids_problem(wasm, process) {
+            Some(problem) => {
+                Err(ConfigError::Invalid(format!("vm.monitor_uid, monitor_gid and monitor_ids: {problem}")))
+            }
+            None => Ok(()),
         }
-        Ok(())
     }
 
     pub fn validate(&self) -> Result<(), ConfigError> {

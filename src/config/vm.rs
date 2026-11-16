@@ -28,11 +28,30 @@ impl Default for VmConfig {
 }
 
 impl VmConfig {
-    /// The monitor UIDs, and the GIDs beside them, as ranges; `None` when they overflow.
-    pub(crate) fn monitor_ranges(&self) -> Option<(std::ops::Range<u32>, std::ops::Range<u32>)> {
-        let uids = self.monitor_uid..self.monitor_uid.checked_add(self.monitor_ids)?;
-        let gids = self.monitor_gid..self.monitor_gid.checked_add(self.monitor_ids)?;
-        Some((uids, gids))
+    /// What is wrong with root's monitor IDs, if anything: they must be at least one non-root
+    /// pair within u32 (an exclusive end that fits also keeps u32::MAX, "no ID" to chown(2), out),
+    /// apart from the Wasm worker's `wasm` IDs and the process tier's `process` pool, where those
+    /// tiers run beside them.
+    pub(crate) fn monitor_ids_problem(
+        &self,
+        wasm: Option<(u32, u32)>,
+        process: Option<std::ops::Range<u32>>,
+    ) -> Option<&'static str> {
+        let (Some(uid_end), Some(gid_end)) =
+            (self.monitor_uid.checked_add(self.monitor_ids), self.monitor_gid.checked_add(self.monitor_ids))
+        else {
+            return Some("the range overflows");
+        };
+        let (uids, gids) = (self.monitor_uid..uid_end, self.monitor_gid..gid_end);
+        if uids.is_empty() || uids.start == 0 || gids.start == 0 {
+            return Some("at least one non-root ID");
+        }
+        if wasm.is_some_and(|(uid, gid)| uids.contains(&uid) || gids.contains(&gid))
+            || process.is_some_and(|pool| uids.start < pool.end && pool.start < uids.end)
+        {
+            return Some("they overlap the Wasm worker's IDs or the process tier's UID pool");
+        }
+        None
     }
 
     pub(super) fn infer(&mut self, agent: &Path) -> Option<crate::infer::Inferred> {
@@ -58,6 +77,26 @@ impl VmConfig {
 mod tests {
     use super::*;
     use std::{fs, os::unix::fs::symlink};
+
+    #[test]
+    fn root_vm_monitor_ids_are_a_non_root_range_apart_from_other_pools() {
+        let (wasm, process) = (Some((60000, 60000)), Some(20000..36384));
+        assert_eq!(VmConfig::default().monitor_ids_problem(wasm, process.clone()), None);
+        let with = |uid, gid, ids| VmConfig { monitor_uid: uid, monitor_gid: gid, monitor_ids: ids, bundle: None };
+        assert_eq!(with(70000, 70000, 64).monitor_ids_problem(wasm, process.clone()), None);
+        assert_eq!(with(30000, 61000, 8).monitor_ids_problem(wasm, None), None, "No process tier beside them");
+        for (config, wasm, process) in [
+            (with(60001, 60001, 0), None, None),
+            (with(0, 60001, 8), None, None),
+            (with(60001, 0, 8), None, None),
+            (with(u32::MAX, 60001, 2), None, None),
+            (with(59990, 70000, 1024), wasm, None),
+            (with(70000, 59990, 1024), wasm, None),
+            (with(30000, 61000, 8), None, process.clone()),
+        ] {
+            assert!(config.monitor_ids_problem(wasm, process).is_some(), "{config:?}");
+        }
+    }
 
     #[test]
     fn installation_discovery_keeps_explicit_host_policy_and_unsafe_candidates() {

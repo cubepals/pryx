@@ -37,8 +37,7 @@ mod memory;
 #[cfg(test)]
 mod memory_acceptance;
 mod monitor;
-mod monitor_ids;
-pub use monitor_ids::MonitorIds;
+pub mod monitor_ids;
 mod network;
 #[cfg(test)]
 mod network_acceptance;
@@ -88,7 +87,7 @@ pub struct Settings {
     pub free_floor_bytes: u64,
     pub image_timeout: Duration,
     /// Root's monitor IDs, from which each VM takes its own pair; `None` for an ordinary user.
-    pub monitor_owner: Option<MonitorIds>,
+    pub monitor_owner: Option<monitor_ids::MonitorIds>,
 }
 // The runtime owns this bounded host ingress budget; workloads cannot increase it.
 pub(super) const INGRESS_CONNECTIONS: u16 = 64;

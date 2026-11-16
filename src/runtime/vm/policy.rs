@@ -30,7 +30,7 @@ pub(crate) fn worker_settings(config: &crate::config::Config) -> Result<super::i
         return Err(RuntimeError::Unavailable("The VM worker holds root's VM authority and runs as root".into()));
     }
     super::instance::VmRuntime::kvm()?;
-    let ids = super::instance::MonitorIds {
+    let ids = super::instance::monitor_ids::MonitorIds {
         uid: config.vm.monitor_uid,
         gid: config.vm.monitor_gid,
         count: config.vm.monitor_ids,
@@ -40,7 +40,7 @@ pub(crate) fn worker_settings(config: &crate::config::Config) -> Result<super::i
 
 fn host(
     config: &crate::config::Config,
-    monitor_owner: Option<super::instance::MonitorIds>,
+    monitor_owner: Option<super::instance::monitor_ids::MonitorIds>,
 ) -> Result<super::instance::Settings, RuntimeError> {
     if !pryx_agent::process_capabilities::probe().filesystem {
         return Err(RuntimeError::Unavailable(pryx_agent::process_capabilities::FILESYSTEM_UNAVAILABLE.into()));

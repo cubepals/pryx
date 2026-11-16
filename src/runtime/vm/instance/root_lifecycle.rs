@@ -62,7 +62,7 @@ async fn actual_root_runtime_cold_boot_files_and_daemon_loss() {
         // The host's default range: the runner user's own IDs run processes, so no VM takes them.
         monitor_owner: Some({
             let config = crate::config::VmConfig::default();
-            MonitorIds { uid: config.monitor_uid, gid: config.monitor_gid, count: config.monitor_ids }
+            monitor_ids::MonitorIds { uid: config.monitor_uid, gid: config.monitor_gid, count: config.monitor_ids }
         }),
     };
     let ids = settings.monitor_owner.unwrap();

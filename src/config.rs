@@ -664,28 +664,6 @@ mod tests {
     }
 
     #[test]
-    fn root_vm_monitor_ids_are_a_non_root_range_apart_from_other_pools() {
-        let with = |runtime: &str, vm: &str| {
-            let text = format!("runtime = \"{runtime}\"\n{MINIMAL}\n[vm]\n{vm}\n");
-            toml::from_str::<Config>(&text).unwrap().validate()
-        };
-        with("auto", "").unwrap();
-        with("vm", "monitor_uid = 70000\nmonitor_gid = 70000\nmonitor_ids = 64").unwrap();
-        for (runtime, vm) in [
-            ("container", "monitor_ids = 0"),
-            ("container", "monitor_uid = 0"),
-            ("container", "monitor_gid = 0"),
-            ("container", "monitor_uid = 4294967295\nmonitor_ids = 2"),
-            // The Wasm worker's 60000, and the process tier's pool from 20000.
-            ("vm", "monitor_uid = 59990"),
-            ("auto", "monitor_uid = 30000\nmonitor_gid = 61000"),
-        ] {
-            let err = with(runtime, vm).unwrap_err().to_string();
-            assert!(err.contains("vm.monitor_uid, monitor_gid and monitor_ids"), "{runtime} {vm}: {err}");
-        }
-    }
-
-    #[test]
     fn addresses_others_dial_are_never_unspecified() {
         let everywhere = MINIMAL.to_owned() + "\n[network]\nedge_ips = [\"0.0.0.0\"]\n";
         let config: Config = toml::from_str(&everywhere).unwrap();
