@@ -2,6 +2,7 @@
 /** Local code-template builds use ordinary sandbox files, commands and snapshots. Source
  * paths stay on the caller; durable versions store only a prepared snapshot and plan text. */
 
+import { SDK_DEFAULTS } from './generated/defaults.ts'
 import type { Sandbox, SandboxOptions } from './handles.ts'
 import type { RunResult } from './run.ts'
 import type { Transport } from './transport.ts'
@@ -67,7 +68,7 @@ export async function buildTemplate(
       else await box.files.upload(local, remote)
     }
     for (const command of [...(options.run ?? []), ...(options.ready ? [options.ready] : [])]) {
-      const result = await box.run(command)
+      const result = await box.run(command, { timeout: SDK_DEFAULTS.templateStepTimeoutSeconds })
       if (result.code !== 0) throw failed(result)
     }
     const snapshot = await box.snapshot()
