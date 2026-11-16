@@ -251,11 +251,11 @@ describe.skipIf(!hasDatabase)('provider control', () => {
     await floor.tick()
     await armHosts.settle()
     expect(armProvider.creates).toBe(1)
-    const ordered = await one<{ shape: string }>(
+    const ordered = await one<{ shape: Shape }>(
       c.db,
       sql`SELECT shape FROM provider_acquisitions WHERE region='arm-floor'`,
     )
-    expect(ordered?.shape).toBe('arm')
+    expect(ordered?.shape).toMatchObject({ name: 'arm', architecture: 'aarch64' })
   })
   test('release resumes after retirement when the vendor deletion reply was lost', async () => {
     const a = await hosts.acquire('release-retry', 'fake', 'fit', 'release-retry')
