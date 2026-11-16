@@ -181,6 +181,7 @@ impl VmRuntime {
         }
         .await;
         if let Err(problem) = taken {
+            let problem = with_exit(problem, &mut live.monitor);
             // Paused or not, the guest goes on where it was; its hold's end finds no resume.
             let _ = Self::monitor_action(bundle, &api, json!({"action": "resume"}), GUEST_TIMEOUT).await;
             drop(hold);
@@ -352,6 +353,7 @@ impl VmRuntime {
         let forwarder = match ready {
             Ok(forwarder) => forwarder,
             Err(problem) => {
+                let problem = with_exit(problem, &mut monitor);
                 let _ = tokio::time::timeout(crate::runtime::ENGINE_PROBE_TIMEOUT, monitor.kill()).await;
                 if let Some(network) = &mut network {
                     let _ = network.stop().await;
@@ -609,6 +611,14 @@ struct Restoring<'a> {
     memory: PathBuf,
     channel: PathBuf,
     deadline: Instant,
+}
+
+/// A failed monitor action, with how the monitor ended if it has: a seccomp trap reads as SIGSYS.
+fn with_exit(problem: RuntimeError, monitor: &mut Machine) -> RuntimeError {
+    match monitor.exited() {
+        Ok(Some(status)) => error(format!("{problem}; the monitor ended with {status}")),
+        _ => problem,
+    }
 }
 
 /// Removes a host listener's socket file when the sleep it served is over.
