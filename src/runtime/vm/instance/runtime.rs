@@ -20,7 +20,16 @@ impl VmRuntime {
         let transition = self.transition(&entry.id);
         let _transition = transition.lock().await;
         let live = self.state.live.lock().unwrap().get(&entry.id).cloned();
-        let Some(live) = live else { return self.recover_disk(&entry.spec.data_dir) };
+        let Some(live) = live else {
+            if entry.memory.is_some() {
+                // Asleep with its memory: stopping it ends that memory, as a kill would.
+                self.discard_memory(&mut entry)?;
+                entry.code = crate::runtime::exit_by(libc::SIGKILL);
+                entry.finished = Some(crate::clock::now());
+                self.save_entry(entry.clone())?;
+            }
+            return self.recover_disk(&entry.spec.data_dir);
+        };
         let mut live = live.lock().await;
         // The workload gets the whole grace; init then empties, flushes and certifies its disk.
         let deadline = Instant::now() + grace + vm_shutdown::FLUSH_RESERVE;
@@ -178,6 +187,8 @@ impl VmRuntime {
 fn passive(mut entry: Entry, running: bool) -> ContainerInfo {
     let status = if running {
         ContainerStatus::Running
+    } else if entry.memory.is_some() {
+        ContainerStatus::Paused
     } else if entry.started.is_none() || entry.finished.is_none() {
         ContainerStatus::Created
     } else if entry.code == UNKNOWN_EXIT_CODE {
@@ -230,6 +241,9 @@ fn dead_helper(live: &mut Live) -> Result<Option<&'static str>, RuntimeError> {
 }
 
 pub(super) fn stopped_status(entry: &Entry, lease: &Path) -> Result<ContainerStatus, RuntimeError> {
+    if entry.memory.is_some() {
+        return Ok(ContainerStatus::Paused);
+    }
     if entry.started.is_none() {
         return Ok(ContainerStatus::Created);
     }
@@ -310,6 +324,11 @@ impl ContainerRuntime for VmRuntime {
             .join("leases")
             .join(format!("{}.lock", super::super::filesystems::sha256(sandbox.as_bytes()).map_err(error)?));
         self.recover_disk(data)?;
+        // A copy may repair the disk it reads, so memory taken with that disk is discarded.
+        let asleep = self.state.entries.lock().unwrap().values().find(|entry| entry.spec.data_dir == data).cloned();
+        if let Some(mut entry) = asleep.filter(|entry| entry.memory.is_some()) {
+            self.discard_memory(&mut entry)?;
+        }
         let path = data.join(super::super::disk::FILE);
         let exists = match fs::symlink_metadata(&path) {
             Ok(meta) => Some(meta.len()),
@@ -356,6 +375,7 @@ impl ContainerRuntime for VmRuntime {
     async fn info(&self) -> Result<RuntimeInfo, RuntimeError> {
         Self::kvm()?;
         Ok(RuntimeInfo {
+            memory_sleep: self.memory_sleep(),
             rootless: self.state.settings.monitor_owner.is_none(),
             memory_limit: true,
             cpu_limit: true,
@@ -412,6 +432,7 @@ impl ContainerRuntime for VmRuntime {
             agent_state: None,
             image_digest: None,
             clean_disk: None,
+            memory: None,
         };
         self.persist_entry(&entry)?;
         entries.insert(id.clone(), entry);
@@ -446,11 +467,13 @@ impl ContainerRuntime for VmRuntime {
             .await
             .map_err(error)?
     }
-    async fn pause(&self, _: &str) -> Result<(), RuntimeError> {
-        Err(error("VM memory-sleep is off; stop and cold-boot its retained disk"))
+    async fn pause(&self, name: &str) -> Result<(), RuntimeError> {
+        let (own, name) = (self.clone(), name.to_owned());
+        tokio::spawn(async move { own.sleep_entry(&name).await }).await.map_err(error)?
     }
-    async fn unpause(&self, _: &str) -> Result<(), RuntimeError> {
-        Err(error("VM memory-sleep is off; start its retained disk"))
+    async fn unpause(&self, name: &str) -> Result<(), RuntimeError> {
+        let (own, name) = (self.clone(), name.to_owned());
+        tokio::spawn(async move { own.wake_entry(&name).await }).await.map_err(error)?
     }
     async fn disable_restart(&self, _: &str) -> Result<(), RuntimeError> {
         Ok(())

@@ -14,9 +14,11 @@ pub async fn create(config: &Config) -> anyhow::Result<Arc<dyn ContainerRuntime>
             // Root's VM authority is the separate worker's; this daemon holds only its lifetime.
             Arc::new(super::vm::worker::frontend::Frontend::installed(&config.state_dir).await?)
         } else {
-            Arc::new(
-                super::vm::instance::VmRuntime::new(&config.state_dir, super::vm::policy::settings(config)?).await?,
-            )
+            let runtime =
+                super::vm::instance::VmRuntime::new(&config.state_dir, super::vm::policy::settings(config)?).await?;
+            // The tier announces memory sleep only once this host's restore test has passed.
+            runtime.probe_memory_sleep_in_background();
+            Arc::new(runtime)
         }
     } else if config.runtime == RuntimeKind::Wasm {
         Arc::new(crate::runtime::wasm::WasmRuntime::new(&config.state_dir, &config.wasm).await?)
