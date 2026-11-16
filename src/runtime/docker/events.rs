@@ -16,11 +16,13 @@ impl DockerRuntime {
             Err(e) => return futures_util::stream::iter([Err(e)]).boxed(),
         };
         let own = self.oci_runtime;
+        let oom = self.oom.clone();
         docker
             .events(Some(options))
             .filter(move |item| std::future::ready(gvisor::owns_event(own, item)))
-            .map(|item| {
+            .map(move |item| {
                 let message = item.map_err(map_err)?;
+                oom.event(&message);
                 let actor = message.actor.unwrap_or_default();
                 let at = message
                     .time_nano
