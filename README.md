@@ -2,7 +2,7 @@
 
 Sandboxes on Linux hosts you own. [Compare capabilities and licences](docs/compare.md).
 
-Install on Linux x86_64, as your ordinary user:
+Install on Linux, x86_64 or aarch64, as your ordinary user:
 
 ```sh
 curl -fsSL https://github.com/cubepals/pryx/releases/latest/download/install.sh | sh

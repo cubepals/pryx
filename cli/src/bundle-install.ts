@@ -13,6 +13,7 @@ import {
   rmSync,
 } from 'node:fs'
 import { join } from 'node:path'
+import { HOST_MACHINE } from '../../control/src/bundle-release.ts'
 import { PRYX_VERSION } from '../../control/src/generated/release.ts'
 import { bundleFiles } from './bundle-download.ts'
 import { verifyBundleSignature } from './bundle-trust.ts'
@@ -74,7 +75,7 @@ export async function stageBundle(
     const metadata = JSON.parse(readFileSync(join(unpacked, 'bundle.json'), 'utf8')) as BundleMetadata
     if (
       metadata.version !== version ||
-      metadata.architecture !== 'x86_64' ||
+      metadata.architecture !== HOST_MACHINE ||
       !Number.isSafeInteger(metadata.serviceUid) ||
       metadata.serviceUid <= 0 ||
       !Number.isSafeInteger(metadata.serviceGid) ||

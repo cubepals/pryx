@@ -44,8 +44,9 @@ async fn authenticate(State(agent): State<Arc<Agent>>, mut request: Request, nex
                 .and_then(|v| v.split(',').find_map(|protocol| protocol.trim().strip_prefix("pryx-token.")))
         })
         .or(query.token.as_deref());
-    let claims =
-        token.and_then(|token| auth::verify(token, &agent.public_key, &agent.sandbox, agent.epoch, now()).ok());
+    let claims = token.and_then(|token| {
+        agent.as_identity(|sandbox, epoch, _, public_key| auth::verify(token, public_key, sandbox, epoch, now()).ok())
+    });
     let Some(claims) = claims else {
         return Failure(StatusCode::UNAUTHORIZED, "unauthorized", "Sandbox token refused".into()).into_response();
     };
@@ -122,16 +123,18 @@ async fn health(State(agent): State<Arc<Agent>>, headers: HeaderMap) -> Json<ser
         .and_then(|value| value.to_str().ok())
         .filter(|nonce| crate::process_observation::nonce_valid(nonce))
     {
-        let proof = crate::process_observation::sign(
-            &agent.key,
-            crate::process_observation::Observation {
-                nonce: nonce.into(),
-                sandbox: agent.sandbox.clone(),
-                epoch: agent.epoch,
-                pid: std::process::id(),
-                ipc_scoped: crate::process_policy::ipc_scoped(),
-            },
-        );
+        let proof = agent.as_identity(|sandbox, epoch, key, _| {
+            crate::process_observation::sign(
+                key,
+                crate::process_observation::Observation {
+                    nonce: nonce.into(),
+                    sandbox: sandbox.into(),
+                    epoch,
+                    pid: std::process::id(),
+                    ipc_scoped: crate::process_policy::ipc_scoped(),
+                },
+            )
+        });
         value["processObservation"] = serde_json::to_value(proof).expect("fixed observation serializes");
     }
     Json(value)

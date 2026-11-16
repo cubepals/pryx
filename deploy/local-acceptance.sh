@@ -71,6 +71,12 @@ phase=hello
 [ "$(pryx run -- echo hello)" = hello ]
 [ "$(sh -lc 'pryx run -- echo hello')" = hello ]
 echo "seconds_to_hello=$(($(date +%s)-started))"
+if [ "${PRYX_EXPECT_BOTH_TIERS:-0}" = 1 ]; then
+  phase=both-tiers
+  [ "$(pryx run --isolation process -- echo hello)" = hello ]
+  [ "$(pryx run --isolation container --image alpine:3.22 -- echo hello)" = hello ]
+  echo 'process=hello container=hello'
+fi
 if [ "${PRYX_EXPECT_CONTAINER:-}" = on ]; then
   phase=explicit-container
   box=$(pryx sandbox create --isolation container --image alpine:3.22 | python3 -c 'import json,sys;r=json.load(sys.stdin);assert r["isolation"] == "container";assert r["guarantees"]["private-pids"];assert not r["guarantees"]["memory-limit"];assert not r["guarantees"]["cpu-limit"];assert not r["guarantees"]["memory-sleep"];print(r["id"])')

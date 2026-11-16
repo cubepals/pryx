@@ -8,12 +8,23 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import platform
 import re
 import shutil
 import subprocess
 import sys
 import tarfile
 import tempfile
+
+
+# Each machine the release is built for, as `uname -m` names it: the release's name for it, its
+# Debian multiarch triplet and its glibc dynamic loader.
+MACHINES = {
+    'x86_64': ('x64', 'x86_64-linux-gnu', 'ld-linux-x86-64.so.2'),
+    'aarch64': ('arm64', 'aarch64-linux-gnu', 'ld-linux-aarch64.so.1'),
+}
+MACHINE = platform.machine()
+RELEASE, TRIPLET, LOADER = MACHINES[MACHINE]
 
 
 def command(*args, **options):
@@ -74,7 +85,7 @@ class Bundle:
         target.rename(str(target) + '.real')
         parent = '../..' if postgres else '..'
         preload = '''if [ -n "${NSS_WRAPPER_PASSWD:-}" ]; then
-  exec "$bundle/lib/ld-linux-x86-64.so.2" --library-path "$bundle/postgres/lib:$bundle/lib" --preload "$bundle/lib/libnss_wrapper.so" --argv0 "$0" "$0.real" "$@"
+  exec "$bundle/lib/''' + LOADER + '''" --library-path "$bundle/postgres/lib:$bundle/lib" --preload "$bundle/lib/libnss_wrapper.so" --argv0 "$0" "$0.real" "$@"
 fi
 ''' if postgres else ''
         target.write_text('''#!/bin/sh
@@ -82,7 +93,7 @@ set -eu
 bundle=$(CDPATH= cd -- "$(dirname -- "$0")/''' + parent + '''" && pwd)
 export PRYX_BUNDLE_DIR="$bundle"
 export PRYX_ASSET_DIR="${PRYX_ASSET_DIR:-$bundle/control}"
-''' + preload + '''exec "$bundle/lib/ld-linux-x86-64.so.2" --library-path "$bundle/postgres/lib:$bundle/lib" --argv0 "$0" "$0.real" "$@"
+''' + preload + '''exec "$bundle/lib/''' + LOADER + '''" --library-path "$bundle/postgres/lib:$bundle/lib" --argv0 "$0" "$0.real" "$@"
 ''')
         target.chmod(0o755)
 
@@ -101,6 +112,16 @@ export PRYX_ASSET_DIR="${PRYX_ASSET_DIR:-$bundle/control}"
         (directory / 'SOURCES.txt').write_text('Unmodified Debian runtime programs/libraries.\n'
             'Exact source package names and versions are in packages.txt.\n'
             'Corresponding source: https://sources.debian.org/ and https://snapshot.debian.org/\n')
+
+
+def postgres_for(pins):
+    """The PostgreSQL pin for this machine: the file's own fields for x86_64, its entry otherwise."""
+    machine = pins.get('machines', {}).get(MACHINE, {})
+    if MACHINE != 'x86_64' and not machine:
+        raise RuntimeError(f'deploy/postgresql.json pins no PostgreSQL for {MACHINE}')
+    # An entry replaces the archive's fields; the x86_64 asset's API address isn't its own.
+    dropped = {'machines'} | ({'apiUrl'} - machine.keys() if machine else set())
+    return {key: value for key, value in {**pins, **machine}.items() if key not in dropped}
 
 
 def postgres(bundle, specification):
@@ -129,6 +150,9 @@ def postgres(bundle, specification):
 def pack(root, output):
     with tarfile.open(output, 'w:gz') as archive:
         for path in sorted(root.rglob('*')):
+            # The installer admits only files and directories (cli/src/bundle-install.ts).
+            if path.is_symlink() or not (path.is_file() or path.is_dir()):
+                raise RuntimeError(f'A host bundle holds only files and directories: {path}')
             info = archive.gettarinfo(str(path), str(path.relative_to(root)))
             info.uid = info.gid = info.mtime = 0
             info.uname = info.gname = ''
@@ -144,7 +168,7 @@ def main():
     destination.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as temporary:
         bundle = Bundle(Path(temporary) / 'bundle')
-        specification = json.loads(Path('/source/deploy/postgresql.json').read_text())
+        specification = postgres_for(json.loads(Path('/source/deploy/postgresql.json').read_text()))
         postgres(bundle, specification)
         for source, target in [('/pryxd', 'pryxd'),
                 ('/usr/local/lib/pryx/pryx-agent', 'pryx-agent'),
@@ -159,7 +183,7 @@ def main():
                 ('/usr/bin/flock', 'flock'),
                 ('/usr/bin/tini', 'tini')]:
             bundle.executable(source, 'bin/' + target)
-        bundle.library('/usr/lib/x86_64-linux-gnu/libnss_wrapper.so')
+        bundle.library(f'/usr/lib/{TRIPLET}/libnss_wrapper.so')
         tools = Path('/usr/local/lib/pryx/process-tools.json')
         if tools.exists():
             shutil.copy2(tools, bundle.root / 'bin/process-tools.json')
@@ -167,14 +191,15 @@ def main():
         if vm.exists():
             shutil.copy2(vm, bundle.root / 'bin/vm-bundle.json')
             (bundle.root / 'bin/vm-bundle.json').chmod(0o444)
-        # The namespaced process mode's helper stays beside the agent, as pryxd looks for it.
+        # The namespaced process mode's helper stays beside the agent, as pryxd looks for it. Its
+        # library's soname link is copied as a file: the installer admits no links in a bundle.
         namespaces = Path('/usr/local/lib/pryx/namespaces')
         if namespaces.exists():
-            shutil.copytree(namespaces, bundle.root / 'bin/namespaces', symlinks=True)
+            shutil.copytree(namespaces, bundle.root / 'bin/namespaces', symlinks=False)
         for name in ['pryxd.sig', 'pryxd.bootstrap.sig']:
             if Path('/' + name).exists():
                 shutil.copy2('/' + name, bundle.root / 'bin' / name)
-        bundle.closure('/usr/lib/x86_64-linux-gnu/libnss_wrapper.so')
+        bundle.closure(f'/usr/lib/{TRIPLET}/libnss_wrapper.so')
         shutil.copytree('/usr/local/lib/pryx/agentos', bundle.root / 'agentos')
         shutil.copytree('/opt/pryx/control', bundle.root / 'control')
         shutil.copytree('/licenses', bundle.root / 'licenses', dirs_exist_ok=True)
@@ -182,11 +207,11 @@ def main():
         postgres_user = next(line.split(':') for line in Path('/etc/passwd').read_text().splitlines()
                              if line.startswith('postgres:'))
         metadata = {'version': command('/usr/local/bin/pryx', '--version').split()[1],
-                    'architecture': 'x86_64', 'postgres': specification,
+                    'architecture': MACHINE, 'postgres': specification,
                     'serviceUid': int(postgres_user[2]), 'serviceGid': int(postgres_user[3])}
         (bundle.root / 'bundle.json').write_text(json.dumps(metadata, indent=2) + '\n')
         bundle.notices()
-        pack(bundle.root, destination / 'pryx-bundle-linux-x64.tar.gz')
+        pack(bundle.root, destination / f'pryx-bundle-linux-{RELEASE}.tar.gz')
         bootstrap = Path(temporary) / 'bootstrap'
         (bootstrap / 'bin').mkdir(parents=True)
         for name in ['pryx', 'pryxd', 'pryx-agent', 'nft']:
@@ -202,7 +227,7 @@ def main():
         if namespaces.exists():
             shutil.copytree(bundle.root / 'bin/namespaces', bootstrap / 'bin/namespaces', symlinks=True)
         shutil.copytree(bundle.root / 'licenses', bootstrap / 'licenses')
-        pack(bootstrap, destination / 'pryx-bootstrap-linux-x64.tar.gz')
+        pack(bootstrap, destination / f'pryx-bootstrap-linux-{RELEASE}.tar.gz')
 
 
 if __name__ == '__main__':

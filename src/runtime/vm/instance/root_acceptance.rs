@@ -78,7 +78,7 @@ impl Host<'_> {
             &staged,
             &root.join(disk::FILE),
             &channel,
-            configuration::Destination { output: &config, jail: Some(&root), tap: None },
+            configuration::Destination { output: &config, jail: Some(&root), tap: None, working: None },
             (memory, cpus),
             deadline,
         )

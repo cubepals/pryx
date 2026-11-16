@@ -18,7 +18,14 @@ pub(super) struct Destination<'a> {
     pub output: &'a Path,
     pub jail: Option<&'a Path>,
     pub tap: Option<(&'a str, &'a str)>,
+    /// The monitor's working directory, which relative disk and socket paths are resolved in.
+    pub working: Option<&'a Path>,
 }
+/// The writable disk's name in an ordinary monitor's boot directory, a link to the sandbox's own
+/// disk. A snapshot records it so; each restore resolves it in that sandbox's directory.
+pub(super) const DISK_LINK: &str = "disk";
+/// The monitor's vsock socket, relative to its boot directory in the same way.
+pub(super) const CHANNEL: &str = "vsock";
 async fn output(mut command: Command, deadline: Instant) -> Result<Vec<u8>, RuntimeError> {
     command.env_clear().stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null()).kill_on_drop(true);
     tokio::time::timeout_at(deadline, async {
@@ -51,6 +58,14 @@ pub(super) async fn configure(
     deadline: Instant,
 ) -> Result<Configuration, RuntimeError> {
     let configurator = bundle.root().join("bin/vm-config");
+    let configurator_in = |arguments: &[String]| {
+        let mut command = Command::new(&configurator);
+        command.args(arguments);
+        if let Some(working) = destination.working {
+            command.current_dir(working);
+        }
+        command
+    };
     let mut command = Command::new(&configurator);
     command.arg("--metadata");
     let metadata: Value = serde_json::from_slice(&output(command, deadline).await?).map_err(error)?;
@@ -87,12 +102,10 @@ pub(super) async fn configure(
     for (id, layer) in ids.iter().zip(&image.layers) {
         arguments.extend(["--layer".into(), format!("{id}={}", layer.display())]);
     }
-    let mut command = Command::new(&configurator);
-    command.args(&arguments);
-    let config = output(command, deadline).await?;
+    let config = output(configurator_in(&arguments), deadline).await?;
     crate::durable::write_atomic(destination.output, &config, 0o600).map_err(error)?;
-    let mut command = Command::new(&configurator);
-    command.args(&arguments).arg("--identities");
+    let mut command = configurator_in(&arguments);
+    command.arg("--identities");
     let identities: BTreeMap<String, String> =
         serde_json::from_slice(&output(command, deadline).await?).map_err(error)?;
     let cid = metadata["guestCid"]

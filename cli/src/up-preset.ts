@@ -2,6 +2,7 @@
 /** Choose a host preset without changing the host. Backend selection and its guarantees stay
  * with the node; this only chooses how the same release programs are installed. */
 import { existsSync } from 'node:fs'
+import { releasedFor } from '../../control/src/bundle-release.ts'
 import { containerContext } from '../../deploy/host-context.ts'
 import type { HostProbe } from '../../deploy/host-probe.ts'
 
@@ -34,7 +35,8 @@ export function localProblem(
   tier = 'process',
 ): string | undefined {
   if (process.platform !== 'linux') return 'Linux is required; run pryx on a Linux host'
-  if (probe.architecture !== 'x86_64') return `This release needs x86_64; detected ${probe.architecture}`
+  if (!releasedFor(probe.architecture))
+    return `This release is built for x86_64 and aarch64; detected ${probe.architecture}`
   if (preset === 'user' && process.getuid?.() === 0)
     return 'The user preset needs an ordinary user; run this command without sudo'
   if (tier === 'process' && !filesystem)

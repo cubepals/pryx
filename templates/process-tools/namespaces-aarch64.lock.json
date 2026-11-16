@@ -1,0 +1,34 @@
+[
+  {
+    "name": "bubblewrap",
+    "version": "0.13.1",
+    "build": "hfe774f5_0",
+    "url": "https://conda.anaconda.org/conda-forge/linux-aarch64/bubblewrap-0.13.1-hfe774f5_0.conda",
+    "sha256": "4290eb42ec2a0353d6e66096565e3c35d181d1f7f1e98ad729308cbf18a643f8",
+    "bytes": 56801,
+    "declaredLicence": "LGPL-2.0-or-later (LGPL-2.1-or-later selected)",
+    "notices": [
+      {
+        "path": "info/licenses/COPYING",
+        "sha256": "dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551",
+        "bytes": 26530
+      }
+    ]
+  },
+  {
+    "name": "libcap",
+    "version": "2.78",
+    "build": "hfcc8634_1",
+    "url": "https://conda.anaconda.org/conda-forge/linux-aarch64/libcap-2.78-hfcc8634_1.conda",
+    "sha256": "6487e7644d062e18d389c11a9a3183e5a71c2652d05fdd88dbd063ad09f7ad4b",
+    "bytes": 108530,
+    "declaredLicence": "BSD-3-Clause (selected)",
+    "notices": [
+      {
+        "path": "info/licenses/License",
+        "sha256": "68467e731f4744bd6e0bb69e8df9c3a994e09cd6b203d0c41327ac6d079c581d",
+        "bytes": 20318
+      }
+    ]
+  }
+]

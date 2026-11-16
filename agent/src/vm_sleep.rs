@@ -15,8 +15,13 @@ use std::{io, time::Duration};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWriteExt};
 use tokio_vsock::{VMADDR_CID_HOST, VsockAddr, VsockListener, VsockStream};
 
-/// The sleep and resume exchange this init answers, as its bootstrap capabilities announce.
-pub const VERSION: u16 = 1;
+/// The sleep and resume exchange this init answers, as its bootstrap capabilities announce: 1 for
+/// sleep and wake, 2 once a resume can also hand a fork with memory its own identity.
+pub const VERSION: u16 = 2;
+/// The first version that sleeps and wakes.
+pub const SLEEP_VERSION: u16 = 1;
+/// The first version whose resume carries a fork's identity.
+pub const FORK_VERSION: u16 = 2;
 /// Trusted init's sleep listener, beside the shutdown listener's port.
 pub const PORT: u32 = 11831;
 /// The host listener init dials once its disk is flushed; the host holds it while it snapshots.
@@ -32,6 +37,8 @@ pub const SEED_BYTES: usize = 64;
 pub const RESUMED_MARKER: &str = "PRYX_VM_RESUMED";
 /// How long a woken init waits for the host's resume before going on without one.
 const RESUME_WAIT: Duration = Duration::from_secs(5);
+/// How often a held guest looks for its connection's reset: a woken guest notices within this.
+const HOLD_CHECK: Duration = Duration::from_millis(50);
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -52,16 +59,50 @@ pub struct Resume {
     /// Nanoseconds since the Unix epoch, as a decimal string so no JSON number rounds it.
     pub now_nanos: String,
     pub seed: String,
+    /// A fork's own identity, taken in place of its source's; absent for a sleep's own wake.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub identity: Option<Identity>,
     pub signature: String,
 }
+
+/// A fork with memory's identity: its sandbox, epoch and agent signing key (a secret, carried on
+/// this private channel only, as the bootstrap carries the first one), a fresh boot nonce for its
+/// own shutdown proofs, and its hostname.
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Identity {
+    pub sandbox: String,
+    pub epoch: u64,
+    pub key: String,
+    pub nonce: String,
+    pub hostname: String,
+}
+
+impl Identity {
+    fn valid(&self) -> bool {
+        !self.sandbox.is_empty()
+            && nonce_valid(&self.nonce)
+            && !self.hostname.is_empty()
+            && self.hostname.len() <= HOSTNAME_BYTES
+            && self.hostname.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'))
+            && SigningKey::from_encoded(&self.key).is_ok()
+    }
+}
+// The kernel's __NEW_UTS_LEN (include/uapi/linux/utsname.h), which sethostname(2) enforces;
+// libc's HOST_NAME_MAX says 255 on musl, which this init is built with.
+const HOSTNAME_BYTES: usize = 64;
 
 fn request_bytes(nonce: &str, sandbox: &str, epoch: u64) -> Vec<u8> {
     serde_json::to_vec(&(REQUEST_CONTEXT, nonce, sandbox, epoch)).expect("fixed sleep request serializes")
 }
 
 fn resume_bytes(resume: &Resume) -> Vec<u8> {
-    serde_json::to_vec(&(RESUME_CONTEXT, &resume.nonce, &resume.sandbox, resume.epoch, &resume.now_nanos, &resume.seed))
-        .expect("fixed resume serializes")
+    let fields = (RESUME_CONTEXT, &resume.nonce, &resume.sandbox, resume.epoch, &resume.now_nanos, &resume.seed);
+    match &resume.identity {
+        None => serde_json::to_vec(&fields),
+        Some(identity) => serde_json::to_vec(&(fields, identity)),
+    }
+    .expect("fixed resume serializes")
 }
 
 pub fn request(key: &SigningKey, nonce: &str, sandbox: &str, epoch: u64) -> Request {
@@ -83,12 +124,26 @@ pub fn verify(request: &Request, public_key: &str, nonce: &str, sandbox: &str, e
 
 /// A resume for this boot, signed, at `now_nanos` with `seed`'s bytes.
 pub fn resume(key: &SigningKey, nonce: &str, sandbox: &str, epoch: u64, now_nanos: i128, seed: &[u8]) -> Resume {
+    fork(key, nonce, sandbox, epoch, now_nanos, seed, None)
+}
+
+/// A resume signed by the guest's current identity that hands it `identity` too.
+pub fn fork(
+    key: &SigningKey,
+    nonce: &str,
+    sandbox: &str,
+    epoch: u64,
+    now_nanos: i128,
+    seed: &[u8],
+    identity: Option<Identity>,
+) -> Resume {
     let mut resume = Resume {
         nonce: nonce.into(),
         sandbox: sandbox.into(),
         epoch,
         now_nanos: now_nanos.to_string(),
         seed: URL_SAFE_NO_PAD.encode(seed),
+        identity,
         signature: String::new(),
     };
     resume.signature = key.sign_bytes(&resume_bytes(&resume));
@@ -102,6 +157,7 @@ pub fn verify_resume(resume: &Resume, public_key: &str, nonce: &str, sandbox: &s
         && resume.epoch == epoch
         && resume.now_nanos.parse::<i128>().is_ok_and(|nanos| nanos > 0)
         && URL_SAFE_NO_PAD.decode(&resume.seed).is_ok_and(|seed| seed.len() == SEED_BYTES)
+        && resume.identity.as_ref().is_none_or(Identity::valid)
         && auth::verify_bytes(public_key, &resume_bytes(resume), &resume.signature).is_ok()
 }
 
@@ -136,13 +192,23 @@ impl Held {
                 .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "VM sleep hold was not accepted"))??;
         Ok(Self(stream))
     }
-    /// Returns when the connection ends, whichever way: the host never sends on it.
+    /// Returns when the connection ends, whichever way: the host never sends on it. A restore's
+    /// vsock transport reset leaves the socket with only an error (ECONNRESET), which epoll
+    /// reports as EPOLLERR without EPOLLIN or EPOLLHUP (af_vsock's `vsock_poll`), and tokio
+    /// wakes no reader on an error alone; so the error is also looked for on a short timer.
     pub(crate) async fn ended(&mut self) {
         let mut byte = [0u8; 1];
         loop {
-            match self.0.read(&mut byte).await {
-                Ok(0) | Err(_) => return,
-                Ok(_) => (),
+            tokio::select! {
+                read = self.0.read(&mut byte) => match read {
+                    Ok(0) | Err(_) => return,
+                    Ok(_) => (),
+                },
+                () = tokio::time::sleep(HOLD_CHECK) => {
+                    if !matches!(rustix::net::sockopt::socket_error(&self.0), Ok(Ok(()))) {
+                        return;
+                    }
+                }
             }
         }
     }
@@ -207,7 +273,57 @@ pub(crate) async fn resumed(boot: &Boot<'_>) -> Option<Resumed> {
             .filter(|resume| verify_resume(resume, boot.public_key, boot.nonce, boot.sandbox, boot.epoch));
         Ok::<_, io::Error>(resume.map(|resume| Resumed { resume, socket }))
     };
-    tokio::time::timeout(RESUME_WAIT, exchange).await.ok().and_then(Result::ok).flatten()
+    // Said on init's console, which the host keeps with the monitor's output.
+    match tokio::time::timeout(RESUME_WAIT, exchange).await {
+        Ok(Ok(Some(resumed))) => Some(resumed),
+        Ok(Ok(None)) => {
+            eprintln!("VM resume refused: it did not verify for this guest");
+            None
+        }
+        Ok(Err(problem)) => {
+            eprintln!("VM resume failed: {problem}");
+            None
+        }
+        Err(_) => {
+            eprintln!("VM resume did not come in time");
+            None
+        }
+    }
+}
+
+/// What init tells the agent of a fork's identity, one JSON line on the agent's stdin.
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct Handover {
+    pub(crate) sandbox: String,
+    pub(crate) epoch: u64,
+    pub(crate) key: String,
+}
+
+/// In the agent: takes trusted init's identity handovers from stdin, which no process the agent
+/// starts inherits (stdin becomes /dev/null), and answers as each from then on.
+pub(crate) fn take_handovers(agent: std::sync::Arc<crate::context::Agent>) -> io::Result<()> {
+    let control = rustix::io::fcntl_dupfd_cloexec(rustix::stdio::stdin(), 3)?;
+    rustix::stdio::dup2_stdin(std::fs::File::open("/dev/null")?)?;
+    // Only init's pipe is a handover channel; any other stdin carries none.
+    let Ok(receiver) = tokio::net::unix::pipe::Receiver::from_owned_fd(control) else { return Ok(()) };
+    tokio::spawn(async move {
+        let mut lines = tokio::io::BufReader::new(receiver.take(MAX_BYTES * 16)).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            let Ok(handover) = serde_json::from_str::<Handover>(&line) else { continue };
+            let Ok(key) = SigningKey::from_encoded(&handover.key) else { continue };
+            agent.ports.rename(handover.sandbox.clone());
+            let forked = crate::context::Forked {
+                public_key: key.public_key(),
+                key,
+                sandbox: handover.sandbox,
+                epoch: handover.epoch,
+            };
+            *agent.forked.write().unwrap_or_else(std::sync::PoisonError::into_inner) =
+                Some(std::sync::Arc::new(forked));
+        }
+    });
+    Ok(())
 }
 
 /// Steps the wall clock to the host's and mixes the host's entropy into the guest's pool. The
@@ -222,7 +338,30 @@ pub(crate) fn apply(resume: &Resume) -> io::Result<()> {
     rustix::time::clock_settime(rustix::time::ClockId::Realtime, now)?;
     let seed = URL_SAFE_NO_PAD.decode(&resume.seed).map_err(|_| io::Error::other("Invalid resume seed"))?;
     // random(4): writing to /dev/urandom mixes the bytes into the input pool.
-    std::fs::write("/dev/urandom", seed)
+    std::fs::write("/dev/urandom", seed)?;
+    reseed()
+}
+
+/// Has the kernel rekey its random generator from its pool, which now holds the host's entropy,
+/// so each fork of one memory draws bytes of its own at once. Writing to the pool alone doesn't
+/// rekey it, and the pinned guest kernel has no VM generation ID driver, which would on restore.
+#[cfg(target_arch = "x86_64")]
+#[expect(unsafe_code, reason = "random(4)'s RNDRESEEDCRNG request has no safe wrapper in libc, rustix or nix")]
+fn reseed() -> io::Result<()> {
+    use std::os::fd::AsRawFd;
+    let random = std::fs::File::open("/dev/urandom")?;
+    // SAFETY: RNDRESEEDCRNG takes no argument, and the descriptor stays open for the whole call.
+    let answer = unsafe { libc::ioctl(random.as_raw_fd(), linux_raw_sys::ioctl::RNDRESEEDCRNG as libc::Ioctl) };
+    if answer < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+/// The VM tier is x86-64 only; no other guest takes a resume.
+#[cfg(not(target_arch = "x86_64"))]
+fn reseed() -> io::Result<()> {
+    Err(io::Error::other("VM resume is x86-64 only"))
 }
 
 #[cfg(test)]

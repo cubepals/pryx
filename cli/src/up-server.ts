@@ -4,6 +4,7 @@
 /** Idempotent Linux/systemd one-box installation. Check mode reads prerequisites and prints no credentials. */
 import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, symlinkSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { RELEASE_MACHINES } from '../../control/src/bundle-release.ts'
 import { MINUTE_MS, SECOND_MS } from '../../control/src/durations.ts'
 import { PRYX_VERSION } from '../../control/src/generated/release.ts'
 import { BOOTSTRAP_SIGNATURE_ASSET, BOOTSTRAP_SIGNATURE_SUFFIX } from '../../control/src/join-bootstrap.ts'
@@ -78,13 +79,13 @@ export async function up(args: string[]) {
     throw new Error('The existing domain is immutable; migrate public address assignments before changing it')
   if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]*$/.test(domain)) throw new Error('--domain is a DNS hostname')
   const plan = upPlan(domain)
-  if (plan.architecture !== 'x64')
+  if (!(plan.architecture in RELEASE_MACHINES))
     throw new Error(
-      `This release needs x86_64; detected ${plan.architecture}. Run pryx on a Linux x86_64 host`,
+      `This release is built for x86_64 and aarch64; detected ${plan.architecture}. Run pryx on one of them`,
     )
   if (args.includes('--check'))
     return args.includes('--image') ? { ...plan, image: imageReference(args) } : plan
-  if (!plan.linux) throw new Error('Linux is required; run pryx on a Linux x86_64 host')
+  if (!plan.linux) throw new Error('Linux is required; run pryx on a Linux host')
   if (!plan.systemd)
     throw new Error(
       'A systemd host is required by this installer; run the release image with docker run instead',
@@ -118,7 +119,6 @@ export async function up(args: string[]) {
       '/usr/sbin/nologin',
       'pryx',
     ])
-  if (process.arch !== 'x64') throw new Error('This release installs Linux x86_64 binaries')
   const assets = await releaseFiles(option(args, '--from-dir'))
   for (const name of ['pryxd', 'pryx-agent', 'pryx-control', 'pryx-edge']) {
     chmodSync(join(assets, name), 0o755)

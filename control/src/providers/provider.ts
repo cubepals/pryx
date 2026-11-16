@@ -5,8 +5,12 @@
 import { z } from 'zod'
 export const DEPLOYMENT_LABEL = 'pryx.deployment'
 export const ACQUIRE_LABEL = 'pryx.acquire'
+/** A host's CPU architecture, as `uname -m` names it; a shape that names none is x86_64. */
+const ARCHITECTURES = ['x86_64', 'aarch64'] as const
+export type Architecture = (typeof ARCHITECTURES)[number]
 export const shapeSchema = z.object({
   name: z.string().min(1),
+  architecture: z.enum(ARCHITECTURES).optional(),
   cpus: z.number().positive(),
   memoryGb: z.number().positive(),
   diskGb: z.number().positive(),

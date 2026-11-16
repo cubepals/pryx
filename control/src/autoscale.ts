@@ -4,6 +4,7 @@
 /** Region growth and safe host return; providers rent hosts but never decide placement or data safety. */
 import { randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
+import { HOST_MACHINE } from './bundle-release.ts'
 import type { Db } from './database.ts'
 import { HOUR_S } from './durations.ts'
 import type { Thresholds } from './health.ts'
@@ -15,7 +16,7 @@ import {
 } from './host-defaults.ts'
 import { reservedCpu } from './placement.ts'
 import type { Acquisition, ProviderLedger } from './provider-ledger.ts'
-import { ProviderError, type Shape } from './providers/provider.ts'
+import { type Architecture, ProviderError, type Shape } from './providers/provider.ts'
 import { drain, getNode, nodeSummaries, retire, toNodeView } from './registry.ts'
 import type { Sandboxes, SandboxRow, SandboxSpec } from './sandboxes.ts'
 import { event, one, rows } from './sql.ts'
@@ -32,11 +33,21 @@ interface Need {
   memoryMb: number
   cpuMillis: number
   diskGb: number
+  /** Where the demand can run; x86_64 alone when it doesn't say, since only x86_64 has every tier. */
+  architectures?: Architecture[]
 }
-export function smallestShape(shapes: Shape[], need: Need) {
+/** The architectures a sandbox can be placed on: wasm and vm, and any tier left open, need x86_64. */
+export function architecturesFor(spec: Pick<SandboxSpec, 'isolation'>): Architecture[] {
+  return spec.isolation === 'process' || spec.isolation === 'container' ? ['x86_64', 'aarch64'] : ['x86_64']
+}
+/** A provisioned host joins with the pryxd its control plane serves, which is built for the control
+ * plane's own machine (join-routes.ts), so only shapes of that machine are taken. */
+export function smallestShape(shapes: Shape[], need: Need, joinable: string = HOST_MACHINE) {
+  const allowed = (need.architectures ?? ['x86_64']).filter((architecture) => architecture === joinable)
   return shapes
     .filter(
       (s) =>
+        allowed.includes(s.architecture ?? 'x86_64') &&
         s.memoryGb * 1024 - Math.max(HOST_MIN_MEMORY_MB, (s.memoryGb * 1024) / HOST_MEMORY_DIVISOR) >=
           need.memoryMb &&
         s.cpus * 1000 - HOST_CPU_MILLIS >= need.cpuMillis &&
@@ -53,10 +64,11 @@ export class Autoscale {
     readonly thresholds: Thresholds,
   ) {}
   async refused(region: string, spec: SandboxSpec) {
-    const required = {
+    const required: Need = {
       memoryMb: spec.resources.memoryMb,
       cpuMillis: reservedCpu(spec.resources, this.config.cpuMillisPerGb),
       diskGb: spec.storage.sizeGb,
+      architectures: architecturesFor(spec),
     }
     await this.db.execute(
       sql`INSERT INTO autoscale_regions(region,refusals,required) VALUES(${region},1,${JSON.stringify(required)}::jsonb) ON CONFLICT(region) DO UPDATE SET refusals=autoscale_regions.refusals+1,required=excluded.required`,
