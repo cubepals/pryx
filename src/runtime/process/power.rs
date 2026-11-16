@@ -377,6 +377,9 @@ impl ProcessRuntime {
                 self.save_in(&mut entries, entry.clone())?;
             }
         }
+        Ok(Some(self.observed_info(entry, alive)))
+    }
+    fn observed_info(&self, entry: Entry, alive: bool) -> ContainerInfo {
         let paused = alive
             && entry
                 .pid
@@ -395,7 +398,7 @@ impl ProcessRuntime {
             crate::labels::LABEL_PRIVATE_NETWORK.into(),
             entry.namespaced.is_some_and(|mode| mode.private_network).to_string(),
         );
-        Ok(Some(ContainerInfo {
+        ContainerInfo {
             agent_state: None,
             memory_enforced: None,
             cpu_enforced: None,
@@ -419,7 +422,7 @@ impl ProcessRuntime {
             finished_at: parse_time(entry.finished.as_deref()),
             restart_count: 0,
             health: None,
-        }))
+        }
     }
 }
 
