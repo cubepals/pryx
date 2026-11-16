@@ -334,6 +334,7 @@ jobs:
           path: |
             ${{ runner.temp }}/vm-corresponding-sources/inputs.json
             ${{ runner.temp }}/pryx-vm-linux-x64.tar.gz
+            ${{ runner.temp }}/vm-network-probe
             ${{ runner.temp }}/pryx-vm-sources.tar.gz
             ${{ runner.temp }}/vm-runtime.json
             ${{ runner.temp }}/vm-sources.json
@@ -402,8 +403,10 @@ jobs:
           name: vm-input-inventory
           path: ${{ runner.temp }}/vm-inputs
           digest-mismatch: error
-      - name: Put the runtime and its descriptor where the first job had them
-        run: cp "$RUNNER_TEMP/vm-inputs/pryx-vm-linux-x64.tar.gz" "$RUNNER_TEMP/vm-inputs/vm-runtime.json" "$RUNNER_TEMP/"
+      - name: Put the runtime, its descriptor and the network probe where the first job had them
+        run: |
+          cp "$RUNNER_TEMP/vm-inputs/pryx-vm-linux-x64.tar.gz" "$RUNNER_TEMP/vm-inputs/vm-runtime.json" \
+            "$RUNNER_TEMP/vm-inputs/vm-network-probe" "$RUNNER_TEMP/"
       - name: Allow the ordinary runner user to open real KVM
         run: |
           sudo modprobe kvm
@@ -426,6 +429,7 @@ jobs:
           PRYX_VM_RUNTIME_DIAGNOSTICS: ${{ runner.temp }}/vm-runtime-diagnostics
           PRYX_VM_RUNTIME_DESCRIPTOR: ${{ runner.temp }}/vm-runtime.json
           PRYX_VM_RUNTIME_ARCHIVE: ${{ runner.temp }}/pryx-vm-linux-x64.tar.gz
+          PRYX_VM_POLICY_PROBE: ${{ runner.temp }}/vm-network-probe
           CARGO_PROFILE_DEV_DEBUG: '0'
           CARGO_PROFILE_TEST_DEBUG: '0'
           CARGO_INCREMENTAL: '0'

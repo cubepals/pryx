@@ -3,8 +3,10 @@
 //! Real KVM acceptance for memory sleep through the runtime seam: the start test that turns it on,
 //! a process that keeps running across thirty timed sleeps and wakes, the guest's clock stepped to
 //! the host's, a restore made to fail and a wake on another host class, each followed by the cold
-//! boot a node makes then, with the data written before the sleep intact; and two forks with
-//! memory that run the source's process under their own identities and random state.
+//! boot a node makes then, with the data written before the sleep intact; two forks with memory
+//! that run the source's process under their own identities and random state; and a guest with a
+//! network, public or under a hostname policy, whose DNS and allowed egress work after its wake
+//! and in its fork.
 use super::tests::{artifact_server, exec, spec};
 use super::*;
 use crate::runtime::{ContainerRuntime, ContainerStatus};
@@ -275,5 +277,53 @@ async fn actual_forks_with_memory_wake_as_themselves() {
     runtime.stop(&source, &source_spec.stop_signal, Duration::from_secs(5)).await.unwrap();
     runtime.remove(&source).await.unwrap();
     assert!(fs::read_dir(runtime.state.root.join("memory")).unwrap().next().is_none());
+    server.abort();
+}
+
+/// A guest with the production network keeps its DNS and allowed egress across a wake with memory,
+/// and its fork with memory has them too: each wake's gateways listen on new ports, which the
+/// resume hands the guest's redirects.
+#[tokio::test]
+#[ignore = "requires real KVM, the verified VM archive and public DNS; the VM experiments workflow runs it"]
+async fn actual_memory_wake_keeps_a_networked_guests_dns_and_egress() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let temporary = tempfile::tempdir().unwrap();
+    let (artifact, server) = artifact_server().await;
+    let settings = Settings {
+        monitor_owner: None,
+        artifact,
+        ingress_connections: 8,
+        free_floor_bytes: 0,
+        image_timeout: Duration::from_secs(120),
+    };
+    let runtime = VmRuntime::new(temporary.path(), settings).await.unwrap();
+    let inputs: Vec<serde_json::Value> =
+        serde_json::from_str(include_str!("../../../../templates/vm-tools/image-inputs.json")).unwrap();
+    let image = inputs[0]["reference"].as_str().unwrap();
+    let since = std::time::SystemTime::now();
+    let host = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    for unrestricted in [true, false] {
+        let (id, source_spec) =
+            super::network_acceptance::start(&runtime, temporary.path(), image, 0, unrestricted, &host).await;
+        super::network_acceptance::probe(&runtime, &id, unrestricted, &host).await;
+        exec(&runtime, &id, "printf kept > /tmp/marker").await;
+        runtime.pause(&id).await.unwrap();
+        runtime.unpause(&id).await.inspect_err(|_| monitor_output(since)).unwrap();
+        assert_eq!(read(&runtime, &id, "cat /tmp/marker").await, "kept", "The wake restored memory");
+        super::network_acceptance::probe(&runtime, &id, unrestricted, &host).await;
+        runtime.pause(&id).await.unwrap();
+        let data = temporary.path().join(format!("network-fork-{unrestricted}"));
+        let fork_spec = super::network_acceptance::networked(spec(&data, image), unrestricted);
+        let fork = runtime.fork_with_memory(&id, &fork_spec).await.unwrap();
+        runtime.unpause(&fork).await.inspect_err(|_| monitor_output(since)).unwrap();
+        assert_eq!(read(&runtime, &fork, "cat /tmp/marker").await, "kept", "The fork woke with memory");
+        super::network_acceptance::probe(&runtime, &fork, unrestricted, &host).await;
+        runtime.unpause(&id).await.unwrap();
+        super::network_acceptance::probe(&runtime, &id, unrestricted, &host).await;
+        for (sandbox, stop) in [(&fork, &fork_spec.stop_signal), (&id, &source_spec.stop_signal)] {
+            runtime.stop(sandbox, stop, Duration::from_secs(15)).await.unwrap();
+            runtime.remove(sandbox).await.unwrap();
+        }
+    }
     server.abort();
 }

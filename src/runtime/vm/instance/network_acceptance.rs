@@ -9,13 +9,27 @@ use std::net::Ipv4Addr;
 
 pub(super) async fn check(runtime: &VmRuntime, root: &Path, image: &str, index: usize, unrestricted: bool) {
     eprintln!("VM runtime image {index}: production policy, unrestricted={unrestricted}");
+    let host = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    let (id, spec) = start(runtime, root, image, index, unrestricted, &host).await;
+    probe(runtime, &id, unrestricted, &host).await;
+    runtime.stop(&id, &spec.stop_signal, Duration::from_secs(15)).await.unwrap();
+    assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Exited);
+    runtime.remove(&id).await.unwrap();
+}
+
+/// A running guest with the production network, public or under a hostname policy, holding the
+/// network probe and its fixture on its disk.
+pub(super) async fn start(
+    runtime: &VmRuntime,
+    root: &Path,
+    image: &str,
+    index: usize,
+    unrestricted: bool,
+    host: &tokio::net::TcpListener,
+) -> (String, ContainerSpec) {
     let data = root.join(format!("network-data{index}-{unrestricted}"));
     directory(&data).unwrap();
-    let host = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
-    let mut spec = tests::spec(&data, image);
-    spec.internal_network = false;
-    spec.egress =
-        (!unrestricted).then(|| crate::protocol::EgressPolicy { allow: vec!["example.com".into()], deny: vec![] });
+    let spec = networked(tests::spec(&data, image), unrestricted);
     let id = runtime.create(&spec).await.unwrap();
     runtime.start(&id).await.unwrap();
     assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Running);
@@ -38,9 +52,23 @@ pub(super) async fn check(runtime: &VmRuntime, root: &Path, image: &str, index: 
         .await
         .unwrap();
     assert_eq!(chmod.exit_code, Some(0));
+    (id, spec)
+}
+
+/// The production network a guest runs with: public, or only example.com by name.
+pub(super) fn networked(mut spec: ContainerSpec, unrestricted: bool) -> ContainerSpec {
+    spec.internal_network = false;
+    spec.egress =
+        (!unrestricted).then(|| crate::protocol::EgressPolicy { allow: vec!["example.com".into()], deny: vec![] });
+    spec
+}
+
+/// The network probe in `id`'s guest: DNS, an allowed request and every refusal its policy makes,
+/// with no connection reaching the host's private listener.
+pub(super) async fn probe(runtime: &VmRuntime, id: &str, unrestricted: bool, host: &tokio::net::TcpListener) {
     let result = runtime
         .exec(
-            &id,
+            id,
             &["/data/network-probe".into(), "--production-policy".into(), "/data/network-fixture.json".into()],
             Duration::from_secs(15),
             pryx_agent::contract::CAPTURE_BYTES,
@@ -51,11 +79,8 @@ pub(super) async fn check(runtime: &VmRuntime, root: &Path, image: &str, index: 
     assert!(!result.timed_out && !result.killed);
     let checks: BTreeMap<String, bool> = serde_json::from_slice(&result.stdout).unwrap();
     assert_eq!(checks.len(), if unrestricted { 7 } else { 9 });
-    assert!(checks.values().all(|passed| *passed));
+    assert!(checks.values().all(|passed| *passed), "{id}: {checks:?}");
     assert!(tokio::time::timeout(Duration::from_millis(10), host.accept()).await.is_err());
-    runtime.stop(&id, &spec.stop_signal, Duration::from_secs(15)).await.unwrap();
-    assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Exited);
-    runtime.remove(&id).await.unwrap();
 }
 
 fn root_monitor(runtime: &VmRuntime, live: &Live) {

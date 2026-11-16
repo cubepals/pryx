@@ -72,6 +72,11 @@ impl VmRuntime {
         let directory = sandbox_directory(&boots, &lease)?;
         let deadline = Instant::now() + launch::BOOT_TIMEOUT;
         let mut network = self.network(bundle, directory.path(), &lease, entry, deadline).await?;
+        // This wake's gateways listen on ports of their own, which the resume hands the guest.
+        let gateways =
+            network.as_ref().map(network::Network::guest).transpose()?.and_then(|guest| guest.policy).map(|policy| {
+                vm_sleep::Gateways { http: policy.http.target, tls: policy.tls.target, dns: policy.dns.target }
+            });
         let channel = directory.path().join(configuration::CHANNEL);
         let api = directory.path().join("api");
         let serial = directory.path().join("serial");
@@ -107,7 +112,8 @@ impl VmRuntime {
         )
         .await?;
         let mut stages = launch::Stages::default();
-        let restoring = Restoring { bundle, entry, image, api, state, memory, channel: channel.clone(), deadline };
+        let restoring =
+            Restoring { bundle, entry, image, api, state, memory, channel: channel.clone(), gateways, deadline };
         let ready = self.resumed(&restoring, &mut monitor, &listener, &mut stages).await;
         let (forwarder, nonce) = match ready {
             Ok(ready) => ready,
@@ -154,7 +160,7 @@ impl VmRuntime {
         listener: &UnixListener,
         stages: &mut launch::Stages,
     ) -> Result<(Forwarder, String), RuntimeError> {
-        let Restoring { bundle, entry, image, api, state, memory, channel, deadline } = restoring;
+        let Restoring { bundle, entry, image, api, state, memory, channel, gateways, deadline } = restoring;
         while !api.exists() {
             if monitor.exited().map_err(error)?.is_some() || Instant::now() >= *deadline {
                 return Err(error("VM monitor did not open its API for a restore"));
@@ -169,7 +175,7 @@ impl VmRuntime {
         )
         .await?;
         stages.mark("restore");
-        let nonce = self.resume_guest(entry, image, listener, monitor, *deadline).await?;
+        let nonce = self.resume_guest(entry, image, *gateways, listener, monitor, *deadline).await?;
         stages.mark("resume");
         let forwarder = self.forward(bundle, channel, entry, *deadline).await?;
         // A file-only guest's agent binding takes whatever port its forwarder was given.
@@ -184,13 +190,14 @@ impl VmRuntime {
         Ok((forwarder, nonce))
     }
 
-    /// Gives the restored guest's init its signed resume: the host's time and fresh entropy, and
-    /// for a fork's copy this entry's own identity, signed by the source's the guest still holds.
-    /// Answers the boot nonce the guest has from then on.
+    /// Gives the restored guest's init its signed resume: the host's time and fresh entropy, this
+    /// wake's gateway ports, and for a fork's copy this entry's own identity, signed by the
+    /// source's the guest still holds. Answers the boot nonce the guest has from then on.
     async fn resume_guest(
         &self,
         entry: &Entry,
         image: &Image,
+        gateways: Option<vm_sleep::Gateways>,
         listener: &UnixListener,
         monitor: &Machine,
         deadline: Instant,
@@ -230,7 +237,8 @@ impl VmRuntime {
                 .map_err(|_| error("Host entropy is unavailable"))?
                 .expose();
             let now = crate::clock::now().unix_timestamp_nanos();
-            let resume = vm_sleep::fork(&key, &image.nonce, &sandbox, epoch, now, &seed, identity);
+            let handed = vm_sleep::Handed { identity, gateways };
+            let resume = vm_sleep::fork(&key, &image.nonce, &sandbox, epoch, now, &seed, handed);
             let mut line = serde_json::to_vec(&resume).map_err(error)?;
             line.push(b'\n');
             socket.write_all(&line).await.map_err(error)?;
@@ -258,6 +266,7 @@ struct Restoring<'a> {
     state: PathBuf,
     memory: PathBuf,
     channel: PathBuf,
+    gateways: Option<vm_sleep::Gateways>,
     deadline: Instant,
 }
 
@@ -272,7 +281,8 @@ fn unresumed(asked: bool, monitor: Option<i32>, others: &[Option<i32>]) -> Runti
 }
 
 /// Whether this host and this sandbox are still the ones the image was taken on and for: the same
-/// class, the very disk the sleep left, and the same memory and CPUs.
+/// class, the very disk the sleep left, and the same memory and CPUs; and, for a guest with a
+/// network, a guest init that takes this wake's gateway ports.
 fn restorable(bundle: &Bundle, entry: &Entry, image: &Image) -> Result<(), RuntimeError> {
     if Class::current(&bundle.root().join("bin/firecracker"))? != image.class {
         return Err(RuntimeError::Conflict(
@@ -284,6 +294,13 @@ fn restorable(bundle: &Bundle, entry: &Entry, image: &Image) -> Result<(), Runti
     }
     if entry.spec.memory_bytes != image.memory_bytes || entry.spec.nano_cpus != image.nano_cpus {
         return Err(RuntimeError::Conflict("This VM's memory or CPUs changed after its memory was taken".into()));
+    }
+    // A woken guest's redirects must take the new gateways' ports, or its DNS and egress fail.
+    if !entry.spec.internal_network && bundle.bootstrap().metadata.vm_sleep_version < vm_sleep::GATEWAY_VERSION {
+        return Err(RuntimeError::Conflict(
+            "This VM bundle's guest init can't take a wake's gateway ports; a VM with a network wakes by booting its disk"
+                .into(),
+        ));
     }
     Ok(())
 }

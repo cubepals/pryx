@@ -18,11 +18,21 @@ pub(crate) async fn disconnected() -> io::Result<()> {
 }
 
 pub(crate) async fn redirected(network: &vm_boot::Network) -> io::Result<()> {
+    apply(rules(network)?.as_bytes()).await
+}
+
+/// The same policy for new gateway ports, in place of the one installed at boot, in one
+/// transaction (nft(8): a script's commands commit together), so no packet meets neither.
+pub(crate) async fn replaced(network: &vm_boot::Network) -> io::Result<()> {
+    apply(format!("table inet pryx\ndelete table inet pryx\n{}", rules(network)?).as_bytes()).await
+}
+
+fn rules(network: &vm_boot::Network) -> io::Result<String> {
     let policy = network.policy.as_ref().ok_or_else(|| io::Error::other("Missing trusted guest redirects"))?;
     if policy.unrestricted {
-        return public_network(policy).await;
+        return Ok(public_network(policy));
     }
-    let rules = format!(
+    Ok(format!(
         "table inet pryx {{
  chain hostname_redirect {{ type nat hook output priority dstnat; policy accept;
   oifname lo return;
@@ -53,16 +63,15 @@ pub(crate) async fn redirected(network: &vm_boot::Network) -> io::Result<()> {
         dns_target = policy.dns.target,
         client = policy.dhcp_client,
         server = policy.dhcp_server,
-    );
-    apply(rules.as_bytes()).await
+    ))
 }
 
-async fn public_network(policy: &vm_boot::NetworkPolicy) -> io::Result<()> {
+fn public_network(policy: &vm_boot::NetworkPolicy) -> String {
     let blocked = crate::transfer_target::non_public_ipv4_networks()
         .map(|(address, bits)| format!("{address}/{bits}"))
         .collect::<Vec<_>>()
         .join(", ");
-    let rules = format!(
+    format!(
         "table inet pryx {{
  set non_public_v4 {{ type ipv4_addr; flags interval; elements = {{ {blocked} }}; }}
  chain resolver_redirect {{ type nat hook output priority dstnat; policy accept;
@@ -90,8 +99,7 @@ async fn public_network(policy: &vm_boot::NetworkPolicy) -> io::Result<()> {
         target = policy.dns.target,
         client = policy.dhcp_client,
         server = policy.dhcp_server,
-    );
-    apply(rules.as_bytes()).await
+    )
 }
 
 async fn apply(rules: &[u8]) -> io::Result<()> {

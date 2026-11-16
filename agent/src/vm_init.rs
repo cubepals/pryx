@@ -353,11 +353,12 @@ async fn take_identity(
 }
 
 /// The resume hook, after a restore: the wall clock and entropy from the host's signed resume and,
-/// for a fork, its identity, acknowledged once applied; then a new network helper, since the
-/// restore reset the old one's packet transport.
+/// for a fork, its identity, acknowledged once applied; then the guest's redirects to the wake's
+/// own gateway ports, and a new network helper, since the restore reset the old one's packet
+/// transport.
 async fn awake(
     resumed: crate::vm_sleep::Resumed,
-    configuration: Option<&vm_boot::Network>,
+    configuration: &mut Option<vm_boot::Network>,
     network: &mut Option<tokio::process::Child>,
     agent: Option<&mut tokio::process::ChildStdin>,
 ) -> io::Result<Option<Current>> {
@@ -366,10 +367,17 @@ async fn awake(
         Some(identity) => Some(take_identity(identity, agent).await?),
         None => None,
     };
+    let gateways = resumed.resume.gateways;
     resumed.acknowledge().await;
+    if let (Some(gateways), Some(policy)) =
+        (gateways, configuration.as_mut().and_then(|configuration| configuration.policy.as_mut()))
+    {
+        (policy.http.target, policy.tls.target, policy.dns.target) = (gateways.http, gateways.tls, gateways.dns);
+        crate::vm_firewall::replaced(configuration.as_ref().expect("a policy is a network's")).await?;
+    }
     if configuration.is_some() {
         crate::vm_network::stop(network.take()).await?;
-        *network = crate::vm_network::start(configuration).await?;
+        *network = crate::vm_network::start(configuration.as_ref()).await?;
     }
     eprintln!("{}", crate::vm_sleep::RESUMED_MARKER);
     Ok(next)
@@ -385,6 +393,8 @@ async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Err
         return Err("VM file service requires no image layers, no network and a read-only root".into());
     }
     let (sandbox, epoch, secret_env) = arguments.vm_identity();
+    // The network as this boot set it up, its redirects changed by each wake's gateways.
+    let mut configuration = boot.network;
     let encoded = boot
         .environment
         .iter()
@@ -396,12 +406,12 @@ async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Err
     let mut current =
         Current { public_key: key.public_key(), key, nonce: boot.nonce.clone(), sandbox: sandbox.to_owned(), epoch };
     let kernel = fs::read_to_string("/proc/sys/kernel/osrelease")?.trim().to_owned();
-    if boot.network.is_none() {
+    if configuration.is_none() {
         crate::vm_firewall::disconnected().await?;
-    } else if let Some(network) = boot.network.as_ref().filter(|network| network.policy.is_some()) {
+    } else if let Some(network) = configuration.as_ref().filter(|network| network.policy.is_some()) {
         crate::vm_firewall::redirected(network).await?;
     }
-    let mut network = crate::vm_network::start(boot.network.as_ref()).await?;
+    let mut network = crate::vm_network::start(configuration.as_ref()).await?;
     let shutdown = crate::vm_shutdown::Listener::bind(boot.cid)?;
     let mut sleep = crate::vm_sleep::Listener::bind(boot.cid)?;
     let mut term = signal(SignalKind::terminate())?;
@@ -456,7 +466,7 @@ async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Err
             eprintln!("VM sleep hold ended; asking the host for this guest's resume");
             match crate::vm_sleep::resumed(&guest).await {
                 Some(resumed) => {
-                    if let Some(next) = awake(resumed, boot.network.as_ref(), &mut network, agent.as_mut()).await? {
+                    if let Some(next) = awake(resumed, &mut configuration, &mut network, agent.as_mut()).await? {
                         current = next;
                     }
                     drop(sleep);

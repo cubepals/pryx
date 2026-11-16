@@ -189,8 +189,9 @@ list narrows the tier with it, and adds prefixes there for other images, as for 
   recorded at sleep, and the disk is the very file the sleep left. Processes, terminals and
   `/tmp` carry on. The monitor's vsock reset ends init's held connection; init then takes a
   signed resume from the host, steps the wall clock to the host's, mixes host entropy into its
-  pool, starts its network helper again and reopens its sleep listener. Open TCP connections
-  don't survive. A host of another class, a changed disk or a restore that fails is never
+  pool, points its redirects at the gateways this wake listens on (their ports are new, and the
+  resume names them), starts its network helper again and reopens its sleep listener. Open TCP
+  connections don't survive. A host of another class, a changed disk or a restore that fails is never
   retried: the memory is discarded, the guest boots from its disk with everything written before
   the sleep, and the start answers `resumed: false`. Memory never leaves its node, so a wake
   anywhere else is a cold boot.
