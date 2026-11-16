@@ -37,6 +37,8 @@ pub const SEED_BYTES: usize = 64;
 pub const RESUMED_MARKER: &str = "PRYX_VM_RESUMED";
 /// How long a woken init waits for the host's resume before going on without one.
 const RESUME_WAIT: Duration = Duration::from_secs(5);
+/// How often a held guest looks for its connection's reset: a woken guest notices within this.
+const HOLD_CHECK: Duration = Duration::from_millis(50);
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -190,13 +192,23 @@ impl Held {
                 .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "VM sleep hold was not accepted"))??;
         Ok(Self(stream))
     }
-    /// Returns when the connection ends, whichever way: the host never sends on it.
+    /// Returns when the connection ends, whichever way: the host never sends on it. A restore's
+    /// vsock transport reset leaves the socket with only an error (ECONNRESET), which epoll
+    /// reports as EPOLLERR without EPOLLIN or EPOLLHUP (af_vsock's `vsock_poll`), and tokio
+    /// wakes no reader on an error alone; so the error is also looked for on a short timer.
     pub(crate) async fn ended(&mut self) {
         let mut byte = [0u8; 1];
         loop {
-            match self.0.read(&mut byte).await {
-                Ok(0) | Err(_) => return,
-                Ok(_) => (),
+            tokio::select! {
+                read = self.0.read(&mut byte) => match read {
+                    Ok(0) | Err(_) => return,
+                    Ok(_) => (),
+                },
+                () = tokio::time::sleep(HOLD_CHECK) => {
+                    if !matches!(rustix::net::sockopt::socket_error(&self.0), Ok(Ok(()))) {
+                        return;
+                    }
+                }
             }
         }
     }
