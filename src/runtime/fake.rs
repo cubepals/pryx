@@ -58,6 +58,8 @@ pub struct FakeRuntime {
     pub exec_gate: tokio::sync::RwLock<()>,
     /// A real async scheduling boundary before a test's compute starts.
     pub start_gate: tokio::sync::RwLock<()>,
+    /// A held write guard stalls metrics without stalling the independent health endpoint.
+    pub stats_gate: tokio::sync::RwLock<()>,
     /// When set, a followed log stays open once it has sent what the log holds, as Docker's does
     /// while a container runs and prints nothing. Each one open holds a clone of `follows`.
     pub hold_follows: AtomicBool,
@@ -93,6 +95,7 @@ impl FakeRuntime {
             network_isolated: Mutex::new(Some(true)),
             exec_gate: tokio::sync::RwLock::new(()),
             start_gate: tokio::sync::RwLock::new(()),
+            stats_gate: tokio::sync::RwLock::new(()),
             hold_follows: AtomicBool::new(false),
             follows: std::sync::Arc::new(()),
             hang_unpause: AtomicBool::new(false),
@@ -501,6 +504,8 @@ impl ContainerRuntime for FakeRuntime {
     }
 
     async fn stats(&self, name: &str) -> Result<Option<RawStats>, RuntimeError> {
+        self.call(format!("stats {name}"));
+        let _open = self.stats_gate.read().await;
         self.up()?;
         let all = self.containers.lock().unwrap();
         Ok(all.get(name).filter(|c| c.status == ContainerStatus::Running).map(|c| RawStats {

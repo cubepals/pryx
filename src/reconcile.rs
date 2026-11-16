@@ -61,6 +61,8 @@ pub async fn follow_events(manager: Arc<Manager>, cancel: CancellationToken) {
 }
 
 /// Periodic work: resync (and the fences it finds unapplied), stats, disk usage, trash.
+/// Resync is polled independently of optional measurements: an engine whose stats hang must
+/// still lose its advertised guarantees. Cancellation drops both loops and their pending reads.
 pub async fn periodic(manager: Arc<Manager>, cancel: CancellationToken) {
     let intervals = manager.config.intervals.clone();
     let mut resync = tokio::time::interval(Duration::from_secs(intervals.resync_seconds.max(5)));
@@ -70,37 +72,45 @@ pub async fn periodic(manager: Arc<Manager>, cancel: CancellationToken) {
     for timer in [&mut resync, &mut stats, &mut disk, &mut trash] {
         timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     }
-    // The startup pass already ran; skip each timer's immediate first tick.
+    // The startup pass already ran; defer resync and stats. Disk and trash retain their first tick.
     resync.tick().await;
     stats.tick().await;
-    loop {
-        tokio::select! {
-            () = cancel.cancelled() => return,
-            _ = resync.tick() => {
-                let was_reconciled = manager.reconciled();
-                let report = manager.reconcile(Records::InMemory).await;
-                if let Some(error) = report.error {
-                    warn!(%error, "resync failed");
-                    continue;
-                }
-                if !was_reconciled {
-                    info!(workloads = report.workloads, adopted = report.adopted, "first successful reconciliation");
-                }
-                // The pass saw what runs now: a superseded copy it saw running is fenced again.
-                manager.reapply_fences();
+    let synchronization = async {
+        loop {
+            resync.tick().await;
+            let was_reconciled = manager.reconciled();
+            let report = manager.reconcile(Records::InMemory).await;
+            if let Some(error) = report.error {
+                warn!(%error, "resync failed");
+                continue;
             }
-            _ = stats.tick() => manager.sample_all().await,
-            _ = disk.tick() => manager.measure_disk().await,
-            _ = trash.tick() => {
-                let retention = manager.config.workloads.trash_retention();
-                let store = manager.store.clone();
-                let now = crate::clock::now().unix_timestamp();
-                if let Ok(purged) = tokio::task::spawn_blocking(move || store.purge_trash(now, retention)).await {
-                    for path in purged {
-                        info!(path = %path.display(), "purged from trash after retention");
+            if !was_reconciled {
+                info!(workloads = report.workloads, adopted = report.adopted, "first successful reconciliation");
+            }
+            // The pass saw what runs now: a superseded copy it saw running is fenced again.
+            manager.reapply_fences();
+        }
+    };
+    let measurements = async {
+        loop {
+            tokio::select! {
+                _ = stats.tick() => manager.sample_all().await,
+                _ = disk.tick() => manager.measure_disk().await,
+                _ = trash.tick() => {
+                    let retention = manager.config.workloads.trash_retention();
+                    let store = manager.store.clone();
+                    let now = crate::clock::now().unix_timestamp();
+                    if let Ok(purged) = tokio::task::spawn_blocking(move || store.purge_trash(now, retention)).await {
+                        for path in purged {
+                            info!(path = %path.display(), "purged from trash after retention");
+                        }
                     }
                 }
             }
         }
+    };
+    tokio::select! {
+        () = cancel.cancelled() => {}
+        () = async { tokio::join!(synchronization, measurements); } => {}
     }
 }
