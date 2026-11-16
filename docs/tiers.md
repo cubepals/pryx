@@ -296,7 +296,7 @@ the host kernel's own.
 | CPU enforcement | Per-sandbox cgroup quota and weight | The container's cgroup quota and weight | Admission reservation and best-effort nice; hard CPU limits/weights refused | As the plain process mode | Admission reservation; hard CPU limits/weights refused | Whole vCPUs, the guest's size; fractions and weights refused |
 | Sleep retains files | Yes | Yes | Yes | Yes | SQLite root and explicit persistent data mount | Yes, its ext4 disk |
 | Application ingress | TCP/UDP according to host policy | TCP/UDP according to host policy; no hostname egress policy | Host TCP according to policy | Host TCP according to policy; none with network none, whose agent answers on listeners the node passes in | HTTP over TCP; no UDP, raw TCP, TLS passthrough or app WebSockets | Declared TCP through host-owned relays; UDP refused |
-| Sleep retains processes and terminals | Frozen container | Frozen sandbox | Suspended process group | Suspended process tree | No; VM is disposed and recreated | No; the guest stops and boots again on wake |
+| Sleep retains processes and terminals | Frozen container | Frozen sandbox | Suspended process group | Suspended process tree | No; VM is disposed and recreated | As an ordinary user, yes: the guest's memory is written beside its disk and restored on a host of the same class; otherwise the guest stops and boots again |
 
 agentOS 0.4.7 has no per-VM suspend operation in its published client. Suspending its shared
 sidecar would pause unrelated sandboxes, so it cannot implement sleep that retains processes.

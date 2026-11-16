@@ -108,7 +108,17 @@ async fn actual_vm_node_tls_admission_files_epochs_and_snapshot_restore() {
     for guarantee in [Guarantee::OwnKernel, Guarantee::MemoryLimit, Guarantee::CpuLimit] {
         assert!(health["features"].as_array().unwrap().contains(&serde_json::to_value(guarantee).unwrap()));
     }
-    assert!(!health["features"].as_array().unwrap().contains(&serde_json::to_value(Guarantee::MemorySleep).unwrap()));
+    // Memory sleep is announced only once the tier's start test, run at construction, has passed.
+    let memory_sleep = serde_json::to_value(Guarantee::MemorySleep).unwrap();
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(300);
+    while !node.call("GET", "/v1/health", None, StatusCode::OK).await["features"]
+        .as_array()
+        .unwrap()
+        .contains(&memory_sleep)
+    {
+        assert!(tokio::time::Instant::now() < deadline, "The VM tier never announced memory sleep");
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
     let images: Vec<Value> = serde_json::from_str(include_str!("../templates/vm-tools/image-inputs.json")).unwrap();
     for (index, image) in images.iter().enumerate() {
         lifecycle(&node, index, image["reference"].as_str().unwrap()).await;
@@ -155,7 +165,7 @@ async fn lifecycle(node: &Node, index: usize, image: &str) {
     assert_eq!(result["exitCode"], 0);
     assert_eq!(result["stdout"], "api-vm");
     node.content(&path, b"retained").await;
-    node.call("POST", &format!("{path}/suspend"), None, StatusCode::CONFLICT).await;
+    memory_sleep(node, &path).await;
     node.call("POST", &format!("{path}/stop"), Some(json!({})), StatusCode::OK).await;
     node.content(&path, b"retained").await;
     snapshot_restore(node, &path).await;
@@ -180,6 +190,16 @@ async fn lifecycle(node: &Node, index: usize, image: &str) {
     node.call("GET", &path, None, StatusCode::NOT_FOUND).await;
 }
 
+/// A suspend keeps the guest's memory, here a file on its tmpfs, and a start resumes it.
+async fn memory_sleep(node: &Node, path: &str) {
+    assert_eq!(node.exec(path, &["/bin/sh", "-c", "printf kept > /tmp/marker"]).await["exitCode"], 0);
+    let suspended = node.call("POST", &format!("{path}/suspend"), None, StatusCode::OK).await;
+    assert_eq!(suspended["workload"]["state"], "suspended");
+    let woken = node.call("POST", &format!("{path}/start"), None, StatusCode::OK).await;
+    assert_eq!(woken["resumed"], true, "{woken}");
+    assert_eq!(node.exec(path, &["/bin/cat", "/tmp/marker"]).await["stdout"], "kept");
+}
+
 async fn snapshot_restore(node: &Node, path: &str) {
     let snapshot =
         node.call("POST", &format!("{path}/snapshots"), Some(json!({"id":"one"})), StatusCode::CREATED).await;
@@ -190,4 +210,103 @@ async fn snapshot_restore(node: &Node, path: &str) {
     node.content(path, b"changed").await;
     node.call("POST", &format!("{path}/restore"), Some(json!({"snapshot":"one"})), StatusCode::OK).await;
     node.content(path, b"retained").await;
+}
+
+/// A node restarted onto another host class (here, its journal says the memory was taken under
+/// another kernel) never restores that memory: the start boots the disk and says so.
+#[tokio::test]
+#[ignore = "requires actual KVM and the verified archive; the existing optional VM CI job runs it"]
+async fn actual_vm_memory_wake_on_another_class_boots_the_disk() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let root = tempfile::tempdir().unwrap();
+    let (artifact, distribution) = archive().await;
+    let descriptor = root.path().join("vm-bundle.json");
+    fs::write(&descriptor, serde_json::to_vec(&artifact).unwrap()).unwrap();
+    fs::set_permissions(&descriptor, fs::Permissions::from_mode(0o444)).unwrap();
+    let agent = input("PRYX_VM_HOST_LAUNCHER");
+    let uid = rustix::process::geteuid().as_raw().checked_add(1).unwrap();
+    let extra = format!(
+        "runtime = 'vm'\n[vm]\nbundle = '{}'\n[workloads]\nagent_binary = '{}'\nuser = '{uid}:{uid}'\nallowed_images = ['docker.io/library/alpine@']\ndefault_spare_ports = 0\n",
+        descriptor.display(),
+        agent.display()
+    );
+    let config = support::config(root.path(), &extra);
+    fs::create_dir_all(&config.state_dir).unwrap();
+    let pki = support::pki(root.path());
+    let client = support::client(&pki.ca, support::CLIENT);
+    let start = |pki: support::Pki, client: support::Identity| {
+        let (config, extra, root) = (config.clone(), extra.clone(), root.path().to_owned());
+        async move {
+            // The previous runtime's journal lease is released once its last task has ended.
+            let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(30);
+            let runtime = loop {
+                match pryxd::runtime::configured::create(&config).await {
+                    Ok(runtime) => break runtime,
+                    Err(problem) if tokio::time::Instant::now() < deadline => {
+                        eprintln!("VM runtime not yet free: {problem}");
+                        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                    }
+                    Err(problem) => panic!("{problem}"),
+                }
+            };
+            let manager = support::manager_probed(
+                &root,
+                runtime,
+                &extra,
+                pryxd::ports::bind_probe(vec![Ipv4Addr::LOCALHOST.into()]),
+            );
+            let report = manager.reconcile(Records::FromDisk).await;
+            assert!(report.error.is_none(), "{report:?}");
+            let node = Node { server: support::serve(manager.clone()).await, pki, client };
+            let memory_sleep = serde_json::to_value(Guarantee::MemorySleep).unwrap();
+            let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(300);
+            while !node.call("GET", "/v1/health", None, StatusCode::OK).await["features"]
+                .as_array()
+                .unwrap()
+                .contains(&memory_sleep)
+            {
+                assert!(tokio::time::Instant::now() < deadline, "The VM tier never announced memory sleep");
+                tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+            }
+            (manager, node)
+        }
+    };
+    let (manager, node) = start(pki, client).await;
+    let images: Vec<Value> = serde_json::from_str(include_str!("../templates/vm-tools/image-inputs.json")).unwrap();
+    let path = "/v1/workloads/vm-class";
+    let mut spec = support::spec_json();
+    spec["isolation"] = "vm".into();
+    spec["image"] = images[0]["reference"].clone();
+    spec["ports"] = json!([]);
+    spec["resources"] = json!({"memoryMb":256,"cpuMillis":1000,"pidsLimit":128});
+    spec["network"] = "none".into();
+    spec["agent"] = json!({"domain":"vm.pryx.invalid","keepAlive":true});
+    node.call("PUT", path, Some(spec), StatusCode::CREATED).await;
+    node.call("POST", &format!("{path}/start"), None, StatusCode::OK).await;
+    let marked =
+        node.exec(path, &["/bin/sh", "-c", "printf retained > /data/retained; printf kept > /tmp/marker"]).await;
+    assert_eq!(marked["exitCode"], 0);
+    node.call("POST", &format!("{path}/suspend"), None, StatusCode::OK).await;
+    let Node { server, pki, client } = node;
+    server.cancel.cancel();
+    server.task.await.unwrap();
+    drop(manager);
+    let entries = config.state_dir.join("vm-runtime/entries");
+    let journal = fs::read_dir(&entries).unwrap().map(|entry| entry.unwrap().path()).next().unwrap();
+    let mut entry: Value = serde_json::from_slice(&fs::read(&journal).unwrap()).unwrap();
+    let kernel = entry["memory"]["class"]["kernel"].as_str().expect("The sleep recorded its host class").to_owned();
+    entry["memory"]["class"]["kernel"] = format!("{kernel}-another").into();
+    fs::write(&journal, serde_json::to_vec(&entry).unwrap()).unwrap();
+    let (manager, node) = start(pki, client).await;
+    let woken = node.call("POST", &format!("{path}/start"), None, StatusCode::OK).await;
+    assert_eq!(woken["resumed"], false, "{woken}");
+    assert_eq!(woken["workload"]["state"], "running", "{woken}");
+    node.content(path, b"retained").await;
+    let cold = node.exec(path, &["/bin/sh", "-c", "test -e /tmp/marker && echo memory || echo cold"]).await;
+    assert_eq!(cold["stdout"], "cold\n");
+    node.call("POST", &format!("{path}/stop"), Some(json!({})), StatusCode::OK).await;
+    node.server.cancel.cancel();
+    node.server.task.await.unwrap();
+    drop(manager);
+    distribution.abort();
 }

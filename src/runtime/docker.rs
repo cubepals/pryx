@@ -476,6 +476,7 @@ impl ContainerRuntime for DockerRuntime {
             security_options: info.security_options.unwrap_or_default(),
             live_restore: info.live_restore_enabled,
             log_driver: info.logging_driver,
+            memory_sleep: false,
         };
         podman::enforcement(&mut result, native.as_ref());
         if result.rootless {

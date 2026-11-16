@@ -298,6 +298,31 @@ pub fn agent(arguments: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     Err(std::process::Command::new(executable).args(&arguments[2..]).exec().into())
 }
 
+async fn held_ended(held: &mut Option<crate::vm_sleep::Held>) {
+    match held {
+        Some(held) => held.ended().await,
+        None => std::future::pending().await,
+    }
+}
+
+/// The resume hook, after a restore: the wall clock and entropy from the host's signed resume,
+/// acknowledged once applied, then a new network helper, since the restore reset the old one's
+/// packet transport.
+async fn awake(
+    resumed: crate::vm_sleep::Resumed,
+    configuration: Option<&vm_boot::Network>,
+    network: &mut Option<tokio::process::Child>,
+) -> io::Result<()> {
+    crate::vm_sleep::apply(&resumed.resume)?;
+    resumed.acknowledge().await;
+    if configuration.is_some() {
+        crate::vm_network::stop(network.take()).await?;
+        *network = crate::vm_network::start(configuration).await?;
+    }
+    eprintln!("{}", crate::vm_sleep::RESUMED_MARKER);
+    Ok(())
+}
+
 async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Error>> {
     use std::os::unix::process::ExitStatusExt;
     use tokio::signal::unix::{SignalKind, signal};
@@ -324,7 +349,9 @@ async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Err
     }
     let mut network = crate::vm_network::start(boot.network.as_ref()).await?;
     let shutdown = crate::vm_shutdown::Listener::bind(boot.cid)?;
+    let mut sleep = crate::vm_sleep::Listener::bind(boot.cid)?;
     let public_key = key.public_key();
+    let identity = crate::vm_sleep::Boot { public_key: &public_key, nonce: &boot.nonce, sandbox, epoch };
     let mut term = signal(SignalKind::terminate())?;
     let mut interrupt = signal(SignalKind::interrupt())?;
     rustix::system::reboot(rustix::system::RebootCommand::CadOff)?;
@@ -345,12 +372,42 @@ async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Err
         .kill_on_drop(true)
         .spawn()?;
     use crate::vm_shutdown::{Accepted, DEFAULT_GRACE};
-    let (mut result, stop) = tokio::select! {
-    result = child.wait() => (Some(result?), Accepted { signal: libc::SIGTERM, grace: DEFAULT_GRACE }),
-    _ = term.recv() => (None, Accepted { signal: libc::SIGTERM, grace: DEFAULT_GRACE }),
-    _ = interrupt.recv() => (None, Accepted { signal: libc::SIGINT, grace: DEFAULT_GRACE }),
-    result = shutdown.receive(&public_key, &boot.nonce, sandbox, epoch) => (None, result?),
-    error = crate::vm_network::failure(&mut network) => return Err(error.into()) };
+    // Set while the host may be snapshotting this guest: a restore resets the packet transport,
+    // so the network helper's exit then is the restore's, handled when the hold ends.
+    let mut held: Option<crate::vm_sleep::Held> = None;
+    let (mut result, stop) = loop {
+        tokio::select! {
+        result = child.wait() => break (Some(result?), Accepted { signal: libc::SIGTERM, grace: DEFAULT_GRACE }),
+        _ = term.recv() => break (None, Accepted { signal: libc::SIGTERM, grace: DEFAULT_GRACE }),
+        _ = interrupt.recv() => break (None, Accepted { signal: libc::SIGINT, grace: DEFAULT_GRACE }),
+        result = shutdown.receive(&public_key, &boot.nonce, sandbox, epoch) => break (None, result?),
+        error = crate::vm_network::failure(&mut network), if held.is_none() => return Err(error.into()),
+        pending = sleep.receive(&identity), if held.is_none() => {
+            let pending = pending?;
+            // Flushed first: a wake that can't restore boots this disk with everything written.
+            rustix::fs::syncfs(&disk.writes)?;
+            match crate::vm_sleep::Held::dial().await {
+                Ok(hold) => {
+                    held = Some(hold);
+                    pending.acknowledge().await;
+                }
+                // Unacknowledged, the host gives up and the guest goes on running.
+                Err(problem) => eprintln!("VM sleep hold was refused: {problem}"),
+            }
+        }
+        () = held_ended(&mut held) => {
+            held = None;
+            match crate::vm_sleep::resumed(&identity).await {
+                Some(resumed) => {
+                    awake(resumed, boot.network.as_ref(), &mut network).await?;
+                    drop(sleep);
+                    sleep = crate::vm_sleep::Listener::bind(boot.cid)?;
+                }
+                None => eprintln!("VM sleep ended without a resume; this guest goes on where it was"),
+            }
+        }
+        }
+    };
     if let Some(pid) = child.id().and_then(|pid| Pid::from_raw(pid as i32)) {
         let signal = Signal::from_named_raw(stop.signal).ok_or("Invalid authenticated shutdown signal")?;
         let _ = rustix::process::kill_process_group(pid, signal);

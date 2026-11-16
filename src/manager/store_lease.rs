@@ -217,8 +217,9 @@ impl Manager {
                         container && info.as_ref().is_some_and(|info| !info.rootless) && probe.on("host-firewall")
                     }
                     G::MemorySleep => {
-                        (container || tier == "process")
-                            && (!container || info.as_ref().is_some_and(|info| !info.rootless && info.memory_limit))
+                        ((container || tier == "process")
+                            && (!container || info.as_ref().is_some_and(|info| !info.rootless && info.memory_limit)))
+                            || (vm && info.as_ref().is_some_and(|info| info.memory_sleep))
                     }
                     G::BrowserSandbox => {
                         (tier == "container"

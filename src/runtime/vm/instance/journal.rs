@@ -68,7 +68,8 @@ pub(super) fn load(root: &Path) -> Result<BTreeMap<String, Entry>, RuntimeError>
         if entries.values().any(|previous: &Entry| previous.spec.name == entry.spec.name) {
             return Err(error("Duplicate VM sandbox name in private journals"));
         }
-        if entry.started.is_some() && entry.finished.is_none() {
+        // A guest asleep with its memory has no monitor to have lost; it is still asleep.
+        if entry.started.is_some() && entry.finished.is_none() && entry.memory.is_none() {
             entry.code = UNKNOWN_EXIT_CODE;
             entry.finished = Some(crate::clock::now());
         }

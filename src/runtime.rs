@@ -268,6 +268,9 @@ pub struct RuntimeInfo {
     pub(crate) live_restore: Option<bool>,
     /// The daemon's default log driver, for containers that don't name one (pryxd's always do).
     pub(crate) log_driver: Option<String>,
+    /// A VM tier whose restore test passed: it sleeps with memory on this host.
+    #[serde(default)]
+    pub(crate) memory_sleep: bool,
 }
 
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]

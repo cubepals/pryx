@@ -47,7 +47,7 @@ impl Default for Stages {
     }
 }
 impl Stages {
-    fn mark(&mut self, stage: &'static str) {
+    pub(super) fn mark(&mut self, stage: &'static str) {
         let now = Instant::now();
         self.taken.push((stage, now.duration_since(self.since).as_millis()));
         self.since = now;
@@ -62,7 +62,7 @@ impl std::fmt::Display for Stages {
     }
 }
 impl VmRuntime {
-    async fn forward(
+    pub(super) async fn forward(
         &self,
         bundle: &Bundle,
         channel: &Path,
@@ -95,7 +95,7 @@ impl VmRuntime {
         .await
     }
 
-    async fn network(
+    pub(super) async fn network(
         &self,
         bundle: &Bundle,
         directory: &Path,
@@ -189,7 +189,7 @@ impl VmRuntime {
         Ok(prepared)
     }
     /// True while the previous boot still runs; otherwise its helpers and jail are retired.
-    async fn running_or_retired(&self, id: &str) -> Result<bool, RuntimeError> {
+    pub(super) async fn running_or_retired(&self, id: &str) -> Result<bool, RuntimeError> {
         let previous = self.state.live.lock().unwrap().get(id).cloned();
         if let Some(previous) = previous {
             let mut previous = previous.lock().await;
@@ -214,6 +214,8 @@ impl VmRuntime {
             return Ok(());
         }
         let mut entry = self.entry(name)?;
+        // A cold boot changes the disk, so memory taken with it is discarded first.
+        self.discard_memory(&mut entry)?;
         let mut stages = Stages::default();
         let (_, _, uid, gid) = monitor::resources(&entry.spec)?;
         // The first start pins the manifest; a wake never takes a moved tag's lower layers
@@ -236,7 +238,7 @@ impl VmRuntime {
         )
         .await?;
         stages.mark("disk");
-        let directory = boot_directory(&self.state.root.join("boots"))?;
+        let directory = super::memory::sandbox_directory(&self.state.root.join("boots"), &lease)?;
         let serial = directory.path().join("serial");
         let deadline = Instant::now() + BOOT_TIMEOUT;
         let network = self.network(&bundle, directory.path(), &lease, &entry, deadline).await?;

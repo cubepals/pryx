@@ -92,15 +92,7 @@ impl Machine {
             if let Some((uid, gid)) = socket_owner {
                 std::os::unix::fs::chown(&listener_path, Some(uid), Some(gid))?;
             }
-            let mut command = Command::new(launcher);
-            command
-                .arg(vm_monitor::MODE)
-                .env_clear()
-                .stdin(Stdio::piped())
-                .stdout(Stdio::from(OwnedFd::from(writer.try_clone()?)))
-                .stderr(Stdio::from(OwnedFd::from(writer)))
-                .kill_on_drop(true);
-            command.spawn()
+            spawn(launcher, writer)
         })();
         let child = match setup {
             Ok(child) => child,
@@ -128,8 +120,38 @@ impl Machine {
         });
         let mut machine =
             Self { child, bootstrap: Some(bootstrap), listener: listener_path, capture, serial_truncated: false };
+        machine.send_plan(plan, deadline).await?;
+        Ok(machine)
+    }
+
+    /// A monitor that restores a snapshot instead of booting. No bootstrap is sent: the guest
+    /// holds its secrets in the memory it resumes. `listener` is the restore's own one-shot
+    /// socket, removed with this machine. Ordinary monitors only; the jailer path doesn't restore.
+    pub async fn restore(
+        launcher: &Path,
+        plan: &vm_monitor::Plan,
+        serial: &Path,
+        listener: PathBuf,
+        deadline: Instant,
+        serial_limit: usize,
+    ) -> Result<Self, RuntimeError> {
+        private(&plan.directory)?;
+        if !matches!(plan.role, vm_monitor::Role::Ordinary)
+            || serial.parent() != Some(plan.directory.as_path())
+            || listener.parent() != Some(plan.directory.as_path())
+        {
+            return Err(error("A restore runs an ordinary monitor in its private launch directory"));
+        }
+        let (writer, capture) = super::serial::start(serial, serial_limit).map_err(error)?;
+        let child = spawn(launcher, writer).map_err(error)?;
+        let mut machine = Self { child, bootstrap: None, listener, capture, serial_truncated: false };
+        machine.send_plan(plan, deadline).await?;
+        Ok(machine)
+    }
+
+    async fn send_plan(&mut self, plan: &vm_monitor::Plan, deadline: Instant) -> Result<(), RuntimeError> {
         let bytes = serde_json::to_vec(plan).map_err(error)?;
-        let mut input = machine.child.stdin.take().ok_or_else(|| error("Missing VM launcher pipe"))?;
+        let mut input = self.child.stdin.take().ok_or_else(|| error("Missing VM launcher pipe"))?;
         tokio::time::timeout_at(deadline, async {
             input.write_all(&bytes).await?;
             input.shutdown().await
@@ -137,8 +159,7 @@ impl Machine {
         .await
         .map_err(|_| RuntimeError::Timeout("VM launcher exceeded its deadline".into()))?
         .map_err(error)?;
-        drop(input);
-        Ok(machine)
+        Ok(())
     }
 
     pub fn pid(&self) -> Option<u32> {
@@ -191,6 +212,19 @@ impl Machine {
     pub fn serial_truncated(&self) -> bool {
         self.serial_truncated
     }
+}
+
+/// The launcher, its monitor's output on the capture's socket and its plan to come on stdin.
+fn spawn(launcher: &Path, writer: std::os::unix::net::UnixStream) -> io::Result<tokio::process::Child> {
+    let mut command = Command::new(launcher);
+    command
+        .arg(vm_monitor::MODE)
+        .env_clear()
+        .stdin(Stdio::piped())
+        .stdout(Stdio::from(OwnedFd::from(writer.try_clone()?)))
+        .stderr(Stdio::from(OwnedFd::from(writer)))
+        .kill_on_drop(true);
+    command.spawn()
 }
 
 impl Drop for Machine {
