@@ -54,6 +54,28 @@ async fn run(m: &Arc<Manager>, w: &str, script: &str) -> String {
     out.stdout
 }
 
+/// A port range of `size` ending `gap` ports below the kernel's ephemeral range, so no outgoing
+/// connection's local port (the node's own calls to its agents among them) can take one first.
+fn listener_ports(gap: u16, size: u16) -> (u16, u16) {
+    let range = std::fs::read_to_string("/proc/sys/net/ipv4/ip_local_port_range").unwrap();
+    let first: u16 = range.split_whitespace().next().unwrap().parse().unwrap();
+    (first - gap - size, first - gap - 1)
+}
+
+/// Starts `w`, and on a refusal shows each supervisor's private diagnostic before failing.
+async fn start(m: &Arc<Manager>, state: &std::path::Path, w: &str) {
+    if let Err(error) = m.start(id(w), None).await {
+        let runtime = state.join("process-runtime");
+        for entry in std::fs::read_dir(&runtime).into_iter().flatten().flatten() {
+            if entry.path().extension().is_some_and(|extension| extension == "stderr") {
+                let text = std::fs::read_to_string(entry.path()).unwrap_or_default();
+                eprintln!("SUPERVISOR_DIAGNOSTIC {}: {}", entry.path().display(), text.trim());
+            }
+        }
+        panic!("{w} did not start: {error}");
+    }
+}
+
 /// The host PID of the first process whose arguments, from the host's view, satisfy `matches`.
 fn host_pid(matches: impl Fn(&[String]) -> bool) -> u32 {
     for entry in std::fs::read_dir("/proc").unwrap().flatten() {
@@ -89,8 +111,9 @@ async fn process_sandboxes_get_namespaces_exactly_where_the_host_proves_them() {
     let expected = std::env::var("PRYX_TEST_NAMESPACES").unwrap_or_default();
     let agent = agent();
     let dir = state_root();
+    let (low, high) = listener_ports(200, 50);
     let extra = format!(
-        "runtime = 'process'\n[workloads]\nagent_binary = '{}'\ndefault_spare_ports = 0\n[network]\nport_range = [43100, 43149]\n",
+        "runtime = 'process'\n[workloads]\nagent_binary = '{}'\ndefault_spare_ports = 0\n[network]\nport_range = [{low}, {high}]\n",
         agent.display()
     );
     let config = support::config(dir.path(), &extra);
@@ -133,8 +156,8 @@ async fn process_sandboxes_get_namespaces_exactly_where_the_host_proves_them() {
     let neighbour = "echo neighbour-secret > /tmp/neighbour-marker 2>/dev/null; exec sleep 600";
     m.ensure(id("a"), sandbox(neighbour, "internet"), Precondition::None, None).await.unwrap();
     m.ensure(id("b"), sandbox("exec sleep 601", "none"), Precondition::None, None).await.unwrap();
-    m.start(id("a"), None).await.unwrap();
-    m.start(id("b"), None).await.unwrap();
+    start(&m, &config.state_dir, "a").await;
+    start(&m, &config.state_dir, "b").await;
     let (a, b) = (m.view(&id("a")).unwrap(), m.view(&id("b")).unwrap());
     assert_eq!(a.guarantees[&Guarantee::PrivatePids], namespaced);
     assert!(!a.guarantees[&Guarantee::PrivateNetwork], "an internet sandbox shares the host's network");
@@ -204,8 +227,9 @@ async fn process_figures_in_the_mode_the_host_gives() {
     }
     let agent = agent();
     let dir = state_root();
+    let (low, high) = listener_ports(50, 100);
     let extra = format!(
-        "runtime = 'process'\n[workloads]\nagent_binary = '{}'\ndefault_spare_ports = 0\n[network]\nport_range = [43200, 43299]\n",
+        "runtime = 'process'\n[workloads]\nagent_binary = '{}'\ndefault_spare_ports = 0\n[network]\nport_range = [{low}, {high}]\n",
         agent.display()
     );
     let config = support::config(dir.path(), &extra);
@@ -219,7 +243,7 @@ async fn process_figures_in_the_mode_the_host_gives() {
         let w = format!("m{sample}");
         let began = std::time::Instant::now();
         m.ensure(id(&w), sandbox("exec sleep 600", "none"), Precondition::None, None).await.unwrap();
-        m.start(id(&w), None).await.unwrap();
+        start(&m, &config.state_dir, &w).await;
         create.push(began.elapsed().as_secs_f64() * 1000.0);
         let began = std::time::Instant::now();
         let out = m.exec(id(&w), ExecRequest { command: vec!["true".into()], timeout_seconds: 20 }, None, None);
