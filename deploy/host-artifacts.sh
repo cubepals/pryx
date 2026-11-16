@@ -7,7 +7,8 @@ set -euo pipefail
 
 download_host_parts() {
   local cli=$1 count=$2 manifest=$3 transport=$4 work=$5 destination=$6
-  local piece stage delay deadline valid
+  local piece stage delay deadline valid idle
+  local reader="${BASH_SOURCE[0]%/*}/artifact-read.py"
   [[ $count =~ ^[1-4]$ && $manifest =~ ^[a-f0-9]{64}$ && $transport =~ ^[a-f0-9]{64}$ ]] || return 1
   test ! -e "$destination" || return 1
   mkdir "$work/verified"
@@ -20,8 +21,12 @@ download_host_parts() {
       (( SECONDS < deadline )) || break
       stage="$work/download-$piece-$delay"
       mkdir "$stage"
-      if timeout --verbose 60s "$cli" run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" \
-          --name "host-bundle-preview-$piece" --dir "$stage" >"$work/download.log" 2>&1 &&
+      idle=$((deadline - SECONDS))
+      (( idle > 0 )) || break
+      (( idle <= 30 )) || idle=30
+      if python3 "$reader" "$stage" "$work/download.log" "$idle" \
+          "$cli" run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+          --name "host-bundle-preview-$piece" --dir "$stage" &&
         (cd "$stage" &&
           printf '%s  PARTS.sha256\n' "$manifest" | sha256sum -c - &&
           printf '%s  host-transport.tar\n' "$transport" | cmp - TRANSPORT.sha256 &&
