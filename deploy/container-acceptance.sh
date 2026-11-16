@@ -30,19 +30,23 @@ rewrite_ubuntu_sources() {
 }
 if command -v apt-get >/dev/null; then
   pryx_apt_ca=${PRYX_TEST_APT_CA:-/etc/ssl/certs/ca-certificates.crt}
-  if sh -c '. /etc/os-release; [ "$ID" = ubuntu ]'; then
-    pryx_ubuntu_mirror=${PRYX_TEST_UBUNTU_MIRROR:?The Ubuntu fixture needs its archive mirror}
-    rewrite_ubuntu_sources "" "$pryx_ubuntu_mirror"
-  fi
   # The minimal Ubuntu image bootstraps its own CA package using the read-only runner roots.
-  # TLS, Ubuntu release signatures and package digest verification all remain mandatory.
+  # Ubuntu release signatures and package digests are always verified, and TLS on every
+  # HTTPS mirror.
   install_apt_prerequisites() {
     apt-get update -qq -o Acquire::ForceIPv4=true -o Acquire::Retries=3 -o APT::Update::Error-Mode=any -o "Acquire::https::CaInfo=$pryx_apt_ca" &&
       DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o Acquire::ForceIPv4=true -o Acquire::Retries=3 --no-install-recommends -o "Acquire::https::CaInfo=$pryx_apt_ca" curl ca-certificates python3 passwd tar
   }
-  if ! install_apt_prerequisites; then
-    [ -n "${pryx_ubuntu_mirror:-}" ] || exit 1
-    rewrite_ubuntu_sources "" "${PRYX_TEST_UBUNTU_FALLBACK_MIRROR:?The Ubuntu fixture needs its fallback archive mirror}"
+  if sh -c '. /etc/os-release; [ "$ID" = ubuntu ]'; then
+    # The manifest's mirrors, space-separated in order, are tried until one serves every
+    # signed index and package.
+    pryx_installed=0
+    for pryx_ubuntu_mirror in ${PRYX_TEST_UBUNTU_MIRRORS:?The Ubuntu fixture needs its archive mirrors}; do
+      rewrite_ubuntu_sources "" "$pryx_ubuntu_mirror"
+      if install_apt_prerequisites; then pryx_installed=1; break; fi
+    done
+    [ "$pryx_installed" = 1 ] || { echo 'No Ubuntu mirror installed the test prerequisites' >&2; exit 1; }
+  else
     install_apt_prerequisites
   fi
 elif command -v apk >/dev/null; then
