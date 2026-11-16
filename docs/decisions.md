@@ -1505,3 +1505,5 @@
 - CI engine outage: record the isolated engine launch's PID, kernel start and boot; pause only its same-user descendants holding the exact private API listener, pinned with pidfds, because Unix peer credentials can name a waiting parent after fork/reexec. Bound discovery and stop confirmation, refuse stale or foreign ownership, and resume every owned holder on errors, interrupt and termination before restoring signal handlers; the installed node's existing outage and recovery assertions stay unchanged.
 
 - Agent capabilities reread the sandbox after each existing edge-acknowledgment wait and after that barrier exits before choosing its node and epoch: lifecycle can change the placement during that wait, and the new edge route refuses a token for the previous placement.
+
+- K22 outage follow-up: poll periodic reconciliation independently of optional measurements, with both loops owned by the same cancellation future; a paused engine's repeated stats deadlines must not defer health/guarantee withdrawal, and cancellation drops pending reads without spawning detached maintenance tasks. Keep the existing outage acceptance bound and mutation count.
