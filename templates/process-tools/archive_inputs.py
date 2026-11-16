@@ -3,17 +3,36 @@
 
 These operations are independent of runtime assembly and execute no package hooks. Runtime
 acquisition has its own protected worker and does not import these build-time routines.
+Retrieval waits out an archive's brief outage; the pinned digest alone decides whether the
+bytes are accepted.
 """
+import datetime
 import hashlib
+import http.client
+from http import HTTPStatus
 import os
 from pathlib import Path
 import shutil
+import ssl
+import sys
 import tarfile
 import time
+import urllib.error
 import urllib.request
 
 ROOT = Path(__file__).resolve().parent
 REPO = ROOT.parent.parent
+
+# A failed download is tried again, with doubling waits, until this long after its first try:
+# long enough to wait out an archive's brief outage, short enough to end a job that can't.
+RETRY_BUDGET = datetime.timedelta(minutes=3).total_seconds()
+FIRST_RETRY_WAIT = datetime.timedelta(seconds=5).total_seconds()
+LONGEST_RETRY_WAIT = datetime.timedelta(minutes=1).total_seconds()
+# RFC 9110 section 15.6: 5xx is the server-error class, including codes Python's HTTPStatus
+# doesn't name, such as a CDN's own 52x.
+SERVER_ERRORS = range(500, 600)
+NETWORK_ERRORS = (urllib.error.URLError, ConnectionError, TimeoutError, ssl.SSLError,
+                  http.client.HTTPException)
 
 # GNU libc's runtime sonames belong to the host, including the ELF interpreter.
 GLIBC_SONAMES = frozenset({
@@ -27,6 +46,34 @@ def digest(path):
         return hashlib.file_digest(source, "sha256").hexdigest()
 
 
+def transient(error):
+    """Whether trying again could help: a refusal other than 5xx or 429 means a wrong pin."""
+    if isinstance(error, urllib.error.HTTPError):
+        return error.code in SERVER_ERRORS or error.code == HTTPStatus.TOO_MANY_REQUESTS
+    return True
+
+
+def download(url, destination):
+    """Write url's bytes to destination, trying again within the budget while failures pass."""
+    deadline = time.monotonic() + RETRY_BUDGET
+    wait = FIRST_RETRY_WAIT
+    while True:
+        try:
+            with urllib.request.urlopen(url, timeout=180) as response:
+                with destination.open("wb") as output:
+                    shutil.copyfileobj(response, output)
+            return
+        except NETWORK_ERRORS as error:
+            if isinstance(error, urllib.error.HTTPError):
+                error.close()  # Its body is an error page, never read.
+            print(f"Download failed: {url}: {error}", file=sys.stderr, flush=True)
+            if not transient(error) or time.monotonic() + wait > deadline:
+                raise
+        print(f"Trying again in {wait:g} s", file=sys.stderr, flush=True)
+        time.sleep(wait)
+        wait = min(2 * wait, LONGEST_RETRY_WAIT)
+
+
 def acquire(item, cache):
     target = cache / item["sha256"] / Path(item["url"]).name
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -34,19 +81,12 @@ def acquire(item, cache):
         if digest(target) != item["sha256"]:
             raise ValueError(f"Cached digest mismatch: {item['name']}")
         return target
-    for attempt in range(3):
-        try:
-            with urllib.request.urlopen(item["url"], timeout=180) as response:
-                with target.with_suffix(".download").open("wb") as output:
-                    shutil.copyfileobj(response, output)
-            if digest(target.with_suffix(".download")) != item["sha256"]:
-                raise ValueError(f"Downloaded digest mismatch: {item['name']}")
-            target.with_suffix(".download").rename(target)
-            return target
-        except (OSError, TimeoutError):
-            if attempt == 2:
-                raise
-            time.sleep(5 * (attempt + 1))
+    partial = target.with_suffix(".download")
+    download(item["url"], partial)
+    if digest(partial) != item["sha256"]:
+        raise ValueError(f"Downloaded digest mismatch: {item['name']}")
+    partial.rename(target)
+    return target
 
 
 def unpack(archive, destination):
