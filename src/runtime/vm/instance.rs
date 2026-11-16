@@ -245,6 +245,7 @@ impl VmRuntime {
             super::jail::Jail::recover_all(&root.join("jails"))?;
         }
         let entries = journal::load(&root)?;
+        memory::sweep(&root.join("memory"), &entries)?;
         Ok(Self {
             state: Arc::new(State {
                 root,

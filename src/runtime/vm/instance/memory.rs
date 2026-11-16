@@ -461,6 +461,32 @@ impl Drop for Bound {
     }
 }
 
+/// At start, before any guest runs: every memory file no journal names as its sleep's image, which
+/// a removal or a crash mid-sleep left behind. Guest memory holds secrets, so nothing of it
+/// outlives the sandbox it was taken of.
+pub(super) fn sweep(memory: &Path, entries: &BTreeMap<String, Entry>) -> Result<(), RuntimeError> {
+    let mut kept = std::collections::HashSet::new();
+    for entry in entries.values().filter(|entry| entry.memory.is_some()) {
+        let sandbox = &entry.spec.agent.as_ref().ok_or_else(|| error("VM requires its authenticated agent"))?.sandbox;
+        kept.insert(super::super::filesystems::sha256(sandbox.as_bytes()).map_err(error)?);
+    }
+    for path in fs::read_dir(memory).map_err(error)? {
+        let path = path.map_err(error)?.path();
+        if path.file_name().and_then(|name| name.to_str()).is_some_and(|name| kept.contains(name)) {
+            continue;
+        }
+        tracing::info!(memory = %path.display(), "VM memory no journal names is removed");
+        // symlink_metadata never follows a link: a link is removed, never its target.
+        let removed = if fs::symlink_metadata(&path).map_err(error)?.is_dir() {
+            fs::remove_dir_all(&path)
+        } else {
+            fs::remove_file(&path)
+        };
+        removed.map_err(error)?;
+    }
+    File::open(memory).and_then(|directory| directory.sync_all()).map_err(error)
+}
+
 pub(super) const ROOT_REFUSAL: &str = "VM memory sleep runs as an ordinary user; the root VM worker stops its guests";
 
 /// A sandbox's boot directory, named for it, so a restore finds the monitor's sockets at the
@@ -479,4 +505,40 @@ pub(super) fn sandbox_directory(boots: &Path, lease: &Path) -> Result<tempfile::
         .permissions(fs::Permissions::from_mode(0o700))
         .tempdir_in(boots)
         .map_err(error)
+}
+
+#[cfg(test)]
+mod sweep_tests {
+    use super::*;
+
+    #[test]
+    fn only_a_sleeping_journals_memory_survives_a_start() {
+        let root = tempfile::tempdir().unwrap();
+        let memory = root.path().join("memory");
+        directory(&memory).unwrap();
+        let image = serde_json::json!({
+            "class": {"cpu": "c", "kernel": "k", "monitor": "m"},
+            "disk": {"device": 1, "inode": 2, "bytes": 3, "modified": [4, 5], "changed": [6, 7]},
+            "nonce": "n", "memoryBytes": 268435456, "nanoCpus": null
+        });
+        let entry = |id: &str, image: Option<&serde_json::Value>| -> Entry {
+            let spec = super::super::tests::spec(root.path(), "alpine:3.24");
+            serde_json::from_value(serde_json::json!({"id": id, "spec": spec, "code": 0, "memory": image})).unwrap()
+        };
+        let name = |entry: &Entry| {
+            super::super::super::filesystems::sha256(entry.spec.agent.as_ref().unwrap().sandbox.as_bytes()).unwrap()
+        };
+        let (asleep, awake) = (entry("vm-asleep", Some(&image)), entry("vm-awake", None));
+        let entries = BTreeMap::from([(asleep.id.clone(), asleep.clone()), (awake.id.clone(), awake.clone())]);
+        for directory in [name(&asleep), name(&awake), format!("{}.consumed", name(&asleep)), "removed".into()] {
+            fs::create_dir(memory.join(&directory)).unwrap();
+            fs::write(memory.join(&directory).join(MEMORY), b"guest secrets").unwrap();
+        }
+        fs::write(memory.join("stray"), b"guest secrets").unwrap();
+        std::os::unix::fs::symlink(root.path(), memory.join("link")).unwrap();
+        sweep(&memory, &entries).unwrap();
+        let left: Vec<_> = fs::read_dir(&memory).unwrap().map(|entry| entry.unwrap().file_name()).collect();
+        assert_eq!(left, [std::ffi::OsString::from(name(&asleep))], "Only the sleeping guest's image is kept");
+        assert!(root.path().exists(), "A link is removed, never what it names");
+    }
 }

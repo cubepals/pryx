@@ -450,3 +450,33 @@ async fn actual_failed_snapshots_resume_or_retire_the_guest() {
     assert!(fs::read_dir(runtime.state.root.join("memory")).unwrap().next().is_none());
     server.abort();
 }
+
+/// A removal takes a guest's memory files with it, even ones its record lost.
+#[tokio::test]
+#[ignore = "requires real KVM and the verified VM archive; the VM experiments workflow runs it"]
+async fn actual_memory_goes_with_its_sandbox() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let temporary = tempfile::tempdir().unwrap();
+    let (artifact, server) = artifact_server().await;
+    let settings = Settings {
+        monitor_owner: None,
+        artifact,
+        ingress_connections: 8,
+        free_floor_bytes: 0,
+        image_timeout: Duration::from_secs(120),
+    };
+    let runtime = VmRuntime::new(temporary.path(), settings).await.unwrap();
+    let inputs: Vec<serde_json::Value> =
+        serde_json::from_str(include_str!("../../../../templates/vm-tools/image-inputs.json")).unwrap();
+    let data = temporary.path().join("data");
+    directory(&data).unwrap();
+    let id = runtime.create(&spec(&data, inputs[0]["reference"].as_str().unwrap())).await.unwrap();
+    runtime.start(&id).await.unwrap();
+    runtime.pause(&id).await.unwrap();
+    let memory = runtime.state.root.join("memory");
+    assert!(fs::read_dir(&memory).unwrap().next().is_some());
+    runtime.state.entries.lock().unwrap().get_mut(&id).unwrap().memory = None;
+    runtime.remove(&id).await.unwrap();
+    assert!(fs::read_dir(&memory).unwrap().next().is_none(), "Guest memory never outlives its sandbox");
+    server.abort();
+}

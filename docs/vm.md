@@ -201,7 +201,8 @@ list narrows the tier with it, and adds prefixes there for other images, as for 
   and keeps its disk. **Wake** boots it again from that disk, on an API call or a held edge
   connection. A suspend request is refused, and control takes the stop path without asking.
 - A file session, a copy or a cold boot of a guest asleep with memory discards that memory
-  first; stopping it ends the memory as a kill would. Differential snapshots are not used: their
+  first; stopping it ends the memory as a kill would. Removing a sandbox removes its memory, and
+  pryxd's start removes any memory file no sandbox's record names. Differential snapshots are not used: their
   upstream calls them a preview.
 - **Fork with memory**, on one node: a guest asleep with its memory gives a new sandbox a copy of
   its disk and the same memory file, and the fork wakes running the source's processes under its

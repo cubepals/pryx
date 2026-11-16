@@ -491,6 +491,9 @@ impl ContainerRuntime for VmRuntime {
         if self.state.live.lock().unwrap().contains_key(&entry.id) {
             return Err(RuntimeError::Conflict("VM started while removal was waiting; its record is retained".into()));
         }
+        // Whatever its record says: guest memory never outlives its sandbox.
+        let mut entry = self.entry(&entry.id)?;
+        self.discard_memory(&mut entry)?;
         self.forget_entry(&entry.id)
     }
     async fn inspect(&self, name: &str) -> Result<Option<ContainerInfo>, RuntimeError> {
