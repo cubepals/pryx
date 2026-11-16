@@ -29,6 +29,9 @@ REPO = ROOT.parent.parent
 RETRY_BUDGET = datetime.timedelta(minutes=3).total_seconds()
 FIRST_RETRY_WAIT = datetime.timedelta(seconds=5).total_seconds()
 LONGEST_RETRY_WAIT = datetime.timedelta(minutes=1).total_seconds()
+# A stalled upstream leaves time to try independent mirrors. This bounds socket inactivity;
+# a healthy archive stream may take longer than the retry budget to finish.
+REQUEST_TIMEOUT = datetime.timedelta(seconds=30).total_seconds()
 # RFC 9110 section 15.6: 5xx is the server-error class, including codes Python's HTTPStatus
 # doesn't name, such as a CDN's own 52x.
 SERVER_ERRORS = range(500, 600)
@@ -72,10 +75,14 @@ def download(url, destination):
     candidates = addresses(url)
     deadline = time.monotonic() + RETRY_BUDGET
     wait = FIRST_RETRY_WAIT
+    failure = TimeoutError("Archive download retry budget exhausted")
     while True:
         for address in list(candidates):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise failure
             try:
-                with urllib.request.urlopen(address, timeout=180) as response:
+                with urllib.request.urlopen(address, timeout=min(REQUEST_TIMEOUT, remaining)) as response:
                     with destination.open("wb") as output:
                         shutil.copyfileobj(response, output)
                 return

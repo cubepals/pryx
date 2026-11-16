@@ -142,6 +142,59 @@ class AcquireTests(unittest.TestCase):
         self.assertEqual(self.server.requests, ['/debian/pool/input.deb', '/mirror/debian/pool/input.deb'])
         self.assertEqual(self.clock.waits, [])
 
+    def test_a_stalled_origin_leaves_time_for_its_mirror(self):
+        self.mirror()
+        item = self.item('/debian/pool/input.deb')
+        self.server.script['/mirror/debian/pool/input.deb'] = [PAYLOAD]
+        real_open = urllib.request.urlopen
+
+        def stalled_origin(address, timeout):
+            if address == item['url']:
+                self.clock.now += timeout
+                raise urllib.error.URLError(TimeoutError('The origin stalled'))
+            return real_open(address, timeout=timeout)
+
+        with patch.object(archive_inputs.urllib.request, 'urlopen', stalled_origin):
+            self.assertEqual(self.acquire(item).read_bytes(), PAYLOAD)
+        self.assertLess(self.clock.now, archive_inputs.RETRY_BUDGET)
+        self.assertEqual(self.server.requests, ['/mirror/debian/pool/input.deb'])
+        self.assertEqual(self.clock.waits, [])
+
+    def test_stalled_mirrors_share_the_retry_deadline(self):
+        item = self.item('/debian/pool/input.deb')
+        budget = archive_inputs.REQUEST_TIMEOUT * 2.5
+        attempts = []
+        failure = urllib.error.URLError(TimeoutError('Every archive host stalled'))
+
+        def stalled(address, timeout):
+            attempts.append((address, timeout))
+            self.clock.now += timeout
+            raise failure
+
+        mirrors = [dict(prefix=self.base + '/debian/',
+                        mirrors=[self.base + f'/mirror-{index}/debian/' for index in range(8)])]
+        with patch.object(archive_inputs, 'MIRRORS', mirrors), \
+                patch.object(archive_inputs, 'RETRY_BUDGET', budget), \
+                patch.object(archive_inputs.urllib.request, 'urlopen', stalled):
+            with self.assertRaises(urllib.error.URLError) as refused:
+                self.acquire(item)
+        self.assertIs(refused.exception, failure)
+        self.assertLessEqual(self.clock.now, budget)
+        self.assertLess(attempts[-1][1], archive_inputs.REQUEST_TIMEOUT)
+        self.assertLess(len(attempts), 1 + len(mirrors[0]['mirrors']))
+        self.assertEqual(self.clock.waits, [])
+
+    def test_a_healthy_archive_can_finish_after_the_retry_deadline(self):
+        class SlowArchive(io.BytesIO):
+            def read(source, length):
+                self.clock.now += archive_inputs.RETRY_BUDGET
+                return super().read(length)
+
+        with patch.object(archive_inputs.urllib.request, 'urlopen', return_value=SlowArchive(PAYLOAD)):
+            self.assertEqual(self.acquire(self.item('/large.tar')).read_bytes(), PAYLOAD)
+        self.assertGreater(self.clock.now, archive_inputs.RETRY_BUDGET)
+        self.assertEqual(self.clock.waits, [])
+
     def test_a_mirror_with_other_bytes_fails_the_digest(self):
         self.mirror()
         self.server.script['/debian/pool/input.deb'] = [HTTPStatus.GATEWAY_TIMEOUT]
