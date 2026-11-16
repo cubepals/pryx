@@ -90,18 +90,21 @@ describe.skipIf(!hasDatabase)('provider control', () => {
   test('smallest fit accounts for the daemon host reservations', () => {
     expect(smallestShape([shape, tooSmall], { memoryMb: 128, cpuMillis: 32, diskGb: 1 })?.name).toBe('fit')
   })
-  test('an arm64 shape serves only process and container demand, and x86_64 wins a tie', () => {
+  test('an arm64 shape serves only process and container demand, and only a fleet that serves arm64 takes it', () => {
     const arm = { ...shape, name: 'arm', architecture: 'aarch64' as const }
     const need = { memoryMb: 128, cpuMillis: 32, diskGb: 1 }
-    expect(smallestShape([arm], need)).toBeUndefined()
+    expect(smallestShape([arm], need, 'aarch64')).toBeUndefined()
     for (const isolation of ['wasm', 'vm', undefined] as const)
       expect(
-        smallestShape([arm], { ...need, architectures: architecturesFor({ isolation }) }),
+        smallestShape([arm, shape], { ...need, architectures: architecturesFor({ isolation }) }, 'aarch64'),
       ).toBeUndefined()
     for (const isolation of ['process', 'container'] as const) {
       const architectures = architecturesFor({ isolation })
-      expect(smallestShape([arm], { ...need, architectures })?.name).toBe('arm')
-      expect(smallestShape([arm, shape], { ...need, architectures })?.name).toBe('fit')
+      expect(smallestShape([arm], { ...need, architectures }, 'aarch64')?.name).toBe('arm')
+      expect(smallestShape([arm, shape], { ...need, architectures }, 'aarch64')?.name).toBe('arm')
+      // An x86_64 control plane serves an x86_64 pryxd, which an arm64 server couldn't run.
+      expect(smallestShape([arm], { ...need, architectures }, 'x86_64')).toBeUndefined()
+      expect(smallestShape([arm, shape], { ...need, architectures }, 'x86_64')?.name).toBe('fit')
     }
   })
   test('lost acquire replies reconcile the same host and the ledger never contains the join token', async () => {

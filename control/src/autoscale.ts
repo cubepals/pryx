@@ -4,6 +4,7 @@
 /** Region growth and safe host return; providers rent hosts but never decide placement or data safety. */
 import { randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
+import { HOST_MACHINE } from './bundle-release.ts'
 import type { Db } from './database.ts'
 import { HOUR_S } from './durations.ts'
 import type { Thresholds } from './health.ts'
@@ -39,8 +40,10 @@ interface Need {
 export function architecturesFor(spec: Pick<SandboxSpec, 'isolation'>): Architecture[] {
   return spec.isolation === 'process' || spec.isolation === 'container' ? ['x86_64', 'aarch64'] : ['x86_64']
 }
-export function smallestShape(shapes: Shape[], need: Need) {
-  const allowed = need.architectures ?? ['x86_64']
+/** A provisioned host joins with the pryxd its control plane serves, which is built for the control
+ * plane's own machine (join-routes.ts), so only shapes of that machine are taken. */
+export function smallestShape(shapes: Shape[], need: Need, joinable: string = HOST_MACHINE) {
+  const allowed = (need.architectures ?? ['x86_64']).filter((architecture) => architecture === joinable)
   return shapes
     .filter(
       (s) =>
@@ -50,13 +53,7 @@ export function smallestShape(shapes: Shape[], need: Need) {
         s.cpus * 1000 - HOST_CPU_MILLIS >= need.cpuMillis &&
         s.diskGb - HOST_DISK_FLOOR_GB >= need.diskGb,
     )
-    .sort(
-      (a, b) =>
-        a.memoryGb - b.memoryGb ||
-        a.cpus - b.cpus ||
-        a.diskGb - b.diskGb ||
-        Number((a.architecture ?? 'x86_64') !== 'x86_64') - Number((b.architecture ?? 'x86_64') !== 'x86_64'),
-    )[0]
+    .sort((a, b) => a.memoryGb - b.memoryGb || a.cpus - b.cpus || a.diskGb - b.diskGb)[0]
 }
 export class Autoscale {
   constructor(
