@@ -6,7 +6,8 @@ on:
   workflow_dispatch:
   # A new workflow cannot be dispatched before main has it; branch pushes prove each step.
   push:
-    branches: [any-host]
+    # Milestone branches (k26, k31-ebpf, ...) prove a change before it reaches any-host.
+    branches: [any-host, 'k[0-9]*']
     # A push that changes only documentation proves nothing new here; normal CI still runs.
     paths-ignore: ['docs/**', '**.md']
   # A pull request that changes VM code runs the KVM acceptance too; any other starts no run.
@@ -30,7 +31,7 @@ on:
 # has its own, where a newer commit stops the run it supersedes.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && 'dispatch-' || '' }}${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || startsWith(github.ref, 'refs/heads/k') }}
 
 permissions:
   contents: read
