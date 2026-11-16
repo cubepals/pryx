@@ -355,10 +355,14 @@ impl Processes {
         Ok(process)
     }
 
-    fn spawn(&self, mut request: Start, timeout: Option<u32>, mount: bool) -> Result<Arc<Process>, ProcessError> {
+    fn command_environment(&self, supplied: BTreeMap<String, String>) -> BTreeMap<String, String> {
         let mut env = self.tools.environment.read().unwrap().clone();
-        env.extend(request.env);
-        request.env = env;
+        env.extend(supplied);
+        env
+    }
+
+    fn spawn(&self, mut request: Start, timeout: Option<u32>, mount: bool) -> Result<Arc<Process>, ProcessError> {
+        request.env = self.command_environment(request.env);
         if let Some(backend) = &self.backend {
             return backend.spawn(request, timeout);
         }
