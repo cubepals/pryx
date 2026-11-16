@@ -296,6 +296,70 @@ async fn an_engine_outage_leaves_other_tiers_serving_and_preserves_saved_compute
 }
 
 #[tokio::test]
+async fn stalled_metrics_do_not_delay_a_tiers_withdrawal_or_background_shutdown() {
+    use pryxd::protocol::{Guarantee, WorkloadState};
+    use std::time::Duration;
+    use tokio::time::{sleep, timeout};
+    use tokio_util::sync::CancellationToken;
+
+    let dir = tempfile::tempdir().unwrap();
+    let container = Arc::new(FakeRuntime::new());
+    let process = Arc::new(FakeRuntime::new().with_isolation(Isolation::Process));
+    let router = Arc::new(Router::new(vec![container.clone(), process]).unwrap());
+    let manager = support::manager_on(
+        dir.path(),
+        router,
+        "runtime = 'auto'\n[intervals]\nresync_seconds = 5\nstats_seconds = 5\n",
+    );
+    assert!(manager.reconcile(Records::FromDisk).await.error.is_none());
+    for tier in ["container", "process"] {
+        manager.ensure(support::id(tier), spec(Some(tier)), Precondition::None, None).await.unwrap();
+        manager.start(support::id(tier), None).await.unwrap();
+    }
+    let id = support::id("container");
+    let before = manager.view(&id).unwrap();
+    let gate = container.stats_gate.write().await;
+    let cancel = CancellationToken::new();
+    let _cancel_on_drop = cancel.clone().drop_guard();
+    let mut periodic = tokio::spawn(pryxd::reconcile::periodic(manager.clone(), cancel.clone()));
+    let entered = timeout(Duration::from_secs(15), async {
+        while container.count_calls("stats ") == 0 {
+            sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await;
+    container.set_available(false);
+    // The real periodic loop must make its next health observation while the metrics call
+    // remains blocked, rather than waiting for one or more engine stats deadlines.
+    let withdrawn = timeout(Duration::from_secs(15), async {
+        while manager.features().contains(&"tier-container".into()) {
+            sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await;
+    let during = manager.view(&id).unwrap();
+    let process_serving = manager.features().contains(&"tier-process".into())
+        && manager.view(&support::id("process")).unwrap().state == WorkloadState::Running;
+    cancel.cancel();
+    let stopped = match timeout(Duration::from_secs(1), &mut periodic).await {
+        Ok(result) => result.is_ok(),
+        Err(_) => {
+            periodic.abort();
+            let _ = periodic.await;
+            false
+        }
+    };
+    drop(gate);
+    assert!(entered.is_ok(), "The metrics call entered before the engine outage");
+    assert!(withdrawn.is_ok(), "Health reconciliation is independent of a blocked metrics call");
+    assert!(!during.guarantees[&Guarantee::PrivatePids]);
+    assert_eq!(during.state, WorkloadState::Unknown);
+    assert_eq!(during.locate.container_id, before.locate.container_id);
+    assert!(process_serving, "The healthy tier remains available during the engine outage");
+    assert!(stopped, "Cancellation drops the blocked background measurement");
+}
+
+#[tokio::test]
 async fn all_tiers_down_degrades_the_node_and_one_recovered_tier_can_reconcile() {
     let dir = tempfile::tempdir().unwrap();
     let container = Arc::new(FakeRuntime::new());
