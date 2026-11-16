@@ -54,6 +54,7 @@ pub(crate) fn probe_object(programs: &[u8]) -> Result<host::Host, host::Unavaila
         api_port: 0,
         private: &[],
         link_local: &[],
+        metadata: &[],
         dns: 0,
     })
     .map_err(|problem| fail(problem, "Report this as a bug"));

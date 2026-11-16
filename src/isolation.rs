@@ -13,7 +13,8 @@
 //! The rules are one nftables table, put in place whole by `nft -f`, so each run replaces what the
 //! last left. Of the new connections from the workloads' bridge, it drops:
 //! - any to this host (the input hook): every port it publishes, its API, anything else it serves;
-//! - any to the link-local range, where clouds serve instance metadata;
+//! - any to the link-local range, where clouds serve instance metadata, and to AWS's IPv6
+//!   metadata address;
 //! - one to a private address on the ports pryxd hands out or on its API's port: another node's
 //!   sandboxes and its pryxd.
 //!
@@ -34,7 +35,7 @@ use anyhow::{Context, anyhow, ensure};
 use tracing::warn;
 
 use crate::config::Config;
-use crate::ranges::{LINK_LOCAL_V4, PRIVATE_V4, PRIVATE_V6};
+use crate::ranges::{LINK_LOCAL_V4, METADATA_V6, PRIVATE_V4, PRIVATE_V6};
 use crate::runtime::docker::{DockerRuntime, bridge_name};
 
 /// The table pryxd owns. Nothing else of the host's firewall is touched.
@@ -60,6 +61,7 @@ fn rules_from(table: &str, from: &str, ports: &RangeInclusive<u16>, api_port: u1
          \tchain forward {{\n\
          \t\ttype filter hook forward priority filter - 10; policy accept;\n\
          \t\t{from} ip daddr {LINK_LOCAL_V4} ct state new drop\n\
+         \t\t{from} ip6 daddr {METADATA_V6} ct state new drop\n\
          \t\t{from} ip daddr {{ {PRIVATE_V4} }} {to_served}\n\
          \t\t{from} ip6 daddr {{ {PRIVATE_V6} }} {to_served}\n\
          \t}}\n\
@@ -131,7 +133,7 @@ pub async fn isolate(path: &Path) -> anyhow::Result<String> {
     crate::runtime::docker::egress::mark_ready()?;
     Ok(format!(
         "Workloads on {network} ({bridge}) can't open connections to this host, to ports {low}-{high} or {} on \
-         private addresses, or to the metadata address (nft list table inet {TABLE}).\n",
+         private addresses, or to the metadata addresses (nft list table inet {TABLE}).\n",
         config.api.listen.port()
     ))
 }
@@ -154,6 +156,7 @@ mod tests {
              \tchain forward {\n\
              \t\ttype filter hook forward priority filter - 10; policy accept;\n\
              \t\tiifname \"bly0123456789ab\" ip daddr 169.254.0.0/16 ct state new drop\n\
+             \t\tiifname \"bly0123456789ab\" ip6 daddr fd00:ec2::254 ct state new drop\n\
              \t\tiifname \"bly0123456789ab\" ip daddr { 10.0.0.0/8, 100.64.0.0/10, 172.16.0.0/12, 192.168.0.0/16 } \
              meta l4proto { tcp, udp } th dport { 42000-42999, 7443 } ct state new drop\n\
              \t\tiifname \"bly0123456789ab\" ip6 daddr { fc00::/7, fe80::/10 } \

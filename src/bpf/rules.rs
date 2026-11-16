@@ -41,10 +41,12 @@ pub(crate) struct Inputs<'a> {
     /// The ports pryxd hands out, and its API's.
     pub(crate) served: RangeInclusive<u16>,
     pub(crate) api_port: u16,
-    /// Private ranges, where pryxd's served ports belong to other nodes, and link-local ones,
-    /// where clouds serve metadata: the host firewall's own (`ranges.rs`).
+    /// Private ranges, where pryxd's served ports belong to other nodes, link-local ones, where
+    /// clouds serve metadata, and the metadata addresses outside them: the host firewall's own
+    /// (`ranges.rs`).
     pub(crate) private: &'a [IpNet],
     pub(crate) link_local: &'a [IpNet],
+    pub(crate) metadata: &'a [IpNet],
     /// DNS's port.
     pub(crate) dns: u16,
 }
@@ -130,7 +132,7 @@ fn layers(inputs: &Inputs<'_>) -> Vec<Layer> {
         add(private, Some((inputs.api_port, inputs.api_port)), both, Verdict::Deny, Precedence::Served);
     }
     let refused = ["0.0.0.0/8", "224.0.0.0/3", "::/96", "ff00::/8"].into_iter().map(|net| net.parse().unwrap());
-    for refused in refused.chain(inputs.link_local.iter().copied()) {
+    for refused in refused.chain(inputs.link_local.iter().copied()).chain(inputs.metadata.iter().copied()) {
         add(refused, None, both, Verdict::Deny, Precedence::Host);
     }
     let own = ["127.0.0.0/8".parse().unwrap(), host(Ipv6Addr::LOCALHOST.into())];
@@ -243,6 +245,7 @@ mod tests {
             api_port: 7443,
             private: nets(&["10.0.0.0/8", "100.64.0.0/10", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7"]),
             link_local: nets(&["169.254.0.0/16", "fe80::/10"]),
+            metadata: vec![IpNet::from(crate::ranges::METADATA_V6.parse::<IpAddr>().unwrap())].leak(),
             dns: 53,
         }
     }
@@ -265,6 +268,10 @@ mod tests {
             ("fd00::1", 42999, Verdict::Deny),
             ("169.254.169.254", 80, Verdict::Deny),
             ("fe80::1", 80, Verdict::Deny),
+            ("fd00:ec2::254", 80, Verdict::Deny),
+            ("fd00:ec2::254", 5432, Verdict::Deny),
+            ("fd00:ec2::253", 53, Verdict::Allow),
+            ("fd00:ec2::1", 5432, Verdict::Allow),
             ("224.0.0.251", 5353, Verdict::Deny),
             ("0.0.0.0", 8080, Verdict::Deny),
             ("127.0.0.1", 8080, Verdict::Owned),
@@ -322,7 +329,7 @@ mod tests {
 
     #[test]
     fn a_request_denies_more_but_never_opens_what_the_host_keeps() {
-        let allow = [at("10.0.0.0/8", None), at("203.0.113.0/24", None)];
+        let allow = [at("10.0.0.0/8", None), at("203.0.113.0/24", None), at("fd00:ec2::/64", None)];
         let deny = [at("10.9.0.0/16", None), at("1.1.1.0/24", Some((53, 53)))];
         let policy = inputs(Reach::Public, &allow, &deny);
         for (address, port, expected) in [
@@ -333,6 +340,8 @@ mod tests {
             ("1.1.1.1", 443, Verdict::Allow),
             ("203.0.113.9", 22, Verdict::Owned),
             ("203.0.113.10", 22, Verdict::Allow),
+            ("fd00:ec2::254", 80, Verdict::Deny),
+            ("fd00:ec2::253", 53, Verdict::Allow),
         ] {
             assert_eq!(decide_in(&policy, address, port, TCP), expected, "{address}:{port}");
         }

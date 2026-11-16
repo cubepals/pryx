@@ -75,6 +75,11 @@ const GATEWAY: Ipv4Addr = Ipv4Addr::LOCALHOST;
 const LINK_LOCAL_V6: ipnet::IpNet =
     ipnet::IpNet::V6(ipnet::Ipv6Net::new_assert(std::net::Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 0), 10));
 
+/// AWS's IPv6 metadata address, as `ranges.rs` writes it for nftables.
+fn metadata_v6() -> std::net::IpAddr {
+    crate::ranges::METADATA_V6.parse().expect("the firewall's own address parses")
+}
+
 /// The host firewall's ranges, as `ranges.rs` writes them for nftables.
 fn ranges(list: &str) -> impl Iterator<Item = ipnet::IpNet> + '_ {
     list.split(", ").map(|net| net.parse().expect("the firewall's own ranges parse"))
@@ -219,6 +224,7 @@ impl Network {
             api_port: self.served.api_port,
             private: &private,
             link_local: &link_local,
+            metadata: &[ipnet::IpNet::from(metadata_v6())],
             dns: crate::runtime::egress::dns::PORT,
         })
         .map_err(error)
