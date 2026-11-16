@@ -26,6 +26,20 @@ async fn process(runtime: &VmRuntime, id: &str) -> String {
     String::from_utf8(exec(runtime, id, "p=$(cat /tmp/pid); echo $p $(cut -d' ' -f22 /proc/$p/stat)").await).unwrap()
 }
 
+/// The redacted monitor output this test's guests left (diagnostics.rs), into the job's log.
+fn monitor_output(since: std::time::SystemTime) {
+    let Some(directory) = std::env::var_os("PRYX_VM_RUNTIME_DIAGNOSTICS") else { return };
+    for entry in fs::read_dir(directory).into_iter().flatten().flatten() {
+        if entry.metadata().and_then(|info| info.modified()).is_ok_and(|modified| modified >= since) {
+            eprintln!(
+                "VM monitor output {}:\n{}",
+                entry.path().display(),
+                fs::read_to_string(entry.path()).unwrap_or_default()
+            );
+        }
+    }
+}
+
 /// A wake the runtime refused, followed by what a node does then: a kill and a cold boot.
 async fn cold_boot_after(runtime: &VmRuntime, id: &str, refused: Result<(), RuntimeError>) {
     let problem = refused.expect_err("This wake must not restore memory");
@@ -54,11 +68,15 @@ async fn actual_memory_sleep_keeps_a_running_process_and_falls_back_to_its_disk(
     };
     let runtime = VmRuntime::new(temporary.path(), settings).await.unwrap();
     assert!(!runtime.info().await.unwrap().memory_sleep, "Memory sleep is off until its start test passes");
+    let since = std::time::SystemTime::now();
     runtime.probe_memory_sleep_in_background();
     let deadline = tokio::time::Instant::now() + Duration::from_secs(300);
     while !runtime.info().await.unwrap().memory_sleep {
         let outcome = runtime.state.memory_sleep.lock().unwrap().clone();
-        assert!(!matches!(outcome, Some(Err(_))), "The restore test failed: {outcome:?}");
+        if matches!(outcome, Some(Err(_))) {
+            monitor_output(since);
+            panic!("The restore test failed: {outcome:?}");
+        }
         assert!(tokio::time::Instant::now() < deadline, "The restore test did not finish");
         tokio::time::sleep(Duration::from_millis(100)).await;
     }

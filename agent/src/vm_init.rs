@@ -386,17 +386,24 @@ async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Err
             let pending = pending?;
             // Flushed first: a wake that can't restore boots this disk with everything written.
             rustix::fs::syncfs(&disk.writes)?;
-            if let Ok(hold) = crate::vm_sleep::Held::dial().await {
-                held = Some(hold);
-                pending.acknowledge().await;
+            match crate::vm_sleep::Held::dial().await {
+                Ok(hold) => {
+                    held = Some(hold);
+                    pending.acknowledge().await;
+                }
+                // Unacknowledged, the host gives up and the guest goes on running.
+                Err(problem) => eprintln!("VM sleep hold was refused: {problem}"),
             }
         }
         () = held_ended(&mut held) => {
             held = None;
-            if let Some(resumed) = crate::vm_sleep::resumed(&identity).await {
-                awake(resumed, boot.network.as_ref(), &mut network).await?;
-                drop(sleep);
-                sleep = crate::vm_sleep::Listener::bind(boot.cid)?;
+            match crate::vm_sleep::resumed(&identity).await {
+                Some(resumed) => {
+                    awake(resumed, boot.network.as_ref(), &mut network).await?;
+                    drop(sleep);
+                    sleep = crate::vm_sleep::Listener::bind(boot.cid)?;
+                }
+                None => eprintln!("VM sleep ended without a resume; this guest goes on where it was"),
             }
         }
         }

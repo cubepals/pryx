@@ -16,6 +16,9 @@ struct Response {
     body: String,
 }
 
+/// How much of the helper's own error output a refusal quotes.
+const COMPLAINT_BYTES: u64 = 1024;
+
 pub async fn request(
     binary: &Path,
     message: &serde_json::Value,
@@ -36,10 +39,17 @@ pub async fn request(
             .env_clear()
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            .stderr(Stdio::piped())
             .kill_on_drop(true)
             .spawn()
             .map_err(error)?;
+        // The helper's own refusal text names a path or a failed step, never a credential.
+        let mut complaint = child.stderr.take().ok_or_else(|| error("Missing VM transport error pipe"))?;
+        let complaint = tokio::spawn(async move {
+            let mut bytes = Vec::new();
+            let _ = (&mut complaint).take(COMPLAINT_BYTES).read_to_end(&mut bytes).await;
+            String::from_utf8_lossy(&bytes).trim().to_owned()
+        });
         let mut pipe = child.stdin.take().ok_or_else(|| error("Missing VM transport input pipe"))?;
         pipe.write_all(&input).await.map_err(error)?;
         pipe.shutdown().await.map_err(error)?;
@@ -57,7 +67,8 @@ pub async fn request(
             return Err(error("VM control response exceeds its host admission bound"));
         }
         if !child.wait().await.map_err(error)?.success() {
-            return Err(error("VM SDK transport exited without a complete response"));
+            let complaint = complaint.await.unwrap_or_default();
+            return Err(error(format!("VM SDK transport exited without a complete response: {complaint}")));
         }
         let response: Response = serde_json::from_slice(&output).map_err(error)?;
         let body = STANDARD.decode(response.body).map_err(error)?;
