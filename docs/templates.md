@@ -4,7 +4,8 @@
 sandbox using the existing files and process APIs, snapshots it, and registers an immutable
 version. `copy` stays local; only the build plan and completed snapshot reach control. Failed
 builds clean up their sandbox. `template.rebuild()` creates the next version. The Python sync
-and async clients accept the same plan fields.
+and async clients accept the same plan fields. Each `run` and `ready` command has up to ten
+minutes, not an interactive command's thirty seconds, and a failed one says how it ended.
 
 `pryx template build -f pryx.template.ts` runs that builder. `pryx template create` supplies
 built-in plans for `python-interpreter`, `node-interpreter`, `desktop`, `browser` and `tools`.
