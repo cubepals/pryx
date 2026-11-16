@@ -5081,3 +5081,146 @@ job when publication is authorized. That job has not run in this task.
   driver and an older runsc; the repository-pinned runtime's private OCI startup was refused
   with EPERM. No local gVisor enforcement or live-upgrade acceptance is claimed. Updated hosted
   runs must supply that evidence.
+
+- K22 second attempt resumes both parked Docker side pieces after the preceding engine work.
+  The original ownership attempts remain failures: default, host and keep-id do not map the
+  ordinary nonzero workload onto standard rootless Docker's original host-owned data. The
+  original ingress attempts remain failures: host-to-private-bridge routing is inaccessible,
+  published ports on an internal bridge are empty, and daemon-namespace entry is denied on
+  the local different-UID engine. None is repeated as a proposed fix without new evidence.
+- Rootless ingress now uses the engine's authenticated exec attachment to the immutable
+  container/start and declared loopback port. Its actual injected static agent announces the
+  additive ingress version, is execute-only before process creation, receives blank bootstrap
+  environment values and starts no children. Hyper/h2 retains stream shutdown; Tokio's bounded
+  framing retains UDP packets and one stable socket per frontend peer. Old/readable agents and
+  undeclared ports refuse. Listener retirement cancels and joins the owned tasks; a lost or
+  stopped helper retires only its original start, without a mutation retry.
+- The first raw-engine fixture fails only because the local engine lacks the CI image alias;
+  select the manifest's pinned digest directly. The corrected real local Docker fixture passes
+  in 5.06 seconds: exact delayed 96-KiB TCP reply after write EOF, empty/small/65,500-byte UDP
+  packets with distinct stable peer ports, undeclared-target refusal, and completed/active-pipe
+  disconnects whose helpers exit before fallback retirement while the original start stays
+  running. This is ingress proof on a custom matching map, not standard Docker ownership proof.
+  A bounded transport regression also reproduces idempotent start returning Engine 304,
+  orphan adoption and one retirement; it passes in 0.01 seconds after raw start confirmation is
+  separated from relay reconstruction to remove a recursive generation-lock wait.
+- New ownership attempts are engine per-bind ID mapping, kernel ID-mapped binds with a plain
+  bind control, and maintained fuse-overlayfs views including the same-user daemon namespace.
+  The local Engine rejects the ID-map option, both local bind controls are denied, and the
+  ordinary FUSE helper refuses allow_other under the existing host policy. The local daemon is
+  owned by another host UID with a custom map; its namespace denial cannot settle the standard
+  same-user candidate. The pinned, licence-recorded helper and bounded diagnostics run only
+  in the existing Docker matrix job, with no engine install, host policy change, workload UID0,
+  subordinate-ID chown or volume copy/sync. The named data-owner-mapping refusal stays in place.
+  The integrated local diagnostics confirm the unsupported option and FUSE policy refusal,
+  preserve the cross-UID namespace result as not run, and report no ownership invariant failure.
+  Default and alternate workload probes retain nonzero UID/GID 1000 and 1001; only the trusted
+  host namespace helper uses namespace UID0. Static-agent and real-transport coverage add an
+  estimated two to four minutes to that job, plus at most three minutes for ownership work and
+  bounded cleanup; no new job or gate. Standard hosted proof and fresh review remain pending.
+- Final local ingress acceptance passes in 24.90 seconds, adding a real stopped helper,
+  fresh-node idempotent-start adoption with bounded retirement, restart under the same immutable
+  container ID, old-target refusal and healthy new-target attachment. The finite frontend
+  budget now follows helper cleanup until exit or exact-start retirement is confirmed; unknown
+  live owners keep their permit withheld for that runtime's lifetime. Real active/stalled-pipe
+  checks assert permit retention and release. The full workspace run completes 595 passes,
+  56 ignored and the same four previously recorded local vm_monitor Landlock ABI failures;
+  every daemon case, the actual Wasm case and the new ingress/lock regressions pass. No assertion
+  or host policy is weakened. Strict all-target Clippy, Rust/original/expanded mixed-source
+  structure, formatting, full actionlint with ShellCheck and whitespace checks pass. Hosted
+  checks remain pending on this source.
+- K22 final review catches two diagnostic cleanup errors before publication: readiness can
+  fail after a FUSE helper starts but before ownership reaches the caller, and an arbitrary
+  mountpoint failure cannot prove a view is gone. Setup now owns retirement immediately after
+  launch, checks tool prerequisites before launch, and requires util-linux's documented
+  not-a-mountpoint result. Unmount, termination, observation and log closure are all attempted;
+  unconfirmed cleanup is latched as an invariant failure before temporary-directory teardown
+  can mask it. Seven bounded stub controls pass, including readiness deadline/subprocess
+  failure, spawn failure, missing tool, unknown mount observation and failed cleanup masked by
+  a later filesystem error. The real local ownership diagnostic still reports the same truthful
+  unsupported-option/FUSE-policy/cross-UID results. No Rust source or assertion changes.
+- First standard Docker ingress run on b6887d4 fails before transport in Rootless engines
+  43892128361/job 133385870411: creating the ICC-disabled internal bridge takes 10.04 seconds
+  and the engine reports missing bridge netfilter support. No ignore variable, host module or
+  firewall change is applied. The protected fixed-loopback transport does not need a bridge:
+  verified plain rootless Docker now selects the maintained `none` driver for private creates.
+  Reconciliation defers unused connected bridges in both single and multi-tier nodes; internet
+  creates still enforce strict ICC policy before compute and preserve the original failure.
+  Rootful Docker, Podman, gvisor and legacy-agent private admission retain their paths.
+- The same trace finds an image-label trust gap: an internet image can inherit a forged
+  internal-bindings label unless create explicitly overwrites it. Host-owned declarations now
+  always replace it, with an empty list for internet, and empty relays create no listener. New
+  captured-error manager/wire controls cover private creates, internet refusal and successful
+  connected admission with a forged label; the actual-engine fixture uses production network
+  selection and the hardened body builder, observes no network address, restores relays without
+  an IP and keeps TCP/UDP, peer identity, cleanup, stalled owner and generation checks. Additional
+  controlled host and neighbour services test private loopback separation. Rust validation is
+  pending the shared build slot; earlier passes do not validate these new bytes.
+- Standard ownership diagnostics in that same run verify the same-user daemon identity (UID
+  1001). The engine rejects per-bind ID mapping; plain kernel bind succeeds while ID-map attach
+  fails; caller FUSE still refuses allow_other. Inside the daemon namespace, maintained FUSE
+  mounting and the first nonzero workload write succeed for both UID 1000 and 1001, but each
+  second-write check exits 1. This is partial mapping proof, not an unsupported-candidate verdict
+  or full store consistency. The original named ownership refusal remains while the second
+  write and required store/snapshot/restart invariants are investigated after ingress.
+  Pinned source inspection shows timeout zero disables directory and open-file keep-cache;
+  it does not establish why the assertion failed. The fixture now emits only static assertion
+  phase labels for identity, host-read, marker rewrite, chmod and resulting UID/mode. An eighth
+  bounded Python control distinguishes a stale expected host read without printing its bytes;
+  both successful host writes remain asserted. No mapping prerequisite or assertion is relaxed.
+- K22 restore review extends the reserved-label boundary to historical containers. A new-create
+  overwrite alone cannot authenticate an inherited label already on disk. Generic relays now
+  require the host-written workload record to name network none and its allocated ports to
+  match; historical internet bindings are ignored, including malformed image JSON. A missing or
+  conflicting private record yields a named network-policy refusal. Native Podman always keeps
+  its own published ingress, with an explicit empty label on new containers and no generic
+  proxy during historical restore. Real kernel listener controls cover old rootful/rootless
+  internet forgeries and native Podman forgeries, alongside positive native port mappings.
+- Signed structural checkpoints 54d524c and 15428bc move existing policy observations/fixture
+  compilation and the durable label record without changing their bodies or manager export.
+  New declaration parsing and lease retirement are separate concerns. The original matching-
+  owner regression also catches an overbroad connected-bridge recheck; preserve its assertion
+  and scope the retained admission check to a runtime that observed verified private support.
+  A later installed-agent loss still cannot bypass that runtime's deferred bridge admission.
+- Final local source passes 598 workspace tests with 56 ignored and the same four previously
+  recorded vm_monitor Landlock ABI failures. Every daemon case and the actual Wasm case pass;
+  all 43 Docker unit/transport cases pass, including the unchanged matching-owner assertion.
+  The exact final canonical-record NoNIC fixture passes in 25.83 seconds and removes all owned
+  containers: production network selection/body, no IP/default route, host-loopback denial,
+  tagged neighbour service, retained TCP half-close, stable/distinct UDP peers, bounded cleanup,
+  stopped-owner adoption and old-generation refusal. Strict all-target Clippy, all three source
+  structure checks, formatting, full actionlint/ShellCheck, eight Python controls and whitespace
+  pass with no suppressed check or baseline increase. These are local custom-map ingress and
+  transport proofs; standard ownership remains a named refusal pending full consistency proof,
+  and exact-head hosted workflows/fresh review are still required before landing.
+- Follow-up source review catches a monitoring regression before publication: deferring bridge
+  creation also skipped an existing connected bridge's periodic isolation check. Single and
+  multi-tier reconciliation now inspect it read-only, retain the original unsafe-ICC issue and
+  propagate observation errors; an absent unused bridge is still not created. Added manager
+  wire controls exercise startup and periodic monitoring, unsafe internet refusal, recovery and
+  inspection failure, including an admitted internet workload. The unsafe-create control checks
+  the runtime's typed refusal and retains both no-compute and no-bridge-replacement assertions.
+  Exact-source validation completes 598 workspace passes, 56 ignored and the same four recorded
+  local vm_monitor Landlock ABI failures. The real NoNIC fixture passes in 25.62 seconds and its
+  owned containers are gone. Strict all-target workspace Clippy, all three structure checks,
+  formatting, actionlint with ShellCheck, eight Python controls and whitespace checks pass.
+  Standard data ownership still refuses by name; hosted proof and final review remain required.
+
+- The next standard ingress run on ae07802 reaches the first neighbour attachment and fails
+  with a generic generation-unavailable error (Rootless engines 43926265774/job133506447026).
+  Its helper still required only kernel dumpability zero, while Linux can load an unreadable
+  executable in the equally non-user-readable root-only state. Private ingress now reuses
+  K26's owning guard: ordinary dumpability refuses, and protected zero/root-only states are
+  forced and read back as zero before HTTP/2 or private I/O. The earlier trace did not retain
+  that helper's exact state or stderr, so this is a source-backed compatibility fix rather
+  than a uniquely established historical cause. The existing rootless step reports only the
+  fixed kernel policy for subsequent hosted evidence; no sysctl or host setting changes.
+  The exact merged-source local NoNIC acceptance passes in 24.88 seconds with its newly built
+  static agent and an empty owned-container readback; both shared-owner policy tests pass.
+  Strict workspace/all-target Clippy, Rust/original/expanded structure, formatting, actionlint
+  with ShellCheck and eight Python controls pass. The merged Bun check passes 453 tests with
+  one existing skip. The full Rust run records 602 passes and 56 ignored: four unchanged local
+  vm_monitor Landlock ABI failures remain, alongside a DNS paired-port allocation collision
+  and a resume-abandonment persistence race outside this change. Those failures are retained
+  as separate prerequisites; the unchanged failing suite was not rerun to seek green. Their
+  fixes must reach the final base, and all exact-head hosted workflows must pass before landing.

@@ -95,7 +95,10 @@ jobs:
           echo "PRYX_INTERNAL_INGRESS_AGENT=$GITHUB_WORKSPACE/target/x86_64-unknown-linux-gnu/debug/pryx-agent" >> "$GITHUB_ENV"
       - name: Real rootless private ingress transport
         if: matrix.engine == 'docker'
-        run: cargo test --locked -p pryxd --lib engine_private_exec_ingress -- --ignored --test-threads 1
+        run: |
+          echo "Kernel protected-exec policy:"
+          cat /proc/sys/fs/suid_dumpable || true
+          cargo test --locked -p pryxd --lib engine_private_exec_ingress -- --ignored --test-threads 1
       - name: Measure default, host and keep-id data ownership
         if: ${{ !cancelled() && env.DOCKER_HOST != '' }}
         run: python3 scripts/engine-ownership.py
