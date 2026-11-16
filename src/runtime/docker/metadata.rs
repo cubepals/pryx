@@ -80,6 +80,12 @@ impl DockerRuntime {
         if self.oci_runtime.is_some() {
             gvisor::enforcement(&mut result);
         }
+        let result = self.observed_policies(result).await;
+        *self.info.lock().unwrap() = Some(result.clone());
+        Ok(result)
+    }
+
+    async fn observed_policies(&self, mut result: RuntimeInfo) -> RuntimeInfo {
         if result.rootless {
             let visible = termination::peer(&self.socket).await.is_ok();
             result.local_process_ids = Some(visible);
@@ -104,7 +110,6 @@ impl DockerRuntime {
         if result.container_policy_problem.is_none() && self.oci_runtime.is_some() {
             result.container_policy_problem = gvisor::problem(&result);
         }
-        *self.info.lock().unwrap() = Some(result.clone());
-        Ok(result)
+        result
     }
 }
