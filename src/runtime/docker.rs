@@ -15,6 +15,7 @@
 //! - `create.rs`: trusted container and agent creation.
 //! - `browser_policy.rs`: negotiated agent bootstrap and inner-browser policy observation.
 //! - `container.rs`: container construction and observation types.
+//! - `events.rs`: engine event translation.
 //! - `exec.rs`: command attachment and timeout containment.
 //! - `gvisor.rs`: the gvisor tier's runtime name, availability and ownership on one engine.
 //! - `native_tools.rs`: explicit host-only seccomp and FUSE device policy.
@@ -27,6 +28,7 @@ mod browser_policy;
 mod container;
 mod create;
 pub(crate) mod egress;
+mod events;
 mod exec;
 pub mod gvisor;
 pub use gvisor::{EXEC_TIMEOUT_PROBLEM, GVISOR_MISSING_PROBLEM, GVISOR_RUNTIME, problem as gvisor_problem};
@@ -768,32 +770,7 @@ impl ContainerRuntime for DockerRuntime {
     }
 
     fn events(&self, label_filters: &[String]) -> BoxStream<'static, Result<RuntimeEvent, RuntimeError>> {
-        let mut filters = filters(label_filters);
-        filters.insert("type".into(), vec!["container".into()]);
-        let options = EventsOptionsBuilder::new().filters(&filters).build();
-        let docker = match self.docker() {
-            Ok(docker) => docker,
-            Err(e) => return futures_util::stream::iter([Err(e)]).boxed(),
-        };
-        let own = self.oci_runtime;
-        docker
-            .events(Some(options))
-            .filter(move |item| std::future::ready(gvisor::owns_event(own, item)))
-            .map(|item| {
-                let message = item.map_err(map_err)?;
-                let actor = message.actor.unwrap_or_default();
-                let at = message
-                    .time_nano
-                    .and_then(|ns| OffsetDateTime::from_unix_timestamp_nanos(i128::from(ns)).ok())
-                    .unwrap_or_else(OffsetDateTime::now_utc);
-                Ok(RuntimeEvent {
-                    container_id: actor.id.unwrap_or_default(),
-                    action: message.action.unwrap_or_default(),
-                    exit_code: actor.attributes.as_ref().and_then(|a| a.get("exitCode")).and_then(|c| c.parse().ok()),
-                    at,
-                })
-            })
-            .boxed()
+        self.event_stream(label_filters)
     }
 }
 
