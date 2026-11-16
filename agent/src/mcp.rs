@@ -86,9 +86,9 @@ async fn handle(
         "resources/read" => {
             let uri = params["uri"].as_str().unwrap_or_default();
             let text = match uri {
-                "pryx://sandbox/state" => {
-                    json!({"id":agent.sandbox,"epoch":agent.epoch,"processes":agent.processes.list()})
-                }
+                "pryx://sandbox/state" => agent.as_identity(
+                    |sandbox, epoch, _, _| json!({"id":sandbox,"epoch":epoch,"processes":agent.processes.list()}),
+                ),
                 "pryx://sandbox/logs" => json!(agent.logs.subscribe().0),
                 _ => return rpc_error(id, -32602, "Unknown resource"),
             };

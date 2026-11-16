@@ -305,22 +305,74 @@ async fn held_ended(held: &mut Option<crate::vm_sleep::Held>) {
     }
 }
 
-/// The resume hook, after a restore: the wall clock and entropy from the host's signed resume,
-/// acknowledged once applied, then a new network helper, since the restore reset the old one's
-/// packet transport.
+/// The identity this init verifies the host's requests and signs its proofs as. It starts as the
+/// boot's; a fork's resume replaces it with the fork's own.
+struct Current {
+    key: crate::auth::SigningKey,
+    public_key: String,
+    nonce: String,
+    sandbox: String,
+    epoch: u64,
+}
+
+impl Current {
+    fn boot(&self) -> crate::vm_sleep::Boot<'_> {
+        crate::vm_sleep::Boot {
+            public_key: &self.public_key,
+            nonce: &self.nonce,
+            sandbox: &self.sandbox,
+            epoch: self.epoch,
+        }
+    }
+}
+
+/// A fork's identity, taken in full before the resume is acknowledged: init's own, the hostname,
+/// and the agent's, handed over on its stdin.
+async fn take_identity(
+    identity: &crate::vm_sleep::Identity,
+    agent: Option<&mut tokio::process::ChildStdin>,
+) -> io::Result<Current> {
+    use tokio::io::AsyncWriteExt;
+    let key = crate::auth::SigningKey::from_encoded(&identity.key).map_err(|_| invalid("Invalid fork identity"))?;
+    sethostname(&identity.hostname).map_err(io::Error::from)?;
+    let handover = crate::vm_sleep::Handover {
+        sandbox: identity.sandbox.clone(),
+        epoch: identity.epoch,
+        key: identity.key.clone(),
+    };
+    let mut line = serde_json::to_vec(&handover).map_err(io::Error::other)?;
+    line.push(b'\n');
+    agent.ok_or_else(|| invalid("The VM agent has no identity channel"))?.write_all(&line).await?;
+    Ok(Current {
+        public_key: key.public_key(),
+        key,
+        nonce: identity.nonce.clone(),
+        sandbox: identity.sandbox.clone(),
+        epoch: identity.epoch,
+    })
+}
+
+/// The resume hook, after a restore: the wall clock and entropy from the host's signed resume and,
+/// for a fork, its identity, acknowledged once applied; then a new network helper, since the
+/// restore reset the old one's packet transport.
 async fn awake(
     resumed: crate::vm_sleep::Resumed,
     configuration: Option<&vm_boot::Network>,
     network: &mut Option<tokio::process::Child>,
-) -> io::Result<()> {
+    agent: Option<&mut tokio::process::ChildStdin>,
+) -> io::Result<Option<Current>> {
     crate::vm_sleep::apply(&resumed.resume)?;
+    let next = match &resumed.resume.identity {
+        Some(identity) => Some(take_identity(identity, agent).await?),
+        None => None,
+    };
     resumed.acknowledge().await;
     if configuration.is_some() {
         crate::vm_network::stop(network.take()).await?;
         *network = crate::vm_network::start(configuration).await?;
     }
     eprintln!("{}", crate::vm_sleep::RESUMED_MARKER);
-    Ok(())
+    Ok(next)
 }
 
 async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Error>> {
@@ -341,6 +393,8 @@ async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Err
         .map(|(_, value)| value)
         .ok_or("VM agent signing material is missing")?;
     let key = crate::auth::SigningKey::from_encoded(encoded)?;
+    let mut current =
+        Current { public_key: key.public_key(), key, nonce: boot.nonce.clone(), sandbox: sandbox.to_owned(), epoch };
     let kernel = fs::read_to_string("/proc/sys/kernel/osrelease")?.trim().to_owned();
     if boot.network.is_none() {
         crate::vm_firewall::disconnected().await?;
@@ -350,8 +404,6 @@ async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Err
     let mut network = crate::vm_network::start(boot.network.as_ref()).await?;
     let shutdown = crate::vm_shutdown::Listener::bind(boot.cid)?;
     let mut sleep = crate::vm_sleep::Listener::bind(boot.cid)?;
-    let public_key = key.public_key();
-    let identity = crate::vm_sleep::Boot { public_key: &public_key, nonce: &boot.nonce, sandbox, epoch };
     let mut term = signal(SignalKind::terminate())?;
     let mut interrupt = signal(SignalKind::interrupt())?;
     rustix::system::reboot(rustix::system::RebootCommand::CadOff)?;
@@ -365,7 +417,8 @@ async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Err
         .args(&boot.arguments)
         .env_clear()
         .envs(boot.environment)
-        .stdin(Stdio::null())
+        // A fork's identity reaches the agent here (vm_sleep::take_handovers); nothing else does.
+        .stdin(Stdio::piped())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .process_group(0)
@@ -375,14 +428,16 @@ async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Err
     // Set while the host may be snapshotting this guest: a restore resets the packet transport,
     // so the network helper's exit then is the restore's, handled when the hold ends.
     let mut held: Option<crate::vm_sleep::Held> = None;
+    let mut agent = child.stdin.take();
     let (mut result, stop) = loop {
+        let guest = current.boot();
         tokio::select! {
         result = child.wait() => break (Some(result?), Accepted { signal: libc::SIGTERM, grace: DEFAULT_GRACE }),
         _ = term.recv() => break (None, Accepted { signal: libc::SIGTERM, grace: DEFAULT_GRACE }),
         _ = interrupt.recv() => break (None, Accepted { signal: libc::SIGINT, grace: DEFAULT_GRACE }),
-        result = shutdown.receive(&public_key, &boot.nonce, sandbox, epoch) => break (None, result?),
+        result = shutdown.receive(&current.public_key, &current.nonce, &current.sandbox, current.epoch) => break (None, result?),
         error = crate::vm_network::failure(&mut network), if held.is_none() => return Err(error.into()),
-        pending = sleep.receive(&identity), if held.is_none() => {
+        pending = sleep.receive(&guest), if held.is_none() => {
             let pending = pending?;
             // Flushed first: a wake that can't restore boots this disk with everything written.
             rustix::fs::syncfs(&disk.writes)?;
@@ -397,9 +452,11 @@ async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Err
         }
         () = held_ended(&mut held) => {
             held = None;
-            match crate::vm_sleep::resumed(&identity).await {
+            match crate::vm_sleep::resumed(&guest).await {
                 Some(resumed) => {
-                    awake(resumed, boot.network.as_ref(), &mut network).await?;
+                    if let Some(next) = awake(resumed, boot.network.as_ref(), &mut network, agent.as_mut()).await? {
+                        current = next;
+                    }
                     drop(sleep);
                     sleep = crate::vm_sleep::Listener::bind(boot.cid)?;
                 }
@@ -441,11 +498,11 @@ async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Err
     rustix::fs::syncfs(&disk.writes)?;
     mount::mount_remount(descriptor(&disk.writes), MountFlags::RDONLY | MountFlags::NODEV | MountFlags::NOSUID, "")?;
     let proof = crate::vm_observation::sign(
-        &key,
+        &current.key,
         crate::vm_observation::Observation {
-            nonce: boot.nonce,
-            sandbox: sandbox.to_owned(),
-            epoch,
+            nonce: current.nonce,
+            sandbox: current.sandbox,
+            epoch: current.epoch,
             kernel,
             code: result.code(),
             signal: result.signal(),

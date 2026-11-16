@@ -226,7 +226,7 @@ jobs:
             cargo test --locked --lib runtime::vm::instance::shutdown_acceptance::actual_monitor_shutdown_threads_exit_cleanly \
               -- --ignored --nocapture | tee "$RUNNER_TEMP/vm-monitor-shutdown.log"
       # Its own step: a failure of the cold-boot acceptance above doesn't hide this one's evidence.
-      - name: Prove memory sleep and its cold-boot fallbacks
+      - name: Prove memory sleep, its cold-boot fallbacks and forks with memory
         if: ${{ !cancelled() && steps.vm-bundle.outcome == 'success' }}
         env:
           PRYX_VM_RUNTIME_DIAGNOSTICS: ${{ runner.temp }}/vm-runtime-diagnostics
@@ -236,7 +236,8 @@ jobs:
           CARGO_PROFILE_TEST_DEBUG: '0'
           CARGO_INCREMENTAL: '0'
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
-        run: cargo test --locked --lib runtime::vm::instance::memory_acceptance -- --ignored --nocapture | tee "$RUNNER_TEMP/vm-memory-sleep.log"
+        # One at a time, so the sleep and wake samples time one guest's work alone.
+        run: cargo test --locked --lib runtime::vm::instance::memory_acceptance -- --ignored --nocapture --test-threads 1 | tee "$RUNNER_TEMP/vm-memory-sleep.log"
       - name: Prove root jail disk staging and recovery
         if: ${{ !cancelled() && steps.vm-bundle.outcome == 'success' }}
         env:

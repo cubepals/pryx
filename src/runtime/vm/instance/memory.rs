@@ -37,13 +37,36 @@ pub(super) struct Image {
     pub(super) nonce: String,
     pub(super) memory_bytes: i64,
     pub(super) nano_cpus: Option<i64>,
+    /// For a fork's copy: the identity the guest in this memory still holds, its source's, which
+    /// signs the resume that hands it its own. Absent when that is this entry's own identity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) guest: Option<Source>,
+}
+
+/// The identity a fork's source left in the memory it shares: its sandbox, epoch and agent key.
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct Source {
+    pub(super) sandbox: String,
+    pub(super) epoch: u64,
+    pub(super) key: String,
+}
+
+/// The encoded agent signing key a spec carries, as its bootstrap hands it to the guest.
+pub(super) fn agent_secret(spec: &ContainerSpec) -> Result<String, RuntimeError> {
+    let boot = spec.agent.as_ref().ok_or_else(|| error("VM agent bootstrap is missing"))?;
+    spec.env
+        .iter()
+        .find(|(name, _)| name == &boot.secret_env)
+        .map(|(_, value)| value.clone())
+        .ok_or_else(|| error("VM signing material is missing"))
 }
 
 /// The CPU fields of the first processor that decide which guest CPU state a host can take.
 const CPU_FIELDS: [&str; 8] =
     ["vendor_id", "cpu family", "model", "stepping", "CPU implementer", "CPU architecture", "CPU variant", "CPU part"];
-const STATE: &str = "state";
-const MEMORY: &str = "memory";
+pub(super) const STATE: &str = "state";
+pub(super) const MEMORY: &str = "memory";
 /// The guest's own flush and the host's hold, before any pause.
 const GUEST_TIMEOUT: Duration = Duration::from_secs(30);
 // A bound on a stuck write, not an expected time: the slowest shared disk's sequential floor.
@@ -78,7 +101,7 @@ fn path_text(path: &Path) -> Result<&str, RuntimeError> {
 
 impl VmRuntime {
     /// The private directory one sandbox's memory image lives in.
-    fn memory_directory(&self, entry: &Entry) -> Result<PathBuf, RuntimeError> {
+    pub(super) fn memory_directory(&self, entry: &Entry) -> Result<PathBuf, RuntimeError> {
         let lease = self.lease(entry)?;
         let name = lease.file_stem().and_then(|name| name.to_str()).ok_or_else(|| error("Invalid VM lease name"))?;
         Ok(self.state.root.join("memory").join(name))
@@ -212,6 +235,7 @@ impl VmRuntime {
             nonce: live.nonce.clone(),
             memory_bytes: entry.spec.memory_bytes,
             nano_cpus: entry.spec.nano_cpus,
+            guest: None,
         })
     }
 
@@ -315,7 +339,7 @@ impl VmRuntime {
         let directory = sandbox_directory(&boots, &lease)?;
         let deadline = Instant::now() + launch::BOOT_TIMEOUT;
         let mut network = self.network(bundle, directory.path(), &lease, entry, deadline).await?;
-        let channel = directory.path().join("vsock");
+        let channel = directory.path().join(configuration::CHANNEL);
         let api = directory.path().join("api");
         let serial = directory.path().join("serial");
         let mut read = vec![
@@ -335,6 +359,8 @@ impl VmRuntime {
             write: vec![entry.spec.data_dir.join(disk::FILE)],
             role: vm_monitor::Role::Ordinary,
         };
+        // The snapshot names the disk by its link here; for a fork it is the fork's own disk.
+        monitor::link_disk(directory.path(), &entry.spec.data_dir.join(disk::FILE))?;
         let resume = PathBuf::from(format!("{}_{}", channel.display(), vm_sleep::RESUME_PORT));
         let listener = UnixListener::bind(&resume).map_err(error)?;
         fs::set_permissions(&resume, fs::Permissions::from_mode(0o600)).map_err(error)?;
@@ -350,8 +376,8 @@ impl VmRuntime {
         let mut stages = launch::Stages::default();
         let restoring = Restoring { bundle, entry, image, api, state, memory, channel: channel.clone(), deadline };
         let ready = self.resumed(&restoring, &mut monitor, &listener, &mut stages).await;
-        let forwarder = match ready {
-            Ok(forwarder) => forwarder,
+        let (forwarder, nonce) = match ready {
+            Ok(ready) => ready,
             Err(problem) => {
                 let problem = with_exit(problem, &mut monitor);
                 let _ = tokio::time::timeout(crate::runtime::ENGINE_PROBE_TIMEOUT, monitor.kill()).await;
@@ -376,7 +402,7 @@ impl VmRuntime {
             _directory: directory,
             serial,
             channel,
-            nonce: image.nonce.clone(),
+            nonce,
             shutdown_requested: false,
             killing: false,
             stages,
@@ -392,7 +418,7 @@ impl VmRuntime {
         monitor: &mut Machine,
         listener: &UnixListener,
         stages: &mut launch::Stages,
-    ) -> Result<Forwarder, RuntimeError> {
+    ) -> Result<(Forwarder, String), RuntimeError> {
         let Restoring { bundle, entry, image, api, state, memory, channel, deadline } = restoring;
         while !api.exists() {
             if monitor.exited().map_err(error)?.is_some() || Instant::now() >= *deadline {
@@ -408,7 +434,7 @@ impl VmRuntime {
         )
         .await?;
         stages.mark("restore");
-        self.resume_guest(entry, image, listener, monitor, *deadline).await?;
+        let nonce = self.resume_guest(entry, image, listener, monitor, *deadline).await?;
         stages.mark("resume");
         let forwarder = self.forward(bundle, channel, entry, *deadline).await?;
         // A file-only guest's agent binding takes whatever port its forwarder was given.
@@ -420,10 +446,12 @@ impl VmRuntime {
         }
         launch::ready(monitor, &spec, *deadline).await?;
         stages.mark("agent");
-        Ok(forwarder)
+        Ok((forwarder, nonce))
     }
 
-    /// Gives the restored guest's init its signed resume: the host's time and fresh entropy.
+    /// Gives the restored guest's init its signed resume: the host's time and fresh entropy, and
+    /// for a fork's copy this entry's own identity, signed by the source's the guest still holds.
+    /// Answers the boot nonce the guest has from then on.
     async fn resume_guest(
         &self,
         entry: &Entry,
@@ -431,9 +459,24 @@ impl VmRuntime {
         listener: &UnixListener,
         monitor: &Machine,
         deadline: Instant,
-    ) -> Result<(), RuntimeError> {
+    ) -> Result<String, RuntimeError> {
         let boot = entry.spec.agent.as_ref().ok_or_else(|| error("VM agent bootstrap is missing"))?;
-        let key = agent::key(&entry.spec)?;
+        let (key, sandbox, epoch, identity) = match &image.guest {
+            None => (agent::key(&entry.spec)?, boot.sandbox.clone(), boot.epoch, None),
+            Some(source) => (
+                pryx_agent::auth::SigningKey::from_encoded(&source.key).map_err(error)?,
+                source.sandbox.clone(),
+                source.epoch,
+                Some(vm_sleep::Identity {
+                    sandbox: boot.sandbox.clone(),
+                    epoch: boot.epoch,
+                    key: agent_secret(&entry.spec)?,
+                    nonce: uuid::Uuid::new_v4().simple().to_string(),
+                    hostname: format!("pryx-{}", entry.id),
+                }),
+            ),
+        };
+        let nonce = identity.as_ref().map_or_else(|| image.nonce.clone(), |identity| identity.nonce.clone());
         let pid = monitor.pid().and_then(|pid| i32::try_from(pid).ok());
         tokio::time::timeout_at(deadline, async {
             let mut socket = loop {
@@ -446,7 +489,7 @@ impl VmRuntime {
                 .map_err(|_| error("Host entropy is unavailable"))?
                 .expose();
             let now = crate::clock::now().unix_timestamp_nanos();
-            let resume = vm_sleep::resume(&key, &image.nonce, &boot.sandbox, boot.epoch, now, &seed);
+            let resume = vm_sleep::fork(&key, &image.nonce, &sandbox, epoch, now, &seed, identity);
             let mut line = serde_json::to_vec(&resume).map_err(error)?;
             line.push(b'\n');
             socket.write_all(&line).await.map_err(error)?;
@@ -458,7 +501,7 @@ impl VmRuntime {
             if acknowledgement != b"true\n" {
                 return Err(error("VM guest init did not take its resume"));
             }
-            Ok(())
+            Ok(nonce)
         })
         .await
         .map_err(|_| RuntimeError::Timeout("VM guest init did not ask for its resume".into()))?
@@ -493,7 +536,7 @@ impl VmRuntime {
             return Err(RuntimeError::Unavailable(ROOT_REFUSAL.into()));
         }
         let bundle = self.bundle().await?;
-        if bundle.bootstrap().metadata.vm_sleep_version != vm_sleep::VERSION {
+        if bundle.bootstrap().metadata.vm_sleep_version < vm_sleep::SLEEP_VERSION {
             return Err(RuntimeError::Unavailable("This VM bundle's guest init has no memory sleep".into()));
         }
         let root = self.state.root.join("probe");
