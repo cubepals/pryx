@@ -42,7 +42,7 @@ Parts (`vm-tools/`):
 - `monitor-inputs.json`: pinned private GNU SDK, complete libc source, exact Buildroot recipe and primary notice inputs.
 - `monitor_prepare.py`: verify and privately relocate that separate build-only SDK without weakening its host-library guard.
 - `monitor_abi.rs`: build-only signal/futex/syscall values imported from the actual monitor and libc.
-- `monitor_policy.py`: preserve the restrictive published policy while substituting the equivalent native libc thread/event-wait ABI.
+- `monitor_policy.py`: preserve the restrictive published policy while substituting the equivalent native libc thread/event-wait and file-metadata ABI.
 - `monitor_threads.rs`: actual maintained thread kicks and joins under the compiled native VMM/API/vCPU filters, without KVM.
 - `monitor_build.py`: same-source static monitor build with an independently compiled embedded-policy check.
 - `monitor_component.py`: verify source/policy correspondence and embedded BPF before selecting a native build in the whole bundle.

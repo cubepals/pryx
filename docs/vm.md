@@ -65,8 +65,9 @@ mismatch refuses the work and runs nothing.
 Each licence was recorded in [decisions](decisions.md) before use. The kernel and every GPL
 program are separate files, never linked into pryxd. The monitor is built from source so that
 its C library matches the launcher's confinement. It keeps Firecracker's own restrictive
-seccomp policy; only the libc-specific thread-signal, wait and terminal rules are translated,
-and a read of its own PID is added ([how to rebuild it](../templates/vm-tools/monitor-REBUILD.md)).
+seccomp policy; only the libc-specific thread-signal, wait, terminal and file-metadata rules
+are translated (`statx` where the published policy allows `stat`, for snapshot creation), and a
+read of its own PID is added ([how to rebuild it](../templates/vm-tools/monitor-REBUILD.md)).
 
 The kernel is pinned in [kernel-selection.json](../templates/vm-tools/kernel-selection.json)
 with the built-in options the guest needs: EROFS, overlayfs, ext4, virtio block and MMIO, vsock

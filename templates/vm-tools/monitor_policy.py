@@ -2,7 +2,9 @@
 # SPDX-License-Identifier: FSL-1.1-ALv2
 """Translate the pinned monitor's restrictive policy to its equivalent native libc ABI.
 
-Keep every other syscall, argument constraint and trap default. GNU's empty upstream
+Thread signals, pthread joins, event waits, terminal attributes and file metadata (statx, where
+the published policy allows stat) are translated. Keep every other syscall, argument constraint
+and trap default. GNU's empty upstream
 policy is never an input. The launcher's independent self-TGID restriction remains required.
 This produces build data, never a workload-selected monitor option.
 """
@@ -32,9 +34,10 @@ def adapt(original, abi):
         raise ValueError('Published thread signal policy differs from the reviewed ABI')
     mapping = {abi['abort']: abi['abort'], kicks.pop(): abi['vcpu']}
     result = copy.deepcopy(original)
-    changed = {'signals': 0, 'signalIdentity': 0, 'joins': 0, 'eventWaits': 0, 'terminals': 0}
+    changed = {'signals': 0, 'signalIdentity': 0, 'joins': 0, 'eventWaits': 0, 'terminals': 0, 'metadata': 0}
     for profile in result.values():
         signals_process = False
+        reads_metadata = False
         for rule in profile['filter']:
             if rule['syscall'] == 'tkill':
                 arguments = rule.get('args', [])
@@ -58,6 +61,10 @@ def adapt(original, abi):
                     argument['val'] = terminals[argument['val']]
                     argument['comment'] = 'Equivalent native libc terminal attributes request'
                     changed['terminals'] += 1
+            elif rule['syscall'] == 'stat':
+                if rule.get('args'):
+                    raise ValueError('Unreviewed published file metadata constraints')
+                reads_metadata = True
             elif rule['syscall'] == 'epoll_pwait':
                 if rule.get('args'):
                     raise ValueError('Unreviewed published event-wait constraints')
@@ -79,6 +86,14 @@ def adapt(original, abi):
                 rule['args'].append({'index': FUTEX_BITSET_ARGUMENT, 'type': 'dword', 'op': 'eq',
                                      'val': abi['futexBitsetAny'], 'comment': 'Full wait bitset only'})
                 changed['joins'] += 1
+        if reads_metadata:
+            # The published rule serves std::fs::File::metadata in snapshot creation. On GNU, Rust's
+            # std reads metadata with statx, falling back to fstat only when statx is missing.
+            if any(rule['syscall'] == 'statx' for rule in profile['filter']):
+                raise ValueError('Published file metadata policy needs renewed review')
+            profile['filter'].append({'syscall': 'statx',
+                'comment': 'GNU std::fs::File::metadata, as the published stat rule is for musl'})
+            changed['metadata'] += 1
         if signals_process:
             if any(rule['syscall'] == 'getpid' for rule in profile['filter']):
                 raise ValueError('Published signal identity policy needs renewed review')
