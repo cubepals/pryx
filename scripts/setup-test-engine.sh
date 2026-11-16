@@ -8,9 +8,10 @@ set -euo pipefail
 engine=${1:?docker or podman}
 case "$engine" in docker|podman) ;; *) exit 2 ;; esac
 [ "$(id -u)" != 0 ]
+python3 -m unittest discover -s deploy -p engine_pause_test.py
 root="${RUNNER_TEMP:?}/pryx-engine-$engine"
 mkdir -p "$root/bin" "$root/run" "$root/data" "$root/exec"
-chmod 700 "$root/run" "$root/data" "$root/exec"
+chmod 700 "$root" "$root/run" "$root/data" "$root/exec"
 manifest=.github/engine-versions.json
 export XDG_RUNTIME_DIR="$root/run"
 
@@ -105,6 +106,7 @@ CLIENT
 fi
 pid=$!
 printf '%s\n' "$pid" > "$root/service.pid"
+python3 deploy/engine_pause.py record "$root" "$pid"
 ready=false
 for ((attempt=0; attempt<60; attempt++)); do
   if "${probe[@]}" info > "$root/info.txt" 2>&1; then ready=true; break; fi
