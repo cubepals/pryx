@@ -45,15 +45,27 @@ fn dialable(upstream: SocketAddr, refused: &Refused) -> bool {
 /// Whether the kernel routes `address` to this host itself, asked as a dial is about to be made:
 /// a datagram socket connected to it (which sends nothing) gets the source the kernel chose, and
 /// a local destination is its own source (the local route's preferred source; RFC 6724's first
-/// rule for IPv6). An address with no route is an error, which refuses it.
+/// rule for IPv6). An address the kernel has no route for, or of a family this host doesn't run,
+/// is no address of this host (its own always have a local route); any other failure is an
+/// error, which refuses the name.
 fn local(upstream: SocketAddr) -> io::Result<bool> {
     let unspecified: IpAddr = match upstream {
         SocketAddr::V4(_) => std::net::Ipv4Addr::UNSPECIFIED.into(),
         SocketAddr::V6(_) => std::net::Ipv6Addr::UNSPECIFIED.into(),
     };
-    let probe = std::net::UdpSocket::bind((unspecified, 0))?;
-    probe.connect(upstream)?;
-    Ok(probe.local_addr()?.ip() == upstream.ip())
+    let probe = std::net::UdpSocket::bind((unspecified, 0)).and_then(|probe| probe.connect(upstream).map(|()| probe));
+    match probe {
+        Ok(probe) => Ok(probe.local_addr()?.ip() == upstream.ip()),
+        Err(problem) if unroutable(&problem) => Ok(false),
+        Err(problem) => Err(problem),
+    }
+}
+/// The kernel's answers for a destination it can't route from here.
+fn unroutable(problem: &io::Error) -> bool {
+    matches!(
+        problem.raw_os_error(),
+        Some(libc::ENETUNREACH | libc::EHOSTUNREACH | libc::ENETDOWN | libc::EAFNOSUPPORT | libc::EADDRNOTAVAIL)
+    )
 }
 /// The same question of a connection just made, before a byte of the sandbox's goes on it.
 fn looped(stream: &TcpStream) -> io::Result<bool> {
@@ -340,6 +352,28 @@ mod hello_tests {
         // Non-public addresses stay refused whatever else holds.
         assert!(!dialable(SocketAddr::new("10.0.0.1".parse().unwrap(), 443), &none));
         assert!(!dialable(SocketAddr::new("127.0.0.1".parse().unwrap(), 443), &none));
+    }
+    #[test]
+    fn a_public_upstream_is_dialable_whether_or_not_this_host_routes_its_family() {
+        // With no address rules, as a container's or a VM's gateway has, on a host with or
+        // without an IPv6 route (CI's has none): neither address is this host's.
+        let none = Refused::default();
+        for upstream in ["93.184.215.14:80", "[2606:2800::1]:443"] {
+            assert!(dialable(upstream.parse().unwrap(), &none), "{upstream}");
+        }
+        assert!(unroutable(&io::Error::from_raw_os_error(libc::ENETUNREACH)));
+        assert!(!unroutable(&io::Error::from_raw_os_error(libc::EMFILE)));
+    }
+    #[tokio::test]
+    async fn an_allowed_public_name_resolves_through_a_gateway_without_address_rules() {
+        // Where this host resolves names at all, the gateway's own resolution admits one allowed.
+        let Ok(found) = tokio::net::lookup_host(("example.com", 80)).await else { return };
+        if found.count() == 0 {
+            return;
+        }
+        let policy = Policy::Names(EgressPolicy { allow: vec!["example.com".into()], deny: vec![] });
+        let resolved = resolve("example.com", 80, &policy, &Refused::default()).await;
+        assert!(resolved.is_ok_and(|addresses| !addresses.is_empty()));
     }
     #[tokio::test]
     async fn a_connection_to_this_host_is_seen_as_one() {
