@@ -5068,3 +5068,19 @@ job when publication is authorized. That job has not run in this task.
   on the newest branch head. The existing 45-second acceptance and every positive/recovery assertion
   stay unchanged. No job or gate is added; the focused local regression takes about five to ten
   seconds in the existing Rust suite.
+
+- OOM evidence follow-up: [CI
+  43926287482/job133518624112](https://github.com/cubepals/pryx/actions/runs/43926287482/job/133518624112)
+  passes the ten gVisor fast-exit trials but reports false for the plain Docker trial. Its container
+  was removed before the final engine diagnostics, so the retained trace does not identify the
+  unique historical cause. The owner source exposes an additional observation window: Moby updates
+  OOMKilled before publishing an event whose timestamp may follow containerd's FinishedAt. A
+  negative bounded history read now confirms the immutable container's flag once, requiring the same
+  start; strict event timestamp scoping and the refusal to infer OOM from a signal exit remain. The
+  real acceptance captures only fixed OOM state and filtered event identity/timestamps before panic
+  cleanup, within a three-second diagnostic budget. Both focused controls pass on this source and
+  fail on the preceding production code. The full local Rust run records 580 passes and 53 ignored
+  tests, with the four unchanged vm_monitor Landlock ABI failures retained. Strict
+  workspace/all-target Clippy, formatting and all three structure checks pass. Local Docker lacks
+  controller enforcement, so no local hard-OOM integration pass is claimed; exact-head hosted proof
+  and final review remain required.
