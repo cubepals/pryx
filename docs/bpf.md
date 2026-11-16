@@ -93,10 +93,21 @@ only where the probe proved them. While any process sandbox runs without verifie
 started before its host had the capability, which a restart of pryxd leaves running, or one whose
 rules no longer fit the host's addresses), `host-firewall` is off for the whole tier, on the node
 and in every process sandbox's view, with how many in `kernel-network-policy`'s evidence: such a
-sandbox reaches the others' listeners over loopback. It comes back as the last of them stops or
-starts again, which attaches its programs. A request for hostname or address policy on a host without the
-capability is refused with `kernel-network-policy` named; a placement that requires
-`host-firewall` is refused naming it.
+sandbox reaches the others' listeners over loopback. A normal stop restores the guarantee only
+after the trusted supervisor closes command admission, joins its native-tool worker, shuts down
+its runtime, kills and reaps every remaining descendant, and signs a fresh retirement challenge.
+This includes detached sessions and children whose exit signal is not SIGCHLD. A dedicated UID
+can instead prove cleanup through a complete, unfiltered process scan; unreadable or ambiguous
+process visibility cannot prove that nothing remains.
+
+An unexpectedly lost legacy supervisor can leave descendants that its shared UID no longer
+identifies. That uncertainty keeps the tier guarantee off for the rest of the current boot,
+even after its sandbox record is removed or pryxd restarts. An older process state directory
+without the new history-origin record is treated the same way, because earlier versions could
+already have deleted such a sandbox's record. A changed, verified kernel boot identity clears
+that history. Without a boot identity the uncertainty remains. A request for hostname or address
+policy on a host without the capability is refused with `kernel-network-policy` named; a
+placement that requires `host-firewall` is refused naming it.
 
 ## How the programs work
 

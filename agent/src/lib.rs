@@ -11,6 +11,7 @@
 //! - `schema.rs`: development-only agent wire schema.
 //! - `state.rs`: bounded, non-secret persistent checkpoints.
 //! - `telemetry.rs`: in-memory activity and stream ownership.
+//! - `process_retirement.rs`: final subreaper descendant retirement.
 //! - `process.rs`: supervised process trees, streams, stdin and completion.
 //! - `syscall_abi.rs`: native syscall ABI checks around maintained seccompiler policies.
 //! - `process_policy.rs`: process-tier filesystem, syscall and sampled resource restrictions.
@@ -83,6 +84,8 @@ pub mod process_capabilities;
 pub mod process_observation;
 #[cfg(feature = "server")]
 pub mod process_policy;
+#[cfg(feature = "server")]
+pub mod process_retirement;
 #[cfg(feature = "server")]
 pub mod process_tool_policy;
 #[cfg(feature = "server")]

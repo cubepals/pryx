@@ -97,7 +97,10 @@ impl ProcessRuntime {
         let entries = self.state.entries.lock().unwrap();
         entries
             .values()
-            .filter(|entry| !network.verified(&entry.spec.name) && matching_pid(entry.pid, entry.ticks).is_some())
+            .filter(|entry| {
+                !network.verified(&entry.spec.name)
+                    && (matching_pid(entry.pid, entry.ticks).is_some() || self.legacy_pending(entry))
+            })
             .count()
     }
     pub(super) fn running(&self, name: &str) -> Result<bool, RuntimeError> {
@@ -310,6 +313,9 @@ impl ProcessRuntime {
         };
         drop(listeners);
         entry.pid = Some(child.id());
+        entry.network_boot = crate::host::boot_id();
+        entry.network_clean = false;
+        entry.network_stop_nonce = None;
         entry.ticks = identity(child.id());
         entry.started = Some(format_time(crate::clock::now()));
         entry.cleaned = false;
@@ -363,6 +369,13 @@ impl ProcessRuntime {
             self.release_network(&entry.spec.name)?;
             entry.cleaned = true;
             self.save_in(&mut entries, entry.clone())?;
+        }
+        if !alive && entry.network.is_none() {
+            let clean = entry.network_clean;
+            self.note_legacy_loss(&mut entry)?;
+            if clean != entry.network_clean {
+                self.save_in(&mut entries, entry.clone())?;
+            }
         }
         let paused = alive
             && entry

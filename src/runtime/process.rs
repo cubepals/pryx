@@ -15,11 +15,13 @@
 //! - `namespaces.rs`: the namespaced mode's helper, its arguments and its probe.
 //! - `network.rs`: each sandbox's cgroup, kernel network policy and hostname gateways.
 //! - `adoption.rs`: turning that policy on at start and adopting what outlived the last daemon.
+//! - `legacy.rs`: boot-scoped uncertainty and authenticated cleanup of older process trees.
 /// The host probe's name for the namespaced process mode.
 pub const NAMESPACES: &str = "process-namespaces";
 mod adoption;
 mod exec;
 mod journal;
+mod legacy;
 mod logs;
 pub mod namespaces;
 mod native;
@@ -66,6 +68,12 @@ struct Entry {
     pub native_browser: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     network: Option<network::Record>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    network_boot: Option<String>,
+    #[serde(default)]
+    network_clean: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    network_stop_nonce: Option<String>,
     /// Set when the supervisor started in its own namespaces; absent in the plain mode.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub namespaced: Option<namespaces::Namespaced>,
@@ -115,6 +123,13 @@ impl ContainerRuntime for ProcessRuntime {
     }
     fn kernel_network_policy(&self) -> Option<crate::capability::Capability> {
         let proved = self.network_capability.clone()?;
+        if proved.state == crate::capability::State::On && self.legacy_boot_uncertain() {
+            return Some(crate::capability::Capability::new(
+                crate::capability::State::Off,
+                "Legacy process history cannot prove that all earlier descendants are gone on this boot",
+                "Restart this host so a new boot identity proves the earlier descendants are gone",
+            ));
+        }
         let unpoliced = self.unpoliced();
         if proved.state != crate::capability::State::On || unpoliced == 0 {
             return Some(proved);
@@ -172,6 +187,7 @@ impl ContainerRuntime for ProcessRuntime {
     }
     async fn stop(&self, name: &str, signal: &str, grace: Duration) -> Result<(), RuntimeError> {
         self.signal_tree(name, rustix::process::Signal::CONT)?;
+        self.prepare_legacy_stop(name).await?;
         self.signal_tree(
             name,
             if signal == "SIGINT" { rustix::process::Signal::INT } else { rustix::process::Signal::TERM },

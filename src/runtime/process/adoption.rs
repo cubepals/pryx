@@ -17,7 +17,13 @@ impl ProcessRuntime {
     /// tests hand it another: one whose programs the verifier refuses.
     #[doc(hidden)]
     pub async fn with_network_programs(mut self, served: Served, programs: &[u8]) -> Self {
-        let found = crate::bpf::probe_object(programs);
+        let found = self
+            .legacy_history()
+            .map_err(|problem| crate::bpf::host::Unavailable {
+                evidence: problem.to_string(),
+                action: "Restore access to this daemon's private process history before enabling kernel network policy",
+            })
+            .and_then(|()| crate::bpf::probe_object(programs));
         let capability = crate::bpf::capability(&found);
         // What an operator, and the installed acceptance, read of this start's proof.
         let on = capability.state == crate::capability::State::On;

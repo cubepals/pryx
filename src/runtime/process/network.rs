@@ -550,6 +550,9 @@ mod tests {
                 cleaned: false,
                 native_browser: None,
                 network: Some(record),
+                network_boot: None,
+                network_clean: false,
+                network_stop_nonce: None,
                 namespaced: None,
             })
             .unwrap();

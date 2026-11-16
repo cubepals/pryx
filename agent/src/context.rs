@@ -24,6 +24,7 @@ pub struct Agent {
     pub public_key: String,
     /// A fork's own identity, once its trusted init handed it over (`vm_sleep.rs`).
     pub forked: std::sync::RwLock<Option<Arc<Forked>>>,
+    pub retirement_nonce: std::sync::Mutex<Option<String>>,
     pub processes: Processes,
     pub file_tasks: tokio_util::task::TaskTracker,
     pub shells: crate::shell_state::Shells,

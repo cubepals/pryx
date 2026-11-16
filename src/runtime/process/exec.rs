@@ -15,7 +15,7 @@ impl ProcessRuntime {
         path: &str,
         body: serde_json::Value,
         timeout: Duration,
-        nonce: Option<&str>,
+        nonce: Option<(&'static str, &str)>,
     ) -> Result<Bytes, RuntimeError> {
         let entry = self.entry(name)?;
         let boot = entry.spec.agent.as_ref().ok_or_else(|| error("Missing process agent"))?;
@@ -51,8 +51,8 @@ impl ProcessRuntime {
             ("content-type", "application/json".into()),
             (pryx_agent::contract::IDEMPOTENCY_HEADER, uuid::Uuid::new_v4().to_string()),
         ];
-        if let Some(nonce) = nonce {
-            headers.push((pryx_agent::process_observation::NONCE_HEADER, nonce.into()));
+        if let Some((header, nonce)) = nonce {
+            headers.push((header, nonce.into()));
         }
         let response = crate::http_client::send(
             method,
@@ -121,7 +121,7 @@ impl ProcessRuntime {
                 "/_pryx/health",
                 serde_json::Value::Null,
                 super::super::ENGINE_PROBE_TIMEOUT,
-                Some(&nonce),
+                Some((pryx_agent::process_observation::NONCE_HEADER, &nonce)),
             )
             .await
         else {
@@ -149,6 +149,20 @@ impl ProcessRuntime {
         self.request(name, hyper::Method::GET, "/_pryx/health", serde_json::Value::Null, Duration::from_millis(100))
             .await
             .map(|_| ())
+    }
+    pub(super) async fn agent_retirement_challenge(&self, name: &str) -> Option<String> {
+        let nonce = uuid::Uuid::new_v4().to_string();
+        self.raw(
+            name,
+            hyper::Method::GET,
+            "/_pryx/health",
+            serde_json::Value::Null,
+            super::super::ENGINE_PROBE_TIMEOUT,
+            Some((pryx_agent::process_retirement::NONCE_HEADER, &nonce)),
+        )
+        .await
+        .ok()
+        .map(|_| nonce)
     }
     pub(super) async fn agent_exec(
         &self,
