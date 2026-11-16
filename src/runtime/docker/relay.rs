@@ -4,7 +4,8 @@
 //! container and preserve its gateway-free egress policy. Inspection reconstructs them after restart.
 use crate::{
     protocol::Proto,
-    runtime::{PortBinding, RuntimeError},
+    runtime::docker::DockerRuntime,
+    runtime::{ContainerRuntime, PortBinding, RuntimeError},
 };
 use bollard::models::ContainerInspectResponse;
 use std::{
@@ -17,14 +18,14 @@ use tokio::{
     net::{TcpListener, TcpStream, UdpSocket},
     sync::{Mutex, Semaphore, mpsc},
 };
-use tokio_util::sync::{CancellationToken, DropGuard};
+use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
 use crate::labels::LABEL_INTERNAL_BINDINGS;
 const MAX_CONNECTIONS: usize = 256;
-const DATAGRAM_BYTES: usize = u16::MAX as usize;
+const DATAGRAM_BYTES: usize = pryx_agent::exec_ingress::DATAGRAM_BYTES;
 const UDP_IDLE: Duration = Duration::from_secs(60);
 pub(super) struct Relays {
-    held: Mutex<HashMap<String, (String, DropGuard)>>,
+    held: Mutex<HashMap<String, Lease>>,
     capacity: Arc<Semaphore>,
 }
 impl Default for Relays {
@@ -37,9 +38,23 @@ fn error(error: impl std::fmt::Display) -> RuntimeError {
 }
 impl Relays {
     pub(super) async fn stop(&self, name: &str) {
-        self.held.lock().await.retain(|id, (held_name, _)| id != name && held_name != name);
+        let mut held = self.held.lock().await;
+        let ids: Vec<_> = held
+            .iter()
+            .filter(|(id, lease)| id.as_str() == name || lease.name == name)
+            .map(|(id, _)| id.clone())
+            .collect();
+        for id in ids {
+            if let Some(lease) = held.remove(&id) {
+                lease.retire().await;
+            }
+        }
     }
-    pub(super) async fn ensure(&self, info: &ContainerInspectResponse) -> Result<(), RuntimeError> {
+    pub(super) async fn ensure(
+        &self,
+        runtime: &DockerRuntime,
+        info: &ContainerInspectResponse,
+    ) -> Result<(), RuntimeError> {
         let Some(encoded) =
             info.config.as_ref().and_then(|c| c.labels.as_ref()).and_then(|l| l.get(LABEL_INTERNAL_BINDINGS))
         else {
@@ -51,73 +66,151 @@ impl Relays {
             self.stop(id).await;
             return Ok(());
         }
+        let start = info.state.as_ref().and_then(|state| state.started_at.clone());
         let mut held = self.held.lock().await;
-        if held.contains_key(id) {
+        if held.get(id).is_some_and(|lease| lease.start == start) {
             return Ok(());
         }
-        held.retain(|_, (previous, _)| previous != name);
+        let previous: Vec<_> = held
+            .iter()
+            .filter(|(previous, lease)| previous.as_str() == id || lease.name == name)
+            .map(|(id, _)| id.clone())
+            .collect();
+        for id in previous {
+            if let Some(lease) = held.remove(&id) {
+                lease.retire().await;
+            }
+        }
+        let metadata = runtime.info.lock().unwrap().clone();
+        let metadata = match metadata {
+            Some(metadata) => metadata,
+            None => runtime.info().await?,
+        };
+        let execute = metadata.rootless && !metadata.podman;
+        if execute {
+            super::relay_exec::retire_orphans(runtime, info).await?;
+        }
         let bindings: Vec<PortBinding> = serde_json::from_str(encoded).map_err(error)?;
-        let ip = info
-            .network_settings
-            .as_ref()
-            .and_then(|n| n.networks.as_ref())
-            .and_then(|networks| {
-                networks.values().find_map(|n| {
-                    n.ip_address
-                        .as_deref()
-                        .and_then(|v| v.parse::<IpAddr>().ok())
-                        .or_else(|| n.global_ipv6_address.as_deref().and_then(|v| v.parse().ok()))
-                })
+        let ip = (!execute)
+            .then(|| {
+                info.network_settings
+                    .as_ref()
+                    .and_then(|n| n.networks.as_ref())
+                    .and_then(|networks| {
+                        networks.values().find_map(|n| {
+                            n.ip_address
+                                .as_deref()
+                                .and_then(|v| v.parse::<IpAddr>().ok())
+                                .or_else(|| n.global_ipv6_address.as_deref().and_then(|v| v.parse().ok()))
+                        })
+                    })
+                    .ok_or_else(|| error("missing private container address"))
             })
-            .ok_or_else(|| error("missing private container address"))?;
+            .transpose()?;
         let cancel = CancellationToken::new();
-        let guard = cancel.clone().drop_guard();
+        let tasks = TaskTracker::new();
+        let lease = Lease { name: name.into(), start, cancel: cancel.clone(), tasks: tasks.clone() };
         for binding in bindings {
-            let target = SocketAddr::new(ip, binding.container_port);
+            let target = if execute {
+                Backend::Exec(super::relay_exec::Target::new(runtime, info, &binding).await?)
+            } else {
+                Backend::Direct(SocketAddr::new(
+                    ip.expect("direct ingress has a private address"),
+                    binding.container_port,
+                ))
+            };
             for host in binding.host_ips {
                 let address = SocketAddr::new(host, binding.host_port);
                 match binding.protocol {
                     Proto::Tcp => tcp(
                         TcpListener::bind(address).await.map_err(error)?,
-                        target,
+                        target.clone(),
                         cancel.clone(),
                         self.capacity.clone(),
+                        tasks.clone(),
                     ),
                     Proto::Udp => udp(
                         Arc::new(UdpSocket::bind(address).await.map_err(error)?),
-                        target,
+                        target.clone(),
                         cancel.clone(),
                         self.capacity.clone(),
+                        tasks.clone(),
                     ),
                 }
             }
         }
-        held.insert(id.into(), (name.into(), guard));
+        held.insert(id.into(), lease);
         Ok(())
     }
 }
-fn tcp(listener: TcpListener, target: SocketAddr, cancel: CancellationToken, capacity: Arc<Semaphore>) {
-    tokio::spawn(async move {
+#[derive(Clone)]
+enum Backend {
+    Direct(SocketAddr),
+    Exec(Arc<super::relay_exec::Target>),
+}
+struct Lease {
+    name: String,
+    start: Option<String>,
+    cancel: CancellationToken,
+    tasks: TaskTracker,
+}
+impl Lease {
+    async fn retire(self) {
+        self.cancel.cancel();
+        self.tasks.close();
+        self.tasks.wait().await;
+    }
+}
+impl Drop for Lease {
+    fn drop(&mut self) {
+        self.cancel.cancel();
+    }
+}
+
+fn tcp(
+    listener: TcpListener,
+    target: Backend,
+    cancel: CancellationToken,
+    capacity: Arc<Semaphore>,
+    tasks: TaskTracker,
+) {
+    tasks.clone().spawn(async move {
         loop {
             let accepted = tokio::select! { () = cancel.cancelled() => break, result = listener.accept() => result };
             let Ok((mut incoming, _)) = accepted else { break };
             let Ok(permit) = capacity.clone().try_acquire_owned() else { continue };
             let cancel = cancel.clone();
-            tokio::spawn(async move {
-                let _permit = permit;
+            let target = target.clone();
+            tasks.spawn(async move {
                 let _ = incoming.set_nodelay(true);
                 let forward = async {
-                    let mut outgoing = TcpStream::connect(target).await?;
-                    outgoing.set_nodelay(true)?;
-                    tokio::io::copy_bidirectional_with_sizes(&mut incoming, &mut outgoing, 8192, 8192).await
+                    match target {
+                        Backend::Direct(address) => {
+                            let _permit = permit;
+                            let mut outgoing = TcpStream::connect(address).await?;
+                            outgoing.set_nodelay(true)?;
+                            tokio::io::copy_bidirectional_with_sizes(&mut incoming, &mut outgoing, 8192, 8192).await
+                        }
+                        Backend::Exec(target) => {
+                            let mut outgoing = target.connect(Some(permit)).await?;
+                            tokio::io::copy_bidirectional_with_sizes(&mut incoming, &mut outgoing.stream, 8192, 8192)
+                                .await
+                        }
+                    }
                 };
                 tokio::select! { () = cancel.cancelled() => {}, _ = forward => {} }
             });
         }
     });
 }
-fn udp(front: Arc<UdpSocket>, target: SocketAddr, cancel: CancellationToken, capacity: Arc<Semaphore>) {
-    tokio::spawn(async move {
+fn udp(
+    front: Arc<UdpSocket>,
+    target: Backend,
+    cancel: CancellationToken,
+    capacity: Arc<Semaphore>,
+    tasks: TaskTracker,
+) {
+    tasks.clone().spawn(async move {
         let mut peers: HashMap<SocketAddr, (u64, mpsc::Sender<Vec<u8>>)> = HashMap::new();
         let (done_tx, mut done_rx) = mpsc::channel(MAX_CONNECTIONS);
         let mut generation = 0u64;
@@ -143,9 +236,19 @@ fn udp(front: Arc<UdpSocket>, target: SocketAddr, cancel: CancellationToken, cap
                 let done = done_tx.clone();
                 let front = front.clone();
                 let cancel = cancel.clone();
-                tokio::spawn(async move {
-                    let _permit = permit;
-                    let work = udp_peer(front, peer, target, rx);
+                let target = target.clone();
+                tasks.spawn(async move {
+                    let work = async {
+                        match target {
+                            Backend::Direct(target) => {
+                                let _permit = permit;
+                                udp_peer(front, peer, target, rx).await
+                            }
+                            Backend::Exec(target) => {
+                                super::relay_exec::datagrams(&target, front, peer, rx, UDP_IDLE, permit).await
+                            }
+                        }
+                    };
                     tokio::select! { () = cancel.cancelled() => {}, _ = work => {} }
                     let _ = done.send((peer, generation)).await;
                 });
@@ -188,7 +291,13 @@ mod tests {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let cancel = CancellationToken::new();
-        tcp(listener, backend.local_addr().unwrap(), cancel.clone(), Arc::new(Semaphore::new(1)));
+        tcp(
+            listener,
+            Backend::Direct(backend.local_addr().unwrap()),
+            cancel.clone(),
+            Arc::new(Semaphore::new(1)),
+            TaskTracker::new(),
+        );
         let mut client = TcpStream::connect(address).await.unwrap();
         let (mut server, _) = backend.accept().await.unwrap();
         client.write_all(b"private").await.unwrap();
@@ -208,7 +317,13 @@ mod tests {
         let front = Arc::new(UdpSocket::bind("127.0.0.1:0").await.unwrap());
         let address = front.local_addr().unwrap();
         let cancel = CancellationToken::new();
-        udp(front, backend.local_addr().unwrap(), cancel.clone(), Arc::new(Semaphore::new(2)));
+        udp(
+            front,
+            Backend::Direct(backend.local_addr().unwrap()),
+            cancel.clone(),
+            Arc::new(Semaphore::new(2)),
+            TaskTracker::new(),
+        );
         for text in [b"one", b"two"] {
             let client = UdpSocket::bind("127.0.0.1:0").await.unwrap();
             client.send_to(text, address).await.unwrap();

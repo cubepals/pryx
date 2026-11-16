@@ -254,6 +254,8 @@ pub struct RuntimeInfo {
     pub(crate) rootless: bool,
     pub(crate) local_process_ids: Option<bool>,
     pub(crate) unprivileged_ports: Option<bool>,
+    #[serde(default)]
+    pub(crate) private_ingress: Option<bool>,
     pub(crate) memory_limit: bool,
     pub(crate) cpu_limit: bool,
     pub(crate) pids_limit: bool,

@@ -4,7 +4,7 @@
 //!
 //! Parts (`vm_ingress/`):
 //! - `stream.rs`: maintained HTTP/2 CONNECT preserves independent stream shutdown.
-mod stream;
+pub(crate) mod stream;
 use std::{io, net::Ipv4Addr};
 use tokio::{net::TcpStream, task::JoinSet};
 use tokio_vsock::{VMADDR_CID_HOST, VsockAddr, VsockListener};

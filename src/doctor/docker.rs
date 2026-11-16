@@ -125,8 +125,8 @@ fn engine_limits(info: &RuntimeInfo) -> Vec<Check> {
         for (name, available, action) in [
             (
                 "docker.network-policy",
-                Some(info.podman),
-                "Use a supported Podman engine for private ingress on network none",
+                Some(info.podman || info.private_ingress == Some(true)),
+                "Use the installed static ingress agent or a supported Podman engine for network none",
             ),
             (
                 "docker.exec-pid-visibility",

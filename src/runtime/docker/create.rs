@@ -17,7 +17,7 @@ pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Res
         runtime.ensure_internal_network(&spec.network, &spec.labels).await?;
     }
     let mut spec = spec.clone();
-    if runtime.oci_runtime.is_some()
+    if (runtime.oci_runtime.is_some() || (info.rootless && !info.podman && spec.internal_network))
         && let Some(agent) = spec.agent.as_mut()
     {
         let binary = agent.binary.clone();
@@ -36,7 +36,20 @@ pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Res
                 .map_err(|_| RuntimeError::Other("Cannot encode private bindings".into()))?,
         );
     }
+    // An image's own label can never enable a private transport.
+    spec.labels.insert(crate::labels::LABEL_INTERNAL_INGRESS.into(), "0".into());
     agent_entrypoint(runtime, &mut spec).await?;
+    if info.rootless
+        && !info.podman
+        && spec.internal_network
+        && spec
+            .labels
+            .get(crate::labels::LABEL_INTERNAL_INGRESS)
+            .and_then(|value| value.parse::<u16>().ok())
+            .is_none_or(|version| version < pryx_agent::exec_ingress::VERSION)
+    {
+        return Err(RuntimeError::Other("network-policy needs a current protected static ingress agent".into()));
+    }
     if info.podman {
         return podman::create(runtime, &spec, &info).await;
     }
@@ -106,9 +119,13 @@ fn check_engine_policy(runtime: &DockerRuntime, spec: &ContainerSpec, info: &Run
     if let Some(problem) = &info.container_policy_problem {
         return Err(RuntimeError::Other(problem.clone()));
     }
-    if info.rootless && !info.podman && spec.internal_network {
+    if info.rootless
+        && !info.podman
+        && spec.internal_network
+        && (info.private_ingress != Some(true) || spec.agent.is_none())
+    {
         return Err(RuntimeError::Other(
-            "network-policy is unavailable: rootless Docker cannot provide private internal ingress; use a supported Podman engine".into(),
+            "network-policy is unavailable: rootless Docker needs a current protected static ingress agent; use the installed agent or a supported Podman engine".into(),
         ));
     }
     if !info.memory_limit && spec.allow_unenforced_memory != Some(true) {
