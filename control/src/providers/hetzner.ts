@@ -11,6 +11,7 @@ import type { paths } from './generated/hetzner.ts'
 import contract from './openapi/hetzner.openapi.json'
 import {
   ACQUIRE_LABEL,
+  type Architecture,
   type Bootstrap,
   bootstrapScript,
   DEPLOYMENT_LABEL,
@@ -25,6 +26,11 @@ type Servers = paths['/servers']['get']['responses'][200]['content']['applicatio
 type Created = paths['/servers']['post']['responses'][201]['content']['application/json']
 type Create = paths['/servers']['post']['requestBody']['content']['application/json']
 type Types = paths['/server_types']['get']['responses'][200]['content']['application/json']
+/** Hetzner's server type architectures (its OpenAPI enum), as hosts name them. */
+const ARCHITECTURE: Record<Types['server_types'][number]['architecture'], Architecture> = {
+  x86: 'x86_64',
+  arm: 'aarch64',
+}
 export interface HetznerOptions {
   token: string
   deployment: string
@@ -118,7 +124,7 @@ export class HetznerProvider implements Provider {
     return types
       .filter(
         (t) =>
-          t.architecture === 'x86' &&
+          t.architecture in ARCHITECTURE &&
           t.locations.some(
             (l) =>
               l.name === region &&
@@ -132,6 +138,7 @@ export class HetznerProvider implements Provider {
           ? [
               {
                 name: t.name,
+                architecture: ARCHITECTURE[t.architecture],
                 cpus: t.cores,
                 memoryGb: t.memory,
                 diskGb: t.disk,

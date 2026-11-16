@@ -15,7 +15,7 @@ import {
 } from './host-defaults.ts'
 import { reservedCpu } from './placement.ts'
 import type { Acquisition, ProviderLedger } from './provider-ledger.ts'
-import { ProviderError, type Shape } from './providers/provider.ts'
+import { type Architecture, ProviderError, type Shape } from './providers/provider.ts'
 import { drain, getNode, nodeSummaries, retire, toNodeView } from './registry.ts'
 import type { Sandboxes, SandboxRow, SandboxSpec } from './sandboxes.ts'
 import { event, one, rows } from './sql.ts'
@@ -32,17 +32,31 @@ interface Need {
   memoryMb: number
   cpuMillis: number
   diskGb: number
+  /** Where the demand can run; x86_64 alone when it doesn't say, since only x86_64 has every tier. */
+  architectures?: Architecture[]
+}
+/** The architectures a sandbox can be placed on: wasm and vm, and any tier left open, need x86_64. */
+export function architecturesFor(spec: Pick<SandboxSpec, 'isolation'>): Architecture[] {
+  return spec.isolation === 'process' || spec.isolation === 'container' ? ['x86_64', 'aarch64'] : ['x86_64']
 }
 export function smallestShape(shapes: Shape[], need: Need) {
+  const allowed = need.architectures ?? ['x86_64']
   return shapes
     .filter(
       (s) =>
+        allowed.includes(s.architecture ?? 'x86_64') &&
         s.memoryGb * 1024 - Math.max(HOST_MIN_MEMORY_MB, (s.memoryGb * 1024) / HOST_MEMORY_DIVISOR) >=
           need.memoryMb &&
         s.cpus * 1000 - HOST_CPU_MILLIS >= need.cpuMillis &&
         s.diskGb - HOST_DISK_FLOOR_GB >= need.diskGb,
     )
-    .sort((a, b) => a.memoryGb - b.memoryGb || a.cpus - b.cpus || a.diskGb - b.diskGb)[0]
+    .sort(
+      (a, b) =>
+        a.memoryGb - b.memoryGb ||
+        a.cpus - b.cpus ||
+        a.diskGb - b.diskGb ||
+        Number((a.architecture ?? 'x86_64') !== 'x86_64') - Number((b.architecture ?? 'x86_64') !== 'x86_64'),
+    )[0]
 }
 export class Autoscale {
   constructor(
@@ -53,10 +67,11 @@ export class Autoscale {
     readonly thresholds: Thresholds,
   ) {}
   async refused(region: string, spec: SandboxSpec) {
-    const required = {
+    const required: Need = {
       memoryMb: spec.resources.memoryMb,
       cpuMillis: reservedCpu(spec.resources, this.config.cpuMillisPerGb),
       diskGb: spec.storage.sizeGb,
+      architectures: architecturesFor(spec),
     }
     await this.db.execute(
       sql`INSERT INTO autoscale_regions(region,refusals,required) VALUES(${region},1,${JSON.stringify(required)}::jsonb) ON CONFLICT(region) DO UPDATE SET refusals=autoscale_regions.refusals+1,required=excluded.required`,
