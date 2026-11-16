@@ -626,13 +626,14 @@ async fn fork_outlives_its_parent(runtime: &VmRuntime, root: &Path, inputs: &[se
     let before = identities();
     assert!(before.iter().all(Option::is_some));
     runtime.remove(&parent).await.unwrap();
-    runtime.prepare_image(other, None, Duration::from_secs(120), true).await.unwrap();
+    runtime.prepared(other, None, Duration::from_secs(120)).await.unwrap();
+    runtime.evict_images(Duration::from_secs(120)).await.unwrap();
     assert_eq!(identities(), before, "An eviction took a layer the fork needs");
     runtime.stop(&fork, &fork_spec.stop_signal, Duration::from_secs(15)).await.unwrap();
     runtime.start(&fork).await.unwrap();
     assert_eq!(exec(runtime, &fork, "cat /data/lineage").await, b"parent");
     runtime.remove(&fork).await.unwrap();
-    runtime.prepare_image(other, None, Duration::from_secs(120), true).await.unwrap();
+    runtime.evict_images(Duration::from_secs(120)).await.unwrap();
     assert!(identities().iter().all(Option::is_none), "Layers no VM needs were kept");
 }
 

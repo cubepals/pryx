@@ -111,8 +111,12 @@ struct State {
     memory_sleep: Mutex<Option<Result<(), String>>>,
     /// Root's pair of monitor IDs for each VM (`monitor_ids.rs`).
     monitor_ids: Option<Mutex<monitor_ids::Ledger>>,
-    /// Manifests whose first launch is between preparation and monitor, with how many.
+    /// Each launch's image, by pin or reference, from before its preparation until its monitor
+    /// has opened the layers, with how many (`launch.rs`).
     launching: Mutex<HashMap<String, usize>>,
+    /// Written while an eviction reads what is kept and removes the rest; read while a launch
+    /// registers its image, so neither misses the other.
+    evicting: tokio::sync::RwLock<()>,
 }
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct Entry {
@@ -310,6 +314,7 @@ impl VmRuntime {
                 memory_sleep: Mutex::new(None),
                 monitor_ids,
                 launching: Mutex::new(HashMap::new()),
+                evicting: tokio::sync::RwLock::new(()),
             }),
         })
     }

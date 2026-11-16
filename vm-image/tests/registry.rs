@@ -136,8 +136,9 @@ async fn real_oci_layers_are_verified_cached_and_corruption_is_refused() {
         // record before moving to another image, rather than repairing a bad cache silently.
         fs::remove_file(corrupt.with_extension("json")).unwrap();
     }
-    // A VM keeps its manifest's layers through an eviction for another image, and through the
-    // host's floor, and they serve offline; with nothing keeping them, they go.
+    // An eviction keeps the layers of every manifest the runtime names, by digest or by the
+    // reference it was prepared by, and they serve offline; the rest go. Past the host's floor
+    // nothing is fetched, and the helper says that is why.
     let cache = staging.path().join("eviction");
     let request = |reference: &str, keep: Vec<String>, evict: bool, free_floor_bytes: u64| Request {
         component: component.clone(),
@@ -154,30 +155,32 @@ async fn real_oci_layers_are_verified_cached_and_corruption_is_refused() {
     let (kept_reference, other_reference) =
         (inputs[0]["reference"].as_str().unwrap(), inputs[1]["reference"].as_str().unwrap());
     let kept = image::prepare(&helper, &request(kept_reference, Vec::new(), false, 0)).await.unwrap();
+    let other = image::prepare(&helper, &request(other_reference, Vec::new(), false, 0)).await.unwrap();
     let identities = |layers: &[PathBuf]| {
         layers.iter().map(|layer| fs::metadata(layer).map(|info| (info.dev(), info.ino())).ok()).collect::<Vec<_>>()
     };
     let before = identities(&kept.layers);
-    assert!(before.iter().all(Option::is_some));
-    let other = image::prepare(&helper, &request(other_reference, vec![kept.digest.clone()], true, 0)).await.unwrap();
+    assert!(before.iter().chain(&identities(&other.layers)).all(Option::is_some));
+    image::prepare(&helper, &request("", vec![kept.digest.clone(), other.digest.clone()], true, 0)).await.unwrap();
     assert_eq!(identities(&kept.layers), before, "A kept manifest lost a layer");
+    assert!(identities(&other.layers).iter().all(Option::is_some));
     let offline = Request {
         pinned: Some(kept.digest.clone()),
         ..request("registry.invalid/pryx/unreachable:moved", Vec::new(), false, 0)
     };
     assert_eq!(image::prepare(&helper, &offline).await.unwrap().layers, kept.layers);
-    image::prepare(&helper, &request(other_reference, Vec::new(), true, 0)).await.unwrap();
-    assert!(identities(&kept.layers).iter().all(Option::is_none), "Layers no VM keeps were kept");
-    assert!(identities(&other.layers).iter().all(Option::is_some));
-    // Past the floor nothing is fetched, even once nothing else is left to remove.
-    let refused = match image::prepare(&helper, &request(kept_reference, Vec::new(), false, u64::MAX)).await {
-        Ok(_) => panic!("An image was fetched past the host's floor"),
-        Err(problem) => problem.to_string(),
-    };
-    assert!(refused.contains("free-space floor"), "{refused}");
+    // Kept by the tag it was prepared by, as a VM's first launch is.
+    let tag = inputs[1]["sourceTag"].as_str().unwrap();
+    let tagged = image::prepare(&helper, &request(tag, Vec::new(), false, 0)).await.unwrap();
+    image::prepare(&helper, &request("", vec![tag.into()], true, 0)).await.unwrap();
+    assert!(identities(&tagged.layers).iter().all(Option::is_some), "A manifest kept by its tag lost a layer");
+    assert!(identities(&kept.layers).iter().all(Option::is_none), "Layers nothing keeps were kept");
+    match image::exchange(&helper, &request(kept_reference, Vec::new(), false, u64::MAX)).await.unwrap() {
+        Err(image::Failure::Room(refused)) => assert!(refused.contains("free-space floor"), "{refused}"),
+        _ => panic!("An image was fetched past the host's floor, or refused for another reason"),
+    }
     assert!(identities(&kept.layers).iter().all(Option::is_none));
-    observations
-        .push(serde_json::json!({"eviction": "kept manifest kept and served offline; unkept removed; floor refused"}));
+    observations.push(serde_json::json!({"eviction": "kept by digest and by tag, served offline; unkept removed; floor refused as Room"}));
     if let Some(path) = std::env::var_os("PRYX_VM_IMAGE_REPORT") {
         fs::write(path, serde_json::to_vec_pretty(&serde_json::json!({"scope": "Real OCI preparation only; no production VM boot", "status": "success", "images": observations})).unwrap()).unwrap();
     }

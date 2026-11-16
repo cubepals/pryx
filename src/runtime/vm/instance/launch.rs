@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Build private monitor configuration from generated owner models, then boot a confined
 //! guest and expose only admitted TCP services. Spec secrets remain in the one-shot bootstrap.
+use super::super::image::{Failure, outcome};
 use super::*;
 use crate::runtime::PortBinding;
 use serde_json::Value;
@@ -142,25 +143,37 @@ impl VmRuntime {
         Ok(network)
     }
 
+    /// A preparation that stopped at the host's free-space floor is asked once more, after an
+    /// eviction of what no VM here needs.
     pub(super) async fn prepared(
         &self,
         image: &str,
         pinned: Option<&str>,
         timeout: Duration,
     ) -> Result<Prepared, RuntimeError> {
-        self.prepare_image(image, pinned, timeout, false).await
+        match self.helper(image, pinned, timeout, false).await? {
+            Err(Failure::Room(_)) => {
+                self.evict_images(timeout).await?;
+                outcome(self.helper(image, pinned, timeout, false).await?)
+            }
+            answer => outcome(answer),
+        }
     }
-    /// The helper removes converted layers no VM here needs when the host's free-space floor
-    /// would otherwise be crossed, and with `evict` once this image is prepared.
-    pub(super) async fn prepare_image(
+    /// Removes every converted layer no VM of this runtime needs. No launch registers its image
+    /// meanwhile, so what is kept is read whole, and a launch registered after it prepares again.
+    pub(super) async fn evict_images(&self, timeout: Duration) -> Result<(), RuntimeError> {
+        let _evicting = self.state.evicting.write().await;
+        outcome(self.helper("", None, timeout, true).await?).map(drop)
+    }
+    async fn helper(
         &self,
         image: &str,
         pinned: Option<&str>,
         timeout: Duration,
         evict: bool,
-    ) -> Result<Prepared, RuntimeError> {
+    ) -> Result<super::super::image::Response, RuntimeError> {
         let bundle = self.bundle().await?;
-        super::super::image::prepare(
+        super::super::image::exchange(
             &bundle.root().join("bin/pryx-vm-image"),
             &super::super::image::Request {
                 component: bundle.root().join("filesystem"),
@@ -177,8 +190,8 @@ impl VmRuntime {
         )
         .await
     }
-    /// The manifests some VM of this runtime needs: each one's pin, a digest its image names, and
-    /// a first launch's between its preparation and its monitor's opening the layers.
+    /// What some VM of this runtime needs: each one's pinned manifest, a digest its image names,
+    /// and each launch's image, by pin or reference, from before its preparation.
     fn kept_images(&self) -> Vec<String> {
         let mut kept: std::collections::BTreeSet<String> = self
             .state
@@ -193,10 +206,12 @@ impl VmRuntime {
         kept.extend(self.state.launching.lock().unwrap().keys().cloned());
         kept.into_iter().collect()
     }
-    /// Holds `digest`'s layers from their preparation until the launch that took them ends.
-    fn launching(&self, digest: &str) -> Launching<'_> {
-        *self.state.launching.lock().unwrap().entry(digest.into()).or_default() += 1;
-        Launching { runtime: self, digest: digest.into() }
+    /// Holds `image` (a pin or a reference) from before its preparation until the launch that
+    /// takes it ends; never while an eviction reads what is kept.
+    async fn launching(&self, image: &str) -> Launching<'_> {
+        let _evicting = self.state.evicting.read().await;
+        *self.state.launching.lock().unwrap().entry(image.into()).or_default() += 1;
+        Launching { runtime: self, digest: image.into() }
     }
     /// A pinned image this runtime already prepared needs no helper while its layer files are
     /// the ones the helper verified; anything else goes through the helper.
@@ -258,9 +273,9 @@ impl VmRuntime {
         let (_, _, uid, gid) = monitor::resources(&entry.spec)?;
         // The first start pins the manifest; a wake never takes a moved tag's lower layers
         // under its retained disk, and a cached pin needs no registry.
+        let _launching = self.launching(entry.image_digest.as_deref().unwrap_or(&entry.spec.image)).await;
         let image =
             self.pinned(&entry.spec.image, entry.image_digest.as_deref(), self.state.settings.image_timeout).await?;
-        let _launching = self.launching(&image.digest);
         entry.image_digest = Some(image.digest.clone());
         stages.mark("image");
         let bundle = self.bundle().await?;
@@ -349,6 +364,7 @@ impl VmRuntime {
 
 pub(super) struct Launching<'a> {
     runtime: &'a VmRuntime,
+    /// The image held: a pin or a reference.
     digest: String,
 }
 impl Drop for Launching<'_> {
