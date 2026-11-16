@@ -324,6 +324,22 @@ jobs:
           docker run --rm -v "$RUNNER_TEMP/pryx-install:/install:ro" -v "$test:/process-namespaces:ro" \
             -e PRYX_TEST_NAMESPACES=off -e PRYX_TEST_PROCESS_AGENT=/opt/pryx/pryx-agent \
             mirror.gcr.io/library/ubuntu:24.04 sh -c 'cp -r /install /opt/pryx && exec /process-namespaces --ignored --nocapture --test-threads 1'
+      # K31 with K26: the policy suite's public-internet-off and off-the-host cases again, as the
+      # delegated user, against the agent above with its helper, so every supervisor starts
+      # namespaced (the profile above admits the helper) and must still get its own programs.
+      - name: Kernel network policy on namespaced process sandboxes
+        if: ${{ !cancelled() && steps.kernel-destinations.outcome == 'success' }}
+        run: |
+          policy=$(cargo test --locked -p pryxd --test process_network --no-run --message-format=json \
+            | jq -r 'select(.reason == "compiler-artifact" and .profile.test and .target.name == "process_network"
+                and .executable != null) | .executable')
+          sudo systemd-run --quiet --wait --pipe --collect --uid="$(id -u)" --gid="$(id -g)" \
+            -p Delegate=yes -p AmbientCapabilities="CAP_BPF CAP_NET_ADMIN" \
+            --working-directory="$PWD" --setenv=HOME="$HOME" --setenv=PATH="$PATH" \
+            --setenv=PRYX_TEST_AGENT="$RUNNER_TEMP/pryx-install/pryx-agent" --setenv=PRYX_TEST_NAMESPACES=on \
+            --setenv=PRYX_TEST_PRIVATE="$PRYX_TEST_PRIVATE" \
+            --setenv=PRYX_TEST_REMOTE="$PRYX_TEST_REMOTE" --setenv=PRYX_TEST_EDGE="$PRYX_TEST_EDGE" \
+            "$policy" --ignored --test-threads 1 without_public_internet from_off_the_host
       - name: CLI doctor uses the real host document
         run: |
           bun install --frozen-lockfile

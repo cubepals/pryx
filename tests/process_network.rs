@@ -7,7 +7,8 @@
 //! with a delegated cgroup, one at a time, with `PRYX_TEST_AGENT` naming a trusted agent,
 //! `PRYX_TEST_PRIVATE` a private address with two listening ports, and `PRYX_TEST_REMOTE` a
 //! machine elsewhere (another network namespace) that dials this host at `PRYX_TEST_EDGE`, or
-//! sends it datagrams from the source ports named, when asked. The case that runs everywhere holds a host without the capability to its refusal.
+//! sends it datagrams from the source ports named, when asked. With `PRYX_TEST_NAMESPACES=on`
+//! every sandbox must also have started in namespaces of its own (the agent's helper beside it). The case that runs everywhere holds a host without the capability to its refusal.
 mod support;
 
 use pryxd::manager::{Manager, Precondition, Records};
@@ -170,6 +171,10 @@ async fn start(manager: &Arc<Manager>, name: &str, policy: serde_json::Value) {
     }
     let view = until(manager, name, "a running supervisor", |view| view.state == WorkloadState::Running).await;
     assert!(view.guarantees[&Guarantee::HostFirewall], "{name}'s programs are attached and verified");
+    // Where CI starts every supervisor in namespaces of its own, through the helper.
+    if std::env::var("PRYX_TEST_NAMESPACES").as_deref() == Ok("on") {
+        assert!(view.guarantees[&Guarantee::PrivatePids], "{name} started namespaced: {view:?}");
+    }
 }
 
 async fn run(manager: &Arc<Manager>, name: &str, command: &[&str]) -> String {
