@@ -77,6 +77,43 @@ pub(super) async fn hostname_egress_refused() {
     assert!(made.is_err() && said.contains("egress"), "a hostname policy is refused on gvisor: {said}");
 }
 
+/// Evidence of how the engine shows an OOM kill: the highest `oom_kill` count seen in the
+/// container's own cgroup while it runs, as the kernel keeps it (cgroup v2 memory.events).
+pub(super) async fn cgroup_oom_kills(api: &bollard::Docker, container: &str, highest: &mut Option<u64>) {
+    let Ok(inspect) = api.inspect_container(container, None).await else { return };
+    let Some(pid) = inspect.state.and_then(|state| state.pid).filter(|pid| *pid > 0) else { return };
+    let Ok(groups) = std::fs::read_to_string(format!("/proc/{pid}/cgroup")) else { return };
+    let Some(path) = groups.lines().find_map(|line| line.strip_prefix("0::")) else { return };
+    let Ok(events) = std::fs::read_to_string(format!("/sys/fs/cgroup{path}/memory.events")) else { return };
+    let count = events.lines().find_map(|line| line.strip_prefix("oom_kill ")).and_then(|c| c.trim().parse().ok());
+    if let Some(count) = count {
+        *highest = Some(highest.map_or(count, |seen: u64| seen.max(count)));
+    }
+}
+
+/// The engine's own events for `container` since `since` (Unix seconds): whether an `oom` came,
+/// and where it fell beside the `die`.
+pub(super) fn engine_events(container: &str, since: u64) -> String {
+    let until = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() + 1;
+    let filter = format!("container={container}");
+    let (since, until) = (since.to_string(), until.to_string());
+    let out = std::process::Command::new("docker")
+        .args([
+            "events",
+            "--since",
+            &since,
+            "--until",
+            &until,
+            "--filter",
+            &filter,
+            "--format",
+            "{{.TimeNano}} {{.Action}}",
+        ])
+        .output();
+    out.map(|out| String::from_utf8_lossy(&out.stdout).split_whitespace().collect::<Vec<_>>().join(" "))
+        .unwrap_or_default()
+}
+
 /// Why the engine at `socket` can't serve the gvisor tier, read from the engine's own API, or None
 /// where it can. gVisor runs through the container tier, so that tier's own refusal comes first;
 /// then Podman, which pryx doesn't start gVisor on; then `runsc` missing from the engine's runtimes.

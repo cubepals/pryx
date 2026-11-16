@@ -324,9 +324,10 @@ async fn the_memory_limit_is_hard_and_an_oom_kill_is_reported() {
     )
     .unwrap();
     let deadline = Instant::now() + Duration::from_secs(30);
-    let mut release_attempted = false;
-    let mut saw_oom = false;
+    let since = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() - 1;
+    let (mut release_attempted, mut saw_oom, mut oom_kills) = (false, false, None);
     while Instant::now() < deadline && !saw_oom {
+        gvisor::cgroup_oom_kills(&api, &name, &mut oom_kills).await;
         if !release_attempted
             && api.inspect_container(&name, None).await.unwrap().state.is_some_and(|s| s.oom_killed == Some(true))
             && std::fs::symlink_metadata(&ready).is_ok_and(|info| info.is_file())
@@ -357,6 +358,10 @@ async fn the_memory_limit_is_hard_and_an_oom_kill_is_reported() {
         tokio::time::sleep(Duration::from_millis(300)).await;
     }
     let view = m.view(&id("oom")).unwrap();
+    eprintln!(
+        "OOM_EVIDENCE seen={saw_oom} cgroup_oom_kills={oom_kills:?} events={}",
+        gvisor::engine_events(&name, since)
+    );
     if !saw_oom {
         let mut inspect = tokio::process::Command::new("docker");
         inspect.kill_on_drop(true).args([
