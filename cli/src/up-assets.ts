@@ -15,6 +15,7 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { releaseAsset } from '../../control/src/bundle-release.ts'
 import { PRYX_VERSION } from '../../control/src/generated/release.ts'
 import { BOOTSTRAP_SIGNATURE_ASSET } from '../../control/src/join-bootstrap.ts'
 export const FLEET_HANDOUT_DIR = '/opt/pryx/fleet'
@@ -41,9 +42,10 @@ export async function releaseFiles(source?: string) {
     const origin = new URL(base)
     if (origin.protocol !== 'https:' && !(origin.protocol === 'http:' && origin.hostname === '127.0.0.1'))
       throw new Error('Release downloads require HTTPS or loopback HTTP artifacts')
-    const download = async (file: string) => {
-      const response = await fetch(`${base}/${file}`)
-      if (!response.ok) throw new Error(`Release asset ${file} unavailable`)
+    // A file is fetched by its name for this host's machine and kept under its plain name.
+    const download = async (remote: string, file = remote) => {
+      const response = await fetch(`${base}/${remote}`)
+      if (!response.ok) throw new Error(`Release asset ${remote} unavailable`)
       const destination = new URL(response.url)
       if (
         destination.protocol !== 'https:' &&
@@ -58,15 +60,22 @@ export async function releaseFiles(source?: string) {
     }
     await download('SHA256SUMS')
     const listed = checksums(dir)
-    for (const file of [...RELEASE_FILES, ...OPTIONAL_RELEASE_FILES.filter((name) => listed.has(name))])
-      await download(file)
+    for (const file of [
+      ...RELEASE_FILES,
+      ...OPTIONAL_RELEASE_FILES.filter((name) => listed.has(releaseAsset(name))),
+    ])
+      await download(releaseAsset(file), file)
   }
   const sums = checksums(dir)
-  for (const file of [...RELEASE_FILES, ...OPTIONAL_RELEASE_FILES.filter((name) => sums.has(name))]) {
+  for (const file of [
+    ...RELEASE_FILES,
+    ...OPTIONAL_RELEASE_FILES.filter((name) => sums.has(releaseAsset(name))),
+  ]) {
     const digest = createHash('sha256')
       .update(readFileSync(join(dir, file)))
       .digest('hex')
-    if (sums.get(file) !== digest) throw new Error(`Release asset ${file} failed SHA256 verification`)
+    if (sums.get(releaseAsset(file)) !== digest)
+      throw new Error(`Release asset ${releaseAsset(file)} failed SHA256 verification`)
   }
   return dir
 }
