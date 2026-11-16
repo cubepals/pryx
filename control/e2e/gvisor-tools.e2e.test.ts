@@ -6,10 +6,15 @@
  * be refused on this tier by capability, with its reason, and asserted here instead. */
 import { expect, test } from 'bun:test'
 import { writeFileSync } from 'node:fs'
+import { sql } from 'drizzle-orm'
 import { builtinTemplate } from '../../cli/src/builtin-template.ts'
 import { connectSsh } from '../../cli/src/sandbox-ssh.ts'
 import type { Sandbox } from '../../sdk/typescript/src/index.ts'
-import { MINUTE_MS } from '../src/durations.ts'
+import { MINUTE_MS, SECOND_MS } from '../src/durations.ts'
+import { decodeHandle } from '../src/handle.ts'
+import type { RuntimeHandle } from '../src/runtime-model.ts'
+import { one } from '../src/sql.ts'
+import type { ExecResponse } from '../src/wire.ts'
 import { agentDeployment } from './agent-context.ts'
 import { ready } from './deployment.ts'
 
@@ -54,6 +59,36 @@ test(
         boxes.push(box)
         expect((await box.run(['uname', '-r'])).stdout).toContain('gvisor')
       })
+      // The published node exec, past its deadline: on gvisor the injected agent keeps the
+      // deadline inside the sandbox, so the command's whole group is gone and the sandbox stays.
+      await attempt('node-exec-deadline', async () => {
+        const box = await c.sdk.sandbox({ image: 'alpine:3.22', isolation: 'gvisor' })
+        boxes.push(box)
+        const row = await one<{ handle: RuntimeHandle }>(
+          c.d.control.db,
+          sql`SELECT handle FROM sandboxes WHERE id = ${box.id}`,
+        )
+        if (!row?.handle) throw new Error('The sandbox has no node handle')
+        const node = await c.d.control.runtime.home(row.handle)
+        if (!node) throw new Error('The sandbox has no node')
+        const ref = decodeHandle(row.handle)
+        const began = performance.now()
+        const result = await c.d.control.nodes.call<ExecResponse>(
+          node,
+          'POST',
+          `/v1/workloads/${ref.key}/exec`,
+          {
+            body: { command: ['sh', '-c', 'sleep 60 & sleep 60'], timeoutSeconds: 2 },
+            epoch: ref.epoch,
+            timeoutMs: 30 * SECOND_MS,
+          },
+        )
+        expect([result.timedOut, result.killed]).toEqual([true, true])
+        expect(performance.now() - began).toBeLessThan(10 * SECOND_MS)
+        const left = await box.run(['sh', '-c', "ps -o args | grep -c '^sleep 60' || true"])
+        expect(left.stdout.trim()).toBe('0')
+        expect((await box.refresh()).state).toBe('running')
+      })
       for (const [name, image, python] of [
         ['python-interpreter', 'alpine:pryx-python-interpreter', true],
         ['node-interpreter', 'alpine:pryx-node-interpreter', false],
@@ -92,12 +127,10 @@ test(
       console.log('GVISOR_TOOLS', JSON.stringify(results))
       if (process.env.PRYX_GVISOR_TOOLS)
         writeFileSync(process.env.PRYX_GVISOR_TOOLS, JSON.stringify(results, null, 2))
-      expect(Object.keys(results).sort()).toEqual(
-        ['browser', 'desktop', 'image', 'node-interpreter', 'python-interpreter', 'ssh'].sort(),
-      )
       // Every template ran on gvisor in CI run 43774620164; none needs refusing on this tier.
       expect(results).toEqual({
         image: 'ok',
+        'node-exec-deadline': 'ok',
         'python-interpreter': 'ok',
         'node-interpreter': 'ok',
         browser: 'ok',
