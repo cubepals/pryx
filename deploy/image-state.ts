@@ -21,6 +21,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { HOST_MACHINE } from '../control/src/bundle-release.ts'
 import { FleetCa } from '../control/src/ca.ts'
 import { SECOND_MS } from '../control/src/durations.ts'
 import { ensureBucket } from '../control/src/store-bootstrap.ts'
@@ -186,7 +187,7 @@ export async function embedded(
       }
       Object.assign(environment, {
         ...(!process.env.PRYX_BUNDLE_DIR
-          ? { LD_PRELOAD: '/usr/lib/x86_64-linux-gnu/libnss_wrapper.so' }
+          ? { LD_PRELOAD: `/usr/lib/${HOST_MACHINE}-linux-gnu/libnss_wrapper.so` }
           : {}),
         NSS_WRAPPER_PASSWD: passwd,
         NSS_WRAPPER_GROUP: group,

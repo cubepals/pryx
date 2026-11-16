@@ -39,6 +39,7 @@ impl Bootstrap {
             sandbox: self.sandbox.clone(),
             epoch: self.epoch,
             public_key: key.public_key(),
+            forked: Default::default(),
             key,
             data: DataDir::open(&self.data)?,
             processes: Processes::new(temporary, self.secret_env),

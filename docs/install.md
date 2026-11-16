@@ -1,8 +1,10 @@
 <!-- SPDX-License-Identifier: FSL-1.1-ALv2 -->
 # Install pryx
 
-The installer supports Linux x86_64. It measures the host, selects a preset and
-starts without questions. `pryx up --check` prints its plan without downloads or
+The installer supports Linux on x86_64 and aarch64 and takes the release built for
+the host's machine. On aarch64, `wasm`, `vm` and the native process tools are off and
+say why: their pinned agentOS sidecar, VM bundle and tool bundle are x86_64's. It
+measures the host, selects a preset and starts without questions. `pryx up --check` prints its plan without downloads or
 configuration changes; `--preset user|container|server|node` overrides detection.
 The first successful start prints the API URL, initial key, available tier and
 capabilities that need host changes. Credentials are also saved privately.

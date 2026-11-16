@@ -10,13 +10,23 @@ use tokio::io::AsyncReadExt;
 pub(super) fn input(name: &str) -> PathBuf {
     std::env::var_os(name).unwrap_or_else(|| panic!("Stage {name}")).into()
 }
+/// A free port below Linux's default ephemeral range (ip(7), ip_local_port_range 32768-60999), so
+/// a helper's own ephemeral listener can't take it between this choice and the forwarder's bind.
+fn agent_port() -> u16 {
+    const BELOW_EPHEMERAL: std::ops::Range<u16> = 20_000..32_768;
+    loop {
+        let candidate = BELOW_EPHEMERAL.start
+            + (uuid::Uuid::new_v4().as_u128() % u128::from(BELOW_EPHEMERAL.end - BELOW_EPHEMERAL.start)) as u16;
+        if TcpListener::bind((Ipv4Addr::LOCALHOST, candidate)).is_ok() {
+            return candidate;
+        }
+    }
+}
 pub(super) fn spec(data: &Path, image: &str) -> ContainerSpec {
     let sandbox = uuid::Uuid::new_v4().simple().to_string();
     let secret_env = format!("{}{}", pryx_agent::contract::SECRET_ENV_PREFIX, uuid::Uuid::new_v4().simple());
     let (_, encoded) = pryx_agent::auth::SigningKey::generate().unwrap();
-    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
-    let port = listener.local_addr().unwrap().port();
-    drop(listener);
+    let port = agent_port();
     let uid = rustix::process::geteuid().as_raw().checked_add(1).unwrap();
     ContainerSpec {
         agent: Some(AgentBoot {

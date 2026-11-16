@@ -45,6 +45,7 @@ async fn file_service_streams_data_without_executing_or_rewriting_workload_metad
         sandbox: "one".into(),
         epoch: 1,
         public_key: key.public_key(),
+        forked: Default::default(),
         key,
         logs: Arc::new(pryx_agent::logbook::Logbook::open(directory.path()).unwrap()),
         data,

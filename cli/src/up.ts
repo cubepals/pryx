@@ -2,6 +2,7 @@
 /** Select an unattended installation preset. Local bundles and system-wide provisioning
  * have separate lifecycles; check mode never downloads or writes configuration. */
 import { existsSync } from 'node:fs'
+import { RELEASE_MACHINES } from '../../control/src/bundle-release.ts'
 import { probeBinary } from '../../deploy/host-probe.ts'
 import { joinHost } from './join.ts'
 import { option } from './sandbox.ts'
@@ -21,8 +22,8 @@ export async function up(args: string[]) {
     localRequirements()
     if (preset === 'server') {
       const plan = upPlan(option(args, '--domain') ?? 'localhost')
-      if (!plan.linux || !plan.root || !plan.systemd || plan.architecture !== 'x64')
-        throw new Error('Server preset requires Linux x86_64, root and systemd')
+      if (!plan.linux || !plan.root || !plan.systemd || !(plan.architecture in RELEASE_MACHINES))
+        throw new Error('Server preset requires Linux on x86_64 or aarch64, root and systemd')
       checkHostRuntime()
     } else if (preset !== 'node')
       await inspectLocal(preset, { installation: readInstallation(localPaths(preset)) })

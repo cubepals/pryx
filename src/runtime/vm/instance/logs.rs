@@ -133,6 +133,7 @@ mod tests {
             ports: Ports::bind_ports(boot.sandbox.clone(), "invalid".into(), boot.agent_port, Vec::new())
                 .await
                 .unwrap(),
+            forked: Default::default(),
         });
         let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await.unwrap();
         spec.ports[0].host_port = listener.local_addr().unwrap().port();

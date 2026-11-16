@@ -3,9 +3,11 @@
 # Verify a release bootstrap, preflight without persistent changes, then install and start.
 # The ordinary-user path never invokes sudo or writes outside HOME.
 set -eu
+# The release's name for this machine: x86_64's files keep their plain names, others carry it.
 case "$(uname -s)/$(uname -m)" in
-  Linux/x86_64) ;;
-  *) echo 'pryx supports Linux x86_64; this platform is not supported' >&2; exit 1 ;;
+  Linux/x86_64) arch=x64 cli=pryx ;;
+  Linux/aarch64|Linux/arm64) arch=arm64 cli=pryx-linux-arm64 ;;
+  *) echo 'pryx supports Linux on x86_64 and aarch64; this platform is not supported' >&2; exit 1 ;;
 esac
 for tool in curl sha256sum tar; do
   command -v "$tool" >/dev/null || { echo "pryx installation needs $tool" >&2; exit 1; }
@@ -45,14 +47,14 @@ if [ -z "$preset" ]; then
 fi
 download SHA256SUMS
 if [ "$preset" = server ]; then
-  download pryx
-  verify pryx
-  chmod 700 "$temporary/pryx"
-  if [ "${PRYX_NO_UP:-0}" != 1 ]; then "$temporary/pryx" up --preset server --preflight; fi
-  install -m 0755 "$temporary/pryx" /usr/local/bin/pryx
+  download "$cli"
+  verify "$cli"
+  chmod 700 "$temporary/$cli"
+  if [ "${PRYX_NO_UP:-0}" != 1 ]; then "$temporary/$cli" up --preset server --preflight; fi
+  install -m 0755 "$temporary/$cli" /usr/local/bin/pryx
   destination=/usr/local/bin/pryx
 else
-  asset=pryx-bootstrap-linux-x64.tar.gz
+  asset=pryx-bootstrap-linux-$arch.tar.gz
   download "$asset"
   verify "$asset"
   mkdir "$temporary/unpacked"

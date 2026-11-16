@@ -123,7 +123,7 @@ async fn a_lost_start_response_is_confirmed_without_repeating_the_mutation() {
 fn deployment() -> String {
     static NEXT_SLOT: AtomicU16 = AtomicU16::new(0);
     let slot = NEXT_SLOT.fetch_add(1, Ordering::Relaxed);
-    assert!(slot < 400, "44000..47999 holds 400 slots of 10 ports");
+    assert!(slot < 400, "24000..27999 holds 400 slots of 10 ports");
     format!("t{slot:03}{}", &uuid::Uuid::new_v4().simple().to_string()[..7])
 }
 
@@ -149,9 +149,15 @@ impl Drop for Cleanup {
 /// it to the test's own).
 const HOST_OWNERSHIP: &str = "[workloads]\ndata_owner = \"1000:1000\"\n";
 
+/// The first of the suite's host ports, below Linux's default ephemeral range (ip(7),
+/// ip_local_port_range 32768-60999), so no outgoing connection's local port (Docker's client, a
+/// test's own requests) can hold one first: Docker answers that only at start, "address already
+/// in use". The 400 slots of 10 ports end at 27999.
+const PORTS_LOW: u16 = 24000;
+
 fn extra(deployment: &str) -> String {
     let slot: u16 = deployment[1..4].parse().unwrap();
-    let low = 44000 + slot * 10;
+    let low = PORTS_LOW + slot * 10;
     format!(
         "deployment_id = \"{deployment}\"\n[network]\nport_range = [{low}, {}]\nport_quarantine_seconds = 0\n{HOST_OWNERSHIP}",
         low + 9
@@ -675,7 +681,7 @@ async fn isolation_keeps_a_workload_off_another_s_published_port() {
     let _cleanup = Cleanup(dep.clone());
     let (host, network, table) = (host_address(), format!("blockly-{dep}"), format!("pryxd_{dep}"));
     let _rules = Rules(table.clone());
-    let low = 44000 + dep[1..4].parse::<u16>().unwrap() * 10;
+    let low = PORTS_LOW + dep[1..4].parse::<u16>().unwrap() * 10;
     let text = format!(
         "deployment_id = \"{dep}\"\n[docker]\nnetwork = \"{network}\"\n[network]\nport_range = [{low}, {}]\n\
          port_quarantine_seconds = 0\nedge_ips = [\"{host}\"]\ncontrol_ips = [\"{host}\"]\n{HOST_OWNERSHIP}",
@@ -769,7 +775,7 @@ async fn an_egress_policy_holds_dns_to_its_names() {
 
 /// The exact standalone configuration parsed by isolate, also checked without host privileges.
 fn dns_isolation_config(dir: &std::path::Path, dep: &str) -> String {
-    let low = 44000 + dep[1..4].parse::<u16>().unwrap() * 10;
+    let low = PORTS_LOW + dep[1..4].parse::<u16>().unwrap() * 10;
     let tls = dir.join("tls");
     format!(
         "node_id = \"{dep}\"\ndeployment_id = \"{dep}\"\n[api]\nlisten = \"127.0.0.1:7443\"\n[api.tls]\ncert = \"{tls}/node.pem\"\n\
