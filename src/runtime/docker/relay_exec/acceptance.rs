@@ -43,15 +43,7 @@ async fn engine_private_exec_ingress() {
     let data = directory.path().join("data");
     std::fs::create_dir(&data).unwrap();
     let staged = super::super::exec_agent::stage(&agent, &data).unwrap();
-    let service = directory.path().join("service");
-    let result = Command::new("cc")
-        .args(["-static", "-O2"])
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/ingress-service.c"))
-        .arg("-o")
-        .arg(&service)
-        .output()
-        .unwrap();
-    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    let service = compile_service(&directory);
     let name = format!("pryx-ingress-{}", uuid::Uuid::new_v4().simple());
     let network = format!("{name}-net");
     let fixture =
@@ -108,6 +100,19 @@ async fn engine_private_exec_ingress() {
     healthy_and_finished(&docker, &made.id, &inspected).await;
     stalled_owner_and_replacement(&runtime, &agent, &docker, &inspected, &bindings[0], target).await;
     drop(fixture);
+}
+
+fn compile_service(directory: &tempfile::TempDir) -> PathBuf {
+    let service = directory.path().join("service");
+    let result = Command::new("cc")
+        .args(["-static", "-O2"])
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/ingress-service.c"))
+        .arg("-o")
+        .arg(&service)
+        .output()
+        .unwrap();
+    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    service
 }
 
 fn binding(protocol: Proto, container_port: u16) -> PortBinding {
