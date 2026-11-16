@@ -19,6 +19,7 @@ from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
     from ..models.make_request_egress import MakeRequestEgress
+    from ..models.make_request_egress_addresses import MakeRequestEgressAddresses
     from ..models.make_request_env import MakeRequestEnv
     from ..models.make_request_labels import MakeRequestLabels
     from ..models.make_request_metadata import MakeRequestMetadata
@@ -64,6 +65,7 @@ class MakeRequest:
         user (Union[Unset, str]):
         auto_delete (Union[Unset, bool]):
         egress (Union[Unset, MakeRequestEgress]):
+        egress_addresses (Union[Unset, MakeRequestEgressAddresses]):
         start (Union[Unset, bool]):  Default: True.
         region (Union[Unset, str]):  Default: 'default'.
     """
@@ -95,6 +97,7 @@ class MakeRequest:
     user: Union[Unset, str] = UNSET
     auto_delete: Union[Unset, bool] = UNSET
     egress: Union[Unset, "MakeRequestEgress"] = UNSET
+    egress_addresses: Union[Unset, "MakeRequestEgressAddresses"] = UNSET
     start: Union[Unset, bool] = True
     region: Union[Unset, str] = "default"
 
@@ -197,6 +200,10 @@ class MakeRequest:
         if not isinstance(self.egress, Unset):
             egress = self.egress.to_dict()
 
+        egress_addresses: Union[Unset, dict[str, Any]] = UNSET
+        if not isinstance(self.egress_addresses, Unset):
+            egress_addresses = self.egress_addresses.to_dict()
+
         start = self.start
 
         region = self.region
@@ -258,6 +265,8 @@ class MakeRequest:
             field_dict["autoDelete"] = auto_delete
         if egress is not UNSET:
             field_dict["egress"] = egress
+        if egress_addresses is not UNSET:
+            field_dict["egressAddresses"] = egress_addresses
         if start is not UNSET:
             field_dict["start"] = start
         if region is not UNSET:
@@ -268,6 +277,7 @@ class MakeRequest:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.make_request_egress import MakeRequestEgress
+        from ..models.make_request_egress_addresses import MakeRequestEgressAddresses
         from ..models.make_request_env import MakeRequestEnv
         from ..models.make_request_labels import MakeRequestLabels
         from ..models.make_request_metadata import MakeRequestMetadata
@@ -403,6 +413,13 @@ class MakeRequest:
         else:
             egress = MakeRequestEgress.from_dict(_egress)
 
+        _egress_addresses = d.pop("egressAddresses", UNSET)
+        egress_addresses: Union[Unset, MakeRequestEgressAddresses]
+        if isinstance(_egress_addresses, Unset):
+            egress_addresses = UNSET
+        else:
+            egress_addresses = MakeRequestEgressAddresses.from_dict(_egress_addresses)
+
         start = d.pop("start", UNSET)
 
         region = d.pop("region", UNSET)
@@ -435,6 +452,7 @@ class MakeRequest:
             user=user,
             auto_delete=auto_delete,
             egress=egress,
+            egress_addresses=egress_addresses,
             start=start,
             region=region,
         )

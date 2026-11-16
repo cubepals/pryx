@@ -200,13 +200,18 @@ impl Bootstrap {
     }
 }
 
+pub struct Completed {
+    pub code: i32,
+    pub agent: Option<Arc<Agent>>,
+}
+
 pub async fn serve(
     args: Bootstrap,
     forward: Option<Arc<dyn crate::guest::Forward>>,
-) -> Result<i32, Box<dyn std::error::Error>> {
+) -> Result<Completed, Box<dyn std::error::Error>> {
     args.validate_host_policy(forward.is_some())?;
     if args.vm_files_only {
-        return args.serve_files().await;
+        return args.serve_files().await.map(|code| Completed { code, agent: None });
     }
     let bindings = args.bindings(std::env::var_os(crate::process_policy::POLICY_ENV).is_some())?;
     let encoded = std::env::var(&args.secret_env).map_err(|_| "Agent signing material is missing")?;
@@ -231,6 +236,7 @@ pub async fn serve(
         shells: Default::default(),
         public_key: key.public_key(),
         forked: Default::default(),
+        retirement_nonce: Default::default(),
         key,
         sandbox: args.sandbox.clone(),
         epoch: args.epoch,
@@ -284,7 +290,7 @@ pub async fn serve(
     if let Some(logs) = logs {
         let _ = tokio::time::timeout(std::time::Duration::from_secs(1), logs).await;
     }
-    result
+    result.map(|code| Completed { code, agent: Some(agent) })
 }
 
 async fn prepare_mounts(
@@ -380,6 +386,8 @@ async fn log_output(event: Event, logbook: &crate::logbook::Logbook) {
 }
 
 async fn terminate(agent: &Agent, signal: i32) {
+    agent.processes.close();
+    crate::process_tools::close_admission();
     for process in agent.processes.list() {
         if let Ok(process) = agent.processes.get(&process.id) {
             let _ = process.signal(signal);

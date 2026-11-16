@@ -608,6 +608,7 @@ fn probe_specification(data: &Path) -> Result<ContainerSpec, RuntimeError> {
         entrypoint: None,
         workdir: None,
         egress: None,
+        egress_addresses: None,
         env: vec![(secret_env, encoded)],
         labels: BTreeMap::new(),
         user: format!("{PROBE_ID}:{PROBE_ID}"),

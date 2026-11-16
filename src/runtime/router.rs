@@ -172,6 +172,12 @@ impl ContainerRuntime for Router {
     fn supports_network_policy(&self) -> bool {
         self.default().supports_network_policy()
     }
+    fn supports_egress_addresses(&self) -> bool {
+        self.default().supports_egress_addresses()
+    }
+    fn check_egress_addresses(&self, spec: &crate::protocol::WorkloadSpec) -> Result<(), String> {
+        self.default().check_egress_addresses(spec)
+    }
     async fn info(&self) -> Result<RuntimeInfo, RuntimeError> {
         self.read_info(true).await
     }

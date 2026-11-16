@@ -73,6 +73,36 @@ fn open_across_exec(command: &mut Command, descriptors: Vec<i32>) {
 }
 
 impl ProcessRuntime {
+    /// Traverse-only ancestors permit the selected UID to reach its data; private journal,
+    /// credentials and workload records retain their own 0700/0600 permissions.
+    pub(super) fn traversable(&self, data_dir: &std::path::Path) -> Result<(), RuntimeError> {
+        use std::os::unix::fs::PermissionsExt;
+        for parent in data_dir.ancestors().skip(1) {
+            fs::set_permissions(parent, fs::Permissions::from_mode(0o711)).map_err(error)?;
+            if Some(parent) == self.state.root.parent() {
+                break;
+            }
+        }
+        Ok(())
+    }
+    /// Detaches a sandbox's kernel network policy once its processes are gone.
+    pub(super) fn release_network(&self, name: &str) -> Result<(), RuntimeError> {
+        self.network.as_ref().map_or(Ok(()), |network| network.release(name))
+    }
+    /// How many supervisors run now without verified programs on a host that attaches them:
+    /// started before it could, or whose rules no longer fit its addresses. Read as asked, so a
+    /// stop is counted at once.
+    pub(super) fn unpoliced(&self) -> usize {
+        let Some(network) = &self.network else { return 0 };
+        let entries = self.state.entries.lock().unwrap();
+        entries
+            .values()
+            .filter(|entry| {
+                !network.verified(&entry.spec.name)
+                    && (matching_pid(entry.pid, entry.ticks).is_some() || self.legacy_pending(entry))
+            })
+            .count()
+    }
     pub(super) fn running(&self, name: &str) -> Result<bool, RuntimeError> {
         Ok(self
             .observe_entry(name)?
@@ -144,15 +174,7 @@ impl ProcessRuntime {
         let spec = &entry.spec;
         let agent = spec.agent.as_ref().ok_or_else(|| error("Missing process supervisor"))?;
         let owner = self.owner(&agent.sandbox)?;
-        // Traverse-only ancestors permit the selected UID to reach its data; private journal,
-        // credentials and workload records retain their own 0700/0600 permissions.
-        use std::os::unix::fs::PermissionsExt;
-        for parent in spec.data_dir.ancestors().skip(1) {
-            fs::set_permissions(parent, fs::Permissions::from_mode(0o711)).map_err(error)?;
-            if Some(parent) == self.state.root.parent() {
-                break;
-            }
-        }
+        self.traversable(&spec.data_dir)?;
         let binding = |logical| {
             spec.ports
                 .iter()
@@ -246,6 +268,11 @@ impl ProcessRuntime {
     pub(super) async fn launch(&self, name: &str) -> Result<(), RuntimeError> {
         let _launch = self.state.launch.lock().await;
         let mut entry = self.entry(name)?;
+        if self.network.is_none()
+            && (entry.network.is_some() || entry.spec.egress.is_some() || entry.spec.egress_addresses.is_some())
+        {
+            return Err(error("this sandbox requires kernel-network-policy, which this host cannot verify"));
+        }
         if entry.spec.nano_cpus.is_some() {
             return Err(error(crate::protocol::CPU_LIMIT_PROBLEM));
         }
@@ -266,9 +293,29 @@ impl ProcessRuntime {
         entry.namespaced =
             proved.then_some(super::namespaces::Namespaced { private_network: entry.spec.internal_network });
         let (mut command, listeners) = self.launch_command(&entry, tools, required)?;
-        let child = command.spawn().map_err(error)?;
+        crate::bpf::host::drop_ambient_on_exec(&mut command);
+        // Every socket the supervisor or its commands open is its cgroup's, so the programs
+        // are attached before it starts and it joins the cgroup before it runs. A namespaced
+        // supervisor's helper joins it the same way, and everything below it inherits it.
+        let child = if let Some(network) = &self.network {
+            let (record, _) = network.prepare(&entry.spec).await?;
+            entry.network = Some(record);
+            network.spawn_verified(&entry.spec.name, &mut command)
+        } else {
+            command.spawn().map_err(error)
+        };
+        let child = match child {
+            Ok(child) => child,
+            Err(problem) => {
+                self.release_network(&entry.spec.name)?;
+                return Err(problem);
+            }
+        };
         drop(listeners);
         entry.pid = Some(child.id());
+        entry.network_boot = crate::host::boot_id();
+        entry.network_clean = false;
+        entry.network_stop_nonce = None;
         entry.ticks = identity(child.id());
         entry.started = Some(format_time(crate::clock::now()));
         entry.cleaned = false;
@@ -319,8 +366,16 @@ impl ProcessRuntime {
             if let Some(agent) = &entry.spec.agent {
                 self.retire_orphans(&agent.sandbox)?;
             }
+            self.release_network(&entry.spec.name)?;
             entry.cleaned = true;
             self.save_in(&mut entries, entry.clone())?;
+        }
+        if !alive && entry.network.is_none() {
+            let clean = entry.network_clean;
+            self.note_legacy_loss(&mut entry)?;
+            if clean != entry.network_clean {
+                self.save_in(&mut entries, entry.clone())?;
+            }
         }
         let paused = alive
             && entry
@@ -333,6 +388,8 @@ impl ProcessRuntime {
             crate::labels::LABEL_BROWSER_SANDBOX.into(),
             (alive && entry.native_browser == Some(true)).to_string(),
         );
+        let attached = self.network.as_ref().is_some_and(|network| network.verified(&entry.spec.name));
+        labels.insert(crate::labels::LABEL_NETWORK_POLICY.into(), (alive && attached).to_string());
         labels.insert(crate::labels::LABEL_PRIVATE_PIDS.into(), entry.namespaced.is_some().to_string());
         labels.insert(
             crate::labels::LABEL_PRIVATE_NETWORK.into(),

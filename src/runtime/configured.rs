@@ -23,7 +23,15 @@ pub async fn create(config: &Config) -> anyhow::Result<Arc<dyn ContainerRuntime>
     } else if config.runtime == RuntimeKind::Wasm {
         Arc::new(crate::runtime::wasm::WasmRuntime::new(&config.state_dir, &config.wasm).await?)
     } else if config.runtime == RuntimeKind::Process {
-        Arc::new(crate::runtime::process::ProcessRuntime::new(&config.state_dir, config.process.clone())?)
+        let served = crate::runtime::process::Served {
+            ports: config.network.port_range[0]..=config.network.port_range[1],
+            api_port: config.api.listen.port(),
+        };
+        Arc::new(
+            crate::runtime::process::ProcessRuntime::new(&config.state_dir, config.process.clone())?
+                .with_network(served)
+                .await,
+        )
     } else {
         anyhow::ensure!(config.docker.enabled, "the container tier is disabled by this host preset");
         let socket = super::engine::socket(&config.docker).await?;

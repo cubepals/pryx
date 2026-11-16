@@ -30,6 +30,7 @@ pub(super) fn specification(request: Request, binary: PathBuf) -> ContainerSpec 
         entrypoint: Some(Vec::new()),
         workdir: Some("/".into()),
         egress: None,
+        egress_addresses: None,
         user: request.user,
         memory_bytes: request.memory_bytes,
         storage_bytes: request.storage_bytes,

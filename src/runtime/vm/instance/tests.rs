@@ -47,6 +47,7 @@ pub(super) fn spec(data: &Path, image: &str) -> ContainerSpec {
         entrypoint: None,
         workdir: None,
         egress: None,
+        egress_addresses: None,
         env: vec![(secret_env, encoded)],
         labels: BTreeMap::new(),
         user: format!("{uid}:{uid}"),

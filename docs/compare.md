@@ -42,7 +42,7 @@ sandbox documentation export. No competitor code was copied.
 | Git | [yes, native command wrapper](../sdk/typescript/src/git.ts) | [command-based; native API deprecated; 2026-11-08](https://docs.e2b.dev/migration/git-deprecation) | [native Git API; 2026-11-08](https://www.daytona.io/docs/en/git-operations.md) | [clone/authenticated repository workflows; 2026-11-08](https://developers.cloudflare.com/sandbox/network/clone-a-private-repository/) |
 | Ports and preview URLs | [yes, token-protected agent previews](agent.md) | [yes; 2026-11-08](https://docs.e2b.dev/network/public-url) | [yes; 2026-11-08](https://www.daytona.io/docs/en/preview.md) | [yes; 2026-11-08](https://developers.cloudflare.com/sandbox/previews/) |
 | Raw tunnels | [yes, edge TCP/TLS fronts](../edge/src/front.ts) | [IP tunneling; 2026-11-08](https://docs.e2b.dev/network/ip-tunneling) | [SSH and preview proxy; 2026-11-08](https://www.daytona.io/docs/en/ssh-access.md) | [Worker/preview routes; 2026-11-08](https://developers.cloudflare.com/sandbox/previews/) |
-| Egress allowlist including DNS | [yes, container host policy](../src/runtime/docker/egress.rs) | [allow/deny policy with an automatic DNS allowance; 2026-11-08](https://docs.e2b.dev/network/internet-access) | [CIDR/domain allowlists; DNS guarantee not stated here; 2026-11-08](https://www.daytona.io/docs/en/network-limits.md) | [network configuration; DNS equivalence not asserted; 2026-11-08](https://developers.cloudflare.com/sandbox/network/) |
+| Egress allowlist including DNS | [yes, container host policy](../src/runtime/docker/egress.rs); [process sandboxes in the kernel where the host grants it](bpf.md) | [allow/deny policy with an automatic DNS allowance; 2026-11-08](https://docs.e2b.dev/network/internet-access) | [CIDR/domain allowlists; DNS guarantee not stated here; 2026-11-08](https://www.daytona.io/docs/en/network-limits.md) | [network configuration; DNS equivalence not asserted; 2026-11-08](https://developers.cloudflare.com/sandbox/network/) |
 | Internet off | [yes, tier-specific enforcement](tiers.md) | [yes; 2026-11-08](https://docs.e2b.dev/network/internet-access) | [yes; 2026-11-08](https://www.daytona.io/docs/en/network-limits.md) | [network policy configuration; 2026-11-08](https://developers.cloudflare.com/sandbox/network/) |
 | Sleep with memory | [yes, suspension by tier](tiers.md) | [pause/resume; 2026-11-08](https://docs.e2b.dev/sandbox/persistence) | [stop/archive semantics; memory equivalence not asserted; 2026-11-08](https://www.daytona.io/docs/en/sandboxes.md) | [instance lifecycle; memory persistence not asserted; 2026-11-08](https://developers.cloudflare.com/sandbox/concepts/lifetime/) |
 | Pause | [yes](tiers.md) | [yes; 2026-11-08](https://docs.e2b.dev/sandbox/persistence) | [lifecycle controls; 2026-11-08](https://www.daytona.io/docs/en/sandboxes.md) | [lifecycle controls; 2026-11-08](https://developers.cloudflare.com/sandbox/concepts/lifetime/) |
@@ -91,7 +91,8 @@ and a create can `require` any of them. The node computes them in
 - `private-network`: container and vm.
 - `private-pids`: container and vm.
 - `separate-users`: process as root, when the credential-drop probe passes.
-- `host-firewall`: container, on a rootful engine with the host firewall loaded.
+- `host-firewall`: container, on a rootful engine with the host firewall loaded, and process
+  where `kernel-network-policy` is on and the sandbox's own programs are attached ([bpf.md](bpf.md)).
 - `memory-sleep`: process, container on a rootful engine with memory limits, and an ordinary
   user's vm once its start test has restored a guest on that host.
 - `browser-sandbox`: container with the native-tools seccomp profile and user namespaces, and

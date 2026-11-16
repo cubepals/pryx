@@ -790,6 +790,18 @@ export interface components {
                 /** @default [] */
                 deny?: string[];
             };
+            egressAddresses?: {
+                /** @default [] */
+                allow?: {
+                    ports?: number[] | null;
+                    prefix: string;
+                }[];
+                /** @default [] */
+                deny?: {
+                    ports?: number[] | null;
+                    prefix: string;
+                }[];
+            };
             /** @default true */
             start?: boolean;
             /** @default default */
@@ -962,6 +974,18 @@ export interface components {
                     allow: string[];
                     /** @default [] */
                     deny?: string[];
+                };
+                egressAddresses?: {
+                    /** @default [] */
+                    allow?: {
+                        ports?: number[] | null;
+                        prefix: string;
+                    }[];
+                    /** @default [] */
+                    deny?: {
+                        ports?: number[] | null;
+                        prefix: string;
+                    }[];
                 };
                 /** @default true */
                 start?: boolean;

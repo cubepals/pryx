@@ -68,6 +68,8 @@ impl Manager {
             let started = |label| observed.and_then(|info| info.labels.get(label)).is_some_and(|on| on == "true");
             guarantees.entry(G::PrivatePids).and_modify(|on| *on &= started(crate::labels::LABEL_PRIVATE_PIDS));
             guarantees.insert(G::PrivateNetwork, started(crate::labels::LABEL_PRIVATE_NETWORK));
+            // Kernel policy counts for a sandbox only once its own programs are attached and verified.
+            guarantees.entry(G::HostFirewall).and_modify(|on| *on &= started(crate::labels::LABEL_NETWORK_POLICY));
         }
         guarantees
     }

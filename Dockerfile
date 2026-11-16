@@ -9,6 +9,8 @@ RUN apk add --no-cache musl-dev file
 WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 COPY src src
+# The process tier's kernel programs, compiled from bpf/network.bpf.c and embedded by src/bpf/.
+COPY bpf/network.bpf.o bpf/network.bpf.o
 COPY agent agent
 COPY templates/process-tools/compatibility.json templates/process-tools/compatibility.json
 COPY templates/process-tools/browser/protocol.json templates/process-tools/browser/protocol.json

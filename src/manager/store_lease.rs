@@ -40,11 +40,18 @@ impl Manager {
         if self.runtime.supports_hostname_egress() {
             features.push(crate::protocol::EGRESS_HOSTNAMES_FEATURE.into());
         }
+        if self.runtime.supports_egress_addresses() {
+            features.push(crate::protocol::EGRESS_ADDRESSES_FEATURE.into());
+        }
         if self.runtime.supports_network_policy() || self.ready_network_policy() {
             features.push(crate::protocol::NETWORK_POLICY_FEATURE.into());
         }
         if self.runtime.multi_tier() {
-            for feature in [crate::protocol::NETWORK_POLICY_FEATURE, crate::protocol::EGRESS_HOSTNAMES_FEATURE] {
+            for feature in [
+                crate::protocol::NETWORK_POLICY_FEATURE,
+                crate::protocol::EGRESS_HOSTNAMES_FEATURE,
+                crate::protocol::EGRESS_ADDRESSES_FEATURE,
+            ] {
                 features.push(format!("{}{feature}", crate::protocol::TIER_CAPABILITY_SCOPE_PREFIX));
             }
         }
@@ -71,17 +78,7 @@ impl Manager {
             if matches!(tier, "container" | "process") {
                 features.push(crate::protocol::NATIVE_BROWSER_POLICY_FEATURE.into());
             }
-            if self.runtime.multi_tier()
-                && self.runtime.backend(tier).is_some_and(|runtime| runtime.supports_network_policy())
-            {
-                features.push(format!("tier-{tier}:{}", crate::protocol::NETWORK_POLICY_FEATURE));
-            }
-            // A request's hostname policy is enforced by the tier that serves it, not the default.
-            if self.runtime.multi_tier()
-                && self.runtime.backend(tier).is_some_and(|runtime| runtime.supports_hostname_egress())
-            {
-                features.push(format!("tier-{tier}:{}", crate::protocol::EGRESS_HOSTNAMES_FEATURE));
-            }
+            features.extend(self.tier_policy_features(tier));
             features.extend(
                 self.tier_guarantees(tier)
                     .into_iter()
@@ -100,6 +97,23 @@ impl Manager {
             }
         }
         features
+    }
+
+    /// The network policies a mixed node's tier enforces itself, as features scoped to it: a
+    /// request's policy is enforced by the tier that serves it, not the default.
+    fn tier_policy_features(&self, tier: &str) -> Vec<String> {
+        let Some(runtime) = self.runtime.backend(tier).filter(|_| self.runtime.multi_tier()) else {
+            return Vec::new();
+        };
+        [
+            (crate::protocol::NETWORK_POLICY_FEATURE, runtime.supports_network_policy()),
+            (crate::protocol::EGRESS_HOSTNAMES_FEATURE, runtime.supports_hostname_egress()),
+            (crate::protocol::EGRESS_ADDRESSES_FEATURE, runtime.supports_egress_addresses()),
+        ]
+        .into_iter()
+        .filter(|(_, on)| *on)
+        .map(|(feature, _)| format!("tier-{tier}:{feature}"))
+        .collect()
     }
 
     fn native_tool_features(&self) -> Vec<String> {
@@ -133,6 +147,9 @@ impl Manager {
     pub async fn refresh_host_probe(&self) {
         let mut report = crate::probe::run().await;
         if let Ok(runtime) = self.runtime_for(Some(crate::protocol::Isolation::Process)) {
+            if let Some(capability) = runtime.kernel_network_policy() {
+                report.capabilities.insert(crate::bpf::CAPABILITY.into(), capability);
+            }
             let available = match self.agent_binary(runtime.as_ref()) {
                 Some(binary) => runtime.native_browser(&binary).await,
                 None => Err(crate::runtime::RuntimeError::Other("No trusted process agent executable".into())),
@@ -185,6 +202,15 @@ impl Manager {
         }
     }
 
+    /// The process tier's kernel network policy as its runtime has it now, not as the last probe
+    /// found it: a sandbox running without it turns it off until it stops.
+    fn kernel_network_policy_on(&self) -> bool {
+        self.runtime_for(Some(crate::protocol::Isolation::Process))
+            .ok()
+            .and_then(|runtime| runtime.kernel_network_policy())
+            .is_some_and(|capability| capability.state == crate::capability::State::On)
+    }
+
     pub(crate) fn guarantees(&self) -> BTreeMap<crate::protocol::Guarantee, bool> {
         self.tier_guarantees(self.runtime.isolation())
     }
@@ -214,7 +240,8 @@ impl Manager {
                         container || vm || (tier == "process" && probe.on(crate::runtime::process::NAMESPACES))
                     }
                     G::HostFirewall => {
-                        container && info.as_ref().is_some_and(|info| !info.rootless) && probe.on("host-firewall")
+                        (container && info.as_ref().is_some_and(|info| !info.rootless) && probe.on("host-firewall"))
+                            || (tier == "process" && self.kernel_network_policy_on())
                     }
                     G::MemorySleep => {
                         ((container || tier == "process")

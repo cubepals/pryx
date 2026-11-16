@@ -1,10 +1,29 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
-// Generated from openapi/node-reads.openapi.json; sha256 4b3ce2622ef4e1839b49ac93c574f1c4250892e209e9c12461a4b833d9c1f6e5.
+// Generated from openapi/node-reads.openapi.json; sha256 ac72a828e89b2b24c19954ac1e7a77e239ee5b3aa845b2594dde7a4037c8a1bd.
 export type paths = Record<string, never>;
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * @description Destinations by address, enforced in the kernel by the tier serving the workload; deny takes
+         *     precedence over allow. Allow adds to what `network` and `egress` give; deny takes away. Neither
+         *     reaches what the host keeps from every sandbox: the host itself, link-local and multicast.
+         */
+        AddressPolicy: {
+            /** @default [] */
+            allow?: components["schemas"]["AddressRule"][];
+            /** @default [] */
+            deny?: components["schemas"]["AddressRule"][];
+        };
+        /**
+         * @description An IPv4 or IPv6 prefix, such as `203.0.113.0/24` (a bare address is one host), and an
+         *     inclusive port range for TCP and UDP; without one, every port.
+         */
+        AddressRule: {
+            ports?: number[] | null;
+            prefix: string;
+        };
         AgentOptions: {
             domain: string;
             /** @default false */
@@ -353,6 +372,8 @@ export interface components {
             /** @default null */
             agent?: components["schemas"]["AgentOptions"] | null;
             egress?: components["schemas"]["EgressPolicy"] | null;
+            /** @description Sent only after the serving tier announces egress-addresses. */
+            egressAddresses?: components["schemas"]["AddressPolicy"] | null;
             /**
              * @description Replaces the image's entrypoint; absent, the image starts as it was built to.
              * @default null

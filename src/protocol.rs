@@ -71,6 +71,8 @@ pub(crate) const TIER_CAPABILITY_SCOPE_PREFIX: &str = "tier-capabilities:";
 pub(crate) const NETWORK_POLICY_FEATURE: &str = "network-policy";
 /// Availability of a workload's hostname egress policy, enforced by the tier serving it.
 pub(crate) const EGRESS_HOSTNAMES_FEATURE: &str = "egress-hostnames";
+/// Availability of a workload's address rules (`egressAddresses`), enforced by the tier serving it.
+pub(crate) const EGRESS_ADDRESSES_FEATURE: &str = "egress-addresses";
 /// Default host memory floor; the operator may configure a different policy.
 pub const DEFAULT_MIN_MEMORY_MB: u32 = 256;
 /// Default inclusive host listener pool, also used for legacy image configurations.

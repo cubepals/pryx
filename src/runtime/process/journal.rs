@@ -12,7 +12,7 @@ use std::{
 pub(super) fn error(error: impl std::fmt::Display) -> RuntimeError {
     RuntimeError::Other(error.to_string())
 }
-fn read_private(path: &Path) -> std::io::Result<Vec<u8>> {
+pub(super) fn read_private(path: &Path) -> std::io::Result<Vec<u8>> {
     let file = fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK).open(path)?;
     let info = file.metadata()?;
     if !info.is_file() || info.uid() != rustix::process::geteuid().as_raw() || info.mode() & 0o077 != 0 {
@@ -57,6 +57,47 @@ pub(super) fn legacy_boot(root: &Path) -> Result<bool, RuntimeError> {
         Err(problem) => Err(error(problem)),
     }
 }
+
+pub(super) const NETWORK_HISTORY: &str = "network-unpoliced-boot";
+const NETWORK_ORIGIN: &str = "network-history-origin";
+pub(super) const UNKNOWN_BOOT: &str = "unknown";
+
+fn initialize_network_history(root: &Path, existed: bool) -> Result<(), RuntimeError> {
+    match read_private(&root.join(NETWORK_ORIGIN)) {
+        Ok(bytes) if bytes == b"1\n" => return Ok(()),
+        Ok(_) => return Err(error("Invalid network history origin")),
+        Err(problem) if problem.kind() == std::io::ErrorKind::NotFound => {}
+        Err(problem) => return Err(error(problem)),
+    }
+    // Earlier daemons could delete a shared-UID legacy record while detached children lived.
+    // Absence of that record cannot establish a clean migration to the new history format.
+    if existed {
+        note_network_uncertain(root)?;
+    }
+    crate::durable::write_atomic(&root.join(NETWORK_ORIGIN), b"1\n", 0o600).map_err(error)
+}
+
+pub(super) fn network_boot_uncertain(root: &Path, boot: Option<&str>) -> Result<bool, RuntimeError> {
+    let bytes = match read_private(&root.join(NETWORK_HISTORY)) {
+        Ok(bytes) => bytes,
+        Err(problem) if problem.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(problem) => return Err(error(problem)),
+    };
+    let stored = std::str::from_utf8(&bytes).map_err(error)?;
+    if stored != UNKNOWN_BOOT && uuid::Uuid::parse_str(stored).is_err() {
+        return Err(error("Invalid legacy network boot marker"));
+    }
+    Ok(stored == UNKNOWN_BOOT || boot.is_none_or(|boot| boot == stored))
+}
+
+pub(super) fn note_network_uncertain(root: &Path) -> Result<(), RuntimeError> {
+    if read_private(&root.join(NETWORK_HISTORY)).is_ok_and(|bytes| bytes == UNKNOWN_BOOT.as_bytes()) {
+        return Ok(());
+    }
+    let boot = crate::host::boot_id().unwrap_or_else(|| UNKNOWN_BOOT.into());
+    crate::durable::write_atomic(&root.join(NETWORK_HISTORY), boot.as_bytes(), 0o600).map_err(error)
+}
+
 impl ProcessRuntime {
     pub fn new(root: &Path, policy: ProcessConfig) -> Result<Self, RuntimeError> {
         let root = root.join("process-runtime");
@@ -67,7 +108,18 @@ impl ProcessRuntime {
             return Err(error("Unsafe process runtime directory"));
         }
         initialize_scope_history(&root, existed)?;
+        initialize_network_history(&root, existed)?;
         let runtime = Self::read_entries(root, policy)?;
+        // The store tightens the state directory as the daemon starts; a supervisor that outlived
+        // the last daemon still needs to reach its data, as its launch made it able to.
+        for name in runtime.names() {
+            if let Ok(entry) = runtime.entry(&name)
+                && super::observe::matching_pid(entry.pid, entry.ticks).is_some()
+                && runtime.state.root.parent().is_some_and(|state| entry.spec.data_dir.starts_with(state))
+            {
+                runtime.traversable(&entry.spec.data_dir)?;
+            }
+        }
         if let Err(problem) = runtime.sweep_tools() {
             tracing::warn!(error = %problem, "released process tool directories were not removed");
         }
@@ -116,6 +168,8 @@ impl ProcessRuntime {
                 namespaces: Mutex::new(BTreeMap::new()),
             }),
             policy,
+            network: None,
+            network_capability: None,
         })
     }
     pub(super) fn scope_required(&self) -> Result<bool, RuntimeError> {
@@ -241,6 +295,10 @@ impl ProcessRuntime {
             finished: None,
             cleaned: true,
             native_browser: None,
+            network: None,
+            network_boot: None,
+            network_clean: false,
+            network_stop_nonce: None,
             namespaced: None,
         };
         let id = entry.id.clone();
@@ -249,7 +307,8 @@ impl ProcessRuntime {
     }
     pub(super) fn remove_entry(&self, name: &str) -> Result<(), RuntimeError> {
         let mut entries = self.state.entries.lock().unwrap();
-        let entry = Self::entry_from(&entries, name)?;
+        let mut entry = Self::entry_from(&entries, name)?;
+        self.note_legacy_loss(&mut entry)?;
         if self.state.children.lock().unwrap().contains_key(&entry.spec.name) {
             return Err(RuntimeError::Conflict("Process supervisor still awaits termination and reaping".into()));
         }
@@ -486,5 +545,21 @@ mod tests {
         runtime.save(entry).unwrap();
         assert!(!runtime.running(&spec.name).unwrap());
         assert_eq!(runtime.observe_entry(&spec.name).unwrap().unwrap().status, ContainerStatus::Exited);
+    }
+
+    #[test]
+    fn upgrading_untracked_network_history_requires_a_new_boot_even_without_records() {
+        let root = tempfile::tempdir().unwrap();
+        let runtime = ProcessRuntime::new(root.path(), ProcessConfig::default()).unwrap();
+        assert!(!network_boot_uncertain(&runtime.state.root, crate::host::boot_id().as_deref()).unwrap());
+        let history = runtime.state.root.clone();
+        drop(runtime);
+        fs::remove_file(history.join(NETWORK_ORIGIN)).unwrap();
+        let runtime = ProcessRuntime::new(root.path(), ProcessConfig::default()).unwrap();
+        assert!(runtime.names().is_empty());
+        assert!(runtime.legacy_boot_uncertain());
+        drop(runtime);
+        let runtime = ProcessRuntime::new(root.path(), ProcessConfig::default()).unwrap();
+        assert!(runtime.legacy_boot_uncertain());
     }
 }

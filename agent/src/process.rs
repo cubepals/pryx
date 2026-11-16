@@ -7,7 +7,10 @@
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicBool, Ordering},
+};
 use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
@@ -242,6 +245,7 @@ struct Entry {
 
 pub struct Processes {
     held: Mutex<HashMap<String, Entry>>,
+    closed: AtomicBool,
     pub data: PathBuf,
     pub secret_env: String,
     backend: Option<Arc<dyn Backend>>,
@@ -253,6 +257,7 @@ impl Processes {
     pub fn new(data: PathBuf, secret_env: String) -> Self {
         Self {
             held: Mutex::new(HashMap::new()),
+            closed: AtomicBool::new(false),
             data,
             secret_env,
             backend: None,
@@ -273,6 +278,13 @@ impl Processes {
 
     pub fn get(&self, id: &str) -> Result<Arc<Process>, ProcessError> {
         self.held.lock().unwrap().get(id).map(|e| e.process.clone()).ok_or(ProcessError::NotFound)
+    }
+
+    /// Once termination starts, no request or warming task may admit another command. The
+    /// table lock waits for every already-admitted spawn to finish inserting its process.
+    pub fn close(&self) {
+        let _held = self.held.lock().unwrap();
+        self.closed.store(true, Ordering::Release);
     }
 
     pub fn list(&self) -> Vec<View> {
@@ -342,6 +354,9 @@ impl Processes {
             } else {
                 Err(ProcessError::KeyConflict)
             };
+        }
+        if self.closed.load(Ordering::Acquire) {
+            return Err(ProcessError::Invalid("The supervisor is stopping"));
         }
         if held.len() >= MAX_PROCESSES {
             return Err(ProcessError::Full);
