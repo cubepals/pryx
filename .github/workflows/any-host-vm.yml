@@ -400,7 +400,8 @@ jobs:
   memory:
     name: VM memory sleep and forks with memory
     needs: inputs
-    if: ${{ !cancelled() }}
+    # Skipped with the first job, whose runtime it takes (a milestone branch's pull request).
+    if: ${{ !cancelled() && needs.inputs.result != 'skipped' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
