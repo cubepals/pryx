@@ -5049,18 +5049,22 @@ job when publication is authorized. That job has not run in this task.
   The existing installed-node outage, withdrawal and recovery assertions and their deadlines
   remain; final-base hosted engine proof and independent review are still required.
 
-- OOM evidence follow-up: [CI
-  43926287482/job133518624112](https://github.com/cubepals/pryx/actions/runs/43926287482/job/133518624112)
-  passes the ten gVisor fast-exit trials but reports false for the plain Docker trial. Its container
-  was removed before the final engine diagnostics, so the retained trace does not identify the
-  unique historical cause. The owner source exposes an additional observation window: Moby updates
-  OOMKilled before publishing an event whose timestamp may follow containerd's FinishedAt. A
-  negative bounded history read now confirms the immutable container's flag once, requiring the same
-  start; strict event timestamp scoping and the refusal to infer OOM from a signal exit remain. The
-  real acceptance captures only fixed OOM state and filtered event identity/timestamps before panic
-  cleanup, within a three-second diagnostic budget. Both focused controls pass on this source and
-  fail on the preceding production code. The full local Rust run records 580 passes and 53 ignored
-  tests, with the four unchanged vm_monitor Landlock ABI failures retained. Strict
-  workspace/all-target Clippy, formatting and all three structure checks pass. Local Docker lacks
-  controller enforcement, so no local hard-OOM integration pass is claimed; exact-head hosted proof
-  and final review remain required.
+- K22 outage follow-up: Any host
+  [43825316675](https://github.com/cubepals/pryx/actions/runs/43825316675), Podman job 133184644685,
+  did not observe paused-engine guarantee withdrawal within the existing 45-second probe. The node
+  log has no tier-health withdrawal in that window and records a 20-second inspect timeout. Periodic
+  reconciliation shared one awaited select loop with stats and disk work; a blocked stats call can
+  hold that loop across a resync tick, and another ready stats tick can run first. The historical
+  timer choices were not logged. A regression using the actual periodic loop now proves this
+  starvation mechanism: with only the old loop restored, it fails the health-withdrawal assertion
+  after 21.06 seconds; the exact candidate passes the unchanged case in 5.05 seconds while the stats
+  gate stays held, preserves the process tier, and cancels promptly. All fourteen multi-tier tests
+  pass in 10.20 seconds. Reconciliation and optional measurements are independently polled futures
+  owned by the same cancellation future, with no detached maintenance tasks or overlapping periodic
+  reconciliation. The complete pryxd crate suite passes locally: 472 tests, 39 existing ignored
+  cases, zero failures. Strict all-target and release-shaped Clippy, the pinned source, expanded and
+  Rust structure checks, formatting and whitespace pass. Docker/KVM tests remain ignored locally as
+  recorded by the suite; final real Podman install/outage/recovery/purge proof is still pending CI
+  on the newest branch head. The existing 45-second acceptance and every positive/recovery assertion
+  stay unchanged. No job or gate is added; the focused local regression takes about five to ten
+  seconds in the existing Rust suite.
