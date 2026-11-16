@@ -204,7 +204,12 @@ impl Manager {
         let owner = self.data_owner(id)?;
         let made = match &source {
             RestoreSource::Url { url, sha256 } => self.unpack_from(id, url, sha256.as_deref(), &restoring, owner).await,
-            RestoreSource::Snapshot(snapshot) => self.copy_from_snapshot(id, snapshot, &restoring, owner).await,
+            RestoreSource::Snapshot(snapshot) => self.copy_from_snapshot(id, id, snapshot, &restoring, owner).await,
+            RestoreSource::Fork(fork) => match self.fork_with_memory(id, &record, fork).await? {
+                // Its disk and memory are the fork's now, in place: nothing to swap in.
+                Some(forked) => return Ok(forked),
+                None => self.copy_from_snapshot(id, &fork.workload, &fork.snapshot, &restoring, owner).await,
+            },
         };
         let made = match made {
             Ok(made) => made,
@@ -395,18 +400,21 @@ impl Manager {
     }
 
     /// Copies one of the workload's snapshots into `into`, sharing blocks where it can.
+    /// Copies `of`'s snapshot (`id`'s own, or another workload's for a fork) into `into`, beside
+    /// `id`'s data.
     async fn copy_from_snapshot(
         &self,
         id: &WorkloadId,
+        of: &WorkloadId,
         snapshot: &SnapshotId,
         into: &std::path::Path,
         owner: (u32, u32),
     ) -> Result<RestoreResponse, NodeError> {
         let view =
-            self.store.snapshot(id, snapshot).ok_or_else(|| NodeError::SnapshotNotFound(snapshot.to_string()))?;
+            self.store.snapshot(of, snapshot).ok_or_else(|| NodeError::SnapshotNotFound(snapshot.to_string()))?;
         // Its full size, even where the copy shares blocks (see `snapshot_locked`).
         self.admit_disk(view.size_bytes, "restoring the snapshot")?;
-        let from = self.store.snapshot_dir(id, snapshot).join("data");
+        let from = self.store.snapshot_dir(of, snapshot).join("data");
         let (into, beside) = (into.to_owned(), self.store.workload_dir(id));
         let mut watch = self.floor_watch();
         let copied = blocking(move || {

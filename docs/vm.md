@@ -211,8 +211,13 @@ list narrows the tier with it, and adds prefixes there for other images, as for 
   own sandbox, agent key, boot nonce and hostname, which its resume hands it before its agent
   serves anything. Its init then has the kernel rekey its random generator from host entropy, so
   each fork draws random bytes of its own (the pinned kernel has no VM generation ID driver). A
-  fork keeps the source's image, sizes, mounts, user and network. Across nodes a fork copies the
-  disk, as before.
+  fork keeps everything of its source's spec the memory holds: image, sizes, mounts, user,
+  network, variables, secrets and ports. Through the APIs it is a fork from a snapshot: control
+  snapshots a sleeping VM sandbox without waking it (the snapshot names the memory), places a fork
+  from that snapshot on the node that holds it when that node has room, and the node's restore
+  (`fork`, feature `local-forks`) takes the memory too while the source still sleeps with it and
+  the fork's spec differs only in what is each sandbox's own; the fork's first start then resumes
+  (`resumed: true`). Any other fork, and every fork on another node, copies the disk and boots it.
 - **Stop** sends the guest's init a signed request over vsock, carrying the spec's stop grace.
   Init stops the workload with SIGTERM or SIGINT (other stop signals are refused), gives it that
   whole grace before killing what remains, remounts its disks read-only and flushes them, then

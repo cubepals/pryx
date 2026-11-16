@@ -360,6 +360,17 @@ impl ContainerRuntime for VmRuntime {
             Ok(Box::new(held))
         }
     }
+    async fn memory_image(&self, name: &str) -> Result<Option<String>, RuntimeError> {
+        match self.entry(name) {
+            Ok(entry) => Ok(entry.memory.map(|image| image.id).filter(|id| !id.is_empty())),
+            Err(RuntimeError::NotFound(_)) => Ok(None),
+            Err(problem) => Err(problem),
+        }
+    }
+    async fn fork_memory(&self, source: &str, target: &str, image: &str) -> Result<(), RuntimeError> {
+        let (own, source, target, image) = (self.clone(), source.to_owned(), target.to_owned(), image.to_owned());
+        tokio::spawn(async move { own.fork_into(&source, &target, Some(&image)).await }).await.map_err(error)?
+    }
     fn supports_agent(&self) -> bool {
         true
     }

@@ -498,11 +498,14 @@ export class Sandboxes {
       throw new SandboxError('not_stopped', 'Sandbox has no local data')
     const reservation = await this.projects?.reserveSnapshot(row.project, row.id)
     const running = row.state === 'running'
+    // A VM asleep keeps its memory outside it: copied asleep, it keeps that memory, which a fork
+    // from the snapshot on its node takes too (pryxd's `local-forks`). Any other sleeper stops.
+    const asleep = row.state === 'sleeping' && row.spec.isolation === 'vm'
     let captured: SnapshotHandle | undefined
     let accepted = false
     try {
-      if (running || row.state === 'sleeping') await this.engine.stop(row.handle)
-      await this.state(row.id, 'stopped')
+      if (running || (row.state === 'sleeping' && !asleep)) await this.engine.stop(row.handle)
+      if (!asleep) await this.state(row.id, 'stopped')
       const snap = await this.engine.snapshot(row.handle)
       captured = snap.snapshot
       const id = decodeSnapshot(snap.snapshot).archive

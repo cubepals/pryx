@@ -31,6 +31,10 @@ pub(super) struct Class {
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct Image {
+    /// This sleep's own name, which a snapshot of the guest asleep records so that a fork on this
+    /// node can take this memory with that snapshot's disk; empty in an image older than it.
+    #[serde(default)]
+    pub(super) id: String,
     pub(super) class: Class,
     pub(super) disk: disk::Stamp,
     /// The boot the guest still is, which its init's resume must name.
@@ -275,6 +279,7 @@ impl VmRuntime {
         File::open(&store).and_then(|directory| directory.sync_all()).map_err(error)?;
         tracing::info!(sandbox = %entry.id, milliseconds = started.elapsed().as_millis(), "VM slept with its memory");
         Ok(Image {
+            id: uuid::Uuid::new_v4().simple().to_string(),
             class,
             disk: disk::Stamp::current(&entry.spec.data_dir)?.ok_or_else(|| error("VM disk is missing after sleep"))?,
             nonce: live.nonce.clone(),

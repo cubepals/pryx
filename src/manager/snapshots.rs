@@ -2,8 +2,9 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! Local snapshots of a workload's data: taken, listed, deleted, uploaded. Packing and sending
-//! an upload is `pack_and_put` in `archive.rs`; restoring from a snapshot is `restore` there.
+//! Local snapshots of a workload's data: taken, listed, deleted, uploaded, and a fork from one that
+//! takes its source's memory too. Packing and sending an upload is `pack_and_put` in `archive.rs`;
+//! restoring from a snapshot is `restore` there.
 
 use super::*;
 
@@ -59,6 +60,13 @@ impl Manager {
                 message: "stop the workload, or pause its saving and say so (quiesced), before a snapshot".into(),
             });
         }
+        // Asleep with its memory outside it (a VM's): that memory, which a fork from this snapshot
+        // on this node can take while the workload still sleeps with it.
+        let memory = if running && self.suspension(id).suspended() {
+            self.note(self.record_runtime(&record)?.memory_image(&record.container_name).await)?
+        } else {
+            None
+        };
         let data = self.store.data_dir(id);
         // The data's full size, even where the copy will share blocks with it: a shared copy is
         // free only until the data changes, and then takes as much as a plain one. Counted as
@@ -107,6 +115,7 @@ impl Manager {
             quiesced: running,
             spec_digest: record.spec_digest.clone(),
             duration_ms: started.elapsed().as_millis() as u64,
+            memory,
         };
         let finished = {
             let (store, view) = (self.store.clone(), view.clone());
@@ -125,6 +134,50 @@ impl Manager {
             "snapshot taken"
         );
         Ok(SnapshotResponse { created: true, snapshot: view })
+    }
+
+    /// A fork into `id` (created, never started) from another workload's snapshot that takes that
+    /// workload's memory too: where the snapshot was taken of it asleep with the memory it still
+    /// sleeps with, on the same tier, and `id`'s spec is what that memory holds. The fork is then
+    /// asleep, and its first start resumes it. None when it can't; the fork then copies the
+    /// snapshot's disk alone, and the log says why.
+    pub(super) async fn fork_with_memory(
+        &self,
+        id: &WorkloadId,
+        record: &WorkloadRecord,
+        fork: &crate::protocol::ForkSource,
+    ) -> Result<Option<RestoreResponse>, NodeError> {
+        let started = Instant::now();
+        let view = self
+            .store
+            .snapshot(&fork.workload, &fork.snapshot)
+            .ok_or_else(|| NodeError::SnapshotNotFound(fork.snapshot.to_string()))?;
+        let Some(image) = view.memory.as_deref() else { return Ok(None) };
+        let Ok(source) = self.record(&fork.workload) else { return Ok(None) };
+        if source.id == *id
+            || self.record_tier(&source) != self.record_tier(record)
+            || !self.suspension(&source.id).suspended()
+        {
+            return Ok(None);
+        }
+        let runtime = self.record_runtime(record)?;
+        if let Err(problem) = runtime.fork_memory(&source.container_name, &record.container_name, image).await {
+            tracing::info!(workload = %id, source = %source.id, %problem, "the fork copies the snapshot's disk without its memory");
+            return Ok(None);
+        }
+        // Asleep with its source's memory, as a suspended workload is: its first start resumes it.
+        self.save_suspension(id, SuspendRecord { suspended_at: Some(now_str()), ..self.suspension(id) }).await?;
+        self.state.lock().unwrap().disk.remove(id);
+        tracing::info!(workload = %id, source = %source.id, "forked with the source's memory");
+        Ok(Some(RestoreResponse {
+            size_bytes: view.size_bytes,
+            sha256: None,
+            entries: view.files,
+            skipped: 0,
+            unpacked_bytes: view.size_bytes,
+            previous_data: None,
+            duration_ms: started.elapsed().as_millis() as u64,
+        }))
     }
 
     pub fn snapshots(&self, id: &WorkloadId) -> Result<SnapshotList, NodeError> {

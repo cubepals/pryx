@@ -365,6 +365,18 @@ pub trait ContainerRuntime: Send + Sync + 'static {
     fn uses_remote_data(&self) -> bool {
         false
     }
+    /// The identity of the memory a workload sleeps with outside it (a VM's memory image), which a
+    /// fork can take; none for a backend whose sleep keeps memory in place, or a workload awake.
+    async fn memory_image(&self, _name: &str) -> Result<Option<String>, RuntimeError> {
+        Ok(None)
+    }
+    /// Makes `target`, created and never started, a fork of `source` while it sleeps with the
+    /// memory `image` names: `source`'s disk and that memory, which the target's first start
+    /// resumes under its own identity. Refused when `source` no longer sleeps with it, when the
+    /// target's spec differs from what that memory holds, or when the backend has no such fork.
+    async fn fork_memory(&self, _source: &str, _target: &str, _image: &str) -> Result<(), RuntimeError> {
+        Err(RuntimeError::Unavailable("This backend has no fork with memory".into()))
+    }
     async fn data_service(&self, _request: files::Request) -> Result<files::Service, RuntimeError> {
         Err(RuntimeError::Other("This backend has no remote file service".into()))
     }

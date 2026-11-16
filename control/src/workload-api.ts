@@ -213,15 +213,20 @@ export class WorkloadApi {
     node: Dialled,
     key: string,
     epoch: number,
-    source: { snapshot: string } | { url: string; sha256: string | null },
+    source:
+      | { snapshot: string }
+      | { url: string; sha256: string | null }
+      | { fork: { workload: string; snapshot: string } },
   ): Promise<RestoreResponse> {
     const body =
       'snapshot' in source
         ? { snapshot: source.snapshot }
-        : {
-            url: source.url,
-            ...(source.sha256 ? { sha256: source.sha256 } : {}),
-          }
+        : 'fork' in source
+          ? { fork: source.fork }
+          : {
+              url: source.url,
+              ...(source.sha256 ? { sha256: source.sha256 } : {}),
+            }
     return this.#nodes.call<RestoreResponse>(address(node), 'POST', `/v1/workloads/${key}/restore`, {
       body,
       epoch,

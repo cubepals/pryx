@@ -59,6 +59,7 @@ const FEATURES = [
   'export-exclude',
   'execution-lease',
   'multipart-upload',
+  'local-forks',
 ]
 const CONFIRM = 'x-blockly-confirm-delete-data'
 

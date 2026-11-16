@@ -157,6 +157,7 @@ fn a_snapshot_description() {
         quiesced: true,
         spec_digest: FULL_DIGEST.into(),
         duration_ms: 312,
+        memory: None,
     };
     pinned("snapshot.json", Form::File, &snapshot);
 }

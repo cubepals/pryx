@@ -349,6 +349,42 @@ export function registerFlows2(ctx: ReturnType<typeof flowContext>) {
     expect(await ctx.kinds(key, after)).toEqual(['placement.released', 'placement.destroyed'])
     expect((await ctx.eventData('placement.destroyed', key)).map((e) => e.data)).toEqual([{ nodes: [n.id] }])
   })
+  test('14. a fork restores from a snapshot where it lies on its node, and from the store elsewhere', async () => {
+    await ctx.region('fork-near', 2)
+    const [y] = (await ctx.region('fork-far', 1)) as [EnrolledNode]
+    const source = ctx.server()
+    const placed = await ctx.runtime.ensureProvisioned(
+      source,
+      { regionKey: 'fork-near' },
+      ctx.SPEC,
+      ctx.quiet,
+    )
+    const sourceNode = decodeHandle(placed).node ?? ''
+    const snap = await ctx.snapshotOn(sourceNode, source, `fleet/test/${source}/fork.tar.gz`)
+    const near = ctx.server()
+    const since = ctx.nodes.calls.length
+    const forked = await ctx.runtime.restore(
+      await ctx.runtime.adopt(near, { regionKey: 'fork-near' }, ctx.SPEC),
+      { kind: 'snapshot', snapshot: snap.handle },
+      ctx.SPEC,
+      ctx.quiet,
+    )
+    expect(decodeHandle(forked).node).toBe(sourceNode)
+    const restores = ctx.nodes.calls.slice(since).filter((c) => c.path === `/v1/workloads/${near}/restore`)
+    expect(restores.map((c) => c.body)).toEqual([{ fork: { workload: source, snapshot: snap.id } }])
+    expect(ctx.nodes.calls.slice(since).some((c) => c.path.endsWith('/upload'))).toBe(false)
+    const far = ctx.server()
+    const away = ctx.nodes.calls.length
+    const copied = await ctx.runtime.restore(
+      await ctx.runtime.adopt(far, { regionKey: 'fork-far' }, ctx.SPEC),
+      { kind: 'snapshot', snapshot: snap.handle },
+      ctx.SPEC,
+      ctx.quiet,
+    )
+    expect(decodeHandle(copied).node).toBe(y.id)
+    const fromStore = ctx.nodes.calls.slice(away).filter((c) => c.path === `/v1/workloads/${far}/restore`)
+    expect(fromStore.map((c) => Object.keys(c.body as object))).toEqual([['url']])
+  })
   test('13. a suspended copy whose resume does not come back goes on as a boot', async () => {
     const [n] = (await ctx.region('resume-hung', 1)) as [EnrolledNode]
     const key = ctx.server()
