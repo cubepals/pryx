@@ -96,6 +96,19 @@ pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Res
     if let (Some(resolver), Some(host)) = (resolver, body.host_config.as_mut()) {
         host.dns = Some(vec![resolver.to_string()]);
     }
+    // gVisor's network stack can't reach the embedded resolver: its sandboxes ask the host's.
+    if runtime.oci_runtime.is_some()
+        && !spec.internal_network
+        && let Some(mounts) = body.host_config.as_mut().and_then(|host| host.mounts.as_mut())
+    {
+        mounts.push(bollard::models::Mount {
+            typ: Some(bollard::models::MountType::BIND),
+            source: Some(super::gvisor::resolv_conf_for(&spec.data_dir)?.to_string_lossy().into_owned()),
+            target: Some("/etc/resolv.conf".into()),
+            read_only: Some(true),
+            ..Default::default()
+        });
+    }
     let created = quick("create", runtime.docker()?.create_container(Some(options), body)).await?;
     Ok(created.id)
 }

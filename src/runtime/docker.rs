@@ -16,7 +16,7 @@
 //! - `browser_policy.rs`: negotiated agent bootstrap and inner-browser policy observation.
 //! - `container.rs`: container construction and observation types.
 //! - `exec.rs`: command attachment and timeout containment.
-//! - `gvisor.rs`: the gvisor tier's runtime name, availability and ownership on one engine.
+//! - `gvisor.rs`: the gvisor tier's runtime name, availability, ownership and resolvers.
 //! - `native_tools.rs`: explicit host-only seccomp and FUSE device policy.
 //! - `tests.rs`: container construction and host process ownership regressions.
 //! - `policy_tests.rs`: transport regression for unsupported engine policy refusal.

@@ -231,40 +231,6 @@ jobs:
               cargo test --locked --test docker the_memory_limit_is_hard_and_an_oom_kill_is_reported -- --ignored --nocapture 2>&1 \
               | grep -E 'OOM_EVIDENCE|OOM_DOCKER_STATE|test result' | sed "s/^/run $run: /" || true
           done
-      # K26 side piece, evidence only: whether a gVisor sandbox on a user bridge reaches Docker's
-      # embedded resolver, and a resolver on the bridge's own address named in its resolv.conf.
-      - name: gVisor resolver experiments
-        if: ${{ !cancelled() }}
-        continue-on-error: true
-        run: |
-          docker network create k26-dns > /dev/null
-          gateway=$(docker network inspect k26-dns -f '{{(index .IPAM.Config 0).Gateway}}')
-          echo "embedded resolver, runsc:"
-          docker run --rm --runtime=runsc --network k26-dns alpine:3.22 nslookup -timeout=3 example.com || true
-          sudo python3 - "$gateway" <<'PY' &
-          import socket, sys
-          listener = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-          listener.bind((sys.argv[1], 53))
-          upstream = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-          upstream.settimeout(5)
-          while True:
-              query, peer = listener.recvfrom(4096)
-              upstream.sendto(query, ('1.1.1.1', 53))
-              try:
-                  listener.sendto(upstream.recv(4096), peer)
-              except OSError:
-                  pass
-          PY
-          forwarder=$!
-          sleep 1
-          printf 'nameserver %s\n' "$gateway" > "$RUNNER_TEMP/k26-resolv.conf"
-          for runtime in runsc runc; do
-            echo "bridge resolver $gateway, $runtime:"
-            docker run --rm --runtime="$runtime" --network k26-dns \
-              -v "$RUNNER_TEMP/k26-resolv.conf:/etc/resolv.conf:ro" alpine:3.22 nslookup -timeout=3 example.com || true
-          done
-          sudo kill "$forwarder" || true
-          docker network rm k26-dns > /dev/null
       - name: Docker and kernel failure evidence
         if: failure()
         run: |
