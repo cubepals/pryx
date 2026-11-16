@@ -5033,22 +5033,18 @@ job when publication is authorized. That job has not run in this task.
   unavailable" after an edge relay ECONNRESET. The same code passed that job on k27 at `26aee02`;
   it is recorded here, not yet explained.
 
-- K22 outage follow-up: Any host
-  [43825316675](https://github.com/cubepals/pryx/actions/runs/43825316675), Podman job 133184644685,
-  did not observe paused-engine guarantee withdrawal within the existing 45-second probe. The node
-  log has no tier-health withdrawal in that window and records a 20-second inspect timeout. Periodic
-  reconciliation shared one awaited select loop with stats and disk work; a blocked stats call can
-  hold that loop across a resync tick, and another ready stats tick can run first. The historical
-  timer choices were not logged. A regression using the actual periodic loop now proves this
-  starvation mechanism: with only the old loop restored, it fails the health-withdrawal assertion
-  after 21.06 seconds; the exact candidate passes the unchanged case in 5.05 seconds while the stats
-  gate stays held, preserves the process tier, and cancels promptly. All fourteen multi-tier tests
-  pass in 10.20 seconds. Reconciliation and optional measurements are independently polled futures
-  owned by the same cancellation future, with no detached maintenance tasks or overlapping periodic
-  reconciliation. The complete pryxd crate suite passes locally: 472 tests, 39 existing ignored
-  cases, zero failures. Strict all-target and release-shaped Clippy, the pinned source, expanded and
-  Rust structure checks, formatting and whitespace pass. Docker/KVM tests remain ignored locally as
-  recorded by the suite; final real Podman install/outage/recovery/purge proof is still pending CI
-  on the newest branch head. The existing 45-second acceptance and every positive/recovery assertion
-  stay unchanged. No job or gate is added; the focused local regression takes about five to ten
-  seconds in the existing Rust suite.
+- The store-recovery prerequisite's [Any host 43921002281,
+  job133540855252](https://github.com/cubepals/pryx/actions/runs/43921002281/job/133540855252)
+  reaches the Podman outage probe and finds that its API still answers after the socket peer's
+  PID is stopped. An owned forked listener reproduces that failure: `SO_PEERCRED` names the
+  parent that listened, while its child serves the inherited descriptor. The isolated CI
+  engine now records its launch identity and pauses only verified same-user descendant
+  holders of that exact listener, with pidfds, a bounded stop and unconditional resumption.
+  Ten real process controls pass locally, covering forked holders, an unaffected
+  nonholder, stale or foreign identity, private path and regular-file refusal, partial stop
+  rollback, normal errors, interrupt, termination and repeated termination during cleanup.
+  Signal handlers are restored afterward, and the owned test parent reaps both children.
+  The earlier hosted run did not retain its exact process topology, so the local control
+  establishes this fixture defect without claiming that historical instance's unique cause.
+  The existing installed-node outage, withdrawal and recovery assertions and their deadlines
+  remain; final-base hosted engine proof and independent review are still required.
