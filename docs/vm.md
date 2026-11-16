@@ -265,7 +265,8 @@ output's admitted size.
 - No KVM, no tier: there is no emulation, and the tier is x86_64 only.
 - Root nodes serve the tier only through the VM worker.
 - Memory sleep is for an ordinary user's tier, restored only on the same node and host class.
-  Snapshots and exports of a running VM restart it, and fork copies the disk, not memory.
+  Snapshots and exports of a running VM restart it. A fork copies the disk, and takes the memory
+  too only from a snapshot of a VM asleep with it, on that VM's node.
 - CPU is whole vCPUs: `cpuMillis` must be a multiple of 1000, and one vCPU is given without
   it. CPU weights are refused.
 - Memory is whole MiB, the guest's RAM. The monitor's own memory on the host is outside it.
