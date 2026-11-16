@@ -5048,3 +5048,17 @@ job when publication is authorized. That job has not run in this task.
   establishes this fixture defect without claiming that historical instance's unique cause.
   The existing installed-node outage, withdrawal and recovery assertions and their deadlines
   remain; final-base hosted engine proof and independent review are still required.
+
+- A source audit after the environment check reported inherited descriptor 142 found a separate
+  concrete descriptor defect: DataDir began each relative walk with dup, which clears close-on-exec.
+  Empty-component walks returned that inheritable root handle, and other walks exposed it until
+  their next open. The shared node/agent walk now uses rustix's atomic close-on-exec clone. An
+  owned-directory kernel control shows the old descriptor survives a real exec and the corrected
+  one closes. A deterministic Rust regression holds the actual DataDir root clone across child
+  exec, comparing only its device and inode; the same Rust control fails with the old call and
+  passes with the atomic clone. The full Rust suite on the prerequisite base has 574 passes,
+  53 ignored and the same four known local Landlock incompatibilities in vm_monitor. Formatting,
+  both strict Clippy modes and all three structure checks pass. No descriptor content is read,
+  and the workload acceptance still requires every descriptor above stderr to be closed. The
+  hosted descriptor's type was not retained, so its unique historical attribution remains
+  unproved; final-base hosted proof is still required.
