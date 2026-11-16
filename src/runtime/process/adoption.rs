@@ -60,6 +60,13 @@ impl ProcessRuntime {
             }
         }
         self.network = Some(network);
+        let unpoliced = self.unpoliced();
+        if unpoliced > 0 {
+            tracing::warn!(
+                unpoliced,
+                "process sandboxes run without kernel network policy; host-firewall is off on the process tier until they stop or start again"
+            );
+        }
         self
     }
 }

@@ -83,7 +83,12 @@ dropped too, since the program reads only the fixed IP and UDP headers.
 
 A sandbox's view reports `host-firewall: true` once its own programs are attached and verified;
 a node announces `host-firewall`, `egress-hostnames` and `egress-addresses` for the process tier
-only where the probe proved them. A request for hostname or address policy on a host without the
+only where the probe proved them. While any process sandbox runs without verified programs (one
+started before its host had the capability, which a restart of pryxd leaves running, or one whose
+rules no longer fit the host's addresses), `host-firewall` is off for the whole tier, on the node
+and in every process sandbox's view, with how many in `kernel-network-policy`'s evidence: such a
+sandbox reaches the others' listeners over loopback. It comes back as the last of them stops or
+starts again, which attaches its programs. A request for hostname or address policy on a host without the
 capability is refused with `kernel-network-policy` named; a placement that requires
 `host-firewall` is refused naming it.
 

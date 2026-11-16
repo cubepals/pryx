@@ -202,6 +202,15 @@ impl Manager {
         }
     }
 
+    /// The process tier's kernel network policy as its runtime has it now, not as the last probe
+    /// found it: a sandbox running without it turns it off until it stops.
+    fn kernel_network_policy_on(&self) -> bool {
+        self.runtime_for(Some(crate::protocol::Isolation::Process))
+            .ok()
+            .and_then(|runtime| runtime.kernel_network_policy())
+            .is_some_and(|capability| capability.state == crate::capability::State::On)
+    }
+
     pub(crate) fn guarantees(&self) -> BTreeMap<crate::protocol::Guarantee, bool> {
         self.tier_guarantees(self.runtime.isolation())
     }
@@ -232,7 +241,7 @@ impl Manager {
                     }
                     G::HostFirewall => {
                         (container && info.as_ref().is_some_and(|info| !info.rootless) && probe.on("host-firewall"))
-                            || (tier == "process" && probe.on(crate::bpf::CAPABILITY))
+                            || (tier == "process" && self.kernel_network_policy_on())
                     }
                     G::MemorySleep => {
                         ((container || tier == "process")

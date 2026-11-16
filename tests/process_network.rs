@@ -562,6 +562,54 @@ async fn a_sandbox_whose_programs_are_gone_after_a_restart_is_stopped() {
 
 #[tokio::test]
 #[ignore = "needs a host that grants kernel network policy"]
+async fn a_sandbox_started_without_programs_keeps_the_tier_guarantee_off_while_it_runs() {
+    let dir = tempfile::tempdir().unwrap();
+    let before = kernel_state();
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o711)).unwrap();
+    let extra = extra(22100, None);
+    let daemon = |runtime: Arc<dyn ContainerRuntime>| {
+        let config = Arc::new(config(dir.path(), &extra));
+        let store = pryxd::store::Store::open(&config.state_dir).unwrap();
+        let probe = pryxd::ports::bind_probe(config.network.edge_ips.clone());
+        Manager::new(config, runtime, store, Arc::new(pryxd::metrics::Metrics::new()), probe)
+    };
+    {
+        // A daemon from before this host had the capability: the process runtime without it.
+        let config = config(dir.path(), &extra);
+        let runtime = pryxd::runtime::process::ProcessRuntime::new(&config.state_dir, config.process).unwrap();
+        let manager = daemon(Arc::new(runtime));
+        manager.refresh_host_probe().await;
+        assert!(manager.reconcile(Records::FromDisk).await.error.is_none());
+        manager.ensure(id("legacy"), sandbox(serde_json::json!({})), Precondition::None, None).await.unwrap();
+        manager.start(id("legacy"), None).await.unwrap();
+        until(&manager, "legacy", "a running supervisor", |view| view.state == WorkloadState::Running).await;
+    }
+    // The same state under a daemon with the capability: the old supervisor ran on, with none.
+    let runtime = pryxd::runtime::configured::create(&config(dir.path(), &extra)).await.unwrap();
+    let capability = runtime.kernel_network_policy().unwrap();
+    assert_eq!(capability.state, pryxd::probe::State::Off, "{capability:?}");
+    assert!(capability.evidence.starts_with("1 process sandbox(es) run without"), "{capability:?}");
+    let manager = daemon(runtime);
+    manager.refresh_host_probe().await;
+    assert!(manager.reconcile(Records::FromDisk).await.error.is_none());
+    let view = until(&manager, "legacy", "the adopted supervisor", |view| view.state == WorkloadState::Running).await;
+    assert!(!view.guarantees[&Guarantee::HostFirewall], "{view:?}");
+    assert!(!manager.features().iter().any(|feature| feature == "host-firewall"), "{:?}", manager.features());
+    // Once it stops, nothing runs unpoliced and the tier's guarantee is back.
+    manager.stop(id("legacy"), None, None).await.unwrap();
+    until(&manager, "legacy", "the stopped supervisor", |view| view.state != WorkloadState::Running).await;
+    assert!(manager.features().iter().any(|feature| feature == "host-firewall"), "{:?}", manager.features());
+    // Started again, it gets its programs as any sandbox does.
+    manager.start(id("legacy"), None).await.unwrap();
+    let view = until(&manager, "legacy", "the restarted supervisor", |view| view.state == WorkloadState::Running).await;
+    assert!(view.guarantees[&Guarantee::HostFirewall], "{view:?}");
+    remove(&manager, &["legacy"]).await;
+    nothing_left(&before);
+}
+
+#[tokio::test]
+#[ignore = "needs a host that grants kernel network policy"]
 async fn from_off_the_host_only_the_published_ports_are_reached() {
     let dir = tempfile::tempdir().unwrap();
     let before = kernel_state();

@@ -89,6 +89,17 @@ impl ProcessRuntime {
     pub(super) fn release_network(&self, name: &str) -> Result<(), RuntimeError> {
         self.network.as_ref().map_or(Ok(()), |network| network.release(name))
     }
+    /// How many supervisors run now without verified programs on a host that attaches them:
+    /// started before it could, or whose rules no longer fit its addresses. Read as asked, so a
+    /// stop is counted at once.
+    pub(super) fn unpoliced(&self) -> usize {
+        let Some(network) = &self.network else { return 0 };
+        let entries = self.state.entries.lock().unwrap();
+        entries
+            .values()
+            .filter(|entry| !network.verified(&entry.spec.name) && matching_pid(entry.pid, entry.ticks).is_some())
+            .count()
+    }
     pub(super) fn running(&self, name: &str) -> Result<bool, RuntimeError> {
         Ok(self
             .observe_entry(name)?

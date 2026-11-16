@@ -111,7 +111,22 @@ impl ContainerRuntime for ProcessRuntime {
         self.network.is_some()
     }
     fn kernel_network_policy(&self) -> Option<crate::capability::Capability> {
-        self.network_capability.clone()
+        let proved = self.network_capability.clone()?;
+        let unpoliced = self.unpoliced();
+        if proved.state != crate::capability::State::On || unpoliced == 0 {
+            return Some(proved);
+        }
+        // Another sandbox's listeners trust loopback, which such a sandbox reaches unpoliced.
+        Some(crate::capability::Capability::new(
+            crate::capability::State::Off,
+            format!(
+                "{unpoliced} process sandbox(es) run without verified kernel network policy (started before this \
+                 host had it, or their rules no longer fit its addresses) and could reach other sandboxes' \
+                 listeners; {}",
+                proved.evidence
+            ),
+            "It comes back once they stop or are started again, which attaches their programs",
+        ))
     }
     async fn info(&self) -> Result<RuntimeInfo, RuntimeError> {
         if !pryx_agent::process_capabilities::probe().filesystem {
