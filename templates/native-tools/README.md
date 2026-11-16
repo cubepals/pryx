@@ -10,6 +10,12 @@ scrot (MIT). It retains their full copyright files. No copyleft implementation i
 copied into this repository. Rebuilds verify every archive against
 [debian.lock.json](debian.lock.json), including optional build-cache entries.
 
+`install.py` exposes verified archive retrieval without performing installation on import.
+It uses `../archive_retry.py`, copied unchanged into the image, to retry transport errors,
+HTTP 429 and all 5xx responses with doubling waits within one three-minute budget; other HTTP
+refusals and digest mismatches fail immediately. `install_test.py` exercises real loopback
+responses and temporary caches without invoking dpkg or changing a host.
+
 The same layer adds Mountpoint S3 1.24.0 (Apache-2.0 with bundled third-party
 notices), rclone 1.76.0 (MIT with vendor notices), and noVNC 1.7.0 (MPL-2.0 with
 BSD/OFL and asset notices). [artifacts.json](artifacts.json) pins their hashes and

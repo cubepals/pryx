@@ -1,5 +1,6 @@
 **
 !templates
+!templates/archive_retry.py
 !templates/native-tools
 !templates/native-tools/**
 !templates/desktop

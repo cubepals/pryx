@@ -77,6 +77,8 @@ def collect(args):
     for pattern in ['*.py', '*.json', '*.rs']:
         for path in ROOT.glob(pattern):
             shutil.copyfile(path, tools / path.name)
+    for name in ['archive_retry.py', 'archive_retry_test.py']:
+        shutil.copyfile(ROOT.parent / name, tools / name)
     shutil.copyfile(ROOT / 'monitor-REBUILD.md', sources / 'REBUILD.md')
     shutil.copyfile(ROOT / 'monitor-REBUILD.md', notices / 'REBUILD.md')
     (notices / 'inputs.json').write_text(json.dumps(inputs, indent=2) + '\n')

@@ -10,7 +10,8 @@ serves the tier is pryxd's decision, from its own probe and the installed descri
 Parts (`vm-tools/`):
 
 - `candidates.json`: versioned primary monitor/kernel candidates, upstream archive digests and licences.
-- `inventory.py`: bounded primary metadata/archive acquisition, source identity and SHA-256.
+- `inventory.py`: bounded primary metadata/archive acquisition, source identity and SHA-256; uses the immutable-input retry policy in `../archive_retry.py`.
+- `inventory_test.py`: real HTTP responses through the HTTPS-only client, authentication-origin refusal, incomplete downloads and cache/digest checks.
 - `archive_inspection.py`: bounded streamed member inspection and regular-file staging by content digest.
 - `kernel-selection.json`: exact published kernel/monitor members and required built-in configuration.
 - `spike-inputs.json`: pinned private Go toolchain and separate EROFS builder inputs.
@@ -46,7 +47,7 @@ Parts (`vm-tools/`):
 - `monitor_threads.rs`: actual maintained thread kicks and joins under the compiled native VMM/API/vCPU filters, without KVM.
 - `monitor_build.py`: same-source static monitor build with an independently compiled embedded-policy check.
 - `monitor_component.py`: verify source/policy correspondence and embedded BPF before selecting a native build in the whole bundle.
-- `monitor_sources.py`: full monitor/Rust/libc sources, exact compilation recipes and primary notices.
+- `monitor_sources.py`: full monitor/Rust/libc sources, exact compilation recipes and primary notices; retains the retry module and its HTTP fixture beside the build tools.
 - `monitor-REBUILD.md`: modification and relinking instructions for the separate GNU monitor.
 - `build.sh` and `release.sh`: common build phases and unpublished release assembly.
 - `bundle.py`: separate inventoried static runtime (including the same-source host launcher) and complete corresponding-source archives, using the existing artifact packager.
@@ -61,6 +62,12 @@ network or confinement proof. The Firecracker CI kernel configuration examined i
 [the K25 record](../../docs/checks/measurements/k25/firecracker-kernel-candidate.json) lacks EROFS;
 the next candidate is Kata's already published kernel, with its exact upstream and configuration
 sources retained. No pryx-built kernel is an alternative in this milestone.
+
+An input's origin and mirrors share a three-minute retry deadline, with doubling waits for
+transport failures, HTTP 429 and all 5xx answers. Socket inactivity is bounded by thirty seconds
+and the remaining budget; a healthy stream may finish later. Other origin refusals fail at
+once. Authenticated metadata never redirects, and public archives still require HTTPS and the
+same committed size and digests. Partial attempts never enter the accepted cache.
 
 The kernel probe measures launch to a validated EROFS/overlay/ext4 report over real vsock.
 It keeps every sample and failed serial log. These minimal fixture measurements do not prove
