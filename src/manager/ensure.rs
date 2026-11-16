@@ -64,6 +64,14 @@ impl Manager {
                     problem: crate::protocol::KERNEL_NETWORK_PROBLEM.into(),
                 }]));
             }
+            if spec.egress_addresses.is_some()
+                && let Err(problem) = runtime.check_egress_addresses(&spec)
+            {
+                return Err(NodeError::Invalid(vec![crate::protocol::FieldError {
+                    field: "egressAddresses".into(),
+                    problem,
+                }]));
+            }
             if spec.user.as_ref().is_some_and(|user| user != &own.config.workloads.user.to_string()) {
                 return Err(NodeError::Invalid(vec![crate::protocol::FieldError {
                     field: "user".into(),

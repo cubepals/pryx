@@ -140,10 +140,10 @@ impl Network {
         hex::encode(digest.chain_update(name.as_bytes()).finalize())[..16].to_owned()
     }
 
-    fn reach(spec: &ContainerSpec) -> rules::Reach {
-        if spec.internal_network {
+    fn reach(internal_network: bool, hostnames: bool) -> rules::Reach {
+        if internal_network {
             rules::Reach::None
-        } else if spec.egress.is_some() {
+        } else if hostnames {
             rules::Reach::Hostnames
         } else {
             rules::Reach::Public
@@ -170,6 +170,14 @@ impl Network {
 
     /// What a spec asks of its programs: its reach and its own address rules, allow and deny.
     fn asked(spec: &ContainerSpec) -> Result<Asked, RuntimeError> {
+        let reach = Self::reach(spec.internal_network, spec.egress.is_some());
+        Self::asked_of(reach, spec.egress_addresses.as_ref())
+    }
+
+    fn asked_of(
+        reach: rules::Reach,
+        addresses: Option<&crate::protocol::AddressPolicy>,
+    ) -> Result<Asked, RuntimeError> {
         let destinations = |list: &[crate::protocol::AddressRule]| {
             list.iter()
                 .map(|rule| {
@@ -179,11 +187,20 @@ impl Network {
                 })
                 .collect::<Result<Vec<_>, RuntimeError>>()
         };
-        let (allow, deny) = match &spec.egress_addresses {
+        let (allow, deny) = match addresses {
             Some(addresses) => (destinations(&addresses.allow)?, destinations(&addresses.deny)?),
             None => (Vec::new(), Vec::new()),
         };
-        Ok(Asked { reach: Self::reach(spec), allow, deny })
+        Ok(Asked { reach, allow, deny })
+    }
+
+    /// Whether a request's address rules fit its programs on this host as it is now: compiled as
+    /// its start would compile them, so what can't be is refused, naming the prefix, before
+    /// anything is made.
+    pub(super) fn check(&self, spec: &crate::protocol::WorkloadSpec) -> Result<(), String> {
+        let reach = Self::reach(spec.network == crate::protocol::NetworkMode::None, spec.egress.is_some());
+        let asked = Self::asked_of(reach, spec.egress_addresses.as_ref()).map_err(|problem| problem.to_string())?;
+        self.compile(&asked, &host::addresses()).map(drop).map_err(|problem| problem.to_string())
     }
 
     /// The rules for what a sandbox asked, on this host with `host` its own addresses.
@@ -388,5 +405,34 @@ mod tests {
         assert_ne!(a.key("box"), a.key("other"));
         assert_ne!(a.key("box"), b.key("box"));
         assert_eq!(a.key("box").len(), 16);
+    }
+
+    #[test]
+    fn rules_that_fold_into_more_ranges_than_a_prefix_holds_are_refused_before_a_start() {
+        let network = Network {
+            host: Host { cgroups: "/sys/fs/cgroup/x".into(), pins: "/sys/fs/bpf/pryx".into(), delegated: false },
+            served: Served { ports: 42000..=42999, api_port: 7443 },
+            root: "/var/lib/pryxd/process-runtime".into(),
+            held: Mutex::new(HashMap::new()),
+        };
+        // Each prefix one bit narrower than the last, each with a port range of its own: the
+        // narrowest carries all of them.
+        let nested = |count: u8| {
+            let deny: Vec<_> = (0..count)
+                .map(|bits| {
+                    let port = 1000 + u16::from(bits);
+                    serde_json::json!({ "prefix": format!("203.0.113.0/{}", 8 + bits), "ports": [port, port] })
+                })
+                .collect();
+            serde_json::from_value::<crate::protocol::WorkloadSpec>(serde_json::json!({
+                "resources": { "memoryMb": 256 },
+                "storage": { "mountPath": "/data", "sizeGb": 1 },
+                "egressAddresses": { "deny": deny },
+            }))
+            .unwrap()
+        };
+        assert_eq!(network.check(&nested(4)), Ok(()));
+        let refused = network.check(&nested(object::PORT_ENTRIES as u8 + 1)).unwrap_err();
+        assert!(refused.contains("203.0.113.0/32") && refused.contains("port ranges"), "{refused}");
     }
 }

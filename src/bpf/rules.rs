@@ -6,7 +6,7 @@
 //! the host's own addresses reach only the sandbox's own sockets, link-local, multicast and
 //! this-host aliases are refused, and private addresses never on the ports pryxd serves.
 //! Pure: the host's addresses, resolvers and ranges are the caller's; the kernel is `attach.rs`.
-use super::object::{PORT_ENTRIES, Ports, Rule, TCP, UDP, Verdict};
+use super::object::{MAX_RULES, PORT_ENTRIES, Ports, Rule, TCP, UDP, Verdict};
 use ipnet::{IpNet, Ipv6Net};
 use std::{
     collections::BTreeMap,
@@ -106,6 +106,9 @@ pub(crate) fn compile(inputs: &Inputs<'_>) -> Result<BTreeMap<Ipv6Net, Rule>, St
             slot.insert(fold(&layers, prefix)?);
         }
     }
+    if rules.len() > MAX_RULES {
+        return Err(format!("the policy needs {} prefixes; at most {MAX_RULES} fit", rules.len()));
+    }
     Ok(rules)
 }
 
@@ -183,11 +186,21 @@ fn fold(layers: &[Layer], prefix: Ipv6Net) -> Result<Rule, String> {
     }
     if rule.ports.len() > PORT_ENTRIES {
         return Err(format!(
-            "{prefix} would need {} port ranges; at most {PORT_ENTRIES} can apply to one address",
+            "{} would need {} port ranges; at most {PORT_ENTRIES} can apply to one address",
+            shown(prefix),
             rule.ports.len()
         ));
     }
     Ok(rule)
+}
+
+/// A prefix as a request names it: an IPv4-mapped one as IPv4.
+fn shown(prefix: Ipv6Net) -> String {
+    let mapped = Ipv6Net::new(MAPPED, 96).expect("a valid prefix");
+    match prefix.network().to_ipv4_mapped() {
+        Some(address) if mapped.contains(&prefix) => format!("{address}/{}", prefix.prefix_len() - 96),
+        _ => prefix.to_string(),
+    }
 }
 
 /// What the programs decide for one address and port, read from compiled rules as they do.

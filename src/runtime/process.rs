@@ -110,6 +110,9 @@ impl ContainerRuntime for ProcessRuntime {
     fn supports_egress_addresses(&self) -> bool {
         self.network.is_some()
     }
+    fn check_egress_addresses(&self, spec: &crate::protocol::WorkloadSpec) -> Result<(), String> {
+        self.network.as_ref().map_or(Ok(()), |network| network.check(spec))
+    }
     fn kernel_network_policy(&self) -> Option<crate::capability::Capability> {
         let proved = self.network_capability.clone()?;
         let unpoliced = self.unpoliced();

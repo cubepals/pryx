@@ -447,6 +447,21 @@ async fn public_internet_keeps_the_host_metadata_and_other_sandboxes_off() {
     );
     let refused = refused.await.unwrap_err();
     assert!(format!("{refused:?}").contains("can't open this host"), "{refused:?}");
+    // Rules that fold into more port ranges than one prefix holds are refused, naming the field.
+    let nested: Vec<_> = (0..25u16)
+        .map(|bits| serde_json::json!({ "prefix": format!("203.0.113.0/{}", 8 + bits), "ports": [1000 + bits, 1000 + bits] }))
+        .collect();
+    let policy = serde_json::json!({ "egressAddresses": { "deny": nested } });
+    let refused = manager.ensure(id("nested"), sandbox(policy), Precondition::None, None).await.unwrap_err();
+    let pryxd::manager::NodeError::Invalid(fields) = refused else { panic!("{refused:?}") };
+    let fields = serde_json::to_value(&fields).unwrap();
+    assert!(
+        fields.as_array().unwrap().iter().any(|f| f["field"] == "egressAddresses"
+            && f["problem"]
+                .as_str()
+                .is_some_and(|problem| problem.contains("203.0.113.0/32 would need 25 port ranges"))),
+        "{fields}"
+    );
     remove(&manager, &["public", "neighbour"]).await;
     nothing_left(&before);
 }

@@ -418,6 +418,11 @@ pub trait ContainerRuntime: Send + Sync + 'static {
     fn kernel_network_policy(&self) -> Option<crate::capability::Capability> {
         None
     }
+    /// Why a request's address rules (`egressAddresses`) can't be enforced here as given, asked
+    /// before anything is made; a backend that takes none says nothing.
+    fn check_egress_addresses(&self, _spec: &crate::protocol::WorkloadSpec) -> Result<(), String> {
+        Ok(())
+    }
     async fn ensure_internal_network(
         &self,
         _name: &str,
