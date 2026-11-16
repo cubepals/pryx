@@ -36,6 +36,8 @@ def tool(name, arguments):
         assert "--no-block" in arguments
         assert "--property=StandardOutput=journal" in arguments
         assert "--property=StandardError=journal" in arguments
+        assert "--property=PrivateMounts=yes" in arguments
+        assert not any(value.startswith("--property=InaccessiblePaths=") for value in arguments)
         assert not any(value.startswith("--property=StandardOutput=file:") for value in arguments)
         lease = next(value.removeprefix("--property=ConditionPathExists=") for value in arguments
                      if value.startswith("--property=ConditionPathExists="))
@@ -95,13 +97,13 @@ class Cancellation(unittest.TestCase):
             lease.touch()
             runtime = Path(temporary) / "runtime"
             runtime.mkdir(mode=0o700)
-            result = subprocess.run([sys.executable, source, "--inside", "/bin/echo", "baseline", lease, runtime], capture_output=True, text=True, check=False)
+            result = subprocess.run([sys.executable, source, "--inside", "/bin/echo", "baseline", lease, runtime, "unused-baseline"], capture_output=True, text=True, check=False)
             self.assertEqual((result.returncode, result.stdout, result.stderr), (0, "", ""))
             self.assertEqual((runtime / "probe.json").read_text(), "probe --json\n")
             self.assertEqual((runtime / "probe.stderr").read_text(), "")
             self.assertEqual((runtime / "probe.json").stat().st_mode & 0o777, 0o600)
             lease.unlink()
-            result = subprocess.run([sys.executable, source, "--inside", "/bin/echo", "baseline", lease, runtime], capture_output=True, text=True, check=False)
+            result = subprocess.run([sys.executable, source, "--inside", "/bin/echo", "baseline", lease, runtime, "unused-baseline"], capture_output=True, text=True, check=False)
             self.assertNotEqual(result.returncode, 0)
             self.assertEqual(result.stdout, "")
             self.assertIn("Probe admission is closed", result.stderr)
@@ -115,7 +117,7 @@ class Cancellation(unittest.TestCase):
             lease.touch()
             report = runtime / "probe.json"
             report.write_text("retained evidence\n")
-            result = subprocess.run([sys.executable, source, "--inside", "/bin/echo", "baseline", lease, runtime], capture_output=True, text=True, check=False)
+            result = subprocess.run([sys.executable, source, "--inside", "/bin/echo", "baseline", lease, runtime, "unused-baseline"], capture_output=True, text=True, check=False)
             self.assertNotEqual(result.returncode, 0)
             self.assertEqual(result.stdout, "")
             self.assertEqual(report.read_text(), "retained evidence\n")

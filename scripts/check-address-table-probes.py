@@ -16,6 +16,10 @@ import sys
 import time
 import uuid
 
+# libmount's mount(8) documents this selection of the classic mount(2) bind operation.
+# Keep the same namespace and permission checks when newer mount APIs are unavailable.
+MOUNT_ENVIRONMENT = {"PATH": os.defpath, "LIBMOUNT_FORCE_MOUNT2": "always"}
+
 
 def report_outputs(runtime):
     # systemd sets up StandardOutput before creating RuntimeDirectory. Open these only
@@ -28,10 +32,42 @@ def report_outputs(runtime):
             os.close(opened)
 
 
-def inside(binary, table, lease, runtime):
+def mount_namespace():
+    identity = Path("/proc/self/ns/mnt").stat()
+    return f"{identity.st_dev}:{identity.st_ino}"
+
+
+def hide_table(table, runtime, host_namespace):
+    if mount_namespace() == host_namespace:
+        raise RuntimeError("Refusing to mask an address table in the host mount namespace")
+    source = Path(runtime) / "address-tables"
+    source.mkdir(mode=0o700)
+    # Individual per-PID proc files are transient mountpoints. Mount one directory
+    # containing the actual kernel tables, denying only the selected input file.
+    for name in ("fib_trie", "if_inet6"):
+        path = source / name
+        with path.open("xb") as stream:
+            stream.write((Path("/proc/net") / name).read_bytes())
+        path.chmod(0o000 if name == table else 0o444)
+    # Resolve the PID in the mounted proc filesystem; retain it through exec.
+    proc_pid = os.readlink("/proc/self")
+    if not proc_pid.isdecimal():
+        raise RuntimeError("The mounted proc filesystem has no stable numeric probe identity")
+    target = Path("/proc") / proc_pid / "net"
+    result = subprocess.run(
+        ["mount", "--bind", str(source), str(target)], stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=5, check=False, env=MOUNT_ENVIRONMENT,
+    )
+    if result.returncode:
+        raise RuntimeError(f"Cannot mask {table}: {result.stderr.decode(errors='replace').strip()}")
+
+
+def inside(binary, table, lease, runtime, host_namespace):
     if not Path(lease).is_file():
         raise RuntimeError("Probe admission is closed")
     report_outputs(runtime)
+    if table != "baseline":
+        hide_table(table, runtime, host_namespace)
     for name in ("fib_trie", "if_inet6") if table == "baseline" else (table,):
         path = Path("/proc/net") / name
         try:
@@ -127,7 +163,7 @@ def probe(binary, evidence, table):
 
 
 def unit_status(unit, status, cancellation):
-    selected = "LoadState,ActiveState,SubState,Result,ExecMainCode,ExecMainStatus,ConditionResult,InaccessiblePaths,CapabilityBoundingSet,Delegate"
+    selected = "LoadState,ActiveState,SubState,Result,ExecMainCode,ExecMainStatus,ConditionResult,PrivateMounts,CapabilityBoundingSet,Delegate"
     return command(["systemctl", "show", unit, f"--property={selected}"], status, timeout=2, cancellation=cancellation)
 
 
@@ -170,12 +206,11 @@ def owned_probe(binary, evidence, table, cancellation):
         "--property=CapabilityBoundingSet=~CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH",
         f"--property=RuntimeDirectory={name}", "--property=RuntimeDirectoryMode=0700",
         "--property=RuntimeDirectoryPreserve=yes",
+        "--property=PrivateMounts=yes",
         "--property=StandardOutput=journal",
         "--property=StandardError=journal",
     ]
-    if table != "baseline":
-        arguments.append(f"--property=InaccessiblePaths=/proc/net/{table}")
-    arguments += [sys.executable, str(Path(__file__).resolve()), "--inside", binary, table, str(cancellation.lease), str(runtime)]
+    arguments += [sys.executable, str(Path(__file__).resolve()), "--inside", binary, table, str(cancellation.lease), str(runtime), mount_namespace()]
     failed = True
     cleanup = 0
     try:
@@ -186,7 +221,7 @@ def owned_probe(binary, evidence, table, cancellation):
         fields = wait_finished(unit, status, cancellation)
         cancellation.check()
         capture(runtime, evidence, table)
-        for key, expected in {"ActiveState": "active", "SubState": "exited", "Result": "success", "ExecMainStatus": "0", "ConditionResult": "yes"}.items():
+        for key, expected in {"ActiveState": "active", "SubState": "exited", "Result": "success", "ExecMainStatus": "0", "ConditionResult": "yes", "PrivateMounts": "yes"}.items():
             if fields.get(key) != expected:
                 raise RuntimeError(f"{table}: {key} was {fields.get(key)!r}, expected {expected!r}")
         report = json.loads((evidence / f"{table}.json").read_text())
@@ -226,8 +261,8 @@ def owned_probe(binary, evidence, table, cancellation):
 
 
 def main(arguments):
-    if len(arguments) == 5 and arguments[0] == "--inside" and arguments[2] in ("baseline", "fib_trie", "if_inet6"):
-        inside(arguments[1], arguments[2], arguments[3], arguments[4])
+    if len(arguments) == 6 and arguments[0] == "--inside" and arguments[2] in ("baseline", "fib_trie", "if_inet6"):
+        inside(arguments[1], arguments[2], arguments[3], arguments[4], arguments[5])
     elif len(arguments) == 2:
         binary = str(Path(arguments[0]).resolve(strict=True))
         evidence = Path(arguments[1]).resolve()
