@@ -31,6 +31,8 @@ pub(crate) struct Programs {
     rules: LpmTrie<MapData, [u8; 16], [u8; RULE_BYTES]>,
     config: Array<MapData, [u8; CONFIG_BYTES]>,
     sockets: SkStorage<MapData, [u8; SOCKET_BYTES]>,
+    /// Only the programs read and write it; held so it is the one they were loaded with.
+    _peers: Map,
     counters: PerCpuArray<MapData, Counter>,
     pub(crate) attachments: Vec<Attachment>,
 }
@@ -141,12 +143,12 @@ impl Programs {
         config: [u8; CONFIG_BYTES],
     ) -> Result<Self, String> {
         let mut ebpf = EbpfLoader::new().load(elf).map_err(|problem| error("loading the object", problem))?;
-        let mut take = |name: &str| -> Result<Map, String> {
+        let take = |name: &str| -> Result<Map, String> {
             let map = ebpf.take_map(name).ok_or_else(|| format!("the object has no {name} map"))?;
             map.pin(map_pin(pins, name)).map_err(|problem| error(&format!("pinning {name}"), problem))?;
             Ok(map)
         };
-        let maps = [take(object::RULES)?, take(object::CONFIG)?, take(object::SOCKETS)?, take(object::COUNTERS)?];
+        let maps = object::MAPS.map(take);
         let mut programs = Self::from_maps(pins, maps, Vec::new())?;
         programs.write(rules, config)?;
         let directory = fs::File::open(cgroup).map_err(|problem| error("opening the cgroup", problem))?;
@@ -183,14 +185,19 @@ impl Programs {
         Ok(programs)
     }
 
-    fn from_maps(pins: &Path, maps: [Map; 4], attachments: Vec<Attachment>) -> Result<Self, String> {
-        let [rules, config, sockets, counters] = maps;
+    fn from_maps(
+        pins: &Path,
+        maps: [Result<Map, String>; object::MAPS.len()],
+        attachments: Vec<Attachment>,
+    ) -> Result<Self, String> {
+        let [rules, config, sockets, peers, counters] = maps;
         Ok(Self {
             pins: pins.to_path_buf(),
-            rules: LpmTrie::try_from(rules).map_err(|problem| error("rules", problem))?,
-            config: Array::try_from(config).map_err(|problem| error("config", problem))?,
-            sockets: SkStorage::try_from(sockets).map_err(|problem| error("sockets", problem))?,
-            counters: PerCpuArray::try_from(counters).map_err(|problem| error("counters", problem))?,
+            rules: LpmTrie::try_from(rules?).map_err(|problem| error("rules", problem))?,
+            config: Array::try_from(config?).map_err(|problem| error("config", problem))?,
+            sockets: SkStorage::try_from(sockets?).map_err(|problem| error("sockets", problem))?,
+            _peers: peers?,
+            counters: PerCpuArray::try_from(counters?).map_err(|problem| error("counters", problem))?,
             attachments,
         })
     }
@@ -214,8 +221,7 @@ impl Programs {
                 MapData::from_pin(map_pin(pins, name)).map_err(|problem| error(&format!("{name}'s pin"), problem))?;
             Map::from_map_data(data).map_err(|problem| error(name, problem))
         };
-        let maps = [open(object::RULES)?, open(object::CONFIG)?, open(object::SOCKETS)?, open(object::COUNTERS)?];
-        Self::from_maps(pins, maps, recorded.to_vec())
+        Self::from_maps(pins, object::MAPS.map(open), recorded.to_vec())
     }
 
     /// Replaces every rule and the gateway's ports. Rules no longer wanted are removed after the

@@ -86,9 +86,24 @@ struct pryx_socket {
 	/* The destination a DNS datagram was redirected from, in network order. */
 	__u16 port;
 	__u32 address[4];
-	/* It dialled a destination off this host, so what arrives from there is its answer. */
+	/* A TCP socket that dialled a destination off this host: what arrives on it is its answer. */
 	__u8 dialled;
 	__u8 reserved[3];
+};
+
+/* The datagram peers a sandbox's UDP sockets were allowed to send to, the most recent kept. */
+#define PRYX_PEERS 4096
+
+/*
+ * One UDP socket's peer: the socket's cookie, and the peer's address (IPv4 as ::ffff:a.b.c.d)
+ * and port, both in network order. What arrives from off this host for a UDP socket must come
+ * from one of its own.
+ */
+struct pryx_peer {
+	__u64 cookie;
+	__u32 address[4];
+	__u16 port;
+	__u8 reserved[6];
 };
 
 enum pryx_counter_index {

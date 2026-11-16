@@ -9,7 +9,11 @@
  * pryxd decides every rule.
  */
 #include <linux/bpf.h>
+#include <linux/if_ether.h>
 #include <linux/in.h>
+#include <linux/ip.h>
+#include <linux/ipv6.h>
+#include <linux/udp.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_endian.h>
 
@@ -38,6 +42,13 @@ struct {
 	__type(key, int);
 	__type(value, struct pryx_socket);
 } sockets SEC(".maps");
+
+struct {
+	__uint(type, BPF_MAP_TYPE_LRU_HASH);
+	__uint(max_entries, PRYX_PEERS);
+	__type(key, struct pryx_peer);
+	__type(value, __u8);
+} peers SEC(".maps");
 
 struct {
 	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
@@ -128,11 +139,25 @@ static __always_inline __u16 gateway_port(struct pryx_config *gateway, __u8 verd
 	return gateway->dns;
 }
 
-/* A socket that dialled a destination off this host takes what comes back from it. */
-static __always_inline void mark_dialled(struct bpf_sock_addr *ctx)
+/*
+ * A destination the sandbox may reach takes what comes back from it. A TCP socket hears only its
+ * connection's peer, so the socket is marked; a UDP socket hears anyone who sends to its port,
+ * so the peer is remembered for that socket alone.
+ */
+static __always_inline void dialled(struct bpf_sock_addr *ctx, __u32 address[4], __u16 port)
 {
-	struct pryx_socket *own = bpf_sk_storage_get(&sockets, ctx->sk, 0, 0);
+	struct pryx_peer peer = {};
+	struct pryx_socket *own;
+	__u8 seen = 1;
 
+	if (ctx->protocol == IPPROTO_UDP) {
+		peer.cookie = bpf_get_socket_cookie(ctx);
+		__builtin_memcpy(peer.address, address, sizeof(peer.address));
+		peer.port = port;
+		bpf_map_update_elem(&peers, &peer, &seen, BPF_ANY);
+		return;
+	}
+	own = bpf_sk_storage_get(&sockets, ctx->sk, 0, 0);
 	if (own)
 		own->dialled = 1;
 }
@@ -180,7 +205,7 @@ static __always_inline int decide4(struct bpf_sock_addr *ctx)
 	key_of(&key, address);
 	verdict = classify(&key, bpf_ntohs(port), protocol);
 	if (verdict == PRYX_ALLOW) {
-		mark_dialled(ctx);
+		dialled(ctx, address, port);
 		return 1;
 	}
 	if (verdict == PRYX_OWNED)
@@ -218,7 +243,7 @@ static __always_inline int decide6(struct bpf_sock_addr *ctx)
 	key_of(&key, address);
 	verdict = classify(&key, bpf_ntohs(port), protocol);
 	if (verdict == PRYX_ALLOW) {
-		mark_dialled(ctx);
+		dialled(ctx, address, port);
 		return 1;
 	}
 	if (verdict == PRYX_OWNED) {
@@ -360,10 +385,44 @@ static __always_inline int published(__u32 port)
 }
 
 /*
+ * Whether a datagram comes from a peer its UDP socket was allowed to send to, read from the
+ * packet's own IP and UDP headers. An IPv6 datagram behind extension headers isn't read further,
+ * so it is no answer.
+ */
+static __always_inline int answers(struct __sk_buff *skb)
+{
+	struct pryx_peer peer = {};
+	__u32 header;
+
+	peer.cookie = bpf_get_socket_cookie(skb);
+	if (skb->protocol == bpf_htons(ETH_P_IP)) {
+		struct iphdr ip;
+
+		if (bpf_skb_load_bytes(skb, 0, &ip, sizeof(ip)))
+			return 0;
+		peer.address[2] = bpf_htonl(0xffff);
+		peer.address[3] = ip.saddr;
+		header = ip.ihl * 4;
+	} else if (skb->protocol == bpf_htons(ETH_P_IPV6)) {
+		struct ipv6hdr ip;
+
+		if (bpf_skb_load_bytes(skb, 0, &ip, sizeof(ip)) || ip.nexthdr != IPPROTO_UDP)
+			return 0;
+		__builtin_memcpy(peer.address, &ip.saddr, sizeof(peer.address));
+		header = sizeof(ip);
+	} else {
+		return 0;
+	}
+	if (bpf_skb_load_bytes(skb, header + __builtin_offsetof(struct udphdr, source), &peer.port, sizeof(peer.port)))
+		return 0;
+	return bpf_map_lookup_elem(&peers, &peer) != 0;
+}
+
+/*
  * From this host (loopback carries everything local) anything reaches the sandbox's sockets, as
  * the address hooks already decided; from off it, only what answers a destination the sandbox
- * dialled, and TCP to a port pryxd published. Everything else is dropped, as a container's
- * undeclared port is out of reach.
+ * dialled (on TCP its connection, on UDP a peer that socket sent to), and TCP to a port pryxd
+ * published. Everything else is dropped, as a container's undeclared port is out of reach.
  */
 SEC("cgroup_skb/ingress")
 int ingress(struct __sk_buff *skb)
@@ -381,11 +440,17 @@ int ingress(struct __sk_buff *skb)
 	/* A socket that isn't full (a request or time-wait one) is TCP's, on its listener's port. */
 	if ((!full || full->protocol == IPPROTO_TCP) && published(sk->src_port))
 		return 1;
-	if (full) {
-		own = bpf_sk_storage_get(&sockets, full, 0, 0);
-		if (own && own->dialled)
+	if (!full)
+		goto drop;
+	if (full->protocol == IPPROTO_UDP) {
+		if (answers(skb))
 			return 1;
+		goto drop;
 	}
+	own = bpf_sk_storage_get(&sockets, full, 0, 0);
+	/* A socket that dialled and then listened (after a failed connect) still has no peer. */
+	if (own && own->dialled && full->state != BPF_TCP_LISTEN)
+		return 1;
 drop:
 	count(PRYX_REFUSED_INGRESS, skb->len);
 	return 0;

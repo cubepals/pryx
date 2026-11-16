@@ -60,9 +60,13 @@ over IPv4 and IPv6 (raw, ICMP echo, SCTP, UDP-Lite, MPTCP) are refused at `socke
 From off this host a sandbox is reached as a container is: on the ports pryxd published for it
 (its agent's and its spares, where the edge dials it) and nowhere else, so a server it binds to
 `0.0.0.0` is reached from this host and through the edge, never directly from another machine.
-What arrives from another machine is let in only for TCP to a published port, or for a socket
-that dialled a destination off the host itself (the answers to it); the rest is dropped, so the
-other machine's connection times out.
+What arrives from another machine is let in only for TCP to a published port, for a TCP
+connection the sandbox dialled off the host (its answers; a socket that dialled and then listened
+gets none), or for a UDP socket from a peer, address and port, that socket itself was allowed to
+send to; the rest is dropped, so the other machine's connection times out. Each sandbox keeps
+its 4096 most recent datagram peers (about 360 KiB of kernel memory); an older peer's datagrams
+are dropped until the socket sends to it again. An IPv6 datagram behind extension headers is
+dropped too, since the program reads only the fixed IP and UDP headers.
 
 A sandbox's view reports `host-firewall: true` once its own programs are attached and verified;
 a node announces `host-firewall`, `egress-hostnames` and `egress-addresses` for the process tier
@@ -73,7 +77,7 @@ capability is refused with `kernel-network-policy` named; a placement that requi
 ## How the programs work
 
 One object (`bpf/network.bpf.c`, built by `bpf/build.sh` and embedded in pryxd), nine programs,
-each with one job:
+each with one job, and five maps (rules, config, sockets, peers and counters):
 
 | Program | Hook | Job |
 | --- | --- | --- |
@@ -81,7 +85,7 @@ each with one job:
 | `sendmsg4`, `sendmsg6` | `cgroup/sendmsg4`, `sendmsg6` | The same for an unconnected datagram's address |
 | `recvmsg4`, `recvmsg6` | `cgroup/recvmsg4`, `recvmsg6` | Put back the resolver's address on a redirected DNS answer |
 | `sock_create` | `cgroup/sock_create` | Refuse non-TCP/UDP sockets; mark the rest as the sandbox's |
-| `ingress` | `cgroup_skb/ingress` | Drop what arrives from off the host but answers and published ports; count |
+| `ingress` | `cgroup_skb/ingress` | Drop what arrives from off the host but answers (TCP connections dialled, UDP peers sent to) and published ports; count |
 | `egress` | `cgroup_skb/egress` | Count packets and bytes |
 
 pryxd compiles the policy into an LPM trie of IPv6 prefixes (IPv4 as `::ffff:a.b.c.d`, NAT64's

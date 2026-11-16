@@ -6,8 +6,8 @@
 //! The ignored cases need a host that grants it: CI runs them as root and as an ordinary user
 //! with a delegated cgroup, one at a time, with `PRYX_TEST_AGENT` naming a trusted agent,
 //! `PRYX_TEST_PRIVATE` a private address with two listening ports, and `PRYX_TEST_REMOTE` a
-//! machine elsewhere (another network namespace) that dials this host at `PRYX_TEST_EDGE` when
-//! asked. The case that runs everywhere holds a host without the capability to its refusal.
+//! machine elsewhere (another network namespace) that dials this host at `PRYX_TEST_EDGE`, or
+//! sends it datagrams from the source ports named, when asked. The case that runs everywhere holds a host without the capability to its refusal.
 mod support;
 
 use pryxd::manager::{Manager, Precondition, Records};
@@ -53,6 +53,32 @@ l.listen()
 port = l.getsockname()[1]
 socket.create_connection((sys.argv[2], port), timeout=5).close()
 print(urllib.request.urlopen(f'http://{sys.argv[1]}/dial?port={port}', timeout=20).read().decode())
+";
+
+/// Two unconnected datagram sockets, IPv4 and dual-stack IPv6, each sending one datagram to the
+/// machine elsewhere on port 9001 (its IPv4-mapped address for the second), then asking it to
+/// send back from 9001 and from 9002; prints the source ports each heard.
+const UDP_PEERS: &str = "import socket,sys,urllib.request
+remote = sys.argv[1]
+host = remote.split(':')[0]
+heard = []
+for family, peer, bound in ((socket.AF_INET, host, '0.0.0.0'), (socket.AF_INET6, '::ffff:' + host, '::')):
+    s = socket.socket(family, socket.SOCK_DGRAM)
+    if family == socket.AF_INET6:
+        s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+    s.bind((bound, 0))
+    s.sendto(b'hello', (peer, 9001))
+    port = s.getsockname()[1]
+    urllib.request.urlopen(f'http://{remote}/udp?port={port}&from=9001,9002', timeout=20).read()
+    s.settimeout(3)
+    sources = []
+    try:
+        while True:
+            sources.append(str(s.recvfrom(64)[1][1]))
+    except socket.timeout:
+        pass
+    heard.append('+'.join(sorted(sources)) or 'nothing')
+print(' '.join(heard))
 ";
 
 /// The embedded object with its last program one the verifier refuses (`bpf/build.sh`).
@@ -464,6 +490,9 @@ async fn from_off_the_host_only_the_published_ports_are_reached() {
     // The agent's port is published: the edge dials it there and its agent answers.
     let published = dial(&remote, agent_port(&manager, "listening"));
     assert!(published.starts_with("reached HTTP/1."), "the agent's port from off the host: {published}");
+    // An unconnected datagram socket hears, from off the host, only the peer it sent to.
+    let heard = run(&manager, "listening", &["python3", "-c", UDP_PEERS, &remote]).await;
+    assert_eq!(heard, "9001 9001", "IPv4, then IPv4-mapped IPv6: only peer 9001 was sent to");
     let stats = serde_json::to_value(manager.stats(&id("listening")).await.unwrap()).unwrap();
     assert!(stats["networkRxBytes"].as_u64().is_some_and(|bytes| bytes > 0), "{stats}");
     remove(&manager, &["listening"]).await;

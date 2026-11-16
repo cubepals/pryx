@@ -14,7 +14,10 @@ pub(crate) const PROGRAMS: [&str; 9] =
 pub(crate) const RULES: &str = "rules";
 pub(crate) const CONFIG: &str = "config";
 pub(crate) const SOCKETS: &str = "sockets";
+pub(crate) const PEERS: &str = "peers";
 pub(crate) const COUNTERS: &str = "counters";
+/// Every map, in the order they are pinned and opened again.
+pub(crate) const MAPS: [&str; 5] = [RULES, CONFIG, SOCKETS, PEERS, COUNTERS];
 
 /// `PRYX_PORT_ENTRIES` and `PRYX_RULES`.
 pub(crate) const PORT_ENTRIES: usize = 24;
@@ -130,6 +133,10 @@ mod tests {
 
     /// `PRYX_COUNTERS`: one slot per `CounterIndex`.
     const COUNTER_SLOTS: u32 = CounterIndex::RefusedIngress as u32 + 1;
+    /// `PRYX_PEERS`, and `sizeof(struct pryx_peer)`: a socket's cookie, a peer's address and port.
+    /// Only the programs read the map, so nothing else names them.
+    const MAX_PEERS: u32 = 4096;
+    const PEER_BYTES: u32 = 32;
 
     fn sizes(map: &Map) -> (u32, u32, u32) {
         (map.key_size(), map.value_size(), map.max_entries())
@@ -144,7 +151,7 @@ mod tests {
         named.sort_unstable();
         assert_eq!(programs, named);
         let mut maps: Vec<&str> = object.maps.keys().map(String::as_str).collect();
-        let mut named = vec![RULES, CONFIG, SOCKETS, COUNTERS];
+        let mut named = MAPS.to_vec();
         maps.sort_unstable();
         named.sort_unstable();
         assert_eq!(maps, named);
@@ -152,6 +159,7 @@ mod tests {
         assert_eq!(sizes(&object.maps[RULES]), (4 + 16, RULE_BYTES as u32, MAX_RULES as u32));
         assert_eq!(sizes(&object.maps[CONFIG]), (4, CONFIG_BYTES as u32, 1));
         assert_eq!(object.maps[SOCKETS].value_size(), SOCKET_BYTES as u32);
+        assert_eq!(sizes(&object.maps[PEERS]), (PEER_BYTES, 1, MAX_PEERS));
         assert_eq!(sizes(&object.maps[COUNTERS]), (4, std::mem::size_of::<Counter>() as u32, COUNTER_SLOTS));
     }
 

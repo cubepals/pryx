@@ -181,12 +181,23 @@ jobs:
             curl --retry 10 --retry-connrefused --retry-delay 1 -fsS -o /dev/null "http://10.213.0.2:$port/"
           done
           # The same namespace stands in for another machine: asked on 8002, it dials this host at
-          # 10.213.0.1 as the edge would and says what it got.
+          # 10.213.0.1 as the edge would and says what it got, or (/udp) sends a datagram to the
+          # port from each source port named, as that many peers elsewhere.
           cat > "$RUNNER_TEMP/dial.py" <<'PY'
           import http.server, socket, urllib.parse
           class Dial(http.server.BaseHTTPRequestHandler):
               def do_GET(self):
-                  port = int(urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)['port'][0])
+                  url = urllib.parse.urlsplit(self.path)
+                  query = urllib.parse.parse_qs(url.query)
+                  port = int(query['port'][0])
+                  if url.path == '/udp':
+                      for source in query['from'][0].split(','):
+                          with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as peer:
+                              peer.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                              peer.bind(('10.213.0.2', int(source)))
+                              peer.sendto(source.encode(), ('10.213.0.1', port))
+                      self.answer('sent')
+                      return
                   try:
                       dialled = socket.create_connection(('10.213.0.1', port), timeout=3)
                   except OSError as error:
@@ -200,6 +211,8 @@ jobs:
                               answer += ' ' + dialled.recv(64).decode(errors='replace').split('\r\n')[0]
                           except OSError:
                               pass
+                  self.answer(answer)
+              def answer(self, answer):
                   body = answer.encode()
                   self.send_response(200)
                   self.send_header('content-length', str(len(body)))
