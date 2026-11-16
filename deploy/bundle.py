@@ -150,6 +150,9 @@ def postgres(bundle, specification):
 def pack(root, output):
     with tarfile.open(output, 'w:gz') as archive:
         for path in sorted(root.rglob('*')):
+            # The installer admits only files and directories (cli/src/bundle-install.ts).
+            if path.is_symlink() or not (path.is_file() or path.is_dir()):
+                raise RuntimeError(f'A host bundle holds only files and directories: {path}')
             info = archive.gettarinfo(str(path), str(path.relative_to(root)))
             info.uid = info.gid = info.mtime = 0
             info.uname = info.gname = ''
@@ -188,10 +191,11 @@ def main():
         if vm.exists():
             shutil.copy2(vm, bundle.root / 'bin/vm-bundle.json')
             (bundle.root / 'bin/vm-bundle.json').chmod(0o444)
-        # The namespaced process mode's helper stays beside the agent, as pryxd looks for it.
+        # The namespaced process mode's helper stays beside the agent, as pryxd looks for it. Its
+        # library's soname link is copied as a file: the installer admits no links in a bundle.
         namespaces = Path('/usr/local/lib/pryx/namespaces')
         if namespaces.exists():
-            shutil.copytree(namespaces, bundle.root / 'bin/namespaces', symlinks=True)
+            shutil.copytree(namespaces, bundle.root / 'bin/namespaces', symlinks=False)
         for name in ['pryxd.sig', 'pryxd.bootstrap.sig']:
             if Path('/' + name).exists():
                 shutil.copy2('/' + name, bundle.root / 'bin' / name)
