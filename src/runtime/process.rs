@@ -7,6 +7,7 @@
 //! - `native.rs`: protected tool inputs and authenticated supervisor adoption.
 //! - `journal.rs`: private specifications, UID allocation and process identity checks.
 //! - `power.rs`: agent launch, tree signals and process observations.
+//! - `power_environment_tests.rs`: real loader and private environment launch boundaries.
 //! - `exec.rs`: the legacy node exec transport through the same authenticated agent.
 //! - `observe.rs`: read-only kernel process identity, ownership and tree observations.
 //! - `logs.rs`: bounded, safe entrypoint log replay and following.

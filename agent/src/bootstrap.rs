@@ -153,7 +153,9 @@ impl Bootstrap {
         {
             return Err("VM service ports must be separate from private control ports".into());
         }
-        if self.browser_sandbox == Some(false) && std::env::var_os(crate::process_policy::POLICY_ENV).is_some() {
+        if self.browser_sandbox == Some(false)
+            && crate::process_environment::var_os(crate::process_policy::POLICY_ENV).is_some()
+        {
             return Err("browser-sandbox cannot be disabled on the process tier".into());
         }
         if self.host_bindings.is_some() && !forwarding {
@@ -208,8 +210,8 @@ pub async fn serve(
     if args.vm_files_only {
         return args.serve_files().await;
     }
-    let bindings = args.bindings(std::env::var_os(crate::process_policy::POLICY_ENV).is_some())?;
-    let encoded = std::env::var(&args.secret_env).map_err(|_| "Agent signing material is missing")?;
+    let bindings = args.bindings(crate::process_environment::var_os(crate::process_policy::POLICY_ENV).is_some())?;
+    let encoded = crate::process_environment::var(&args.secret_env).map_err(|_| "Agent signing material is missing")?;
     let key = SigningKey::from_encoded(&encoded)?;
     let logbook = Arc::new(crate::logbook::Logbook::open(&args.data)?);
     let telemetry = Arc::new(crate::telemetry::Telemetry::default());

@@ -9,10 +9,37 @@ use clap::Parser;
 use std::io::{self, BufRead, Write};
 use std::os::unix::process::CommandExt;
 
+fn private_environment(arguments: &mut Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
+    // The private frame is received only after its target is non-dumpable. Until then even
+    // readable namespace/agent loaders inherit only an unreadable socket, never guest values.
+    if arguments.first().is_some_and(|value| value == pryx_agent::process_environment::ARGUMENT) {
+        let descriptor = arguments.get(1).ok_or("Missing private environment descriptor")?.parse()?;
+        rustix::process::set_dumpable_behavior(rustix::process::DumpableBehavior::NotDumpable)?;
+        pryx_agent::process_environment::adopt(descriptor)?;
+        if pryx_agent::process_environment::var_os(pryx_agent::process_policy::POLICY_ENV).is_none() {
+            return Err("Private process environment is missing the host policy".into());
+        }
+        drop(arguments.drain(..2));
+    }
+    Ok(())
+}
+
+fn restricted_command(arguments: &[String], environment: Option<i32>) -> Result<(), Box<dyn std::error::Error>> {
+    let executable = arguments.first().ok_or("Missing restricted command")?;
+    let mut command = std::process::Command::new(executable);
+    command.args(&arguments[1..]);
+    if let Some(descriptor) = environment {
+        command.env_clear().envs(pryx_agent::process_environment::take(descriptor)?);
+    }
+    Err(command.exec().into())
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut arguments = std::env::args().skip(1).collect::<Vec<_>>();
+    private_environment(&mut arguments)?;
+    let workload_environment = pryx_agent::process_environment::parse_workload(&mut arguments)?;
     // First: no later exec may inherit a listener the node passed to this supervisor.
     pryx_agent::process_listeners::adopt()?;
-    let arguments = std::env::args().skip(1).collect::<Vec<_>>();
     if arguments.first().is_some_and(|a| a == pryx_agent::exec_deadline::MODE) {
         return pryx_agent::exec_deadline::run(&arguments[1..]);
     }
@@ -76,12 +103,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("{}", serde_json::to_string(&pryx_agent::process_capabilities::probe())?);
         return Ok(());
     }
-    if arguments.first().is_some_and(|a| a == "process-child") {
+    if arguments.first().is_some_and(|a| a == pryx_agent::process_environment::CHILD_MODE) {
         let supervisor = arguments.get(1).ok_or("Missing supervisor")?.parse()?;
         let network = arguments.get(2).ok_or("Missing network policy")?.parse()?;
         pryx_agent::process_policy::child(supervisor, network)?;
-        let executable = arguments.get(3).ok_or("Missing restricted command")?;
-        return Err(std::process::Command::new(executable).args(&arguments[4..]).exec().into());
+        return restricted_command(arguments.get(3..).ok_or("Missing restricted command")?, workload_environment);
     }
     if arguments.first().is_some_and(|a| a == "network-off") {
         pryx_agent::process_policy::network_off()?;
@@ -92,10 +118,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Only the supervisor bootstrap uses it; guest shell/launcher invocations cannot create
     // a less restricted worker from their inherited policy.
     let bootstrap = !matches!(arguments.first().map(String::as_str), Some("shell" | "--version" | "restricted"));
-    let policy: Option<pryx_agent::process_policy::Policy> = std::env::var(pryx_agent::process_policy::POLICY_ENV)
-        .ok()
-        .map(|encoded| serde_json::from_str(&encoded))
-        .transpose()?;
+    let policy: Option<pryx_agent::process_policy::Policy> =
+        pryx_agent::process_environment::var(pryx_agent::process_policy::POLICY_ENV)
+            .ok()
+            .map(|encoded| serde_json::from_str(&encoded))
+            .transpose()?;
     if let Some(policy) = &policy {
         if policy.require_ipc_scope == Some(true)
             || policy.tools.as_ref().is_some_and(|tools| tools.unavailable.is_none())
@@ -107,7 +134,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     let forwarding = if bootstrap
-        && (std::env::var_os(pryx_agent::process_policy::POLICY_ENV).is_some()
+        && (pryx_agent::process_environment::var_os(pryx_agent::process_policy::POLICY_ENV).is_some()
             || arguments.iter().any(|a| a == "--host-bindings" || a.starts_with("--host-bindings=")))
     {
         Some(pryx_agent::process_forward::ProcessForward::start()?)
@@ -137,7 +164,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let code = runtime.block_on(shell(arguments.get(1).cloned()))?;
         std::process::exit(code.into());
     }
-    let code = runtime.block_on(pryx_agent::bootstrap::serve(pryx_agent::bootstrap::Bootstrap::parse(), forwarding))?;
+    let options = pryx_agent::bootstrap::Bootstrap::parse_from(std::iter::once("pryx-agent".into()).chain(arguments));
+    let code = runtime.block_on(pryx_agent::bootstrap::serve(options, forwarding))?;
     std::process::exit(code)
 }
 
