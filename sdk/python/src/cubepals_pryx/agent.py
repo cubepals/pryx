@@ -148,7 +148,13 @@ class Process:
         with self._agent.http.stream('GET', url, headers=headers) as response:
             if not response.is_success: response.read(); _checked(response)
             for line in response.iter_lines():
-                if line: yield json.loads(line)
+                if not line: continue
+                event = json.loads(line)
+                if isinstance(event, dict) and event.get('type') == 'exit':
+                    response.close()
+                    yield event
+                    return
+                yield event
     def run_events(self): yield from output(self.events())
     def stream(self):
         for event in self.run_events():

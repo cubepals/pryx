@@ -125,7 +125,13 @@ class AsyncProcess:
         async with self._agent.http.stream('GET', url, headers=headers) as response:
             if not response.is_success: await response.aread(); _checked(response)
             async for line in response.aiter_lines():
-                if line: yield json.loads(line)
+                if not line: continue
+                event = json.loads(line)
+                if isinstance(event, dict) and event.get('type') == 'exit':
+                    await response.aclose()
+                    yield event
+                    return
+                yield event
     async def run_events(self):
         decoders = {name: codecs.getincrementaldecoder('utf-8')(errors='replace') for name in ('stdout', 'stderr')}
         async for event in self.events():
