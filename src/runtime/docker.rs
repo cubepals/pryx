@@ -21,6 +21,7 @@
 //! - `native_tools.rs`: explicit host-only seccomp and FUSE device policy.
 //! - `tests.rs`: container construction and host process ownership regressions.
 //! - `policy_tests.rs`: transport regression for unsupported engine policy refusal.
+//! - `start.rs`: single-submission start ownership.
 //! - `termination.rs`: kernel process ancestry and cgroup-owned exec cleanup.
 //! - `relay.rs`: bounded private ingress to gateway-free internal networks.
 
@@ -39,6 +40,7 @@ mod podman;
 #[cfg(test)]
 mod policy_tests;
 mod relay;
+mod start;
 mod termination;
 use container::{body_of, info_from};
 
@@ -562,19 +564,7 @@ impl ContainerRuntime for DockerRuntime {
     }
 
     async fn start(&self, name: &str) -> Result<(), RuntimeError> {
-        if let Err(error) = quick("start", self.docker()?.start_container(name, None)).await {
-            // A lost response does not undo Docker's mutation. Confirm its current state once;
-            // never issue a second start, and preserve the timeout unless it is already running.
-            if matches!(error, RuntimeError::Timeout(_))
-                && matches!(self.inspect(name).await, Ok(Some(info)) if info.status == ContainerStatus::Running)
-            {
-                tracing::warn!("confirmed running after Docker start timeout without repeating start");
-                return Ok(());
-            }
-            return Err(error);
-        }
-        self.inspect(name).await?;
-        Ok(())
+        self.start_owned(name).await
     }
     async fn stop(&self, name: &str, signal: &str, grace: Duration) -> Result<(), RuntimeError> {
         gvisor::thaw_for_stop(self, self.oci_runtime, name).await?;
