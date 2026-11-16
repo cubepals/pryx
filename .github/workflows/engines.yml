@@ -4,8 +4,8 @@ on:
   workflow_dispatch:
   # A new workflow cannot be dispatched until main has it; branch pushes prove it now.
   push:
-    # Milestone branches (k26, k31-ebpf, ...) prove a change before it reaches any-host.
-    branches: [any-host, 'k[0-9]*']
+    # Milestone and Codex branches prove a change before it reaches any-host.
+    branches: [any-host, 'k[0-9]*', 'codex/**']
     # A push that changes only documentation proves nothing new here; normal CI still runs.
     paths-ignore: ['docs/**', '**.md']
   pull_request:
@@ -22,8 +22,8 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  # On a milestone branch only its newest push needs proving.
-  cancel-in-progress: ${{ startsWith(github.ref, 'refs/heads/k') }}
+  # On a worker branch only its newest push needs proving.
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/heads/k') || startsWith(github.ref, 'refs/heads/codex/') }}
 
 permissions:
   contents: read
@@ -35,7 +35,7 @@ defaults:
 jobs:
   engine:
     name: Rootless ${{ matrix.engine }}
-    # A pull request from a milestone branch of this repository (k and a number) skips this:
+    # A pull request from a milestone or Codex branch of this repository skips this:
     # that branch's push run already tests its commits. Forks and other branches run it as before.
     if: >-
       github.event_name != 'pull_request' ||
@@ -44,7 +44,8 @@ jobs:
         startsWith(github.head_ref, 'k2') || startsWith(github.head_ref, 'k3') ||
         startsWith(github.head_ref, 'k4') || startsWith(github.head_ref, 'k5') ||
         startsWith(github.head_ref, 'k6') || startsWith(github.head_ref, 'k7') ||
-        startsWith(github.head_ref, 'k8') || startsWith(github.head_ref, 'k9'))
+        startsWith(github.head_ref, 'k8') || startsWith(github.head_ref, 'k9') ||
+        startsWith(github.head_ref, 'codex/'))
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
