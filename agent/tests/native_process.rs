@@ -31,6 +31,21 @@ impl Drop for Agent {
         if std::thread::panicking() {
             diagnostic(self.directory.path());
         }
+        // Namespaced, the child is the helper, and its own child is the first process of the
+        // sandbox's PID namespace: ending that ends every process in it, as a node's stop does.
+        // The helper alone dying would leave the agent and its tools running into later cases.
+        let helper = self.child.id();
+        if namespace_helper().is_some()
+            && let Ok(children) = fs::read_to_string(format!("/proc/{helper}/task/{helper}/children"))
+        {
+            for pid in children
+                .split_whitespace()
+                .filter_map(|pid| pid.parse::<i32>().ok())
+                .filter_map(rustix::process::Pid::from_raw)
+            {
+                let _ = rustix::process::kill_process(pid, rustix::process::Signal::KILL);
+            }
+        }
         let _ = self.child.kill();
         let _ = self.child.wait();
     }

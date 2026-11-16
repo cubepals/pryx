@@ -28,8 +28,13 @@ sudo systemctl stop docker.service docker.socket
 sudo rm -f /var/run/docker.sock
 # Keep the runner's suites, components and Ubuntu signing keys while avoiding its failed DNS
 # mirror chain. These invocation-only sources affect this isolated CI engine setup alone.
-ubuntu_mirror=$(jq -r .ubuntuMirror "$manifest")
-python3 - "$root/ubuntu.sources" "$ubuntu_mirror" <<'PY'
+# The manifest's mirrors are tried in order until one serves every signed index.
+mkdir -p "$root/apt-source-parts"
+apt_options=(-o "Dir::Etc::sourcelist=$root/ubuntu.sources" -o "Dir::Etc::sourceparts=$root/apt-source-parts" -o Acquire::ForceIPv4=true -o Acquire::Retries=3)
+mapfile -t ubuntu_mirrors < <(jq -r '.ubuntuMirrors[]' "$manifest")
+updated=false
+for ubuntu_mirror in "${ubuntu_mirrors[@]}"; do
+  python3 - "$root/ubuntu.sources" "$ubuntu_mirror" <<'PY'
 from pathlib import Path
 import re
 import sys
@@ -38,13 +43,9 @@ source, count = re.subn(r'(?m)^URIs:.*$', 'URIs: ' + sys.argv[2], source)
 assert count > 0, 'The hosted runner has no Ubuntu archive URI'
 Path(sys.argv[1]).write_text(source)
 PY
-mkdir -p "$root/apt-source-parts"
-apt_options=(-o "Dir::Etc::sourcelist=$root/ubuntu.sources" -o "Dir::Etc::sourceparts=$root/apt-source-parts" -o Acquire::ForceIPv4=true -o Acquire::Retries=3)
-if ! sudo apt-get "${apt_options[@]}" update -o APT::Update::Error-Mode=any; then
-  ubuntu_mirror=$(jq -r .ubuntuFallbackMirror "$manifest")
-  sed -i "s|^URIs:.*|URIs: $ubuntu_mirror|" "$root/ubuntu.sources"
-  sudo apt-get "${apt_options[@]}" update -o APT::Update::Error-Mode=any
-fi
+  if sudo apt-get "${apt_options[@]}" update -o APT::Update::Error-Mode=any; then updated=true; break; fi
+done
+[ "$updated" = true ] || { echo 'No Ubuntu mirror served every signed index' >&2; exit 1; }
 sudo apt-get "${apt_options[@]}" install -y uidmap slirp4netns
 
 if [ "$engine" = docker ]; then
@@ -79,7 +80,8 @@ PROFILE
   probe=("$root/bin/docker" --host "$endpoint")
 else
   podman_url=$(jq -r .podman.url "$manifest")
-  # Ubuntu mirrors keep the archive's relative pool paths and identical package bytes.
+  # The mirror that served the indexes keeps the archive's relative pool paths and identical
+  # package bytes.
   fetch "$podman_url" "$(jq -r .podman.sha256 "$manifest")" "$root/podman.deb" "$ubuntu_mirror/pool/${podman_url#*/pool/}"
   sudo apt-get "${apt_options[@]}" install -y --allow-downgrades "$root/podman.deb"
   [ "$(dpkg-query -W -f='${Version}' podman)" = "$(jq -r .podman.version "$manifest")" ]

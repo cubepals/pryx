@@ -15,6 +15,9 @@ async def items(value):
 class Peer:
     def __init__(self):self.calls=[];self.state='sleeping';self.command=[];self.files={};self.archives={};self.failure=None;self.version=2;self.isolation=None
     def view(self):return dict(VIEW,state=self.state,name='named',labels={'role':'agent'},workdir='/data',**({'isolation':self.isolation} if self.isolation else {}))
+    def exited(self):
+        """A step that hangs: the agent ends it at its deadline and reports so."""
+        return dict(RESULT,code=None,timedOut=True,killed=True,durationMs=1000*SDK_DEFAULTS['templateStepTimeoutSeconds']) if 'hang' in json.dumps(self.command) else RESULT
     def handle(self,request):
         path=request.url.path;method=request.method;body=json.loads(request.content) if request.content and request.headers.get('content-type')=='application/json' else {}
         self.calls.append((path,method,body,request.content))
@@ -30,14 +33,14 @@ class Peer:
         if path=='/_pryx/processes':
             if method=='GET':return response({'processes':[dict(id='proc',pid=1,running=True,result=None)]})
             self.command=body['command'];return response(dict(id='proc',pid=1,running=True,result=None))
-        if path.endswith('/ready'):return response({'error':{'code':self.failure,'message':self.failure}},HTTPStatus.CONFLICT) if self.failure else response(RESULT if body['kind']=='exit' else dict(ready=True,matched=True))
+        if path.endswith('/ready'):return response({'error':{'code':self.failure,'message':self.failure}},HTTPStatus.CONFLICT) if self.failure else response(self.exited() if body['kind']=='exit' else dict(ready=True,matched=True))
         if path.endswith('/kill-all'):return response({'killed':['proc']})
         if path=='/_pryx/shells':return response({'id':'shell'})
         if path.endswith('/shells/shell/run'):return response(dict(RESULT,stdout='state',stderr='err',code=7))
-        if path.endswith('/wait'):return response(RESULT)
+        if path.endswith('/wait'):return response(self.exited())
         if path.endswith('/output'):
             stdout='PRYX_GIT_PROXY_READY 34567\n' if any('PRYX_GIT_PROXY_READY' in arg for arg in self.command) else 'https://example.com/repo.git\n' if 'get-url' in self.command else 'abc\n' if 'rev-parse' in self.command else 'abc\0Name\0email\0date\0subject\0\n' if 'log' in self.command else ''
-            events=[dict(type='output',stream='stdout',bytes=base64.b64encode(stdout.encode()).decode()),dict(type='exit',result=RESULT)]
+            events=[dict(type='output',stream='stdout',bytes=base64.b64encode(stdout.encode()).decode()),dict(type='exit',result=self.exited())]
             return httpx.Response(HTTPStatus.OK,text=''.join(json.dumps(event)+'\n' for event in events))
         if path.endswith('/find'):return response({'paths':['known.txt']})
         if path.endswith('/grep'):return response({'matches':[dict(path='known.txt',line=2,text='known')]})
@@ -130,6 +133,8 @@ class Field(unittest.IsolatedAsyncioTestCase):
         async def exercise(client,peer):
             template=await take(client.template(name='named',isolation='wasm',run=['true'],ready='true',start='sleep 60'));self.assertEqual(template.version,1);self.assertEqual((await take(template.rebuild())).name,'named');self.assertEqual(await take(client.templates()),[])
             self.assertTrue(any(c[0].endswith('/versions') and c[2]['start']=='sleep 60' for c in peer.calls))
+            steps=[c[2] for c in peer.calls if c[0]=='/_pryx/processes' and c[1]=='POST'];self.assertTrue(steps);self.assertTrue(all(step['timeout']==SDK_DEFAULTS['templateStepTimeoutSeconds'] for step in steps))
+            with self.assertRaisesRegex(PryxError,r'Template command failed \(timed out after '+str(1000*SDK_DEFAULTS['templateStepTimeoutSeconds'])+r' ms\)'):await take(client.template(name='named',isolation='wasm',run=['hang']))
         await self.both(exercise)
     async def test_webhook_registration_does_not_list_its_secret(self):
         async def exercise(client,peer):

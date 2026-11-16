@@ -192,10 +192,10 @@ def main():
             shutil.copy2(vm, bundle.root / 'bin/vm-bundle.json')
             (bundle.root / 'bin/vm-bundle.json').chmod(0o444)
         # The namespaced process mode's helper stays beside the agent, as pryxd looks for it. Its
-        # library's soname link is copied as a file: the installer admits no links in a bundle.
+        # stager makes only files and directories; a link would be kept here and refused by pack.
         namespaces = Path('/usr/local/lib/pryx/namespaces')
         if namespaces.exists():
-            shutil.copytree(namespaces, bundle.root / 'bin/namespaces', symlinks=False)
+            shutil.copytree(namespaces, bundle.root / 'bin/namespaces', symlinks=True)
         for name in ['pryxd.sig', 'pryxd.bootstrap.sig']:
             if Path('/' + name).exists():
                 shutil.copy2('/' + name, bundle.root / 'bin' / name)

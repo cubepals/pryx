@@ -6,19 +6,20 @@ set -euo pipefail
 image=$1
 pryx_sources=$(mktemp "$RUNNER_TEMP/pryx-incus-XXXXXX.sources")
 pryx_source_parts=$(mktemp -d "$RUNNER_TEMP/pryx-incus-sources-XXXXXX")
-pryx_ubuntu_mirror=$(jq -r .ubuntuMirror .github/engine-versions.json)
 grep -q '^URIs:' /etc/apt/sources.list.d/ubuntu.sources
-sed "s|^URIs:.*|URIs: $pryx_ubuntu_mirror|" /etc/apt/sources.list.d/ubuntu.sources > "$pryx_sources"
 apt_options=(-o "Dir::Etc::sourcelist=$pryx_sources" -o "Dir::Etc::sourceparts=$pryx_source_parts" -o Acquire::ForceIPv4=true -o Acquire::Retries=3)
 install_incus() {
   sudo apt-get "${apt_options[@]}" update -qq -o APT::Update::Error-Mode=any &&
     sudo apt-get "${apt_options[@]}" install -y incus=6.0.0-1ubuntu0.3
 }
-if ! install_incus; then
-  pryx_ubuntu_mirror=$(jq -r .ubuntuFallbackMirror .github/engine-versions.json)
-  sed -i "s|^URIs:.*|URIs: $pryx_ubuntu_mirror|" "$pryx_sources"
-  install_incus
-fi
+# The manifest's mirrors are tried in order until one serves every signed index and package.
+mapfile -t pryx_ubuntu_mirrors < <(jq -r '.ubuntuMirrors[]' .github/engine-versions.json)
+pryx_installed=false
+for pryx_ubuntu_mirror in "${pryx_ubuntu_mirrors[@]}"; do
+  sed "s|^URIs:.*|URIs: $pryx_ubuntu_mirror|" /etc/apt/sources.list.d/ubuntu.sources > "$pryx_sources"
+  if install_incus; then pryx_installed=true; break; fi
+done
+[ "$pryx_installed" = true ] || { echo 'No Ubuntu mirror installed Incus' >&2; exit 1; }
 sudo incus admin init --minimal
 sudo iptables -I DOCKER-USER -i incusbr0 -j ACCEPT
 sudo iptables -I DOCKER-USER -o incusbr0 -j ACCEPT
@@ -39,7 +40,7 @@ sudo incus file push deploy/container-acceptance.sh pryx/container-acceptance.sh
 sudo incus file push deploy/local-diagnostics.py pryx/local-diagnostics.py
 # Reuse distro prerequisite setup, replacing only its final su with a PAM login session
 # for systemd distributions. Alpine uses its actual OpenRC/foreground path.
-sudo incus exec pryx --env "PRYX_TEST_UBUNTU_MIRROR=$(jq -r .ubuntuMirror .github/engine-versions.json)" --env "PRYX_TEST_UBUNTU_FALLBACK_MIRROR=$(jq -r .ubuntuFallbackMirror .github/engine-versions.json)" -- sh -c '
+sudo incus exec pryx --env "PRYX_TEST_UBUNTU_MIRRORS=$(jq -r '.ubuntuMirrors | join(" ")' .github/engine-versions.json)" -- sh -c '
   set -eu
   if [ "$(cat /proc/1/comm)" = systemd ]; then
     while ! systemctl is-active --quiet systemd-logind; do sleep 1; done
