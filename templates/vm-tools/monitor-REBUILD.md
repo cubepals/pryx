@@ -24,7 +24,7 @@ Cargo.lock fixes its dependencies. Original registry archives and the full micro
 source are retained under `monitor-rust`; Cargo may fetch the same immutable inputs into its
 normal cache. Build-only libseccomp stays in host build tools. The monitor is a static PIE;
 its native signal/futex/syscall values are imported from its actual source/libc. The policy adapter
-retains the published trap-default policy and changes only the equivalent libc thread/event-wait/terminal ABI and file metadata (`statx` beside the published `stat`, which snapshot creation reads through `std::fs::File::metadata`), including the read of its own PID required by GNU thread signalling. The
+retains the published trap-default policy and changes only the equivalent libc thread/event-wait/terminal ABI file opens (`openat` beside the published `open`, which musl uses and GNU's open(3) does not) and file metadata (`statx` beside the published `stat`, which snapshot creation reads through `std::fs::File::metadata`), including the read of its own PID required by GNU thread signalling. The
 build independently recompiles this policy, requires those exact BPF bytes in the ELF, and executes real thread kicks/joins under all three actual thread profiles and the maintained terminal restore call under the VMM profile without KVM.
 
 To change libc, follow the publisher's retained `compiler-recipe/README` and `defconfig`

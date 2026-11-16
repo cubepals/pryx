@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: FSL-1.1-ALv2
 """Translate the pinned monitor's restrictive policy to its equivalent native libc ABI.
 
-Thread signals, pthread joins, event waits, terminal attributes and file metadata (statx, where
-the published policy allows stat) are translated. Keep every other syscall, argument constraint
+Thread signals, pthread joins, event waits, terminal attributes, file opens (openat, where the
+published policy allows open) and file metadata (statx, where it allows stat) are translated. Keep every other syscall, argument constraint
 and trap default. GNU's empty upstream
 policy is never an input. The launcher's independent self-TGID restriction remains required.
 This produces build data, never a workload-selected monitor option.
@@ -34,10 +34,12 @@ def adapt(original, abi):
         raise ValueError('Published thread signal policy differs from the reviewed ABI')
     mapping = {abi['abort']: abi['abort'], kicks.pop(): abi['vcpu']}
     result = copy.deepcopy(original)
-    changed = {'signals': 0, 'signalIdentity': 0, 'joins': 0, 'eventWaits': 0, 'terminals': 0, 'metadata': 0}
+    changed = {'signals': 0, 'signalIdentity': 0, 'joins': 0, 'eventWaits': 0, 'terminals': 0, 'metadata': 0,
+               'opens': 0}
     for profile in result.values():
         signals_process = False
         reads_metadata = False
+        opens_files = False
         for rule in profile['filter']:
             if rule['syscall'] == 'tkill':
                 arguments = rule.get('args', [])
@@ -61,6 +63,10 @@ def adapt(original, abi):
                     argument['val'] = terminals[argument['val']]
                     argument['comment'] = 'Equivalent native libc terminal attributes request'
                     changed['terminals'] += 1
+            elif rule['syscall'] == 'open':
+                if rule.get('args'):
+                    raise ValueError('Unreviewed published open constraints')
+                opens_files = True
             elif rule['syscall'] == 'stat':
                 if rule.get('args'):
                     raise ValueError('Unreviewed published file metadata constraints')
@@ -86,6 +92,13 @@ def adapt(original, abi):
                 rule['args'].append({'index': FUTEX_BITSET_ARGUMENT, 'type': 'dword', 'op': 'eq',
                                      'val': abi['futexBitsetAny'], 'comment': 'Full wait bitset only'})
                 changed['joins'] += 1
+        if opens_files:
+            # GNU's open(3) is openat(AT_FDCWD); musl's on x86_64 is open. Snapshot files are opened so.
+            if any(rule['syscall'] == 'openat' for rule in profile['filter']):
+                raise ValueError('Published open policy needs renewed review')
+            profile['filter'].append({'syscall': 'openat',
+                'comment': 'GNU open(3), as the published open rule is for musl'})
+            changed['opens'] += 1
         if reads_metadata:
             # The published rule serves std::fs::File::metadata in snapshot creation. On GNU, Rust's
             # std reads metadata with statx, falling back to fstat only when statx is missing.
