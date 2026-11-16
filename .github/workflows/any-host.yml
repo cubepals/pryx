@@ -7,6 +7,8 @@ on:
   # A new workflow cannot be dispatched before main has it. Branch pushes prove this build now.
   push:
     branches: [any-host]
+    # A push that changes only documentation proves nothing new here; normal CI still runs.
+    paths-ignore: ['docs/**', '**.md']
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
