@@ -16,7 +16,7 @@ serde_json = "1"
 thiserror = "2"
 axum = { version = "0.8", default-features = false, features = ["json", "query", "http1", "tokio", "ws"], optional = true }
 tokio = { version = "1.53", features = ["rt-multi-thread", "macros", "signal", "net", "time", "sync", "fs", "io-util", "io-std", "process"], optional = true }
-tokio-util = { version = "0.7", features = ["io", "io-util", "rt"], optional = true }
+tokio-util = { version = "0.7", features = ["io", "io-util", "rt", "codec"], optional = true }
 tokio-vsock = { version = "=0.7.3", optional = true }
 vsock = { version = "=0.5.5", optional = true }
 futures-util = { version = "0.3", default-features = false, features = ["sink"], optional = true }

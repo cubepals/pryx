@@ -41,10 +41,7 @@ fn staged(binary: &Path, data: &Path) -> std::io::Result<PathBuf> {
     // The image controls its own loader and libraries. Private stdin is delivered only to a
     // self-contained agent, never an image-supplied ELF interpreter or preload library.
     let image = std::fs::read(staged.path())?;
-    use object::read::elf::ProgramHeader;
-    let elf =
-        object::read::elf::ElfFile64::<object::Endianness>::parse(image.as_slice()).map_err(std::io::Error::other)?;
-    if elf.elf_program_headers().iter().any(|header| header.p_type(elf.endian()) == object::elf::PT_INTERP) {
+    if !static_image(&image)? {
         return Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "exec owner must be a static ELF"));
     }
     drop(image);
@@ -63,6 +60,16 @@ fn staged(binary: &Path, data: &Path) -> std::io::Result<PathBuf> {
     }
     File::open(parent)?.sync_all()?;
     Ok(target)
+}
+
+pub(super) fn static_binary(binary: &Path) -> bool {
+    std::fs::read(binary).ok().and_then(|image| static_image(&image).ok()).unwrap_or(false)
+}
+
+fn static_image(image: &[u8]) -> std::io::Result<bool> {
+    use object::read::elf::ProgramHeader;
+    let elf = object::read::elf::ElfFile64::<object::Endianness>::parse(image).map_err(std::io::Error::other)?;
+    Ok(!elf.elf_program_headers().iter().any(|header| header.p_type(elf.endian()) == object::elf::PT_INTERP))
 }
 
 pub(super) fn protected(path: &Path) -> bool {
@@ -91,10 +98,9 @@ pub(super) fn protected(path: &Path) -> bool {
 
 /// Always set the owner label, including zero: absence would inherit an image's forged claim.
 pub(super) async fn negotiate(binary: &Path, labels: &mut std::collections::BTreeMap<String, String>) {
-    let version = crate::runtime::agent_metadata::query(binary)
-        .await
-        .map_or(0, |capabilities| capabilities.exec_completion_version);
-    labels.insert(crate::labels::LABEL_EXEC_COMPLETION.into(), version.to_string());
+    let capabilities = crate::runtime::agent_metadata::query(binary).await.unwrap_or_default();
+    labels.insert(crate::labels::LABEL_EXEC_COMPLETION.into(), capabilities.exec_completion_version.to_string());
+    labels.insert(crate::labels::LABEL_INTERNAL_INGRESS.into(), capabilities.internal_ingress_version.to_string());
 }
 
 #[cfg(test)]

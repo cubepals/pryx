@@ -18,6 +18,8 @@ pub struct Capabilities {
     #[serde(default)]
     pub exec_completion_version: u16,
     #[serde(default)]
+    pub internal_ingress_version: u16,
+    #[serde(default)]
     pub process_tools_version: u16,
     #[serde(default)]
     pub process_browser_version: u16,
@@ -91,6 +93,7 @@ pub fn probe() -> Capabilities {
     Capabilities {
         browser_policy: true,
         exec_completion_version: crate::exec_completion::VERSION,
+        internal_ingress_version: crate::exec_ingress::VERSION,
         process_tools_version: crate::process_tool_policy::VERSION,
         process_browser_version: crate::process_tool_policy::BROWSER_VERSION,
         process_desktop_version: crate::process_tool_policy::DESKTOP_VERSION,

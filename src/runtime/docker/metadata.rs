@@ -57,6 +57,7 @@ impl DockerRuntime {
                 .is_some_and(|options| options.iter().any(|option| option == ROOTLESS_SECURITY_OPTION)),
             local_process_ids: None,
             unprivileged_ports: None,
+            private_ingress: None,
             memory_limit: info.memory_limit == Some(true)
                 && info.cgroup_driver.as_ref().is_some_and(|driver| driver.to_string() != "none"),
             cpu_limit: info.cpu_cfs_quota == Some(true)
@@ -96,6 +97,9 @@ impl DockerRuntime {
         crate::capability::probe_phase("engine-info-complete");
         if result.container_policy_problem.is_none() {
             result.container_policy_problem = ownership::problem(self, &result).await;
+        }
+        if result.rootless && !result.podman && result.container_policy_problem.is_none() {
+            result.private_ingress = Some(self.ingress.available().await);
         }
         if result.container_policy_problem.is_none() && self.oci_runtime.is_some() {
             result.container_policy_problem = gvisor::problem(&result);

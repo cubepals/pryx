@@ -27,6 +27,7 @@
 //! - `policy_tests.rs`: transport regression for unsupported engine policy refusal.
 //! - `start.rs`: single-submission start ownership.
 //! - `termination.rs`: kernel process ancestry and cgroup-owned exec cleanup.
+//! - `relay_exec.rs`: protected rootless internal ingress over Docker exec.
 //! - `relay.rs`: bounded private ingress to gateway-free internal networks.
 
 mod browser_policy;
@@ -48,6 +49,7 @@ mod podman;
 #[cfg(test)]
 mod policy_tests;
 mod relay;
+mod relay_exec;
 mod start;
 mod termination;
 use container::{body_of, info_from};
@@ -124,6 +126,7 @@ pub struct DockerRuntime {
     info: std::sync::Mutex<Option<RuntimeInfo>>,
     metadata_version: std::sync::Mutex<Option<bollard::models::SystemVersion>>,
     relays: relay::Relays,
+    ingress: relay_exec::Support,
     egress: egress::Egress,
     native_tools: native_tools::Policy,
     pub(super) ownership: ownership::Policy,
@@ -181,6 +184,7 @@ impl DockerRuntime {
             info: std::sync::Mutex::new(None),
             metadata_version: std::sync::Mutex::new(None),
             relays: relay::Relays::default(),
+            ingress: relay_exec::Support::new(crate::config::WorkloadPolicy::default().agent_binary),
             egress: Default::default(),
             native_tools: Default::default(),
             ownership: Default::default(),
@@ -188,6 +192,11 @@ impl DockerRuntime {
             starts: Default::default(),
             oci_runtime: None,
         })
+    }
+
+    pub fn with_internal_ingress_agent(mut self, binary: &Path) -> Self {
+        self.ingress = relay_exec::Support::new(binary.to_owned());
+        self
     }
 
     /// The gvisor tier: the same engine and policy, with every container started by `runsc`.
@@ -406,7 +415,11 @@ impl ContainerRuntime for DockerRuntime {
         gvisor::host_policy(self.oci_runtime, self.info.lock().unwrap().as_ref()) && egress::ready()
     }
     fn supports_network_policy(&self) -> bool {
-        self.info.lock().unwrap().as_ref().is_none_or(|info| !info.rootless || info.podman)
+        self.info
+            .lock()
+            .unwrap()
+            .as_ref()
+            .is_none_or(|info| !info.rootless || info.podman || info.private_ingress == Some(true))
     }
 
     async fn ensure_internal_network(&self, name: &str, labels: &BTreeMap<String, String>) -> Result<(), RuntimeError> {
@@ -569,7 +582,7 @@ impl ContainerRuntime for DockerRuntime {
             Ok(inspect) if !gvisor::owns_container(self.oci_runtime, &inspect) => Ok(None),
             Ok(inspect) => {
                 self.egress.restore(self, &inspect).await?;
-                self.relays.ensure(&inspect).await?;
+                self.relays.ensure(self, &inspect).await?;
                 let mut info = info_from(inspect);
                 let docker_history =
                     self.oci_runtime.is_some() || self.info.lock().unwrap().as_ref().is_some_and(|info| !info.podman);

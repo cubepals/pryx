@@ -143,6 +143,12 @@ impl Drop for Session {
     }
 }
 
+/// Failed private transports retire only the exact start they served, using this same
+/// serialized, single-submission engine authority as exec completion.
+pub(super) async fn retire_container(docker: Docker, container: String, start: OffsetDateTime, starts: Starts) -> bool {
+    retire(Target { docker, container, start, starts }).await
+}
+
 /// One kill submission, then read-only confirmation. A lost response never repeats the kill.
 async fn retire(target: Target) -> bool {
     let _generation = target.starts.lock(&target.container).await;

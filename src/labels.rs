@@ -29,3 +29,6 @@ pub(crate) const LABEL_OCI_RUNTIME: &str = "blocklyd.oci-runtime";
 
 /// Private exec cleanup attestation negotiated from the actual injected agent at creation.
 pub(crate) const LABEL_EXEC_COMPLETION: &str = "blocklyd.exec-completion";
+
+/// Protected fixed-target private ingress negotiated from the injected agent at creation.
+pub(crate) const LABEL_INTERNAL_INGRESS: &str = "blocklyd.internal-ingress";

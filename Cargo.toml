@@ -29,7 +29,7 @@ futures-util = { version = "0.3", default-features = false, features = ["std"] }
 axum = { version = "0.8", default-features = false, features = ["json", "query", "http1", "tokio", "matched-path"] }
 # The client side is for the node's own calls out: enrollment and heartbeats to the control plane,
 # archives to and from presigned object-store URLs. One connection per call, no pool.
-hyper = { version = "1", features = ["server", "http1", "client"] }
+hyper = { version = "1", features = ["server", "http1", "http2", "client"] }
 hyper-util = { version = "0.1.21", features = ["server", "server-graceful", "tokio", "service", "http1"] }
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"

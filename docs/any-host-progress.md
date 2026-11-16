@@ -5063,3 +5063,61 @@ job when publication is authorized. That job has not run in this task.
   runs; no local Docker/KVM pass is claimed. The ten assertions replace the earlier diagnostic
   repetitions; the live install-path replay adds an estimated two minutes to the existing Rust
   test job, with no new job or gate.
+
+- K22 second attempt resumes both parked Docker side pieces after the preceding engine work.
+  The original ownership attempts remain failures: default, host and keep-id do not map the
+  ordinary nonzero workload onto standard rootless Docker's original host-owned data. The
+  original ingress attempts remain failures: host-to-private-bridge routing is inaccessible,
+  published ports on an internal bridge are empty, and daemon-namespace entry is denied on
+  the local different-UID engine. None is repeated as a proposed fix without new evidence.
+- Rootless ingress now uses the engine's authenticated exec attachment to the immutable
+  container/start and declared loopback port. Its actual injected static agent announces the
+  additive ingress version, is execute-only before process creation, receives blank bootstrap
+  environment values and starts no children. Hyper/h2 retains stream shutdown; Tokio's bounded
+  framing retains UDP packets and one stable socket per frontend peer. Old/readable agents and
+  undeclared ports refuse. Listener retirement cancels and joins the owned tasks; a lost or
+  stopped helper retires only its original start, without a mutation retry.
+- The first raw-engine fixture fails only because the local engine lacks the CI image alias;
+  select the manifest's pinned digest directly. The corrected real local Docker fixture passes
+  in 5.06 seconds: exact delayed 96-KiB TCP reply after write EOF, empty/small/65,500-byte UDP
+  packets with distinct stable peer ports, undeclared-target refusal, and completed/active-pipe
+  disconnects whose helpers exit before fallback retirement while the original start stays
+  running. This is ingress proof on a custom matching map, not standard Docker ownership proof.
+  A bounded transport regression also reproduces idempotent start returning Engine 304,
+  orphan adoption and one retirement; it passes in 0.01 seconds after raw start confirmation is
+  separated from relay reconstruction to remove a recursive generation-lock wait.
+- New ownership attempts are engine per-bind ID mapping, kernel ID-mapped binds with a plain
+  bind control, and maintained fuse-overlayfs views including the same-user daemon namespace.
+  The local Engine rejects the ID-map option, both local bind controls are denied, and the
+  ordinary FUSE helper refuses allow_other under the existing host policy. The local daemon is
+  owned by another host UID with a custom map; its namespace denial cannot settle the standard
+  same-user candidate. The pinned, licence-recorded helper and bounded diagnostics run only
+  in the existing Docker matrix job, with no engine install, host policy change, workload UID0,
+  subordinate-ID chown or volume copy/sync. The named data-owner-mapping refusal stays in place.
+  The integrated local diagnostics confirm the unsupported option and FUSE policy refusal,
+  preserve the cross-UID namespace result as not run, and report no ownership invariant failure.
+  Default and alternate workload probes retain nonzero UID/GID 1000 and 1001; only the trusted
+  host namespace helper uses namespace UID0. Static-agent and real-transport coverage add an
+  estimated two to four minutes to that job, plus at most three minutes for ownership work and
+  bounded cleanup; no new job or gate. Standard hosted proof and fresh review remain pending.
+- Final local ingress acceptance passes in 24.90 seconds, adding a real stopped helper,
+  fresh-node idempotent-start adoption with bounded retirement, restart under the same immutable
+  container ID, old-target refusal and healthy new-target attachment. The finite frontend
+  budget now follows helper cleanup until exit or exact-start retirement is confirmed; unknown
+  live owners keep their permit withheld for that runtime's lifetime. Real active/stalled-pipe
+  checks assert permit retention and release. The full workspace run completes 595 passes,
+  56 ignored and the same four previously recorded local vm_monitor Landlock ABI failures;
+  every daemon case, the actual Wasm case and the new ingress/lock regressions pass. No assertion
+  or host policy is weakened. Strict all-target Clippy, Rust/original/expanded mixed-source
+  structure, formatting, full actionlint with ShellCheck and whitespace checks pass. Hosted
+  checks remain pending on this source.
+- K22 final review catches two diagnostic cleanup errors before publication: readiness can
+  fail after a FUSE helper starts but before ownership reaches the caller, and an arbitrary
+  mountpoint failure cannot prove a view is gone. Setup now owns retirement immediately after
+  launch, checks tool prerequisites before launch, and requires util-linux's documented
+  not-a-mountpoint result. Unmount, termination, observation and log closure are all attempted;
+  unconfirmed cleanup is latched as an invariant failure before temporary-directory teardown
+  can mask it. Seven bounded stub controls pass, including readiness deadline/subprocess
+  failure, spawn failure, missing tool, unknown mount observation and failed cleanup masked by
+  a later filesystem error. The real local ownership diagnostic still reports the same truthful
+  unsupported-option/FUSE-policy/cross-UID results. No Rust source or assertion changes.
