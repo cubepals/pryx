@@ -656,38 +656,39 @@ jobs:
             sudo systemctl status "$unit" --no-pager --lines=0 || true
           done
 
-  # GitHub's standard arm64 runner, free for this public repository: pryxd and the agent built
-  # natively, and the tier report they give there. Installing on arm64 waits for aarch64 release
-  # assets, which the release does not build yet.
+  # GitHub's standard arm64 runner, free for this public repository: the release image and its
+  # ordinary-user bundle built natively there, the one command installing that bundle, hello on
+  # the process and container tiers, and the tier report with wasm and vm off and why.
   arm64:
-    name: arm64 build and tier report
+    name: arm64 one command and tier report
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install the repository Rust
+      - name: Create an isolated preview signing identity
         run: |
-          if ! command -v rustup >/dev/null; then
-            curl --proto '=https' --tlsv1.2 --retry 5 -fsSL https://sh.rustup.rs | sh -s -- -y --default-toolchain none --profile minimal
-            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-            export PATH="$HOME/.cargo/bin:$PATH"
-          fi
-          rustup toolchain install
-      - name: Build pryxd and the agent on arm64
-        env:
-          CARGO_INCREMENTAL: '0'
-          CARGO_PROFILE_DEV_DEBUG: '0'
+          openssl genpkey -algorithm ED25519 -out "$RUNNER_TEMP/preview.key"
+          openssl pkey -in "$RUNNER_TEMP/preview.key" -pubout -out "$RUNNER_TEMP/preview.pub"
+      - name: Build the release image and its host bundle natively on arm64
         run: |
           test "$(uname -m)" = aarch64
-          cargo build --locked --bin pryxd
-          cargo build --locked -p pryx-agent --bin pryx-agent
-          file target/debug/pryxd target/debug/pryx-agent | tee "$RUNNER_TEMP/arm64-binaries.txt"
-          grep -c 'ARM aarch64' "$RUNNER_TEMP/arm64-binaries.txt" | grep -qx 2
+          started=$(date +%s)
+          docker build --target bundle --build-arg "PRYX_PREVIEW_PUBLIC_KEY=$(cat "$RUNNER_TEMP/preview.pub")" -t pryx-host-bundle .
+          mkdir host-artifacts
+          id=$(docker create pryx-host-bundle)
+          docker cp "$id:/bundle/." host-artifacts/
+          docker cp "$id:/pryxd" "$RUNNER_TEMP/pryxd"
+          docker rm -v "$id"
+          file "$RUNNER_TEMP/pryxd" | tee "$RUNNER_TEMP/arm64-binaries.txt"
+          grep -q 'ARM aarch64' "$RUNNER_TEMP/arm64-binaries.txt"
+          docker run --rm --entrypoint /usr/local/bin/pryx pryx-host-bundle --version
+          du -h host-artifacts/* | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "arm64 image and bundle build: $(($(date +%s)-started)) seconds" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Report every tier, wasm and vm off with their reasons
         run: |
-          target/debug/pryxd probe --json > "$RUNNER_TEMP/arm64-probe.json"
+          "$RUNNER_TEMP/pryxd" probe --json > "$RUNNER_TEMP/arm64-probe.json"
           python3 - "$RUNNER_TEMP/arm64-probe.json" <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
           import json, sys
           tiers = json.load(open(sys.argv[1]))['tiers']
@@ -696,3 +697,24 @@ jobs:
           assert tiers['wasm']['state'] == 'off' and 'x86_64' in tiers['wasm']['evidence'], tiers['wasm']
           assert tiers['vm']['state'] != 'on', tiers['vm']
           PY
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile
+      - name: Sign the preview archive and finish its manifest
+        run: |
+          bun control/tools/bundle-sign.ts host-artifacts "$RUNNER_TEMP/preview.key"
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)
+          sed "s/__PRYX_VERSION__/$version/g" deploy/install.sh > host-artifacts/install.sh
+          (cd host-artifacts && sha256sum -- * > SHA256SUMS)
+      - name: One command, hello on the process and container tiers, upgrade and purge
+        env:
+          PRYX_EXPECT_BOTH_TIERS: '1'
+        run: |
+          sudo install -m 644 deploy/local-diagnostics.py /local-diagnostics.py
+          python3 -m http.server 9876 --bind 127.0.0.1 --directory host-artifacts > "$RUNNER_TEMP/artifact-server.log" 2>&1 &
+          server=$!
+          trap 'kill "$server"' EXIT
+          curl --retry 5 --retry-connrefused --retry-delay 1 --max-time 10 -fsS http://127.0.0.1:9876/install.sh -o /dev/null
+          sh deploy/local-acceptance.sh | tee acceptance.txt
+          cat acceptance.txt >> "$GITHUB_STEP_SUMMARY"
