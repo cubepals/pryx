@@ -351,6 +351,7 @@ mod tests {
     fn too_many_ranges_on_one_address_are_refused_by_name() {
         let deny: Vec<_> = (0..=PORT_ENTRIES as u16).map(|port| at("192.0.2.0/24", Some((port, port)))).collect();
         let problem = compile(&inputs(Reach::Public, &[], &deny)).unwrap_err();
-        assert!(problem.contains("::ffff:192.0.2.0/120"), "{problem}");
+        // Named as the request spells it, IPv4 as IPv4.
+        assert!(problem.starts_with("192.0.2.0/24 would need 25 port ranges"), "{problem}");
     }
 }
