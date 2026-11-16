@@ -21,6 +21,8 @@ on:
       - 'scripts/engine-api-probe.py'
       - 'scripts/engine-ownership-second.py'
       - 'tests/engine_ownership.py'
+      - 'tests/fixtures/ingress-service.c'
+      - 'tests/fixtures/rootless-bridge-failure.json'
       - '.github/k22-ownership.json'
       - 'agent/**'
 

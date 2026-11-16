@@ -53,9 +53,22 @@ mod tests {
         let probes = Arc::new(AtomicUsize::new(0));
         let observed = (kills.clone(), starts.clone(), probes.clone());
         let timestamp = OffsetDateTime::now_utc().format(&time::format_description::well_known::Rfc3339).unwrap();
+        let bindings = serde_json::to_string(&vec![crate::runtime::PortBinding {
+            container_port: 8080,
+            host_port: 0,
+            host_ips: vec![std::net::Ipv4Addr::LOCALHOST.into()],
+            protocol: crate::protocol::Proto::Tcp,
+        }])
+        .unwrap();
+        let record = crate::labels::private_record(
+            "alpine:3.22",
+            &serde_json::from_str::<Vec<crate::runtime::PortBinding>>(&bindings).unwrap(),
+        );
         let app = Router::new().fallback(any(move |request: Request| {
             let (kills, starts, probes) = observed.clone();
             let timestamp = timestamp.clone();
+            let bindings = bindings.clone();
+            let record = record.clone();
             async move {
                 let route = request.uri().path();
                 if route.ends_with("/start") {
@@ -79,7 +92,7 @@ mod tests {
                 let running = kills.load(Ordering::SeqCst) == 0;
                 (StatusCode::OK, Json(serde_json::json!({"Id": "owned", "Name": "/owned",
                     "State": {"Running": running, "Status": if running {"running"} else {"exited"}, "StartedAt": timestamp},
-                    "Config": {"Labels": {crate::labels::LABEL_INTERNAL_BINDINGS: "[]"}}, "ExecIDs": ["abandoned"]})))
+                    "Config": {"Labels": {crate::labels::LABEL_INTERNAL_BINDINGS: bindings, crate::labels::LABEL_RECORD: record}}, "ExecIDs": ["abandoned"]})))
             }
         }));
         let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });

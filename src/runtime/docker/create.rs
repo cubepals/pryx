@@ -10,12 +10,8 @@ pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Res
     }
     let mut prepared = spec.clone();
     let resolver = runtime.egress.prepare(runtime, &mut prepared).await?;
-    let spec = &prepared;
-    // Native Podman create owns a separate bridge and published ingress for each workload.
-    if spec.internal_network && !info.podman {
-        runtime.ensure_internal_network(&spec.network, &spec.labels).await?;
-    }
-    let mut spec = spec.clone();
+    prepare_network(runtime, &mut prepared, &info).await?;
+    let mut spec = prepared;
     if (runtime.oci_runtime.is_some() || (info.rootless && !info.podman && spec.internal_network))
         && let Some(agent) = spec.agent.as_mut()
     {
@@ -28,13 +24,12 @@ pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Res
     if let Some(own) = runtime.oci_runtime {
         spec.labels.insert(crate::labels::LABEL_OCI_RUNTIME.into(), own.into());
     }
-    if spec.internal_network {
-        spec.labels.insert(
-            crate::labels::LABEL_INTERNAL_BINDINGS.into(),
-            serde_json::to_string(&spec.ports)
-                .map_err(|_| RuntimeError::Other("Cannot encode private bindings".into()))?,
-        );
-    }
+    // Always override an image's claim: only the host can declare private listeners.
+    spec.labels.insert(
+        crate::labels::LABEL_INTERNAL_BINDINGS.into(),
+        serde_json::to_string(if spec.internal_network { &spec.ports[..] } else { &[] })
+            .map_err(|_| RuntimeError::Other("Cannot encode private bindings".into()))?,
+    );
     // An image's own label can never enable a private transport.
     spec.labels.insert(crate::labels::LABEL_INTERNAL_INGRESS.into(), "0".into());
     agent_entrypoint(runtime, &mut spec).await?;
@@ -90,6 +85,32 @@ pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Res
     }
     let created = quick("create", runtime.docker()?.create_container(Some(options), body)).await?;
     Ok(created.id)
+}
+
+/// A private exec pipe needs loopback alone. Connected requests still construct the same
+/// strict ICC-disabled bridge, at admission rather than as a prerequisite for disconnected work.
+pub(super) async fn prepare_network(
+    runtime: &DockerRuntime,
+    spec: &mut ContainerSpec,
+    info: &RuntimeInfo,
+) -> Result<(), RuntimeError> {
+    if info.disconnected_ingress(runtime.isolation()) && spec.internal_network {
+        spec.network = network::DISCONNECTED_NETWORK.into();
+    } else if spec.internal_network && !info.podman {
+        runtime.ensure_internal_network(&spec.network, &spec.labels).await?;
+    } else if info.rootless
+        && !info.podman
+        && runtime.oci_runtime.is_none()
+        && runtime.connected_on_demand.load(std::sync::atomic::Ordering::Acquire)
+    {
+        // Recheck even if the installed agent changed after reconciliation deferred this
+        // bridge. Losing private ingress support must never bypass connected isolation.
+        let network = runtime.ensure_network(&spec.network, &spec.labels).await?;
+        if !network.isolated {
+            return Err(RuntimeError::Other("The connected network does not enforce host policy".into()));
+        }
+    }
+    Ok(())
 }
 
 fn check_engine_policy(runtime: &DockerRuntime, spec: &ContainerSpec, info: &RuntimeInfo) -> Result<(), RuntimeError> {

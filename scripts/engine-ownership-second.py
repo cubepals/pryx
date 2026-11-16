@@ -32,6 +32,22 @@ COMMAND_LIMIT = 12
 MAX_HELPER_BYTES = 64 * 1024 * 1024
 # util-linux mountpoint(1): 32 means not a mountpoint; 1 means a tool/system error.
 NOT_MOUNTPOINT = 32
+OWNERSHIP_WRITE = '''set -eu
+require() {
+    phase="$1"; shift
+    if "$@"; then printf 'ok:%s\\n' "$phase"
+    else printf 'failed:%s\\n' "$phase" >&2; exit 1; fi
+}
+require identity-uid test "$(id -u)" = "$1"
+require identity-gid test "$(id -g)" = "$2"
+require host-read test "$(cat "$5/from-host")" = "$3"
+umask 077
+if ! printf %s "$4" > "$5/marker"; then printf 'failed:marker-write\\n' >&2; exit 1; fi
+printf 'ok:marker-write\\n'
+require marker-chmod chmod 600 "$5/marker"
+require marker-uid test "$(stat -c %u "$5/marker")" = "$1"
+require marker-mode test "$(stat -c %a "$5/marker")" = 600
+'''
 # proc_pid_stat(5): field 22; the tail after comm starts at field 3.
 STARTTIME_TAIL_INDEX = 19
 
@@ -208,16 +224,11 @@ def fixture_write(probe, peer, prefix, image, source, uid, gid, expected, value,
     if uid <= 0 or gid <= 0:
         raise Violation('ownership workload UID/GID must remain nonzero')
     name = 'pryx-k22-owner-' + uuid.uuid4().hex
-    script = ('set -eu; test "$(id -u)" = "$1"; test "$(id -g)" = "$2"; '
-              'test "$(cat /data/from-host)" = "$3"; umask 077; '
-              'printf %s "$4" > /data/marker; chmod 600 /data/marker; '
-              'test "$(stat -c %u /data/marker)" = "$1"; '
-              'test "$(stat -c %a /data/marker)" = 600')
     arguments = ['run', '--rm', '--pull=never', '--name', name, '--network=none',
                  '--read-only', '--cap-drop=ALL', '--security-opt=no-new-privileges',
                  f'--user={uid}:{gid}', '--mount',
                  f'type=bind,source={source},target=/data{mount_extra}', image,
-                 'sh', '-c', script, 'ownership', str(uid), str(gid), expected, value]
+                 'sh', '-c', OWNERSHIP_WRITE, 'ownership', str(uid), str(gid), expected, value, '/data']
     try:
         result = docker(probe, peer, prefix, *arguments)
         if result['exit'] == 0:

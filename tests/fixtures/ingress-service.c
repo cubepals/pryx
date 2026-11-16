@@ -10,6 +10,8 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+static const char *identity = "after-eof:";
+
 static int listener(int type, int port) {
     int fd = socket(AF_INET, type, 0);
     struct sockaddr_in address = {.sin_family = AF_INET, .sin_port = htons(port),
@@ -44,14 +46,15 @@ static void reply(int fd) {
         length += got;
     }
     usleep(100000);
-    write_all(fd, "after-eof:", strlen("after-eof:"));
+    write_all(fd, identity, strlen(identity));
     write_all(fd, bytes, length);
     shutdown(fd, SHUT_WR);
     close(fd);
     _exit(0);
 }
 
-int main(void) {
+int main(int argc, char **argv) {
+    if (argc > 1) identity = argv[1];
     signal(SIGCHLD, SIG_IGN);
     signal(SIGPIPE, SIG_IGN);
     int tcp = listener(SOCK_STREAM, 8080);
