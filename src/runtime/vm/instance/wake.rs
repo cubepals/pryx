@@ -28,10 +28,15 @@ impl VmRuntime {
             return Err(RuntimeError::Conflict("This VM is already running".into()));
         }
         let bundle = self.bundle().await?;
-        let restored = self.thaw(&bundle, &entry, &image).await;
-        // Used once whatever happened: a guest that ran from it has moved on, and a refused
-        // restore leaves a cold boot from the disk as the only safe wake.
-        self.discard_memory(&mut entry)?;
+        // Used once whatever happens: a guest that ran from it has moved on, and a refused restore
+        // leaves a cold boot from the disk as the only safe wake. It is consumed before a monitor
+        // may load it, so a crash after the load never restores it again.
+        let consumed = self.consume(&mut entry)?;
+        let restored = self.thaw(&bundle, &entry, &image, &consumed).await;
+        if let Err(problem) = fs::remove_dir_all(&consumed) {
+            // The next start's sweep removes what is left.
+            tracing::warn!(sandbox = %entry.id, %problem, "A consumed VM memory image was not removed");
+        }
         match restored {
             Ok(live) => {
                 entry.finished = None;
@@ -50,14 +55,19 @@ impl VmRuntime {
         }
     }
 
-    /// A new monitor from the image: refused before it starts unless this host is of the
-    /// image's class and the disk is the one it was taken with. A monitor that started and
-    /// failed is killed before this returns.
-    pub(super) async fn thaw(&self, bundle: &Bundle, entry: &Entry, image: &Image) -> Result<Live, RuntimeError> {
+    /// A new monitor from the image's files in `store`: refused before it starts unless this host
+    /// is of the image's class and the disk is the one it was taken with. A monitor that started
+    /// and failed is killed before this returns.
+    pub(super) async fn thaw(
+        &self,
+        bundle: &Bundle,
+        entry: &Entry,
+        image: &Image,
+        store: &Path,
+    ) -> Result<Live, RuntimeError> {
         let started = Instant::now();
         restorable(bundle, entry, image)?;
-        let store = self.memory_directory(entry)?;
-        directory(&store)?;
+        directory(store)?;
         let (state, memory) = (store.join(STATE), store.join(MEMORY));
         // The same layer files the snapshot names; a file-only guest has none.
         let layers = if entry.spec.image.is_empty() {

@@ -480,3 +480,61 @@ async fn actual_memory_goes_with_its_sandbox() {
     assert!(fs::read_dir(&memory).unwrap().next().is_none(), "Guest memory never outlives its sandbox");
     server.abort();
 }
+
+/// A memory image is used once even across a crash: consumed before its restore, it is never
+/// restored by a pryxd that starts after a crash between that restore and its removal, which sweeps
+/// its files and boots the disk.
+#[tokio::test]
+#[ignore = "requires real KVM and the verified VM archive; the VM experiments workflow runs it"]
+async fn actual_memory_is_used_once_across_a_crash() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let temporary = tempfile::tempdir().unwrap();
+    let (artifact, server) = artifact_server().await;
+    let settings = Settings {
+        monitor_owner: None,
+        artifact,
+        ingress_connections: 8,
+        free_floor_bytes: 0,
+        image_timeout: Duration::from_secs(120),
+    };
+    let runtime = VmRuntime::new(temporary.path(), settings.clone()).await.unwrap();
+    let inputs: Vec<serde_json::Value> =
+        serde_json::from_str(include_str!("../../../../templates/vm-tools/image-inputs.json")).unwrap();
+    let data = temporary.path().join("data");
+    directory(&data).unwrap();
+    let original = spec(&data, inputs[0]["reference"].as_str().unwrap());
+    let id = runtime.create(&original).await.unwrap();
+    runtime.start(&id).await.unwrap();
+    exec(&runtime, &id, "printf kept > /tmp/marker; printf 'written before sleeping' > /data/durable").await;
+    runtime.pause(&id).await.unwrap();
+    let memory = runtime.state.root.join("memory");
+
+    // pryxd dies after consuming the image for a restore, before removing it.
+    let mut entry = runtime.entry(&id).unwrap();
+    let consumed = runtime.consume(&mut entry).unwrap();
+    assert!(consumed.join(super::memory::MEMORY).exists());
+    drop(runtime);
+    // The runtime's state lease is free once the last of its tasks has ended.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+    let runtime = loop {
+        match VmRuntime::new(temporary.path(), settings.clone()).await {
+            Ok(runtime) => break runtime,
+            Err(problem) if tokio::time::Instant::now() < deadline => {
+                eprintln!("VM runtime not yet free: {problem}");
+                tokio::time::sleep(Duration::from_millis(200)).await;
+            }
+            Err(problem) => panic!("{problem}"),
+        }
+    };
+    assert!(fs::read_dir(&memory).unwrap().next().is_none(), "The next start swept the consumed image");
+    let after = runtime.inspect(&id).await.unwrap().unwrap();
+    assert_ne!(after.status, ContainerStatus::Paused, "A consumed image is never asleep again");
+    let refused = runtime.unpause(&id).await.expect_err("A consumed image is never restored");
+    eprintln!("VM wake after a crash mid-restore: {refused}");
+    runtime.start(&id).await.unwrap();
+    assert_eq!(exec(&runtime, &id, "cat /data/durable").await, b"written before sleeping");
+    assert_eq!(read(&runtime, &id, "test -e /tmp/marker && echo memory || echo cold").await, "cold");
+
+    runtime.remove(&id).await.unwrap();
+    server.abort();
+}

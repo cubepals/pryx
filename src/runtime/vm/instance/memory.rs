@@ -122,6 +122,24 @@ impl VmRuntime {
         Ok(())
     }
 
+    /// Takes a sleep's image out of its sandbox's record before any monitor may load it: its files
+    /// move to a name no journal knows, and the record then says it has none. Answers where the
+    /// files are now; a crash after this never restores them, and the next start sweeps them.
+    pub(super) fn consume(&self, entry: &mut Entry) -> Result<PathBuf, RuntimeError> {
+        let directory = self.memory_directory(entry)?;
+        let consumed = directory.with_extension("consumed");
+        match fs::remove_dir_all(&consumed) {
+            Ok(()) => (),
+            Err(problem) if problem.kind() == std::io::ErrorKind::NotFound => (),
+            Err(problem) => return Err(error(problem)),
+        }
+        fs::rename(&directory, &consumed).map_err(error)?;
+        File::open(self.state.root.join("memory")).and_then(|directory| directory.sync_all()).map_err(error)?;
+        entry.memory = None;
+        self.save_entry(entry.clone())?;
+        Ok(consumed)
+    }
+
     /// Monitor actions go through the bundle's SDK transport, to the monitor's own API socket.
     pub(super) async fn monitor_action(
         bundle: &Bundle,
@@ -370,7 +388,8 @@ impl VmRuntime {
         let entry = inner.entry.clone();
         let image = self.freeze(bundle, &entry, &mut inner.live).await;
         drop(inner);
-        let mut live = self.thaw(bundle, &entry, &image?).await?;
+        // Never journaled, so nothing to consume: a crash leaves only files the next start sweeps.
+        let mut live = self.thaw(bundle, &entry, &image?, &self.memory_directory(&entry)?).await?;
         live.killing = true;
         let _ = tokio::time::timeout(crate::runtime::ENGINE_PROBE_TIMEOUT, live.monitor.kill()).await;
         live.forwarder.stop().await.map_err(error)
@@ -462,8 +481,8 @@ impl Drop for Bound {
 }
 
 /// At start, before any guest runs: every memory file no journal names as its sleep's image, which
-/// a removal or a crash mid-sleep left behind. Guest memory holds secrets, so nothing of it
-/// outlives the sandbox it was taken of.
+/// a removal, a crash mid-sleep or a wake that consumed it left behind. Guest memory holds
+/// secrets, so nothing of it outlives the sandbox it was taken of.
 pub(super) fn sweep(memory: &Path, entries: &BTreeMap<String, Entry>) -> Result<(), RuntimeError> {
     let mut kept = std::collections::HashSet::new();
     for entry in entries.values().filter(|entry| entry.memory.is_some()) {
