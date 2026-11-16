@@ -229,6 +229,7 @@ pub(in crate::runtime) fn serve(
 
 #[cfg(test)]
 mod tests {
+    use super::super::dns_listener::resolver;
     use super::*;
     use hickory_net::proto::rr::{RData, Record, rdata::A};
 
@@ -339,9 +340,8 @@ mod tests {
 
     #[tokio::test]
     async fn udp_upstream_preserves_negative_answers_and_ids() {
-        let udp = UdpSocket::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let (udp, tcp) = resolver(std::net::Ipv4Addr::LOCALHOST.into(), 0).await.unwrap();
         let address = udp.local_addr().unwrap();
-        let tcp = TcpListener::bind(address).await.unwrap();
         let server = tokio::spawn(async move {
             let mut bytes = vec![0; MAX_MESSAGE];
             let (size, peer) = udp.recv_from(&mut bytes).await.unwrap();
@@ -360,9 +360,8 @@ mod tests {
 
     #[tokio::test]
     async fn a_truncated_udp_answer_uses_one_framed_tcp_exchange() {
-        let udp = UdpSocket::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let (udp, tcp) = resolver(std::net::Ipv4Addr::LOCALHOST.into(), 0).await.unwrap();
         let address = udp.local_addr().unwrap();
-        let tcp = TcpListener::bind(address).await.unwrap();
         let server = tokio::spawn(async move {
             let mut bytes = vec![0; MAX_MESSAGE];
             let (size, peer) = udp.recv_from(&mut bytes).await.unwrap();
