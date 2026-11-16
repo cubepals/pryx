@@ -43,13 +43,7 @@ apt_options=(-o "Dir::Etc::sourcelist=$root/ubuntu.sources" -o "Dir::Etc::source
 if ! sudo apt-get "${apt_options[@]}" update -o APT::Update::Error-Mode=any; then
   ubuntu_mirror=$(jq -r .ubuntuFallbackMirror "$manifest")
   sed -i "s|^URIs:.*|URIs: $ubuntu_mirror|" "$root/ubuntu.sources"
-  if ! sudo apt-get "${apt_options[@]}" update -o APT::Update::Error-Mode=any; then
-    # Both pinned mirrors unreachable from this runner: last, the runner's own archive chain.
-    cp /etc/apt/sources.list.d/ubuntu.sources "$root/ubuntu.sources"
-    ubuntu_mirror=$(sed -n 's/^URIs: *\([^ ]*\).*/\1/p' "$root/ubuntu.sources" | head -n 1)
-    ubuntu_mirror=${ubuntu_mirror%/}
-    sudo apt-get "${apt_options[@]}" update -o APT::Update::Error-Mode=any
-  fi
+  sudo apt-get "${apt_options[@]}" update -o APT::Update::Error-Mode=any
 fi
 sudo apt-get "${apt_options[@]}" install -y uidmap slirp4netns
 
