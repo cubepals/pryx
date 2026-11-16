@@ -5032,3 +5032,21 @@ job when publication is authorized. That job has not run in this task.
   failed once in control end to end: the container agent test's exposed port answered "Agent
   unavailable" after an edge relay ECONNRESET. The same code passed that job on k27 at `26aee02`;
   it is recorded here, not yet explained.
+
+
+- K24 desktop-front follow-up at source `2bc5b07`: the unchanged portable front test passes
+  100 consecutive runs on the bundle's Node 24.22.1 and 100 on CI's pinned Node 22.23.2. A
+  separate real Unix-socket control pauses its client while the committed front transfers
+  an 8 MiB upstream response; all 8,388,685 header/payload bytes arrive. These are three
+  distinct investigations, not evidence of the earlier failure's cause. Its assertion,
+  exception and stderr were not retained, so that historical cause remains parked for
+  captured evidence; the desktop capability and its tests remain active.
+- The portable test now retains redacted request-phase, socket/HTTP closure, byte-count and
+  exception diagnostics, plus its owned Node stderr, before fixture cleanup on failure.
+  Successful runs produce no retained failure report. The existing `upstream-process-tools`
+  artifact includes `desktop-front-failures.jsonl`; no job, gate, assertion or deadline is
+  added or relaxed. A deliberate owned-listener closure still fails the original assertion
+  and verifies phase/error capture, pre-cleanup retention and generated-credential redaction.
+  The local process-tools suite passes four tests with six existing component/cache skips;
+  the front also passes on Node 22.23.2. Actionlint with ShellCheck and whitespace checks
+  pass. Hosted artifact delivery and any historical recurrence remain unproved.

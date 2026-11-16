@@ -211,6 +211,7 @@ jobs:
             ${{ runner.temp }}/process-tool-sources.json
             ${{ runner.temp }}/native-process-acceptance.log
             ${{ runner.temp }}/native-artifact-server.log
+            ${{ runner.temp }}/desktop-front-failures.jsonl
             ${{ runner.temp }}/desktop-design.json
             ${{ runner.temp }}/desktop-component.json
             ${{ runner.temp }}/desktop-live.json
