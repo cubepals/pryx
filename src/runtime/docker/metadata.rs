@@ -2,6 +2,7 @@
 //! Live engine metadata and ownership observation. Container operations and policy application
 //! stay in their own Docker backend modules; no engine capability is inferred from a version.
 use super::*;
+use std::sync::atomic::Ordering;
 
 impl DockerRuntime {
     pub(super) async fn metadata(&self) -> Result<RuntimeInfo, RuntimeError> {
@@ -81,6 +82,7 @@ impl DockerRuntime {
             gvisor::enforcement(&mut result);
         }
         let result = self.observed_policies(result).await;
+        self.connected_on_demand.fetch_or(result.disconnected_ingress(self.isolation()), Ordering::Release);
         *self.info.lock().unwrap() = Some(result.clone());
         Ok(result)
     }
@@ -104,7 +106,8 @@ impl DockerRuntime {
         if result.container_policy_problem.is_none() {
             result.container_policy_problem = ownership::problem(self, &result).await;
         }
-        if result.rootless && !result.podman && result.container_policy_problem.is_none() {
+        if result.rootless && !result.podman && self.oci_runtime.is_none() && result.container_policy_problem.is_none()
+        {
             result.private_ingress = Some(self.ingress.available().await);
         }
         if result.container_policy_problem.is_none() && self.oci_runtime.is_some() {

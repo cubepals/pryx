@@ -7,8 +7,10 @@ the cases prove cleanup after setup fails, rather than claiming filesystem capab
 """
 import importlib.util
 import io
+import os
 from pathlib import Path
 import tempfile
+import subprocess
 import time
 from types import SimpleNamespace
 import unittest
@@ -153,6 +155,25 @@ class SetupCleanup(unittest.TestCase):
         self.assertTrue(probe.violation)
         self.assertTrue(log.closed)
         self.assertIn('unconfirmed', probe.results[-1]['invariantFailure'])
+
+    def test_write_phases_identify_host_read_without_printing_fixture_contents(self):
+        with tempfile.TemporaryDirectory() as directory:
+            host = Path(directory)/'from-host'
+            host.write_text('host-first')
+            def write(expected, value):
+                return subprocess.run(['sh', '-c', PROBE.OWNERSHIP_WRITE, 'ownership', str(os.geteuid()),
+                                       str(os.getegid()), expected, value, directory],
+                                      capture_output=True, text=True, timeout=3, check=False)
+            first = write('host-first', 'sandbox-first')
+            self.assertEqual(first.returncode, 0, first.stderr)
+            host.write_text('host-second')
+            stale = write('host-first', 'sandbox-second')
+            self.assertNotEqual(stale.returncode, 0)
+            self.assertIn('failed:host-read', stale.stderr)
+            self.assertNotIn('host-second', stale.stdout+stale.stderr)
+            second = write('host-second', 'sandbox-second')
+            self.assertEqual(second.returncode, 0, second.stderr)
+            self.assertEqual((Path(directory)/'marker').read_text(), 'sandbox-second')
 
 
 if __name__ == '__main__':

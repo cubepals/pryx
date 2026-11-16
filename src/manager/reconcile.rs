@@ -123,7 +123,21 @@ impl Manager {
             (LABEL_MANAGED.to_owned(), "true".to_owned()),
             (LABEL_DEPLOYMENT.to_owned(), self.config.deployment_id.clone()),
         ]);
-        let network = self.note(self.runtime.ensure_network(&self.config.docker.network, &network_labels).await)?;
+        let info = self.runtime.info().await.ok();
+        let disconnected = info.as_ref().is_some_and(|info| info.disconnected_ingress(self.runtime.isolation()));
+        // Loopback-only work needs no bridge, but an existing connected bridge must still
+        // be monitored. Internet create retains strict admission before any compute.
+        let isolated = if disconnected {
+            self.note(self.runtime.network_isolated(&self.config.docker.network).await)?
+        } else {
+            Some(self.note(self.runtime.ensure_network(&self.config.docker.network, &network_labels).await)?.isolated)
+        };
+        if isolated == Some(false) {
+            host_issues.push(Issue::new(
+                IssueCode::NetworkNotIsolated,
+                format!("{} lets workloads reach each other (enable_icc is not false)", self.config.docker.network),
+            ));
+        }
         if self.runtime.supports_network_policy() {
             self.note(
                 self.runtime
@@ -134,13 +148,7 @@ impl Manager {
                     .await,
             )?;
         }
-        if !network.isolated {
-            host_issues.push(Issue::new(
-                IssueCode::NetworkNotIsolated,
-                format!("{} lets workloads reach each other (enable_icc is not false)", self.config.docker.network),
-            ));
-        }
-        if let Ok(info) = self.runtime.info().await {
+        if let Some(info) = info {
             if info.live_restore != Some(true) {
                 host_issues.push(Issue::new(
                     IssueCode::LiveRestoreOff,
@@ -167,7 +175,13 @@ impl Manager {
                 continue;
             }
             let result = async {
-                let network = backend.ensure_network(&self.config.docker.network, &labels).await?;
+                let disconnected =
+                    self.runtime.tier_info(tier).is_some_and(|info| info.disconnected_ingress(backend.isolation()));
+                let isolated = if disconnected {
+                    backend.network_isolated(&self.config.docker.network).await?
+                } else {
+                    Some(backend.ensure_network(&self.config.docker.network, &labels).await?.isolated)
+                };
                 if backend.supports_network_policy() {
                     backend
                         .ensure_internal_network(
@@ -176,11 +190,11 @@ impl Manager {
                         )
                         .await?;
                 }
-                Ok::<_, RuntimeError>(network)
+                Ok::<_, RuntimeError>(isolated)
             }
             .await;
             match result {
-                Ok(network) if !network.isolated => issues.push(Issue::new(
+                Ok(Some(false)) => issues.push(Issue::new(
                     IssueCode::NetworkNotIsolated,
                     format!("{tier} network does not enforce host isolation policy"),
                 )),

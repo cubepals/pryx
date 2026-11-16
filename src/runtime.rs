@@ -280,6 +280,16 @@ pub struct RuntimeInfo {
     pub(crate) memory_sleep: bool,
 }
 
+impl RuntimeInfo {
+    /// A verified private exec pipe reaches loopback without attaching a network device.
+    pub(crate) fn disconnected_ingress(&self, isolation: &str) -> bool {
+        isolation == crate::protocol::Isolation::Container.as_str()
+            && self.rootless
+            && !self.podman
+            && self.private_ingress == Some(true)
+    }
+}
+
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct NetworkReport {
     /// False when the network lets workloads talk to each other; reported, not fixed, since the

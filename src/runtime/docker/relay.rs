@@ -20,7 +20,7 @@ use tokio::{
 };
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
-use crate::labels::LABEL_INTERNAL_BINDINGS;
+use crate::labels::{LABEL_INTERNAL_BINDINGS, LABEL_RECORD, LabelRecord};
 const MAX_CONNECTIONS: usize = 256;
 const DATAGRAM_BYTES: usize = pryx_agent::exec_ingress::DATAGRAM_BYTES;
 const UDP_IDLE: Duration = Duration::from_secs(60);
@@ -50,6 +50,20 @@ impl Relays {
             }
         }
     }
+    /// Retire any lease whose host declaration disappeared or cannot be authenticated.
+    async fn verified_bindings(
+        &self,
+        info: &ContainerInspectResponse,
+        id: &str,
+        encoded: &str,
+    ) -> Result<Vec<PortBinding>, RuntimeError> {
+        let bindings = declared(info, encoded);
+        match &bindings {
+            Ok(bindings) if !bindings.is_empty() => {}
+            _ => self.stop(id).await,
+        }
+        bindings
+    }
     pub(super) async fn ensure(
         &self,
         runtime: &DockerRuntime,
@@ -64,6 +78,21 @@ impl Relays {
         let name = info.name.as_deref().unwrap_or(id).trim_start_matches('/');
         if info.state.as_ref().and_then(|s| s.running) != Some(true) {
             self.stop(id).await;
+            return Ok(());
+        }
+        let metadata = runtime.info.lock().unwrap().clone();
+        let metadata = match metadata {
+            Some(metadata) => metadata,
+            None => runtime.info().await?,
+        };
+        // Native Podman always owns its published ingress, including containers made before
+        // empty binding labels were written. An inherited image label is never a relay lease.
+        if metadata.podman {
+            self.stop(id).await;
+            return Ok(());
+        }
+        let bindings = self.verified_bindings(info, id, encoded).await?;
+        if bindings.is_empty() {
             return Ok(());
         }
         let start = info.state.as_ref().and_then(|state| state.started_at.clone());
@@ -81,16 +110,10 @@ impl Relays {
                 lease.retire().await;
             }
         }
-        let metadata = runtime.info.lock().unwrap().clone();
-        let metadata = match metadata {
-            Some(metadata) => metadata,
-            None => runtime.info().await?,
-        };
         let execute = metadata.rootless && !metadata.podman;
         if execute {
             super::relay_exec::retire_orphans(runtime, info).await?;
         }
-        let bindings: Vec<PortBinding> = serde_json::from_str(encoded).map_err(error)?;
         let ip = (!execute)
             .then(|| {
                 info.network_settings
@@ -143,6 +166,36 @@ impl Relays {
         Ok(())
     }
 }
+/// Image defaults are not declarations. Only the immutable host record can authorize a
+/// private lease; historical internet labels are ignored even when their JSON is malformed.
+fn declared(info: &ContainerInspectResponse, encoded: &str) -> Result<Vec<PortBinding>, RuntimeError> {
+    let bindings = serde_json::from_str::<Vec<PortBinding>>(encoded);
+    if bindings.as_ref().is_ok_and(Vec::is_empty) {
+        return Ok(Vec::new());
+    }
+    let record = info
+        .config
+        .as_ref()
+        .and_then(|config| config.labels.as_ref())
+        .and_then(|labels| labels.get(LABEL_RECORD))
+        .and_then(|encoded| serde_json::from_str::<LabelRecord>(encoded).ok())
+        .ok_or_else(|| error("network-policy needs its host-written record before private ingress can be restored"))?;
+    if record.spec.network != crate::protocol::NetworkMode::None {
+        return Ok(Vec::new());
+    }
+    let bindings = bindings.map_err(|_| error("network-policy private binding record is malformed"))?;
+    if !bindings.iter().all(|binding| {
+        record.ports.iter().any(|port| {
+            port.container_port == binding.container_port
+                && port.host_port == binding.host_port
+                && port.protocol == binding.protocol
+        })
+    }) {
+        return Err(error("network-policy private bindings do not match the host-written port record"));
+    }
+    Ok(bindings)
+}
+
 #[derive(Clone)]
 enum Backend {
     Direct(SocketAddr),

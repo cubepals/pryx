@@ -28,6 +28,7 @@
 //! - `native_tools.rs`: explicit host-only seccomp and FUSE device policy.
 //! - `tests.rs`: container construction and host process ownership regressions.
 //! - `policy_tests.rs`: transport regression for unsupported engine policy refusal.
+//! - `network_mode_tests.rs`: private-loopback admission without a connected bridge.
 //! - `termination.rs`: kernel process ancestry and cgroup-owned exec cleanup.
 //! - `relay_exec.rs`: protected rootless internal ingress over Docker exec.
 //! - `relay.rs`: bounded private ingress to gateway-free internal networks.
@@ -45,6 +46,8 @@ pub use gvisor::{EXEC_TIMEOUT_PROBLEM, GVISOR_MISSING_PROBLEM, GVISOR_RUNTIME, p
 mod metadata;
 mod native_tools;
 mod network;
+#[cfg(test)]
+mod network_mode_tests;
 mod oom;
 mod oom_journal;
 pub(crate) mod ownership;
@@ -131,6 +134,9 @@ pub struct DockerRuntime {
     metadata_version: std::sync::Mutex<Option<bollard::models::SystemVersion>>,
     relays: relay::Relays,
     ingress: relay_exec::Support,
+    // Once verified private ingress permits lazy bridge preparation, connected creates
+    // retain that admission check even if the installed agent subsequently disappears.
+    connected_on_demand: std::sync::atomic::AtomicBool,
     egress: egress::Egress,
     native_tools: native_tools::Policy,
     pub(super) ownership: ownership::Policy,
@@ -190,6 +196,7 @@ impl DockerRuntime {
             metadata_version: std::sync::Mutex::new(None),
             relays: relay::Relays::default(),
             ingress: relay_exec::Support::new(crate::config::WorkloadPolicy::default().agent_binary),
+            connected_on_demand: std::sync::atomic::AtomicBool::new(false),
             egress: Default::default(),
             native_tools: Default::default(),
             ownership: Default::default(),
@@ -425,7 +432,7 @@ impl ContainerRuntime for DockerRuntime {
             .lock()
             .unwrap()
             .as_ref()
-            .is_none_or(|info| !info.rootless || info.podman || info.private_ingress == Some(true))
+            .is_none_or(|info| !info.rootless || info.podman || info.disconnected_ingress(self.isolation()))
     }
 
     async fn ensure_internal_network(&self, name: &str, labels: &BTreeMap<String, String>) -> Result<(), RuntimeError> {
