@@ -154,20 +154,7 @@ async fn actual_memory_sleep_keeps_a_running_process_and_falls_back_to_its_disk(
     let refused = runtime.unpause(&id).await;
     cold_boot_after(&runtime, &id, refused).await;
 
-    // A new bundle cannot give an old memory image its init's capabilities. Missing legacy
-    // identity and a changed bootstrap both boot the disk; matching images resumed above.
-    for bootstrap in ["", "another-bootstrap"] {
-        exec(&runtime, &id, "printf kept > /tmp/marker").await;
-        runtime.pause(&id).await.unwrap();
-        {
-            let mut entries = runtime.state.entries.lock().unwrap();
-            let image = entries.get_mut(&id).unwrap().memory.as_mut().unwrap();
-            assert!(!image.bootstrap_sha256.is_empty(), "A new sleep records its actual bootstrap");
-            image.bootstrap_sha256 = bootstrap.into();
-        }
-        let refused = runtime.unpause(&id).await;
-        cold_boot_after(&runtime, &id, refused).await;
-    }
+    bootstrap_mismatches_boot_the_disk(&runtime, &id).await;
 
     // Stopping a sleeping guest ends its memory as a kill does, and keeps its disk.
     runtime.pause(&id).await.unwrap();
@@ -180,6 +167,22 @@ async fn actual_memory_sleep_keeps_a_running_process_and_falls_back_to_its_disk(
     assert_eq!(exec(&runtime, &id, "cat /data/durable").await, b"written before sleeping");
     runtime.remove(&id).await.unwrap();
     server.abort();
+}
+
+/// Missing legacy bootstrap identity and a changed bootstrap both boot the disk.
+async fn bootstrap_mismatches_boot_the_disk(runtime: &VmRuntime, id: &str) {
+    for bootstrap in ["", "another-bootstrap"] {
+        exec(runtime, id, "printf kept > /tmp/marker").await;
+        runtime.pause(id).await.unwrap();
+        {
+            let mut entries = runtime.state.entries.lock().unwrap();
+            let image = entries.get_mut(id).unwrap().memory.as_mut().unwrap();
+            assert!(!image.bootstrap_sha256.is_empty(), "A new sleep records its actual bootstrap");
+            image.bootstrap_sha256 = bootstrap.into();
+        }
+        let refused = runtime.unpause(id).await;
+        cold_boot_after(runtime, id, refused).await;
+    }
 }
 
 /// One shell line's output in `id`'s guest, trimmed.
