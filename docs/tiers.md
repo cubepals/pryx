@@ -255,9 +255,32 @@ from gVisor's network stack), host FUSE devices and the browser's own sandbox un
 The namespaced process mode is a guarantee, not a tier ([process isolation](process-tier.md)):
 a `process` request gets whichever mode the host gives and reports it.
 
-Measured figures, thirty samples each, are printed by the gvisor run of the Docker suite
-(`K26_MEASURE`) beside the container tier on the same runner; they are recorded here once that
-run is green.
+Thirty samples each, nearest-rank p50 / p90 in milliseconds, all from the test job of CI run
+[43774620164](https://github.com/cubepals/pryx/actions/runs/43774620164) (source d0bb064, one
+x86_64 Ubuntu 24.04 hosted runner, host kernel 7.0.0-1014-aws; gVisor's sandboxes report
+4.19.0-gvisor). They are **direct node-manager measurements**, without the public API or the
+edge, so they sit beside each other, not beside the public cohorts above. Container and gvisor
+run alpine 3.22 on the runner's Docker 28.0.4, gvisor through runsc release-20261109.0 on its
+systrap platform; their exec is a node exec (Docker's). The process rows run the real agent,
+whose exec is the agent's own: namespaced on the runner, after the AppArmor profile `pryx doctor`
+printed for its helper, and plain inside a default `docker run` of Ubuntu 24.04 as root. Create
+is ensure and start until running; syscall-heavy is `dd if=/dev/zero of=/dev/null bs=1
+count=200000`; the stream is 256 KiB of command output back through the exec path; the transfer
+is 16 MiB read from the workload's published port (process sandboxes have none with network
+none). Raw lines (`K26_MEASURE`) are in that job's log.
+
+| Tier or mode | Create | Exec `true` | Syscall-heavy | 256 KiB exec stream | 16 MiB transfer |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Container | 124.66 / 129.52 | 28.10 / 51.33 | 217.90 / 279.85 | 27.70 / 68.43 | 8.89 / 9.84 |
+| gVisor | 128.38 / 135.60 | 42.39 / 114.04 | 5,762.68 / 5,893.10 | 21.23 / 83.14 | 71.38 / 76.64 |
+| Process, plain (default `docker run`) | 21.10 / 21.63 | 4.71 / 4.82 | 65.99 / 66.70 | 18.42 / 19.07 | — |
+| Process, namespaced | 15.97 / 16.46 | 5.69 / 5.89 | 70.61 / 71.39 | 19.16 / 19.72 | — |
+
+gVisor's systrap platform makes each system call a trap into its own kernel: the 400,000
+one-byte reads and writes cost about 26 times what they cost a container, and the published-port
+transfer about 8 times, while start and an exec cost about the same. The namespaced process mode
+costs nothing measurable over the plain one at start and about 1 ms an exec; its system calls are
+the host kernel's own.
 
 ## Capabilities
 
