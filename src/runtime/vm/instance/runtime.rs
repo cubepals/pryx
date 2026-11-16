@@ -491,7 +491,8 @@ impl ContainerRuntime for VmRuntime {
         if self.state.live.lock().unwrap().contains_key(&entry.id) {
             return Err(RuntimeError::Conflict("VM started while removal was waiting; its record is retained".into()));
         }
-        self.forget_entry(&entry.id)
+        self.forget_entry(&entry.id)?;
+        self.remove_leases(&entry)
     }
     async fn inspect(&self, name: &str) -> Result<Option<ContainerInfo>, RuntimeError> {
         self.observe(name).await

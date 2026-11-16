@@ -263,6 +263,9 @@ async fn actual_jailer_boots_both_images_and_recovers_the_original_disk() {
                 image: spec.image.clone(),
                 pinned: None,
                 timeout_seconds: 120,
+                free_floor_bytes: 0,
+                keep: Vec::new(),
+                evict: false,
             },
         )
         .await

@@ -8,7 +8,8 @@ use serde::{Deserialize, Serialize};
 use std::{path::PathBuf, process::Stdio, time::Duration};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-pub const MAX_REQUEST_BYTES: u64 = 16 * 1024;
+/// Room for a list of every manifest the runtime's VMs keep, beside the request itself.
+pub const MAX_REQUEST_BYTES: u64 = 256 * 1024;
 pub const MAX_RESPONSE_BYTES: u64 = 4 * 1024 * 1024;
 /// The most layers a VM image may have: each is a disk of the guest, and the guest boots no more.
 pub use pryx_agent::vm_boot::MAX_LAYERS;
@@ -36,6 +37,16 @@ pub struct Request {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pinned: Option<String>,
     pub timeout_seconds: u64,
+    /// The host's free-space floor: no layer is fetched or converted past it. Short of room, the
+    /// helper first removes the converted layers no kept manifest and not this image names.
+    #[serde(default)]
+    pub free_floor_bytes: u64,
+    /// The manifest digests some VM of the runtime needs: their layers are never removed.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub keep: Vec<String>,
+    /// Once this image is prepared, remove every layer no kept manifest and not it names.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub evict: bool,
 }
 
 #[derive(Clone, Deserialize, Serialize)]

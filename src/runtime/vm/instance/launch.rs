@@ -148,6 +148,17 @@ impl VmRuntime {
         pinned: Option<&str>,
         timeout: Duration,
     ) -> Result<Prepared, RuntimeError> {
+        self.prepare_image(image, pinned, timeout, false).await
+    }
+    /// The helper removes converted layers no VM here needs when the host's free-space floor
+    /// would otherwise be crossed, and with `evict` once this image is prepared.
+    pub(super) async fn prepare_image(
+        &self,
+        image: &str,
+        pinned: Option<&str>,
+        timeout: Duration,
+        evict: bool,
+    ) -> Result<Prepared, RuntimeError> {
         let bundle = self.bundle().await?;
         super::super::image::prepare(
             &bundle.root().join("bin/pryx-vm-image"),
@@ -159,9 +170,33 @@ impl VmRuntime {
                 image: image.into(),
                 pinned: pinned.map(String::from),
                 timeout_seconds: timeout.as_secs(),
+                free_floor_bytes: self.state.settings.free_floor_bytes,
+                keep: self.kept_images(),
+                evict,
             },
         )
         .await
+    }
+    /// The manifests some VM of this runtime needs: each one's pin, a digest its image names, and
+    /// a first launch's between its preparation and its monitor's opening the layers.
+    fn kept_images(&self) -> Vec<String> {
+        let mut kept: std::collections::BTreeSet<String> = self
+            .state
+            .entries
+            .lock()
+            .unwrap()
+            .values()
+            .flat_map(|entry| {
+                entry.image_digest.iter().cloned().chain(named_digest(&entry.spec.image).map(String::from))
+            })
+            .collect();
+        kept.extend(self.state.launching.lock().unwrap().keys().cloned());
+        kept.into_iter().collect()
+    }
+    /// Holds `digest`'s layers from their preparation until the launch that took them ends.
+    fn launching(&self, digest: &str) -> Launching<'_> {
+        *self.state.launching.lock().unwrap().entry(digest.into()).or_default() += 1;
+        Launching { runtime: self, digest: digest.into() }
     }
     /// A pinned image this runtime already prepared needs no helper while its layer files are
     /// the ones the helper verified; anything else goes through the helper.
@@ -225,6 +260,7 @@ impl VmRuntime {
         // under its retained disk, and a cached pin needs no registry.
         let image =
             self.pinned(&entry.spec.image, entry.image_digest.as_deref(), self.state.settings.image_timeout).await?;
+        let _launching = self.launching(&image.digest);
         entry.image_digest = Some(image.digest.clone());
         stages.mark("image");
         let bundle = self.bundle().await?;
@@ -308,6 +344,22 @@ impl VmRuntime {
             })),
         );
         Ok(())
+    }
+}
+
+pub(super) struct Launching<'a> {
+    runtime: &'a VmRuntime,
+    digest: String,
+}
+impl Drop for Launching<'_> {
+    fn drop(&mut self) {
+        let mut launching = self.runtime.state.launching.lock().unwrap();
+        if let Some(count) = launching.get_mut(&self.digest) {
+            *count -= 1;
+            if *count == 0 {
+                launching.remove(&self.digest);
+            }
+        }
     }
 }
 

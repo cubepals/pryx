@@ -9,7 +9,12 @@ use pryxd::runtime::{
         image::{self, Request},
     },
 };
-use std::{fs, os::unix::fs::PermissionsExt, path::PathBuf, time::Duration};
+use std::{
+    fs,
+    os::unix::fs::{MetadataExt, PermissionsExt},
+    path::PathBuf,
+    time::Duration,
+};
 
 #[tokio::test]
 #[ignore = "requires the verified VM filesystem component; the optional VM workflow runs it"]
@@ -33,7 +38,7 @@ async fn real_oci_layers_are_verified_cached_and_corruption_is_refused() {
     let mut observations = Vec::new();
     let inputs: Vec<serde_json::Value> =
         serde_json::from_str(include_str!("../../templates/vm-tools/image-inputs.json")).unwrap();
-    for (index, input) in inputs.into_iter().enumerate() {
+    for (index, input) in inputs.iter().enumerate() {
         let reference = input["reference"].as_str().unwrap();
         let image = images.prepare(reference, Duration::from_secs(120)).await.unwrap();
         assert!(!image.layers.is_empty());
@@ -76,6 +81,9 @@ async fn real_oci_layers_are_verified_cached_and_corruption_is_refused() {
             image: reference.into(),
             pinned: None,
             timeout_seconds: 120,
+            free_floor_bytes: 0,
+            keep: Vec::new(),
+            evict: false,
         };
         let prepared = image::prepare(&helper, &request).await.unwrap();
         assert_eq!(prepared.digest, image.digest);
@@ -128,6 +136,48 @@ async fn real_oci_layers_are_verified_cached_and_corruption_is_refused() {
         // record before moving to another image, rather than repairing a bad cache silently.
         fs::remove_file(corrupt.with_extension("json")).unwrap();
     }
+    // A VM keeps its manifest's layers through an eviction for another image, and through the
+    // host's floor, and they serve offline; with nothing keeping them, they go.
+    let cache = staging.path().join("eviction");
+    let request = |reference: &str, keep: Vec<String>, evict: bool, free_floor_bytes: u64| Request {
+        component: component.clone(),
+        manifest_sha256: manifest.clone(),
+        launcher: launcher.clone(),
+        cache: cache.clone(),
+        image: reference.into(),
+        pinned: None,
+        timeout_seconds: 120,
+        free_floor_bytes,
+        keep,
+        evict,
+    };
+    let (kept_reference, other_reference) =
+        (inputs[0]["reference"].as_str().unwrap(), inputs[1]["reference"].as_str().unwrap());
+    let kept = image::prepare(&helper, &request(kept_reference, Vec::new(), false, 0)).await.unwrap();
+    let identities = |layers: &[PathBuf]| {
+        layers.iter().map(|layer| fs::metadata(layer).map(|info| (info.dev(), info.ino())).ok()).collect::<Vec<_>>()
+    };
+    let before = identities(&kept.layers);
+    assert!(before.iter().all(Option::is_some));
+    let other = image::prepare(&helper, &request(other_reference, vec![kept.digest.clone()], true, 0)).await.unwrap();
+    assert_eq!(identities(&kept.layers), before, "A kept manifest lost a layer");
+    let offline = Request {
+        pinned: Some(kept.digest.clone()),
+        ..request("registry.invalid/pryx/unreachable:moved", Vec::new(), false, 0)
+    };
+    assert_eq!(image::prepare(&helper, &offline).await.unwrap().layers, kept.layers);
+    image::prepare(&helper, &request(other_reference, Vec::new(), true, 0)).await.unwrap();
+    assert!(identities(&kept.layers).iter().all(Option::is_none), "Layers no VM keeps were kept");
+    assert!(identities(&other.layers).iter().all(Option::is_some));
+    // Past the floor nothing is fetched, even once nothing else is left to remove.
+    let refused = match image::prepare(&helper, &request(kept_reference, Vec::new(), false, u64::MAX)).await {
+        Ok(_) => panic!("An image was fetched past the host's floor"),
+        Err(problem) => problem.to_string(),
+    };
+    assert!(refused.contains("free-space floor"), "{refused}");
+    assert!(identities(&kept.layers).iter().all(Option::is_none));
+    observations
+        .push(serde_json::json!({"eviction": "kept manifest kept and served offline; unkept removed; floor refused"}));
     if let Some(path) = std::env::var_os("PRYX_VM_IMAGE_REPORT") {
         fs::write(path, serde_json::to_vec_pretty(&serde_json::json!({"scope": "Real OCI preparation only; no production VM boot", "status": "success", "images": observations})).unwrap()).unwrap();
     }

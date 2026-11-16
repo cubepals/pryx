@@ -23,10 +23,13 @@ async fn prepare() -> Result<Prepared, RuntimeError> {
         return Err(pryx_vm_image::error("VM image preparation needs an absolute private cache and a deadline"));
     }
     let tools = FilesystemTools::verified(&request.component, &request.manifest_sha256, &request.launcher)?;
-    let images = Images::new(request.cache, tools)?;
-    let prepared = images
-        .prepare_pinned(&request.image, request.pinned.as_deref(), Duration::from_secs(request.timeout_seconds))
-        .await?;
+    let images = Images::new(request.cache, tools)?.with_room(request.free_floor_bytes, request.keep);
+    let timeout = Duration::from_secs(request.timeout_seconds);
+    let prepared = if request.evict {
+        images.prepare_evicting(&request.image, request.pinned.as_deref(), timeout).await?
+    } else {
+        images.prepare_pinned(&request.image, request.pinned.as_deref(), timeout).await?
+    };
     let configuration =
         serde_json::from_value(serde_json::to_value(prepared.configuration).map_err(pryx_vm_image::error)?)
             .map_err(pryx_vm_image::error)?;

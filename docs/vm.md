@@ -90,7 +90,12 @@ There is no image daemon. pryxd runs `pryx-vm-image`, a separate helper from the
    monitor has interrupts for no more. An image with more is refused before it is fetched.
 2. `mkfs.erofs --tar` turns each layer into a read-only EROFS file, keeping its owners,
    modes and times. Files are cached by layer digest and shared by every sandbox that uses
-   them. A cached layer counts only once its file is complete and its record written.
+   them. A cached layer counts only once its file is complete and its record written. No
+   layer is fetched or converted past the host's free-space floor (`min_free_disk_mb`); short
+   of room, the layers that no VM on the node needs go first: a VM, asleep or stopped
+   included, keeps every layer of the manifest it was first started on, so a fork whose parent
+   is gone still boots on its own. A local snapshot alone keeps none: forked or restored once
+   its layers went, it fetches that image again, as on another node.
 3. The sandbox gets `vm.ext4`, a sparse file the size of its storage, made by `mke2fs`. It
    holds the overlay's writable layer and the data directory.
 

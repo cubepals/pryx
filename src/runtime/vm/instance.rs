@@ -110,6 +110,8 @@ struct State {
     memory_sleep: Mutex<Option<Result<(), String>>>,
     /// Root's pair of monitor IDs for each VM (`monitor_ids.rs`).
     monitor_ids: Option<Mutex<monitor_ids::Ledger>>,
+    /// Manifests whose first launch is between preparation and monitor, with how many.
+    launching: Mutex<HashMap<String, usize>>,
 }
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct Entry {
@@ -211,6 +213,48 @@ fn lock(path: &Path) -> Result<File, RuntimeError> {
     })?;
     Ok(file)
 }
+/// A sandbox's lifetime lease, and its packet helper's beside it.
+fn lease_names(sandbox: &str) -> Result<[String; 2], RuntimeError> {
+    let digest = super::filesystems::sha256(sandbox.as_bytes()).map_err(error)?;
+    Ok([format!("{digest}.lock"), format!("{digest}.network.lock")])
+}
+
+/// Unlinks one lease while holding it, so nothing still running keeps a lock on the name; one
+/// that is held is left as it is.
+fn remove_lease(path: &Path) -> Result<(), RuntimeError> {
+    match fs::symlink_metadata(path) {
+        Err(problem) if problem.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(problem) => return Err(error(problem)),
+        Ok(_) => (),
+    }
+    match lock(path) {
+        Ok(_held) => fs::remove_file(path).map_err(error),
+        Err(RuntimeError::Unavailable(_)) => {
+            tracing::warn!(lease = %path.display(), "VM lease is still held; it is kept");
+            Ok(())
+        }
+        Err(problem) => Err(problem),
+    }
+}
+
+/// At start, after every predecessor's lease is free: the leases of sandboxes no journal names,
+/// which a removal before leases were removed with their VM left behind.
+fn sweep_leases(leases: &Path, entries: &BTreeMap<String, Entry>) -> Result<(), RuntimeError> {
+    let mut known = std::collections::HashSet::new();
+    for entry in entries.values() {
+        if let Some(agent) = &entry.spec.agent {
+            known.extend(lease_names(&agent.sandbox)?);
+        }
+    }
+    for path in fs::read_dir(leases).map_err(error)? {
+        let path = path.map_err(error)?.path();
+        if path.file_name().and_then(|name| name.to_str()).is_some_and(|name| !known.contains(name)) {
+            remove_lease(&path)?;
+        }
+    }
+    Ok(())
+}
+
 impl VmRuntime {
     pub async fn new(state: &Path, settings: Settings) -> Result<Self, RuntimeError> {
         monitor::owner(settings.monitor_owner)?;
@@ -247,6 +291,7 @@ impl VmRuntime {
             super::jail::Jail::recover_all(&root.join("jails"))?;
         }
         let entries = journal::load(&root)?;
+        sweep_leases(&root.join("leases"), &entries)?;
         let monitor_ids = settings
             .monitor_owner
             .map(|ids| monitor_ids::Ledger::load(&root, ids, |vm| entries.contains_key(vm)).map(Mutex::new))
@@ -263,6 +308,7 @@ impl VmRuntime {
                 prepared: Mutex::new(HashMap::new()),
                 memory_sleep: Mutex::new(None),
                 monitor_ids,
+                launching: Mutex::new(HashMap::new()),
             }),
         })
     }
@@ -315,13 +361,47 @@ impl VmRuntime {
     }
     fn lease(&self, entry: &Entry) -> Result<PathBuf, RuntimeError> {
         let sandbox = &entry.spec.agent.as_ref().ok_or_else(|| error("VM requires its authenticated agent"))?.sandbox;
-        Ok(self
-            .state
-            .root
-            .join("leases")
-            .join(format!("{}.lock", super::filesystems::sha256(sandbox.as_bytes()).map_err(error)?)))
+        let [lease, _] = lease_names(sandbox)?;
+        Ok(self.state.root.join("leases").join(lease))
+    }
+    /// A removed VM's leases go with it.
+    fn remove_leases(&self, entry: &Entry) -> Result<(), RuntimeError> {
+        let sandbox = &entry.spec.agent.as_ref().ok_or_else(|| error("VM requires its authenticated agent"))?.sandbox;
+        for name in lease_names(sandbox)? {
+            remove_lease(&self.state.root.join("leases").join(name))?;
+        }
+        Ok(())
     }
     fn names(&self) -> Vec<String> {
         self.state.entries.lock().unwrap().keys().cloned().collect()
+    }
+}
+
+#[cfg(test)]
+mod lease_tests {
+    use super::*;
+
+    #[test]
+    fn leases_go_with_their_vm_and_orphans_at_start_but_never_while_held() {
+        let root = tempfile::tempdir().unwrap();
+        let leases = root.path().join("leases");
+        directory(&leases).unwrap();
+        let spec = tests::spec(root.path(), "alpine:3.24");
+        let entry: Entry =
+            serde_json::from_value(serde_json::json!({"id": "vm-kept", "spec": spec, "code": 0})).unwrap();
+        let kept = lease_names(&spec.agent.as_ref().unwrap().sandbox).unwrap();
+        let orphans = lease_names(&uuid::Uuid::new_v4().simple().to_string()).unwrap();
+        for name in kept.iter().chain(&orphans) {
+            drop(lock(&leases.join(name)).unwrap());
+        }
+        let held = lock(&leases.join(&orphans[0])).unwrap();
+        sweep_leases(&leases, &BTreeMap::from([(entry.id.clone(), entry)])).unwrap();
+        let present = |name: &String| leases.join(name).exists();
+        assert!(kept.iter().all(present), "A journal's leases were swept");
+        assert!(present(&orphans[0]) && !present(&orphans[1]), "Only the free orphan goes");
+        drop(held);
+        sweep_leases(&leases, &BTreeMap::new()).unwrap();
+        assert_eq!(fs::read_dir(&leases).unwrap().count(), 0);
+        remove_lease(&leases.join(&kept[0])).unwrap();
     }
 }
