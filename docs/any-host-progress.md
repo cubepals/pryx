@@ -5047,7 +5047,7 @@ job when publication is authorized. That job has not run in this task.
   job also upgrades from the pinned release-20261102.0 to the server preset's pin, retaining
   the old sandbox's executable/version, identity and data while a new sandbox uses the new pin.
 - Authenticated deadline completion now comes from a static execute-only agent copy whose
-  image is non-dumpable before the kernel exposes it. A missing or forged completion retires
+  image blocks workload-UID proc reads before the kernel exposes it. A missing or forged completion retires
   that sandbox once; setup, starts and retirement share a gate and the original start identity,
   so old cleanup cannot kill a replacement. Legacy/readable agent mounts are refused before
   key delivery. Docker exec bootstrap overrides blank owner-defined material before creation;
@@ -5063,3 +5063,21 @@ job when publication is authorized. That job has not run in this task.
   runs; no local Docker/KVM pass is claimed. The ten assertions replace the earlier diagnostic
   repetitions; the live install-path replay adds an estimated two minutes to the existing Rust
   test job, with no new job or gate.
+
+- K26 CI follow-up: protected exec copies retain the complete ancestor, static-ELF,
+  execute-only and read-only checks, and use a trusted agent installation when the workload
+  store's ancestor chain belongs to another host identity. Both runtime-pin transitions wait
+  for Docker's exact selected executable after one reload. The eighth tool result, owner-death
+  retirement, remains required alongside the seven earlier template outcomes.
+- The exec owner now accepts Linux's root-only dump policy as protection from the workload
+  user, and disables dumping before READY/key admission. Local enum classification and real
+  transition/readback tests cover zero, ordinary and root-only policies; actual root-only exec
+  was not produced locally because this host's policy is zero and PR_SET_DUMPABLE rejects two.
+  The existing CI test block reports its kernel policy. Original failing wrapper stderr and
+  policy were not retained, so the earlier hosted failure's unique cause remains unproved.
+- Fork acceptance preserves the 128-task host bound and virtual nproc limit. It requires a real
+  guest fork refusal or a new target cgroup refusal with kernel pids.peak at most 128, no OOM,
+  empty target retirement and an unaffected neighbour. The managed local engine has no cgroup
+  driver and an older runsc; the repository-pinned runtime's private OCI startup was refused
+  with EPERM. No local gVisor enforcement or live-upgrade acceptance is claimed. Updated hosted
+  runs must supply that evidence.

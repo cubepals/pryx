@@ -213,6 +213,7 @@ test(
       expect(results).toEqual({
         image: 'ok',
         'node-exec-deadline': 'ok',
+        'node-exec-owner-killed': 'ok',
         'python-interpreter': 'ok',
         'node-interpreter': 'ok',
         browser: 'ok',

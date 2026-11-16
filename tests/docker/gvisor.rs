@@ -53,7 +53,7 @@ pub(super) fn pids_limited(inside: &str, _container: &str) {
 }
 
 #[tokio::test]
-#[ignore = "needs Docker; the gvisor run proves its virtual process bound"]
+#[ignore = "needs Docker and cgroup v2; the gvisor run proves its actual process bound"]
 async fn a_gvisor_fork_storm_hits_the_sandbox_process_bound() {
     if !on_gvisor() {
         return;
@@ -66,6 +66,19 @@ async fn a_gvisor_fork_storm_hits_the_sandbox_process_bound() {
     assert!(m.reconcile(Records::FromDisk).await.error.is_none());
     m.ensure(id("forks"), shell(SERVER, 512), Precondition::None, None).await.unwrap();
     m.start(id("forks"), None).await.unwrap();
+    m.ensure(id("neighbour"), shell(SERVER, 128), Precondition::None, None).await.unwrap();
+    m.start(id("neighbour"), None).await.unwrap();
+    let backend = bollard::Docker::connect_with_unix(
+        DockerConfig::default().socket.to_str().unwrap(),
+        60,
+        bollard::API_DEFAULT_VERSION,
+    )
+    .unwrap();
+    let target = m.view(&id("forks")).unwrap().locate.container_id.unwrap();
+    let neighbour = m.view(&id("neighbour")).unwrap().locate.container_id.unwrap();
+    assert_ne!(target, neighbour);
+    let neighbour_start = backend.inspect_container(&neighbour, None).await.unwrap().state.unwrap().started_at;
+    let host = super::process_bound::HostPids::capture(&backend, &target).await;
     let limit = m
         .exec(
             id("forks"),
@@ -76,33 +89,39 @@ async fn a_gvisor_fork_storm_hits_the_sandbox_process_bound() {
         .await
         .unwrap();
     assert_eq!(limit.stdout.trim(), "128", "{limit:?}");
-    let out = m
+    host.observe(m.exec(
+        id("forks"),
+        ExecRequest {
+            command: vec![
+                "sh".into(),
+                "-c".into(),
+                "exec 2>&1; i=0; while [ \"$i\" -lt 256 ]; do sleep 60 & i=$((i+1)); done; echo exceeded-limit".into(),
+            ],
+            timeout_seconds: 20,
+        },
+        None,
+        None,
+    ))
+    .await;
+    let stopped = m.stop(id("forks"), None, None).await.unwrap();
+    assert!(!stopped.workload.exit.expect("retirement must record an exit").oom_killed);
+    let stopped = backend.inspect_container(&target, None).await.unwrap().state.unwrap();
+    assert_eq!(stopped.running, Some(false));
+    assert_eq!(stopped.oom_killed, Some(false));
+    host.assert_empty().await;
+    let healthy = m
         .exec(
-            id("forks"),
-            ExecRequest {
-                command: vec![
-                    "sh".into(),
-                    "-c".into(),
-                    "exec 2>&1; i=0; while [ \"$i\" -lt 256 ]; do sleep 60 & i=$((i+1)); done; echo exceeded-limit"
-                        .into(),
-                ],
-                timeout_seconds: 20,
-            },
+            id("neighbour"),
+            ExecRequest { command: vec!["printf".into(), "neighbour-kept".into()], timeout_seconds: 10 },
             None,
             None,
         )
         .await
         .unwrap();
-    assert_ne!(out.exit_code, Some(0), "forking beyond the bound succeeded: {out:?}");
-    assert!(!out.stdout.contains("exceeded-limit"), "{out:?}");
-    // BusyBox ash.c reports its failed fork with "can't fork" and libc strerror.
-    assert!(out.stdout.contains("can't fork"), "the kernel refused a fork: {out:?}");
-    let stopped = m.stop(id("forks"), None, None).await.unwrap();
-    assert!(
-        !stopped.workload.exit.as_ref().is_some_and(|exit| exit.oom_killed),
-        "the process bound refused before memory exhaustion"
-    );
-    cleanup(&m, &["forks"]).await;
+    assert_eq!(healthy.exit_code, Some(0));
+    assert_eq!(healthy.stdout, "neighbour-kept");
+    assert_eq!(backend.inspect_container(&neighbour, None).await.unwrap().state.unwrap().started_at, neighbour_start);
+    cleanup(&m, &["forks", "neighbour"]).await;
 }
 
 /// Hostname egress on gvisor: never announced, and a create that names a policy is refused.

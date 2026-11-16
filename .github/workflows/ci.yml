@@ -146,7 +146,12 @@ jobs:
           sudo modprobe kvm
           test -c /dev/kvm
           sudo chown "$(id -u):$(id -g)" /dev/kvm
-      - run: cargo test --locked --no-fail-fast
+      - run: |
+          printf 'EXEC_OWNER_KERNEL suid_dumpable='
+          if ! cat /proc/sys/fs/suid_dumpable 2>/dev/null; then
+            printf 'unavailable\n'
+          fi
+          cargo test --locked --no-fail-fast
         env:
           PRYX_AGENTOS_DISTRIBUTION: ${{ runner.temp }}/agentos
           PRYX_PROBE_KVM: 'on'

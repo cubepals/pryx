@@ -23,9 +23,7 @@ pub fn run(arguments: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     if crate::fuse_namespace::readable(&std::env::current_exe()?) {
         return Err("exec-timeout refuses a readable owner; protection must hold before process creation".into());
     }
-    if rustix::process::dumpable_behavior()? != rustix::process::DumpableBehavior::NotDumpable {
-        return Err("exec-timeout owner was not protected by its kernel from creation".into());
-    }
+    protect_owner(rustix::process::dumpable_behavior()?)?;
     std::io::Write::write_all(&mut std::io::stderr().lock(), crate::exec_completion::READY)?;
     let key = crate::exec_completion::Key::read(&mut std::io::stdin().lock())?;
     rustix::process::set_child_subreaper(rustix::process::Pid::from_raw(1))?;
@@ -53,6 +51,21 @@ pub fn run(arguments: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     let code = status.code().unwrap_or_else(|| 128 + status.signal().unwrap_or(libc::SIGKILL));
     key.write(&mut std::io::stderr().lock(), code, timed_out)?;
     std::process::exit(code)
+}
+
+fn protect_owner(behavior: rustix::process::DumpableBehavior) -> Result<(), Box<dyn std::error::Error>> {
+    use rustix::process::{DumpableBehavior, dumpable_behavior, set_dumpable_behavior};
+    // Linux exec uses fs.suid_dumpable for an unreadable image. Both zero and root-only
+    // protect it from the workload's uid from creation; gVisor currently always uses zero.
+    if behavior == DumpableBehavior::Dumpable {
+        return Err("exec-timeout owner was not protected by its kernel from creation".into());
+    }
+    // Also suppress root-only core dumps before READY or receiving the private key.
+    set_dumpable_behavior(DumpableBehavior::NotDumpable)?;
+    if dumpable_behavior()? != DumpableBehavior::NotDumpable {
+        return Err("exec-timeout owner could not disable core dumps before receiving its key".into());
+    }
+    Ok(())
 }
 
 /// Ordinary Docker execs use the same trusted environment scrubber without changing their
@@ -83,4 +96,49 @@ fn command(arguments: &[String]) -> Result<std::process::Command, Box<dyn std::e
     }
     command.env_remove(crate::contract::MOUNTS_ENV).env_remove(crate::process_policy::POLICY_ENV);
     Ok(command)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rustix::process::{DumpableBehavior, dumpable_behavior};
+
+    #[test]
+    fn ordinary_dumpability_is_refused_without_changing_the_callers_policy() {
+        let before = dumpable_behavior().unwrap();
+        assert!(protect_owner(DumpableBehavior::Dumpable).is_err());
+        assert_eq!(dumpable_behavior().unwrap(), before);
+    }
+
+    #[test]
+    fn both_kernel_private_exec_states_disable_dumping_before_key_admission() {
+        // PR_SET_DUMPABLE no longer accepts two. Exercise the owner enum classification,
+        // and the real kernel transition/readback to zero, inside test-owned processes.
+        const STATE: &str = "PRYX_TEST_EXEC_OWNER_DUMPABILITY";
+        if let Ok(state) = std::env::var(STATE) {
+            let observed = match state.as_str() {
+                "private" => DumpableBehavior::NotDumpable,
+                "root-only" => DumpableBehavior::DumpableReadableOnlyByRoot,
+                _ => panic!("unexpected fixture state"),
+            };
+            protect_owner(observed).unwrap();
+            assert_eq!(dumpable_behavior().unwrap(), DumpableBehavior::NotDumpable);
+            return;
+        }
+        for state in ["private", "root-only"] {
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "exec_deadline::tests::both_kernel_private_exec_states_disable_dumping_before_key_admission",
+                ])
+                .env(STATE, state)
+                .output()
+                .unwrap();
+            assert!(output.status.success(), "{state}: {}", String::from_utf8_lossy(&output.stderr));
+            assert!(
+                String::from_utf8_lossy(&output.stdout).contains("1 passed"),
+                "the child must run the owned fixture"
+            );
+        }
+    }
 }
