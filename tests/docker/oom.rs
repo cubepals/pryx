@@ -34,6 +34,9 @@ async fn the_memory_limit_is_hard_and_an_oom_kill_is_reported() {
             m.stats(&id(&name)).await.ok();
             let view = m.view(&id(&name)).unwrap();
             if view.exit.is_some() || Instant::now() >= deadline {
+                if !view.exit.as_ref().is_some_and(|exit| exit.oom_killed) {
+                    failure_evidence(view.locate.container_id.as_deref()).await;
+                }
                 assert!(
                     view.exit.as_ref().is_some_and(|exit| exit.oom_killed),
                     "OOM trial {trial}: {:?} {:?}",
@@ -52,5 +55,59 @@ async fn the_memory_limit_is_hard_and_an_oom_kill_is_reported() {
             tokio::time::sleep(Duration::from_millis(300)).await;
         }
         cleanup(&m, &[&name]).await;
+    }
+}
+
+/// Capture only this owned container's fixed OOM fields before panic cleanup removes it.
+/// Never include its environment, command, labels or arbitrary event attributes.
+async fn failure_evidence(id: Option<&str>) {
+    use bollard::query_parameters::EventsOptionsBuilder;
+    use futures_util::StreamExt;
+    use std::collections::HashMap;
+    let Some(id) = id else {
+        eprintln!("OOM_FAILURE_EVIDENCE missing immutable container ID");
+        return;
+    };
+    let socket = DockerConfig::default().socket;
+    let Ok(docker) = bollard::Docker::connect_with_unix(socket.to_str().unwrap(), 3, bollard::API_DEFAULT_VERSION)
+    else {
+        eprintln!("OOM_FAILURE_EVIDENCE engine client unavailable");
+        return;
+    };
+    let capture = async {
+        let inspect = docker.inspect_container(id, None).await?;
+        let state = inspect.state.unwrap_or_default();
+        eprintln!(
+            "OOM_FAILURE_STATE {}",
+            serde_json::json!({
+                "id": inspect.id, "status": state.status, "oomKilled": state.oom_killed,
+                "exitCode": state.exit_code, "startedAt": state.started_at, "finishedAt": state.finished_at,
+            })
+        );
+        let now = time::OffsetDateTime::now_utc();
+        let since = (now - time::Duration::minutes(1)).unix_timestamp().to_string();
+        let until = now.unix_timestamp().saturating_add(1).to_string();
+        let filters = HashMap::from([
+            ("type".to_owned(), vec!["container".to_owned()]),
+            ("container".to_owned(), vec![id.to_owned()]),
+            ("event".to_owned(), vec!["oom".to_owned(), "start".to_owned(), "die".to_owned()]),
+        ]);
+        let options = EventsOptionsBuilder::new().since(&since).until(&until).filters(&filters).build();
+        let mut events = docker.events(Some(options));
+        while let Some(event) = events.next().await {
+            let event = event?;
+            eprintln!(
+                "OOM_FAILURE_EVENT {}",
+                serde_json::json!({
+                    "id": event.actor.and_then(|actor| actor.id), "action": event.action, "timeNano": event.time_nano,
+                })
+            );
+        }
+        Ok::<_, bollard::errors::Error>(())
+    };
+    match tokio::time::timeout(Duration::from_secs(3), capture).await {
+        Ok(Ok(())) => {}
+        Ok(Err(_)) => eprintln!("OOM_FAILURE_EVIDENCE engine read unavailable"),
+        Err(_) => eprintln!("OOM_FAILURE_EVIDENCE capture deadline"),
     }
 }

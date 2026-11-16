@@ -87,6 +87,18 @@ impl Observations {
             .await?;
         }
 
+        if !reported && let Some(start) = info.started_at {
+            // Moby publishes an OOM event after updating the owning container state. Its
+            // publication timestamp can follow containerd's FinishedAt; do not stretch the
+            // event window into another start. Confirm the owner's flag once for this start.
+            let current = quick("confirm Docker OOM state", docker.inspect_container(&info.id, None)).await?;
+            let current = container::info_from(current);
+            if current.id != info.id || current.started_at != Some(start) {
+                return Err(RuntimeError::Other("Docker container start changed while observing OOM state".into()));
+            }
+            reported = current.oom_killed;
+        }
+
         info.oom_killed = reported || self.reported(info);
         if info.oom_killed
             && let Some(evidence) = self.0.lock().unwrap().get_mut(&info.id)
@@ -330,5 +342,82 @@ mod tests {
             "neither prior run's event belongs to the next start"
         );
         server.abort();
+    }
+
+    #[tokio::test]
+    async fn a_late_engine_oom_flag_is_confirmed_for_the_same_start() {
+        let (result, confirmed) = late_owner_state(false).await;
+        let info = result.unwrap().unwrap();
+        assert!(info.oom_killed, "the owner retains OOM after publishing outside the process lifetime");
+        assert!(confirmed, "the confirmation must use the immutable ID rather than its reusable name");
+    }
+
+    #[tokio::test]
+    async fn a_late_engine_oom_flag_cannot_cross_a_container_restart() {
+        let (result, confirmed) = late_owner_state(true).await;
+        assert!(matches!(result, Err(RuntimeError::Other(_))), "a replacement start cannot supply this exit's OOM");
+        assert!(confirmed);
+    }
+
+    async fn late_owner_state(restarted: bool) -> (Result<Option<ContainerInfo>, RuntimeError>, bool) {
+        use axum::{Router, extract::Request, routing::any};
+        use bollard::models::{ContainerInspectResponse, ContainerState, EventActor, EventMessage};
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let dir = tempfile::tempdir().unwrap();
+        let socket = dir.path().join("engine.sock");
+        let listener = tokio::net::UnixListener::bind(&socket).unwrap();
+        let start = OffsetDateTime::now_utc() - time::Duration::seconds(3);
+        let finish = start + time::Duration::seconds(1);
+        let published = finish + time::Duration::nanoseconds(1);
+        let history = Arc::new(AtomicBool::new(false));
+        let queried = history.clone();
+        let confirmed = Arc::new(AtomicBool::new(false));
+        let checked = confirmed.clone();
+        let app = Router::new().fallback(any(move |request: Request| {
+            let queried = queried.clone();
+            let checked = checked.clone();
+            async move {
+                if request.uri().path().ends_with("/events") {
+                    // Moby sets the owning state before its publication-time event. The event
+                    // itself remains outside the strict completed-run timestamp boundary.
+                    queried.store(true, Ordering::SeqCst);
+                    serde_json::to_string(&EventMessage {
+                        action: Some("oom".into()),
+                        actor: Some(EventActor { id: Some("container-a".into()), ..Default::default() }),
+                        time_nano: Some(published.unix_timestamp_nanos() as i64),
+                        ..Default::default()
+                    })
+                    .unwrap()
+                        + "\n"
+                } else {
+                    let after = queried.load(Ordering::SeqCst);
+                    if after {
+                        checked.store(request.uri().path().ends_with("/containers/container-a/json"), Ordering::SeqCst);
+                    }
+                    let start = if after && restarted { published + time::Duration::nanoseconds(1) } else { start };
+                    let formatted =
+                        |stamp: OffsetDateTime| stamp.format(&time::format_description::well_known::Rfc3339).unwrap();
+                    serde_json::to_string(&ContainerInspectResponse {
+                        id: Some("container-a".into()),
+                        name: Some("/reused".into()),
+                        state: Some(ContainerState {
+                            status: Some(bollard::models::ContainerStateStatusEnum::EXITED),
+                            oom_killed: Some(after),
+                            started_at: Some(formatted(start)),
+                            finished_at: Some(formatted(if after && restarted { start } else { finish })),
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    })
+                    .unwrap()
+                }
+            }
+        }));
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let runtime = DockerRuntime::new(&socket).unwrap();
+        *runtime.info.lock().unwrap() = Some(RuntimeInfo::default());
+        let result = runtime.inspect("reused").await;
+        server.abort();
+        (result, confirmed.load(Ordering::SeqCst))
     }
 }
