@@ -20,6 +20,7 @@
 //! - `process_forward.rs`: ownership-verified process-tier forwarding channel.
 //! - `process_listeners.rs`: host listeners the node bound for a supervisor in its own network.
 //! - `process_namespaces.rs`: the namespace helper's arguments for one supervisor.
+//! - `exec_deadline.rs`: a node exec's deadline kept inside the sandbox's own kernel.
 //! - `process_peer.rs`: kernel process and connected-peer ownership evidence.
 //! - `process_capabilities.rs`: non-mutating kernel support queries.
 //! - `pty.rs`: terminal ownership through the platform PTY library.
@@ -124,6 +125,8 @@ mod transfers;
 #[cfg(feature = "server")]
 pub mod transfer_target;
 
+#[cfg(feature = "server")]
+pub mod exec_deadline;
 #[cfg(feature = "server")]
 pub mod process_forward;
 #[cfg(feature = "server")]
