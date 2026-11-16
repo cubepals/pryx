@@ -2,7 +2,7 @@
 //! Own a complete private listener set before publishing hostname egress readiness.
 //! Docker supplies fixed redirected ports; user-mode VM networking requests ephemeral ones.
 //! Cancellation retains the existing gateways' bounded connection and resolver behavior.
-use super::{dns, gateway, *};
+use super::{dns, dns_listener::resolver, gateway, *};
 use std::{io, net::IpAddr};
 use tokio::net::UdpSocket;
 use tokio_util::sync::DropGuard;
@@ -11,19 +11,6 @@ pub(in crate::runtime) struct Ports {
     pub http: u16,
     pub tls: u16,
     pub dns: u16,
-}
-
-async fn resolver(address: IpAddr, port: u16) -> io::Result<(UdpSocket, TcpListener)> {
-    const PORT_ATTEMPTS: usize = 8;
-    for _ in 0..PORT_ATTEMPTS {
-        let udp = UdpSocket::bind((address, port)).await?;
-        match TcpListener::bind(udp.local_addr()?).await {
-            Ok(tcp) => return Ok((udp, tcp)),
-            Err(error) if port == 0 && error.kind() == io::ErrorKind::AddrInUse => continue,
-            Err(error) => return Err(error),
-        }
-    }
-    Err(io::Error::new(io::ErrorKind::AddrInUse, "No paired DNS listener port is available"))
 }
 
 pub(in crate::runtime) async fn listen(

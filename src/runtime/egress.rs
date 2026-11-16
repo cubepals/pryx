@@ -5,8 +5,10 @@
 //! Parts (`egress/`):
 //! - `gateway.rs`: HTTP/TLS forwarding and public DNS pinning.
 //! - `dns.rs`: the policy-checked resolver.
+//! - `dns_listener.rs`: reserve a shared UDP/TCP resolver port.
 //! - `listeners.rs`: private fixed/ephemeral listener sets and their shared lifetime.
 pub(crate) mod dns;
+mod dns_listener;
 pub(crate) mod gateway;
 pub(in crate::runtime) mod listeners;
 use crate::protocol::EgressPolicy;
