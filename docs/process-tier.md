@@ -101,12 +101,16 @@ Where it does (pryxd as root, the server preset's unit included, or an ordinary 
 CAP_BPF, CAP_NET_ADMIN, a delegated cgroup and a BPF filesystem directory of its own), each
 process sandbox runs in a cgroup of its own whose eBPF programs decide every destination in the
 kernel ([bpf.md](bpf.md)): with public internet on it reaches what a container reaches with the
-host firewall loaded, never this host's services, another sandbox's ports, link-local metadata
-or private addresses on the served ports; hostname egress (`egress`) goes only through gateways
+host firewall loaded, never this host's services (at any address it has, as its addresses
+change), another sandbox's ports, link-local or AWS's IPv6 metadata or private addresses on the
+served ports; hostname egress (`egress`) goes only through gateways
 pryxd serves for that sandbox; address rules (`egressAddresses`) allow or deny exactly the
 prefixes and ports named. Its own listeners stay reachable over loopback; from another machine
-only its published ports are, as a container's. The sandbox reports `host-firewall` once its
-programs are attached and verified, and they survive any daemon restart the sandbox survives. A
+only its published ports are, as a container's, and a UDP socket hears only peers it sent to.
+The sandbox reports `host-firewall` once its programs are attached and verified, and they
+survive any daemon restart the sandbox survives; one whose programs can't be verified after a
+restart is stopped, and while one started before the host had them runs, the tier reports
+`host-firewall` off. A
 host without the capability refuses `egress` and `egressAddresses` on this tier, naming it;
 nothing is approximated.
 
