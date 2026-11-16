@@ -141,18 +141,21 @@ async fn process_sandboxes_get_namespaces_exactly_where_the_host_proves_them() {
     assert_eq!(b.guarantees[&Guarantee::PrivatePids], namespaced);
     assert_eq!(b.guarantees[&Guarantee::PrivateNetwork], namespaced, "network none has its own only when namespaced");
 
-    // From the host's own view: each supervisor's namespaces, and b's network, are its own.
+    // From the host's own view: each supervisor's namespaces, and b's network, are its own. A
+    // plain supervisor shares this test's, and only a namespaced one is the test's to inspect:
+    // the agent is not dumpable, and root in a default docker run has no CAP_SYS_PTRACE.
     let me = std::process::id();
     let (agent_a, agent_b) = (supervisor("a"), supervisor("b"));
-    for kind in ["pid", "mnt", "ipc", "user"] {
-        assert_eq!(namespace(agent_a, kind) != namespace(me, kind), namespaced, "a's {kind}");
-        assert_eq!(namespace(agent_b, kind) != namespace(me, kind), namespaced, "b's {kind}");
-        if namespaced {
-            assert_ne!(namespace(agent_a, kind), namespace(agent_b, kind), "{kind} is per sandbox");
+    for kind in ["pid", "mnt", "ipc", "user", "net"].into_iter().filter(|_| namespaced) {
+        if kind == "net" {
+            assert_eq!(namespace(agent_a, kind), namespace(me, kind), "internet shares the host's network");
+            assert_ne!(namespace(agent_b, kind), namespace(me, kind), "network none's own network");
+            continue;
         }
+        assert_ne!(namespace(agent_a, kind), namespace(me, kind), "a's {kind}");
+        assert_ne!(namespace(agent_b, kind), namespace(me, kind), "b's {kind}");
+        assert_ne!(namespace(agent_a, kind), namespace(agent_b, kind), "{kind} is per sandbox");
     }
-    assert_eq!(namespace(agent_a, "net"), namespace(me, "net"), "internet shares the host's network");
-    assert_eq!(namespace(agent_b, "net") != namespace(me, "net"), namespaced, "network none's own network");
     // From inside b: whether a's process exists at all, by the path any process could stat.
     let sleeper = host_pid(|argv| argv == ["sleep", "600"]);
     let seen = run(&m, "b", &format!("test -e /proc/{sleeper} && echo visible || echo hidden")).await;
