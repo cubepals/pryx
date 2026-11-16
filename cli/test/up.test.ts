@@ -25,6 +25,7 @@ import {
   gvisorRuntimes,
   hostInstallProblem,
   installGvisor,
+  waitForGvisorRuntime,
 } from '../src/up-host.ts'
 import { defaultAllowedImages, refreshDefaultImages, replaceDefaultImages } from '../src/up-images.ts'
 import { container, service } from '../src/up-units.ts'
@@ -60,6 +61,21 @@ test('the server preset registers runsc beside existing runtimes and refuses a c
     server.stop(true)
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+test('an acknowledged Docker reload waits for the pinned runtime instead of an earlier pin', async () => {
+  const current = join(GVISOR_PREFIX, gvisor.version, 'runsc')
+  const previous = '/opt/pryx/gvisor/earlier/runsc'
+  const paths = [{ runsc: { path: previous } }, { runsc: { path: current } }]
+  let observed = 0
+  await waitForGvisorRuntime(current, async () => paths[observed++])
+  expect(observed).toBe(2)
+  observed = 0
+  await waitForGvisorRuntime(previous, async () => paths[1 - observed++])
+  expect(observed).toBe(2)
+  await expect(waitForGvisorRuntime(current, async () => paths[0], performance.now())).rejects.toThrow(
+    'did not register the pinned gVisor executable',
+  )
 })
 
 test('check mode reports prerequisites without generating credentials', async () => {

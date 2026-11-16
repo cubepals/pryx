@@ -43,7 +43,17 @@ fn detached(end: &str, deadline: u64, exit: i32) {
         wrapper.kill().unwrap();
     }
     let output = wrapper.wait_with_output().unwrap();
-    let pid: i32 = std::fs::read_to_string(pid_file).unwrap().trim().parse().unwrap();
+    let pid: i32 = std::fs::read_to_string(pid_file)
+        .unwrap_or_else(|error| {
+            panic!(
+                "Detached fixture not admitted: {error}; owner={:?}; {}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr)
+            )
+        })
+        .trim()
+        .parse()
+        .unwrap();
     let child = rustix::process::Pid::from_raw(pid).unwrap();
     let retired = !std::path::Path::new(&format!("/proc/{pid}")).exists();
     // Keep a failing regression from leaking its deliberately detached fixture.
@@ -93,7 +103,17 @@ fn the_deadline_kills_a_direct_child_that_left_its_original_group() {
         );
     }
     let output = wrapper.wait_with_output().unwrap();
-    let pid: i32 = std::fs::read_to_string(pid_file).unwrap().trim().parse().unwrap();
+    let pid: i32 = std::fs::read_to_string(pid_file)
+        .unwrap_or_else(|error| {
+            panic!(
+                "Direct fixture not admitted: {error}; owner={:?}; {}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr)
+            )
+        })
+        .trim()
+        .parse()
+        .unwrap();
     assert!(finished, "a changed direct-child group hung child.wait");
     assert!(
         key.verify(&mut output.stderr.clone(), output.status.code().map(i64::from)).is_some(),
@@ -146,7 +166,12 @@ fn a_same_uid_sibling_cannot_read_the_key_or_authenticate_an_owner_it_kills() {
     }
     let output = owner.wait_with_output().unwrap();
     assert!(attack.status.success(), "{}", String::from_utf8_lossy(&attack.stderr));
-    assert!(survived, "the fixture must demonstrate why engine retirement is needed");
+    assert!(
+        survived,
+        "the fixture must demonstrate why engine retirement is needed; owner={:?}; {}",
+        output.status,
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert!(
         key.verify(&mut output.stderr.clone(), output.status.code().map(i64::from)).is_none(),
         "an externally killed owner cannot attest cleanup"
@@ -189,7 +214,12 @@ fn every_trusted_exec_launcher_removes_bootstrap_material_and_keeps_user_env() {
             drop(child.stdin.take());
         }
         let output = child.wait_with_output().unwrap();
-        assert!(output.status.success(), "trusted launcher failed");
+        assert!(
+            output.status.success(),
+            "trusted launcher failed: {:?}; {}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
+        );
         assert_eq!(output.stdout, b"bootstrap absent\n");
         if timed {
             assert!(key.verify(&mut output.stderr.clone(), Some(0)).is_some());

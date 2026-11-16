@@ -15,6 +15,7 @@
 //! - `engine_sleep.rs`: memory-sleep refusal and retained bytes through cold wake.
 //! - `engine.rs`: real engine limit refusals and explicit memory acceptance.
 //! - `oom.rs`: real engine memory bounds and OOM reporting.
+//! - `process_bound.rs`: actual host cgroup refusal and retirement evidence for gVisor forks.
 //! - `gvisor.rs`: the gvisor tier beside containers; `PRYX_TEST_GVISOR` runs the suite on it.
 
 #[path = "docker/engine.rs"]
@@ -27,6 +28,8 @@ mod engine_sleep;
 mod gvisor;
 #[path = "docker/oom.rs"]
 mod oom;
+#[path = "docker/process_bound.rs"]
+mod process_bound;
 mod support;
 
 use std::net::TcpListener;

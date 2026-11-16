@@ -42,8 +42,10 @@ else
   systemctl restart docker
 fi
 for _ in $(seq 60); do
-  docker info --format '{{json .Runtimes}}' 2>/dev/null | grep -q '"runsc"' && exit 0
+  docker info --format '{{json .Runtimes}}' 2>/dev/null |
+    python3 -c 'import json,sys; sys.exit(json.load(sys.stdin).get("runsc", {}).get("path") != sys.argv[1])' \
+      "$prefix/runsc" 2>/dev/null && exit 0
   sleep 1
 done
-echo 'gvisor.sh: Docker does not list runsc after its restart' >&2
+echo 'gvisor.sh: Docker does not list the pinned runsc after its reload or restart' >&2
 exit 1

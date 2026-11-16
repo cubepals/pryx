@@ -7,7 +7,13 @@ import assert from 'node:assert/strict'
 import { existsSync, readFileSync, readlinkSync } from 'node:fs'
 import { dirname, join, sep } from 'node:path'
 import previous from '../.github/gvisor-upgrade.json'
-import { configureHostRuntime, GVISOR_PREFIX, gvisorRuntimes, installGvisor } from '../cli/src/up-host.ts'
+import {
+  configureHostRuntime,
+  GVISOR_PREFIX,
+  gvisorRuntimes,
+  installGvisor,
+  waitForGvisorRuntime,
+} from '../cli/src/up-host.ts'
 import gvisor from './gvisor.json'
 
 async function output(args: string[]) {
@@ -30,6 +36,7 @@ const config = '/etc/docker/daemon.json'
 const existing = JSON.parse(readFileSync(config, 'utf8'))
 await Bun.write(config, JSON.stringify({ ...existing, runtimes: gvisorRuntimes(existing, prior) }, null, 2))
 await run(['systemctl', 'reload', 'docker'])
+await waitForGvisorRuntime(join(prior, 'runsc'))
 const before = (await paths()).runsc.path as string
 assert.equal(before, join(prior, 'runsc'))
 const oldName = `pryx-gvisor-old-${process.pid}`

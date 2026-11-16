@@ -25,7 +25,14 @@ pub(super) fn stage(binary: &Path, data: &Path) -> Result<PathBuf, RuntimeError>
     })
 }
 fn staged(binary: &Path, data: &Path) -> std::io::Result<PathBuf> {
-    let parent = data.parent().ok_or_else(|| std::io::Error::other("missing workload directory"))?;
+    // The configured workload store may live below a different host user's directory. It
+    // cannot hold a trusted executable, even if this particular file is execute-only. The
+    // installed agent's directory is an alternative only with the same ancestor checks.
+    let parent = [data.parent(), binary.parent()]
+        .into_iter()
+        .flatten()
+        .find(|parent| protected_directory(parent))
+        .ok_or_else(|| std::io::Error::other("no protected directory for the exec agent"))?;
     let mut source = File::open(binary)?;
     let mut staged = tempfile::NamedTempFile::new_in(parent)?;
     let mut digest = Sha256::new();
@@ -87,13 +94,18 @@ pub(super) fn protected(path: &Path) -> bool {
         && file.nlink() == 1
         && file.mode() & 0o7777 == 0o111
         && (file.uid() == own || file.uid() == 0)
-        && path.ancestors().skip(1).all(|parent| {
-            std::fs::symlink_metadata(parent).is_ok_and(|directory| {
-                directory.is_dir()
-                    && (directory.mode() & 0o022 == 0 || (directory.uid() == 0 && directory.mode() & 0o1000 != 0))
-                    && (directory.uid() == own || directory.uid() == 0)
-            })
+        && path.parent().is_some_and(protected_directory)
+}
+
+fn protected_directory(path: &Path) -> bool {
+    let own = rustix::process::geteuid().as_raw();
+    path.ancestors().all(|parent| {
+        std::fs::symlink_metadata(parent).is_ok_and(|directory| {
+            directory.is_dir()
+                && (directory.mode() & 0o022 == 0 || (directory.uid() == 0 && directory.mode() & 0o1000 != 0))
+                && (directory.uid() == own || directory.uid() == 0)
         })
+    })
 }
 
 /// Always set the owner label, including zero: absence would inherit an image's forged claim.
@@ -146,5 +158,33 @@ mod tests {
         assert_eq!(std::fs::symlink_metadata(&copied).unwrap().ino(), before.ino());
         let dynamic = compile("dynamic-agent", false);
         assert!(stage(&dynamic, &data).unwrap_err().to_string().contains("static release agent"));
+    }
+
+    #[test]
+    fn an_untrusted_workload_parent_uses_only_a_protected_installation() {
+        let installation = tempfile::tempdir().unwrap();
+        let source = installation.path().join("agent.c");
+        let binary = installation.path().join("agent");
+        std::fs::write(&source, "int main(void) { return 0; }\n").unwrap();
+        assert!(
+            std::process::Command::new("cc")
+                .args(["-static"])
+                .arg(&source)
+                .arg("-o")
+                .arg(&binary)
+                .status()
+                .unwrap()
+                .success()
+        );
+        let store = tempfile::tempdir().unwrap();
+        let data = store.path().join("workload");
+        std::fs::create_dir(&data).unwrap();
+        std::fs::set_permissions(store.path(), Permissions::from_mode(0o777)).unwrap();
+        let protected_copy = stage(&binary, &data).unwrap();
+        assert_eq!(protected_copy.parent(), Some(installation.path()));
+        assert!(protected(&protected_copy));
+        std::fs::set_permissions(installation.path(), Permissions::from_mode(0o777)).unwrap();
+        assert!(!protected(&protected_copy));
+        assert!(stage(&binary, &data).unwrap_err().to_string().contains("protected execute-only agent"));
     }
 }

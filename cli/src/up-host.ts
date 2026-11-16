@@ -4,6 +4,7 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { MINUTE_MS, SECOND_MS } from '../../control/src/durations.ts'
 import daemonJson from '../../deploy/daemon.json'
 import gvisor from '../../deploy/gvisor.json'
 import { writeChanged } from './up-files.ts'
@@ -93,6 +94,30 @@ async function verifyGvisor(run: InstallCommand, prefix: string) {
   }
 }
 
+/** Docker acknowledges a reload before the new runtime registration necessarily becomes
+ * visible. Read the engine's exact selected path before admitting new sandboxes. */
+export async function waitForGvisorRuntime(
+  expected: string,
+  read = async () => {
+    const child = Bun.spawn(['docker', 'info', '--format', '{{json .Runtimes}}'], {
+      stdout: 'pipe',
+      stderr: 'ignore',
+      timeout: SECOND_MS,
+    })
+    const text = await new Response(child.stdout).text()
+    return (await child.exited) === 0 ? JSON.parse(text) : null
+  },
+  deadline = performance.now() + MINUTE_MS,
+) {
+  while (performance.now() < deadline) {
+    try {
+      if ((await read())?.runsc?.path === expected) return
+    } catch {}
+    await Bun.sleep(SECOND_MS)
+  }
+  throw new Error('Docker did not register the pinned gVisor executable; inspect its service journal')
+}
+
 export async function configureHostRuntime(run: InstallCommand) {
   checkHostRuntime()
   if (!Bun.which('docker')) await run(['sh', '-c', DOCKER_INSTALL])
@@ -126,4 +151,5 @@ export async function configureHostRuntime(run: InstallCommand) {
     if (running) await run(['systemctl', 'reload', 'docker'])
     else await run(['systemctl', 'restart', 'docker'])
   }
+  if (runtimes.runtimes) await waitForGvisorRuntime(join(GVISOR_PREFIX, gvisor.version, 'runsc'))
 }
