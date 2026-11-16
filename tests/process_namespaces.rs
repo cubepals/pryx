@@ -62,6 +62,16 @@ fn listener_ports(gap: u16, size: u16) -> (u16, u16) {
     (first - gap - size, first - gap - 1)
 }
 
+/// One case's node: its own ports, below the ephemeral range, and its own pool of sandbox users,
+/// used as root. A host runs one pryxd, whose process tier ends every process of a pool user it
+/// releases; these cases run two daemons on one host at once, so neither may share a user.
+fn case(agent: &std::path::Path, (low, high): (u16, u16), uid_first: u32) -> String {
+    format!(
+        "runtime = 'process'\n[workloads]\nagent_binary = '{}'\ndefault_spare_ports = 0\n[network]\nport_range = [{low}, {high}]\n[process]\nuid_first = {uid_first}\nuid_count = 64\n",
+        agent.display()
+    )
+}
+
 /// Starts `w`, and on a refusal shows each supervisor's private diagnostic before failing.
 async fn start(m: &Arc<Manager>, state: &std::path::Path, w: &str) {
     if let Err(error) = m.start(id(w), None).await {
@@ -111,11 +121,7 @@ async fn process_sandboxes_get_namespaces_exactly_where_the_host_proves_them() {
     let expected = std::env::var("PRYX_TEST_NAMESPACES").unwrap_or_default();
     let agent = agent();
     let dir = state_root();
-    let (low, high) = listener_ports(200, 50);
-    let extra = format!(
-        "runtime = 'process'\n[workloads]\nagent_binary = '{}'\ndefault_spare_ports = 0\n[network]\nport_range = [{low}, {high}]\n",
-        agent.display()
-    );
+    let extra = case(&agent, listener_ports(200, 50), 30_000);
     let config = support::config(dir.path(), &extra);
     std::fs::create_dir_all(&config.state_dir).unwrap();
     let process = ProcessRuntime::new(&config.state_dir, config.process.clone()).unwrap();
@@ -227,11 +233,7 @@ async fn process_figures_in_the_mode_the_host_gives() {
     }
     let agent = agent();
     let dir = state_root();
-    let (low, high) = listener_ports(50, 100);
-    let extra = format!(
-        "runtime = 'process'\n[workloads]\nagent_binary = '{}'\ndefault_spare_ports = 0\n[network]\nport_range = [{low}, {high}]\n",
-        agent.display()
-    );
+    let extra = case(&agent, listener_ports(50, 100), 30_100);
     let config = support::config(dir.path(), &extra);
     std::fs::create_dir_all(&config.state_dir).unwrap();
     let process = ProcessRuntime::new(&config.state_dir, config.process.clone()).unwrap();
