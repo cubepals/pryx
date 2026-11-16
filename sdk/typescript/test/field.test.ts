@@ -63,6 +63,7 @@ test('guest Git bridge accepts bounded binary POST without async request iterati
   }
 })
 
+const stepSeconds = SDK_DEFAULTS.templateStepTimeoutSeconds
 const result = {
   code: 0,
   timedOut: false,
@@ -155,7 +156,13 @@ function peer(version = 2, isolation?: 'wasm') {
               stream: 'stdout',
               bytes: Buffer.from(stdout).toString('base64'),
             }),
-            JSON.stringify({ type: 'exit', result }),
+            // A step that hangs: the agent ends it at its deadline and reports so.
+            JSON.stringify({
+              type: 'exit',
+              result: command.includes('hang')
+                ? { ...result, code: null, timedOut: true, killed: true, durationMs: 1000 * stepSeconds }
+                : result,
+            }),
           ].join('\n') + '\n',
         )
       }
@@ -297,6 +304,14 @@ test('lookup, lifecycle, templates and webhooks use public ownership routes', as
   })
   expect(t.version).toBe(1)
   expect((await t.rebuild()).name).toBe('named')
+  // Each build step has the template step deadline, not an interactive command's, and one that
+  // runs it out fails saying so.
+  const steps = p.calls.filter((call) => call.path === '/_pryx/processes' && call.method === 'POST')
+  expect(steps.length).toBeGreaterThan(0)
+  expect(steps.every((call) => call.body.timeout === stepSeconds)).toBe(true)
+  await expect(p.client.template({ name: 'named', isolation: 'wasm', run: ['hang'] })).rejects.toThrow(
+    `Template command failed (timed out after ${1000 * stepSeconds} ms)`,
+  )
   await p.client.templates()
   const hook = await p.client.webhook({ url: 'https://example.com/hook', kinds: ['created', 'deleted'] })
   expect(hook.secret).toBe('shown-once')
