@@ -64,7 +64,10 @@ just after it tells of the address). pryxd is woken by that message and at once 
 writes every live sandbox's rules again, new ones in before old ones out, so no lookup misses.
 Until that write a new address (a VPN's, a new bridge's, the one Docker makes for a container
 network) is an ordinary destination: the window is the time pryxd takes to wake and write the
-maps, which pryxd logs (`micros`) each time. A connection a sandbox opened within it keeps the
+maps, which pryxd logs (`micros`) each time. CI's check (`tests/process_network.rs`, as root on
+the hosted runner) found an address added to the host already refused on the first dial after
+`ip address add` returned, 34 ms and 25 ms later in two runs, figures that include the exec and
+the Python that dial (CI runs 43810779630 and 43821485495). A connection a sandbox opened within it keeps the
 verdict it got. A sandbox whose rules can't be written for the new addresses (more prefixes than
 its map holds) stops counting as verified, and the process tier's `host-firewall` is off while it
 runs. pryxd needs a netlink socket for this, and is off without one, with that reason. Sockets other than TCP and UDP
