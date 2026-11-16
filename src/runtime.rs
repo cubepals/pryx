@@ -259,6 +259,9 @@ pub struct RuntimeInfo {
     /// The OCI runtimes the engine has registered, by name (Engine API `/info` `Runtimes`).
     #[serde(default)]
     pub(crate) runtimes: Vec<String>,
+    /// The runtime the engine starts a container with when it names none (`/info` `DefaultRuntime`).
+    #[serde(default)]
+    pub(crate) default_runtime: Option<String>,
     pub(crate) version: Option<String>,
     pub(crate) api_version: Option<String>,
     pub(crate) cgroup_version: Option<String>,

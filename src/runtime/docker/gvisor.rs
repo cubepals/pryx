@@ -31,6 +31,19 @@ pub fn problem(info: &RuntimeInfo) -> Option<String> {
     }
 }
 
+/// Docker's built-in OCI runtime's name (moby's `config.DefaultRuntimeName`).
+pub(super) const RUNC: &str = "runc";
+
+/// The runtime a backend names for each container it makes: the gvisor tier runsc; the container
+/// tier none, leaving the operator's own default, unless that default is runsc, when it names
+/// Docker's runc, so a `container` request never runs on gVisor nor is lost by its own backend.
+pub(super) fn engine_runtime(own: Option<&'static str>, info: &RuntimeInfo) -> Option<String> {
+    match own {
+        Some(own) => Some(own.into()),
+        None => (info.default_runtime.as_deref() == Some(GVISOR_RUNTIME)).then(|| RUNC.into()),
+    }
+}
+
 /// Whether a container made with `runtime` (its inspected `HostConfig.Runtime`, or the label an
 /// event carries) belongs to the backend whose own runtime is `own`: one engine serves both
 /// tiers, and each sees only its own containers.
@@ -126,6 +139,18 @@ pub(super) fn resolv_conf_for(data_dir: &std::path::Path) -> Result<std::path::P
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_container_tier_names_runc_only_where_the_engine_defaults_to_runsc() {
+        let mut info = RuntimeInfo::default();
+        assert_eq!(engine_runtime(None, &info), None);
+        info.default_runtime = Some("nvidia".into());
+        assert_eq!(engine_runtime(None, &info), None, "an operator's own default stays");
+        info.default_runtime = Some(GVISOR_RUNTIME.into());
+        assert_eq!(engine_runtime(None, &info).as_deref(), Some(RUNC));
+        assert!(owns(None, engine_runtime(None, &info).as_deref()), "the container backend keeps its own");
+        assert_eq!(engine_runtime(Some(GVISOR_RUNTIME), &info).as_deref(), Some(GVISOR_RUNTIME));
+    }
 
     #[test]
     fn a_sandbox_asks_the_hosts_reachable_upstream_resolvers() {

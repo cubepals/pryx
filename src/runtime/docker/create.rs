@@ -80,7 +80,7 @@ pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Res
     let mut body = body_of(&spec);
     runtime.native_tools.apply(&mut body, runtime.oci_runtime.is_none());
     if let Some(host) = body.host_config.as_mut() {
-        host.runtime = runtime.oci_runtime.map(String::from);
+        host.runtime = super::gvisor::engine_runtime(runtime.oci_runtime, &info);
         if !info.memory_limit {
             host.memory = None;
             host.memory_swap = None;
