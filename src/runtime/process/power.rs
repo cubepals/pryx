@@ -132,7 +132,8 @@ impl ProcessRuntime {
             kept.push(pryx_agent::process_namespaces::tool_directory(tools));
         }
         let mut command = Command::new(helper);
-        command.args(super::namespaces::arguments(&spec.data_dir, mode.private_network, &kept)).arg(&agent.binary);
+        let tmp = super::namespaces::tmp_bytes(spec.tmp_size_mb, spec.memory_bytes);
+        command.args(super::namespaces::arguments(&spec.data_dir, mode.private_network, tmp, &kept)).arg(&agent.binary);
         Ok((command, true, mode.private_network))
     }
     fn launch_command(
