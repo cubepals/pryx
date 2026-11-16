@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Docker start ownership. The engine receives a start once; lost responses are confirmed
-//! through observation rather than a repeated mutation.
+//! through observation rather than a repeated mutation. Exec lifetime remains in exec.rs.
 use super::*;
 
 impl DockerRuntime {
     pub(super) async fn start_owned(&self, name: &str) -> Result<(), RuntimeError> {
+        let id = quick("inspect start identity", self.docker()?.inspect_container(name, None))
+            .await?
+            .id
+            .ok_or_else(|| RuntimeError::Other("start target has no immutable identity".into()))?;
+        let _generation = self.starts.lock(&id).await;
+        let name = id.as_str();
         if let Err(error) = quick("start", self.docker()?.start_container(name, None)).await {
             // A lost response does not undo Docker's mutation. Confirm its current state once;
             // never issue a second start, and preserve the timeout unless it is already running.

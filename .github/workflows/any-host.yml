@@ -641,7 +641,8 @@ jobs:
           # K26: the server preset installed gVisor's pinned runsc and registered it with Docker;
           # a sandbox naming gvisor answers from gVisor's kernel, and one naming container doesn't.
           docker info --format '{{json .Runtimes}}' | tee "$RUNNER_TEMP/server-runtimes.json" | grep -q '"runsc"'
-          /opt/pryx/gvisor/runsc --version | tee -a "$GITHUB_STEP_SUMMARY"
+          runsc=$(docker info --format '{{json .Runtimes}}' | jq -er '.runsc.path')
+          "$runsc" --version | tee -a "$GITHUB_STEP_SUMMARY"
           gvisor_kernel=$(pryx run --image alpine:3.22 --isolation gvisor -- uname -r)
           container_kernel=$(pryx run --image alpine:3.22 --isolation container -- uname -r)
           echo "Server gvisor kernel: $gvisor_kernel; container kernel: $container_kernel" | tee -a "$GITHUB_STEP_SUMMARY"

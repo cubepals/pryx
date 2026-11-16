@@ -5,7 +5,7 @@
  * written to `PRYX_GVISOR_TOOLS`, and each must succeed: a template gVisor couldn't run would
  * be refused on this tier by capability, with its reason, and asserted here instead. */
 import { expect, test } from 'bun:test'
-import { writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { sql } from 'drizzle-orm'
 import { builtinTemplate } from '../../cli/src/builtin-template.ts'
 import { connectSsh } from '../../cli/src/sandbox-ssh.ts'
@@ -14,7 +14,7 @@ import { MINUTE_MS, SECOND_MS } from '../src/durations.ts'
 import { decodeHandle } from '../src/handle.ts'
 import type { RuntimeHandle } from '../src/runtime-model.ts'
 import { one } from '../src/sql.ts'
-import type { ExecResponse } from '../src/wire.ts'
+import type { ExecResponse, WorkloadView } from '../src/wire.ts'
 import { agentDeployment } from './agent-context.ts'
 import { ready } from './deployment.ts'
 
@@ -81,7 +81,7 @@ test(
           'POST',
           `/v1/workloads/${ref.key}/exec`,
           {
-            body: { command: ['sh', '-c', 'sleep 60 & sleep 60'], timeoutSeconds: 2 },
+            body: { command: ['sh', '-c', 'setsid sh -c "sleep 60 & wait" & sleep 60'], timeoutSeconds: 2 },
             epoch: ref.epoch,
             timeoutMs: 30 * SECOND_MS,
           },
@@ -91,6 +91,66 @@ test(
         const left = await box.run(['sh', '-c', "ps -o args | grep -c '^sleep 60' || true"])
         expect(left.stdout.trim()).toBe('0')
         expect((await box.refresh()).state).toBe('running')
+      })
+      await attempt('node-exec-owner-killed', async () => {
+        const box = await c.sdk.sandbox({ image: 'alpine:pryx-python-interpreter', isolation: 'gvisor' })
+        boxes.push(box)
+        const row = await one<{ handle: RuntimeHandle }>(
+          c.d.control.db,
+          sql`SELECT handle FROM sandboxes WHERE id = ${box.id}`,
+        )
+        if (!row?.handle) throw new Error('The sandbox has no node handle')
+        const node = await c.d.control.runtime.home(row.handle)
+        if (!node) throw new Error('The sandbox has no node')
+        const ref = decodeHandle(row.handle)
+        const view = await c.d.control.nodes.call<WorkloadView>(node, 'GET', `/v1/workloads/${ref.key}`)
+        const pending = c.d.control.nodes
+          .call<ExecResponse>(node, 'POST', `/v1/workloads/${ref.key}/exec`, {
+            body: {
+              command: [
+                'sh',
+                '-c',
+                'echo "$PPID" > /data/deadline-owner; setsid sh -c "echo \\$\\$ > /data/deadline-escaped; exec sleep 60" & sleep 60',
+              ],
+              timeoutSeconds: 15,
+            },
+            epoch: ref.epoch,
+            timeoutMs: 30 * SECOND_MS,
+          })
+          .then(
+            () => true,
+            () => false,
+          )
+        const attack = await box
+          .run([
+            'python3',
+            '-c',
+            [
+              'import ctypes,os,signal,time',
+              'until=time.monotonic()+10',
+              'while not (os.path.exists("/data/deadline-owner") and os.path.exists("/data/deadline-escaped")) and time.monotonic()<until: time.sleep(0.01)',
+              'p=int(open("/data/deadline-owner").read())',
+              'for suffix in ["mem","environ","fd/2"]:',
+              ' try:',
+              '  f=os.open("/proc/"+str(p)+"/"+suffix,os.O_RDONLY); os.close(f); raise RuntimeError("owner file unexpectedly readable")',
+              ' except PermissionError: pass',
+              'open("/data/deadline-attack-confirmed","w").write("protected")',
+              'assert ctypes.CDLL(None).tgkill(p,p,signal.SIGKILL)==0',
+              'print("owner protected and signalled")',
+            ].join('\n'),
+          ])
+          .catch(() => undefined)
+        // Engine retirement can end the attacking sibling before its success line flushes.
+        expect(attack?.stderr ?? '').not.toContain('owner file unexpectedly readable')
+        expect(await pending).toBe(false)
+        const inspect = Bun.spawn(
+          ['docker', 'inspect', '--format', '{{.State.Running}}', view.locate.containerName],
+          { stdout: 'pipe', stderr: 'pipe' },
+        )
+        const running = await new Response(inspect.stdout).text()
+        expect(await inspect.exited).toBe(0)
+        expect(running.trim()).toBe('false')
+        expect(readFileSync(`${view.locate.dataDir}/deadline-attack-confirmed`, 'utf8')).toBe('protected')
       })
       for (const [name, image, python] of [
         ['python-interpreter', 'alpine:pryx-python-interpreter', true],

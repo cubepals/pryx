@@ -217,20 +217,11 @@ jobs:
         run: >-
           CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER='sudo --preserve-env=PRYX_TEST_GVISOR'
           cargo test --locked --test docker -- --ignored --test-threads 2 --nocapture
-      # K26, evidence only: how an OOM kill inside a gvisor sandbox's memory limit shows (the
-      # engine's flag, its events, the container cgroup's oom_kill count), over ten runs of the case.
-      - name: gVisor OOM repeats
+      # Upgrade between two pinned releases with a sandbox running; actual host executables
+      # must keep the old version there and use the server preset's new pin on a new sandbox.
+      - name: gVisor runtime path upgrade
         if: ${{ !cancelled() }}
-        continue-on-error: true
-        timeout-minutes: 15
-        env:
-          PRYX_TEST_GVISOR: '1'
-        run: |
-          for run in 1 2 3 4 5 6 7 8 9 10; do
-            CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER='sudo --preserve-env=PRYX_TEST_GVISOR' \
-              cargo test --locked --test docker the_memory_limit_is_hard_and_an_oom_kill_is_reported -- --ignored --nocapture 2>&1 \
-              | grep -E 'OOM_EVIDENCE|OOM_DOCKER_STATE|test result' | sed "s/^/run $run: /" || true
-          done
+        run: sudo env "PATH=$PATH" bun deploy/gvisor-upgrade.ts
       - name: Docker and kernel failure evidence
         if: failure()
         run: |

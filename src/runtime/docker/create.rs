@@ -16,6 +16,15 @@ pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Res
         runtime.ensure_internal_network(&spec.network, &spec.labels).await?;
     }
     let mut spec = spec.clone();
+    if runtime.oci_runtime.is_some()
+        && let Some(agent) = spec.agent.as_mut()
+    {
+        let binary = agent.binary.clone();
+        let data = spec.data_dir.clone();
+        agent.binary = tokio::task::spawn_blocking(move || super::exec_agent::stage(&binary, &data))
+            .await
+            .map_err(|_| RuntimeError::Other("exec agent staging failed".into()))??;
+    }
     if let Some(own) = runtime.oci_runtime {
         spec.labels.insert(crate::labels::LABEL_OCI_RUNTIME.into(), own.into());
     }
@@ -35,6 +44,9 @@ pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Res
     runtime.native_tools.apply(&mut body, runtime.oci_runtime.is_none());
     if let Some(host) = body.host_config.as_mut() {
         host.runtime = super::gvisor::engine_runtime(runtime.oci_runtime, &info);
+        if runtime.oci_runtime.is_some() {
+            super::gvisor::process_limit(host, spec.pids_limit);
+        }
         if !info.memory_limit {
             host.memory = None;
             host.memory_swap = None;
@@ -104,9 +116,10 @@ fn check_engine_policy(runtime: &DockerRuntime, spec: &ContainerSpec, info: &Run
 
 async fn agent_entrypoint(runtime: &DockerRuntime, spec: &mut ContainerSpec) -> Result<(), RuntimeError> {
     if let Some(agent) = &spec.agent {
+        super::exec_agent::negotiate(&agent.binary, &mut spec.labels).await;
         let image = quick("inspect image", runtime.docker()?.inspect_image(&spec.image)).await?;
         let config = image.config.unwrap_or_default();
-        let browser = browser_policy::mode(runtime, &spec, config.env.as_deref()).await?;
+        let browser = browser_policy::mode(runtime, spec, config.env.as_deref()).await?;
         let original = if agent.keep_alive {
             Vec::new()
         } else {

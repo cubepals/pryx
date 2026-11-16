@@ -3,34 +3,84 @@
 
 //! A node exec's deadline kept by the sandbox's own kernel. Where the node can't reach an exec's
 //! processes from the host (gVisor's live in its own kernel), it runs the command under this
-//! supervisor: the command gets a process group of its own, and at the deadline the whole group
-//! is killed from inside. The exit status is the command's, or SIGKILL's at the deadline. Not for
-//! the agent's own process API, which already ends its commands.
+//! supervisor: the command gets a process group of its own, and this subreaper owns every
+//! descendant, including children that leave the group with setsid. All are retired before exit. The exit status is the command's, or SIGKILL's at the deadline. Not for
+//! the agent's process API, which owns its separate command lifecycle.
 use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::time::{Duration, Instant};
 
 /// The argument that selects this supervisor: `exec-deadline <milliseconds> -- <argv...>`.
 pub const MODE: &str = "exec-deadline";
+pub const CLEAN_MODE: &str = "exec-clean-env";
 const POLL: Duration = Duration::from_millis(5);
 
 pub fn run(arguments: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     let millis: u64 = arguments.first().ok_or("Missing exec deadline")?.parse()?;
-    if arguments.get(1).map(String::as_str) != Some("--") || arguments.len() < 3 {
+    let command_arguments = arguments.get(1..).ok_or("Missing deadline command")?;
+    if !matches!(command_arguments.first().map(String::as_str), Some("--" | "--secret-env")) {
         return Err("Missing deadline command".into());
     }
-    let mut child = std::process::Command::new(&arguments[2]).args(&arguments[3..]).process_group(0).spawn()?;
+    if crate::fuse_namespace::readable(&std::env::current_exe()?) {
+        return Err("exec-timeout refuses a readable owner; protection must hold before process creation".into());
+    }
+    if rustix::process::dumpable_behavior()? != rustix::process::DumpableBehavior::NotDumpable {
+        return Err("exec-timeout owner was not protected by its kernel from creation".into());
+    }
+    std::io::Write::write_all(&mut std::io::stderr().lock(), crate::exec_completion::READY)?;
+    let key = crate::exec_completion::Key::read(&mut std::io::stdin().lock())?;
+    rustix::process::set_child_subreaper(rustix::process::Pid::from_raw(1))?;
+    // gVisor exposes task stat ancestry, but not /proc/self/task/*/children.
+    procfs::process::all_processes()?;
+    let mut child = command(command_arguments)?.stdin(std::process::Stdio::null()).process_group(0).spawn()?;
     let group = rustix::process::Pid::from_child(&child);
     let deadline = Instant::now() + Duration::from_millis(millis);
+    let mut timed_out = false;
     let status = loop {
         if let Some(status) = child.try_wait()? {
             break status;
         }
         if Instant::now() >= deadline {
+            timed_out = true;
             // The command and everything it started in its group, by the sandbox's own kernel.
             let _ = rustix::process::kill_process_group(group, rustix::process::Signal::KILL);
+            // The direct child may have left that group; Child still owns its unreaped PID.
+            let _ = child.kill();
             break child.wait()?;
         }
         std::thread::sleep(POLL);
     };
-    std::process::exit(status.code().unwrap_or_else(|| 128 + status.signal().unwrap_or(libc::SIGKILL)))
+    crate::process_retirement::descendants()?;
+    let code = status.code().unwrap_or_else(|| 128 + status.signal().unwrap_or(libc::SIGKILL));
+    key.write(&mut std::io::stderr().lock(), code, timed_out)?;
+    std::process::exit(code)
+}
+
+/// Ordinary Docker execs use the same trusted environment scrubber without changing their
+/// host-side timeout handling. Values remain opaque; only owner-defined variable names select
+/// removals, preserving the workload's ordinary environment.
+pub fn clean(arguments: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    Err(command(arguments)?.exec().into())
+}
+
+fn command(arguments: &[String]) -> Result<std::process::Command, Box<dyn std::error::Error>> {
+    let (secret, arguments) = if arguments.first().is_some_and(|argument| argument == "--secret-env") {
+        (Some(arguments.get(1).ok_or("Missing bootstrap name")?), arguments.get(2..).ok_or("Missing exec command")?)
+    } else {
+        (None, arguments)
+    };
+    let arguments =
+        if arguments.first().is_some_and(|argument| argument == "--") { &arguments[1..] } else { arguments };
+    let executable = arguments.first().ok_or("Missing exec command")?;
+    let mut command = std::process::Command::new(executable);
+    command.args(&arguments[1..]);
+    for (name, _) in std::env::vars_os() {
+        if name.as_encoded_bytes().starts_with(crate::contract::SECRET_ENV_PREFIX.as_bytes()) {
+            command.env_remove(name);
+        }
+    }
+    if let Some(secret) = secret {
+        command.env_remove(secret);
+    }
+    command.env_remove(crate::contract::MOUNTS_ENV).env_remove(crate::process_policy::POLICY_ENV);
+    Ok(command)
 }

@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto'
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import gvisor from '../../deploy/gvisor.json'
 import vmImages from '../../templates/vm-tools/image-inputs.json'
 import { runInstallCommand, up } from '../src/up.ts'
 import {
@@ -18,7 +19,13 @@ import {
 } from '../src/up-assets.ts'
 import { configurations } from '../src/up-config.ts'
 import { readEnvironment, writeChanged, writeEnvironment } from '../src/up-files.ts'
-import { gvisorRuntimes, hostInstallProblem, installGvisor } from '../src/up-host.ts'
+import {
+  GVISOR_PREFIX,
+  gvisorInstallProblem,
+  gvisorRuntimes,
+  hostInstallProblem,
+  installGvisor,
+} from '../src/up-host.ts'
 import { defaultAllowedImages, refreshDefaultImages, replaceDefaultImages } from '../src/up-images.ts'
 import { container, service } from '../src/up-units.ts'
 
@@ -29,11 +36,18 @@ test('unsupported distributions name missing packages before installation', () =
   expect(hostInstallProblem(false, false, 'debian')).toBeNull()
 })
 
+test('a server names the unavailable gVisor architecture', () => {
+  expect(gvisorInstallProblem('x64')).toBeNull()
+  expect(gvisorInstallProblem('arm64')).toContain('this host is arm64')
+  expect(gvisorInstallProblem('riscv64')).toContain('the pinned gVisor release supports x64')
+})
+
 test('the server preset registers runsc beside existing runtimes and refuses a changed release', async () => {
   expect(gvisorRuntimes({ runtimes: { crun: { path: '/usr/bin/crun' } } }, '/opt/pryx/gvisor')).toEqual({
     crun: { path: '/usr/bin/crun' },
     runsc: { path: '/opt/pryx/gvisor/runsc' },
   })
+  expect(gvisorRuntimes({})).toEqual({ runsc: { path: join(GVISOR_PREFIX, gvisor.version, 'runsc') } })
   const dir = mkdtempSync(join(tmpdir(), 'pryx-gvisor-'))
   const server = Bun.serve({ port: 0, fetch: () => new Response('not the pinned release') })
   const ran: string[][] = []

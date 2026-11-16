@@ -26,3 +26,6 @@ pub(crate) const LABEL_PRIVATE_PIDS: &str = "blocklyd.private-pids";
 pub(crate) const LABEL_PRIVATE_NETWORK: &str = "blocklyd.private-network";
 /// The engine runtime a container was made with, on tiers that name one (`runsc` for gvisor).
 pub(crate) const LABEL_OCI_RUNTIME: &str = "blocklyd.oci-runtime";
+
+/// Private exec cleanup attestation negotiated from the actual injected agent at creation.
+pub(crate) const LABEL_EXEC_COMPLETION: &str = "blocklyd.exec-completion";

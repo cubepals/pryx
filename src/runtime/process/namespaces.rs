@@ -100,8 +100,26 @@ pub(crate) fn capability(agent: &Path, probed: Result<(), String>) -> crate::cap
     use crate::capability::{Capability, State};
     match probed {
         Ok(()) => Capability::on("Process sandboxes start in their own user, mount, PID and IPC namespaces"),
-        Err(reason) => Capability::new(State::Off, reason, action(agent, restricted())),
+        Err(reason) => {
+            let action = action(agent, restricted() && userns_denial(&reason));
+            Capability::new(State::Off, reason, action)
+        }
     }
+}
+
+/// bubblewrap 0.13.1's raw_clone failure and rtnetlink diagnostics (bubblewrap.c and
+/// network.c). These are its actual C messages, without Rust io::Error's display suffix.
+const USERNS_DENIALS: &[&str] = &[
+    "No permissions to create a new namespace",
+    "Creating new namespace failed: Operation not permitted",
+    "loopback: Failed RTM_NEWADDR: Operation not permitted",
+];
+
+/// Only a launch-equivalent namespace refusal under Ubuntu's rule suggests an AppArmor profile.
+/// A missing helper, spawn failure, timeout or unrelated tool failure needs its own action.
+fn userns_denial(reason: &str) -> bool {
+    reason.starts_with("user namespaces are unavailable to the namespace helper:")
+        && USERNS_DENIALS.iter().any(|diagnostic| reason.contains(diagnostic))
 }
 
 /// Ubuntu 24.04 and later let only binaries an AppArmor profile names use a user namespace
@@ -117,8 +135,13 @@ pub fn action(agent: &Path, restricted: bool) -> String {
     if !restricted {
         return "Allow unprivileged user namespaces on this host (user.max_user_namespaces above 0)".into();
     }
+    let warning = if root_protected(&helper) {
+        ""
+    } else {
+        "Warning: this helper path is writable by an ordinary user; its owner can replace the binary that receives the profile. Move the installation to a root-owned directory before granting it. "
+    };
     format!(
-        "As root, save this AppArmor profile as /etc/apparmor.d/pryx-namespaces, then run \
+        "{warning}As root, save this AppArmor profile as /etc/apparmor.d/pryx-namespaces, then run \
          apparmor_parser -r /etc/apparmor.d/pryx-namespaces and restart pryx:\n{}",
         profile(&helper)
     )
@@ -129,8 +152,36 @@ pub fn action(agent: &Path, restricted: bool) -> String {
 pub fn profile(helper: &Path) -> String {
     format!(
         "abi <abi/4.0>,\ninclude <tunables/global>\n\nprofile pryx-namespaces {} flags=(unconfined) {{\n  userns,\n\n  include if exists <local/pryx-namespaces>\n}}\n",
-        helper.display()
+        quoted_attachment(helper)
     )
+}
+
+fn root_protected(path: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    path.ancestors().all(|part| {
+        std::fs::symlink_metadata(part)
+            .is_ok_and(|info| !info.file_type().is_symlink() && info.uid() == 0 && info.mode() & 0o022 == 0)
+    })
+}
+
+/// AppArmor attachment names are quoted and AARE metacharacters are literal, so an installation
+/// path cannot widen this profile to another program or inject another profile rule.
+fn quoted_attachment(path: &Path) -> String {
+    let mut quoted = String::from("\"");
+    for c in path.to_string_lossy().chars() {
+        match c {
+            '\\' | '\"' | '*' | '?' | '[' | ']' | '{' | '}' | '@' => {
+                quoted.push('\\');
+                quoted.push(c);
+            }
+            '\n' => quoted.push_str("\\012"),
+            '\r' => quoted.push_str("\\015"),
+            '\t' => quoted.push_str("\\011"),
+            c => quoted.push(c),
+        }
+    }
+    quoted.push('\"');
+    quoted
 }
 
 #[cfg(test)]
@@ -178,9 +229,40 @@ mod tests {
         let agent = Path::new("/home/someone/.local/lib/pryx/pryx-agent");
         let said = action(agent, true);
         assert!(said.contains("apparmor_parser -r /etc/apparmor.d/pryx-namespaces"), "{said}");
-        assert!(said.contains("profile pryx-namespaces /home/someone/.local/lib/pryx/namespaces/bin/bwrap"), "{said}");
+        assert!(
+            said.contains("profile pryx-namespaces \"/home/someone/.local/lib/pryx/namespaces/bin/bwrap\""),
+            "{said}"
+        );
         assert!(said.contains("userns,") && said.contains("flags=(unconfined)"), "{said}");
+        assert!(said.contains("writable by an ordinary user"), "{said}");
         assert!(!action(agent, false).contains("apparmor"), "no profile where the rule is off");
+    }
+
+    #[test]
+    fn only_a_namespace_permission_denial_suggests_the_profile() {
+        // Recorded real helper output: Ubuntu's loopback denial and raw_clone's own message.
+        for denied in [
+            "user namespaces are unavailable to the namespace helper: bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted",
+            "user namespaces are unavailable to the namespace helper: bwrap: No permissions to create a new namespace, likely because the kernel does not allow non-privileged user namespaces.",
+        ] {
+            assert!(userns_denial(denied));
+        }
+        for unrelated in [
+            "This installation has no namespace helper",
+            "The namespace helper did not finish its probe",
+            "The namespace helper did not start: Permission denied",
+            "user namespaces are unavailable to the namespace helper: wrong executable",
+        ] {
+            assert!(!userns_denial(unrelated), "{unrelated}");
+        }
+    }
+
+    #[test]
+    fn the_attachment_quotes_spaces_and_escapes_profile_metacharacters() {
+        let path = Path::new("/opt/a b/\"quoted\"*?[{}]/bwrap");
+        assert_eq!(quoted_attachment(path), "\"/opt/a b/\\\"quoted\\\"\\*\\?\\[\\{\\}\\]/bwrap\"");
+        let text = profile(path);
+        assert!(text.contains(&quoted_attachment(path)), "{text}");
     }
 
     #[test]

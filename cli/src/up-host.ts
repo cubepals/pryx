@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Host Docker and firewall prerequisites for installation. Merges the existing daemon policy,
  * reloads an active engine, and never removes existing containers or unrelated settings. */
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import daemonJson from '../../deploy/daemon.json'
 import gvisor from '../../deploy/gvisor.json'
@@ -36,21 +37,31 @@ export const GVISOR_PREFIX = '/opt/pryx/gvisor'
 /** The engine configuration `runsc install` writes: the runtime under its own name. */
 export function gvisorRuntimes(
   existing: { runtimes?: Record<string, unknown> },
-  prefix = GVISOR_PREFIX,
+  prefix = join(GVISOR_PREFIX, gvisor.version),
 ): Record<string, unknown> {
   return { ...existing.runtimes, runsc: { path: join(prefix, 'runsc') } }
 }
 
+/** The pinned release's architecture is explicit whenever the server leaves the tier off. */
+export function gvisorInstallProblem(arch: string): string | null {
+  return arch === 'x64' ? null : `the pinned gVisor release supports x64; this host is ${arch}`
+}
+
 /** gVisor's runsc at deploy/gvisor.json's release, checked against its SHA-512, unpacked as is. */
-export async function installGvisor(run: InstallCommand, prefix = GVISOR_PREFIX, url = gvisor.url) {
+export async function installGvisor(
+  run: InstallCommand,
+  prefix = join(GVISOR_PREFIX, gvisor.version),
+  url = gvisor.url,
+  release = gvisor,
+) {
   const runsc = join(prefix, 'runsc')
   const installed = existsSync(runsc) ? Bun.spawnSync([runsc, '--version'], { stderr: 'ignore' }) : undefined
-  if (installed?.exitCode === 0 && installed.stdout.toString().includes(`runsc version ${gvisor.version}\n`))
-    return
+  if (installed?.exitCode === 0 && installed.stdout.toString().includes(`runsc version ${release.version}\n`))
+    return verifyGvisor(run, prefix)
   const response = await fetch(url)
   if (!response.ok) throw new Error(`the gVisor release answered ${response.status}`)
   const bytes = new Uint8Array(await response.arrayBuffer())
-  if (new Bun.CryptoHasher('sha512').update(bytes).digest('hex') !== gvisor.sha512)
+  if (new Bun.CryptoHasher('sha512').update(bytes).digest('hex') !== release.sha512)
     throw new Error('the gVisor release does not match its pinned SHA-512')
   const staged = `${prefix}.new`
   rmSync(staged, { recursive: true, force: true })
@@ -58,8 +69,28 @@ export async function installGvisor(run: InstallCommand, prefix = GVISOR_PREFIX,
   writeFileSync(join(staged, 'gvisor.tar'), Bun.zstdDecompressSync(bytes))
   await run(['tar', '-x', '--no-same-owner', '-f', join(staged, 'gvisor.tar'), '-C', staged])
   rmSync(join(staged, 'gvisor.tar'))
+  await verifyGvisor(run, staged)
   rmSync(prefix, { recursive: true, force: true })
   renameSync(staged, prefix)
+}
+
+/** Check every pinned sidecar without fetching one or touching Docker's live configuration. */
+async function verifyGvisor(run: InstallCommand, prefix: string) {
+  const check = mkdtempSync(join(tmpdir(), 'pryx-gvisor-check-'))
+  try {
+    const config = join(check, 'daemon.json')
+    writeFileSync(config, '{}\n')
+    await run([
+      join(prefix, 'runsc'),
+      'install',
+      '--config_file',
+      config,
+      '--download-sidecars=NEVER',
+      '--require-sidecars=ALWAYS',
+    ])
+  } finally {
+    rmSync(check, { recursive: true, force: true })
+  }
 }
 
 export async function configureHostRuntime(run: InstallCommand) {
@@ -75,7 +106,9 @@ export async function configureHostRuntime(run: InstallCommand) {
     : {}
   // The gvisor tier is the engine's runsc; where it can't be installed, that tier alone is off.
   let runtimes: { runtimes?: Record<string, unknown> } = {}
-  if (process.arch === 'x64')
+  const unavailable = gvisorInstallProblem(process.arch)
+  if (unavailable) console.error(`gvisor tier off: ${unavailable}`)
+  else
     try {
       await installGvisor(run)
       runtimes = { runtimes: gvisorRuntimes(existing) }

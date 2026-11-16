@@ -42,17 +42,67 @@ pub(super) fn left_running(count: &str, why: &str) {
     }
 }
 
-/// The pids limit: a container's own cgroup shows it; gVisor's kernel shows its own cgroups, so
-/// on gvisor the engine's record of the limit it applied is read instead.
-pub(super) fn pids_limited(inside: &str, container: &str) {
-    if !on_gvisor() {
-        return assert!(inside.contains("4096"), "pids limit");
+/// gVisor's virtual process bound is its inherited RLIMIT_NPROC; the other tier retains its
+/// actual cgroup assertion. The fork-exhaustion case below proves enforcement, not metadata.
+pub(super) fn pids_limited(inside: &str, _container: &str) {
+    if on_gvisor() {
+        assert!(inside.contains("nproc=4096"), "the sandbox's own process bound: {inside}");
+    } else {
+        assert!(inside.contains("4096"), "pids limit");
     }
-    let out = std::process::Command::new("docker")
-        .args(["inspect", "--format", "{{.HostConfig.PidsLimit}}", container])
-        .output()
+}
+
+#[tokio::test]
+#[ignore = "needs Docker; the gvisor run proves its virtual process bound"]
+async fn a_gvisor_fork_storm_hits_the_sandbox_process_bound() {
+    if !on_gvisor() {
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let dep = deployment();
+    let _cleanup = Cleanup(dep.clone());
+    let config = extra(&dep) + "default_pids_limit = 128\n";
+    let m = manager_probed(dir.path(), docker(), &config, pryxd::ports::bind_probe(vec!["127.0.0.1".parse().unwrap()]));
+    assert!(m.reconcile(Records::FromDisk).await.error.is_none());
+    m.ensure(id("forks"), shell(SERVER, 512), Precondition::None, None).await.unwrap();
+    m.start(id("forks"), None).await.unwrap();
+    let limit = m
+        .exec(
+            id("forks"),
+            ExecRequest { command: vec!["sh".into(), "-c".into(), "ulimit -u".into()], timeout_seconds: 10 },
+            None,
+            None,
+        )
+        .await
         .unwrap();
-    assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "4096", "the engine applied the pids limit");
+    assert_eq!(limit.stdout.trim(), "128", "{limit:?}");
+    let out = m
+        .exec(
+            id("forks"),
+            ExecRequest {
+                command: vec![
+                    "sh".into(),
+                    "-c".into(),
+                    "exec 2>&1; i=0; while [ \"$i\" -lt 256 ]; do sleep 60 & i=$((i+1)); done; echo exceeded-limit"
+                        .into(),
+                ],
+                timeout_seconds: 20,
+            },
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+    assert_ne!(out.exit_code, Some(0), "forking beyond the bound succeeded: {out:?}");
+    assert!(!out.stdout.contains("exceeded-limit"), "{out:?}");
+    // BusyBox ash.c reports its failed fork with "can't fork" and libc strerror.
+    assert!(out.stdout.contains("can't fork"), "the kernel refused a fork: {out:?}");
+    let stopped = m.stop(id("forks"), None, None).await.unwrap();
+    assert!(
+        !stopped.workload.exit.as_ref().is_some_and(|exit| exit.oom_killed),
+        "the process bound refused before memory exhaustion"
+    );
+    cleanup(&m, &["forks"]).await;
 }
 
 /// Hostname egress on gvisor: never announced, and a create that names a policy is refused.
@@ -96,43 +146,6 @@ async fn a_sandbox_on_the_internet_resolves_and_fetches_a_public_name() {
     cleanup(&m, &["dns"]).await;
 }
 
-/// Evidence of how the engine shows an OOM kill: the highest `oom_kill` count seen in the
-/// container's own cgroup while it runs, as the kernel keeps it (cgroup v2 memory.events).
-pub(super) async fn cgroup_oom_kills(api: &bollard::Docker, container: &str, highest: &mut Option<u64>) {
-    let Ok(inspect) = api.inspect_container(container, None).await else { return };
-    let Some(pid) = inspect.state.and_then(|state| state.pid).filter(|pid| *pid > 0) else { return };
-    let Ok(groups) = std::fs::read_to_string(format!("/proc/{pid}/cgroup")) else { return };
-    let Some(path) = groups.lines().find_map(|line| line.strip_prefix("0::")) else { return };
-    let Ok(events) = std::fs::read_to_string(format!("/sys/fs/cgroup{path}/memory.events")) else { return };
-    let count = events.lines().find_map(|line| line.strip_prefix("oom_kill ")).and_then(|c| c.trim().parse().ok());
-    if let Some(count) = count {
-        *highest = Some(highest.map_or(count, |seen: u64| seen.max(count)));
-    }
-}
-
-/// The engine's own events for `container` since `since` (Unix seconds): whether an `oom` came,
-/// and where it fell beside the `die`.
-pub(super) fn engine_events(container: &str, since: u64) -> String {
-    let until = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() + 1;
-    let filter = format!("container={container}");
-    let (since, until) = (since.to_string(), until.to_string());
-    let out = std::process::Command::new("docker")
-        .args([
-            "events",
-            "--since",
-            &since,
-            "--until",
-            &until,
-            "--filter",
-            &filter,
-            "--format",
-            "{{.TimeNano}} {{.Action}}",
-        ])
-        .output();
-    out.map(|out| String::from_utf8_lossy(&out.stdout).split_whitespace().collect::<Vec<_>>().join(" "))
-        .unwrap_or_default()
-}
-
 /// Why the engine at `socket` can't serve the gvisor tier, read from the engine's own API, or None
 /// where it can. gVisor runs through the container tier, so that tier's own refusal comes first;
 /// then Podman, which pryx doesn't start gVisor on; then `runsc` missing from the engine's runtimes.
@@ -150,7 +163,13 @@ async fn gvisor_refusal(socket: &std::path::Path) -> Option<String> {
     }
     let info = engine.info().await.expect("the engine answers info");
     let registered = info.runtimes.unwrap_or_default().contains_key(pryxd::runtime::docker::GVISOR_RUNTIME);
-    (!registered).then(|| pryxd::runtime::docker::GVISOR_MISSING_PROBLEM.into())
+    if !registered {
+        Some(pryxd::runtime::docker::GVISOR_MISSING_PROBLEM.into())
+    } else if info.security_options.unwrap_or_default().iter().any(|option| option == "name=rootless") {
+        Some(pryxd::runtime::docker::gvisor::GVISOR_ROOTLESS_PROBLEM.into())
+    } else {
+        None
+    }
 }
 
 /// The engine's own API at `socket`, at the version it negotiates (Podman's is older than Docker's).

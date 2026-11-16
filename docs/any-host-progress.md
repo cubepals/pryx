@@ -5032,3 +5032,34 @@ job when publication is authorized. That job has not run in this task.
   failed once in control end to end: the container agent test's exposed port answered "Agent
   unavailable" after an edge relay ECONNRESET. The same code passed that job on k27 at `26aee02`;
   it is recorded here, not yet explained.
+
+
+- K26 review verification: the existing DNS, namespaced relaunch, explicit runc, private tmpfs
+  and capped template-deadline fixes are retained. The remaining review changes add subreaper
+  cleanup of setsid descendants, quoted/gated AppArmor advice with a writable-path warning,
+  and an explicit server warning off x64. gVisor OOM observation uses authenticated Docker
+  events scoped to the current container/start; ten real fast-exit trials assert every result,
+  without holding PID 1 for Docker's inspect flag. The evidence-only continue-on-error step is
+  removed. Rootless runsc limits remain unproved, so that tier is refused by name there.
+- gVisor's virtual process bound is enforced by its hard nproc limit, alongside the host
+  controller; a real fork storm must fail at the bound without an OOM. The server validates
+  pinned sidecars without downloads and installs immutable version paths. The existing test
+  job also upgrades from the pinned release-20261102.0 to the server preset's pin, retaining
+  the old sandbox's executable/version, identity and data while a new sandbox uses the new pin.
+- Authenticated deadline completion now comes from a static execute-only agent copy whose
+  image is non-dumpable before the kernel exposes it. A missing or forged completion retires
+  that sandbox once; setup, starts and retirement share a gate and the original start identity,
+  so old cleanup cannot kill a replacement. Legacy/readable agent mounts are refused before
+  key delivery. Docker exec bootstrap overrides blank owner-defined material before creation;
+  the trusted launcher removes those names before user code, keeping ordinary environment.
+- Local verification: all five real deadline subprocess regressions pass, including setsid,
+  changed process groups, owner death and bootstrap-environment removal. All 39 Docker backend
+  unit/transport tests pass. The final full TypeScript check passes 452 tests with one existing
+  compiled-assets skip. The full Rust run exposed four unchanged local Landlock monitor
+  failures; the verified agentOS fixture passes the previously missing-fixture cases, and the
+  two new deadline-fixture execution failures are corrected and pass on rerun. Strict Clippy,
+  formatting, actionlint, ShellCheck and both structure checks pass. Exact-head CI remains
+  pending. Actual gVisor fork/OOM/upgrade and one-command installation proof belongs to those
+  runs; no local Docker/KVM pass is claimed. The ten assertions replace the earlier diagnostic
+  repetitions; the live install-path replay adds an estimated two minutes to the existing Rust
+  test job, with no new job or gate.

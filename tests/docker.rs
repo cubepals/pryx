@@ -238,7 +238,7 @@ async fn lifecycle_hardening_and_graceful_stop() {
                 command: vec![
                     "sh".into(),
                     "-c".into(),
-                    "id -u; grep -E '^(CapEff|NoNewPrivs)' /proc/1/status; touch /etc/x 2>/dev/null && echo rootfs-writable || echo rootfs-readonly; cat /sys/fs/cgroup/pids.max 2>/dev/null || cat /sys/fs/cgroup/pids/pids.max".into(),
+                    "id -u; grep -E '^(CapEff|NoNewPrivs)' /proc/1/status; touch /etc/x 2>/dev/null && echo rootfs-writable || echo rootfs-readonly; cat /sys/fs/cgroup/pids.max 2>/dev/null || cat /sys/fs/cgroup/pids/pids.max; printf 'nproc='; ulimit -u".into(),
                 ],
                 timeout_seconds: 10,
             },
@@ -286,7 +286,6 @@ async fn crashes_restart_by_policy_then_stay_crashed() {
     assert_eq!(m.view(&id("c")).unwrap().restart_count, 0);
     cleanup(&m, &["c"]).await;
 }
-
 
 #[tokio::test]
 #[ignore = "needs Docker"]
