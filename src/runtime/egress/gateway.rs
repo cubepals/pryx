@@ -328,7 +328,7 @@ mod hello_tests {
         // one may still be tentative, which no route reaches yet).
         let at = |address: IpAddr| SocketAddr::new(address, 443);
         assert!(local(at("127.0.0.1".parse().unwrap())).unwrap());
-        for own in crate::bpf::host::addresses().into_iter().filter(IpAddr::is_ipv4) {
+        for own in crate::bpf::host::addresses().unwrap().into_iter().filter(IpAddr::is_ipv4) {
             assert!(local(at(own)).unwrap(), "{own} is this host's");
         }
         assert!(!matches!(local(at(public)), Ok(true)));

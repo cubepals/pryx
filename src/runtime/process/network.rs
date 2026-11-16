@@ -52,8 +52,8 @@ struct Held {
     config: [u8; object::CONFIG_BYTES],
     /// This host's addresses as its rules name them.
     host: Vec<IpAddr>,
-    /// Its rules could not be written again for the host's addresses as they are now: its
-    /// programs keep the earlier ones, and it no longer counts as verified.
+    /// Its policy could not be verified: the cgroup is fenced and may not run again until a
+    /// fresh prepare removes it and attaches a new set of programs.
     stale: bool,
     _gateways: Option<DropGuard>,
 }
@@ -205,7 +205,8 @@ impl Network {
     pub(super) fn check(&self, spec: &crate::protocol::WorkloadSpec) -> Result<(), String> {
         let reach = Self::reach(spec.network == crate::protocol::NetworkMode::None, spec.egress.is_some());
         let asked = Self::asked_of(reach, spec.egress_addresses.as_ref()).map_err(|problem| problem.to_string())?;
-        self.compile(&asked, &host::addresses()).map(drop).map_err(|problem| problem.to_string())
+        let addresses = host::addresses().map_err(|problem| problem.to_string())?;
+        self.compile(&asked, &addresses).map(drop).map_err(|problem| problem.to_string())
     }
 
     /// The rules for what a sandbox asked, on this host with `host` its own addresses.
@@ -238,7 +239,7 @@ impl Network {
         host::create_cgroup(&cgroup).map_err(error)?;
         let prepared = self.attach(spec, &cgroup).await;
         if prepared.is_err() {
-            let _ = host::remove_cgroup(&cgroup);
+            self.release(&spec.name)?;
         }
         prepared.map(|record| (record, cgroup))
     }
@@ -246,7 +247,7 @@ impl Network {
     async fn attach(&self, spec: &ContainerSpec, cgroup: &Path) -> Result<Record, RuntimeError> {
         let key = self.key(&spec.name);
         let asked = Self::asked(spec)?;
-        let addresses = host::addresses();
+        let addresses = host::addresses().map_err(error)?;
         let rules = self.compile(&asked, &addresses)?;
         let gateways = match spec.egress.is_some() {
             true => Some(Gateways::bind().await?),
@@ -268,33 +269,74 @@ impl Network {
             _ => None,
         };
         let record = Record { key, attachments: programs.attachments.clone() };
-        self.hold(&spec.name, Held { programs, asked, config, host: addresses, stale: false, _gateways: guard });
+        self.hold(&spec.name, Held { programs, asked, config, host: addresses, stale: false, _gateways: guard })?;
         Ok(record)
     }
 
     /// Keeps a sandbox's programs, then rewrites its rules if the host's addresses changed since
     /// they were compiled: a change the watch heard before it was held is caught here.
-    fn hold(&self, name: &str, held: Held) {
+    fn hold(&self, name: &str, held: Held) -> Result<(), RuntimeError> {
         self.held.lock().unwrap().insert(name.to_owned(), held);
         self.refresh();
+        if self.verified(name) {
+            Ok(())
+        } else {
+            Err(error("the sandbox's policy could not be verified before launch"))
+        }
+    }
+
+    /// Joins and starts under the same lock invalidation takes: a failed refresh either refuses
+    /// the start, or fences a cgroup the child has already joined, never an empty launch gap.
+    pub(super) fn spawn_verified(
+        &self,
+        name: &str,
+        command: &mut std::process::Command,
+    ) -> Result<std::process::Child, RuntimeError> {
+        let held = self.held.lock().unwrap();
+        if !held.get(name).is_some_and(|held| !held.stale) {
+            return Err(error("the sandbox's policy is no longer verified; start it again with new programs"));
+        }
+        host::join_on_exec(command, &self.host.cgroup(&self.key(name))).map_err(error)?;
+        command.spawn().map_err(error)
+    }
+
+    fn invalidate(&self, name: &str, held: &mut Held) {
+        held.stale = true;
+        if let Err(problem) = host::fence_cgroup(&self.host.cgroup(&self.key(name))) {
+            tracing::error!(sandbox = name, %problem, "unverified process sandbox's cgroup could not be fenced");
+        }
     }
 
     /// Compiles again, for this host's addresses as they are now, the rules of every sandbox
     /// compiled for others, and writes them; a lookup never misses in between (`Programs::write`).
     /// Returns how many were written.
     pub(super) fn refresh(&self) -> usize {
-        let addresses = host::addresses();
+        self.refresh_with(host::addresses())
+    }
+
+    fn refresh_with(&self, addresses: std::io::Result<Vec<IpAddr>>) -> usize {
+        let addresses = match addresses {
+            Ok(addresses) => addresses,
+            Err(problem) => {
+                for (name, held) in self.held.lock().unwrap().iter_mut() {
+                    self.invalidate(name, held);
+                }
+                tracing::warn!(%problem, "kernel network policy no longer verified: host address tables unreadable");
+                return 0;
+            }
+        };
         let mut written = 0;
-        for (name, held) in self.held.lock().unwrap().iter_mut().filter(|(_, held)| held.host != addresses) {
+        for (name, held) in
+            self.held.lock().unwrap().iter_mut().filter(|(_, held)| !held.stale && held.host != addresses)
+        {
             let rules = self.compile(&held.asked, &addresses);
             match rules.and_then(|rules| held.programs.write(&rules, held.config).map_err(error)) {
                 Ok(()) => {
                     held.host.clone_from(&addresses);
-                    held.stale = false;
                     written += 1;
                 }
                 Err(problem) => {
-                    held.stale = true;
+                    self.invalidate(name, held);
                     tracing::warn!(sandbox = %name, %problem, "kernel network policy no longer verified for this host's addresses");
                 }
             }
@@ -335,7 +377,7 @@ impl Network {
         let mut programs =
             Programs::adopt(&self.host.pin_directory(&record.key), &record.attachments).map_err(error)?;
         let asked = Self::asked(spec)?;
-        let addresses = host::addresses();
+        let addresses = host::addresses().map_err(error)?;
         let rules = self.compile(&asked, &addresses)?;
         let gateways = match spec.egress.is_some() {
             true => Some(Gateways::bind().await?),
@@ -350,8 +392,7 @@ impl Network {
             (Some(gateways), Some(policy)) => Some(gateways.serve(policy.clone(), &asked.deny)?),
             _ => None,
         };
-        self.hold(&spec.name, Held { programs, asked, config, host: addresses, stale: false, _gateways: guard });
-        Ok(())
+        self.hold(&spec.name, Held { programs, asked, config, host: addresses, stale: false, _gateways: guard })
     }
 
     /// Once a sandbox's supervisor is gone: whatever is left in its cgroup is killed, then its
@@ -360,9 +401,9 @@ impl Network {
         let key = self.key(name);
         let held = self.held.lock().unwrap().remove(name);
         let cgroup = self.host.cgroup(&key);
-        if cgroup.exists() && !host::members(&cgroup).map_err(error)?.is_empty() {
-            // cgroup.kill (Linux 5.14) kills every process the cgroup holds, escaped ones too.
-            std::fs::write(cgroup.join("cgroup.kill"), b"1").map_err(error)?;
+        if cgroup.exists() {
+            host::fence_cgroup(&cgroup).map_err(error)?;
+            host::wait_empty(&cgroup).map_err(error)?;
         }
         let detached = match held {
             Some(held) => {
@@ -440,5 +481,94 @@ mod tests {
         assert_eq!(network.check(&nested(4)), Ok(()));
         let refused = network.check(&nested(object::PORT_ENTRIES as u8 + 1)).unwrap_err();
         assert!(refused.contains("203.0.113.0/32") && refused.contains("port ranges"), "{refused}");
+    }
+
+    #[tokio::test]
+    #[ignore = "loads programs into the kernel"]
+    async fn a_failed_address_refresh_stops_members_and_refuses_late_starts_until_new_programs() {
+        use std::os::unix::process::ExitStatusExt;
+        let root = tempfile::tempdir().unwrap();
+        let host = Host::find().unwrap_or_else(|problem| panic!("{}", problem.evidence));
+        let served = Served { ports: 42000..=42999, api_port: 7443 };
+        let network = Network::new(host, served.clone(), root.path());
+        let spec: ContainerSpec = serde_json::from_value(serde_json::json!({
+            "name": "refresh", "image": "", "env": [], "labels": {}, "user": "",
+            "memory_bytes": 0, "cpu_shares": 0, "pids_limit": 0, "read_only_rootfs": true,
+            "tmp_size_mb": 0, "data_dir": root.path(), "mount_path": "/data", "ports": [],
+            "stop_signal": "SIGTERM", "stop_timeout_secs": 0, "network": "",
+            "internal_network": false, "log_max_size_mb": 0, "log_max_files": 0, "oom_score_adj": 0
+        }))
+        .unwrap();
+        let sleeper = || {
+            let mut command = std::process::Command::new("sleep");
+            command.arg("60");
+            host::drop_ambient_on_exec(&mut command);
+            command
+        };
+        let (original, cgroup) = network.prepare(&spec).await.unwrap();
+        let mut child = network.spawn_verified(&spec.name, &mut sleeper()).unwrap();
+        assert!(host::members(&cgroup).unwrap().contains(&child.id()));
+        let unreadable = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "address table denied");
+        assert_eq!(network.refresh_with(Err(unreadable)), 0);
+        assert_eq!(child.wait().unwrap().signal(), Some(libc::SIGKILL));
+        assert!(host::members(&cgroup).unwrap().is_empty());
+        assert_eq!(std::fs::read_to_string(cgroup.join("cgroup.freeze")).unwrap().trim(), "1");
+        assert!(!network.verified(&spec.name));
+        assert!(network.spawn_verified(&spec.name, &mut sleeper()).is_err(), "no join after an empty cgroup's kill");
+        // Readability returning does not revive that fenced identity or its old programs.
+        network.refresh_with(host::addresses());
+        assert!(!network.verified(&spec.name));
+        assert!(network.spawn_verified(&spec.name, &mut sleeper()).is_err());
+        let (fresh, fresh_cgroup) = network.prepare(&spec).await.unwrap();
+        assert_ne!(fresh.attachments, original.attachments, "a restart attaches a new program set");
+        assert_eq!(cgroup, fresh_cgroup);
+        assert_eq!(std::fs::read_to_string(cgroup.join("cgroup.freeze")).unwrap().trim(), "0");
+        let mut restarted = network.spawn_verified(&spec.name, &mut sleeper()).unwrap();
+        assert!(host::members(&cgroup).unwrap().contains(&restarted.id()));
+        network.release(&spec.name).unwrap();
+        assert_eq!(restarted.wait().unwrap().signal(), Some(libc::SIGKILL));
+        assert!(!cgroup.exists());
+        assert!(!network.host.pin_directory(&network.key(&spec.name)).exists());
+
+        // An exited supervisor's journal can still own a live cgroup member in shared-UID
+        // mode: no PID or UID sweep finds it, so a failed startup proof must fence the record.
+        let runtime =
+            crate::runtime::process::ProcessRuntime::new(root.path(), crate::config::ProcessConfig::default()).unwrap();
+        let host = Host::find().unwrap_or_else(|problem| panic!("{}", problem.evidence));
+        let network = Network::new(host, served.clone(), &runtime.state.root);
+        let (record, orphan_group) = network.prepare(&spec).await.unwrap();
+        let mut orphan = network.spawn_verified(&spec.name, &mut sleeper()).unwrap();
+        runtime
+            .save(crate::runtime::process::Entry {
+                id: uuid::Uuid::new_v4().to_string(),
+                spec: spec.clone(),
+                pid: None,
+                ticks: None,
+                code: 0,
+                started: None,
+                finished: None,
+                cleaned: false,
+                native_browser: None,
+                network: Some(record),
+                namespaced: None,
+            })
+            .unwrap();
+        drop(network);
+        let rejected = aya::include_bytes_aligned!("../../../bpf/rejected.bpf.o");
+        let _runtime = runtime.with_network_programs(served, rejected).await;
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        let status = loop {
+            if let Some(status) = orphan.try_wait().unwrap() {
+                break status;
+            }
+            if std::time::Instant::now() >= deadline {
+                let _ = orphan.kill();
+                let _ = orphan.wait();
+                panic!("an orphaned cgroup member outlived the failed startup proof");
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        };
+        assert_eq!(status.signal(), Some(libc::SIGKILL));
+        assert!(!orphan_group.exists());
     }
 }

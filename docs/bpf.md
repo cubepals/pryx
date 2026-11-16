@@ -23,7 +23,7 @@ It is off, with the reason and what would turn it on, without cgroup v2, without
 cgroup (a default `docker run`, an undelegated user service), without CAP_BPF and CAP_NET_ADMIN
 (any ordinary user they weren't granted to), without a BPF filesystem pryxd can write, without a
 netlink socket to hear of the host's address changes (a unit whose RestrictAddressFamilies leaves
-out AF_NETLINK), or where the kernel's verifier refuses a program, with the verifier's words. Nothing is approximated
+out AF_NETLINK), without readable host address tables in `/proc/net`, or where the kernel's verifier refuses a program, with the verifier's words. Nothing is approximated
 where it is off.
 
 The root unit that the server and node presets install (`deploy/pryxd.service`) grants what it
@@ -68,9 +68,12 @@ maps, which pryxd logs (`micros`) each time. CI's check (`tests/process_network.
 the hosted runner) found an address added to the host already refused on the first dial after
 `ip address add` returned, 34 ms and 25 ms later in two runs, figures that include the exec and
 the Python that dial (CI runs 43810779630 and 43821485495). A connection a sandbox opened within it keeps the
-verdict it got. A sandbox whose rules can't be written for the new addresses (more prefixes than
-its map holds) stops counting as verified, and the process tier's `host-firewall` is off while it
-runs. pryxd needs a netlink socket for this, and is off without one, with that reason. Sockets other than TCP and UDP
+verdict it got. When the host's address tables can't be read or a sandbox's new rules can't be
+written, pryxd freezes and kills that sandbox's cgroup, keeping its programs attached until every
+member has exited. That fenced program set never becomes verified again: another start removes
+the old empty cgroup and attaches a fresh set. A missing IPv6 address table is accepted only when
+an IPv6 socket proves that the host has no such address family. pryxd needs a netlink socket for
+the address watch, and is off without one, with that reason. Sockets other than TCP and UDP
 over IPv4 and IPv6 (raw, ICMP echo, SCTP, UDP-Lite, MPTCP) are refused at `socket()`.
 
 From off this host a sandbox is reached as a container is: on the ports pryxd published for it
@@ -120,8 +123,11 @@ listener is there). No program parses anything the sandbox sent.
 Programs are attached through cgroup BPF links and pinned, with their maps, under
 `<bpffs>/pryx/<key>/`, where `<key>` names the sandbox within one state directory. A restarted
 pryxd finds them by their pins, checks each link is the one it attached, writes the rules again
-and serves new gateways. When a sandbox's supervisor is gone, pryxd kills whatever is left in its
-cgroup, removes the pins, which detaches the programs, and removes the cgroup.
+and serves new gateways. A failed host proof, address watch or adoption stops every supervisor
+with a recorded program set; it can't restart in plain mode while that proof is unavailable.
+Legacy supervisors without a record keep their existing mode with the tier guarantee off. When
+a sandbox's supervisor is gone, pryxd fences and kills whatever is left in its cgroup, waits for
+it to empty, removes the pins, which detaches the programs, and removes the cgroup.
 
 ## Reading the counters
 

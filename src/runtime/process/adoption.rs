@@ -23,7 +23,13 @@ impl ProcessRuntime {
         let on = capability.state == crate::capability::State::On;
         tracing::info!(on, evidence = %capability.evidence, "kernel network policy");
         self.network_capability = Some(capability);
-        let Ok(host) = found else { return self };
+        let Ok(host) = found else {
+            // A failed probe cannot adopt a previously policed sandbox either. Locate whatever
+            // cleanup the host still permits without treating that location as a capability proof.
+            let cleanup = crate::bpf::host::Host::find().ok().map(|host| Network::new(host, served, &self.state.root));
+            self.stop_recorded(cleanup.as_ref()).await;
+            return self;
+        };
         let network = Arc::new(Network::new(host, served, &self.state.root));
         // Heard from before any sandbox is adopted, so no change of the host's addresses is missed.
         let watched = crate::bpf::host::subscribe().and_then(|changes| {
@@ -38,6 +44,7 @@ impl ProcessRuntime {
                 evidence,
                 crate::bpf::host::WATCH_ACTION,
             ));
+            self.stop_recorded(Some(&network)).await;
             return self;
         }
         for name in self.names() {
@@ -54,9 +61,7 @@ impl ProcessRuntime {
                 // Its programs were its only defence against this host, whatever its policy; one
                 // started before the host had them has none to lose.
                 if entry.network.is_some() {
-                    let _ = self.terminate_tree(&name).await;
-                    let _ = network.release(&entry.spec.name);
-                    self.gone(&entry).await;
+                    self.stop_unverified(&entry, Some(&network)).await;
                 }
             }
         }
@@ -69,6 +74,30 @@ impl ProcessRuntime {
             );
         }
         self
+    }
+
+    /// A startup that can't verify programs stops every supervisor that previously had them;
+    /// legacy supervisors without a record keep their existing, explicitly weaker mode.
+    async fn stop_recorded(&self, network: Option<&Network>) {
+        for name in self.names() {
+            let Ok(entry) = self.entry(&name) else { continue };
+            if entry.network.is_some() {
+                self.stop_unverified(&entry, network).await;
+            }
+        }
+    }
+
+    async fn stop_unverified(&self, entry: &Entry, network: Option<&Network>) {
+        if let Err(problem) = self.terminate_tree(&entry.spec.name).await {
+            tracing::warn!(sandbox = %entry.spec.name, %problem, "unverified process sandbox's tree did not stop");
+            let _ = self.signal_tree(&entry.spec.name, rustix::process::Signal::KILL);
+        }
+        if let Some(network) = network
+            && let Err(problem) = network.release(&entry.spec.name)
+        {
+            tracing::warn!(sandbox = %entry.spec.name, %problem, "unverified process sandbox's programs retained until it stops");
+        }
+        self.gone(entry).await;
     }
 
     /// Waits, a bounded time, until a supervisor it stopped has exited: with shared UIDs there is

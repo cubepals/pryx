@@ -584,6 +584,37 @@ async fn a_sandbox_whose_programs_are_gone_after_a_restart_is_stopped() {
 
 #[tokio::test]
 #[ignore = "needs a host that grants kernel network policy"]
+async fn a_failed_probe_on_restart_stops_recorded_sandboxes_and_refuses_a_plain_relaunch() {
+    let dir = tempfile::tempdir().unwrap();
+    let before = kernel_state();
+    {
+        let manager = node(dir.path(), 22200).await;
+        start(&manager, "recorded", serde_json::json!({})).await;
+    }
+    let extra = extra(22200, None);
+    let config = config(dir.path(), &extra);
+    let served = pryxd::runtime::process::Served { ports: 22200..=22299, api_port: config.api.listen.port() };
+    let runtime = pryxd::runtime::process::ProcessRuntime::new(&config.state_dir, config.process.clone())
+        .unwrap()
+        .with_network_programs(served, REJECTED)
+        .await;
+    assert_eq!(runtime.kernel_network_policy().unwrap().state, pryxd::probe::State::Off);
+    let manager = manager_on(dir.path(), Arc::new(runtime), &extra);
+    manager.refresh_host_probe().await;
+    assert!(manager.reconcile(Records::FromDisk).await.error.is_none());
+    let view = until(&manager, "recorded", "the previously policed supervisor stopped", |view| {
+        view.state != WorkloadState::Running
+    })
+    .await;
+    assert!(!view.guarantees[&Guarantee::HostFirewall]);
+    let refused = manager.start(id("recorded"), None).await.unwrap_err();
+    assert!(format!("{refused:?}").contains("kernel-network-policy"), "{refused:?}");
+    remove(&manager, &["recorded"]).await;
+    nothing_left(&before);
+}
+
+#[tokio::test]
+#[ignore = "needs a host that grants kernel network policy"]
 async fn a_sandbox_started_without_programs_keeps_the_tier_guarantee_off_while_it_runs() {
     let dir = tempfile::tempdir().unwrap();
     let before = kernel_state();

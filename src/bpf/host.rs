@@ -190,6 +190,27 @@ pub(crate) fn members(path: &Path) -> io::Result<Vec<u32>> {
     Ok(fs::read_to_string(path.join("cgroup.procs"))?.lines().filter_map(|pid| pid.parse().ok()).collect())
 }
 
+/// Stops every task and leaves the cgroup frozen, so a late join cannot run after the kill.
+/// The programs remain attached until every member is gone.
+pub(crate) fn fence_cgroup(path: &Path) -> io::Result<()> {
+    let frozen = fs::write(path.join("cgroup.freeze"), b"1");
+    let killed = fs::write(path.join("cgroup.kill"), b"1");
+    frozen.and(killed)
+}
+
+/// Waits before detaching a stopped cgroup's programs. A task that hasn't exited keeps them.
+pub(crate) fn wait_empty(path: &Path) -> io::Result<()> {
+    const STOP: std::time::Duration = std::time::Duration::from_secs(5);
+    let deadline = std::time::Instant::now() + STOP;
+    while !members(path)?.is_empty() {
+        if std::time::Instant::now() >= deadline {
+            return Err(io::Error::other(format!("cgroup {} still holds stopped processes", path.display())));
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    Ok(())
+}
+
 /// Removes an empty cgroup; a missing one is already gone. Exiting processes can hold it for a
 /// moment, so it is tried a few times.
 pub(crate) fn remove_cgroup(path: &Path) -> io::Result<()> {
@@ -240,19 +261,42 @@ pub(crate) fn drop_ambient_on_exec(command: &mut Command) {
     }
 }
 
-/// This host's own addresses: IPv4 from the routing trie, IPv6 from the interface table.
-pub(crate) fn addresses() -> Vec<IpAddr> {
-    let mut found: Vec<IpAddr> =
-        crate::infer::local_addresses(&fs::read_to_string("/proc/net/fib_trie").unwrap_or_default())
-            .into_iter()
-            .map(IpAddr::V4)
-            .collect();
-    found.extend(
-        ipv6_addresses(&fs::read_to_string("/proc/net/if_inet6").unwrap_or_default()).into_iter().map(IpAddr::V6),
-    );
+/// This host's own addresses: IPv4 from the routing trie, IPv6 from the interface table. An
+/// unreadable table is no proof that the host owns no address: it leaves the policy unavailable.
+pub(crate) fn addresses() -> io::Result<Vec<IpAddr>> {
+    addresses_at(Path::new("/proc/net"))
+}
+
+fn addresses_at(directory: &Path) -> io::Result<Vec<IpAddr>> {
+    let read = |file: &str| {
+        let path = directory.join(file);
+        fs::read_to_string(&path)
+            .map_err(|problem| io::Error::new(problem.kind(), format!("reading {}: {problem}", path.display())))
+    };
+    let ipv4 = read("fib_trie")?;
+    let ipv6 = match read("if_inet6") {
+        Ok(table) => table,
+        // Linux exposes no IPv6 interface table when that address family is absent. Prove
+        // that absence with a socket; a masked or denied proc file must not hide live addresses.
+        Err(problem) if problem.kind() == io::ErrorKind::NotFound && ipv6_unavailable() => String::new(),
+        Err(problem) => return Err(problem),
+    };
+    let mut found: Vec<IpAddr> = crate::infer::local_addresses(&ipv4).into_iter().map(IpAddr::V4).collect();
+    found.extend(ipv6_addresses(&ipv6).into_iter().map(IpAddr::V6));
     found.sort_unstable();
     found.dedup();
-    found
+    Ok(found)
+}
+
+fn ipv6_unavailable() -> bool {
+    use rustix::{
+        io::Errno,
+        net::{AddressFamily, SocketFlags, SocketType},
+    };
+    matches!(
+        rustix::net::socket_with(AddressFamily::INET6, SocketType::DGRAM, SocketFlags::CLOEXEC, None),
+        Err(Errno::AFNOSUPPORT)
+    )
 }
 
 /// The kernel's word that this host's addresses may have changed: a netlink socket in the groups
@@ -351,5 +395,32 @@ mod tests {
             ipv6_addresses(table),
             ["::1".parse::<std::net::Ipv6Addr>().unwrap(), "fe80::a00:27ff:fe12:f2b4".parse().unwrap()]
         );
+    }
+
+    #[test]
+    fn unreadable_address_tables_are_refused_instead_of_an_empty_host() {
+        let directory = tempfile::tempdir().unwrap();
+        let ipv4 = directory.path().join("fib_trie");
+        let ipv6 = directory.path().join("if_inet6");
+        fs::write(&ipv4, "Main:\n  +-- 203.0.113.0/24 2 0 2\n     |-- 203.0.113.9\n        /32 host LOCAL\n").unwrap();
+        fs::write(&ipv6, "20010db8000000000000000000000009 01 00 00 80 lo\n").unwrap();
+        let expected: Vec<IpAddr> = ["203.0.113.9", "2001:db8::9"].map(|address| address.parse().unwrap()).into();
+        assert_eq!(addresses_at(directory.path()).unwrap(), expected);
+        fs::remove_file(&ipv4).unwrap();
+        let problem = addresses_at(directory.path()).unwrap_err();
+        assert_eq!(problem.kind(), io::ErrorKind::NotFound);
+        assert!(problem.to_string().contains("fib_trie"), "{problem}");
+        fs::write(&ipv4, "Main:\n").unwrap();
+        // A present but unreadable IPv6 table is always an error, even without IPv6 sockets.
+        fs::remove_file(&ipv6).unwrap();
+        fs::create_dir(&ipv6).unwrap();
+        let problem = addresses_at(directory.path()).unwrap_err();
+        assert!(problem.to_string().contains("if_inet6"), "{problem}");
+        fs::remove_dir(&ipv6).unwrap();
+        if ipv6_unavailable() {
+            assert_eq!(addresses_at(directory.path()).unwrap(), Vec::<IpAddr>::new());
+        } else {
+            assert_eq!(addresses_at(directory.path()).unwrap_err().kind(), io::ErrorKind::NotFound);
+        }
     }
 }

@@ -265,6 +265,11 @@ impl ProcessRuntime {
     pub(super) async fn launch(&self, name: &str) -> Result<(), RuntimeError> {
         let _launch = self.state.launch.lock().await;
         let mut entry = self.entry(name)?;
+        if self.network.is_none()
+            && (entry.network.is_some() || entry.spec.egress.is_some() || entry.spec.egress_addresses.is_some())
+        {
+            return Err(error("this sandbox requires kernel-network-policy, which this host cannot verify"));
+        }
         if entry.spec.nano_cpus.is_some() {
             return Err(error(crate::protocol::CPU_LIMIT_PROBLEM));
         }
@@ -289,19 +294,18 @@ impl ProcessRuntime {
         // Every socket the supervisor or its commands open is its cgroup's, so the programs
         // are attached before it starts and it joins the cgroup before it runs. A namespaced
         // supervisor's helper joins it the same way, and everything below it inherits it.
-        if let Some(network) = &self.network {
-            let (record, cgroup) = network.prepare(&entry.spec).await?;
+        let child = if let Some(network) = &self.network {
+            let (record, _) = network.prepare(&entry.spec).await?;
             entry.network = Some(record);
-            if let Err(problem) = crate::bpf::host::join_on_exec(&mut command, &cgroup) {
-                network.release(&entry.spec.name)?;
-                return Err(error(problem));
-            }
-        }
-        let child = match command.spawn() {
+            network.spawn_verified(&entry.spec.name, &mut command)
+        } else {
+            command.spawn().map_err(error)
+        };
+        let child = match child {
             Ok(child) => child,
             Err(problem) => {
                 self.release_network(&entry.spec.name)?;
-                return Err(error(problem));
+                return Err(problem);
             }
         };
         drop(listeners);

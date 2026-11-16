@@ -29,6 +29,10 @@ pub(crate) fn probe() -> Result<host::Host, host::Unavailable> {
 /// The proof with `programs` in place of the embedded object: only tests hand it another.
 pub(crate) fn probe_object(programs: &[u8]) -> Result<host::Host, host::Unavailable> {
     let host = host::Host::find()?;
+    host::addresses().map_err(|problem| host::Unavailable {
+        evidence: problem.to_string(),
+        action: "Allow this daemon to read the host's address tables in /proc/net",
+    })?;
     // A sandbox's rules name this host's addresses, so they are kept as the host changes.
     drop(host::subscribe().map_err(|problem| host::Unavailable {
         evidence: format!("this daemon can't hear of changes to the host's addresses (rtnetlink): {problem}"),

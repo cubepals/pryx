@@ -235,8 +235,19 @@ jobs:
           CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: sudo --preserve-env=PRYX_TEST_AGENT,PRYX_TEST_PRIVATE,PRYX_TEST_HOST_ADDRESS,PRYX_TEST_REMOTE,PRYX_TEST_EDGE
         run: |
           cargo test --locked --lib bpf:: -- --ignored
+          cargo test --locked --lib runtime::process::network::tests::a_failed_address_refresh \
+            -- --ignored --test-threads 1
           # Printed: how soon an address the host gains is refused (K31_ADDRESS_WATCH).
           cargo test --locked --test process_network -- --ignored --test-threads 1 --nocapture
+          # A service may hide proc files without denying BPF: missing host addresses must
+          # turn the guarantee off rather than admitting the host's public interfaces.
+          for table in fib_trie if_inet6; do
+            sudo systemd-run --quiet --wait --pipe --collect -p Delegate=yes \
+              -p "InaccessiblePaths=/proc/net/$table" \
+              "$PWD/target/debug/pryxd" probe --json | tee "$RUNNER_TEMP/hidden-$table.json" > /dev/null
+            jq -e --arg table "$table" '.capabilities["kernel-network-policy"] |
+              .state == "off" and (.evidence | contains($table))' "$RUNNER_TEMP/hidden-$table.json"
+          done
       # Disposable runner prerequisite, as a host's root would grant it: a pin directory the
       # user owns on the system's BPF filesystem, and a service with the two capabilities.
       # Both suites run whichever fails, so one can't hide the other.
