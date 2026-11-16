@@ -168,6 +168,8 @@ impl Manager {
         // Asleep with its source's memory, as a suspended workload is: its first start resumes it.
         self.save_suspension(id, SuspendRecord { suspended_at: Some(now_str()), ..self.suspension(id) }).await?;
         self.state.lock().unwrap().disk.remove(id);
+        // Its view reads the runtime's paused copy from here on, as after a suspend.
+        self.observe(record).await?;
         tracing::info!(workload = %id, source = %source.id, "forked with the source's memory");
         Ok(Some(RestoreResponse {
             size_bytes: view.size_bytes,
