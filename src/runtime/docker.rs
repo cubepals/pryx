@@ -28,7 +28,7 @@ mod container;
 mod create;
 pub(crate) mod egress;
 mod exec;
-mod gvisor;
+pub mod gvisor;
 pub use gvisor::{EXEC_TIMEOUT_PROBLEM, GVISOR_MISSING_PROBLEM, GVISOR_RUNTIME, problem as gvisor_problem};
 mod native_tools;
 mod network;
@@ -75,7 +75,7 @@ const CLIENT_TIMEOUT_SECS: u64 = MAX_STOP_TIMEOUT as u64 + 60;
 /// Docker Engine /info SecurityOptions uses this identifier for rootless mode.
 const ROOTLESS_SECURITY_OPTION: &str = "name=rootless";
 /// Podman v6.1.0 pkg/api/handlers/compat/version.go's component name.
-const PODMAN_ENGINE_COMPONENT: &str = "Podman Engine";
+pub const PODMAN_ENGINE_COMPONENT: &str = "Podman Engine";
 pub(crate) const PODMAN_POLICY_PROBLEM: &str = "Podman needs its native API, Netavark and the default native-tools profile to preserve container isolation; use a supported engine configuration";
 /// Quick calls get a much shorter leash of their own.
 const QUICK: Duration = Duration::from_secs(20);
