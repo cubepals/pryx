@@ -382,14 +382,6 @@ async fn boot_directory_of(runtime: &VmRuntime, id: &str) -> PathBuf {
     live._directory.path().to_owned()
 }
 
-/// How the guest's init saw its last sleep end, from its console.
-async fn hold_end(runtime: &VmRuntime, id: &str) -> String {
-    let live = runtime.state.live.lock().unwrap()[id].clone();
-    let serial = live.lock().await.serial.clone();
-    let console = String::from_utf8_lossy(&fs::read(serial).unwrap_or_default()).into_owned();
-    console.lines().rev().find(|line| line.contains("VM sleep hold ended")).unwrap_or("no hold end").to_owned()
-}
-
 /// A snapshot that fails after the monitor saved the devices' state leaves the guest running where
 /// it was, its network included, and its next sleep works; one whose monitor never answers again
 /// (its memory file a FIFO nobody reads, so the create blocks) is retired, and its next start
@@ -423,8 +415,6 @@ async fn actual_failed_snapshots_resume_or_retire_the_guest() {
     assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Running);
     assert_eq!(read(&runtime, &id, "cat /tmp/marker").await, "kept", "The guest went on where it was");
     super::network_acceptance::probe(&runtime, &id, true, &host).await;
-    // How init saw its hold end, once it has said so: closed by the host, or reset by the monitor.
-    eprintln!("VM sleep with an unwritable memory file, the guest's init: {}", hold_end(&runtime, &id).await);
     fs::remove_dir(&unwritable).unwrap();
     runtime.pause(&id).await.unwrap();
     runtime.unpause(&id).await.unwrap();

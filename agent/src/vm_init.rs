@@ -386,9 +386,9 @@ async fn take_identity(
 }
 
 /// The resume hook, after a restore: the wall clock and entropy from the host's signed resume, for a
-/// fork its identity, and the guest's redirects to the wake's own gateway ports; only then does
-/// the workload run again, and the resume is acknowledged. Then a new network helper, since the
-/// restore reset the old one's packet transport.
+/// fork its identity, and the guest's redirects to the wake's own gateway ports, then the resume's
+/// acknowledgement and a new network helper, since the restore reset the old one's packet
+/// transport. Only then does the workload run again.
 async fn awake(
     resumed: crate::vm_sleep::Resumed,
     configuration: &mut Option<vm_boot::Network>,
@@ -406,12 +406,13 @@ async fn awake(
         (policy.http.target, policy.tls.target, policy.dns.target) = (gateways.http, gateways.tls, gateways.dns);
         crate::vm_firewall::replaced(configuration.as_ref().expect("a policy is a network's")).await?;
     }
-    thaw()?;
     resumed.acknowledge().await;
     if configuration.is_some() {
         crate::vm_network::stop(network.take()).await?;
         *network = crate::vm_network::start(configuration.as_ref()).await?;
     }
+    // Only now: a woken workload finds its network up, its lease taken, as a booted one does.
+    thaw()?;
     eprintln!("{}", crate::vm_sleep::RESUMED_MARKER);
     Ok(next)
 }

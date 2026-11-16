@@ -182,8 +182,8 @@ list narrows the tier with it, and adds prefixes there for other images, as for 
   control's sleep suspends instead of stopping. A suspend asks the guest's init, with a request
   signed for that boot, to freeze its workload's cgroup, flush its disk and hold a connection to
   the host; the monitor is then paused, writes a full snapshot of its state and memory, and exits.
-  The workload runs again only once a resume has stepped the clock and reseeded it, or once the
-  host gives the sleep up. The two files go into
+  The workload runs again only once a resume has stepped the clock, reseeded it and brought its
+  network back, or once the host gives the sleep up. The two files go into
   pryxd's private state for the VM tier, owned by pryxd's user and readable by no one else, as
   the disk is; they never go into a snapshot, an export, a rest or a transfer.
 - **Wake with memory** restores that snapshot on the same node, when the host's class still
