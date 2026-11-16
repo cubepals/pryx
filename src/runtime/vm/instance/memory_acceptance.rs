@@ -70,7 +70,7 @@ async fn actual_memory_sleep_keeps_a_running_process_and_falls_back_to_its_disk(
     assert!(!runtime.info().await.unwrap().memory_sleep, "Memory sleep is off until its start test passes");
     let since = std::time::SystemTime::now();
     runtime.probe_memory_sleep_in_background();
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(300);
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(120);
     while !runtime.info().await.unwrap().memory_sleep {
         let outcome = runtime.state.memory_sleep.lock().unwrap().clone();
         if matches!(outcome, Some(Err(_))) {
