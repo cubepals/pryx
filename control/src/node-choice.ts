@@ -14,7 +14,7 @@ import agentContract from '../../agent/openapi.json'
 import type { Queryable } from './database.ts'
 import { type Guarantee, guarantees } from './guarantees.ts'
 import type { Thresholds } from './health.ts'
-import { type Isolation, nodeFeature, nodeIsolations } from './isolation.ts'
+import { engineTier, type Isolation, nodeFeature, nodeIsolations } from './isolation.ts'
 import {
   type Considered,
   type Decision,
@@ -74,7 +74,7 @@ export class NodeChoice {
       isolation: spec.isolation,
       memoryMb: spec.resources.memoryMb,
       memoryLimit:
-        (spec.isolation ?? 'container') === 'container' &&
+        engineTier(spec.isolation) &&
         (spec.resources.allowUnenforcedMemory === false ||
           (spec.resources.allowUnenforcedMemory !== true && spec.resourceDefaults?.memory === false)),
       cpuMillis: reservedCpu(spec.resources, this.#o.cpuMillisPerGb),

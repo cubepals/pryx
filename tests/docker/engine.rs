@@ -9,7 +9,7 @@ use super::*;
 #[ignore = "needs a real Docker-compatible engine"]
 async fn explicit_memory_acceptance_never_removes_available_enforcement() {
     let socket = selected_socket().await;
-    let runtime = Arc::new(DockerRuntime::new(&socket).unwrap());
+    let runtime = Arc::new(super::gvisor::engine_runtime(&socket));
     let Some(limits) = limits_or_mapping_refusal(&runtime, &socket).await else { return };
     let dir = tempfile::tempdir().unwrap();
     let dep = deployment();

@@ -280,6 +280,36 @@ jobs:
             ${{ runner.temp }}/check-structure.ts
             target/check-control-structure.ts
           if-no-files-found: warn
+      # K26: the process tier's namespaced mode on this runner, and its plain mode in a default
+      # docker run, against the agent built above with the pinned helper staged beside it. Where
+      # Ubuntu's AppArmor rule refuses the helper, the profile the doctor prints is installed first.
+      - name: Process sandboxes namespaced here and plain in a default docker run
+        run: |
+          install -d -m 755 "$RUNNER_TEMP/pryx-install"
+          install -m 755 target/debug/pryx-agent "$RUNNER_TEMP/pryx-install/pryx-agent"
+          python3 -I deploy/namespace-helper.py "$RUNNER_TEMP/pryx-install"
+          export PRYX_TEST_PROCESS_AGENT="$RUNNER_TEMP/pryx-install/pryx-agent"
+          echo "apparmor_restrict_unprivileged_userns=$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null || echo absent)"
+          PRYX_TEST_NAMESPACE_PROFILE="$RUNNER_TEMP/pryx-namespaces.apparmor" \
+            cargo test --locked --test process_namespaces -- --ignored --nocapture --test-threads 1
+          if [ -s "$RUNNER_TEMP/pryx-namespaces.apparmor" ]; then
+            cat "$RUNNER_TEMP/pryx-namespaces.apparmor"
+            sudo install -m 644 "$RUNNER_TEMP/pryx-namespaces.apparmor" /etc/apparmor.d/pryx-namespaces
+            sudo apparmor_parser -r /etc/apparmor.d/pryx-namespaces
+          fi
+          PRYX_TEST_NAMESPACES=on cargo test --locked --test process_namespaces -- --ignored --nocapture --test-threads 1
+          test=$(cargo test --locked --test process_namespaces --no-run --message-format=json \
+            | jq -r 'select(.target.name == "process_namespaces" and .executable != null) | .executable')
+          echo "plain-mode test binary: $test"
+          test -f "$test" && test -x "$test"
+          for wait in 2 5 10 20 0; do
+            docker pull -q mirror.gcr.io/library/ubuntu:24.04 && break
+            [ "$wait" = 0 ] && exit 1
+            sleep "$wait"
+          done
+          docker run --rm -v "$RUNNER_TEMP/pryx-install:/install:ro" -v "$test:/process-namespaces:ro" \
+            -e PRYX_TEST_NAMESPACES=off -e PRYX_TEST_PROCESS_AGENT=/opt/pryx/pryx-agent \
+            mirror.gcr.io/library/ubuntu:24.04 sh -c 'cp -r /install /opt/pryx && exec /process-namespaces --ignored --nocapture --test-threads 1'
       - name: CLI doctor uses the real host document
         run: |
           bun install --frozen-lockfile
@@ -289,8 +319,57 @@ jobs:
       # Against the runner's own Docker daemon: hardening, limits, the OOM killer, isolation,
       # restarts. They chown data directories, so Cargo's runner starts the test binary as root;
       # Cargo itself, and so target/, stays the runner's.
+      # The Docker suites run whatever the process case found, so one run shows both.
       - name: Docker integration tests
+        if: ${{ !cancelled() }}
         run: CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER=sudo cargo test --locked --test docker -- --ignored --test-threads 2
+      # K26: the same suite on the gvisor tier, with gVisor's runsc at deploy/gvisor.json's pin
+      # registered with the runner's Docker. Last, since registering it restarts Docker.
+      - name: Register gVisor's runsc with Docker
+        if: ${{ !cancelled() }}
+        run: sudo deploy/gvisor.sh
+      - name: Docker integration tests on the gvisor tier
+        if: ${{ !cancelled() }}
+        timeout-minutes: 40
+        env:
+          PRYX_TEST_GVISOR: '1'
+        run: >-
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER='sudo --preserve-env=PRYX_TEST_GVISOR'
+          cargo test --locked --test docker -- --ignored --test-threads 2 --nocapture
+      # K26 side piece, evidence only: whether a gVisor sandbox on a user bridge reaches Docker's
+      # embedded resolver, and a resolver on the bridge's own address named in its resolv.conf.
+      - name: gVisor resolver experiments
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: |
+          docker network create k26-dns > /dev/null
+          gateway=$(docker network inspect k26-dns -f '{{(index .IPAM.Config 0).Gateway}}')
+          echo "embedded resolver, runsc:"
+          docker run --rm --runtime=runsc --network k26-dns alpine:3.22 nslookup -timeout=3 example.com || true
+          sudo python3 - "$gateway" <<'PY' &
+          import socket, sys
+          listener = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+          listener.bind((sys.argv[1], 53))
+          upstream = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+          upstream.settimeout(5)
+          while True:
+              query, peer = listener.recvfrom(4096)
+              upstream.sendto(query, ('1.1.1.1', 53))
+              try:
+                  listener.sendto(upstream.recv(4096), peer)
+              except OSError:
+                  pass
+          PY
+          forwarder=$!
+          sleep 1
+          printf 'nameserver %s\n' "$gateway" > "$RUNNER_TEMP/k26-resolv.conf"
+          for runtime in runsc runc; do
+            echo "bridge resolver $gateway, $runtime:"
+            docker run --rm --runtime="$runtime" --network k26-dns \
+              -v "$RUNNER_TEMP/k26-resolv.conf:/etc/resolv.conf:ro" alpine:3.22 nslookup -timeout=3 example.com || true
+          done
+          sudo kill "$forwarder" || true
+          docker network rm k26-dns > /dev/null
       - name: Docker and kernel failure evidence
         if: failure()
         run: |
@@ -832,6 +911,35 @@ jobs:
         if: always()
         run: |
           if [ -f "$RUNNER_TEMP/store-lease-measurements.json" ]; then cat "$RUNNER_TEMP/store-lease-measurements.json" >> "$GITHUB_STEP_SUMMARY"; fi
+      # K26: the native tool and interpreter templates on the gvisor tier, with runsc at
+      # deploy/gvisor.json's pin registered with this runner's Docker. Last: registering restarts it.
+      - name: Register gVisor's runsc for the tool templates
+        if: ${{ !cancelled() && steps.static.outcome == 'success' }}
+        id: gvisor-host
+        run: |
+          sudo deploy/gvisor.sh
+          docker start pryx-s3
+          for id in $(docker ps -aq --filter ancestor=mirror.gcr.io/library/postgres:17-alpine); do
+            docker start "$id"
+            for attempt in $(seq 1 30); do
+              docker exec "$id" pg_isready -U pryx && break
+              [ "$attempt" = 30 ] && exit 1
+              sleep 1
+            done
+          done
+      - name: Native tool and interpreter templates on the gvisor tier
+        if: ${{ !cancelled() && steps.gvisor-host.outcome == 'success' }}
+        env:
+          PRYX_TEST_GVISOR: '1'
+          PRYX_GVISOR_TOOLS: ${{ runner.temp }}/gvisor-tools.json
+          PRYXD_BIN: ${{ github.workspace }}/target/debug/pryxd
+          PRYXD_STATIC_BIN: ${{ runner.temp }}/pryxd
+          PRYX_NATIVE_TOOLS_SECCOMP: /usr/local/lib/pryx/native-tools-seccomp.json
+        run: bun test control/e2e/gvisor-tools.e2e.test.ts
+      - name: gVisor tool template results
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/gvisor-tools.json" ]; then cat "$RUNNER_TEMP/gvisor-tools.json"; cat "$RUNNER_TEMP/gvisor-tools.json" >> "$GITHUB_STEP_SUMMARY"; fi
 
   one-box:
     name: One box and Action

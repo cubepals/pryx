@@ -11,7 +11,6 @@ import type { OperatorToken } from '../../control/src/operator-api.ts'
 import { ensureBucket } from '../../control/src/store-bootstrap.ts'
 import { capabilitySummary, hostProbe } from '../../deploy/host-probe.ts'
 import nodeSchema from '../../openapi/node-writes.openapi.json'
-import vmImages from '../../templates/vm-tools/image-inputs.json'
 import { callerHomeAndDropPrivileges, writeClientConfig } from './client-config.ts'
 import { option } from './sandbox.ts'
 import { FLEET_HANDOUT_DIR, FLEET_PRYXD_BIN, installBinary, releaseFiles } from './up-assets.ts'
@@ -19,6 +18,7 @@ import { configurations } from './up-config.ts'
 import { readEnvironment, writeChanged, writeEnvironment } from './up-files.ts'
 import { checkHostRuntime, configureHostRuntime } from './up-host.ts'
 import { imageReference, upImage } from './up-image.ts'
+import { defaultAllowedImages, recordDefaultImages, refreshDefaultImages } from './up-images.ts'
 import { container, service } from './up-units.ts'
 
 export const runInstallCommand = async (args: string[], quiet = true, redactions: string[] = []) => {
@@ -38,13 +38,6 @@ export const runInstallCommand = async (args: string[], quiet = true, redactions
   }
 }
 const active = (unit: string) => Bun.spawnSync(['systemctl', 'is-active', '--quiet', unit]).exitCode === 0
-/** What a server install admits when `--allow-image` names nothing: the alpine and node prefixes,
- * and, when it installs the release's VM descriptor, exactly the images that VM bundle is proven
- * with, each by its full digest reference, so it admits no other digest. The entries are the
- * operator's to remove like any other; an explicit `--allow-image` list is used as given. */
-export function defaultAllowedImages(vmDescriptor: boolean) {
-  return ['alpine:', 'node:', ...(vmDescriptor ? vmImages.map((image) => image.reference) : [])]
-}
 export function upPlan(domain: string) {
   return {
     architecture: process.arch,
@@ -228,6 +221,9 @@ export async function up(args: string[]) {
     })
     return true
   }, 'the S3 bucket')
+  // An explicit `--allow-image` list is the operator's; otherwise the node gets the default.
+  const allow = args.flatMap((v, i) => (v === '--allow-image' && args[i + 1] ? [args[i + 1] as string] : []))
+  const images = defaultAllowedImages(existsSync(descriptor))
   if (!existsSync('/etc/pryxd/pryxd.toml')) {
     const r = await fetch('http://127.0.0.1:8081/fleet/v1/tokens', {
       method: 'POST',
@@ -238,9 +234,6 @@ export async function up(args: string[]) {
     const body = (await r.json()) as OperatorToken
     if (!('joinToken' in body) || typeof body.joinToken !== 'string' || !body.joinToken)
       throw new Error('The control service did not supply a local join token')
-    const allow = args.flatMap((v, i) =>
-      v === '--allow-image' && args[i + 1] ? [args[i + 1] as string] : [],
-    )
     await runInstallCommand(
       [
         '/usr/local/bin/pryxd',
@@ -248,15 +241,13 @@ export async function up(args: string[]) {
         body.joinToken,
         '--address',
         '127.0.0.1',
-        ...(allow.length ? allow : defaultAllowedImages(existsSync(descriptor))).flatMap((p) => [
-          '--allow-image',
-          p,
-        ]),
+        ...(allow.length ? allow : images).flatMap((p) => ['--allow-image', p]),
       ],
       true,
       [body.token, body.joinToken],
     )
-  }
+    if (!allow.length) recordDefaultImages(images)
+  } else if (!allow.length && refreshDefaultImages(images)) changed.add('pryxd')
   if (existsSync('/etc/pryxd/pryxd.toml')) {
     await runInstallCommand(['/usr/local/bin/pryxd', 'reserve-ports', '--config', '/etc/pryxd/pryxd.toml'])
     if (changed.has('pryxd') && active('pryxd')) await runInstallCommand(['systemctl', 'restart', 'pryxd'])

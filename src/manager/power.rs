@@ -224,10 +224,15 @@ impl Manager {
         if !matches!(status, Some(ContainerStatus::Running | ContainerStatus::Paused)) {
             return Err(not_running());
         }
-        if let Some(limits) =
-            self.note_tier(self.record_tier(&record), self.record_runtime(&record)?.resource_limits().await)?
-            && (limits.rootless || !limits.memory)
-        {
+        let tier = self.record_tier(&record);
+        let refused = if tier == crate::protocol::Isolation::Vm.as_str() {
+            // A VM keeps its memory where its tier's restore test passed; rootless is no bar.
+            !self.tier_guarantees(tier).get(&crate::protocol::Guarantee::MemorySleep).copied().unwrap_or(false)
+        } else {
+            self.note_tier(tier, self.record_runtime(&record)?.resource_limits().await)?
+                .is_some_and(|limits| limits.rootless || !limits.memory)
+        };
+        if refused {
             return Err(NodeError::Conflict {
                 code: ConflictCode::MemorySleepUnavailable,
                 message: format!(

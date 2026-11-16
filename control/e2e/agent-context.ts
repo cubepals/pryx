@@ -38,7 +38,11 @@ export async function agentDeployment(
     origin,
     sdk,
     sandbox: (options: MakeRequest = {}) =>
-      sdk.sandbox(tier && tier !== 'container' ? { ...options, image: undefined, isolation: tier } : options),
+      sdk.sandbox(
+        tier && tier !== 'container' && tier !== 'gvisor'
+          ? { ...options, image: undefined, isolation: tier }
+          : options,
+      ),
     route: (id: string) =>
       until('edge holds agent', async () => edge.table.held.get(`${id}:${AGENT_ROUTE_PORT}`)),
     app: (url: string) => apps.get(url),

@@ -16,6 +16,7 @@
 //! - `browser_policy.rs`: negotiated agent bootstrap and inner-browser policy observation.
 //! - `container.rs`: container construction and observation types.
 //! - `exec.rs`: command attachment and timeout containment.
+//! - `gvisor.rs`: the gvisor tier's runtime name, availability and ownership on one engine.
 //! - `native_tools.rs`: explicit host-only seccomp and FUSE device policy.
 //! - `tests.rs`: container construction and host process ownership regressions.
 //! - `policy_tests.rs`: transport regression for unsupported engine policy refusal.
@@ -27,6 +28,8 @@ mod container;
 mod create;
 pub(crate) mod egress;
 mod exec;
+pub mod gvisor;
+pub use gvisor::{EXEC_TIMEOUT_PROBLEM, GVISOR_MISSING_PROBLEM, GVISOR_RUNTIME, problem as gvisor_problem};
 mod native_tools;
 mod network;
 pub(crate) mod ownership;
@@ -72,7 +75,7 @@ const CLIENT_TIMEOUT_SECS: u64 = MAX_STOP_TIMEOUT as u64 + 60;
 /// Docker Engine /info SecurityOptions uses this identifier for rootless mode.
 const ROOTLESS_SECURITY_OPTION: &str = "name=rootless";
 /// Podman v6.1.0 pkg/api/handlers/compat/version.go's component name.
-const PODMAN_ENGINE_COMPONENT: &str = "Podman Engine";
+pub const PODMAN_ENGINE_COMPONENT: &str = "Podman Engine";
 pub(crate) const PODMAN_POLICY_PROBLEM: &str = "Podman needs its native API, Netavark and the default native-tools profile to preserve container isolation; use a supported engine configuration";
 /// Quick calls get a much shorter leash of their own.
 const QUICK: Duration = Duration::from_secs(20);
@@ -112,6 +115,7 @@ pub struct DockerRuntime {
     egress: egress::Egress,
     native_tools: native_tools::Policy,
     pub(super) ownership: ownership::Policy,
+    oci_runtime: Option<&'static str>, // gvisor: every container made and seen uses this runtime
 }
 
 struct RootlessExec {
@@ -166,7 +170,14 @@ impl DockerRuntime {
             egress: Default::default(),
             native_tools: Default::default(),
             ownership: Default::default(),
+            oci_runtime: None,
         })
+    }
+
+    /// The gvisor tier: the same engine and policy, with every container started by `runsc`.
+    pub fn gvisor(mut self) -> Self {
+        self.oci_runtime = Some(gvisor::GVISOR_RUNTIME);
+        self
     }
 
     pub fn with_native_tools(
@@ -354,6 +365,9 @@ fn pull_tag(image: &str) -> Option<&'static str> {
 
 #[async_trait]
 impl ContainerRuntime for DockerRuntime {
+    fn isolation(&self) -> &'static str {
+        if self.oci_runtime.is_some() { crate::protocol::Isolation::Gvisor.as_str() } else { "container" }
+    }
     fn data_owner(&self, _id: &str) -> Result<Option<(u32, u32)>, RuntimeError> {
         Ok(self
             .info
@@ -370,11 +384,10 @@ impl ContainerRuntime for DockerRuntime {
         true
     }
     fn supports_native_fuse(&self) -> bool {
-        self.native_tools.fuse()
-            && self.info.lock().unwrap().as_ref().is_some_and(|info| !info.rootless && !info.podman)
+        gvisor::host_policy(self.oci_runtime, self.info.lock().unwrap().as_ref()) && self.native_tools.fuse()
     }
     fn supports_hostname_egress(&self) -> bool {
-        self.info.lock().unwrap().as_ref().is_some_and(|info| !info.rootless && !info.podman) && egress::ready()
+        gvisor::host_policy(self.oci_runtime, self.info.lock().unwrap().as_ref()) && egress::ready()
     }
     fn supports_network_policy(&self) -> bool {
         self.info.lock().unwrap().as_ref().is_none_or(|info| !info.rootless || info.podman)
@@ -435,8 +448,10 @@ impl ContainerRuntime for DockerRuntime {
         if podman && native.is_some() && version.version.is_some() && version.version == info.server_version {
             *self.metadata_version.lock().unwrap() = Some(version.clone());
         }
+        let runtimes: Vec<String> = info.runtimes.clone().unwrap_or_default().into_keys().collect();
         let mut result = RuntimeInfo {
             own_kernel: false,
+            runtimes,
             podman,
             podman_version,
             container_policy_problem: (podman && native.is_none()).then(|| PODMAN_POLICY_PROBLEM.into()),
@@ -461,6 +476,7 @@ impl ContainerRuntime for DockerRuntime {
             security_options: info.security_options.unwrap_or_default(),
             live_restore: info.live_restore_enabled,
             log_driver: info.logging_driver,
+            memory_sleep: false,
         };
         podman::enforcement(&mut result, native.as_ref());
         if result.rootless {
@@ -480,6 +496,9 @@ impl ContainerRuntime for DockerRuntime {
         crate::capability::probe_phase("engine-info-complete");
         if result.container_policy_problem.is_none() {
             result.container_policy_problem = ownership::problem(self, &result).await;
+        }
+        if result.container_policy_problem.is_none() && self.oci_runtime.is_some() {
+            result.container_policy_problem = gvisor::problem(&result);
         }
         *self.info.lock().unwrap() = Some(result.clone());
         Ok(result)
@@ -554,8 +573,8 @@ impl ContainerRuntime for DockerRuntime {
         self.inspect(name).await?;
         Ok(())
     }
-
     async fn stop(&self, name: &str, signal: &str, grace: Duration) -> Result<(), RuntimeError> {
+        gvisor::thaw_for_stop(self, self.oci_runtime, name).await?;
         let options =
             StopContainerOptionsBuilder::new().signal(signal).t(grace.as_secs().min(i32::MAX as u64) as i32).build();
         // Docker answers once the container exited: the grace, plus a margin for the kill.
@@ -634,6 +653,7 @@ impl ContainerRuntime for DockerRuntime {
 
     async fn inspect(&self, name: &str) -> Result<Option<ContainerInfo>, RuntimeError> {
         match quick("inspect", self.docker()?.inspect_container(name, None)).await {
+            Ok(inspect) if !gvisor::owns_container(self.oci_runtime, &inspect) => Ok(None),
             Ok(inspect) => {
                 self.egress.restore(self, &inspect).await?;
                 self.relays.ensure(&inspect).await?;
@@ -755,8 +775,10 @@ impl ContainerRuntime for DockerRuntime {
             Ok(docker) => docker,
             Err(e) => return futures_util::stream::iter([Err(e)]).boxed(),
         };
+        let own = self.oci_runtime;
         docker
             .events(Some(options))
+            .filter(move |item| std::future::ready(gvisor::owns_event(own, item)))
             .map(|item| {
                 let message = item.map_err(map_err)?;
                 let actor = message.actor.unwrap_or_default();

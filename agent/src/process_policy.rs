@@ -45,6 +45,10 @@ pub struct Policy {
     pub tools: Option<crate::process_tool_policy::Policy>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub require_ipc_scope: Option<bool>,
+    /// Set by the node only for a supervisor it started in its own namespaces (PID 1 of its own
+    /// PID namespace, with a private `/tmp` mount), where `/tmp` is this sandbox's alone.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub private_tmp: Option<bool>,
 }
 
 /// A trusted tool worker and its supervisor must inherit the same private abstract-socket domain.
@@ -166,6 +170,14 @@ fn enter_variant(
     }
     if desktop {
         write.extend([std::path::Path::new("/tmp"), std::path::Path::new("/dev/shm")]);
+    }
+    if policy.private_tmp == Some(true) {
+        // The supervisor is PID 1 only in a PID namespace of its own, which the node creates
+        // together with the private /tmp mount; anywhere else /tmp may be shared, so refuse.
+        if !inherited && !browser && !desktop && std::process::id() != 1 {
+            return Err("A private /tmp needs the supervisor's own namespaces".into());
+        }
+        write.push(std::path::Path::new("/tmp"));
     }
     let scoped =
         inherited || browser || desktop || ipc_scoped() || crate::process_capabilities::private_ipc_probe().supported();

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
-//! A sandbox supervisor without an engine, cgroup or new namespace. Private runtime journals
+//! A sandbox supervisor without an engine, in namespaces and a cgroup of its own where the host
+//! gives them (`namespaces.rs`, `network.rs`). Private runtime journals
 //! allow adoption after daemon restart; process identities include kernel start ticks, not PID
 //! alone. The manager retains the existing epoch, snapshot and data-directory lifecycle.
 //!
@@ -11,12 +12,16 @@
 //! - `observe.rs`: read-only kernel process identity, ownership and tree observations.
 //! - `logs.rs`: bounded, safe entrypoint log replay and following.
 //! - `termination.rs`: stable tree freezing and orphan retirement.
+//! - `namespaces.rs`: the namespaced mode's helper, its arguments and its probe.
 //! - `network.rs`: each sandbox's cgroup, kernel network policy and hostname gateways.
 //! - `adoption.rs`: turning that policy on at start and adopting what outlived the last daemon.
+/// The host probe's name for the namespaced process mode.
+pub const NAMESPACES: &str = "process-namespaces";
 mod adoption;
 mod exec;
 mod journal;
 mod logs;
+pub mod namespaces;
 mod native;
 mod network;
 mod observe;
@@ -43,6 +48,8 @@ struct State {
     pub entries: Mutex<BTreeMap<String, Entry>>,
     pub children: Mutex<HashMap<String, std::process::Child>>,
     pub owners: Mutex<BTreeMap<String, (u32, u32)>>,
+    /// Each agent executable's namespace helper, or why it can't be used: probed once.
+    pub namespaces: Mutex<BTreeMap<PathBuf, Result<PathBuf, String>>>,
 }
 #[derive(Clone, Serialize, Deserialize)]
 struct Entry {
@@ -59,6 +66,9 @@ struct Entry {
     pub native_browser: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     network: Option<network::Record>,
+    /// Set when the supervisor started in its own namespaces; absent in the plain mode.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub namespaced: Option<namespaces::Namespaced>,
 }
 
 use std::sync::Arc;
@@ -73,6 +83,14 @@ impl ContainerRuntime for ProcessRuntime {
     }
     async fn native_desktop(&self, binary: &std::path::Path) -> Result<(), RuntimeError> {
         self.desktop_requirement(binary).await
+    }
+    async fn process_namespaces(&self, binary: &std::path::Path) -> Result<(), RuntimeError> {
+        let own = self.clone();
+        let binary = binary.to_owned();
+        tokio::task::spawn_blocking(move || own.namespace_helper(&binary).map(|_| ()))
+            .await
+            .map_err(|_| RuntimeError::Other("The namespace probe stopped".into()))?
+            .map_err(RuntimeError::Other)
     }
     fn data_owner(&self, id: &str) -> Result<Option<(u32, u32)>, RuntimeError> {
         self.owner(id).map(Some)

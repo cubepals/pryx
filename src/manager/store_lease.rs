@@ -72,7 +72,7 @@ impl Manager {
             } else {
                 self.runtime_info.lock().unwrap().as_ref().is_some_and(|info| info.rootless)
             };
-            if tier == "container" && rootless {
+            if crate::runtime::engine_tier(tier) && rootless {
                 features.push(crate::protocol::OBSERVED_RESOURCE_LIMITS_FEATURE.into());
             }
             if matches!(tier, "container" | "process") {
@@ -164,6 +164,14 @@ impl Manager {
             };
             report.capabilities.insert(pryx_agent::process_tool_policy::BROWSER_CAPABILITY.into(), capability);
             let binary = self.agent_binary(runtime.as_ref());
+            let namespaces = match &binary {
+                Some(binary) => runtime.process_namespaces(binary).await.map_err(|error| error.to_string()),
+                None => Err("No trusted process agent executable".into()),
+            };
+            report.capabilities.insert(
+                crate::runtime::process::NAMESPACES.into(),
+                namespace_capability(binary.as_deref(), namespaces),
+            );
             let desktop = match &binary {
                 Some(binary) => runtime.native_desktop(binary).await.map_err(|error| error.to_string()),
                 None => Err("No trusted process agent executable".into()),
@@ -206,7 +214,9 @@ impl Manager {
         let info = self.runtime_info.lock().unwrap();
         let tier_info = self.runtime.tier_info(tier);
         let info = if self.runtime.multi_tier() { tier_info.as_ref() } else { info.as_ref() };
-        let container = tier == "container";
+        // gVisor is the container backend with another runtime: the engine's limits, network
+        // and firewall hold for it too; the browser's own sandbox is proved only for containers.
+        let container = crate::runtime::engine_tier(tier);
         let vm = tier == crate::protocol::Isolation::Vm.as_str() && info.as_ref().is_some_and(|info| info.own_kernel);
         G::ALL
             .into_iter()
@@ -215,17 +225,24 @@ impl Manager {
                     G::SeparateUsers => tier == "process" && probe.on("separate-users"),
                     G::MemoryLimit => (container || vm) && info.as_ref().is_some_and(|info| info.memory_limit),
                     G::CpuLimit => (container || vm) && info.as_ref().is_some_and(|info| info.cpu_limit),
-                    G::PrivateNetwork | G::PrivatePids => container || vm,
+                    G::PrivateNetwork => container || vm,
+                    // Each process sandbox reports its own network; PIDs are the tier's here.
+                    G::PrivatePids => {
+                        container || vm || (tier == "process" && probe.on(crate::runtime::process::NAMESPACES))
+                    }
                     G::HostFirewall => {
                         (container && info.as_ref().is_some_and(|info| !info.rootless) && probe.on("host-firewall"))
                             || (tier == "process" && probe.on(crate::bpf::CAPABILITY))
                     }
                     G::MemorySleep => {
-                        matches!(tier, "container" | "process")
-                            && (!container || info.as_ref().is_some_and(|info| !info.rootless && info.memory_limit))
+                        ((container || tier == "process")
+                            && (!container || info.as_ref().is_some_and(|info| !info.rootless && info.memory_limit)))
+                            || (vm && info.as_ref().is_some_and(|info| info.memory_sleep))
                     }
                     G::BrowserSandbox => {
-                        (container && self.config.docker.native_tools_seccomp.is_some() && probe.on("user-namespaces"))
+                        (tier == "container"
+                            && self.config.docker.native_tools_seccomp.is_some()
+                            && probe.on("user-namespaces"))
                             || (tier == "process" && probe.on(pryx_agent::process_tool_policy::BROWSER_CAPABILITY))
                     }
                     G::OwnKernel => vm,
@@ -411,5 +428,16 @@ impl Manager {
                     "Object-store lease could not renew; independent watchdog fencing requested",
                 )
             })
+    }
+}
+
+fn namespace_capability(binary: Option<&std::path::Path>, probed: Result<(), String>) -> crate::capability::Capability {
+    match binary {
+        Some(binary) => crate::runtime::process::namespaces::capability(binary, probed),
+        None => crate::capability::Capability::new(
+            crate::capability::State::Off,
+            probed.err().unwrap_or_default(),
+            "Install a release whose agent is protected",
+        ),
     }
 }

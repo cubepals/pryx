@@ -10,6 +10,8 @@ pub(super) async fn checks(config: &Config) -> Vec<Check> {
     let mut enabled = 0;
     for (tier, name, explicit) in [
         ("container", "tier.container", RuntimeKind::Container),
+        // gVisor is served beside containers, so only a configuration serving every tier has it.
+        ("gvisor", "tier.gvisor", RuntimeKind::Auto),
         ("process", "tier.process", RuntimeKind::Process),
         ("wasm", "tier.wasm", RuntimeKind::Wasm),
         ("vm", "tier.vm", RuntimeKind::Vm),

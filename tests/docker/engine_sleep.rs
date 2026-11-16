@@ -9,7 +9,7 @@ use super::*;
 #[ignore = "needs a real Docker-compatible engine"]
 async fn an_engine_without_memory_sleep_refuses_before_freezing_and_keeps_files_after_stop() {
     let socket = engine::selected_socket().await;
-    let runtime = Arc::new(DockerRuntime::new(&socket).unwrap());
+    let runtime = Arc::new(super::gvisor::engine_runtime(&socket));
     let Some(limits) = engine::limits_or_mapping_refusal(&runtime, &socket).await else { return };
     let dir = tempfile::tempdir().unwrap();
     let dep = deployment();

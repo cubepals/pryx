@@ -20,6 +20,10 @@ impl DockerRuntime {
     ) -> Result<ExecOutput, RuntimeError> {
         let policy = self.rootless_exec_policy(container).await?;
         let container = policy.as_ref().map_or(container, |policy| policy.container.as_str());
+        // gVisor: the deadline is kept inside by the injected agent where there is one.
+        let deadline = deadline(self, container, command, timeout).await?;
+        let (command, timeout) = deadline.as_ref().map_or((command, timeout), |(wrapped, outer)| (wrapped, *outer));
+        let began = tokio::time::Instant::now();
         let options = CreateExecOptions::<String> {
             cmd: Some(command.to_vec()),
             attach_stdout: Some(true),
@@ -75,12 +79,20 @@ impl DockerRuntime {
                 result.timed_out = true;
                 // Docker has no API to stop an exec (moby/moby#35703). From the host, pryxd
                 // can: find its pid, make sure it is still this container's, and kill its tree.
+                // Under gVisor the exec's processes live in its own kernel, so a host pid names
+                // none of them; that path is never taken there.
+                if self.oci_runtime.is_some() {
+                    return Err(RuntimeError::Other(super::gvisor::EXEC_TIMEOUT_PROBLEM.into()));
+                }
                 if let Some((pid, container)) = self.exec_pid(&exec_id).await {
                     result.killed = self.kill_expired_exec(pid, &container, policy.as_ref()).await? > 0;
                 }
             }
         }
         drop(output);
+        if deadline.is_some() && !result.timed_out {
+            kept_deadline(&mut result, began.elapsed(), timeout);
+        }
         if result.timed_out {
             if result.killed {
                 match tokio::time::timeout(KILLED_EXIT_WAIT, self.exec_exit(&exec_id)).await {
@@ -166,5 +178,46 @@ impl DockerRuntime {
             }
             tokio::task::yield_now().await;
         }
+    }
+}
+
+/// How long Docker's own wait outlasts the deadline the supervisor keeps inside the sandbox.
+const DEADLINE_GRACE: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// A gvisor node exec run under the agent's in-sandbox deadline supervisor, with the longer wait
+/// Docker gives it, where the container has the injected agent. Without it (an agent-less
+/// workload), None: an exec past its deadline is then refused by name, as before.
+async fn deadline(
+    runtime: &DockerRuntime,
+    container: &str,
+    command: &[String],
+    timeout: std::time::Duration,
+) -> Result<Option<(Vec<String>, std::time::Duration)>, crate::runtime::RuntimeError> {
+    if runtime.oci_runtime.is_none() {
+        return Ok(None);
+    }
+    let inspect = quick("inspect exec target", runtime.docker()?.inspect_container(container, None)).await?;
+    let injected = inspect.mounts.unwrap_or_default().iter().any(|mount| {
+        mount.destination.as_deref() == Some(pryx_agent::contract::BINARY_PATH) && mount.rw == Some(false)
+    });
+    if !injected {
+        return Ok(None);
+    }
+    let mut wrapped = vec![
+        pryx_agent::contract::BINARY_PATH.to_owned(),
+        pryx_agent::exec_deadline::MODE.to_owned(),
+        timeout.as_millis().to_string(),
+        "--".to_owned(),
+    ];
+    wrapped.extend(command.iter().cloned());
+    Ok(Some((wrapped, timeout + DEADLINE_GRACE)))
+}
+
+/// The supervisor ends a command at its deadline with SIGKILL's status; only then, at or past the
+/// deadline Docker's wait outlasted, is the exec reported timed out and killed.
+fn kept_deadline(result: &mut ExecOutput, elapsed: std::time::Duration, outer: std::time::Duration) {
+    if result.exit_code == Some(crate::runtime::exit_by(libc::SIGKILL)) && elapsed + DEADLINE_GRACE >= outer {
+        result.timed_out = true;
+        result.killed = true;
     }
 }

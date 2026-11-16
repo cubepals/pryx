@@ -337,7 +337,8 @@
           "container",
           "process",
           "wasm",
-          "vm"
+          "vm",
+          "gvisor"
         ],
         "type": "string"
       },

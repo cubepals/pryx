@@ -18,6 +18,9 @@
 //! - `process_tool_policy.rs`: independent native artifact/cache policy types and parser version.
 //! - `process_observation.rs`: challenge-bound signed observations of installed process isolation.
 //! - `process_forward.rs`: ownership-verified process-tier forwarding channel.
+//! - `process_listeners.rs`: host listeners the node bound for a supervisor in its own network.
+//! - `process_namespaces.rs`: the namespace helper's arguments for one supervisor.
+//! - `exec_deadline.rs`: a node exec's deadline kept inside the sandbox's own kernel.
 //! - `process_peer.rs`: kernel process and connected-peer ownership evidence.
 //! - `process_capabilities.rs`: non-mutating kernel support queries.
 //! - `pty.rs`: terminal ownership through the platform PTY library.
@@ -49,6 +52,7 @@
 //! - `vm_observation.rs`: boot-scoped signed disk-shutdown observations.
 //! - `vm_metrics.rs`: optional read-only guest kernel resource counters.
 //! - `vm_shutdown.rs`: authenticated host-CID-only requests to trusted guest init.
+//! - `vm_sleep.rs`: signed memory-sleep requests and the resume init asks for after a restore.
 //! - `vm_monitor.rs`: host-owned monitor confinement and inherited lifetime lease.
 
 pub mod auth;
@@ -115,6 +119,8 @@ pub mod vm_observation;
 pub mod vm_policy;
 #[cfg(feature = "server")]
 pub mod vm_shutdown;
+#[cfg(feature = "server")]
+pub mod vm_sleep;
 
 #[cfg(feature = "server")]
 mod transfers;
@@ -123,7 +129,12 @@ mod transfers;
 pub mod transfer_target;
 
 #[cfg(feature = "server")]
+pub mod exec_deadline;
+#[cfg(feature = "server")]
 pub mod process_forward;
+#[cfg(feature = "server")]
+pub mod process_listeners;
+pub mod process_namespaces;
 #[cfg(feature = "server")]
 mod process_peer;
 

@@ -1,8 +1,37 @@
 <!-- SPDX-License-Identifier: FSL-1.1-ALv2 -->
 # Process isolation
 
-The release image runs the process tier when no usable Docker socket is present. It creates
-no user, mount, PID or network namespace, writes no cgroup, and requires no host privilege.
+The release image runs the process tier when no usable Docker socket is present. It writes
+no cgroup and requires no host privilege. It has two modes, chosen by the host, never by a
+request: where the host lets the sandbox's user create user namespaces, each sandbox starts in
+namespaces of its own (below); elsewhere, as in a default `docker run`, it creates no user,
+mount, PID or network namespace, exactly as before K26.
+
+## Two modes
+
+| | Plain | Namespaced |
+| --- | --- | --- |
+| When | The probe could not start the installation's helper in user namespaces | `process-namespaces` is on in `pryx doctor` |
+| PIDs | One host PID view; Landlock keeps other sandboxes' `/proc` unreadable | PID 1 of its own PID namespace; other sandboxes' processes don't exist there (`private-pids`) |
+| `/tmp` | Not granted; `TMPDIR` is the data directory's `.tmp` | A private `/tmp` of its own, granted to it alone |
+| IPC | The host's | Its own IPC namespace |
+| `network: none` | A seccomp and Landlock filter in the shared network | Also an empty network namespace of its own (`private-network`) |
+| Landlock, seccomp, limits | As below | The same, installed inside the namespaces |
+
+The namespaced mode runs the installation's unmodified bubblewrap 0.13.1 (`namespaces/bin/bwrap`
+beside the agent, LGPL-2.1-or-later, never setuid) as `--unshare-user --unshare-pid --unshare-ipc
+--as-pid-1 --cap-drop ALL`, with the host's view bound whole and only `/proc`, `/dev` and `/tmp`
+new; `network: none` adds `--unshare-net`, and the node binds the supervisor's listeners in the
+host's network and passes them in. The probe is that same launch, run once per agent executable;
+a namespaced launch whose helper fails is refused, never started plain. Each sandbox reports what
+it started with: `private-pids` in the namespaced mode, `private-network` only there with network
+none. A request requiring `private-pids` is placed only on nodes that announce it for the tier.
+
+On Ubuntu 24.04 and later only binaries an AppArmor profile names may use user namespaces.
+`pryx doctor` then prints the one profile root installs for this installation's helper and the
+`apparmor_parser -r` that loads it; the `user` preset never installs it.
+
+## Isolation
 The API reports `isolation: process`; placement refuses a `container` request on this tier.
 An image request returns 422 `invalid_request`, field `image`, problem
 `this host runs the process tier; images are not available`.

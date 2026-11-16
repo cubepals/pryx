@@ -93,7 +93,8 @@ and a create can `require` any of them. The node computes them in
 - `separate-users`: process as root, when the credential-drop probe passes.
 - `host-firewall`: container, on a rootful engine with the host firewall loaded, and process
   where `kernel-network-policy` is on and the sandbox's own programs are attached ([bpf.md](bpf.md)).
-- `memory-sleep`: process, and container on a rootful engine with memory limits.
+- `memory-sleep`: process, container on a rootful engine with memory limits, and an ordinary
+  user's vm once its start test has restored a guest on that host.
 - `browser-sandbox`: container with the native-tools seccomp profile and user namespaces, and
   process when its browser probe passes.
 

@@ -43,10 +43,12 @@ impl VmRuntime {
     async fn file_guest(&self, name: &str) -> Result<FileGuest, RuntimeError> {
         let entry = self.entry(name)?;
         let transition = self.transition(&entry.id).lock_owned().await;
-        let entry = self.entry(&entry.id)?;
+        let mut entry = self.entry(&entry.id)?;
         if self.state.live.lock().unwrap().contains_key(&entry.id) {
             return Err(RuntimeError::Conflict("A running VM must serve files through its existing agent".into()));
         }
+        // A file-only guest writes this disk, so memory taken with it can't be restored.
+        self.discard_memory(&mut entry)?;
         self.launch_files(entry, transition).await
     }
     pub(super) async fn launch_files(
@@ -68,7 +70,8 @@ impl VmRuntime {
             self.state.settings.free_floor_bytes,
         )
         .await?;
-        let directory = boot_directory(&self.state.root.join("boots"))?;
+        // The sandbox's own boot directory, which it isn't using: the restore test wakes this guest.
+        let directory = super::memory::sandbox_directory(&self.state.root.join("boots"), &lease)?;
         let serial = directory.path().join("serial");
         let deadline = Instant::now() + launch::BOOT_TIMEOUT;
         let image = Prepared { digest: String::new(), layers: Vec::new(), configuration: Default::default() };

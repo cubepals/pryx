@@ -4,7 +4,10 @@ on:
   workflow_dispatch:
   # A new workflow cannot be dispatched until main has it; branch pushes prove it now.
   push:
-    branches: [any-host]
+    # Milestone branches (k26, k31-ebpf, ...) prove a change before it reaches any-host.
+    branches: [any-host, 'k[0-9]*']
+    # A push that changes only documentation proves nothing new here; normal CI still runs.
+    paths-ignore: ['docs/**', '**.md']
   pull_request:
     paths:
       - 'src/**'
@@ -19,7 +22,8 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+  # On a milestone branch only its newest push needs proving.
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/heads/k') }}
 
 permissions:
   contents: read

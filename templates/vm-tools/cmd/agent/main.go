@@ -4,7 +4,8 @@
 // It neither implements CONNECT framing nor retries an HTTP operation or follows redirects.
 //
 // Parts (`cmd/agent/`): main.go carries bounded requests; forward.go relays opaque TCP streams
-// with reserved capacity for the agent's own binding, proved by forward_test.go.
+// with reserved capacity for the agent's own binding, proved by forward_test.go; monitor.go
+// sends memory sleep's pause, snapshot and restore to the monitor's own API socket.
 package main
 
 import (
@@ -37,6 +38,8 @@ type request struct {
 	Stop       bool            `json:"stop"`
 	Headers    http.Header     `json:"headers"`
 	Shutdown   json.RawMessage `json:"shutdown"`
+	Sleep      json.RawMessage `json:"sleep"`
+	Monitor    *monitorAction  `json:"monitor"`
 	Forward    *forwarding     `json:"forward"`
 }
 
@@ -57,7 +60,10 @@ func run(source io.Reader) error {
 	if input.Forward != nil {
 		return forward(input)
 	}
-	if input.Shutdown != nil {
+	if input.Monitor != nil {
+		return monitor(input)
+	}
+	if input.Shutdown != nil || input.Sleep != nil {
 		return shutdown(input)
 	}
 	if input.Socket == "" || (!input.Stop && (input.Port == 0 || input.Token == "" || input.Path == "" || input.Path[0] != '/')) {
@@ -113,8 +119,12 @@ func run(source io.Reader) error {
 }
 
 func shutdown(input request) error {
-	if input.Socket == "" || input.Port == 0 || input.Stop {
+	if input.Socket == "" || input.Port == 0 || input.Stop || (input.Shutdown != nil) == (input.Sleep != nil) {
 		return fmt.Errorf("Incomplete private shutdown request")
+	}
+	line := input.Shutdown
+	if input.Sleep != nil {
+		line = input.Sleep
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -126,7 +136,7 @@ func shutdown(input request) error {
 	if err := connection.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
 		return err
 	}
-	if err := json.NewEncoder(connection).Encode(input.Shutdown); err != nil {
+	if err := json.NewEncoder(connection).Encode(line); err != nil {
 		return err
 	}
 	var accepted bool
@@ -134,7 +144,7 @@ func shutdown(input request) error {
 		return err
 	}
 	if !accepted {
-		return fmt.Errorf("Guest init refused the shutdown request")
+		return fmt.Errorf("Guest init refused the request")
 	}
 	return json.NewEncoder(os.Stdout).Encode(map[string]any{"status": http.StatusAccepted, "body": []byte{}})
 }

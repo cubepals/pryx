@@ -48,6 +48,12 @@ fn diagnostic(directory: &Path) {
         }
     }
 }
+/// With `PRYX_TEST_NAMESPACE_HELPER` naming the staged bubblewrap, every agent here starts in its
+/// own namespaces as a namespaced process node starts it; without it, in the plain mode.
+fn namespace_helper() -> Option<PathBuf> {
+    std::env::var_os("PRYX_TEST_NAMESPACE_HELPER").map(PathBuf::from)
+}
+
 fn start(artifact: process_tool_policy::Artifact, browser_on: bool, unavailable: Option<String>) -> Agent {
     let directory = tempfile::tempdir().unwrap();
     for name in ["data", "cache", "downloads", "scratch"] {
@@ -84,6 +90,7 @@ fn start(artifact: process_tool_policy::Artifact, browser_on: bool, unavailable:
         nice: 19,
         network_off: false,
         require_ipc_scope: Some(true),
+        private_tmp: namespace_helper().map(|_| true),
         tools: Some(process_tool_policy::Policy {
             cache: cache.clone(),
             downloads: directory.path().join("downloads"),
@@ -95,7 +102,19 @@ fn start(artifact: process_tool_policy::Artifact, browser_on: bool, unavailable:
             desktop_unavailable: None,
         }),
     };
-    let child = Command::new(env!("CARGO_BIN_EXE_pryx-agent"))
+    let executable = Path::new(env!("CARGO_BIN_EXE_pryx-agent"));
+    let mut command = match namespace_helper() {
+        // As a namespaced node starts it: the agent crate's helper arguments, its paths kept.
+        Some(helper) => {
+            let tools = policy.tools.as_ref().unwrap();
+            let kept = [(executable, false), pryx_agent::process_namespaces::tool_directory(tools)];
+            let mut command = Command::new(helper);
+            command.args(pryx_agent::process_namespaces::arguments(&policy.data, false, &kept)).arg(executable);
+            command
+        }
+        None => Command::new(executable),
+    };
+    let child = command
         .args([
             "--sandbox",
             "native-fixture",

@@ -13,6 +13,7 @@ fn process_policy_is_enforced_or_compute_is_refused() {
     let policy = Policy {
         tools: None,
         require_ipc_scope: None,
+        private_tmp: None,
         data: data.path().to_path_buf(),
         memory_bytes: 512 * 1024 * 1024,
         address_space_bytes: 64 * 1024 * 1024 * 1024,

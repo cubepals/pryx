@@ -241,22 +241,68 @@ whole-command timings include waiting for exit, and CLI totals include cleanup.
 The 100 ms create-to-output target is assessed separately below; it is missed on both
 candidates. These are fresh sandboxes, without a pre-created VM or warmed command.
 
+## gVisor tier and the namespaced process mode
+
+The `gvisor` tier is the container backend with the engine's gVisor `runsc` runtime (release
+20261109.0, Apache-2.0, deploy/gvisor.json): the same images, limits, ports, bridge and firewall,
+served beside containers wherever the engine lists `runsc`. A request naming `container` is never
+run by runsc and one naming `gvisor` never by runc. Each sandbox runs on gVisor's own kernel, not
+the host's (`uname -r` differs; `own-kernel` stays a VM's). What the Docker suite found it can't
+do on gvisor is handled or refused by name there: a node exec's deadline is kept inside the
+sandbox by the injected agent (`pryx-agent exec-deadline`), and only an agent-less workload's
+exec past its deadline is refused (`exec-timeout`); hostname egress policies are refused (Docker's
+embedded resolver is unreachable from gVisor's network stack); host FUSE devices are never mapped
+into it. Its syscall-heavy figure below is the systrap platform's cost per system call: runsc
+already runs with directfs, the rootfs overlay and systrap's fast path, its documented defaults. Every tool and
+interpreter template (the Python and Node kernels, the browser, the desktop and SSH) runs on it,
+the browser with its own sandbox off and reported off, as in a default Docker container.
+
+The namespaced process mode is a guarantee, not a tier ([process isolation](process-tier.md)):
+a `process` request gets whichever mode the host gives and reports it.
+
+Thirty samples each, nearest-rank p50 / p90 in milliseconds, all from the test job of CI run
+[43774620164](https://github.com/cubepals/pryx/actions/runs/43774620164) (source d0bb064, one
+x86_64 Ubuntu 24.04 hosted runner, host kernel 7.0.0-1014-aws; gVisor's sandboxes report
+4.19.0-gvisor). They are **direct node-manager measurements**, without the public API or the
+edge, so they sit beside each other, not beside the public cohorts above. Container and gvisor
+run alpine 3.22 on the runner's Docker 28.0.4, gvisor through runsc release-20261109.0 on its
+systrap platform; their exec is a node exec (Docker's). The process rows run the real agent,
+whose exec is the agent's own: namespaced on the runner, after the AppArmor profile `pryx doctor`
+printed for its helper, and plain inside a default `docker run` of Ubuntu 24.04 as root. Create
+is ensure and start until running; syscall-heavy is `dd if=/dev/zero of=/dev/null bs=1
+count=200000`; the stream is 256 KiB of command output back through the exec path; the transfer
+is 16 MiB read from the workload's published port (process sandboxes have none with network
+none). Raw lines (`K26_MEASURE`) are in that job's log.
+
+| Tier or mode | Create | Exec `true` | Syscall-heavy | 256 KiB exec stream | 16 MiB transfer |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Container | 124.66 / 129.52 | 28.10 / 51.33 | 217.90 / 279.85 | 27.70 / 68.43 | 8.89 / 9.84 |
+| gVisor | 128.38 / 135.60 | 42.39 / 114.04 | 5,762.68 / 5,893.10 | 21.23 / 83.14 | 71.38 / 76.64 |
+| Process, plain (default `docker run`) | 21.10 / 21.63 | 4.71 / 4.82 | 65.99 / 66.70 | 18.42 / 19.07 | — |
+| Process, namespaced | 15.97 / 16.46 | 5.69 / 5.89 | 70.61 / 71.39 | 19.16 / 19.72 | — |
+
+gVisor's systrap platform makes each system call a trap into its own kernel: the 400,000
+one-byte reads and writes cost about 26 times what they cost a container, and the published-port
+transfer about 8 times, while start and an exec cost about the same. The namespaced process mode
+costs nothing measurable over the plain one at start and about 1 ms an exec; its system calls are
+the host kernel's own.
+
 ## Capabilities
 
-| Capability | Container | Process | wasm | vm |
-| --- | --- | --- | --- | --- |
-| Arbitrary image | Yes | No | No; explicit 422 image problem | `linux/amd64` images, pulled without a daemon |
-| Native Linux binaries | Image architecture | Host architecture and policy | No; compatible WASM software | The image's, on the guest kernel (x86_64) |
-| Python | Install in image | Bundled CPython | Embedded Pyodide | Install in image |
-| Node | Install in image | Bundled Node | Embedded V8 compatibility runtime | Install in image |
-| Shell | Static agent fallback | Static agent shell | Verified agentOS coreutils shell | The image's shell |
-| Isolation | Shared host kernel, namespaces and cgroups | Landlock, seccomp, process groups; dedicated UIDs when root; shared host network, policed in the kernel where `kernel-network-policy` is on, otherwise mutually trusted Internet workloads | Virtual kernel, WebAssembly and V8; shared unprivileged sidecar | Its own kernel on KVM; Firecracker monitor under Landlock and seccomp as an ordinary user; own network stack or none |
-| Kernel per sandbox | No | No | No native kernel; a virtual kernel per VM | Yes, Linux 6.18.56 in each guest |
-| CPU enforcement | Per-sandbox cgroup quota and weight | Admission reservation and best-effort nice; hard CPU limits/weights refused | Admission reservation; hard CPU limits/weights refused | Whole vCPUs, the guest's size; fractions and weights refused |
-| Sleep retains files | Yes | Yes | SQLite root and explicit persistent data mount | Yes, its ext4 disk |
-| Egress policy | Bridge firewall (`host-firewall` with root's firewall loaded); hostname egress through host gateways | Where `kernel-network-policy` is on (root, the server preset's unit included, or CAP_BPF and CAP_NET_ADMIN with a delegated cgroup): per-sandbox cgroup programs give `host-firewall`, hostname egress, address rules and, from other machines, only the published ports ([bpf.md](bpf.md)); elsewhere only `network: none` | `network: none`; hostname egress refused | Guest firewall and host-owned gateways ([vm.md](vm.md)) |
-| Application ingress | TCP/UDP according to host policy | Host TCP according to policy | HTTP over TCP; no UDP, raw TCP, TLS passthrough or app WebSockets | Declared TCP through host-owned relays; UDP refused |
-| Sleep retains processes and terminals | Frozen container | Suspended process group | No; VM is disposed and recreated | No; the guest stops and boots again on wake |
+| Capability | Container | gVisor | Process | Process, namespaced | wasm | vm |
+| --- | --- | --- | --- | --- | --- | --- |
+| Arbitrary image | Yes | Yes | No | No | No; explicit 422 image problem | `linux/amd64` images, pulled without a daemon |
+| Native Linux binaries | Image architecture | Image architecture, on gVisor's kernel | Host architecture and policy | Host architecture and policy | No; compatible WASM software | The image's, on the guest kernel (x86_64) |
+| Python | Install in image | Install in image | Bundled CPython | Bundled CPython | Embedded Pyodide | Install in image |
+| Node | Install in image | Install in image | Bundled Node | Bundled Node | Embedded V8 compatibility runtime | Install in image |
+| Shell | Static agent fallback | Static agent fallback | Static agent shell | Static agent shell | Verified agentOS coreutils shell | The image's shell |
+| Isolation | Shared host kernel, namespaces and cgroups | gVisor's user-space kernel inside the container's namespaces and cgroups | Landlock, seccomp, process groups; dedicated UIDs when root; shared host network, policed in the kernel where `kernel-network-policy` is on, otherwise mutually trusted Internet workloads | The same Landlock, seccomp and limits inside its own user, mount, PID and IPC namespaces, a private /tmp, and its own empty network for network none; otherwise the host's network, policed as the plain mode's | Virtual kernel, WebAssembly and V8; shared unprivileged sidecar | Its own kernel on KVM; Firecracker monitor under Landlock and seccomp as an ordinary user; own network stack or none |
+| Kernel per sandbox | No | gVisor's own kernel per sandbox; not a guest kernel | No | No | No native kernel; a virtual kernel per VM | Yes, Linux 6.18.56 in each guest |
+| CPU enforcement | Per-sandbox cgroup quota and weight | The container's cgroup quota and weight | Admission reservation and best-effort nice; hard CPU limits/weights refused | As the plain process mode | Admission reservation; hard CPU limits/weights refused | Whole vCPUs, the guest's size; fractions and weights refused |
+| Sleep retains files | Yes | Yes | Yes | Yes | SQLite root and explicit persistent data mount | Yes, its ext4 disk |
+| Egress policy | Bridge firewall (`host-firewall` with root's firewall loaded); hostname egress through host gateways | The container's bridge firewall; hostname egress refused | Where `kernel-network-policy` is on (root, the server preset's unit included, or CAP_BPF and CAP_NET_ADMIN with a delegated cgroup): per-sandbox cgroup programs give `host-firewall`, hostname egress, address rules and, from other machines, only the published ports ([bpf.md](bpf.md)); elsewhere only `network: none` | As the plain process mode, the same programs on its cgroup | `network: none`; hostname egress refused | Guest firewall and host-owned gateways ([vm.md](vm.md)) |
+| Application ingress | TCP/UDP according to host policy | TCP/UDP according to host policy; no hostname egress policy | Host TCP according to policy | Host TCP according to policy; none with network none, whose agent answers on listeners the node passes in | HTTP over TCP; no UDP, raw TCP, TLS passthrough or app WebSockets | Declared TCP through host-owned relays; UDP refused |
+| Sleep retains processes and terminals | Frozen container | Frozen sandbox | Suspended process group | Suspended process tree | No; VM is disposed and recreated | As an ordinary user, yes: the guest's memory is written beside its disk and restored on a host of the same class; otherwise the guest stops and boots again |
 
 agentOS 0.4.7 has no per-VM suspend operation in its published client. Suspending its shared
 sidecar would pause unrelated sandboxes, so it cannot implement sleep that retains processes.

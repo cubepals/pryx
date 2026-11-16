@@ -110,10 +110,14 @@ describe('selectNode', () => {
     const process = node('process', { features: ['placement-epochs', 'process-tier'] })
     const container = node('container')
     const vm = node('vm', { features: ['placement-epochs', 'multi-tier', 'tier-vm'] })
+    const gvisor = node('gvisor', { features: ['placement-epochs', 'multi-tier', 'tier-gvisor'] })
     expect(selectNode(request({ isolation: 'vm' }), [wasm, process, container]).node).toBeNull()
     expect(selectNode(request({ isolation: 'container' }), [vm]).node).toBeNull()
+    // gVisor shares the container engine, yet neither tier is ever placed for the other.
+    expect(selectNode(request({ isolation: 'container' }), [gvisor]).node).toBeNull()
+    expect(selectNode(request({ isolation: 'gvisor' }), [container]).node).toBeNull()
     for (const isolation of ISOLATIONS) {
-      const chosen = selectNode(request({ isolation }), [vm, wasm, process, container]).node
+      const chosen = selectNode(request({ isolation }), [vm, gvisor, wasm, process, container]).node
       expect(chosen?.id).toBe(isolation)
     }
     const old = node('wasm-old', { features: ['placement-epochs', 'wasm-tier'] })
@@ -339,6 +343,7 @@ test('mixed tiers share capacity and keep enforcement scoped to the requested ti
       'tier-process',
       'tier-wasm',
       'tier-vm',
+      'tier-gvisor',
       'private-network',
       'tier-container:private-network',
       'tier-container:cpu-limit',

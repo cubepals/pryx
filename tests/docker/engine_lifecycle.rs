@@ -14,7 +14,7 @@ struct EngineCase {
 impl EngineCase {
     async fn new() -> Option<Self> {
         let socket = engine::selected_socket().await;
-        let runtime = Arc::new(DockerRuntime::new(&socket).unwrap());
+        let runtime = Arc::new(super::gvisor::engine_runtime(&socket));
         let limits = engine::limits_or_mapping_refusal(&runtime, &socket).await?;
         let directory = tempfile::tempdir().unwrap();
         let deployment = deployment();
@@ -103,19 +103,21 @@ impl EngineCase {
         std::fs::write(output, serde_json::to_vec_pretty(&report).unwrap()).unwrap();
     }
 
+    /// The workload's page, once its server listens: until then the engine's port proxy takes the
+    /// connection and resets it, which a slower kernel (gVisor's) shows for longer after start.
     async fn page(&self, name: &str) -> String {
         let port = self.manager.view(&id(name)).unwrap().ports[0].host_port;
         let client = reqwest::Client::builder().no_proxy().timeout(Duration::from_secs(5)).build().unwrap();
-        client
-            .get(format!("http://127.0.0.1:{port}/"))
-            .send()
-            .await
-            .unwrap()
-            .error_for_status()
-            .unwrap()
-            .text()
-            .await
-            .unwrap()
+        let deadline = Instant::now() + Duration::from_secs(20);
+        loop {
+            match client.get(format!("http://127.0.0.1:{port}/")).send().await {
+                Ok(response) => return response.error_for_status().unwrap().text().await.unwrap(),
+                Err(error) if (error.is_connect() || error.is_request()) && Instant::now() < deadline => {
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                }
+                Err(error) => panic!("{name}'s page: {error}"),
+            }
+        }
     }
 }
 
@@ -202,8 +204,19 @@ async fn snapshot_and_fork(case: &EngineCase) {
 }
 
 async fn attack_neighbour(case: &EngineCase) {
-    let original_pid = case.command("original", "readlink /proc/1/ns/pid").await;
-    let fork_pid = case.command("fork", "readlink /proc/1/ns/pid").await;
+    // gVisor names every sandbox's PID namespace alike, each in its own kernel: there the fork's
+    // own process is looked for from the original instead, which must not see it.
+    let own = if super::gvisor::on_gvisor() {
+        case.command("fork", "nohup sleep 7771 > /dev/null 2>&1 & echo started").await;
+        "ps -o args | grep -c '^sleep 7771' || true"
+    } else {
+        "readlink /proc/1/ns/pid"
+    };
+    let original_pid = case.command("original", own).await;
+    let fork_pid = case.command("fork", own).await;
+    if super::gvisor::on_gvisor() {
+        assert_eq!((original_pid.trim(), fork_pid.trim()), ("0", "1"), "only the fork sees its process");
+    }
     assert!(!original_pid.trim().is_empty() && !fork_pid.trim().is_empty());
     assert_ne!(original_pid, fork_pid, "a neighbour must have its own PID namespace");
     let backend =
@@ -241,26 +254,18 @@ async fn engine_exec_timeout_retires_children_and_keeps_the_workload_running() {
     let backend =
         bollard::Docker::connect_with_unix(case.socket.to_str().unwrap(), 60, bollard::API_DEFAULT_VERSION).unwrap();
     let original = backend.inspect_container(&before.locate.container_name, None).await.unwrap().state.unwrap();
-    let runtime = DockerRuntime::new(&case.socket).unwrap();
+    let runtime = super::gvisor::engine_runtime(&case.socket);
     runtime.disable_restart(before.locate.container_id.as_deref().unwrap()).await.unwrap();
     let policy = backend.inspect_container(&before.locate.container_name, None).await.unwrap().host_config.unwrap();
     assert_eq!(policy.restart_policy.unwrap().name, Some(bollard::models::RestartPolicyNameEnum::NO));
     for script in ["sleep 30; echo never", "exec 1>&- 2>&-; sleep 30; echo never"] {
         let began = Instant::now();
-        let result = case
-            .manager
-            .exec(
-                id("timeout"),
-                ExecRequest { command: vec!["sh".into(), "-c".into(), script.into()], timeout_seconds: 1 },
-                None,
-                None,
-            )
-            .await
-            .unwrap();
-        assert!(result.timed_out && result.killed, "{result:?}");
+        let request = ExecRequest { command: vec!["sh".into(), "-c".into(), script.into()], timeout_seconds: 1 };
+        super::gvisor::timed_out(case.manager.exec(id("timeout"), request, None, None).await);
         assert!(began.elapsed() < Duration::from_secs(6));
     }
-    assert_eq!(case.command("timeout", "ps -o args | grep -c '^sleep 30' || true").await.trim(), "0");
+    let left = case.command("timeout", "ps -o args | grep -c '^sleep 30' || true").await;
+    super::gvisor::left_running(&left, "the sleeps went with their shells");
     let actual = backend.inspect_container(&before.locate.container_name, None).await.unwrap().state.unwrap();
     assert_eq!(actual.running, Some(true));
     assert_eq!(actual.started_at, original.started_at, "termination never restarts the workload");
