@@ -69,7 +69,10 @@ export async function buildTemplate(
     }
     // A project's cap on a command's time holds for build steps too: the agent refuses past it.
     const limit = await box.execLimitSeconds()
-    const timeout = Math.min(SDK_DEFAULTS.templateStepTimeoutSeconds, limit ?? SDK_DEFAULTS.templateStepTimeoutSeconds)
+    const timeout = Math.min(
+      SDK_DEFAULTS.templateStepTimeoutSeconds,
+      limit ?? SDK_DEFAULTS.templateStepTimeoutSeconds,
+    )
     for (const command of [...(options.run ?? []), ...(options.ready ? [options.ready] : [])]) {
       const result = await box.run(command, { timeout })
       if (result.code !== 0) throw failed(result)

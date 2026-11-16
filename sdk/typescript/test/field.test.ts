@@ -321,7 +321,9 @@ test('lookup, lifecycle, templates and webhooks use public ownership routes', as
   p.cap(120)
   const before = p.calls.length
   await p.client.template({ name: 'named', isolation: 'wasm', run: ['true'] })
-  const capped = p.calls.slice(before).filter((call) => call.path === '/_pryx/processes' && call.method === 'POST')
+  const capped = p.calls
+    .slice(before)
+    .filter((call) => call.path === '/_pryx/processes' && call.method === 'POST')
   expect(capped.map((call) => call.body.timeout)).toEqual([120])
   p.cap(null)
   await p.client.templates()
