@@ -34,3 +34,37 @@ pub(crate) const LABEL_EXEC_COMPLETION: &str = "blocklyd.exec-completion";
 
 /// Protected fixed-target private ingress negotiated from the injected agent at creation.
 pub(crate) const LABEL_INTERNAL_INGRESS: &str = "blocklyd.internal-ingress";
+
+use crate::protocol::SpecRecord;
+use crate::store::{AllocatedPort, RECORD_VERSION, WorkloadRecord};
+
+/// The record as a label carries it.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct LabelRecord {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub isolation: Option<crate::protocol::Isolation>,
+    pub version: u32,
+    pub generation: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub epoch: Option<u64>,
+    pub spec_digest: String,
+    pub ports: Vec<AllocatedPort>,
+    pub spec: SpecRecord,
+    pub created_at: String,
+}
+
+impl LabelRecord {
+    pub(super) fn of(record: &WorkloadRecord) -> Self {
+        Self {
+            isolation: record.isolation,
+            version: RECORD_VERSION,
+            generation: record.generation,
+            epoch: record.epoch,
+            spec_digest: record.spec_digest.clone(),
+            ports: record.ports.clone(),
+            spec: record.spec.clone(),
+            created_at: record.created_at.clone(),
+        }
+    }
+}
