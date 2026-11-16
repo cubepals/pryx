@@ -7,6 +7,8 @@
 //! because it reads secret values, which only the spec's module may see. What a spec holds, and
 //! its defaults, are in `spec.rs`.
 
+use oci_spec::distribution::Reference;
+
 use super::{MAX_STOP_TIMEOUT, WorkloadSpec};
 use crate::protocol::{FieldError, RESERVED_LABEL_PREFIX};
 
@@ -86,9 +88,21 @@ pub(crate) fn digest_reference(entry: &str) -> bool {
 }
 
 /// Whether one `allowed_images` entry admits `image`: a digest reference by equality, a prefix by
-/// its text. Config validation (`config/validate.rs`) refuses every other kind of entry.
+/// its text where the parsed reference agrees. The image is read by the maintained OCI reference
+/// parser first, so a `name:` or `name@` entry admits only that repository's tags or digests:
+/// `alpine:` is Docker Hub's alpine, never `alpine:5000/x/y`, a repository on the registry host
+/// `alpine`. An entry ending in `/` never ends inside a registry, which holds no `/`. Config
+/// validation (`config/validate.rs`) refuses every other kind of entry.
 pub(crate) fn admits(entry: &str, image: &str) -> bool {
-    if digest_reference(entry) { image == entry } else { image.starts_with(entry) }
+    if digest_reference(entry) {
+        return image == entry;
+    }
+    let Ok(parsed) = Reference::try_from(image) else { return false };
+    image.starts_with(entry)
+        && entry.strip_suffix([':', '@']).is_none_or(|name| {
+            Reference::try_from(name)
+                .is_ok_and(|named| (named.registry(), named.repository()) == (parsed.registry(), parsed.repository()))
+        })
 }
 
 fn image_ok(image: &str) -> bool {
@@ -493,6 +507,37 @@ mod tests {
         assert!(errors.iter().any(|e| e.problem.contains("used twice")));
         assert!(errors.iter().any(|e| e.field == "ports[1].audience"));
     }
+    /// A prefix admits what the reference parser reads under it, never a registry host its text
+    /// happens to begin: `alpine:5000/x/y` is the repository `x/y` on the host `alpine:5000`.
+    #[test]
+    fn a_prefix_admits_only_the_repository_its_name_parses_to() {
+        for (entry, image) in [
+            ("alpine:", "alpine:3.24"),
+            ("alpine:", "alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf"),
+            ("alpine@", "alpine@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf"),
+            ("ghcr.io/example/http-app:", "ghcr.io/example/http-app:1.2"),
+            ("localhost:5000/app:", "localhost:5000/app:1"),
+            ("ghcr.io/example/", "ghcr.io/example/http-app:1.2"),
+        ] {
+            assert!(admits(entry, image), "{entry} refused {image}");
+        }
+        for (entry, image) in [
+            ("alpine:", "alpine:5000/x/y"),
+            ("alpine:", "alpine:5000/library/alpine:3.24"),
+            ("node:", "node:443/node:22"),
+            // No reading of this text is a reference, though it begins with the entry.
+            ("docker.io/library/alpine:", "docker.io/library/alpine:5000/x"),
+            ("localhost:", "localhost:5000/app:1"),
+            ("alpine:", "alpine:3.24/../x"),
+        ] {
+            assert!(!admits(entry, image), "{entry} admitted {image}");
+        }
+        let mut v = example_spec();
+        v["image"] = "alpine:5000/x/y".into();
+        let errors = spec(v).validate(&policy()).err().unwrap_or_default();
+        assert_eq!(errors.iter().map(|e| e.field.as_str()).collect::<Vec<_>>(), ["image"]);
+    }
+
     /// The server preset's default allowlist admits the images the VM bundle is proven with by
     /// digest; an operator who takes a pin out narrows it, and no other digest of the same name
     /// gets in through a pin.
