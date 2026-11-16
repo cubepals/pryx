@@ -33,17 +33,19 @@ interface Need {
   memoryMb: number
   cpuMillis: number
   diskGb: number
-  /** Where the demand can run; x86_64 alone when it doesn't say, since only x86_64 has every tier. */
+  /** Where the demand can run; any machine a host can join on when it doesn't say, as a memory floor. */
   architectures?: Architecture[]
 }
 /** The architectures a sandbox can be placed on: wasm and vm, and any tier left open, need x86_64. */
 export function architecturesFor(spec: Pick<SandboxSpec, 'isolation'>): Architecture[] {
   return spec.isolation === 'process' || spec.isolation === 'container' ? ['x86_64', 'aarch64'] : ['x86_64']
 }
-/** A provisioned host joins with the pryxd its control plane serves, which is built for the control
- * plane's own machine (join-routes.ts), so only shapes of that machine are taken. */
-export function smallestShape(shapes: Shape[], need: Need, joinable: string = HOST_MACHINE) {
-  const allowed = (need.architectures ?? ['x86_64']).filter((architecture) => architecture === joinable)
+/** A provisioned host joins with the pryxd and agent its control plane serves (join-routes.ts), so
+ * only shapes of the machine those are built for (served-machine.ts) are taken; none when it serves
+ * none. */
+export function smallestShape(shapes: Shape[], need: Need, joinable: string | null = HOST_MACHINE) {
+  if (joinable === null) return undefined
+  const allowed = (need.architectures ?? [joinable]).filter((architecture) => architecture === joinable)
   return shapes
     .filter(
       (s) =>
@@ -62,6 +64,8 @@ export class Autoscale {
     readonly hosts: ProviderLedger,
     readonly config: AutoscaleConfig,
     readonly thresholds: Thresholds,
+    /** The machine a joining host must be, from the binaries this control plane serves. */
+    readonly joinable: string | null = HOST_MACHINE,
   ) {}
   async refused(region: string, spec: SandboxSpec) {
     const required: Need = {
@@ -241,6 +245,7 @@ export class Autoscale {
         const shape = smallestShape(
           await provider.shapes(region),
           demand?.required ?? { memoryMb: this.config.memoryFloorMb, cpuMillis: 0, diskGb: 0 },
+          this.joinable,
         )
         if (!shape) return
         await this.hosts.acquire(

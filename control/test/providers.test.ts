@@ -93,7 +93,11 @@ describe.skipIf(!hasDatabase)('provider control', () => {
   test('an arm64 shape serves only process and container demand, and only a fleet that serves arm64 takes it', () => {
     const arm = { ...shape, name: 'arm', architecture: 'aarch64' as const }
     const need = { memoryMb: 128, cpuMillis: 32, diskGb: 1 }
-    expect(smallestShape([arm], need, 'aarch64')).toBeUndefined()
+    // A memory floor names no tier: any host that can join takes it, of the served machine only.
+    expect(smallestShape([arm], need, 'aarch64')?.name).toBe('arm')
+    expect(smallestShape([arm, shape], need, 'aarch64')?.name).toBe('arm')
+    expect(smallestShape([arm, shape], need, 'x86_64')?.name).toBe('fit')
+    expect(smallestShape([arm, shape], need, null)).toBeUndefined()
     for (const isolation of ['wasm', 'vm', undefined] as const)
       expect(
         smallestShape([arm, shape], { ...need, architectures: architecturesFor({ isolation }) }, 'aarch64'),
@@ -224,6 +228,34 @@ describe.skipIf(!hasDatabase)('provider control', () => {
     const a = await one<{ id: string }>(c.db, sql`SELECT id FROM provider_acquisitions WHERE region='floor'`)
     const node = await joined(a?.id ?? '')
     await expect(floor.release(node.id)).rejects.toMatchObject({ code: 'refused' })
+  })
+  test("an aarch64 control plane's memory floor orders an arm64 host", async () => {
+    const arm = { ...shape, name: 'arm', architecture: 'aarch64' as const }
+    const armProvider = new FakeProvider([tooSmall, shape, arm])
+    const armHosts = new ProviderLedger(
+      c.db,
+      c.boxes,
+      new Map([['fake-arm', armProvider]]),
+      { deployment: 'test', url: 'https://127.0.0.1:8443', caPem: 'fixture-public-ca' },
+      'test-only-stable-encryption-key',
+      ['alpine:'],
+    )
+    const floor = new Autoscale(
+      c.db,
+      c.boxes,
+      armHosts,
+      { ...scaling.config, regions: { 'arm-floor': 'fake-arm' }, memoryFloorMb: 128, minNodes: 1 },
+      THRESHOLDS,
+      'aarch64',
+    )
+    await floor.tick()
+    await armHosts.settle()
+    expect(armProvider.creates).toBe(1)
+    const ordered = await one<{ shape: string }>(
+      c.db,
+      sql`SELECT shape FROM provider_acquisitions WHERE region='arm-floor'`,
+    )
+    expect(ordered?.shape).toBe('arm')
   })
   test('release resumes after retirement when the vendor deletion reply was lost', async () => {
     const a = await hosts.acquire('release-retry', 'fake', 'fit', 'release-retry')
