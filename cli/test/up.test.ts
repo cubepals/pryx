@@ -20,6 +20,7 @@ import {
 import { configurations } from '../src/up-config.ts'
 import { readEnvironment, writeChanged, writeEnvironment } from '../src/up-files.ts'
 import {
+  dockerReloadConfiguration,
   GVISOR_PREFIX,
   gvisorInstallProblem,
   gvisorRuntimes,
@@ -41,6 +42,49 @@ test('a server names the unavailable gVisor architecture', () => {
   expect(gvisorInstallProblem('x64')).toBeNull()
   expect(gvisorInstallProblem('arm64')).toContain('this host is arm64')
   expect(gvisorInstallProblem('riscv64')).toContain('the pinned gVisor release supports x64')
+})
+
+test('a Docker reload retains explicit proxy policy and completes an enabled proxy path', () => {
+  const existing = { 'userland-proxy': true, 'userland-proxy-path': '/chosen/proxy', unrelated: 'kept' }
+  const missing = () => null
+  expect(dockerReloadConfiguration(existing, missing)).toBe(existing)
+  const disabled = { 'userland-proxy': false, unrelated: 'kept' }
+  expect(dockerReloadConfiguration(disabled, missing)).toBe(disabled)
+  const absent = { unrelated: 'kept' }
+  expect(dockerReloadConfiguration(absent, missing)).toBe(absent)
+  expect(
+    dockerReloadConfiguration(
+      { 'userland-proxy': true },
+      (path) => (path === 'docker-proxy' ? '/engine/bin/docker-proxy' : null),
+      () => false,
+      () => 28,
+    ),
+  ).toEqual({ 'userland-proxy': true, 'userland-proxy-path': '/engine/bin/docker-proxy' })
+  expect(() =>
+    dockerReloadConfiguration(
+      { 'userland-proxy': true },
+      missing,
+      () => false,
+      () => 28,
+    ),
+  ).toThrow('docker-proxy is unavailable')
+  expect(() =>
+    dockerReloadConfiguration(
+      { 'userland-proxy': true },
+      missing,
+      () => true,
+      () => 28,
+    ),
+  ).toThrow('sets userland-proxy-path by command line')
+  const older = { 'userland-proxy': true }
+  expect(
+    dockerReloadConfiguration(
+      older,
+      missing,
+      () => true,
+      () => 24,
+    ),
+  ).toBe(older)
 })
 
 test('the server preset registers runsc beside existing runtimes and refuses a changed release', async () => {

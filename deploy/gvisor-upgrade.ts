@@ -9,6 +9,7 @@ import { dirname, join, sep } from 'node:path'
 import previous from '../.github/gvisor-upgrade.json'
 import {
   configureHostRuntime,
+  dockerReloadConfiguration,
   GVISOR_PREFIX,
   gvisorRuntimes,
   installGvisor,
@@ -34,7 +35,14 @@ const prior = join(GVISOR_PREFIX, previous.version)
 await installGvisor(run, prior, previous.url, previous)
 const config = '/etc/docker/daemon.json'
 const existing = JSON.parse(readFileSync(config, 'utf8'))
-await Bun.write(config, JSON.stringify({ ...existing, runtimes: gvisorRuntimes(existing, prior) }, null, 2))
+await Bun.write(
+  config,
+  JSON.stringify(
+    dockerReloadConfiguration({ ...existing, runtimes: gvisorRuntimes(existing, prior) }),
+    null,
+    2,
+  ),
+)
 await run(['systemctl', 'reload', 'docker'])
 await waitForGvisorRuntime(join(prior, 'runsc'))
 const before = (await paths()).runsc.path as string

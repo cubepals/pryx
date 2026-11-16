@@ -5,7 +5,7 @@
  * written to `PRYX_GVISOR_TOOLS`, and each must succeed: a template gVisor couldn't run would
  * be refused on this tier by capability, with its reason, and asserted here instead. */
 import { expect, test } from 'bun:test'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { writeFileSync } from 'node:fs'
 import { sql } from 'drizzle-orm'
 import { builtinTemplate } from '../../cli/src/builtin-template.ts'
 import { connectSsh } from '../../cli/src/sandbox-ssh.ts'
@@ -150,7 +150,14 @@ test(
         const running = await new Response(inspect.stdout).text()
         expect(await inspect.exited).toBe(0)
         expect(running.trim()).toBe('false')
-        expect(readFileSync(`${view.locate.dataDir}/deadline-attack-confirmed`, 'utf8')).toBe('protected')
+        const proof = await c.d.control.nodes.transfer(
+          node,
+          'GET',
+          `/v1/workloads/${ref.key}/files/content?${new URLSearchParams({ path: 'deadline-attack-confirmed' })}`,
+          { epoch: ref.epoch, signal: AbortSignal.timeout(30 * SECOND_MS) },
+        )
+        expect(proof.ok).toBe(true)
+        expect(await proof.text()).toBe('protected')
       })
       for (const [name, image, python] of [
         ['python-interpreter', 'alpine:pryx-python-interpreter', true],

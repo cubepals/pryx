@@ -1,7 +1,19 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 /** Host Docker and firewall prerequisites for installation. Merges the existing daemon policy,
  * reloads an active engine, and never removes existing containers or unrelated settings. */
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  closeSync,
+  constants,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  openSync,
+  readFileSync,
+  readlinkSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { MINUTE_MS, SECOND_MS } from '../../control/src/durations.ts'
@@ -41,6 +53,94 @@ export function gvisorRuntimes(
   prefix = join(GVISOR_PREFIX, gvisor.version),
 ): Record<string, unknown> {
   return { ...existing.runtimes, runsc: { path: join(prefix, 'runsc') } }
+}
+
+// Moby daemon/config/config_linux.go's unexported lookupBinPath searches these FHS
+// directories before PATH: https://github.com/moby/moby/blob/v28.0.4/daemon/config/config_linux.go.
+const DOCKER_LIBEXEC_DIRECTORIES = [
+  '/usr/local/libexec/docker',
+  '/usr/libexec/docker',
+  '/usr/local/lib/docker',
+  '/usr/lib/docker',
+  '/usr/local/libexec',
+  '/usr/libexec',
+]
+// Moby cmd/dockerd/config_unix.go's flag. Only its presence is returned, never other arguments.
+const DOCKER_PROXY_ARGUMENT = '--userland-proxy-path'
+// Docker25 added this platform validation; older reloads accept the partial proxy config.
+// https://github.com/moby/moby/blob/v25.0.0/daemon/config/config_linux.go
+const PROXY_RELOAD_VALIDATION_MAJOR = 25
+
+/** Anchor proc lookups to the identified daemon task, so PID reuse cannot select another
+ * command line. Argument values stay private; only the proxy flag's presence leaves here. */
+export function dockerProxyArgument(pid: number): boolean {
+  if (!Number.isSafeInteger(pid) || pid <= 1) throw new Error('Docker service has no active daemon PID')
+  const directory = openSync(
+    `/proc/${pid}`,
+    constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+  )
+  try {
+    const proc = `/proc/self/fd/${directory}`
+    if (
+      !readlinkSync(`${proc}/exe`)
+        .replace(/ \(deleted\)$/, '')
+        .endsWith('/dockerd')
+    )
+      throw new Error('Docker service does not identify its daemon executable')
+    return readFileSync(`${proc}/cmdline`)
+      .toString()
+      .split('\0')
+      .some(
+        (argument) => argument === DOCKER_PROXY_ARGUMENT || argument.startsWith(`${DOCKER_PROXY_ARGUMENT}=`),
+      )
+  } finally {
+    closeSync(directory)
+  }
+}
+
+function serviceProxyArgument(): boolean {
+  const child = Bun.spawnSync(['systemctl', 'show', 'docker', '--property=MainPID', '--value'], {
+    stdout: 'pipe',
+    stderr: 'ignore',
+    timeout: SECOND_MS,
+  })
+  if (child.exitCode !== 0) throw new Error('Cannot identify Docker service for a safe live runtime reload')
+  return dockerProxyArgument(Number(child.stdout.toString().trim()))
+}
+
+function dockerMajor(): number {
+  const child = Bun.spawnSync(['docker', 'version', '--format', '{{.Server.Version}}'], {
+    stdout: 'pipe',
+    stderr: 'ignore',
+    timeout: SECOND_MS,
+  })
+  const major = /^(\d+)\./.exec(child.stdout.toString().trim())?.[1]
+  if (child.exitCode !== 0 || !major) throw new Error('Cannot identify Docker proxy reload requirements')
+  return Number(major)
+}
+
+/** Docker validates a reload's file before merging defaults. An enabled proxy therefore
+ * needs its executable in that file; preserve disabled proxies and explicit paths as given. */
+export function dockerReloadConfiguration<T extends Record<string, unknown>>(
+  configuration: T,
+  find: (path: string) => string | null = Bun.which,
+  commandLineProxy: () => boolean = serviceProxyArgument,
+  engineMajor: () => number = dockerMajor,
+): T & { 'userland-proxy-path'?: string } {
+  if (configuration['userland-proxy'] !== true || 'userland-proxy-path' in configuration) return configuration
+  if (engineMajor() < PROXY_RELOAD_VALIDATION_MAJOR) return configuration
+  if (commandLineProxy())
+    throw new Error(
+      'Live gVisor registration is unavailable: Docker sets userland-proxy-path by command line',
+    )
+  const proxy =
+    DOCKER_LIBEXEC_DIRECTORIES.map((directory) => find(join(directory, 'docker-proxy'))).find(Boolean) ??
+    find('docker-proxy')
+  if (!proxy)
+    throw new Error(
+      'Docker enables userland-proxy but docker-proxy is unavailable; install the engine proxy binary',
+    )
+  return { ...configuration, 'userland-proxy-path': proxy }
 }
 
 /** The pinned release's architecture is explicit whenever the server leaves the tier off. */
@@ -140,16 +240,23 @@ export async function configureHostRuntime(run: InstallCommand) {
     } catch (error) {
       console.error(`gvisor tier off: ${error instanceof Error ? error.message : error}`)
     }
-  if (
-    writeChanged(
-      '/etc/docker/daemon.json',
-      JSON.stringify({ ...existing, ...daemonJson, ...runtimes }, null, 2) + '\n',
-      0o644,
-    )
-  ) {
+  const configuration = { ...existing, ...daemonJson, ...runtimes }
+  const desired = JSON.stringify(configuration, null, 2) + '\n'
+  const current = existsSync('/etc/docker/daemon.json')
+    ? readFileSync('/etc/docker/daemon.json', 'utf8')
+    : null
+  if (current !== desired) {
     const running = Bun.spawnSync(['docker', 'ps', '-q']).stdout.toString().trim()
-    if (running) await run(['systemctl', 'reload', 'docker'])
-    else await run(['systemctl', 'restart', 'docker'])
+    if (
+      writeChanged(
+        '/etc/docker/daemon.json',
+        running ? JSON.stringify(dockerReloadConfiguration(configuration), null, 2) + '\n' : desired,
+        0o644,
+      )
+    ) {
+      if (running) await run(['systemctl', 'reload', 'docker'])
+      else await run(['systemctl', 'restart', 'docker'])
+    }
   }
   if (runtimes.runtimes) await waitForGvisorRuntime(join(GVISOR_PREFIX, gvisor.version, 'runsc'))
 }
