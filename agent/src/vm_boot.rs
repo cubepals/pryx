@@ -18,7 +18,17 @@ pub fn stream_port(port: u16) -> u32 {
     STREAM_PORT_BASE + u32::from(port)
 }
 pub const MAX_BYTES: usize = 256 * 1024;
-pub const MAX_LAYERS: usize = 128;
+/// Firecracker 1.18.0 (eaf83bb) gives every x86_64 MMIO device one legacy interrupt from GSI 5 to
+/// 23, its `GSI_LEGACY_NUM` (src/vmm/src/arch/x86_64/layout.rs). pryx links no Firecracker crate.
+const MONITOR_LEGACY_IRQS: usize = 19;
+/// Its VMGenID and VMClock devices take two of them, after the virtio devices (src/vmm/src/builder.rs).
+const MONITOR_ACPI_IRQS: usize = 2;
+/// The guest's virtio devices besides its layers: the bootstrap image, the writable disk, vsock,
+/// and root's TAP.
+const GUEST_DEVICES: usize = 4;
+/// Each image layer is one more virtio disk, so this many boot on every path; one more would leave
+/// the monitor's ACPI devices without an interrupt and the guest would not start.
+pub const MAX_LAYERS: usize = MONITOR_LEGACY_IRQS - MONITOR_ACPI_IRQS - GUEST_DEVICES;
 pub const INIT_MODE: &str = "vm-init";
 pub const PACKET_PROGRAM: &str = "gvforwarder";
 pub const NETWORK_PROGRAM: &str = "guest-network";

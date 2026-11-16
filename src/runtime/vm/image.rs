@@ -10,6 +10,18 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub const MAX_REQUEST_BYTES: u64 = 16 * 1024;
 pub const MAX_RESPONSE_BYTES: u64 = 4 * 1024 * 1024;
+/// The most layers a VM image may have: each is a disk of the guest, and the guest boots no more.
+pub use pryx_agent::vm_boot::MAX_LAYERS;
+
+/// Refuses an image with more layers than a guest boots, before any layer is fetched.
+pub fn admit_layers(layers: usize) -> Result<(), RuntimeError> {
+    if layers > MAX_LAYERS {
+        return Err(error(format!(
+            "This image has {layers} layers; a VM boots at most {MAX_LAYERS}, one disk for each"
+        )));
+    }
+    Ok(())
+}
 
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -87,4 +99,15 @@ pub async fn prepare(binary: &std::path::Path, request: &Request) -> Result<Prep
     })
     .await
     .map_err(|_| RuntimeError::Timeout("VM image helper exceeded its deadline".into()))?
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn an_image_with_more_layers_than_a_guest_boots_is_refused_by_name() {
+        super::admit_layers(super::MAX_LAYERS).unwrap();
+        let refused = super::admit_layers(super::MAX_LAYERS + 1).unwrap_err().to_string();
+        assert!(refused.contains(&format!("{} layers", super::MAX_LAYERS + 1)), "{refused}");
+        assert!(refused.contains(&format!("at most {}", super::MAX_LAYERS)), "{refused}");
+    }
 }

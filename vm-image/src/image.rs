@@ -11,7 +11,7 @@ use futures_util::TryStreamExt;
 use oci_client::errors::{OciDistributionError, OciErrorCode};
 use oci_client::{Client, Reference, config::ConfigFile, manifest::OciDescriptor, secrets::RegistryAuth};
 use oci_spec::image::{Arch, Digest, DigestAlgorithm, Os};
-use pryxd::runtime::RuntimeError;
+use pryxd::runtime::{RuntimeError, vm::image::admit_layers};
 use rustix::fs::{FlockOperation, flock};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -32,7 +32,6 @@ const MAX_LAYER_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 // A written-file limit below that kills it before any data, so this is its bound.
 const EROFS_RESERVATION_BYTES: u64 = 1 << 41;
 const MAX_CONFIG_BYTES: u64 = 2 * 1024 * 1024;
-const MAX_LAYERS: usize = 128;
 const READ_ATTEMPTS: usize = 3;
 
 fn retryable(failure: &OciDistributionError) -> bool {
@@ -253,6 +252,7 @@ impl Images {
             return Err(error("Oversized VM image cache record"));
         }
         let saved: CachedImage = serde_json::from_slice(&bytes).map_err(error)?;
+        admit_layers(saved.layers.len())?;
         let mut layers = Vec::new();
         for (source, diff_id) in &saved.layers {
             let name = digest_name(source)?;
@@ -277,9 +277,7 @@ impl Images {
         if pinned.is_some_and(|pinned| pinned != digest) {
             return Err(error("VM image manifest differs from its pinned digest"));
         }
-        if manifest.layers.len() > MAX_LAYERS {
-            return Err(error("VM OCI image exceeds the layer admission bound"));
-        }
+        admit_layers(manifest.layers.len())?;
         // Explicitly private: a confined filesystem program refuses an ancestor that an
         // ordinary user's group-writable umask (002) would otherwise leave writable.
         let private = || tempfile::Builder::new().permissions(fs::Permissions::from_mode(0o700)).to_owned();

@@ -86,7 +86,8 @@ There is no image daemon. pryxd runs `pryx-vm-image`, a separate helper from the
 
 1. It pulls the manifest and layers with [oci-client](https://crates.io/crates/oci-client),
    anonymously, and checks each layer against its digest and its uncompressed `diff_id`.
-   Layers are gzip or plain tar, at most 128 of them.
+   Layers are gzip or plain tar, at most 13 of them: each is a disk of the guest, and the
+   monitor has interrupts for no more. An image with more is refused before it is fetched.
 2. `mkfs.erofs --tar` turns each layer into a read-only EROFS file, keeping its owners,
    modes and times. Files are cached by layer digest and shared by every sandbox that uses
    them. A cached layer counts only once its file is complete and its record written.
