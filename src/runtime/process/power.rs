@@ -252,19 +252,27 @@ impl ProcessRuntime {
         if self.running(name)? {
             return Ok(());
         }
+        let binary = entry.spec.agent.as_ref().map(|agent| agent.binary.clone());
+        let helper = match binary {
+            Some(binary) => {
+                let own = self.clone();
+                tokio::task::spawn_blocking(move || own.namespace_helper(&binary))
+                    .await
+                    .unwrap_or_else(|failed| Err(failed.to_string()))
+            }
+            None => Err("the sandbox has no supervisor".into()),
+        };
+        // The journal keeps the first launch's mode: a namespaced sandbox never relaunches plain.
+        if entry.namespaced.is_some()
+            && let Err(reason) = &helper
+        {
+            return Err(error(format!("{}: {reason}", super::namespaces::RELAUNCH_WITHOUT_NAMESPACES)));
+        }
         let (tools, required) = self.native_policy(&entry).await?;
         entry.native_browser =
             Some(tools.as_ref().is_some_and(|tools| tools.unavailable.is_none() && tools.browser_on));
-        let binary = entry.spec.agent.as_ref().map(|agent| agent.binary.clone());
-        let proved = match binary {
-            Some(binary) => {
-                let own = self.clone();
-                tokio::task::spawn_blocking(move || own.namespace_helper(&binary).is_ok()).await.unwrap_or(false)
-            }
-            None => false,
-        };
         entry.namespaced =
-            proved.then_some(super::namespaces::Namespaced { private_network: entry.spec.internal_network });
+            helper.is_ok().then_some(super::namespaces::Namespaced { private_network: entry.spec.internal_network });
         let (mut command, listeners) = self.launch_command(&entry, tools, required)?;
         let child = command.spawn().map_err(error)?;
         drop(listeners);

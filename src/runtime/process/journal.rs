@@ -324,6 +324,28 @@ mod tests {
         child.wait().unwrap();
         assert!(matches!(running, Err(RuntimeError::Other(s)) if s == crate::protocol::CPU_LIMIT_PROBLEM));
     }
+
+    #[tokio::test]
+    async fn a_namespaced_sandbox_is_never_relaunched_plain() {
+        let dir = tempfile::tempdir().unwrap();
+        let runtime = ProcessRuntime::new(dir.path(), ProcessConfig::default()).unwrap();
+        let spec = fixture_spec(dir.path(), 0);
+        runtime.create_entry(&spec).unwrap();
+        let agent = dir.path().join("pryx-agent");
+        let mut entry = runtime.entry(&spec.name).unwrap();
+        entry.spec.agent.as_mut().unwrap().binary = agent.clone();
+        // Its first launch took namespaces; this node's probe of the helper now fails.
+        entry.namespaced = Some(super::super::namespaces::Namespaced { private_network: false });
+        runtime.save(entry).unwrap();
+        runtime.state.namespaces.lock().unwrap().insert(agent, Err("probe refused".into()));
+        let refused = runtime.launch(&spec.name).await;
+        let Err(RuntimeError::Other(said)) = refused else { panic!("relaunched plain: {refused:?}") };
+        assert!(
+            said.starts_with(super::super::namespaces::RELAUNCH_WITHOUT_NAMESPACES) && said.ends_with("probe refused")
+        );
+        assert!(runtime.state.children.lock().unwrap().is_empty(), "nothing was started");
+        assert!(runtime.entry(&spec.name).unwrap().namespaced.is_some(), "the journal keeps its mode");
+    }
     use std::os::unix::fs::{PermissionsExt, symlink};
 
     #[test]
