@@ -1501,3 +1501,5 @@
 - Process bootstrap: carry the resolved environment and host overrides in a sealed anonymous file queued over a private Unix socket, and adopt it only after the agent disables dumping; trusted loaders receive fixed safe values, private bootstrap fields stay out of workload commands, and older agents are refused before launch.
 
 - Process command wrappers receive workload environments through the same sealed Unix-rights handoff after child policy applies; process PTYs retain portable-pty allocation and I/O with a std::Command slave attach because portable-pty 0.9 closes extra descriptors and offers no child-only inheritance hook.
+
+- Process environment acceptance: report only a fixed failed check, kernel errno and descriptor number when a workload privacy assertion fails, preserving every assertion without logging environment values or descriptor contents.

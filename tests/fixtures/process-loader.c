@@ -16,6 +16,11 @@
 
 #ifdef PRYX_LOADER_PROGRAM
 extern char **environ;
+static int failed(const char *phase, int detail) {
+    int reason = errno;
+    fprintf(stderr, "OWNED_ENV_CHECK phase=%s errno=%d detail=%d\n", phase, reason, detail);
+    return 1;
+}
 static int private_state(void) {
     pid_t parent = getppid();
     char path[128];
@@ -24,30 +29,30 @@ static int private_state(void) {
         int input = open(path, O_RDONLY | O_CLOEXEC);
         if (input >= 0) {
             close(input);
-            return 1;
+            return failed("parent-proc-readable", (int)i);
         }
         if (errno != EACCES && errno != EPERM)
-            return 1;
+            return failed("parent-proc-denial", (int)i);
     }
     errno = 0;
     if (ptrace(PTRACE_PEEKDATA, parent, NULL, NULL) != -1 || errno != EPERM)
-        return 1;
+        return failed("ptrace-denial", 0);
     char byte;
     struct iovec local = { &byte, sizeof(byte) };
     struct iovec remote = { NULL, sizeof(byte) };
     errno = 0;
     if (process_vm_readv(parent, &local, 1, &remote, 1, 0) != -1 || errno != EPERM)
-        return 1;
+        return failed("process-memory-denial", 0);
     errno = 0;
     if (syscall(SYS_pidfd_getfd, -1, -1, 0) != -1 || errno != EPERM)
-        return 1;
+        return failed("pidfd-transfer-denial", 0);
     struct rlimit limit;
     if (getrlimit(RLIMIT_NOFILE, &limit) != 0 || limit.rlim_cur == RLIM_INFINITY)
-        return 1;
+        return failed("descriptor-limit", 0);
     for (rlim_t number = STDERR_FILENO + 1; number < limit.rlim_cur; ++number) {
         errno = 0;
         if (fcntl((int)number, F_GETFD) != -1 || errno != EBADF)
-            return 1;
+            return failed("descriptor-inheritance", (int)number);
     }
     return 0;
 }
@@ -59,12 +64,12 @@ int main(int argc, char **argv) {
         if (value == NULL || strcmp(value, "owned-value") != 0 ||
             getenv("PRYX_PROCESS_POLICY") != NULL || getenv("PRYX_PROCESS_LISTENERS") != NULL ||
             getenv("PRYX_PROCESS_NETWORK_OFF") != NULL)
-            return 1;
+            return failed("workload-values", 0);
         size_t prefix = strlen(argv[2]);
         for (char **item = environ; *item != NULL; ++item) {
             size_t key = strcspn(*item, "=");
             if (key >= prefix && strncmp(*item, argv[2], prefix) == 0)
-                return 1;
+                return failed("private-prefix-presence", 0);
         }
         return private_state();
     }

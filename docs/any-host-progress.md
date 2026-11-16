@@ -5032,3 +5032,15 @@ job when publication is authorized. That job has not run in this task.
   failed once in control end to end: the container agent test's exposed port answered "Agent
   unavailable" after an edge relay ECONNRESET. The same code passed that job on k27 at `26aee02`;
   it is recorded here, not yet explained.
+
+- Process environment acceptance on `721d478` starts its namespaced supervisors and passes the
+  existing namespace and performance cases, but the new workload checker exits one with no
+  diagnostic ([CI 43950084979/job133590408318](https://github.com/cubepals/pryx/actions/runs/43950084979/job/133590408318)).
+  The checker combines environment filtering, parent proc denial, syscall denial and inherited
+  descriptor checks, so that trace does not identify which assertion failed. It now reports a
+  fixed check name, errno and descriptor number on failure, with no values or descriptor contents;
+  all conditions remain unchanged and success remains quiet. Sixteen owned-process controls compare
+  the old and diagnostic checker in host and private PID namespaces, retaining successful protected
+  cases and failures for an exposed parent, an inherited descriptor and a missing workload value.
+  Both C build modes pass strict compiler warnings. This is diagnostic preparation; the historical
+  cause, full product confinement and the final exact-head hosted proof remain required.
