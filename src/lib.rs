@@ -13,6 +13,7 @@ pub mod api;
 pub(crate) mod bpf;
 mod capability;
 pub mod certs;
+pub(crate) mod cgroup;
 pub mod cli;
 pub(crate) mod clock;
 pub mod config;
