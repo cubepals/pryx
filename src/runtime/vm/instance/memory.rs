@@ -380,6 +380,8 @@ impl VmRuntime {
             Ok(ready) => ready,
             Err(problem) => {
                 let problem = with_exit(problem, &mut monitor);
+                #[cfg(test)]
+                diagnostics::failed(&mut monitor, &serial, &entry.spec).await;
                 let _ = tokio::time::timeout(crate::runtime::ENGINE_PROBE_TIMEOUT, monitor.kill()).await;
                 if let Some(network) = &mut network {
                     let _ = network.stop().await;
@@ -478,13 +480,19 @@ impl VmRuntime {
         };
         let nonce = identity.as_ref().map_or_else(|| image.nonce.clone(), |identity| identity.nonce.clone());
         let pid = monitor.pid().and_then(|pid| i32::try_from(pid).ok());
-        tokio::time::timeout_at(deadline, async {
+        // What the listener saw, for a resume that never came: no connection, or others'.
+        let mut others = Vec::new();
+        let mut asked = false;
+        let exchange = tokio::time::timeout_at(deadline, async {
             let mut socket = loop {
                 let (socket, _) = listener.accept().await.map_err(error)?;
-                if pid.is_some() && socket.peer_cred().map_err(error)?.pid() == pid {
+                let peer = socket.peer_cred().map_err(error)?.pid();
+                if pid.is_some() && peer == pid {
                     break socket;
                 }
+                others.push(peer);
             };
+            asked = true;
             let seed = ring::rand::generate::<[u8; vm_sleep::SEED_BYTES]>(&ring::rand::SystemRandom::new())
                 .map_err(|_| error("Host entropy is unavailable"))?
                 .expose();
@@ -503,8 +511,14 @@ impl VmRuntime {
             }
             Ok(nonce)
         })
-        .await
-        .map_err(|_| RuntimeError::Timeout("VM guest init did not ask for its resume".into()))?
+        .await;
+        exchange.map_err(|_| {
+            RuntimeError::Timeout(if asked {
+                "VM guest init asked for its resume and did not acknowledge it".into()
+            } else {
+                format!("VM guest init did not ask for its resume (monitor {pid:?}; other peers {others:?})")
+            })
+        })?
     }
 }
 

@@ -257,11 +257,12 @@ async fn actual_forks_with_memory_wake_as_themselves() {
     let inputs: Vec<serde_json::Value> =
         serde_json::from_str(include_str!("../../../../templates/vm-tools/image-inputs.json")).unwrap();
     let image = inputs[0]["reference"].as_str().unwrap();
+    let since = std::time::SystemTime::now();
     let ((source, source_spec), forks, running) = source_and_forks(&runtime, temporary.path(), image).await;
     let mut woken = Vec::new();
     for (fork, _) in &forks {
         let started = std::time::Instant::now();
-        runtime.unpause(fork).await.unwrap();
+        runtime.unpause(fork).await.inspect_err(|_| monitor_output(since)).unwrap();
         eprintln!("VM fork {fork} woke in {:.2} ms", started.elapsed().as_secs_f64() * 1000.0);
         woken.push(fork.clone());
     }

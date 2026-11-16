@@ -452,6 +452,8 @@ async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Err
         }
         () = held_ended(&mut held) => {
             held = None;
+            // On the console, which the host keeps with the monitor's output: where a wake got to.
+            eprintln!("VM sleep hold ended; asking the host for this guest's resume");
             match crate::vm_sleep::resumed(&guest).await {
                 Some(resumed) => {
                     if let Some(next) = awake(resumed, boot.network.as_ref(), &mut network, agent.as_mut()).await? {

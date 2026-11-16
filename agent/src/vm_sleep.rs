@@ -261,7 +261,22 @@ pub(crate) async fn resumed(boot: &Boot<'_>) -> Option<Resumed> {
             .filter(|resume| verify_resume(resume, boot.public_key, boot.nonce, boot.sandbox, boot.epoch));
         Ok::<_, io::Error>(resume.map(|resume| Resumed { resume, socket }))
     };
-    tokio::time::timeout(RESUME_WAIT, exchange).await.ok().and_then(Result::ok).flatten()
+    // Said on init's console, which the host keeps with the monitor's output.
+    match tokio::time::timeout(RESUME_WAIT, exchange).await {
+        Ok(Ok(Some(resumed))) => Some(resumed),
+        Ok(Ok(None)) => {
+            eprintln!("VM resume refused: it did not verify for this guest");
+            None
+        }
+        Ok(Err(problem)) => {
+            eprintln!("VM resume failed: {problem}");
+            None
+        }
+        Err(_) => {
+            eprintln!("VM resume did not come in time");
+            None
+        }
+    }
 }
 
 /// What init tells the agent of a fork's identity, one JSON line on the agent's stdin.
