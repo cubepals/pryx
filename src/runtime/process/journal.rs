@@ -57,6 +57,11 @@ pub(super) fn legacy_boot(root: &Path) -> Result<bool, RuntimeError> {
         Err(problem) => Err(error(problem)),
     }
 }
+/// The lowest ID of a host-reserved pool that no reservation holds and no process runs as: the
+/// process tier's UID pool, and the root VM tier's monitor IDs.
+pub(crate) fn free_id(pool: std::ops::Range<u32>, held: impl Fn(u32) -> bool) -> Option<u32> {
+    pool.into_iter().find(|id| !held(*id) && !super::observe::uid_in_use(*id))
+}
 impl ProcessRuntime {
     pub fn new(root: &Path, policy: ProcessConfig) -> Result<Self, RuntimeError> {
         let root = root.join("process-runtime");
@@ -137,9 +142,10 @@ impl ProcessRuntime {
         if let Some(owner) = owners.get(id) {
             return Ok(*owner);
         }
-        let uid = (self.policy.uid_first..self.policy.uid_first.saturating_add(self.policy.uid_count))
-            .find(|uid| !owners.values().any(|(used, _)| used == uid) && !super::observe::uid_in_use(*uid))
-            .ok_or_else(|| error("Process UID pool exhausted"))?;
+        let uid = free_id(self.policy.uid_first..self.policy.uid_first.saturating_add(self.policy.uid_count), |uid| {
+            owners.values().any(|(used, _)| *used == uid)
+        })
+        .ok_or_else(|| error("Process UID pool exhausted"))?;
         // Before it is held: the new holder never sees what an earlier one, or a crash, left.
         let retired = self.retire_uid_tools(uid)?;
         let mut next = owners.clone();

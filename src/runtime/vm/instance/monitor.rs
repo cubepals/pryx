@@ -23,19 +23,12 @@ pub(super) struct Inputs<'a> {
     pub network: Option<&'a network::Network>,
 }
 
-pub(super) fn owner(owner: Option<(u32, u32)>) -> Result<(), RuntimeError> {
+pub(super) fn owner(owner: Option<MonitorIds>) -> Result<(), RuntimeError> {
     match (rustix::process::geteuid().is_root(), owner) {
         (false, None) => Ok(()),
-        (true, Some((uid, gid)))
-            if uid != rustix::process::Uid::ROOT.as_raw()
-                && gid != rustix::process::Gid::ROOT.as_raw()
-                && uid != u32::MAX
-                && gid != u32::MAX =>
-        {
-            Ok(())
-        }
+        (true, Some(ids)) if ids.valid() => Ok(()),
         _ => Err(RuntimeError::Unavailable(
-            "Root VM launch requires fixed non-root host monitor IDs; ordinary users cannot select them".into(),
+            "Root VM launch requires a range of non-root host monitor IDs; ordinary users cannot select them".into(),
         )),
     }
 }
@@ -60,7 +53,7 @@ impl VmRuntime {
         let (memory, cpus, _, _) = resources(&entry.spec)?;
         let lease = self.lease(entry)?;
         let output = directory.join("monitor.json");
-        if let Some(owner) = self.state.settings.monitor_owner {
+        if let Some(owner) = self.monitor_owner(&entry.id)? {
             if !entry.spec.internal_network && network.is_none() {
                 return Err(RuntimeError::Unavailable("Root VM TAP/firewall integration is not available".into()));
             }
@@ -237,13 +230,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn fixed_host_monitor_ids_cannot_be_selected_by_an_ordinary_caller() {
-        assert!(owner(Some((rustix::process::Uid::ROOT.as_raw(), rustix::process::Gid::ROOT.as_raw()))).is_err());
-        assert!(owner(Some((u32::MAX, u32::MAX))).is_err());
+    fn host_monitor_ids_cannot_be_selected_by_an_ordinary_caller() {
+        let ids = |uid, gid| Some(MonitorIds { uid, gid, count: 8 });
+        assert!(owner(ids(rustix::process::Uid::ROOT.as_raw(), rustix::process::Gid::ROOT.as_raw())).is_err());
+        assert!(owner(ids(u32::MAX, u32::MAX)).is_err());
         let root = rustix::process::geteuid().is_root();
         let uid = rustix::process::geteuid().as_raw().checked_add(1).unwrap();
         let gid = rustix::process::getegid().as_raw().checked_add(1).unwrap();
-        assert_eq!(owner(Some((uid, gid))).is_ok(), root);
+        assert_eq!(owner(ids(uid, gid)).is_ok(), root);
         assert_eq!(owner(None).is_ok(), !root);
     }
 }

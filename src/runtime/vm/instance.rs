@@ -14,6 +14,7 @@
 //! - `memory_acceptance.rs`: real KVM sleep and wake with a running process, and its fallbacks.
 //! - `agent.rs`: authenticated agent calls and one-shot compatibility exec.
 //! - `monitor.rs`: host-selected ordinary/jailer launch paths and retired-disk recovery.
+//! - `monitor_ids.rs`: root's own monitor uid and gid for each VM, from the host's range.
 //! - `network.rs`: host-selected ordinary packet or leased root TAP connections.
 //! - `logs.rs`: bounded guest entrypoint replay and live output.
 //! - `runtime.rs`: runtime verbs, observations and bounded event polling.
@@ -36,6 +37,8 @@ mod memory;
 #[cfg(test)]
 mod memory_acceptance;
 mod monitor;
+mod monitor_ids;
+pub use monitor_ids::MonitorIds;
 mod network;
 #[cfg(test)]
 mod network_acceptance;
@@ -84,7 +87,8 @@ pub struct Settings {
     pub ingress_connections: u16,
     pub free_floor_bytes: u64,
     pub image_timeout: Duration,
-    pub monitor_owner: Option<(u32, u32)>,
+    /// Root's monitor IDs, from which each VM takes its own pair; `None` for an ordinary user.
+    pub monitor_owner: Option<MonitorIds>,
 }
 // The runtime owns this bounded host ingress budget; workloads cannot increase it.
 pub(super) const INGRESS_CONNECTIONS: u16 = 64;
@@ -104,6 +108,8 @@ struct State {
     prepared: Mutex<HashMap<String, (Prepared, Vec<launch::Identity>)>>,
     /// The memory-sleep restore test's outcome, once it has run.
     memory_sleep: Mutex<Option<Result<(), String>>>,
+    /// Root's pair of monitor IDs for each VM (`monitor_ids.rs`).
+    monitor_ids: Option<Mutex<monitor_ids::Ledger>>,
 }
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct Entry {
@@ -241,6 +247,10 @@ impl VmRuntime {
             super::jail::Jail::recover_all(&root.join("jails"))?;
         }
         let entries = journal::load(&root)?;
+        let monitor_ids = settings
+            .monitor_owner
+            .map(|ids| monitor_ids::Ledger::load(&root, ids, |vm| entries.contains_key(vm)).map(Mutex::new))
+            .transpose()?;
         Ok(Self {
             state: Arc::new(State {
                 root,
@@ -252,6 +262,7 @@ impl VmRuntime {
                 live: Mutex::new(HashMap::new()),
                 prepared: Mutex::new(HashMap::new()),
                 memory_sleep: Mutex::new(None),
+                monitor_ids,
             }),
         })
     }

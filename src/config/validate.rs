@@ -40,8 +40,30 @@ impl Config {
         if self.vm.bundle.as_ref().is_some_and(|path| !path.is_absolute()) {
             return Err(ConfigError::Invalid("VM bundle descriptor requires an absolute host-installed path".into()));
         }
+        self.validate_monitor_ids()?;
         if self.runtime == super::RuntimeKind::Container && !self.docker.enabled {
             return Err(ConfigError::Invalid("the container tier is disabled by this host preset".into()));
+        }
+        Ok(())
+    }
+
+    /// Root's VM monitor IDs: non-root, at least one, within u32, and, where those tiers run,
+    /// apart from the Wasm worker's IDs and the process tier's UID pool.
+    fn validate_monitor_ids(&self) -> Result<(), ConfigError> {
+        let invalid = |m: &str| Err(ConfigError::Invalid(format!("vm.monitor_uid, monitor_gid and monitor_ids: {m}")));
+        let Some((uids, gids)) = self.vm.monitor_ranges() else { return invalid("the range overflows") };
+        // An exclusive end that fits u32 also keeps u32::MAX, "no ID" to chown(2), out.
+        if uids.is_empty() || uids.start == 0 || gids.start == 0 {
+            return invalid("at least one non-root ID");
+        }
+        let tiers = matches!(self.runtime, super::RuntimeKind::Auto | super::RuntimeKind::Vm);
+        let process = self.process.uid_first..self.process.uid_first.saturating_add(self.process.uid_count);
+        if tiers
+            && (uids.contains(&self.wasm.worker_uid)
+                || gids.contains(&self.wasm.worker_gid)
+                || (self.runtime == super::RuntimeKind::Auto && uids.start < process.end && process.start < uids.end))
+        {
+            return invalid("they overlap the Wasm worker's IDs or the process tier's UID pool");
         }
         Ok(())
     }

@@ -112,6 +112,10 @@ impl VmRuntime {
         }
         File::open(&directory).and_then(|directory| directory.sync_all()).map_err(error)?;
         self.state.entries.lock().unwrap().remove(id);
+        // A pair left behind by a failure here is dropped at the next start: it names no VM.
+        if let Some(ledger) = &self.state.monitor_ids {
+            ledger.lock().unwrap().release(id)?;
+        }
         Ok(())
     }
 }

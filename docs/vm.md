@@ -238,9 +238,12 @@ lifetime lease and then confines it:
 - It is not dumpable, and the kernel kills it when pryxd exits. Its one-shot bootstrap socket
   hands the guest's secrets only to a peer with the monitor's own PID.
 
-As root, the monitor runs under Firecracker's unchanged jailer, with fixed non-root host IDs
-that the host chooses and a workload never can, in a chroot holding only its staged inputs,
-under the same lease and signal bounds, inside the root worker above.
+As root, the monitor runs under Firecracker's unchanged jailer, as a non-root uid and gid of its
+own: each VM takes the lowest free pair of a range the host reserves (`[vm] monitor_uid`,
+`monitor_gid` and `monitor_ids`, 1024 pairs from 60001 by default), keeps it across boots and
+lets it go when it is removed, so no two VMs share one and no workload chooses one. Its TAP and
+its root packet stack are that pair's too. It runs in a chroot holding only its staged inputs, under
+the same lease and signal bounds, inside the root worker above.
 
 The filesystem programs (`mke2fs`, `e2fsck`, `mkfs.erofs`) read disks a guest wrote and layers
 a tenant chose, so the same launcher confines them too, as root or not: Landlock reads of their

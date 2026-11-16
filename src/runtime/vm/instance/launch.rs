@@ -103,12 +103,15 @@ impl VmRuntime {
         entry: &Entry,
         deadline: Instant,
     ) -> Result<Option<network::Network>, RuntimeError> {
-        if !entry.spec.internal_network && self.state.settings.monitor_owner.is_some() {
+        if !entry.spec.internal_network
+            && let Some(owner) = self.monitor_owner(&entry.id)?
+        {
             return network::Network::root(
                 &self.state.settings,
                 bundle,
                 &self.state.root.join("boots"),
                 lease,
+                owner,
                 entry.spec.egress.clone(),
                 deadline,
             )
