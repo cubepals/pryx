@@ -49,7 +49,8 @@ Parts (`process-tools/`):
 
 - `build.py`: verified assembly, complete notices, addon selection and an ELF symbol audit.
 - `archive_inputs.py`: immutable archive retrieval and payload copying without package hooks.
-- `archive_inputs_test.py`: retrieval against a real loopback server: outages waited out, wrong pins and bytes refused.
+- `archive_inputs_test.py`: retrieval against a real loopback server: outages waited out, mirrors tried, wrong pins and bytes refused.
+- `mirrors.json`: other hosts of the Debian archives, safe because every input's digest is checked.
 - `package.py`: unchanged payload packaging and pinned archive/inventory expansion metadata.
 - `package_test.py`: real archive determinism, bounds and inventory-tampering regressions.
 - `sources.py`: separate corresponding-source distribution and runtime notice descriptor.

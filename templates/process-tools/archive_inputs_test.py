@@ -1,20 +1,23 @@
 # SPDX-License-Identifier: FSL-1.1-ALv2
-"""Pinned input downloads against a real loopback HTTP server: outages, refusals, digests.
+"""Pinned input downloads against a real loopback HTTP server: outages, mirrors, digests.
 
 The server answers with real statuses, so urllib raises its own errors. Waiting is a fake
-clock, so no test sleeps and none reaches the network.
+clock, so no test sleeps and none reaches the network. The mirror table's own tests read the
+committed mirrors.json and locks.
 """
 import contextlib
 import hashlib
 from http import HTTPStatus
 import http.server
 import io
+import json
 from pathlib import Path
 import tempfile
 import threading
 import unittest
 from unittest.mock import patch
 import urllib.error
+import urllib.parse
 import archive_inputs
 
 PAYLOAD = b'pinned upstream archive\x00\xff'
@@ -123,6 +126,79 @@ class AcquireTests(unittest.TestCase):
             self.acquire(item)
         self.assertFalse((self.cache / item['sha256'] / 'input.tar').exists())
         self.assertEqual(self.clock.waits, [])
+
+    def mirror(self):
+        """Make the loopback server's /debian/ an archive whose mirror is its /mirror/debian/."""
+        table = patch.object(archive_inputs, 'MIRRORS', [
+            dict(prefix=self.base + '/debian/', mirrors=[self.base + '/mirror/debian/'])])
+        table.start()
+        self.addCleanup(table.stop)
+
+    def test_an_archive_outage_falls_back_to_its_mirror(self):
+        self.mirror()
+        self.server.script['/debian/pool/input.deb'] = [HTTPStatus.GATEWAY_TIMEOUT]
+        self.server.script['/mirror/debian/pool/input.deb'] = [PAYLOAD]
+        self.assertEqual(self.acquire(self.item('/debian/pool/input.deb')).read_bytes(), PAYLOAD)
+        self.assertEqual(self.server.requests, ['/debian/pool/input.deb', '/mirror/debian/pool/input.deb'])
+        self.assertEqual(self.clock.waits, [])
+
+    def test_a_mirror_with_other_bytes_fails_the_digest(self):
+        self.mirror()
+        self.server.script['/debian/pool/input.deb'] = [HTTPStatus.GATEWAY_TIMEOUT]
+        self.server.script['/mirror/debian/pool/input.deb'] = [b'other bytes']
+        item = self.item('/debian/pool/input.deb')
+        with self.assertRaisesRegex(ValueError, 'Downloaded digest mismatch'):
+            self.acquire(item)
+        self.assertFalse((self.cache / item['sha256'] / 'input.deb').exists())
+
+    def test_a_mirror_that_refuses_is_left_out(self):
+        self.mirror()
+        self.server.script['/debian/pool/input.deb'] = [HTTPStatus.BAD_GATEWAY] * 2 + [PAYLOAD]
+        self.assertEqual(self.acquire(self.item('/debian/pool/input.deb')).read_bytes(), PAYLOAD)
+        self.assertEqual(self.server.requests, ['/debian/pool/input.deb', '/mirror/debian/pool/input.deb',
+                                                '/debian/pool/input.deb', '/debian/pool/input.deb'])
+
+    def test_a_refused_pin_is_not_looked_for_on_mirrors(self):
+        self.mirror()
+        self.server.script['/mirror/debian/pool/input.deb'] = [PAYLOAD]
+        with self.assertRaises(urllib.error.HTTPError) as refusal:
+            self.acquire(self.item('/debian/pool/input.deb'))
+        self.assertEqual(refusal.exception.code, HTTPStatus.NOT_FOUND)
+        self.assertEqual(self.server.requests, ['/debian/pool/input.deb'])
+
+
+def pinned(value):
+    if isinstance(value, dict):
+        for key, inner in value.items():
+            if key == 'url' and isinstance(inner, str):
+                yield inner
+            else:
+                yield from pinned(inner)
+    elif isinstance(value, list):
+        for inner in value:
+            yield from pinned(inner)
+
+
+class MirrorTable(unittest.TestCase):
+    def test_a_mirror_keeps_each_pinned_path(self):
+        urls = {url for lock in archive_inputs.ROOT.glob('*.json') for url in pinned(json.loads(lock.read_text()))}
+        mirrored = [url for url in urls if len(archive_inputs.addresses(url)) > 1]
+        self.assertTrue(mirrored)
+        for url in mirrored:
+            path = urllib.parse.urlsplit(url).path
+            for address in archive_inputs.addresses(url)[1:]:
+                self.assertTrue(address.startswith('https://'), address)
+                self.assertEqual(urllib.parse.urlsplit(address).path, path, url)
+
+    def test_only_an_archive_s_own_prefix_is_rewritten(self):
+        for archive in archive_inputs.MIRRORS:
+            prefix = urllib.parse.urlsplit(archive['prefix'])
+            neighbour = archive['prefix'].rstrip('/') + '-ports/pool/input.deb'
+            lookalike = prefix._replace(netloc=prefix.netloc + '.example').geturl() + 'pool/input.deb'
+            for url in [neighbour, lookalike]:
+                self.assertEqual(archive_inputs.addresses(url), [url])
+            self.assertEqual(len(archive_inputs.addresses(archive['prefix'] + 'pool/input.deb')),
+                             1 + len(archive['mirrors']))
 
 
 if __name__ == '__main__':

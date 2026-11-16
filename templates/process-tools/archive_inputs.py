@@ -3,13 +3,14 @@
 
 These operations are independent of runtime assembly and execute no package hooks. Runtime
 acquisition has its own protected worker and does not import these build-time routines.
-Retrieval waits out an archive's brief outage; the pinned digest alone decides whether the
-bytes are accepted.
+Retrieval waits out an archive's brief outage and tries the archive's mirrors (`mirrors.json`);
+the pinned digest alone decides whether the bytes are accepted.
 """
 import datetime
 import hashlib
 import http.client
 from http import HTTPStatus
+import json
 import os
 from pathlib import Path
 import shutil
@@ -33,6 +34,7 @@ LONGEST_RETRY_WAIT = datetime.timedelta(minutes=1).total_seconds()
 SERVER_ERRORS = range(500, 600)
 NETWORK_ERRORS = (urllib.error.URLError, ConnectionError, TimeoutError, ssl.SSLError,
                   http.client.HTTPException)
+MIRRORS = json.loads((ROOT / "mirrors.json").read_text())["archives"]
 
 # GNU libc's runtime sonames belong to the host, including the ELF interpreter.
 GLIBC_SONAMES = frozenset({
@@ -53,22 +55,42 @@ def transient(error):
     return True
 
 
+def addresses(url):
+    """The pinned address, then the same path on each mirror of the archive it starts with."""
+    for archive in MIRRORS:
+        if url.startswith(archive["prefix"]):
+            path = url.removeprefix(archive["prefix"])
+            return [url, *(mirror + path for mirror in archive["mirrors"])]
+    return [url]
+
+
 def download(url, destination):
-    """Write url's bytes to destination, trying again within the budget while failures pass."""
+    """Write the bytes of url, or of a mirror's copy, trying again within the budget.
+
+    A refusal of the pinned address itself fails at once; a mirror that refuses is left out.
+    """
+    candidates = addresses(url)
     deadline = time.monotonic() + RETRY_BUDGET
     wait = FIRST_RETRY_WAIT
     while True:
-        try:
-            with urllib.request.urlopen(url, timeout=180) as response:
-                with destination.open("wb") as output:
-                    shutil.copyfileobj(response, output)
-            return
-        except NETWORK_ERRORS as error:
-            if isinstance(error, urllib.error.HTTPError):
-                error.close()  # Its body is an error page, never read.
-            print(f"Download failed: {url}: {error}", file=sys.stderr, flush=True)
-            if not transient(error) or time.monotonic() + wait > deadline:
-                raise
+        for address in list(candidates):
+            try:
+                with urllib.request.urlopen(address, timeout=180) as response:
+                    with destination.open("wb") as output:
+                        shutil.copyfileobj(response, output)
+                return
+            except NETWORK_ERRORS as error:
+                if isinstance(error, urllib.error.HTTPError):
+                    error.close()  # Its body is an error page, never read.
+                print(f"Download failed: {address}: {error}", file=sys.stderr, flush=True)
+                if transient(error):
+                    failure = error
+                elif address == url:
+                    raise
+                else:
+                    candidates.remove(address)
+        if time.monotonic() + wait > deadline:
+            raise failure
         print(f"Trying again in {wait:g} s", file=sys.stderr, flush=True)
         time.sleep(wait)
         wait = min(2 * wait, LONGEST_RETRY_WAIT)
