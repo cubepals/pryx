@@ -451,6 +451,63 @@ async fn public_internet_keeps_the_host_metadata_and_other_sandboxes_off() {
     nothing_left(&before);
 }
 
+/// An address on this host's loopback device for as long as it lives, as `ip` adds one.
+struct HostAddress(&'static str);
+
+impl HostAddress {
+    fn add(address: &'static str) -> Self {
+        let added = std::process::Command::new("ip").args(["address", "add", address, "dev", "lo"]).status().unwrap();
+        assert!(added.success(), "ip address add {address}: {added}");
+        Self(address)
+    }
+}
+
+impl Drop for HostAddress {
+    fn drop(&mut self) {
+        let _ = std::process::Command::new("ip").args(["address", "del", self.0, "dev", "lo"]).status();
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs a host that grants kernel network policy"]
+async fn an_address_the_host_gains_is_kept_off_as_its_others_are() {
+    if !rustix::process::geteuid().is_root() {
+        eprintln!("only root adds an address to this host: the root run proves this case");
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let before = kernel_state();
+    let manager = node(dir.path(), 21800).await;
+    start(&manager, "public", serde_json::json!({})).await;
+    // A service of this host's on every address, the new one included once it is added.
+    let wide = TcpListener::bind((Ipv4Addr::UNSPECIFIED, 0)).unwrap();
+    let port = wide.local_addr().unwrap().port();
+    // Not a private address, so with public internet on only its being this host's refuses it.
+    let added = HostAddress::add("198.51.100.7/32");
+    let since = std::time::Instant::now();
+    let mut attempts = 0;
+    loop {
+        attempts += 1;
+        let outcome = connect(&manager, "public", "198.51.100.7", port).await;
+        if outcome.starts_with("refused 1 ") {
+            break;
+        }
+        assert!(
+            since.elapsed() < std::time::Duration::from_secs(5),
+            "{outcome} {:?} after it was added",
+            since.elapsed()
+        );
+    }
+    // The dial's own start (an exec and a Python) bounds the window from above.
+    eprintln!(
+        "K31_ADDRESS_WATCH refused on dial {attempts}, {} ms after the address was added",
+        since.elapsed().as_millis()
+    );
+    drop(added);
+    remove(&manager, &["public"]).await;
+    nothing_left(&before);
+}
+
 #[tokio::test]
 #[ignore = "needs a host that grants kernel network policy"]
 async fn the_policy_outlives_a_daemon_restart_and_nothing_outlives_the_sandbox() {

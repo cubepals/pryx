@@ -25,8 +25,8 @@ Wants=network-online.target docker.service pryxd-vm-worker.service
 [Service]
 Type=exec
 # Before anything else: workloads kept off this host, and off the ports pryxd serves on the
-# private network (src/isolation.rs). "+" runs it as root outside the sandbox below, which has no
-# netlink to set them with; it fails only where nftables can't take the rules, and then nothing starts.
+# private network (src/isolation.rs). "+" runs it as root outside the sandbox below, so the rules
+# are root's own; it fails only where nftables can't take the rules, and then nothing starts.
 ExecStartPre=+/usr/local/bin/pryxd isolate --config /etc/pryxd/pryxd.toml
 # The directory on the BPF filesystem where process sandboxes' programs are pinned (docs/bpf.md);
 # "+" makes it outside the sandbox, "-" lets a host without that filesystem start without it.
@@ -81,11 +81,13 @@ LockPersonality=yes
 # No MemoryDenyWriteExecute: process sandboxes inherit this unit's system call filters, and that
 # one refuses every just-in-time compiler (Node, the JVM, WebAssembly runtimes) without a word.
 SystemCallArchitectures=native
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+# Netlink only so the process tier hears of this host's address changes and keeps every
+# sandbox's rules for them (docs/bpf.md); no raw sockets.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 # chown data directories to the workload user, remove trashed data it owns, kill a timed-out
 # exec by host pid; SETUID and SETGID start each process sandbox as a user of the uid pool; BPF
-# and NET_ADMIN load and attach its programs. With no netlink or raw sockets (above), NET_ADMIN
-# reaches no route, firewall or interface but through ioctls. The Docker socket already is root.
+# and NET_ADMIN load and attach its programs. With netlink, NET_ADMIN could also change routes
+# and the firewall, which the Docker socket, already root, reaches anyway; pryxd sends none.
 CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_KILL CAP_SETUID CAP_SETGID CAP_BPF CAP_NET_ADMIN
 AmbientCapabilities=
 

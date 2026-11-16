@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! A process sandbox's network policy in the kernel (`crate::bpf`): a cgroup of its own, rules
 //! from the same specification a container's network takes (internet or none, hostname egress,
-//! address rules), hostname gateways pryxd serves it on loopback, and finding all of it again
-//! after a daemon restart. Where the host can't attach programs this is absent: a sandbox runs
+//! address rules), hostname gateways pryxd serves it on loopback, every live sandbox's rules kept
+//! for this host's addresses as they change, and finding all of it again after a daemon restart. Where the host can't attach programs this is absent: a sandbox runs
 //! as before and a request for policy is refused. Not the launch (`power.rs`) nor the gateways'
 //! own protocol (`runtime/egress/`), nor turning it on at start (`adoption.rs`).
 use crate::bpf::{
     attach::{Attachment, Counts, Programs},
-    host::{self, Host},
+    host::{self, AddressChanges, Host},
     object, rules,
 };
 use crate::runtime::egress::{Policy, Refused, listeners};
@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, HashMap},
-    net::Ipv4Addr,
+    net::{IpAddr, Ipv4Addr},
     ops::RangeInclusive,
     os::fd::AsRawFd,
     path::{Path, PathBuf},
@@ -38,8 +38,23 @@ pub(super) struct Record {
     pub(super) attachments: Vec<Attachment>,
 }
 
+/// What a sandbox's rules are compiled from besides the host, kept so they can be compiled again
+/// when this host's addresses change.
+struct Asked {
+    reach: rules::Reach,
+    allow: Vec<rules::Destination>,
+    deny: Vec<rules::Destination>,
+}
+
 struct Held {
     programs: Programs,
+    asked: Asked,
+    config: [u8; object::CONFIG_BYTES],
+    /// This host's addresses as its rules name them.
+    host: Vec<IpAddr>,
+    /// Its rules could not be written again for the host's addresses as they are now: its
+    /// programs keep the earlier ones, and it no longer counts as verified.
+    stale: bool,
     _gateways: Option<DropGuard>,
 }
 
@@ -158,8 +173,8 @@ impl Network {
         spec.egress.is_some() || spec.egress_addresses.is_some()
     }
 
-    /// A spec's own address rules, allow and deny.
-    fn destinations(spec: &ContainerSpec) -> Result<(Vec<rules::Destination>, Vec<rules::Destination>), RuntimeError> {
+    /// What a spec asks of its programs: its reach and its own address rules, allow and deny.
+    fn asked(spec: &ContainerSpec) -> Result<Asked, RuntimeError> {
         let destinations = |list: &[crate::protocol::AddressRule]| {
             list.iter()
                 .map(|rule| {
@@ -169,23 +184,24 @@ impl Network {
                 })
                 .collect::<Result<Vec<_>, RuntimeError>>()
         };
-        match &spec.egress_addresses {
-            Some(addresses) => Ok((destinations(&addresses.allow)?, destinations(&addresses.deny)?)),
-            None => Ok((Vec::new(), Vec::new())),
-        }
+        let (allow, deny) = match &spec.egress_addresses {
+            Some(addresses) => (destinations(&addresses.allow)?, destinations(&addresses.deny)?),
+            None => (Vec::new(), Vec::new()),
+        };
+        Ok(Asked { reach: Self::reach(spec), allow, deny })
     }
 
-    fn compile(&self, spec: &ContainerSpec) -> Result<BTreeMap<ipnet::Ipv6Net, object::Rule>, RuntimeError> {
+    /// The rules for what a sandbox asked, on this host with `host` its own addresses.
+    fn compile(&self, asked: &Asked, host: &[IpAddr]) -> Result<BTreeMap<ipnet::Ipv6Net, object::Rule>, RuntimeError> {
         let private: Vec<ipnet::IpNet> =
             ranges(crate::ranges::PRIVATE_V4).chain(ranges(crate::ranges::PRIVATE_V6)).collect();
         let link_local: Vec<ipnet::IpNet> =
             ranges(crate::ranges::LINK_LOCAL_V4).chain(std::iter::once(LINK_LOCAL_V6)).collect();
-        let (allow, deny) = Self::destinations(spec)?;
         rules::compile(&rules::Inputs {
-            reach: Self::reach(spec),
-            allow: &allow,
-            deny: &deny,
-            host: &host::addresses(),
+            reach: asked.reach,
+            allow: &asked.allow,
+            deny: &asked.deny,
+            host,
             nameservers: &crate::runtime::egress::dns::nameservers(),
             served: self.served.ports.clone(),
             api_port: self.served.api_port,
@@ -211,8 +227,9 @@ impl Network {
 
     async fn attach(&self, spec: &ContainerSpec, cgroup: &Path) -> Result<Record, RuntimeError> {
         let key = self.key(&spec.name);
-        let rules = self.compile(spec)?;
-        let (_, deny) = Self::destinations(spec)?;
+        let asked = Self::asked(spec)?;
+        let addresses = host::addresses();
+        let rules = self.compile(&asked, &addresses)?;
         let gateways = match spec.egress.is_some() {
             true => Some(Gateways::bind().await?),
             false => None,
@@ -222,7 +239,7 @@ impl Network {
             Programs::attach(object::OBJECT, &self.host.pin_directory(&key), cgroup, &rules, config).map_err(error)?;
         let guard = match (gateways, &spec.egress) {
             (Some(gateways), Some(policy)) => {
-                match gateways.admit(&mut programs).and_then(|()| gateways.serve(policy.clone(), &deny)) {
+                match gateways.admit(&mut programs).and_then(|()| gateways.serve(policy.clone(), &asked.deny)) {
                     Ok(guard) => Some(guard),
                     Err(problem) => {
                         let _ = programs.detach();
@@ -233,8 +250,62 @@ impl Network {
             _ => None,
         };
         let record = Record { key, attachments: programs.attachments.clone() };
-        self.held.lock().unwrap().insert(spec.name.clone(), Held { programs, _gateways: guard });
+        self.hold(&spec.name, Held { programs, asked, config, host: addresses, stale: false, _gateways: guard });
         Ok(record)
+    }
+
+    /// Keeps a sandbox's programs, then rewrites its rules if the host's addresses changed since
+    /// they were compiled: a change the watch heard before it was held is caught here.
+    fn hold(&self, name: &str, held: Held) {
+        self.held.lock().unwrap().insert(name.to_owned(), held);
+        self.refresh();
+    }
+
+    /// Compiles again, for this host's addresses as they are now, the rules of every sandbox
+    /// compiled for others, and writes them; a lookup never misses in between (`Programs::write`).
+    /// Returns how many were written.
+    pub(super) fn refresh(&self) -> usize {
+        let addresses = host::addresses();
+        let mut written = 0;
+        for (name, held) in self.held.lock().unwrap().iter_mut().filter(|(_, held)| held.host != addresses) {
+            let rules = self.compile(&held.asked, &addresses);
+            match rules.and_then(|rules| held.programs.write(&rules, held.config).map_err(error)) {
+                Ok(()) => {
+                    held.host.clone_from(&addresses);
+                    held.stale = false;
+                    written += 1;
+                }
+                Err(problem) => {
+                    held.stale = true;
+                    tracing::warn!(sandbox = %name, %problem, "kernel network policy no longer verified for this host's addresses");
+                }
+            }
+        }
+        written
+    }
+
+    /// Keeps every live sandbox's rules for this host's addresses as they change, on a thread of
+    /// its own: the kernel wakes it as an address is added or removed, and it compiles and writes
+    /// them again at once. Ends at the first change after the network is gone. Should the kernel's
+    /// word stop coming, it reads the addresses every second until it can subscribe again.
+    pub(super) fn watch(network: &std::sync::Weak<Self>, mut changes: AddressChanges) {
+        const AGAIN: std::time::Duration = std::time::Duration::from_secs(1);
+        loop {
+            if let Err(problem) = changes.changed() {
+                tracing::warn!(%problem, "this host's address changes went unheard; reading them every second");
+                std::thread::sleep(AGAIN);
+                if let Ok(again) = host::subscribe() {
+                    changes = again;
+                }
+            }
+            let Some(network) = network.upgrade() else { return };
+            let woken = std::time::Instant::now();
+            let written = network.refresh();
+            if written > 0 {
+                let micros = woken.elapsed().as_micros();
+                tracing::info!(written, micros, "this host's addresses changed; sandboxes' rules written again");
+            }
+        }
     }
 
     /// After a daemon restart, for a supervisor still running: its programs found by their pins
@@ -245,7 +316,9 @@ impl Network {
         }
         let mut programs =
             Programs::adopt(&self.host.pin_directory(&record.key), &record.attachments).map_err(error)?;
-        let rules = self.compile(spec)?;
+        let asked = Self::asked(spec)?;
+        let addresses = host::addresses();
+        let rules = self.compile(&asked, &addresses)?;
         let gateways = match spec.egress.is_some() {
             true => Some(Gateways::bind().await?),
             false => None,
@@ -256,10 +329,10 @@ impl Network {
         }
         programs.write(&rules, config).map_err(error)?;
         let guard = match (gateways, &spec.egress) {
-            (Some(gateways), Some(policy)) => Some(gateways.serve(policy.clone(), &Self::destinations(spec)?.1)?),
+            (Some(gateways), Some(policy)) => Some(gateways.serve(policy.clone(), &asked.deny)?),
             _ => None,
         };
-        self.held.lock().unwrap().insert(spec.name.clone(), Held { programs, _gateways: guard });
+        self.hold(&spec.name, Held { programs, asked, config, host: addresses, stale: false, _gateways: guard });
         Ok(())
     }
 
@@ -295,7 +368,7 @@ impl Network {
     }
 
     pub(super) fn verified(&self, name: &str) -> bool {
-        self.held.lock().unwrap().contains_key(name)
+        self.held.lock().unwrap().get(name).is_some_and(|held| !held.stale)
     }
 
     pub(super) fn counts(&self, name: &str) -> Option<Counts> {

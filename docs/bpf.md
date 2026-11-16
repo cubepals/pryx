@@ -21,14 +21,15 @@ cgroup, then removes everything. It is on for:
 
 It is off, with the reason and what would turn it on, without cgroup v2, without a writable
 cgroup (a default `docker run`, an undelegated user service), without CAP_BPF and CAP_NET_ADMIN
-(any ordinary user they weren't granted to), without a BPF filesystem pryxd can write, or where
-the kernel's verifier refuses a program, with the verifier's words. Nothing is approximated
+(any ordinary user they weren't granted to), without a BPF filesystem pryxd can write, without a
+netlink socket to hear of the host's address changes (a unit whose RestrictAddressFamilies leaves
+out AF_NETLINK), or where the kernel's verifier refuses a program, with the verifier's words. Nothing is approximated
 where it is off.
 
 The root unit that the server and node presets install (`deploy/pryxd.service`) grants what it
 needs and no more: CAP_BPF and CAP_NET_ADMIN, with CAP_SETUID and CAP_SETGID for the process
-tier's uid pool, `Delegate=yes`, and of `/sys` only its own cgroup subtree and
-`/sys/fs/bpf/pryx` writable. Process sandboxes live in cgroups below the unit's, so they stop
+tier's uid pool, netlink sockets for the address watch below, `Delegate=yes`, and of `/sys` only
+its own cgroup subtree and `/sys/fs/bpf/pryx` writable. Process sandboxes live in cgroups below the unit's, so they stop
 when pryxd's unit stops, as VMs do with the VM worker; containers keep running. pryxd logs the
 proof at each start (`kernel network policy`, with `on` and its evidence). The server preset's
 own control plane requires private-network, private-pids, memory-limit and cpu-limit of every
@@ -54,7 +55,19 @@ The same specification as a container's network decides:
 Always, whatever the specification: a host address (loopback, any address of this host) reaches
 only a socket the sandbox itself made, so its own `localhost` works and another sandbox's ports,
 the host's services, its agent's neighbours and pryxd's API don't; a request's allow rule can't
-name loopback, link-local, multicast or the unspecified ranges. Sockets other than TCP and UDP
+name loopback, link-local, multicast or the unspecified ranges.
+
+This host's addresses are read when a sandbox's programs are attached, and again each time the
+kernel says an address was added or removed (rtnetlink's IPv4 and IPv6 address groups, and its
+IPv4 route group, since an IPv4 address is read from the local routing table the kernel updates
+just after it tells of the address). pryxd is woken by that message and at once compiles and
+writes every live sandbox's rules again, new ones in before old ones out, so no lookup misses.
+Until that write a new address (a VPN's, a new bridge's, the one Docker makes for a container
+network) is an ordinary destination: the window is the time pryxd takes to wake and write the
+maps, which pryxd logs (`micros`) each time. A connection a sandbox opened within it keeps the
+verdict it got. A sandbox whose rules can't be written for the new addresses (more prefixes than
+its map holds) stops counting as verified, and the process tier's `host-firewall` is off while it
+runs. pryxd needs a netlink socket for this, and is off without one, with that reason. Sockets other than TCP and UDP
 over IPv4 and IPv6 (raw, ICMP echo, SCTP, UDP-Lite, MPTCP) are refused at `socket()`.
 
 From off this host a sandbox is reached as a container is: on the ports pryxd published for it

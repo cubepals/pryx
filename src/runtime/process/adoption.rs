@@ -25,6 +25,21 @@ impl ProcessRuntime {
         self.network_capability = Some(capability);
         let Ok(host) = found else { return self };
         let network = Arc::new(Network::new(host, served, &self.state.root));
+        // Heard from before any sandbox is adopted, so no change of the host's addresses is missed.
+        let watched = crate::bpf::host::subscribe().and_then(|changes| {
+            let network = Arc::downgrade(&network);
+            std::thread::Builder::new().name("pryx-addresses".into()).spawn(move || Network::watch(&network, changes))
+        });
+        if let Err(problem) = watched {
+            let evidence = format!("this daemon can't hear of changes to the host's addresses: {problem}");
+            tracing::warn!(%evidence, "kernel network policy");
+            self.network_capability = Some(crate::capability::Capability::new(
+                crate::capability::State::Off,
+                evidence,
+                crate::bpf::host::WATCH_ACTION,
+            ));
+            return self;
+        }
         for name in self.names() {
             let Ok(entry) = self.entry(&name) else { continue };
             if super::observe::matching_pid(entry.pid, entry.ticks).is_none() {

@@ -16,8 +16,9 @@
 //! It reads under a root directory, `/` on a host and a fixture tree in tests: the kernel's local
 //! addresses from /proc/net/fib_trie, their interfaces from /proc/net/route, what each interface
 //! is from /sys/class/net, and /proc/meminfo. Not getifaddrs(3) (if-addrs, nix::ifaddrs, netdev):
-//! it opens a netlink socket, and the unit's RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
-//! refuses AF_NETLINK. Units are written once by join, never by upgrade. It doesn't infer the
+//! it opens a netlink socket, and units written before the process tier's address watch
+//! (RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6) refuse AF_NETLINK. Units are written once
+//! by join, never by upgrade. It doesn't infer the
 //! deployment: that comes from the join token (cli/join.rs).
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};

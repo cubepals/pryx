@@ -235,7 +235,8 @@ jobs:
           CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: sudo --preserve-env=PRYX_TEST_AGENT,PRYX_TEST_PRIVATE,PRYX_TEST_HOST_ADDRESS,PRYX_TEST_REMOTE,PRYX_TEST_EDGE
         run: |
           cargo test --locked --lib bpf:: -- --ignored
-          cargo test --locked --test process_network -- --ignored --test-threads 1
+          # Printed: how soon an address the host gains is refused (K31_ADDRESS_WATCH).
+          cargo test --locked --test process_network -- --ignored --test-threads 1 --nocapture
       # Disposable runner prerequisite, as a host's root would grant it: a pin directory the
       # user owns on the system's BPF filesystem, and a service with the two capabilities.
       # Both suites run whichever fails, so one can't hide the other.

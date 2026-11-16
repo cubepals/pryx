@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Where this daemon may keep a process sandbox's programs: a child of its own cgroup v2
 //! directory for each sandbox, and a directory on a BPF filesystem it alone writes for their
-//! pins. Also the host facts a policy needs: this host's own addresses. Found by looking, never
-//! configured; what is missing is reported with what would turn it on. Not the programs: those
-//! are `attach.rs`.
+//! pins. Also the host facts a policy needs: this host's own addresses, and the kernel's word
+//! each time they change. Found by looking, never configured; what is missing is reported with
+//! what would turn it on. Not the programs: those are `attach.rs`.
 use std::{
     fs, io,
     net::IpAddr,
@@ -255,6 +255,46 @@ pub(crate) fn addresses() -> Vec<IpAddr> {
     found
 }
 
+/// The kernel's word that this host's addresses may have changed: a netlink socket in the groups
+/// rtnetlink tells of every IPv4 and IPv6 address added or removed, and of IPv4 routes, since an
+/// IPv4 address is read from the local routing table, whose route the kernel adds just after it
+/// tells of the address. Nothing is read from the messages; `addresses` is read again.
+pub(crate) struct AddressChanges(std::os::fd::OwnedFd);
+
+/// What lets this daemon hear of address changes where it can't.
+pub(crate) const WATCH_ACTION: &str =
+    "Allow this daemon netlink sockets (systemd's RestrictAddressFamilies with AF_NETLINK)";
+
+/// The subscribed socket; needs no privilege, only a netlink socket (systemd's
+/// RestrictAddressFamilies must allow AF_NETLINK). The probe opens one to prove it.
+pub(crate) fn subscribe() -> io::Result<AddressChanges> {
+    use rustix::net::{AddressFamily, SocketFlags, SocketType, netlink::SocketAddrNetlink};
+    let groups = libc::RTMGRP_IPV4_IFADDR | libc::RTMGRP_IPV6_IFADDR | libc::RTMGRP_IPV4_ROUTE;
+    // No protocol is NETLINK_ROUTE, rtnetlink's.
+    let socket = rustix::net::socket_with(AddressFamily::NETLINK, SocketType::RAW, SocketFlags::CLOEXEC, None)?;
+    rustix::net::bind(&socket, &SocketAddrNetlink::new(0, groups.cast_unsigned()))?;
+    Ok(AddressChanges(socket))
+}
+
+impl AddressChanges {
+    /// Blocks until the kernel tells of a change, then takes every message already queued, so a
+    /// burst is one change. A queue that overflowed (ENOBUFS) lost messages, so it is a change too.
+    pub(crate) fn changed(&self) -> io::Result<()> {
+        use rustix::{io::Errno, net::RecvFlags};
+        // A message is a few hundred bytes; any buffer takes one per read.
+        let mut message = [0u8; 4096];
+        let mut waiting = RecvFlags::empty();
+        loop {
+            match rustix::net::recv(&self.0, &mut message, waiting) {
+                Ok(_) | Err(Errno::NOBUFS) => waiting = RecvFlags::DONTWAIT,
+                Err(Errno::AGAIN) if waiting == RecvFlags::DONTWAIT => return Ok(()),
+                Err(Errno::INTR) => {}
+                Err(problem) => return Err(problem.into()),
+            }
+        }
+    }
+}
+
 /// /proc/net/if_inet6: each line starts with an address as 32 hex digits.
 fn ipv6_addresses(table: &str) -> Vec<std::net::Ipv6Addr> {
     table
@@ -295,6 +335,12 @@ mod tests {
     fn mount_points_are_unescaped() {
         let points: Vec<_> = mounts(MOUNTINFO).into_iter().filter(|m| m.kind == "bpf").map(|m| m.point).collect();
         assert_eq!(points, [PathBuf::from("/sys/fs/bpf"), PathBuf::from("/run/pryx bpf")]);
+    }
+
+    /// CI runs it as the runner's own user; tests/process_network.rs adds an address as root.
+    #[test]
+    fn address_changes_are_heard_without_privilege() {
+        subscribe().expect("rtnetlink's address and route groups need no privilege");
     }
 
     #[test]

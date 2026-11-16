@@ -8,7 +8,8 @@
 //! Parts (`bpf/`):
 //! - `object.rs`: the embedded object, every program and map by name, and the bytes the maps hold.
 //! - `rules.rs`: a sandbox's policy as the prefix rules the programs read.
-//! - `host.rs`: this daemon's cgroup v2 directory, its BPF filesystem and the host's addresses.
+//! - `host.rs`: this daemon's cgroup v2 directory, its BPF filesystem, the host's addresses and
+//!   the kernel's word when they change.
 //! - `attach.rs`: loading, attaching, pinning, adopting and detaching one sandbox's programs.
 pub(crate) mod attach;
 pub(crate) mod host;
@@ -28,6 +29,11 @@ pub(crate) fn probe() -> Result<host::Host, host::Unavailable> {
 /// The proof with `programs` in place of the embedded object: only tests hand it another.
 pub(crate) fn probe_object(programs: &[u8]) -> Result<host::Host, host::Unavailable> {
     let host = host::Host::find()?;
+    // A sandbox's rules name this host's addresses, so they are kept as the host changes.
+    drop(host::subscribe().map_err(|problem| host::Unavailable {
+        evidence: format!("this daemon can't hear of changes to the host's addresses (rtnetlink): {problem}"),
+        action: host::WATCH_ACTION,
+    })?);
     let key = format!("probe-{}", std::process::id());
     let cgroup = host.cgroup(&key);
     let pins = host.pin_directory(&key);

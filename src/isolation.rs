@@ -21,8 +21,8 @@
 //! What a sandbox is documented to dial (the artifact endpoint, the archive store, application dependencies, package
 //! hosts) passes too, unless it sits on one of those ports of a private address.
 //!
-//! `pryxd isolate` applies it as root, before every start of the unit (`ExecStartPre=+`): the
-//! daemon's own sandbox has no netlink to do it with. Not for making the network
+//! `pryxd isolate` applies it as root, before every start of the unit (`ExecStartPre=+`), so the
+//! rules are root's and not the daemon's own sandbox's to change. Not for making the network
 //! (runtime/docker.rs), which names its bridge for this (`bridge_name`).
 
 use std::io::Write;
