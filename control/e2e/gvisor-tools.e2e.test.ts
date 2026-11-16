@@ -27,15 +27,18 @@ test(
     expect(ready).toBe(true)
     const c = await agentDeployment('gvisor', { nativeTools: true })
     const results: Record<string, string> = {}
+    const seconds: Record<string, number> = {}
     const boxes: Sandbox[] = []
     // Each tool runs alone, as its container case does, and its sandbox goes before the next.
     const attempt = async (name: string, work: () => Promise<void>) => {
+      const began = performance.now()
       try {
         await work()
         results[name] = 'ok'
       } catch (error) {
         results[name] = String(error instanceof Error ? error.message : error).slice(0, 600)
       } finally {
+        seconds[name] = Math.round((performance.now() - began) / 100) / 10
         for (const box of boxes.splice(0)) await box.delete().catch(() => {})
       }
     }
@@ -98,6 +101,24 @@ test(
           const kernel = python ? await box.python() : await box.javascript()
           expect((await kernel.run(python ? 'x = 41' : 'var x = 41')).status).toBe('ok')
           expect((await kernel.run('x + 1')).text).toBe('42')
+          if (!python) return
+          // A writable home: matplotlib keeps its configuration and cache there, warning nothing.
+          const home = await box.run([
+            'python3',
+            '-c',
+            'import os, matplotlib; print(os.environ["HOME"]); print(matplotlib.get_cachedir())',
+          ])
+          expect(home.stderr).toBe('')
+          const [dir, cache] = home.stdout.trim().split('\n')
+          expect(cache?.startsWith(`${dir}/`)).toBe(true)
+          // Evidence only: how long the template's ready step takes on this tier, beside the
+          // default deadline its build gives each step.
+          const ready = builtinTemplate(name, image)?.ready
+          if (!ready) throw new Error('The python template has no ready step')
+          const samples: number[] = []
+          for (let sample = 0; sample < 3; sample++)
+            samples.push((await box.run(['sh', '-c', ready], { timeout: '3m' })).durationMs)
+          console.log('GVISOR_PYTHON_READY_MS', JSON.stringify(samples))
         })
       await attempt('browser', async () => {
         const box = await from('browser', 'alpine:pryx-browser', 4)
@@ -125,6 +146,7 @@ test(
         expect(await connectSsh(lease, ['printf ssh-ok'])).toBe(0)
       })
       console.log('GVISOR_TOOLS', JSON.stringify(results))
+      console.log('GVISOR_TOOLS_SECONDS', JSON.stringify(seconds))
       if (process.env.PRYX_GVISOR_TOOLS)
         writeFileSync(process.env.PRYX_GVISOR_TOOLS, JSON.stringify(results, null, 2))
       // Every template ran on gvisor in CI run 43774620164; none needs refusing on this tier.

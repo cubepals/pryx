@@ -9,7 +9,9 @@ Layers: the digest-pinned official CPython 3.12.14 slim bookworm image preserves
 and historical licence text and Debian package copyright files under `/usr/share/doc`.
 `requirements.txt` installs hash-pinned wheels without modifying their source, retaining each
 `*.dist-info` licence/NOTICE. The final layer contains pryx's FSL-1.1-ALv2 IPython configuration.
-Agg and the inline backend produce PNG/SVG; pandas tables also have JSON rows.
+Agg and the inline backend produce PNG/SVG; pandas tables also have JSON rows. The sandbox's home
+is `/data`, its data, as on the process tier: matplotlib's configuration and font cache are
+writable there, built once by the template and kept by every sandbox made from it.
 
 [The interpreter reference](../../docs/interpreter.md) lists direct versions/licences.
 [Python wheel review](../../docs/checks/measurements/k17-python-licences.json) and
