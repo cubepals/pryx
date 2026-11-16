@@ -7,8 +7,8 @@ use super::*;
 
 impl ProcessRuntime {
     /// Turns kernel network policy on where the host proves it can attach the programs, and
-    /// finds those of supervisors that outlived the last daemon. A sandbox whose address or
-    /// hostname policy can't be verified again is stopped rather than left running without it.
+    /// finds those of supervisors that outlived the last daemon. A sandbox that had programs and
+    /// can't be shown to have them again is stopped rather than left running without them.
     pub(crate) async fn with_network(self, served: Served) -> Self {
         self.with_network_programs(served, crate::bpf::object::OBJECT).await
     }
@@ -51,8 +51,11 @@ impl ProcessRuntime {
             };
             if let Err(problem) = adopted {
                 tracing::warn!(sandbox = %entry.spec.name, %problem, "process sandbox has no verified kernel network policy");
-                if entry.network.is_some() && Network::needs_programs(&entry.spec) {
+                // Its programs were its only defence against this host, whatever its policy; one
+                // started before the host had them has none to lose.
+                if entry.network.is_some() {
                     let _ = self.terminate_tree(&name).await;
+                    let _ = network.release(&entry.spec.name);
                 }
             }
         }

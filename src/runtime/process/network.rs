@@ -168,11 +168,6 @@ impl Network {
         })
     }
 
-    /// Whether a spec asked for what only the programs enforce on this tier.
-    pub(super) fn needs_programs(spec: &ContainerSpec) -> bool {
-        spec.egress.is_some() || spec.egress_addresses.is_some()
-    }
-
     /// What a spec asks of its programs: its reach and its own address rules, allow and deny.
     fn asked(spec: &ContainerSpec) -> Result<Asked, RuntimeError> {
         let destinations = |list: &[crate::protocol::AddressRule]| {

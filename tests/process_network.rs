@@ -536,6 +536,32 @@ async fn the_policy_outlives_a_daemon_restart_and_nothing_outlives_the_sandbox()
 
 #[tokio::test]
 #[ignore = "needs a host that grants kernel network policy"]
+async fn a_sandbox_whose_programs_are_gone_after_a_restart_is_stopped() {
+    let dir = tempfile::tempdir().unwrap();
+    let before = kernel_state();
+    {
+        // Public internet and no policy of its own: its programs are all that keep it off the host.
+        let manager = node(dir.path(), 22000).await;
+        start(&manager, "plain", serde_json::json!({})).await;
+    }
+    // While no daemon runs, its pins go, and its programs with them: what a lost pin leaves.
+    let pins = std::path::Path::new("/sys/fs/bpf/pryx");
+    for directory in kernel_state().difference(&before).filter(|path| path.parent() == Some(pins)) {
+        for pin in std::fs::read_dir(directory).unwrap() {
+            std::fs::remove_file(pin.unwrap().path()).unwrap();
+        }
+    }
+    let manager = node(dir.path(), 22000).await;
+    let view =
+        until(&manager, "plain", "the unverified supervisor stopped", |view| view.state != WorkloadState::Running)
+            .await;
+    assert!(!view.guarantees[&Guarantee::HostFirewall], "{view:?}");
+    remove(&manager, &["plain"]).await;
+    nothing_left(&before);
+}
+
+#[tokio::test]
+#[ignore = "needs a host that grants kernel network policy"]
 async fn from_off_the_host_only_the_published_ports_are_reached() {
     let dir = tempfile::tempdir().unwrap();
     let before = kernel_state();
