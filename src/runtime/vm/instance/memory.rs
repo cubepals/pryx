@@ -311,18 +311,7 @@ impl VmRuntime {
     /// failed is killed before this returns.
     async fn thaw(&self, bundle: &Bundle, entry: &Entry, image: &Image) -> Result<Live, RuntimeError> {
         let started = Instant::now();
-        let class = Class::current(&bundle.root().join("bin/firecracker"))?;
-        if class != image.class {
-            return Err(RuntimeError::Conflict(
-                "This VM's memory was taken on a host of another class; it wakes by booting its disk".into(),
-            ));
-        }
-        if disk::Stamp::current(&entry.spec.data_dir)? != Some(image.disk) {
-            return Err(RuntimeError::Conflict("This VM's disk changed after its memory was taken".into()));
-        }
-        if entry.spec.memory_bytes != image.memory_bytes || entry.spec.nano_cpus != image.nano_cpus {
-            return Err(RuntimeError::Conflict("This VM's memory or CPUs changed after its memory was taken".into()));
-        }
+        restorable(bundle, entry, image)?;
         let store = self.memory_directory(entry)?;
         directory(&store)?;
         let (state, memory) = (store.join(STATE), store.join(MEMORY));
@@ -512,13 +501,7 @@ impl VmRuntime {
             Ok(nonce)
         })
         .await;
-        exchange.map_err(|_| {
-            RuntimeError::Timeout(if asked {
-                "VM guest init asked for its resume and did not acknowledge it".into()
-            } else {
-                format!("VM guest init did not ask for its resume (monitor {pid:?}; other peers {others:?})")
-            })
-        })?
+        exchange.map_err(|_| unresumed(asked, pid, &others))?
     }
 }
 
@@ -671,6 +654,32 @@ struct Restoring<'a> {
 }
 
 /// A failed monitor action, with how the monitor ended if it has: a seccomp trap reads as SIGSYS.
+/// What a restore's resume listener saw when no resume came: an unanswered ask, or no ask at all.
+fn unresumed(asked: bool, monitor: Option<i32>, others: &[Option<i32>]) -> RuntimeError {
+    RuntimeError::Timeout(if asked {
+        "VM guest init asked for its resume and did not acknowledge it".into()
+    } else {
+        format!("VM guest init did not ask for its resume (monitor {monitor:?}; other peers {others:?})")
+    })
+}
+
+/// Whether this host and this sandbox are still the ones the image was taken on and for: the same
+/// class, the very disk the sleep left, and the same memory and CPUs.
+fn restorable(bundle: &Bundle, entry: &Entry, image: &Image) -> Result<(), RuntimeError> {
+    if Class::current(&bundle.root().join("bin/firecracker"))? != image.class {
+        return Err(RuntimeError::Conflict(
+            "This VM's memory was taken on a host of another class; it wakes by booting its disk".into(),
+        ));
+    }
+    if disk::Stamp::current(&entry.spec.data_dir)? != Some(image.disk) {
+        return Err(RuntimeError::Conflict("This VM's disk changed after its memory was taken".into()));
+    }
+    if entry.spec.memory_bytes != image.memory_bytes || entry.spec.nano_cpus != image.nano_cpus {
+        return Err(RuntimeError::Conflict("This VM's memory or CPUs changed after its memory was taken".into()));
+    }
+    Ok(())
+}
+
 fn with_exit(problem: RuntimeError, monitor: &mut Machine) -> RuntimeError {
     match monitor.exited() {
         Ok(Some(status)) => error(format!("{problem}; the monitor ended with {status}")),
