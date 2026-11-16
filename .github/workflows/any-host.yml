@@ -6,15 +6,15 @@ on:
   workflow_dispatch:
   # A new workflow cannot be dispatched before main has it. Branch pushes prove this build now.
   push:
-    # Milestone branches (k26, k31-ebpf, ...) prove a change before it reaches any-host.
-    branches: [any-host, 'k[0-9]*']
+    # Milestone and Codex branches prove a change before it reaches any-host.
+    branches: [any-host, 'k[0-9]*', 'codex/**']
     # A push that changes only documentation proves nothing new here; normal CI still runs.
     paths-ignore: ['docs/**', '**.md']
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  # On a milestone branch only its newest push needs proving.
-  cancel-in-progress: ${{ startsWith(github.ref, 'refs/heads/k') }}
+  # On a worker branch only its newest push needs proving.
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/heads/k') || startsWith(github.ref, 'refs/heads/codex/') }}
 
 permissions:
   contents: read

@@ -261,7 +261,7 @@ impl VmRuntime {
         #[cfg(target_arch = "x86_64")]
         {
             kvm_ioctls::Kvm::new()
-                .and_then(|kvm| kvm.create_vm())
+                .and_then(|kvm| interrupted_again(|| kvm.create_vm()))
                 .map(|_| ())
                 .map_err(|problem| RuntimeError::Unavailable(format!("VM requires working /dev/kvm: {problem}")))
         }
@@ -314,5 +314,46 @@ impl VmRuntime {
     }
     fn names(&self) -> Vec<String> {
         self.state.entries.lock().unwrap().keys().cloned().collect()
+    }
+}
+
+/// A KVM call made again while a signal interrupts it, a few times. KVM_CREATE_VM takes every
+/// lock of the caller's address space and gives up with EINTR on any pending signal, such as the
+/// SIGCHLD of one of this runtime's own helpers exiting, which QEMU and Firecracker retry too.
+#[cfg(target_arch = "x86_64")]
+fn interrupted_again<T>(mut call: impl FnMut() -> Result<T, kvm_ioctls::Error>) -> Result<T, kvm_ioctls::Error> {
+    const ATTEMPTS: u32 = 5;
+    let mut attempt = 1;
+    loop {
+        match call() {
+            Err(problem) if problem.errno() == libc::EINTR && attempt < ATTEMPTS => attempt += 1,
+            done => return done,
+        }
+    }
+}
+
+#[cfg(all(test, target_arch = "x86_64"))]
+mod interrupted_tests {
+    #[test]
+    fn an_interrupted_kvm_call_is_made_again_a_few_times() {
+        let interrupted = || kvm_ioctls::Error::new(libc::EINTR);
+        let mut calls = 0;
+        let answer = super::interrupted_again(|| {
+            calls += 1;
+            if calls < 3 { Err(interrupted()) } else { Ok(calls) }
+        });
+        assert_eq!(answer.unwrap(), 3);
+        let mut calls = 0;
+        let answer = super::interrupted_again(|| -> Result<(), kvm_ioctls::Error> {
+            calls += 1;
+            Err(interrupted())
+        });
+        assert_eq!((answer.unwrap_err().errno(), calls), (libc::EINTR, 5));
+        let mut calls = 0;
+        let refused = super::interrupted_again(|| -> Result<(), kvm_ioctls::Error> {
+            calls += 1;
+            Err(kvm_ioctls::Error::new(libc::ENOENT))
+        });
+        assert_eq!((refused.unwrap_err().errno(), calls), (libc::ENOENT, 1));
     }
 }
