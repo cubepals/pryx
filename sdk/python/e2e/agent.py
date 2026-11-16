@@ -6,6 +6,7 @@ import asyncio
 import os
 import unittest
 from urllib.parse import urlparse
+from agent_evidence import own_pty_child
 import httpx
 from cubepals_pryx import Pryx, PryxError
 
@@ -158,8 +159,10 @@ class AgentCli(unittest.TestCase):
                 url=json.loads(invoke('expose',box.id,'3000'))
                 self.assertEqual(httpx.get(os.environ['PRYX_TEST_EDGE_URL'],headers={'host':urlparse(url).hostname}).text,'cli-app')
                 invoke('unexpose',box.id,'3000');web.kill();web.wait()
+                parent=os.getpid()
                 pid,fd=pty.fork()
                 if pid==0:
+                    own_pty_child(parent)
                     fcntl.ioctl(1,termios.TIOCSWINSZ,struct.pack('HHHH',40,120,0,0))
                     os.execvp(command[0],[*command,'terminal',box.id])
                 exited=False; transcript=b''

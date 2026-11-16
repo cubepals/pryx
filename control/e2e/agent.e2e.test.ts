@@ -9,6 +9,7 @@ import { AGENT_ROUTE_PORT } from '../src/edge-headers.ts'
 import { agentDeployment } from './agent-context.ts'
 import { ready } from './deployment.ts'
 import { deploymentDiagnostics } from './diagnostics.ts'
+import { PYTHON_AGENT_BUDGET_MS, pythonAgent } from './python-agent.ts'
 import { webCommand } from './tier-fixture.ts'
 import { until } from './waits.ts'
 
@@ -142,19 +143,17 @@ test.skipIf(!ready)(
 test.skipIf(!ready)(
   'Python sync and async handles use the same real agent surface',
   async () => {
+    const deadline = performance.now() + PYTHON_AGENT_BUDGET_MS
     const c = await agentDeployment()
-    try {
-      const child = Bun.spawn([process.env.PRYX_PYTHON ?? 'python3', 'sdk/python/e2e/agent.py'], {
+    expect(
+      await pythonAgent({
         env: { ...c.d.env, PRYX_TEST_EDGE_URL: c.origin },
-        stdout: 'inherit',
-        stderr: 'inherit',
-      })
-      expect(await child.exited).toBe(0)
-    } finally {
-      await c.close()
-    }
+        deadline,
+        close: () => c.close(),
+      }),
+    ).toBe(0)
   },
-  4 * MINUTE_MS,
+  PYTHON_AGENT_BUDGET_MS,
 )
 
 test.skipIf(!ready)(
