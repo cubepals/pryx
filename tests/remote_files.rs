@@ -39,6 +39,7 @@ async fn remote_files_preserve_epochs_shapes_streams_and_owned_cleanup() {
         ports: Ports::bind_ports(key.to_string(), "invalid".into(), pryx_agent::contract::AGENT_PORT, Vec::new())
             .await
             .unwrap(),
+        forked: Default::default(),
     });
     let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await.unwrap();
     let endpoint = listener.local_addr().unwrap();
