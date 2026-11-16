@@ -5033,18 +5033,18 @@ job when publication is authorized. That job has not run in this task.
   unavailable" after an edge relay ECONNRESET. The same code passed that job on k27 at `26aee02`;
   it is recorded here, not yet explained.
 
-- OOM evidence follow-up: [CI
-  43926287482/job133518624112](https://github.com/cubepals/pryx/actions/runs/43926287482/job/133518624112)
-  passes the ten gVisor fast-exit trials but reports false for the plain Docker trial. Its container
-  was removed before the final engine diagnostics, so the retained trace does not identify the
-  unique historical cause. The owner source exposes an additional observation window: Moby updates
-  OOMKilled before publishing an event whose timestamp may follow containerd's FinishedAt. A
-  negative bounded history read now confirms the immutable container's flag once, requiring the same
-  start; strict event timestamp scoping and the refusal to infer OOM from a signal exit remain. The
-  real acceptance captures only fixed OOM state and filtered event identity/timestamps before panic
-  cleanup, within a three-second diagnostic budget. Both focused controls pass on this source and
-  fail on the preceding production code. The full local Rust run records 580 passes and 53 ignored
-  tests, with the four unchanged vm_monitor Landlock ABI failures retained. Strict
-  workspace/all-target Clippy, formatting and all three structure checks pass. Local Docker lacks
-  controller enforcement, so no local hard-OOM integration pass is claimed; exact-head hosted proof
-  and final review remain required.
+- The store-recovery prerequisite's [Any host 43921002281,
+  job133540855252](https://github.com/cubepals/pryx/actions/runs/43921002281/job/133540855252)
+  reaches the Podman outage probe and finds that its API still answers after the socket peer's
+  PID is stopped. An owned forked listener reproduces that failure: `SO_PEERCRED` names the
+  parent that listened, while its child serves the inherited descriptor. The isolated CI
+  engine now records its launch identity and pauses only verified same-user descendant
+  holders of that exact listener, with pidfds, a bounded stop and unconditional resumption.
+  Ten real process controls pass locally, covering forked holders, an unaffected
+  nonholder, stale or foreign identity, private path and regular-file refusal, partial stop
+  rollback, normal errors, interrupt, termination and repeated termination during cleanup.
+  Signal handlers are restored afterward, and the owned test parent reaps both children.
+  The earlier hosted run did not retain its exact process topology, so the local control
+  establishes this fixture defect without claiming that historical instance's unique cause.
+  The existing installed-node outage, withdrawal and recovery assertions and their deadlines
+  remain; final-base hosted engine proof and independent review are still required.
