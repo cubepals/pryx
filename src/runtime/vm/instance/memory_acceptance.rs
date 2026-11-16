@@ -4,7 +4,8 @@
 //! a process that keeps running across thirty timed sleeps and wakes, the guest's clock stepped to
 //! the host's, a restore made to fail and a wake on another host class, each followed by the cold
 //! boot a node makes then, with the data written before the sleep intact; two forks with memory
-//! that run the source's process under their own identities and random state; and a guest with a
+//! that run the source's process under their own identities and random state, its workload frozen
+//! from before the sleep's flush until each resume has reseeded it; and a guest with a
 //! network, public or under a hostname policy, whose DNS and allowed egress work after its wake
 //! and in its fork.
 use super::tests::{artifact_server, exec, spec};
@@ -14,6 +15,9 @@ use crate::runtime::{ContainerRuntime, ContainerStatus};
 const SAMPLES: usize = 30;
 // Counts in a tmpfs file, which only the guest's memory keeps; its shell's PID says it's the same.
 const COUNTER: &str = "echo $$ > /tmp/pid; i=0; while :; do i=$((i+1)); echo $i > /tmp/counter; sleep 0.05; done";
+// Appends 16 random bytes a line to the disk every 10 ms once /tmp/sample exists, which a cold boot
+// doesn't keep; each line is one write.
+const SAMPLER: &str = "(while :; do if [ -e /tmp/sample ]; then r=$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \\n'); echo $r >> /data/random; fi; sleep 0.01; done) & ";
 
 fn percentile(samples: &mut [f64], fraction: f64) -> f64 {
     samples.sort_by(f64::total_cmp);
@@ -168,15 +172,17 @@ async fn read(runtime: &VmRuntime, id: &str, script: &str) -> String {
     String::from_utf8(exec(runtime, id, script).await).unwrap().trim().to_owned()
 }
 
-/// A source with a counting process, asleep with its memory, and two forks made from it.
+/// A source with a counting process and a sampling one, asleep with its memory, and a fork made
+/// from it for each of `names`.
 async fn source_and_forks(
     runtime: &VmRuntime,
     root: &Path,
     image: &str,
+    names: &[&str],
 ) -> ((String, ContainerSpec), Vec<(String, ContainerSpec)>, String) {
     let with_counter = |mut spec: ContainerSpec| {
         spec.agent.as_mut().unwrap().keep_alive = false;
-        spec.entrypoint = Some(vec!["/bin/sh".into(), "-c".into(), COUNTER.into()]);
+        spec.entrypoint = Some(vec!["/bin/sh".into(), "-c".into(), format!("{SAMPLER}{COUNTER}")]);
         spec
     };
     let data = root.join("source");
@@ -187,11 +193,14 @@ async fn source_and_forks(
     while read(runtime, &source, "test -s /tmp/counter && echo yes || echo no").await != "yes" {
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
-    exec(runtime, &source, "printf kept > /tmp/marker").await;
+    exec(runtime, &source, "printf kept > /tmp/marker; touch /tmp/sample").await;
+    while sampled(runtime, &source).await.len() < 5 {
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
     let running = process(runtime, &source).await;
     runtime.pause(&source).await.unwrap();
     let mut forks = Vec::new();
-    for name in ["one", "two"] {
+    for name in names {
         let fork_spec = with_counter(spec(&root.join(format!("fork-{name}")), image));
         let started = std::time::Instant::now();
         let fork = runtime.fork_with_memory(&source, &fork_spec).await.unwrap();
@@ -221,6 +230,41 @@ async fn own_identities(runtime: &VmRuntime, woken: &[String], running: &str) {
             assert_ne!(random, other_random, "Every fork's kernel draws its own random bytes after its wake");
         }
     }
+}
+
+/// The lines a guest's sampler appended to its disk, as that guest sees them.
+async fn sampled(runtime: &VmRuntime, id: &str) -> Vec<String> {
+    read(runtime, id, "cat /data/random 2>/dev/null || true").await.lines().map(str::to_owned).collect()
+}
+
+/// Every copy restored from one memory drew bytes of its own first thing after its restore, and
+/// the disk the sleep flushed holds every line that memory had: the workload was frozen before
+/// the flush, and thawed in each copy only once its resume had reseeded it. `cold`, a fork refused
+/// its restore (another host class here), boots that disk.
+async fn frozen_across_the_restore(runtime: &VmRuntime, woken: &[String], cold: &str, cold_spec: &ContainerSpec) {
+    let mut copies = Vec::new();
+    for id in woken {
+        copies.push(sampled(runtime, id).await);
+    }
+    runtime.state.entries.lock().unwrap().get_mut(cold).unwrap().memory.as_mut().unwrap().class.kernel.push_str("-x");
+    let refused = runtime.unpause(cold).await;
+    assert!(refused.is_err_and(|problem| !problem.is_unavailable()), "Another class's memory is never restored");
+    runtime.kill(cold).await.unwrap();
+    runtime.start(cold).await.unwrap();
+    let flushed = sampled(runtime, cold).await;
+    eprintln!("VM sleep flushed {} sampled lines; the copies hold {:?}", flushed.len(), copies.iter().map(Vec::len));
+    assert!(!flushed.is_empty());
+    for copy in &copies {
+        assert!(copy.len() > flushed.len(), "Each copy sampled again after its wake");
+        assert_eq!(copy[..flushed.len()], flushed[..], "The flushed disk holds every line the memory had");
+    }
+    for (index, copy) in copies.iter().enumerate() {
+        for other in &copies[index + 1..] {
+            assert_ne!(copy[flushed.len()], other[flushed.len()], "The first bytes drawn after a restore differ");
+        }
+    }
+    runtime.stop(cold, &cold_spec.stop_signal, Duration::from_secs(5)).await.unwrap();
+    runtime.remove(cold).await.unwrap();
 }
 
 /// A fork answers its own agent key, refuses its source's, and stops and goes as any sandbox.
@@ -260,7 +304,9 @@ async fn actual_forks_with_memory_wake_as_themselves() {
         serde_json::from_str(include_str!("../../../../templates/vm-tools/image-inputs.json")).unwrap();
     let image = inputs[0]["reference"].as_str().unwrap();
     let since = std::time::SystemTime::now();
-    let ((source, source_spec), forks, running) = source_and_forks(&runtime, temporary.path(), image).await;
+    let ((source, source_spec), mut forks, running) =
+        source_and_forks(&runtime, temporary.path(), image, &["one", "two", "three"]).await;
+    let (cold, cold_spec) = forks.pop().unwrap();
     let mut woken = Vec::new();
     for (fork, _) in &forks {
         let started = std::time::Instant::now();
@@ -271,6 +317,7 @@ async fn actual_forks_with_memory_wake_as_themselves() {
     runtime.unpause(&source).await.unwrap();
     woken.push(source.clone());
     own_identities(&runtime, &woken, &running).await;
+    frozen_across_the_restore(&runtime, &woken, &cold, &cold_spec).await;
     for (fork, fork_spec) in &forks {
         retire_fork(&runtime, fork, fork_spec, &source_spec).await;
     }

@@ -27,6 +27,10 @@ use vm_boot::COMMAND_CGROUP as CGROUP;
 const WORK: &str = "/run/pryx-init";
 // Linux admin-guide/cgroup-v2.rst: populated=0 means no live process in this subtree.
 const EMPTY_CGROUP: &str = "populated 0";
+// The same document: cgroup.events says frozen=1 once every process under cgroup.freeze stopped.
+const FROZEN_CGROUP: &str = "frozen 1";
+/// How long a sleep waits for the workload to stop before it gives up and goes on running.
+const FREEZE_WAIT: Duration = Duration::from_secs(5);
 
 fn invalid(message: &str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, message)
@@ -298,6 +302,35 @@ pub fn agent(arguments: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     Err(std::process::Command::new(executable).args(&arguments[2..]).exec().into())
 }
 
+/// Stops every process of the workload, the agent's included, before a sleep's flush, so nothing
+/// it writes after the flush is missing from the disk a cold boot would take, and nothing runs
+/// after a restore before the resume has stepped the clock and reseeded the kernel's generator.
+async fn freeze() -> io::Result<()> {
+    fs::write(Path::new(CGROUP).join("cgroup.freeze"), "1")?;
+    let until = tokio::time::Instant::now() + FREEZE_WAIT;
+    loop {
+        if fs::read_to_string(Path::new(CGROUP).join("cgroup.events"))?.lines().any(|line| line == FROZEN_CGROUP) {
+            return Ok(());
+        }
+        if tokio::time::Instant::now() >= until {
+            return Err(io::Error::new(io::ErrorKind::TimedOut, "VM workload did not freeze"));
+        }
+        tokio::time::sleep(Duration::from_millis(1)).await;
+    }
+}
+
+/// Lets the workload run again; harmless when it isn't frozen.
+fn thaw() -> io::Result<()> {
+    fs::write(Path::new(CGROUP).join("cgroup.freeze"), "0")
+}
+
+/// Frozen, then flushed: a wake that can't restore boots this disk with everything written.
+async fn quiesce(disk: &Disk) -> io::Result<()> {
+    freeze().await?;
+    rustix::fs::syncfs(&disk.writes)?;
+    Ok(())
+}
+
 async fn held_ended(held: &mut Option<crate::vm_sleep::Held>) {
     match held {
         Some(held) => held.ended().await,
@@ -352,10 +385,10 @@ async fn take_identity(
     })
 }
 
-/// The resume hook, after a restore: the wall clock and entropy from the host's signed resume and,
-/// for a fork, its identity, acknowledged once applied; then the guest's redirects to the wake's
-/// own gateway ports, and a new network helper, since the restore reset the old one's packet
-/// transport.
+/// The resume hook, after a restore: the wall clock and entropy from the host's signed resume, for a
+/// fork its identity, and the guest's redirects to the wake's own gateway ports; only then does
+/// the workload run again, and the resume is acknowledged. Then a new network helper, since the
+/// restore reset the old one's packet transport.
 async fn awake(
     resumed: crate::vm_sleep::Resumed,
     configuration: &mut Option<vm_boot::Network>,
@@ -367,14 +400,14 @@ async fn awake(
         Some(identity) => Some(take_identity(identity, agent).await?),
         None => None,
     };
-    let gateways = resumed.resume.gateways;
-    resumed.acknowledge().await;
     if let (Some(gateways), Some(policy)) =
-        (gateways, configuration.as_mut().and_then(|configuration| configuration.policy.as_mut()))
+        (resumed.resume.gateways, configuration.as_mut().and_then(|configuration| configuration.policy.as_mut()))
     {
         (policy.http.target, policy.tls.target, policy.dns.target) = (gateways.http, gateways.tls, gateways.dns);
         crate::vm_firewall::replaced(configuration.as_ref().expect("a policy is a network's")).await?;
     }
+    thaw()?;
+    resumed.acknowledge().await;
     if configuration.is_some() {
         crate::vm_network::stop(network.take()).await?;
         *network = crate::vm_network::start(configuration.as_ref()).await?;
@@ -449,15 +482,21 @@ async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Err
         error = crate::vm_network::failure(&mut network), if held.is_none() => return Err(error.into()),
         pending = sleep.receive(&guest), if held.is_none() => {
             let pending = pending?;
-            // Flushed first: a wake that can't restore boots this disk with everything written.
-            rustix::fs::syncfs(&disk.writes)?;
+            // Unacknowledged, the host gives up and the guest goes on running.
+            if let Err(problem) = quiesce(&disk).await {
+                eprintln!("VM sleep refused: {problem}");
+                thaw()?;
+                continue;
+            }
             match crate::vm_sleep::Held::dial().await {
                 Ok(hold) => {
                     held = Some(hold);
                     pending.acknowledge().await;
                 }
-                // Unacknowledged, the host gives up and the guest goes on running.
-                Err(problem) => eprintln!("VM sleep hold was refused: {problem}"),
+                Err(problem) => {
+                    eprintln!("VM sleep hold was refused: {problem}");
+                    thaw()?;
+                }
             }
         }
         () = held_ended(&mut held) => {
@@ -472,11 +511,16 @@ async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Err
                     drop(sleep);
                     sleep = crate::vm_sleep::Listener::bind(boot.cid)?;
                 }
-                None => eprintln!("VM sleep ended without a resume; this guest goes on where it was"),
+                None => {
+                    eprintln!("VM sleep ended without a resume; this guest goes on where it was");
+                    thaw()?;
+                }
             }
         }
         }
     };
+    // A stop that came while a sleep held the workload still gives it its grace.
+    thaw()?;
     if let Some(pid) = child.id().and_then(|pid| Pid::from_raw(pid as i32)) {
         let signal = Signal::from_named_raw(stop.signal).ok_or("Invalid authenticated shutdown signal")?;
         let _ = rustix::process::kill_process_group(pid, signal);
