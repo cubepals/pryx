@@ -158,7 +158,23 @@ impl VmRuntime {
         let mut live = live.lock().await;
         let bundle = self.bundle().await?;
         self.discard_memory(&mut entry)?;
-        let image = self.freeze(&bundle, &entry, &mut live).await?;
+        let image = match self.freeze(&bundle, &entry, &mut live).await {
+            Ok(image) => image,
+            Err(problem) => {
+                if live.monitor.exited().map_err(error)?.is_some() {
+                    // Retired, whatever stopped it: nothing of that boot runs, and its next start
+                    // boots the disk.
+                    retired(&mut live).await;
+                    drop(live);
+                    self.state.live.lock().unwrap().remove(&entry.id);
+                    entry.code = crate::runtime::exit_by(libc::SIGKILL);
+                    entry.finished = Some(crate::clock::now());
+                    entry.clean_disk = None;
+                    self.save_entry(entry)?;
+                }
+                return Err(problem);
+            }
+        };
         drop(live);
         self.state.live.lock().unwrap().remove(&entry.id);
         entry.memory = Some(image);
@@ -205,9 +221,20 @@ impl VmRuntime {
         .await;
         if let Err(problem) = taken {
             let problem = with_exit(problem, &mut live.monitor);
-            // Paused or not, the guest goes on where it was; its hold's end finds no resume.
-            let _ = Self::monitor_action(bundle, &api, json!({"action": "resume"}), GUEST_TIMEOUT).await;
+            // A resume the monitor confirms lets the guest go on where it was; its hold's end
+            // finds no resume. Unconfirmed, the guest may stay paused or its monitor still be
+            // writing the files: it is retired, and the files go only once it has exited.
+            let resumed = Self::monitor_action(bundle, &api, json!({"action": "resume"}), GUEST_TIMEOUT).await;
             drop(hold);
+            if let Err(unresumed) = resumed {
+                live.killing = true;
+                let killed = tokio::time::timeout(crate::runtime::ENGINE_PROBE_TIMEOUT, live.monitor.kill()).await;
+                if matches!(killed, Ok(Ok(()))) {
+                    let _ = fs::remove_file(&state);
+                    let _ = fs::remove_file(&memory);
+                }
+                return Err(error(format!("{problem}; its resume failed too, so the guest was retired: {unresumed}")));
+            }
             let _ = fs::remove_file(&state);
             let _ = fs::remove_file(&memory);
             return Err(problem);
@@ -415,6 +442,15 @@ pub(super) fn with_exit(problem: RuntimeError, monitor: &mut Machine) -> Runtime
         Ok(Some(status)) => error(format!("{problem}; the monitor ended with {status}")),
         _ => problem,
     }
+}
+
+/// What a retired monitor's boot leaves running on the host, stopped, as an observation would.
+async fn retired(live: &mut Live) {
+    let _ = live.forwarder.stop().await;
+    if let Some(network) = &mut live.network {
+        let _ = network.stop().await;
+    }
+    let _ = tokio::time::timeout(crate::runtime::ENGINE_PROBE_TIMEOUT, live.monitor.finish_serial()).await;
 }
 
 /// Removes a host listener's socket file when the sleep it served is over.

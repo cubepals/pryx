@@ -331,7 +331,7 @@ async fn quiesce(disk: &Disk) -> io::Result<()> {
     Ok(())
 }
 
-async fn held_ended(held: &mut Option<crate::vm_sleep::Held>) {
+async fn held_ended(held: &mut Option<crate::vm_sleep::Held>) -> crate::vm_sleep::End {
     match held {
         Some(held) => held.ended().await,
         None => std::future::pending().await,
@@ -499,10 +499,10 @@ async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Err
                 }
             }
         }
-        () = held_ended(&mut held) => {
+        end = held_ended(&mut held) => {
             held = None;
             // On the console, which the host keeps with the monitor's output: where a wake got to.
-            eprintln!("VM sleep hold ended; asking the host for this guest's resume");
+            eprintln!("VM sleep hold ended ({end:?}); asking the host for this guest's resume");
             match crate::vm_sleep::resumed(&guest).await {
                 Some(resumed) => {
                     if let Some(next) = awake(resumed, &mut configuration, &mut network, agent.as_mut()).await? {
@@ -513,6 +513,12 @@ async fn supervise(boot: Boot, disk: Disk) -> Result<(), Box<dyn std::error::Err
                 }
                 None => {
                     eprintln!("VM sleep ended without a resume; this guest goes on where it was");
+                    // A snapshot the host gave up after saving the devices' state reset the
+                    // packet transport too; the host's packet helper takes a new one.
+                    if end == crate::vm_sleep::End::Reset && configuration.is_some() {
+                        crate::vm_network::stop(network.take()).await?;
+                        network = crate::vm_network::start(configuration.as_ref()).await?;
+                    }
                     thaw()?;
                 }
             }

@@ -374,3 +374,79 @@ async fn actual_memory_wake_keeps_a_networked_guests_dns_and_egress() {
     }
     server.abort();
 }
+
+/// The directory the monitor of `id`'s current boot runs in, where a sleep writes its snapshot.
+async fn boot_directory_of(runtime: &VmRuntime, id: &str) -> PathBuf {
+    let live = runtime.state.live.lock().unwrap()[id].clone();
+    let live = live.lock().await;
+    live._directory.path().to_owned()
+}
+
+/// How the guest's init saw its last sleep end, from its console.
+async fn hold_end(runtime: &VmRuntime, id: &str) -> String {
+    let live = runtime.state.live.lock().unwrap()[id].clone();
+    let serial = live.lock().await.serial.clone();
+    let console = String::from_utf8_lossy(&fs::read(serial).unwrap_or_default()).into_owned();
+    console.lines().rev().find(|line| line.contains("VM sleep hold ended")).unwrap_or("no hold end").to_owned()
+}
+
+/// A snapshot that fails after the monitor saved the devices' state leaves the guest running where
+/// it was, its network included, and its next sleep works; one whose monitor never answers again
+/// (its memory file a FIFO nobody reads, so the create blocks) is retired, and its next start
+/// boots the disk with everything written before the sleep.
+#[tokio::test]
+#[ignore = "requires real KVM, the verified VM archive and public DNS; the VM experiments workflow runs it"]
+async fn actual_failed_snapshots_resume_or_retire_the_guest() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let temporary = tempfile::tempdir().unwrap();
+    let (artifact, server) = artifact_server().await;
+    let settings = Settings {
+        monitor_owner: None,
+        artifact,
+        ingress_connections: 8,
+        free_floor_bytes: 0,
+        image_timeout: Duration::from_secs(120),
+    };
+    let runtime = VmRuntime::new(temporary.path(), settings).await.unwrap();
+    let inputs: Vec<serde_json::Value> =
+        serde_json::from_str(include_str!("../../../../templates/vm-tools/image-inputs.json")).unwrap();
+    let image = inputs[0]["reference"].as_str().unwrap();
+    let host = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    let (id, source_spec) = super::network_acceptance::start(&runtime, temporary.path(), image, 1, true, &host).await;
+    exec(&runtime, &id, "printf kept > /tmp/marker; printf 'written before sleeping' > /data/durable").await;
+
+    // The memory file can't be made: the create fails after the devices' state was saved.
+    let unwritable = boot_directory_of(&runtime, &id).await.join("memory.bin");
+    fs::create_dir(&unwritable).unwrap();
+    let refused = runtime.pause(&id).await.expect_err("A snapshot without its memory file fails");
+    eprintln!(
+        "VM sleep with an unwritable memory file: {refused}; the guest's init: {}",
+        hold_end(&runtime, &id).await
+    );
+    assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Running);
+    assert_eq!(read(&runtime, &id, "cat /tmp/marker").await, "kept", "The guest went on where it was");
+    super::network_acceptance::probe(&runtime, &id, true, &host).await;
+    fs::remove_dir(&unwritable).unwrap();
+    runtime.pause(&id).await.unwrap();
+    runtime.unpause(&id).await.unwrap();
+    assert_eq!(read(&runtime, &id, "cat /tmp/marker").await, "kept");
+    super::network_acceptance::probe(&runtime, &id, true, &host).await;
+
+    // The create blocks on a FIFO and the monitor answers nothing more, a resume included.
+    let blocked = boot_directory_of(&runtime, &id).await.join("memory.bin");
+    let made = std::process::Command::new("mkfifo").arg(&blocked).status().unwrap();
+    assert!(made.success());
+    let started = std::time::Instant::now();
+    let retired = runtime.pause(&id).await.expect_err("A snapshot that never finishes fails");
+    eprintln!("VM sleep with a blocked create, after {:.1} s: {retired}", started.elapsed().as_secs_f64());
+    let after = runtime.inspect(&id).await.unwrap().unwrap();
+    assert!(!matches!(after.status, ContainerStatus::Running | ContainerStatus::Paused), "{:?}", after.status);
+    assert_eq!(after.exit_code, crate::runtime::exit_by(libc::SIGKILL));
+    runtime.start(&id).await.unwrap();
+    assert_eq!(exec(&runtime, &id, "cat /data/durable").await, b"written before sleeping");
+    assert_eq!(read(&runtime, &id, "test -e /tmp/marker && echo memory || echo cold").await, "cold");
+    runtime.stop(&id, &source_spec.stop_signal, Duration::from_secs(15)).await.unwrap();
+    runtime.remove(&id).await.unwrap();
+    assert!(fs::read_dir(runtime.state.root.join("memory")).unwrap().next().is_none());
+    server.abort();
+}

@@ -220,6 +220,14 @@ impl Pending {
 /// Init's held connection to the host; its end, at restore or when the host gives up, wakes init.
 pub(crate) struct Held(VsockStream);
 
+/// How a held connection ended: the host closed it, or the monitor reset every vsock connection,
+/// as a snapshot does (Firecracker queues the transport reset as it saves the devices' state).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum End {
+    Closed,
+    Reset,
+}
+
 impl Held {
     /// Dials the host's hold listener. Its peer is the host, as every vsock peer of a guest is.
     pub(crate) async fn dial() -> io::Result<Self> {
@@ -233,17 +241,18 @@ impl Held {
     /// vsock transport reset leaves the socket with only an error (ECONNRESET), which epoll
     /// reports as EPOLLERR without EPOLLIN or EPOLLHUP (af_vsock's `vsock_poll`), and tokio
     /// wakes no reader on an error alone; so the error is also looked for on a short timer.
-    pub(crate) async fn ended(&mut self) {
+    pub(crate) async fn ended(&mut self) -> End {
         let mut byte = [0u8; 1];
         loop {
             tokio::select! {
                 read = self.0.read(&mut byte) => match read {
-                    Ok(0) | Err(_) => return,
+                    Ok(0) => return End::Closed,
+                    Err(_) => return End::Reset,
                     Ok(_) => (),
                 },
                 () = tokio::time::sleep(HOLD_CHECK) => {
                     if !matches!(rustix::net::sockopt::socket_error(&self.0), Ok(Ok(()))) {
-                        return;
+                        return End::Reset;
                     }
                 }
             }
