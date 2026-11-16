@@ -5383,3 +5383,22 @@ job when publication is authorized. That job has not run in this task.
   owned containers are gone. Strict all-target workspace Clippy, all three structure checks,
   formatting, actionlint with ShellCheck, eight Python controls and whitespace checks pass.
   Standard data ownership still refuses by name; hosted proof and final review remain required.
+
+- The next standard ingress run on ae07802 reaches the first neighbour attachment and fails
+  with a generic generation-unavailable error (Rootless engines 43926265774/job133506447026).
+  Its helper still required only kernel dumpability zero, while Linux can load an unreadable
+  executable in the equally non-user-readable root-only state. Private ingress now reuses
+  K26's owning guard: ordinary dumpability refuses, and protected zero/root-only states are
+  forced and read back as zero before HTTP/2 or private I/O. The earlier trace did not retain
+  that helper's exact state or stderr, so this is a source-backed compatibility fix rather
+  than a uniquely established historical cause. The existing rootless step reports only the
+  fixed kernel policy for subsequent hosted evidence; no sysctl or host setting changes.
+  The exact merged-source local NoNIC acceptance passes in 24.88 seconds with its newly built
+  static agent and an empty owned-container readback; both shared-owner policy tests pass.
+  Strict workspace/all-target Clippy, Rust/original/expanded structure, formatting, actionlint
+  with ShellCheck and eight Python controls pass. The merged Bun check passes 453 tests with
+  one existing skip. The full Rust run records 602 passes and 56 ignored: four unchanged local
+  vm_monitor Landlock ABI failures remain, alongside a DNS paired-port allocation collision
+  and a resume-abandonment persistence race outside this change. Those failures are retained
+  as separate prerequisites; the unchanged failing suite was not rerun to seek green. Their
+  fixes must reach the final base, and all exact-head hosted workflows must pass before landing.

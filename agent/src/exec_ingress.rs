@@ -52,11 +52,10 @@ pub fn run(arguments: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     }
     // The kernel must protect private ingress bytes before this process exists, as it does
     // for the exec completion owner. A late prctl cannot revoke an already opened pipe.
-    if crate::fuse_namespace::readable(&std::env::current_exe()?)
-        || rustix::process::dumpable_behavior()? != rustix::process::DumpableBehavior::NotDumpable
-    {
+    if crate::fuse_namespace::readable(&std::env::current_exe()?) {
         return Err("Internal ingress requires a protected execute-only static agent".into());
     }
+    crate::exec_deadline::protect_owner(rustix::process::dumpable_behavior()?)?;
     let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
     runtime.block_on(serve(tokio::io::join(tokio::io::stdin(), tokio::io::stdout()), port, protocol))?;
     Ok(())
