@@ -64,7 +64,7 @@ jobs:
         continue-on-error: true
         run: |
           sudo python3 -I - <<'PY'
-          import asyncio, json, os, re, stat
+          import asyncio, itertools, json, os, re, stat
           async def bounded(stream):
               try: return await stream.readexactly(16385)
               except asyncio.IncompleteReadError as error: return error.partial
@@ -81,6 +81,16 @@ jobs:
                       try: process.kill(); await asyncio.wait_for(process.wait(), 1)
                       except (OSError, TimeoutError): pass
                   return {'exit_status': None, 'stdout_bytes': None, 'stderr_bytes': None}, b''
+          def store(path):
+              try:
+                  with os.scandir(path) as children: machines = list(itertools.islice(children, 16))
+                  entries = []
+                  for machine in machines:
+                      if re.fullmatch(r'[0-9a-f]{32}', machine.name) and machine.is_dir(follow_symlinks=False):
+                          with os.scandir(machine.path) as files: entries.extend((entry.name, entry.is_file(follow_symlinks=False)) for entry in itertools.islice(files, 128 - len(entries)))
+                  names = [name for name, regular in entries if regular and name.startswith('system') and name.endswith('.journal')]
+                  return {'system_journals': len(names), 'current_system_journal': 'system.journal' in names, 'scan_limit_reached': len(machines) == 16 or len(entries) == 128}
+              except OSError: return None
           report = {'euid': os.geteuid(), 'paths': [], 'pid1_exe': None, 'same_pid_namespace': None}
           for path in '/ /usr /usr/bin /usr/bin/journalctl /usr/lib /usr/lib/systemd /usr/lib/systemd/systemd /bin /bin/journalctl /run /run/log /run/log/journal /var /var/log /var/log/journal'.split():
               entry = {'path': path, 'exists': None, 'uid': None, 'mode': None, 'type': None}
@@ -97,6 +107,7 @@ jobs:
           result, version = asyncio.run(capture('--version')); match = re.match(rb'systemd ([0-9]{1,6})(?:\s|$)', version) if result['exit_status'] == 0 else None
           report['journalctl_version'] = match[1].decode('ascii') if match else None
           report['sync'], _ = asyncio.run(capture('--system', '--sync'))
+          report['journal_stores'] = {path: store(path) for path in ('/run/log/journal', '/var/log/journal')}
           print(json.dumps(report, sort_keys=True))
           PY
       # rust-toolchain.toml names the one Rust, with clippy and rustfmt; rustup installs it from there.
