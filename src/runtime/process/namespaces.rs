@@ -19,8 +19,7 @@ use std::time::Duration;
 
 /// bubblewrap beside the agent executable; its one library is `../lib` from it (its RPATH).
 pub const HELPER: &str = "namespaces/bin/bwrap";
-/// How long the probe's own sandbox may take to start and print the supervisor's version.
-const PROBE: Duration = Duration::from_secs(10);
+use pryx_agent::process_namespaces::PROBE_TIMEOUT as PROBE;
 
 /// The mode a sandbox was started in, as its runtime journal records it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

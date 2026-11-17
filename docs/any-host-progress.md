@@ -5044,3 +5044,45 @@ job when publication is authorized. That job has not run in this task.
   cases and failures for an exposed parent, an inherited descriptor and a missing workload value.
   Both C build modes pass strict compiler warnings. This is diagnostic preparation; the historical
   cause, full product confinement and the final exact-head hosted proof remain required.
+
+- The diagnostic run on `df3563c` identifies the workload failure as an inherited descriptor
+  ([CI 43967602995/job133651198855](https://github.com/cubepals/pryx/actions/runs/43967602995/job/133651198855));
+  its type was not retained. A concrete ambient route is a caller's intentionally inherited
+  jobserver pipe: clearing the loader environment does not close inherited descriptors, and the
+  namespace helper passes them to its child. Process launches now collect their exact owned
+  handoffs and listeners before one child-only checked close-on-exec boundary; workload and PTY
+  execs apply the same boundary. Stdio and the spawn-error pipe stay usable before exec, and
+  parent flags never change. Unsupported or denied kernel calls refuse without a scan or fallback.
+  Capability probes run in an owned nondumpable child, reset SIGSYS and exit without Rust cleanup.
+  The child transfers its self-pidfd before a private start token can permit the capability call;
+  the serving parent invokes neither close_range nor a new clone flag to test support. The
+  existing ten-second helper budget bounds the wait, and deadline/drop cleanup signals only
+  that exact pidfd, then reaps the exclusively owned child through normal wait4. An unopened
+  gate retires before handoff with the same known-child reaping;
+  SIGCHLD auto-reaping refuses before fork. A default unblocked alarm bounds setup and a checked
+  parent-death signal binds the blocked child to its creator's lifetime.
+  Actual owned C controls show the old exec leaks a pipe/directory capability while the corrected
+  operation closes ambient descriptors up to this host's permitted FD 16383 and retains all three
+  explicit handoffs/listeners. Strict fixture builds, standalone Rust formatting and whitespace
+  checks pass. Six additional owned kernel controls show the original parent probe dies under
+  fatal KILL_PROCESS and TRAP filters, while the isolated probe preserves the parent and refuses
+  under both fatal filters and an errno denial, reaping every child. Rust controls cover the real
+  node launch, workload and PTY handoff, multiple listeners, parent flags, spawn errors, fatal
+  policy survival and argument-sensitive syscall denial. Further actual USER_NOTIF controls
+  hold the kernel request until deadline/cancellation cleanup, proving exact retirement; a
+  parent-death control leaves the old unguarded child blocked but the guarded child dies and is
+  reaped. A KILL filter specific to CLONE_PIDFD kills the unsafe negative control while the
+  gated ordinary-fork parent survives; a held self-pidfd setup call also expires under the default
+  alarm before any start token. New Rust controls exercise held-notification deadline/drop,
+  auto-reap refusal and optional pidfd/clone fatal policies. Under an actual EPERM filter for
+  optional P_PIDFD waiting, ordinary exact-child wait4 preserves both successful and failed
+  probe truth, ends with ECHILD and leaves parent state unchanged. The agent's spawn lock
+  excludes its orphan scanner until the probe is reaped; Tokio never owns this raw fork child.
+  All eleven focused agent controls and three node launch controls pass in Rust. An owned
+  controller also holds the compiled Rust probe: disabling only its parent-death operation leaves
+  it blocked after parent retirement, while the unchanged guard kills and reaps it automatically.
+  The full locked Rust suite has 585 passes, 54 ignored and the four known local strict-Landlock
+  incompatibilities in vm_monitor. Formatting, both strict Clippy modes, all three structure
+  checks, dependency policy, workflow parsing, source policy and licensing checks pass.
+  The all-descriptors-above-stderr acceptance remains unchanged; final immutable review,
+  prerequisite composition and exact-head hosted proof are still required.

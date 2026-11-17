@@ -21,6 +21,7 @@
 //! - `process_listeners.rs`: host listeners the node bound for a supervisor in its own network.
 //! - `process_environment.rs`: guest values handed privately to confined process commands.
 //! - `process_environment_tests.rs`: sealed descriptor and owned-map boundary controls.
+//! - `process_descriptor_probe.rs`: bounded pidfd ownership for descriptor capability probes.
 //! - `process_namespaces.rs`: the namespace helper's arguments for one supervisor.
 //! - `exec_deadline.rs`: a node exec's deadline kept inside the sandbox's own kernel.
 //! - `process_peer.rs`: kernel process and connected-peer ownership evidence.

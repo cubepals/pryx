@@ -53,6 +53,6 @@ pub(super) fn spawn(
             Ok(())
         });
     }
-    crate::process_environment::inherit(&mut command, socket);
+    crate::process_environment::inherit(&mut command, socket)?;
     Ok(Box::new(command.spawn()?))
 }

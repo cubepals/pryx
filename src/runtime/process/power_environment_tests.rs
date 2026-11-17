@@ -4,7 +4,7 @@
 use super::*;
 use rustix::net::{RecvAncillaryBuffer, RecvAncillaryMessage, RecvFlags};
 use std::mem::MaybeUninit;
-use std::os::fd::AsRawFd;
+use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::os::unix::fs::PermissionsExt;
 
 fn dynamic_fixture(root: &std::path::Path) -> (PathBuf, PathBuf) {
@@ -65,10 +65,62 @@ fn frame(descriptor: &std::os::fd::OwnedFd) -> BTreeMap<String, String> {
     serde_json::from_reader(file).unwrap()
 }
 
+fn isolated_descriptors() -> bool {
+    const MARKER: &str = "PRYX_TEST_OWNED_AMBIENT_DESCRIPTORS";
+    if std::env::var_os(MARKER).is_some() {
+        return false;
+    }
+    let thread = std::thread::current();
+    let result = Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", thread.name().unwrap()])
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env(MARKER, "owned")
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&result.stdout),
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert!(String::from_utf8_lossy(&result.stdout).contains("1 passed"));
+    true
+}
+
+#[expect(unsafe_code, reason = "Only this isolated owned test process creates and inherits its own pipe")]
+fn ambient_descriptors(root: &std::path::Path) -> Vec<OwnedFd> {
+    let mut pipe = [-1; 2];
+    // SAFETY: pipe2 initializes both valid descriptors on success, and each is owned once.
+    let mut held = unsafe {
+        assert_eq!(libc::pipe2(pipe.as_mut_ptr(), libc::O_CLOEXEC), 0);
+        vec![OwnedFd::from_raw_fd(pipe[0]), OwnedFd::from_raw_fd(pipe[1])]
+    };
+    held.push(fs::File::open(root).unwrap().into());
+    for descriptor in &held {
+        rustix::io::fcntl_setfd(descriptor, rustix::io::FdFlags::empty()).unwrap();
+    }
+    held
+}
+
+fn check_descriptors(command: &mut Command, ambient: &[OwnedFd], held: &[OwnedFd]) {
+    command.arg("--verify-descriptors");
+    for descriptor in ambient {
+        command.arg(descriptor.as_raw_fd().to_string()).arg("closed");
+    }
+    for descriptor in held {
+        command.arg(descriptor.as_raw_fd().to_string()).arg("open");
+    }
+}
+
 #[test]
 fn guest_loader_values_are_private_data_and_host_bootstrap_overrides_win() {
+    if isolated_descriptors() {
+        return;
+    }
     let root = tempfile::tempdir().unwrap();
     let (binary, library) = dynamic_fixture(root.path());
+    let ambient = ambient_descriptors(root.path());
     let outside = root.path().join("outside-data");
     fs::create_dir(&outside).unwrap();
     fs::set_permissions(&outside, fs::Permissions::from_mode(0o777)).unwrap();
@@ -90,6 +142,7 @@ fn guest_loader_values_are_private_data_and_host_bootstrap_overrides_win() {
     runtime.create_entry(&spec).unwrap();
     let entry = runtime.entry(&spec.name).unwrap();
     let (mut command, held) = runtime.launch_command(&entry, None, false).unwrap();
+    check_descriptors(&mut command, &ambient, &held);
     let visible =
         command.get_envs().filter_map(|(name, value)| value.map(|_| name.to_str().unwrap())).collect::<Vec<_>>();
     assert_eq!(visible, ["HOME", "PATH", "TERM", "TMPDIR"]);
@@ -107,7 +160,44 @@ fn guest_loader_values_are_private_data_and_host_bootstrap_overrides_win() {
     let policy: serde_json::Value = serde_json::from_str(&resolved[pryx_agent::process_policy::POLICY_ENV]).unwrap();
     assert_eq!(policy["data"], data.to_string_lossy().as_ref());
     assert!(command.status().unwrap().success());
+    for descriptor in &ambient {
+        assert_eq!(rustix::io::fcntl_getfd(descriptor).unwrap(), rustix::io::FdFlags::empty());
+    }
+    for descriptor in &held {
+        assert!(rustix::io::fcntl_getfd(descriptor).unwrap().contains(rustix::io::FdFlags::CLOEXEC));
+    }
     assert!(!marker.exists(), "guest environment reached a trusted dynamic loader");
+}
+
+#[test]
+fn bootstrap_keeps_every_owned_listener_and_only_its_explicit_descriptors() {
+    if isolated_descriptors() {
+        return;
+    }
+    let root = tempfile::tempdir().unwrap();
+    let (binary, _) = dynamic_fixture(root.path());
+    let ambient = ambient_descriptors(root.path());
+    let spec = spec(root.path(), &binary);
+    let bindings = BTreeMap::from([(0, vec![std::net::Ipv4Addr::LOCALHOST.into(); 2])]);
+    let mut command = Command::new(&binary);
+    let held = pass_bootstrap(
+        &mut command,
+        &spec,
+        root.path(),
+        &serde_json::json!({}),
+        true,
+        &bindings,
+        pryx_agent::process_environment::Pending::new().unwrap(),
+    )
+    .unwrap();
+    assert_eq!(held.len(), 3);
+    pryx_agent::process_environment::inherit_only(&mut command, held.iter().map(AsRawFd::as_raw_fd).collect()).unwrap();
+    check_descriptors(&mut command, &ambient, &held);
+    let result = command.output().unwrap();
+    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    for descriptor in &held {
+        assert!(rustix::io::fcntl_getfd(descriptor).unwrap().contains(rustix::io::FdFlags::CLOEXEC));
+    }
 }
 
 #[tokio::test]

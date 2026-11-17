@@ -4,6 +4,180 @@
 use super::*;
 use std::io::Write;
 
+#[expect(unsafe_code, reason = "Only this isolated owned test process creates and inherits its own pipe")]
+fn ambient_descriptors(root: &std::path::Path) -> Vec<OwnedFd> {
+    let mut pipe = [-1; 2];
+    // SAFETY: pipe2 initializes both valid descriptors on success, and each is owned once.
+    let mut held = unsafe {
+        assert_eq!(libc::pipe2(pipe.as_mut_ptr(), libc::O_CLOEXEC), 0);
+        vec![OwnedFd::from_raw_fd(pipe[0]), OwnedFd::from_raw_fd(pipe[1])]
+    };
+    held.push(File::open(root).unwrap().into());
+    for descriptor in &held {
+        rustix::io::fcntl_setfd(descriptor, rustix::io::FdFlags::empty()).unwrap();
+    }
+    held
+}
+
+fn descriptor_fixture(root: &std::path::Path) -> std::path::PathBuf {
+    let program = root.join("owned-descriptor-check");
+    let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/process-loader.c");
+    let result = std::process::Command::new("cc")
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .args(["-DPRYX_LOADER_PROGRAM", "-Wall", "-Wextra", "-Werror"])
+        .arg(source)
+        .arg("-o")
+        .arg(&program)
+        .output()
+        .unwrap();
+    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    program
+}
+
+fn isolated_descriptor_case(marker: &str, value: &str) {
+    let thread = std::thread::current();
+    let result = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", thread.name().unwrap()])
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env(marker, value)
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&result.stdout),
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert!(String::from_utf8_lossy(&result.stdout).contains("1 passed"));
+}
+
+#[test]
+fn workload_inherits_only_its_owned_handoff_and_keeps_spawn_errors() {
+    const MARKER: &str = "PRYX_TEST_OWNED_WORKLOAD_DESCRIPTORS";
+    if std::env::var_os(MARKER).is_none() {
+        isolated_descriptor_case(MARKER, "owned");
+        return;
+    }
+    let root = tempfile::tempdir().unwrap();
+    let program = descriptor_fixture(root.path());
+    let ambient = ambient_descriptors(root.path());
+    let socket = Pending::new().unwrap().queue(&BTreeMap::new()).unwrap();
+    let command = |closed| {
+        let mut command = std::process::Command::new(&program);
+        command.env_clear().arg("--verify-descriptors");
+        for descriptor in &ambient {
+            command.arg(descriptor.as_raw_fd().to_string()).arg(if closed { "closed" } else { "open" });
+        }
+        command
+    };
+    // Real exec proves these capabilities were inheritable before the production boundary.
+    assert!(command(false).status().unwrap().success());
+    let mut child = command(true);
+    child.arg(socket.as_raw_fd().to_string()).arg("open");
+    inherit(&mut child, &socket).unwrap();
+    let result = child.output().unwrap();
+    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    for descriptor in &ambient {
+        assert_eq!(rustix::io::fcntl_getfd(descriptor).unwrap(), rustix::io::FdFlags::empty());
+    }
+    assert!(rustix::io::fcntl_getfd(&socket).unwrap().contains(rustix::io::FdFlags::CLOEXEC));
+    let mut missing = std::process::Command::new(root.path().join("absent-executable"));
+    inherit(&mut missing, &socket).unwrap();
+    assert_eq!(missing.spawn().unwrap_err().kind(), io::ErrorKind::NotFound);
+}
+
+#[test]
+fn descriptor_syscall_refuses_unavailable_denied_and_argument_filtered_hosts() {
+    use seccompiler::{
+        BpfProgram, SeccompAction, SeccompCmpArgLen, SeccompCmpOp, SeccompCondition, SeccompFilter, SeccompRule,
+    };
+    const MARKER: &str = "PRYX_TEST_OWNED_DESCRIPTOR_DENIAL";
+    let Some(case) = std::env::var_os(MARKER) else {
+        for case in ["unsupported", "denied", "kill", "trap", "child-only", "clone-flag", "pidfd-kill"] {
+            isolated_descriptor_case(MARKER, case);
+        }
+        return;
+    };
+    let child_only = case == "child-only";
+    let clone_flag = case == "clone-flag";
+    let pidfd_kill = case == "pidfd-kill";
+    let errno = if case == "unsupported" { libc::ENOSYS } else { libc::EPERM };
+    let rules = if clone_flag {
+        vec![
+            SeccompRule::new(vec![
+                SeccompCondition::new(
+                    0,
+                    SeccompCmpArgLen::Qword,
+                    SeccompCmpOp::MaskedEq(libc::CLONE_PIDFD as u64),
+                    libc::CLONE_PIDFD as u64,
+                )
+                .unwrap(),
+            ])
+            .unwrap(),
+        ]
+    } else if child_only {
+        vec![
+            SeccompRule::new(vec![
+                SeccompCondition::new(0, SeccompCmpArgLen::Dword, SeccompCmpOp::Eq, (libc::STDERR_FILENO + 1) as u64)
+                    .unwrap(),
+            ])
+            .unwrap(),
+        ]
+    } else {
+        vec![]
+    };
+    let action = if case == "kill" || clone_flag || pidfd_kill {
+        SeccompAction::KillProcess
+    } else if case == "trap" {
+        SeccompAction::Trap
+    } else {
+        SeccompAction::Errno(errno as u32)
+    };
+    let filter: BpfProgram = SeccompFilter::new(
+        [(
+            if clone_flag {
+                libc::SYS_clone
+            } else if pidfd_kill {
+                libc::SYS_pidfd_open
+            } else {
+                libc::SYS_close_range
+            },
+            rules,
+        )]
+        .into_iter()
+        .collect(),
+        SeccompAction::Allow,
+        action,
+        std::env::consts::ARCH.try_into().unwrap(),
+    )
+    .unwrap()
+    .try_into()
+    .unwrap();
+    let mut command = std::process::Command::new("/bin/true");
+    if clone_flag {
+        crate::syscall_abi::apply(&filter).unwrap();
+        inherit_only(&mut command, Vec::new()).unwrap();
+    } else if child_only {
+        // The owned probe succeeds first; this later argument-sensitive policy still has
+        // to be checked in the actual spawn child, with errno delivered over Rust's pipe.
+        inherit_only(&mut command, Vec::new()).unwrap();
+        crate::syscall_abi::apply(&filter).unwrap();
+        assert_eq!(command.spawn().unwrap_err().raw_os_error(), Some(libc::EPERM));
+    } else {
+        crate::syscall_abi::apply(&filter).unwrap();
+        let error = inherit_only(&mut command, Vec::new()).unwrap_err();
+        assert!(error.to_string().starts_with("Process descriptor inheritance refused:"));
+        assert_eq!(
+            nix::sys::wait::waitpid(None, Some(nix::sys::wait::WaitPidFlag::WNOHANG)),
+            Err(nix::errno::Errno::ECHILD),
+            "the owned probe must be reaped even when the host kills it"
+        );
+        assert!(command.status().unwrap().success(), "the serving parent must survive a refused probe");
+    }
+}
+
 #[test]
 fn complete_values_round_trip_without_entering_the_loader_environment() {
     let environment = BTreeMap::from([
@@ -170,10 +344,16 @@ fn terminal_handoff_is_child_only_and_never_enters_its_loader() {
     use tokio::io::AsyncReadExt;
     let executable = std::env::current_exe().unwrap();
     let invoked = std::env::args().next().unwrap();
-    if let Some(number) =
+    if let Some(numbers) =
         std::path::Path::new(&invoked).file_name().unwrap().to_str().unwrap().strip_prefix("owned-pty-child-")
     {
-        let descriptor = number.parse().unwrap();
+        let mut numbers = numbers.split('-').map(|number| number.parse::<RawFd>().unwrap());
+        let descriptor = numbers.next().unwrap();
+        for number in numbers {
+            // SAFETY: F_GETFD checks only this owned descriptor number and reads no contents.
+            assert_eq!(unsafe { libc::fcntl(number, libc::F_GETFD) }, -1, "PTY inherited an ambient descriptor");
+            assert_eq!(io::Error::last_os_error().raw_os_error(), Some(libc::EBADF));
+        }
         // Both were deliberately inherited by the owned parent, just as with a nohup daemon.
         use nix::sys::signal::{SigSet, Signal};
         let mut inherited = std::mem::MaybeUninit::<libc::sigaction>::uninit();
@@ -221,6 +401,7 @@ fn terminal_handoff_is_child_only_and_never_enters_its_loader() {
         return;
     }
     let root = tempfile::tempdir().unwrap();
+    let ambient = ambient_descriptors(root.path());
     let socket = Pending::new()
         .unwrap()
         .queue(&BTreeMap::from([
@@ -228,7 +409,12 @@ fn terminal_handoff_is_child_only_and_never_enters_its_loader() {
             ("LD_PRELOAD".into(), "owned-loader-path".into()),
         ]))
         .unwrap();
-    let alias = root.path().join(format!("owned-pty-child-{}", socket.as_raw_fd()));
+    let numbers = std::iter::once(socket.as_raw_fd())
+        .chain(ambient.iter().map(AsRawFd::as_raw_fd))
+        .map(|number| number.to_string())
+        .collect::<Vec<_>>()
+        .join("-");
+    let alias = root.path().join(format!("owned-pty-child-{numbers}"));
     std::os::unix::fs::symlink(executable, &alias).unwrap();
     let argv = vec![
         alias.to_string_lossy().into_owned(),
@@ -245,4 +431,7 @@ fn terminal_handoff_is_child_only_and_never_enters_its_loader() {
         assert!(process.child.wait().unwrap().success(), "{}", String::from_utf8_lossy(&output));
         assert!(String::from_utf8_lossy(&output).contains("1 passed"));
     });
+    for descriptor in &ambient {
+        assert_eq!(rustix::io::fcntl_getfd(descriptor).unwrap(), rustix::io::FdFlags::empty());
+    }
 }

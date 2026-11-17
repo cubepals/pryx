@@ -4,6 +4,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -57,6 +58,31 @@ static int private_state(void) {
     return 0;
 }
 int main(int argc, char **argv) {
+    for (int index = 1; index < argc; ++index) {
+        if (strcmp(argv[index], "--verify-descriptors") != 0)
+            continue;
+        if ((argc - index - 1) % 2 != 0)
+            return failed("descriptor-arguments", 0);
+        for (int item = index + 1; item < argc; item += 2) {
+            char *end;
+            errno = 0;
+            long number = strtol(argv[item], &end, 10);
+            if (errno != 0 || *end != '\0' || number <= STDERR_FILENO || number > INT_MAX)
+                return failed("descriptor-arguments", 0);
+            errno = 0;
+            int flags = fcntl((int)number, F_GETFD);
+            if (strcmp(argv[item + 1], "open") == 0) {
+                if (flags < 0)
+                    return failed("descriptor-allowlist", (int)number);
+            } else if (strcmp(argv[item + 1], "closed") == 0) {
+                if (flags != -1 || errno != EBADF)
+                    return failed("descriptor-ambient", (int)number);
+            } else {
+                return failed("descriptor-arguments", 0);
+            }
+        }
+        return 0;
+    }
     if (argc > 1 && strcmp(argv[1], "bootstrap-probe") == 0)
         puts("{}");
     if (argc > 2 && strcmp(argv[1], "--verify-workload") == 0) {

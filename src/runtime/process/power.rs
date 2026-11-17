@@ -38,7 +38,6 @@ mod environment_tests;
 /// private bootstrap map by address and descriptor. Each stays close-on-exec here, so no other
 /// child ever holds one; only the launched child's copy is opened for its exec.
 fn pass_listeners(
-    command: &mut Command,
     bindings: &BTreeMap<u16, Vec<std::net::IpAddr>>,
     bootstrap: &mut BTreeMap<String, String>,
 ) -> Result<Vec<std::os::fd::OwnedFd>, RuntimeError> {
@@ -58,8 +57,6 @@ fn pass_listeners(
     }
     bootstrap
         .insert(pryx_agent::process_listeners::LISTENERS_ENV.into(), serde_json::to_string(&named).map_err(error)?);
-    let raw: Vec<i32> = held.iter().map(AsRawFd::as_raw_fd).collect();
-    open_across_exec(command, raw);
     Ok(held)
 }
 
@@ -70,7 +67,6 @@ fn pass_environment(
     bootstrap: BTreeMap<String, String>,
     pending: pryx_agent::process_environment::Pending,
 ) -> Result<std::os::fd::OwnedFd, RuntimeError> {
-    use std::os::fd::AsRawFd;
     let defaults = BTreeMap::from([
         ("PATH".into(), "/usr/local/bin:/usr/bin:/bin".into()),
         ("HOME".into(), spec.data_dir.to_string_lossy().into_owned()),
@@ -86,9 +82,7 @@ fn pass_environment(
     }
     // Host bootstrap settings take precedence over every conflicting workload variable.
     environment.extend(bootstrap);
-    let handoff = pending.queue(&environment).map_err(error)?;
-    open_across_exec(command, vec![handoff.as_raw_fd()]);
-    Ok(handoff)
+    pending.queue(&environment).map_err(error)
 }
 
 fn pass_bootstrap(
@@ -107,24 +101,9 @@ fn pass_bootstrap(
     if spec.internal_network {
         bootstrap.insert(pryx_agent::process_policy::NETWORK_ENV.into(), "1".into());
     }
-    let mut held = if private_network { pass_listeners(command, bindings, &mut bootstrap)? } else { Vec::new() };
+    let mut held = if private_network { pass_listeners(bindings, &mut bootstrap)? } else { Vec::new() };
     held.push(pass_environment(command, spec, tmp, bootstrap, pending)?);
     Ok(held)
-}
-
-#[expect(unsafe_code, reason = "Clearing close-on-exec in the forked child before its exec")]
-fn open_across_exec(command: &mut Command, descriptors: Vec<i32>) {
-    // SAFETY: the closure only calls fcntl, which is async-signal-safe, on descriptors this
-    // daemon owns until the spawn returns; it allocates nothing after the fork.
-    unsafe {
-        command.pre_exec(move || {
-            for fd in &descriptors {
-                let fd = std::os::fd::BorrowedFd::borrow_raw(*fd);
-                rustix::io::fcntl_setfd(fd, rustix::io::FdFlags::empty())?;
-            }
-            Ok(())
-        });
-    }
 }
 
 impl ProcessRuntime {
@@ -287,6 +266,11 @@ impl ProcessRuntime {
             .open(diagnostic)
             .map_err(error)?;
         command.stderr(diagnostic);
+        // Register once after all owned bootstrap descriptors have been collected. Any
+        // additional owned launch provider must join this exact whitelist before this call.
+        use std::os::fd::AsRawFd;
+        pryx_agent::process_environment::inherit_only(&mut command, listeners.iter().map(AsRawFd::as_raw_fd).collect())
+            .map_err(error)?;
         Ok((command, listeners))
     }
     pub(super) async fn launch(&self, name: &str) -> Result<(), RuntimeError> {

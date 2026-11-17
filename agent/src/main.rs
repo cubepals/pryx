@@ -19,7 +19,7 @@ fn private_environment(arguments: &mut Vec<String>) -> Result<(), Box<dyn std::e
         if pryx_agent::process_environment::var_os(pryx_agent::process_policy::POLICY_ENV).is_none() {
             return Err("Private process environment is missing the host policy".into());
         }
-        drop(arguments.drain(..2));
+        drop(arguments.drain(..pryx_agent::process_environment::ARGUMENT_COUNT));
     }
     Ok(())
 }

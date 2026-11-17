@@ -294,7 +294,8 @@ impl Processes {
             return;
         }
         // start holds this same lock from spawn through insertion, so a new managed child
-        // cannot be mistaken for an orphan between those operations.
+        // cannot be mistaken for an orphan between those operations. Its descriptor probe
+        // and exact-child reaping also finish while start retains this lock.
         let held = self.held.lock().unwrap();
         let Ok(tasks) = std::fs::read_dir("/proc/self/task") else { return };
         for task in tasks.flatten() {
@@ -424,7 +425,7 @@ impl Processes {
         command.stdout(Stdio::piped()).stderr(Stdio::piped()).process_group(0);
         if let Some(socket) = &environment {
             command.env_clear().envs(crate::process_environment::loader());
-            crate::process_environment::inherit(command.as_std_mut(), socket);
+            crate::process_environment::inherit(command.as_std_mut(), socket)?;
         }
         let mut child = command.spawn()?;
         drop(environment);

@@ -19,6 +19,7 @@ use rustix::net::{SendAncillaryBuffer, SendAncillaryMessage, SendFlags};
 
 pub const VERSION: u16 = 1;
 pub const ARGUMENT: &str = "--process-environment-fd";
+pub const ARGUMENT_COUNT: usize = 2;
 pub const WORKLOAD_ARGUMENT: &str = "--process-workload-environment-fd";
 pub const CHILD_MODE: &str = "process-child";
 pub const UNSUPPORTED: &str = "Process supervision requires an agent with private environment handoff support";
@@ -190,18 +191,39 @@ pub(crate) fn loader() -> BTreeMap<OsString, OsString> {
         .collect()
 }
 
-#[expect(unsafe_code, reason = "Only the forked child's copy of the parent's private socket is opened")]
-pub(crate) fn inherit(command: &mut std::process::Command, socket: &OwnedFd) {
+#[path = "process_descriptor_probe.rs"]
+mod probe;
+
+/// Keep only these explicitly owned descriptors and stdio across this command's exec.
+/// The caller holds every named descriptor until spawn returns. Parent flags never change.
+/// Register before spawn; a waited child checks support even under fatal host policies.
+/// Retain exclusive child-wait ownership; agent commands hold Processes' spawn lock.
+#[expect(unsafe_code, reason = "Only the forked child's descriptor flags change before exec")]
+pub fn inherit_only(command: &mut std::process::Command, descriptors: Vec<RawFd>) -> io::Result<()> {
     use std::os::unix::process::CommandExt;
-    let number = socket.as_raw_fd();
-    // SAFETY: spawn's caller holds the socket until spawn returns. This child-only closure
-    // allocates nothing and calls only the async-signal-safe fcntl operation.
+    // CLOEXEC needs Linux 5.11; process policy already requires the newer Landlock ABI V3
+    // (Linux 6.2). Probe in a waited child because denial can kill instead of return an errno.
+    probe::run().map_err(|cause| io::Error::other(format!("Process descriptor inheritance refused: {cause}")))?;
+    // SAFETY: this child-only closure allocates nothing and calls only thin syscall wrappers.
+    // All unlisted descriptors remain usable until exec; no close races with Rust's errno pipe.
     unsafe {
         command.pre_exec(move || {
-            rustix::io::fcntl_setfd(std::os::fd::BorrowedFd::borrow_raw(number), rustix::io::FdFlags::empty())?;
+            if probe::close_on_exec() < 0 {
+                return Err(io::Error::last_os_error());
+            }
+            for number in &descriptors {
+                if libc::fcntl(*number, libc::F_SETFD, rustix::io::FdFlags::empty().bits()) < 0 {
+                    return Err(io::Error::last_os_error());
+                }
+            }
             Ok(())
         });
     }
+    Ok(())
+}
+
+pub(crate) fn inherit(command: &mut std::process::Command, socket: &OwnedFd) -> io::Result<()> {
+    inherit_only(command, vec![socket.as_raw_fd()])
 }
 
 pub(crate) fn handed() -> bool {

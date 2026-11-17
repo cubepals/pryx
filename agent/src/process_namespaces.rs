@@ -10,6 +10,9 @@ use std::path::Path;
 
 use crate::process_tool_policy::Policy;
 
+/// The existing launch-equivalent process helper probe budget, shared by descriptor probes.
+pub const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
 /// bubblewrap's arguments for one supervisor, up to and including `--`. `kept` are the paths
 /// the sandbox needs that may lie under `/tmp`, which the private one would otherwise hide:
 /// its agent executable read-only and its tool directory writable.
