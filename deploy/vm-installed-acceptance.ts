@@ -123,26 +123,60 @@ async function python(box: Sandbox) {
 }
 
 /** The default network's firewall, whichever user runs the node: the guest opens a TCP
- * connection to a public address, and none to a listener on the host's own non-loopback address
- * that the host itself reaches. The image's bash opens the connections. */
+ * connection to a public address, and none to a listener on every address of the host, which the
+ * host itself reaches through each: its own non-loopback address (private on a runner), and a
+ * public-looking one of its own on a dummy interface (deploy/vm-host-public-address.sh) that no
+ * class or boundary covers, so only the packet helper's refusal of the host's own addresses keeps
+ * the guest out. That refusal answers at once; a drop would run into the timeout. The image's bash
+ * opens the connections. */
 async function hostListenerDenied(box: Sandbox) {
   const address = Object.values(networkInterfaces())
     .flat()
     .find((item) => item?.family === 'IPv4' && !item.internal)?.address
   assert(address, 'The host has no non-loopback IPv4 address to test')
+  const own = process.env.PRYX_VM_HOST_PUBLIC_ADDRESS
+  assert(own, 'Give the host a public address of its own first (deploy/vm-host-public-address.sh)')
+  let accepted = 0
   const listener = Bun.listen({
-    hostname: address,
+    hostname: '0.0.0.0',
     port: 0,
-    socket: { data() {}, open: (socket) => void socket.end() },
+    socket: {
+      data() {},
+      open: (socket) => {
+        accepted += 1
+        socket.end()
+      },
+    },
   })
   try {
-    const own = await Bun.connect({ hostname: address, port: listener.port, socket: { data() {} } })
-    own.end()
+    for (const hostname of [address, own]) {
+      const reached = await Bun.connect({ hostname, port: listener.port, socket: { data() {} } })
+      reached.end()
+    }
+    await until('the host reached its own listener at both addresses', async () => accepted === 2)
+    const timeout = 10
     const connect = (host: string, port: number) =>
-      box.run(['timeout', '10', 'bash', '-c', 'exec 3<>"/dev/tcp/$1/$2"', 'vm-firewall', host, String(port)])
+      box.run([
+        'timeout',
+        String(timeout),
+        'bash',
+        '-c',
+        'exec 3<>"/dev/tcp/$1/$2"',
+        'vm-firewall',
+        host,
+        String(port),
+      ])
     const outside = await connect('1.1.1.1', 443)
     assert.equal(outside.code, 0, `The guest reached no public address: ${outside.stderr}`)
     assert.notEqual((await connect(address, listener.port)).code, 0, 'The guest reached a host listener')
+    const started = performance.now()
+    const refused = await connect(own, listener.port)
+    assert.notEqual(refused.code, 0, "The guest reached a host listener on the host's public address")
+    assert(
+      performance.now() - started < (timeout * SECOND_MS) / 2,
+      `Not refused but dropped: ${refused.stderr}`,
+    )
+    assert.equal(accepted, 2, 'A guest connection reached the host listener')
   } finally {
     listener.stop(true)
   }

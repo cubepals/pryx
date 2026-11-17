@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
   # A new workflow cannot be dispatched before main has it; branch pushes prove each step.
   push:
-    # Milestone branches (k26, k31-ebpf, ...) prove a change before it reaches any-host.
-    branches: [any-host, 'k[0-9]*']
+    # Milestone and Codex branches prove a change before it reaches any-host.
+    branches: [any-host, 'k[0-9]*', 'codex/**']
     # A push that changes only documentation proves nothing new here; normal CI still runs.
     paths-ignore: ['docs/**', '**.md']
   # A pull request that changes VM code runs the KVM acceptance too; any other starts no run.
@@ -31,7 +31,7 @@ on:
 # has its own, where a newer commit stops the run it supersedes.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && 'dispatch-' || '' }}${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' || startsWith(github.ref, 'refs/heads/k') }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || startsWith(github.ref, 'refs/heads/k') || startsWith(github.ref, 'refs/heads/codex/') }}
 
 permissions:
   contents: read
@@ -43,7 +43,7 @@ defaults:
 jobs:
   inputs:
     name: Published kernel and network spikes
-    # A pull request from a milestone branch of this repository (k and a number) skips this:
+    # A pull request from a milestone or Codex branch of this repository skips this:
     # that branch's push run already tests its commits. Forks and other branches run it as before.
     if: >-
       github.event_name != 'pull_request' ||
@@ -52,7 +52,8 @@ jobs:
         startsWith(github.head_ref, 'k2') || startsWith(github.head_ref, 'k3') ||
         startsWith(github.head_ref, 'k4') || startsWith(github.head_ref, 'k5') ||
         startsWith(github.head_ref, 'k6') || startsWith(github.head_ref, 'k7') ||
-        startsWith(github.head_ref, 'k8') || startsWith(github.head_ref, 'k9'))
+        startsWith(github.head_ref, 'k8') || startsWith(github.head_ref, 'k9') ||
+        startsWith(github.head_ref, 'codex/'))
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:

@@ -507,7 +507,8 @@ impl ContainerRuntime for VmRuntime {
         // Whatever its record says: guest memory never outlives its sandbox.
         let mut entry = self.entry(&entry.id)?;
         self.discard_memory(&mut entry)?;
-        self.forget_entry(&entry.id)
+        self.forget_entry(&entry.id)?;
+        self.remove_leases(&entry)
     }
     async fn inspect(&self, name: &str) -> Result<Option<ContainerInfo>, RuntimeError> {
         self.observe(name).await

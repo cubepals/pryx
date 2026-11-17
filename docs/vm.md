@@ -86,10 +86,17 @@ There is no image daemon. pryxd runs `pryx-vm-image`, a separate helper from the
 
 1. It pulls the manifest and layers with [oci-client](https://crates.io/crates/oci-client),
    anonymously, and checks each layer against its digest and its uncompressed `diff_id`.
-   Layers are gzip or plain tar, at most 128 of them.
+   Layers are gzip or plain tar, at most 13 of them: each is a disk of the guest, and the
+   monitor has interrupts for no more. An image with more is refused before it is fetched.
 2. `mkfs.erofs --tar` turns each layer into a read-only EROFS file, keeping its owners,
    modes and times. Files are cached by layer digest and shared by every sandbox that uses
-   them. A cached layer counts only once its file is complete and its record written.
+   them. A cached layer counts only once its file is complete and its record written. No
+   layer is fetched, expanded or converted past the host's free-space floor
+   (`min_free_disk_mb`); short of room, the layers that no VM on the node needs go first, and
+   the preparation is tried once more. A VM, asleep or stopped included, keeps every layer of
+   the manifest it was first started on, and a starting VM the image it is preparing, so a
+   fork whose parent is gone still boots on its own. A local snapshot alone keeps none: forked
+   or restored once its layers went, it fetches that image again, as on another node.
 3. The sandbox gets `vm.ext4`, a sparse file the size of its storage, made by `mke2fs`. It
    holds the overlay's writable layer and the data directory.
 
@@ -141,11 +148,16 @@ The trusted init installs the guest rules before any image code runs. The worklo
 non-root user with no capabilities, so it cannot change them, and every process it starts is
 refused new vsock sockets, so it cannot reach the packet transport around them. The packet
 helper itself runs under the launcher's Landlock and seccomp policy: it may open outbound
-Internet sockets, and no listeners or Unix sockets.
+Internet sockets and routing netlink sockets, which only read how the host routes, and no
+listeners, other netlink families or Unix sockets.
 
 The packet helper also decides on the host, so a guest kernel that drops its own rules does not
 widen them. Before it dials any TCP, UDP or ICMP flow it refuses loopback, link-local and
-metadata, private, multicast and broadcast destinations. pryxd passes every guest's egress
+metadata, private, multicast and broadcast destinations, and any address the host itself would
+receive. It dials from the host's own network, so it asks the kernel how each new flow's
+destination is routed when the flow asks, and refuses one the kernel would deliver locally: the
+host's own addresses on every interface, public ones included, as the container tier's firewall
+refuses a workload's connections to its host. pryxd passes every guest's egress
 policy, and the helper refuses to start without one, so it also reaches the gateway address only
 at the gateway ports pryxd names (HTTP, TLS and DNS under a hostname allowlist, DNS alone
 otherwise), refuses the agent's other non-public networks, and on a hostname allowlist refuses
@@ -250,9 +262,12 @@ lifetime lease and then confines it:
 - It is not dumpable, and the kernel kills it when pryxd exits. Its one-shot bootstrap socket
   hands the guest's secrets only to a peer with the monitor's own PID.
 
-As root, the monitor runs under Firecracker's unchanged jailer, with fixed non-root host IDs
-that the host chooses and a workload never can, in a chroot holding only its staged inputs,
-under the same lease and signal bounds, inside the root worker above.
+As root, the monitor runs under Firecracker's unchanged jailer, as a non-root uid and gid of its
+own: each VM takes the lowest free pair of a range the host reserves (`[vm] monitor_uid`,
+`monitor_gid` and `monitor_ids`, 1024 pairs from 60001 by default), keeps it across boots and
+lets it go when it is removed, so no two VMs share one and no workload chooses one. Its TAP and
+its root packet stack are that pair's too. It runs in a chroot holding only its staged inputs, under
+the same lease and signal bounds, inside the root worker above.
 
 The filesystem programs (`mke2fs`, `e2fsck`, `mkfs.erofs`) read disks a guest wrote and layers
 a tenant chose, so the same launcher confines them too, as root or not: Landlock reads of their

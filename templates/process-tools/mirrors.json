@@ -1,0 +1,27 @@
+{
+  "comment": "Other hosts of an archive, tried in order when its pinned address fails with a timeout, a dropped connection, a 5xx or a 429. Every pinned input's SHA-256 is checked after download (archive_inputs.py), so a mirror can only give the pinned bytes or fail; any mirror that keeps the archive's own path layout is safe. A pinned address is rewritten only when it starts with an archive's prefix. Independent operators come first: ftp.debian.org and security.debian.org are served by the same CDN as deb.debian.org. GNU mirrors are listed by https://www.gnu.org/prep/ftp.html.",
+  "archives": [
+    {
+      "prefix": "https://deb.debian.org/debian/",
+      "mirrors": [
+        "https://mirrors.edge.kernel.org/debian/",
+        "https://mirrors.ocf.berkeley.edu/debian/",
+        "https://ftp.debian.org/debian/"
+      ]
+    },
+    {
+      "prefix": "https://deb.debian.org/debian-security/",
+      "mirrors": [
+        "https://mirrors.ocf.berkeley.edu/debian-security/",
+        "https://security.debian.org/debian-security/"
+      ]
+    },
+    {
+      "prefix": "https://ftp.gnu.org/gnu/",
+      "mirrors": [
+        "https://mirrors.kernel.org/gnu/",
+        "https://mirrors.ocf.berkeley.edu/gnu/"
+      ]
+    }
+  ]
+}

@@ -137,8 +137,10 @@ impl ProcessRuntime {
         if let Some(owner) = owners.get(id) {
             return Ok(*owner);
         }
-        let uid = (self.policy.uid_first..self.policy.uid_first.saturating_add(self.policy.uid_count))
-            .find(|uid| !owners.values().any(|(used, _)| used == uid) && !super::observe::uid_in_use(*uid))
+        let uid =
+            super::free_id(self.policy.uid_first..self.policy.uid_first.saturating_add(self.policy.uid_count), |uid| {
+                owners.values().any(|(used, _)| *used == uid)
+            })
             .ok_or_else(|| error("Process UID pool exhausted"))?;
         // Before it is held: the new holder never sees what an earlier one, or a crash, left.
         let retired = self.retire_uid_tools(uid)?;

@@ -2,13 +2,17 @@
 // Decide, before the maintained forwarders dial, which guest flows the host carries. The guest's
 // own firewall is not trusted here: a guest kernel can drop its rules. The host-owned gateway
 // address is reachable only at the ports the configuration names, a public IPv4 destination only
-// when the configuration allows public egress, and nothing else. This file neither dials nor
-// parses packets; the maintained stack hands it each flow's destination.
+// when the configuration allows public egress and the kernel would route it away from this host,
+// and nothing else. The forwarders dial from the host's own network, so an address of the host
+// itself (on any interface, public or not) would otherwise reach whatever listens there. This
+// file neither dials nor parses packets; the maintained stack hands it each flow's destination.
 package main
 
 import (
 	"fmt"
 	"net/netip"
+
+	"golang.org/x/sys/unix"
 
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
@@ -33,6 +37,8 @@ type admission struct {
 	tcp, udp map[uint16]bool
 	public   bool
 	blocked  []netip.Prefix
+	// route is the kernel's route type for a dial to an address (hostRouteType in route.go).
+	route func(netip.Addr) (uint8, error)
 }
 
 func ports(values []uint16) (map[uint16]bool, error) {
@@ -54,7 +60,7 @@ func newAdmission(gateway string, egress *egressConfiguration) (admission, error
 	if egress == nil {
 		return admission{}, fmt.Errorf("Packet proxy configuration must name its egress")
 	}
-	policy := admission{gateway: address, public: egress.Public}
+	policy := admission{gateway: address, public: egress.Public, route: hostRouteType}
 	if policy.tcp, err = ports(egress.TCP); err != nil {
 		return admission{}, err
 	}
@@ -88,6 +94,28 @@ func (policy admission) publicIPv4(address netip.Addr) bool {
 	return true
 }
 
+// routedAway reports a destination the kernel would send away from this host, asked as the flow
+// is dialled so it holds when the host's addresses change. One the host itself would receive
+// (RTN_LOCAL: its own address on any interface, or a local route), a broadcast, and one the
+// kernel can't route or doesn't answer for are all refused.
+func (policy admission) routedAway(address netip.Addr) bool {
+	kind, err := policy.route(address)
+	return err == nil && kind == unix.RTN_UNICAST
+}
+
+// readsRoutes refuses to start a public profile whose route lookups don't work, since it would
+// refuse every public destination in silence: IPv4's loopback address must read as local.
+func (policy admission) readsRoutes() error {
+	if !policy.public {
+		return nil
+	}
+	loopback := netip.AddrFrom4([4]byte{127, 0, 0, 1})
+	if kind, err := policy.route(loopback); err != nil || kind != unix.RTN_LOCAL {
+		return fmt.Errorf("Packet proxy cannot read this host's routes (type %d): %v", kind, err)
+	}
+	return nil
+}
+
 func (policy admission) allows(protocol tcpip.TransportProtocolNumber, destination netip.Addr, port uint16) bool {
 	if destination == policy.gateway {
 		var allowed map[uint16]bool
@@ -101,7 +129,7 @@ func (policy admission) allows(protocol tcpip.TransportProtocolNumber, destinati
 		}
 		return allowed[port]
 	}
-	return policy.public && policy.publicIPv4(destination)
+	return policy.public && policy.publicIPv4(destination) && policy.routedAway(destination)
 }
 
 // admitted hands a flow to the maintained forwarder only when the policy allows it. A refused

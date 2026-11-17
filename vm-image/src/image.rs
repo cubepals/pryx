@@ -2,6 +2,9 @@
 //! Daemonless OCI image preparation through the maintained registry client and EROFS builder.
 //! Layers stay archives until the external builder consumes them; image paths never enter the
 //! host tree. Only whole, digest-verified outputs are published, under a private builder cache.
+//! Nothing is fetched, expanded or converted past the host's free-space floor: short of room, a
+//! preparation stops and says so, and the runtime, which alone knows what its VMs need, asks for
+//! an eviction of what it doesn't keep before it asks again.
 use super::{
     error,
     filesystems::{FilesystemTools, Run, sha256},
@@ -11,14 +14,22 @@ use futures_util::TryStreamExt;
 use oci_client::errors::{OciDistributionError, OciErrorCode};
 use oci_client::{Client, Reference, config::ConfigFile, manifest::OciDescriptor, secrets::RegistryAuth};
 use oci_spec::image::{Arch, Digest, DigestAlgorithm, Os};
-use pryxd::runtime::RuntimeError;
+use pryxd::runtime::{
+    RuntimeError,
+    vm::{disk::room_for, image::admit_layers},
+};
 use rustix::fs::{FlockOperation, flock};
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::HashSet,
     fs::{self, File, OpenOptions},
     io::{Read, Write},
     os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt},
     path::{Path, PathBuf},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     time::Duration,
 };
 use tokio::io::AsyncWriteExt;
@@ -32,7 +43,6 @@ const MAX_LAYER_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 // A written-file limit below that kills it before any data, so this is its bound.
 const EROFS_RESERVATION_BYTES: u64 = 1 << 41;
 const MAX_CONFIG_BYTES: u64 = 2 * 1024 * 1024;
-const MAX_LAYERS: usize = 128;
 const READ_ATTEMPTS: usize = 3;
 
 fn retryable(failure: &OciDistributionError) -> bool {
@@ -101,6 +111,11 @@ pub struct Images {
     tools: FilesystemTools,
     client: Client,
     transition: tokio::sync::Mutex<()>,
+    /// The host's free-space floor, and what some VM needs (`Request::keep`).
+    floor: u64,
+    keep: Vec<String>,
+    /// Set when a preparation stopped at the floor.
+    short: Arc<AtomicBool>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -165,7 +180,43 @@ impl Images {
             ..Default::default()
         })
         .map_err(error)?;
-        Ok(Self { root, tools, client, transition: Default::default() })
+        Ok(Self {
+            root,
+            tools,
+            client,
+            transition: Default::default(),
+            floor: 0,
+            keep: Vec::new(),
+            short: Default::default(),
+        })
+    }
+
+    /// Fetches, expands and converts nothing past `floor` free bytes; [`Images::evict`] never
+    /// removes a layer of `keep`.
+    pub fn with_room(mut self, floor: u64, keep: Vec<String>) -> Self {
+        self.floor = floor;
+        self.keep = keep;
+        self
+    }
+
+    /// Whether a preparation stopped at the host's free-space floor.
+    pub fn short_of_room(&self) -> bool {
+        self.short.load(Ordering::Acquire)
+    }
+
+    /// Removes every converted layer, and every record, that nothing in `keep` names, under the
+    /// cache lock: no preparation reads them meanwhile, and one that already opened a layer
+    /// keeps its file.
+    pub async fn evict(&self, timeout: Duration) -> Result<(), RuntimeError> {
+        tokio::time::timeout(timeout, async {
+            let _guard = self.transition.lock().await;
+            let lock = self.lock().await?;
+            let result = self.remove_unneeded();
+            drop(lock);
+            result
+        })
+        .await
+        .map_err(|_| RuntimeError::Timeout("VM image eviction exceeded its deadline".into()))?
     }
 
     pub async fn prepare(&self, image: &str, timeout: Duration) -> Result<PreparedImage, RuntimeError> {
@@ -236,8 +287,8 @@ impl Images {
         Ok(self.root.join(format!("{}.image.json", digest_name(digest)?)))
     }
 
-    /// A pinned manifest whose record and every converted layer are complete in this cache.
-    fn offline(&self, digest: &str) -> Result<Option<PreparedImage>, RuntimeError> {
+    /// A manifest's record in this cache, if it has one.
+    fn record(&self, digest: &str) -> Result<Option<CachedImage>, RuntimeError> {
         let record = self.image_record(digest)?;
         let file = match OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK).open(&record) {
             Ok(file) => file,
@@ -252,7 +303,13 @@ impl Images {
         if bytes.len() as u64 > MAX_CONFIG_BYTES * 2 {
             return Err(error("Oversized VM image cache record"));
         }
-        let saved: CachedImage = serde_json::from_slice(&bytes).map_err(error)?;
+        serde_json::from_slice(&bytes).map(Some).map_err(error)
+    }
+
+    /// A pinned manifest whose record and every converted layer are complete in this cache.
+    fn offline(&self, digest: &str) -> Result<Option<PreparedImage>, RuntimeError> {
+        let Some(saved) = self.record(digest)? else { return Ok(None) };
+        admit_layers(saved.layers.len())?;
         let mut layers = Vec::new();
         for (source, diff_id) in &saved.layers {
             let name = digest_name(source)?;
@@ -277,9 +334,7 @@ impl Images {
         if pinned.is_some_and(|pinned| pinned != digest) {
             return Err(error("VM image manifest differs from its pinned digest"));
         }
-        if manifest.layers.len() > MAX_LAYERS {
-            return Err(error("VM OCI image exceeds the layer admission bound"));
-        }
+        admit_layers(manifest.layers.len())?;
         // Explicitly private: a confined filesystem program refuses an ancestor that an
         // ordinary user's group-writable umask (002) would otherwise leave writable.
         let private = || tempfile::Builder::new().permissions(fs::Permissions::from_mode(0o700)).to_owned();
@@ -305,10 +360,12 @@ impl Images {
                 continue;
             }
             let blob = staging.path().join(format!("layer-{index}.blob"));
+            self.room(u64::try_from(layer.size).map_err(error)?)?;
             self.blob(&reference, layer, &blob, MAX_LAYER_BYTES).await?;
             let temporary = private().tempdir_in(staging.path()).map_err(error)?;
             let work = temporary.path().to_path_buf();
-            let generated = convert(&self.tools, &blob, &work, &layer.media_type, diff_id).await?;
+            let floor = Floor { root: self.root.clone(), bytes: self.floor, short: self.short.clone() };
+            let generated = convert(&self.tools, &blob, &work, (&layer.media_type, diff_id), floor).await?;
             let file = File::open(&generated).map_err(error)?;
             let mut saved = CachedLayer {
                 source: layer.digest.clone(),
@@ -345,7 +402,81 @@ impl Images {
             let alias = serde_json::to_vec(&NamedImage { digest: digest.clone() }).map_err(error)?;
             pryxd::durable::write_atomic(&self.named_record(named)?, &alias, 0o600).map_err(error)?;
         }
+        // And under the reference itself, so a VM that keeps it by that name keeps this manifest.
+        let alias = serde_json::to_vec(&NamedImage { digest: digest.clone() }).map_err(error)?;
+        pryxd::durable::write_atomic(&self.reference_record(image)?, &alias, 0o600).map_err(error)?;
         Ok(PreparedImage { digest, layers, configuration })
+    }
+
+    /// Room for `bytes` more above the floor, or the floor's refusal, which is remembered.
+    fn room(&self, bytes: u64) -> Result<(), RuntimeError> {
+        Floor { root: self.root.clone(), bytes: self.floor, short: self.short.clone() }.room(bytes)
+    }
+
+    /// The record of the manifest `reference` was last prepared to.
+    fn reference_record(&self, reference: &str) -> Result<PathBuf, RuntimeError> {
+        Ok(self.root.join(format!("sha256-{}.reference.json", sha256(reference.as_bytes()).map_err(error)?)))
+    }
+
+    /// Reads an alias record, if there is one.
+    fn alias(&self, path: &Path, records: &mut HashSet<PathBuf>) -> Result<Option<String>, RuntimeError> {
+        match fs::read(path) {
+            Ok(bytes) => {
+                records.insert(path.to_owned());
+                Ok(Some(serde_json::from_slice::<NamedImage>(&bytes).map_err(error)?.digest))
+            }
+            Err(problem) if problem.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(problem) => Err(error(problem)),
+        }
+    }
+
+    /// Removes every converted layer that no kept manifest names, and every record not kept.
+    /// A kept name is a manifest digest, a digest reference (whose alias names the platform's
+    /// manifest) or the reference a manifest was prepared by.
+    fn remove_unneeded(&self) -> Result<(), RuntimeError> {
+        let mut needed = HashSet::new();
+        let mut records = HashSet::new();
+        for kept in &self.keep {
+            let digest = match self.named_record(kept) {
+                Ok(named) => self.alias(&named, &mut records)?.unwrap_or_else(|| kept.clone()),
+                Err(_) => match self.alias(&self.reference_record(kept)?, &mut records)? {
+                    Some(digest) => digest,
+                    // A reference never prepared here names nothing in this cache.
+                    None => continue,
+                },
+            };
+            if let Some(saved) = self.record(&digest)? {
+                records.insert(self.image_record(&digest)?);
+                for (source, _) in &saved.layers {
+                    needed.insert(digest_name(source)?);
+                }
+            }
+        }
+        let mut files = Vec::new();
+        for entry in fs::read_dir(&self.root).map_err(error)? {
+            let path = entry.map_err(error)?.path();
+            if path.symlink_metadata().map_err(error)?.is_file() {
+                files.push(path);
+            }
+        }
+        // Manifest records first, then layer records, then layers: an interrupted removal never
+        // leaves a record naming a removed file.
+        let name = |path: &Path| path.file_name().and_then(|name| name.to_str()).unwrap_or_default().to_owned();
+        let manifest = |name: &str| {
+            name.ends_with(".image.json") || name.ends_with(".named.json") || name.ends_with(".reference.json")
+        };
+        let layer = |name: &str, suffix: &str| name.strip_suffix(suffix).is_some_and(|stem| !needed.contains(stem));
+        let order: [&dyn Fn(&Path) -> bool; 3] = [
+            &|path| manifest(&name(path)) && !records.contains(path),
+            &|path| !manifest(&name(path)) && layer(&name(path), ".json"),
+            &|path| layer(&name(path), ".erofs"),
+        ];
+        for removable in order {
+            for path in files.iter().filter(|path| removable(path)) {
+                fs::remove_file(path).map_err(error)?;
+            }
+        }
+        File::open(&self.root).and_then(|directory| directory.sync_all()).map_err(error)
     }
 
     fn named_record(&self, digest: &str) -> Result<PathBuf, RuntimeError> {
@@ -454,13 +585,44 @@ fn compressed(media: &str) -> Result<bool, RuntimeError> {
     }
 }
 
-fn expand(blob: &Path, work: &Path, media: &str, diff_id: &str) -> Result<PathBuf, RuntimeError> {
+/// The host's free-space floor for one preparation, checked where its files grow.
+#[derive(Clone)]
+struct Floor {
+    root: PathBuf,
+    bytes: u64,
+    short: Arc<AtomicBool>,
+}
+
+impl Floor {
+    /// Room for `bytes` more above the floor; a refusal is remembered (`Images::short_of_room`).
+    fn room(&self, bytes: u64) -> Result<(), RuntimeError> {
+        room_for(&self.root, self.bytes.saturating_add(bytes), "VM image preparation").inspect_err(|_| {
+            self.short.store(true, Ordering::Release);
+        })
+    }
+}
+
+/// How much an expanding layer writes between checks of the floor: a small compressed layer can
+/// expand to the acquisition bound, so its size before expanding promises nothing.
+const EXPANSION_CHECK_BYTES: u64 = 64 * 1024 * 1024;
+
+fn expand(blob: &Path, work: &Path, media: &str, diff_id: &str, floor: &Floor) -> Result<PathBuf, RuntimeError> {
     let source = File::open(blob).map_err(error)?;
     let reader: Box<dyn Read> =
         if compressed(media)? { Box::new(flate2::read::MultiGzDecoder::new(source)) } else { Box::new(source) };
     let tar = work.join("layer.tar");
     let mut output = OpenOptions::new().write(true).create_new(true).mode(0o600).open(&tar).map_err(error)?;
-    if std::io::copy(&mut reader.take(MAX_LAYER_BYTES + 1), &mut output).map_err(error)? > MAX_LAYER_BYTES {
+    let mut reader = reader.take(MAX_LAYER_BYTES + 1);
+    let mut written = 0_u64;
+    loop {
+        floor.room(EXPANSION_CHECK_BYTES)?;
+        let copied = std::io::copy(&mut (&mut reader).take(EXPANSION_CHECK_BYTES), &mut output).map_err(error)?;
+        written += copied;
+        if copied < EXPANSION_CHECK_BYTES {
+            break;
+        }
+    }
+    if written > MAX_LAYER_BYTES {
         return Err(error("Expanded OCI layer exceeds the VM image acquisition bound"));
     }
     output.flush().map_err(error)?;
@@ -499,17 +661,22 @@ fn layer_uuid(diff_id: &str) -> Result<uuid::Uuid, RuntimeError> {
     Ok(uuid::Builder::from_custom_bytes(bytes).into_uuid())
 }
 
+/// Expands and converts no further than the floor: the tar is checked as it grows, and the image
+/// is refused unless the host can hold one as large as the tar.
 async fn convert(
     tools: &FilesystemTools,
     blob: &Path,
     work: &Path,
-    media: &str,
-    diff_id: &str,
+    (media, diff_id): (&str, &str),
+    floor: Floor,
 ) -> Result<PathBuf, RuntimeError> {
     let filesystem_uuid = layer_uuid(diff_id)?;
-    let (input, output, media, diff_id) =
-        (blob.to_path_buf(), work.to_path_buf(), media.to_owned(), diff_id.to_owned());
-    let tar = tokio::task::spawn_blocking(move || expand(&input, &output, &media, &diff_id)).await.map_err(error)??;
+    let (input, output, media, diff_id, expanding) =
+        (blob.to_path_buf(), work.to_path_buf(), media.to_owned(), diff_id.to_owned(), floor.clone());
+    let tar = tokio::task::spawn_blocking(move || expand(&input, &output, &media, &diff_id, &expanding))
+        .await
+        .map_err(error)??;
+    floor.room(fs::metadata(&tar).map_err(error)?.len())?;
     let image = work.join("layer.erofs");
     // The program writes only this pre-created file, never a path of the tenant's choosing.
     OpenOptions::new().write(true).create_new(true).mode(0o600).open(&image).map_err(error)?;

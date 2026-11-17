@@ -36,7 +36,7 @@ pub(super) async fn start(
     let fixture = {
         let live = runtime.state.live.lock().unwrap()[&id].clone();
         let live = live.lock().await;
-        root_monitor(runtime, &live);
+        root_monitor(runtime, &id, &live);
         let profile = live.network.as_ref().unwrap().profile();
         json!({
             "unrestricted":unrestricted, "hostname":"example.com", "host":profile["host"], "http":profile["http"],
@@ -83,8 +83,8 @@ pub(super) async fn probe(runtime: &VmRuntime, id: &str, unrestricted: bool, hos
     assert!(tokio::time::timeout(Duration::from_millis(10), host.accept()).await.is_err());
 }
 
-fn root_monitor(runtime: &VmRuntime, live: &Live) {
-    if let Some(owner) = runtime.state.settings.monitor_owner {
+fn root_monitor(runtime: &VmRuntime, id: &str, live: &Live) {
+    if let Some(owner) = runtime.monitor_owner(id).unwrap() {
         let namespace = live.network.as_ref().unwrap().namespace().unwrap().unwrap();
         let pid = live.monitor.pid().unwrap();
         let actual = fs::metadata(format!("/proc/{pid}/ns/net")).unwrap();

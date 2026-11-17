@@ -18,9 +18,10 @@ async fn cold_boot(runtime: &VmRuntime, spec: &ContainerSpec, id: &str, host: &P
         let live = runtime.state.live.lock().unwrap()[id].clone();
         let mut live = live.lock().await;
         let pid = live.monitor.pid().unwrap();
-        let owner = runtime.state.settings.monitor_owner.unwrap();
+        // The VM's own pair from the host's range, which its jail record holds too.
+        let owner = runtime.monitor_owner(id).unwrap().unwrap();
         let status = procfs::process::Process::new(pid.try_into().unwrap()).unwrap().status().unwrap();
-        assert_eq!(status.euid, owner.0);
+        assert_eq!((status.euid, status.egid), owner);
         let observed = fs::metadata(format!("/proc/{pid}/root")).unwrap();
         let jail = live.jail.as_mut().unwrap();
         let expected = fs::metadata(jail.root()).unwrap();
@@ -58,11 +59,14 @@ async fn actual_root_runtime_cold_boot_files_and_daemon_loss() {
         ingress_connections: 8,
         free_floor_bytes: 0,
         image_timeout: Duration::from_secs(120),
-        monitor_owner: Some((
-            std::env::var("PRYX_VM_ROOT_TEST_UID").unwrap().parse().unwrap(),
-            std::env::var("PRYX_VM_ROOT_TEST_GID").unwrap().parse().unwrap(),
-        )),
+        // The host's default range: the runner user's own IDs run processes, so no VM takes them.
+        monitor_owner: Some({
+            let config = crate::config::VmConfig::default();
+            monitor_ids::MonitorIds { uid: config.monitor_uid, gid: config.monitor_gid, count: config.monitor_ids }
+        }),
     };
+    let ids = settings.monitor_owner.unwrap();
+    let mut removed = None;
     let mut runtime = VmRuntime::new(root.path(), settings.clone()).await.unwrap();
     let inputs: Vec<serde_json::Value> =
         serde_json::from_str(include_str!("../../../../templates/vm-tools/image-inputs.json")).unwrap();
@@ -71,6 +75,10 @@ async fn actual_root_runtime_cold_boot_files_and_daemon_loss() {
         directory(&data).unwrap();
         let spec = tests::spec(&data, input["reference"].as_str().unwrap());
         let id = runtime.create(&spec).await.unwrap();
+        let owner = runtime.monitor_owner(&id).unwrap().unwrap();
+        assert_eq!(owner.0 - ids.uid, owner.1 - ids.gid);
+        // The pair a removed VM let go is the lowest free one again.
+        assert_eq!(removed.unwrap_or((ids.uid, ids.gid)), owner);
         for generation in 0..2 {
             eprintln!("Actual root runtime image {index}, generation {generation}");
             cold_boot(&runtime, &spec, &id, &host, generation != 0).await;
@@ -78,6 +86,7 @@ async fn actual_root_runtime_cold_boot_files_and_daemon_loss() {
         runtime.start(&id).await.unwrap();
         drop(runtime);
         runtime = VmRuntime::new(root.path(), settings.clone()).await.unwrap();
+        assert_eq!(runtime.monitor_owner(&id).unwrap(), Some(owner), "Recovery kept the VM's pair");
         assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Dead);
         assert_eq!(
             fs::metadata(data.join(super::super::disk::FILE)).unwrap().uid(),
@@ -86,6 +95,7 @@ async fn actual_root_runtime_cold_boot_files_and_daemon_loss() {
         cold_boot(&runtime, &spec, &id, &host, true).await;
         runtime.remove(&id).await.unwrap();
         assert!(runtime.inspect(&id).await.unwrap().is_none());
+        removed = Some(owner);
         super::network_acceptance::check(&runtime, root.path(), input["reference"].as_str().unwrap(), index, false)
             .await;
         super::network_acceptance::check(&runtime, root.path(), input["reference"].as_str().unwrap(), index, true)

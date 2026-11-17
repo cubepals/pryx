@@ -7,7 +7,9 @@
 // - cmd/proxy/production.go: inherited-listener runtime profile without management services.
 // - cmd/proxy/stack.go: the maintained parts assembled with every forwarder behind admission.
 // - cmd/proxy/admission.go: which destinations the host dials for a guest, from its egress.
-// - cmd/proxy/admission_test.go: each refusal, and real host loopback services through the stack.
+// - cmd/proxy/route.go: the kernel's route type for a destination, for admission.
+// - cmd/proxy/admission_test.go: each refusal, the kernel's answer for the host's own addresses,
+//   and real host loopback services through the stack.
 // - cmd/proxy/tap.go: attached TAP queue adapter for the maintained non-stream transport.
 // - cmd/proxy/tap_test.go: actual packet-socket ARP/cancellation and kernel non-TAP refusal.
 // - cmd/guest/main.go, lease.go and static.go: trusted DHCP or host-selected TAP configuration.
