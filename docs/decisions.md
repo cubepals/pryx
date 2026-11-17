@@ -1549,3 +1549,5 @@
 - K27 review: commit a completed memory-fork reply with its suspension and exact source/target generation, epoch, spec and container identity, so a lost reply replays without another copy; clear it on later lifecycle changes, refuse unconfirmed partial forks, and admit every new fork at the snapshot's full disk size before reflinking.
 
 - Local purge: retain the auto constructor's original rejection reason for each omitted tier and include only the required tier's reason when cleanup refuses; re-probing could replace the failure evidence, while an absent backend never proves compute is gone.
+
+- CI dependency policy: ignore only RUSTSEC-2026-0543 while maintained shell, Jupyter and agentOS releases still require chrono; asynchronous-codec 0.7.0 does not depend on it, and the latest upstream clients do not remove it.
