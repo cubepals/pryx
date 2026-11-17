@@ -59,8 +59,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
  && rm -rf /var/lib/apt/lists/*
 WORKDIR /source
 COPY deploy/namespace-helper.py deploy/namespace-helper.py
-COPY templates/process-tools/archive_inputs.py templates/process-tools/helpers.lock.json templates/process-tools/libraries.lock.json \
-     templates/process-tools/namespaces-aarch64.lock.json templates/process-tools/
+COPY templates/process-tools/archive_inputs.py templates/process-tools/mirrors.json templates/process-tools/helpers.lock.json \
+     templates/process-tools/libraries.lock.json templates/process-tools/namespaces-aarch64.lock.json templates/process-tools/
 RUN python3 -I deploy/namespace-helper.py /installed
 
 FROM node:24-bookworm-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9 AS node-userland

@@ -9,12 +9,14 @@
 //!
 //! Parts (`docker/`):
 //! - `egress.rs`: firewall-gated hostname bridges and gateways.
+//! - `oom.rs`: container/start-scoped authenticated OOM evidence.
 //! - `ownership.rs`: read-only proof of host data identity mapping.
 //! - `podman.rs`: native Netavark isolation and hardened container creation.
 //! - `network.rs`: engine bridge creation and isolation observation.
 //! - `create.rs`: trusted container and agent creation.
 //! - `browser_policy.rs`: negotiated agent bootstrap and inner-browser policy observation.
 //! - `container.rs`: container construction and observation types.
+//! - `events.rs`: engine event translation.
 //! - `exec.rs`: command attachment and timeout containment.
 //! - `gvisor.rs`: the gvisor tier's runtime name, availability and ownership on one engine.
 //! - `native_tools.rs`: explicit host-only seccomp and FUSE device policy.
@@ -27,11 +29,13 @@ mod browser_policy;
 mod container;
 mod create;
 pub(crate) mod egress;
+mod events;
 mod exec;
 pub mod gvisor;
 pub use gvisor::{EXEC_TIMEOUT_PROBLEM, GVISOR_MISSING_PROBLEM, GVISOR_RUNTIME, problem as gvisor_problem};
 mod native_tools;
 mod network;
+mod oom;
 pub(crate) mod ownership;
 mod podman;
 #[cfg(test)]
@@ -115,6 +119,7 @@ pub struct DockerRuntime {
     egress: egress::Egress,
     native_tools: native_tools::Policy,
     pub(super) ownership: ownership::Policy,
+    oom: oom::Observations,
     oci_runtime: Option<&'static str>, // gvisor: every container made and seen uses this runtime
 }
 
@@ -170,6 +175,7 @@ impl DockerRuntime {
             egress: Default::default(),
             native_tools: Default::default(),
             ownership: Default::default(),
+            oom: Default::default(),
             oci_runtime: None,
         })
     }
@@ -638,6 +644,7 @@ impl ContainerRuntime for DockerRuntime {
         let options = RemoveContainerOptionsBuilder::new().force(true).v(true).build();
         match quick("remove", self.docker()?.remove_container(name, Some(options))).await {
             Err(RuntimeError::NotFound(_)) | Ok(()) => {
+                self.oom.forget(name);
                 self.egress.stop(self, name).await?;
                 if let Some(network) = network {
                     match podman::delete_network(self, &network).await {
@@ -657,7 +664,13 @@ impl ContainerRuntime for DockerRuntime {
             Ok(inspect) => {
                 self.egress.restore(self, &inspect).await?;
                 self.relays.ensure(&inspect).await?;
-                Ok(Some(info_from(inspect)))
+                let mut info = info_from(inspect);
+                let docker_history =
+                    self.oci_runtime.is_some() || self.info.lock().unwrap().as_ref().is_some_and(|info| !info.podman);
+                if docker_history {
+                    self.oom.inspect(&self.docker()?, &mut info).await?;
+                }
+                Ok(Some(info))
             }
             Err(RuntimeError::NotFound(_)) => Ok(None),
             Err(e) => Err(e),
@@ -768,32 +781,7 @@ impl ContainerRuntime for DockerRuntime {
     }
 
     fn events(&self, label_filters: &[String]) -> BoxStream<'static, Result<RuntimeEvent, RuntimeError>> {
-        let mut filters = filters(label_filters);
-        filters.insert("type".into(), vec!["container".into()]);
-        let options = EventsOptionsBuilder::new().filters(&filters).build();
-        let docker = match self.docker() {
-            Ok(docker) => docker,
-            Err(e) => return futures_util::stream::iter([Err(e)]).boxed(),
-        };
-        let own = self.oci_runtime;
-        docker
-            .events(Some(options))
-            .filter(move |item| std::future::ready(gvisor::owns_event(own, item)))
-            .map(|item| {
-                let message = item.map_err(map_err)?;
-                let actor = message.actor.unwrap_or_default();
-                let at = message
-                    .time_nano
-                    .and_then(|ns| OffsetDateTime::from_unix_timestamp_nanos(i128::from(ns)).ok())
-                    .unwrap_or_else(OffsetDateTime::now_utc);
-                Ok(RuntimeEvent {
-                    container_id: actor.id.unwrap_or_default(),
-                    action: message.action.unwrap_or_default(),
-                    exit_code: actor.attributes.as_ref().and_then(|a| a.get("exitCode")).and_then(|c| c.parse().ok()),
-                    at,
-                })
-            })
-            .boxed()
+        self.event_stream(label_filters)
     }
 }
 

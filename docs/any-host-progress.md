@@ -5032,3 +5032,71 @@ job when publication is authorized. That job has not run in this task.
   failed once in control end to end: the container agent test's exposed port answered "Agent
   unavailable" after an edge relay ECONNRESET. The same code passed that job on k27 at `26aee02`;
   it is recorded here, not yet explained.
+
+- The store-recovery prerequisite's [Any host 43921002281,
+  job133540855252](https://github.com/cubepals/pryx/actions/runs/43921002281/job/133540855252)
+  reaches the Podman outage probe and finds that its API still answers after the socket peer's
+  PID is stopped. An owned forked listener reproduces that failure: `SO_PEERCRED` names the
+  parent that listened, while its child serves the inherited descriptor. The isolated CI
+  engine now records its launch identity and pauses only verified same-user descendant
+  holders of that exact listener, with pidfds, a bounded stop and unconditional resumption.
+  Ten real process controls pass locally, covering forked holders, an unaffected
+  nonholder, stale or foreign identity, private path and regular-file refusal, partial stop
+  rollback, normal errors, interrupt, termination and repeated termination during cleanup.
+  Signal handlers are restored afterward, and the owned test parent reaps both children.
+  The earlier hosted run did not retain its exact process topology, so the local control
+  establishes this fixture defect without claiming that historical instance's unique cause.
+  The existing installed-node outage, withdrawal and recovery assertions and their deadlines
+  remain; final-base hosted engine proof and independent review are still required.
+
+- K22 outage follow-up: Any host
+  [43825316675](https://github.com/cubepals/pryx/actions/runs/43825316675), Podman job 133184644685,
+  did not observe paused-engine guarantee withdrawal within the existing 45-second probe. The node
+  log has no tier-health withdrawal in that window and records a 20-second inspect timeout. Periodic
+  reconciliation shared one awaited select loop with stats and disk work; a blocked stats call can
+  hold that loop across a resync tick, and another ready stats tick can run first. The historical
+  timer choices were not logged. A regression using the actual periodic loop now proves this
+  starvation mechanism: with only the old loop restored, it fails the health-withdrawal assertion
+  after 21.06 seconds; the exact candidate passes the unchanged case in 5.05 seconds while the stats
+  gate stays held, preserves the process tier, and cancels promptly. All fourteen multi-tier tests
+  pass in 10.20 seconds. Reconciliation and optional measurements are independently polled futures
+  owned by the same cancellation future, with no detached maintenance tasks or overlapping periodic
+  reconciliation. The complete pryxd crate suite passes locally: 472 tests, 39 existing ignored
+  cases, zero failures. Strict all-target and release-shaped Clippy, the pinned source, expanded and
+  Rust structure checks, formatting and whitespace pass. Docker/KVM tests remain ignored locally as
+  recorded by the suite; final real Podman install/outage/recovery/purge proof is still pending CI
+  on the newest branch head. The existing 45-second acceptance and every positive/recovery assertion
+  stay unchanged. No job or gate is added; the focused local regression takes about five to ten
+  seconds in the existing Rust suite.
+
+- OOM evidence follow-up: [CI
+  43926287482/job133518624112](https://github.com/cubepals/pryx/actions/runs/43926287482/job/133518624112)
+  passes the ten gVisor fast-exit trials but reports false for the plain Docker trial. Its container
+  was removed before the final engine diagnostics, so the retained trace does not identify the
+  unique historical cause. The owner source exposes an additional observation window: Moby updates
+  OOMKilled before publishing an event whose timestamp may follow containerd's FinishedAt. A
+  negative bounded history read now confirms the immutable container's flag once, requiring the same
+  start; strict event timestamp scoping and the refusal to infer OOM from a signal exit remain. The
+  real acceptance captures only fixed OOM state and filtered event identity/timestamps before panic
+  cleanup, within a three-second diagnostic budget. Both focused controls pass on this source and
+  fail on the preceding production code. The full local Rust run records 580 passes and 53 ignored
+  tests, with the four unchanged vm_monitor Landlock ABI failures retained. Strict
+  workspace/all-target Clippy, formatting and all three structure checks pass. Local Docker lacks
+  controller enforcement, so no local hard-OOM integration pass is claimed; exact-head hosted proof
+  and final review remain required.
+
+- OOM history latency: review of source 425497b found that the next-second cutoff waited again
+  on every unchanged normal exit. Moby v28.0.4's HTTP parser accepts numeric seconds.nanoseconds;
+  its past-only event path immediately returns history. Real local Docker 29.9.2 confirms both
+  inclusion at an exact event timestamp and exclusion one nanosecond later. Three owned normally
+  exited containers take 1.272 seconds with the old future bounds and 0.006 seconds with current
+  fractional bounds; all three were removed. The production cutoff now uses that finite current
+  instant, preserving exact generation/event scope and the same-start owner confirmation without
+  negative caching. A real-engine regression repeats four normal-exit inspections under two
+  seconds; the old path needs at least three seconds. That identical actual DockerRuntime control
+  fails the old production code at the intended bound and passes this source in 0.33 seconds,
+  including fixture setup and cleanup; neither run leaves a fixture. All seven existing OOM
+  regressions pass. Full locked Rust records 581 passes and 54 ignored tests with only the four
+  unchanged vm_monitor Landlock ABI failures; both strict Clippy modes, formatting and all three
+  structure checks pass. Final hosted proof remains pending; no local physical-OOM proof is
+  claimed on this engine without cgroup enforcement.
