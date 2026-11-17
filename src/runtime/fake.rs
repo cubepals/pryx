@@ -67,6 +67,8 @@ pub struct FakeRuntime {
     /// When set, an unpause never returns, as one does whose cgroup freezer is stuck.
     pub hang_unpause: AtomicBool,
     pub cold_data_copy: AtomicBool,
+    /// Opt-in manager controls for completed memory forks; ordinary fake behavior stays off.
+    pub memory_forks: AtomicBool,
     /// Whether this backend enforces a workload's hostname egress policy.
     pub hostname_egress: AtomicBool,
     /// What `check_data_owner` refuses existing data with, as a rootless engine whose workload
@@ -100,6 +102,7 @@ impl FakeRuntime {
             follows: std::sync::Arc::new(()),
             hang_unpause: AtomicBool::new(false),
             cold_data_copy: AtomicBool::new(false),
+            memory_forks: AtomicBool::new(false),
             hostname_egress: AtomicBool::new(false),
             data_owner_problem: Mutex::new(None),
             remote_files: Mutex::new(None),
@@ -213,6 +216,32 @@ impl ContainerRuntime for FakeRuntime {
 
     fn requires_stopped_data_copy(&self) -> bool {
         self.cold_data_copy.load(Ordering::SeqCst)
+    }
+    async fn memory_image(&self, name: &str) -> Result<Option<String>, RuntimeError> {
+        if !self.memory_forks.load(Ordering::SeqCst) {
+            return Ok(None);
+        }
+        self.up()?;
+        Ok(self.container(name).filter(|c| c.status == ContainerStatus::Paused).map(|c| format!("memory:{}", c.id)))
+    }
+    async fn fork_memory(&self, source: &str, target: &str, image: &str) -> Result<(), RuntimeError> {
+        if !self.memory_forks.load(Ordering::SeqCst) {
+            return Err(RuntimeError::Unavailable("Memory forks are off in this fake runtime".into()));
+        }
+        self.up()?;
+        self.call(format!("fork-memory {source} {target}"));
+        let mut all = self.containers.lock().unwrap();
+        let source = all.get(source).ok_or_else(|| RuntimeError::NotFound(source.into()))?;
+        if source.status != ContainerStatus::Paused || image != format!("memory:{}", source.id) {
+            return Err(RuntimeError::Conflict("The source's memory changed".into()));
+        }
+        let target = all.get_mut(target).ok_or_else(|| RuntimeError::NotFound(target.into()))?;
+        if target.status != ContainerStatus::Created || target.started_at.is_some() {
+            return Err(RuntimeError::Conflict("The fork target already started".into()));
+        }
+        target.status = ContainerStatus::Paused;
+        target.started_at = Some(OffsetDateTime::now_utc());
+        Ok(())
     }
     fn supports_hostname_egress(&self) -> bool {
         self.hostname_egress.load(Ordering::SeqCst)

@@ -728,3 +728,26 @@ jobs:
           curl --retry 5 --retry-connrefused --retry-delay 1 --max-time 10 -fsS http://127.0.0.1:9876/install.sh -o /dev/null
           sh deploy/local-acceptance.sh | tee acceptance.txt
           cat acceptance.txt >> "$GITHUB_STEP_SUMMARY"
+      # K27 side piece, evidence only: what aarch64 process tool and VM bundles would take, the
+      # aarch64 counterpart of each of the x86_64 bundles' pinned inputs fetched against the digest
+      # its upstream publishes, and run or resolved here (deploy/arm64_bundle_attempts.py), with
+      # the guest agent built for aarch64-unknown-linux-musl. docs/decisions.md records the answers.
+      - name: aarch64 tool and VM bundle attempts
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CARGO_PROFILE_DEV_DEBUG: '0'
+          CARGO_INCREMENTAL: '0'
+        run: |
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y --no-install-recommends musl-tools
+          rustup toolchain install
+          rustup target add aarch64-unknown-linux-musl
+          export CC_aarch64_unknown_linux_musl=musl-gcc CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc
+          started=$(date +%s)
+          cargo build --locked -p pryx-agent --target aarch64-unknown-linux-musl || true
+          echo "aarch64 musl agent build: $(($(date +%s)-started)) seconds" | tee -a "$GITHUB_STEP_SUMMARY"
+          python3 deploy/arm64_bundle_attempts.py --agent target/aarch64-unknown-linux-musl/debug/pryx-agent \
+            | tee "$RUNNER_TEMP/arm64-bundle-attempts.jsonl"
+          cat "$RUNNER_TEMP/arm64-bundle-attempts.jsonl" >> "$GITHUB_STEP_SUMMARY"

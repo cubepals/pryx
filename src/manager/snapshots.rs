@@ -2,8 +2,9 @@
 //
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! Local snapshots of a workload's data: taken, listed, deleted, uploaded. Packing and sending
-//! an upload is `pack_and_put` in `archive.rs`; restoring from a snapshot is `restore` there.
+//! Local snapshots of a workload's data: taken, listed, deleted, uploaded, and a fork from one that
+//! takes its source's memory too. Packing and sending an upload is `pack_and_put` in `archive.rs`;
+//! restoring from a snapshot is `restore` there.
 
 use super::*;
 
@@ -59,6 +60,13 @@ impl Manager {
                 message: "stop the workload, or pause its saving and say so (quiesced), before a snapshot".into(),
             });
         }
+        // Asleep with its memory outside it (a VM's): that memory, which a fork from this snapshot
+        // on this node can take while the workload still sleeps with it.
+        let memory = if running && self.suspension(id).suspended() {
+            self.note(self.record_runtime(&record)?.memory_image(&record.container_name).await)?
+        } else {
+            None
+        };
         let data = self.store.data_dir(id);
         // The data's full size, even where the copy will share blocks with it: a shared copy is
         // free only until the data changes, and then takes as much as a plain one. Counted as
@@ -107,6 +115,7 @@ impl Manager {
             quiesced: running,
             spec_digest: record.spec_digest.clone(),
             duration_ms: started.elapsed().as_millis() as u64,
+            memory,
         };
         let finished = {
             let (store, view) = (self.store.clone(), view.clone());
@@ -125,6 +134,108 @@ impl Manager {
             "snapshot taken"
         );
         Ok(SnapshotResponse { created: true, snapshot: view })
+    }
+
+    /// A fork into `id` (created, never started) from another workload's snapshot that takes that
+    /// workload's memory too: where the snapshot was taken of it asleep with the memory it still
+    /// sleeps with, on the same tier, and `id`'s spec is what that memory holds. The fork is then
+    /// asleep, and its first start resumes it. None when it can't; the fork then copies the
+    /// snapshot's disk alone, and the log says why.
+    pub(super) async fn fork_with_memory(
+        &self,
+        id: &WorkloadId,
+        record: &WorkloadRecord,
+        fork: &crate::protocol::ForkSource,
+    ) -> Result<Option<RestoreResponse>, NodeError> {
+        let started = Instant::now();
+        let view = self
+            .store
+            .snapshot(&fork.workload, &fork.snapshot)
+            .ok_or_else(|| NodeError::SnapshotNotFound(fork.snapshot.to_string()))?;
+        let Some(image) = view.memory.as_deref() else { return Ok(None) };
+        let Ok(source) = self.record(&fork.workload) else { return Ok(None) };
+        if source.id == *id
+            || self.record_tier(&source) != self.record_tier(record)
+            || !self.suspension(&source.id).suspended()
+        {
+            return Ok(None);
+        }
+        let runtime = self.record_runtime(record)?;
+        // Admit its full size before even a reflink can make a shared copy.
+        self.admit_disk(view.size_bytes, "restoring the snapshot")?;
+        if let Err(problem) = runtime.fork_memory(&source.container_name, &record.container_name, image).await {
+            tracing::info!(workload = %id, source = %source.id, %problem, "the fork copies the snapshot's disk without its memory");
+            return Ok(None);
+        }
+        let observed = self.observe(record).await?;
+        let info = observed
+            .filter(|info| {
+                info.status == ContainerStatus::Paused && record.container_id.as_deref() == Some(info.id.as_str())
+            })
+            .ok_or_else(|| {
+                NodeError::RuntimeUnavailable("The memory fork's paused target identity is unconfirmed".into())
+            })?;
+        let response = RestoreResponse {
+            size_bytes: view.size_bytes,
+            sha256: None,
+            entries: view.files,
+            skipped: 0,
+            unpacked_bytes: view.size_bytes,
+            previous_data: None,
+            duration_ms: started.elapsed().as_millis() as u64,
+        };
+        let receipt = crate::store::MemoryForkRestore {
+            source_workload: fork.workload.clone(),
+            source_snapshot: fork.snapshot.clone(),
+            target: id.clone(),
+            epoch: record.epoch,
+            generation: record.generation,
+            spec_digest: record.spec_digest.clone(),
+            container_name: record.container_name.clone(),
+            container_id: info.id,
+            response: response.clone(),
+        };
+        // Completion and suspension are one durable write. A missing receipt never authorizes
+        // another fork of an already-paused target, including an interrupted partial operation.
+        self.save_suspension(
+            id,
+            SuspendRecord { suspended_at: Some(now_str()), fork_restore: Some(receipt), ..self.suspension(id) },
+        )
+        .await?;
+        self.state.lock().unwrap().disk.remove(id);
+        tracing::info!(workload = %id, source = %source.id, "forked with the source's memory");
+        Ok(Some(response))
+    }
+
+    /// An exact completed operation can be acknowledged while its target still sleeps. No
+    /// source lookup is needed: the source may have woken or its snapshot may have been removed.
+    pub(super) fn completed_memory_fork(
+        &self,
+        record: &WorkloadRecord,
+        fork: &crate::protocol::ForkSource,
+        info: &ContainerInfo,
+    ) -> Option<RestoreResponse> {
+        let suspend = self.suspension(&record.id);
+        let receipt = suspend.fork_restore.as_ref()?;
+        let generation = record.generation.to_string();
+        let epoch = record.epoch.map(|epoch| epoch.to_string());
+        (suspend.suspended()
+            && suspend.pending.is_none()
+            && info.status == ContainerStatus::Paused
+            && receipt.source_workload == fork.workload
+            && receipt.source_snapshot == fork.snapshot
+            && receipt.target == record.id
+            && receipt.epoch == record.epoch
+            && receipt.generation == record.generation
+            && receipt.spec_digest == record.spec_digest
+            && receipt.container_name == record.container_name
+            && info.name == record.container_name
+            && receipt.container_id == info.id
+            && record.container_id.as_deref() == Some(info.id.as_str())
+            && info.labels.get(LABEL_GENERATION) == Some(&generation)
+            && info.labels.get(LABEL_DIGEST) == Some(&record.spec_digest)
+            && info.labels.get(LABEL_EPOCH) == epoch.as_ref())
+        .then(|| receipt.response.clone())
     }
 
     pub fn snapshots(&self, id: &WorkloadId) -> Result<SnapshotList, NodeError> {

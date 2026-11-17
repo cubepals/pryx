@@ -3,8 +3,11 @@
 //! Real KVM acceptance for memory sleep through the runtime seam: the start test that turns it on,
 //! a process that keeps running across thirty timed sleeps and wakes, the guest's clock stepped to
 //! the host's, a restore made to fail and a wake on another host class, each followed by the cold
-//! boot a node makes then, with the data written before the sleep intact; and two forks with
-//! memory that run the source's process under their own identities and random state.
+//! boot a node makes then, with the data written before the sleep intact; two forks with memory
+//! that run the source's process under their own identities and random state, its workload frozen
+//! from before the sleep's flush until each resume has reseeded it; and a guest with a
+//! network, public or under a hostname policy, whose DNS and allowed egress work after its wake
+//! and in its fork.
 use super::tests::{artifact_server, exec, spec};
 use super::*;
 use crate::runtime::{ContainerRuntime, ContainerStatus};
@@ -12,6 +15,9 @@ use crate::runtime::{ContainerRuntime, ContainerStatus};
 const SAMPLES: usize = 30;
 // Counts in a tmpfs file, which only the guest's memory keeps; its shell's PID says it's the same.
 const COUNTER: &str = "echo $$ > /tmp/pid; i=0; while :; do i=$((i+1)); echo $i > /tmp/counter; sleep 0.05; done";
+// Appends 16 random bytes a line to the disk every 10 ms once /tmp/sample exists, which a cold boot
+// doesn't keep; each line is one write.
+const SAMPLER: &str = "(while :; do if [ -e /tmp/sample ]; then r=$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \\n'); echo $r >> /data/random; fi; sleep 0.01; done) & ";
 
 fn percentile(samples: &mut [f64], fraction: f64) -> f64 {
     samples.sort_by(f64::total_cmp);
@@ -148,6 +154,8 @@ async fn actual_memory_sleep_keeps_a_running_process_and_falls_back_to_its_disk(
     let refused = runtime.unpause(&id).await;
     cold_boot_after(&runtime, &id, refused).await;
 
+    bootstrap_mismatches_boot_the_disk(&runtime, &id).await;
+
     // Stopping a sleeping guest ends its memory as a kill does, and keeps its disk.
     runtime.pause(&id).await.unwrap();
     runtime.stop(&id, &original.stop_signal, Duration::from_secs(5)).await.unwrap();
@@ -161,20 +169,38 @@ async fn actual_memory_sleep_keeps_a_running_process_and_falls_back_to_its_disk(
     server.abort();
 }
 
+/// Missing legacy bootstrap identity and a changed bootstrap both boot the disk.
+async fn bootstrap_mismatches_boot_the_disk(runtime: &VmRuntime, id: &str) {
+    for bootstrap in ["", "another-bootstrap"] {
+        exec(runtime, id, "printf kept > /tmp/marker").await;
+        runtime.pause(id).await.unwrap();
+        {
+            let mut entries = runtime.state.entries.lock().unwrap();
+            let image = entries.get_mut(id).unwrap().memory.as_mut().unwrap();
+            assert!(!image.bootstrap_sha256.is_empty(), "A new sleep records its actual bootstrap");
+            image.bootstrap_sha256 = bootstrap.into();
+        }
+        let refused = runtime.unpause(id).await;
+        cold_boot_after(runtime, id, refused).await;
+    }
+}
+
 /// One shell line's output in `id`'s guest, trimmed.
 async fn read(runtime: &VmRuntime, id: &str, script: &str) -> String {
     String::from_utf8(exec(runtime, id, script).await).unwrap().trim().to_owned()
 }
 
-/// A source with a counting process, asleep with its memory, and two forks made from it.
+/// A source with a counting process and a sampling one, asleep with its memory, and a fork made
+/// from it for each of `names`.
 async fn source_and_forks(
     runtime: &VmRuntime,
     root: &Path,
     image: &str,
+    names: &[&str],
 ) -> ((String, ContainerSpec), Vec<(String, ContainerSpec)>, String) {
     let with_counter = |mut spec: ContainerSpec| {
         spec.agent.as_mut().unwrap().keep_alive = false;
-        spec.entrypoint = Some(vec!["/bin/sh".into(), "-c".into(), COUNTER.into()]);
+        spec.entrypoint = Some(vec!["/bin/sh".into(), "-c".into(), format!("{SAMPLER}{COUNTER}")]);
         spec
     };
     let data = root.join("source");
@@ -185,11 +211,14 @@ async fn source_and_forks(
     while read(runtime, &source, "test -s /tmp/counter && echo yes || echo no").await != "yes" {
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
-    exec(runtime, &source, "printf kept > /tmp/marker").await;
+    exec(runtime, &source, "printf kept > /tmp/marker; touch /tmp/sample").await;
+    while sampled(runtime, &source).await.len() < 5 {
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
     let running = process(runtime, &source).await;
     runtime.pause(&source).await.unwrap();
     let mut forks = Vec::new();
-    for name in ["one", "two"] {
+    for name in names {
         let fork_spec = with_counter(spec(&root.join(format!("fork-{name}")), image));
         let started = std::time::Instant::now();
         let fork = runtime.fork_with_memory(&source, &fork_spec).await.unwrap();
@@ -219,6 +248,41 @@ async fn own_identities(runtime: &VmRuntime, woken: &[String], running: &str) {
             assert_ne!(random, other_random, "Every fork's kernel draws its own random bytes after its wake");
         }
     }
+}
+
+/// The lines a guest's sampler appended to its disk, as that guest sees them.
+async fn sampled(runtime: &VmRuntime, id: &str) -> Vec<String> {
+    read(runtime, id, "cat /data/random 2>/dev/null || true").await.lines().map(str::to_owned).collect()
+}
+
+/// Every copy restored from one memory drew bytes of its own first thing after its restore, and
+/// the disk the sleep flushed holds every line that memory had: the workload was frozen before
+/// the flush, and thawed in each copy only once its resume had reseeded it. `cold`, a fork refused
+/// its restore (another host class here), boots that disk.
+async fn frozen_across_the_restore(runtime: &VmRuntime, woken: &[String], cold: &str, cold_spec: &ContainerSpec) {
+    let mut copies = Vec::new();
+    for id in woken {
+        copies.push(sampled(runtime, id).await);
+    }
+    runtime.state.entries.lock().unwrap().get_mut(cold).unwrap().memory.as_mut().unwrap().class.kernel.push_str("-x");
+    let refused = runtime.unpause(cold).await;
+    assert!(refused.is_err_and(|problem| !problem.is_unavailable()), "Another class's memory is never restored");
+    runtime.kill(cold).await.unwrap();
+    runtime.start(cold).await.unwrap();
+    let flushed = sampled(runtime, cold).await;
+    eprintln!("VM sleep flushed {} sampled lines; the copies hold {:?}", flushed.len(), copies.iter().map(Vec::len));
+    assert!(!flushed.is_empty());
+    for copy in &copies {
+        assert!(copy.len() > flushed.len(), "Each copy sampled again after its wake");
+        assert_eq!(copy[..flushed.len()], flushed[..], "The flushed disk holds every line the memory had");
+    }
+    for (index, copy) in copies.iter().enumerate() {
+        for other in &copies[index + 1..] {
+            assert_ne!(copy[flushed.len()], other[flushed.len()], "The first bytes drawn after a restore differ");
+        }
+    }
+    runtime.stop(cold, &cold_spec.stop_signal, Duration::from_secs(5)).await.unwrap();
+    runtime.remove(cold).await.unwrap();
 }
 
 /// A fork answers its own agent key, refuses its source's, and stops and goes as any sandbox.
@@ -258,7 +322,9 @@ async fn actual_forks_with_memory_wake_as_themselves() {
         serde_json::from_str(include_str!("../../../../templates/vm-tools/image-inputs.json")).unwrap();
     let image = inputs[0]["reference"].as_str().unwrap();
     let since = std::time::SystemTime::now();
-    let ((source, source_spec), forks, running) = source_and_forks(&runtime, temporary.path(), image).await;
+    let ((source, source_spec), mut forks, running) =
+        source_and_forks(&runtime, temporary.path(), image, &["one", "two", "three"]).await;
+    let (cold, cold_spec) = forks.pop().unwrap();
     let mut woken = Vec::new();
     for (fork, _) in &forks {
         let started = std::time::Instant::now();
@@ -269,11 +335,254 @@ async fn actual_forks_with_memory_wake_as_themselves() {
     runtime.unpause(&source).await.unwrap();
     woken.push(source.clone());
     own_identities(&runtime, &woken, &running).await;
+    frozen_across_the_restore(&runtime, &woken, &cold, &cold_spec).await;
     for (fork, fork_spec) in &forks {
         retire_fork(&runtime, fork, fork_spec, &source_spec).await;
     }
     runtime.stop(&source, &source_spec.stop_signal, Duration::from_secs(5)).await.unwrap();
     runtime.remove(&source).await.unwrap();
     assert!(fs::read_dir(runtime.state.root.join("memory")).unwrap().next().is_none());
+    server.abort();
+}
+
+/// A guest with the production network keeps its DNS and allowed egress across a wake with memory,
+/// and its fork with memory has them too: each wake's gateways listen on new ports, which the
+/// resume hands the guest's redirects.
+#[tokio::test]
+#[ignore = "requires real KVM, the verified VM archive and public DNS; the VM experiments workflow runs it"]
+async fn actual_memory_wake_keeps_a_networked_guests_dns_and_egress() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let temporary = tempfile::tempdir().unwrap();
+    let (artifact, server) = artifact_server().await;
+    let settings = Settings {
+        monitor_owner: None,
+        artifact,
+        ingress_connections: 8,
+        free_floor_bytes: 0,
+        image_timeout: Duration::from_secs(120),
+    };
+    let runtime = VmRuntime::new(temporary.path(), settings).await.unwrap();
+    let inputs: Vec<serde_json::Value> =
+        serde_json::from_str(include_str!("../../../../templates/vm-tools/image-inputs.json")).unwrap();
+    let image = inputs[0]["reference"].as_str().unwrap();
+    let since = std::time::SystemTime::now();
+    let host = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    for unrestricted in [true, false] {
+        let (id, source_spec) =
+            super::network_acceptance::start(&runtime, temporary.path(), image, 0, unrestricted, &host).await;
+        super::network_acceptance::probe(&runtime, &id, unrestricted, &host).await;
+        exec(&runtime, &id, "printf kept > /tmp/marker").await;
+        // A managed process without an exec deadline: its owner and socket survive the sleeps.
+        let retained = pryx_agent::process::Start {
+            command: pryx_agent::process::Command::Shell(
+                "exec /data/network-probe --retained-dns /data/network-fixture.json --ready-file /tmp/retained-dns >/tmp/retained-dns.log 2>&1".into(),
+            ),
+            env: Default::default(),
+            cwd: None,
+            stdin: false,
+            pty: false,
+            cols: None,
+            rows: None,
+            timeout: None,
+        };
+        super::agent::raw(
+            &source_spec,
+            hyper::Method::POST,
+            "/_pryx/processes",
+            serde_json::to_value(retained).unwrap(),
+            Duration::from_secs(5),
+        )
+        .await
+        .unwrap();
+        let socket = retained_dns(&runtime, &id, 0).await;
+        runtime.pause(&id).await.unwrap();
+        runtime.unpause(&id).await.inspect_err(|_| monitor_output(since)).unwrap();
+        assert_eq!(read(&runtime, &id, "cat /tmp/marker").await, "kept", "The wake restored memory");
+        assert_eq!(retained_dns(&runtime, &id, 1).await, socket, "The same UDP socket resolves after its wake");
+        super::network_acceptance::probe(&runtime, &id, unrestricted, &host).await;
+        runtime.pause(&id).await.unwrap();
+        let data = temporary.path().join(format!("network-fork-{unrestricted}"));
+        let fork_spec = super::network_acceptance::networked(spec(&data, image), unrestricted);
+        let fork = runtime.fork_with_memory(&id, &fork_spec).await.unwrap();
+        runtime.unpause(&fork).await.inspect_err(|_| monitor_output(since)).unwrap();
+        assert_eq!(read(&runtime, &fork, "cat /tmp/marker").await, "kept", "The fork woke with memory");
+        assert_eq!(retained_dns(&runtime, &fork, 2).await, socket, "The fork's retained UDP socket resolves");
+        super::network_acceptance::probe(&runtime, &fork, unrestricted, &host).await;
+        runtime.unpause(&id).await.unwrap();
+        assert_eq!(retained_dns(&runtime, &id, 2).await, socket, "The source's retained UDP socket resolves");
+        super::network_acceptance::probe(&runtime, &id, unrestricted, &host).await;
+        for (sandbox, stop) in [(&fork, &fork_spec.stop_signal), (&id, &source_spec.stop_signal)] {
+            runtime.stop(sandbox, stop, Duration::from_secs(15)).await.unwrap();
+            runtime.remove(sandbox).await.unwrap();
+        }
+    }
+    server.abort();
+}
+
+/// Continues the same guest process and waits for its next DNS answer through the same UDP socket.
+async fn retained_dns(runtime: &VmRuntime, id: &str, phase: usize) -> String {
+    if phase != 0 {
+        exec(runtime, id, &format!("touch /tmp/retained-dns.continue{phase}")).await;
+    }
+    read(
+        runtime,
+        id,
+        &format!(
+            "while ! test -f /tmp/retained-dns{phase}; do if test -s /tmp/retained-dns.log; then cat /tmp/retained-dns.log; exit 1; fi; sleep 0.01; done; cat /tmp/retained-dns{phase}"
+        ),
+    )
+    .await
+}
+
+/// The directory the monitor of `id`'s current boot runs in, where a sleep writes its snapshot.
+async fn boot_directory_of(runtime: &VmRuntime, id: &str) -> PathBuf {
+    let live = runtime.state.live.lock().unwrap()[id].clone();
+    let live = live.lock().await;
+    live._directory.path().to_owned()
+}
+
+/// A snapshot that fails after the monitor saved the devices' state leaves the guest running where
+/// it was, its network included, and its next sleep works; one whose monitor never answers again
+/// (its memory file a FIFO nobody reads, so the create blocks) is retired, and its next start
+/// boots the disk with everything written before the sleep.
+#[tokio::test]
+#[ignore = "requires real KVM, the verified VM archive and public DNS; the VM experiments workflow runs it"]
+async fn actual_failed_snapshots_resume_or_retire_the_guest() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let temporary = tempfile::tempdir().unwrap();
+    let (artifact, server) = artifact_server().await;
+    let settings = Settings {
+        monitor_owner: None,
+        artifact,
+        ingress_connections: 8,
+        free_floor_bytes: 0,
+        image_timeout: Duration::from_secs(120),
+    };
+    let runtime = VmRuntime::new(temporary.path(), settings).await.unwrap();
+    let inputs: Vec<serde_json::Value> =
+        serde_json::from_str(include_str!("../../../../templates/vm-tools/image-inputs.json")).unwrap();
+    let image = inputs[0]["reference"].as_str().unwrap();
+    let host = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    let (id, source_spec) = super::network_acceptance::start(&runtime, temporary.path(), image, 1, true, &host).await;
+    exec(&runtime, &id, "printf kept > /tmp/marker; printf 'written before sleeping' > /data/durable").await;
+
+    // The memory file can't be made: the create fails after the devices' state was saved.
+    let unwritable = boot_directory_of(&runtime, &id).await.join("memory.bin");
+    fs::create_dir(&unwritable).unwrap();
+    let refused = runtime.pause(&id).await.expect_err("A snapshot without its memory file fails");
+    eprintln!("VM sleep with an unwritable memory file: {refused}");
+    assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Running);
+    assert_eq!(read(&runtime, &id, "cat /tmp/marker").await, "kept", "The guest went on where it was");
+    super::network_acceptance::probe(&runtime, &id, true, &host).await;
+    fs::remove_dir(&unwritable).unwrap();
+    runtime.pause(&id).await.unwrap();
+    runtime.unpause(&id).await.unwrap();
+    assert_eq!(read(&runtime, &id, "cat /tmp/marker").await, "kept");
+    super::network_acceptance::probe(&runtime, &id, true, &host).await;
+
+    // The create blocks on a FIFO and the monitor answers nothing more, a resume included.
+    let blocked = boot_directory_of(&runtime, &id).await.join("memory.bin");
+    let made = std::process::Command::new("mkfifo").arg(&blocked).status().unwrap();
+    assert!(made.success());
+    let started = std::time::Instant::now();
+    let retired = runtime.pause(&id).await.expect_err("A snapshot that never finishes fails");
+    eprintln!("VM sleep with a blocked create, after {:.1} s: {retired}", started.elapsed().as_secs_f64());
+    let after = runtime.inspect(&id).await.unwrap().unwrap();
+    assert!(!matches!(after.status, ContainerStatus::Running | ContainerStatus::Paused), "{:?}", after.status);
+    assert_eq!(after.exit_code, crate::runtime::exit_by(libc::SIGKILL));
+    runtime.start(&id).await.unwrap();
+    assert_eq!(exec(&runtime, &id, "cat /data/durable").await, b"written before sleeping");
+    assert_eq!(read(&runtime, &id, "test -e /tmp/marker && echo memory || echo cold").await, "cold");
+    runtime.stop(&id, &source_spec.stop_signal, Duration::from_secs(15)).await.unwrap();
+    runtime.remove(&id).await.unwrap();
+    assert!(fs::read_dir(runtime.state.root.join("memory")).unwrap().next().is_none());
+    server.abort();
+}
+
+/// A removal takes a guest's memory files with it, even ones its record lost.
+#[tokio::test]
+#[ignore = "requires real KVM and the verified VM archive; the VM experiments workflow runs it"]
+async fn actual_memory_goes_with_its_sandbox() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let temporary = tempfile::tempdir().unwrap();
+    let (artifact, server) = artifact_server().await;
+    let settings = Settings {
+        monitor_owner: None,
+        artifact,
+        ingress_connections: 8,
+        free_floor_bytes: 0,
+        image_timeout: Duration::from_secs(120),
+    };
+    let runtime = VmRuntime::new(temporary.path(), settings).await.unwrap();
+    let inputs: Vec<serde_json::Value> =
+        serde_json::from_str(include_str!("../../../../templates/vm-tools/image-inputs.json")).unwrap();
+    let data = temporary.path().join("data");
+    directory(&data).unwrap();
+    let id = runtime.create(&spec(&data, inputs[0]["reference"].as_str().unwrap())).await.unwrap();
+    runtime.start(&id).await.unwrap();
+    runtime.pause(&id).await.unwrap();
+    let memory = runtime.state.root.join("memory");
+    assert!(fs::read_dir(&memory).unwrap().next().is_some());
+    runtime.state.entries.lock().unwrap().get_mut(&id).unwrap().memory = None;
+    runtime.remove(&id).await.unwrap();
+    assert!(fs::read_dir(&memory).unwrap().next().is_none(), "Guest memory never outlives its sandbox");
+    server.abort();
+}
+
+/// A memory image is used once even across a crash: consumed before its restore, it is never
+/// restored by a pryxd that starts after a crash between that restore and its removal, which sweeps
+/// its files and boots the disk.
+#[tokio::test]
+#[ignore = "requires real KVM and the verified VM archive; the VM experiments workflow runs it"]
+async fn actual_memory_is_used_once_across_a_crash() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let temporary = tempfile::tempdir().unwrap();
+    let (artifact, server) = artifact_server().await;
+    let settings = Settings {
+        monitor_owner: None,
+        artifact,
+        ingress_connections: 8,
+        free_floor_bytes: 0,
+        image_timeout: Duration::from_secs(120),
+    };
+    let runtime = VmRuntime::new(temporary.path(), settings.clone()).await.unwrap();
+    let inputs: Vec<serde_json::Value> =
+        serde_json::from_str(include_str!("../../../../templates/vm-tools/image-inputs.json")).unwrap();
+    let data = temporary.path().join("data");
+    directory(&data).unwrap();
+    let original = spec(&data, inputs[0]["reference"].as_str().unwrap());
+    let id = runtime.create(&original).await.unwrap();
+    runtime.start(&id).await.unwrap();
+    exec(&runtime, &id, "printf kept > /tmp/marker; printf 'written before sleeping' > /data/durable").await;
+    runtime.pause(&id).await.unwrap();
+    let memory = runtime.state.root.join("memory");
+
+    // pryxd dies after consuming the image for a restore, before removing it.
+    let mut entry = runtime.entry(&id).unwrap();
+    let consumed = runtime.consume(&mut entry).unwrap();
+    assert!(consumed.join(super::memory::MEMORY).exists());
+    drop(runtime);
+    // The runtime's state lease is free once the last of its tasks has ended.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+    let runtime = loop {
+        match VmRuntime::new(temporary.path(), settings.clone()).await {
+            Ok(runtime) => break runtime,
+            Err(problem) if tokio::time::Instant::now() < deadline => {
+                eprintln!("VM runtime not yet free: {problem}");
+                tokio::time::sleep(Duration::from_millis(200)).await;
+            }
+            Err(problem) => panic!("{problem}"),
+        }
+    };
+    assert!(fs::read_dir(&memory).unwrap().next().is_none(), "The next start swept the consumed image");
+    let after = runtime.inspect(&id).await.unwrap().unwrap();
+    assert_ne!(after.status, ContainerStatus::Paused, "A consumed image is never asleep again");
+    let refused = runtime.unpause(&id).await.expect_err("A consumed image is never restored");
+    eprintln!("VM wake after a crash mid-restore: {refused}");
+    runtime.start(&id).await.unwrap();
+    assert_eq!(exec(&runtime, &id, "cat /data/durable").await, b"written before sleeping");
+    assert_eq!(read(&runtime, &id, "test -e /tmp/marker && echo memory || echo cold").await, "cold");
+
+    runtime.remove(&id).await.unwrap();
     server.abort();
 }

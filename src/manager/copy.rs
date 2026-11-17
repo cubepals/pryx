@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Data-copy barriers preserve block files and resume only with current authority. Callers
 //! hold the workload lock in an owned task through copying and cold resume, including errors.
-//! This does not freeze processes or claim memory sleep; ordinary file backends keep their path.
+//! A VM asleep with its memory has no monitor writing its disk: it is copied where it lies and
+//! stays asleep. This does not freeze processes; ordinary file backends keep their path.
 use super::*;
 
 struct Reservation {
@@ -25,6 +26,12 @@ impl Manager {
         if !runtime.requires_stopped_data_copy() {
             return operation.await;
         }
+        // Stopping a sleeping guest would end its memory, and starting it again would leave it
+        // running while its suspension says asleep.
+        let asleep = running
+            && self.suspension(&record.id).suspended()
+            && self.observe(record).await?.is_some_and(|info| info.status == ContainerStatus::Paused);
+        let running = running && !asleep;
         let _reservation = if running {
             self.state.lock().unwrap().copying.insert(record.id.clone());
             Some(Reservation { state: self.state.clone(), id: record.id.clone() })

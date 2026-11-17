@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
-// Generated from openapi/node-writes.openapi.json; sha256 e4b7d66aa6eaac9163bd49031b28b675c9813f2c0e9fb70b5409f7139d418f75.
+// Generated from openapi/node-writes.openapi.json; sha256 69039616afb485bf0255159fc8fe0343af855f5e0c02b0044a69f714bf30c9ef.
 export type paths = Record<string, never>;
 export type webhooks = Record<string, never>;
 export interface components {
@@ -596,6 +596,12 @@ export interface components {
             /** Format: uint64 */
             files: number;
             id: components["schemas"]["SnapshotId"];
+            /**
+             * @description Taken of a workload asleep with its memory outside it (a VM's): that memory's identity. A
+             *     fork from this snapshot on this node takes the memory too while the workload still sleeps
+             *     with it.
+             */
+            memory?: string | null;
             method: components["schemas"]["Method"];
             /** @description The workload was running, with its saving paused, when it was taken. */
             quiesced: boolean;

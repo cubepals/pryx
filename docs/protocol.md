@@ -470,8 +470,9 @@ the size it states.
 
 ### `POST /v1/workloads/{id}/restore`
 
-Body: `{ "url": "…", "sha256": "…" }` or `{ "snapshot": "<snapshot id>" }`, with the epoch header
-(exact). The workload must exist (PUT first) and be stopped.
+Body: `{ "url": "…", "sha256": "…" }`, `{ "snapshot": "<snapshot id>" }` or
+`{ "fork": { "workload": "<id>", "snapshot": "<snapshot id>" } }` (feature `local-forks`), with the
+epoch header (exact). The workload must exist (PUT first) and be stopped.
 - **From a URL**, pryxd downloads the archive to a spool file, and checks its sha256 when one is
   given, before anything changes: `422 checksum_mismatch` leaves the data alone. It unpacks into a
   fresh directory beside the data: regular files and directories only (links, devices and the like
@@ -481,6 +482,12 @@ Body: `{ "url": "…", "sha256": "…" }` or `{ "snapshot": "<snapshot id>" }`, 
   `422 invalid_archive`. An archive of several gzip members is read whole, as `gzip -d` reads it.
 - **From a snapshot** this node holds of the workload (`404 snapshot_not_found` otherwise), it
   copies the snapshot beside the data, sharing blocks where the filesystem can.
+- **A fork** reads another workload's snapshot on this node in the same way. Where that snapshot
+  was taken of a VM asleep with its memory (its `memory` is set), the VM still sleeps with that
+  memory, the fork is on the same tier, and its spec differs from its source's only in what is
+  each sandbox's own, the fork takes the memory too: its data directory gets the disk, it is
+  `suspended`, and its first start resumes the source's processes under its own identity
+  (`resumed: true`). Otherwise it copies the snapshot's disk alone.
 - **Disk.** A restore from a URL is refused up front (`507 insufficient_disk`) when free disk is
   already under `min_free_disk_mb`, or when the archive's announced length (`Content-Length`)
   wouldn't fit above it, and stopped with the same answer if free disk falls under the floor while
@@ -509,6 +516,8 @@ caller's (the control plane's archive id, a UUID; the workload-id rules apply).
   floor while it copies, or if the data's files state more than 256 GiB, as an export is.
 - The same rules as an export: a running workload only with `quiesced: true`, only the current
   copy, and the same walk that never leaves the data directory.
+- A VM asleep with its memory (`suspended`) is copied as its sleep left its disk, and stays asleep
+  with that memory; its snapshot's `memory` names it, for a fork on this node.
 - Asking again with the same id answers `200` with the snapshot already made (`created: false`).
   A snapshot interrupted by a crash has no `snapshot.json` and is redone; what it had copied is
   removed when pryxd starts, as are spool files a crash left.

@@ -38,6 +38,9 @@ export interface PlacementRequest {
   avoid?: readonly string[]
   /** The one node that may be chosen: an operator's move to a node they named. */
   only?: string
+  /** The node taken first when it fits: where a fork's snapshot lies, so neither its disk nor its
+   * memory has to cross the store (pryxd's `local-forks`). */
+  prefer?: string
 }
 
 export interface NodeView {
@@ -269,7 +272,7 @@ export function selectNode(
     if (why === null) fits.push(fit(node, request, options))
   }
   fits.sort((a, b) => compare(a, b, options))
-  const best = fits[0]
+  const best = fits.find((fit) => fit.node.id === request.prefer) ?? fits[0]
   return best === undefined ? { node: null, considered } : { node: best.node, considered }
 }
 

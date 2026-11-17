@@ -10,7 +10,8 @@
 //! - `journal.rs`: private durable specifications and conservative restart adoption.
 //! - `services.rs`: host-owned active and retained-disk file sessions.
 //! - `maintenance.rs`: leased file-only guests for stopped disks.
-//! - `memory.rs`: memory sleep and its restore on a host of the same class, and its start test.
+//! - `memory.rs`: memory sleep, its image and its start test.
+//! - `wake.rs`: a wake with memory, restored only on a host of the same class.
 //! - `fork.rs`: a fork with memory on one node, which wakes under its own identity.
 //! - `memory_acceptance.rs`: real KVM sleep and wake with a running process, and its fallbacks.
 //! - `agent.rs`: authenticated agent calls and one-shot compatibility exec.
@@ -53,6 +54,7 @@ mod services;
 mod shutdown_acceptance;
 #[cfg(test)]
 mod tests;
+mod wake;
 use super::{
     bundle::{Artifact, Bundle},
     error,
@@ -296,6 +298,7 @@ impl VmRuntime {
             super::jail::Jail::recover_all(&root.join("jails"))?;
         }
         let entries = journal::load(&root)?;
+        memory::sweep(&root.join("memory"), &entries)?;
         sweep_leases(&root.join("leases"), &entries)?;
         let monitor_ids = settings
             .monitor_owner

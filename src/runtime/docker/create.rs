@@ -5,6 +5,7 @@ use super::*;
 pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Result<String, RuntimeError> {
     let info = runtime.info().await?;
     check_engine_policy(runtime, spec, &info)?;
+    check_platform(&spec.image, &quick("inspect image", runtime.docker()?.inspect_image(&spec.image)).await?)?;
     if let Some(problem) = ownership::data_problem(runtime, &info, &spec.data_dir).await {
         return Err(RuntimeError::Other(problem));
     }
@@ -100,6 +101,28 @@ pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Res
     Ok(created.id)
 }
 
+/// This host's CPU in an image's terms: the OCI image spec's `architecture`, which takes Go's
+/// GOARCH names (image-spec config.md), for the machine pryxd itself is built for.
+fn host_architecture() -> Option<&'static str> {
+    match std::env::consts::ARCH {
+        "x86_64" => Some("amd64"),
+        "aarch64" => Some("arm64"),
+        _ => None,
+    }
+}
+
+/// An image built for another CPU would run only under an emulator, or fail at its first exec:
+/// it is refused here, naming both, rather than either in silence.
+fn check_platform(image: &str, inspected: &bollard::models::ImageInspect) -> Result<(), RuntimeError> {
+    let (Some(host), Some(built)) = (host_architecture(), inspected.architecture.as_deref()) else { return Ok(()) };
+    if built == host {
+        return Ok(());
+    }
+    Err(RuntimeError::Other(format!(
+        "{image} is built for linux/{built} and this host runs linux/{host}; pryx runs no image under emulation, so a host of its machine runs it"
+    )))
+}
+
 fn check_engine_policy(runtime: &DockerRuntime, spec: &ContainerSpec, info: &RuntimeInfo) -> Result<(), RuntimeError> {
     if let Some(problem) = &info.container_policy_problem {
         return Err(RuntimeError::Other(problem.clone()));
@@ -133,4 +156,22 @@ fn check_engine_policy(runtime: &DockerRuntime, spec: &ContainerSpec, info: &Run
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod platform_tests {
+    #[test]
+    fn an_image_of_another_machine_is_refused_by_name() {
+        let host = super::host_architecture().expect("pryx is built for x86_64 or aarch64");
+        let built = |architecture: Option<&str>| bollard::models::ImageInspect {
+            architecture: architecture.map(str::to_owned),
+            ..Default::default()
+        };
+        super::check_platform("alpine", &built(Some(host))).unwrap();
+        super::check_platform("alpine", &built(None)).unwrap();
+        let other = if host == "amd64" { "arm64" } else { "amd64" };
+        let refused = super::check_platform("ghcr.io/cubepals/pryx-tools:1", &built(Some(other))).unwrap_err();
+        assert!(refused.to_string().contains(&format!("linux/{other}")), "{refused}");
+        assert!(refused.to_string().contains(&format!("linux/{host}")), "{refused}");
+    }
 }

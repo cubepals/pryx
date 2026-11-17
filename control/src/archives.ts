@@ -14,6 +14,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { type SQL, sql } from 'drizzle-orm'
+import nodeSchema from '../../openapi/node-reads.openapi.json'
 import type { FleetStore } from './archive-transport.ts'
 import type { Db, Queryable } from './database.ts'
 import { decodeSnapshot } from './handle.ts'
@@ -22,6 +23,9 @@ import type { RestoreSource } from './runtime-model.ts'
 import { event, one, rows } from './sql.ts'
 import type { SnapshotResponse } from './wire.ts'
 import type { WorkloadApi } from './workload-api.ts'
+
+/** pryxd's feature for a restore from another workload's snapshot on its node. */
+const LOCAL_FORKS_FEATURE = nodeSchema['x-pryx-snapshots'].localForksFeature
 
 export interface ArchiveRow {
   id: string
@@ -76,7 +80,8 @@ export class Archives {
   ): Promise<{ id: string; sizeBytes: number; at: Date }> {
     const id = randomUUID()
     const view = await this.#api.view(node, key)
-    const quiesced = view.state === 'running'
+    // A suspended VM's disk is the one its sleep flushed; pryxd copies it and leaves it asleep.
+    const quiesced = view.state === 'running' || (view.state === 'suspended' && view.isolation === 'vm')
     await this.#db.execute(sql`
       INSERT INTO fleet_archives (id, workload, purpose, epoch, node_id, status, consistency, captured_at)
       VALUES (${id}, ${key}, 'snapshot', ${epoch}, ${node.id}, 'creating',
@@ -225,6 +230,36 @@ export class Archives {
         UPDATE fleet_archives SET status = 'deleted', deleted_at = now(),
           local_deleted_at = COALESCE(local_deleted_at, now())
         WHERE workload = ${key} AND status <> 'deleted'`)
+  }
+
+  /**
+   * The local copy of a snapshot of another workload, and the node holding it: where a fork from it
+   * is best placed. Null for the workload's own snapshot, an archive, or a copy no node holds.
+   */
+  async forkCopy(
+    from: RestoreSource,
+    targetWorkload: string,
+  ): Promise<{ node: string; workload: string; snapshot: string } | null> {
+    if (from.kind !== 'snapshot') return null
+    const row = await this.archiveOf(decodeSnapshot(from.snapshot).archive)
+    if (row === null || row.workload === targetWorkload || row.status === 'deleted') return null
+    if (row.node_id === null || row.local_id === null || row.local_deleted_at !== null) return null
+    return { node: row.node_id, workload: row.workload, snapshot: row.local_id }
+  }
+
+  /**
+   * A fork from another workload's snapshot, read where it lies when the node being filled holds
+   * it and takes such a restore (`local-forks`): its disk, and the memory it was taken asleep with
+   * where it was. Null otherwise; the fork then reads the copy in the store.
+   */
+  async localFork(
+    from: RestoreSource,
+    node: { id: string; features: readonly string[] },
+    targetWorkload: string,
+  ): Promise<{ fork: { workload: string; snapshot: string } } | null> {
+    if (!node.features.includes(LOCAL_FORKS_FEATURE)) return null
+    const copy = await this.forkCopy(from, targetWorkload)
+    return copy?.node === node.id ? { fork: { workload: copy.workload, snapshot: copy.snapshot } } : null
   }
 
   /**

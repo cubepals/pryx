@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
-// Generated from openapi/node-reads.openapi.json; sha256 4b3ce2622ef4e1839b49ac93c574f1c4250892e209e9c12461a4b833d9c1f6e5.
+// Generated from openapi/node-reads.openapi.json; sha256 679dd8bd304df5b860b29b8ff3a2192b1dce5b6e481ce14b976d93e941e2c245.
 export type paths = Record<string, never>;
 export type webhooks = Record<string, never>;
 export interface components {
@@ -102,6 +102,15 @@ export interface components {
         FenceRequest: {
             /** Format: uint64 */
             currentEpoch: number;
+        };
+        /**
+         * @description Another workload's snapshot on this node, for a fork. Its disk is copied; where the snapshot was
+         *     taken of that workload asleep with its memory (`SnapshotView::memory`), and it still sleeps
+         *     with that memory, the fork takes the memory too, and its first start resumes it.
+         */
+        ForkSource: {
+            snapshot: components["schemas"]["SnapshotId"];
+            workload: components["schemas"]["WorkloadId"];
         };
         HeartbeatResponse: {
             /**
@@ -227,9 +236,14 @@ export interface components {
         };
         /**
          * @description `POST /v1/workloads/{id}/restore`: replaces a stopped workload's data, from an archive at a
-         *     presigned URL or from one of its own snapshots on this node.
+         *     presigned URL, from one of its own snapshots on this node, or from another workload's (a fork).
          */
         RestoreRequest: {
+            /**
+             * @description A snapshot this node holds of another workload, instead of a URL (`local-forks`).
+             * @default null
+             */
+            fork?: components["schemas"]["ForkSource"] | null;
             /**
              * @description The archive's sha256; a download that doesn't match is refused before anything changes.
              * @default null
@@ -349,6 +363,13 @@ export interface components {
             parts?: components["schemas"]["PartsTarget"] | null;
             url: string;
         };
+        /**
+         * @description What the control plane calls a workload: the control plane's sandbox id (a UUID) in practice, but any
+         *     lowercase DNS label will do. The character set is the whole defence against path traversal
+         *     and injection: a valid id is always one safe path component, one safe container-name suffix
+         *     and one safe label value, so nothing downstream needs to escape it.
+         */
+        WorkloadId: string;
         WorkloadSpec: {
             /** @default null */
             agent?: components["schemas"]["AgentOptions"] | null;

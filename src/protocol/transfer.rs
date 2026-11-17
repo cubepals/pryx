@@ -162,7 +162,7 @@ pub struct ExportResponse {
 }
 
 /// `POST /v1/workloads/{id}/restore`: replaces a stopped workload's data, from an archive at a
-/// presigned URL or from one of its own snapshots on this node.
+/// presigned URL, from one of its own snapshots on this node, or from another workload's (a fork).
 #[derive(Clone, Deserialize, Serialize)]
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -175,6 +175,20 @@ pub struct RestoreRequest {
     /// A snapshot this node holds of the workload, instead of a URL.
     #[serde(default)]
     pub(crate) snapshot: Option<SnapshotId>,
+    /// A snapshot this node holds of another workload, instead of a URL (`local-forks`).
+    #[serde(default)]
+    pub(crate) fork: Option<ForkSource>,
+}
+
+/// Another workload's snapshot on this node, for a fork. Its disk is copied; where the snapshot was
+/// taken of that workload asleep with its memory (`SnapshotView::memory`), and it still sleeps
+/// with that memory, the fork takes the memory too, and its first start resumes it.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ForkSource {
+    pub(crate) workload: WorkloadId,
+    pub(crate) snapshot: SnapshotId,
 }
 
 /// Where a restore takes its data from: a `RestoreRequest` that names exactly one.
@@ -184,19 +198,25 @@ pub(crate) enum RestoreSource {
     Url { url: String, sha256: Option<String> },
     /// One of the workload's snapshots on this node.
     Snapshot(SnapshotId),
+    /// Another workload's snapshot on this node.
+    Fork(ForkSource),
 }
 
 impl TryFrom<RestoreRequest> for RestoreSource {
     type Error = Vec<FieldError>;
 
     fn try_from(request: RestoreRequest) -> Result<Self, Self::Error> {
-        match (request.url, request.snapshot) {
-            (Some(url), None) => Ok(Self::Url { url, sha256: request.sha256 }),
-            (None, Some(snapshot)) if request.sha256.is_none() => Ok(Self::Snapshot(snapshot)),
-            (None, Some(_)) => {
+        match (request.url, request.snapshot, request.fork) {
+            (Some(url), None, None) => Ok(Self::Url { url, sha256: request.sha256 }),
+            (None, Some(snapshot), None) if request.sha256.is_none() => Ok(Self::Snapshot(snapshot)),
+            (None, None, Some(fork)) if request.sha256.is_none() => Ok(Self::Fork(fork)),
+            (None, Some(_), None) | (None, None, Some(_)) => {
                 Err(vec![FieldError { field: "sha256".into(), problem: "is for an archive's URL".into() }])
             }
-            _ => Err(vec![FieldError { field: "url".into(), problem: "send a url or a snapshot, one of them".into() }]),
+            _ => Err(vec![FieldError {
+                field: "url".into(),
+                problem: "send a url, a snapshot or a fork, one of them".into(),
+            }]),
         }
     }
 }
@@ -208,6 +228,7 @@ impl fmt::Debug for RestoreSource {
                 f.debug_struct("Url").field("url", &redact(url)).field("sha256", sha256).finish()
             }
             Self::Snapshot(snapshot) => f.debug_tuple("Snapshot").field(snapshot).finish(),
+            Self::Fork(fork) => f.debug_tuple("Fork").field(fork).finish(),
         }
     }
 }
@@ -218,6 +239,7 @@ impl fmt::Debug for RestoreRequest {
             .field("url", &self.url.as_deref().map(redact))
             .field("sha256", &self.sha256)
             .field("snapshot", &self.snapshot)
+            .field("fork", &self.fork)
             .finish()
     }
 }
@@ -288,6 +310,11 @@ pub struct SnapshotView {
     pub quiesced: bool,
     pub spec_digest: String,
     pub duration_ms: u64,
+    /// Taken of a workload asleep with its memory outside it (a VM's): that memory's identity. A
+    /// fork from this snapshot on this node takes the memory too while the workload still sleeps
+    /// with it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub memory: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -347,5 +374,19 @@ mod tests {
             redact("https://r2.example/archives/a.tar.gz?X-Amz-Signature=secret&X-Amz-Credential=key"),
             "https://r2.example/archives/a.tar.gz"
         );
+    }
+
+    #[test]
+    fn a_restore_names_one_source_and_a_fork_names_its_workload_and_snapshot() {
+        let source = |body: serde_json::Value| {
+            RestoreSource::try_from(serde_json::from_value::<RestoreRequest>(body).unwrap()).map_err(|_| ())
+        };
+        let fork = serde_json::json!({"workload": "source", "snapshot": "0b6f1f2e-6a47-4c9a-9a39-2f4ac7e51f10"});
+        assert!(matches!(source(serde_json::json!({"fork": fork})), Ok(RestoreSource::Fork(_))));
+        assert!(source(serde_json::json!({"fork": fork, "url": "https://store.example/a"})).is_err());
+        assert!(source(serde_json::json!({"fork": fork, "snapshot": fork["snapshot"]})).is_err());
+        assert!(source(serde_json::json!({"fork": fork, "sha256": "ab"})).is_err());
+        let unknown = serde_json::json!({"fork": {"workload": "source", "snapshot": fork["snapshot"], "memory": true}});
+        assert!(serde_json::from_value::<RestoreRequest>(unknown).is_err(), "a fork names nothing else");
     }
 }

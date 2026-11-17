@@ -16,12 +16,18 @@ use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWriteExt};
 use tokio_vsock::{VMADDR_CID_HOST, VsockAddr, VsockListener, VsockStream};
 
 /// The sleep and resume exchange this init answers, as its bootstrap capabilities announce: 1 for
-/// sleep and wake, 2 once a resume can also hand a fork with memory its own identity.
-pub const VERSION: u16 = 2;
+/// sleep and wake, 2 once a resume can also hand a fork with memory its own identity, 3 once it
+/// can also hand the guest the ports of the host gateways its wake listens on, 4 once init also
+/// clears restored connection tracking before it thaws the workload onto those gateways.
+pub const VERSION: u16 = 4;
 /// The first version that sleeps and wakes.
 pub const SLEEP_VERSION: u16 = 1;
 /// The first version whose resume carries a fork's identity.
 pub const FORK_VERSION: u16 = 2;
+/// The first version whose resume carries the woken guest's gateway ports.
+pub const GATEWAY_VERSION: u16 = 3;
+/// The first version that clears connections still translated to a previous wake's gateways.
+pub const CONNECTION_VERSION: u16 = 4;
 /// Trusted init's sleep listener, beside the shutdown listener's port.
 pub const PORT: u32 = 11831;
 /// The host listener init dials once its disk is flushed; the host holds it while it snapshots.
@@ -62,7 +68,28 @@ pub struct Resume {
     /// A fork's own identity, taken in place of its source's; absent for a sleep's own wake.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub identity: Option<Identity>,
+    /// The host gateways this wake listens on, which the guest's redirects then target; absent
+    /// for a guest without a network.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gateways: Option<Gateways>,
     pub signature: String,
+}
+
+/// The host ports of a woken guest's HTTP, TLS and DNS gateways. Each wake listens anew, so they
+/// are rarely the ports the guest's memory still names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Gateways {
+    pub http: u16,
+    pub tls: u16,
+    pub dns: u16,
+}
+
+impl Gateways {
+    fn valid(&self) -> bool {
+        let ports = [self.http, self.tls, self.dns];
+        !ports.contains(&0) && ports[0] != ports[1] && ports[1] != ports[2] && ports[0] != ports[2]
+    }
 }
 
 /// A fork with memory's identity: its sandbox, epoch and agent signing key (a secret, carried on
@@ -98,9 +125,11 @@ fn request_bytes(nonce: &str, sandbox: &str, epoch: u64) -> Vec<u8> {
 
 fn resume_bytes(resume: &Resume) -> Vec<u8> {
     let fields = (RESUME_CONTEXT, &resume.nonce, &resume.sandbox, resume.epoch, &resume.now_nanos, &resume.seed);
-    match &resume.identity {
-        None => serde_json::to_vec(&fields),
-        Some(identity) => serde_json::to_vec(&(fields, identity)),
+    // What versions 1 and 2 signed stays as it was; gateways are signed after the rest.
+    match (&resume.identity, &resume.gateways) {
+        (None, None) => serde_json::to_vec(&fields),
+        (Some(identity), None) => serde_json::to_vec(&(fields, identity)),
+        (identity, Some(gateways)) => serde_json::to_vec(&(fields, identity, gateways)),
     }
     .expect("fixed resume serializes")
 }
@@ -124,10 +153,19 @@ pub fn verify(request: &Request, public_key: &str, nonce: &str, sandbox: &str, e
 
 /// A resume for this boot, signed, at `now_nanos` with `seed`'s bytes.
 pub fn resume(key: &SigningKey, nonce: &str, sandbox: &str, epoch: u64, now_nanos: i128, seed: &[u8]) -> Resume {
-    fork(key, nonce, sandbox, epoch, now_nanos, seed, None)
+    fork(key, nonce, sandbox, epoch, now_nanos, seed, Handed::default())
 }
 
-/// A resume signed by the guest's current identity that hands it `identity` too.
+/// What a resume hands the guest beside the time and the seed.
+#[derive(Clone, Default)]
+pub struct Handed {
+    /// A fork's own identity.
+    pub identity: Option<Identity>,
+    /// The ports of the gateways the wake listens on, for a guest with a network.
+    pub gateways: Option<Gateways>,
+}
+
+/// A resume signed by the guest's current identity that hands it `handed` too.
 pub fn fork(
     key: &SigningKey,
     nonce: &str,
@@ -135,7 +173,7 @@ pub fn fork(
     epoch: u64,
     now_nanos: i128,
     seed: &[u8],
-    identity: Option<Identity>,
+    handed: Handed,
 ) -> Resume {
     let mut resume = Resume {
         nonce: nonce.into(),
@@ -143,7 +181,8 @@ pub fn fork(
         epoch,
         now_nanos: now_nanos.to_string(),
         seed: URL_SAFE_NO_PAD.encode(seed),
-        identity,
+        identity: handed.identity,
+        gateways: handed.gateways,
         signature: String::new(),
     };
     resume.signature = key.sign_bytes(&resume_bytes(&resume));
@@ -158,6 +197,7 @@ pub fn verify_resume(resume: &Resume, public_key: &str, nonce: &str, sandbox: &s
         && resume.now_nanos.parse::<i128>().is_ok_and(|nanos| nanos > 0)
         && URL_SAFE_NO_PAD.decode(&resume.seed).is_ok_and(|seed| seed.len() == SEED_BYTES)
         && resume.identity.as_ref().is_none_or(Identity::valid)
+        && resume.gateways.as_ref().is_none_or(Gateways::valid)
         && auth::verify_bytes(public_key, &resume_bytes(resume), &resume.signature).is_ok()
 }
 
@@ -183,6 +223,14 @@ impl Pending {
 /// Init's held connection to the host; its end, at restore or when the host gives up, wakes init.
 pub(crate) struct Held(VsockStream);
 
+/// How a held connection ended: the host closed it, or the monitor reset every vsock connection,
+/// as a snapshot does (Firecracker queues the transport reset as it saves the devices' state).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum End {
+    Closed,
+    Reset,
+}
+
 impl Held {
     /// Dials the host's hold listener. Its peer is the host, as every vsock peer of a guest is.
     pub(crate) async fn dial() -> io::Result<Self> {
@@ -196,17 +244,18 @@ impl Held {
     /// vsock transport reset leaves the socket with only an error (ECONNRESET), which epoll
     /// reports as EPOLLERR without EPOLLIN or EPOLLHUP (af_vsock's `vsock_poll`), and tokio
     /// wakes no reader on an error alone; so the error is also looked for on a short timer.
-    pub(crate) async fn ended(&mut self) {
+    pub(crate) async fn ended(&mut self) -> End {
         let mut byte = [0u8; 1];
         loop {
             tokio::select! {
                 read = self.0.read(&mut byte) => match read {
-                    Ok(0) | Err(_) => return,
+                    Ok(0) => return End::Closed,
+                    Err(_) => return End::Reset,
                     Ok(_) => (),
                 },
                 () = tokio::time::sleep(HOLD_CHECK) => {
                     if !matches!(rustix::net::sockopt::socket_error(&self.0), Ok(Ok(()))) {
-                        return;
+                        return End::Reset;
                     }
                 }
             }
@@ -406,6 +455,31 @@ mod tests {
         let short = resume(&key, &nonce, "one", 3, 1, &[1u8; 8]);
         assert!(!verify_resume(&short, &key.public_key(), &nonce, "one", 3), "a seed has its fixed size");
         assert!(!verify_resume(&message, &key.public_key(), &nonce, "one", 4));
+    }
+
+    #[test]
+    fn a_resume_signs_its_gateways_and_keeps_what_older_ones_signed() {
+        let (key, _) = SigningKey::generate().unwrap();
+        let nonce = nonce();
+        let seed = [7u8; SEED_BYTES];
+        let gateways = Gateways { http: 41001, tls: 41002, dns: 41003 };
+        let handed = Handed { identity: None, gateways: Some(gateways) };
+        let message = fork(&key, &nonce, "one", 3, 1_800_000_000_123_456_789, &seed, handed);
+        assert!(verify_resume(&message, &key.public_key(), &nonce, "one", 3));
+        let mut moved = message.clone();
+        moved.gateways = Some(Gateways { dns: 41004, ..gateways });
+        assert!(!verify_resume(&moved, &key.public_key(), &nonce, "one", 3), "the ports are signed");
+        let mut dropped = message.clone();
+        dropped.gateways = None;
+        assert!(!verify_resume(&dropped, &key.public_key(), &nonce, "one", 3));
+        let repeated = Handed { identity: None, gateways: Some(Gateways { tls: 41001, ..gateways }) };
+        let repeated = fork(&key, &nonce, "one", 3, 1, &seed, repeated);
+        assert!(!verify_resume(&repeated, &key.public_key(), &nonce, "one", 3), "three distinct ports");
+        // A resume without gateways is signed exactly as version 2 signed it.
+        let plain = resume(&key, &nonce, "one", 3, 1, &seed);
+        let fields = (RESUME_CONTEXT, &plain.nonce, &plain.sandbox, plain.epoch, &plain.now_nanos, &plain.seed);
+        assert!(auth::verify_bytes(&key.public_key(), &serde_json::to_vec(&fields).unwrap(), &plain.signature).is_ok());
+        assert!(!serde_json::to_string(&plain).unwrap().contains("gateways"));
     }
 
     #[tokio::test]

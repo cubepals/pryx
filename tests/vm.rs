@@ -192,11 +192,16 @@ async fn lifecycle(node: &Node, index: usize, image: &str) {
     node.call("GET", &path, None, StatusCode::NOT_FOUND).await;
 }
 
-/// A suspend keeps the guest's memory, here a file on its tmpfs, and a start resumes it.
+/// A suspend keeps the guest's memory, here a file on its tmpfs, and a start resumes it. A
+/// snapshot of the sleeping guest copies its disk and leaves it asleep with that memory.
 async fn memory_sleep(node: &Node, path: &str) {
     assert_eq!(node.exec(path, &["/bin/sh", "-c", "printf kept > /tmp/marker"]).await["exitCode"], 0);
     let suspended = node.call("POST", &format!("{path}/suspend"), None, StatusCode::OK).await;
     assert_eq!(suspended["workload"]["state"], "suspended");
+    let snapshot = json!({"id":"asleep","quiesced":true});
+    node.call("POST", &format!("{path}/snapshots"), Some(snapshot), StatusCode::CREATED).await;
+    let after = node.call("GET", path, None, StatusCode::OK).await;
+    assert_eq!(after["state"], "suspended", "A snapshot leaves a sleeping guest asleep: {after}");
     let woken = node.call("POST", &format!("{path}/start"), None, StatusCode::OK).await;
     assert_eq!(woken["resumed"], true, "{woken}");
     assert_eq!(node.exec(path, &["/bin/cat", "/tmp/marker"]).await["stdout"], "kept");
@@ -308,6 +313,118 @@ async fn actual_vm_memory_wake_on_another_class_boots_the_disk() {
     let cold = node.exec(path, &["/bin/sh", "-c", "test -e /tmp/marker && echo memory || echo cold"]).await;
     assert_eq!(cold["stdout"], "cold\n");
     node.call("POST", &format!("{path}/stop"), Some(json!({})), StatusCode::OK).await;
+    node.server.cancel.cancel();
+    node.server.task.await.unwrap();
+    drop(manager);
+    distribution.abort();
+}
+
+/// A fork with memory through the node API: a snapshot of a sleeping VM names its memory, a fork
+/// restored from it on this node takes that memory and its start resumes the source's processes
+/// under the fork's own identity; a fork whose spec adds a secret copies the disk alone and boots
+/// it, and the source still wakes with its memory.
+#[tokio::test]
+#[ignore = "requires actual KVM and the verified archive; the existing optional VM CI job runs it"]
+async fn actual_vm_fork_with_memory_through_the_node_api() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let _ = tracing_subscriber::fmt().with_env_filter("pryxd::runtime::vm=info,pryxd::manager=info").try_init();
+    let root = tempfile::tempdir().unwrap();
+    let (artifact, distribution) = archive().await;
+    let descriptor = root.path().join("vm-bundle.json");
+    fs::write(&descriptor, serde_json::to_vec(&artifact).unwrap()).unwrap();
+    fs::set_permissions(&descriptor, fs::Permissions::from_mode(0o444)).unwrap();
+    let agent = input("PRYX_VM_HOST_LAUNCHER");
+    let uid = rustix::process::geteuid().as_raw().checked_add(1).unwrap();
+    let extra = format!(
+        "runtime = 'vm'\n[vm]\nbundle = '{}'\n[workloads]\nagent_binary = '{}'\nuser = '{uid}:{uid}'\nallowed_images = ['docker.io/library/alpine@']\ndefault_spare_ports = 0\n",
+        descriptor.display(),
+        agent.display()
+    );
+    let config = support::config(root.path(), &extra);
+    fs::create_dir_all(&config.state_dir).unwrap();
+    let runtime = pryxd::runtime::configured::create(&config).await.unwrap();
+    let manager = support::manager_probed(
+        root.path(),
+        runtime,
+        &extra,
+        pryxd::ports::bind_probe(vec![Ipv4Addr::LOCALHOST.into()]),
+    );
+    let report = manager.reconcile(Records::FromDisk).await;
+    assert!(report.error.is_none(), "{report:?}");
+    let pki = support::pki(root.path());
+    let client = support::client(&pki.ca, support::CLIENT);
+    let node = Node { server: support::serve(manager.clone()).await, pki, client };
+    let health = node.call("GET", "/v1/health", None, StatusCode::OK).await;
+    assert!(health["features"].as_array().unwrap().contains(&json!("local-forks")));
+    let memory_sleep = serde_json::to_value(Guarantee::MemorySleep).unwrap();
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(120);
+    while !node.call("GET", "/v1/health", None, StatusCode::OK).await["features"]
+        .as_array()
+        .unwrap()
+        .contains(&memory_sleep)
+    {
+        assert!(tokio::time::Instant::now() < deadline, "The VM tier never announced memory sleep");
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+    let images: Vec<Value> = serde_json::from_str(include_str!("../templates/vm-tools/image-inputs.json")).unwrap();
+    let mut spec = support::spec_json();
+    spec["isolation"] = "vm".into();
+    spec["image"] = images[0]["reference"].clone();
+    spec["ports"] = json!([]);
+    spec["resources"] = json!({"memoryMb":256,"cpuMillis":1000,"pidsLimit":128});
+    spec["network"] = "none".into();
+    spec["agent"] = json!({"domain":"vm.pryx.invalid","keepAlive":true});
+    let source = "/v1/workloads/vm-fork-source";
+    node.call("PUT", source, Some(spec.clone()), StatusCode::CREATED).await;
+    node.call("POST", &format!("{source}/start"), None, StatusCode::OK).await;
+    let marked = node
+        .exec(source, &["/bin/sh", "-c", "printf retained > /data/retained; printf kept > /tmp/marker; hostname"])
+        .await;
+    assert_eq!(marked["exitCode"], 0);
+    let source_host = marked["stdout"].as_str().unwrap().to_owned();
+    node.call("POST", &format!("{source}/suspend"), None, StatusCode::OK).await;
+    let snapshot = node
+        .call("POST", &format!("{source}/snapshots"), Some(json!({"id":"forked","quiesced":true})), StatusCode::CREATED)
+        .await;
+    assert!(snapshot["snapshot"]["memory"].is_string(), "A sleeping VM's snapshot names its memory: {snapshot}");
+    let from = json!({"fork": {"workload": "vm-fork-source", "snapshot": "forked"}});
+
+    // The same spec: the fork takes the memory, and its start resumes it as the fork.
+    let fork = "/v1/workloads/vm-fork-memory";
+    node.call("PUT", fork, Some(spec.clone()), StatusCode::CREATED).await;
+    node.call("POST", &format!("{fork}/restore"), Some(from.clone()), StatusCode::OK).await;
+    assert_eq!(node.call("GET", fork, None, StatusCode::OK).await["state"], "suspended");
+    let woken = node.call("POST", &format!("{fork}/start"), None, StatusCode::OK).await;
+    assert_eq!(woken["resumed"], true, "{woken}");
+    let inside = node.exec(fork, &["/bin/sh", "-c", "cat /tmp/marker /data/retained; echo; hostname"]).await;
+    let stdout = inside["stdout"].as_str().unwrap();
+    assert!(stdout.starts_with("keptretained\n"), "The fork runs from the source's memory: {stdout}");
+    assert_ne!(stdout.lines().nth(1).unwrap_or_default(), source_host.trim(), "The fork has its own hostname");
+
+    // A spec with a secret the source never had: the disk alone, booted.
+    let mut secret = spec.clone();
+    secret["secrets"] = json!({"FORK_ONLY":"new"});
+    let cold = "/v1/workloads/vm-fork-cold";
+    node.call("PUT", cold, Some(secret), StatusCode::CREATED).await;
+    node.call("POST", &format!("{cold}/restore"), Some(from), StatusCode::OK).await;
+    assert_ne!(node.call("GET", cold, None, StatusCode::OK).await["state"], "suspended");
+    let booted = node.call("POST", &format!("{cold}/start"), None, StatusCode::OK).await;
+    assert_ne!(booted["resumed"], true, "{booted}");
+    let inside = node
+        .exec(
+            cold,
+            &["/bin/sh", "-c", "cat /data/retained; test -e /tmp/marker && echo memory || echo cold; echo $FORK_ONLY"],
+        )
+        .await;
+    assert_eq!(inside["stdout"], "retainedcold\nnew\n");
+
+    // Forked twice, the source still sleeps with its memory and wakes with it.
+    let woken = node.call("POST", &format!("{source}/start"), None, StatusCode::OK).await;
+    assert_eq!(woken["resumed"], true, "{woken}");
+    assert_eq!(node.exec(source, &["/bin/cat", "/tmp/marker"]).await["stdout"], "kept");
+    for path in [fork, cold, source] {
+        node.call("POST", &format!("{path}/stop"), Some(json!({})), StatusCode::OK).await;
+    }
     node.server.cancel.cancel();
     node.server.task.await.unwrap();
     drop(manager);

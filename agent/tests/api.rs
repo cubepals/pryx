@@ -212,6 +212,42 @@ async fn file_urls_are_bound_to_one_path_method_and_short_expiry() {
     }
 }
 
+/// A VM fork with memory answers as its own sandbox once init hands it its identity; the file URLs
+/// it gives out are signed as that identity too, so its own authentication takes them.
+#[tokio::test]
+async fn a_forks_file_urls_are_signed_as_the_fork() {
+    let (dir, agent, _) = fixture().await;
+    std::fs::write(dir.path().join("message"), b"hello").unwrap();
+    let (key, _) = SigningKey::generate().unwrap();
+    *agent.forked.write().unwrap() = Some(Arc::new(pryx_agent::context::Forked {
+        sandbox: "fork".into(),
+        epoch: 2,
+        public_key: key.public_key(),
+        key,
+    }));
+    let token = agent.as_identity(|sandbox, epoch, key, _| {
+        key.sign(&Claims {
+            sandbox: sandbox.into(),
+            epoch,
+            issued_at: now(),
+            expires_at: now() + TOKEN_LIFETIME_SECONDS,
+            scope: Scope::Sandbox,
+            max_ports: 3,
+            max_exec_seconds: Some(10),
+            file: None,
+        })
+        .unwrap()
+    });
+    let (status, grant) =
+        call(&agent, &token, "POST", "/_pryx/files/token", json!({"path":"message","method":"GET"})).await;
+    assert_eq!(status, StatusCode::OK, "{grant}");
+    let url = grant["url"].as_str().unwrap();
+    let response =
+        router(agent.clone()).oneshot(Request::builder().uri(url).body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK, "The fork takes the file URL it gave");
+    assert_eq!(response.into_body().collect().await.unwrap().to_bytes(), "hello");
+}
+
 async fn call(agent: &Arc<Agent>, token: &str, method: &str, path: &str, body: Value) -> (StatusCode, Value) {
     let response = router(agent.clone())
         .oneshot(

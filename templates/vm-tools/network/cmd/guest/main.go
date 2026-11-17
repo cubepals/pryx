@@ -32,6 +32,7 @@ func run() error {
 	address := flag.String("address", "", "optional host-selected static IPv4 prefix")
 	gateway := flag.String("gateway", "", "optional host-selected static gateway and resolver")
 	loopbackOnly := flag.Bool("loopback-only", false, "Bring up only guest loopback and exit")
+	resetConnections := flag.Bool("reset-connections", false, "Discard the restored guest's old connection tracking")
 	iface := flag.String("iface", "", "Trusted guest interface")
 	mac := flag.String("mac", "", "Host-selected guest MAC")
 	mtu := flag.Int("mtu", 0, "Host-selected MTU")
@@ -47,6 +48,9 @@ func run() error {
 	}
 	if os.Geteuid() != 0 || os.Getppid() != 1 {
 		return fmt.Errorf("Guest network setup requires trusted VM init")
+	}
+	if *resetConnections {
+		return netlink.ConntrackTableFlush(netlink.ConntrackTable)
 	}
 	// Linux networking documents lo as the initial namespace loopback interface.
 	loopback, err := netlink.LinkByName("lo")

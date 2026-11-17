@@ -49,7 +49,7 @@ export class Rehoming {
   >
   readonly #archives: Pick<
     Archives,
-    'archiveOf' | 'discardExport' | 'source' | 'fromStore' | 'forgetNodeCopies'
+    'archiveOf' | 'discardExport' | 'source' | 'fromStore' | 'forgetNodeCopies' | 'forkCopy' | 'localFork'
   >
   readonly #transfers: Pick<Transfers, 'exportForMove' | 'tooBigToMove' | 'uploadBeforeDelete' | 'stored'>
   readonly #provider: string
@@ -61,7 +61,10 @@ export class Rehoming {
     ledger: Pick<Ledger, 'current' | 'nodeOf' | 'settle' | 'dropMoveRequest'>
     choice: Pick<NodeChoice, 'request' | 'choose'>
     admission: Pick<Admission, 'put' | 'power' | 'startOn' | 'claimMoved' | 'lookAgain' | 'claim' | 'unclaim'>
-    archives: Pick<Archives, 'archiveOf' | 'discardExport' | 'source' | 'fromStore' | 'forgetNodeCopies'>
+    archives: Pick<
+      Archives,
+      'archiveOf' | 'discardExport' | 'source' | 'fromStore' | 'forgetNodeCopies' | 'forkCopy' | 'localFork'
+    >
     transfers: Pick<Transfers, 'exportForMove' | 'tooBigToMove' | 'uploadBeforeDelete' | 'stored'>
     provider: string
     log: (message: string, fields?: object) => void
@@ -90,6 +93,8 @@ export class Rehoming {
   ): Promise<RuntimeHandle> {
     const ref = decodeHandle(handle)
     await progress.step('storage')
+    // A fork goes where its snapshot lies when that node fits it.
+    const prefer = (await this.#archives.forkCopy(from, ref.key))?.node ?? null
     const plan = await this.#db.transaction(async (t) => {
       const row = await placementOf(t, ref.key, true)
       if (row === null) throw new Error(`Nothing is placed for ${ref.key}`)
@@ -109,6 +114,8 @@ export class Rehoming {
         spec,
         row.region_key,
         row.state === 'displaced' && row.node_id ? [row.node_id] : [],
+        null,
+        prefer,
       )
       if (row.state === 'placed' && row.node_id !== null) {
         const to = {
@@ -171,7 +178,9 @@ export class Rehoming {
         node = await this.#ledger.nodeOf(again.node_id)
       }
     }
-    if (from.kind === 'snapshot') {
+    // A fork on the node holding its snapshot reads it there; any other needs the stored copy.
+    const local = await this.#archives.localFork(from, node, ref.key)
+    if (from.kind === 'snapshot' && local === null) {
       const snapshot = decodeSnapshot(from.snapshot)
       if (snapshot.key !== ref.key) await this.#transfers.stored(snapshot.archive)
     }
@@ -179,7 +188,7 @@ export class Rehoming {
       node,
       ref.key,
       epoch,
-      await this.#archives.source(from, node.id, ref.key),
+      local ?? (await this.#archives.source(from, node.id, ref.key)),
     )
     const fresh = await this.#ledger.settle(ref.key, node, epoch, ensured.workload)
     await progress.handle(fresh)

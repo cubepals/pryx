@@ -30,6 +30,7 @@ import { createProviders } from './providers.ts'
 import { createPublicApi } from './public-api.ts'
 import { FleetRuntime } from './runtime-engine.ts'
 import { Sandboxes } from './sandboxes.ts'
+import { servedMachine } from './served-machine.ts'
 import { S3ArchiveStore } from './store.ts'
 import { StoreLeaseAuthority } from './store-lease.ts'
 import { S3LeaseBucket } from './store-lease-bucket.ts'
@@ -125,12 +126,18 @@ export async function startControl(
     config.providerSealKey,
     config.providerImages,
   )
+  const joinable = await servedMachine(config.pryxdBin, config.agentBin)
+  if (joinable === null && config.autoscale.enabled)
+    console.error(
+      'autoscale: the served pryxd is missing, or the served agent is for another machine; no host is ordered',
+    )
   const scaling = new Autoscale(
     db,
     sandboxes,
     hosts,
     { ...config.autoscale, cpuMillisPerGb: config.cpuMillisPerGb },
     thresholds,
+    joinable,
   )
   sandboxes.placement = {
     refused: (region, spec) => scaling.refused(region, spec),

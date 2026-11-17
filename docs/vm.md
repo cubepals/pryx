@@ -192,8 +192,10 @@ list narrows the tier with it, and adds prefixes there for other images, as for 
 - **Sleep with memory**, for an ordinary user's tier. At start, pryxd sleeps and wakes a
   file-only guest on a scratch disk; once that passes, the tier reports `memory-sleep` and
   control's sleep suspends instead of stopping. A suspend asks the guest's init, with a request
-  signed for that boot, to flush its disk and hold a connection to the host; the monitor is then
-  paused, writes a full snapshot of its state and memory, and exits. The two files go into
+  signed for that boot, to freeze its workload's cgroup, flush its disk and hold a connection to
+  the host; the monitor is then paused, writes a full snapshot of its state and memory, and exits.
+  The workload runs again only once a resume has stepped the clock, reseeded it and brought its
+  network back, or once the host gives the sleep up. The two files go into
   pryxd's private state for the VM tier, owned by pryxd's user and readable by no one else, as
   the disk is; they never go into a snapshot, an export, a rest or a transfer.
 - **Wake with memory** restores that snapshot on the same node, when the host's class still
@@ -201,24 +203,33 @@ list narrows the tier with it, and adds prefixes there for other images, as for 
   recorded at sleep, and the disk is the very file the sleep left. Processes, terminals and
   `/tmp` carry on. The monitor's vsock reset ends init's held connection; init then takes a
   signed resume from the host, steps the wall clock to the host's, mixes host entropy into its
-  pool, starts its network helper again and reopens its sleep listener. Open TCP connections
-  don't survive. A host of another class, a changed disk or a restore that fails is never
+  pool, points its redirects at the gateways this wake listens on (their ports are new, and the
+  resume names them), starts its network helper again and reopens its sleep listener. Open TCP
+  connections don't survive. A host of another class, a changed disk or a restore that fails is never
   retried: the memory is discarded, the guest boots from its disk with everything written before
   the sleep, and the start answers `resumed: false`. Memory never leaves its node, so a wake
   anywhere else is a cold boot.
 - **Sleep** without memory (root's VM worker, or before the start test passes) stops the guest
   and keeps its disk. **Wake** boots it again from that disk, on an API call or a held edge
   connection. A suspend request is refused, and control takes the stop path without asking.
-- A file session, a copy or a cold boot of a guest asleep with memory discards that memory
-  first; stopping it ends the memory as a kill would. Differential snapshots are not used: their
+- A file session or a cold boot of a guest asleep with memory discards that memory first;
+  stopping it ends the memory as a kill would. A snapshot or an export of it copies its disk as
+  the sleep flushed it, unrepaired (a boot of the copy checks it first), and leaves it asleep
+  with its memory. Removing a sandbox removes its memory, and
+  pryxd's start removes any memory file no sandbox's record names. Differential snapshots are not used: their
   upstream calls them a preview.
 - **Fork with memory**, on one node: a guest asleep with its memory gives a new sandbox a copy of
   its disk and the same memory file, and the fork wakes running the source's processes under its
   own sandbox, agent key, boot nonce and hostname, which its resume hands it before its agent
   serves anything. Its init then has the kernel rekey its random generator from host entropy, so
   each fork draws random bytes of its own (the pinned kernel has no VM generation ID driver). A
-  fork keeps the source's image, sizes, mounts, user and network. Across nodes a fork copies the
-  disk, as before.
+  fork keeps everything of its source's spec the memory holds: image, sizes, mounts, user,
+  network, variables, secrets and ports. Through the APIs it is a fork from a snapshot: control
+  snapshots a sleeping VM sandbox without waking it (the snapshot names the memory), places a fork
+  from that snapshot on the node that holds it when that node has room, and the node's restore
+  (`fork`, feature `local-forks`) takes the memory too while the source still sleeps with it and
+  the fork's spec differs only in what is each sandbox's own; the fork's first start then resumes
+  (`resumed: true`). Any other fork, and every fork on another node, copies the disk and boots it.
 - **Stop** sends the guest's init a signed request over vsock, carrying the spec's stop grace.
   Init stops the workload with SIGTERM or SIGINT (other stop signals are refused), gives it that
   whole grace before killing what remains, remounts its disks read-only and flushes them, then
@@ -269,7 +280,8 @@ output's admitted size.
 - No KVM, no tier: there is no emulation, and the tier is x86_64 only.
 - Root nodes serve the tier only through the VM worker.
 - Memory sleep is for an ordinary user's tier, restored only on the same node and host class.
-  Snapshots and exports of a running VM restart it, and fork copies the disk, not memory.
+  Snapshots and exports of a running VM restart it. A fork copies the disk, and takes the memory
+  too only from a snapshot of a VM asleep with it, on that VM's node.
 - CPU is whole vCPUs: `cpuMillis` must be a multiple of 1000, and one vCPU is given without
   it. CPU weights are refused.
 - Memory is whole MiB, the guest's RAM. The monitor's own memory on the host is outside it.
