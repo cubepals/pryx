@@ -86,10 +86,13 @@ async fn the_memory_limit_is_hard_and_an_oom_kill_is_reported() {
         m.ensure(id(&name), spec, Precondition::None, None).await.unwrap();
         m.start(id(&name), None).await.unwrap();
         let deadline = Instant::now() + Duration::from_secs(30);
+        let observation =
+            super::oom_observer::Capture::begin(m.view(&id(&name)).unwrap().locate.container_id, deadline);
         loop {
             m.stats(&id(&name)).await.ok();
             let view = m.view(&id(&name)).unwrap();
             if view.exit.is_some() || Instant::now() >= deadline {
+                observation.finish();
                 if !view.exit.as_ref().is_some_and(|exit| exit.oom_killed) {
                     failure_evidence(view.locate.container_id.as_deref()).await;
                 }

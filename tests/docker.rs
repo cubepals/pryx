@@ -15,6 +15,9 @@
 //! - `engine_sleep.rs`: memory-sleep refusal and retained bytes through cold wake.
 //! - `engine.rs`: real engine limit refusals and explicit memory acceptance.
 //! - `oom.rs`: real engine memory bounds and OOM reporting.
+//! - `oom_observer.rs`: bounded diagnostic sampling for the existing OOM test.
+//! - `oom_owner.rs`: read-only PID and cgroup binding for that diagnostic.
+//! - `oom_fields.rs`: bounded kernel-field parsers for that diagnostic.
 //! - `gvisor.rs`: the gvisor tier beside containers; `PRYX_TEST_GVISOR` runs the suite on it.
 
 #[path = "docker/engine.rs"]
@@ -27,6 +30,12 @@ mod engine_sleep;
 mod gvisor;
 #[path = "docker/oom.rs"]
 mod oom;
+#[path = "docker/oom_fields.rs"]
+mod oom_fields;
+#[path = "docker/oom_observer.rs"]
+mod oom_observer;
+#[path = "docker/oom_owner.rs"]
+mod oom_owner;
 mod support;
 
 use std::net::TcpListener;
