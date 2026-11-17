@@ -4,6 +4,62 @@ use super::*;
 
 #[tokio::test]
 #[ignore = "needs Docker"]
+async fn repeated_normal_exit_inspections_do_not_wait_for_future_events() {
+    use bollard::models::{ContainerCreateBody, HostConfig};
+    use bollard::query_parameters::CreateContainerOptionsBuilder;
+    use futures_util::StreamExt;
+
+    let dep = deployment();
+    let _cleanup = Cleanup(dep.clone());
+    let socket = DockerConfig::default().socket;
+    let runtime = gvisor::engine_runtime(&socket);
+    runtime.info().await.unwrap();
+    let image = "alpine:3.22";
+    runtime.ensure_image(image, Duration::from_secs(120)).await.unwrap();
+    let engine = bollard::Docker::connect_with_unix(socket.to_str().unwrap(), 60, bollard::API_DEFAULT_VERSION)
+        .unwrap()
+        .negotiate_version()
+        .await
+        .unwrap();
+    let name = format!("normal-exit-{dep}");
+    let options = CreateContainerOptionsBuilder::new().name(&name).build();
+    let made = engine
+        .create_container(
+            Some(options),
+            ContainerCreateBody {
+                image: Some(image.into()),
+                cmd: Some(vec!["/bin/sh".into(), "-c".into(), "exit 0".into()]),
+                labels: Some([(LABEL_DEPLOYMENT.to_owned(), dep)].into_iter().collect()),
+                host_config: Some(HostConfig {
+                    network_mode: Some("none".into()),
+                    runtime: gvisor::on_gvisor().then(|| pryxd::runtime::docker::GVISOR_RUNTIME.into()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    engine.start_container(&made.id, None).await.unwrap();
+    let exit = engine.wait_container(&made.id, None).next().await.unwrap().unwrap();
+    assert_eq!(exit.status_code, 0);
+    // Four future-second history reads take at least three seconds even for one unchanged
+    // normal exit. This budget covers ordinary local API work without waiting on that timer.
+    let observed = tokio::time::timeout(Duration::from_secs(2), async {
+        for _ in 0..4 {
+            let info = serde_json::to_value(runtime.inspect(&made.id).await.unwrap().unwrap()).unwrap();
+            assert_eq!(info["id"], made.id);
+            assert_eq!(info["status"], serde_json::to_value(pryxd::runtime::ContainerStatus::Exited).unwrap());
+            assert_eq!(info["exit_code"], 0);
+            assert_eq!(info["oom_killed"], false, "normal exits never become OOM evidence");
+        }
+    })
+    .await;
+    assert!(observed.is_ok(), "normal-exit inspection waited for future event cutoffs");
+}
+
+#[tokio::test]
+#[ignore = "needs Docker"]
 async fn the_memory_limit_is_hard_and_an_oom_kill_is_reported() {
     let dir = tempfile::tempdir().unwrap();
     let dep = deployment();

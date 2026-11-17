@@ -5084,3 +5084,19 @@ job when publication is authorized. That job has not run in this task.
   workspace/all-target Clippy, formatting and all three structure checks pass. Local Docker lacks
   controller enforcement, so no local hard-OOM integration pass is claimed; exact-head hosted proof
   and final review remain required.
+
+- OOM history latency: review of source 425497b found that the next-second cutoff waited again
+  on every unchanged normal exit. Moby v28.0.4's HTTP parser accepts numeric seconds.nanoseconds;
+  its past-only event path immediately returns history. Real local Docker 29.9.2 confirms both
+  inclusion at an exact event timestamp and exclusion one nanosecond later. Three owned normally
+  exited containers take 1.272 seconds with the old future bounds and 0.006 seconds with current
+  fractional bounds; all three were removed. The production cutoff now uses that finite current
+  instant, preserving exact generation/event scope and the same-start owner confirmation without
+  negative caching. A real-engine regression repeats four normal-exit inspections under two
+  seconds; the old path needs at least three seconds. That identical actual DockerRuntime control
+  fails the old production code at the intended bound and passes this source in 0.33 seconds,
+  including fixture setup and cleanup; neither run leaves a fixture. All seven existing OOM
+  regressions pass. Full locked Rust records 581 passes and 54 ignored tests with only the four
+  unchanged vm_monitor Landlock ABI failures; both strict Clippy modes, formatting and all three
+  structure checks pass. Final hosted proof remains pending; no local physical-OOM proof is
+  claimed on this engine without cgroup enforcement.

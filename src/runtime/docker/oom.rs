@@ -64,11 +64,12 @@ impl Observations {
         // Preserve this run's proof even if a concurrent restart replaces the shared cache.
         let mut reported = self.reported(info);
         if !reported && let Some(start) = info.started_at {
-            // Engine HTTP event bounds are Unix timestamps (Moby's time.ParseTimestamps),
-            // unlike the CLI's date parser. Cover the current second; an engine can wait at
-            // most one extra second to close this finite stream. Exact run scoping stays above.
+            // Moby's time.ParseTimestamps accepts numeric seconds.nanoseconds. Keep this
+            // cutoff in the past when it reaches the engine: a future bound makes every
+            // ordinary stopped container wait. Exact run scoping stays above.
             let since = start.unix_timestamp().to_string();
-            let until = OffsetDateTime::now_utc().unix_timestamp().saturating_add(1).to_string();
+            let now = OffsetDateTime::now_utc();
+            let until = format!("{}.{:09}", now.unix_timestamp(), now.nanosecond());
             let filter = HashMap::from([
                 ("type".to_owned(), vec!["container".to_owned()]),
                 ("container".to_owned(), vec![info.id.clone()]),
@@ -225,7 +226,16 @@ mod tests {
                     let bounds = url
                         .query_pairs()
                         .filter(|(key, _)| key == "since" || key == "until")
-                        .map(|(key, value)| value.parse::<i64>().map(|value| (key.into_owned(), value)))
+                        .map(|(key, value)| {
+                            // Moby's numeric HTTP format retains nanoseconds; RFC3339 is
+                            // accepted by the CLI parser, not this endpoint.
+                            let (seconds, nanos) = value.split_once('.').unwrap_or((&value, "0"));
+                            let seconds = seconds.parse::<i64>()?;
+                            let nanos = format!("{nanos:0<9}").parse::<i64>()?;
+                            let at = OffsetDateTime::from_unix_timestamp(seconds).unwrap()
+                                + time::Duration::nanoseconds(nanos);
+                            Ok::<_, std::num::ParseIntError>((key.into_owned(), at))
+                        })
                         .collect::<Result<HashMap<_, _>, _>>();
                     let bounds = match bounds {
                         Ok(bounds) => bounds,
@@ -246,8 +256,7 @@ mod tests {
                         time_nano: Some(stamp.unix_timestamp_nanos() as i64),
                         ..Default::default()
                     };
-                    let included = stamp >= OffsetDateTime::from_unix_timestamp(bounds["since"]).unwrap()
-                        && stamp <= OffsetDateTime::from_unix_timestamp(bounds["until"]).unwrap();
+                    let included = stamp >= bounds["since"] && stamp <= bounds["until"];
                     let body = if included { serde_json::to_string(&event).unwrap() + "\n" } else { String::new() };
                     body.into_response()
                 } else {
