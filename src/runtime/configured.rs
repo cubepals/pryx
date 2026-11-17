@@ -179,7 +179,7 @@ async fn auto(config: &Config) -> anyhow::Result<Construction> {
 }
 
 fn container(config: &Config, socket: &std::path::Path) -> anyhow::Result<DockerRuntime> {
-    let mut docker = DockerRuntime::new(socket)?.with_native_tools(
+    let mut docker = DockerRuntime::new(socket)?.with_oom_journal(&config.state_dir).with_native_tools(
         config.docker.native_tools_seccomp.as_deref(),
         config.docker.native_fuse,
         config.docker.native_tools_apparmor.as_deref(),

@@ -9,9 +9,11 @@
 //!
 //! Parts (`docker/`):
 //! - `egress.rs`: firewall-gated hostname bridges and gateways.
-//! - `start.rs`: container start and lost-response observation.
-//! - `remove.rs`: container removal and owned cleanup.
-//! - `oom.rs`: container/start-scoped authenticated OOM evidence.
+//! - `oom.rs`: container/start-scoped authenticated Docker OOM evidence.
+//! - `oom_journal.rs`: durable systemd invocation binding and OOM receipts.
+//! - `oom_journal/`: bounded journal authority, receipt storage and causal controls.
+//! - `start.rs`: one engine mutation with durable generation binding.
+//! - `remove.rs`: container retirement and owned receipt cleanup.
 //! - `ownership.rs`: read-only proof of host data identity mapping.
 //! - `podman.rs`: native Netavark isolation and hardened container creation.
 //! - `network.rs`: engine bridge creation and isolation observation.
@@ -38,6 +40,7 @@ pub use gvisor::{EXEC_TIMEOUT_PROBLEM, GVISOR_MISSING_PROBLEM, GVISOR_RUNTIME, p
 mod native_tools;
 mod network;
 mod oom;
+mod oom_journal;
 pub(crate) mod ownership;
 mod podman;
 #[cfg(test)]
@@ -124,6 +127,7 @@ pub struct DockerRuntime {
     native_tools: native_tools::Policy,
     pub(super) ownership: ownership::Policy,
     oom: oom::Observations,
+    oom_journal: Option<oom_journal::Context>,
     oci_runtime: Option<&'static str>, // gvisor: every container made and seen uses this runtime
 }
 
@@ -180,6 +184,7 @@ impl DockerRuntime {
             native_tools: Default::default(),
             ownership: Default::default(),
             oom: Default::default(),
+            oom_journal: None,
             oci_runtime: None,
         })
     }
@@ -569,7 +574,7 @@ impl ContainerRuntime for DockerRuntime {
     }
 
     async fn start(&self, name: &str) -> Result<(), RuntimeError> {
-        self.start_owned(name).await
+        start::start(self, name).await
     }
     async fn stop(&self, name: &str, signal: &str, grace: Duration) -> Result<(), RuntimeError> {
         gvisor::thaw_for_stop(self, self.oci_runtime, name).await?;
@@ -625,7 +630,7 @@ impl ContainerRuntime for DockerRuntime {
     }
 
     async fn remove(&self, name: &str) -> Result<(), RuntimeError> {
-        self.remove_owned(name).await
+        remove::remove(self, name).await
     }
 
     async fn inspect(&self, name: &str) -> Result<Option<ContainerInfo>, RuntimeError> {
@@ -635,10 +640,17 @@ impl ContainerRuntime for DockerRuntime {
                 self.egress.restore(self, &inspect).await?;
                 self.relays.ensure(&inspect).await?;
                 let mut info = info_from(inspect);
-                let docker_history =
-                    self.oci_runtime.is_some() || self.info.lock().unwrap().as_ref().is_some_and(|info| !info.podman);
+                let journal = self.journal_context();
+                let docker_history = self.oci_runtime.is_some()
+                    || journal.is_some()
+                    || self.info.lock().unwrap().as_ref().is_some_and(|info| !info.podman);
                 if docker_history {
                     self.oom.inspect(&self.docker()?, &mut info).await?;
+                    if let Some(journal) = journal
+                        && journal.inspect(self, &mut info).await.is_err()
+                    {
+                        tracing::debug!("native journal OOM evidence is unknown");
+                    }
                 }
                 Ok(Some(info))
             }

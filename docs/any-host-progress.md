@@ -5122,6 +5122,34 @@ job when publication is authorized. That job has not run in this task.
   structure checks pass. Final hosted proof remains pending; no local physical-OOM proof is
   claimed on this engine without cgroup enforcement.
 
+- Docker OOM cause follow-up: the generic runc-v2 shim used by default Docker and gVisor reopens memory.events after its
+  notification, while systemd can already have removed the empty scope; Docker then retains
+  neither the kernel count nor an OOM event. systemd's maintained unit_check_oom reads that
+  counter before pruning and emits UNIT_OUT_OF_MEMORY with the unit invocation. The optional
+  native journal supplement now binds that receipt through journalctl's Synchronize barrier,
+  current host boot and monotonic processing timestamps, a durable pending operation and one
+  immutable-ID Docker start. It never joins realtime timestamps or falls back to an older
+  invocation when the current start is missing, suppressed or ambiguous. Ordinary Docker
+  evidence remains available on rootless and non-systemd hosts. Private receipt corruption
+  refuses a new transaction when invalidation cannot be made durable. Every managed attempt
+  first tombstones its prior proof, even without capture; a successful or ambiguous start
+  clears that proof when realtime reuses StartedAt. Source/API controls cover
+  missing engine evidence, clock rollback, queued old starts, generation changes, failed starts,
+  confirmed-binding recovery, unknown crash gaps/journals, malformed records, authority and receipt retirement. The
+  physical acceptance keeps all ten gVisor OOM trials and a fresh backend after each, using the
+  same private state root. Each fresh backend on both Docker tiers reads the real engine through an owned
+  read-only facade that erases only its OOM flag/history, so the positive must come from the
+  production journal path. The real SIGKILL negative uses the same evidence-loss facade, and
+  the normal-exit timing case confirms a real journal binding before its four inspections. Local physical
+  OOM and hosted acceptance are not claimed. The default Docker step in [CI 44165714360,
+  job 134331274074](https://github.com/cubepals/pryx/actions/runs/44165714360/job/134331274074)
+  also exited with the SIGKILL status and no Docker OOM evidence before reaching the gVisor
+  step; the same source-supported shim observation window applies to both tiers, so configured
+  Docker now uses the same optional supplement for start, inspect and receipt retirement.
+  Podman and direct callers without a context retain their paths. The prior failure's raw kernel counter was not
+  retained, so its individual physical cause remains unproven. No dependency or CI job is added;
+  the SIGKILL control and bounded late-publication reads add under one estimated CI minute.
+
 - K27, this session's runs. The memory-sleep restores of VM experiments
   [43792483310](https://github.com/cubepals/pryx/actions/runs/43792483310) (`ad269de`) all timed out
   waiting for the guest's resume after a working snapshot: a restore's vsock reset leaves init's held

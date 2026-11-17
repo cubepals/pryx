@@ -15,6 +15,7 @@
 //! - `engine_sleep.rs`: memory-sleep refusal and retained bytes through cold wake.
 //! - `engine.rs`: real engine limit refusals and explicit memory acceptance.
 //! - `oom.rs`: real engine memory bounds and OOM reporting.
+//! - `oom_engine.rs`: read-only real-engine OOM evidence loss for causal journal acceptance.
 //! - `gvisor.rs`: the gvisor tier beside containers; `PRYX_TEST_GVISOR` runs the suite on it.
 
 #[path = "docker/engine.rs"]
@@ -27,6 +28,8 @@ mod engine_sleep;
 mod gvisor;
 #[path = "docker/oom.rs"]
 mod oom;
+#[path = "docker/oom_engine.rs"]
+mod oom_engine;
 mod support;
 
 use std::net::TcpListener;
@@ -169,7 +172,8 @@ fn extra(deployment: &str) -> String {
 
 fn daemon(dir: &std::path::Path, dep: &str) -> Arc<Manager> {
     let probe = pryxd::ports::bind_probe(vec!["127.0.0.1".parse().unwrap()]);
-    let manager = manager_probed(dir, docker(), &extra(dep), probe);
+    let runtime = gvisor::engine_runtime(&DockerConfig::default().socket).with_oom_journal(dir);
+    let manager = manager_probed(dir, Arc::new(runtime), &extra(dep), probe);
     // As `serve` does: pryxd, not Docker, applies restart policies.
     tokio::spawn(manager.clone().restart_supervisor(tokio_util::sync::CancellationToken::new()));
     manager
