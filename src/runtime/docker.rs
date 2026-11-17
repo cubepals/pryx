@@ -9,6 +9,8 @@
 //!
 //! Parts (`docker/`):
 //! - `egress.rs`: firewall-gated hostname bridges and gateways.
+//! - `start.rs`: container start and lost-response observation.
+//! - `remove.rs`: container removal and owned cleanup.
 //! - `oom.rs`: container/start-scoped authenticated OOM evidence.
 //! - `ownership.rs`: read-only proof of host data identity mapping.
 //! - `podman.rs`: native Netavark isolation and hardened container creation.
@@ -41,6 +43,8 @@ mod podman;
 #[cfg(test)]
 mod policy_tests;
 mod relay;
+mod remove;
+mod start;
 mod termination;
 use container::{body_of, info_from};
 
@@ -565,19 +569,7 @@ impl ContainerRuntime for DockerRuntime {
     }
 
     async fn start(&self, name: &str) -> Result<(), RuntimeError> {
-        if let Err(error) = quick("start", self.docker()?.start_container(name, None)).await {
-            // A lost response does not undo Docker's mutation. Confirm its current state once;
-            // never issue a second start, and preserve the timeout unless it is already running.
-            if matches!(error, RuntimeError::Timeout(_))
-                && matches!(self.inspect(name).await, Ok(Some(info)) if info.status == ContainerStatus::Running)
-            {
-                tracing::warn!("confirmed running after Docker start timeout without repeating start");
-                return Ok(());
-            }
-            return Err(error);
-        }
-        self.inspect(name).await?;
-        Ok(())
+        self.start_owned(name).await
     }
     async fn stop(&self, name: &str, signal: &str, grace: Duration) -> Result<(), RuntimeError> {
         gvisor::thaw_for_stop(self, self.oci_runtime, name).await?;
@@ -633,29 +625,7 @@ impl ContainerRuntime for DockerRuntime {
     }
 
     async fn remove(&self, name: &str) -> Result<(), RuntimeError> {
-        self.relays.stop(name).await;
-        let network = if self.info.lock().unwrap().as_ref().is_some_and(|info| info.podman) {
-            self.inspect(name).await?.and_then(|info| info.labels.get(podman::NETWORK_LABEL).cloned())
-        } else {
-            None
-        };
-        // v: anonymous volumes an image declares go with the container instead of leaking; the
-        // workload's data is a bind mount, which removal never touches.
-        let options = RemoveContainerOptionsBuilder::new().force(true).v(true).build();
-        match quick("remove", self.docker()?.remove_container(name, Some(options))).await {
-            Err(RuntimeError::NotFound(_)) | Ok(()) => {
-                self.oom.forget(name);
-                self.egress.stop(self, name).await?;
-                if let Some(network) = network {
-                    match podman::delete_network(self, &network).await {
-                        Ok(_) | Err(RuntimeError::NotFound(_)) => {}
-                        Err(error) => return Err(error),
-                    }
-                }
-                Ok(())
-            }
-            Err(error) => Err(error),
-        }
+        self.remove_owned(name).await
     }
 
     async fn inspect(&self, name: &str) -> Result<Option<ContainerInfo>, RuntimeError> {
