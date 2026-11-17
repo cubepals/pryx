@@ -129,8 +129,13 @@ pub(crate) const RESOLVER_PROBLEM: &str = "gvisor needs a resolver its sandboxes
 fn sandbox_resolv_conf(host: &str) -> Option<String> {
     let mut servers: Vec<std::net::IpAddr> = host
         .lines()
-        .filter_map(|line| line.trim().strip_prefix("nameserver"))
-        .filter_map(|server| server.trim().parse().ok())
+        .filter_map(|line| {
+            let mut fields = line.split_whitespace();
+            if fields.next()? != "nameserver" {
+                return None;
+            }
+            fields.next()?.parse().ok()
+        })
         .filter(|server: &std::net::IpAddr| !server.is_loopback())
         .collect();
     servers.sort_by_key(std::net::IpAddr::is_ipv6);
@@ -189,6 +194,13 @@ mod tests {
             sandbox_resolv_conf("nameserver 127.0.0.53\nnameserver 192.0.2.1\n").as_deref(),
             Some("nameserver 192.0.2.1\n")
         );
+    }
+
+    #[test]
+    fn a_commented_nameserver_remains_a_reachable_upstream() {
+        // Moby reads the directive and address as fields, ignoring a trailing comment.
+        assert_eq!(sandbox_resolv_conf(" \tnameserver\t10.0.0.2 # office\n").as_deref(), Some("nameserver 10.0.0.2\n"));
+        assert_eq!(sandbox_resolv_conf("nameserver10.0.0.2\n"), None);
     }
 
     #[test]
