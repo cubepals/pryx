@@ -146,11 +146,11 @@ impl Manager {
     /// without it (`deferred`), the spec it deferred.
     pub(super) async fn end_suspension(&self, id: &WorkloadId, deferred: bool) -> Result<(), NodeError> {
         let suspend = self.suspension(id);
-        if !suspend.suspended() && !(deferred && suspend.pending.is_some()) {
+        if !suspend.suspended() && !(deferred && suspend.pending.is_some()) && suspend.fork_restore.is_none() {
             return Ok(());
         }
         let pending = if deferred { None } else { suspend.pending };
-        self.save_suspension(id, SuspendRecord { suspended_at: None, pending, ..suspend }).await
+        self.save_suspension(id, SuspendRecord { suspended_at: None, pending, fork_restore: None, ..suspend }).await
     }
 
     /// Resumes a suspended workload: thawed, the same process from the same start, if it comes
@@ -243,7 +243,11 @@ impl Manager {
         }
         // Recorded before the freeze: a frozen container pryxd made is never taken for a running
         // one, even if pryxd dies right after.
-        self.save_suspension(id, SuspendRecord { suspended_at: Some(now_str()), ..suspend.clone() }).await?;
+        self.save_suspension(
+            id,
+            SuspendRecord { suspended_at: Some(now_str()), fork_restore: None, ..suspend.clone() },
+        )
+        .await?;
         if status == Some(ContainerStatus::Running)
             && let Err(e) = self.note(self.runtime.pause(&record.container_name).await)
         {

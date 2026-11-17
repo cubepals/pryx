@@ -1545,3 +1545,7 @@
 - K27: after replacing a restored guest's gateway redirects, init clears that guest's connection tracking through the already pinned Apache-2.0 netlink library before acknowledging or thawing; established UDP DNS flows otherwise keep the old NAT gateway even after an atomic nft table replacement, and failure to clear refuses the restore so its disk can boot cold; private guest sleep version 4 announces this, and networked restores from older bundles boot cold. Each memory image also pins its actual verified bootstrap digest: a changed bootstrap or a legacy image without that identity boots cold before loading memory, since installing a new bundle cannot replace the old init and helper held inside a snapshot.
 
 - K27 integration: retire guest memory before deleting its journal, then remove lifetime leases; preserve the existing monitor-ID release and error handling.
+
+- K27 review: commit a completed memory-fork reply with its suspension and exact source/target generation, epoch, spec and container identity, so a lost reply replays without another copy; clear it on later lifecycle changes, refuse unconfirmed partial forks, and admit every new fork at the snapshot's full disk size before reflinking.
+
+- Local purge: retain the auto constructor's original rejection reason for each omitted tier and include only the required tier's reason when cleanup refuses; re-probing could replace the failure evidence, while an absent backend never proves compute is gone.

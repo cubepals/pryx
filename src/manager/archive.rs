@@ -189,7 +189,13 @@ impl Manager {
                 message: "PUT the workload's spec before restoring into it".into(),
             });
         }
-        let running = self.observe(&record).await?.is_some_and(|i| {
+        let observed = self.observe(&record).await?;
+        if let (RestoreSource::Fork(fork), Some(info)) = (&source, observed.as_ref())
+            && let Some(completed) = self.completed_memory_fork(&record, fork, info)
+        {
+            return Ok(completed);
+        }
+        let running = observed.is_some_and(|i| {
             matches!(i.status, ContainerStatus::Running | ContainerStatus::Restarting | ContainerStatus::Paused)
         });
         if running {
