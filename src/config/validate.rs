@@ -40,10 +40,25 @@ impl Config {
         if self.vm.bundle.as_ref().is_some_and(|path| !path.is_absolute()) {
             return Err(ConfigError::Invalid("VM bundle descriptor requires an absolute host-installed path".into()));
         }
+        self.validate_monitor_ids()?;
         if self.runtime == super::RuntimeKind::Container && !self.docker.enabled {
             return Err(ConfigError::Invalid("the container tier is disabled by this host preset".into()));
         }
         Ok(())
+    }
+
+    /// Root's VM monitor IDs, held apart from the IDs of the tiers that run beside them.
+    fn validate_monitor_ids(&self) -> Result<(), ConfigError> {
+        let tiers = matches!(self.runtime, super::RuntimeKind::Auto | super::RuntimeKind::Vm);
+        let wasm = tiers.then_some((self.wasm.worker_uid, self.wasm.worker_gid));
+        let process = (self.runtime == super::RuntimeKind::Auto)
+            .then(|| self.process.uid_first..self.process.uid_first.saturating_add(self.process.uid_count));
+        match self.vm.monitor_ids_problem(wasm, process) {
+            Some(problem) => {
+                Err(ConfigError::Invalid(format!("vm.monitor_uid, monitor_gid and monitor_ids: {problem}")))
+            }
+            None => Ok(()),
+        }
     }
 
     pub fn validate(&self) -> Result<(), ConfigError> {

@@ -20,6 +20,7 @@ impl Network {
         bundle: &Bundle,
         boots: &Path,
         lease: &Path,
+        owner: (u32, u32),
         policy: Option<EgressPolicy>,
         deadline: Instant,
     ) -> Result<Self, RuntimeError> {
@@ -30,13 +31,7 @@ impl Network {
             super::super::packet_profile::load(&bundle.root().join("bin/network-proxy"), deadline).await?;
         let program = bundle.root().join("bin/root-scope");
         let plugins = bundle.root().join("bin/root-cni");
-        let paths = super::super::root_scope::Paths {
-            program: &program,
-            plugins: &plugins,
-            boots,
-            lease,
-            owner: settings.monitor_owner.ok_or_else(|| error("Missing fixed root monitor identities"))?,
-        };
+        let paths = super::super::root_scope::Paths { program: &program, plugins: &plugins, boots, lease, owner };
         let unrestricted = policy.is_none();
         let scope = if let Some(policy) = policy {
             super::super::root_scope::Scope::start(paths, policy, settings.ingress_connections, deadline).await?

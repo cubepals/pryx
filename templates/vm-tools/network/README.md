@@ -12,7 +12,8 @@ Parts (`network/`):
 - `cmd/proxy/main.go`: separate guest packet transport and private host management listeners.
 - `cmd/proxy/production.go`: bounded host-only profile through one inherited packet listener, without management services.
 - `cmd/proxy/stack.go`: the library's switch, DHCP and forwarders on a gvisor stack, each forwarder behind admission; its resolver only for the root bridge.
-- `cmd/proxy/admission.go`: the host's own egress decision for every flow: named gateway ports, public IPv4 only when allowed, nothing else.
+- `cmd/proxy/admission.go`: the host's own egress decision for every flow: named gateway ports, public IPv4 only when allowed and routed away from this host, nothing else.
+- `cmd/proxy/route.go`: the kernel's route type for a destination (RTM_GETROUTE) over an unbound route socket, so an address of the host itself is refused as a flow asks.
 - `cmd/guest/main.go`: trusted loopback and maintained DHCP setup without image-owned programs; `carrier.go` holds the first DHCP request until the forwarder has attached the TAP.
 - `cmd/probe/main.go` and `server.go`: guest network measurements, management denials and an unprivileged opaque TCP fixture.
 - `cmd/probe/policy.go`: unprivileged workload proof that new vsock sockets and io_uring setup are denied.

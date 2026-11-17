@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 // Prove the host-side admission refuses what a guest whose firewall is gone could ask for, both
-// as a decision and through the real assembled stack against real host loopback services. The
-// non-public boundary is read from pryx-agent's own source, the list pryxd passes.
+// as a decision and through the real assembled stack against real host loopback services, and
+// that the kernel's route answers read this host's own addresses as local. The non-public
+// boundary is read from pryx-agent's own source, the list pryxd passes.
 package main
 
 import (
@@ -94,7 +95,20 @@ func TestHostnamePolicyAdmitsOnlyItsGatewayPorts(t *testing.T) {
 	}, false)
 }
 
-func TestNonPublicDestinationsAreRefusedWithPublicEgress(t *testing.T) {
+// routes answers lookups as the kernel of a host whose own addresses are local would.
+func routes(local ...string) func(netip.Addr) (uint8, error) {
+	return func(address netip.Addr) (uint8, error) {
+		for _, text := range local {
+			if address == netip.MustParseAddr(text) {
+				return unix.RTN_LOCAL, nil
+			}
+		}
+		return unix.RTN_UNICAST, nil
+	}
+}
+
+func publicPolicy(t *testing.T) (admission, runtimeProfile) {
+	t.Helper()
 	profile, err := productionMetadata()
 	if err != nil {
 		t.Fatal(err)
@@ -104,6 +118,13 @@ func TestNonPublicDestinationsAreRefusedWithPublicEgress(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	return policy, profile
+}
+
+func TestNonPublicDestinationsAreRefusedWithPublicEgress(t *testing.T) {
+	policy, profile := publicPolicy(t)
+	// Every public destination here is one the kernel routes away; the next test covers the rest.
+	policy.route = routes()
 	decide(t, policy, []flow{{tcp.ProtocolNumber, "8.8.8.8", 443}, {udp.ProtocolNumber, "1.1.1.1", 443},
 		{icmp.ProtocolNumber4, "8.8.8.8", 0}, {tcp.ProtocolNumber, profile.Host, dnsGateway}}, true)
 	var refused []flow
@@ -121,6 +142,72 @@ func TestNonPublicDestinationsAreRefusedWithPublicEgress(t *testing.T) {
 	}
 	refused = append(refused, flow{tcp.ProtocolNumber, profile.Host, httpGateway}, flow{tcp.ProtocolNumber, profile.Host, 22})
 	decide(t, policy, refused, false)
+}
+
+// A destination outside every class and boundary above is still refused when the host itself
+// would receive it: the forwarders dial from the host's own network.
+func TestDestinationsLocalToTheHostAreRefusedWithPublicEgress(t *testing.T) {
+	policy, profile := publicPolicy(t)
+	// RFC 7526's retired 6to4 relay range is in no class or boundary above, as a host's own public
+	// address would not be.
+	const own = "192.88.99.1"
+	policy.route = routes(own)
+	decide(t, policy, []flow{{tcp.ProtocolNumber, own, 22}, {udp.ProtocolNumber, own, 53},
+		{icmp.ProtocolNumber4, own, 0}}, false)
+	decide(t, policy, []flow{{tcp.ProtocolNumber, "192.88.99.2", 22}, {tcp.ProtocolNumber, "8.8.8.8", 443}}, true)
+	for name, answer := range map[string]func(netip.Addr) (uint8, error){
+		"a broadcast":            func(netip.Addr) (uint8, error) { return unix.RTN_BROADCAST, nil },
+		"a route the host lacks": func(netip.Addr) (uint8, error) { return 0, unix.ENETUNREACH },
+		"no answer":              func(netip.Addr) (uint8, error) { return 0, unix.EAGAIN },
+	} {
+		policy.route = answer
+		if policy.allows(tcp.ProtocolNumber, netip.MustParseAddr("8.8.8.8"), 443) {
+			t.Errorf("%s was admitted", name)
+		}
+	}
+	// The gateway's named ports are the host's loopback by design and never ask.
+	policy.route = func(netip.Addr) (uint8, error) { return unix.RTN_LOCAL, nil }
+	decide(t, policy, []flow{{tcp.ProtocolNumber, profile.Host, dnsGateway}}, true)
+}
+
+// The real kernel's answers: loopback and every address of an interface that is up are local,
+// and documentation's TEST-NET-1 (RFC 5737), which is no host's, is not.
+func TestKernelRoutesReadTheHostsOwnAddressesAsLocal(t *testing.T) {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		t.Fatal(err)
+	}
+	own := []netip.Addr{netip.AddrFrom4([4]byte{127, 0, 0, 1})}
+	for _, device := range interfaces {
+		if device.Flags&net.FlagUp == 0 {
+			continue
+		}
+		addresses, err := device.Addrs()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, address := range addresses {
+			if prefix, ok := address.(*net.IPNet); ok && prefix.IP.To4() != nil {
+				own = append(own, netip.AddrFrom4([4]byte(prefix.IP.To4())))
+			}
+		}
+	}
+	for _, address := range own {
+		if kind, err := hostRouteType(address); err != nil || kind != unix.RTN_LOCAL {
+			t.Errorf("%s, an address of this host, read as route type %d: %v", address, kind, err)
+		}
+	}
+	if kind, err := hostRouteType(netip.MustParseAddr("192.0.2.1")); err == nil && kind == unix.RTN_LOCAL {
+		t.Error("TEST-NET-1 read as local to this host")
+	}
+	policy, _ := publicPolicy(t)
+	if err := policy.readsRoutes(); err != nil {
+		t.Fatal(err)
+	}
+	policy.route = func(netip.Addr) (uint8, error) { return 0, unix.EPERM }
+	if policy.readsRoutes() == nil {
+		t.Fatal("A public profile started without readable routes")
+	}
 }
 
 func TestConfigurationWithoutEgressIsRefused(t *testing.T) {

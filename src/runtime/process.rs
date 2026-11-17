@@ -5,7 +5,8 @@
 //!
 //! Parts (`process/`):
 //! - `native.rs`: protected tool inputs and authenticated supervisor adoption.
-//! - `journal.rs`: private specifications, UID allocation and process identity checks.
+//! - `journal.rs`: private specifications, UID allocation (shared with the root VM tier's monitor
+//!   IDs) and process identity checks.
 //! - `power.rs`: agent launch, tree signals and process observations.
 //! - `exec.rs`: the legacy node exec transport through the same authenticated agent.
 //! - `observe.rs`: read-only kernel process identity, ownership and tree observations.
@@ -28,6 +29,11 @@ use async_trait::async_trait;
 use futures_util::{StreamExt, stream};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Mutex};
+/// The lowest ID of a host-reserved pool that no reservation holds and no process runs as: the
+/// process tier's UID pool, and the root VM tier's monitor IDs.
+pub(crate) fn free_id(pool: std::ops::Range<u32>, held: impl Fn(u32) -> bool) -> Option<u32> {
+    pool.into_iter().find(|id| !held(*id) && !observe::uid_in_use(*id))
+}
 #[derive(Clone)]
 pub struct ProcessRuntime {
     state: Arc<State>,

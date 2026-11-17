@@ -15,6 +15,7 @@
 //! - `memory_acceptance.rs`: real KVM sleep and wake with a running process, and its fallbacks.
 //! - `agent.rs`: authenticated agent calls and one-shot compatibility exec.
 //! - `monitor.rs`: host-selected ordinary/jailer launch paths and retired-disk recovery.
+//! - `monitor_ids.rs`: root's own monitor uid and gid for each VM, from the host's range.
 //! - `network.rs`: host-selected ordinary packet or leased root TAP connections.
 //! - `logs.rs`: bounded guest entrypoint replay and live output.
 //! - `runtime.rs`: runtime verbs, observations and bounded event polling.
@@ -38,6 +39,7 @@ mod memory;
 #[cfg(test)]
 mod memory_acceptance;
 mod monitor;
+pub mod monitor_ids;
 mod network;
 #[cfg(test)]
 mod network_acceptance;
@@ -86,7 +88,8 @@ pub struct Settings {
     pub ingress_connections: u16,
     pub free_floor_bytes: u64,
     pub image_timeout: Duration,
-    pub monitor_owner: Option<(u32, u32)>,
+    /// Root's monitor IDs, from which each VM takes its own pair; `None` for an ordinary user.
+    pub monitor_owner: Option<monitor_ids::MonitorIds>,
 }
 // The runtime owns this bounded host ingress budget; workloads cannot increase it.
 pub(super) const INGRESS_CONNECTIONS: u16 = 64;
@@ -106,6 +109,14 @@ struct State {
     prepared: Mutex<HashMap<String, (Prepared, Vec<launch::Identity>)>>,
     /// The memory-sleep restore test's outcome, once it has run.
     memory_sleep: Mutex<Option<Result<(), String>>>,
+    /// Root's pair of monitor IDs for each VM (`monitor_ids.rs`).
+    monitor_ids: Option<Mutex<monitor_ids::Ledger>>,
+    /// Each launch's image, by pin or reference, from before its preparation until its monitor
+    /// has opened the layers, with how many (`launch.rs`).
+    launching: Mutex<HashMap<String, usize>>,
+    /// Written while an eviction reads what is kept and removes the rest; read while a launch
+    /// registers its image, so neither misses the other.
+    evicting: tokio::sync::RwLock<()>,
 }
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct Entry {
@@ -207,6 +218,48 @@ fn lock(path: &Path) -> Result<File, RuntimeError> {
     })?;
     Ok(file)
 }
+/// A sandbox's lifetime lease, and its packet helper's beside it.
+fn lease_names(sandbox: &str) -> Result<[String; 2], RuntimeError> {
+    let digest = super::filesystems::sha256(sandbox.as_bytes()).map_err(error)?;
+    Ok([format!("{digest}.lock"), format!("{digest}.network.lock")])
+}
+
+/// Unlinks one lease while holding it, so nothing still running keeps a lock on the name; one
+/// that is held is left as it is.
+fn remove_lease(path: &Path) -> Result<(), RuntimeError> {
+    match fs::symlink_metadata(path) {
+        Err(problem) if problem.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(problem) => return Err(error(problem)),
+        Ok(_) => (),
+    }
+    match lock(path) {
+        Ok(_held) => fs::remove_file(path).map_err(error),
+        Err(RuntimeError::Unavailable(_)) => {
+            tracing::warn!(lease = %path.display(), "VM lease is still held; it is kept");
+            Ok(())
+        }
+        Err(problem) => Err(problem),
+    }
+}
+
+/// At start, after every predecessor's lease is free: the leases of sandboxes no journal names,
+/// which a removal before leases were removed with their VM left behind.
+fn sweep_leases(leases: &Path, entries: &BTreeMap<String, Entry>) -> Result<(), RuntimeError> {
+    let mut known = std::collections::HashSet::new();
+    for entry in entries.values() {
+        if let Some(agent) = &entry.spec.agent {
+            known.extend(lease_names(&agent.sandbox)?);
+        }
+    }
+    for path in fs::read_dir(leases).map_err(error)? {
+        let path = path.map_err(error)?.path();
+        if path.file_name().and_then(|name| name.to_str()).is_some_and(|name| !known.contains(name)) {
+            remove_lease(&path)?;
+        }
+    }
+    Ok(())
+}
+
 impl VmRuntime {
     pub async fn new(state: &Path, settings: Settings) -> Result<Self, RuntimeError> {
         monitor::owner(settings.monitor_owner)?;
@@ -243,6 +296,11 @@ impl VmRuntime {
             super::jail::Jail::recover_all(&root.join("jails"))?;
         }
         let entries = journal::load(&root)?;
+        sweep_leases(&root.join("leases"), &entries)?;
+        let monitor_ids = settings
+            .monitor_owner
+            .map(|ids| monitor_ids::Ledger::load(&root, ids, |vm| entries.contains_key(vm)).map(Mutex::new))
+            .transpose()?;
         Ok(Self {
             state: Arc::new(State {
                 root,
@@ -254,6 +312,9 @@ impl VmRuntime {
                 live: Mutex::new(HashMap::new()),
                 prepared: Mutex::new(HashMap::new()),
                 memory_sleep: Mutex::new(None),
+                monitor_ids,
+                launching: Mutex::new(HashMap::new()),
+                evicting: tokio::sync::RwLock::new(()),
             }),
         })
     }
@@ -306,11 +367,16 @@ impl VmRuntime {
     }
     fn lease(&self, entry: &Entry) -> Result<PathBuf, RuntimeError> {
         let sandbox = &entry.spec.agent.as_ref().ok_or_else(|| error("VM requires its authenticated agent"))?.sandbox;
-        Ok(self
-            .state
-            .root
-            .join("leases")
-            .join(format!("{}.lock", super::filesystems::sha256(sandbox.as_bytes()).map_err(error)?)))
+        let [lease, _] = lease_names(sandbox)?;
+        Ok(self.state.root.join("leases").join(lease))
+    }
+    /// A removed VM's leases go with it.
+    fn remove_leases(&self, entry: &Entry) -> Result<(), RuntimeError> {
+        let sandbox = &entry.spec.agent.as_ref().ok_or_else(|| error("VM requires its authenticated agent"))?.sandbox;
+        for name in lease_names(sandbox)? {
+            remove_lease(&self.state.root.join("leases").join(name))?;
+        }
+        Ok(())
     }
     fn names(&self) -> Vec<String> {
         self.state.entries.lock().unwrap().keys().cloned().collect()
@@ -355,5 +421,34 @@ mod interrupted_tests {
             Err(kvm_ioctls::Error::new(libc::ENOENT))
         });
         assert_eq!((refused.unwrap_err().errno(), calls), (libc::ENOENT, 1));
+    }
+}
+
+#[cfg(test)]
+mod lease_tests {
+    use super::*;
+
+    #[test]
+    fn leases_go_with_their_vm_and_orphans_at_start_but_never_while_held() {
+        let root = tempfile::tempdir().unwrap();
+        let leases = root.path().join("leases");
+        directory(&leases).unwrap();
+        let spec = tests::spec(root.path(), "alpine:3.24");
+        let entry: Entry =
+            serde_json::from_value(serde_json::json!({"id": "vm-kept", "spec": spec, "code": 0})).unwrap();
+        let kept = lease_names(&spec.agent.as_ref().unwrap().sandbox).unwrap();
+        let orphans = lease_names(&uuid::Uuid::new_v4().simple().to_string()).unwrap();
+        for name in kept.iter().chain(&orphans) {
+            drop(lock(&leases.join(name)).unwrap());
+        }
+        let held = lock(&leases.join(&orphans[0])).unwrap();
+        sweep_leases(&leases, &BTreeMap::from([(entry.id.clone(), entry)])).unwrap();
+        let present = |name: &String| leases.join(name).exists();
+        assert!(kept.iter().all(present), "A journal's leases were swept");
+        assert!(present(&orphans[0]) && !present(&orphans[1]), "Only the free orphan goes");
+        drop(held);
+        sweep_leases(&leases, &BTreeMap::new()).unwrap();
+        assert_eq!(fs::read_dir(&leases).unwrap().count(), 0);
+        remove_lease(&leases.join(&kept[0])).unwrap();
     }
 }

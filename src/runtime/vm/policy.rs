@@ -23,18 +23,24 @@ pub(crate) fn settings(config: &crate::config::Config) -> Result<super::instance
     host(config, None)
 }
 
-/// The separate root worker's backend, whose monitors run under the host's fixed non-root IDs.
+/// The separate root worker's backend, whose monitors each run under their own non-root IDs from
+/// the host's range.
 pub(crate) fn worker_settings(config: &crate::config::Config) -> Result<super::instance::Settings, RuntimeError> {
     if !rustix::process::geteuid().is_root() {
         return Err(RuntimeError::Unavailable("The VM worker holds root's VM authority and runs as root".into()));
     }
     super::instance::VmRuntime::kvm()?;
-    host(config, Some((config.vm.monitor_uid, config.vm.monitor_gid)))
+    let ids = super::instance::monitor_ids::MonitorIds {
+        uid: config.vm.monitor_uid,
+        gid: config.vm.monitor_gid,
+        count: config.vm.monitor_ids,
+    };
+    host(config, Some(ids))
 }
 
 fn host(
     config: &crate::config::Config,
-    monitor_owner: Option<(u32, u32)>,
+    monitor_owner: Option<super::instance::monitor_ids::MonitorIds>,
 ) -> Result<super::instance::Settings, RuntimeError> {
     if !pryx_agent::process_capabilities::probe().filesystem {
         return Err(RuntimeError::Unavailable(pryx_agent::process_capabilities::FILESYSTEM_UNAVAILABLE.into()));

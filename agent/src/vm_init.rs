@@ -99,6 +99,20 @@ fn validate(boot: &Boot) -> io::Result<()> {
     Ok(())
 }
 
+/// How much of a drive's identity a virtio block device reports as its serial: Linux's
+/// `VIRTIO_BLK_ID_BYTES` (include/uapi/linux/virtio_blk.h, the virtio specification's
+/// VIRTIO_BLK_T_GET_ID answer), which Firecracker truncates its identity to. No crate the agent
+/// uses exports it.
+const VIRTIO_BLK_ID_BYTES: usize = 20;
+
+/// The guest device whose serial is exactly the drive identity as virtio truncates it. Identities
+/// are undelimited numbers, so one can begin with another; only the whole serial names a drive.
+fn device<'a>(block: &'a BTreeMap<String, PathBuf>, id: &str) -> io::Result<&'a str> {
+    let serial =
+        id.get(..id.len().min(VIRTIO_BLK_ID_BYTES)).ok_or_else(|| invalid("Invalid VM block drive identity"))?;
+    block.get(serial).and_then(|path| path.to_str()).ok_or_else(|| invalid("VM kernel lacks a configured block serial"))
+}
+
 fn devices() -> io::Result<BTreeMap<String, PathBuf>> {
     let mut devices = BTreeMap::new();
     // Linux drivers/block/virtio_blk.c installs serial on the disk's sysfs device.
@@ -150,14 +164,7 @@ fn prepare(boot: &Boot) -> io::Result<Disk> {
     work.mkdir("pryx-init")?;
     let work = DataDir::open(Path::new(WORK))?;
     let block = devices()?;
-    let device = |id: &str| {
-        let mut matches = block.iter().filter(|(serial, _)| !serial.is_empty() && id.starts_with(serial.as_str()));
-        let path = matches.next().map(|(_, path)| path);
-        if matches.next().is_some() {
-            return Err(invalid("VM kernel block serial is ambiguous"));
-        }
-        path.and_then(|path| path.to_str()).ok_or_else(|| invalid("VM kernel lacks a configured block serial"))
-    };
+    let device = |id: &str| device(&block, id);
     filesystem(device(&boot.writes)?, Path::new("/write"), "ext4", MountFlags::NOSUID | MountFlags::NODEV, "")?;
     let sync = File::open("/write")?;
     let writes = DataDir::open(Path::new("/write"))?;
@@ -573,6 +580,25 @@ mod tests {
         assert!(!writes.join("file-upper").exists());
         let (upper, overlay_work) = super::overlay_roots(&temporary, &persistent, false).unwrap();
         assert_eq!((upper.as_str(), overlay_work.as_str()), ("/write/upper", "/write/work"));
+    }
+    #[test]
+    fn a_drive_is_the_device_whose_serial_is_its_whole_truncated_identity() {
+        use std::{collections::BTreeMap, path::PathBuf};
+        // Firecracker's "{dev}{rdev}{ino}": the shorter identity begins the longer one.
+        let (short, long) = ("2050012345", "20500123456789");
+        // Past VIRTIO_BLK_ID_BYTES the device reports only the first twenty bytes.
+        let (truncated, whole) = ("12345678901234567890", "123456789012345678901234");
+        let block = BTreeMap::from([
+            (short.to_owned(), PathBuf::from("/dev/vda")),
+            (long.to_owned(), PathBuf::from("/dev/vdb")),
+            (truncated.to_owned(), PathBuf::from("/dev/vdc")),
+        ]);
+        assert_eq!(super::device(&block, short).unwrap(), "/dev/vda");
+        assert_eq!(super::device(&block, long).unwrap(), "/dev/vdb");
+        assert_eq!(super::device(&block, whole).unwrap(), "/dev/vdc");
+        // A configured identity that is only the beginning of a device's serial names no device.
+        assert!(super::device(&block, &truncated[..19]).is_err());
+        assert!(super::device(&block, "2050").is_err());
     }
     #[test]
     fn init_refuses_an_ordinary_host_before_any_mount() {

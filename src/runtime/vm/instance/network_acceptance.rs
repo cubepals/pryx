@@ -22,7 +22,7 @@ pub(super) async fn check(runtime: &VmRuntime, root: &Path, image: &str, index: 
     let fixture = {
         let live = runtime.state.live.lock().unwrap()[&id].clone();
         let live = live.lock().await;
-        root_monitor(runtime, &live);
+        root_monitor(runtime, &id, &live);
         let profile = live.network.as_ref().unwrap().profile();
         json!({
             "unrestricted":unrestricted, "hostname":"example.com", "host":profile["host"], "http":profile["http"],
@@ -58,8 +58,8 @@ pub(super) async fn check(runtime: &VmRuntime, root: &Path, image: &str, index: 
     runtime.remove(&id).await.unwrap();
 }
 
-fn root_monitor(runtime: &VmRuntime, live: &Live) {
-    if let Some(owner) = runtime.state.settings.monitor_owner {
+fn root_monitor(runtime: &VmRuntime, id: &str, live: &Live) {
+    if let Some(owner) = runtime.monitor_owner(id).unwrap() {
         let namespace = live.network.as_ref().unwrap().namespace().unwrap().unwrap();
         let pid = live.monitor.pid().unwrap();
         let actual = fs::metadata(format!("/proc/{pid}/ns/net")).unwrap();
