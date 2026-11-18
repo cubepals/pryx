@@ -47,27 +47,7 @@ impl DockerRuntime {
 
         let mut result = ExecOutput::default();
         let collect = async {
-            while let Some(item) = output.next().await {
-                let (buffer, truncated, stream, bytes) = match item.map_err(map_err)? {
-                    LogOutput::StdOut { message } => {
-                        (&mut result.stdout, &mut result.stdout_truncated, LogStream::Stdout, message)
-                    }
-                    LogOutput::StdErr { message } => {
-                        (&mut result.stderr, &mut result.stderr_truncated, LogStream::Stderr, message)
-                    }
-                    _ => continue,
-                };
-                let room = max_output.saturating_sub(buffer.len());
-                buffer.extend_from_slice(&bytes[..bytes.len().min(room)]);
-                *truncated |= bytes.len() > room;
-                if let Some(live) = &live {
-                    for chunk in bytes[..bytes.len().min(room)].chunks(crate::protocol::EXEC_CHUNK_BYTES) {
-                        if live.send(LogChunk { stream, bytes: bytes::Bytes::copy_from_slice(chunk) }).await.is_err() {
-                            break;
-                        }
-                    }
-                }
-            }
+            collect_output(&mut output, &mut result, max_output, &live).await?;
             // Output can close while the process still runs. The execution deadline covers both.
             result.exit_code = self.exec_exit(&exec_id).await?;
             Ok::<(), RuntimeError>(())
@@ -220,4 +200,37 @@ fn kept_deadline(result: &mut ExecOutput, elapsed: std::time::Duration, outer: s
         result.timed_out = true;
         result.killed = true;
     }
+}
+
+async fn collect_output<S>(
+    output: &mut S,
+    result: &mut ExecOutput,
+    max_output: usize,
+    live: &Option<tokio::sync::mpsc::Sender<LogChunk>>,
+) -> Result<(), RuntimeError>
+where
+    S: futures_util::Stream<Item = Result<LogOutput, bollard::errors::Error>> + Unpin,
+{
+    while let Some(item) = output.next().await {
+        let (buffer, truncated, stream, bytes) = match item.map_err(map_err)? {
+            LogOutput::StdOut { message } => {
+                (&mut result.stdout, &mut result.stdout_truncated, LogStream::Stdout, message)
+            }
+            LogOutput::StdErr { message } => {
+                (&mut result.stderr, &mut result.stderr_truncated, LogStream::Stderr, message)
+            }
+            _ => continue,
+        };
+        let room = max_output.saturating_sub(buffer.len());
+        buffer.extend_from_slice(&bytes[..bytes.len().min(room)]);
+        *truncated |= bytes.len() > room;
+        if let Some(live) = &live {
+            for chunk in bytes[..bytes.len().min(room)].chunks(crate::protocol::EXEC_CHUNK_BYTES) {
+                if live.send(LogChunk { stream, bytes: bytes::Bytes::copy_from_slice(chunk) }).await.is_err() {
+                    break;
+                }
+            }
+        }
+    }
+    Ok(())
 }

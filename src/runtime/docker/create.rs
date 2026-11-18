@@ -27,53 +27,7 @@ pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Res
                 .map_err(|_| RuntimeError::Other("Cannot encode private bindings".into()))?,
         );
     }
-    if let Some(agent) = &spec.agent {
-        let image = quick("inspect image", runtime.docker()?.inspect_image(&spec.image)).await?;
-        let config = image.config.unwrap_or_default();
-        let browser = browser_policy::mode(runtime, &spec, config.env.as_deref()).await?;
-        let original = if agent.keep_alive {
-            Vec::new()
-        } else {
-            spec.entrypoint.take().unwrap_or_else(|| {
-                config.entrypoint.unwrap_or_default().into_iter().chain(config.cmd.unwrap_or_default()).collect()
-            })
-        };
-        let mut entrypoint = vec![
-            pryx_agent::contract::BINARY_PATH.into(),
-            "--sandbox".into(),
-            agent.sandbox.clone(),
-            "--epoch".into(),
-            agent.epoch.to_string(),
-            "--data".into(),
-            spec.mount_path.clone(),
-            "--domain".into(),
-            agent.domain.clone(),
-            "--port".into(),
-            agent.agent_port.to_string(),
-            "--secret-env".into(),
-            agent.secret_env.clone(),
-            "--entrypoint-cwd".into(),
-            spec.workdir.clone().or(config.working_dir).filter(|d| !d.is_empty()).unwrap_or_else(|| "/".into()),
-        ];
-        if let Some(origin) = &agent.public_origin {
-            entrypoint.extend(["--public-origin".into(), origin.clone()]);
-        }
-        if !agent.spare_ports.is_empty() {
-            entrypoint.extend([
-                "--spare-ports".into(),
-                agent.spare_ports.iter().map(u16::to_string).collect::<Vec<_>>().join(","),
-            ]);
-        }
-        if agent.keep_alive {
-            entrypoint.push("--keep-alive".into());
-        }
-        if !original.is_empty() {
-            entrypoint.push("--".into());
-            entrypoint.extend(original);
-        }
-        browser_policy::bind(browser, &mut entrypoint, &mut spec.labels);
-        spec.entrypoint = Some(entrypoint);
-    }
+    agent_entrypoint(runtime, &mut spec).await?;
     if info.podman {
         return podman::create(runtime, &spec, &info).await;
     }
@@ -167,6 +121,57 @@ fn check_engine_policy(runtime: &DockerRuntime, spec: &ContainerSpec, info: &Run
         return Err(RuntimeError::Other(
             "host-firewall and native FUSE require a supported rootful Docker engine".into(),
         ));
+    }
+    Ok(())
+}
+
+async fn agent_entrypoint(runtime: &DockerRuntime, spec: &mut ContainerSpec) -> Result<(), RuntimeError> {
+    if let Some(agent) = &spec.agent {
+        let image = quick("inspect image", runtime.docker()?.inspect_image(&spec.image)).await?;
+        let config = image.config.unwrap_or_default();
+        let browser = browser_policy::mode(runtime, spec, config.env.as_deref()).await?;
+        let original = if agent.keep_alive {
+            Vec::new()
+        } else {
+            spec.entrypoint.take().unwrap_or_else(|| {
+                config.entrypoint.unwrap_or_default().into_iter().chain(config.cmd.unwrap_or_default()).collect()
+            })
+        };
+        let mut entrypoint = vec![
+            pryx_agent::contract::BINARY_PATH.into(),
+            "--sandbox".into(),
+            agent.sandbox.clone(),
+            "--epoch".into(),
+            agent.epoch.to_string(),
+            "--data".into(),
+            spec.mount_path.clone(),
+            "--domain".into(),
+            agent.domain.clone(),
+            "--port".into(),
+            agent.agent_port.to_string(),
+            "--secret-env".into(),
+            agent.secret_env.clone(),
+            "--entrypoint-cwd".into(),
+            spec.workdir.clone().or(config.working_dir).filter(|d| !d.is_empty()).unwrap_or_else(|| "/".into()),
+        ];
+        if let Some(origin) = &agent.public_origin {
+            entrypoint.extend(["--public-origin".into(), origin.clone()]);
+        }
+        if !agent.spare_ports.is_empty() {
+            entrypoint.extend([
+                "--spare-ports".into(),
+                agent.spare_ports.iter().map(u16::to_string).collect::<Vec<_>>().join(","),
+            ]);
+        }
+        if agent.keep_alive {
+            entrypoint.push("--keep-alive".into());
+        }
+        if !original.is_empty() {
+            entrypoint.push("--".into());
+            entrypoint.extend(original);
+        }
+        browser_policy::bind(browser, &mut entrypoint, &mut spec.labels);
+        spec.entrypoint = Some(entrypoint);
     }
     Ok(())
 }
