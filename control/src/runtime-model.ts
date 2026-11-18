@@ -47,6 +47,7 @@ export interface RuntimeSpec {
   workdir?: string
   user?: string
   egress?: { allow: string[]; deny?: string[] }
+  egressAddresses?: import('./wire.ts').WorkloadSpec['egressAddresses']
   env: Readonly<Record<string, string>>
   secrets: Readonly<Record<string, string>>
   resources: {

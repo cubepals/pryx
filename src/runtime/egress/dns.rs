@@ -26,7 +26,7 @@ use tokio::{
 };
 
 /// DNS's port, for UDP and TCP (RFC 1035 §4.2).
-pub(in crate::runtime) const PORT: u16 = 53;
+pub(crate) const PORT: u16 = 53;
 const HEADER: usize = Header::LEN;
 const FORMERR: ResponseCode = ResponseCode::FormErr;
 const SERVFAIL: ResponseCode = ResponseCode::ServFail;
@@ -121,12 +121,23 @@ pub(super) async fn answer(message: &[u8], policy: &Policy) -> Option<Vec<u8>> {
     }
 }
 
+/// The nameservers `/etc/resolv.conf`'s text names, in order.
+fn nameservers_in(text: &str) -> impl Iterator<Item = IpAddr> + '_ {
+    text.lines()
+        .filter_map(|line| line.trim().strip_prefix("nameserver"))
+        .filter_map(|rest| rest.trim().parse::<IpAddr>().ok())
+}
+
+/// Every nameserver the host's resolver configuration names now.
+pub(crate) fn nameservers() -> Vec<IpAddr> {
+    std::fs::read_to_string(RESOLV_CONF).map(|text| nameservers_in(&text).collect()).unwrap_or_default()
+}
+
 /// The host's first nameserver, read for each query so a changed `/etc/resolv.conf` is followed.
 async fn upstream() -> io::Result<SocketAddr> {
     let text = tokio::fs::read_to_string(RESOLV_CONF).await?;
-    text.lines()
-        .filter_map(|line| line.trim().strip_prefix("nameserver"))
-        .find_map(|rest| rest.trim().parse::<IpAddr>().ok())
+    nameservers_in(&text)
+        .next()
         .map(|ip| SocketAddr::new(ip, PORT))
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no nameserver"))
 }

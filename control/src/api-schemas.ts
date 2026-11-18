@@ -22,6 +22,9 @@ export const resources = z.fromJSONSchema(
 export const storage = z.fromJSONSchema(
   nodeSchemas.Storage as Parameters<typeof z.fromJSONSchema>[0],
 ) as z.ZodType<WorkloadSpec['storage']>
+const addressRule = z.fromJSONSchema(
+  nodeSchemas.AddressRule as Parameters<typeof z.fromJSONSchema>[0],
+) as z.ZodType<NonNullable<NonNullable<WorkloadSpec['egressAddresses']>['allow']>[number]>
 export const port = z
   .object({
     name: z.string().regex(/^[a-z][a-z0-9-]*$/),
@@ -97,6 +100,15 @@ export const makeSchema = z
           .array(z.string().regex(/^(?:\*\.)?[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/))
           .max(128)
           .default([]),
+      })
+      .strict()
+      .optional(),
+    // Prefixes and ports, deny before allow; the node checks each prefix and refuses what the
+    // host keeps from every sandbox. Only tiers announcing egress-addresses take them.
+    egressAddresses: z
+      .object({
+        allow: z.array(addressRule).max(64).default([]),
+        deny: z.array(addressRule).max(64).default([]),
       })
       .strict()
       .optional(),

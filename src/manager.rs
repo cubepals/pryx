@@ -500,6 +500,7 @@ impl Manager {
         SpecPolicy {
             process: runtime.is_process(),
             wasm: runtime.is_wasm(),
+            kernel_network: runtime.is_process() && runtime.supports_egress_addresses(),
             allowed_images: self.config.workloads.allowed_images.clone(),
             min_memory_mb: self.config.workloads.min_memory_mb,
             max_memory_mb: u32::try_from(self.allocatable_memory_mb()).unwrap_or(u32::MAX),

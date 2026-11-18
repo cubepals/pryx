@@ -15,6 +15,7 @@ pub(super) fn spec() -> ContainerSpec {
         entrypoint: None,
         workdir: None,
         egress: None,
+        egress_addresses: None,
         env: Vec::new(),
         labels: BTreeMap::new(),
         user: "1000:1000".into(),

@@ -487,6 +487,7 @@ pub(crate) mod tests {
                 entrypoint: None,
                 workdir: None,
                 egress: None,
+                egress_addresses: None,
                 user: None,
                 env: Default::default(),
                 secret_names: vec![],

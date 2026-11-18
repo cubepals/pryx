@@ -3,7 +3,7 @@
 
 [Operations](operations.md) · [Deployment](deploy.md) · [Architecture](architecture.md) ·
 [API](api.md) · [Agent](agent.md) · [Edge](edge.md) · [Protocol](protocol.md) ·
-[Tiers](tiers.md) · [Process](process-tier.md) · [agentOS](agentos.md) ·
+[Tiers](tiers.md) · [Process](process-tier.md) · [Kernel network policy](bpf.md) · [agentOS](agentos.md) ·
 [Virtual machines](vm.md) ·
 [MCP](mcp.md) · [Providers](providers.md) · [Decisions](decisions.md).
 

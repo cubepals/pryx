@@ -52,6 +52,7 @@ async fn fixture() -> (tempfile::TempDir, Arc<Agent>, String) {
         epoch: 1,
         public_key: key.public_key(),
         forked: Default::default(),
+        retirement_nonce: Default::default(),
         key,
         data: DataDir::open(dir.path()).unwrap(),
         processes: Processes::new(dir.path().into(), "PRIVATE_BOOTSTRAP".into()),

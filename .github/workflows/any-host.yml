@@ -660,6 +660,11 @@ jobs:
           started=$(date +%s)
           PRYX_PYTHON="$RUNNER_TEMP/sdk-python/bin/python" bash deploy/server-vm-acceptance.sh
           echo "Root installed VM acceptance seconds: $(($(date +%s)-started))" | tee -a "$GITHUB_STEP_SUMMARY"
+      # K31: the server preset's own unit proved kernel network policy for process sandboxes.
+      # Its own step, after the VM's whatever that found, so neither hides the other.
+      - name: Kernel network policy in the installed server's pryxd
+        if: ${{ !cancelled() }}
+        run: sh deploy/server-network-policy.sh
       - name: Private-service diagnostics after failure
         if: failure()
         run: |

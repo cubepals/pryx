@@ -88,6 +88,9 @@ libc = "0.2.189"
 async-trait = "0.1"
 podman-api-stubs = "=0.9.0"
 oci-spec = { version = "=0.10.0", default-features = false, features = ["runtime", "image", "distribution"] }
+# Loads the process tier's cgroup programs (bpf/) from Rust alone: libbpf-rs would link libelf,
+# which is copyleft (docs/decisions.md, K31).
+aya = { version = "=0.16.0", default-features = false }
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]
 kvm-ioctls = "=0.24.0"
@@ -106,6 +109,8 @@ rcgen = { version = "0.14", default-features = false, features = ["pem", "ring",
 # The wire types' JSON Schema, which only the protocol's schema test reads (src/protocol/schema.rs):
 # the control plane's TypeScript types are generated from it.
 schemars = "=1.2.3"
+# The parser aya loads with, so a test can hold the embedded object to the names src/bpf names.
+aya-obj = "=0.6.0"
 
 # The lint policy, here so a local `cargo clippy` holds what CI's does (`-D warnings` makes these
 # warnings errors there). Chosen lints, not clippy::pedantic wholesale.

@@ -1,6 +1,54 @@
 {
   "components": {
     "schemas": {
+      "AddressPolicy": {
+        "additionalProperties": false,
+        "description": "Destinations by address, enforced in the kernel by the tier serving the workload; deny takes\nprecedence over allow. Allow adds to what `network` and `egress` give; deny takes away. Neither\nreaches what the host keeps from every sandbox: the host itself, link-local and multicast.",
+        "properties": {
+          "allow": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/AddressRule"
+            },
+            "type": "array"
+          },
+          "deny": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/AddressRule"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "AddressRule": {
+        "additionalProperties": false,
+        "description": "An IPv4 or IPv6 prefix, such as `203.0.113.0/24` (a bare address is one host), and an\ninclusive port range for TCP and UDP; without one, every port.",
+        "properties": {
+          "ports": {
+            "items": {
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "prefix": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "prefix"
+        ],
+        "type": "object"
+      },
       "AgentOptions": {
         "additionalProperties": false,
         "properties": {
@@ -799,6 +847,17 @@
                 "type": "null"
               }
             ]
+          },
+          "egressAddresses": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AddressPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sent only after the serving tier announces egress-addresses."
           },
           "entrypoint": {
             "default": null,

@@ -23,7 +23,7 @@ const VERSION: &[u8] = b"pryx-egress-v2\n";
 const HTTP_PORT: u16 = 19080;
 const TLS_PORT: u16 = 19443;
 const DNS_PORT: u16 = 19053;
-const MAX_CONNECTIONS: usize = 64;
+pub(in crate::runtime) const MAX_CONNECTIONS: usize = 64;
 const POLICY_LABEL: &str = "blocklyd.egress-policy";
 
 pub(crate) fn ruleset() -> String {
