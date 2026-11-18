@@ -32,7 +32,8 @@ struct Link;
 
 impl Link {
     fn add() -> Self {
-        let _ = Command::new("ip").args(["link", "del", LINK]).status();
+        // A link a failed run left behind; none, ordinarily.
+        let _ = Command::new("ip").args(["link", "del", LINK]).stderr(Stdio::null()).status();
         ip(&["link", "add", LINK, "type", "veth", "peer", "name", PEER]);
         let link = Self;
         let _ = std::fs::write(format!("/proc/sys/net/ipv6/conf/{LINK}/disable_ipv6"), "0");
