@@ -1,13 +1,12 @@
 // SPDX-FileCopyrightText: 2026 The Cubepals Authors
 // SPDX-License-Identifier: FSL-1.1-ALv2
 
-//! Docker exec attachment, bounded output, exit inspection and timeout tree containment.
+//! Docker exec attachment, exit inspection and timeout tree containment.
 
+use super::exec_completion::{EXIT_POLL, collect_output};
 use super::*;
 use crate::runtime::parse_time;
 
-// Docker exposes exec inspection, but no exec wait endpoint. Avoid a 20 ms quantization after EOF.
-pub(super) const EXIT_POLL: Duration = Duration::from_millis(4);
 const KILLED_EXIT_WAIT: Duration = Duration::from_secs(1);
 
 impl DockerRuntime {
@@ -283,46 +282,6 @@ async fn prepare(
 /// before its sandbox is retired. Only a supervisor that never exits waits this out: one that
 /// exits, finished or killed, is judged as it exits.
 const DEADLINE_GRACE: Duration = Duration::from_secs(30);
-
-pub(super) async fn collect_output<S>(
-    output: &mut S,
-    result: &mut ExecOutput,
-    max_output: usize,
-    live: &Option<tokio::sync::mpsc::Sender<LogChunk>>,
-    completion: &mut Option<super::exec_completion::Session>,
-) -> Result<(), RuntimeError>
-where
-    S: futures_util::Stream<Item = Result<LogOutput, bollard::errors::Error>> + Unpin,
-{
-    while let Some(item) = output.next().await {
-        let item = match item.map_err(map_err)? {
-            LogOutput::StdErr { message } if completion.is_some() => {
-                LogOutput::StdErr { message: completion.as_mut().unwrap().stderr(&message) }
-            }
-            other => other,
-        };
-        let (buffer, truncated, stream, bytes) = match item {
-            LogOutput::StdOut { message } => {
-                (&mut result.stdout, &mut result.stdout_truncated, LogStream::Stdout, message)
-            }
-            LogOutput::StdErr { message } => {
-                (&mut result.stderr, &mut result.stderr_truncated, LogStream::Stderr, message)
-            }
-            _ => continue,
-        };
-        let room = max_output.saturating_sub(buffer.len());
-        buffer.extend_from_slice(&bytes[..bytes.len().min(room)]);
-        *truncated |= bytes.len() > room;
-        if let Some(live) = &live {
-            for chunk in bytes[..bytes.len().min(room)].chunks(crate::protocol::EXEC_CHUNK_BYTES) {
-                if live.send(LogChunk { stream, bytes: bytes::Bytes::copy_from_slice(chunk) }).await.is_err() {
-                    break;
-                }
-            }
-        }
-    }
-    Ok(())
-}
 
 #[cfg(test)]
 mod tests {

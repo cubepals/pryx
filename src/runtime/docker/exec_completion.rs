@@ -6,7 +6,8 @@
 //! stream is reported, never answered with a kill, since the supervisor keeps the deadline
 //! whether or not this node hears it. A future dropped before its exec is judged still retires
 //! it; the node's API runs each exec detached, so a caller that goes away drops none. Command
-//! submission and output collection remain in exec.rs.
+//! submission remains in exec.rs; bounded output collection, which both exec paths share, is
+//! here beside the completion it carries.
 use super::*;
 use crate::runtime::parse_time;
 use pryx_agent::exec_completion::{Completion, Key, TAIL_BYTES};
@@ -157,6 +158,49 @@ impl Drop for Session {
     }
 }
 
+// Docker exposes exec inspection, but no exec wait endpoint. Avoid a 20 ms quantization after EOF.
+pub(super) const EXIT_POLL: Duration = Duration::from_millis(4);
+
+pub(super) async fn collect_output<S>(
+    output: &mut S,
+    result: &mut ExecOutput,
+    max_output: usize,
+    live: &Option<tokio::sync::mpsc::Sender<LogChunk>>,
+    completion: &mut Option<Session>,
+) -> Result<(), RuntimeError>
+where
+    S: futures_util::Stream<Item = Result<LogOutput, bollard::errors::Error>> + Unpin,
+{
+    while let Some(item) = output.next().await {
+        let item = match item.map_err(map_err)? {
+            LogOutput::StdErr { message } if completion.is_some() => {
+                LogOutput::StdErr { message: completion.as_mut().unwrap().stderr(&message) }
+            }
+            other => other,
+        };
+        let (buffer, truncated, stream, bytes) = match item {
+            LogOutput::StdOut { message } => {
+                (&mut result.stdout, &mut result.stdout_truncated, LogStream::Stdout, message)
+            }
+            LogOutput::StdErr { message } => {
+                (&mut result.stderr, &mut result.stderr_truncated, LogStream::Stderr, message)
+            }
+            _ => continue,
+        };
+        let room = max_output.saturating_sub(buffer.len());
+        buffer.extend_from_slice(&bytes[..bytes.len().min(room)]);
+        *truncated |= bytes.len() > room;
+        if let Some(live) = &live {
+            for chunk in bytes[..bytes.len().min(room)].chunks(crate::protocol::EXEC_CHUNK_BYTES) {
+                if live.send(LogChunk { stream, bytes: bytes::Bytes::copy_from_slice(chunk) }).await.is_err() {
+                    break;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 /// One authenticated exec, created but not yet started, and what is needed to see it to its
 /// end: the start lock it was created under, and its bound (deadline and grace).
 pub(super) struct Owned {
@@ -225,7 +269,7 @@ where
     let mut result = ExecOutput::default();
     let mut completion = Some(session);
     let (streamed, exit) = {
-        let collect = super::exec::collect_output(&mut output, &mut result, max_output, &live, &mut completion);
+        let collect = collect_output(&mut output, &mut result, max_output, &live, &mut completion);
         let exit = exited(docker, exec_id);
         tokio::pin!(collect, exit);
         tokio::select! {
@@ -261,7 +305,7 @@ async fn exited(docker: &Docker, exec_id: &str) -> Option<i64> {
     loop {
         match quick("inspect exec", docker.inspect_exec(exec_id)).await {
             Ok(inspect) if inspect.running != Some(true) => return inspect.exit_code,
-            Ok(_) => tokio::time::sleep(super::exec::EXIT_POLL).await,
+            Ok(_) => tokio::time::sleep(EXIT_POLL).await,
             Err(_) => tokio::time::sleep(ENGINE_RETRY).await,
         }
     }
