@@ -140,7 +140,8 @@ const server = http.createServer(async (request, response) => {
   if (policy.presented) remember(response, policy)
   // A forwarded request stays plain: only the upgrade handler below opens a WebSocket.
   const { upgrade: _plain, ...headers } = request.headers
-  const upstream = http.request({ socketPath: web, path: request.url, method: request.method, headers }, result => {
+  // Each request has its own connection: websockify may close a kept one as the next is written.
+  const upstream = http.request({ socketPath: web, path: request.url, method: request.method, headers, agent: false }, result => {
     response.writeHead(result.statusCode, result.headers)
     result.pipe(response)
   })
@@ -151,10 +152,11 @@ server.on('upgrade', (request, socket, head) => {
   const policy = access(request)
   if (!policy) { socket.destroy(); return }
   const upstream = net.createConnection({ path: web }, () => {
-    upstream.write(`${request.method} ${request.url} HTTP/${request.httpVersion}\r\n`)
-    for (let i = 0; i < request.rawHeaders.length; i += 2) upstream.write(`${request.rawHeaders[i]}: ${request.rawHeaders[i + 1]}\r\n`)
-    upstream.write('\r\n')
-    upstream.write(head)
+    // One write: websockify can answer and close as soon as the request is whole, and a later
+    // write's EPIPE would discard that answer unread.
+    let forwarded = `${request.method} ${request.url} HTTP/${request.httpVersion}\r\n`
+    for (let i = 0; i < request.rawHeaders.length; i += 2) forwarded += `${request.rawHeaders[i]}: ${request.rawHeaders[i + 1]}\r\n`
+    upstream.write(Buffer.concat([Buffer.from(forwarded + '\r\n'), head]))
     socket.pipe(upstream).pipe(socket)
   })
   const expiry = setTimeout(() => { socket.destroy(); upstream.destroy() }, Math.max(0, policy.expiresAt * 1000 - Date.now()))

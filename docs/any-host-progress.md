@@ -5266,3 +5266,23 @@ job when publication is authorized. That job has not run in this task.
   on the old inventory: a four-answer outage, an incomplete metadata body, a mirror given as a
   generator), the native installer's 6, and the real-Go check's 8 against Go 1.24.7 (CI runs
   the pinned 1.27.3).
+
+- K24 desktop-front follow-up, cause found: the portable front test fails locally about once in
+  a hundred runs alone, and 41 times in 600 with four running at once (Node 22.23.4), in three
+  ways: the client's request ends with `socket hang up` (24), the valid upgrade gets nothing
+  back (12), or the plain `/websockify` request never reaches the stand-in (5, which the
+  plain-upgrade assertion accepted and only the recorded-request list caught). An instrumented
+  copy of the test traced each. The front forwarded plain requests through Node's global
+  agent, which keeps sockets alive; the stand-in, like websockify 0.13.0 on HTTP/1.1, closes
+  after a request carrying `Connection: close` without saying so in its answer, so the agent
+  pooled the socket and reused it for the next request while it closed (ECONNRESET or EPIPE on
+  that socket, then the front destroyed the client's response). And the upgrade handler wrote
+  its request in several writes and then an empty `head`; once the stand-in had answered and
+  closed, that last write's EPIPE (`bytesWritten` 185, `bytesRead` 0) destroyed the upstream
+  before its answer was read. Each forwarded request now has its own connection and an upgrade
+  is written in one write. The test's stand-in now closes as late as it can (only once the
+  front sends more or closes) and the front's writes after a complete request wait until the
+  stand-in has answered and closed: with neither fix the test fails every time with `socket
+  hang up`, with only the first every time with an empty upgrade, and with both it passed 600
+  of 600 under the same load. The parked `k0-desktop-front-diagnostics` retention isn't needed
+  and is left out.
