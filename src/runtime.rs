@@ -438,9 +438,10 @@ pub trait ContainerRuntime: Send + Sync + 'static {
         None
     }
     /// Why the process tier can't enforce a CPU ceiling (`resources.cpuMillis`) here, naming
-    /// cpu-limit; `None` where it can. Only the process tier's validation asks.
+    /// cpu-limit; `None` where it can. Only the process tier's validation asks, and a backend that
+    /// says nothing is taken to enforce none.
     fn cpu_ceiling_problem(&self) -> Option<String> {
-        None
+        Some(crate::protocol::CPU_LIMIT_PROBLEM.into())
     }
     /// Why a request's address rules (`egressAddresses`) can't be enforced here as given, asked
     /// before anything is made; a backend that takes none says nothing.

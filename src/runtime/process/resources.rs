@@ -130,6 +130,10 @@ pub(super) fn release(cgroup: &Path) -> Result<(), RuntimeError> {
         Err(problem) => return Err(error(problem)),
     }
     let failed = |problem: std::io::Error| error(format!("Process limits: releasing {}: {problem}", cgroup.display()));
+    let usage = limits::usage(cgroup);
+    if usage.oom_kills.is_some_and(|kills| kills > 0) {
+        tracing::info!(cgroup = %cgroup.display(), oom_kills = usage.oom_kills, "process sandbox's commands passed its memory.max");
+    }
     crate::cgroup::fence_cgroup(cgroup).map_err(failed)?;
     crate::cgroup::wait_empty(cgroup).map_err(failed)?;
     crate::cgroup::remove_cgroup(cgroup).map_err(failed)
