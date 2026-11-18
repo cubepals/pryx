@@ -15,9 +15,147 @@ use crate::runtime::{ContainerRuntime, ContainerStatus};
 const SAMPLES: usize = 30;
 // Counts in a tmpfs file, which only the guest's memory keeps; its shell's PID says it's the same.
 const COUNTER: &str = "echo $$ > /tmp/pid; i=0; while :; do i=$((i+1)); echo $i > /tmp/counter; sleep 0.05; done";
-// Appends 16 random bytes a line to the disk every 10 ms once /tmp/sample exists, which a cold boot
-// doesn't keep; each line is one write.
-const SAMPLER: &str = "(while :; do if [ -e /tmp/sample ]; then r=$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \\n'); echo $r >> /data/random; fi; sleep 0.01; done) & ";
+// Appends 16 random bytes a line once /tmp/sample exists, which a cold boot doesn't keep. Capture
+// the request before drawing: a snapshot may retain bytes already drawn but not yet appended.
+const SAMPLER: &str = r#"answered=
+while :; do
+    if [ -e /tmp/sample ]; then
+        request=$(cat /tmp/sample-request 2>/dev/null || true)
+        r=$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')
+        echo "$r" >> /data/random
+        if [ -n "$request" ] && [ "$request" != "$answered" ]; then
+            printf '%s %s\n' "$request" "$r" > /tmp/sample-response-next
+            mv /tmp/sample-response-next /tmp/sample-response
+            answered=$request
+        fi
+    fi
+    sleep 0.01
+done"#;
+
+/// Only a complete acknowledgement for this request proves its sample was drawn after the request.
+fn requested_sample<'a>(response: &'a str, request: &str) -> Option<&'a str> {
+    let (seen, value) = response.trim().split_once(' ')?;
+    (seen == request && value.len() == 32 && value.bytes().all(|byte| byte.is_ascii_hexdigit())).then_some(value)
+}
+
+/// Ask only after wake readiness, so matching bytes cannot have been drawn before the restore.
+async fn fresh_sample(runtime: &VmRuntime, id: &str) -> String {
+    let request = uuid::Uuid::new_v4().simple().to_string();
+    exec(runtime, id, &format!("printf '%s' {request} > /tmp/sample-request")).await;
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let response = read(runtime, id, "cat /tmp/sample-response 2>/dev/null || true").await;
+            if let Some(value) = requested_sample(&response, &request) {
+                return value.to_owned();
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("The sampler must acknowledge a post-wake draw")
+}
+
+/// The fixture's complete process group is retired even if the gate-order assertion panics.
+struct SamplerProcess(std::process::Child);
+
+impl Drop for SamplerProcess {
+    fn drop(&mut self) {
+        let _ = rustix::process::kill_process_group(
+            rustix::process::Pid::from_child(&self.0),
+            rustix::process::Signal::KILL,
+        );
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+async fn sampler_reached(path: &Path) {
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while !path.exists() {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("The controlled sampler must reach its gate");
+}
+
+#[tokio::test]
+async fn a_buffered_sampler_draw_cannot_answer_a_later_request() {
+    use std::os::unix::{fs::PermissionsExt, process::CommandExt};
+    let temporary = tempfile::tempdir().unwrap();
+    let root = temporary.path();
+    for directory in ["tmp", "data", "bin"] {
+        fs::create_dir(root.join(directory)).unwrap();
+    }
+    for flag in ["tmp/sample", "old-held", "fresh-held"] {
+        fs::write(root.join(flag), b"").unwrap();
+    }
+    fs::write(root.join("tmp/sample-request"), b"before-request").unwrap();
+    // The real sampler runs unchanged apart from fixture paths. Its head input blocks after
+    // providing the old bytes, then blocks the next draw so the old acknowledgement is observable.
+    let head = root.join("bin/head");
+    fs::write(
+        &head,
+        r#"#!/bin/sh
+if [ ! -e "$SAMPLER_FIXTURE/old-drawn" ]; then
+    printf 0123456789abcdef
+    touch "$SAMPLER_FIXTURE/old-drawn"
+    while [ -e "$SAMPLER_FIXTURE/old-held" ]; do sleep 0.01; done
+else
+    touch "$SAMPLER_FIXTURE/fresh-drawn"
+    while [ -e "$SAMPLER_FIXTURE/fresh-held" ]; do sleep 0.01; done
+    printf fedcba9876543210
+fi
+"#,
+    )
+    .unwrap();
+    fs::set_permissions(&head, fs::Permissions::from_mode(0o700)).unwrap();
+    let paths = std::env::join_paths(
+        std::iter::once(root.join("bin")).chain(std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())),
+    )
+    .unwrap();
+    let script = SAMPLER
+        .replace("/tmp/", &format!("{}/tmp/", root.display()))
+        .replace("/data/", &format!("{}/data/", root.display()));
+    let _sampler = SamplerProcess(
+        std::process::Command::new("sh")
+            .args(["-c", &script])
+            .env("PATH", paths)
+            .env("SAMPLER_FIXTURE", root)
+            .process_group(0)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap(),
+    );
+    sampler_reached(&root.join("old-drawn")).await;
+    let request = uuid::Uuid::new_v4().simple().to_string();
+    fs::write(root.join("tmp/sample-request"), &request).unwrap();
+    fs::remove_file(root.join("old-held")).unwrap();
+    sampler_reached(&root.join("fresh-drawn")).await;
+    let response = fs::read_to_string(root.join("tmp/sample-response")).unwrap();
+    assert!(
+        requested_sample(&response, &request).is_none(),
+        "A buffered draw must not answer a request received after that draw began"
+    );
+    let buffered = hex::encode(b"0123456789abcdef");
+    assert_eq!(requested_sample(&response, "before-request"), Some(buffered.as_str()));
+    assert_eq!(fs::read_to_string(root.join("data/random")).unwrap(), format!("{buffered}\n"));
+    fs::remove_file(root.join("fresh-held")).unwrap();
+    let fresh = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let response = fs::read_to_string(root.join("tmp/sample-response")).unwrap();
+            if let Some(value) = requested_sample(&response, &request) {
+                break value.to_owned();
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("A new draw must acknowledge the new request");
+    assert_eq!(fresh, hex::encode(b"fedcba9876543210"));
+}
 
 fn percentile(samples: &mut [f64], fraction: f64) -> f64 {
     samples.sort_by(f64::total_cmp);
@@ -200,7 +338,7 @@ async fn source_and_forks(
 ) -> ((String, ContainerSpec), Vec<(String, ContainerSpec)>, String) {
     let with_counter = |mut spec: ContainerSpec| {
         spec.agent.as_mut().unwrap().keep_alive = false;
-        spec.entrypoint = Some(vec!["/bin/sh".into(), "-c".into(), format!("{SAMPLER}{COUNTER}")]);
+        spec.entrypoint = Some(vec!["/bin/sh".into(), "-c".into(), format!("({SAMPLER}) & {COUNTER}")]);
         spec
     };
     let data = root.join("source");
@@ -255,13 +393,15 @@ async fn sampled(runtime: &VmRuntime, id: &str) -> Vec<String> {
     read(runtime, id, "cat /data/random 2>/dev/null || true").await.lines().map(str::to_owned).collect()
 }
 
-/// Every copy restored from one memory drew bytes of its own first thing after its restore, and
-/// the disk the sleep flushed holds every line that memory had: the workload was frozen before
+/// Every copy restored from one memory draws its own bytes on a request issued after wake readiness.
+/// The disk the sleep flushed holds every line that memory had: the workload was frozen before
 /// the flush, and thawed in each copy only once its resume had reseeded it. `cold`, a fork refused
 /// its restore (another host class here), boots that disk.
 async fn frozen_across_the_restore(runtime: &VmRuntime, woken: &[String], cold: &str, cold_spec: &ContainerSpec) {
     let mut copies = Vec::new();
+    let mut fresh = Vec::new();
     for id in woken {
+        fresh.push(fresh_sample(runtime, id).await);
         copies.push(sampled(runtime, id).await);
     }
     runtime.state.entries.lock().unwrap().get_mut(cold).unwrap().memory.as_mut().unwrap().class.kernel.push_str("-x");
@@ -276,9 +416,9 @@ async fn frozen_across_the_restore(runtime: &VmRuntime, woken: &[String], cold: 
         assert!(copy.len() > flushed.len(), "Each copy sampled again after its wake");
         assert_eq!(copy[..flushed.len()], flushed[..], "The flushed disk holds every line the memory had");
     }
-    for (index, copy) in copies.iter().enumerate() {
-        for other in &copies[index + 1..] {
-            assert_ne!(copy[flushed.len()], other[flushed.len()], "The first bytes drawn after a restore differ");
+    for (index, value) in fresh.iter().enumerate() {
+        for other in &fresh[index + 1..] {
+            assert_ne!(value, other, "Samples requested after each restore draw different bytes");
         }
     }
     runtime.stop(cold, &cold_spec.stop_signal, Duration::from_secs(5)).await.unwrap();

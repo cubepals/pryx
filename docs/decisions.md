@@ -1597,3 +1597,5 @@
 - K26 current-base integration: hold the same immutable-container exec-generation gate around the existing journal-bound start, retaining native receipt preparation and confirmation so exec ownership and OOM attribution share one mutation.
 
 - K26 exec launch failures: after owner protection and child-ownership setup are proved, authenticate missing or non-executable command failures with the maintained shell's command-launch statuses because no workload was admitted; unknown launch/setup errors and unconfirmed post-start cleanup still require sandbox retirement.
+
+- VM fork entropy acceptance: capture a unique post-wake request before each acknowledged random draw, because a shell can retain pre-freeze bytes until its first post-restore append; retain continuous sampling and exact cold-disk prefixes, and force that buffered boundary in a local sampler regression.
