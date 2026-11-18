@@ -5286,3 +5286,10 @@ job when publication is authorized. That job has not run in this task.
   hang up`, with only the first every time with an empty upgrade, and with both it passed 600
   of 600 under the same load. The parked `k0-desktop-front-diagnostics` retention isn't needed
   and is left out.
+- Engine outage follow-up: the 45 s withdrawal probe that gave up in Any host job 133184644685
+  (`bc40b62`) is the reconciliation starvation `d44fc3e` fixed, with its regression in
+  `tests/multi_tier.rs`. The same assertion failed twice more, in jobs 133411563158 (`8610ff9`)
+  and 133655751444 (`f5e1ea2`), both on commits without that fix. Of the 17 "User preset with
+  rootless podman" jobs since, on commits that have it, 16 reached the probe and all 16 passed
+  it; the 17th stopped earlier on the engine-pause `/proc/<pid>/fd` refusal `9a15102` fixed.
+  Nothing is changed for it here.
