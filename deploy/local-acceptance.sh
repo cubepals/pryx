@@ -89,13 +89,16 @@ while True:
     assert time.monotonic() < deadline, view['guarantees']
     time.sleep(1)
 PY
-    # Its own cgroup, the one pryx-<key> with this sandbox's memory.max (320 MiB).
+    # Its own cgroup: the one pryx-<key> with a CPU ceiling (control sizes it in whole units).
     cgroup=$(python3 -c '
 import os
-found = [root for root, dirs, _ in os.walk("/sys/fs/cgroup") if os.path.basename(root).startswith("pryx-")
-         and os.path.isfile(os.path.join(root, "memory.max")) and open(os.path.join(root, "memory.max")).read().strip() == str(320 << 20)]
+read = lambda root, name: open(os.path.join(root, name)).read().split()
+found = [root for root, _, files in os.walk("/sys/fs/cgroup") if os.path.basename(root).startswith("pryx-")
+         and "cpu.max" in files and read(root, "cpu.max")[0] != "max"]
 assert len(found) == 1, found
+assert read(found[0], "memory.max")[0] != "max", read(found[0], "memory.max")
 print(found[0])')
+    quota=$(python3 -c 'import sys; q, p = open(sys.argv[1] + "/cpu.max").read().split(); print(int(q) / int(p))' "$cgroup")
     counter() { sed -n "s/^$2 //p" "$cgroup/$1"; }
     kills=$(counter memory.events oom_kill)
     code=0
@@ -108,12 +111,13 @@ print(found[0])')
 cpu, wall = time.process_time(), time.monotonic()
 while time.monotonic() - wall < 3: pass
 print(round((time.process_time() - cpu) / (time.monotonic() - wall), 3))')
-    python3 -c 'import sys; assert float(sys.argv[1]) < 0.2, sys.argv[1]' "$share"
+    # Throttled to its ceiling, with room for the period's edges, and well short of a whole CPU.
+    python3 -c 'import sys; share, quota = map(float, sys.argv[1:]); assert share < min(quota * 1.5, 0.9), (share, quota)' "$share" "$quota"
     [ "$(counter cpu.stat nr_throttled)" -gt "$throttled" ]
     kills=$(($(counter memory.events oom_kill) - kills))
     pryx sandbox rm "$box" > "$HOME/limited-deleted.json"
     [ "$(pryx run -- echo hello)" = hello ]
-    echo "process_limits=on oom_exit=$code oom_kills=$kills cpu_share=$share host=survived"
+    echo "process_limits=on oom_exit=$code oom_kills=$kills cpu_max=$quota cpu_share=$share host=survived"
   else
     grep -q 'cpu-limit' "$HOME/limited.out"
     if [ "${PRYX_EXPECT_PROCESS_LIMITS:-}" = on ]; then
