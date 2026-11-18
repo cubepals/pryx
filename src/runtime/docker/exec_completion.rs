@@ -160,6 +160,8 @@ impl Drop for Session {
 
 // Docker exposes exec inspection, but no exec wait endpoint. Avoid a 20 ms quantization after EOF.
 pub(super) const EXIT_POLL: Duration = Duration::from_millis(4);
+// While output is still open, a long-running exec needs only a few engine requests a second.
+const RUNNING_POLL: Duration = Duration::from_millis(250);
 
 pub(super) async fn collect_output<S>(
     output: &mut S,
@@ -271,10 +273,13 @@ where
     let (live, forwarding) = relay(live);
     let (streamed, exit) = {
         let collect = collect_output(&mut output, &mut result, max_output, &live, &mut completion);
-        let exit = exited(docker, exec_id);
+        let exit = exited(docker, exec_id, RUNNING_POLL);
         tokio::pin!(collect, exit);
         tokio::select! {
-            streamed = &mut collect => (Some(streamed), tokio::time::timeout_at(bound, exit).await.ok()),
+            streamed = &mut collect => {
+                exit.set(exited(docker, exec_id, EXIT_POLL));
+                (Some(streamed), tokio::time::timeout_at(bound, exit).await.ok())
+            },
             code = &mut exit => match tokio::time::timeout(DRAIN, &mut collect).await {
                 Ok(streamed) => (Some(streamed), Some(code)),
                 Err(_) => {
@@ -329,11 +334,11 @@ fn relay(
 }
 
 /// The exec's exit code once the engine says it has exited, asking again after a failed answer.
-async fn exited(docker: &Docker, exec_id: &str) -> Option<i64> {
+async fn exited(docker: &Docker, exec_id: &str, poll: Duration) -> Option<i64> {
     loop {
         match quick("inspect exec", docker.inspect_exec(exec_id)).await {
             Ok(inspect) if inspect.running != Some(true) => return inspect.exit_code,
-            Ok(_) => tokio::time::sleep(EXIT_POLL).await,
+            Ok(_) => tokio::time::sleep(poll).await,
             Err(_) => tokio::time::sleep(ENGINE_RETRY).await,
         }
     }
@@ -446,6 +451,7 @@ mod tests {
     /// holds and otherwise that it exited with `code`; its container runs until it is killed.
     struct Engine {
         kills: Arc<AtomicUsize>,
+        inspections: Arc<AtomicUsize>,
         running: Arc<std::sync::atomic::AtomicBool>,
         docker: Docker,
         start: OffsetDateTime,
@@ -459,17 +465,18 @@ mod tests {
             let path = dir.path().join("engine.sock");
             let listener = tokio::net::UnixListener::bind(&path).unwrap();
             let (kills, running) = (Arc::new(AtomicUsize::new(0)), Arc::new(std::sync::atomic::AtomicBool::new(false)));
-            let (killed, runs, failed) = (kills.clone(), running.clone(), Arc::new(AtomicUsize::new(0)));
+            let inspections = Arc::new(AtomicUsize::new(0));
+            let (killed, runs, inspected) = (kills.clone(), running.clone(), inspections.clone());
             let start = OffsetDateTime::now_utc();
             let app = Router::new().fallback(any(move |request: Request| {
-                let (killed, runs, failed) = (killed.clone(), runs.clone(), failed.clone());
+                let (killed, runs, inspected) = (killed.clone(), runs.clone(), inspected.clone());
                 async move {
                     let path = request.uri().path().to_owned();
                     if path.ends_with("/kill") {
                         killed.fetch_add(1, Ordering::SeqCst);
                     }
                     if path.contains("/exec/") {
-                        if failed.fetch_add(1, Ordering::SeqCst) < failures {
+                        if inspected.fetch_add(1, Ordering::SeqCst) < failures {
                             return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
                         }
                         let running = runs.load(Ordering::SeqCst);
@@ -499,7 +506,7 @@ mod tests {
             }));
             let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
             let docker = Docker::connect_with_unix(path.to_str().unwrap(), 2, bollard::API_DEFAULT_VERSION).unwrap();
-            Self { kills, running, docker, start, server, _dir: dir }
+            Self { kills, inspections, running, docker, start, server, _dir: dir }
         }
 
         fn session(&self) -> Session {
@@ -547,6 +554,32 @@ mod tests {
         let result = engine.watch(session, futures_util::stream::iter([stderr(footer)]), Duration::from_secs(10));
         let result = result.await.unwrap();
         assert_eq!((result.exit_code, result.stderr.as_slice()), (Some(0), b"done".as_slice()));
+        assert_eq!(engine.kills.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn an_exec_with_open_output_does_not_flood_the_engine() {
+        let engine = Engine::new(0, 0);
+        engine.running.store(true, Ordering::SeqCst);
+        let session = engine.session();
+        let mut footer = Vec::new();
+        session.key.write(&mut footer, 0, false).unwrap();
+        let (finish, output) = tokio::sync::oneshot::channel();
+        let output = Box::pin(futures_util::stream::once(async { stderr(output.await.unwrap()) }));
+        let (result, ()) = tokio::join!(engine.watch(session, output, Duration::from_secs(10)), async {
+            tokio::time::timeout(Duration::from_secs(2), async {
+                while engine.inspections.load(Ordering::SeqCst) == 0 {
+                    tokio::time::sleep(Duration::from_millis(1)).await;
+                }
+            })
+            .await
+            .expect("the running exec was inspected");
+            tokio::time::sleep(Duration::from_millis(80)).await;
+            assert_eq!(engine.inspections.load(Ordering::SeqCst), 1, "open output allows slow inspection");
+            engine.running.store(false, Ordering::SeqCst);
+            finish.send(footer).unwrap();
+        });
+        assert_eq!(result.unwrap().exit_code, Some(0));
         assert_eq!(engine.kills.load(Ordering::SeqCst), 0);
     }
 
