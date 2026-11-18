@@ -236,7 +236,9 @@ jobs:
       - name: Release compilation space
         run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
       - name: Artifact acquisition rejects incomplete reads
-        run: bash deploy/host-artifacts.test.sh
+        run: |
+          bash deploy/host-artifacts.test.sh
+          python3 -m unittest discover -s deploy -p 'artifact_read_test.py'
       - name: Create an isolated preview signing identity
         run: |
           openssl genpkey -algorithm ED25519 -out "$RUNNER_TEMP/preview.key"
