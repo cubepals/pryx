@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Private completion transport and failure cleanup for gVisor exec owners. The key never
-//! enters argv, the container environment, child stdin or diagnostics. Once started, an exec
-//! belongs to a task of its own, so an API caller that goes away loses only the answer. The
-//! sandbox is retired once, and only on evidence that the in-sandbox supervisor did not finish:
-//! the exec ended without its authenticated completion, or it still runs past its bound. A lost
-//! engine answer or output stream is reported, never answered with a kill, since the supervisor
-//! keeps the deadline whether or not this node hears it. Command submission and output
-//! collection remain in exec.rs.
+//! enters argv, the container environment, child stdin or diagnostics. The sandbox is retired
+//! once, on evidence that the in-sandbox supervisor did not finish: the exec ended without its
+//! authenticated completion, or it still runs past its bound. A lost engine answer or output
+//! stream is reported, never answered with a kill, since the supervisor keeps the deadline
+//! whether or not this node hears it. A future dropped before its exec is judged still retires
+//! it; the node's API runs each exec detached, so a caller that goes away drops none. Command
+//! submission and output collection remain in exec.rs.
 use super::*;
 use crate::runtime::parse_time;
 use pryx_agent::exec_completion::{Completion, Key, TAIL_BYTES};
@@ -125,6 +125,11 @@ impl Session {
         }
         true
     }
+    /// Nothing says the supervisor failed, so its sandbox is kept: the command never started, or
+    /// this node could not hear how it ended.
+    fn release(&mut self) {
+        self.retirement = None;
+    }
     pub(super) async fn failed(&mut self) -> RuntimeError {
         let Some(target) = self.retirement.take() else {
             return RuntimeError::Other("exec-timeout cleanup was not authenticated".into());
@@ -140,9 +145,20 @@ impl Session {
         )
     }
 }
+impl Drop for Session {
+    fn drop(&mut self) {
+        if let Some(target) = self.retirement.take() {
+            tokio::spawn(async move {
+                if !retire(target).await {
+                    tracing::warn!("unconfirmed gvisor exec cleanup could not retire its sandbox");
+                }
+            });
+        }
+    }
+}
 
-/// One authenticated exec, created but not yet started, and what its task needs to see it to
-/// its end: the start lock it was created under, and its bound (deadline and grace).
+/// One authenticated exec, created but not yet started, and what is needed to see it to its
+/// end: the start lock it was created under, and its bound (deadline and grace).
 pub(super) struct Owned {
     pub(super) docker: Docker,
     pub(super) exec_id: String,
@@ -168,15 +184,22 @@ impl Owned {
         let bound = tokio::time::Instant::now() + limit;
         let options = StartExecOptions { detach: false, tty: false, output_capacity: None };
         // A start that fails delivers no key, and without one the supervisor runs nothing.
-        let StartExecResults::Attached { mut output, mut input } =
-            quick("start exec", docker.start_exec(&exec_id, Some(options))).await?
-        else {
-            return Err(RuntimeError::Other("exec started detached".into()));
+        let (mut output, mut input) = match quick("start exec", docker.start_exec(&exec_id, Some(options))).await {
+            Ok(StartExecResults::Attached { output, input }) => (output, input),
+            Ok(StartExecResults::Detached) => {
+                session.release();
+                return Err(RuntimeError::Other("exec started detached".into()));
+            }
+            Err(problem) => {
+                session.release();
+                return Err(problem);
+            }
         };
         let established = session.establish(&mut output, &mut input).await;
         drop(input);
         drop(setup);
         if !established && !session.offered {
+            session.release();
             return Err(RuntimeError::Other(
                 "the exec's supervisor did not start, so it was never given a command to run".into(),
             ));
@@ -219,10 +242,14 @@ where
             Ok(Some(code)) => code,
             // Still running past its bound: the supervisor never finished retiring the command.
             Ok(None) => return Err(session.failed().await),
-            Err(problem) => return Err(unheard(&problem)),
+            Err(problem) => {
+                session.release();
+                return Err(unheard(&problem));
+            }
         },
     };
     if let Some(Err(problem)) = streamed {
+        session.release();
         return Err(unheard(&problem));
     }
     result.exit_code = code;

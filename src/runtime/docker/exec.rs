@@ -31,26 +31,16 @@ impl DockerRuntime {
         let timeout = prepared.timeout;
         let created = quick("create exec", self.docker()?.create_exec(container, prepared.options())).await?;
         let exec_id = created.id;
+        let docker = self.docker()?;
         if let Some(session) = prepared.session(self, container)? {
-            // From its start an authenticated exec belongs to a task of its own: a caller that
-            // goes away loses only the answer, never the sandbox (exec_completion.rs).
-            let owned = super::exec_completion::Owned {
-                docker: self.docker()?,
-                exec_id,
-                session,
-                setup,
-                limit: timeout,
-                max_output,
-                live,
-            };
-            return tokio::spawn(owned.run())
-                .await
-                .unwrap_or_else(|problem| Err(RuntimeError::Other(format!("authenticated exec failed: {problem}"))));
+            // gVisor's exec is seen to its end, and judged, by its completion (exec_completion.rs).
+            let owned =
+                super::exec_completion::Owned { docker, exec_id, session, setup, limit: timeout, max_output, live };
+            return owned.run().await;
         }
         let started = quick(
             "start exec",
-            self.docker()?
-                .start_exec(&exec_id, Some(StartExecOptions { detach: false, tty: false, output_capacity: None })),
+            docker.start_exec(&exec_id, Some(StartExecOptions { detach: false, tty: false, output_capacity: None })),
         )
         .await?;
         let StartExecResults::Attached { mut output, input } = started else {
