@@ -55,21 +55,28 @@ jobs:
               - '!.github/dependabot.yml'
       # full: every job. quick: a worker branch's push (k and a digit, or codex/), whose proof is a
       # dispatch of CI, Any host, VM experiments and Rootless engines on the branch: the jobs below
-      # but the installed product's acceptance, the arm64 image and the gVisor tier.
+      # but the installed product's acceptance, the arm64 image and the gVisor tier. none: a pull
+      # request from such a branch of this repository, whose push and proof runs test its commits:
+      # only what reads the pull request itself.
       - name: Which jobs this run needs
         id: scope
         env:
           EVENT: ${{ github.event_name }}
           BRANCH: ${{ github.ref_name }}
+          HEAD: ${{ github.head_ref }}
+          SAME_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
         run: |
           scope=full
           case "$EVENT:$BRANCH" in push:k[0-9]*|push:codex/*) scope=quick ;; esac
+          if [ "$EVENT" = pull_request ] && [ "$SAME_REPOSITORY" = true ]; then
+            case "$HEAD" in k[0-9]*|codex/*) scope=none ;; esac
+          fi
           echo "scope=$scope" | tee -a "$GITHUB_OUTPUT"
 
   test:
     name: Format, lint, tests and structure
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.scope != 'none'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -470,7 +477,7 @@ jobs:
   kernels:
     name: BPF programs on ${{ matrix.runner }}'s kernel
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.scope != 'none'
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -504,7 +511,7 @@ jobs:
   supply-chain:
     name: Dependency licences and advisories
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.scope != 'none'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -526,7 +533,7 @@ jobs:
     # self-upgrade (apps/control/src/infra/fleet/fleet-runtime.e2e.test.ts there). A debug build,
     # since only debug builds take PRYXD_TEST_VERSION, which the upgrade test sets.
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.scope != 'none'
     runs-on: ubuntu-24.04
     services:
       postgres:
@@ -629,7 +636,7 @@ jobs:
   control:
     name: Control workspaces
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.scope != 'none'
     runs-on: ubuntu-24.04
     services:
       postgres:
