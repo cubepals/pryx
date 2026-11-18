@@ -28,9 +28,7 @@ pub(super) async fn internal(
         quick("inspect internal network", runtime.docker()?.inspect_network(name, None::<InspectNetworkOptions>)).await;
     match inspect {
         Ok(network) => {
-            if network.internal == Some(true)
-                && network.options.unwrap_or_default().get(ICC_OPTION).map(String::as_str) == Some("false")
-            {
+            if enforces_private(&network) {
                 return Ok(());
             }
             return Err(RuntimeError::Other("The internal network does not enforce host policy".into()));
@@ -51,6 +49,11 @@ pub(super) async fn internal(
     };
     quick("create internal network", runtime.docker()?.create_network(request)).await?;
     Ok(())
+}
+
+fn enforces_private(network: &bollard::models::NetworkInspect) -> bool {
+    network.internal == Some(true)
+        && network.options.as_ref().and_then(|options| options.get(ICC_OPTION)).map(String::as_str) == Some("false")
 }
 
 pub(super) async fn ensure(

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Private ingress for Docker internal networks, which have no external-connectivity gateway
 //! and do not publish ports. Relays bind the same host-policy addresses, reach only the selected
-//! container and preserve its gateway-free egress policy. Inspection reconstructs them after restart.
+//! container and preserve its gateway-free egress policy. Inspection reconstructs them after restart,
+//! from bindings pryxd wrote alone: an image's label of the same name opens nothing.
 use crate::{
     protocol::Proto,
     runtime::docker::DockerRuntime,
@@ -173,13 +174,17 @@ fn declared(info: &ContainerInspectResponse, encoded: &str) -> Result<Vec<PortBi
     if bindings.as_ref().is_ok_and(Vec::is_empty) {
         return Ok(Vec::new());
     }
-    let record = info
+    let Some(record) = info
         .config
         .as_ref()
         .and_then(|config| config.labels.as_ref())
         .and_then(|labels| labels.get(LABEL_RECORD))
         .and_then(|encoded| serde_json::from_str::<LabelRecord>(encoded).ok())
-        .ok_or_else(|| error("network-policy needs its host-written record before private ingress can be restored"))?;
+    else {
+        // pryxd writes its record on every container it makes. Bindings without one are an
+        // image's, or a container's pryxd never made: they open nothing and fail nothing.
+        return Ok(Vec::new());
+    };
     if record.spec.network != crate::protocol::NetworkMode::None {
         return Ok(Vec::new());
     }

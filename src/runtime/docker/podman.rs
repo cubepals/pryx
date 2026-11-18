@@ -190,6 +190,7 @@ pub(super) fn body(spec: &ContainerSpec, info: &RuntimeInfo) -> Result<Create, R
             .iter()
             .map(|(k, v)| (k.clone(), v.clone()))
             .filter(|(key, _)| key != crate::labels::LABEL_INTERNAL_BINDINGS)
+            // Over an image's own: native publication is this engine's ingress, so it declares none.
             .chain([(NETWORK_LABEL.into(), network), (crate::labels::LABEL_INTERNAL_BINDINGS.into(), "[]".into())])
             .collect(),
     );
@@ -362,6 +363,7 @@ mod tests {
             host_ips: vec![std::net::Ipv4Addr::LOCALHOST.into()],
             protocol: crate::protocol::Proto::Tcp,
         });
+        spec.labels.insert(crate::labels::LABEL_INTERNAL_BINDINGS.into(), "[{\"forged\":true}]".into());
         let info = RuntimeInfo {
             podman: true,
             rootless: true,
@@ -383,11 +385,11 @@ mod tests {
         assert_eq!(value["no_new_privileges"], true);
         assert_eq!(value["privileged"], false);
         assert_eq!(value["env"][pryx_agent::contract::FUSE_ENV], "0");
+        assert_eq!(value["labels"][crate::labels::LABEL_INTERNAL_BINDINGS], "[]", "over an image's own");
         assert_eq!(value["resource_limits"]["memory"]["limit"], spec.memory_bytes);
         assert_eq!(value["resource_limits"]["memory"]["swap"], spec.memory_bytes);
         assert_eq!(value["portmappings"][0]["host_port"], spec.ports[0].host_port);
         assert_eq!(value["portmappings"][0]["container_port"], spec.ports[0].container_port);
-        assert_eq!(value["labels"][crate::labels::LABEL_INTERNAL_BINDINGS], "[]");
         let mounts = value["mounts"].as_array().unwrap();
         assert_eq!(mounts.iter().filter(|mount| mount["destination"] == spec.mount_path).count(), 1);
         assert!(mounts.iter().all(|mount| mount.get("Target").is_none()));

@@ -434,13 +434,19 @@ mod tests {
                 drop(unclaimed);
             }
         }
-        wire.latest.lock().unwrap().as_mut().unwrap()["Config"]["Labels"]
-            .as_object_mut()
-            .unwrap()
-            .remove(crate::labels::LABEL_RECORD);
+        // Without pryxd's record the bindings are not pryxd's: nothing listens and nothing fails.
+        {
+            let mut latest = wire.latest.lock().unwrap();
+            let labels = &mut latest.as_mut().unwrap()["Config"]["Labels"];
+            labels.as_object_mut().unwrap().remove(crate::labels::LABEL_RECORD);
+            labels[crate::labels::LABEL_INTERNAL_BINDINGS] = forged.into();
+        }
         let recovered = DockerRuntime::new(Path::new(&runtime.socket)).unwrap();
         *recovered.info.lock().unwrap() = Some(RuntimeInfo::default());
-        let error = recovered.inspect("private-fixture").await.unwrap_err();
-        assert!(error.to_string().contains("network-policy") && error.to_string().contains("host-written record"));
+        recovered.inspect("private-fixture").await.unwrap().unwrap();
+        drop(
+            std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, forged_port))
+                .expect("bindings without pryxd's record cannot create a listener"),
+        );
     }
 }
