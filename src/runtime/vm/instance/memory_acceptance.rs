@@ -472,11 +472,13 @@ async fn actual_failed_snapshots_resume_or_retire_the_guest() {
     let refused = runtime.pause(&id).await.expect_err("A snapshot without its memory file fails");
     eprintln!("VM sleep with an unwritable memory file: {refused}");
     assert_eq!(runtime.inspect(&id).await.unwrap().unwrap().status, ContainerStatus::Running);
+    eprintln!("VM failed snapshot marker phase: first after recovery");
     assert_eq!(read(&runtime, &id, "cat /tmp/marker").await, "kept", "The guest went on where it was");
     super::network_acceptance::probe(&runtime, &id, true, &host).await;
     fs::remove_dir(&unwritable).unwrap();
     runtime.pause(&id).await.unwrap();
     runtime.unpause(&id).await.unwrap();
+    eprintln!("VM failed snapshot marker phase: second after pause and unpause");
     assert_eq!(read(&runtime, &id, "cat /tmp/marker").await, "kept");
     super::network_acceptance::probe(&runtime, &id, true, &host).await;
 

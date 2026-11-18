@@ -136,12 +136,16 @@ impl VmRuntime {
             rows: None,
             timeout: Some(u32::try_from(timeout.as_secs().max(1)).map_err(error)?),
         };
+        #[cfg(test)]
+        eprintln!("VM runtime exec phase: POST process");
         let started: Value = serde_json::from_slice(
             &raw(&entry.spec, Method::POST, "/_pryx/processes", serde_json::to_value(start).map_err(error)?, timeout)
                 .await?,
         )
         .map_err(error)?;
         let id = started["id"].as_str().ok_or_else(|| error("VM process response omitted ID"))?;
+        #[cfg(test)]
+        eprintln!("VM runtime exec phase: GET wait");
         let waited: Value = serde_json::from_slice(
             &raw(
                 &entry.spec,
@@ -161,6 +165,8 @@ impl VmRuntime {
             stderr_truncated: waited["stderrTruncated"].as_bool().unwrap_or(false),
             ..Default::default()
         };
+        #[cfg(test)]
+        eprintln!("VM runtime exec phase: GET output");
         let output =
             raw(&entry.spec, Method::GET, &format!("/_pryx/processes/{id}/output"), json!(null), timeout).await?;
         for line in output.split(|b| *b == b'\n').filter(|line| !line.is_empty()) {
