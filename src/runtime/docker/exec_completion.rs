@@ -268,13 +268,24 @@ where
 {
     let mut result = ExecOutput::default();
     let mut completion = Some(session);
+    let (live, forwarding) = relay(live);
     let (streamed, exit) = {
         let collect = collect_output(&mut output, &mut result, max_output, &live, &mut completion);
         let exit = exited(docker, exec_id);
         tokio::pin!(collect, exit);
         tokio::select! {
             streamed = &mut collect => (Some(streamed), tokio::time::timeout_at(bound, exit).await.ok()),
-            code = &mut exit => (tokio::time::timeout(DRAIN, collect).await.ok(), Some(code)),
+            code = &mut exit => match tokio::time::timeout(DRAIN, &mut collect).await {
+                Ok(streamed) => (Some(streamed), Some(code)),
+                Err(_) => {
+                    // A client that reads slowly is let go of, so the output behind it, and its
+                    // completion, are still read; what it missed arrives with the result.
+                    if let Some(forwarding) = &forwarding {
+                        forwarding.abort();
+                    }
+                    (tokio::time::timeout(DRAIN, collect).await.ok(), Some(code))
+                }
+            },
             () = tokio::time::sleep_until(bound) => (None, None),
         }
     };
@@ -298,6 +309,23 @@ where
     }
     result.exit_code = code;
     if session.complete(&mut result, max_output, &live).await { Ok(result) } else { Err(session.failed().await) }
+}
+
+/// Live output through a forwarder of its own, which can be let go of when the client it waits on
+/// stops reading; the client's stream then sends what it missed from the result.
+fn relay(
+    live: Option<tokio::sync::mpsc::Sender<LogChunk>>,
+) -> (Option<tokio::sync::mpsc::Sender<LogChunk>>, Option<tokio::task::JoinHandle<()>>) {
+    let Some(live) = live else { return (None, None) };
+    let (relay, mut queued) = tokio::sync::mpsc::channel::<LogChunk>(1);
+    let forwarding = tokio::spawn(async move {
+        while let Some(chunk) = queued.recv().await {
+            if live.send(chunk).await.is_err() {
+                return;
+            }
+        }
+    });
+    (Some(relay), Some(forwarding))
 }
 
 /// The exec's exit code once the engine says it has exited, asking again after a failed answer.
@@ -485,8 +513,18 @@ mod tests {
             output: impl futures_util::Stream<Item = Result<LogOutput, bollard::errors::Error>> + Unpin,
             limit: Duration,
         ) -> Result<ExecOutput, RuntimeError> {
+            self.watch_live(session, output, limit, None).await
+        }
+
+        async fn watch_live(
+            &self,
+            session: Session,
+            output: impl futures_util::Stream<Item = Result<LogOutput, bollard::errors::Error>> + Unpin,
+            limit: Duration,
+            live: Option<tokio::sync::mpsc::Sender<LogChunk>>,
+        ) -> Result<ExecOutput, RuntimeError> {
             let bound = tokio::time::Instant::now() + limit;
-            watch(&self.docker, "exec", output, session, bound, 1024, None).await
+            watch(&self.docker, "exec", output, session, bound, 1024, live).await
         }
     }
 
@@ -509,6 +547,25 @@ mod tests {
         let result = engine.watch(session, futures_util::stream::iter([stderr(footer)]), Duration::from_secs(10));
         let result = result.await.unwrap();
         assert_eq!((result.exit_code, result.stderr.as_slice()), (Some(0), b"done".as_slice()));
+        assert_eq!(engine.kills.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn a_client_that_stops_reading_never_stands_for_a_failed_completion() {
+        let engine = Engine::new(0, 0);
+        let session = engine.session();
+        let mut footer = Vec::new();
+        session.key.write(&mut footer, 0, false).unwrap();
+        let mut output: Vec<_> = (0..4).map(|_| Ok(LogOutput::StdOut { message: b"line\n".to_vec().into() })).collect();
+        output.push(stderr(footer));
+        // The client takes nothing: its queue fills with the first chunk.
+        let (live, _unread) = tokio::sync::mpsc::channel(1);
+        let began = std::time::Instant::now();
+        let result =
+            engine.watch_live(session, futures_util::stream::iter(output), Duration::from_secs(60), Some(live));
+        let result = result.await.unwrap();
+        assert_eq!((result.exit_code, result.stdout.as_slice()), (Some(0), b"line\n".repeat(4).as_slice()));
+        assert!(began.elapsed() < Duration::from_secs(30), "the slow client was let go of, not waited for");
         assert_eq!(engine.kills.load(Ordering::SeqCst), 0);
     }
 
