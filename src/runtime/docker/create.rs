@@ -29,13 +29,13 @@ pub(super) async fn create(runtime: &DockerRuntime, spec: &ContainerSpec) -> Res
     if let Some(own) = runtime.oci_runtime {
         spec.labels.insert(crate::labels::LABEL_OCI_RUNTIME.into(), own.into());
     }
-    if spec.internal_network {
-        spec.labels.insert(
-            crate::labels::LABEL_INTERNAL_BINDINGS.into(),
-            serde_json::to_string(&spec.ports)
-                .map_err(|_| RuntimeError::Other("Cannot encode private bindings".into()))?,
-        );
-    }
+    // Written over whatever the image says: a container inherits every label of its image, and
+    // only the host declares private listeners. Native Podman publishes its own and declares none.
+    let private: &[super::super::PortBinding] =
+        if spec.internal_network && !info.podman { &spec.ports[..] } else { &[] };
+    let private =
+        serde_json::to_string(private).map_err(|_| RuntimeError::Other("Cannot encode private bindings".into()))?;
+    spec.labels.insert(crate::labels::LABEL_INTERNAL_BINDINGS.into(), private);
     agent_entrypoint(runtime, &mut spec).await?;
     if info.podman {
         return podman::create(runtime, &spec, &info).await;

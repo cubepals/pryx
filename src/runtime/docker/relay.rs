@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Private ingress for Docker internal networks, which have no external-connectivity gateway
 //! and do not publish ports. Relays bind the same host-policy addresses, reach only the selected
-//! container and preserve its gateway-free egress policy. Inspection reconstructs them after restart.
+//! container and preserve its gateway-free egress policy. Inspection reconstructs them after restart,
+//! from bindings pryxd wrote alone: an image's label of the same name opens nothing.
+use super::{ContainerRuntime, DockerRuntime};
 use crate::{
     protocol::Proto,
     runtime::{PortBinding, RuntimeError},
@@ -39,7 +41,11 @@ impl Relays {
     pub(super) async fn stop(&self, name: &str) {
         self.held.lock().await.retain(|id, (held_name, _)| id != name && held_name != name);
     }
-    pub(super) async fn ensure(&self, info: &ContainerInspectResponse) -> Result<(), RuntimeError> {
+    pub(super) async fn ensure(
+        &self,
+        runtime: &DockerRuntime,
+        info: &ContainerInspectResponse,
+    ) -> Result<(), RuntimeError> {
         let Some(encoded) =
             info.config.as_ref().and_then(|c| c.labels.as_ref()).and_then(|l| l.get(LABEL_INTERNAL_BINDINGS))
         else {
@@ -51,12 +57,20 @@ impl Relays {
             self.stop(id).await;
             return Ok(());
         }
+        // Read, not yet believed: an empty list asks for nothing, whoever wrote it.
+        let bindings = serde_json::from_str::<Vec<PortBinding>>(encoded);
+        if bindings.as_ref().is_ok_and(Vec::is_empty) || self.held.lock().await.contains_key(id) {
+            return Ok(());
+        }
+        if !written_by_host(runtime, info).await? {
+            return Ok(());
+        }
+        let bindings = bindings.map_err(error)?;
         let mut held = self.held.lock().await;
         if held.contains_key(id) {
             return Ok(());
         }
         held.retain(|_, (previous, _)| previous != name);
-        let bindings: Vec<PortBinding> = serde_json::from_str(encoded).map_err(error)?;
         let ip = info
             .network_settings
             .as_ref()
@@ -95,6 +109,26 @@ impl Relays {
         held.insert(id.into(), (name.into(), guard));
         Ok(())
     }
+}
+
+/// Whether pryxd wrote this container's bindings. It writes them only for a container it put on
+/// its own gateway-free internal network, which the image can't choose, while every container
+/// inherits its image's labels: one on any other network, or none, carries an image's. Native
+/// Podman publishes its own ingress, so no bindings on it are pryxd's.
+async fn written_by_host(runtime: &DockerRuntime, info: &ContainerInspectResponse) -> Result<bool, RuntimeError> {
+    let cached = runtime.info.lock().unwrap().clone();
+    let engine = match cached {
+        Some(engine) => engine,
+        None => runtime.info().await?,
+    };
+    if engine.podman {
+        return Ok(false);
+    }
+    let attached: Vec<_> =
+        info.network_settings.as_ref().and_then(|n| n.networks.as_ref()).into_iter().flat_map(|n| n.values()).collect();
+    let [endpoint] = attached.as_slice() else { return Ok(false) };
+    let Some(network) = endpoint.network_id.as_deref().filter(|id| !id.is_empty()) else { return Ok(false) };
+    super::network::private(runtime, network).await
 }
 fn tcp(listener: TcpListener, target: SocketAddr, cancel: CancellationToken, capacity: Arc<Semaphore>) {
     tokio::spawn(async move {
@@ -201,6 +235,91 @@ mod tests {
         assert_eq!(&reply, b"reply");
         cancel.cancel();
         assert_eq!(tokio::time::timeout(Duration::from_secs(1), client.read(&mut reply)).await.unwrap().unwrap(), 0);
+    }
+    /// An engine whose one network is internal or not, as asked; nothing else is asked of it.
+    async fn engine(internal: bool) -> (tempfile::TempDir, DockerRuntime, tokio::task::JoinHandle<()>) {
+        use axum::{Json, Router, extract::Request, routing::any};
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("engine.sock");
+        let listener = tokio::net::UnixListener::bind(&path).unwrap();
+        let app = Router::new().fallback(any(move |request: Request| async move {
+            assert!(request.uri().path().ends_with("/networks/attached"), "{}", request.uri());
+            Json(bollard::models::NetworkInspect {
+                internal: Some(internal),
+                options: Some(HashMap::from([(super::super::ICC_OPTION.to_owned(), "false".to_owned())])),
+                ..Default::default()
+            })
+        }));
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let runtime = DockerRuntime::new(&path).unwrap();
+        *runtime.info.lock().unwrap() = Some(super::super::RuntimeInfo::default());
+        (directory, runtime, server)
+    }
+
+    /// A running container on the network `attached`, carrying `label` as its bindings.
+    fn container(label: &str) -> ContainerInspectResponse {
+        use bollard::models::{ContainerConfig, ContainerState, EndpointSettings, NetworkSettings};
+        let endpoint = EndpointSettings {
+            network_id: Some("attached".into()),
+            ip_address: Some(std::net::Ipv4Addr::LOCALHOST.to_string()),
+            ..Default::default()
+        };
+        ContainerInspectResponse {
+            id: Some("owned".into()),
+            name: Some("/owned".into()),
+            state: Some(ContainerState { running: Some(true), ..Default::default() }),
+            config: Some(ContainerConfig {
+                labels: Some(HashMap::from([(LABEL_INTERNAL_BINDINGS.to_owned(), label.to_owned())])),
+                ..Default::default()
+            }),
+            network_settings: Some(NetworkSettings {
+                networks: Some(HashMap::from([("attached".to_owned(), endpoint)])),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+    }
+
+    /// One loopback listener the kernel chose, released at once, as bindings name it.
+    fn bindings() -> (u16, String) {
+        let port =
+            std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap().local_addr().unwrap().port();
+        let binding = PortBinding {
+            container_port: 9,
+            protocol: Proto::Tcp,
+            host_ips: vec![std::net::Ipv4Addr::LOCALHOST.into()],
+            host_port: port,
+        };
+        (port, serde_json::to_string(&[binding]).unwrap())
+    }
+
+    async fn listens(port: u16) -> bool {
+        TcpStream::connect((std::net::Ipv4Addr::LOCALHOST, port)).await.is_ok()
+    }
+
+    #[tokio::test]
+    async fn only_bindings_pryxd_wrote_open_host_listeners() {
+        let relays = Relays::default();
+        // pryxd's own, on its gateway-free internal network: they listen, and a corrupt one is said.
+        let (_internal, runtime, server) = engine(true).await;
+        let (port, label) = bindings();
+        relays.ensure(&runtime, &container(&label)).await.unwrap();
+        assert!(listens(port).await);
+        relays.stop("owned").await;
+        assert!(relays.ensure(&runtime, &container("forged")).await.is_err());
+        // Native Podman publishes its own ingress: the same label there is never pryxd's.
+        *runtime.info.lock().unwrap() = Some(super::super::RuntimeInfo { podman: true, ..Default::default() });
+        let (port, label) = bindings();
+        relays.ensure(&runtime, &container(&label)).await.unwrap();
+        assert!(!listens(port).await, "a Podman container's label opened a listener");
+        server.abort();
+        // On any other network the label is its image's: nothing listens, and nothing fails.
+        let (_ordinary, runtime, server) = engine(false).await;
+        let (port, label) = bindings();
+        relays.ensure(&runtime, &container(&label)).await.unwrap();
+        assert!(!listens(port).await, "an image's label opened a listener");
+        relays.ensure(&runtime, &container("forged")).await.unwrap();
+        server.abort();
     }
     #[tokio::test]
     async fn udp_relay_keeps_each_peers_reply_address() {
