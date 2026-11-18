@@ -237,7 +237,7 @@ mod tests {
         assert_eq!(tokio::time::timeout(Duration::from_secs(1), client.read(&mut reply)).await.unwrap().unwrap(), 0);
     }
     /// An engine whose one network is internal or not, as asked; nothing else is asked of it.
-    async fn engine(internal: bool) -> (tempfile::TempDir, DockerRuntime, tokio::task::JoinHandle<()>) {
+    fn engine(internal: bool) -> (tempfile::TempDir, DockerRuntime, tokio::task::JoinHandle<()>) {
         use axum::{Json, Router, extract::Request, routing::any};
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("engine.sock");
@@ -301,7 +301,7 @@ mod tests {
     async fn only_bindings_pryxd_wrote_open_host_listeners() {
         let relays = Relays::default();
         // pryxd's own, on its gateway-free internal network: they listen, and a corrupt one is said.
-        let (_internal, runtime, server) = engine(true).await;
+        let (_internal, runtime, server) = engine(true);
         let (port, label) = bindings();
         relays.ensure(&runtime, &container(&label)).await.unwrap();
         assert!(listens(port).await);
@@ -314,7 +314,7 @@ mod tests {
         assert!(!listens(port).await, "a Podman container's label opened a listener");
         server.abort();
         // On any other network the label is its image's: nothing listens, and nothing fails.
-        let (_ordinary, runtime, server) = engine(false).await;
+        let (_ordinary, runtime, server) = engine(false);
         let (port, label) = bindings();
         relays.ensure(&runtime, &container(&label)).await.unwrap();
         assert!(!listens(port).await, "an image's label opened a listener");
