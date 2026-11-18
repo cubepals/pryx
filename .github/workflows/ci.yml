@@ -14,7 +14,9 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+  # A worker branch needs only its newest push or proof: a newer one cancels the run in progress.
+  # Elsewhere a run is never cancelled; a newer one waits, and only the newest waiting run is kept.
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/heads/k') || startsWith(github.ref, 'refs/heads/codex/') }}
 
 permissions:
   contents: read
@@ -23,7 +25,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # A change to nothing but prose skips the rest. `check` still reports, so it can stay required.
+  # A change to nothing but prose skips the rest, and `scope` says which of the rest this run needs.
+  # `check` still reports, so it can stay required.
   changes:
     name: Find what changed
     runs-on: ubuntu-24.04
@@ -32,6 +35,7 @@ jobs:
       pull-requests: read
     outputs:
       code: ${{ github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' }}
+      scope: ${{ steps.scope.outputs.scope }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -49,6 +53,18 @@ jobs:
               - '!.github/CODEOWNERS'
               - '!.github/pull_request_template.md'
               - '!.github/dependabot.yml'
+      # full: every job. quick: a worker branch's push (k and a digit, or codex/), whose proof is a
+      # dispatch of CI, Any host, VM experiments and Rootless engines on the branch: the jobs below
+      # but the installed product's acceptance, the arm64 image and the gVisor tier.
+      - name: Which jobs this run needs
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          scope=full
+          case "$EVENT:$BRANCH" in push:k[0-9]*|push:codex/*) scope=quick ;; esac
+          echo "scope=$scope" | tee -a "$GITHUB_OUTPUT"
 
   test:
     name: Format, lint, tests and structure
@@ -422,12 +438,13 @@ jobs:
         if: ${{ !cancelled() }}
         run: CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER=sudo cargo test --locked --test docker -- --ignored --test-threads 2
       # K26: the same suite on the gvisor tier, with gVisor's runsc at deploy/gvisor.json's pin
-      # registered with the runner's Docker. Last, since registering it restarts Docker.
+      # registered with the runner's Docker. Last, since registering it restarts Docker. In full runs
+      # only: a worker branch's quick push leaves the gvisor tier to its proof.
       - name: Register gVisor's runsc with Docker
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && needs.changes.outputs.scope == 'full' }}
         run: sudo deploy/gvisor.sh
       - name: Docker integration tests on the gvisor tier
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && needs.changes.outputs.scope == 'full' }}
         timeout-minutes: 40
         env:
           PRYX_TEST_GVISOR: '1'
@@ -437,7 +454,7 @@ jobs:
       # Upgrade between two pinned releases with a sandbox running; actual host executables
       # must keep the old version there and use the server preset's new pin on a new sandbox.
       - name: gVisor runtime path upgrade
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && needs.changes.outputs.scope == 'full' }}
         run: sudo env "PATH=$PATH" bun deploy/gvisor-upgrade.ts
       - name: Docker and kernel failure evidence
         if: failure()
@@ -654,14 +671,16 @@ jobs:
   acceptance:
     name: Acceptance
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.scope == 'full'
     uses: ./.github/workflows/ci-acceptance.yml
     secrets: inherit
 
   image:
     name: Release image builds
     needs: changes
-    if: needs.changes.outputs.code == 'true' && (github.event_name == 'pull_request' || github.event_name == 'merge_group')
+    if: >-
+      needs.changes.outputs.code == 'true' && needs.changes.outputs.scope == 'full' &&
+      (github.event_name == 'pull_request' || github.event_name == 'merge_group')
     # The release publishes the image for both machines, each built natively on GitHub's standard
     # runner for it (free for this public repository). x86_64's is Acceptance's build, which runs
     # whenever this does.
