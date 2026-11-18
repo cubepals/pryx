@@ -557,6 +557,8 @@ jobs:
           restore-keys: contract-${{ steps.rust.outputs.version }}-
       - run: cargo build --locked
         working-directory: pryxd
+        env:
+          CARGO_PROFILE_DEV_DEBUG: '0'
       # Docker Hub caps anonymous pulls per IP and runners share IPs, so these come from mirrors.
       # Mirrors refuse bursts when parallel jobs pull at once, so each pull retries.
       - name: Pull the test images
@@ -707,6 +709,8 @@ jobs:
           docker run -d --name pryx-s3 -p 9000:9000 -e RUSTFS_ACCESS_KEY=blockly-test
           -e RUSTFS_SECRET_KEY=blockly-test-secret ghcr.io/rustfs/rustfs:1.0.0 /data
       - name: Build the current daemon
+        env:
+          CARGO_PROFILE_DEV_DEBUG: '0'
         run: |
           cargo clean --package pryxd
           cargo build --locked

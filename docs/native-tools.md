@@ -12,9 +12,15 @@ These tools wrap existing programs; the agent owns scoped routes and the edge ow
 
 A release carrying `process-tools.json` beside its installed agent supplies a digest-pinned
 runtime and a separate corresponding-source release asset. Neither enters the base installation.
-The first browser or kernel request fetches the runtime over verified HTTPS, checks its archive
-and complete file inventory, and publishes a read-only per-user cache outside sandbox data.
-Creating a sandbox and querying capabilities never fetch tools. Source-only builds without
+Without kernel network policy, the first browser or kernel request fetches the runtime over
+verified HTTPS, checks its archive and complete file inventory, and publishes a read-only
+per-user cache outside sandbox data. With kernel network policy, the node acquires that pinned
+runtime into its protected host cache before launching the supervisor, so a workload's egress
+rules cannot block trusted runtime setup. Consumers still verify the complete immutable cache;
+their downloads and scratch stay private to their UID and retain their existing retirement.
+Older agents that cannot verify a sealed host-owned cache report native tools unavailable on
+policed hosts until upgraded. Their ordinary per-user cache behavior remains supported.
+Placement and capability probes never fetch tools. Source-only builds without
 the descriptor name the missing artifact and keep these tools off.
 
 The upstream builds are python-build-standalone CPython 3.12.16 (20261110), Node's official
@@ -75,7 +81,8 @@ await box.ssh.revoke()
 
 Optional `requiredTools` requires the verified native desktop/SSH capability during placement
 and again before wake. A node or tier that cannot prove it is refused by name. Omitting it
-keeps normal tool acquisition on demand. Existing container templates and calls keep their
+keeps native service startup on demand; policed process hosts prepare the runtime archive
+before supervisor launch as described above. Existing container templates and calls keep their
 behavior; they do not claim the native process bundle's capability. `network: none` refuses
 these native tools while preserving its egress restrictions.
 

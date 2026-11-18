@@ -20,6 +20,8 @@ pub struct Capabilities {
     #[serde(default)]
     pub process_tools_version: u16,
     #[serde(default)]
+    pub process_tools_host_cache_version: u16,
+    #[serde(default)]
     pub process_browser_version: u16,
     #[serde(default)]
     pub process_desktop_version: u16,
@@ -92,6 +94,7 @@ pub fn probe() -> Capabilities {
         browser_policy: true,
         exec_completion_version: crate::exec_completion::VERSION,
         process_tools_version: crate::process_tool_policy::VERSION,
+        process_tools_host_cache_version: crate::process_tool_policy::HOST_CACHE_VERSION,
         process_browser_version: crate::process_tool_policy::BROWSER_VERSION,
         process_desktop_version: crate::process_tool_policy::DESKTOP_VERSION,
         process_ssh_version: crate::process_tool_policy::SSH_VERSION,
@@ -126,5 +129,23 @@ pub fn probe() -> Capabilities {
         vm_network_policy_version: crate::vm_boot::NETWORK_POLICY_VERSION,
         vm_packet_port: crate::vm_boot::PACKET_PORT,
         vm_sleep_version: crate::vm_sleep::VERSION,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn earlier_agents_do_not_announce_host_owned_cache_support() {
+        let earlier: Capabilities = serde_json::from_value(serde_json::json!({"processToolsVersion": 1})).unwrap();
+        assert_eq!(earlier.process_tools_version, 1);
+        assert_eq!(earlier.process_tools_host_cache_version, 0);
+    }
+
+    #[cfg(feature = "server")]
+    #[test]
+    fn the_current_agent_announces_exact_read_only_host_cache_support() {
+        assert_eq!(probe().process_tools_host_cache_version, crate::process_tool_policy::HOST_CACHE_VERSION);
     }
 }

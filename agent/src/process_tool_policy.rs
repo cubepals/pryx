@@ -8,6 +8,8 @@ pub const SSH_AUTH_DIRECTORY: &str = "/tmp/pryx-ssh/auth";
 pub const SSH_BOOTSTRAP_ENV: &str = "PRYX_SSH_BOOTSTRAP";
 
 pub const VERSION: u16 = 1;
+/// Verify an already sealed host-owned cache without requiring chmod authority over it.
+pub const HOST_CACHE_VERSION: u16 = 1;
 pub const BROWSER_VERSION: u16 = 1;
 pub const BROWSER_CAPABILITY: &str = "process-browser-sandbox";
 pub const SSH_VERSION: u16 = 1;

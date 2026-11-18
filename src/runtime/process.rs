@@ -16,6 +16,7 @@
 //! - `namespaces.rs`: the namespaced mode's helper, its arguments and its probe.
 //! - `network.rs`: each sandbox's cgroup, kernel network policy and hostname gateways.
 //! - `network_tests.rs`: runtime-owned network adoption, retirement and launch checkpoint regressions.
+//! - `network_native_tests.rs`: protected cold artifact caches, lifecycle fences and filtered consumption.
 //! - `adoption.rs`: turning that policy on at start and adopting what outlived the last daemon.
 //! - `legacy.rs`: boot-scoped uncertainty and authenticated cleanup of older process trees.
 /// The host probe's name for the namespaced process mode.
@@ -28,6 +29,8 @@ mod logs;
 pub mod namespaces;
 mod native;
 mod network;
+#[cfg(test)]
+mod network_native_tests;
 #[cfg(test)]
 mod network_tests;
 mod observe;
