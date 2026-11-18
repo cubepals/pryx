@@ -36,8 +36,13 @@ fn state_root() -> tempfile::TempDir {
 }
 
 fn sandbox(script: &str, network: &str) -> WorkloadSpec {
+    sandbox_environment(script, network, serde_json::json!({}))
+}
+
+fn sandbox_environment(script: &str, network: &str, environment: serde_json::Value) -> WorkloadSpec {
     serde_json::from_value(serde_json::json!({
         "image": "",
+        "env": environment,
         "entrypoint": ["/bin/sh", "-c", script],
         "resources": { "memoryMb": 256 },
         "storage": { "mountPath": "/data", "sizeGb": 1 },
@@ -217,6 +222,59 @@ async fn process_sandboxes_get_namespaces_exactly_where_the_host_proves_them() {
         m.delete(id(w), DataDisposition::Delete, Some(w.to_owned()), None).await.unwrap();
     }
     eprintln!("PROCESS_NAMESPACES mode={}", if namespaced { "namespaced" } else { "plain" });
+}
+
+/// The same production handoff protects both the namespaced and ordinary process mode.
+#[tokio::test]
+#[ignore = "needs Landlock, the built agent and owned loader fixtures; existing process CI runs it in both modes"]
+async fn process_guest_environment_starts_only_after_confinement() {
+    if std::env::var_os("PRYX_TEST_NAMESPACE_PROFILE").is_some() {
+        return;
+    }
+    let executable = agent();
+    let dir = state_root();
+    let extra = case(&executable, listener_ports(300, 40), 30_200);
+    let config = support::config(dir.path(), &extra);
+    let runtime = ProcessRuntime::new(&config.state_dir, config.process.clone()).unwrap();
+    let m = support::manager_on(dir.path(), Arc::new(runtime), &extra);
+    assert!(m.reconcile(Records::FromDisk).await.error.is_none());
+    let w = "environment";
+    let data = m.store.data_dir(&id(w));
+    let outside = dir.path().join("outside-data");
+    std::fs::create_dir(&outside).unwrap();
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(&outside, std::fs::Permissions::from_mode(0o777)).unwrap();
+    let marker = outside.join("loader-marker");
+    let listener = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let library = data.join("owned-loader.so");
+    let check = data.join("owned-environment-check");
+    let environment = serde_json::json!({
+        "LD_PRELOAD":library,
+        "PRYX_TEST_LOADER_MARKER":marker,
+        "APP_VALUE":"owned-value",
+        "PRYX_TEST_LOADER_PORT":listener.local_addr().unwrap().port().to_string()
+    });
+    let spec = sandbox_environment("exec sleep 603", "none", environment);
+    m.ensure(id(w), spec, Precondition::None, None).await.unwrap();
+    let installation = executable.parent().unwrap();
+    std::fs::copy(installation.join("process-loader.so"), &library).unwrap();
+    std::fs::copy(installation.join("process-loader-check"), &check).unwrap();
+    start(&m, &config.state_dir, w).await;
+    assert!(!marker.exists(), "guest code executed before the sandbox's filesystem policy");
+    let command = format!("exec {} --verify-workload {}", check.display(), pryx_agent::contract::SECRET_ENV_PREFIX);
+    assert_eq!(run(&m, w, &command).await, "");
+    let inside = data.join("inside-marker");
+    let command = format!("PRYX_TEST_LOADER_MARKER={} /bin/true", inside.display());
+    assert_eq!(run(&m, w, &command).await, "");
+    assert!(inside.exists(), "the confined workload must retain its requested loader variable");
+    assert_eq!(
+        listener.accept().unwrap_err().kind(),
+        std::io::ErrorKind::WouldBlock,
+        "guest loader code connected before the network-none child filter"
+    );
+    assert!(!marker.exists());
+    m.delete(id(w), DataDisposition::Delete, Some(w.into()), None).await.unwrap();
 }
 
 /// Nearest-rank p50 and p90 of `samples`, in milliseconds.
