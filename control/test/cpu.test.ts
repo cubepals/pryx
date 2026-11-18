@@ -131,21 +131,42 @@ test('CPU reservations are sent only to nodes announcing the additive field', as
   }
 })
 
-test('public native CPU ceilings and weights fail before any compute call', async () => {
+test('public native CPU weights and wasm ceilings fail before any compute call', async () => {
   const c = await publicContext()
   try {
-    for (const isolation of ['process', 'wasm']) {
-      for (const limit of [{ cpuMillis: 250 }, { cpuWeight: 1024 }]) {
-        const before = c.nodes.calls.length
-        const response = await c.request('/sandboxes', 'POST', {
-          isolation,
-          resources: { memoryMb: 512, ...limit },
-        })
-        expect(response.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY)
-        expect(JSON.stringify(await response.json())).toContain(`resources.${Object.keys(limit)[0]}`)
-        expect(c.nodes.calls.length).toBe(before)
-      }
+    for (const [isolation, limit] of [
+      ['process', { cpuWeight: 1024 }],
+      ['wasm', { cpuMillis: 250 }],
+      ['wasm', { cpuWeight: 1024 }],
+    ] as const) {
+      const before = c.nodes.calls.length
+      const response = await c.request('/sandboxes', 'POST', {
+        isolation,
+        resources: { memoryMb: 512, ...limit },
+      })
+      expect(response.status).toBe(StatusCodes.UNPROCESSABLE_ENTITY)
+      expect(JSON.stringify(await response.json())).toContain(`resources.${Object.keys(limit)[0]}`)
+      expect(c.nodes.calls.length).toBe(before)
     }
+  } finally {
+    await c.close()
+  }
+})
+
+test('a process CPU ceiling reaches placement, which asks its tier for cpu-limit', async () => {
+  const choice = new NodeChoice({ cpuMillisPerGb: 250, thresholds: THRESHOLDS, placement: DEFAULTS })
+  const ceiling = choice.request({ ...spec, resources: { memoryMb: 512, cpuMillis: 250 } }, 'eu')
+  expect([ceiling.cpuLimits, ceiling.cpuWeight]).toEqual([true, false])
+  const c = await publicContext()
+  try {
+    const before = c.nodes.calls.length
+    const response = await c.request('/sandboxes', 'POST', {
+      isolation: 'process',
+      resources: { memoryMb: 512, cpuMillis: 250 },
+    })
+    expect(response.status).not.toBe(StatusCodes.UNPROCESSABLE_ENTITY)
+    expect(JSON.stringify(await response.json())).toContain('no_room')
+    expect(c.nodes.calls.length).toBe(before)
   } finally {
     await c.close()
   }

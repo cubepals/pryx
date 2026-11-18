@@ -39,7 +39,8 @@ sudo incus file push deploy/local-acceptance.sh pryx/local-acceptance.sh
 sudo incus file push deploy/container-acceptance.sh pryx/container-acceptance.sh
 sudo incus file push deploy/local-diagnostics.py pryx/local-diagnostics.py
 # Reuse distro prerequisite setup, replacing only its final su with a PAM login session
-# for systemd distributions. Alpine uses its actual OpenRC/foreground path.
+# for systemd distributions, whose user service gives pryx memory, cpu and pids for process
+# sandboxes' limits (PRYX_EXPECT_PROCESS_LIMITS). Alpine uses its actual OpenRC/foreground path.
 sudo incus exec pryx --env "PRYX_TEST_UBUNTU_MIRRORS=$(jq -r '.ubuntuMirrors | join(" ")' .github/engine-versions.json)" -- sh -c '
   set -eu
   if [ "$(cat /proc/1/comm)" = systemd ]; then
@@ -54,7 +55,7 @@ sudo incus exec pryx --env "PRYX_TEST_UBUNTU_MIRRORS=$(jq -r '.ubuntuMirrors | j
     curl --retry 5 --retry-connrefused --retry-delay 1 --max-time 10 -fsS http://127.0.0.1:9876/install.sh -o /dev/null
     systemd-run --quiet --wait --collect --pipe --unit=pryx-acceptance \
       --property=User=pryxtest --property=PAMName=login \
-      --setenv=HOME=/home/pryxtest --setenv=XDG_RUNTIME_DIR=/run/user/1001 \
+      --setenv=HOME=/home/pryxtest --setenv=XDG_RUNTIME_DIR=/run/user/1001 --setenv=PRYX_EXPECT_PROCESS_LIMITS=on \
       /bin/sh /local-acceptance.sh
   else
     sh /container-acceptance.sh
