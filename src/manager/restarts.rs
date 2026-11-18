@@ -189,8 +189,7 @@ impl Manager {
             Lease::Lapsed => return Restart::Waiting,
             Lease::Revoked => {
                 tracing::warn!(workload = %id, "not resuming: the control plane holds this node lost");
-                self.give_up_resume(&record).await;
-                return Restart::Done;
+                return self.give_up_resume(&record).await;
             }
         }
         let info = match self.observe(&record).await {
@@ -209,8 +208,7 @@ impl Manager {
             Ok(reservation) => reservation,
             Err(e) => {
                 tracing::warn!(workload = %id, error = %e, "not resuming: no room for it now");
-                self.give_up_resume(&record).await;
-                return Restart::Done;
+                return self.give_up_resume(&record).await;
             }
         };
         self.state.lock().unwrap().resuming.remove(id);
@@ -228,15 +226,18 @@ impl Manager {
         Restart::Done
     }
 
-    /// A resume that won't happen: forgotten, so a later restart of the host doesn't bring back a
-    /// workload that wasn't running before it.
-    async fn give_up_resume(&self, record: &WorkloadRecord) {
+    /// A resume that won't happen: durably forgotten before it reads as stopped, so a later
+    /// restart of the host doesn't bring it back. A failed write keeps the resume pending for
+    /// another look; nothing resumes while the node is held lost.
+    async fn give_up_resume(&self, record: &WorkloadRecord) -> Restart {
         let mut record = record.clone();
-        self.state.lock().unwrap().resuming.remove(&record.id);
         record.running_boot = None;
         if let Err(e) = self.save_record(&record).await {
             tracing::warn!(workload = %record.id, error = %e, "couldn't record the abandoned resume");
+            return Restart::Waiting;
         }
+        self.state.lock().unwrap().resuming.remove(&record.id);
+        Restart::Done
     }
 }
 
@@ -258,7 +259,10 @@ fn resumable(record: &WorkloadRecord, boot: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::FleetConfig;
     use crate::runtime::fake::FakeRuntime;
+    use std::future::Future;
+    use std::task::{Context, Waker};
 
     fn w() -> WorkloadId {
         WorkloadId::parse("w").unwrap()
@@ -277,7 +281,14 @@ mod tests {
         .unwrap();
         let fake = Arc::new(FakeRuntime::new());
         let store = Store::open(&config.state_dir).unwrap();
-        let m = Manager::new(Arc::new(config), fake.clone(), store, Arc::new(Metrics::new()), Arc::new(|_, _| true));
+        let m = Manager::with_boot(
+            Arc::new(config),
+            fake.clone(),
+            store,
+            Arc::new(Metrics::new()),
+            Arc::new(|_, _| true),
+            Some("boot-1".into()),
+        );
         assert!(m.reconcile(Records::FromDisk).await.error.is_none());
         let spec = serde_json::from_value(serde_json::json!({
             "image": "alpine:3.22",
@@ -292,6 +303,98 @@ mod tests {
 
     fn restart_due(m: &Manager) -> bool {
         m.state.lock().unwrap().restart_due.contains_key(&w())
+    }
+
+    async fn lost_after_host_restart() -> (tempfile::TempDir, Arc<FakeRuntime>, Arc<Manager>) {
+        let (dir, fake, first) = running().await;
+        fake.crash("blockly-test-w", exit_by(libc::SIGTERM), false);
+        let mut config = (*first.config).clone();
+        config.fleet = Some(FleetConfig {
+            url: "https://control-plane.test:8443".into(),
+            ca: dir.path().join("ca.pem"),
+            enrollment_token_file: None,
+            heartbeat_seconds: 5,
+            api_address: None,
+            labels: Default::default(),
+            restart_requires_contact_seconds: 120,
+        });
+        let second = rebooted(&config, &fake, "boot-2");
+        assert!(second.reconcile(Records::FromDisk).await.error.is_none());
+        second.fleet_contact(Ok(Lifecycle::Lost), Duration::ZERO);
+        second.grant_lease(Some(0), Instant::now());
+        assert_eq!(second.view(&w()).unwrap().state, WorkloadState::Restarting);
+        (dir, fake, second)
+    }
+
+    fn rebooted(config: &Config, fake: &Arc<FakeRuntime>, boot: &str) -> Arc<Manager> {
+        Manager::with_boot(
+            Arc::new(config.clone()),
+            fake.clone(),
+            Store::open(&config.state_dir).unwrap(),
+            Arc::new(Metrics::new()),
+            Arc::new(|_, _| true),
+            Some(boot.into()),
+        )
+    }
+
+    async fn stays_stopped_after_another_boot(second: &Manager, fake: &Arc<FakeRuntime>) {
+        assert_eq!(second.view(&w()).unwrap().state, WorkloadState::Stopped);
+        let (records, bad) = second.store.load_all().unwrap();
+        assert!(bad.is_empty());
+        assert_eq!(records.len(), 1);
+        assert!(records[0].running_boot.is_none());
+        let mut config = (*second.config).clone();
+        config.fleet = None;
+        let third = rebooted(&config, fake, "boot-3");
+        assert!(third.reconcile(Records::FromDisk).await.error.is_none());
+        assert_eq!(third.view(&w()).unwrap().state, WorkloadState::Stopped);
+        assert!(matches!(third.try_restart(&w()).await, Restart::Done));
+        assert_eq!(fake.count_calls("start "), 1, "neither daemon starts the abandoned resume");
+    }
+
+    #[tokio::test]
+    async fn an_abandoned_resume_waits_for_its_durable_record() {
+        let (_dir, fake, second) = lost_after_host_restart().await;
+        let id = w();
+        let mut attempt = Box::pin(second.try_restart(&id));
+        let (pending, loaded, view, starts) = {
+            // The real persistence queue cannot write until this turn is released. Poll the
+            // operation to that wait, without relying on the disk's speed or a timed sleep.
+            let _turn = second.disk_writes.lock().unwrap();
+            (
+                attempt.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending(),
+                second.store.load_all(),
+                second.view(&id),
+                fake.count_calls("start "),
+            )
+        };
+        // Assert after releasing the turn: a regression must not poison the persistence queue.
+        assert!(pending);
+        let (records, bad) = loaded.unwrap();
+        assert!(bad.is_empty());
+        assert_eq!(records[0].running_boot.as_deref(), Some("boot-1"));
+        assert_eq!(view.unwrap().state, WorkloadState::Restarting, "the save is still pending");
+        assert_eq!(starts, 1);
+        assert!(matches!(attempt.await, Restart::Done));
+        stays_stopped_after_another_boot(&second, &fake).await;
+    }
+
+    #[tokio::test]
+    async fn an_abandoned_resume_retries_a_failed_record_write() {
+        let (dir, fake, second) = lost_after_host_restart().await;
+        let record = second.store.workload_dir(&w()).join("workload.json");
+        let saved = dir.path().join("saved-record");
+        std::fs::rename(&record, &saved).unwrap();
+        // Renaming an ordinary file over this nonempty directory fails even when run as root.
+        std::fs::create_dir_all(record.join("in-the-way")).unwrap();
+        assert!(matches!(second.try_restart(&w()).await, Restart::Waiting));
+        assert_eq!(second.view(&w()).unwrap().state, WorkloadState::Restarting);
+        assert_eq!(second.record(&w()).unwrap().running_boot.as_deref(), Some("boot-1"));
+        assert_eq!(fake.count_calls("start "), 1);
+        std::fs::remove_dir_all(&record).unwrap();
+        std::fs::rename(&saved, &record).unwrap();
+        assert!(matches!(second.try_restart(&w()).await, Restart::Done));
+        stays_stopped_after_another_boot(&second, &fake).await;
     }
 
     #[tokio::test]
