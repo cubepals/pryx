@@ -22,7 +22,9 @@ reads back:
 | `cpu.max` | `resources.cpuMillis`, when asked | A ceiling: that many thousandths of a CPU per 100 ms period |
 | `pids.max` | `resources.pidsLimit` or the node's default | Processes and threads in the sandbox, whatever their user |
 
-A sandbox runs with exactly these or not at all. The tier then announces `memory-limit` and
+A sandbox runs with exactly these or not at all, and can't change them: its filesystem policy
+grants no part of `/sys/fs/cgroup`, even where it shares pryxd's user. The tier then announces
+`memory-limit` and
 `cpu-limit`, and each sandbox reports what it started with: one started before its host delegated
 the controllers reports them off until it starts again. The agent's sampled resident budget is set
 past reach there, since summing resident pages counts shared ones more than once and would kill a

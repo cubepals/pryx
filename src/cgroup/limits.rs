@@ -80,13 +80,18 @@ pub(crate) fn read(cgroup: &Path) -> io::Result<Limits> {
 }
 
 /// Freezes or thaws every process in `cgroup` at once, then waits until the kernel says it is
-/// done (cgroup.events `frozen`), so nothing forks past a freeze.
+/// done (cgroup.events `frozen`), so nothing forks past a freeze. A freeze that doesn't finish is
+/// taken back, so a failed sleep leaves the sandbox running.
 pub(crate) fn freeze(cgroup: &Path, frozen: bool) -> io::Result<()> {
     const WAIT: std::time::Duration = std::time::Duration::from_secs(5);
-    fs::write(cgroup.join("cgroup.freeze"), if frozen { "1" } else { "0" })?;
+    let state = cgroup.join("cgroup.freeze");
+    fs::write(&state, if frozen { "1" } else { "0" })?;
     let deadline = std::time::Instant::now() + WAIT;
     while is_frozen(cgroup)? != frozen {
         if std::time::Instant::now() >= deadline {
+            if frozen {
+                fs::write(&state, "0")?;
+            }
             return Err(io::Error::new(
                 io::ErrorKind::TimedOut,
                 format!("cgroup {} did not {}", cgroup.display(), if frozen { "freeze" } else { "thaw" }),
@@ -205,6 +210,10 @@ mod tests {
         assert!(!is_frozen(cgroup.path()).unwrap());
         write("cgroup.events", "populated 1\nfrozen 1\n");
         assert!(is_frozen(cgroup.path()).unwrap());
+        // A freeze the kernel never finishes is taken back.
+        write("cgroup.events", "populated 1\nfrozen 0\n");
+        assert_eq!(freeze(cgroup.path(), true).unwrap_err().kind(), io::ErrorKind::TimedOut);
+        assert_eq!(fs::read_to_string(cgroup.path().join("cgroup.freeze")).unwrap(), "0");
         assert_eq!(usage(Path::new("/nonexistent-pryx-cgroup")), Usage::default());
     }
 
