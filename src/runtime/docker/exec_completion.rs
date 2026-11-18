@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Private completion transport and failure cleanup for gVisor exec owners. The key never
-//! enters argv, the container environment, child stdin or diagnostics. Unconfirmed completion
-//! retires the sandbox once, including when the API caller drops its future.
-//! Command submission and output collection remain in exec.rs.
+//! enters argv, the container environment, child stdin or diagnostics. Once started, an exec
+//! belongs to a task of its own, so an API caller that goes away loses only the answer. The
+//! sandbox is retired once, and only on evidence that the in-sandbox supervisor did not finish:
+//! the exec ended without its authenticated completion, or it still runs past its bound. A lost
+//! engine answer or output stream is reported, never answered with a kill, since the supervisor
+//! keeps the deadline whether or not this node hears it. Command submission and output
+//! collection remain in exec.rs.
 use super::*;
 use crate::runtime::parse_time;
 use pryx_agent::exec_completion::{Completion, Key, TAIL_BYTES};
@@ -39,6 +43,8 @@ pub(super) struct Session {
     input: [u8; pryx_agent::exec_completion::KEY_BYTES],
     tail: Vec<u8>,
     retirement: Option<Target>,
+    /// The key was offered to the supervisor: from then on it may run the command.
+    offered: bool,
 }
 impl Session {
     pub(super) fn new(
@@ -54,9 +60,12 @@ impl Session {
             input,
             tail: Vec::new(),
             retirement: Some(Target { docker, container: container.into(), start, starts }),
+            offered: false,
         })
     }
     pub(super) async fn deliver(&mut self, input: &mut (impl AsyncWrite + Unpin)) -> std::io::Result<()> {
+        // Even a failed write may have handed it over whole.
+        self.offered = true;
         input.write_all(&self.input).await?;
         self.input.fill(0);
         input.shutdown().await
@@ -131,16 +140,125 @@ impl Session {
         )
     }
 }
-impl Drop for Session {
-    fn drop(&mut self) {
-        if let Some(target) = self.retirement.take() {
-            tokio::spawn(async move {
-                if !retire(target).await {
-                    tracing::warn!("unconfirmed gvisor exec cleanup could not retire its sandbox");
-                }
-            });
+
+/// One authenticated exec, created but not yet started, and what its task needs to see it to
+/// its end: the start lock it was created under, and its bound (deadline and grace).
+pub(super) struct Owned {
+    pub(super) docker: Docker,
+    pub(super) exec_id: String,
+    pub(super) session: Session,
+    pub(super) setup: tokio::sync::OwnedMutexGuard<()>,
+    pub(super) limit: Duration,
+    pub(super) max_output: usize,
+    pub(super) live: Option<tokio::sync::mpsc::Sender<LogChunk>>,
+}
+
+/// How long the attached output may still flow once the engine says the exec has exited: Moby
+/// reports the exit before it finishes copying the last output, and closes the stream two seconds
+/// later even while something else holds it open.
+const DRAIN: Duration = Duration::from_secs(5);
+/// Between attempts at an engine call that failed.
+const ENGINE_RETRY: Duration = Duration::from_millis(100);
+/// How long a failing engine is asked again once the exec's bound has passed.
+const LAST_ASK: Duration = Duration::from_secs(5);
+
+impl Owned {
+    pub(super) async fn run(self) -> Result<ExecOutput, RuntimeError> {
+        let Self { docker, exec_id, mut session, setup, limit, max_output, live } = self;
+        let bound = tokio::time::Instant::now() + limit;
+        let options = StartExecOptions { detach: false, tty: false, output_capacity: None };
+        // A start that fails delivers no key, and without one the supervisor runs nothing.
+        let StartExecResults::Attached { mut output, mut input } =
+            quick("start exec", docker.start_exec(&exec_id, Some(options))).await?
+        else {
+            return Err(RuntimeError::Other("exec started detached".into()));
+        };
+        let established = session.establish(&mut output, &mut input).await;
+        drop(input);
+        drop(setup);
+        if !established && !session.offered {
+            return Err(RuntimeError::Other(
+                "the exec's supervisor did not start, so it was never given a command to run".into(),
+            ));
+        }
+        watch(&docker, &exec_id, output, session, bound, max_output, live).await
+    }
+}
+
+/// From an established exec's output and the engine's word on it, its verified result, or the
+/// sandbox retired when the supervisor did not finish.
+async fn watch<S>(
+    docker: &Docker,
+    exec_id: &str,
+    mut output: S,
+    session: Session,
+    bound: tokio::time::Instant,
+    max_output: usize,
+    live: Option<tokio::sync::mpsc::Sender<LogChunk>>,
+) -> Result<ExecOutput, RuntimeError>
+where
+    S: futures_util::Stream<Item = Result<LogOutput, bollard::errors::Error>> + Unpin,
+{
+    let mut result = ExecOutput::default();
+    let mut completion = Some(session);
+    let (streamed, exit) = {
+        let collect = super::exec::collect_output(&mut output, &mut result, max_output, &live, &mut completion);
+        let exit = exited(docker, exec_id);
+        tokio::pin!(collect, exit);
+        tokio::select! {
+            streamed = &mut collect => (Some(streamed), tokio::time::timeout_at(bound, exit).await.ok()),
+            code = &mut exit => (tokio::time::timeout(DRAIN, collect).await.ok(), Some(code)),
+            () = tokio::time::sleep_until(bound) => (None, None),
+        }
+    };
+    drop(output);
+    let mut session = completion.take().expect("output collection keeps the session");
+    let code = match exit {
+        Some(code) => code,
+        None => match state(docker, exec_id).await {
+            Ok(Some(code)) => code,
+            // Still running past its bound: the supervisor never finished retiring the command.
+            Ok(None) => return Err(session.failed().await),
+            Err(problem) => return Err(unheard(&problem)),
+        },
+    };
+    if let Some(Err(problem)) = streamed {
+        return Err(unheard(&problem));
+    }
+    result.exit_code = code;
+    if session.complete(&mut result, max_output, &live).await { Ok(result) } else { Err(session.failed().await) }
+}
+
+/// The exec's exit code once the engine says it has exited, asking again after a failed answer.
+async fn exited(docker: &Docker, exec_id: &str) -> Option<i64> {
+    loop {
+        match quick("inspect exec", docker.inspect_exec(exec_id)).await {
+            Ok(inspect) if inspect.running != Some(true) => return inspect.exit_code,
+            Ok(_) => tokio::time::sleep(super::exec::EXIT_POLL).await,
+            Err(_) => tokio::time::sleep(ENGINE_RETRY).await,
         }
     }
+}
+
+/// Whether the exec has exited (and its code) or still runs, as the engine says now; an engine
+/// that fails is asked again for a little while.
+async fn state(docker: &Docker, exec_id: &str) -> Result<Option<Option<i64>>, RuntimeError> {
+    let until = tokio::time::Instant::now() + LAST_ASK;
+    loop {
+        match quick("inspect exec", docker.inspect_exec(exec_id)).await {
+            Ok(inspect) if inspect.running == Some(true) => return Ok(None),
+            Ok(inspect) => return Ok(Some(inspect.exit_code)),
+            Err(problem) if tokio::time::Instant::now() >= until => return Err(problem),
+            Err(_) => tokio::time::sleep(ENGINE_RETRY).await,
+        }
+    }
+}
+
+/// An exec whose completion this node could not hear: unconfirmed, but nothing says it failed.
+fn unheard(problem: &dyn std::fmt::Display) -> RuntimeError {
+    RuntimeError::Other(format!(
+        "exec completion was not heard ({problem}); the sandbox's own deadline still applies to the command"
+    ))
 }
 
 /// One kill submission, then read-only confirmation. A lost response never repeats the kill.
@@ -193,7 +311,7 @@ async fn retire(target: Target) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{Json, Router, extract::Request, routing::any};
+    use axum::{Json, Router, extract::Request, response::IntoResponse, routing::any};
     use std::sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
@@ -225,6 +343,145 @@ mod tests {
         assert_eq!(chunks.try_recv().unwrap().bytes.as_ref(), b"v");
         assert!(chunks.try_recv().is_err(), "no retained bytes may exceed the stream's room");
     }
+    /// One exec's engine: its inspection fails `failures` times, then says it runs while `running`
+    /// holds and otherwise that it exited with `code`; its container runs until it is killed.
+    struct Engine {
+        kills: Arc<AtomicUsize>,
+        running: Arc<std::sync::atomic::AtomicBool>,
+        docker: Docker,
+        start: OffsetDateTime,
+        server: tokio::task::JoinHandle<()>,
+        _dir: tempfile::TempDir,
+    }
+
+    impl Engine {
+        fn new(failures: usize, code: i64) -> Self {
+            let dir = tempfile::tempdir().unwrap();
+            let path = dir.path().join("engine.sock");
+            let listener = tokio::net::UnixListener::bind(&path).unwrap();
+            let (kills, running) = (Arc::new(AtomicUsize::new(0)), Arc::new(std::sync::atomic::AtomicBool::new(false)));
+            let (killed, runs, failed) = (kills.clone(), running.clone(), Arc::new(AtomicUsize::new(0)));
+            let start = OffsetDateTime::now_utc();
+            let app = Router::new().fallback(any(move |request: Request| {
+                let (killed, runs, failed) = (killed.clone(), runs.clone(), failed.clone());
+                async move {
+                    let path = request.uri().path().to_owned();
+                    if path.ends_with("/kill") {
+                        killed.fetch_add(1, Ordering::SeqCst);
+                    }
+                    if path.contains("/exec/") {
+                        if failed.fetch_add(1, Ordering::SeqCst) < failures {
+                            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+                        }
+                        let running = runs.load(Ordering::SeqCst);
+                        let exec = bollard::models::ExecInspectResponse {
+                            running: Some(running),
+                            exit_code: (!running).then_some(code),
+                            ..Default::default()
+                        };
+                        return Json(exec).into_response();
+                    }
+                    let status = if killed.load(Ordering::SeqCst) == 0 {
+                        bollard::models::ContainerStateStatusEnum::RUNNING
+                    } else {
+                        bollard::models::ContainerStateStatusEnum::EXITED
+                    };
+                    let started = start.format(&time::format_description::well_known::Rfc3339).unwrap();
+                    Json(bollard::models::ContainerInspectResponse {
+                        state: Some(bollard::models::ContainerState {
+                            status: Some(status),
+                            started_at: Some(started),
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    })
+                    .into_response()
+                }
+            }));
+            let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+            let docker = Docker::connect_with_unix(path.to_str().unwrap(), 2, bollard::API_DEFAULT_VERSION).unwrap();
+            Self { kills, running, docker, start, server, _dir: dir }
+        }
+
+        fn session(&self) -> Session {
+            Session::new(self.docker.clone(), "owned", self.start, Starts::default()).unwrap()
+        }
+
+        /// An exec watched to its end, its output what `output` yields, its bound `limit` away.
+        async fn watch(
+            &self,
+            session: Session,
+            output: impl futures_util::Stream<Item = Result<LogOutput, bollard::errors::Error>> + Unpin,
+            limit: Duration,
+        ) -> Result<ExecOutput, RuntimeError> {
+            let bound = tokio::time::Instant::now() + limit;
+            watch(&self.docker, "exec", output, session, bound, 1024, None).await
+        }
+    }
+
+    impl Drop for Engine {
+        fn drop(&mut self) {
+            self.server.abort();
+        }
+    }
+
+    fn stderr(message: Vec<u8>) -> Result<LogOutput, bollard::errors::Error> {
+        Ok(LogOutput::StdErr { message: message.into() })
+    }
+
+    #[tokio::test]
+    async fn an_engine_answer_that_failed_is_asked_again_and_kills_nothing() {
+        let engine = Engine::new(1, 0);
+        let session = engine.session();
+        let mut footer = b"done".to_vec();
+        session.key.write(&mut footer, 0, false).unwrap();
+        let result = engine.watch(session, futures_util::stream::iter([stderr(footer)]), Duration::from_secs(10));
+        let result = result.await.unwrap();
+        assert_eq!((result.exit_code, result.stderr.as_slice()), (Some(0), b"done".as_slice()));
+        assert_eq!(engine.kills.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn an_exec_that_ended_without_its_completion_retires_its_sandbox_once() {
+        let engine = Engine::new(0, i64::from(128 + libc::SIGKILL));
+        let output = futures_util::stream::iter([stderr(b"no completion".to_vec())]);
+        let refused = engine.watch(engine.session(), output, Duration::from_secs(10)).await.unwrap_err();
+        assert!(refused.to_string().contains("sandbox was retired"), "{refused}");
+        assert_eq!(engine.kills.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn a_lost_output_stream_is_reported_and_kills_nothing() {
+        let engine = Engine::new(0, 0);
+        let lost = bollard::errors::Error::IOError { err: std::io::Error::other("attach stream reset") };
+        let output = futures_util::stream::iter([stderr(b"partial".to_vec()), Err(lost)]);
+        let refused = engine.watch(engine.session(), output, Duration::from_secs(10)).await.unwrap_err();
+        assert!(refused.to_string().contains("not heard"), "{refused}");
+        assert_eq!(engine.kills.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn an_exec_still_running_past_its_bound_retires_its_sandbox() {
+        let engine = Engine::new(0, 0);
+        engine.running.store(true, Ordering::SeqCst);
+        let output = futures_util::stream::pending();
+        let refused = engine.watch(engine.session(), output, Duration::from_millis(200)).await.unwrap_err();
+        assert!(refused.to_string().contains("sandbox was retired"), "{refused}");
+        assert_eq!(engine.kills.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn an_exited_exec_whose_output_stays_open_is_judged_as_it_exits() {
+        // Its supervisor was killed; what it started still holds the output open.
+        let engine = Engine::new(0, i64::from(128 + libc::SIGKILL));
+        let began = std::time::Instant::now();
+        let output = futures_util::stream::iter([stderr(b"started".to_vec())]).chain(futures_util::stream::pending());
+        let refused = engine.watch(engine.session(), output, Duration::from_secs(60)).await.unwrap_err();
+        assert!(refused.to_string().contains("sandbox was retired"), "{refused}");
+        assert!(began.elapsed() < Duration::from_secs(30), "judged at its exit, not at its bound");
+        assert_eq!(engine.kills.load(Ordering::SeqCst), 1);
+    }
+
     async fn failure_after_start(replaced: bool) {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("engine.sock");
