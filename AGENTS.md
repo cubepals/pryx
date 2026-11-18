@@ -135,6 +135,10 @@ too, the release included.
   decision. A change that adds more than a minute to CI says so in the pull request.
 - **A failure outside the code is still a failure.** A registry's rate limit or an outage gets a
   fix (a mirror, a retry), not a rerun until it passes.
+- **A worker branch is proved on demand.** A push to a branch named `k` and a digit, or `codex/`,
+  runs CI's quick jobs, and Any host, VM experiments and Rootless engines skip every job. The
+  branch lands once all four, dispatched on it (`gh workflow run <file> --ref <branch>`), pass on
+  its newest commit. Pushes to any-host and main run everything.
 
 ## Commits
 
