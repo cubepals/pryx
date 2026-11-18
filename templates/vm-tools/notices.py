@@ -13,6 +13,7 @@ import subprocess
 import shutil
 
 from inventory import ROOT
+from go_acquisition import module_archive, module_list
 
 
 def main():
@@ -26,8 +27,7 @@ def main():
     args = parser.parse_args()
     expected = json.loads(args.catalog.read_text())
     module_cache = Path(subprocess.check_output([str(args.go), 'env', 'GOMODCACHE'], text=True).strip())
-    output = subprocess.check_output([str(args.go), 'list', '-mod=readonly', '-deps', '-json=Module',
-                                      *args.packages], cwd=args.module_root, text=True)
+    output = module_list(args.go, args.module_root, args.packages)
     modules = {}
     decoder = json.JSONDecoder()
     while output.strip():
@@ -51,9 +51,8 @@ def main():
         actual.add(identity)
         if args.sources is not None:
             # Go owns module identity, escaping, zip authentication and checksum format.
-            downloaded = json.loads(subprocess.check_output(
-                [str(args.go), 'mod', 'download', '-json', module['Path'] + '@' + module['Version']],
-                cwd=args.module_root, text=True))
+            downloaded = json.loads(module_archive(
+                args.go, args.module_root, module['Path'] + '@' + module['Version']))
             if downloaded.get('Error') or not downloaded.get('Sum') or not downloaded.get('GoModSum'):
                 raise ValueError('Go did not authenticate the original module archive')
             archive = Path(downloaded['Zip'])

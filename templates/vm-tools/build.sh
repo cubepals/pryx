@@ -7,6 +7,7 @@ set -euo pipefail
 : "${RUNNER_TEMP:?Provide a private VM build directory}"
 case "${1:?Name one VM build phase}" in
   inventory)
+    python3 -m unittest discover -s templates/vm-tools -p '*_test.py'
     python3 templates/vm-tools/inventory.py \
       --archive-cache "$RUNNER_TEMP/vm-archives" \
       --output "$RUNNER_TEMP/vm-candidate-inventory.json" | tee "$RUNNER_TEMP/vm-input-inventory.log"
@@ -14,6 +15,7 @@ case "${1:?Name one VM build phase}" in
   tools)
     python3 templates/vm-tools/prepare.py --root "$RUNNER_TEMP/vm-build-tools" 2>&1 | tee "$RUNNER_TEMP/vm-tool-inputs.log"
     dpkg-query -W e2fsprogs
+    PRYX_TEST_GO="$RUNNER_TEMP/vm-build-tools/go/go/bin/go" python3 templates/vm-tools/go_acquisition_check.py
     ;;
   inspect)
     "$RUNNER_TEMP/vm-build-tools/zstd/usr/bin/zstd" --version

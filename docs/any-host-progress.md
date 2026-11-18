@@ -5260,3 +5260,9 @@ job when publication is authorized. That job has not run in this task.
   Fresh branch proof remains required before landing; the earlier K26 runs above are historical.
 
 - K31 current-base integration preserves the landed exec, OOM, DNS, generation, VM restore and outage-fixture safeguards. Historical K31 runs remain historical; the new kernel-route guard, its pinned-object identity and the complete fresh branch still require current-head CI proof.
+- Download retries: VM inventory, the native installer and process tools share
+  `templates/archive_retry.py`, and locked Go module reads run again under the same policy.
+  Local checks: the policy's own 10 cases, process tools' 14, VM inventory's 9 (3 of which fail
+  on the old inventory: a four-answer outage, an incomplete metadata body, a mirror given as a
+  generator), the native installer's 6, and the real-Go check's 8 against Go 1.24.7 (CI runs
+  the pinned 1.27.3).

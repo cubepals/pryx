@@ -3,40 +3,23 @@
 
 These operations are independent of runtime assembly and execute no package hooks. Runtime
 acquisition has its own protected worker and does not import these build-time routines.
-Retrieval waits out an archive's brief outage and tries the archive's mirrors (`mirrors.json`);
-the pinned digest alone decides whether the bytes are accepted.
+Retrieval waits out an archive's brief outage and tries the archive's mirrors (`mirrors.json`)
+under the templates' one retry policy (`../archive_retry.py`); the pinned digest alone decides
+whether the bytes are accepted.
 """
-import datetime
 import hashlib
-import http.client
-from http import HTTPStatus
 import json
 import os
 from pathlib import Path
 import shutil
-import ssl
 import sys
 import tarfile
-import time
-import urllib.error
-import urllib.request
 
 ROOT = Path(__file__).resolve().parent
 REPO = ROOT.parent.parent
+sys.path.insert(0, str(ROOT.parent))
+import archive_retry
 
-# A failed download is tried again, with doubling waits, until this long after its first try:
-# long enough to wait out an archive's brief outage, short enough to end a job that can't.
-RETRY_BUDGET = datetime.timedelta(minutes=3).total_seconds()
-FIRST_RETRY_WAIT = datetime.timedelta(seconds=5).total_seconds()
-LONGEST_RETRY_WAIT = datetime.timedelta(minutes=1).total_seconds()
-# A stalled upstream leaves time to try independent mirrors. This bounds socket inactivity;
-# a healthy archive stream may take longer than the retry budget to finish.
-REQUEST_TIMEOUT = datetime.timedelta(seconds=30).total_seconds()
-# RFC 9110 section 15.6: 5xx is the server-error class, including codes Python's HTTPStatus
-# doesn't name, such as a CDN's own 52x.
-SERVER_ERRORS = range(500, 600)
-NETWORK_ERRORS = (urllib.error.URLError, ConnectionError, TimeoutError, ssl.SSLError,
-                  http.client.HTTPException)
 MIRRORS = json.loads((ROOT / "mirrors.json").read_text())["archives"]
 
 # GNU libc's runtime sonames belong to the host, including the ELF interpreter.
@@ -51,13 +34,6 @@ def digest(path):
         return hashlib.file_digest(source, "sha256").hexdigest()
 
 
-def transient(error):
-    """Whether trying again could help: a refusal other than 5xx or 429 means a wrong pin."""
-    if isinstance(error, urllib.error.HTTPError):
-        return error.code in SERVER_ERRORS or error.code == HTTPStatus.TOO_MANY_REQUESTS
-    return True
-
-
 def addresses(url):
     """The pinned address, then the same path on each mirror of the archive it starts with."""
     for archive in MIRRORS:
@@ -68,39 +44,11 @@ def addresses(url):
 
 
 def download(url, destination):
-    """Write the bytes of url, or of a mirror's copy, trying again within the budget.
-
-    A refusal of the pinned address itself fails at once; a mirror that refuses is left out.
-    """
-    candidates = addresses(url)
-    deadline = time.monotonic() + RETRY_BUDGET
-    wait = FIRST_RETRY_WAIT
-    failure = TimeoutError("Archive download retry budget exhausted")
-    while True:
-        for address in list(candidates):
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise failure
-            try:
-                with urllib.request.urlopen(address, timeout=min(REQUEST_TIMEOUT, remaining)) as response:
-                    with destination.open("wb") as output:
-                        shutil.copyfileobj(response, output)
-                return
-            except NETWORK_ERRORS as error:
-                if isinstance(error, urllib.error.HTTPError):
-                    error.close()  # Its body is an error page, never read.
-                print(f"Download failed: {address}: {error}", file=sys.stderr, flush=True)
-                if transient(error):
-                    failure = error
-                elif address == url:
-                    raise
-                else:
-                    candidates.remove(address)
-        if time.monotonic() + wait > deadline:
-            raise failure
-        print(f"Trying again in {wait:g} s", file=sys.stderr, flush=True)
-        time.sleep(wait)
-        wait = min(2 * wait, LONGEST_RETRY_WAIT)
+    """Write the bytes of url, or of a mirror's copy, under the shared retry policy."""
+    def save(response):
+        with destination.open("wb") as output:
+            shutil.copyfileobj(response, output)
+    archive_retry.request(url, save, mirrors=addresses(url)[1:])
 
 
 def acquire(item, cache):

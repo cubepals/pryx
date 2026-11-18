@@ -37,6 +37,7 @@ jobs:
           persist-credentials: false
       - name: Assemble verified upstream runtimes
         run: |
+          python3 -m unittest discover -s templates -p 'archive_retry_test.py'
           python3 -m unittest discover -s templates/process-tools -p '*_test.py'
           python3 templates/process-tools/build.py --cache "$RUNNER_TEMP/tool-inputs" --output "$RUNNER_TEMP/process-tools"
       - name: Package the separate lazy tool artifact

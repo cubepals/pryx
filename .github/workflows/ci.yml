@@ -825,6 +825,7 @@ jobs:
       - name: Build native tool templates
         if: ${{ !cancelled() && steps.static.outcome == 'success' }}
         run: |
+          python3 -m unittest discover -s templates/native-tools -p '*_test.py'
           mkdir -p templates/native-tools/cache
           while IFS=$'\t' read -r name url digest; do
             archive="templates/native-tools/cache/$name.download"
