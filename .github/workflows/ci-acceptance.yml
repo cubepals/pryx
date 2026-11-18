@@ -1,10 +1,11 @@
 name: CI acceptance
 
-# CI's acceptance of the installed product, called by ci.yml in the same run: the end-to-end suites
-# and the one-box install. Not a workflow of its own: it has no trigger but ci.yml's call, and
-# ci.yml decides when it runs. A called workflow gets neither the caller's env nor its concurrency
-# (github.workflow would name the caller and the call would wait on itself), so it sets its own
-# env and permissions and no concurrency.
+# CI's acceptance of the installed product, called by ci.yml in the same run: one job builds the
+# debug daemon and the release image once, and the end-to-end suites and the one-box install take
+# both from it. Not a workflow of its own: it has no trigger but ci.yml's call, and ci.yml decides
+# when it runs. A called workflow gets neither the caller's env nor its concurrency (github.workflow
+# would name the caller and the call would wait on itself), so it sets its own env and permissions
+# and no concurrency.
 on:
   workflow_call:
 
@@ -15,8 +16,46 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # The daemon the suites run (debug: only debug builds take PRYXD_TEST_VERSION) and the release
+  # image, built once from this commit. The image is saved once under every tag the suites use. Its
+  # one artifact is this run's alone: no job downloads another run's, and only this job makes it.
+  build:
+    name: Build the daemon and release image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install
+      - name: Build the current daemon
+        env:
+          CARGO_PROFILE_DEV_DEBUG: '0'
+        run: |
+          cargo build --locked
+          install -D -m 0755 target/debug/pryxd "$RUNNER_TEMP/ci-release-build/pryxd-debug"
+          cargo clean
+      - name: Build the release image
+        run: |
+          docker build -t pryx-release .
+          docker run --rm pryx-release --version
+          docker tag pryx-release pryx-static-test
+          docker tag pryx-release pryx-one-box-release
+          docker save pryx-release pryx-static-test pryx-one-box-release \
+            | gzip -1 > "$RUNNER_TEMP/ci-release-build/pryx-release-image.tar.gz"
+          (cd "$RUNNER_TEMP/ci-release-build" && sha256sum -- * > SHA256SUMS && du -h -- *)
+      # A rerun of this job replaces its own artifact: upload-evidence overwrites on its retry.
+      - uses: ./.github/actions/upload-evidence
+        with:
+          name: ci-release-build
+          path: ${{ runner.temp }}/ci-release-build/
+          compression-level: '0'
+          if-no-files-found: error
+          retention-days: '3'
+
   e2e:
     name: Control end to end
+    needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     services:
@@ -72,25 +111,20 @@ jobs:
         run: >-
           docker run -d --name pryx-s3 -p 9000:9000 -e RUSTFS_ACCESS_KEY=blockly-test
           -e RUSTFS_SECRET_KEY=blockly-test-secret ghcr.io/rustfs/rustfs:1.0.0 /data
-      - name: Build the current daemon
-        env:
-          CARGO_PROFILE_DEV_DEBUG: '0'
-        run: |
-          cargo clean --package pryxd
-          cargo build --locked
-      - name: Release compilation space before the image build
-        run: |
-          cp target/debug/pryxd "$RUNNER_TEMP/pryxd-debug"
-          cargo clean
-          mkdir -p target/debug
-          cp "$RUNNER_TEMP/pryxd-debug" target/debug/pryxd
-          docker builder prune --all --force
-          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
-          df -h .
-      - name: Build a static daemon for isolated nodes
+      - name: Fetch the build job's daemon and release image
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ci-release-build
+          path: ${{ runner.temp }}/ci-release-build
+          digest-mismatch: error
+      # An artifact keeps no file mode, so the daemon is installed executable.
+      - name: Take the static daemon for isolated nodes from the release image
         id: static
         run: |
-          docker build -t pryx-static-test .
+          (cd "$RUNNER_TEMP/ci-release-build" && sha256sum -c SHA256SUMS)
+          install -D -m 0755 "$RUNNER_TEMP/ci-release-build/pryxd-debug" target/debug/pryxd
+          gzip -dc "$RUNNER_TEMP/ci-release-build/pryx-release-image.tar.gz" | docker load
+          rm "$RUNNER_TEMP/ci-release-build/pryx-release-image.tar.gz"
           id=$(docker create pryx-static-test)
           docker cp "$id:/pryxd" "$RUNNER_TEMP/pryxd"
           docker cp "$id:/usr/local/bin/pryx" "$RUNNER_TEMP/pryx-cli"
@@ -380,6 +414,7 @@ jobs:
 
   one-box:
     name: One box and Action
+    needs: build
     env:
       PRYX_HTTP_DIAGNOSTICS: '1'
     runs-on: ubuntu-24.04
@@ -391,18 +426,21 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version-file: package.json
-      - run: rustup toolchain install
-      - run: cargo build --locked
       - run: bun install --frozen-lockfile
       - run: bun run release:build
-      - name: Preserve the daemon and release compiler space
+      - name: Fetch the build job's daemon and release image
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ci-release-build
+          path: ${{ runner.temp }}/ci-release-build
+          digest-mismatch: error
+      # The image archive is the one the host install below loads again.
+      - name: Take the static agent release asset from the release image
         run: |
-          cp target/debug/pryxd dist/pryxd
-          cargo clean
-          df -h .
-      - name: Build the static agent release asset
-        run: |
-          docker build -t pryx-one-box-release .
+          (cd "$RUNNER_TEMP/ci-release-build" && sha256sum -c SHA256SUMS)
+          install -m 0755 "$RUNNER_TEMP/ci-release-build/pryxd-debug" dist/pryxd
+          mv "$RUNNER_TEMP/ci-release-build/pryx-release-image.tar.gz" "$RUNNER_TEMP/pryx-one-box-image.tar.gz"
+          gzip -dc "$RUNNER_TEMP/pryx-one-box-image.tar.gz" | docker load
           id=$(docker create pryx-one-box-release)
           docker cp "$id:/usr/local/lib/pryx/pryx-agent" dist/pryx-agent
           docker cp "$id:/pryxd" "$RUNNER_TEMP/pryxd-k14"
@@ -412,13 +450,10 @@ jobs:
           sudo chown -R root:root /usr/local/lib/pryx/agentos
           echo "PRYX_AGENTOS_DISTRIBUTION=/usr/local/lib/pryx/agentos" >> "$GITHUB_ENV"
           docker rm -v "$id"
-          docker save pryx-one-box-release | gzip -1 > "$RUNNER_TEMP/pryx-one-box-image.tar.gz"
-          docker image rm pryx-one-box-release
+          docker image rm pryx-release pryx-static-test pryx-one-box-release
       - name: Prepare the unreleased build artifacts
         run: |
-          # The installed daemon is now in dist; placement still needs real disk above its host floor.
-          rm -rf target/debug
-          docker builder prune --all --force
+          # Placement still needs real disk above its host floor.
           # The image archive and SDK fixtures coexist with the host's five GiB disk reserve.
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
           df -h .

@@ -649,8 +649,8 @@ jobs:
           .venv-python/bin/python -m unittest discover -s sdk/python/test -v
       - run: bun scripts/check-control-structure.ts
 
-  # The installed product's acceptance, in ci-acceptance.yml: the end-to-end suites and the one-box
-  # install.
+  # The installed product's acceptance, in ci-acceptance.yml: one build of the daemon and release
+  # image, the end-to-end suites and the one-box install.
   acceptance:
     name: Acceptance
     needs: changes
@@ -663,11 +663,12 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true' && (github.event_name == 'pull_request' || github.event_name == 'merge_group')
     # The release publishes the image for both machines, each built natively on GitHub's standard
-    # runner for it (free for this public repository).
+    # runner for it (free for this public repository). x86_64's is Acceptance's build, which runs
+    # whenever this does.
     strategy:
       fail-fast: false
       matrix:
-        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+        runner: [ubuntu-24.04-arm]
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
