@@ -17,7 +17,7 @@ pub const LABEL_EPOCH: &str = "blocklyd.epoch";
 pub(crate) const LABEL_RECORD: &str = "blocklyd.record";
 
 /// Private ingress bindings for gateway-free internal networks; never user-provided.
-pub(crate) const LABEL_INTERNAL_BINDINGS: &str = "blocklyd.internal-bindings";
+pub const LABEL_INTERNAL_BINDINGS: &str = "blocklyd.internal-bindings";
 /// Inner browser sandbox policy supplied through a supported agent's trusted bootstrap.
 pub(crate) const LABEL_BROWSER_SANDBOX: &str = "blocklyd.browser-sandbox";
 /// Observed, never sent: whether a process sandbox's kernel network policy is attached and verified.
