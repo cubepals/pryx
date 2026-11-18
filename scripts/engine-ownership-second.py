@@ -400,8 +400,16 @@ def fuse_mapping(probe, peer, prefix, args, fixture, ns, helper, daemon_scope):
                 first = fixture_write(probe, peer, prefix, args.image, base/'merged', uid, uid,
                                       'host-first', 'sandbox-first')
                 result['firstWrite'] = first
-                if first['exit'] == 0:
+                if first['exit'] == 0 and ns:
+                    # An overlay's upper layer changed under a live mount is undefined behaviour
+                    # (the first run's second host-read failed so). The host writes as the view's
+                    # owner would: through the mounted view, as namespace root, the data's owner.
+                    written = probe.run(ns + ['sh', '-c', 'printf %s "$1" > "$2"', 'host-write',
+                                              'host-second', str(base/'merged'/'from-host')], fds=peer.fds)
+                    result['hostWriteThroughView'] = written
+                elif first['exit'] == 0:
                     (base/'upper'/'from-host').write_text('host-second')
+                if first['exit'] == 0 and result.get('hostWriteThroughView', {'exit': 0})['exit'] == 0:
                     second = fixture_write(probe, peer, prefix, args.image, base/'merged', uid, uid,
                                            'host-second', 'sandbox-second')
                     result['secondWrite'] = second
