@@ -9,6 +9,9 @@
 //! Parts (`network/`):
 //! - `guard_tests.rs`: pure stale-map and pinned-policy retirement regressions.
 //! - `route_fixture.py`: owned and refused sockets inside the real kernel-policy test cgroup.
+//! - `path_tests.rs`: where a policed sandbox's packets actually go: broadcasts, NAT64 twins,
+//!   reuse-port groups, source routes and TIME-WAIT.
+//! - `paths_fixture.py`: the sandbox's side of each of those, inside the real test cgroup.
 use crate::bpf::{
     attach::{Attachment, Counts, Programs},
     host::{self, AddressChanges, Host},
@@ -486,6 +489,10 @@ pub(super) fn fixture_spec(root: &Path) -> ContainerSpec {
 #[cfg(test)]
 #[path = "network/guard_tests.rs"]
 mod guard_tests;
+
+#[cfg(test)]
+#[path = "network/path_tests.rs"]
+mod path_tests;
 
 #[cfg(test)]
 mod tests {
