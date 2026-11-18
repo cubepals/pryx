@@ -647,7 +647,7 @@ impl ContainerRuntime for DockerRuntime {
             Ok(inspect) if !gvisor::owns_container(self.oci_runtime, &inspect) => Ok(None),
             Ok(inspect) => {
                 self.egress.restore(self, &inspect).await?;
-                self.relays.ensure(&inspect).await?;
+                self.relays.ensure(self, &inspect).await?;
                 let mut info = info_from(inspect);
                 let journal = self.journal_context();
                 let docker_history = self.oci_runtime.is_some()
