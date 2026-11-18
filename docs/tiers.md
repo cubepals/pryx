@@ -50,11 +50,24 @@ strict deletion and installer startup are outside these timers. Percentiles use 
 | Standard rootless Docker 29.9.2 mapping | 0 | Unavailable | Unavailable | Unavailable |
 
 The standard Docker mapping cannot expose daemon-owned data to the required nonzero sandbox
-user: default and host namespaces deny the write, and keep-id is unsupported. It refuses
-`data-owner-mapping` before data or compute, while other tiers remain available. Its positive
+user: default and host namespaces deny the write, keep-id is unsupported, the engine has no bind
+ID-map option and a kernel ID-mapped bind does not attach. It refuses `data-owner-mapping` before
+data or compute, while other tiers remain available; an engine whose map gives the workload the
+data owner's identity (Podman keep-id, or a rootless daemon mapped so) turns it on. Its positive
 lifecycle and timings are parked; a custom mapped local daemon is not evidence for that host.
-Rootless Docker also refuses `network-policy` for `network: "none"`: its internal bridges cannot
-provide ingress through the node user. Podman uses native published ingress for internal bridges.
+A fuse-overlayfs view mounted in the daemon's own namespaces does map the nonzero workload onto
+the node user's data in the hosted diagnostic, when the host also writes through the view; it is
+not built into the runtime (see `docs/any-host-progress.md`, K22 third try).
+
+On rootless Docker, `network: "none"` uses no bridge: the container gets Docker's `none` network
+(loopback only), and the node reaches its declared ports through the engine's exec attachment, by
+the protected static agent injected at create. `network-policy` is announced only where that
+agent is installed; elsewhere `network: "none"` is refused by name before data or compute. The
+transport passes on hosted standard rootless Docker in a data-less case (TCP with half-close,
+UDP, an undeclared port refused, no address or default route, host loopback and a neighbour
+unreachable, helper retirement and owner adoption after a restart). On standard rootless Docker,
+every sandbox is still refused at `data-owner-mapping` first, so no sandbox there reaches this
+path yet. Podman uses native published ingress for internal bridges.
 The [Podman samples](checks/measurements/k22/podman-197a372.json),
 [Docker refusal](checks/measurements/k22/docker-197a372.json) and
 [artifact provenance](checks/measurements/k22/provenance-197a372.json) are summarized after
