@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! Real exec-deadline subprocesses retain command status and retire detached descendants.
 //! Engine transport and whole-sandbox retirement belong to the daemon tests and hosted CI.
+use brush_core::ExecutionExitCode;
 use std::io::Write;
 use std::os::unix::process::ExitStatusExt;
 use std::process::{Command, Stdio};
@@ -225,6 +226,81 @@ fn every_trusted_exec_launcher_removes_bootstrap_material_and_keeps_user_env() {
             assert!(key.verify(&mut output.stderr.clone(), Some(0)).is_some());
         }
     }
+}
+
+#[test]
+fn a_missing_deadline_command_authenticates_failure_without_retiring_neighbours() {
+    let directory = tempfile::tempdir().unwrap();
+    launch_failure_keeps_other_commands(&directory.path().join("missing"), ExecutionExitCode::NotFound);
+}
+
+#[test]
+fn a_non_executable_deadline_command_authenticates_failure_without_retiring_neighbours() {
+    use std::os::unix::fs::PermissionsExt;
+    let directory = tempfile::tempdir().unwrap();
+    let command = directory.path().join("not-executable");
+    std::fs::write(&command, b"#!/bin/sh\nprintf 'must not execute'\n").unwrap();
+    std::fs::set_permissions(&command, std::fs::Permissions::from_mode(0o600)).unwrap();
+    launch_failure_keeps_other_commands(&command, ExecutionExitCode::CannotExecute);
+}
+
+struct Neighbour(std::process::Child);
+impl Drop for Neighbour {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+fn launch_failure_keeps_other_commands(command: &std::path::Path, expected: ExecutionExitCode) {
+    let (_installation, owner) = protected_executable();
+    let mut neighbour = Neighbour(Command::new("sleep").arg("60").spawn().unwrap());
+    let (failure, completed, finished) = supervised_launch(&owner, command, &[]);
+    assert!(finished, "the launch refusal must finish without waiting for the deadline");
+    let code = i32::from(u8::from(expected));
+    assert_eq!(failure.status.code(), Some(code));
+    let completed = completed.expect("an ordinary launch failure authenticates its cleanup boundary");
+    assert_eq!(completed.code, code);
+    assert!(!completed.timed_out);
+    assert!(String::from_utf8_lossy(&failure.stderr).contains("Cannot start requested command:"));
+    assert!(failure.stdout.is_empty());
+    assert!(neighbour.0.try_wait().unwrap().is_none(), "the unrelated command must remain alive");
+    let (healthy, completed, finished) = supervised_launch(&owner, std::path::Path::new("sh"), &["-c", "printf kept"]);
+    assert!(finished && healthy.status.success(), "a later command still executes");
+    assert_eq!(healthy.stdout, b"kept");
+    let completed = completed.expect("the later healthy command also authenticates completion");
+    assert_eq!(completed.code, 0);
+    assert!(!completed.timed_out);
+    assert!(neighbour.0.try_wait().unwrap().is_none(), "neighbour ownership is unchanged");
+}
+
+fn supervised_launch(
+    owner: &std::path::Path,
+    command: &std::path::Path,
+    arguments: &[&str],
+) -> (std::process::Output, Option<pryx_agent::exec_completion::Completion>, bool) {
+    let mut wrapper = Command::new(owner)
+        .args([pryx_agent::exec_deadline::MODE, "5000", "--"])
+        .arg(command)
+        .args(arguments)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let (key, input) = pryx_agent::exec_completion::Key::fresh().unwrap();
+    wrapper.stdin.take().unwrap().write_all(&input).unwrap();
+    let until = Instant::now() + Duration::from_secs(3);
+    while wrapper.try_wait().unwrap().is_none() && Instant::now() < until {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let finished = wrapper.try_wait().unwrap().is_some();
+    if !finished {
+        let _ = wrapper.kill();
+    }
+    let mut output = wrapper.wait_with_output().unwrap();
+    let completed = key.verify(&mut output.stderr, output.status.code().map(i64::from));
+    (output, completed, finished)
 }
 
 fn protected_executable() -> (std::os::fd::OwnedFd, std::path::PathBuf) {

@@ -1595,3 +1595,5 @@
 - K26 DNS review: read nameserver directives and addresses as whitespace-separated fields, as Moby does, so a legal trailing comment cannot discard a reachable upstream and falsely refuse the sandbox.
 
 - K26 current-base integration: hold the same immutable-container exec-generation gate around the existing journal-bound start, retaining native receipt preparation and confirmation so exec ownership and OOM attribution share one mutation.
+
+- K26 exec launch failures: after owner protection and child-ownership setup are proved, authenticate missing or non-executable command failures with the maintained shell's command-launch statuses because no workload was admitted; unknown launch/setup errors and unconfirmed post-start cleanup still require sandbox retirement.

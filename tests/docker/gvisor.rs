@@ -165,6 +165,61 @@ async fn a_sandbox_on_the_internet_resolves_and_fetches_a_public_name() {
     cleanup(&m, &["dns"]).await;
 }
 
+/// An ordinary executable lookup/refusal is an authenticated command result, not an owner
+/// death: the same sandbox and start still accept a later command after either launch error.
+#[tokio::test]
+#[ignore = "needs Docker with gVisor and its protected exec owner"]
+async fn ordinary_gvisor_launch_errors_keep_the_same_sandbox_running() {
+    if !on_gvisor() {
+        return;
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let dep = deployment();
+    let _cleanup = Cleanup(dep.clone());
+    let m = daemon(directory.path(), &dep);
+    assert!(m.reconcile(Records::FromDisk).await.error.is_none());
+    m.ensure(id("launch"), shell(SERVER, 256), Precondition::None, None).await.unwrap();
+    m.start(id("launch"), None).await.unwrap();
+    let before = m.view(&id("launch")).unwrap();
+    let target = before.locate.container_id.clone().unwrap();
+    let backend = engine_api(&DockerConfig::default().socket).await;
+    let started = backend.inspect_container(&target, None).await.unwrap().state.unwrap().started_at;
+    let create = ExecRequest {
+        command: vec![
+            "sh".into(),
+            "-c".into(),
+            "printf 'not executable' > /tmp/pryx-no-exec; chmod 600 /tmp/pryx-no-exec".into(),
+        ],
+        timeout_seconds: 10,
+    };
+    assert_eq!(m.exec(id("launch"), create, None, None).await.unwrap().exit_code, Some(0));
+    for executable in ["/tmp/pryx-missing-command", "/tmp/pryx-no-exec"] {
+        // Read the expected POSIX launch status from the sandbox's real shell, not a copy.
+        let shell = ExecRequest {
+            command: vec!["sh".into(), "-c".into(), "exec \"$1\"".into(), "sh".into(), executable.into()],
+            timeout_seconds: 10,
+        };
+        let expected = m.exec(id("launch"), shell, None, None).await.unwrap();
+        assert!(expected.exit_code.is_some_and(|code| code != 0));
+        let direct = ExecRequest { command: vec![executable.into()], timeout_seconds: 10 };
+        let failure = m.exec(id("launch"), direct, None, None).await.unwrap();
+        assert_eq!(failure.exit_code, expected.exit_code);
+        assert!(!failure.timed_out && !failure.killed);
+        let healthy = ExecRequest { command: vec!["printf".into(), "still-kept".into()], timeout_seconds: 10 };
+        let healthy = m.exec(id("launch"), healthy, None, None).await.unwrap();
+        assert_eq!(healthy.exit_code, Some(0));
+        assert_eq!(healthy.stdout, "still-kept");
+        let after = m.view(&id("launch")).unwrap();
+        assert_eq!(after.state, WorkloadState::Running);
+        assert_eq!(after.locate.container_id, before.locate.container_id);
+        assert_eq!(after.started_at, before.started_at);
+        let state = backend.inspect_container(&target, None).await.unwrap().state.unwrap();
+        assert_eq!(state.running, Some(true));
+        assert_eq!(state.started_at, started);
+    }
+    cleanup(&m, &["launch"]).await;
+}
+
 /// Why the engine at `socket` can't serve the gvisor tier, read from the engine's own API, or None
 /// where it can. gVisor runs through the container tier, so that tier's own refusal comes first;
 /// then Podman, which pryx doesn't start gVisor on; then `runsc` missing from the engine's runtimes.

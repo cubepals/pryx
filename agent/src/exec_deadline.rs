@@ -6,6 +6,8 @@
 //! supervisor: the command gets a process group of its own, and this subreaper owns every
 //! descendant, including children that leave the group with setsid. All are retired before exit. The exit status is the command's, or SIGKILL's at the deadline. Not for
 //! the agent's process API, which owns its separate command lifecycle.
+use brush_core::ExecutionExitCode;
+use std::io::Write;
 use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::time::{Duration, Instant};
 
@@ -29,7 +31,19 @@ pub fn run(arguments: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     rustix::process::set_child_subreaper(rustix::process::Pid::from_raw(1))?;
     // gVisor exposes task stat ancestry, but not /proc/self/task/*/children.
     procfs::process::all_processes()?;
-    let mut child = command(command_arguments)?.stdin(std::process::Stdio::null()).process_group(0).spawn()?;
+    let mut child = match command(command_arguments)?.stdin(std::process::Stdio::null()).process_group(0).spawn() {
+        Ok(child) => child,
+        Err(problem) => {
+            // Owner protection and subreaper/procfs admission already succeeded. This fixed
+            // spawn has no user pre-exec hook; these errors admit no workload or descendants.
+            let Some(code) = launch_error_code(&problem) else { return Err(problem.into()) };
+            let code = i32::from(u8::from(code));
+            let mut stderr = std::io::stderr().lock();
+            writeln!(stderr, "Cannot start requested command: {problem}")?;
+            key.write(&mut stderr, code, false)?;
+            std::process::exit(code);
+        }
+    };
     let group = rustix::process::Pid::from_child(&child);
     let deadline = Instant::now() + Duration::from_millis(millis);
     let mut timed_out = false;
@@ -51,6 +65,16 @@ pub fn run(arguments: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     let code = status.code().unwrap_or_else(|| 128 + status.signal().unwrap_or(libc::SIGKILL));
     key.write(&mut std::io::stderr().lock(), code, timed_out)?;
     std::process::exit(code)
+}
+
+// Import the maintained shell's POSIX command-launch statuses rather than copying their numbers.
+// Unknown setup/resource failures stay unconfirmed; post-start cleanup is never handled here.
+fn launch_error_code(problem: &std::io::Error) -> Option<ExecutionExitCode> {
+    match problem.raw_os_error() {
+        Some(libc::ENOENT) => Some(ExecutionExitCode::NotFound),
+        Some(libc::EACCES | libc::ENOEXEC) => Some(ExecutionExitCode::CannotExecute),
+        _ => None,
+    }
 }
 
 fn protect_owner(behavior: rustix::process::DumpableBehavior) -> Result<(), Box<dyn std::error::Error>> {
@@ -102,6 +126,21 @@ fn command(arguments: &[String]) -> Result<std::process::Command, Box<dyn std::e
 mod tests {
     use super::*;
     use rustix::process::{DumpableBehavior, dumpable_behavior};
+
+    #[test]
+    fn only_ordinary_unstarted_command_errors_get_a_launch_completion() {
+        for (errno, expected) in [
+            (libc::ENOENT, ExecutionExitCode::NotFound),
+            (libc::EACCES, ExecutionExitCode::CannotExecute),
+            (libc::ENOEXEC, ExecutionExitCode::CannotExecute),
+        ] {
+            let actual = launch_error_code(&std::io::Error::from_raw_os_error(errno)).unwrap();
+            assert_eq!(u8::from(actual), u8::from(expected));
+        }
+        for errno in [libc::EPERM, libc::EAGAIN, libc::ENOMEM, libc::EIO, libc::EINVAL] {
+            assert!(launch_error_code(&std::io::Error::from_raw_os_error(errno)).is_none());
+        }
+    }
 
     #[test]
     fn ordinary_dumpability_is_refused_without_changing_the_callers_policy() {
