@@ -40,6 +40,7 @@ async fn remote_files_preserve_epochs_shapes_streams_and_owned_cleanup() {
             .await
             .unwrap(),
         forked: Default::default(),
+        retirement_nonce: Default::default(),
     });
     let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await.unwrap();
     let endpoint = listener.local_addr().unwrap();

@@ -5,7 +5,7 @@ use super::*;
 use std::{
     fs,
     io::Cursor,
-    os::unix::fs::PermissionsExt,
+    os::unix::fs::{MetadataExt, PermissionsExt},
     sync::atomic::{AtomicUsize, Ordering},
 };
 
@@ -97,7 +97,19 @@ async fn acquisition_is_lazy_verified_and_reuses_only_a_complete_immutable_cache
     assert_eq!(fixture.calls.load(Ordering::SeqCst), 1);
     assert_eq!(fs::read(root.join("tool.txt")).unwrap(), b"A verified immutable fixture\n");
     assert_eq!(fs::metadata(&root).unwrap().permissions().mode() & 0o222, 0);
+    let sealed = || {
+        [root.clone(), root.join("tool.txt"), root.join("manifest.json")].map(|path| {
+            let info = fs::metadata(path).unwrap();
+            (info.ino(), info.ctime(), info.ctime_nsec(), info.mode())
+        })
+    };
+    let before = sealed();
     assert_eq!(cache::prepare(&fixture.policy).await.unwrap(), root);
+    assert_eq!(sealed(), before, "verifying sealed bytes requires no inode or mode mutation");
+    assert_eq!(fixture.calls.load(Ordering::SeqCst), 1);
+    fs::set_permissions(root.join("tool.txt"), fs::Permissions::from_mode(0o4644)).unwrap();
+    assert_eq!(cache::prepare(&fixture.policy).await.unwrap(), root);
+    assert_eq!(fs::metadata(root.join("tool.txt")).unwrap().mode() & 0o7777, 0o444);
     assert_eq!(fixture.calls.load(Ordering::SeqCst), 1);
     fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).unwrap();
     fs::write(root.join("injected.py"), b"untrusted extra module").unwrap();

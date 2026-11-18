@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
-//! A sandbox supervisor without an engine, cgroup or new namespace. Private runtime journals
+//! A sandbox supervisor without an engine, in namespaces and a cgroup of its own where the host
+//! gives them (`namespaces.rs`, `network.rs`). Private runtime journals
 //! allow adoption after daemon restart; process identities include kernel start ticks, not PID
 //! alone. The manager retains the existing epoch, snapshot and data-directory lifecycle.
 //!
@@ -13,13 +14,25 @@
 //! - `logs.rs`: bounded, safe entrypoint log replay and following.
 //! - `termination.rs`: stable tree freezing and orphan retirement.
 //! - `namespaces.rs`: the namespaced mode's helper, its arguments and its probe.
+//! - `network.rs`: each sandbox's cgroup, kernel network policy and hostname gateways.
+//! - `network_tests.rs`: runtime-owned network adoption, retirement and launch checkpoint regressions.
+//! - `network_native_tests.rs`: protected cold artifact caches, lifecycle fences and filtered consumption.
+//! - `adoption.rs`: turning that policy on at start and adopting what outlived the last daemon.
+//! - `legacy.rs`: boot-scoped uncertainty and authenticated cleanup of older process trees.
 /// The host probe's name for the namespaced process mode.
 pub const NAMESPACES: &str = "process-namespaces";
+mod adoption;
 mod exec;
 mod journal;
+mod legacy;
 mod logs;
 pub mod namespaces;
 mod native;
+mod network;
+#[cfg(test)]
+mod network_native_tests;
+#[cfg(test)]
+mod network_tests;
 mod observe;
 mod power;
 mod termination;
@@ -38,7 +51,13 @@ pub(crate) fn free_id(pool: std::ops::Range<u32>, held: impl Fn(u32) -> bool) ->
 pub struct ProcessRuntime {
     state: Arc<State>,
     policy: ProcessConfig,
+    /// The kernel network policy, where this host lets the runtime attach it.
+    network: Option<Arc<network::Network>>,
+    /// A failed capability proof may still locate old cgroups for cleanup, never for launch.
+    network_cleanup: Option<Arc<network::Network>>,
+    network_capability: Option<crate::capability::Capability>,
 }
+pub use network::Served;
 struct State {
     pub root: PathBuf,
     pub launch: tokio::sync::Mutex<()>,
@@ -61,6 +80,17 @@ struct Entry {
     pub cleaned: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub native_browser: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    network: Option<network::Record>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    network_boot: Option<String>,
+    /// A fork was intended but no actual PID checkpoint completed yet, including plain mode.
+    #[serde(default)]
+    network_launch_pending: bool,
+    #[serde(default)]
+    network_clean: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    network_stop_nonce: Option<String>,
     /// Set when the supervisor started in its own namespaces; absent in the plain mode.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub namespaced: Option<namespaces::Namespaced>,
@@ -98,6 +128,40 @@ impl ContainerRuntime for ProcessRuntime {
     }
     fn supports_network_policy(&self) -> bool {
         true
+    }
+    fn supports_hostname_egress(&self) -> bool {
+        self.network.is_some()
+    }
+    fn supports_egress_addresses(&self) -> bool {
+        self.network.is_some()
+    }
+    fn check_egress_addresses(&self, spec: &crate::protocol::WorkloadSpec) -> Result<(), String> {
+        self.network.as_ref().map_or(Ok(()), |network| network.check(spec))
+    }
+    fn kernel_network_policy(&self) -> Option<crate::capability::Capability> {
+        let proved = self.network_capability.clone()?;
+        if proved.state == crate::capability::State::On && self.legacy_boot_uncertain() {
+            return Some(crate::capability::Capability::new(
+                crate::capability::State::Off,
+                "Legacy process history cannot prove that all earlier descendants are gone on this boot",
+                "Restart this host so a new boot identity proves the earlier descendants are gone",
+            ));
+        }
+        let unpoliced = self.unpoliced();
+        if proved.state != crate::capability::State::On || unpoliced == 0 {
+            return Some(proved);
+        }
+        // Another sandbox's listeners trust loopback, which such a sandbox reaches unpoliced.
+        Some(crate::capability::Capability::new(
+            crate::capability::State::Off,
+            format!(
+                "{unpoliced} process sandbox(es) run without verified kernel network policy (started before this \
+                 host had it, or their rules no longer fit its addresses) and could reach other sandboxes' \
+                 listeners; {}",
+                proved.evidence
+            ),
+            "It comes back once they stop or are started again, which attaches their programs",
+        ))
     }
     async fn info(&self) -> Result<RuntimeInfo, RuntimeError> {
         if !pryx_agent::process_capabilities::probe().filesystem {
@@ -140,6 +204,7 @@ impl ContainerRuntime for ProcessRuntime {
     }
     async fn stop(&self, name: &str, signal: &str, grace: Duration) -> Result<(), RuntimeError> {
         self.signal_tree(name, rustix::process::Signal::CONT)?;
+        self.prepare_legacy_stop(name).await?;
         self.signal_tree(
             name,
             if signal == "SIGINT" { rustix::process::Signal::INT } else { rustix::process::Signal::TERM },
@@ -147,7 +212,7 @@ impl ContainerRuntime for ProcessRuntime {
         let until = tokio::time::Instant::now() + grace;
         while tokio::time::Instant::now() < until {
             if !self.running(name)? {
-                return Ok(());
+                return self.release_network(&self.entry(name)?);
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
@@ -155,10 +220,10 @@ impl ContainerRuntime for ProcessRuntime {
     }
     async fn kill(&self, name: &str) -> Result<(), RuntimeError> {
         self.terminate_tree(name).await?;
-        let key = self.entry(name)?.spec.name;
+        let entry = self.entry(name)?;
         for _ in 0..100 {
-            if !self.running(name)? && !self.state.children.lock().unwrap().contains_key(&key) {
-                return Ok(());
+            if !self.running(name)? && !self.state.children.lock().unwrap().contains_key(&entry.spec.name) {
+                return self.release_network(&entry);
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
@@ -210,10 +275,13 @@ impl ContainerRuntime for ProcessRuntime {
     }
     async fn stats(&self, name: &str) -> Result<Option<RawStats>, RuntimeError> {
         let entry = self.entry(name)?;
+        let counts = self.network.as_ref().and_then(|network| network.counts(&entry.spec.name));
         Ok(observe::matching_pid(entry.pid, entry.ticks).map(|pid| RawStats {
             memory_usage: observe::resident_tree(pid),
             memory_limit: u64::try_from(entry.spec.memory_bytes).ok(),
             pids_limit: u64::try_from(entry.spec.pids_limit).ok(),
+            rx_bytes: counts.map(|counts| counts.ingress[1]),
+            tx_bytes: counts.map(|counts| counts.egress[1]),
             ..Default::default()
         }))
     }

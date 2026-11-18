@@ -40,6 +40,7 @@ impl Bootstrap {
             epoch: self.epoch,
             public_key: key.public_key(),
             forked: Default::default(),
+            retirement_nonce: Default::default(),
             key,
             data: DataDir::open(&self.data)?,
             processes: Processes::new(temporary, self.secret_env),

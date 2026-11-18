@@ -383,16 +383,7 @@ fn vm_worker(path: &Path, check: bool) -> anyhow::Result<()> {
 async fn serve(path: &Path) -> anyhow::Result<()> {
     let boot = Instant::now();
     let mut config = Config::load(path)?;
-    info!(
-        node = %config.node_id,
-        deployment = %config.deployment_id,
-        fleet = config.fleet.as_ref().map(|f| f.url.as_str()),
-        version = env!("CARGO_PKG_VERSION"),
-        "pryxd starting"
-    );
-    for inferred in &config.inferred {
-        info!(key = inferred.key, value = %inferred.value, from = %inferred.from, "worked out from the host; set it in the configuration to override");
-    }
+    starting(&config);
     let _ = rustls::crypto::ring::default_provider().install_default();
 
     let store = Store::open(&config.state_dir)?;
@@ -491,6 +482,26 @@ async fn serve(path: &Path) -> anyhow::Result<()> {
     };
     info!("stopped");
     rolled_back.map_or(Ok(()), |reason| Err(anyhow::anyhow!(reason)))
+}
+
+/// What a start says before anything else: which node it is, what it worked out from the host,
+/// and whether its own memory is held to memory-deny-write-execute.
+fn starting(config: &Config) {
+    info!(
+        node = %config.node_id,
+        deployment = %config.deployment_id,
+        fleet = config.fleet.as_ref().map(|f| f.url.as_str()),
+        version = env!("CARGO_PKG_VERSION"),
+        "pryxd starting"
+    );
+    for inferred in &config.inferred {
+        info!(key = inferred.key, value = %inferred.value, from = %inferred.from, "worked out from the host; set it in the configuration to override");
+    }
+    // This process's own memory, not its sandboxes', which start without it.
+    match pryxd::write_execute::deny_write_execute() {
+        Ok(()) => info!(on = true, "memory deny write execute"),
+        Err(reason) => warn!(on = false, reason, "memory deny write execute"),
+    }
 }
 
 /// Fleet mode's own tasks, and what decides how pryxd stops.

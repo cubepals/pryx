@@ -21,6 +21,7 @@ export function workloadFeatures(spec: RuntimeSpec): string[] {
       : []),
     ...(spec.workdir !== undefined || spec.user !== undefined ? ['workload-options'] : []),
     ...(spec.egress !== undefined ? ['egress-hostnames'] : []),
+    ...(spec.egressAddresses !== undefined ? ['egress-addresses'] : []),
     ...(spec.packages?.length ? ['wasm-packages'] : []),
     ...(spec.network === 'none' ? [contract['x-pryx-network'].policyFeature] : []),
   ]

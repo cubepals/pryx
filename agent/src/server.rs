@@ -108,6 +108,13 @@ pub fn router(agent: Arc<Agent>) -> Router {
 }
 
 async fn health(State(agent): State<Arc<Agent>>, headers: HeaderMap) -> Json<serde_json::Value> {
+    if let Some(nonce) = headers
+        .get(crate::process_retirement::NONCE_HEADER)
+        .and_then(|value| value.to_str().ok())
+        .filter(|nonce| crate::process_observation::nonce_valid(nonce))
+    {
+        *agent.retirement_nonce.lock().unwrap() = Some(nonce.into());
+    }
     let mut value = serde_json::json!({"status":"ok","apiVersion":crate::contract::API_VERSION,"kernelsVersion":crate::kernels::VERSION,"toolsVersion":crate::tools::VERSION,"mountsPending":crate::tools::mounts_pending(&agent)});
     value["state"] = serde_json::to_value(crate::state::Snapshot {
         ports: agent.ports.snapshot().await,

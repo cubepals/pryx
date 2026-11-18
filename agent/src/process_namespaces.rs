@@ -37,10 +37,11 @@ pub fn arguments(data: &Path, private_network: bool, tmp_bytes: u64, kept: &[(&P
     arguments
 }
 
-/// The tool directory a sandbox with native tools keeps: the one holding its cache, downloads and
-/// scratch (the node makes them siblings), writable and in one mount, as on the host. Acquiring a
-/// tool renames its verified download into the cache, which no rename does across two mounts;
-/// Landlock, not the mount, keeps the cache read-only to the guest and other scratch out of reach.
+/// Keep the cache's parent, which also contains this UID's downloads and scratch. The node may
+/// use a protected host artifact cache with UID directories below that same tool root; their
+/// DAC permissions stay in force. Older per-UID caches keep all three paths as siblings, in one
+/// writable mount so acquisition can rename atomically. Landlock grants only cache reads and
+/// this sandbox's scratch writes, including when the mount keeps the wider host tool root.
 pub fn tool_directory(tools: &Policy) -> (&Path, bool) {
     (tools.cache.parent().unwrap_or(tools.cache.as_path()), true)
 }

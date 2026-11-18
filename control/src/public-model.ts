@@ -285,6 +285,7 @@ export class PublicModel {
           : undefined),
       user: body.user ?? source?.user,
       egress: body.egress ?? source?.egress,
+      egressAddresses: body.egressAddresses ?? source?.egressAddresses,
       agent: {
         domain: this.domain,
         keepAlive: JSON.stringify(body.entrypoint) === JSON.stringify(SDK_DEFAULTS.entrypoint),
@@ -316,12 +317,10 @@ export class PublicModel {
     spec = unitSpec(spec, this.boxes.projects?.unit)
     if (body.user && spec.isolation !== 'container' && spec.isolation !== 'gvisor')
       throw new SandboxError('unsupported', `user selection is unavailable on the ${spec.isolation} tier`)
-    // Only these tiers enforce a hostname policy on the host; a node still announces it per tier.
-    if (body.egress && spec.isolation !== 'container' && spec.isolation !== 'vm')
-      throw new SandboxError(
-        'unsupported',
-        `egress hostname policy is unavailable on the ${spec.isolation} tier`,
-      )
+    // Wasm never enforces an egress policy; a process node does only where it announces
+    // tier-process:egress-hostnames and egress-addresses (kernel network policy), which placement checks.
+    if ((body.egress || body.egressAddresses) && spec.isolation === 'wasm')
+      throw new SandboxError('unsupported', `egress policy is unavailable on the ${spec.isolation} tier`)
     const id = options.id ?? op.id
     let result: Awaited<ReturnType<Sandboxes['make']>>
     try {

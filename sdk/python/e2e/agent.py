@@ -3,7 +3,9 @@
 This module is invoked explicitly by the container suite, never as a substitute local runtime.
 """
 import asyncio
+import faulthandler
 import os
+import sys
 import unittest
 from urllib.parse import urlparse
 import httpx
@@ -20,9 +22,11 @@ def web_command():
 
 class AgentSync(unittest.TestCase):
     def test_complete_surface(self):
+        print('Sync create', file=sys.stderr, flush=True)
         with Pryx(url=os.environ['PRYX_API_URL'],key=os.environ['PRYX_API_KEY']) as sdk:
             box = sdk.sandbox(**creation(), sparePorts=1, resources={'memoryMb':256})
             try:
+                print('Sync process-stream', file=sys.stderr, flush=True)
                 process = box.spawn('printf first; read value; printf "%s" "$value"', stdin=True, cwd='/data', env={'CI':'1'})
                 output = process.stream()
                 self.assertEqual(next(output)['data'], 'first')
@@ -32,10 +36,12 @@ class AgentSync(unittest.TestCase):
                 list(output)
                 self.assertEqual(process.wait().code, 0)
                 self.assertEqual(box.run('printf hello').stdout, 'hello')
+                print('Sync signals', file=sys.stderr, flush=True)
                 for signal in ('TERM', 'KILL'):
                     background = box.spawn('sleep 60')
                     background.kill() if signal == 'KILL' else background.signal(signal)
                     self.assertNotEqual(background.wait().code, 0)
+                print('Sync PTY', file=sys.stderr, flush=True)
                 terminal = box.terminal(cols=120, rows=40)
                 terminal.resize(80, 24)
                 terminal.stdin.write("printf 'pty:%s\\n' ready\n")
@@ -45,12 +51,14 @@ class AgentSync(unittest.TestCase):
                     if 'pty:ready' in received: break
                 terminal.close()
                 self.assertIn('pty:ready', received)
+                print('Sync watch', file=sys.stderr, flush=True)
                 box.files.mkdir('src')
                 watch = box.files.watch('src')
                 self.assertEqual(next(watch)['type'], 'ready')
                 box.write('src/message', 'hello')
                 self.assertEqual(next(watch)['type'], 'change')
                 watch.close()
+                print('Sync files', file=sys.stderr, flush=True)
                 box.files.move('src/message', 'src/moved')
                 self.assertEqual(box.files.stat('src/moved')['size'], 5)
                 self.assertTrue(any(f['name']=='moved' for f in box.files.list('src')))
@@ -59,6 +67,7 @@ class AgentSync(unittest.TestCase):
                 data = b'x'*(3*1024*1024)
                 box.write('large', iter([data[:10],data[10:]]))
                 self.assertEqual(b''.join(box.read_stream('large')), data)
+                print('Sync web', file=sys.stderr, flush=True)
                 box.write('index.html', 'exposed')
                 web = box.spawn(web_command())
                 url = box.expose(3000)
@@ -67,15 +76,21 @@ class AgentSync(unittest.TestCase):
                 self.assertEqual(error.exception.code, 'no_spare_port')
                 box.unexpose(3000); web.kill(); web.wait()
                 box.files.delete('src/moved')
+                print('Sync sleep', file=sys.stderr, flush=True)
                 box.sleep()
                 self.assertEqual(box.run('printf awake').stdout, 'awake')
+                print('Sync stop-start', file=sys.stderr, flush=True)
                 box.stop(); box.write('stopped', data); self.assertEqual(box.read_bytes('stopped'), data)
                 box.start()
                 box.write('stopped','updated by running agent')
                 self.assertEqual(box.read('stopped'),'updated by running agent')
+                print('Sync network', file=sys.stderr, flush=True)
                 box.network('none'); self.assertEqual(box.run('printf isolated').stdout, 'isolated')
                 box.network('internet'); self.assertEqual(box.run('printf online').stdout, 'online')
-            finally: box.delete()
+            finally:
+                print('Sync delete', file=sys.stderr, flush=True)
+                box.delete()
+                print('Sync delete complete', file=sys.stderr, flush=True)
 
 class AgentAsync(unittest.IsolatedAsyncioTestCase):
     async def test_complete_surface(self):
@@ -185,4 +200,9 @@ class AgentCli(unittest.TestCase):
                         os.waitpid(pid,0)
             finally: box.delete()
 
-if __name__ == '__main__': unittest.main()
+if __name__ == '__main__':
+    faulthandler.dump_traceback_later(180, repeat=False, file=sys.stderr, exit=False)
+    try:
+        unittest.main(verbosity=2)
+    finally:
+        faulthandler.cancel_dump_traceback_later()

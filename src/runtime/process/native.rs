@@ -8,7 +8,7 @@ use super::{
     journal::{error, legacy_boot, note_unscoped},
     observe,
 };
-use pryx_agent::process_tool_policy::{Artifact, Policy, VERSION};
+use pryx_agent::process_tool_policy::{Artifact, HOST_CACHE_VERSION, Policy, VERSION};
 use std::{
     fs,
     io::Read,
@@ -83,6 +83,54 @@ fn checked_base(base: &Path) -> Result<(), RuntimeError> {
     }
     Ok(())
 }
+
+/// Root's sticky temporary directory may contain a protected state directory, but every other
+/// ancestor must be a real directory controlled by the daemon or root and unwritable by peers.
+fn artifact_ancestry(path: &Path) -> Result<(), RuntimeError> {
+    if !path.is_absolute() {
+        return Err(error("Native artifact storage requires an absolute protected state directory"));
+    }
+    let own = rustix::process::geteuid().as_raw();
+    for ancestor in path.ancestors() {
+        let info = fs::symlink_metadata(ancestor).map_err(error)?;
+        let sticky = info.uid() == 0 && info.mode() & libc::S_ISVTX != 0;
+        if !info.is_dir() || (info.uid() != own && info.uid() != 0) || (!sticky && info.mode() & 0o022 != 0) {
+            return Err(error("Unsafe native artifact storage ancestry"));
+        }
+    }
+    Ok(())
+}
+
+fn artifact_directory(path: &Path, mode: u32) -> Result<PathBuf, RuntimeError> {
+    let created = match fs::DirBuilder::new().mode(mode).create(path) {
+        Ok(()) => true,
+        Err(problem) if problem.kind() == std::io::ErrorKind::AlreadyExists => false,
+        Err(problem) => return Err(error(problem)),
+    };
+    let file = fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_DIRECTORY)
+        .open(path)
+        .map_err(error)?;
+    let info = file.metadata().map_err(error)?;
+    if created && info.uid() == rustix::process::geteuid().as_raw() {
+        // The service's private umask may narrow creation; only this newly opened inode is
+        // widened for the intended cache traversal. Existing unsafe modes are never repaired.
+        file.set_permissions(fs::Permissions::from_mode(mode)).map_err(error)?;
+    }
+    let info = file.metadata().map_err(error)?;
+    if !info.is_dir() || info.uid() != rustix::process::geteuid().as_raw() || info.mode() & 0o7777 != mode {
+        return Err(error("Unsafe host-owned native artifact directory"));
+    }
+    Ok(path.to_path_buf())
+}
+
+fn same_generation(current: &Entry, expected: &Entry) -> bool {
+    current.id == expected.id
+        && current.spec.agent.as_ref().zip(expected.spec.agent.as_ref()).is_some_and(|(current, expected)| {
+            current.sandbox == expected.sandbox && current.epoch == expected.epoch && current.binary == expected.binary
+        })
+}
 /// One rename takes `name` out of every owner's path, so nothing it held can be seen again.
 fn retire(base: &Path, name: &str) -> Result<Option<PathBuf>, RuntimeError> {
     let retired = base.join(format!("{RETIRED}{}", uuid::Uuid::new_v4()));
@@ -114,19 +162,58 @@ impl ProcessRuntime {
     fn tools_base(&self) -> Result<PathBuf, RuntimeError> {
         Ok(self.state.root.parent().ok_or_else(|| error("Missing process state parent"))?.join("process-tools"))
     }
-    fn tool_paths(&self, owner: (u32, u32), sandbox: &str) -> Result<(PathBuf, PathBuf, PathBuf), RuntimeError> {
+    fn tool_root(&self) -> Result<PathBuf, RuntimeError> {
         let base = self.tools_base()?;
         if !base.exists() {
             directory(&base, (rustix::process::geteuid().as_raw(), rustix::process::getegid().as_raw()))?;
         }
         checked_base(&base)?;
         fs::set_permissions(&base, fs::Permissions::from_mode(0o711)).map_err(error)?;
+        Ok(base)
+    }
+    fn tool_paths(&self, owner: (u32, u32), sandbox: &str) -> Result<(PathBuf, PathBuf, PathBuf), RuntimeError> {
+        let base = self.tool_root()?;
         let uid = directory(&base.join(owner.0.to_string()), owner)?;
         Ok((
             directory(&uid.join("cache"), owner)?,
             directory(&uid.join("downloads"), owner)?,
             directory(&uid.join(format!("{}{}", scratch_prefix(sandbox)?, uuid::Uuid::new_v4())), owner)?,
         ))
+    }
+
+    fn artifact_owner(&self, expected: &Entry) -> Result<Option<(u32, u32)>, RuntimeError> {
+        let current = self.entry(&expected.spec.name)?;
+        let agent = expected.spec.agent.as_ref().ok_or_else(|| error("Missing process supervisor"))?;
+        if !same_generation(&current, expected) {
+            return Err(RuntimeError::Conflict("Process generation changed during native artifact acquisition".into()));
+        }
+        Ok(if self.shared_uid() {
+            Some((rustix::process::geteuid().as_raw(), rustix::process::getegid().as_raw()))
+        } else {
+            self.state.owners.lock().unwrap().get(&agent.sandbox).copied()
+        })
+    }
+
+    /// Acquire only trusted installation bytes, outside the workload's cgroup and filesystem
+    /// grants. No UID directory or lease is created until this cancellable operation completes.
+    pub(super) async fn acquire_native_artifact(
+        &self,
+        entry: &Entry,
+        artifact: &Artifact,
+    ) -> Result<PathBuf, RuntimeError> {
+        let owner = self.artifact_owner(entry)?;
+        let base = self.tools_base()?;
+        artifact_ancestry(base.parent().ok_or_else(|| error("Missing native artifact storage parent"))?)?;
+        let base = self.tool_root()?;
+        let cache = artifact_directory(&base.join("artifacts"), 0o711)?;
+        let downloads = artifact_directory(&base.join("acquisition"), 0o700)?;
+        pryx_agent::process_tools::acquire_artifact(cache.clone(), downloads, artifact.clone()).await.map_err(
+            |_| error("Native artifact acquisition failed; verify the protected descriptor and host connectivity"),
+        )?;
+        if self.artifact_owner(entry)? != owner {
+            return Err(RuntimeError::Conflict("Process owner changed during native artifact acquisition".into()));
+        }
+        Ok(cache)
     }
     pub(super) fn remove_retired(&self, retired: impl IntoIterator<Item = PathBuf>) {
         retired.into_iter().for_each(|retired| remove_retired(Some(retired)));
@@ -193,6 +280,13 @@ impl ProcessRuntime {
         let glibc =
             crate::capability::process_tools::prerequisite(std::env::consts::ARCH, &crate::capability::c_library());
         let mut unavailable = (glibc.state != crate::capability::State::On).then_some(glibc.evidence);
+        if self.network.is_some()
+            && metadata.as_ref().is_none_or(|value| value.process_tools_host_cache_version < HOST_CACHE_VERSION)
+        {
+            unavailable.get_or_insert_with(|| {
+                "Native tools with kernel network policy need an agent that verifies host-owned caches; upgrade its protected executable".into()
+            });
+        }
         let scoped = pryx_agent::process_capabilities::private_ipc_probe().supported();
         if !scoped {
             unavailable.get_or_insert_with(|| {
@@ -298,10 +392,25 @@ impl ProcessRuntime {
             crate::durable::write_atomic(&self.state.root.join("native-scope-required"), b"1\n", 0o600)
                 .map_err(error)?;
         }
-        let (cache, downloads, scratch) = self.tool_paths(self.owner(&agent.sandbox)?, &agent.sandbox)?;
+        let host_cache = if self.network.is_some() && ready.unavailable.is_none() {
+            let artifact = ready.artifact.as_ref().ok_or_else(|| error("Missing protected native artifact"))?;
+            Some(self.acquire_native_artifact(entry, artifact).await?)
+        } else {
+            None
+        };
+        let (cache, downloads, scratch) = {
+            // Removal cannot release/reassign the UID while these paths are claimed. The
+            // cancellable host fetch above created no tenant path or UID reservation.
+            let entries = self.state.entries.lock().unwrap();
+            let current = Self::entry_from(&entries, &entry.spec.name)?;
+            if !same_generation(&current, entry) {
+                return Err(RuntimeError::Conflict("Process generation changed before native tool setup".into()));
+            }
+            self.tool_paths(self.owner(&agent.sandbox)?, &agent.sandbox)?
+        };
         Ok((
             Some(Policy {
-                cache,
+                cache: host_cache.unwrap_or(cache),
                 downloads,
                 scratch,
                 artifact: ready.artifact,
