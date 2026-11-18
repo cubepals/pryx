@@ -433,6 +433,15 @@ pub trait ContainerRuntime: Send + Sync + 'static {
     fn kernel_network_policy(&self) -> Option<crate::capability::Capability> {
         None
     }
+    /// The process tier's kernel-enforced memory and CPU limits, as the host document reports them.
+    fn process_limits(&self) -> Option<crate::capability::Capability> {
+        None
+    }
+    /// Why the process tier can't enforce a CPU ceiling (`resources.cpuMillis`) here, naming
+    /// cpu-limit; `None` where it can. Only the process tier's validation asks.
+    fn cpu_ceiling_problem(&self) -> Option<String> {
+        None
+    }
     /// Why a request's address rules (`egressAddresses`) can't be enforced here as given, asked
     /// before anything is made; a backend that takes none says nothing.
     fn check_egress_addresses(&self, _spec: &crate::protocol::WorkloadSpec) -> Result<(), String> {

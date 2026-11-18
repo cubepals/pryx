@@ -23,7 +23,8 @@ const BPF_FILESYSTEM: &str = "/sys/fs/bpf";
 const PINS: &str = "pryx";
 
 pub(crate) struct Host {
-    /// This daemon's own cgroup v2 directory; each sandbox gets a child of it.
+    /// This daemon's own cgroup v2 directory, or the parent of its `pryx-daemon` leaf; each
+    /// sandbox gets a child of it.
     pub(crate) cgroups: PathBuf,
     /// A directory on a BPF filesystem; each sandbox's pins go in a child of it.
     pub(crate) pins: PathBuf,
@@ -65,7 +66,8 @@ impl Host {
                 .map_err(|error| unavailable(format!("{path}: {error}"), "Run on Linux with /proc mounted"))
         };
         let mountinfo = read("/proc/self/mountinfo")?;
-        let cgroups = own_cgroup(&read("/proc/self/cgroup")?, &mountinfo)?;
+        // Beside the daemon's leaf where it lives in one (`cgroup::delegation`), as limits are.
+        let cgroups = crate::cgroup::delegation::subtree_root(&own_cgroup(&read("/proc/self/cgroup")?, &mountinfo)?);
         let delegated = !rustix::process::geteuid().is_root();
         if !writable(&cgroups)
             || rustix::fs::access(cgroups.join("cgroup.procs"), rustix::fs::Access::WRITE_OK).is_err()

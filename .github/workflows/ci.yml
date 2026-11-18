@@ -318,7 +318,8 @@ jobs:
           }
           library=$(executable pryxd --lib)
           policy=$(executable process_network --test process_network)
-          for run in "$library bpf:: --ignored" "$policy --ignored --test-threads 1"; do
+          # cgroup:: holds a delegated cgroup to memory.max and cpu.max in the kernel (process limits).
+          for run in "$library bpf:: --ignored" "$library cgroup:: --ignored" "$policy --ignored --test-threads 1"; do
             # shellcheck disable=SC2086 # each run is a program and its arguments
             sudo systemd-run --quiet --wait --pipe --collect --uid="$(id -u)" --gid="$(id -g)" \
               -p Delegate=yes -p AmbientCapabilities="CAP_BPF CAP_NET_ADMIN" \

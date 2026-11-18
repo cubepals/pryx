@@ -171,6 +171,8 @@ impl ProcessRuntime {
             network: None,
             network_cleanup: None,
             network_capability: None,
+            resources: None,
+            resources_capability: None,
         })
     }
     pub(super) fn scope_required(&self) -> Result<bool, RuntimeError> {
@@ -279,8 +281,10 @@ impl ProcessRuntime {
         Ok(())
     }
     pub(super) fn create_entry(&self, spec: &ContainerSpec) -> Result<String, RuntimeError> {
-        if spec.nano_cpus.is_some() {
-            return Err(error(crate::protocol::CPU_LIMIT_PROBLEM));
+        if spec.nano_cpus.is_some()
+            && let Some(problem) = self.cpu_problem()
+        {
+            return Err(error(problem));
         }
         if self.entry(&spec.name).is_ok() {
             return Err(RuntimeError::Conflict("Process sandbox exists".into()));
@@ -304,6 +308,7 @@ impl ProcessRuntime {
             network_clean: false,
             network_stop_nonce: None,
             namespaced: None,
+            limits: None,
         };
         let id = entry.id.clone();
         self.save(entry)?;
@@ -361,24 +366,23 @@ mod tests {
         assert!(runtime.entry(&spec.name).unwrap().native_browser.is_none());
     }
 
+    /// Without a cgroup that gives its sandboxes cpu, a ceiling is refused naming cpu-limit.
     #[tokio::test]
     async fn cpu_ceilings_are_refused_before_creation_or_journal_relaunch() {
         let dir = tempfile::tempdir().unwrap();
         let runtime = ProcessRuntime::new(dir.path(), ProcessConfig::default()).unwrap();
         let mut spec = fixture_spec(dir.path(), 0);
         spec.nano_cpus = Some(250_000_000);
-        assert!(
-            matches!(runtime.create_entry(&spec), Err(RuntimeError::Other(s)) if s == crate::protocol::CPU_LIMIT_PROBLEM)
-        );
+        let refused = runtime.cpu_problem().unwrap();
+        assert!(refused.starts_with("cpu-limit is unavailable on this host's process tier"), "{refused}");
+        assert!(matches!(runtime.create_entry(&spec), Err(RuntimeError::Other(s)) if s == refused));
         assert!(runtime.names().is_empty());
         spec.nano_cpus = None;
         runtime.create_entry(&spec).unwrap();
         let mut entry = runtime.entry(&spec.name).unwrap();
         entry.spec.nano_cpus = Some(250_000_000);
         runtime.save(entry).unwrap();
-        assert!(
-            matches!(runtime.launch(&spec.name).await, Err(RuntimeError::Other(s)) if s == crate::protocol::CPU_LIMIT_PROBLEM)
-        );
+        assert!(matches!(runtime.launch(&spec.name).await, Err(RuntimeError::Other(s)) if s == refused));
         assert!(runtime.state.children.lock().unwrap().is_empty());
         let mut child = std::process::Command::new("sleep").arg("10").spawn().unwrap();
         let mut entry = runtime.entry(&spec.name).unwrap();
@@ -388,7 +392,7 @@ mod tests {
         let running = runtime.launch(&spec.name).await;
         child.kill().unwrap();
         child.wait().unwrap();
-        assert!(matches!(running, Err(RuntimeError::Other(s)) if s == crate::protocol::CPU_LIMIT_PROBLEM));
+        assert!(matches!(running, Err(RuntimeError::Other(s)) if s == refused));
     }
 
     #[tokio::test]

@@ -36,7 +36,9 @@ pub async fn create(config: &Config) -> anyhow::Result<Arc<dyn ContainerRuntime>
             api_port: config.api.listen.port(),
         };
         Arc::new(
+            // Limits first: the daemon may move into its own leaf only before it starts any child.
             crate::runtime::process::ProcessRuntime::new(&config.state_dir, config.process.clone())?
+                .with_resources()
                 .with_network(served)
                 .await,
         )

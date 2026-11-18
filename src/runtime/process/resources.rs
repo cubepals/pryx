@@ -1,0 +1,329 @@
+// SPDX-License-Identifier: FSL-1.1-ALv2
+//! Each process sandbox's memory, CPU and process count, enforced by the kernel: a cgroup of its
+//! own in this daemon's delegated subtree (`crate::cgroup`), its limits written and read back
+//! before its supervisor runs, frozen whole for sleep and killed whole once it stops. Where the
+//! host delegates no controllers this is absent: the tier reports memory-limit and cpu-limit off
+//! with the reason, memory stays the agent's sampled budget, and a CPU ceiling is refused naming
+//! cpu-limit. Not the network programs that may share the cgroup (`network.rs`), nor the launch
+//! itself (`power.rs`).
+use super::journal::error;
+use super::*;
+use crate::capability::{Capability, State as Proved};
+use crate::cgroup::{
+    delegation::{self, CPU, Delegated, MEMORY, PIDS},
+    limits::{self, Limits},
+};
+use crate::protocol::Guarantee;
+use std::{fs, path::Path};
+
+/// The host probe's name for kernel-enforced process sandbox limits.
+pub(crate) const CAPABILITY: &str = "process-limits";
+
+/// What a sandbox started with, kept in its journal: its cgroup, and which of its limits the
+/// kernel enforces there.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub(super) struct Record {
+    pub(super) cgroup: PathBuf,
+    pub(super) memory: bool,
+    pub(super) cpu: bool,
+    pub(super) pids: bool,
+}
+
+/// This daemon's subtree, with the controllers it gives each sandbox.
+pub(super) struct Resources {
+    delegated: Delegated,
+}
+
+impl Resources {
+    pub(super) fn has(&self, controller: &str) -> bool {
+        self.delegated.has(controller)
+    }
+
+    /// A sandbox's cgroup, the one its network policy's programs attach to as well.
+    fn cgroup(&self, key: &str) -> PathBuf {
+        self.delegated.root.join(format!("pryx-{key}"))
+    }
+
+    /// What the kernel enforces for `spec` here: its memory with no swap beyond it, a CPU ceiling
+    /// if it named one, and its process count.
+    pub(super) fn limits(&self, spec: &ContainerSpec) -> Limits {
+        let positive = |value: i64| u64::try_from(value).ok().filter(|value| *value > 0);
+        Limits {
+            memory_bytes: self.has(MEMORY).then(|| positive(spec.memory_bytes)).flatten(),
+            cpu_quota_micros: self.has(CPU).then(|| spec.nano_cpus.and_then(limits::cpu_quota)),
+            pids: self.has(PIDS).then(|| positive(spec.pids_limit)).flatten(),
+        }
+    }
+
+    /// Writes `spec`'s limits into `cgroup` and reads them back: a sandbox runs with exactly what
+    /// it asked for, or not at all.
+    fn apply(&self, cgroup: &Path, spec: &ContainerSpec) -> Result<Record, RuntimeError> {
+        let wanted = self.limits(spec);
+        if spec.nano_cpus.is_some() && wanted.cpu_quota_micros.flatten().is_none() {
+            return Err(error(cpu_problem(None)));
+        }
+        limits::write(cgroup, &wanted).map_err(|problem| error(format!("Process limits: {problem}")))?;
+        let found = limits::read(cgroup).map_err(|problem| error(format!("Process limits: {problem}")))?;
+        let kept = |asked: Option<u64>, found: Option<u64>| asked.is_none() || asked == found;
+        if !kept(wanted.memory_bytes, found.memory_bytes)
+            || !kept(wanted.pids, found.pids)
+            || wanted.cpu_quota_micros.is_some_and(|quota| Some(quota) != found.cpu_quota_micros)
+        {
+            return Err(error(format!(
+                "Process limits: {} reads {found:?} after {wanted:?} was written",
+                cgroup.display()
+            )));
+        }
+        Ok(Record {
+            cgroup: cgroup.to_path_buf(),
+            memory: wanted.memory_bytes.is_some(),
+            cpu: wanted.cpu_quota_micros.is_some(),
+            pids: wanted.pids.is_some(),
+        })
+    }
+}
+
+/// Why a CPU ceiling can't be enforced on this host's process tier, naming the guarantee.
+fn cpu_problem(capability: Option<&Capability>) -> String {
+    let (evidence, action) = match capability.filter(|capability| capability.state != Proved::On) {
+        Some(capability) => (capability.evidence.as_str(), capability.action.as_str()),
+        None => ("this daemon's cgroup gives its sandboxes no cpu controller", delegation::DELEGATE_ACTION),
+    };
+    format!("{} is unavailable on this host's process tier: {evidence}; {action}", Guarantee::CpuLimit.feature())
+}
+
+/// What the host document says of `found`: on where each sandbox gets both a memory and a CPU
+/// limit, else off with what is missing.
+fn capability(found: &Result<Delegated, crate::cgroup::Unavailable>) -> Capability {
+    match found {
+        Ok(delegated) if delegated.has(MEMORY) && delegated.has(CPU) => Capability::on(format!(
+            "each sandbox gets a cgroup below {} with {}",
+            delegated.root.display(),
+            delegated.controllers.join(", ")
+        )),
+        Ok(delegated) => Capability::new(
+            Proved::Off,
+            format!(
+                "cgroup {} gives its sandboxes only {}",
+                delegated.root.display(),
+                delegated.controllers.join(", ")
+            ),
+            delegation::DELEGATE_ACTION,
+        ),
+        Err(problem) => Capability::new(Proved::Off, problem.evidence.clone(), problem.action),
+    }
+}
+
+/// The same report for a caller that isn't the daemon (`pryxd probe`): what its cgroup could give,
+/// with nothing moved or turned on.
+pub(crate) fn inspected() -> Capability {
+    capability(&delegation::inspect())
+}
+
+/// Kills whatever is left in a sandbox's cgroup, waits for it to empty and removes it. A cgroup
+/// already gone is released.
+pub(super) fn release(cgroup: &Path) -> Result<(), RuntimeError> {
+    match fs::symlink_metadata(cgroup) {
+        Ok(metadata) if metadata.is_dir() => {}
+        Ok(_) => return Err(error(format!("Process limits: {} is not a cgroup", cgroup.display()))),
+        Err(problem) if problem.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(problem) => return Err(error(problem)),
+    }
+    let failed = |problem: std::io::Error| error(format!("Process limits: releasing {}: {problem}", cgroup.display()));
+    crate::cgroup::fence_cgroup(cgroup).map_err(failed)?;
+    crate::cgroup::wait_empty(cgroup).map_err(failed)?;
+    crate::cgroup::remove_cgroup(cgroup).map_err(failed)
+}
+
+impl ProcessRuntime {
+    /// Turns kernel-enforced limits on where this daemon's cgroup can give its children memory
+    /// and cpu (and pids). Runs before anything else this daemon starts, since the daemon may move
+    /// into its leaf only while it is its cgroup's one process. A supervisor that outlived the last
+    /// daemon keeps what its record says only while it is still in that cgroup.
+    pub(crate) fn with_resources(mut self) -> Self {
+        let found = delegation::delegate();
+        let capability = capability(&found);
+        tracing::info!(on = capability.state == Proved::On, evidence = %capability.evidence, "process limits");
+        self.resources_capability = Some(capability);
+        self.resources = found.ok().map(|delegated| Arc::new(Resources { delegated }));
+        for name in self.names() {
+            let Ok(mut entry) = self.entry(&name) else { continue };
+            let Some(record) = &entry.limits else { continue };
+            let Some(pid) = super::observe::matching_pid(entry.pid, entry.ticks) else { continue };
+            if crate::cgroup::members(&record.cgroup).is_ok_and(|members| members.contains(&pid)) {
+                continue;
+            }
+            tracing::warn!(sandbox = %entry.spec.name, "process sandbox is no longer in its limits' cgroup");
+            entry.limits = None;
+            if let Err(problem) = self.save(entry) {
+                tracing::warn!(sandbox = %name, %problem, "process sandbox's lost limits were not saved");
+            }
+        }
+        self
+    }
+
+    /// The process tier's kernel-enforced limits as the host document reports them.
+    pub(super) fn limits_capability(&self) -> Option<Capability> {
+        self.resources_capability.clone()
+    }
+
+    /// The agent's sampled memory budget for `spec`. Where memory.max holds each sandbox it is set
+    /// past reach: resident pages summed, shared ones more than once, would only kill a sandbox
+    /// the kernel lets run.
+    pub(super) fn sampled_budget(&self, spec: &ContainerSpec) -> u64 {
+        let budget = u64::try_from(spec.memory_bytes).unwrap_or_default();
+        let kernel = self.resources.as_ref().is_some_and(|resources| resources.has(MEMORY));
+        if kernel && budget > 0 { u64::MAX } else { budget }
+    }
+
+    /// Why a CPU ceiling can't be enforced here, or `None` where each sandbox's cgroup has cpu.
+    pub(super) fn cpu_problem(&self) -> Option<String> {
+        match &self.resources {
+            Some(resources) if resources.has(CPU) => None,
+            _ => Some(cpu_problem(self.resources_capability.as_ref())),
+        }
+    }
+
+    /// Before a supervisor starts: its cgroup, made here unless its network policy made it, with
+    /// its limits written. On failure nothing of it is left and the launch is refused.
+    pub(super) fn prepare_limits(&self, entry: &Entry) -> Result<Option<Record>, RuntimeError> {
+        let Some(resources) = &self.resources else { return Ok(None) };
+        let cgroup = resources.cgroup(&super::network::key(&self.state.root, &entry.spec.name));
+        let prepared = (|| {
+            if self.network.is_none() {
+                release(&cgroup)?;
+                crate::cgroup::create_cgroup(&cgroup).map_err(|problem| error(format!("Process limits: {problem}")))?;
+            }
+            resources.apply(&cgroup, &entry.spec)
+        })();
+        if prepared.is_err() {
+            self.release_network(entry)?;
+            release(&cgroup)?;
+        }
+        prepared.map(Some)
+    }
+
+    /// Sleep: the whole cgroup frozen at once where the sandbox has one, so nothing forks past
+    /// it; else every process of its tree stopped. Either way its memory stays where it is.
+    pub(super) async fn freeze_sandbox(&self, name: &str) -> Result<(), RuntimeError> {
+        let entry = self.entry(name)?;
+        match &entry.limits {
+            Some(record) if super::observe::matching_pid(entry.pid, entry.ticks).is_some() => {
+                let cgroup = record.cgroup.clone();
+                tokio::task::spawn_blocking(move || limits::freeze(&cgroup, true))
+                    .await
+                    .map_err(error)?
+                    .map_err(|problem| error(format!("Process limits: {problem}")))
+            }
+            _ => self.freeze_tree(name).await.map(drop),
+        }
+    }
+
+    /// Wake: its cgroup thawed and every process of its tree continued. A cgroup its network
+    /// policy fenced stays frozen: it may only be started again with new programs.
+    pub(super) fn thaw_sandbox(&self, name: &str) -> Result<(), RuntimeError> {
+        let entry = self.entry(name)?;
+        let fenced =
+            entry.network.is_some() && !self.network.as_ref().is_some_and(|network| network.verified(&entry.spec.name));
+        if let Some(record) = &entry.limits
+            && !fenced
+            && super::observe::matching_pid(entry.pid, entry.ticks).is_some()
+        {
+            limits::freeze(&record.cgroup, false).map_err(|problem| error(format!("Process limits: {problem}")))?;
+        }
+        self.signal_tree(name, rustix::process::Signal::CONT)
+    }
+
+    /// What the kernel counted in a sandbox's cgroup, where it has one.
+    pub(super) fn limits_stats(&self, entry: &Entry) -> Option<RawStats> {
+        let record = entry.limits.as_ref()?;
+        let usage = limits::usage(&record.cgroup);
+        Some(RawStats {
+            cpu_total_ns: usage
+                .cpu_micros
+                .and_then(|micros| u64::try_from(std::time::Duration::from_micros(micros).as_nanos()).ok()),
+            cpu_throttled_periods: usage.throttled_periods,
+            memory_usage: usage.memory_bytes,
+            memory_inactive_file: usage.inactive_file_bytes,
+            memory_limit: u64::try_from(entry.spec.memory_bytes).ok(),
+            pids: usage.pids,
+            pids_limit: u64::try_from(entry.spec.pids_limit).ok(),
+            ..Default::default()
+        })
+    }
+}
+
+/// Starts `command` as a member of `cgroup`, which it joins before it runs anything.
+pub(super) fn spawn_in(
+    cgroup: &Path,
+    command: &mut std::process::Command,
+) -> Result<std::process::Child, RuntimeError> {
+    crate::cgroup::join_on_exec(command, cgroup).map_err(|problem| error(format!("Process limits: {problem}")))?;
+    command.spawn().map_err(error)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn resources(controllers: Vec<&'static str>) -> Resources {
+        Resources { delegated: Delegated { root: "/sys/fs/cgroup/pryxd.service".into(), controllers } }
+    }
+
+    #[test]
+    fn a_spec_becomes_the_limits_its_controllers_can_enforce() {
+        let root = tempfile::tempdir().unwrap();
+        let mut spec = super::super::network::fixture_spec(root.path());
+        spec.memory_bytes = 256 * 1024 * 1024;
+        spec.pids_limit = 512;
+        let all = resources(vec![MEMORY, CPU, PIDS]);
+        assert_eq!(
+            all.limits(&spec),
+            Limits { memory_bytes: Some(268_435_456), cpu_quota_micros: Some(None), pids: Some(512) }
+        );
+        spec.nano_cpus = Some(250_000_000);
+        assert_eq!(all.limits(&spec).cpu_quota_micros, Some(Some(25_000)));
+        let memory = resources(vec![MEMORY, PIDS]);
+        assert_eq!(memory.limits(&spec).cpu_quota_micros, None);
+        assert_eq!(all.cgroup("0123456789abcdef"), Path::new("/sys/fs/cgroup/pryxd.service/pryx-0123456789abcdef"));
+    }
+
+    #[test]
+    fn limits_are_written_proved_and_recorded() {
+        let root = tempfile::tempdir().unwrap();
+        let mut spec = super::super::network::fixture_spec(root.path());
+        spec.memory_bytes = 128 * 1024 * 1024;
+        spec.pids_limit = 64;
+        spec.nano_cpus = Some(100_000_000);
+        for file in ["memory.max", "cpu.max", "pids.max"] {
+            fs::write(root.path().join(file), "max\n").unwrap();
+        }
+        let record = resources(vec![MEMORY, CPU, PIDS]).apply(root.path(), &spec).unwrap();
+        assert_eq!(record, Record { cgroup: root.path().into(), memory: true, cpu: true, pids: true });
+        assert_eq!(fs::read_to_string(root.path().join("cpu.max")).unwrap(), "10000 100000");
+        // A ceiling the cgroup can't hold is refused before anything runs, naming the guarantee.
+        let refused = resources(vec![MEMORY, PIDS]).apply(root.path(), &spec).unwrap_err().to_string();
+        assert!(refused.contains("cpu-limit") && refused.contains("no cpu controller"), "{refused}");
+    }
+
+    #[test]
+    fn the_host_document_names_what_is_missing() {
+        let all = Delegated { root: "/sys/fs/cgroup/u".into(), controllers: vec![MEMORY, CPU, PIDS] };
+        assert_eq!(capability(&Ok(all)).state, Proved::On);
+        let partial = capability(&Ok(Delegated { root: "/sys/fs/cgroup/u".into(), controllers: vec![MEMORY, PIDS] }));
+        assert_eq!(partial.state, Proved::Off);
+        assert!(partial.evidence.contains("only memory, pids"), "{}", partial.evidence);
+        let refused = crate::cgroup::Unavailable { evidence: "cgroup x is not delegated".into(), action: "delegate" };
+        let off = capability(&Err(refused));
+        assert_eq!(
+            (off.state, off.evidence.as_str(), off.action.as_str()),
+            (Proved::Off, "cgroup x is not delegated", "delegate")
+        );
+        assert!(cpu_problem(Some(&off)).starts_with("cpu-limit is unavailable on this host's process tier: cgroup x"));
+    }
+
+    #[test]
+    fn releasing_a_cgroup_that_is_gone_is_done() {
+        release(Path::new("/nonexistent-pryx-cgroup")).unwrap();
+    }
+}

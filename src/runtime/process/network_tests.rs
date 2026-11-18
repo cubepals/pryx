@@ -291,6 +291,7 @@ async fn a_failed_startup_proof_retires_an_orphaned_recorded_cgroup() {
             network_clean: false,
             network_stop_nonce: None,
             namespaced: None,
+            limits: None,
         })
         .unwrap();
     drop(network);

@@ -2,6 +2,14 @@
 //! The daemon's cgroup v2 location and a process sandbox's membership, fencing and release.
 //! These operations need only a writable delegated hierarchy; BPF programs and their pins
 //! belong to `bpf/`, and per-sandbox runtime policy belongs to `runtime/process/`.
+//!
+//! Parts (`cgroup/`):
+//! - `delegation.rs`: the daemon's own leaf, and the memory, cpu and pids controllers turned on
+//!   for its children.
+//! - `limits.rs`: one sandbox cgroup's limit files, its freezer and the kernel's counters.
+pub(crate) mod delegation;
+pub(crate) mod limits;
+
 use std::{
     fs, io,
     os::unix::fs::DirBuilderExt,

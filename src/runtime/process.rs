@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
 //! A sandbox supervisor without an engine, in namespaces and a cgroup of its own where the host
-//! gives them (`namespaces.rs`, `network.rs`). Private runtime journals
+//! gives them (`namespaces.rs`, `resources.rs`, `network.rs`). Private runtime journals
 //! allow adoption after daemon restart; process identities include kernel start ticks, not PID
 //! alone. The manager retains the existing epoch, snapshot and data-directory lifecycle.
 //!
@@ -14,6 +14,7 @@
 //! - `logs.rs`: bounded, safe entrypoint log replay and following.
 //! - `termination.rs`: stable tree freezing and orphan retirement.
 //! - `namespaces.rs`: the namespaced mode's helper, its arguments and its probe.
+//! - `resources.rs`: each sandbox's kernel-enforced memory, CPU and process limits, sleep's freezer.
 //! - `network.rs`: each sandbox's cgroup, kernel network policy and hostname gateways.
 //! - `network_tests.rs`: runtime-owned network adoption, retirement and launch checkpoint regressions.
 //! - `network_native_tests.rs`: protected cold artifact caches, lifecycle fences and filtered consumption.
@@ -35,6 +36,7 @@ mod network_native_tests;
 mod network_tests;
 mod observe;
 mod power;
+pub(crate) mod resources;
 mod termination;
 use super::*;
 use crate::config::ProcessConfig;
@@ -56,6 +58,9 @@ pub struct ProcessRuntime {
     /// A failed capability proof may still locate old cgroups for cleanup, never for launch.
     network_cleanup: Option<Arc<network::Network>>,
     network_capability: Option<crate::capability::Capability>,
+    /// Kernel-enforced limits, where this daemon's cgroup gives its sandboxes the controllers.
+    resources: Option<Arc<resources::Resources>>,
+    resources_capability: Option<crate::capability::Capability>,
 }
 pub use network::Served;
 struct State {
@@ -94,6 +99,9 @@ struct Entry {
     /// Set when the supervisor started in its own namespaces; absent in the plain mode.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub namespaced: Option<namespaces::Namespaced>,
+    /// The cgroup and limits the kernel enforced when it last started; absent without them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    limits: Option<resources::Record>,
 }
 
 use std::sync::Arc;
@@ -138,6 +146,12 @@ impl ContainerRuntime for ProcessRuntime {
     fn check_egress_addresses(&self, spec: &crate::protocol::WorkloadSpec) -> Result<(), String> {
         self.network.as_ref().map_or(Ok(()), |network| network.check(spec))
     }
+    fn process_limits(&self) -> Option<crate::capability::Capability> {
+        self.limits_capability()
+    }
+    fn cpu_ceiling_problem(&self) -> Option<String> {
+        self.cpu_problem()
+    }
     fn kernel_network_policy(&self) -> Option<crate::capability::Capability> {
         let proved = self.network_capability.clone()?;
         if proved.state == crate::capability::State::On && self.legacy_boot_uncertain() {
@@ -167,14 +181,19 @@ impl ContainerRuntime for ProcessRuntime {
         if !pryx_agent::process_capabilities::probe().filesystem {
             return Err(RuntimeError::Unavailable(pryx_agent::process_capabilities::FILESYSTEM_UNAVAILABLE.into()));
         }
+        use crate::cgroup::delegation::{CPU, MEMORY, PIDS};
+        let has = |controller: &str| self.resources.as_ref().is_some_and(|resources| resources.has(controller));
         Ok(RuntimeInfo {
             version: Some(env!("CARGO_PKG_VERSION").into()),
             storage_driver: Some("process".into()),
+            memory_limit: has(MEMORY),
+            cpu_limit: has(CPU),
+            pids_limit: has(PIDS),
             security_options: vec![
                 "landlock".into(),
                 "seccomp".into(),
                 if self.shared_uid() { "shared-uid" } else { "uid-pool" }.into(),
-                "sampled-rss".into(),
+                if has(MEMORY) { "cgroup-memory" } else { "sampled-rss" }.into(),
                 "network-seccomp".into(),
             ],
             ..Default::default()
@@ -203,7 +222,7 @@ impl ContainerRuntime for ProcessRuntime {
         self.launch(name).await
     }
     async fn stop(&self, name: &str, signal: &str, grace: Duration) -> Result<(), RuntimeError> {
-        self.signal_tree(name, rustix::process::Signal::CONT)?;
+        self.thaw_sandbox(name)?;
         self.prepare_legacy_stop(name).await?;
         self.signal_tree(
             name,
@@ -230,10 +249,10 @@ impl ContainerRuntime for ProcessRuntime {
         Err(RuntimeError::Timeout("Process tree did not stop".into()))
     }
     async fn pause(&self, name: &str) -> Result<(), RuntimeError> {
-        self.freeze_tree(name).await.map(|_| ())
+        self.freeze_sandbox(name).await
     }
     async fn unpause(&self, name: &str) -> Result<(), RuntimeError> {
-        self.signal_tree(name, rustix::process::Signal::CONT)
+        self.thaw_sandbox(name)
     }
     async fn disable_restart(&self, _: &str) -> Result<(), RuntimeError> {
         Ok(())
@@ -277,12 +296,15 @@ impl ContainerRuntime for ProcessRuntime {
         let entry = self.entry(name)?;
         let counts = self.network.as_ref().and_then(|network| network.counts(&entry.spec.name));
         Ok(observe::matching_pid(entry.pid, entry.ticks).map(|pid| RawStats {
-            memory_usage: observe::resident_tree(pid),
-            memory_limit: u64::try_from(entry.spec.memory_bytes).ok(),
-            pids_limit: u64::try_from(entry.spec.pids_limit).ok(),
             rx_bytes: counts.map(|counts| counts.ingress[1]),
             tx_bytes: counts.map(|counts| counts.egress[1]),
-            ..Default::default()
+            // The kernel's own count where the sandbox has a cgroup with limits.
+            ..self.limits_stats(&entry).unwrap_or_else(|| RawStats {
+                memory_usage: observe::resident_tree(pid),
+                memory_limit: u64::try_from(entry.spec.memory_bytes).ok(),
+                pids_limit: u64::try_from(entry.spec.pids_limit).ok(),
+                ..Default::default()
+            })
         }))
     }
     fn events(&self, _: &[String]) -> BoxStream<'static, Result<RuntimeEvent, RuntimeError>> {
