@@ -266,7 +266,7 @@ impl Tools {
                     .into(),
             ));
         }
-        if std::env::var_os(crate::process_policy::NETWORK_ENV).is_some() {
+        if crate::process_environment::var_os(crate::process_policy::NETWORK_ENV).is_some() {
             return Err(Failure(
                 StatusCode::NOT_IMPLEMENTED,
                 "unsupported",
@@ -321,7 +321,7 @@ impl Tools {
             return Err(Failure(axum::http::StatusCode::NOT_IMPLEMENTED,"unsupported",
                 self.policy.desktop_unavailable.clone().unwrap_or_else(|| "Native desktop needs an installation providing its verified bundle, host-glibc and private-namespace policy".into())));
         }
-        if std::env::var_os(crate::process_policy::NETWORK_ENV).is_some() {
+        if crate::process_environment::var_os(crate::process_policy::NETWORK_ENV).is_some() {
             return Err(Failure(
                 axum::http::StatusCode::NOT_IMPLEMENTED,
                 "unsupported",
@@ -382,7 +382,7 @@ impl Tools {
                     .into(),
             ));
         }
-        if std::env::var_os(crate::process_policy::NETWORK_ENV).is_some() {
+        if crate::process_environment::var_os(crate::process_policy::NETWORK_ENV).is_some() {
             return Err(Failure(
                 StatusCode::NOT_IMPLEMENTED,
                 "unsupported",
